@@ -188,7 +188,7 @@ FUSE_DECISION_OPTIONS:                                         # Model decisions
     ESOIL: [sequential]                                        # Evaporation from soil, Options: sequential (sequential evaporation), rootweight (root-weighted evaporation)
     QINTF: [intflwnone]                                        # Interflow from soil layers, Options: intflwnone (no interflow), intflwsome (interflow present)
     Q_TDH: [rout_gamma]                                        # Routing scheme, Options: rout_gamma (gamma distribution routing), no_routing (no routing)
-    SNOWM: [temp_index, no_snowmod]                            # Snow module, Options: temp_index (temperature index method), no_snowmod (no snow module)
+    SNOWM: [temp_index]                            # Snow module, Options: temp_index (temperature index method), no_snowmod (no snow module)
 
 ###  4.3 Model Specific settings: GR 
 SETTINGS_GR_PATH: default                                      # Path to GR run settings, if default self.project_dir / settings / GR
