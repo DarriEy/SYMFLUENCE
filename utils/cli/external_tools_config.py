@@ -82,7 +82,7 @@ def get_external_tools_definitions() -> Dict[str, Dict[str, Any]]:
                 r'''
 # Build SUNDIALS from release tarball (shared libs OK; SUMMA will link).
 SUNDIALS_VER=7.4.0
-SUNDIALSDIR="$(pwd)/install/sundials"
+SUNDIALSDIR="$(pwd)"
 rm -f "v${SUNDIALS_VER}.tar.gz" || true
 wget -q https://github.com/LLNL/sundials/archive/refs/tags/v${SUNDIALS_VER}.tar.gz \
   || curl -fsSL -o "v${SUNDIALS_VER}.tar.gz" https://github.com/LLNL/sundials/archive/refs/tags/v${SUNDIALS_VER}.tar.gz
@@ -331,7 +331,7 @@ fi
             'default_path_suffix': 'installs/t-route/src/troute-network',
             'default_exe': 'troute/network/__init__.py',
             'repository': 'https://github.com/NOAA-OWP/t-route.git',
-            'branch': 'main',
+            'branch': None,
             'install_dir': 't-route',
             'build_commands': [
                 r'''
