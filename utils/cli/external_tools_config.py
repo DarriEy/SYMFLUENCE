@@ -113,7 +113,7 @@ detect_netcdf() {
         fi
     fi
 
-    # Strategy 3: Check common system directories on macOS (Homebrew) and Linux
+    # Strategy 3: Check common system directories on macOS and Linux
     if [ -z "$NETCDF" ] || [ -z "$NETCDF_FORTRAN" ] || [ -z "$HDF5" ]; then
         COMMON_PATHS="
 /usr
@@ -220,7 +220,6 @@ detect_compilers() {
     
     # Strategy 3: HPC with EasyBuild or module-provided GCC
     elif [ "$IS_HPC" = true ]; then
-        # Check for EasyBuild GCC environment variables
         if [ -n "$EBVERSIONGCC" ] || [ -n "$EBROOTGCC" ]; then
             echo "  ✓ Found EasyBuild GCC module: ${EBVERSIONGCC:-unknown}"
             export CC="${CC:-gcc}"
@@ -228,7 +227,6 @@ detect_compilers() {
             export FC="${FC:-gfortran}"
             export FC_EXE="$FC"
         else
-            # Try generic module spider hints
             if command -v module >/dev/null 2>&1; then
                 if module list 2>&1 | grep -qi "gcc"; then
                     echo "  ✓ GCC module appears to be loaded"
@@ -357,8 +355,9 @@ def get_external_tools_definitions() -> Dict[str, Dict[str, Any]]:
             'description': 'SUNDIALS - SUite of Nonlinear and DIfferential/ALgebraic equation Solvers',
             'config_path_key': 'SUNDIALS_INSTALL_PATH',
             'config_exe_key': 'SUNDIALS_DIR',
-            'default_path_suffix': 'installs/sundials/install/sundials/',
-            'default_exe': 'lib/libsundials_core.a',
+            # Root directory for this tool under SYMFLUENCE_DATA_DIR
+            'default_path_suffix': 'installs/sundials/',
+            'default_exe': 'install/sundials/lib/libsundials_core.a',
             'repository': None,
             'branch': None,
             'install_dir': 'sundials',
@@ -480,7 +479,7 @@ fi
 REQUIRED_LIBS="sundials_core sundials_nvecserial"
 MISSING_LIBS=""
 for lib in $REQUIRED_LIBS; do
-    if [ ! -f "$LIBDIR/lib${lib}.a" ] && [ ! -f "$LIBDIR/lib${lib}.so" ]; then
+    if [ ! -f "$LIBDIR/lib${lib}.a" ] && [ ! -f "$LIBDIR/lib${lib}.so" ] && [ ! -f "$LIBDIR/lib${lib}.dylib" ]; then
         MISSING_LIBS="$MISSING_LIBS $lib"
     fi
 done
@@ -488,7 +487,7 @@ done
 if [ -n "$MISSING_LIBS" ]; then
     echo "  ❌ Missing required libraries:$MISSING_LIBS"
     echo "  📋 Available libraries:"
-    ls -la "$LIBDIR" | grep -E "\.a|\.so"
+    ls -la "$LIBDIR" | grep -E "\.a|\.so|\.dylib"
     exit 1
 fi
 
@@ -500,12 +499,15 @@ ls -la "$LIBDIR" | head -10
             'dependencies': [],
             'test_command': None,
             'verify_install': {
+                # Paths are relative to SUNDIALS_INSTALL_PATH, which is the tool root (installs/sundials/)
                 'file_paths': [
-                    'lib64/libsundials_core.a',
-                    'lib/libsundials_core.a',
-                    'lib64/libsundials_core.so',
-                    'lib/libsundials_core.so',
-                    'include/sundials/sundials_config.h'
+                    'install/sundials/lib/libsundials_core.a',
+                    'install/sundials/lib64/libsundials_core.a',
+                    'install/sundials/lib/libsundials_core.so',
+                    'install/sundials/lib64/libsundials_core.so',
+                    'install/sundials/lib/libsundials_core.dylib',
+                    'install/sundials/lib64/libsundials_core.dylib',
+                    'install/sundials/include/sundials/sundials_config.h'
                 ],
                 'check_type': 'exists_any'
             },
@@ -533,7 +535,7 @@ echo "🔨 Building SUMMA..."
 # Find SUNDIALS installation with multiple search strategies
 SUNDIALS_BASE=""
 
-# Strategy 1: Expected relative location
+# Strategy 1: Expected relative location (tool layout)
 if [ -d "$(dirname $(pwd))/sundials/install/sundials" ]; then
     SUNDIALS_BASE="$(cd $(dirname $(pwd))/sundials/install/sundials && pwd)"
     echo "  ✓ Found SUNDIALS at expected location"
@@ -592,6 +594,10 @@ export SUNDIALS_PATH="$SUNDIALS_BASE"
 
 # Move to build directory
 cd build || { echo "  ❌ build directory not found"; exit 1; }
+
+# SUMMA Makefile expects F_MASTER to point to the parent of the build directory
+export F_MASTER="$(cd .. && pwd)"
+echo "  ✓ F_MASTER set to: $F_MASTER"
 
 # Create Makefile configuration
 echo "  📝 Creating Makefile configuration..."
@@ -740,6 +746,10 @@ echo "  ✅ SUMMA build complete"
 echo "Building mizuRoute..."
 cd route/build/
 
+# mizuRoute Makefile expects F_MASTER to be the parent of the build directory
+export F_MASTER="$(cd .. && pwd)"
+echo "  ✓ F_MASTER set to: $F_MASTER"
+
 # Create/update Makefile configuration
 cat > Makefile.config <<EOF
 FC = ${FC}
@@ -763,6 +773,8 @@ if [ -f "mizuRoute.exe" ]; then
     echo "✅ mizuRoute built successfully"
 else
     echo "❌ mizuRoute build failed - executable not found"
+    echo "📋 Build directory contents:"
+    ls -la
     exit 1
 fi
                 '''
@@ -843,15 +855,37 @@ EOF
 
 # Build
 make clean 2>/dev/null || true
-make -j${NCORES} fuse.exe
+make -j${NCORES} 2>&1 | tee build.log
 
 # Install
 mkdir -p ../bin
-cp fuse.exe ../bin/
+
+# Try to find a FUSE executable
+FUSE_EXE=""
+for exe in fuse.exe fuse FUSE.exe FUSE; do
+    if [ -f "$exe" ]; then
+        FUSE_EXE="$exe"
+        break
+    fi
+done
+
+if [ -z "$FUSE_EXE" ]; then
+    # Fallback: any executable starting with "fuse"
+    FUSE_EXE=$(find . -maxdepth 1 -type f -perm -111 -name "fuse*" 2>/dev/null | head -n 1 || echo "")
+fi
+
+if [ -z "$FUSE_EXE" ]; then
+    echo "❌ Could not find FUSE executable after build"
+    echo "📋 Directory contents:"
+    ls -la
+    exit 1
+fi
+
+cp "$FUSE_EXE" ../bin/fuse.exe
 chmod +x ../bin/fuse.exe
 
 echo "🧪 Testing binary..."
-../bin/fuse.exe || true
+../bin/fuse.exe --help >/dev/null 2>&1 || true
 echo "✅ FUSE build successful"
                 '''
             ],
@@ -886,7 +920,7 @@ if [ -f requirements.txt ]; then
     ${SYMFLUENCE_PYTHON} -m pip install -r requirements.txt
 fi
 
-# Build core tools (this is a placeholder; actual build may use cmake or make)
+# Build core tools
 if [ -f "build.sh" ]; then
     bash build.sh
 elif [ -f "CMakeLists.txt" ]; then
@@ -900,12 +934,15 @@ fi
 
 # Stage executables
 mkdir -p bin
-for exe in pitremove slopearea streamnet threshold; do
-    if [ -f "$exe" ]; then
-        cp "$exe" bin/
-    elif [ -f "build/$exe" ]; then
-        cp "build/$exe" bin/
-    fi
+# Common TauDEM executables (include inundepth too)
+for exe in pitremove d8flowdir d8contributingarea aread8 dinfupgrid dinfdistdownstream streamnet threshold inundepth; do
+    for loc in "$exe" "src/$exe" "build/$exe" "build/src/$exe"; do
+        if [ -f "$loc" ]; then
+            cp "$loc" bin/
+            chmod +x "bin/$exe"
+            break
+        fi
+    done
 done
 
 echo "✅ TauDEM executables staged"
