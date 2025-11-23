@@ -325,19 +325,27 @@ fi
         # TROUTE - NOAA Next Generation River Routing (Python package)
         # ================================================================
         'troute': {
-            'description': "NOAA's Next Generation river routing model",
-            'config_path_key': 'TROUTE_INSTALL_PATH',
-            'config_exe_key': 'TROUTE_PKG_PATH',
-            'default_path_suffix': 'installs/t-route/src/troute-network',
-            'default_exe': 'troute/network/__init__.py',
-            'repository': 'https://github.com/NOAA-OWP/t-route.git',
-            'branch': None,
-            'install_dir': 't-route',
-            'build_commands': [
-                r'''
-# Attempt a non-fatal install of the local t-route network package.
-# Even if this fails (e.g., missing C sources), we don't want the whole
-# SYMFLUENCE toolchain install to die.
+        'description': "NOAA's Next Generation river routing model",
+        'config_path_key': 'TROUTE_INSTALL_PATH',
+        'config_exe_key': 'TROUTE_PKG_PATH',
+
+        # Correct base installation directory
+        'default_path_suffix': 'installs/t-route/src/troute-network',
+
+        # Correct default "executable" (package entry point)
+        'default_exe': 'troute/network/__init__.py',
+
+        'repository': 'https://github.com/NOAA-OWP/t-route.git',
+        'branch': None,   # Use upstream default (fixes 'main not found')
+
+        # Top-level clone folder
+        'install_dir': 't-route',
+
+        'build_commands': [
+        r'''
+# Non-fatal installation of the t-route Python package.
+# t-route intentionally does not stop SYMFLUENCE builds on pip failure.
+
 set +e
 
 echo "Installing t-route Python package (non-fatal if this step fails)..."
@@ -349,21 +357,36 @@ cd src/troute-network 2>/dev/null || {
 
 PYTHON_BIN="${SYMFLUENCE_PYTHON:-python3}"
 
+# Upgrade tools quietly; failure is allowed
 "$PYTHON_BIN" -m pip install --upgrade pip setuptools wheel >/dev/null 2>&1 || true
+
+# Try installing the package; if it fails, SYMFLUENCE continues
 "$PYTHON_BIN" -m pip install . --no-build-isolation --no-deps || true
 
 echo "t-route installation attempt complete (see any errors above)."
 exit 0
-                '''.strip()
-            ],
-            'dependencies': [],
-            'test_command': None,
-            'verify_install': {
-                'file_paths': ['troute/network/__init__.py'],
-                'check_type': 'exists'
-            },
-            'order': 4
+        '''.strip()
+    ],
+
+    'dependencies': [],
+    'test_command': None,
+
+    # 🔧 Correct verification logic:
+    #   The package ALWAYS lives in src/troute-network/troute/network/__init__.py
+    #   Not directly in install_dir/troute/...
+    'verify_install': {
+        'file_paths': [
+            # Correct full layout (as seen in all logs)
+            'src/troute-network/troute/network/__init__.py',
+            # Fallback if upstream ever changes structure
+            'troute/network/__init__.py',
+        ],
+        'check_type': 'exists_any'
+    },
+
+    'order': 4
         },
+
 
         # ================================================================
         # FUSE - Framework for Understanding Structural Errors
