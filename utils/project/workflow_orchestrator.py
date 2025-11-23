@@ -136,17 +136,14 @@ class WorkflowOrchestrator:
             ),
             (
                 self.managers['data'].acquire_forcings,
-                lambda: (self.project_dir / "forcing" / 
-                        "raw_data").exists(),
+                lambda: (self.project_dir / "forcing" / "raw_data").exists(),
                 "Acquiring meteorological forcing data"
             ),
-
+            (
                 self.managers['data'].run_model_agnostic_preprocessing,
-                lambda: (self.project_dir / "forcing" / 
-                        f"basin_averaged_data").exists(),
+                lambda: (self.project_dir / "forcing" / "basin_averaged_data").exists(),
                 "Running model-agnostic data preprocessing"
             ),
-            
             # --- Model-Specific Preprocessing and Execution ---
             (
                 self.managers['model'].preprocess_models,
