@@ -69,10 +69,12 @@ def get_external_tools_definitions() -> Dict[str, Dict[str, Any]]:
         # ================================================================
         # SUNDIALS - Solver Library (Install First - Required by SUMMA)
         # ================================================================
-        'sundials': {
+            'sundials': {
             'description': 'SUNDIALS - SUite of Nonlinear and DIfferential/ALgebraic equation Solvers',
             'config_path_key': 'SUNDIALS_INSTALL_PATH',
             'config_exe_key': 'SUNDIALS_DIR',
+            # This is what the rest of the code & validator expect:
+            # <SYMFLUENCE_ROOT>/installs/sundials/install/sundials/
             'default_path_suffix': 'installs/sundials/install/sundials/',
             'default_exe': 'lib/libsundials_core.a',
             'repository': None,
@@ -81,26 +83,40 @@ def get_external_tools_definitions() -> Dict[str, Dict[str, Any]]:
             'build_commands': [
                 r'''
 # Build SUNDIALS from release tarball (shared libs OK; SUMMA will link).
+set -e
+
 SUNDIALS_VER=7.4.0
-SUNDIALSDIR="$(pwd)"
+
+# Tool install root, e.g.  .../SYMFLUENCE_data/installs/sundials
+SUNDIALS_ROOT_DIR="$(pwd)"
+
+# Actual install prefix, consistent with default_path_suffix and SUMMA:
+#   .../installs/sundials/install/sundials
+SUNDIALS_PREFIX="${SUNDIALS_ROOT_DIR}/install/sundials"
+mkdir -p "${SUNDIALS_PREFIX}"
+
 rm -f "v${SUNDIALS_VER}.tar.gz" || true
-wget -q https://github.com/LLNL/sundials/archive/refs/tags/v${SUNDIALS_VER}.tar.gz \
-  || curl -fsSL -o "v${SUNDIALS_VER}.tar.gz" https://github.com/LLNL/sundials/archive/refs/tags/v${SUNDIALS_VER}.tar.gz
-tar -xzf v${SUNDIALS_VER}.tar.gz
+wget -q "https://github.com/LLNL/sundials/archive/refs/tags/v${SUNDIALS_VER}.tar.gz" \
+  || curl -fsSL -o "v${SUNDIALS_VER}.tar.gz" "https://github.com/LLNL/sundials/archive/refs/tags/v${SUNDIALS_VER}.tar.gz"
+
+tar -xzf "v${SUNDIALS_VER}.tar.gz"
 cd "sundials-${SUNDIALS_VER}"
+
 rm -rf build && mkdir build && cd build
 cmake .. \
   -DBUILD_FORTRAN_MODULE_INTERFACE=ON \
   -DCMAKE_Fortran_COMPILER=gfortran \
-  -DCMAKE_INSTALL_PREFIX="$SUNDIALSDIR" \
+  -DCMAKE_INSTALL_PREFIX="${SUNDIALS_PREFIX}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_SHARED_LIBS=ON \
   -DEXAMPLES_ENABLE=OFF \
   -DBUILD_TESTING=OFF
+
 cmake --build . --target install -j ${NCORES:-4}
-# print lib dir for debug
-[ -d "$SUNDIALSDIR/lib64" ] && ls -la "$SUNDIALSDIR/lib64" | head -20 || true
-[ -d "$SUNDIALSDIR/lib" ] && ls -la "$SUNDIALSDIR/lib" | head -20 || true
+
+# Debug: show where the libs landed
+[ -d "${SUNDIALS_PREFIX}/lib64" ] && ls -la "${SUNDIALS_PREFIX}/lib64" | head -20 || true
+[ -d "${SUNDIALS_PREFIX}/lib" ] && ls -la "${SUNDIALS_PREFIX}/lib" | head -20 || true
                 '''.strip()
             ],
             'dependencies': [],
@@ -115,6 +131,7 @@ cmake --build . --target install -j ${NCORES:-4}
             },
             'order': 1
         },
+
 
         # ================================================================
         # SUMMA - Hydrological Model
