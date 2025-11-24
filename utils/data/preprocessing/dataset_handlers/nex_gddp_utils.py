@@ -51,126 +51,132 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
         }
 
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
-        """
-        Process a single NEX-GDDP-CMIP6 dataset:
+        ds = ds.copy()
 
-          - Rename native NEX variables to SYMFLUENCE / SUMMA names
-          - Convert units where needed
-          - Ensure presence of the standard forcing variables expected downstream.
-        """
-        # --- NEW: clean problematic attrs that conflict with xarray encodings ---
-        # NEX-GDDP files often carry 'missing_value' in attrs *and* encodings.
-        # xarray will error on to_netcdf if both exist, so we strip the attr copy.
-        ds = ds.copy()  # avoid mutating caller’s dataset
+        # Remove problematic missing_value attrs (already there)
         for vname, var in ds.variables.items():
             if "missing_value" in var.attrs:
-                # optional debug log if you like
-                # self.logger.debug(f"Removing 'missing_value' from attrs of {vname}")
                 var.attrs.pop("missing_value", None)
 
         var_map = self.get_variable_mapping()
-
-        # Only rename variables that exist in this dataset
-        rename_map = {
-            src: tgt for src, tgt in var_map.items()
-            if src in ds.data_vars
-        }
+        rename_map = {src: tgt for src, tgt in var_map.items() if src in ds.data_vars}
         if rename_map:
-            self.logger.debug(
-                f"Renaming NEX-GDDP-CMIP6 variables: {rename_map}"
-            )
+            self.logger.debug(f"Renaming NEX-GDDP-CMIP6 variables: {rename_map}")
             ds = ds.rename(rename_map)
 
-        # ---------------- Variable-specific handling ----------------
-
-        # Precipitation: pr -> pptrate [kg m-2 s-1] (equivalent to mm/s)
+        # ---- Precipitation: pr -> pptrate [kg m-2 s-1] ----
         if "pptrate" in ds.data_vars:
-            pr = ds["pptrate"]
-            # Ensure we end up with float and clean metadata
-            ds["pptrate"] = pr.astype("float32")
-            ds["pptrate"].attrs.update(
+            pr = ds["pptrate"].astype("float32")
+
+            # clean NaNs / negatives
+            pr = xr.where(np.isfinite(pr), pr, 0.0)
+            pr = xr.where(pr < 0.0, 0.0, pr)
+
+            pr.attrs.update(
                 long_name="Total precipitation rate",
-                units="kg m-2 s-1",
+                units="kg m-2 s-1",    # ≡ mm/s
                 standard_name="precipitation_flux",
             )
+            ds["pptrate"] = pr
 
-        # Longwave radiation: rlds -> LWRadAtm [W m-2]
+        # ---- Longwave radiation ----
         if "LWRadAtm" in ds.data_vars:
-            lw = ds["LWRadAtm"]
-            ds["LWRadAtm"] = lw.astype("float32")
-            ds["LWRadAtm"].attrs.update(
+            lw = ds["LWRadAtm"].astype("float32")
+            lw = xr.where(np.isfinite(lw), lw, np.nan)
+            lw.attrs.update(
                 long_name="Downwelling longwave radiation at surface",
                 units="W m-2",
+                standard_name="surface_downwelling_longwave_flux_in_air",
             )
+            ds["LWRadAtm"] = lw
 
-        # Shortwave radiation: rsds -> SWRadAtm [W m-2]
+        # ---- Shortwave radiation ----
         if "SWRadAtm" in ds.data_vars:
-            sw = ds["SWRadAtm"]
-            ds["SWRadAtm"] = sw.astype("float32")
-            ds["SWRadAtm"].attrs.update(
+            sw = ds["SWRadAtm"].astype("float32")
+            sw = xr.where(np.isfinite(sw), sw, np.nan)
+            sw.attrs.update(
                 long_name="Downwelling shortwave radiation at surface",
                 units="W m-2",
+                standard_name="surface_downwelling_shortwave_flux_in_air",
             )
+            ds["SWRadAtm"] = sw
 
-        # Near-surface air temperature: tas -> airtemp [K]
+        # ---- Air temperature ----
         if "airtemp" in ds.data_vars:
-            ta = ds["airtemp"]
-            ds["airtemp"] = ta.astype("float32")
-            ds["airtemp"].attrs.update(
+            ta = ds["airtemp"].astype("float32")
+            ta = xr.where(np.isfinite(ta), ta, np.nan)
+            ta.attrs.update(
                 long_name="Near-surface air temperature",
                 units="K",
+                standard_name="air_temperature",
             )
+            ds["airtemp"] = ta
 
-        # Near-surface specific humidity / relative humidity:
-        #   - if hurs (relative humidity) is available, we keep it as-is for now
-        #   - if huss is available in some variants, you could map it to spechum
-        if "hurs" in ds.data_vars and "spechum" not in ds.data_vars:
+        # ---- Specific humidity / relative humidity ----
+        if "spechum" in ds.data_vars:
+            q = ds["spechum"].astype("float32")
+            q = xr.where(np.isfinite(q), q, np.nan)
+            q.attrs.update(
+                long_name="Near-Surface Specific Humidity",
+                units="kg kg-1",
+                standard_name="specific_humidity",
+            )
+            ds["spechum"] = q
+        elif "hurs" in ds.data_vars:
+            # fallback: relative humidity as spechum (percent)
             hurs = ds["hurs"].astype("float32")
-            ds["spechum"] = hurs
-            ds["spechum"].attrs.update(
+            hurs = xr.where(np.isfinite(hurs), hurs, np.nan)
+            hurs.attrs.update(
                 long_name="Near-surface relative humidity",
                 units="percent",
             )
+            ds["spechum"] = hurs
 
-        # Wind speed at 10m: sfcWind -> windspd [m s-1]
+        # ---- Wind speed ----
         if "windspd" in ds.data_vars:
-            ws = ds["windspd"]
-            ds["windspd"] = ws.astype("float32")
-            ds["windspd"].attrs.update(
+            ws = ds["windspd"].astype("float32")
+            ws = xr.where(np.isfinite(ws), ws, np.nan)
+            ws.attrs.update(
                 long_name="Near-surface wind speed",
                 units="m s-1",
+                standard_name="wind_speed",
             )
+            ds["windspd"] = ws
 
-        # Keep only the standardized forcing variables plus coordinates
+        # ---- Air pressure (if present) ----
+        if "airpres" in ds.data_vars:
+            ap = ds["airpres"].astype("float32")
+            ap = xr.where(np.isfinite(ap), ap, np.nan)
+            ap.attrs.update(
+                long_name="surface air pressure",
+                units="Pa",
+                standard_name="air_pressure",
+            )
+            ds["airpres"] = ap
+
         keep_vars = [
             v for v in [
-                "pptrate",
-                "LWRadAtm",
-                "SWRadAtm",
-                "airtemp",
-                "spechum",
-                "windspd",
-                "airpres",  
+                "pptrate", "LWRadAtm", "SWRadAtm",
+                "airtemp", "spechum", "windspd", "airpres",
             ]
             if v in ds.data_vars
         ]
 
-
         if not keep_vars:
             self.logger.warning(
-                "NEX-GDDP-CMIP6 process_dataset produced no forcing variables; "
-                "dataset will be empty."
+                "NEX-GDDP-CMIP6 process_dataset produced no forcing variables; dataset will be empty."
             )
             return ds
 
         ds_out = ds[keep_vars]
 
-        # Make sure lat/lon coords are preserved
+        # preserve lat/lon coords
         for coord in ("lat", "lon"):
             if coord in ds.coords and coord not in ds_out.coords:
                 ds_out = ds_out.assign_coords({coord: ds.coords[coord]})
 
         return ds_out
+
 
 
     # --------------------- Coordinates -------------------------
