@@ -819,8 +819,17 @@ class CloudForcingDownloader:
                         "'tas' variable is missing in monthly subset."
                     )
 
+                # Base sea-level pressure
                 p0 = 101325.0  # Pa
-                airpres = xr.full_like(ds_m["tas"], p0)
+
+                # Optional domain mean elevation in meters from config (fallback 0 m)
+                z_mean = float(self.config.get("DOMAIN_MEAN_ELEV_M", 0.0))
+
+                # Simple scale-height approximation
+                H = 8400.0  # m
+                p_surf = p0 * np.exp(-z_mean / H)
+
+                airpres = xr.full_like(ds_m["tas"], p_surf, dtype="float32")
                 airpres.name = "airpres"
                 airpres.attrs.update(
                     {
@@ -828,19 +837,18 @@ class CloudForcingDownloader:
                         "standard_name": "surface_air_pressure",
                         "units": "Pa",
                         "comment": (
-                            "Constant 101325 Pa used as synthetic surface air pressure "
-                            "for NEX-GDDP-CMIP6 forcings; original dataset does not "
-                            "provide surface pressure. Intended for VIC/EASYMORE preprocessing."
+                            "Approximate surface pressure from p0=101325 Pa using a scale height "
+                            f"H={H} m and domain mean elevation z_mean={z_mean} m."
                         ),
                     }
                 )
                 ds_m["airpres"] = airpres
                 self.logger.info(
-                    "Adding synthetic surface air pressure 'airpres' to NEX-GDDP-CMIP6 "
-                    "monthly slice for %s as constant %g Pa.",
-                    ms.strftime("%Y-%m"), p0
+                    "Adding approximate surface air pressure 'airpres' to NEX-GDDP-CMIP6 "
+                    "monthly slice for %s using z_mean=%g m, p_surf=%g Pa.",
+                    ms.strftime("%Y-%m"), z_mean, p_surf,
                 )
-
+                
             month_fname = f"{base_prefix}_{ms.year:04d}{ms.month:02d}.nc"
             month_path = output_dir / month_fname
 
