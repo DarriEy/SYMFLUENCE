@@ -21,7 +21,9 @@ class AORCHandler(BaseDatasetHandler):
     and stored on a regular lat/lon grid with coordinates:
         latitude, longitude
     """
-
+    def __init__(self, config, logger, project_dir, forcing_timestep_seconds=3600):
+        super().__init__(config, logger, project_dir)
+        self.forcing_timestep_seconds = float(forcing_timestep_seconds)
     # ---------- Variable mapping / standardization ----------
 
     def get_variable_mapping(self) -> Dict[str, str]:
@@ -49,9 +51,16 @@ class AORCHandler(BaseDatasetHandler):
         Process AORC dataset:
         - rename variables to standard names
         - derive wind speed from u/v
+        - convert accumulated precip to rate
         - ensure clean attributes
         """
         var_map = self.get_variable_mapping()
+
+        # Keep original APCP attrs BEFORE rename so we can inspect units
+        apcp_attrs = {}
+        if 'APCP_surface' in ds.variables:
+            apcp_attrs = dict(ds['APCP_surface'].attrs)
+
         existing = {old: new for old, new in var_map.items() if old in ds.variables}
         ds = ds.rename(existing)
 
@@ -68,44 +77,72 @@ class AORCHandler(BaseDatasetHandler):
             }
             ds['windspd'] = windspd
 
-        # ---- Set / clean attributes similar to other handlers ----
+        # ---- Precip: convert accumulation -> rate (mm/s) ----
+        if 'pptrate' in ds:
+            p = ds['pptrate']
+
+            # Units before rename
+            units = (apcp_attrs.get('units') or p.attrs.get('units', '')).lower()
+            units_no_space = units.replace(' ', '')
+
+            dt_seconds = float(self.forcing_timestep_seconds)
+
+            # Clean inputs: no NaNs, no negatives
+            p = xr.where(np.isfinite(p), p, 0.0)
+            p = xr.where(p < 0.0, 0.0, p)
+
+            # Detect accumulated precip
+            accum_keywords = [
+                'kgm-2', 'kgm^-2', 'kg/m^2', 'kg/m2', 'kgm**-2', 'mm'
+            ]
+
+            if any(k in units_no_space for k in accum_keywords):
+                p_rate = p / dt_seconds
+            elif any(k in units_no_space for k in ['kgm-2s-1', 'kgm^-2s^-1', 'kg/m^2s']):
+                p_rate = p    # already a rate
+            else:
+                self.logger.warning(
+                    f"Unrecognized precip units for AORC: '{units}', assuming accumulation."
+                )
+                p_rate = p / dt_seconds
+
+            # Final cleanup
+            p_rate = xr.where(np.isfinite(p_rate), p_rate, 0.0)
+            p_rate = xr.where(p_rate < 0.0, 0.0, p_rate)
+
+            p_rate.attrs = {
+                'units': 'mm/s',
+                'long_name': 'Mean total precipitation rate',
+                'standard_name': 'precipitation_flux',
+            }
+            ds['pptrate'] = p_rate
+
+
+        # ---- Set / clean other attributes (as you already do) ----
         if 'airpres' in ds:
             ds['airpres'].attrs = {
                 'units': 'Pa',
                 'long_name': 'air pressure',
                 'standard_name': 'air_pressure'
             }
-
         if 'airtemp' in ds:
             ds['airtemp'].attrs = {
                 'units': 'K',
                 'long_name': 'air temperature',
                 'standard_name': 'air_temperature'
             }
-
-        if 'pptrate' in ds:
-            # remove any inherited encoding-style attrs to avoid xarray conflicts
-            ds['pptrate'].attrs.pop('missing_value', None)
-            ds['pptrate'].attrs = {
-                'units': 'm s-1',
-                'long_name': 'precipitation rate',
-                'standard_name': 'precipitation_rate'
-            }
-
         if 'spechum' in ds:
             ds['spechum'].attrs = {
                 'units': 'kg kg-1',
                 'long_name': 'specific humidity',
                 'standard_name': 'specific_humidity'
             }
-
         if 'LWRadAtm' in ds:
             ds['LWRadAtm'].attrs = {
                 'units': 'W m-2',
                 'long_name': 'downward longwave radiation at the surface',
                 'standard_name': 'surface_downwelling_longwave_flux_in_air'
             }
-
         if 'SWRadAtm' in ds:
             ds['SWRadAtm'].attrs = {
                 'units': 'W m-2',
@@ -114,6 +151,7 @@ class AORCHandler(BaseDatasetHandler):
             }
 
         return ds
+
 
     # ---------- Coordinate info ----------
 
