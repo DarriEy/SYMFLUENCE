@@ -68,7 +68,20 @@ class DatasetRegistry:
             )
         
         handler_class = cls._handlers[dataset_name_lower]
-        return handler_class(config, logger, project_dir)
+
+        # Pull forcing timestep from config (default to 3600 if missing)
+        forcing_dt = config.get("FORCING_TIME_STEP_SIZE", 3600)
+
+        # Only AORC currently needs the explicit timestep
+        if dataset_name_lower == "aorc":
+            return handler_class(
+                config=config,
+                logger=logger,
+                project_dir=project_dir,
+                forcing_timestep_seconds=forcing_dt,
+            )
+        else:
+            return handler_class(config, logger, project_dir)
     
     @classmethod
     def list_datasets(cls) -> list:
