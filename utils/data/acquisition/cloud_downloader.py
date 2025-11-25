@@ -55,101 +55,99 @@ from functools import partial
 import logging
 
 
-def _process_era5_chunk(
-    chunk_info: Tuple[int, Tuple, str, Dict, Path, List[str], int, float, float, float, float]
+def _process_era5_chunk_threadsafe(
+    chunk_idx: int,
+    chunk_times: Tuple[pd.Timestamp, pd.Timestamp],
+    ds: "xr.Dataset",
+    available_vars: List[str],
+    step: int,
+    lat_min_raw: float,
+    lat_max_raw: float,
+    lon_min: float,
+    lon_max: float,
+    output_dir: Path,
+    domain_name: str,
+    total_chunks: int,
+    logger: Optional[logging.Logger] = None,
 ) -> Tuple[int, Optional[Path], str]:
     """
-    Process a single ERA5 chunk for parallel execution.
-    
-    This function is designed to be called by ProcessPoolExecutor workers.
-    
-    Parameters
-    ----------
-    chunk_info : tuple
-        Contains (chunk_idx, chunk_times, zarr_store, config_subset, output_dir, 
-                 available_vars, step, lat_min_raw, lat_max_raw, lon_min, lon_max)
-    
+    Thread-safe ERA5 chunk processor.
+
+    Unlike _process_era5_chunk (used with ProcessPoolExecutor),
+    this function:
+      - does NOT open the Zarr store,
+      - works directly on an existing xarray.Dataset `ds`,
+      - is safe to call from multiple threads.
+
     Returns
     -------
-    tuple
-        (chunk_idx, output_file_path or None, status_message)
+    (chunk_idx, output_file_or_None, status_message)
     """
+    import xarray as xr
+    import numpy as np
+    import pandas as pd
+
+    chunk_start, chunk_end = chunk_times
+
+    log = logger.info if logger is not None else print
+
     try:
-        import xarray as xr
-        import pandas as pd
-        import numpy as np
-        import gcsfs
-        from pathlib import Path
-        
-        # Unpack chunk information
-        (chunk_idx, (chunk_start, chunk_end), zarr_store, config_subset, 
-         output_dir, available_vars, step, lat_min_raw, lat_max_raw, 
-         lon_min, lon_max) = chunk_info
-        
-        total_chunks = config_subset.get('total_chunks', 1)
-        domain_name = config_subset.get('DOMAIN_NAME', 'domain')
-        
-        # Open the Zarr store (each worker opens independently)
-        gcs = gcsfs.GCSFileSystem(token="anon")
-        mapper = gcs.get_mapper(zarr_store)
-        ds = xr.open_zarr(mapper, consolidated=True, chunks={})
-        
-        # Load coordinates
-        ds = ds.assign_coords(
-            longitude=ds.longitude.load(),
-            latitude=ds.latitude.load(),
-            time=ds.time.load(),
-        )
-        
-        # 1) Subset in time
-        #    For chunks after the first, pull one extra timestep before the
-        #    nominal chunk_start so that, after we take finite differences of
-        #    accumulated fields and drop the first timestep, the time axis of
-        #    all monthly NetCDFs stays 1-hour continuous for SUMMA.
+        # 1) Time range (with one extra step for finite differences
+        #    after the first chunk)
         if chunk_idx == 1:
             time_start = chunk_start
         else:
-            # step is the temporal step in hours (e.g., 1 for hourly ERA5)
             time_start = chunk_start - pd.Timedelta(hours=step)
 
         ds_t = ds.sel(time=slice(time_start, chunk_end))
 
         if "time" not in ds_t.dims or ds_t.sizes["time"] < 2:
-            return (chunk_idx, None, f"Chunk {chunk_idx}/{total_chunks}: Fewer than 2 timesteps, skipped")
+            msg = f"Chunk {chunk_idx}/{total_chunks}: <2 timesteps, skipped"
+            return (chunk_idx, None, msg)
 
-        
-        # 2) Subset in space
+        # 2) Spatial subset
         ds_ts = ds_t.sel(
             latitude=slice(lat_max_raw, lat_min_raw),
             longitude=slice(lon_min, lon_max),
         )
-        
-        # 3) Apply temporal thinning
+
+        # 3) Temporal thinning
         if step > 1 and "time" in ds_ts.dims:
             ds_ts = ds_ts.isel(time=slice(0, None, step))
-        
+
         if "time" not in ds_ts.dims or ds_ts.sizes["time"] < 2:
-            return (chunk_idx, None, f"Chunk {chunk_idx}/{total_chunks}: Fewer than 2 timesteps after thinning, skipped")
-        
+            msg = (
+                f"Chunk {chunk_idx}/{total_chunks}: "
+                "<2 timesteps after thinning, skipped"
+            )
+            return (chunk_idx, None, msg)
+
         # 4) Select variables
         chunk_vars = [v for v in available_vars if v in ds_ts.data_vars]
         if not chunk_vars:
-            return (chunk_idx, None, f"Chunk {chunk_idx}/{total_chunks}: No variables available, skipped")
-        
+            msg = f"Chunk {chunk_idx}/{total_chunks}: no requested vars present, skipped"
+            return (chunk_idx, None, msg)
+
         ds_chunk_raw = ds_ts[chunk_vars]
-        
+
         # 5) Convert to SUMMA schema
         ds_chunk = _era5_to_summa_schema_standalone(ds_chunk_raw)
-        
         if "time" not in ds_chunk.dims or ds_chunk.sizes["time"] < 1:
-            return (chunk_idx, None, f"Chunk {chunk_idx}/{total_chunks}: No timesteps after SUMMA conversion, skipped")
-        
-        # Build filename
+            msg = (
+                f"Chunk {chunk_idx}/{total_chunks}: "
+                "no timesteps after SUMMA conversion, skipped"
+            )
+            return (chunk_idx, None, msg)
+
+        # 6) Build filename
         file_year = chunk_start.year
         file_month = chunk_start.month
-        chunk_file = output_dir / f"domain_{domain_name}_ERA5_merged_{file_year}{file_month:02d}.nc"
-        
-        # Set up encoding
+        chunk_file = (
+            output_dir
+            / f"domain_{domain_name}_ERA5_merged_{file_year}{file_month:02d}.nc"
+        )
+
+        # 7) Encoding
         encoding = {}
         for var in ds_chunk.data_vars:
             encoding[var] = {
@@ -161,14 +159,16 @@ def _process_era5_chunk(
                     ds_chunk.sizes["longitude"],
                 ),
             }
-        
-        # Write to NetCDF
+
+        # 8) Write NetCDF (each thread writes its own file)
         ds_chunk.to_netcdf(chunk_file, encoding=encoding, compute=True)
-        
-        return (chunk_idx, chunk_file, f"Chunk {chunk_idx}/{total_chunks}: Success")
-        
+
+        msg = f"Chunk {chunk_idx}/{total_chunks}: wrote {chunk_file}"
+        return (chunk_idx, chunk_file, msg)
+
     except Exception as e:
-        return (chunk_idx, None, f"Chunk {chunk_idx}/{total_chunks}: Error - {str(e)}")
+        msg = f"Chunk {chunk_idx}/{total_chunks}: Error - {e}"
+        return (chunk_idx, None, msg)
 
 
 def _era5_to_summa_schema_standalone(ds_chunk):
@@ -251,52 +251,76 @@ def _era5_to_summa_schema_standalone(ds_chunk):
             "standard_name": "specific_humidity",
         })
         out["spechum"] = spechum
-    
-    # Helper for accumulated → rate conversion
-    time = ds_chunk["time"]
-    dt = (time.diff("time") / np.timedelta64(1, "s")).astype("float32")
-    
-    def _accum_to_rate(var_name, out_name, units, long_name, standard_name):
-        if var_name not in ds_chunk:
-            return
-        
-        accum = ds_chunk[var_name]
-        diff = accum.diff("time")
-        rate = (diff / dt).astype("float32")
-        rate.name = out_name
-        rate.attrs.update({
-            "units": units,
-            "long_name": long_name,
-            "standard_name": standard_name,
-        })
-        out[out_name] = rate
-    
-    # Precipitation: m -> m s-1
-    _accum_to_rate(
-        "total_precipitation",
-        "pptrate",
-        "m s-1",
-        "precipitation rate",
-        "precipitation_rate",
-    )
-    
-    # Shortwave radiation: J m-2 -> W m-2
-    _accum_to_rate(
-        "surface_solar_radiation_downwards",
-        "SWRadAtm",
-        "W m-2",
-        "surface downwelling shortwave radiation",
-        "surface_downwelling_shortwave_flux_in_air",
-    )
-    
-    # Longwave radiation: J m-2 -> W m-2
-    _accum_to_rate(
-        "surface_thermal_radiation_downwards",
-        "LWRadAtm",
-        "W m-2",
-        "surface downwelling longwave radiation",
-        "surface_downwelling_longwave_flux_in_air",
-    )
+                
+        time = ds_chunk["time"]
+        dt = (time.diff("time") / np.timedelta64(1, "s")).astype("float32")
+
+        def _accum_to_rate(
+            var_name,
+            out_name,
+            units,
+            long_name,
+            standard_name,
+            scale_factor=1.0,
+        ):
+            if var_name not in ds_chunk:
+                return
+
+            accum = ds_chunk[var_name]
+
+            # Finite differences of the accumulated field
+            diff = accum.diff("time")
+
+            # 1) Handle ERA5 accumulation resets:
+            #    when the accumulator resets to 0, diff < 0 → set those increments to 0.
+            diff = diff.where(diff >= 0, 0)
+
+            # 2) Convert to rate and scale units
+            rate = (diff / dt) * scale_factor
+
+            # 3) Guard against any remaining tiny negatives from FP noise
+            rate = rate.clip(min=0).astype("float32")
+
+            rate.name = out_name
+            rate.attrs.update(
+                {
+                    "units": units,
+                    "long_name": long_name,
+                    "standard_name": standard_name,
+                }
+            )
+            out[out_name] = rate
+
+
+        # Precipitation: m -> mm s-1  (multiply by 1000)
+        _accum_to_rate(
+            "total_precipitation",
+            "pptrate",
+            "mm/s",
+            "precipitation rate",
+            "precipitation_rate",
+            scale_factor=1000.0,
+        )
+
+        # Shortwave radiation: J m-2 -> W m-2
+        _accum_to_rate(
+            "surface_solar_radiation_downwards",
+            "SWRadAtm",
+            "W m-2",
+            "surface downwelling shortwave radiation",
+            "surface_downwelling_shortwave_flux_in_air",
+            scale_factor=1.0,
+        )
+
+        # Longwave radiation: J m-2 -> W m-2
+        _accum_to_rate(
+            "surface_thermal_radiation_downwards",
+            "LWRadAtm",
+            "W m-2",
+            "surface downwelling longwave radiation",
+            "surface_downwelling_longwave_flux_in_air",
+            scale_factor=1.0,
+        )
     
     return out
 
@@ -848,7 +872,7 @@ class CloudForcingDownloader:
                     "monthly slice for %s using z_mean=%g m, p_surf=%g Pa.",
                     ms.strftime("%Y-%m"), z_mean, p_surf,
                 )
-                
+
             month_fname = f"{base_prefix}_{ms.year:04d}{ms.month:02d}.nc"
             month_path = output_dir / month_fname
 
@@ -1183,109 +1207,116 @@ class CloudForcingDownloader:
             output_dir.mkdir(parents=True, exist_ok=True)
             domain_name = self.config.get("DOMAIN_NAME", "domain")
 
-            # ------------------- Parallel processing setup -------------------
-            # Determine number of parallel workers
-            n_workers = self.config.get('ERA5_PARALLEL_WORKERS', 
-                                       self.config.get('MPI_PROCESSES', 4))
-            n_workers = max(1, int(n_workers))  # At least 1 worker
-            n_workers = min(n_workers, len(chunks))  # No more workers than chunks
-            
-            self.logger.info(f"Processing {len(chunks)} chunks using {n_workers} parallel workers")
+            # ------------------- Serial, optimised processing -------------------
+            # If user sets ERA5_PARALLEL_WORKERS <= 1, use a no-ProcessPool, single-open path
+            n_workers = int(self.config.get('MPI_PROCESSES', 1))
+            if n_workers <= 1:
+                self.logger.info("Using optimised *serial* ERA5 processing (no ProcessPoolExecutor)")
+                chunk_files = []
 
-            # Prepare config subset for workers (only serializable data)
-            config_subset = {
-                'DOMAIN_NAME': domain_name,
-                'total_chunks': len(chunks),
-            }
-            
-            # Prepare chunk information for parallel processing
-            chunk_infos = []
-            for i, (chunk_start, chunk_end) in enumerate(chunks, start=1):
-                chunk_info = (
-                    i,  # chunk index
-                    (chunk_start, chunk_end),
-                    zarr_store,
-                    config_subset,
-                    output_dir,
-                    available_vars,
-                    step,
-                    lat_min_raw,
-                    lat_max_raw,
-                    lon_min,
-                    lon_max,
-                )
-                chunk_infos.append(chunk_info)
-            
-            # ------------------- Process chunks in parallel -------------------
-            chunk_files: list[Path] = []
-            completed = 0
-            total_chunks = len(chunks)
-            
-            if n_workers == 1:
-                # Sequential processing (for debugging or single-core systems)
-                self.logger.info("Using sequential processing (n_workers=1)")
-                for chunk_info in chunk_infos:
-                    chunk_idx, chunk_file, status = _process_era5_chunk(chunk_info)
-                    self.logger.info(f"[ERA5 {chunk_idx}/{total_chunks}] {status}")
-                    if chunk_file is not None:
-                        chunk_files.append(chunk_file)
-                    completed += 1
-                    if completed % 5 == 0 or completed == total_chunks:
-                        self.logger.info(f"Progress: {completed}/{total_chunks} chunks completed")
-            else:
-                # Parallel processing
-                self.logger.info(f"Using parallel processing with {n_workers} workers")
-                with ProcessPoolExecutor(max_workers=n_workers) as executor:
-                    # Submit all chunks
-                    future_to_chunk = {
-                        executor.submit(_process_era5_chunk, chunk_info): chunk_info[0]
-                        for chunk_info in chunk_infos
+                total_chunks = len(chunks)
+                for i, (chunk_start, chunk_end) in enumerate(chunks, start=1):
+                    # 1) Time range for this chunk
+                    #    For chunks after the first, one extra step for finite differences
+                    if i == 1:
+                        time_start = chunk_start
+                    else:
+                        time_start = chunk_start - pd.Timedelta(hours=step)
+
+                    ds_t = ds.sel(time=slice(time_start, chunk_end))
+                    if "time" not in ds_t.dims or ds_t.sizes["time"] < 2:
+                        self.logger.info(f"Chunk {i}/{total_chunks}: <2 timesteps, skipped")
+                        continue
+
+                    # 2) Spatial subset
+                    ds_ts = ds_t.sel(
+                        latitude=slice(lat_max_raw, lat_min_raw),
+                        longitude=slice(lon_min, lon_max),
+                    )
+
+                    # 3) Temporal thinning
+                    if step > 1 and "time" in ds_ts.dims:
+                        ds_ts = ds_ts.isel(time=slice(0, None, step))
+                    if "time" not in ds_ts.dims or ds_ts.sizes["time"] < 2:
+                        self.logger.info(
+                            f"Chunk {i}/{total_chunks}: <2 timesteps after thinning, skipped"
+                        )
+                        continue
+
+                    # 4) Select variables actually present
+                    chunk_vars = [v for v in available_vars if v in ds_ts.data_vars]
+                    if not chunk_vars:
+                        self.logger.info(f"Chunk {i}/{total_chunks}: no requested vars present, skipped")
+                        continue
+
+                    ds_chunk_raw = ds_ts[chunk_vars]
+
+                    # 5) Convert to SUMMA schema (reuse existing helper)
+                    ds_chunk = _era5_to_summa_schema_standalone(ds_chunk_raw)
+                    if "time" not in ds_chunk.dims or ds_chunk.sizes["time"] < 1:
+                        self.logger.info(
+                            f"Chunk {i}/{total_chunks}: no timesteps after SUMMA conversion, skipped"
+                        )
+                        continue
+
+                    # 6) Build filename
+                    file_year = chunk_start.year
+                    file_month = chunk_start.month
+                    chunk_file = output_dir / f"domain_{domain_name}_ERA5_merged_{file_year}{file_month:02d}.nc"
+
+                    # 7) Encoding (same as before)
+                    encoding = {}
+                    for var in ds_chunk.data_vars:
+                        encoding[var] = {
+                            "zlib": True,
+                            "complevel": 1,
+                            "chunksizes": (
+                                min(168, ds_chunk.sizes["time"]),
+                                ds_chunk.sizes["latitude"],
+                                ds_chunk.sizes["longitude"],
+                            ),
+                        }
+
+                    self.logger.info(f"Writing ERA5 chunk {i}/{total_chunks} to {chunk_file}")
+                    ds_chunk.to_netcdf(chunk_file, encoding=encoding, compute=True)
+                    chunk_files.append(chunk_file)
+
+                    if i % 5 == 0 or i == total_chunks:
+                        self.logger.info(f"Progress: {i}/{total_chunks} chunks completed")
+
+                if not chunk_files:
+                    raise ValueError(
+                        "ERA5: after subsetting and SUMMA conversion, no data was written. "
+                        "Check bbox, time window, and variable availability."
+                    )
+
+                chunk_files.sort()
+                # Return like before
+                if len(chunk_files) == 1:
+                    self.logger.info(
+                        f"✓ ERA5 data download complete (single SUMMA-format chunk): {chunk_files[0]}"
+                    )
+                    return chunk_files[0]
+                else:
+                    self.logger.info(
+                        f"✓ ERA5 data download complete: {len(chunk_files)} files in {output_dir}"
+                    )
+                    return output_dir
+            if n_workers > 1:
+                from concurrent.futures import ThreadPoolExecutor
+
+                def process_chunk(i, chunk_start, chunk_end):
+                    return _process_era5_chunk_threadsafe(
+                        i, chunk_start, chunk_end, ds, available_vars, step,
+                        lat_min_raw, lat_max_raw, lon_min, lon_max, output_dir
+                    )
+
+                with ThreadPoolExecutor(max_workers=n_workers) as ex:
+                    futures = {
+                        ex.submit(process_chunk, i, *chunks[i-1]): i
+                        for i in range(1, len(chunks)+1)
                     }
-                    
-                    # Process results as they complete
-                    for future in as_completed(future_to_chunk):
-                        chunk_idx = future_to_chunk[future]
-                        try:
-                            chunk_idx_result, chunk_file, status = future.result()
-                            self.logger.info(f"[ERA5 {chunk_idx_result}/{total_chunks}] {status}")
-                            if chunk_file is not None:
-                                chunk_files.append(chunk_file)
-                        except Exception as e:
-                            self.logger.error(f"[ERA5 {chunk_idx}/{total_chunks}] Exception: {str(e)}")
-                        
-                        completed += 1
-                        if completed % 5 == 0 or completed == total_chunks:
-                            self.logger.info(f"Progress: {completed}/{total_chunks} chunks completed")
 
-            # Sort chunk files by name for consistent ordering
-            chunk_files.sort()
-
-            if not chunk_files:
-                raise ValueError(
-                    "ERA5: after subsetting and SUMMA conversion, no data was written. "
-                    "Check bbox, time window, and variable availability."
-                )
-
-            # ------------------- Final summary ----------------------------------
-            self.logger.info("ERA5 data extraction (chunked, SUMMA-format) summary:")
-            self.logger.info(f"  Output directory: {output_dir}")
-            self.logger.info(f"  Chunk files written: {len(chunk_files)}")
-            self.logger.info(f"  Temporal thinning (hours): {step}")
-            preview = [str(p.name) for p in chunk_files[:5]]
-            self.logger.info(f"  Example files: {preview}")
-
-            # If only one file, return that; otherwise return the directory
-            if len(chunk_files) == 1:
-                self.logger.info(
-                    f"✓ ERA5 data download complete (single SUMMA-format chunk): "
-                    f"{chunk_files[0]}"
-                )
-                return chunk_files[0]
-            else:
-                self.logger.info(
-                    f"✓ ERA5 data download complete: {len(chunk_files)} files in {output_dir}"
-                )
-                return output_dir
 
         except ImportError:
             raise ImportError(
@@ -2802,44 +2833,54 @@ class CloudForcingDownloader:
             )
             out["spechum"] = spechum
 
-        # ------------------------------------------------------------------
-        # Helper for accumulated → rate conversion
-        # ------------------------------------------------------------------
-        time = ds_chunk["time"]
-        dt = (time.diff("time") / np.timedelta64(1, "s")).astype("float32")
-        dt = xr.where(dt <= 0, np.nan, dt)   # avoid 0 or negative
+            time = ds_chunk["time"]
+            dt = (time.diff("time") / np.timedelta64(1, "s")).astype("float32")
 
-        def _accum_to_rate(var_name, out_name, units, long_name, standard_name):
-            if var_name not in ds_chunk:
-                return
+            def _accum_to_rate(
+                var_name,
+                out_name,
+                units,
+                long_name,
+                standard_name,
+                scale_factor=1.0,
+            ):
+                if var_name not in ds_chunk:
+                    return
 
-            accum = ds_chunk[var_name]
-            diff = accum.diff("time")
-            rate = (diff / dt).astype("float32")
+                accum = ds_chunk[var_name]
 
-            # mask non-finite
-            rate = rate.where(np.isfinite(rate))
+                # Finite differences of the accumulated field
+                diff = accum.diff("time")
 
-            # extra safety: no negative downward flux or precip from resets
-            if var_name in [
-                "total_precipitation",
-                "surface_solar_radiation_downwards",
-                "surface_thermal_radiation_downwards",
-            ]:
-                rate = rate.clip(min=0.0)
+                # 1) Handle ERA5 accumulation resets:
+                #    when the accumulator resets to 0, diff < 0 → set those increments to 0.
+                diff = diff.where(diff >= 0, 0)
 
-            rate.name = out_name
-            rate.attrs.update({...})
-            out[out_name] = rate
+                # 2) Convert to rate and scale units
+                rate = (diff / dt) * scale_factor
+
+                # 3) Guard against any remaining tiny negatives from FP noise
+                rate = rate.clip(min=0).astype("float32")
+
+                rate.name = out_name
+                rate.attrs.update(
+                    {
+                        "units": units,
+                        "long_name": long_name,
+                        "standard_name": standard_name,
+                    }
+                )
+                out[out_name] = rate
 
 
-        # Precipitation: m -> m s-1
+        # Precipitation: m -> mm s-1  (multiply by 1000)
         _accum_to_rate(
             "total_precipitation",
             "pptrate",
-            "m s-1",
+            "mm/s",
             "precipitation rate",
             "precipitation_rate",
+            scale_factor=1000.0,
         )
 
         # Shortwave radiation: J m-2 -> W m-2
@@ -2849,6 +2890,7 @@ class CloudForcingDownloader:
             "W m-2",
             "surface downwelling shortwave radiation",
             "surface_downwelling_shortwave_flux_in_air",
+            scale_factor=1.0,
         )
 
         # Longwave radiation: J m-2 -> W m-2
@@ -2858,6 +2900,7 @@ class CloudForcingDownloader:
             "W m-2",
             "surface downwelling longwave radiation",
             "surface_downwelling_longwave_flux_in_air",
+            scale_factor=1.0,
         )
 
         # Ensure required variables exist (warn if missing)
