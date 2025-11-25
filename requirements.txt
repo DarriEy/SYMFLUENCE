@@ -8,6 +8,7 @@ distributed
 pyviscous
 ipykernel
 jupyterlab
+dataretrieval
 
 # Machine learning and data science libraries
 torch
