@@ -82,10 +82,11 @@ class ERA5Handler(BaseDatasetHandler):
         
         if 'pptrate' in ds:
             ds['pptrate'].attrs.update({
-                'units': 'm s-1', 
-                'long_name': 'precipitation rate', 
+                'units': 'mm/s',
+                'long_name': 'precipitation rate',
                 'standard_name': 'precipitation_rate'
             })
+
         
         if 'windspd' in ds:
             ds['windspd'].attrs.update({

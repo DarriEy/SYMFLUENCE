@@ -588,8 +588,9 @@ main() {
             export PYTHONPATH=""
         fi
         # Make clearing persistent for future activations
-        if ! grep -q "Clear PYTHONPATH" "${venv_path}/bin/activate"; then
-            cat >> "${venv_path}/bin/activate" << 'EOF'
+        if ! grep -q "Clear PYTHONPATH" "${venv_path}/bin/activate" 2>/dev/null; then
+            if [[ -w "${venv_path}/bin/activate" ]]; then
+                cat >> "${venv_path}/bin/activate" << 'EOF'
 
 # Clear PYTHONPATH to prevent system package conflicts
 if [ -n "$PYTHONPATH" ]; then
@@ -597,6 +598,9 @@ if [ -n "$PYTHONPATH" ]; then
     unset PYTHONPATH
 fi
 EOF
+            else
+                print_warning "Cannot modify activate script (read-only), PYTHONPATH cleared for this session only"
+            fi
         fi
 
         print_info "Upgrading pip and preparing environment..."
