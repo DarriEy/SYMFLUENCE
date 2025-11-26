@@ -82,103 +82,52 @@ class CONUS404Handler(BaseDatasetHandler):
         # Shortwave radiation → SWRadAtm
         # ============================
         # If already standardized, just grab it
-        if "SWRadAtm" in ds.data_vars:
-            sw = ds["SWRadAtm"]
+        if "ACSWDNB" in ds:
+            sw_flux = self._convert_accumulated_to_flux(ds["ACSWDNB"])
+            sw_flux.name = "SWRadAtm"
+            ds["SWRadAtm"] = sw_flux
         else:
-            sw_candidates = [
-                # HyTEST / CONUS404 accum / downward SW at bottom:
-                "ACSWDNB", "ACSWDNLSM", "ACSWDNT",
-                # More generic / WRF-style:
-                "SWDOWN", "SWDOWN_surface",
-                "RSDS", "rsds",
-            ]
-            sw_src = next((v for v in sw_candidates if v in ds.data_vars), None)
-            if sw_src is None:
-                self.logger.error("No shortwave radiation variable found in CONUS404 dataset")
-                raise KeyError("SWRadAtm")
-
-            # Rename to canonical name
-            ds = ds.rename({sw_src: "SWRadAtm"})
             sw = ds["SWRadAtm"]
 
-        sw.attrs.update(
-            {
-                "units": sw.attrs.get("units", "W m-2"),
-                "long_name": "downward shortwave radiation at the surface",
-                "standard_name": "surface_downwelling_shortwave_flux_in_air",
-            }
-        )
+        ds["SWRadAtm"].attrs.update({
+            "units": "W m-2",
+            "long_name": "downward shortwave radiation at the surface",
+        })
+
 
         # ============================
         # Longwave radiation → LWRadAtm
         # ============================
-        if "LWRadAtm" in ds.data_vars:
-            lw = ds["LWRadAtm"]
+        if "ACLWDNB" in ds:
+            lw_flux = self._convert_accumulated_to_flux(ds["ACLWDNB"])
+            lw_flux.name = "LWRadAtm"
+            ds["LWRadAtm"] = lw_flux
         else:
-            lw_candidates = [
-                # HyTEST / CONUS404:
-                "ACLWDNB",
-                # More generic / WRF-style:
-                "GLW", "GLW_surface",
-                "RLDS", "rlds",
-            ]
-            lw_src = next((v for v in lw_candidates if v in ds.data_vars), None)
-            if lw_src is None:
-                self.logger.error("No longwave radiation variable found in CONUS404 dataset")
-                raise KeyError("LWRadAtm")
-
-            ds = ds.rename({lw_src: "LWRadAtm"})
             lw = ds["LWRadAtm"]
 
-        lw.attrs.update(
-            {
-                "units": lw.attrs.get("units", "W m-2"),
-                "long_name": "downward longwave radiation at the surface",
-                "standard_name": "surface_downwelling_longwave_flux_in_air",
-            }
-        )
+
+        ds["LWRadAtm"].attrs.update({
+            "units": "W m-2",
+            "long_name": "downward longwave radiation at the surface",
+        })
 
         # ============================
         # Precipitation rate → pptrate [m s-1]
         # ============================
-        if "pptrate" in ds.data_vars:
-            p = ds["pptrate"]
-        else:
-            pr_candidates = [
-                # HyTEST / CONUS404 rate we derived in cloud_downloader:
-                "ACDRIPR",
-                # More generic / WRF / reanalysis names:
-                "RAINRATE", "RAINRATE_surface",
-                "PRATE", "prate", "pr",
-                "PRECIP", "precip",
-            ]
-            pr_src = next((v for v in pr_candidates if v in ds.data_vars), None)
-            if pr_src is None:
-                self.logger.error("No precipitation flux/rate variable found in CONUS404 dataset")
-                raise KeyError("pptrate")
+        if "ACDRIPR" in ds:
+            pr_rate = self._convert_accumulated_to_flux(ds["ACDRIPR"])  # 
+            pr_rate.name = "pptrate"
+            ds["pptrate"] = pr_rate
 
-            ds = ds.rename({pr_src: "pptrate"})
-            p = ds["pptrate"]
+        elif "RAINRATE" in ds:
+            ds["pptrate"] = ds["RAINRATE"]  #
 
-        units = p.attrs.get("units", "").lower()
+        ds["pptrate"].attrs.update({
+            "units": "mm s-1",  # 
+            "long_name": "precipitation rate",
+            "standard_name": "precipitation_rate"
+        })
 
-        # Common cases: HyTEST precip is typically in mm/s or kg m-2 s-1
-        if "kg m-2 s-1" in units or "kg m-2 s^-1" in units:
-            ds["pptrate"] = p / 1000.0
-            ds["pptrate"].attrs["units"] = "m s-1"
-        elif "mm" in units:
-            ds["pptrate"] = p / 1000.0
-            ds["pptrate"].attrs["units"] = "m s-1"
-        else:
-            # Assume already m/s if unknown
-            ds["pptrate"].attrs.setdefault("units", "m s-1")
-
-        ds["pptrate"].attrs.update(
-            {
-                "long_name": "precipitation rate",
-                "standard_name": "precipitation_rate",
-            }
-        )
 
         # ============================
         # Wind speed from components
@@ -235,6 +184,35 @@ class CONUS404Handler(BaseDatasetHandler):
         ds = self.clean_variable_attributes(ds)
 
         return ds
+
+    def _convert_accumulated_to_flux(self, da, time_coord="time"):
+        """
+        Convert WRF accumulated variables to fluxes.
+        Handles daily accumulation resets properly.
+        """
+        # Time delta in seconds
+        dt = (da[time_coord].diff(time_coord) / np.timedelta64(1, "s")).astype("float32")
+
+        # Accumulated difference
+        dA = da.diff(time_coord)
+
+        # Detect accumulation resets (values go backwards)
+        reset = dA < 0
+
+        # When reset occurs, the post-reset value IS the accumulated amount since reset
+        # da.isel(time=slice(1,None)) aligns with dA (which lost first timestep from diff)
+        dA = xr.where(reset, da.isel({time_coord: slice(1, None)}), dA)
+
+        # Flux = deltaAccum / deltaTime
+        flux = dA / dt
+
+        # Ensure non-negative (numerical precision)
+        flux = flux.clip(min=0)
+
+        # Restore original time dimension length by padding the first timestep
+        flux = flux.reindex({time_coord: da[time_coord]}, method="bfill")
+
+        return flux
 
 
 
