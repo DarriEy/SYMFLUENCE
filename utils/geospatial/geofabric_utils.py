@@ -462,52 +462,68 @@ class GeofabricDelineator:
     def _run_curvature_method(self, dem_path: Path, pour_point_path: Path, mpi_prefix: str):
         """
         Run curvature-based (Peuker-Douglas) stream identification.
-        
-        This method identifies streams based on topographic curvature rather than 
-        contributing area threshold. It's particularly effective in low-relief terrain
-        and regions where drainage density varies spatially.
-        
-        Args:
-            dem_path: Path to the DEM file
-            pour_point_path: Path to the pour point shapefile
-            mpi_prefix: MPI command prefix
+
+        This uses Peuker–Douglas to find upwardly curved cells, then
+        accumulates only those cells and thresholds the result to define streams.
         """
         max_distance = self.config.get('MOVE_OUTLETS_MAX_DISTANCE', 200)
-        
-        # Get curvature parameters from config (with sensible defaults)
-        # These control the sensitivity of the curvature-based stream detection
-        curvature_threshold = self.config.get('CURVATURE_THRESHOLD', 0.0)  # Profile curvature threshold
-        min_source_threshold = self.config.get('MIN_SOURCE_THRESHOLD', 100)  # Minimum contributing area for stream sources
-        
+        min_source_threshold = self.config.get('MIN_SOURCE_THRESHOLD', 100)
+
         steps = [
-            # Step 1: Calculate slope (needed for curvature calculation)
-            f"{mpi_prefix}{self.taudem_dir}/dinfflowdir -fel {self.interim_dir}/elv-fel.tif -ang {self.interim_dir}/elv-ang.tif -slp {self.interim_dir}/elv-slp.tif",
-            
-            # Step 2: Run Peuker-Douglas algorithm to identify stream sources based on curvature
-            # This identifies convergent topography (valleys) where streams are likely to form
-            f"{mpi_prefix}{self.taudem_dir}/peukerdouglas -fel {self.interim_dir}/elv-fel.tif -ss {self.interim_dir}/elv-ss.tif",
-            
-            # Step 3: Threshold the stream source grid
-            # This removes spurious stream sources in flat areas
-            f"{mpi_prefix}{self.taudem_dir}/threshold -ssa {self.interim_dir}/elv-ad8.tif -src {self.interim_dir}/elv-src-temp.tif -thresh {min_source_threshold}",
-            
-            # Step 4: Combine curvature-based sources with area threshold
-            # This ensures streams have minimum drainage area while respecting topographic features
-            f"{mpi_prefix}{self.taudem_dir}/aread8 -p {self.interim_dir}/elv-fdir.tif -ad8 {self.interim_dir}/elv-ad8.tif -o {self.interim_dir}/elv-ss.tif -wg {self.interim_dir}/elv-src.tif -nc",
-            
-            # Step 5: Move outlets to the identified stream network
-            f"{mpi_prefix}{self.taudem_dir}/moveoutletstostreams -p {self.interim_dir}/elv-fdir.tif -src {self.interim_dir}/elv-src.tif -o {pour_point_path} -om {self.interim_dir}/gauges.shp -md {max_distance}",
-            
-            # Step 6: Generate stream network and watersheds
-            f"{mpi_prefix}{self.taudem_dir}/streamnet -fel {self.interim_dir}/elv-fel.tif -p {self.interim_dir}/elv-fdir.tif -ad8 {self.interim_dir}/elv-ad8.tif -src {self.interim_dir}/elv-src.tif -ord {self.interim_dir}/elv-ord.tif -tree {self.interim_dir}/basin-tree.dat -coord {self.interim_dir}/basin-coord.dat -net {self.interim_dir}/basin-streams.shp -o {self.interim_dir}/gauges.shp -w {self.interim_dir}/elv-watersheds.tif"
+            # 1. (Optional) D-Infinity slope – not strictly required for PD,
+            #    but you might already be generating this elsewhere.
+            f"{mpi_prefix}{self.taudem_dir}/dinfflowdir "
+            f"-fel {self.interim_dir}/elv-fel.tif "
+            f"-ang {self.interim_dir}/elv-ang.tif "
+            f"-slp {self.interim_dir}/elv-slp.tif",
+
+            # 2. Peuker–Douglas: curvature-based “proto-stream” skeleton (0/1 grid)
+            f"{mpi_prefix}{self.taudem_dir}/peukerdouglas "
+            f"-fel {self.interim_dir}/elv-fel.tif "
+            f"-ss {self.interim_dir}/elv-ss_pd.tif",
+
+            # 3. D8 contributing area of ONLY the PD skeleton cells
+            #    (weight grid = PD skeleton, so ad8 counts number of PD cells upslope)
+            f"{mpi_prefix}{self.taudem_dir}/aread8 "
+            f"-p {self.interim_dir}/elv-fdir.tif "
+            f"-wg {self.interim_dir}/elv-ss_pd.tif "
+            f"-ad8 {self.interim_dir}/elv-ad8_pd.tif -nc",
+
+            # 4. Threshold PD-weighted contributing area to define final stream raster
+            f"{mpi_prefix}{self.taudem_dir}/threshold "
+            f"-ssa {self.interim_dir}/elv-ad8_pd.tif "
+            f"-src {self.interim_dir}/elv-src.tif "
+            f"-thresh {min_source_threshold}",
+
+            # 5. Snap pour points to streams
+            f"{mpi_prefix}{self.taudem_dir}/moveoutletstostreams "
+            f"-p {self.interim_dir}/elv-fdir.tif "
+            f"-ad8 {self.interim_dir}/elv-ad8.tif "
+            f"-src {self.interim_dir}/elv-src.tif "
+            f"-o {pour_point_path} "
+            f"-om {self.interim_dir}/gauges.shp "
+            f"-md {max_distance}",
+
+            # 6. Stream network + watersheds
+            f"{mpi_prefix}{self.taudem_dir}/streamnet "
+            f"-fel {self.interim_dir}/elv-fel.tif "
+            f"-p {self.interim_dir}/elv-fdir.tif "
+            f"-ad8 {self.interim_dir}/elv-ad8.tif "
+            f"-src {self.interim_dir}/elv-src.tif "
+            f"-ord {self.interim_dir}/elv-order.tif "
+            f"-tree {self.interim_dir}/elv-tree.dat "
+            f"-coord {self.interim_dir}/elv-coord.dat "
+            f"-net {self.interim_dir}/elv-net.shp "
+            f"-w {self.interim_dir}/elv-watersheds.tif "
+            f"-o {self.interim_dir}/gauges.shp",
         ]
-        
+
         for step in steps:
             self.run_command(step)
-            self.logger.info(f"Completed curvature method step")
-        
+            self.logger.info("Completed curvature method step")
+
         self.logger.info("Curvature-based stream identification completed")
-        self.logger.info("This method identifies streams based on topographic convergence rather than area threshold alone")
+
 
     def _run_slope_area_method(self, dem_path: Path, pour_point_path: Path, mpi_prefix: str):
         """
@@ -548,10 +564,12 @@ class GeofabricDelineator:
             # Step 4: Threshold the slope-area grid to identify stream sources
             f"{mpi_prefix}{self.taudem_dir}/threshold -ssa {self.interim_dir}/elv-sa.tif -src {self.interim_dir}/elv-src-sa.tif -thresh {slope_area_threshold}",
             
-            # Step 5: Use D8 for final stream network delineation (more stable than D-infinity for networks)
-            # Weight the D8 contributing area by the slope-area sources
-            f"{mpi_prefix}{self.taudem_dir}/aread8 -p {self.interim_dir}/elv-fdir.tif -ad8 {self.interim_dir}/elv-ad8.tif -o {self.interim_dir}/elv-src-sa.tif -wg {self.interim_dir}/elv-src.tif -nc",
-            
+            # Step 5: Use D8 contributing area weighted by slope-area sources
+            # Use the slope-area source grid as the weight grid
+            f"{mpi_prefix}{self.taudem_dir}/aread8 -p {self.interim_dir}/elv-fdir.tif "
+            f"-wg {self.interim_dir}/elv-src-sa.tif "
+            f"-ad8 {self.interim_dir}/elv-ad8_sa.tif -nc",
+
             # Step 6: Move outlets to stream network
             f"{mpi_prefix}{self.taudem_dir}/moveoutletstostreams -p {self.interim_dir}/elv-fdir.tif -src {self.interim_dir}/elv-src.tif -o {pour_point_path} -om {self.interim_dir}/gauges.shp -md {max_distance}",
             
