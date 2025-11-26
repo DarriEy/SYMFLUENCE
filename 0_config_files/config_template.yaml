@@ -103,8 +103,6 @@ EM_EARTH_MAX_EXPANSION: 0.2                                    # Maximum expansi
 EM_PRCP: prcp                                                  # EM-EARTH precip variable to use
 EM_EARTH_DATA_TYPE: deterministic   # or "ensemble" if you really want the ensembles
 
-
-
 # For elevation data:
 DEM_SOURCE: fabdem   # options: merit_hydro (MAF), fabdem (cloud), copernicus (dem)
 
