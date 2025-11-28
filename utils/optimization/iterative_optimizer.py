@@ -2126,19 +2126,32 @@ class BaseOptimizer(ABC):
             self.logger.info(f"Spawning {num_processes} MPI processes for batch execution")
 
             import uuid
+                        # 1) runtime_dir = where MPI temp files live
+            #    Only use node-local scratch if config explicitly enables it
+            use_local_scratch = bool(self.config.get("USE_LOCAL_SCRATCH", False))
 
-            # 1) runtime_dir = where MPI temp files live (prefer node-local scratch)
-            scratch_dir = os.environ.get("SLURM_TMPDIR") or os.environ.get("TMPDIR")
-            if scratch_dir:
-                runtime_dir = Path(scratch_dir)
-                self.logger.debug(f"Using MPI runtime_dir={runtime_dir} for batch files")
+            if use_local_scratch:
+                scratch_dir = os.environ.get("SLURM_TMPDIR") or os.environ.get("TMPDIR")
+                if scratch_dir:
+                    runtime_dir = Path(scratch_dir)
+                    self.logger.info(
+                        f"Using node-local scratch for MPI runtime_dir={runtime_dir}"
+                    )
+                else:
+                    runtime_dir = Path.cwd()
+                    self.logger.warning(
+                        "USE_LOCAL_SCRATCH=True but SLURM_TMPDIR/TMPDIR not set; "
+                        "falling back to current working directory for MPI files"
+                    )
             else:
+                # Backwards-compatible default: write MPI files next to the Python code
                 runtime_dir = Path.cwd()
-                self.logger.warning(
-                    "SLURM_TMPDIR/TMPDIR not set; using current working directory for MPI files"
+                self.logger.debug(
+                    "USE_LOCAL_SCRATCH disabled — using current working directory "
+                    "for MPI batch files"
                 )
 
-            # 2) project_dir = where code/configs live (this is your CONFLUENCE tree)
+            # 2) project_dir = where code/configs live
             project_dir = Path.cwd()
 
             unique_id = uuid.uuid4().hex[:8]
