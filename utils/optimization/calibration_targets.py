@@ -2596,3 +2596,568 @@ class GroundwaterTarget(CalibrationTarget):
             return pd.Series()
 
 
+
+class TWSTarget:
+    """
+    Total Water Storage calibration target comparing SUMMA storage to GRACE TWS anomalies.
+    
+    Computes simulated TWS as sum of:
+    - Snow Water Equivalent (scalarSWE)
+    - Canopy Water Storage (scalarCanopyWat)  
+    - Total Soil Water (scalarTotalSoilWat or sum of mLayerVolFracWat)
+    - Aquifer Storage (scalarAquiferStorage, if available)
+    
+    Converts simulated TWS to anomaly form and compares to GRACE observations.
+    
+    Configuration options:
+    -----------------------
+    TWS_OBS_PATH: Path to GRACE TWS anomaly CSV file
+    TWS_GRACE_COLUMN: Which GRACE product to use ('grace_jpl_anomaly', 'grace_csr_anomaly', 
+                      'grace_gsfc_anomaly', or 'grace_mean' for average of all)
+    TWS_STORAGE_COMPONENTS: Comma-separated list of SUMMA variables to sum
+                            (default: 'scalarSWE,scalarCanopyWat,scalarTotalSoilWat,scalarAquiferStorage')
+    TWS_ANOMALY_BASELINE: Period for computing anomaly baseline ('full', 'overlap', or 'YYYY-YYYY')
+    TWS_UNIT_CONVERSION: Conversion factor if needed (default: 1.0, assumes mm)
+    """
+    
+    # Default SUMMA variables that contribute to total storage
+    DEFAULT_STORAGE_VARS = [
+        'scalarSWE',           # Snow water equivalent [kg m-2] = [mm]
+        'scalarCanopyWat',     # Canopy water storage [kg m-2] = [mm]  
+        'scalarTotalSoilWat',  # Total soil water [kg m-2] = [mm]
+        'scalarAquiferStorage' # Aquifer storage [m] - needs conversion!
+    ]
+    
+    # Alternative soil water variables if scalarTotalSoilWat not available
+    SOIL_WATER_ALTERNATIVES = [
+        'scalarTotalSoilLiq',   # Total liquid soil water
+        'scalarTotalSoilIce',   # Total ice in soil
+        'mLayerVolFracWat',     # Layer-wise volumetric water content
+        'mLayerVolFracLiq',     # Layer-wise liquid water
+        'mLayerVolFracIce',     # Layer-wise ice content
+    ]
+    
+    def __init__(self, config: Dict[str, Any], project_dir: Path, logger: logging.Logger):
+        """
+        Initialize TWS calibration target.
+        
+        Parameters
+        ----------
+        config : Dict
+            Configuration dictionary containing TWS settings
+        project_dir : Path
+            Project directory path
+        logger : Logger
+            Logger instance
+        """
+        self.config = config
+        self.project_dir = Path(project_dir)
+        self.logger = logger
+        
+        # Parse configuration
+        self.grace_obs_path = self._get_grace_obs_path()
+        self.grace_column = config.get('TWS_GRACE_COLUMN', 'grace_jpl_anomaly')
+        self.anomaly_baseline = config.get('TWS_ANOMALY_BASELINE', 'overlap')
+        self.unit_conversion = config.get('TWS_UNIT_CONVERSION', 1.0)
+        
+        # Parse storage components to use
+        storage_str = config.get('TWS_STORAGE_COMPONENTS', '')
+        if storage_str:
+            self.storage_vars = [v.strip() for v in storage_str.split(',') if v.strip()]
+        else:
+            self.storage_vars = self.DEFAULT_STORAGE_VARS.copy()
+        
+        # Load GRACE observations
+        self.grace_obs = self._load_grace_observations()
+        
+        self.logger.info(f"TWSTarget initialized:")
+        self.logger.info(f"  GRACE data: {self.grace_obs_path}")
+        self.logger.info(f"  GRACE column: {self.grace_column}")
+        self.logger.info(f"  Storage components: {self.storage_vars}")
+        self.logger.info(f"  Anomaly baseline: {self.anomaly_baseline}")
+    
+    def _get_grace_obs_path(self) -> Path:
+        """Get path to GRACE observations file."""
+        # Check explicit config path first
+        if 'TWS_OBS_PATH' in self.config:
+            return Path(self.config['TWS_OBS_PATH'])
+        
+        # Try standard locations
+        domain_name = self.config.get('DOMAIN_NAME', '')
+        
+        # Check in observations directory
+        obs_dir = self.project_dir / 'observations' / 'grace'
+        potential_paths = [
+            obs_dir / f'{domain_name}_grace_tws_anomaly.csv',
+            obs_dir / f'grace_tws_anomaly.csv',
+            obs_dir / 'tws_anomaly.csv',
+            self.project_dir / 'observations' / f'{domain_name}_HRUs_GRUs_grace_tws_anomaly.csv',
+        ]
+        
+        for path in potential_paths:
+            if path.exists():
+                return path
+        
+        # Return default path (will fail later with informative error)
+        return obs_dir / f'{domain_name}_grace_tws_anomaly.csv'
+    
+    def _load_grace_observations(self) -> pd.DataFrame:
+        """
+        Load and preprocess GRACE TWS anomaly observations.
+        
+        Returns
+        -------
+        pd.DataFrame
+            GRACE observations with datetime index and selected column(s)
+        """
+        if not self.grace_obs_path.exists():
+            self.logger.warning(f"GRACE observations file not found: {self.grace_obs_path}")
+            return pd.DataFrame()
+        
+        try:
+            # Read CSV with first column as index
+            df = pd.read_csv(self.grace_obs_path, index_col=0, parse_dates=True)
+            
+            # Ensure datetime index
+            if not isinstance(df.index, pd.DatetimeIndex):
+                df.index = pd.to_datetime(df.index)
+            
+            # Handle 'grace_mean' option - compute mean of all GRACE products
+            if self.grace_column == 'grace_mean':
+                grace_cols = [c for c in df.columns if 'grace' in c.lower()]
+                if grace_cols:
+                    df['grace_mean'] = df[grace_cols].mean(axis=1)
+            
+            # Validate requested column exists
+            if self.grace_column not in df.columns:
+                available = ', '.join(df.columns)
+                self.logger.warning(f"GRACE column '{self.grace_column}' not found. Available: {available}")
+                # Fall back to first GRACE column
+                grace_cols = [c for c in df.columns if 'grace' in c.lower()]
+                if grace_cols:
+                    self.grace_column = grace_cols[0]
+                    self.logger.info(f"Using fallback GRACE column: {self.grace_column}")
+            
+            self.logger.info(f"Loaded GRACE observations: {len(df)} months, "
+                           f"period {df.index.min()} to {df.index.max()}")
+            
+            return df
+            
+        except Exception as e:
+            self.logger.error(f"Error loading GRACE observations: {e}")
+            return pd.DataFrame()
+    
+    def calculate_metrics(self, summa_dir: str, mizuroute_dir: str = None) -> Dict[str, float]:
+        """
+        Calculate performance metrics comparing simulated TWS to GRACE anomalies.
+        
+        Parameters
+        ----------
+        summa_dir : str
+            Path to SUMMA output directory
+        mizuroute_dir : str, optional
+            Path to mizuRoute output directory (not used for TWS)
+        
+        Returns
+        -------
+        Dict[str, float]
+            Dictionary of performance metrics (KGE, NSE, RMSE, correlation, bias)
+        """
+        try:
+            # Load and process simulated TWS
+            sim_tws = self._load_simulated_tws(summa_dir)
+            if sim_tws is None or len(sim_tws) == 0:
+                self.logger.warning("No simulated TWS data available")
+                return self._empty_metrics()
+            
+            # Get GRACE observations
+            if self.grace_obs.empty:
+                self.logger.warning("No GRACE observations available")
+                return self._empty_metrics()
+            
+            # Match time periods and prepare data
+            sim_matched, obs_matched = self._match_and_prepare_data(sim_tws)
+            
+            if len(sim_matched) < 6:  # Need at least 6 months for meaningful metrics
+                self.logger.warning(f"Insufficient overlapping data: {len(sim_matched)} months")
+                return self._empty_metrics()
+            
+            # Calculate metrics
+            metrics = self._calculate_all_metrics(sim_matched, obs_matched)
+            
+            self.logger.debug(f"TWS metrics: KGE={metrics.get('KGE', np.nan):.3f}, "
+                            f"NSE={metrics.get('NSE', np.nan):.3f}, "
+                            f"correlation={metrics.get('correlation', np.nan):.3f}")
+            
+            return metrics
+            
+        except Exception as e:
+            self.logger.error(f"Error calculating TWS metrics: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return self._empty_metrics()
+    
+    def _load_simulated_tws(self, summa_dir: str) -> Optional[pd.Series]:
+        """
+        Load and sum SUMMA storage components to get simulated TWS.
+        
+        Parameters
+        ----------
+        summa_dir : str
+            Path to SUMMA output directory
+        
+        Returns
+        -------
+        pd.Series or None
+            Time series of simulated total water storage [mm]
+        """
+        summa_path = Path(summa_dir)
+        
+        # Find SUMMA output file
+        output_file = self._find_summa_output(summa_path)
+        if output_file is None:
+            return None
+        
+        try:
+            ds = xr.open_dataset(output_file)
+            
+            # Initialize total storage
+            tws_components = {}
+            total_tws = None
+            
+            for var in self.storage_vars:
+                if var in ds.data_vars:
+                    data = ds[var].values
+                    
+                    # Handle aquifer storage unit conversion (m -> mm)
+                    if 'aquifer' in var.lower():
+                        data = data * 1000.0  # m to mm
+                    
+                    # Handle multi-dimensional data (HRUs, layers)
+                    if data.ndim > 1:
+                        # Sum over non-time dimensions (HRUs, layers)
+                        axes_to_sum = tuple(range(1, data.ndim))
+                        data = np.nanmean(data, axis=axes_to_sum)  # Use mean for HRU aggregation
+                    
+                    tws_components[var] = data
+                    
+                    if total_tws is None:
+                        total_tws = data.copy()
+                    else:
+                        total_tws = total_tws + data
+                    
+                    self.logger.debug(f"  Added {var}: mean={np.nanmean(data):.2f} mm")
+            
+            if total_tws is None:
+                # Try alternative soil water variables
+                total_tws = self._try_alternative_soil_vars(ds)
+            
+            if total_tws is None:
+                self.logger.warning(f"No storage variables found in SUMMA output")
+                return None
+            
+            # Get time coordinate
+            time_coord = self._get_time_coordinate(ds)
+            if time_coord is None:
+                return None
+            
+            # Create time series
+            tws_series = pd.Series(total_tws.flatten(), index=time_coord, name='simulated_tws')
+            
+            # Apply unit conversion if needed
+            tws_series = tws_series * self.unit_conversion
+            
+            ds.close()
+            
+            self.logger.debug(f"Loaded simulated TWS: {len(tws_series)} timesteps, "
+                            f"mean={tws_series.mean():.2f} mm")
+            
+            return tws_series
+            
+        except Exception as e:
+            self.logger.error(f"Error loading SUMMA output: {e}")
+            return None
+    
+    def _try_alternative_soil_vars(self, ds: xr.Dataset) -> Optional[np.ndarray]:
+        """Try alternative methods to compute soil water storage."""
+        
+        # Try total soil liquid + ice
+        if 'scalarTotalSoilLiq' in ds.data_vars and 'scalarTotalSoilIce' in ds.data_vars:
+            soil_liq = ds['scalarTotalSoilLiq'].values
+            soil_ice = ds['scalarTotalSoilIce'].values
+            if soil_liq.ndim > 1:
+                soil_liq = np.nanmean(soil_liq, axis=tuple(range(1, soil_liq.ndim)))
+                soil_ice = np.nanmean(soil_ice, axis=tuple(range(1, soil_ice.ndim)))
+            self.logger.debug("Using scalarTotalSoilLiq + scalarTotalSoilIce for soil water")
+            return soil_liq + soil_ice
+        
+        # Try layer-wise volumetric water content
+        if 'mLayerVolFracWat' in ds.data_vars:
+            # Need layer depths to convert to mm
+            if 'mLayerDepth' in ds.data_vars:
+                vol_frac = ds['mLayerVolFracWat'].values  # [time, hru, layer]
+                depth = ds['mLayerDepth'].values  # [time, hru, layer] in m
+                
+                # Soil water = sum(vol_frac * depth * 1000) for each layer
+                soil_water = np.nansum(vol_frac * depth * 1000, axis=-1)  # Sum over layers
+                if soil_water.ndim > 1:
+                    soil_water = np.nanmean(soil_water, axis=tuple(range(1, soil_water.ndim)))
+                
+                self.logger.debug("Using mLayerVolFracWat * mLayerDepth for soil water")
+                return soil_water
+        
+        return None
+    
+    def _find_summa_output(self, summa_path: Path) -> Optional[Path]:
+        """Find SUMMA output NetCDF file."""
+        # Common output file patterns
+        patterns = [
+            '*_timestep.nc',
+            '*_day.nc', 
+            '*output*.nc',
+            '*.nc'
+        ]
+        
+        for pattern in patterns:
+            files = list(summa_path.glob(pattern))
+            if files:
+                # Return most recent or largest file
+                return max(files, key=lambda f: f.stat().st_mtime)
+        
+        self.logger.warning(f"No SUMMA output files found in {summa_path}")
+        return None
+    
+    def _get_time_coordinate(self, ds: xr.Dataset) -> Optional[pd.DatetimeIndex]:
+        """Extract time coordinate from SUMMA dataset."""
+        time_vars = ['time', 'Time', 'datetime']
+        
+        for var in time_vars:
+            if var in ds.coords or var in ds.dims:
+                time_data = ds[var].values
+                try:
+                    return pd.to_datetime(time_data)
+                except:
+                    pass
+        
+        self.logger.warning("Could not extract time coordinate from SUMMA output")
+        return None
+    
+    def _match_and_prepare_data(self, sim_tws: pd.Series) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Match simulated and observed data, aggregate to monthly, compute anomalies.
+        
+        Parameters
+        ----------
+        sim_tws : pd.Series
+            Simulated TWS time series (can be sub-monthly)
+        
+        Returns
+        -------
+        Tuple[np.ndarray, np.ndarray]
+            Matched simulated and observed anomaly arrays
+        """
+        # Aggregate simulated to monthly means
+        sim_monthly = sim_tws.resample('MS').mean()  # MS = Month Start
+        
+        # Get GRACE observations for the selected column
+        obs_monthly = self.grace_obs[self.grace_column].copy()
+        
+        # Find overlapping period
+        common_index = sim_monthly.index.intersection(obs_monthly.index)
+        
+        if len(common_index) == 0:
+            self.logger.warning("No overlapping time period between simulation and GRACE")
+            return np.array([]), np.array([])
+        
+        # Extract matching periods
+        sim_matched = sim_monthly.loc[common_index]
+        obs_matched = obs_monthly.loc[common_index]
+        
+        # Remove NaN values (GRACE has gaps)
+        valid_mask = ~(sim_matched.isna() | obs_matched.isna())
+        sim_matched = sim_matched[valid_mask]
+        obs_matched = obs_matched[valid_mask]
+        
+        if len(sim_matched) == 0:
+            return np.array([]), np.array([])
+        
+        # Convert simulated to anomaly
+        sim_anomaly = self._compute_anomaly(sim_matched, obs_matched)
+        
+        self.logger.debug(f"Matched {len(sim_matched)} months, "
+                         f"period {sim_matched.index.min()} to {sim_matched.index.max()}")
+        
+        return sim_anomaly.values, obs_matched.values
+    
+    def _compute_anomaly(self, sim_series: pd.Series, obs_series: pd.Series) -> pd.Series:
+        """
+        Convert simulated TWS to anomaly form to match GRACE.
+        
+        Anomaly = value - baseline_mean
+        
+        The baseline period depends on config:
+        - 'full': Use full simulation period mean
+        - 'overlap': Use only the overlapping period mean (default)
+        - 'YYYY-YYYY': Use specific date range
+        """
+        if self.anomaly_baseline == 'overlap':
+            # Use mean of overlapping period
+            baseline_mean = sim_series.mean()
+        
+        elif self.anomaly_baseline == 'full':
+            # Use full simulation period (would need original full series)
+            baseline_mean = sim_series.mean()
+        
+        elif '-' in str(self.anomaly_baseline):
+            # Specific date range: 'YYYY-YYYY'
+            try:
+                start, end = self.anomaly_baseline.split('-')
+                mask = (sim_series.index.year >= int(start)) & (sim_series.index.year <= int(end))
+                if mask.any():
+                    baseline_mean = sim_series[mask].mean()
+                else:
+                    baseline_mean = sim_series.mean()
+            except:
+                baseline_mean = sim_series.mean()
+        else:
+            baseline_mean = sim_series.mean()
+        
+        sim_anomaly = sim_series - baseline_mean
+        
+        self.logger.debug(f"Anomaly baseline: {baseline_mean:.2f} mm")
+        
+        return sim_anomaly
+    
+    def _calculate_all_metrics(self, sim: np.ndarray, obs: np.ndarray) -> Dict[str, float]:
+        """
+        Calculate all performance metrics.
+        
+        Parameters
+        ----------
+        sim : np.ndarray
+            Simulated anomaly values
+        obs : np.ndarray
+            Observed (GRACE) anomaly values
+        
+        Returns
+        -------
+        Dict[str, float]
+            Dictionary containing KGE, NSE, RMSE, correlation, bias, etc.
+        """
+        metrics = {}
+        
+        # Remove any remaining NaN
+        valid = ~(np.isnan(sim) | np.isnan(obs))
+        sim = sim[valid]
+        obs = obs[valid]
+        
+        if len(sim) < 3:
+            return self._empty_metrics()
+        
+        # Basic statistics
+        sim_mean = np.mean(sim)
+        obs_mean = np.mean(obs)
+        sim_std = np.std(sim)
+        obs_std = np.std(obs)
+        
+        # Correlation coefficient
+        if sim_std > 0 and obs_std > 0:
+            correlation = np.corrcoef(sim, obs)[0, 1]
+        else:
+            correlation = 0.0
+        metrics['correlation'] = correlation
+        
+        # Bias
+        bias = sim_mean - obs_mean
+        metrics['bias'] = bias
+        metrics['pbias'] = 100 * bias / obs_mean if obs_mean != 0 else 0.0
+        
+        # RMSE
+        rmse = np.sqrt(np.mean((sim - obs) ** 2))
+        metrics['RMSE'] = rmse
+        
+        # Normalized RMSE
+        metrics['NRMSE'] = rmse / obs_std if obs_std > 0 else np.nan
+        
+        # NSE (Nash-Sutcliffe Efficiency)
+        ss_res = np.sum((obs - sim) ** 2)
+        ss_tot = np.sum((obs - obs_mean) ** 2)
+        nse = 1 - ss_res / ss_tot if ss_tot > 0 else -np.inf
+        metrics['NSE'] = nse
+        
+        # KGE (Kling-Gupta Efficiency)
+        if sim_std > 0 and obs_std > 0:
+            r = correlation
+            alpha = sim_std / obs_std  # Variability ratio
+            beta = sim_mean / obs_mean if obs_mean != 0 else 1.0  # Bias ratio
+            
+            kge = 1 - np.sqrt((r - 1)**2 + (alpha - 1)**2 + (beta - 1)**2)
+        else:
+            kge = -np.inf
+        metrics['KGE'] = kge
+        
+        # KGE components
+        metrics['KGE_r'] = correlation
+        metrics['KGE_alpha'] = sim_std / obs_std if obs_std > 0 else np.nan
+        metrics['KGE_beta'] = sim_mean / obs_mean if obs_mean != 0 else np.nan
+        
+        # Additional metrics
+        metrics['n_months'] = len(sim)
+        metrics['sim_mean'] = sim_mean
+        metrics['obs_mean'] = obs_mean
+        metrics['sim_std'] = sim_std
+        metrics['obs_std'] = obs_std
+        
+        # Amplitude ratio (important for TWS seasonal cycle)
+        sim_amplitude = np.max(sim) - np.min(sim)
+        obs_amplitude = np.max(obs) - np.min(obs)
+        metrics['amplitude_ratio'] = sim_amplitude / obs_amplitude if obs_amplitude > 0 else np.nan
+        
+        return metrics
+    
+    def _empty_metrics(self) -> Dict[str, float]:
+        """Return dictionary with NaN metrics when calculation fails."""
+        return {
+            'KGE': np.nan,
+            'NSE': np.nan,
+            'RMSE': np.nan,
+            'correlation': np.nan,
+            'bias': np.nan,
+            'pbias': np.nan,
+            'NRMSE': np.nan,
+            'KGE_r': np.nan,
+            'KGE_alpha': np.nan,
+            'KGE_beta': np.nan,
+            'n_months': 0,
+            'amplitude_ratio': np.nan
+        }
+    
+    def get_diagnostic_data(self, summa_dir: str) -> Dict[str, Any]:
+        """
+        Get detailed diagnostic data for analysis and plotting.
+        
+        Returns matched time series, component breakdown, etc.
+        """
+        sim_tws = self._load_simulated_tws(summa_dir)
+        if sim_tws is None:
+            return {}
+        
+        sim_monthly = sim_tws.resample('MS').mean()
+        obs_monthly = self.grace_obs[self.grace_column].copy()
+        
+        common_index = sim_monthly.index.intersection(obs_monthly.index)
+        valid_mask = ~(sim_monthly.loc[common_index].isna() | obs_monthly.loc[common_index].isna())
+        
+        sim_matched = sim_monthly.loc[common_index][valid_mask]
+        obs_matched = obs_monthly.loc[common_index][valid_mask]
+        
+        sim_anomaly = self._compute_anomaly(sim_matched, obs_matched)
+        
+        return {
+            'time': sim_matched.index,
+            'sim_tws': sim_matched.values,
+            'sim_anomaly': sim_anomaly.values,
+            'obs_anomaly': obs_matched.values,
+            'grace_column': self.grace_column,
+            'grace_all_columns': self.grace_obs.loc[common_index][valid_mask] if not self.grace_obs.empty else None
+        }
