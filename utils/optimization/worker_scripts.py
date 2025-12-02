@@ -1519,6 +1519,124 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
         logger.error(f"DEBUG: Full traceback: {traceback.format_exc()}")
         return None
 
+def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir: str, 
+                                       config: Dict, project_dir: str, logger) -> List[float]:
+    """
+    Calculate objectives for multi-target optimization in worker process.
+    
+    This function should be called from _evaluate_parameters_worker when
+    multi_target_mode is True.
+    
+    Parameters
+    ----------
+    task : Dict
+        Task dictionary containing:
+        - multi_target_mode: bool
+        - primary_target_type: str
+        - secondary_target_type: str
+        - primary_metric: str
+        - secondary_metric: str
+    summa_dir : str
+        Path to SUMMA simulation directory
+    mizuroute_dir : str
+        Path to mizuRoute simulation directory
+    config : Dict
+        Configuration dictionary
+    project_dir : str
+        Project directory path
+    logger : Logger
+        Logger instance
+    
+    Returns
+    -------
+    List[float]
+        [objective1, objective2] values
+    """
+    from calibration_targets import (
+        StreamflowTarget, SnowTarget, GroundwaterTarget, ETTarget, SoilMoistureTarget
+    )
+    from tws_calibration_target import TWSTarget
+    from pathlib import Path
+    
+    project_path = Path(project_dir)
+    
+    def create_target(target_type: str):
+        """Create calibration target by type name."""
+        target_type = target_type.lower()
+        
+        if target_type in ['streamflow', 'flow', 'discharge']:
+            return StreamflowTarget(config, project_path, logger)
+        elif target_type in ['swe', 'sca', 'snow_depth', 'snow']:
+            return SnowTarget(config, project_path, logger)
+        elif target_type in ['gw_depth', 'gw_grace', 'groundwater', 'gw']:
+            return GroundwaterTarget(config, project_path, logger)
+        elif target_type in ['et', 'latent_heat', 'evapotranspiration']:
+            return ETTarget(config, project_path, logger)
+        elif target_type in ['sm_point', 'sm_smap', 'sm_esa', 'soil_moisture', 'sm']:
+            return SoilMoistureTarget(config, project_path, logger)
+        elif target_type in ['tws', 'grace', 'grace_tws', 'total_storage']:
+            return TWSTarget(config, project_path, logger)
+        else:
+            # Default to streamflow
+            return StreamflowTarget(config, project_path, logger)
+    
+    def extract_metric(metrics: Dict, metric_name: str) -> float:
+        """Extract specific metric from metrics dictionary."""
+        if not metrics:
+            return -1.0
+            
+        # Try exact match
+        if metric_name in metrics:
+            val = metrics[metric_name]
+            return val if val is not None and not np.isnan(val) else -1.0
+        
+        # Try with Calib_ prefix
+        calib_key = f"Calib_{metric_name}"
+        if calib_key in metrics:
+            val = metrics[calib_key]
+            return val if val is not None and not np.isnan(val) else -1.0
+        
+        # Try suffix match
+        for key, value in metrics.items():
+            if key.endswith(f"_{metric_name}"):
+                return value if value is not None and not np.isnan(value) else -1.0
+        
+        return -1.0
+    
+    try:
+        if task.get('multi_target_mode', False):
+            # Multi-target mode: use two different calibration targets
+            primary_target_type = task.get('primary_target_type', 'streamflow')
+            secondary_target_type = task.get('secondary_target_type', 'gw_depth')
+            primary_metric = task.get('primary_metric', 'KGE')
+            secondary_metric = task.get('secondary_metric', 'KGE')
+            
+            # Create targets
+            primary_target = create_target(primary_target_type)
+            secondary_target = create_target(secondary_target_type)
+            
+            # Calculate metrics
+            primary_metrics = primary_target.calculate_metrics(summa_dir, mizuroute_dir)
+            secondary_metrics = secondary_target.calculate_metrics(summa_dir, mizuroute_dir)
+            
+            obj1 = extract_metric(primary_metrics, primary_metric)
+            obj2 = extract_metric(secondary_metrics, secondary_metric)
+            
+        else:
+            # Default mode: NSE and KGE from same target
+            target_type = task.get('calibration_variable', 'streamflow')
+            target = create_target(target_type)
+            
+            metrics = target.calculate_metrics(summa_dir, mizuroute_dir)
+            
+            obj1 = extract_metric(metrics, 'NSE')
+            obj2 = extract_metric(metrics, 'KGE')
+        
+        return [obj1, obj2]
+        
+    except Exception as e:
+        logger.warning(f"Multi-target objective calculation failed: {e}")
+        return [-1.0, -1.0]
 
 def _apply_parameters_worker(params: Dict, task_data: Dict, settings_dir: Path, logger, debug_info: Dict) -> bool:
     """Apply parameters consistently with sequential approach"""

@@ -75,6 +75,7 @@ from worker_scripts import (
 
 from calibration_targets import (
     CalibrationTarget,
+    TWSTarget,
     StreamflowTarget, 
     SnowTarget,
     GroundwaterTarget,
@@ -4049,6 +4050,17 @@ class NSGA2Optimizer(BaseOptimizer):
     """
     
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+        """
+        Initialize NSGA-II optimizer with optional multi-target support.
+        
+        New config options:
+            NSGA2_MULTI_TARGET: bool - Enable dual-target optimization
+            NSGA2_PRIMARY_TARGET: str - Primary calibration target type
+            NSGA2_PRIMARY_METRIC: str - Metric for primary target
+            NSGA2_SECONDARY_TARGET: str - Secondary calibration target type  
+            NSGA2_SECONDARY_METRIC: str - Metric for secondary target
+        """
+        # Call parent __init__ first (this creates self.calibration_target)
         super().__init__(config, logger)
         
         # NSGA-II specific parameters
@@ -4058,21 +4070,131 @@ class NSGA2Optimizer(BaseOptimizer):
         self.eta_c = config.get('NSGA2_ETA_C', 20)  # Crossover distribution index
         self.eta_m = config.get('NSGA2_ETA_M', 20)  # Mutation distribution index
         
-        # Multi-objective setup
-        self.objectives = ['NSE', 'KGE']  # Both NSE and KGE as objectives
-        self.num_objectives = len(self.objectives)
+        # ========== NEW: Multi-target configuration ==========
+        self.multi_target_mode = config.get('NSGA2_MULTI_TARGET', False)
+        
+        if self.multi_target_mode:
+            # Setup dual-target optimization
+            self._setup_multi_target_objectives()
+        else:
+            # Default: NSE and KGE from same target (backward compatible)
+            self.objectives = ['NSE', 'KGE']
+            self.objective_names = ['NSE', 'KGE']  
+            self.num_objectives = 2
+            
+            # Primary target is the inherited calibration_target
+            self.primary_target = self.calibration_target
+            self.secondary_target = None
+            self.primary_metric = 'NSE'
+            self.secondary_metric = 'KGE'
+        
+        self.logger.info(f"NSGA-II Multi-target mode: {self.multi_target_mode}")
+        self.logger.info(f"Objectives: {self.objective_names}")
         
         # NSGA-II state variables
         self.population = None
         self.population_objectives = None  # Shape: (pop_size, num_objectives)
         self.population_ranks = None
         self.population_crowding_distances = None
-        self.pareto_front = None  # Best non-dominated solutions
+        self.pareto_front = None
         
         # Override single-objective variables for compatibility
-        self.best_score = None  # Not applicable for multi-objective
-        self.best_params = None  # Will store one representative solution
-    
+        self.best_score = None
+        self.best_params = None
+
+    def _setup_multi_target_objectives(self) -> None:
+        """
+        Setup dual-target optimization with two different calibration targets.
+        
+        Creates two CalibrationTarget objects - one for each objective.
+        """
+        # Get target configurations
+        primary_target_type = self.config.get('NSGA2_PRIMARY_TARGET', 
+                                            self.config.get('OPTIMISATION_TARGET', 'streamflow'))
+        secondary_target_type = self.config.get('NSGA2_SECONDARY_TARGET', 'gw_depth')
+        
+        self.primary_metric = self.config.get('NSGA2_PRIMARY_METRIC', 'KGE')
+        self.secondary_metric = self.config.get('NSGA2_SECONDARY_METRIC', 'KGE')
+        
+        # Create the two calibration targets
+        self.primary_target = self._create_calibration_target_by_type(primary_target_type)
+        self.secondary_target = self._create_calibration_target_by_type(secondary_target_type)
+        
+        # Override the inherited single calibration_target with primary
+        # (for compatibility with base class methods)
+        self.calibration_target = self.primary_target
+        
+        # Setup objective tracking
+        self.objectives = [
+            f"{primary_target_type}_{self.primary_metric}",
+            f"{secondary_target_type}_{self.secondary_metric}"
+        ]
+        self.objective_names = [
+            f"{primary_target_type.upper()}_{self.primary_metric}",
+            f"{secondary_target_type.upper()}_{self.secondary_metric}"
+        ]
+        self.num_objectives = 2
+        
+        self.logger.info(f"Multi-target NSGA-II configured:")
+        self.logger.info(f"  Primary: {primary_target_type} ({self.primary_metric})")
+        self.logger.info(f"  Secondary: {secondary_target_type} ({self.secondary_metric})")
+
+    def _create_calibration_target_by_type(self, target_type: str):
+        """
+        Factory method to create a calibration target by type name.
+        
+        Parameters
+        ----------
+        target_type : str
+            Type of calibration target. Options:
+            - 'streamflow': Streamflow/discharge calibration
+            - 'swe', 'sca', 'snow_depth': Snow calibration
+            - 'gw_depth', 'gw_grace': Groundwater calibration
+            - 'et', 'latent_heat': Evapotranspiration calibration
+            - 'sm_point', 'sm_smap', 'sm_esa': Soil moisture calibration
+            - 'tws', 'grace', 'grace_tws': Total water storage vs GRACE
+        
+        Returns
+        -------
+        CalibrationTarget
+            Appropriate calibration target instance
+        """
+        # Import calibration target classes (adjust path as needed)
+        from calibration_targets import (
+            CalibrationTarget,
+            StreamflowTarget, 
+            SnowTarget,
+            GroundwaterTarget,
+            ETTarget,
+            SoilMoistureTarget
+        )
+        from tws_calibration_target import TWSTarget
+        
+        target_type = target_type.lower()
+        
+        if target_type in ['streamflow', 'flow', 'discharge']:
+            return StreamflowTarget(self.config, self.project_dir, self.logger)
+        
+        elif target_type in ['swe', 'sca', 'snow_depth', 'snow']:
+            return SnowTarget(self.config, self.project_dir, self.logger)
+        
+        elif target_type in ['gw_depth', 'gw_grace', 'groundwater', 'gw']:
+            return GroundwaterTarget(self.config, self.project_dir, self.logger)
+        
+        elif target_type in ['et', 'latent_heat', 'evapotranspiration']:
+            return ETTarget(self.config, self.project_dir, self.logger)
+        
+        elif target_type in ['sm_point', 'sm_smap', 'sm_esa', 'soil_moisture', 'sm']:
+            return SoilMoistureTarget(self.config, self.project_dir, self.logger)
+        
+        elif target_type in ['tws', 'grace', 'grace_tws', 'total_storage']:
+            return TWSTarget(self.config, self.project_dir, self.logger)
+        
+        else:
+            raise ValueError(f"Unknown calibration target type: {target_type}. "
+                            f"Valid options: streamflow, swe, gw_depth, et, sm_point, tws")
+
+
     def get_algorithm_name(self) -> str:
         return "NSGA2"
     
@@ -4244,17 +4366,23 @@ class NSGA2Optimizer(BaseOptimizer):
                 objectives = self._evaluate_individual_multiobjective(self.population[i])
                 self.population_objectives[i] = objectives
     
+
     def _evaluate_individual_multiobjective(self, normalized_params: np.ndarray) -> np.ndarray:
-        """Evaluate individual for multiple objectives (NSE and KGE)"""
+        """
+        Evaluate individual for multiple objectives.
+        
+        In multi-target mode: Evaluates against two different calibration targets.
+        In default mode: Evaluates NSE and KGE from the same target.
+        """
         try:
             # Denormalize parameters
             params = self.parameter_manager.denormalize_parameters(normalized_params)
             
             # Apply parameters to files
             if not self._apply_parameters(params):
-                return np.array([-1.0, -1.0])  # Bad NSE and KGE
+                return np.array([-1.0, -1.0])  # Bad values for both objectives
             
-            # Run models
+            # Run models once
             if not self.model_executor.run_models(
                 self.summa_sim_dir, 
                 self.mizuroute_sim_dir, 
@@ -4262,26 +4390,46 @@ class NSGA2Optimizer(BaseOptimizer):
             ):
                 return np.array([-1.0, -1.0])
             
-            # Calculate performance metrics
-            metrics = self.calibration_target.calculate_metrics(self.summa_sim_dir, self.mizuroute_sim_dir)
-            if not metrics:
-                return np.array([-1.0, -1.0])
-            
-            # Extract NSE and KGE
-            nse = self._extract_specific_metric(metrics, 'NSE')
-            kge = self._extract_specific_metric(metrics, 'KGE')
+            if self.multi_target_mode:
+                # ===== MULTI-TARGET MODE =====
+                # Calculate metrics from both targets
+                
+                # Primary target metrics
+                primary_metrics = self.primary_target.calculate_metrics(
+                    self.summa_sim_dir, self.mizuroute_sim_dir
+                )
+                obj1 = self._extract_specific_metric(primary_metrics, self.primary_metric)
+                
+                # Secondary target metrics
+                secondary_metrics = self.secondary_target.calculate_metrics(
+                    self.summa_sim_dir, self.mizuroute_sim_dir
+                )
+                obj2 = self._extract_specific_metric(secondary_metrics, self.secondary_metric)
+                
+            else:
+                # ===== DEFAULT MODE (NSE + KGE from same target) =====
+                metrics = self.calibration_target.calculate_metrics(
+                    self.summa_sim_dir, self.mizuroute_sim_dir
+                )
+                if not metrics:
+                    return np.array([-1.0, -1.0])
+                
+                obj1 = self._extract_specific_metric(metrics, 'NSE')
+                obj2 = self._extract_specific_metric(metrics, 'KGE')
             
             # Handle NaN values
-            if nse is None or np.isnan(nse):
-                nse = -1.0
-            if kge is None or np.isnan(kge):
-                kge = -1.0
+            if obj1 is None or np.isnan(obj1):
+                obj1 = -1.0
+            if obj2 is None or np.isnan(obj2):
+                obj2 = -1.0
             
-            return np.array([nse, kge])
+            return np.array([obj1, obj2])
             
         except Exception as e:
             self.logger.debug(f"Multi-objective evaluation failed: {str(e)}")
             return np.array([-1.0, -1.0])
+
+
     
     def _extract_specific_metric(self, metrics: Dict[str, float], metric_name: str) -> Optional[float]:
         """Extract specific metric from metrics dictionary"""
@@ -4301,48 +4449,14 @@ class NSGA2Optimizer(BaseOptimizer):
         
         return None
 
-    def _evaluate_population_parallel_multiobjective_with_debug(self, evaluation_tasks: List[Dict]) -> None:
-        """Debug version to see exactly what's happening"""
-        
-        # 🎯 DEBUG: Log what we're sending
-        self.logger.info(f"🎯 MAIN PROCESS: Sending {len(evaluation_tasks)} tasks")
-        if evaluation_tasks:
-            first_task = evaluation_tasks[0]
-            self.logger.info(f"🎯 MAIN PROCESS SENDING:")
-            self.logger.info(f"🎯   multiobjective: {first_task.get('multiobjective')}")
-            self.logger.info(f"🎯   target_metric: {first_task.get('target_metric')}")
-            self.logger.info(f"🎯   individual_id: {first_task.get('individual_id')}")
-            self.logger.info(f"🎯   all task keys: {list(first_task.keys())}")
-        
-        # Use existing parallel evaluation framework
-        results = self._run_parallel_evaluations(evaluation_tasks)
-        
-        # 🎯 DEBUG: Log what we got back
-        self.logger.info(f"🎯 MAIN PROCESS: Received {len(results)} results")
-        if results:
-            first_result = results[0]
-            self.logger.info(f"🎯 MAIN PROCESS RECEIVED:")
-            self.logger.info(f"🎯   score: {first_result.get('score')}")
-            self.logger.info(f"🎯   objectives: {first_result.get('objectives')}")
-            self.logger.info(f"🎯   error: {first_result.get('error')}")
-            self.logger.info(f"🎯   all result keys: {list(first_result.keys())}")
-        
-        # Process results normally
-        for result in results:
-            individual_id = result['individual_id']
-            objectives = result.get('objectives')
-            error = result.get('error')
-            
-            if objectives is not None and error is None:
-                self.population_objectives[individual_id] = np.array(objectives)
-                self.logger.debug(f"Individual {individual_id}: NSE={objectives[0]:.4f}, KGE={objectives[1]:.4f}")
-            else:
-                # Evaluation failed - use bad values
-                self.population_objectives[individual_id] = np.array([-1.0, -1.0])
-                self.logger.warning(f"Individual {individual_id} failed: {error}") 
 
     def _evaluate_population_parallel_multiobjective(self) -> None:
-        """Evaluate population in parallel for multiple objectives using enhanced worker"""
+        """
+        Evaluate population in parallel for multiple objectives.
+        
+        Builds task dictionaries that include multi-target configuration
+        for the worker processes.
+        """
         evaluation_tasks = []
         
         for i in range(self.population_size):
@@ -4358,16 +4472,25 @@ class NSGA2Optimizer(BaseOptimizer):
                     'proc_id': i % self.num_processes,
                     'evaluation_id': f"nsga2_pop_{i:03d}",
                     
-                    # 🎯 MULTI-OBJECTIVE FLAG - THIS WAS MISSING!
+                    # Multi-objective flag
                     'multiobjective': True,
                     
-                    # Required fields for worker
+                    # ========== NEW: Multi-target configuration ==========
+                    'multi_target_mode': self.multi_target_mode,
+                    'primary_target_type': self.config.get('NSGA2_PRIMARY_TARGET', 
+                                                        self.config.get('OPTIMISATION_TARGET', 'streamflow')),
+                    'secondary_target_type': self.config.get('NSGA2_SECONDARY_TARGET', 'gw_depth'),
+                    'primary_metric': self.primary_metric,
+                    'secondary_metric': self.secondary_metric,
+                    
+                    # Standard fields for worker
                     'target_metric': self.target_metric,
                     'calibration_variable': self.config.get('CALIBRATION_VARIABLE', 'streamflow'),
                     'config': self.config,
                     'domain_name': self.domain_name,
                     'project_dir': str(self.project_dir),
-                    'original_depths': self.parameter_manager.original_depths.tolist() if self.parameter_manager.original_depths is not None else None,
+                    'original_depths': self.parameter_manager.original_depths.tolist() 
+                                    if self.parameter_manager.original_depths is not None else None,
                     
                     # Paths for worker
                     'summa_exe': str(self._get_summa_exe_path()),
@@ -4380,25 +4503,22 @@ class NSGA2Optimizer(BaseOptimizer):
                 evaluation_tasks.append(task)
         
         if evaluation_tasks:
-            # Add debug logging to verify the flag is being passed
-            first_task = evaluation_tasks[0]
-            #self.logger.info(f"🎯 DEBUG: First task multiobjective flag: {first_task.get('multiobjective', 'MISSING!')}")
-            
             # Use the existing parallel evaluation framework
             results = self._run_parallel_evaluations(evaluation_tasks)
 
             # Process results for multi-objective
             for result in results:
                 individual_id = result['individual_id']
-                objectives = result.get('objectives')  # [NSE, KGE]
+                objectives = result.get('objectives')  # [obj1, obj2]
                 error = result.get('error')
-                
-                # Add debug logging
-                #self.logger.info(f"🎯 DEBUG: Individual {individual_id} objectives: {objectives}")
                 
                 if objectives is not None and error is None:
                     self.population_objectives[individual_id] = np.array(objectives)
-                    self.logger.debug(f"Individual {individual_id}: NSE={objectives[0]:.4f}, KGE={objectives[1]:.4f}")
+                    self.logger.debug(
+                        f"Individual {individual_id}: "
+                        f"{self.objective_names[0]}={objectives[0]:.4f}, "
+                        f"{self.objective_names[1]}={objectives[1]:.4f}"
+                    )
                 else:
                     # Evaluation failed - use bad values
                     self.population_objectives[individual_id] = np.array([-1.0, -1.0])
@@ -4857,51 +4977,68 @@ class NSGA2Optimizer(BaseOptimizer):
             # Fallback if no valid solutions
             self.best_params = None
             self.best_score = -2.0  # Worst possible composite score
-    
+        
     def _record_generation(self, generation: int) -> None:
-        """Record NSGA-II generation statistics"""
-        valid_nse = self.population_objectives[:, 0][~np.isnan(self.population_objectives[:, 0])]
-        valid_kge = self.population_objectives[:, 1][~np.isnan(self.population_objectives[:, 1])]
+        """
+        Record NSGA-II generation statistics with multi-target support.
+        """
+        valid_obj1 = self.population_objectives[:, 0][~np.isnan(self.population_objectives[:, 0])]
+        valid_obj2 = self.population_objectives[:, 1][~np.isnan(self.population_objectives[:, 1])]
         
         # Count individuals in each front
         front_counts = {}
         for rank in range(int(np.max(self.population_ranks)) + 1):
             front_counts[f'front_{rank}'] = np.sum(self.population_ranks == rank)
         
+        # Use dynamic objective names
+        obj1_name = self.objective_names[0] if hasattr(self, 'objective_names') else 'NSE'
+        obj2_name = self.objective_names[1] if hasattr(self, 'objective_names') else 'KGE'
+        
         generation_stats = {
             'generation': generation,
             'algorithm': 'NSGA-II',
+            'multi_target_mode': self.multi_target_mode,
             'best_score': self.best_score,  # Composite score for compatibility
             'best_params': self.best_params.copy() if self.best_params is not None else None,
             
-            # Multi-objective specific stats
+            # Multi-objective specific stats (with dynamic names)
             'pareto_front_size': front_counts.get('front_0', 0),
-            'mean_nse': np.mean(valid_nse) if len(valid_nse) > 0 else None,
-            'std_nse': np.std(valid_nse) if len(valid_nse) > 0 else None,
-            'best_nse': np.max(valid_nse) if len(valid_nse) > 0 else None,
-            'mean_kge': np.mean(valid_kge) if len(valid_kge) > 0 else None,
-            'std_kge': np.std(valid_kge) if len(valid_kge) > 0 else None,
-            'best_kge': np.max(valid_kge) if len(valid_kge) > 0 else None,
+            f'mean_{obj1_name}': np.mean(valid_obj1) if len(valid_obj1) > 0 else None,
+            f'std_{obj1_name}': np.std(valid_obj1) if len(valid_obj1) > 0 else None,
+            f'best_{obj1_name}': np.max(valid_obj1) if len(valid_obj1) > 0 else None,
+            f'mean_{obj2_name}': np.mean(valid_obj2) if len(valid_obj2) > 0 else None,
+            f'std_{obj2_name}': np.std(valid_obj2) if len(valid_obj2) > 0 else None,
+            f'best_{obj2_name}': np.max(valid_obj2) if len(valid_obj2) > 0 else None,
+            
+            # For backward compatibility, also include NSE/KGE keys
+            'mean_nse': np.mean(valid_obj1) if len(valid_obj1) > 0 else None,
+            'best_nse': np.max(valid_obj1) if len(valid_obj1) > 0 else None,
+            'mean_kge': np.mean(valid_obj2) if len(valid_obj2) > 0 else None,
+            'best_kge': np.max(valid_obj2) if len(valid_obj2) > 0 else None,
             
             # Front distribution
             'front_counts': front_counts,
             
             # Compatibility with base class
-            'mean_score': np.mean(valid_nse + valid_kge) / 2 if len(valid_nse) > 0 and len(valid_kge) > 0 else None,
-            'std_score': np.std(valid_nse + valid_kge) / 2 if len(valid_nse) > 0 and len(valid_kge) > 0 else None,
-            'worst_score': np.min(valid_nse + valid_kge) / 2 if len(valid_nse) > 0 and len(valid_kge) > 0 else None,
-            'valid_individuals': len(valid_nse),
+            'mean_score': np.mean(valid_obj1 + valid_obj2) / 2 if len(valid_obj1) > 0 and len(valid_obj2) > 0 else None,
+            'valid_individuals': len(valid_obj1),
             
             # Store raw data
             'population_objectives': self.population_objectives.copy(),
             'population_ranks': self.population_ranks.copy(),
-            'population_crowding_distances': self.population_crowding_distances.copy()
+            'population_crowding_distances': self.population_crowding_distances.copy(),
+            
+            # Objective metadata
+            'objective_names': self.objective_names
         }
         
         self.iteration_history.append(generation_stats)
-    
+
+
     def get_pareto_front(self) -> Dict[str, Any]:
-        """Get the final Pareto front of solutions"""
+        """
+        Get the final Pareto front of solutions with multi-target support.
+        """
         if hasattr(self, 'pareto_front') and self.pareto_front is not None:
             return self.pareto_front
         
@@ -4909,15 +5046,30 @@ class NSGA2Optimizer(BaseOptimizer):
         front_1_indices = np.where(self.population_ranks == 0)[0]
         
         if len(front_1_indices) > 0:
+            obj1_name = self.objective_names[0] if hasattr(self, 'objective_names') else 'nse'
+            obj2_name = self.objective_names[1] if hasattr(self, 'objective_names') else 'kge'
+            
             return {
                 'solutions': self.population[front_1_indices],
                 'objectives': self.population_objectives[front_1_indices],
-                'parameters': [self.parameter_manager.denormalize_parameters(sol) for sol in self.population[front_1_indices]],
+                'parameters': [self.parameter_manager.denormalize_parameters(sol) 
+                            for sol in self.population[front_1_indices]],
+                f'{obj1_name.lower()}_values': self.population_objectives[front_1_indices, 0],
+                f'{obj2_name.lower()}_values': self.population_objectives[front_1_indices, 1],
+                # Backward compatibility
                 'nse_values': self.population_objectives[front_1_indices, 0],
-                'kge_values': self.population_objectives[front_1_indices, 1]
+                'kge_values': self.population_objectives[front_1_indices, 1],
+                'objective_names': self.objective_names,
+                'multi_target_mode': self.multi_target_mode
             }
         else:
-            return {'solutions': [], 'objectives': [], 'parameters': [], 'nse_values': [], 'kge_values': []}
+            return {
+                'solutions': [], 'objectives': [], 'parameters': [],
+                'nse_values': [], 'kge_values': [],
+                'objective_names': getattr(self, 'objective_names', ['NSE', 'KGE']),
+                'multi_target_mode': getattr(self, 'multi_target_mode', False)
+            }
+
 
 
 
