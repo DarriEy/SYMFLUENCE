@@ -2,44 +2,23 @@
 # -*- coding: utf-8 -*-
 
 """
-SYMFLUENCE Node-Agnostic Local Scratch Manager
+SYMFLUENCE Node-Agnostic Local Scratch Manager (Fixed Staging)
 
 This module provides functionality to use local scratch storage on HPC systems
 to reduce IOPS on shared filesystems during parallel optimization, with support
 for multi-node jobs.
 
-Key improvements:
-- Works across multiple nodes
-- Each MPI rank copies data to its local node's scratch
-- Node-aware result staging
-- Automatic detection of node topology
-
-The manager:
-1. Detects HPC environment (SLURM) and node configuration
-2. Each worker creates scratch directory on its local node
-3. Each worker copies necessary data to its local scratch
-4. Updates paths for optimization run on each node
-5. Stages results back from each node to permanent storage
-
-Usage:
-    scratch_mgr = LocalScratchManager(config, logger, project_dir, algorithm_name)
-    
-    if scratch_mgr.use_scratch:
-        # Setup scratch space (each worker does this)
-        scratch_mgr.setup_scratch_space()
-        
-        # Get scratch paths for optimization
-        scratch_paths = scratch_mgr.get_scratch_paths()
-        
-        # After optimization completes
-        scratch_mgr.stage_results_back()
+Key improvements in this version:
+- Fixed staging to properly find outputs in process-specific directories
+- Results staged back mirror the non-scratch structure exactly
+- Handles parallel_proc_XX subdirectories correctly
 """
 
 import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 import logging
 import socket
 import hashlib
@@ -65,13 +44,13 @@ class LocalScratchManager:
         Args:
             config: SYMFLUENCE configuration dictionary
             logger: Logger instance
-            project_dir: Main project directory path
+            project_dir: Main project directory path (ORIGINAL, not scratch)
             algorithm_name: Name of optimization algorithm (for directory naming)
             mpi_rank: MPI rank of this process (None for serial execution)
         """
         self.config = config
         self.logger = logger
-        self.project_dir = project_dir
+        self.project_dir = project_dir  # This is the ORIGINAL project dir
         self.algorithm_name = algorithm_name
         self.domain_name = config.get('DOMAIN_NAME')
         self.experiment_id = config.get('EXPERIMENT_ID')
@@ -89,6 +68,9 @@ class LocalScratchManager:
         self.scratch_data_dir = None
         self.scratch_project_dir = None
         self.original_data_dir = None
+        
+        # Store original project_dir for staging back
+        self.original_project_dir = project_dir
         
         if self.use_scratch:
             self.logger.info(f"Local scratch mode ENABLED for rank {self.mpi_rank} on node {self.node_name}")
@@ -177,6 +159,7 @@ class LocalScratchManager:
         self.logger.info(f"  Scratch root: {self.scratch_root}")
         self.logger.info(f"  Scratch data dir: {self.scratch_data_dir}")
         self.logger.info(f"  Scratch project dir: {self.scratch_project_dir}")
+        self.logger.info(f"  Original project dir (for staging): {self.original_project_dir}")
     
     def _needs_routing(self) -> bool:
         """
@@ -294,7 +277,7 @@ class LocalScratchManager:
         """Copy SUMMA settings to scratch."""
         self.logger.info(f"Rank {self.mpi_rank}: Copying SUMMA settings to scratch on {self.node_name}...")
         
-        source_settings = self.project_dir / "settings" / "SUMMA"
+        source_settings = self.original_project_dir / "settings" / "SUMMA"
         dest_settings = self.scratch_project_dir / "settings" / "SUMMA"
         
         # Copy all settings files
@@ -304,7 +287,7 @@ class LocalScratchManager:
         """Copy forcing data to scratch."""
         self.logger.info(f"Rank {self.mpi_rank}: Copying forcing data to scratch on {self.node_name}...")
         
-        source_forcing = self.project_dir / "forcing" / "SUMMA_input"
+        source_forcing = self.original_project_dir / "forcing" / "SUMMA_input"
         dest_forcing = self.scratch_project_dir / "forcing" / "SUMMA_input"
         
         # Copy forcing data
@@ -314,7 +297,7 @@ class LocalScratchManager:
         """Copy observation data to scratch."""
         self.logger.info(f"Rank {self.mpi_rank}: Copying observation data to scratch on {self.node_name}...")
         
-        source_obs = self.project_dir / "observations" / "streamflow" / "preprocessed"
+        source_obs = self.original_project_dir / "observations" / "streamflow" / "preprocessed"
         dest_obs = self.scratch_project_dir / "observations" / "streamflow" / "preprocessed"
         
         # Only copy if source exists
@@ -327,7 +310,7 @@ class LocalScratchManager:
         """Copy mizuRoute settings to scratch."""
         self.logger.info(f"Rank {self.mpi_rank}: Copying mizuRoute settings to scratch on {self.node_name}...")
         
-        source_mizu = self.project_dir / "settings" / "mizuRoute"
+        source_mizu = self.original_project_dir / "settings" / "mizuRoute"
         dest_mizu = self.scratch_project_dir / "settings" / "mizuRoute"
         
         # Only copy if source exists
@@ -345,7 +328,14 @@ class LocalScratchManager:
             source: Source directory
             dest: Destination directory
         """
+        if not source.exists():
+            self.logger.warning(f"Rank {self.mpi_rank}: Source directory does not exist: {source}")
+            return
+            
         try:
+            # Ensure destination exists
+            dest.mkdir(parents=True, exist_ok=True)
+            
             # Use rsync for efficient copying (handles existing files better)
             subprocess.run(
                 ['rsync', '-a', '--delete', f'{source}/', f'{dest}/'],
@@ -360,6 +350,32 @@ class LocalScratchManager:
             if dest.exists():
                 shutil.rmtree(dest)
             shutil.copytree(source, dest)
+    
+    def _rsync_files_only(self, source: Path, dest: Path, pattern: str = "*") -> int:
+        """
+        Copy files matching pattern from source to dest, without deleting existing files.
+        
+        Args:
+            source: Source directory
+            dest: Destination directory  
+            pattern: Glob pattern for files to copy
+            
+        Returns:
+            Number of files copied
+        """
+        if not source.exists():
+            return 0
+            
+        dest.mkdir(parents=True, exist_ok=True)
+        copied = 0
+        
+        for src_file in source.glob(pattern):
+            if src_file.is_file():
+                dest_file = dest / src_file.name
+                shutil.copy2(src_file, dest_file)
+                copied += 1
+                
+        return copied
     
     def _update_file_paths_for_scratch(self) -> None:
         """Update file paths in configuration files to point to scratch."""
@@ -439,92 +455,150 @@ class LocalScratchManager:
         else:
             return {
                 'data_dir': self.original_data_dir if self.original_data_dir else Path(self.config.get('SYMFLUENCE_DATA_DIR')),
-                'project_dir': self.project_dir,
-                'settings_dir': self.project_dir / "settings" / "SUMMA",
-                'mizuroute_settings_dir': self.project_dir / "settings" / "mizuRoute",
-                'forcing_dir': self.project_dir / "forcing" / "SUMMA_input",
-                'observations_dir': self.project_dir / "observations" / "streamflow" / "preprocessed",
+                'project_dir': self.original_project_dir,
+                'settings_dir': self.original_project_dir / "settings" / "SUMMA",
+                'mizuroute_settings_dir': self.original_project_dir / "settings" / "mizuRoute",
+                'forcing_dir': self.original_project_dir / "forcing" / "SUMMA_input",
+                'observations_dir': self.original_project_dir / "observations" / "streamflow" / "preprocessed",
             }
     
     def stage_results_back(self) -> None:
         """
         Stage optimization results back to permanent storage.
-        Each rank stages its own results with node and rank identification.
+        
+        FIXED: This now stages results to mirror the exact same structure
+        as if scratch was not used. Results are merged from all process-specific
+        directories back to the original locations.
         
         This copies:
-        - Optimization results
-        - Best parameter files
+        - Simulation results (SUMMA, mizuRoute) from all parallel_proc_XX dirs
+        - Optimization output files
         - Log files
-        - Any other important outputs
+        - Best parameter files
         """
         if not self.use_scratch:
             return
         
         self.logger.info(f"{'='*60}")
         self.logger.info(f"Rank {self.mpi_rank}: Staging results back from {self.node_name}")
+        self.logger.info(f"  Source (scratch): {self.scratch_project_dir}")
+        self.logger.info(f"  Destination (original): {self.original_project_dir}")
         self.logger.info(f"{'='*60}")
         
         try:
-            # Determine output location with node and rank info
-            output_dir = (
-                self.project_dir / "simulations" / 
-                f"run_{self.algorithm_name}" / 
-                f"scratch_results_{self.node_id}_rank{self.mpi_rank}"
-            )
-            output_dir.mkdir(parents=True, exist_ok=True)
+            # Stage simulation results (the main outputs)
+            self._stage_simulation_results_fixed()
             
-            # Copy simulation results
-            self._stage_simulation_results(output_dir)
+            # Stage optimization outputs (parameter files, history, etc.)
+            self._stage_optimization_results_fixed()
             
-            # Copy optimization results
-            self._stage_optimization_results(output_dir)
+            # Stage work logs if they exist
+            self._stage_work_logs_fixed()
             
-            # Copy work logs if they exist
-            self._stage_work_logs(output_dir)
-            
-            self.logger.info(f"Rank {self.mpi_rank}: Results staged to: {output_dir}")
+            self.logger.info(f"Rank {self.mpi_rank}: Results staged successfully to: {self.original_project_dir}")
             self.logger.info(f"{'='*60}")
             
         except Exception as e:
             self.logger.error(f"Rank {self.mpi_rank}: Error staging results back: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
             # Don't raise - we want to keep the results in scratch for manual recovery
             self.logger.error(
                 f"Rank {self.mpi_rank}: Results remain in scratch at: "
                 f"{self.scratch_project_dir}"
             )
     
-    def _stage_simulation_results(self, output_dir: Path) -> None:
-        """Stage simulation outputs back to permanent storage."""
-        # SUMMA outputs
-        scratch_summa = self.scratch_project_dir / "simulations" / f"run_{self.algorithm_name}" / "SUMMA"
-        if scratch_summa.exists():
-            dest_summa = output_dir / "SUMMA"
-            self.logger.info(f"Rank {self.mpi_rank}: Staging SUMMA results: {scratch_summa} -> {dest_summa}")
-            self._rsync_directory(scratch_summa, dest_summa)
+    def _stage_simulation_results_fixed(self) -> None:
+        """
+        Stage simulation outputs back to permanent storage.
         
-        # mizuRoute outputs
-        scratch_mizu = self.scratch_project_dir / "simulations" / f"run_{self.algorithm_name}" / "mizuRoute"
-        if scratch_mizu.exists():
-            dest_mizu = output_dir / "mizuRoute"
-            self.logger.info(f"Rank {self.mpi_rank}: Staging mizuRoute results: {scratch_mizu} -> {dest_mizu}")
-            self._rsync_directory(scratch_mizu, dest_mizu)
+        FIXED: This handles the parallel_proc_XX directory structure properly.
+        """
+        scratch_sim_base = self.scratch_project_dir / "simulations" / f"run_{self.algorithm_name}"
+        dest_sim_base = self.original_project_dir / "simulations" / f"run_{self.algorithm_name}"
+        
+        if not scratch_sim_base.exists():
+            self.logger.warning(f"Rank {self.mpi_rank}: No simulation directory found at {scratch_sim_base}")
+            return
+        
+        # Ensure destination exists
+        dest_sim_base.mkdir(parents=True, exist_ok=True)
+        
+        # Find all items in the scratch simulation directory
+        items_staged = 0
+        
+        for item in scratch_sim_base.iterdir():
+            dest_item = dest_sim_base / item.name
+            
+            if item.is_dir():
+                # Check if this is a parallel_proc_XX directory
+                if item.name.startswith("parallel_proc_"):
+                    # Stage the entire parallel_proc directory
+                    self.logger.info(f"Rank {self.mpi_rank}: Staging {item.name}")
+                    self._rsync_directory(item, dest_item)
+                    items_staged += 1
+                    
+                elif item.name in ["SUMMA", "mizuRoute", "settings", "logs"]:
+                    # Stage standard directories
+                    self.logger.info(f"Rank {self.mpi_rank}: Staging {item.name}")
+                    self._rsync_directory(item, dest_item)
+                    items_staged += 1
+                    
+                else:
+                    # Stage any other directories
+                    self.logger.info(f"Rank {self.mpi_rank}: Staging {item.name}")
+                    self._rsync_directory(item, dest_item)
+                    items_staged += 1
+                    
+            elif item.is_file():
+                # Copy individual files
+                shutil.copy2(item, dest_item)
+                items_staged += 1
+        
+        self.logger.info(f"Rank {self.mpi_rank}: Staged {items_staged} items from simulations directory")
     
-    def _stage_optimization_results(self, output_dir: Path) -> None:
-        """Stage optimization-specific results."""
-        # Optimization outputs directory
+    def _stage_optimization_results_fixed(self) -> None:
+        """
+        Stage optimization-specific results (parameter files, history, etc.).
+        
+        FIXED: Stages to the original optimisation directory structure.
+        """
         scratch_opt = self.scratch_project_dir / "optimisation"
-        if scratch_opt.exists():
-            dest_opt = output_dir / "optimisation"
-            self.logger.info(f"Rank {self.mpi_rank}: Staging optimization results: {scratch_opt} -> {dest_opt}")
-            self._rsync_directory(scratch_opt, dest_opt)
+        dest_opt = self.original_project_dir / "optimisation"
+        
+        if scratch_opt.exists() and any(scratch_opt.iterdir()):
+            self.logger.info(f"Rank {self.mpi_rank}: Staging optimization results")
+            
+            # Create destination
+            dest_opt.mkdir(parents=True, exist_ok=True)
+            
+            # Stage each experiment directory
+            for item in scratch_opt.iterdir():
+                dest_item = dest_opt / item.name
+                
+                if item.is_dir():
+                    self._rsync_directory(item, dest_item)
+                elif item.is_file():
+                    shutil.copy2(item, dest_item)
+                    
+            self.logger.info(f"Rank {self.mpi_rank}: Optimization results staged to {dest_opt}")
+        else:
+            self.logger.info(f"Rank {self.mpi_rank}: No optimization results to stage")
     
-    def _stage_work_logs(self, output_dir: Path) -> None:
-        """Stage work logs if they exist."""
+    def _stage_work_logs_fixed(self) -> None:
+        """
+        Stage work logs if they exist.
+        
+        FIXED: Stages to the original work log location.
+        """
         work_log_dir = self.scratch_project_dir / f"_workLog_domain_{self.domain_name}"
-        if work_log_dir.exists():
-            dest_log = output_dir / f"_workLog_domain_{self.domain_name}"
-            self.logger.info(f"Rank {self.mpi_rank}: Staging work logs: {work_log_dir} -> {dest_log}")
+        dest_log = self.original_project_dir / f"_workLog_domain_{self.domain_name}"
+        
+        if work_log_dir.exists() and any(work_log_dir.iterdir()):
+            self.logger.info(f"Rank {self.mpi_rank}: Staging work logs")
             self._rsync_directory(work_log_dir, dest_log)
+        else:
+            self.logger.debug(f"Rank {self.mpi_rank}: No work logs to stage")
     
     def get_effective_data_dir(self) -> Path:
         """
@@ -548,7 +622,16 @@ class LocalScratchManager:
         if self.use_scratch:
             return self.scratch_project_dir
         else:
-            return self.project_dir
+            return self.original_project_dir
+    
+    def get_original_project_dir(self) -> Path:
+        """
+        Get the original project directory (for staging back).
+        
+        Returns:
+            Path to the original (non-scratch) project directory
+        """
+        return self.original_project_dir
     
     def cleanup_scratch(self) -> None:
         """
