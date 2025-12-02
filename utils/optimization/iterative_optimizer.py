@@ -5072,8 +5072,6 @@ class NSGA2Optimizer(BaseOptimizer):
 
 
 
-
-
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
