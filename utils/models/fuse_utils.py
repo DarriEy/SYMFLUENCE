@@ -51,7 +51,58 @@ class FUSEPreProcessor:
         self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
             self.catchment_name = f"{self.domain_name}_HRUs_{self.config['DOMAIN_DISCRETIZATION']}.shp"
+
+    def _get_timestep_config(self):
+        """
+        Get timestep configuration based on FORCING_TIME_STEP_SIZE.
         
+        Returns:
+            dict: Configuration with resample_freq, time_units, time_unit_factor, 
+                conversion_factor, and time_label
+        """
+        timestep_seconds = self.config.get('FORCING_TIME_STEP_SIZE', 86400)  # Default daily
+        
+        if timestep_seconds == 3600:  # Hourly
+            return {
+                'resample_freq': 'h',
+                'time_units': 'hours since 1970-01-01',
+                'time_unit': 'h',  # for pd.to_timedelta
+                'conversion_factor': 3.6,  # cms to mm/hour: Q(mm/hr) = Q(cms) * 3.6 / Area(km2)
+                'time_label': 'hourly',
+                'timestep_seconds': 3600
+            }
+        elif timestep_seconds == 86400:  # Daily
+            return {
+                'resample_freq': 'D',
+                'time_units': 'days since 1970-01-01',
+                'time_unit': 'D',
+                'conversion_factor': 86.4,  # cms to mm/day: Q(mm/day) = Q(cms) * 86.4 / Area(km2)
+                'time_label': 'daily',
+                'timestep_seconds': 86400
+            }
+        else:
+            # Generic case - calculate based on seconds
+            hours = timestep_seconds / 3600
+            if hours < 24:
+                return {
+                    'resample_freq': f'{int(hours)}h',
+                    'time_units': 'hours since 1970-01-01',
+                    'time_unit': 'h',
+                    'conversion_factor': 3.6 * hours,  # Scale from hourly
+                    'time_label': f'{int(hours)}-hourly',
+                    'timestep_seconds': timestep_seconds
+                }
+            else:
+                days = timestep_seconds / 86400
+                return {
+                    'resample_freq': f'{int(days)}D',
+                    'time_units': 'days since 1970-01-01',
+                    'time_unit': 'D',
+                    'conversion_factor': 86.4 * days,  # Scale from daily
+                    'time_label': f'{int(days)}-daily',
+                    'timestep_seconds': timestep_seconds
+                }
+
     def run_preprocessing(self):
         """Run the complete FUSE preprocessing workflow."""
         self.logger.info("Starting FUSE preprocessing")
@@ -494,8 +545,13 @@ class FUSEPreProcessor:
     def prepare_forcing_data(self):
         """
         Prepare forcing data with support for lumped, semi-distributed, and distributed modes.
+        Supports configurable timesteps based on FORCING_TIME_STEP_SIZE config parameter.
         """
         try:
+            # Get timestep configuration
+            ts_config = self._get_timestep_config()
+            self.logger.info(f"Using {ts_config['time_label']} timestep (resample freq: {ts_config['resample_freq']})")
+            
             # Get spatial mode configuration
             spatial_mode = self.config.get('FUSE_SPATIAL_MODE', 'lumped')
             subcatchment_dim = self.config.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
@@ -522,9 +578,9 @@ class FUSEPreProcessor:
             else:
                 raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")
             
-            # Convert to daily resolution AFTER spatial organization
-            self.logger.info("Resampling data to daily resolution")
-            ds = ds.resample(time='D').mean()
+            # Resample to target resolution AFTER spatial organization
+            self.logger.info(f"Resampling data to {ts_config['time_label']} resolution")
+            ds = ds.resample(time=ts_config['resample_freq']).mean()
             
             # Process temperature and precipitation
             try:
@@ -534,7 +590,7 @@ class FUSEPreProcessor:
                 pass
             
             # Handle streamflow observations
-            obs_ds = self._load_streamflow_observations(spatial_mode)
+            obs_ds = self._load_streamflow_observations(spatial_mode, ts_config)
             
             # Get PET method from config (default to 'oudin')
             pet_method = self.config.get('PET_METHOD', 'oudin').lower()
@@ -549,16 +605,16 @@ class FUSEPreProcessor:
                 # For distributed modes, calculate PET after spatial organization and resampling
                 pet = self._calculate_distributed_pet(ds, spatial_mode, pet_method)
             
-            # Ensure PET is also daily resolution by checking if resampling is needed
-            pet_daily_check = pet.resample(time='D').mean()
-            if len(pet_daily_check.time) != len(pet.time):
-                self.logger.info("PET data needs resampling to daily resolution")
-                pet = pet_daily_check
+            # Ensure PET is also at target resolution by checking if resampling is needed
+            pet_resampled = pet.resample(time=ts_config['resample_freq']).mean()
+            if len(pet_resampled.time) != len(pet.time):
+                self.logger.info(f"PET data resampled to {ts_config['time_label']} resolution")
+                pet = pet_resampled
             else:
-                self.logger.info("PET data is already at daily resolution")
+                self.logger.info(f"PET data is already at {ts_config['time_label']} resolution")
             
             # Create FUSE forcing dataset
-            fuse_forcing = self._create_fuse_forcing_dataset(ds, pet, obs_ds, spatial_mode, subcatchment_dim)
+            fuse_forcing = self._create_fuse_forcing_dataset(ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config)
             
             # Save forcing data
             output_file = self.forcing_fuse_path / f"{self.domain_name}_input.nc"
@@ -598,8 +654,14 @@ class FUSEPreProcessor:
             self.logger.warning(f"Unknown PET method '{method}', defaulting to Oudin")
             return self.calculate_pet_oudin(temp_data, lat)
 
-    def _add_forcing_variables(self, fuse_forcing, ds, pet, obs_ds, spatial_dims, n_subcatchments):
+    def _add_forcing_variables(self, fuse_forcing, ds, pet, obs_ds, spatial_dims, n_subcatchments, ts_config=None):
         """Add forcing variables to the dataset with proper dimension handling"""
+        
+        if ts_config is None:
+            ts_config = self._get_timestep_config()
+        
+        time_label = ts_config['time_label']
+        unit_str = f"mm/{time_label.replace('-', ' ')}"
         
         # Get the time dimension length from the coordinate system
         time_length = len(fuse_forcing.time)
@@ -652,7 +714,8 @@ class FUSEPreProcessor:
                     pad_length = time_length - pr_data.shape[0]
                     pr_data = np.concatenate([pr_data, np.repeat(pr_data[-1], pad_length)])
         
-        var_mapping.append(('pr', pr_data, 'precipitation', 'mm/day', 'Mean daily precipitation'))
+        var_mapping.append(('pr', pr_data, 'precipitation', unit_str, f'Mean {time_label} precipitation'))
+
         
         # Handle temperature
         if 'hru' in ds.dims and spatial_dims[1] != 'longitude':
@@ -673,7 +736,7 @@ class FUSEPreProcessor:
                     pad_length = time_length - temp_data.shape[0]
                     temp_data = np.concatenate([temp_data, np.repeat(temp_data[-1], pad_length)])
         
-        var_mapping.append(('temp', temp_data, 'temperature', 'degC', 'Mean daily temperature'))
+        var_mapping.append(('temp', temp_data, 'temperature', 'degC', f'Mean {time_label} temperature'))    
         
         # Handle PET
         pet_data = pet.values
@@ -688,7 +751,7 @@ class FUSEPreProcessor:
                 else:
                     pet_data = np.concatenate([pet_data, np.repeat(pet_data[-1], pad_length)])
         
-        var_mapping.append(('pet', pet_data, 'pet', 'mm/day', 'Mean daily pet'))
+        var_mapping.append(('pet', pet_data, 'pet', unit_str, f'Mean {time_label} pet'))
         
         # Add streamflow observations
         if obs_ds is not None:
@@ -699,11 +762,11 @@ class FUSEPreProcessor:
                 else:
                     pad_length = time_length - obs_data.shape[0]
                     obs_data = np.concatenate([obs_data, np.repeat(obs_data[-1], pad_length)])
-            var_mapping.append(('q_obs', obs_data, 'streamflow', 'mm/day', 'Mean observed daily discharge'))
+            var_mapping.append(('q_obs', obs_data, 'streamflow', unit_str, f'Mean observed {time_label} discharge'))
         else:
             # Generate synthetic hydrograph for each subcatchment
             synthetic_q = self._generate_distributed_synthetic_hydrograph(ds, n_subcatchments, time_length)
-            var_mapping.append(('q_obs', synthetic_q, 'streamflow', 'mm/day', 'Synthetic discharge for optimization'))
+            var_mapping.append(('q_obs', synthetic_q, 'streamflow', unit_str, f'Synthetic discharge for optimization'))
         
         # Add variables to dataset
         encoding = {}
@@ -844,16 +907,22 @@ class FUSEPreProcessor:
                 # Create simple subcatchment IDs
                 return np.arange(1, len(catchment) + 1)
 
-    def _create_fuse_forcing_dataset(self, ds, pet, obs_ds, spatial_mode, subcatchment_dim):
+    def _create_fuse_forcing_dataset(self, ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config=None):
         """Create the final FUSE forcing dataset with proper coordinate structure"""
         
+        if ts_config is None:
+            ts_config = self._get_timestep_config()
+        
         if spatial_mode == 'lumped':
-            return self._create_lumped_dataset(ds, pet, obs_ds)
+            return self._create_lumped_dataset(ds, pet, obs_ds, ts_config)
         else:
-            return self._create_distributed_dataset(ds, pet, obs_ds, spatial_mode, subcatchment_dim)
+            return self._create_distributed_dataset(ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config)
 
-    def _create_distributed_dataset(self, ds, pet, obs_ds, spatial_mode, subcatchment_dim):
-        """Create distributed/semi-distributed FUSE forcing dataset"""
+    def _create_distributed_dataset(self, ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config=None):
+        """Create distributed/semi-distributed FUSE forcing dataset with configurable timestep"""
+        
+        if ts_config is None:
+            ts_config = self._get_timestep_config()
         
         # Get spatial information
         subcatchments = self._load_subcatchment_data()
@@ -863,23 +932,28 @@ class FUSEPreProcessor:
         catchment = gpd.read_file(self.catchment_path / self.catchment_name)
         mean_lon, mean_lat = self._get_catchment_centroid(catchment)
         
-        # Convert time to days since 1970-01-01
-        time_index = pd.date_range(start=ds.time.min().values, end=ds.time.max().values, freq='D')
-        time_days = (time_index - pd.Timestamp('1970-01-01')).days.values
+        # Create time index with correct frequency
+        time_index = pd.date_range(start=ds.time.min().values, end=ds.time.max().values, freq=ts_config['resample_freq'])
+        
+        # Convert to numeric time values
+        if ts_config['time_unit'] == 'h':
+            time_numeric = ((time_index - pd.Timestamp('1970-01-01')).total_seconds() / 3600).values
+        else:
+            time_numeric = (time_index - pd.Timestamp('1970-01-01')).days.values
         
         # Create coordinate system based on subcatchment dimension choice
         if subcatchment_dim == 'latitude':
             coords = {
                 'longitude': ('longitude', [mean_lon]),
                 'latitude': ('latitude', subcatchments.astype(float)),  # Subcatchment IDs as pseudo-lat
-                'time': ('time', time_days)
+                'time': ('time', time_numeric)
             }
             spatial_dims = ('time', 'latitude', 'longitude')
         else:  # longitude
             coords = {
                 'longitude': ('longitude', subcatchments.astype(float)),  # Subcatchment IDs as pseudo-lon
                 'latitude': ('latitude', [mean_lat]),
-                'time': ('time', time_days)
+                'time': ('time', time_numeric)
             }
             spatial_dims = ('time', 'longitude', 'latitude')
         
@@ -896,12 +970,12 @@ class FUSEPreProcessor:
             'long_name': 'latitude' if subcatchment_dim != 'latitude' else 'subcatchment identifier'
         }
         fuse_forcing.time.attrs = {
-            'units': 'days since 1970-01-01',
+            'units': ts_config['time_units'],
             'long_name': 'time'
         }
         
         # Add data variables
-        self._add_forcing_variables(fuse_forcing, ds, pet, obs_ds, spatial_dims, n_subcatchments)
+        self._add_forcing_variables(fuse_forcing, ds, pet, obs_ds, spatial_dims, n_subcatchments, ts_config)
         
         return fuse_forcing
 
@@ -1116,16 +1190,21 @@ class FUSEPreProcessor:
         self.logger.info(f"Created distributed elevation bands file: {output_file}")
         return output_file
 
-    def _load_streamflow_observations(self, spatial_mode):
+    def _load_streamflow_observations(self, spatial_mode, ts_config=None):
         """
         Load streamflow observations for FUSE forcing data.
         
         Args:
             spatial_mode (str): Spatial mode ('lumped', 'semi_distributed', 'distributed')
+            ts_config (dict): Timestep configuration from _get_timestep_config()
             
         Returns:
             xr.Dataset or None: Dataset containing observed streamflow or None if not available
         """
+        # Get timestep config if not provided
+        if ts_config is None:
+            ts_config = self._get_timestep_config()
+        
         try:
             # Get observations file path
             obs_file_path = self.config.get('OBSERVATIONS_PATH', 'default')
@@ -1144,11 +1223,11 @@ class FUSEPreProcessor:
             self.logger.info(f"Loading streamflow observations from: {obs_file_path}")
             dfObs = pd.read_csv(obs_file_path, index_col='datetime', parse_dates=True)
             
-            # Resample to daily and get discharge
+            # Resample to target timestep and get discharge
             if 'discharge_cms' in dfObs.columns:
-                obs_streamflow = dfObs['discharge_cms'].resample('D').mean()
+                obs_streamflow = dfObs['discharge_cms'].resample(ts_config['resample_freq']).mean()
             elif 'discharge' in dfObs.columns: 
-                obs_streamflow = dfObs['discharge'].resample('D').mean()
+                obs_streamflow = dfObs['discharge'].resample(ts_config['resample_freq']).mean()
             else:
                 available_cols = list(dfObs.columns)
                 self.logger.warning(f"No discharge column found. Available columns: {available_cols}")
@@ -1170,12 +1249,17 @@ class FUSEPreProcessor:
                 area_km2 = catchment_proj.geometry.area.sum() / 1e6
                 self.logger.warning(f"Using estimated catchment area: {area_km2:.2f} km2")
             
-            # Convert from cms to mm/day for FUSE
-            # Q(mm/day) = Q(cms) * 86.4 / Area(km2)
-            obs_streamflow_mm = obs_streamflow * 86.4 / area_km2
+            # Convert from cms to mm/timestep for FUSE
+            # Q(mm/timestep) = Q(cms) * conversion_factor / Area(km2)
+            obs_streamflow_mm = obs_streamflow * ts_config['conversion_factor'] / area_km2
             
-            # Create time coordinate in days since 1970-01-01 (matching FUSE format)
-            time_days = (obs_streamflow_mm.index - pd.Timestamp('1970-01-01')).days.values
+            # Create time coordinate based on timestep
+            if ts_config['time_unit'] == 'h':
+                # Hours since 1970-01-01
+                time_values = ((obs_streamflow_mm.index - pd.Timestamp('1970-01-01')).total_seconds() / 3600).values
+            else:
+                # Days since 1970-01-01
+                time_values = (obs_streamflow_mm.index - pd.Timestamp('1970-01-01')).days.values
             
             # Create xarray dataset
             obs_ds = xr.Dataset(
@@ -1183,35 +1267,35 @@ class FUSEPreProcessor:
                     'q_obs': xr.DataArray(
                         obs_streamflow_mm.values,
                         dims=['time'],
-                        coords={'time': time_days},
+                        coords={'time': time_values},
                         attrs={
-                            'units': 'mm/day',
-                            'long_name': 'Observed daily discharge',
+                            'units': f"mm/{ts_config['time_label'].replace('-', ' ')}",
+                            'long_name': f"Observed {ts_config['time_label']} discharge",
                             'standard_name': 'water_volume_transport_in_river_channel'
                         }
                     )
                 },
                 coords={
                     'time': xr.DataArray(
-                        time_days,
+                        time_values,
                         dims=['time'],
                         attrs={
-                            'units': 'days since 1970-01-01',
+                            'units': ts_config['time_units'],
                             'long_name': 'time'
                         }
                     )
                 }
             )
             
-            self.logger.info(f"Loaded {len(obs_streamflow_mm)} days of streamflow observations")
-            self.logger.info(f"Converted from cms to mm/day using area: {area_km2:.2f} km2")
+            self.logger.info(f"Loaded {len(obs_streamflow_mm)} {ts_config['time_label']} streamflow observations")
+            self.logger.info(f"Converted from cms to mm/{ts_config['time_label']} using area: {area_km2:.2f} km2")
             
             return obs_ds
             
         except Exception as e:
             self.logger.error(f"Error loading streamflow observations: {str(e)}")
             self.logger.info("Will generate synthetic hydrograph for optimization")
-            return None            
+            return None         
 
     def _create_lumped_elevation_bands(self):
         """Create elevation bands for lumped mode"""
@@ -1357,24 +1441,27 @@ class FUSEPreProcessor:
         
         return encoding
 
-    def _create_lumped_dataset(self, ds, pet, obs_ds):
+    def _create_lumped_dataset(self, ds, pet, obs_ds, ts_config=None):
         """
-        Create lumped FUSE forcing dataset (fixed implementation).
+        Create lumped FUSE forcing dataset with configurable timestep.
         
         Args:
             ds: Processed forcing dataset
             pet: Calculated PET data
             obs_ds: Observed streamflow dataset (or None)
+            ts_config: Timestep configuration from _get_timestep_config()
             
         Returns:
             xr.Dataset: FUSE forcing dataset for lumped mode
         """
+        if ts_config is None:
+            ts_config = self._get_timestep_config()
+        
         # Get catchment centroid for coordinates
         catchment = gpd.read_file(self.catchment_path / self.catchment_name)
         mean_lon, mean_lat = self._get_catchment_centroid(catchment)
         
         # Convert all time coordinates to pandas datetime for comparison
-        # ds and pet should already be in datetime format
         ds_start = pd.to_datetime(ds.time.min().values)
         ds_end = pd.to_datetime(ds.time.max().values)
         pet_start = pd.to_datetime(pet.time.min().values)
@@ -1385,9 +1472,12 @@ class FUSEPreProcessor:
         end_time = min(ds_end, pet_end)
         
         if obs_ds is not None:
-            # Convert obs_ds time to datetime if it's in days since 1970-01-01
-            if obs_ds.time.dtype.kind in ['i', 'u']:  # integer types
-                obs_time_dt = pd.to_datetime('1970-01-01') + pd.to_timedelta(obs_ds.time.values, unit='D')
+            # Convert obs_ds time to datetime based on time units
+            if obs_ds.time.dtype.kind in ['i', 'u', 'f']:  # numeric types
+                if 'hours' in str(obs_ds.time.attrs.get('units', '')):
+                    obs_time_dt = pd.to_datetime('1970-01-01') + pd.to_timedelta(obs_ds.time.values, unit='h')
+                else:
+                    obs_time_dt = pd.to_datetime('1970-01-01') + pd.to_timedelta(obs_ds.time.values, unit='D')
                 obs_start = obs_time_dt.min()
                 obs_end = obs_time_dt.max()
             else:
@@ -1399,8 +1489,8 @@ class FUSEPreProcessor:
         
         self.logger.info(f"Aligning all data to common time period: {start_time} to {end_time}")
         
-        # Create explicit time index for the overlapping period
-        time_index = pd.date_range(start=start_time, end=end_time, freq='D')
+        # Create explicit time index for the overlapping period with correct frequency
+        time_index = pd.date_range(start=start_time, end=end_time, freq=ts_config['resample_freq'])
         
         # Align all datasets to the common time period
         ds = ds.sel(time=slice(start_time, end_time)).reindex(time=time_index)
@@ -1408,26 +1498,35 @@ class FUSEPreProcessor:
         
         if obs_ds is not None:
             # Handle obs_ds reindexing based on its time format
-            if obs_ds.time.dtype.kind in ['i', 'u']:  # integer types
-                # Convert time index to days since 1970-01-01 for selection
-                start_days = (pd.to_datetime(start_time) - pd.Timestamp('1970-01-01')).days
-                end_days = (pd.to_datetime(end_time) - pd.Timestamp('1970-01-01')).days
-                time_days_index = (time_index - pd.Timestamp('1970-01-01')).days.values
+            if obs_ds.time.dtype.kind in ['i', 'u', 'f']:  # numeric types
+                if ts_config['time_unit'] == 'h':
+                    # Convert time index to hours since 1970-01-01 for selection
+                    start_hours = (pd.to_datetime(start_time) - pd.Timestamp('1970-01-01')).total_seconds() / 3600
+                    end_hours = (pd.to_datetime(end_time) - pd.Timestamp('1970-01-01')).total_seconds() / 3600
+                    time_numeric_index = ((time_index - pd.Timestamp('1970-01-01')).total_seconds() / 3600).values
+                else:
+                    # Convert time index to days since 1970-01-01 for selection
+                    start_hours = (pd.to_datetime(start_time) - pd.Timestamp('1970-01-01')).days
+                    end_hours = (pd.to_datetime(end_time) - pd.Timestamp('1970-01-01')).days
+                    time_numeric_index = (time_index - pd.Timestamp('1970-01-01')).days.values
                 
-                # Select and reindex with integer time
-                obs_ds = obs_ds.sel(time=slice(start_days, end_days))
-                obs_ds = obs_ds.reindex(time=time_days_index)
+                # Select and reindex with numeric time
+                obs_ds = obs_ds.sel(time=slice(start_hours, end_hours))
+                obs_ds = obs_ds.reindex(time=time_numeric_index)
             else:
                 obs_ds = obs_ds.sel(time=slice(start_time, end_time)).reindex(time=time_index)
         
-        # Convert time to days since 1970-01-01 for final dataset
-        time_days = (time_index - pd.Timestamp('1970-01-01')).days.values
+        # Convert time to numeric values since reference date for final dataset
+        if ts_config['time_unit'] == 'h':
+            time_numeric = ((time_index - pd.Timestamp('1970-01-01')).total_seconds() / 3600).values
+        else:
+            time_numeric = (time_index - pd.Timestamp('1970-01-01')).days.values
         
         # Create coordinates
         coords = {
             'longitude': ('longitude', [mean_lon]),
             'latitude': ('latitude', [mean_lat]),
-            'time': ('time', time_days)
+            'time': ('time', time_numeric)
         }
         
         # Create dataset
@@ -1443,27 +1542,31 @@ class FUSEPreProcessor:
             'long_name': 'latitude'
         }
         fuse_forcing.time.attrs = {
-            'units': 'days since 1970-01-01',
+            'units': ts_config['time_units'],
             'long_name': 'time'
         }
         
         # Add forcing variables
         spatial_dims = ('time', 'latitude', 'longitude')
         
+        # Determine unit string for variables
+        time_label = ts_config['time_label']
+        unit_str = f"mm/{time_label.replace('-', ' ')}"
+        
         # Core meteorological variables
         var_mapping = [
-            ('pr', ds['pr'].values, 'precipitation', 'mm/day', 'Mean daily precipitation'),
-            ('temp', ds['temp'].values, 'temperature', 'degC', 'Mean daily temperature'),
-            ('pet', pet.values, 'pet', 'mm/day', 'Mean daily pet')
+            ('pr', ds['pr'].values, 'precipitation', unit_str, f'Mean {time_label} precipitation'),
+            ('temp', ds['temp'].values, 'temperature', 'degC', f'Mean {time_label} temperature'),
+            ('pet', pet.values, 'pet', unit_str, f'Mean {time_label} pet')
         ]
         
         # Add streamflow observations
         if obs_ds is not None:
-            var_mapping.append(('q_obs', obs_ds['q_obs'].values, 'streamflow', 'mm/day', 'Mean observed daily discharge'))
+            var_mapping.append(('q_obs', obs_ds['q_obs'].values, 'streamflow', unit_str, f'Mean observed {time_label} discharge'))
         else:
             # Generate synthetic hydrograph
             synthetic_q = self.generate_synthetic_hydrograph(ds, area_km2=100.0)
-            var_mapping.append(('q_obs', synthetic_q, 'streamflow', 'mm/day', 'Synthetic discharge for optimization'))
+            var_mapping.append(('q_obs', synthetic_q, 'streamflow', unit_str, f'Synthetic discharge for optimization'))
         
         # Add variables to dataset
         for var_name, data, _, units, long_name in var_mapping:
@@ -1478,8 +1581,8 @@ class FUSEPreProcessor:
                 reshaped_data = np.nan_to_num(reshaped_data, nan=-9999.0)
             
             # Verify dimensions match
-            if reshaped_data.shape[0] != len(time_days):
-                self.logger.error(f"Dimension mismatch for {var_name}: data has {reshaped_data.shape[0]} time points, coordinate has {len(time_days)}")
+            if reshaped_data.shape[0] != len(time_numeric):
+                self.logger.error(f"Dimension mismatch for {var_name}: data has {reshaped_data.shape[0]} time points, coordinate has {len(time_numeric)}")
                 raise ValueError(f"Dimension mismatch for {var_name}")
             
             fuse_forcing[var_name] = xr.DataArray(
@@ -1493,7 +1596,7 @@ class FUSEPreProcessor:
             )
         
         return fuse_forcing
-
+        
     def _map_hrus_to_subcatchments(self, ds, subcatchments):
         """
         Map HRU data to subcatchments for semi-distributed mode.
