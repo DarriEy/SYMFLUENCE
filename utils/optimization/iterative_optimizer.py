@@ -1134,7 +1134,7 @@ class BaseOptimizer(ABC):
         
         # Set random seed for reproducibility
         self.random_seed = config.get('RANDOM_SEED', None)
-        if self.random_seed is not None:
+        if self.random_seed is not None or self.random_seed is not 'None':
             self._set_random_seeds(self.random_seed)
             self.logger.info(f"Random seed set to: {self.random_seed}")
 
