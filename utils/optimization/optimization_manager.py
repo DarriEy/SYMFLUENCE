@@ -111,14 +111,14 @@ class OptimizationManager:
         """
         Main entry point for all optimization and emulation workflows.
         
-        This method checks the OPTIMISATION_METHODS configuration and runs
+        This method checks the OPTIMIZATION_METHODS configuration and runs
         the appropriate workflows in the correct order.
         
         Returns:
             Dict[str, Any]: Results from all completed workflows
         """
         results = {}
-        optimization_methods = self.config.get('OPTIMISATION_METHODS', [])
+        optimization_methods = self.config.get('OPTIMIZATION_METHODS', [])
         
         self.logger.info(f"Running optimization workflows: {optimization_methods}")
         
@@ -144,7 +144,7 @@ class OptimizationManager:
     
     def run_large_domain_emulation(self) -> Optional[Dict]:
         """Run large domain emulation workflow."""
-        if not 'large_domain_emulator' in self.config.get('OPTIMISATION_METHODS', []):
+        if not 'large_domain_emulator' in self.config.get('OPTIMIZATION_METHODS', []):
             self.logger.info("Large domain emulation is disabled in configuration")
             return None
         
@@ -181,7 +181,7 @@ class OptimizationManager:
         """Save large domain emulation results to standard SYMFLUENCE location."""
         try:
             # Create large domain results directory
-            lde_results_dir = self.project_dir / "optimisation" / "large_domain_emulation"
+            lde_results_dir = self.project_dir / "optimization" / "large_domain_emulation"
             lde_results_dir.mkdir(parents=True, exist_ok=True)
             
             # Save comprehensive results
@@ -229,19 +229,19 @@ class OptimizationManager:
         Enhanced to include large domain emulation status.
         """
         status = {
-            'iterative_optimization_enabled': 'iteration' in self.config.get('OPTIMISATION_METHODS', []),
+            'iterative_optimization_enabled': 'iteration' in self.config.get('OPTIMIZATION_METHODS', []),
             'optimization_algorithm': self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'PSO'),
             'optimization_metric': self.config.get('OPTIMIZATION_METRIC', 'KGE'),
-            'optimization_dir': str(self.project_dir / "optimisation"),
+            'optimization_dir': str(self.project_dir / "optimization"),
             'results_exist': False,
-            'emulation_enabled': 'emulation' in self.config.get('OPTIMISATION_METHODS', []),
-            'rf_emulation_enabled': 'emulation' in self.config.get('OPTIMISATION_METHODS', []),
-            'differentiable_emulation_enabled': 'differentiable_parameter_emulation' in self.config.get('OPTIMISATION_METHODS', []),
-            'large_domain_emulation_enabled': 'large_domain_emulator' in self.config.get('OPTIMISATION_METHODS', [])
+            'emulation_enabled': 'emulation' in self.config.get('OPTIMIZATION_METHODS', []),
+            'rf_emulation_enabled': 'emulation' in self.config.get('OPTIMIZATION_METHODS', []),
+            'differentiable_emulation_enabled': 'differentiable_parameter_emulation' in self.config.get('OPTIMIZATION_METHODS', []),
+            'large_domain_emulation_enabled': 'large_domain_emulator' in self.config.get('OPTIMIZATION_METHODS', [])
         }
         
         # Check for optimization results
-        results_file = self.project_dir / "optimisation" / f"{self.experiment_id}_parallel_iteration_results.csv"
+        results_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
         status['results_exist'] = results_file.exists()
         
         # Check for emulation outputs
@@ -253,7 +253,7 @@ class OptimizationManager:
             status['rf_emulation_complete'] = (emulation_dir / "rf_emulation" / "optimized_parameters.csv").exists()
         
         # Check for large domain emulation outputs
-        lde_dir = self.project_dir / "optimisation" / "large_domain_emulation"
+        lde_dir = self.project_dir / "optimization" / "large_domain_emulation"
         if lde_dir.exists():
             status['large_domain_results_exist'] = (lde_dir / f"{self.experiment_id}_large_domain_results.json").exists()
             status['large_domain_parameters_exist'] = (lde_dir / f"{self.experiment_id}_large_domain_parameters.csv").exists()
@@ -291,7 +291,7 @@ class OptimizationManager:
         self.logger.info("Starting model calibration")
         
         # Check if iterative optimization is enabled
-        if not 'iteration' in self.config.get('OPTIMISATION_METHODS', []):
+        if not 'iteration' in self.config.get('OPTIMIZATION_METHODS', []):
             self.logger.info("Iterative optimization is disabled in configuration")
             return None
         
@@ -360,12 +360,12 @@ class OptimizationManager:
                             f"Supported: {', '.join(supported_algorithms)}")
         
         # Create optimization directory if it doesn't exist
-        opt_dir = self.project_dir / "optimisation"
+        opt_dir = self.project_dir / "optimization"
         opt_dir.mkdir(parents=True, exist_ok=True)
         
         try:
             # Import FUSEOptimizer
-            from fuse_optimiser import FUSEOptimizer
+            from fuse_optimizer import FUSEOptimizer
             
             # Initialize FUSE optimizer
             self.logger.info(f"Using {algorithm} optimization for FUSE")
@@ -459,11 +459,11 @@ class OptimizationManager:
             )
 
         # Create optimization directory if it doesn't exist
-        opt_dir = self.project_dir / "optimisation"
+        opt_dir = self.project_dir / "optimization"
         opt_dir.mkdir(parents=True, exist_ok=True)
 
         # Lazy import so we don’t require NGEN unless used
-        from ngen_optimiser import NgenOptimizer
+        from ngen_optimizer import NgenOptimizer
 
         self.logger.info(f"Using {algorithm} optimization for NGEN")
         ngen_opt = NgenOptimizer(self.config, self.logger, opt_dir)
@@ -535,9 +535,9 @@ class OptimizationManager:
         Entry point for all emulation workflows.
         
         This method dispatches to the appropriate emulation workflow based on
-        the OPTIMISATION_METHODS configuration.
+        the OPTIMIZATION_METHODS configuration.
         """
-        optimization_methods = self.config.get('OPTIMISATION_METHODS', [])
+        optimization_methods = self.config.get('OPTIMIZATION_METHODS', [])
         results = {}
         
         # Run differentiable parameter emulation
@@ -588,14 +588,14 @@ class OptimizationManager:
             Exception: For other errors during optimization
         """
         # Create optimization directory if it doesn't exist
-        opt_dir = self.project_dir / "optimisation"
+        opt_dir = self.project_dir / "optimization"
         opt_dir.mkdir(parents=True, exist_ok=True)
         
         # Get optimizer class
         optimizer_class = self.optimizers.get(algorithm)
         
         if optimizer_class is None:
-            self.logger.error(f"Optimisation algorithm {algorithm} not supported")
+            self.logger.error(f"Optimization algorithm {algorithm} not supported")
             return None
         
         # Get optimizer method name
@@ -657,17 +657,17 @@ class OptimizationManager:
                           including configuration settings and existence of output files
         """
         status = {
-            'iterative_optimization_enabled': 'iteration' in self.config.get('OPTIMISATION_METHODS', []),
+            'iterative_optimization_enabled': 'iteration' in self.config.get('OPTIMIZATION_METHODS', []),
             'optimization_algorithm': self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'PSO'),
             'optimization_metric': self.config.get('OPTIMIZATION_METRIC', 'KGE'),
-            'optimization_dir': str(self.project_dir / "optimisation"),
+            'optimization_dir': str(self.project_dir / "optimization"),
             'results_exist': False,
-            'emulation_enabled': 'emulation' in self.config.get('OPTIMISATION_METHODS', []),
-            'rf_emulation_enabled': 'emulation' in self.config.get('OPTIMISATION_METHODS', [])
+            'emulation_enabled': 'emulation' in self.config.get('OPTIMIZATION_METHODS', []),
+            'rf_emulation_enabled': 'emulation' in self.config.get('OPTIMIZATION_METHODS', [])
         }
         
         # Check for optimization results
-        results_file = self.project_dir / "optimisation" / f"{self.experiment_id}_parallel_iteration_results.csv"
+        results_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
         status['results_exist'] = results_file.exists()
         
         # Check for emulation outputs
@@ -804,7 +804,7 @@ class OptimizationResultsManager:
         self.project_dir = project_dir
         self.experiment_id = experiment_id
         self.logger = logger
-        self.opt_dir = project_dir / "optimisation"
+        self.opt_dir = project_dir / "optimization"
         self.opt_dir.mkdir(parents=True, exist_ok=True)
     
     def save_optimization_results(self, results: Dict[str, Any], algorithm: str, target_metric: str = 'KGE') -> Optional[Path]:

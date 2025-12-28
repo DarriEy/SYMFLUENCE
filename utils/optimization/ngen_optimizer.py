@@ -70,7 +70,7 @@ class NgenOptimizer:
         self.ngen_setup_dir = project_dir / 'settings' / 'ngen'
         
         # Results tracking
-        self.results_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.domain_name}" / "optimisation"
+        self.results_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.domain_name}" / "optimization"
         self.results_dir.mkdir(parents=True, exist_ok=True)
         
         # Initialize results storage
@@ -102,7 +102,7 @@ class NgenOptimizer:
     
     def _create_calibration_target(self) -> Any:
         """Factory method to create appropriate ngen calibration target"""
-        optimization_target = self.config.get('OPTIMISATION_TARGET', 'streamflow')
+        optimization_target = self.config.get('OPTIMIZATION_TARGET', 'streamflow')
         
         # Get project directory for calibration target
         data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))

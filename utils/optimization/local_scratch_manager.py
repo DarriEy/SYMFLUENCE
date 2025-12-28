@@ -265,7 +265,7 @@ class LocalScratchManager:
             self.scratch_project_dir / "observations" / "streamflow" / "preprocessed",
             self.scratch_project_dir / "simulations" / f"run_{self.algorithm_name}" / "SUMMA",
             self.scratch_project_dir / "simulations" / f"run_{self.algorithm_name}" / "mizuRoute",
-            self.scratch_project_dir / "optimisation",
+            self.scratch_project_dir / "optimization",
             self.scratch_project_dir / f"_workLog_domain_{self.domain_name}",
         ]
         
@@ -561,10 +561,10 @@ class LocalScratchManager:
         """
         Stage optimization-specific results (parameter files, history, etc.).
         
-        FIXED: Stages to the original optimisation directory structure.
+        FIXED: Stages to the original optimization directory structure.
         """
-        scratch_opt = self.scratch_project_dir / "optimisation"
-        dest_opt = self.original_project_dir / "optimisation"
+        scratch_opt = self.scratch_project_dir / "optimization"
+        dest_opt = self.original_project_dir / "optimization"
         
         if scratch_opt.exists() and any(scratch_opt.iterdir()):
             self.logger.info(f"Rank {self.mpi_rank}: Staging optimization results")
