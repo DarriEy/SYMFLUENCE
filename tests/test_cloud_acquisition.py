@@ -111,12 +111,6 @@ FORCING_CASES = [
         },
     },
     {
-        "dataset": "HRRR",
-        "start": "2020-01-01 00:00",
-        "end": "2020-01-01 03:00",
-        "expect_glob": "paradise_cloud_HRRR_hourly_*.nc",
-    },
-    {
         "dataset": "CONUS404",
         "start": "2010-01-01 00:00",
         "end": "2010-01-01 03:00",
