@@ -1209,11 +1209,11 @@ class CloudForcingDownloader:
             output_dir.mkdir(parents=True, exist_ok=True)
             domain_name = self.config.get("DOMAIN_NAME", "domain")
 
-            # ------------------- Serial, optimised processing -------------------
+            # ------------------- Serial, optimized processing -------------------
             # If user sets ERA5_PARALLEL_WORKERS <= 1, use a no-ProcessPool, single-open path
             n_workers = int(self.config.get('MPI_PROCESSES', 1))
             if n_workers <= 1:
-                self.logger.info("Using optimised *serial* ERA5 processing (no ProcessPoolExecutor)")
+                self.logger.info("Using optimized *serial* ERA5 processing (no ProcessPoolExecutor)")
                 chunk_files = []
 
                 total_chunks = len(chunks)

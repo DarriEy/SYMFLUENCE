@@ -8,7 +8,7 @@
 # 3. Model Agnostic settings: Configurations required for running the model agnostic data preprocessings
 # 4. Model Specific settings: Configurations required for running model specific data preprocessing and input file generation 
 # 5. Evaluation settings: Configurations required to evaluate the model output
-# 6. Optimisation settings: Configurations required for calibrating the hydrological model setup, including sensitivity and decision analysis
+# 6. Optimization settings: Configurations required for calibrating the hydrological model setup, including sensitivity and decision analysis
 # 
 # The global configuration settings are used in several parts of the workflow and configurations from previous steps can be used in subsequent 
 # steps of the workflow, but never the other way around. Note on path specification if deviating from default paths, a full path must be specified. 
@@ -287,14 +287,14 @@ STREAMFLOW_RAW_PATH: default                                   # Path to streamf
 STREAMFLOW_RAW_NAME: Discharge.Working@09AH001.20110101_corrected.csv           # Name of streamflow raw data file
 STREAMFLOW_PROCESSED_PATH: default                             # Path to streamflow processed dataset. If default, uses self.data_dir / observations / streamflow / preprocessed / config['DOMAIN_NAME']_streamflow_processed.csv
 
-### ============================================= 6. Optimisation settings: ===============================================================
+### ============================================= 6. Optimization settings: ===============================================================
 
 # Optimization settings general
 CALIBRATION_PERIOD: 2018-01-01, 2018-06-30                     # start_date, end_date in format YYYY-MM-DD
 EVALUATION_PERIOD:  2018-07-01, 2018-12-31                     # start_date, end_date in format YYYY-MM-DD
 OPTMIZATION_ALOGORITHM: NSGA-II                                # Options are: Differential Evolution: "DE", Particle Swarm: "PSO", Shuffled Complex Evolution: "SCE-UA", Basin-hopping" "Basin-hopping", Dynamically Dimensioned Search "DDS", or NSGA-II or NSGA-III or Borg-MOEA or SMS-EMOA or MOEA/D or MOPSO, OSTRICH
 OPTIMIZATION_METRIC: KGE                                       # Options: Root mean square error : "RMSE", Nash-Suthcliffe efficiency: "NSE", Kling-Gupta Efficiency: "KGE", KGE projected: "KGEp", Mean absolute error: "MAE"
-MOO_OPTIMIZATION_METRICS: KGE,NSE                              # Optimisation metrics to use in multi objective optimisation
+MOO_OPTIMIZATION_METRICS: KGE,NSE                              # Optimization metrics to use in multi objective optimization
 NUMBER_OF_OBJECTIVES: 2                                        # Number of objectives for multi objective algorithms
 POPULATION_SIZE: 100                                           # Population size for genetic algorithms
 NUMBER_OF_ITERATIONS: 100                                      # Number of iterations for calibration 
@@ -345,9 +345,9 @@ DECISION_OPTIONS:                                              # Select which SU
     - consettl
     - anderson
 
-# Optimisation paths and filenames
+# Optimization paths and filenames
 OSTRICH_PATH: default                                          # Path to ostrich executable, if default, uses self.data_dir / installs / ostrich
 OSTRICH_EXE: OstrichMPI                                        # Name of Ostrich executable
 OSTRICH_OUTPUT_FILE: ostrich_output.txt                        # Name of Ostrich output file
-OPTIMIZATION_RESULTS_FILE: default                             # Path to optimization results file If 'default', uses self.project_dir / optimisation / optimization_results.csv
-ITERATION_RESULTS_FILE: default                                # Path to iteration results file. If 'default', uses self.project_dir / optimisation / iteration_results.csv
+OPTIMIZATION_RESULTS_FILE: default                             # Path to optimization results file If 'default', uses self.project_dir / optimization / optimization_results.csv
+ITERATION_RESULTS_FILE: default                                # Path to iteration results file. If 'default', uses self.project_dir / optimization / iteration_results.csv

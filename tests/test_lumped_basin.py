@@ -156,7 +156,7 @@ def test_lumped_basin_workflow(config_path, model):
         config['FUSE_SPATIAL_MODE'] = 'lumped'
         config['SETTINGS_FUSE_PARAMS_TO_CALIBRATE'] = 'MAXWATR_1,MAXWATR_2,BASERTE'
     elif model == 'GR':
-        config['GR_spatial'] = 'lumped'
+        config['GR_SPATIAL_MODE'] = 'lumped'
     elif model == 'NGEN':
         config['NGEN_MODULES_TO_CALIBRATE'] = 'CFE'
         config['NGEN_CFE_PARAMS_TO_CALIBRATE'] = 'smcmax,satdk,bb'
