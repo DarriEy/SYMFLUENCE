@@ -450,6 +450,8 @@ class CloudForcingDownloader:
             return self._download_aorc(output_dir)
         elif self.dataset_name == 'ERA5':
             return self._download_era5(output_dir)
+        elif self.dataset_name == 'EM-EARTH':
+            return self._download_emearth(output_dir)
         elif self.dataset_name == 'HRRR':
             return self._download_hrrr(output_dir)
         elif self.dataset_name == 'CONUS404':
