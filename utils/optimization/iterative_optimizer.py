@@ -84,7 +84,7 @@ from calibration_targets import (
 )
 
 from fuse_parameter_manager import FUSEParameterManager
-from fuse_optimiser import FUSEOptimizer
+from fuse_optimizer import FUSEOptimizer
 from fuse_calibration_targets import FUSESnowTarget, FUSEStreamflowTarget
 from fuse_worker_functions import (
     _apply_fuse_parameters_worker,
@@ -94,7 +94,7 @@ from fuse_worker_functions import (
 )
 
 
-from ngen_optimiser import NgenOptimizer
+from ngen_optimizer import NgenOptimizer
 from utils.optimization.local_scratch_manager import LocalScratchManager
 
 # ============= PARAMETER MANAGEMENT =============
@@ -1111,7 +1111,7 @@ class BaseOptimizer(ABC):
         self.summa_sim_dir = self.optimization_dir / "SUMMA"
         self.mizuroute_sim_dir = self.optimization_dir / "mizuRoute"
         self.optimization_settings_dir = self.optimization_dir / "settings" / "SUMMA"
-        self.output_dir = self.project_dir / "optimisation" / f"{self.algorithm_name}_{self.experiment_id}"
+        self.output_dir = self.project_dir / "optimization" / f"{self.algorithm_name}_{self.experiment_id}"
         
         # Initialize component managers
         self.parameter_manager = ParameterManager(config, logger, self.optimization_settings_dir)
@@ -1435,7 +1435,7 @@ class BaseOptimizer(ABC):
 
     def _create_calibration_target(self) -> CalibrationTarget:
         """Factory method to create appropriate calibration target"""
-        optimization_target = self.config.get('OPTIMISATION_TARGET', 'streamflow')
+        optimization_target = self.config.get('OPTIMIZATION_TARGET', 'streamflow')
         calibration_variable = self.config.get('CALIBRATION_VARIABLE', 'streamflow').lower()
         
         # Check for ET/latent heat calibration FIRST (before streamflow)
@@ -3017,7 +3017,7 @@ if __name__ == "__main__":
         algorithm_name = self.get_algorithm_name()
         
         self.logger.info("=" * 60)
-        self.logger.info(f"Starting {algorithm_name} optimization for {self.config.get('OPTIMISATION_TARGET', 'streamflow')} calibration")
+        self.logger.info(f"Starting {algorithm_name} optimization for {self.config.get('OPTIMIZATION_TARGET', 'streamflow')} calibration")
         self.logger.info(f"Target metric: {self.target_metric}")
         self.logger.info(f"Max iterations: {self.max_iterations}")
         
@@ -4110,7 +4110,7 @@ class NSGA2Optimizer(BaseOptimizer):
         """
         # Get target configurations
         primary_target_type = self.config.get('NSGA2_PRIMARY_TARGET', 
-                                            self.config.get('OPTIMISATION_TARGET', 'streamflow'))
+                                            self.config.get('OPTIMIZATION_TARGET', 'streamflow'))
         secondary_target_type = self.config.get('NSGA2_SECONDARY_TARGET', 'gw_depth')
         
         self.primary_metric = self.config.get('NSGA2_PRIMARY_METRIC', 'KGE')
@@ -4478,7 +4478,7 @@ class NSGA2Optimizer(BaseOptimizer):
                     # ========== NEW: Multi-target configuration ==========
                     'multi_target_mode': self.multi_target_mode,
                     'primary_target_type': self.config.get('NSGA2_PRIMARY_TARGET', 
-                                                        self.config.get('OPTIMISATION_TARGET', 'streamflow')),
+                                                        self.config.get('OPTIMIZATION_TARGET', 'streamflow')),
                     'secondary_target_type': self.config.get('NSGA2_SECONDARY_TARGET', 'gw_depth'),
                     'primary_metric': self.primary_metric,
                     'secondary_metric': self.secondary_metric,

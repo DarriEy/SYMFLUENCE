@@ -94,10 +94,10 @@ class DecisionAnalyzer:
         
         combinations = self.generate_combinations()
 
-        optimisation_dir = self.project_dir / 'optimisation'
-        optimisation_dir.mkdir(parents=True, exist_ok=True)
+        optimization_dir = self.project_dir / 'optimization'
+        optimization_dir.mkdir(parents=True, exist_ok=True)
 
-        master_file = self.project_dir / 'optimisation' / f"{self.config.get('EXPERIMENT_ID')}_model_decisions_comparison.csv"
+        master_file = self.project_dir / 'optimization' / f"{self.config.get('EXPERIMENT_ID')}_model_decisions_comparison.csv"
 
         with open(master_file, 'w', newline='') as f:
             writer = csv.writer(f)
@@ -168,7 +168,7 @@ class DecisionAnalyzer:
                 'combination': {decision: best_row[decision] for decision in decisions}
             }
 
-        with open(self.project_dir / 'optimisation' / 'best_decision_combinations.txt', 'w') as f:
+        with open(self.project_dir / 'optimization' / 'best_decision_combinations.txt', 'w') as f:
             for metric, data in best_combinations.items():
                 f.write(f"Best combination for {metric} (score: {data['score']:.3f}):\n")
                 for decision, value in data['combination'].items():
