@@ -1932,7 +1932,7 @@ For more information, visit: https://github.com/DarriEy/SYMFLUENCE
         
         output_dirs = [
             'simulations/*',
-            'optimisation/*',
+            'optimization/*',
             'plots/*'
         ]
         
@@ -1953,7 +1953,7 @@ For more information, visit: https://github.com/DarriEy/SYMFLUENCE
         if clean_level == 'all':
             all_clean_dirs = [
                 project_dir / 'simulations' / 'temp',
-                project_dir / 'optimisation' / 'temp',
+                project_dir / 'optimization' / 'temp',
                 project_dir / 'forcing' / 'temp',
                 project_dir / 'plots' / 'temp'
             ]
@@ -2074,7 +2074,7 @@ For more information, visit: https://github.com/DarriEy/SYMFLUENCE
             'run_model_agnostic_preprocessing': [project_dir / 'forcing' / 'basin_averaged_data'],
             'preprocess_models': [project_dir / 'forcing'],
             'run_models': [project_dir / 'simulations'],
-            'calibrate_model': [project_dir / 'optimisation'],
+            'calibrate_model': [project_dir / 'optimization'],
             'postprocess_results': [project_dir / 'results']
         }
         

@@ -130,7 +130,7 @@ SETTINGS_SUMMA_GRU_PER_JOB: 5                                  # Number of GRUs 
 SETTINGS_SUMMA_PARALLEL_PATH: default                          # Path to parallel SUMMA binary, if default self.data_dir / installs / summa / bin
 SETTINGS_SUMMA_PARALLEL_EXE: summa_actors.exe                  # Name of parallel SUMMA binary
 
-# SUMMA optimisation settings 
+# SUMMA optimization settings 
 PARAMS_TO_CALIBRATE: tempCritRain,k_soil,vGn_n,theta_sat       # Local parameters to calibrate
 BASIN_PARAMS_TO_CALIBRATE: routingGammaScale                   # Basin parameters to calibrate                       
 SUMMA_DECISION_OPTIONS:                                        # SUMMA model decisions to analyse in decision analysis, if more than 1 options are selected per category, all permuations will be evaluated
@@ -176,7 +176,7 @@ SETTINGS_FUSE_FILEMANAGER: default                             # Name of FUSE fi
 FUSE_SPATIAL_MODE: distributed                                 # Spatial discretisation of FUSE, options: lumped or semi-distributed
 EXPERIMENT_OUTPUT_FUSE: default                                # Directory for FUSE experiment output
 
-# FUSE optimisation settings
+# FUSE optimization settings
 SETTINGS_FUSE_PARAMS_TO_CALIBRATE: MAXWATR_1,MAXWATR_2,BASERTE,QB_POWR,TIMEDELAY,PERCRTE,FRACTEN,RTFRAC1,MBASE,MFMAX,MFMIN,PXTEMP,LAPSE
 FUSE_DECISION_OPTIONS:                                         # Model decisions to analyse in decision analysis, if more than 1 options are selected per category, all permuations will be evaluated
     RFERR: [additive_e, multiplc_e]                            # Rainfall error model, Options: additive_e (additive error), multiplc_e (multiplicative error)
@@ -194,7 +194,7 @@ SETTINGS_GR_PATH: default                                      # Path to GR run 
 SETTINGS_GR_CONTROL: default                                   # Path to GR control file
 GR_INSTALL_PATH: default                                       # Path to GR installation, if default uses self.data_dir / installs / GR
 GR_EXE: GR.r                                                   # Name of GR executable script
-GR_spatial: lumped                                             # Spatial discretisation of GR, options: lumped or semi-distributed
+GR_SPATIAL_MODE: lumped                                             # Spatial discretisation of GR, options: lumped or semi-distributed
 
 ###  4.4 Model Specific settings: LSTM 
 FLASH_LOAD: False                                              # Load existing flash model from storage. If false creates and trains new model.
@@ -297,13 +297,13 @@ ATTRIBUTES_GLWD_PATH: default                                  # Path to Global 
 ATTRIBUTES_HYDROLAKES_PATH: default                            # Path to HydroLAKES data, if default uses ATTRIBUTES_DATA_DIR/hydrolakes
 ATTRIBUTES_OUTPUT_DIR: default                                 # Output directory for processed attributes, if default uses project_dir/attributes
 
-### ============================================= 6. Optimisation settings: ===============================================================
+### ============================================= 6. Optimization settings: ===============================================================
 
-OPTIMISATION_METHODS: [iteration]                              # Methods to optimise the model performance, options: 'emulation', 'iteration'
-OPTIMISATION_TARGET: streamflow                                # Options: streamflow (default), swe, snow_depth, sca, et, latent_heat, soil_moisture, groundwater
+OPTIMIZATION_METHODS: [iteration]                              # Methods to optimize the model performance, options: 'emulation', 'iteration'
+OPTIMIZATION_TARGET: streamflow                                # Options: streamflow (default), swe, snow_depth, sca, et, latent_heat, soil_moisture, groundwater
 CALIBRATION_TIMESTEP: daily                                   # Timestep to use for calibration, options: 'native', 'hourly', 'daily'
 
-# Iterative optimisation settings
+# Iterative optimization settings
 ITERATIVE_OPTIMIZATION_ALGORITHM: DE                           # Options DDS, DE, PSO, NSGA-II, ADAM or SCE-UA
 NUMBER_OF_ITERATIONS: 10                                       # Number of iterations for calibration 
 POPULATION_SIZE: 10                                            # Population size for genetic algorithms
@@ -347,15 +347,15 @@ NSGA2_MUTATION_RATE: 0.1                                       # Mutation probab
 NSGA2_ETA_C: 20                                                # Crossover distribution index
 NSGA2_ETA_M: 20                                                # Mutation distribution index
 
-# Emulator optimisation settings
+# Emulator optimization settings
 DPE_TRAINING_CACHE: default                                    # Path to training cache
 DPE_HIDDEN_DIMS: [256, 128, 64]                                # Size of hidden dimensions 
 DPE_TRAINING_SAMPLES: 500                                      # Number of training samples used for emulator training
 DPE_VALIDATION_SAMPLES: 100                                    # Number of samples used for emulator evaluation 
 DPE_EPOCHS: 300                                                # Epochs used for training
 DPE_LEARNING_RATE: 1e-3                                        # NN learning rate
-DPE_OPTIMIZATION_LR: 1e-2                                      # Optimisation learning rate
-DPE_OPTIMIZATION_STEPS: 200                                    # Number of steps in optimisation 
+DPE_OPTIMIZATION_LR: 1e-2                                      # Optimization learning rate
+DPE_OPTIMIZATION_STEPS: 200                                    # Number of steps in optimization 
 DPE_OPTIMIZER: "ADAM"                                          # ADAM or L-BFGS
 DPE_OBJECTIVE_WEIGHTS:                                         # Objective function weights 
   KGE: 1.0
@@ -370,10 +370,10 @@ DPE_ITERATE_MIN_IMPROVEMENT: 1e-6                              # Minimum objecti
 DPE_ITERATE_SAMPLING_METHOD: "gaussian"                        # "gaussian" | "uniform" | "adaptive"
 
 # Autodiff/FD controls
-DPE_USE_NN_HEAD: true                                          # Use a neural network for autodiff optimisation 
+DPE_USE_NN_HEAD: true                                          # Use a neural network for autodiff optimization 
 DPE_PRETRAIN_NN_HEAD: false                                    # Pretrain NN head with emulator data
 DPE_USE_SUNDIALS: true                                         # Ignored if EMULATOR_SETTING == SUMMA_AUTODIFF_FD
-DPE_AUTODIFF_STEPS: 100                                        # Steps in differential optimisation 
+DPE_AUTODIFF_STEPS: 100                                        # Steps in differential optimization 
 DPE_AUTODIFF_LR: 0.001                                         # Learning rate for autodiff
 DPE_FD_STEP: 0.005                                             # FD step size
 DPE_GD_STEP_SIZE: 0.1                                          # GD step size

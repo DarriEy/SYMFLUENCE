@@ -91,7 +91,7 @@ class WorkflowOrchestrator:
 
         # Get configured analyses
         analyses = self.config.get('ANALYSES', [])
-        optimisations = self.config.get('OPTIMISATION_METHODS', []) 
+        optimizations = self.config.get('OPTIMIZATION_METHODS', []) 
 
         return [
             # --- Project Initialization ---
@@ -166,15 +166,15 @@ class WorkflowOrchestrator:
             # --- Optimization and Emulation Steps ---
             (
                 self.managers['optimization'].calibrate_model,
-                lambda: ('optimization' in optimisations and 
-                        (self.project_dir / "optimisation" / 
+                lambda: ('optimization' in optimizations and 
+                        (self.project_dir / "optimization" / 
                         f"{self.experiment_id}_parallel_iteration_results.csv").exists()),
                 "Calibrating model parameters"
             ),
             
             (
                 self.managers['optimization'].run_emulation,
-                lambda: ('emulation' in optimisations and
+                lambda: ('emulation' in optimizations and
                         (self.project_dir / "emulation" / self.experiment_id / 
                         "rf_emulation" / "optimized_parameters.csv").exists()),
                 "Running parameter emulation analysis"
@@ -191,7 +191,7 @@ class WorkflowOrchestrator:
             (
                 self.managers['analysis'].run_decision_analysis,
                 lambda: ('decision' in analyses and
-                        (self.project_dir / "optimisation" / 
+                        (self.project_dir / "optimization" / 
                         f"{self.experiment_id}_model_decisions_comparison.csv").exists()),
                 "Analyzing modeling decisions impact"
             ),

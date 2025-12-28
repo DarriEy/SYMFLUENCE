@@ -386,7 +386,7 @@ class ETTarget(CalibrationTarget):
         super().__init__(config, project_dir, logger)
         
         # Determine ET variable type from config
-        self.optimization_target = config.get('OPTIMISATION_TARGET', 'streamflow')
+        self.optimization_target = config.get('OPTIMIZATION_TARGET', 'streamflow')
         if self.optimization_target not in ['et', 'latent_heat']:
             raise ValueError(f"Invalid ET optimization target: {self.optimization_target}")
         
@@ -1094,7 +1094,7 @@ class SoilMoistureTarget(CalibrationTarget):
         super().__init__(config, project_dir, logger)
         
         # Determine soil moisture variable type from config
-        self.optimization_target = config.get('OPTIMISATION_TARGET', 'streamflow')
+        self.optimization_target = config.get('OPTIMIZATION_TARGET', 'streamflow')
         if self.optimization_target not in ['sm_point', 'sm_smap', 'sm_esa']:
             raise ValueError(f"Invalid soil moisture optimization target: {self.optimization_target}")
         
@@ -1654,7 +1654,7 @@ class SnowTarget(CalibrationTarget):
         super().__init__(config, project_dir, logger)
         
         # Determine snow variable type from config
-        self.optimization_target = config.get('OPTIMISATION_TARGET', config.get('CALIBRATION_VARIABLE', 'streamflow'))
+        self.optimization_target = config.get('OPTIMIZATION_TARGET', config.get('CALIBRATION_VARIABLE', 'streamflow'))
         if self.optimization_target not in ['swe', 'sca', 'snow_depth']:
             # Check if it's a snow-related target but with different naming
             calibration_var = config.get('CALIBRATION_VARIABLE', '').lower()
@@ -2122,7 +2122,7 @@ class GroundwaterTarget(CalibrationTarget):
         super().__init__(config, project_dir, logger)
         
         # Determine groundwater variable type from config
-        self.optimization_target = config.get('OPTIMISATION_TARGET', 'streamflow')
+        self.optimization_target = config.get('OPTIMIZATION_TARGET', 'streamflow')
         if self.optimization_target not in ['gw_depth', 'gw_grace']:
             raise ValueError(f"Invalid groundwater optimization target: {self.optimization_target}")
         

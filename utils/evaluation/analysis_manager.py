@@ -196,7 +196,7 @@ class AnalysisManager:
         self.logger.info("Running SUMMA sensitivity analysis")
         
         sensitivity_analyzer = SensitivityAnalyzer(self.config, self.logger)
-        results_file = self.project_dir / "optimisation" / f"{self.experiment_id}_parallel_iteration_results.csv"
+        results_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
         
         if not results_file.exists():
             self.logger.error(f"Calibration results file not found: {results_file}")
@@ -352,17 +352,17 @@ class AnalysisManager:
             'benchmarking_complete': (self.project_dir / "evaluation" / "benchmark_scores.csv").exists(),
             'sensitivity_analysis_available': self.config.get('RUN_SENSITIVITY_ANALYSIS', True),
             'decision_analysis_available': self.config.get('RUN_DECISION_ANALYSIS', True),
-            'optimization_results_exist': (self.project_dir / "optimisation" / f"{self.experiment_id}_parallel_iteration_results.csv").exists(),
+            'optimization_results_exist': (self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv").exists(),
         }
         
         # Check for analysis outputs
         if (self.project_dir / "plots" / "sensitivity_analysis").exists():
             status['sensitivity_plots_exist'] = True
         
-        if (self.project_dir / "optimisation").exists():
+        if (self.project_dir / "optimization").exists():
             status['decision_analysis_results_exist'] = any(
                 file.name.endswith('_model_decisions_comparison.csv')
-                for file in (self.project_dir / "optimisation").glob('*.csv')
+                for file in (self.project_dir / "optimization").glob('*.csv')
             )
         
         return status
@@ -394,7 +394,7 @@ class AnalysisManager:
         }
         
         # Check for optimization results (required for sensitivity analysis)
-        optimization_results = self.project_dir / "optimisation" / f"{self.experiment_id}_parallel_iteration_results.csv"
+        optimization_results = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
         if optimization_results.exists():
             requirements['sensitivity_analysis'] = True
         
