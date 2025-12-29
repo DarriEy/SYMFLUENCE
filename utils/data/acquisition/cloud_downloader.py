@@ -2468,9 +2468,12 @@ class CloudForcingDownloader:
                 lat = ds_analysis['latitude'].values
                 lon = ds_analysis['longitude'].values
 
+                # Normalize longitude from 0-360 to -180/180 for consistent comparison
+                lon_normalized = np.where(lon > 180, lon - 360, lon)
+
                 mask = (
                     (lat >= area_bbox["south"]) & (lat <= area_bbox["north"]) &
-                    (lon >= area_bbox["west"]) & (lon <= area_bbox["east"])
+                    (lon_normalized >= area_bbox["west"]) & (lon_normalized <= area_bbox["east"])
                 )
 
                 y_idx, x_idx = np.where(mask)
@@ -2826,9 +2829,12 @@ class CloudForcingDownloader:
                 lats = lats.flatten()
                 lons = lons.flatten()
 
-            # Find grid points within bounding box
+            # Normalize longitudes from 0-360 to -180/180 for consistent comparison
+            lons_normalized = np.where(lons > 180, lons - 360, lons)
+
+            # Find grid points within bounding box (using normalized longitudes)
             lat_mask = (lats >= self.bbox["lat_min"]) & (lats <= self.bbox["lat_max"])
-            lon_mask = (lons >= self.bbox["lon_min"]) & (lons <= self.bbox["lon_max"])
+            lon_mask = (lons_normalized >= self.bbox["lon_min"]) & (lons_normalized <= self.bbox["lon_max"])
             spatial_mask = lat_mask & lon_mask
 
             if not spatial_mask.any():
