@@ -2382,6 +2382,8 @@ class CloudForcingDownloader:
             "month": months,
             "day": days,
             "time": hours,
+            # Note: 'area' parameter not used - basin is too small (< 2.5km grid) for server-side subsetting
+            # Client-side subsetting will be applied after download using the bounding box
             "data_format": "netcdf",
         }
 
@@ -2415,6 +2417,8 @@ class CloudForcingDownloader:
             "month": months,
             "day": days,
             "time": hours,
+            # Note: 'area' parameter not used - basin is too small (< 2.5km grid) for server-side subsetting
+            # Client-side subsetting will be applied after download using the bounding box
             "data_format": "netcdf",
         }
 
