@@ -49,7 +49,50 @@ You may use Conda manually, but `pip + venv` is the supported path.
 
 ---
 
-## 3. HPC Module Recipes
+## 3. CDS API Credentials (for CARRA/CERRA datasets)
+
+If you plan to use **CARRA** (Copernicus Arctic Regional Reanalysis) or **CERRA** (Copernicus European Regional Reanalysis) forcing datasets, you must configure CDS API credentials.
+
+### Setup Steps:
+
+1. **Register for a free CDS account:**
+   - Visit: https://cds.climate.copernicus.eu/
+   - Create an account and verify your email
+
+2. **Get your API key:**
+   - Log in to CDS
+   - Go to your user page: https://cds.climate.copernicus.eu/user
+   - Copy your UID and API key
+
+3. **Create `~/.cdsapirc` file:**
+   ```bash
+   cat > ~/.cdsapirc << EOF
+   url: https://cds.climate.copernicus.eu/api
+   key: {UID}:{API_KEY}
+   EOF
+   ```
+   Replace `{UID}` and `{API_KEY}` with your actual credentials.
+
+4. **Set file permissions:**
+   ```bash
+   chmod 600 ~/.cdsapirc
+   ```
+
+### Verification:
+
+Test your setup with:
+```python
+import cdsapi
+c = cdsapi.Client()
+print("CDS API configured successfully!")
+```
+
+**Note:** CDS API credentials are only required for CARRA and CERRA.
+Other datasets (ERA5, AORC, HRRR, CONUS404, NEX-GDDP-CMIP6) use anonymous cloud access and do not require credentials.
+
+---
+
+## 4. HPC Module Recipes
 
 Below are verified module configurations for supported clusters.
 
@@ -104,7 +147,7 @@ After loading modules:
 
 ---
 
-## 4. macOS (Intel or Apple Silicon)
+## 5. macOS (Intel or Apple Silicon)
 
 ### A) Toolchain and Package Manager
 ```bash
@@ -140,6 +183,6 @@ pip install -r requirements.txt
 
 ---
 
-## 5. Support Stance
+## 6. Support Stance
 SYMFLUENCE aims for a one-command setup but cannot guarantee success on all systems.  
 If installation fails, use your cluster’s module system and re-run the installer.

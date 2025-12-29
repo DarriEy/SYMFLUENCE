@@ -10,9 +10,11 @@ Available Handlers:
     - CASRHandler: Canadian Arctic System Reanalysis
     - ERA5Handler: ECMWF Reanalysis v5
     - CARRAHandler: Copernicus Arctic Regional Reanalysis
+    - CERRAHandler: Copernicus European Regional Reanalysis
     - AORCHandler: NOAA Analysis of Record for Calibration
     - CONUS404Handler: NCAR/USGS CONUS404 WRF reanalysis
     - NEXGDDPCMIP6Handler: NASA NEX-GDDP-CMIP6 downscaled climate data
+    - HRRRHandler: High-Resolution Rapid Refresh
 
 Usage:
     from dataset_handlers import DatasetRegistry
@@ -33,6 +35,7 @@ from .rdrs_utils import RDRSHandler
 from .casr_utils import CASRHandler
 from .era5_utils import ERA5Handler
 from .carra_utils import CARRAHandler
+from .cerra_utils import CERRAHandler
 from .aorc_utils import AORCHandler
 from .conus404_utils import CONUS404Handler
 from .nex_gddp_utils import NEXGDDPCMIP6Handler
@@ -45,6 +48,7 @@ __all__ = [
     "CASRHandler",
     "ERA5Handler",
     "CARRAHandler",
+    "CERRAHandler",
     "AORCHandler",
     "CONUS404Handler",
     "NEXGDDPCMIP6Handler",

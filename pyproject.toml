@@ -48,6 +48,7 @@ dependencies = [
   "requests",
   "cdsapi",
   "hs_restclient",
+  "s3fs",
   "numexpr",
   "cftime",
   "pytest", 

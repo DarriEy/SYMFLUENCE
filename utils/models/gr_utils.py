@@ -81,17 +81,19 @@ class GRPreProcessor:
         """
         self.logger.info("Calculating PET using Oudin's formula (optimized)")
         
-        # Check if temperature is likely in Kelvin (values > 100) and convert to Celsius if needed
-        temp_max = float(temp_data.max())
-        if temp_max > 100:
-            self.logger.info(f"Converting temperature from Kelvin to Celsius (max value: {temp_max})")
-            temp_C = temp_data - 273.15
-        else:
-            self.logger.info(f"Temperature appears to be in Celsius already (max value: {temp_max})")
-            temp_C = temp_data
+        with xr.set_options(use_numbagg=False, use_bottleneck=False):
+            # Check if temperature is likely in Kelvin (values > 100) and convert to Celsius if needed
+            temp_max = float(temp_data.max())
+            if temp_max > 100:
+                self.logger.info(f"Converting temperature from Kelvin to Celsius (max value: {temp_max})")
+                temp_C = temp_data - 273.15
+            else:
+                self.logger.info(f"Temperature appears to be in Celsius already (max value: {temp_max})")
+                temp_C = temp_data
         
-        # Debug temperature values
-        self.logger.info(f"Temperature range: {float(temp_C.min()):.2f}°C to {float(temp_C.max()):.2f}°C")
+        with xr.set_options(use_numbagg=False, use_bottleneck=False):
+            # Debug temperature values
+            self.logger.info(f"Temperature range: {float(temp_C.min()):.2f}°C to {float(temp_C.max()):.2f}°C")
         
         # Get dates
         dates = pd.DatetimeIndex(temp_data.time.values)
@@ -145,9 +147,10 @@ class GRPreProcessor:
             }
         )
         
-        # Check if PET has reasonable values
-        pet_min, pet_max = float(pet.min()), float(pet.max())
-        self.logger.info(f"PET range: {pet_min:.4f} to {pet_max:.4f} mm/day")
+        with xr.set_options(use_numbagg=False, use_bottleneck=False):
+            # Check if PET has reasonable values
+            pet_min, pet_max = float(pet.min()), float(pet.max())
+            self.logger.info(f"PET range: {pet_min:.4f} to {pet_max:.4f} mm/day")
         
         if pet_max < 0.001:
             self.logger.warning("PET values are all near zero! This may indicate an issue with the calculation.")
@@ -191,7 +194,8 @@ class GRPreProcessor:
     def _prepare_lumped_forcing(self, ds):
         """Prepare lumped forcing data (existing implementation)"""
         # Convert forcing data to daily resolution
-        ds = ds.resample(time='D').mean()
+        with xr.set_options(use_flox=False):
+            ds = ds.resample(time='D').mean()
         
         try:
             ds['temp'] = ds['airtemp'] - 273.15
@@ -278,7 +282,8 @@ class GRPreProcessor:
             ds = ds.expand_dims(hru=n_hrus)
         
         # Convert to daily resolution
-        ds = ds.resample(time='D').mean()
+        with xr.set_options(use_flox=False):
+            ds = ds.resample(time='D').mean()
         
         try:
             ds['temp'] = ds['airtemp'] - 273.15

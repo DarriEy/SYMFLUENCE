@@ -38,16 +38,19 @@ class HRRRHandler(BaseDatasetHandler):
     def get_variable_mapping(self) -> Dict[str, str]:
         """
         Map raw HRRR variables → SYMFLUENCE/SUMMA standard names.
+
+        Note: Cloud downloader provides short variable names (TMP, SPFH, etc.)
+        rather than full NCEP-style names (TMP_2maboveground, etc.)
         """
         return {
-            "APCP_surface": "pptrate",
-            "TMP_2maboveground": "airtemp",
-            "SPFH_2maboveground": "spechum",
-            "PRES_surface": "airpres",
-            "DLWRF_surface": "LWRadAtm",
-            "DSWRF_surface": "SWRadAtm",
-            "UGRD_10maboveground": "windspd_u",
-            "VGRD_10maboveground": "windspd_v",
+            "APCP": "pptrate",
+            "TMP": "airtemp",
+            "SPFH": "spechum",
+            "PRES": "airpres",
+            "DLWRF": "LWRadAtm",
+            "DSWRF": "SWRadAtm",
+            "UGRD": "windspd_u",
+            "VGRD": "windspd_v",
         }
 
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
@@ -75,7 +78,26 @@ class HRRRHandler(BaseDatasetHandler):
             ds["windspd"] = windspd
 
         # Precipitation rate
-        if "pptrate" in ds:
+        # NOTE: HRRR analysis fields do not contain valid precipitation data
+        # Create zero-precipitation fallback if missing
+        if "pptrate" not in ds:
+            self.logger.warning(
+                "HRRR analysis fields do not contain precipitation data. "
+                "Creating zero-precipitation fallback. "
+                "Users should supplement with MRMS, Stage IV, or HRRR forecast fields."
+            )
+            # Create zero precipitation with same dimensions as other variables
+            template_var = ds["airtemp"] if "airtemp" in ds else list(ds.data_vars.values())[0]
+            pptrate = template_var * 0.0  # Same shape, all zeros
+            pptrate.name = "pptrate"
+            pptrate.attrs = {
+                "units": "m s-1",
+                "long_name": "precipitation rate (zero fallback)",
+                "standard_name": "precipitation_rate",
+                "note": "HRRR analysis does not provide precipitation; this is a zero fallback"
+            }
+            ds["pptrate"] = pptrate
+        elif "pptrate" in ds:
             p = ds["pptrate"]
             # remove problematic encoding attrs if present
             p.attrs.pop("missing_value", None)
@@ -163,9 +185,8 @@ class HRRRHandler(BaseDatasetHandler):
 
     def get_coordinate_names(self) -> Tuple[str, str]:
         """
-        HRRR NetCDF subset from the cloud downloader is assumed to have:
-            latitude, longitude
-        as coordinates.
+        HRRR NetCDF subset from the cloud downloader has latitude/longitude
+        as 2D coordinates (not dimensions).
         """
         return ("latitude", "longitude")
 

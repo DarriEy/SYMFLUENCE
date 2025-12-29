@@ -245,9 +245,10 @@ class NgenPreProcessor:
         catchment_file = self.catchment_path / self.catchment_name
         catchment_gdf = gpd.read_file(catchment_file)
         
-        # Get catchment centroid (in WGS84)
-        catchment_wgs84 = catchment_gdf.to_crs("EPSG:4326")
-        centroid = catchment_wgs84.geometry.centroid.iloc[0]
+        # Get catchment centroid in projected CRS, then convert to WGS84
+        catchment_utm = catchment_gdf.to_crs(catchment_gdf.estimate_utm_crs())
+        centroid_utm = catchment_utm.geometry.centroid
+        centroid = centroid_utm.to_crs("EPSG:4326").iloc[0]
         
         # Get catchment ID
         catchment_id = str(catchment_gdf[self.hru_id_col].iloc[0])
@@ -394,7 +395,7 @@ class NgenPreProcessor:
             datasets.append(ds)
         
         # Concatenate along time dimension
-        forcing_data = xr.concat(datasets, dim='time')
+        forcing_data = xr.concat(datasets, dim='time', data_vars='all')
         
         # Get time bounds from config - use defaults if not specified or set to 'default'
         sim_start = self.config.get('EXPERIMENT_TIME_START', '2000-01-01 00:00:00')
