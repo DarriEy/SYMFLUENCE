@@ -268,9 +268,12 @@ class FUSEPreProcessor:
             'note': 'Simplified version using assumed diurnal temperature range of 10°C'
         }
         
-        pet_mean = float(pet.mean())
-        self.logger.info(f"PET calculation complete: Mean={pet_mean:.3f} mm/day, "
-                        f"Min={float(pet.min()):.3f} mm/day, Max={float(pet.max()):.3f} mm/day")
+        with xr.set_options(use_numbagg=False, use_bottleneck=False):
+            pet_mean = float(pet.mean())
+            self.logger.info(
+                f"PET calculation complete: Mean={pet_mean:.3f} mm/day, "
+                f"Min={float(pet.min()):.3f} mm/day, Max={float(pet.max()):.3f} mm/day"
+            )
         
         return pet
 
@@ -295,9 +298,10 @@ class FUSEPreProcessor:
             temp_data = temp_data.load()
         
         # Check input temperature and determine if it's Kelvin or Celsius
-        temp_mean = float(temp_data.mean())
-        temp_min = float(temp_data.min())
-        temp_max = float(temp_data.max())
+        with xr.set_options(use_numbagg=False, use_bottleneck=False):
+            temp_mean = float(temp_data.mean())
+            temp_min = float(temp_data.min())
+            temp_max = float(temp_data.max())
         
         self.logger.debug(f"Input temperature: Mean={temp_mean:.2f}, Min={temp_min:.2f}, Max={temp_max:.2f}")
         
@@ -313,9 +317,12 @@ class FUSEPreProcessor:
             raise ValueError(f"Temperature data has unexpected range. Mean={temp_mean:.2f}")
         
         # Verify final temperature is reasonable
-        temp_mean_C = float(temp_C.mean())
-        self.logger.debug(f"Temperature in Celsius: Mean={temp_mean_C:.2f}°C, "
-                        f"Min={float(temp_C.min()):.2f}°C, Max={float(temp_C.max()):.2f}°C")
+        with xr.set_options(use_numbagg=False, use_bottleneck=False):
+            temp_mean_C = float(temp_C.mean())
+            self.logger.debug(
+                f"Temperature in Celsius: Mean={temp_mean_C:.2f}°C, "
+                f"Min={float(temp_C.min()):.2f}°C, Max={float(temp_C.max()):.2f}°C"
+            )
         
         if temp_mean_C < -60 or temp_mean_C > 60:
             self.logger.error(f"Temperature is unrealistic: {temp_mean_C:.2f}°C")
@@ -344,7 +351,8 @@ class FUSEPreProcessor:
             (sunset_angle * np.sin(lat_rad) * np.sin(solar_decl) +
             np.cos(lat_rad) * np.cos(solar_decl) * np.sin(sunset_angle)))
         
-        self.logger.debug(f"Solar radiation Ra: Mean={float(Ra.mean()):.2f} MJ/m²/day")
+        with xr.set_options(use_numbagg=False, use_bottleneck=False):
+            self.logger.debug(f"Solar radiation Ra: Mean={float(Ra.mean()):.2f} MJ/m²/day")
         
         # Broadcast Ra if needed for multi-HRU
         if 'hru' in temp_C.dims:
@@ -361,12 +369,16 @@ class FUSEPreProcessor:
             'latitude': lat
         }
         
-        pet_mean = float(pet.mean())
-        self.logger.info(f"PET calculation complete: Mean={pet_mean:.3f} mm/day, "
-                        f"Min={float(pet.min()):.3f} mm/day, Max={float(pet.max()):.3f} mm/day")
+        with xr.set_options(use_numbagg=False, use_bottleneck=False):
+            pet_mean = float(pet.mean())
+            self.logger.info(
+                f"PET calculation complete: Mean={pet_mean:.3f} mm/day, "
+                f"Min={float(pet.min()):.3f} mm/day, Max={float(pet.max()):.3f} mm/day"
+            )
         
         if pet_mean < 0.1:
-            n_valid = int((temp_C + 5.0 > 0.0).sum())
+            with xr.set_options(use_numbagg=False, use_bottleneck=False):
+                n_valid = int((temp_C + 5.0 > 0.0).sum())
             self.logger.warning(f"Very low PET! Days with T>-5°C: {n_valid}/{len(temp_C.time)}")
         
         return pet
@@ -391,7 +403,8 @@ class FUSEPreProcessor:
             temp_data = temp_data.load()
         
         # Check and convert temperature
-        temp_mean = float(temp_data.mean())
+        with xr.set_options(use_numbagg=False, use_bottleneck=False):
+            temp_mean = float(temp_data.mean())
         
         self.logger.debug(f"Input temperature: Mean={temp_mean:.2f}")
         
@@ -580,7 +593,8 @@ class FUSEPreProcessor:
             
             # Resample to target resolution AFTER spatial organization
             self.logger.info(f"Resampling data to {ts_config['time_label']} resolution")
-            ds = ds.resample(time=ts_config['resample_freq']).mean()
+            with xr.set_options(use_flox=False, use_numbagg=False, use_bottleneck=False):
+                ds = ds.resample(time=ts_config['resample_freq']).mean()
             
             # Process temperature and precipitation
             try:
@@ -606,7 +620,8 @@ class FUSEPreProcessor:
                 pet = self._calculate_distributed_pet(ds, spatial_mode, pet_method)
             
             # Ensure PET is also at target resolution by checking if resampling is needed
-            pet_resampled = pet.resample(time=ts_config['resample_freq']).mean()
+            with xr.set_options(use_flox=False, use_numbagg=False, use_bottleneck=False):
+                pet_resampled = pet.resample(time=ts_config['resample_freq']).mean()
             if len(pet_resampled.time) != len(pet.time):
                 self.logger.info(f"PET data resampled to {ts_config['time_label']} resolution")
                 pet = pet_resampled

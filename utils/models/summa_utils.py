@@ -903,6 +903,33 @@ class SummaPreProcessor:
         )
 
 
+    def _filter_forcing_hru_ids(self, forcing_hru_ids):
+        forcing_hru_ids = list(forcing_hru_ids)
+        try:
+            shp = gpd.read_file(self.catchment_path / self.catchment_name)
+            shp = shp.set_index(self.config.get('CATCHMENT_SHP_HRUID'))
+            shp.index = shp.index.astype(int)
+            available_hru_ids = set(shp.index.astype(int))
+        except Exception as exc:
+            self.logger.warning(
+                "Unable to filter forcing HRU IDs against catchment shapefile: %s",
+                exc,
+            )
+            return forcing_hru_ids
+
+        missing_hru_ids = [hru_id for hru_id in forcing_hru_ids if hru_id not in available_hru_ids]
+        if missing_hru_ids:
+            self.logger.warning(
+                "Forcing HRU IDs not found in catchment shapefile; filtering missing IDs. "
+                "Missing count: %s (showing first 10): %s",
+                len(missing_hru_ids),
+                missing_hru_ids[:10],
+            )
+            forcing_hru_ids = [hru_id for hru_id in forcing_hru_ids if hru_id in available_hru_ids]
+        if len(forcing_hru_ids) == 0:
+            raise ValueError("No forcing HRU IDs match catchment shapefile HRU IDs.")
+        return forcing_hru_ids
+
 
 
     def create_initial_conditions(self):
@@ -935,6 +962,8 @@ class SummaPreProcessor:
         # Get the sorting order from the forcing file
         with xr.open_dataset(forcing_file) as forc:
             forcing_hruIds = forc['hruId'].values.astype(int)
+        forcing_hruIds = list(forcing_hruIds)
+        forcing_hruIds = self._filter_forcing_hru_ids(forcing_hruIds)
 
         num_hru = len(forcing_hruIds)
 
@@ -1054,6 +1083,7 @@ class SummaPreProcessor:
         # Get the sorting order from the forcing file
         with xr.open_dataset(forcing_file) as forc:
             forcing_hruIds = forc['hruId'].values.astype(int)
+        forcing_hruIds = self._filter_forcing_hru_ids(forcing_hruIds)
 
         num_hru = len(forcing_hruIds)
 
@@ -1226,6 +1256,18 @@ class SummaPreProcessor:
         # Sort shapefile based on forcing HRU order
         shp = shp.set_index(self.config.get('CATCHMENT_SHP_HRUID'))
         shp.index = shp.index.astype(int)
+        available_hru_ids = set(shp.index.astype(int))
+        missing_hru_ids = [hru_id for hru_id in forcing_hruIds if hru_id not in available_hru_ids]
+        if missing_hru_ids:
+            self.logger.warning(
+                "Forcing HRU IDs not found in catchment shapefile; filtering missing IDs. "
+                "Missing count: %s (showing first 10): %s",
+                len(missing_hru_ids),
+                missing_hru_ids[:10],
+            )
+            forcing_hruIds = [hru_id for hru_id in forcing_hruIds if hru_id in available_hru_ids]
+        if len(forcing_hruIds) == 0:
+            raise ValueError("No forcing HRU IDs match catchment shapefile HRU IDs.")
         shp = shp.loc[forcing_hruIds].reset_index()
 
         # Get number of GRUs and HRUs
@@ -2463,4 +2505,3 @@ echo "Completed all GRUs for this job at $(date)"
         except Exception as e:
             self.logger.error(f"Error merging SUMMA outputs: {str(e)}")
             raise
-

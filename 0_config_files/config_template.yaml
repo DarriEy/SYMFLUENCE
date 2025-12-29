@@ -12,6 +12,11 @@
 # 6. Optimization settings: Configurations required for calibrating the hydrological model setup, including sensitivity and decision analysis
 # 7. Data and path settings: Configurations for data characteristics and path specifications. Note: if deviating from default paths, an absolute path must be defined
 #
+# Note on config normalization:
+# - Keys are treated as case-insensitive and normalized to uppercase in code.
+# - Preferred American English keys are used (e.g., OPTIMIZATION_*).
+# - Legacy aliases like GR_spatial are normalized to GR_SPATIAL_MODE.
+#
 ### ============================================= 1. Global settings: =======================================================================
 
 SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/data/SYMFLUENCE_data

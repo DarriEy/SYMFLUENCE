@@ -175,7 +175,136 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
             if coord in ds.coords and coord not in ds_out.coords:
                 ds_out = ds_out.assign_coords({coord: ds.coords[coord]})
 
+        # Interpolate daily data to hourly if needed
+        try:
+            ds_out = self._interpolate_daily_to_hourly(ds_out)
+        except Exception as e:
+            self.logger.error(f"Failed to interpolate NEX-GDDP to hourly: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+
         return ds_out
+
+    def _interpolate_daily_to_hourly(self, ds: xr.Dataset) -> xr.Dataset:
+        """
+        Convert daily NEX-GDDP-CMIP6 data to hourly resolution for SUMMA compatibility.
+
+        Strategy:
+        - Precipitation: Uniformly distribute daily total over 24 hours
+        - Temperature, humidity, pressure, wind: Linear interpolation
+        - Shortwave radiation: Apply diurnal cycle (zero at night, peak at solar noon)
+        - Longwave radiation: Linear interpolation (less diurnal variation)
+        """
+        import pandas as pd
+
+        if "time" not in ds.dims:
+            self.logger.debug("No time dimension found; skipping temporal interpolation")
+            return ds
+
+        # Check if data is already sub-daily (hourly or finer)
+        if len(ds.time) > 1:
+            time_diff = (ds.time.values[1] - ds.time.values[0])
+            timestep_seconds = time_diff / np.timedelta64(1, 's')
+
+            if timestep_seconds < 86400:  # Already sub-daily (< 24 hours)
+                self.logger.debug(f"Data already sub-daily (timestep={timestep_seconds}s); skipping interpolation")
+                return ds
+
+        self.logger.info("Converting NEX-GDDP-CMIP6 daily data to hourly resolution")
+
+        # Create hourly time index
+        # Start from midnight of the first day and end at midnight of the last day
+        # This ensures SUMMA can run from 00:00
+        start_time = pd.Timestamp(ds.time.values[0]).normalize()  # Start of first day (00:00)
+        end_time = pd.Timestamp(ds.time.values[-1]).normalize() + pd.Timedelta(days=1)  # Start of day after last day
+        hourly_times = pd.date_range(
+            start=start_time,
+            end=end_time,
+            freq='h',  # Use 'h' instead of 'H' (deprecated)
+            inclusive='left'  # Exclude the final endpoint (start of next day)
+        )
+
+        # Convert to numpy datetime64
+        hourly_times_np = hourly_times.to_numpy()
+
+        # Initialize output dataset
+        ds_hourly = xr.Dataset(coords=ds.coords)
+        ds_hourly['time'] = hourly_times_np
+
+        self.logger.debug(f"Original timesteps: {len(ds.time)}, Hourly timesteps: {len(hourly_times_np)}")
+
+        # Process each variable
+        for var_name in ds.data_vars:
+            if var_name not in ['pptrate', 'airtemp', 'spechum', 'windspd', 'airpres', 'LWRadAtm', 'SWRadAtm']:
+                # Keep non-forcing variables as-is
+                ds_hourly[var_name] = ds[var_name]
+                continue
+
+            var_data = ds[var_name]
+
+            if var_name == 'pptrate':
+                # Precipitation: Uniformly distribute daily total over 24 hours
+                # Use nearest neighbor interpolation with extrapolation
+                ds_hourly[var_name] = var_data.interp(
+                    time=hourly_times_np,
+                    method='nearest',
+                    kwargs={'fill_value': 'extrapolate'}
+                )
+                self.logger.debug(f"  {var_name}: uniform distribution (nearest neighbor with extrapolation)")
+
+            elif var_name == 'SWRadAtm':
+                # Shortwave radiation: Apply simple diurnal cycle
+                # Interpolate daily values with extrapolation, then apply diurnal pattern
+                interp_sw = var_data.interp(
+                    time=hourly_times_np,
+                    method='linear',
+                    kwargs={'fill_value': 'extrapolate'}
+                )
+
+                # Create diurnal cycle (simplified: sinusoidal, zero at night)
+                hours = np.array([t.hour for t in pd.to_datetime(hourly_times_np)])
+                # Simple diurnal cycle: peak at hour 12, zero from hour 18-6
+                diurnal_factor = np.where(
+                    (hours >= 6) & (hours <= 18),
+                    np.sin((hours - 6) * np.pi / 12),  # Sine curve from 6am to 6pm
+                    0.0
+                )
+
+                # Normalize so daily average matches original
+                # Apply diurnal pattern (broadcast over spatial dims)
+                sw_hourly = interp_sw.copy(deep=True)
+                sw_hourly.values = sw_hourly.values * diurnal_factor.reshape(-1, *([1] * (sw_hourly.ndim - 1)))
+
+                # Rescale to preserve daily mean
+                # Group by day and rescale
+                daily_groups = np.array([pd.Timestamp(t).date() for t in hourly_times_np])
+                for day_val in np.unique(daily_groups):
+                    day_mask = daily_groups == day_val
+                    day_mean_original = interp_sw.isel(time=day_mask).mean(dim='time')
+                    day_mean_diurnal = sw_hourly.isel(time=day_mask).mean(dim='time')
+                    # Avoid division by zero
+                    scale_factor = xr.where(day_mean_diurnal > 0, day_mean_original / day_mean_diurnal, 1.0)
+                    sw_hourly.values[day_mask] = sw_hourly.values[day_mask] * scale_factor.values.reshape(1, *scale_factor.shape)
+
+                ds_hourly[var_name] = sw_hourly
+                self.logger.debug(f"  {var_name}: diurnal cycle applied")
+
+            else:
+                # All other variables: linear interpolation with extrapolation
+                # Use kwargs to enable extrapolation for points outside the data range
+                ds_hourly[var_name] = var_data.interp(
+                    time=hourly_times_np,
+                    method='linear',
+                    kwargs={'fill_value': 'extrapolate'}
+                )
+                self.logger.debug(f"  {var_name}: linear interpolation with extrapolation")
+
+            # Preserve attributes
+            ds_hourly[var_name].attrs = var_data.attrs
+
+        self.logger.info(f"Successfully interpolated to hourly: {len(ds.time)} daily → {len(ds_hourly.time)} hourly steps")
+
+        return ds_hourly
 
 
 

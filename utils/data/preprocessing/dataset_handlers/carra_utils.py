@@ -168,38 +168,81 @@ class CARRAHandler(BaseDatasetHandler):
                 lons = ds.longitude.values
             
             self.logger.info(f"CARRA dimensions: {lats.shape}")
-            
+
+            # Get HRU bounding box for spatial filtering
+            # Read the HRU shapefile to get its extent
+            # shapefile_path is .../shapefiles/forcing, so parent is .../shapefiles
+            hru_shapefile_dir = shapefile_path.parent / 'catchment'
+            domain_name = self.config.get('DOMAIN_NAME', 'domain')
+            hru_shapefile = hru_shapefile_dir / f"{domain_name}_HRUs_GRUs.shp"
+
+            bbox_filter = None
+            if hru_shapefile.exists():
+                try:
+                    import geopandas as gpd
+                    hru_gdf = gpd.read_file(hru_shapefile)
+                    # Get bounding box with small buffer to ensure we capture nearby cells
+                    bbox = hru_gdf.total_bounds  # [minx, miny, maxx, maxy]
+                    buffer = 0.1  # ~10km buffer
+                    bbox_filter = {
+                        'lon_min': bbox[0] - buffer,
+                        'lon_max': bbox[2] + buffer,
+                        'lat_min': bbox[1] - buffer,
+                        'lat_max': bbox[3] + buffer
+                    }
+                    self.logger.info(f"Applying spatial filter based on HRU extent:")
+                    self.logger.info(f"  Lon: {bbox_filter['lon_min']:.2f} to {bbox_filter['lon_max']:.2f}")
+                    self.logger.info(f"  Lat: {bbox_filter['lat_min']:.2f} to {bbox_filter['lat_max']:.2f}")
+                except Exception as e:
+                    self.logger.warning(f"Could not read HRU shapefile for spatial filtering: {e}")
+                    self.logger.warning("Will create shapefile for full domain (may be slow)")
+
             # Define CARRA projection (polar stereographic)
             carra_proj = CRS('+proj=stere +lat_0=90 +lat_ts=90 +lon_0=-45 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6356752.3142 +units=m +no_defs')
             wgs84 = CRS('EPSG:4326')
-            
+
             transformer = Transformer.from_crs(carra_proj, wgs84, always_xy=True)
             transformer_to_carra = Transformer.from_crs(wgs84, carra_proj, always_xy=True)
-            
+
             # Create geometries
             self.logger.info("Creating CARRA grid cell geometries")
-            
+
             geometries = []
             ids = []
             center_lats = []
             center_lons = []
-            
+
+            # Flatten 2D lat/lon arrays to 1D for iteration
+            lats_flat = lats.flatten()
+            lons_flat = lons.flatten()
+
             # Process in batches
             batch_size = 100
-            total_cells = len(lons)
+            total_cells = len(lats_flat)
             num_batches = (total_cells + batch_size - 1) // batch_size
-            
-            self.logger.info(f"Creating {total_cells} CARRA grid cells in {num_batches} batches")
-            
+            cells_created = 0
+
+            self.logger.info(f"Processing {total_cells} CARRA grid cells in {num_batches} batches")
+
             for batch_idx in range(num_batches):
                 start_idx = batch_idx * batch_size
-                end_idx = min(start_idx + batch_size, len(lons))
-                
+                end_idx = min(start_idx + batch_size, total_cells)
+
                 self.logger.info(f"Processing grid cell batch {batch_idx+1}/{num_batches} ({start_idx} to {end_idx-1})")
-                
+
                 for i in range(start_idx, end_idx):
-                    # Convert lat/lon to CARRA coordinates
-                    x, y = transformer_to_carra.transform(lons[i], lats[i])
+                    # Get cell center coordinates
+                    center_lat_raw = float(lats_flat[i])
+                    center_lon_raw = float(lons_flat[i])
+
+                    # Apply spatial filter if available
+                    if bbox_filter is not None:
+                        if (center_lon_raw < bbox_filter['lon_min'] or center_lon_raw > bbox_filter['lon_max'] or
+                            center_lat_raw < bbox_filter['lat_min'] or center_lat_raw > bbox_filter['lat_max']):
+                            continue
+
+                    # Convert lat/lon to CARRA coordinates (scalars now)
+                    x, y = transformer_to_carra.transform(center_lon_raw, center_lat_raw)
                     
                     # Define grid cell (assuming 2.5 km resolution)
                     half_dx = 1250  # meters
@@ -214,17 +257,35 @@ class CARRAHandler(BaseDatasetHandler):
                     ]
                     
                     # Convert vertices back to lat/lon
-                    lat_lon_vertices = [transformer.transform(vx, vy) for vx, vy in vertices]
-                    
+                    # Ensure values are scalars, not arrays
+                    lat_lon_vertices = []
+                    for vx, vy in vertices:
+                        lon, lat = transformer.transform(vx, vy)
+                        # Extract scalar values if they're arrays
+                        if hasattr(lon, 'item'):
+                            lon = lon.item()
+                        if hasattr(lat, 'item'):
+                            lat = lat.item()
+                        lat_lon_vertices.append((float(lon), float(lat)))
+
                     geometries.append(Polygon(lat_lon_vertices))
                     ids.append(i)
-                    
+
                     center_lon, center_lat = transformer.transform(x, y)
-                    center_lats.append(center_lat)
-                    center_lons.append(center_lon)
-            
+                    # Extract scalar values if they're arrays
+                    if hasattr(center_lon, 'item'):
+                        center_lon = center_lon.item()
+                    if hasattr(center_lat, 'item'):
+                        center_lat = center_lat.item()
+                    center_lats.append(float(center_lat))
+                    center_lons.append(float(center_lon))
+                    cells_created += 1
+
+            if bbox_filter is not None:
+                self.logger.info(f"Spatial filtering: created {cells_created} cells (from {total_cells} total)")
+
             # Create GeoDataFrame
-            self.logger.info("Creating GeoDataFrame")
+            self.logger.info(f"Creating GeoDataFrame with {cells_created} grid cells")
             gdf = gpd.GeoDataFrame({
                 'geometry': geometries,
                 'ID': ids,

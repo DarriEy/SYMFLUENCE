@@ -10,28 +10,27 @@ import requests
 import shutil
 import zipfile
 import yaml
-import sys
 from pathlib import Path
-
-# Setup path exactly like the notebook does
-SYMFLUENCE_CODE_DIR = Path(__file__).parent.parent.resolve()
-sys.path.insert(0, str(SYMFLUENCE_CODE_DIR))
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
+from test_helpers import load_config_template, write_config
+from utils_geospatial import (
+    assert_shapefile_signature_matches,
+    load_shapefile_signature,
+)
 
 # GitHub release URL for example data
 EXAMPLE_DATA_URL = "https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-v0.2/example_data_v0.2.zip"
 
 
 @pytest.fixture(scope="module")
-def test_data_dir():
+def test_data_dir(symfluence_data_root):
     """
     Download and extract example data to ../SYMFLUENCE_data/ for testing.
     """
     # Use ../SYMFLUENCE_data/ parallel to the code directory
-    data_root = SYMFLUENCE_CODE_DIR.parent / "SYMFLUENCE_data"
-    data_root.mkdir(parents=True, exist_ok=True)
+    data_root = symfluence_data_root
 
     # Check if example domain already exists
     example_domain = "domain_Iceland"
@@ -80,22 +79,20 @@ def test_data_dir():
 
 
 @pytest.fixture(scope="function")
-def config_path(test_data_dir, tmp_path):
+def config_path(test_data_dir, tmp_path, symfluence_code_dir):
     """Create test configuration based on config_template.yaml."""
     # Load template
-    template_path = SYMFLUENCE_CODE_DIR / "0_config_files" / "config_template.yaml"
-    with open(template_path, "r") as f:
-        config = yaml.safe_load(f)
+    config = load_config_template(symfluence_code_dir)
 
     # Update paths
     config["SYMFLUENCE_DATA_DIR"] = str(test_data_dir)
-    config["SYMFLUENCE_CODE_DIR"] = str(SYMFLUENCE_CODE_DIR)
+    config["SYMFLUENCE_CODE_DIR"] = str(symfluence_code_dir)
 
     # Regional Iceland settings from notebook 03a
     config["DOMAIN_NAME"] = "Iceland"
     config["DOMAIN_DEFINITION_METHOD"] = "delineate"
     config["DELINEATION_METHOD"] = "stream_threshold"
-    config["DELINEATE_COASTAL_WATERSHEDS"] = True
+    config["DELINEATE_COASTAL_WATERSHEDS"] = False
     config["DELINEATE_BY_POURPOINT"] = False
     config["CLEANUP_INTERMEDIATE_FILES"] = False
 
@@ -106,7 +103,22 @@ def config_path(test_data_dir, tmp_path):
     # Experiment settings (shortened for testing)
     config["EXPERIMENT_ID"] = f"test_{tmp_path.name}"
     config["EXPERIMENT_TIME_START"] = "2010-01-01 01:00"
-    config["EXPERIMENT_TIME_END"] = "2010-01-31 23:00"
+    config["EXPERIMENT_TIME_END"] = "2010-01-01 23:00"
+
+    # Limit forcing remapping to a single monthly file
+    source_forcing_dir = (
+        Path(config["SYMFLUENCE_DATA_DIR"])
+        / f"domain_{config['DOMAIN_NAME']}"
+        / "forcing"
+        / "raw_data"
+    )
+    subset_dir = tmp_path / "forcing_subset"
+    subset_dir.mkdir(parents=True, exist_ok=True)
+    forcing_candidates = sorted(source_forcing_dir.glob("*.nc"))
+    if not forcing_candidates:
+        raise FileNotFoundError(f"No forcing files found in {source_forcing_dir}")
+    shutil.copy2(forcing_candidates[0], subset_dir / forcing_candidates[0].name)
+    config["FORCING_PATH"] = str(subset_dir)
 
     # Model settings
     config["HYDROLOGICAL_MODEL"] = "SUMMA"
@@ -115,8 +127,7 @@ def config_path(test_data_dir, tmp_path):
 
     # Save config
     cfg_path = tmp_path / "test_config.yaml"
-    with open(cfg_path, "w") as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+    write_config(config, cfg_path)
 
     return cfg_path, config
 
@@ -136,6 +147,31 @@ def test_regional_domain_workflow(config_path):
     """
     cfg_path, config = config_path
 
+    baseline_dir = (
+        Path(config["SYMFLUENCE_DATA_DIR"])
+        / f"domain_{config['DOMAIN_NAME']}"
+        / "shapefiles"
+    )
+    baseline_river_basins = (
+        baseline_dir
+        / "river_basins"
+        / f"{config['DOMAIN_NAME']}_riverBasins_delineate.shp"
+    )
+    baseline_river_network = (
+        baseline_dir
+        / "river_network"
+        / f"{config['DOMAIN_NAME']}_riverNetwork_delineate.shp"
+    )
+    baseline_hrus = (
+        baseline_dir / "catchment" / f"{config['DOMAIN_NAME']}_HRUs_GRUs.shp"
+    )
+    assert baseline_river_basins.exists(), "Baseline river basins shapefile missing"
+    assert baseline_river_network.exists(), "Baseline river network shapefile missing"
+    assert baseline_hrus.exists(), "Baseline HRU shapefile missing"
+    expected_river_basins = load_shapefile_signature(baseline_river_basins)
+    expected_river_network = load_shapefile_signature(baseline_river_network)
+    expected_hrus = load_shapefile_signature(baseline_hrus)
+
     # Initialize SYMFLUENCE
     symfluence = SYMFLUENCE(cfg_path)
 
@@ -148,12 +184,47 @@ def test_regional_domain_workflow(config_path):
     assert Path(pour_point_path).exists(), "Pour point shapefile should be created"
 
     # Step 3: Define regional domain
-    watershed_path = symfluence.managers["domain"].define_domain()
+    watershed_path, delineation_artifacts = symfluence.managers["domain"].define_domain()
+    assert (
+        delineation_artifacts.method == config["DOMAIN_DEFINITION_METHOD"]
+    ), "Delineation method mismatch"
 
     # Step 4: Discretize domain
-    hru_path = symfluence.managers["domain"].discretize_domain()
+    hru_path, discretization_artifacts = symfluence.managers["domain"].discretize_domain()
+    assert (
+        discretization_artifacts.method == config["DOMAIN_DISCRETIZATION"]
+    ), "Discretization method mismatch"
+
+    # Verify geospatial artifacts (03a)
+    shapefile_dir = project_dir / "shapefiles"
+    river_basins_path = delineation_artifacts.river_basins_path or (
+        shapefile_dir
+        / "river_basins"
+        / f"{config['DOMAIN_NAME']}_riverBasins_delineate.shp"
+    )
+    river_network_path = delineation_artifacts.river_network_path or (
+        shapefile_dir
+        / "river_network"
+        / f"{config['DOMAIN_NAME']}_riverNetwork_delineate.shp"
+    )
+    hrus_path = (
+        discretization_artifacts.hru_paths
+        if isinstance(discretization_artifacts.hru_paths, Path)
+        else shapefile_dir / "catchment" / f"{config['DOMAIN_NAME']}_HRUs_GRUs.shp"
+    )
+    assert river_basins_path.exists()
+    assert river_network_path.exists()
+    assert hrus_path.exists()
+    assert_shapefile_signature_matches(river_basins_path, expected_river_basins)
+    assert_shapefile_signature_matches(river_network_path, expected_river_network)
+    assert_shapefile_signature_matches(hrus_path, expected_hrus)
 
     # Step 5: Model-agnostic preprocessing
+    for subdir in ["SUMMA_input", "basin_averaged_data", "merged_path"]:
+        shutil.rmtree(project_dir / "forcing" / subdir, ignore_errors=True)
+    weights_dir = project_dir / "shapefiles" / "catchment_intersection" / "with_forcing"
+    for weight_file in weights_dir.glob("*_HRU_ID_remapping.nc"):
+        weight_file.unlink(missing_ok=True)
     symfluence.managers["data"].run_model_agnostic_preprocessing()
 
     # Step 6: Model-specific preprocessing
