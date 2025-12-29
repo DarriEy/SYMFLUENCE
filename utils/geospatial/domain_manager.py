@@ -3,13 +3,11 @@
 from pathlib import Path
 import logging
 from typing import Dict, Any, Optional, Union, Tuple
-import geopandas as gpd
-from shapely.geometry import Polygon
-import pandas as pd
 
-from utils.geospatial.discretization_utils import DomainDiscretizer # type: ignore
+from utils.geospatial.discretization import DomainDiscretizationRunner # type: ignore
+from utils.geospatial.delineation import DomainDelineator, create_point_domain_shapefile # type: ignore
+from utils.geospatial.artifacts import DelineationArtifacts, DiscretizationArtifacts # type: ignore
 from utils.reporting.reporting_utils import VisualizationReporter # type: ignore
-from utils.geospatial.geofabric_utils import GeofabricSubsetter, GeofabricDelineator, LumpedWatershedDelineator # type: ignore
 
 
 class DomainManager:
@@ -32,12 +30,11 @@ class DomainManager:
         # Initialize visualization reporter for domain visualizer
         self.reporter = VisualizationReporter(self.config, self.logger)
         
-        # Initialize utility classes
-        self.delineator = GeofabricDelineator(self.config, self.logger)
-        self.lumped_delineator = LumpedWatershedDelineator(self.config, self.logger)
-        self.subsetter = GeofabricSubsetter(self.config, self.logger)
-        
+        # Initialize domain workflows
+        self.domain_delineator = DomainDelineator(self.config, self.logger)
         self.domain_discretizer = None  # Initialized when needed
+        self.delineation_artifacts: Optional[DelineationArtifacts] = None
+        self.discretization_artifacts: Optional[DiscretizationArtifacts] = None
         
         # Create point domain shapefile if method is 'point'
         if self.config.get('DOMAIN_DEFINITION_METHOD') == 'point':
@@ -53,111 +50,22 @@ class DomainManager:
         Returns:
             Path to the created shapefile or None if failed
         """
-        try:
-            self.logger.info("Creating point domain shapefile from bounding box coordinates")
-            
-            # Parse bounding box coordinates
-            bbox_coords = self.config.get('BOUNDING_BOX_COORDS', '')
-            if not bbox_coords:
-                self.logger.error("BOUNDING_BOX_COORDS not found in configuration")
-                return None
-            
-            # Parse coordinates: lat_max/lon_min/lat_min/lon_max
-            try:
-                lat_max, lon_min, lat_min, lon_max = map(float, bbox_coords.split('/'))
-            except ValueError:
-                self.logger.error(f"Invalid bounding box format: {bbox_coords}. Expected format: lat_max/lon_min/lat_min/lon_max")
-                return None
-            
-            # Create rectangular polygon from bounding box
-            # Coordinates in (lon, lat) order for shapely
-            coords = [
-                (lon_min, lat_min),  # Bottom-left
-                (lon_max, lat_min),  # Bottom-right
-                (lon_max, lat_max),  # Top-right
-                (lon_min, lat_max),  # Top-left
-                (lon_min, lat_min)   # Close polygon
-            ]
-            
-            polygon = Polygon(coords)
-            
-            # Calculate area in square degrees (approximate)
-            area_deg2 = polygon.area
-            
-            # Create GeoDataFrame
-            gdf = gpd.GeoDataFrame({
-                'GRU_ID': [1],
-                'GRU_area': [area_deg2],  # Area in square degrees
-                'basin_name': [self.domain_name],
-                'method': ['point']
-            }, geometry=[polygon], crs='EPSG:4326')
-            
-            # Create output directory
-            output_dir = self.project_dir / "shapefiles" / "river_basins"
-            output_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Define output path
-            output_path = output_dir / f"{self.domain_name}_riverBasins_point.shp"
-            
-            # Save shapefile
-            gdf.to_file(output_path)
-            
-            self.logger.info(f"Point domain shapefile created successfully: {output_path}")
-            self.logger.info(f"Bounding box: lat_min={lat_min}, lat_max={lat_max}, lon_min={lon_min}, lon_max={lon_max}")
-            self.logger.info(f"Area: {area_deg2:.6f} square degrees")
-            
-            return output_path
-            
-        except Exception as e:
-            self.logger.error(f"Error creating point domain shapefile: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return None
+        return create_point_domain_shapefile(self.config, self.logger)
     
-    def define_domain(self) -> Optional[Union[Path, Tuple[Path, Path]]]:
+    def define_domain(
+        self,
+    ) -> Tuple[Optional[Union[Path, Tuple[Path, Path]]], DelineationArtifacts]:
         """
         Define the domain using the configured method.
         
         Returns:
-            Path to the created domain shapefile(s) or None if failed
+            Tuple of the domain result and delineation artifacts
         """
         domain_method = self.config.get('DOMAIN_DEFINITION_METHOD')
         self.logger.info(f"Domain definition workflow starting with: {domain_method}")
         
-        # Skip domain definition if shapefile is provided
-        if self.config.get('RIVER_BASINS_NAME') != 'default':
-            self.logger.info('Shapefile provided, skipping domain definition')
-            return None
-        
-        # Handle point mode - shapefile already created in __init__
-        if domain_method == 'point':
-            output_path = self.project_dir / "shapefiles" / "river_basins" / f"{self.domain_name}_riverBasins_point.shp"
-            if output_path.exists():
-                self.logger.info(f"Point domain shapefile already exists: {output_path}")
-                result = output_path
-            else:
-                self.logger.warning("Point domain shapefile not found, creating it now")
-                result = self.create_point_domain_shapefile()
-        else:
-            # Map of domain methods to their corresponding functions
-            domain_methods = {
-                'subset': self.subsetter.subset_geofabric,
-                'lumped': self.lumped_delineator.delineate_lumped_watershed,
-                'delineate': self.delineator.delineate_geofabric
-            }
-            
-            # Execute the appropriate domain method
-            method_function = domain_methods.get(domain_method)
-            if method_function:
-                result = method_function()
-                
-                # Handle coastal watersheds if needed
-                if domain_method == 'delineate' and self.config.get('DELINEATE_COASTAL_WATERSHEDS'):
-                    coastal_result = self.delineator.delineate_coastal()
-                    self.logger.info(f"Coastal delineation completed: {coastal_result}")
-            else:
-                self.logger.error(f"Unknown domain definition method: {domain_method}")
-                result = None
+        result, artifacts = self.domain_delineator.define_domain()
+        self.delineation_artifacts = artifacts
         
         if result:
             self.logger.info(f"Domain definition completed using method: {domain_method}")
@@ -166,15 +74,17 @@ class DomainManager:
         self.visualize_domain()        
         self.logger.info(f"Domain definition workflow finished")
 
-        return result
+        return result, artifacts
     
 
-    def discretize_domain(self) -> Optional[Union[Path, dict]]:
+    def discretize_domain(
+        self,
+    ) -> Tuple[Optional[Union[Path, dict]], DiscretizationArtifacts]:
         """
         Discretize the domain into HRUs or GRUs.
         
         Returns:
-            Path to HRU shapefile(s) or dictionary of paths for multiple discretizations
+            Tuple of HRU shapefile(s) and discretization artifacts
         """
         try:
             discretization_method = self.config.get('DOMAIN_DISCRETIZATION')
@@ -182,15 +92,16 @@ class DomainManager:
             
             # Initialize discretizer if not already done
             if self.domain_discretizer is None:
-                self.domain_discretizer = DomainDiscretizer(self.config, self.logger)
+                self.domain_discretizer = DomainDiscretizationRunner(self.config, self.logger)
             
             # Perform discretization
-            hru_shapefile = self.domain_discretizer.discretize_domain()
+            hru_shapefile, artifacts = self.domain_discretizer.discretize_domain()
+            self.discretization_artifacts = artifacts
                         
             # Visualize the discretized domain
             self.visualize_discretized_domain()
             
-            return hru_shapefile
+            return hru_shapefile, artifacts
             
         except Exception as e:
             self.logger.error(f"Error during domain discretization: {str(e)}")

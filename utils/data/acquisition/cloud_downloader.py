@@ -2,7 +2,7 @@
 Cloud Data Utilities for SYMFLUENCE
 ====================================
 
-Direct access to cloud-hosted forcing datasets via S3/Zarr/GCS
+Direct access to cloud-hosted forcing datasets via S3/Zarr/GCS/CDS API
 without requiring intermediate file downloads or hydrofabric preprocessing.
 
 Activated via: DATA_ACCESS: cloud
@@ -10,24 +10,33 @@ Activated via: DATA_ACCESS: cloud
 Supported datasets:
 - AORC: Analysis of Record for Calibration (CONUS, 1km, hourly, 1979-present)
   Storage: AWS S3 (s3://noaa-nws-aorc-v1-1-1km) - Zarr format
-  
+
 - ERA5: ECMWF Reanalysis (Global, 31km, hourly, 1940-present)
   Storage: Google Cloud (gs://gcp-public-data-arco-era5) - ARCO Zarr format
-  
+
 - EM-Earth: Ensemble Meteorological Dataset (Global, 11km, daily, 1950-2019)
   Storage: AWS S3 (s3://emearth/) - NetCDF format
   Activated via: SUPPLEMENT_FORCING: true
-  
+
 - HRRR: High-Resolution Rapid Refresh (CONUS, 3km, hourly+subhourly, 2014-present)
   Storage: AWS S3 (s3://hrrrzarr/) - Zarr format
-  
+
 - CONUS404: WRF Reanalysis (CONUS+, 4km, hourly, 1979-2022)
   Storage: AWS S3 (s3://hytest/conus404/) - Zarr format via HyTEST
+
+- CARRA: Copernicus Arctic Regional Reanalysis (Arctic, 2.5km, hourly, 1991-present)
+  Storage: CDS API (requires credentials in ~/.cdsapirc)
+  See: https://cds.climate.copernicus.eu/how-to-api
+
+- CERRA: Copernicus European Regional Reanalysis (Europe, 5.5km, 3-hourly, 1984-present)
+  Storage: CDS API (requires credentials in ~/.cdsapirc)
+  See: https://cds.climate.copernicus.eu/how-to-api
 
 Requirements:
 - s3fs: For AWS S3 access (AORC, EM-Earth, HRRR, CONUS404)
 - gcsfs: For Google Cloud Storage access (ERA5)
 - intake-xarray: For CONUS404 catalog access (optional but recommended)
+- cdsapi: For CDS API access (CARRA, CERRA) - requires user credentials
 
 Author: SYMFLUENCE Development Team
 Date: 2025-01-14
@@ -53,6 +62,13 @@ import datetime as dt
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
 import logging
+
+# CDS API for CARRA/CERRA (requires user credentials)
+try:
+    import cdsapi
+    HAS_CDSAPI = True
+except ImportError:
+    HAS_CDSAPI = False
 
 
 def _process_era5_chunk_threadsafe(
@@ -444,8 +460,6 @@ class CloudForcingDownloader:
         # Download selected forcing datset
         if self.dataset_name == 'NEX-GDDP-CMIP6':
             return self._download_nex_gddp_cmip6_all(output_dir)
-        elif self.dataset_name == 'GLDAS':
-            return self._download_gldas(output_dir)
         elif self.dataset_name == 'AORC':
             return self._download_aorc(output_dir)
         elif self.dataset_name == 'ERA5':
@@ -456,63 +470,16 @@ class CloudForcingDownloader:
             return self._download_hrrr(output_dir)
         elif self.dataset_name == 'CONUS404':
             return self._download_conus404(output_dir)
+        elif self.dataset_name == 'CARRA':
+            return self._download_carra(output_dir)
+        elif self.dataset_name == 'CERRA':
+            return self._download_cerra(output_dir)
         else:
             raise ValueError(
                 f"Dataset '{self.dataset_name}' is not supported for cloud access. "
-                f"Supported datasets: NEX-GDDP-CMIP6, GLDAS, AORC, ERA5, EM-EARTH, HRRR, CONUS404"
+                f"Supported datasets: NEX-GDDP-CMIP6, AORC, ERA5, EM-EARTH, HRRR, CONUS404, CARRA, CERRA"
             )
 
-    def _download_gldas(self, output_dir: Path) -> Path:
-        """
-        Placeholder for GLDAS cloud access.
-
-        We currently *do not* support anonymous GLDAS downloads from GES DISC
-        in this cloud-data path. GES DISC now serves GLDAS through an
-        authenticated HTML / OPeNDAP interface rather than direct, anonymous
-        NetCDF URLs, so naive xr.open_dataset(<https URL>) will return HTML and
-        fail with syntax errors.
-
-        For now, use:
-          - DATA_ACCESS: local  with pre-downloaded GLDAS files, or
-          - another cloud-hosted forcing dataset (AORC, ERA5, CONUS404,
-            NEX-GDDP-CMIP6, etc.)
-        """
-        # --- derive time_slice for consistency with other downloaders ---
-        time_slice = self.config.get("time_slice", None)
-
-        if time_slice is not None:
-            start_date_str, end_date_str = time_slice
-        else:
-            exp_start = self.config.get("EXPERIMENT_TIME_START")
-            exp_end   = self.config.get("EXPERIMENT_TIME_END")
-
-            if exp_start is None or exp_end is None:
-                raise ValueError(
-                    "GLDAS: neither 'time_slice' nor EXPERIMENT_TIME_START/END "
-                    "are set in the config."
-                )
-
-            start_date = pd.to_datetime(exp_start)
-            end_date   = pd.to_datetime(exp_end)
-            start_date_str = start_date.strftime("%Y-%m-%d")
-            end_date_str   = end_date.strftime("%Y-%m-%d")
-
-            self.logger.info(
-                f"GLDAS: derived time_slice from experiment window: "
-                f"{start_date_str} to {end_date_str}"
-            )
-
-        # At this point wiring is correct, but we deliberately stop: no stable
-        # anonymous GLDAS cloud endpoint is available for generic xarray access.
-        msg = (
-            "GLDAS cloud access is not implemented in SYMFLUENCE.\n"
-            "NASA GES DISC serves GLDAS via authenticated HTTPS/OPeNDAP and via "
-            "platforms like Google Earth Engine, not an anonymous S3 bucket.\n"
-            "Use DATA_ACCESS: local with pre-downloaded GLDAS files or switch "
-            "to another cloud-hosted forcing dataset."
-        )
-        self.logger.error(msg)
-        raise NotImplementedError(msg)
 
     def _download_nex_gddp_cmip6_all(self, output_dir: Path) -> Path:
         """
@@ -1877,15 +1844,20 @@ class CloudForcingDownloader:
             self.fs = s3fs.S3FileSystem(anon=True)
 
         # Default hydrology-focused variable set (matches your existing mapping)
+        # NOTE: APCP (precipitation) is NOT included because HRRR analysis fields
+        # do not contain valid precipitation data (all NaN). Precipitation is only
+        # available in forecast fields (F01+) or from external products (MRMS, Stage IV).
+        # Users needing precipitation should either:
+        #   - Use forecast hours (modify this function to use fcst.zarr instead of anl.zarr)
+        #   - Supplement with MRMS/Stage IV precipitation
         hrrr_variables = {
-            "TMP": "2m_above_ground",   # 2m Temperature [K]
-            "SPFH": "2m_above_ground",  # 2m Specific humidity [kg/kg]
-            "PRES": "surface",          # Surface pressure [Pa]
-            "UGRD": "10m_above_ground", # 10m U wind component [m/s]
-            "VGRD": "10m_above_ground", # 10m V wind component [m/s]
-            "DSWRF": "surface",         # Downward shortwave radiation flux [W/m2]
-            "DLWRF": "surface",         # Downward longwave radiation flux [W/m2]
-            "APCP": "surface",          # Total precipitation [kg/m2]
+            "TMP": "2m_above_ground",       # 2m Temperature [K]
+            "SPFH": "2m_above_ground",      # 2m Specific humidity [kg/kg]
+            "PRES": "surface",              # Surface pressure [Pa]
+            "UGRD": "10m_above_ground",     # 10m U wind component [m/s]
+            "VGRD": "10m_above_ground",     # 10m V wind component [m/s]
+            "DSWRF": "surface",             # Downward shortwave radiation flux [W/m2]
+            "DLWRF": "surface",             # Downward longwave radiation flux [W/m2]
         }
 
         # Optional variable override from config
@@ -2059,6 +2031,52 @@ class CloudForcingDownloader:
         ds_final.attrs["successful_hours"] = successful_hours
         ds_final.attrs["failed_hours"] = failed_hours
 
+        # Compute and add latitude/longitude coordinates if not present
+        if "latitude" not in ds_final.coords and "projection_x_coordinate" in ds_final.coords:
+            from pyproj import Transformer
+
+            # HRRR uses Lambert Conformal projection
+            # Create transformer from HRRR projection to WGS84
+            hrrr_proj = "+proj=lcc +lat_0=38.5 +lon_0=-97.5 +lat_1=38.5 +lat_2=38.5 +x_0=0 +y_0=0 +R=6371229 +units=m +no_defs"
+            transformer = Transformer.from_crs(hrrr_proj, "EPSG:4326", always_xy=True)
+
+            x_coords = ds_final.coords["projection_x_coordinate"].values
+            y_coords = ds_final.coords["projection_y_coordinate"].values
+
+            # Create 2D mesh grids
+            x_mesh, y_mesh = np.meshgrid(x_coords, y_coords)
+
+            # Transform to lat/lon
+            lon_mesh, lat_mesh = transformer.transform(x_mesh, y_mesh)
+
+            # Add as coordinates
+            ds_final = ds_final.assign_coords(
+                longitude=(["projection_y_coordinate", "projection_x_coordinate"], lon_mesh.astype(np.float32)),
+                latitude=(["projection_y_coordinate", "projection_x_coordinate"], lat_mesh.astype(np.float32))
+            )
+
+            # Add attributes
+            ds_final["latitude"].attrs = {
+                "units": "degrees_north",
+                "long_name": "latitude",
+                "standard_name": "latitude"
+            }
+            ds_final["longitude"].attrs = {
+                "units": "degrees_east",
+                "long_name": "longitude",
+                "standard_name": "longitude"
+            }
+
+            self.logger.info("Added latitude/longitude coordinates to HRRR data")
+
+        # Convert float16 variables to float32 (NetCDF doesn't support float16)
+        for var_name in ds_final.data_vars:
+            if ds_final[var_name].dtype == np.float16:
+                ds_final[var_name] = ds_final[var_name].astype(np.float32)
+        for coord_name in ds_final.coords:
+            if ds_final[coord_name].dtype == np.float16:
+                ds_final[coord_name] = ds_final[coord_name].astype(np.float32)
+
         # Output
         output_dir.mkdir(parents=True, exist_ok=True)
         domain_name = self.config.get("DOMAIN_NAME", "domain")
@@ -2075,31 +2093,6 @@ class CloudForcingDownloader:
         return output_file
 
 
-    def _derive_time_slice_from_experiment(self):
-        """
-        Fallback for GLDAS: build a time_slice from EXPERIMENT_TIME_START/END
-        when time_slice is not explicitly provided in the config.
-        """
-        start_str = self.config.get("EXPERIMENT_TIME_START")
-        end_str   = self.config.get("EXPERIMENT_TIME_END")
-
-        if not start_str or not end_str:
-            raise ValueError(
-                "Cannot derive GLDAS time_slice: "
-                "EXPERIMENT_TIME_START and EXPERIMENT_TIME_END must be set in config."
-            )
-
-        # Your config uses 'YYYY-MM-DD HH:MM'
-        fmt = "%Y-%m-%d %H:%M"
-        start_dt = datetime.strptime(start_str.strip("'\""), fmt)
-        end_dt   = datetime.strptime(end_str.strip("'\""), fmt)
-
-        # Common, safe choice: ISO-8601 strings; tweak if GLDAS code expects
-        # a different format or a list instead of a dict
-        return {
-            "start": start_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "end":   end_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        }
         
     def _download_conus404(self, output_dir: Path) -> Path:
         """
@@ -2290,6 +2283,730 @@ class CloudForcingDownloader:
         self.logger.info(f"✓ CONUS404 data download complete: {outfile}")
 
         return outfile
+
+    def _download_carra(self, output_dir: Path) -> Path:
+        """
+        Download CARRA (Copernicus Arctic Regional Reanalysis) data using CDS API.
+
+        CARRA provides high-resolution reanalysis for the Arctic region from 1991-present.
+
+        Implementation Strategy:
+        - Downloads TWO products: analysis (meteorology) + forecast (fluxes)
+        - Analysis product: t2m, r2, u10, v10, sp
+        - Forecast product: tp (precip), ssrd (shortwave radiation)
+        - Calculates: longwave radiation from temperature + humidity (Brutsaert 1975)
+        - Merges all into complete SUMMA forcing dataset
+
+        Requirements:
+        - User must have CDS API credentials configured in ~/.cdsapirc
+        - See: https://cds.climate.copernicus.eu/how-to-api
+
+        Dataset: reanalysis-carra-single-levels
+        Resolution: 2.5 km
+        Coverage: Arctic (domain depends on west/east selection)
+        Temporal: Hourly from 1991-09-01 to present
+
+        Config options:
+        - CARRA_DOMAIN: 'west_domain' (default) or 'east_domain'
+        """
+
+        if not HAS_CDSAPI:
+            raise ImportError(
+                "cdsapi package is required for CARRA downloads. "
+                "Install with: pip install cdsapi"
+            )
+
+        self.logger.info("Downloading CARRA data via CDS API (dual-product strategy)")
+        self.logger.info(f"  Bounding box: {self.bbox}")
+        self.logger.info(f"  Time period: {self.start_date} to {self.end_date}")
+        self.logger.info("  Strategy: Analysis (meteorology) + Forecast (fluxes) + Calculated (longwave)")
+
+        # Initialize CDS client
+        try:
+            c = cdsapi.Client()
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to initialize CDS API client: {e}\\n"
+                "Please ensure ~/.cdsapirc is configured with your CDS API key.\\n"
+                "See: https://cds.climate.copernicus.eu/how-to-api"
+            )
+
+        # CARRA domain selection
+        domain = self.config.get("CARRA_DOMAIN", "west_domain")
+        if domain not in ["west_domain", "east_domain"]:
+            self.logger.warning(f"Invalid CARRA_DOMAIN '{domain}', using 'west_domain'")
+            domain = "west_domain"
+
+        # Build time range for CDS API
+        years = list(range(self.start_date.year, self.end_date.year + 1))
+        months = [f"{m:02d}" for m in range(1, 13)]
+        days = [f"{d:02d}" for d in range(1, 32)]
+        hours = [f"{h:02d}:00" for h in range(0, 24, 3)]  # CARRA analysis: 3-hourly
+
+        # For precise time range, filter months/days
+        if len(years) == 1:
+            months = [f"{m:02d}" for m in range(self.start_date.month, self.end_date.month + 1)]
+            if self.start_date.month == self.end_date.month:
+                days = [f"{d:02d}" for d in range(self.start_date.day, self.end_date.day + 1)]
+
+        # Spatial extent for local subsetting (CDS API area parameter doesn't work with CARRA)
+        area_bbox = {
+            "north": self.bbox["lat_max"],
+            "west": self.bbox["lon_min"],
+            "south": self.bbox["lat_min"],
+            "east": self.bbox["lon_max"],
+        }
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        domain_name = self.config.get("DOMAIN_NAME", "domain")
+
+        # ============================================================================
+        # STEP 1: Download ANALYSIS product (meteorological variables)
+        # ============================================================================
+        self.logger.info("Step 1/3: Downloading CARRA ANALYSIS product (meteorology)")
+
+        analysis_vars = [
+            "2m_temperature",
+            "2m_relative_humidity",
+            "10m_u_component_of_wind",
+            "10m_v_component_of_wind",
+            "surface_pressure",
+        ]
+
+        analysis_request = {
+            "domain": domain,
+            "level_type": "surface_or_atmosphere",
+            "product_type": "analysis",
+            "variable": analysis_vars,
+            "year": [str(y) for y in years],
+            "month": months,
+            "day": days,
+            "time": hours,
+            "data_format": "netcdf",
+        }
+
+        analysis_file = output_dir / f"{domain_name}_CARRA_analysis_temp.nc"
+
+        self.logger.info(f"  Requesting: {analysis_vars}")
+        try:
+            c.retrieve("reanalysis-carra-single-levels", analysis_request, str(analysis_file))
+            self.logger.info(f"  ✓ Analysis product downloaded: {analysis_file.stat().st_size / 1024 / 1024:.1f} MB")
+        except Exception as e:
+            raise RuntimeError(f"Failed to download CARRA analysis product: {e}")
+
+        # ============================================================================
+        # STEP 2: Download FORECAST product (precipitation and radiation)
+        # ============================================================================
+        self.logger.info("Step 2/3: Downloading CARRA FORECAST product (fluxes)")
+
+        forecast_vars = [
+            "total_precipitation",
+            "surface_solar_radiation_downwards",
+            "thermal_surface_radiation_downwards",  # Native longwave radiation
+        ]
+
+        forecast_request = {
+            "domain": domain,
+            "level_type": "surface_or_atmosphere",
+            "product_type": "forecast",
+            "leadtime_hour": ["1"],  # 1-hour forecast
+            "variable": forecast_vars,
+            "year": [str(y) for y in years],
+            "month": months,
+            "day": days,
+            "time": hours,
+            "data_format": "netcdf",
+        }
+
+        forecast_file = output_dir / f"{domain_name}_CARRA_forecast_temp.nc"
+
+        self.logger.info(f"  Requesting: {forecast_vars} (1-hour leadtime)")
+        try:
+            c.retrieve("reanalysis-carra-single-levels", forecast_request, str(forecast_file))
+            self.logger.info(f"  ✓ Forecast product downloaded: {forecast_file.stat().st_size / 1024 / 1024:.1f} MB")
+        except Exception as e:
+            raise RuntimeError(f"Failed to download CARRA forecast product: {e}")
+
+        # ============================================================================
+        # STEP 3: Merge, process, and calculate derived variables
+        # ============================================================================
+        self.logger.info("Step 3/3: Merging products and processing variables")
+
+        # Load both datasets
+        with xr.open_dataset(analysis_file) as ds_analysis, xr.open_dataset(forecast_file) as ds_forecast:
+
+            # Standardize time dimension name
+            for ds, name in [(ds_analysis, 'analysis'), (ds_forecast, 'forecast')]:
+                time_dim = 'valid_time' if 'valid_time' in ds.dims else 'time'
+                if time_dim != 'time':
+                    self.logger.info(f"  Renaming '{time_dim}' -> 'time' in {name} product")
+                    ds = ds.rename({time_dim: 'time'})
+                    if name == 'analysis':
+                        ds_analysis = ds
+                    else:
+                        ds_forecast = ds
+
+            # Shift forecast times back by leadtime to align with analysis
+            # CARRA forecast with leadtime=1h has valid_time = base_time + 1h
+            # The accumulated values (tp, ssrd, strd) should be associated with base_time
+            self.logger.info("  Shifting forecast times back by 1 hour to align with analysis")
+            ds_forecast['time'] = ds_forecast['time'] - pd.Timedelta(hours=1)
+            self.logger.info(f"  Forecast times after shift: {ds_forecast.time.values[:3]}...")
+
+            # Temporal subsetting
+            ds_analysis = ds_analysis.sel(time=slice(self.start_date, self.end_date))
+            ds_forecast = ds_forecast.sel(time=slice(self.start_date, self.end_date))
+
+            self.logger.info(f"  Time range: {len(ds_analysis.time)} timesteps")
+
+            # Spatial subsetting (both products have same grid)
+            if 'latitude' in ds_analysis.coords and 'longitude' in ds_analysis.coords:
+                lat = ds_analysis['latitude'].values
+                lon = ds_analysis['longitude'].values
+
+                mask = (
+                    (lat >= area_bbox["south"]) & (lat <= area_bbox["north"]) &
+                    (lon >= area_bbox["west"]) & (lon <= area_bbox["east"])
+                )
+
+                y_idx, x_idx = np.where(mask)
+                if len(y_idx) > 0:
+                    y_min, y_max = y_idx.min(), y_idx.max()
+                    x_min, x_max = x_idx.min(), x_idx.max()
+
+                    if 'y' in ds_analysis.dims and 'x' in ds_analysis.dims:
+                        ds_analysis = ds_analysis.isel(y=slice(y_min, y_max+1), x=slice(x_min, x_max+1))
+                        ds_forecast = ds_forecast.isel(y=slice(y_min, y_max+1), x=slice(x_min, x_max+1))
+                        self.logger.info(f"  Spatially subset to {(y_max-y_min+1) * (x_max-x_min+1)} grid cells")
+                else:
+                    self.logger.warning("  No grid points in bounding box, keeping full domain")
+
+            # ========================================================================
+            # Variable processing and merging
+            # ========================================================================
+            self.logger.info("  Processing and renaming variables...")
+
+            # Start with analysis variables
+            ds_merged = ds_analysis.copy()
+
+            # Add forecast variables to merged dataset
+            for var in ['tp', 'ssrd', 'strd']:  # strd = surface thermal radiation downwards
+                if var in ds_forecast.variables:
+                    ds_merged[var] = ds_forecast[var]
+
+            # Rename to SUMMA standard names
+            rename_map = {
+                't2m': 'airtemp',
+                'sp': 'airpres',
+                'u10': 'windspd_u',
+                'v10': 'windspd_v',
+                'tp': 'pptrate',
+                'ssrd': 'SWRadAtm',
+                'strd': 'LWRadAtm',  # Surface thermal (longwave) radiation downwards
+            }
+
+            existing_renames = {old: new for old, new in rename_map.items() if old in ds_merged.variables}
+            ds_merged = ds_merged.rename(existing_renames)
+            self.logger.info(f"    Renamed: {list(existing_renames.keys())}")
+
+            # ========================================================================
+            # Calculate derived variables
+            # ========================================================================
+
+            # 1. Wind speed from u/v components
+            if 'windspd_u' in ds_merged and 'windspd_v' in ds_merged:
+                self.logger.info("  Calculating wind speed from u/v components")
+                ds_merged['windspd'] = np.sqrt(ds_merged['windspd_u']**2 + ds_merged['windspd_v']**2)
+                ds_merged['windspd'].attrs = {
+                    'units': 'm s-1',
+                    'long_name': 'wind speed',
+                    'standard_name': 'wind_speed',
+                }
+
+            # 2. Specific humidity from relative humidity + temperature + pressure
+            if 'r2' in ds_merged and 'airtemp' in ds_merged and 'airpres' in ds_merged:
+                self.logger.info("  Converting relative humidity to specific humidity")
+
+                T = ds_merged['airtemp']  # K
+                RH = ds_merged['r2']      # %
+                P = ds_merged['airpres']  # Pa
+
+                # Saturation vapor pressure (Magnus formula)
+                es = 611.2 * np.exp(17.67 * (T - 273.15) / (T - 29.65))
+                e = (RH / 100.0) * es
+                q = (0.622 * e) / (P - 0.378 * e)
+
+                ds_merged['spechum'] = q
+                ds_merged['spechum'].attrs = {
+                    'units': 'kg kg-1',
+                    'long_name': 'specific humidity',
+                    'standard_name': 'specific_humidity',
+                }
+
+                ds_merged = ds_merged.drop_vars('r2')
+
+            # 4. Convert precipitation from kg/m² to m/s
+            if 'pptrate' in ds_merged:
+                self.logger.info("  Converting precipitation units")
+                # CARRA tp is accumulated over 1-hour forecast, in kg/m²
+                # 1 kg/m² = 1 mm = 0.001 m
+                # For hourly data: m/hour to m/s
+                ds_merged['pptrate'] = (ds_merged['pptrate'] * 0.001) / 3600.0
+                ds_merged['pptrate'].attrs = {
+                    'units': 'm s-1',
+                    'long_name': 'precipitation rate',
+                    'standard_name': 'precipitation_flux',
+                }
+
+            # 5. Convert shortwave radiation from J/m² to W/m²
+            if 'SWRadAtm' in ds_merged:
+                self.logger.info("  Converting shortwave radiation units")
+                # CARRA ssrd is accumulated over 1-hour in J/m²
+                # Convert to W/m²: J/m² / 3600 s = W/m²
+                ds_merged['SWRadAtm'] = ds_merged['SWRadAtm'] / 3600.0
+                ds_merged['SWRadAtm'].attrs = {
+                    'units': 'W m-2',
+                    'long_name': 'downward shortwave radiation at surface',
+                    'standard_name': 'surface_downwelling_shortwave_flux_in_air',
+                }
+
+            # 6. Convert longwave radiation from J/m² to W/m²
+            if 'LWRadAtm' in ds_merged:
+                self.logger.info("  Converting longwave radiation units (native CARRA data)")
+                # CARRA tsrd is accumulated over 1-hour in J/m²
+                # Convert to W/m²: J/m² / 3600 s = W/m²
+                ds_merged['LWRadAtm'] = ds_merged['LWRadAtm'] / 3600.0
+                ds_merged['LWRadAtm'].attrs = {
+                    'units': 'W m-2',
+                    'long_name': 'downward longwave radiation at surface',
+                    'standard_name': 'surface_downwelling_longwave_flux_in_air',
+                    'note': 'Native CARRA thermal radiation (includes cloud effects)',
+                }
+
+            # Update air temperature and pressure attributes
+            if 'airtemp' in ds_merged:
+                ds_merged['airtemp'].attrs.update({
+                    'units': 'K',
+                    'long_name': 'air temperature',
+                    'standard_name': 'air_temperature',
+                })
+
+            if 'airpres' in ds_merged:
+                ds_merged['airpres'].attrs.update({
+                    'units': 'Pa',
+                    'long_name': 'surface air pressure',
+                    'standard_name': 'surface_air_pressure',
+                })
+
+            # ========================================================================
+            # Final metadata and save
+            # ========================================================================
+            ds_merged.attrs["source"] = "CARRA (Copernicus Arctic Regional Reanalysis)"
+            ds_merged.attrs["source_url"] = "https://cds.climate.copernicus.eu/datasets/reanalysis-carra-single-levels"
+            ds_merged.attrs["downloaded_by"] = "SYMFLUENCE cloud_downloader (CDS API)"
+            ds_merged.attrs["download_date"] = pd.Timestamp.now().isoformat()
+            ds_merged.attrs["bbox"] = str(self.bbox)
+            ds_merged.attrs["carra_domain"] = domain
+            ds_merged.attrs["processing"] = "Dual-product merge (analysis+forecast), native radiation (SW+LW), derived variables"
+            ds_merged.attrs["radiation_source"] = "Native CARRA forecast radiation (includes cloud effects)"
+
+            # Save final merged file
+            final_file = output_dir / f"{domain_name}_CARRA_{self.start_date.year}-{self.end_date.year}.nc"
+            ds_merged.to_netcdf(final_file)
+
+            # Log final variable list
+            summa_vars = [v for v in ds_merged.data_vars if v in ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']]
+            self.logger.info(f"  ✓ SUMMA variables in output: {summa_vars}")
+            self.logger.info(f"✓ CARRA data saved to: {final_file}")
+            self.logger.info(f"  File size: {final_file.stat().st_size / 1024 / 1024:.1f} MB")
+
+        # Clean up temporary files
+        if analysis_file.exists():
+            analysis_file.unlink()
+        if forecast_file.exists():
+            forecast_file.unlink()
+
+        return final_file
+
+    def _download_cerra(self, output_dir: Path) -> Path:
+        """
+        Download CERRA (Copernicus European Regional Reanalysis) data using CDS API (dual-product strategy).
+
+        CERRA provides high-resolution reanalysis for Europe from 1984-present.
+        Due to variable availability limitations in the CDS API, this method uses a dual-product
+        strategy:
+          1. Download ANALYSIS product: meteorological state variables (t2m, r2, sp, si10)
+          2. Download FORECAST product: flux variables (tp, ssrd, strd)
+          3. Calculate specific humidity from relative humidity
+          4. Merge and convert to SUMMA format
+
+        Requirements:
+        - User must have CDS API credentials configured in ~/.cdsapirc
+        - See: https://cds.climate.copernicus.eu/how-to-api
+
+        Dataset: reanalysis-cerra-single-levels
+        Resolution: 5.5 km
+        Coverage: Europe (25°N-75°N, 25°W-62°E)
+        Temporal: 3-hourly from 1984-09-01 to present
+
+        NOTE: Unlike single-product download, this method:
+        - Downloads full CERRA domain (MARS cannot crop Lambert Conformal grids)
+        - Subsets spatially and temporally after download
+        - Converts units and calculates derived variables
+        - Produces SUMMA-ready forcing in a single netCDF file
+
+        Returns:
+            Path to the final merged CERRA forcing file
+        """
+        if not HAS_CDSAPI:
+            raise ImportError(
+                "cdsapi package is required for CERRA downloads. "
+                "Install with: pip install cdsapi"
+            )
+
+        self.logger.info("Downloading CERRA data via CDS API (dual-product strategy)")
+        self.logger.info(f"  Bounding box: {self.bbox}")
+        self.logger.info(f"  Time period: {self.start_date} to {self.end_date}")
+        self.logger.info("  Strategy: Analysis (meteorology) + Forecast (fluxes) + Calculated (specific humidity)")
+
+        # Initialize CDS client
+        try:
+            c = cdsapi.Client()
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to initialize CDS API client: {e}\n"
+                "Please ensure ~/.cdsapirc is configured with your CDS API key.\n"
+                "See: https://cds.climate.copernicus.eu/how-to-api"
+            )
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        domain_name = self.config.get("DOMAIN_NAME", "domain")
+
+        # Build time range
+        years = list(range(self.start_date.year, self.end_date.year + 1))
+        months = [f"{m:02d}" for m in range(1, 13)]
+        days = [f"{d:02d}" for d in range(1, 32)]
+        hours_analysis = [f"{h:02d}:00" for h in range(0, 24, 3)]  # CERRA analysis: 3-hourly
+
+        # For precise time range, filter months/days based on actual dates
+        if len(years) == 1:
+            months = [f"{m:02d}" for m in range(self.start_date.month, self.end_date.month + 1)]
+            if self.start_date.month == self.end_date.month:
+                days = [f"{d:02d}" for d in range(self.start_date.day, self.end_date.day + 1)]
+
+        # Common request parameters (no 'area' due to MARS bug with Lambert Conformal)
+        common_request = {
+            "level_type": "surface_or_atmosphere",
+            "data_type": "reanalysis",
+            "year": [str(y) for y in years],
+            "month": months,
+            "day": days,
+            "data_format": "netcdf",
+        }
+
+        # ===================================================================
+        # Step 1: Download ANALYSIS product (meteorological state variables)
+        # ===================================================================
+        self.logger.info("Step 1/3: Downloading CERRA ANALYSIS product (meteorology)")
+
+        analysis_vars = [
+            "2m_temperature",          # t2m
+            "2m_relative_humidity",    # r2
+            "surface_pressure",        # sp
+            "10m_wind_speed",          # si10
+        ]
+        self.logger.info(f"  Requesting: {analysis_vars}")
+
+        analysis_request = {
+            **common_request,
+            "product_type": "analysis",
+            "time": hours_analysis,
+            "variable": analysis_vars,
+        }
+
+        temp_analysis = output_dir / f"{domain_name}_CERRA_analysis_temp.nc"
+
+        try:
+            c.retrieve(
+                "reanalysis-cerra-single-levels",
+                analysis_request,
+                str(temp_analysis)
+            )
+            file_size_mb = temp_analysis.stat().st_size / (1024 * 1024)
+            self.logger.info(f"  ✓ Analysis product downloaded: {file_size_mb:.1f} MB")
+        except Exception as e:
+            raise RuntimeError(f"CDS API request failed (analysis): {e}")
+
+        # ===================================================================
+        # Step 2: Download FORECAST product (flux variables)
+        # ===================================================================
+        self.logger.info("Step 2/3: Downloading CERRA FORECAST product (fluxes)")
+
+        forecast_vars = [
+            "total_precipitation",                      # tp
+            "surface_solar_radiation_downwards",        # ssrd
+            "surface_thermal_radiation_downwards",      # strd
+        ]
+        self.logger.info(f"  Requesting: {forecast_vars} (1-hour leadtime)")
+
+        # CERRA forecast: hourly for leadtimes 1-6 hours
+        forecast_request = {
+            **common_request,
+            "product_type": "forecast",
+            "time": hours_analysis,  # Base times (same as analysis)
+            "leadtime_hour": ["1"],  # 1-hour forecast from each base time
+            "variable": forecast_vars,
+        }
+
+        temp_forecast = output_dir / f"{domain_name}_CERRA_forecast_temp.nc"
+
+        try:
+            c.retrieve(
+                "reanalysis-cerra-single-levels",
+                forecast_request,
+                str(temp_forecast)
+            )
+            file_size_mb = temp_forecast.stat().st_size / (1024 * 1024)
+            self.logger.info(f"  ✓ Forecast product downloaded: {file_size_mb:.1f} MB")
+        except Exception as e:
+            # Clean up analysis file if forecast fails
+            if temp_analysis.exists():
+                temp_analysis.unlink()
+            raise RuntimeError(f"CDS API request failed (forecast): {e}")
+
+        # ===================================================================
+        # Step 3: Merge products and process variables
+        # ===================================================================
+        self.logger.info("Step 3/3: Merging products and processing variables")
+
+        try:
+            # Load datasets
+            ds_analysis = xr.open_dataset(temp_analysis)
+            ds_forecast = xr.open_dataset(temp_forecast)
+
+            # Standardize time dimension name (CERRA uses 'valid_time')
+            time_dim_analysis = 'valid_time' if 'valid_time' in ds_analysis.dims else 'time'
+            time_dim_forecast = 'valid_time' if 'valid_time' in ds_forecast.dims else 'time'
+
+            if time_dim_analysis != 'time':
+                self.logger.info(f"  Renaming '{time_dim_analysis}' -> 'time' in analysis product")
+                ds_analysis = ds_analysis.rename({time_dim_analysis: 'time'})
+
+            if time_dim_forecast != 'time':
+                self.logger.info(f"  Renaming '{time_dim_forecast}' -> 'time' in forecast product")
+                ds_forecast = ds_forecast.rename({time_dim_forecast: 'time'})
+
+            # Shift forecast times back by leadtime to align with analysis
+            # CERRA forecast with leadtime=1h has valid_time = base_time + 1h
+            # The accumulated values (tp, ssrd, strd) should be associated with base_time
+            self.logger.info("  Shifting forecast times back by 1 hour to align with analysis")
+            ds_forecast['time'] = ds_forecast['time'] - pd.Timedelta(hours=1)
+            self.logger.info(f"  Forecast times after shift: {ds_forecast.time.values[:3]}...")
+
+            # Subset to exact time range and bounding box
+            self.logger.info(f"  Time range: {len(ds_analysis.time)} timesteps")
+
+            # Spatial subsetting (CERRA is on Lambert Conformal Conic)
+            # Get lat/lon coordinates (may be 1D or 2D depending on projection)
+            if 'latitude' in ds_analysis.coords:
+                lats = ds_analysis['latitude'].values
+                lons = ds_analysis['longitude'].values
+            elif 'lat' in ds_analysis.coords:
+                lats = ds_analysis['lat'].values
+                lons = ds_analysis['lon'].values
+            else:
+                raise ValueError("Cannot find latitude/longitude coordinates in CERRA dataset")
+
+            # Flatten if 2D
+            if lats.ndim == 2:
+                lats = lats.flatten()
+                lons = lons.flatten()
+
+            # Find grid points within bounding box
+            lat_mask = (lats >= self.bbox["lat_min"]) & (lats <= self.bbox["lat_max"])
+            lon_mask = (lons >= self.bbox["lon_min"]) & (lons <= self.bbox["lon_max"])
+            spatial_mask = lat_mask & lon_mask
+
+            if not spatial_mask.any():
+                self.logger.warning("  No grid points in bounding box, keeping full domain")
+            else:
+                # For 2D grids, convert back to 2D indices
+                if 'y' in ds_analysis.dims and 'x' in ds_analysis.dims:
+                    y_size, x_size = ds_analysis.dims['y'], ds_analysis.dims['x']
+                    mask_2d = spatial_mask.reshape(y_size, x_size)
+                    y_indices = np.where(mask_2d.any(axis=1))[0]
+                    x_indices = np.where(mask_2d.any(axis=0))[0]
+
+                    if len(y_indices) > 0 and len(x_indices) > 0:
+                        y_slice = slice(y_indices[0], y_indices[-1] + 1)
+                        x_slice = slice(x_indices[0], x_indices[-1] + 1)
+                        ds_analysis = ds_analysis.isel(y=y_slice, x=x_slice)
+                        ds_forecast = ds_forecast.isel(y=y_slice, x=x_slice)
+                        self.logger.info(f"  Subset to y={y_slice}, x={x_slice}")
+
+            # Time subsetting
+            ds_analysis = ds_analysis.sel(time=slice(self.start_date, self.end_date))
+            ds_forecast = ds_forecast.sel(time=slice(self.start_date, self.end_date))
+
+            # Merge datasets (analysis + forecast)
+            self.logger.info("  Processing and renaming variables...")
+
+            # Start with analysis variables
+            ds_merged = ds_analysis.copy()
+
+            # Add forecast variables
+            for var in ds_forecast.data_vars:
+                if var not in ['latitude', 'longitude', 'expver', 'number']:
+                    ds_merged[var] = ds_forecast[var]
+
+            # Variable name mapping and unit conversions
+            rename_map = {}
+            vars_processed = []
+
+            # 1. Temperature: K -> K (no conversion needed)
+            if 't2m' in ds_merged:
+                rename_map['t2m'] = 'airtemp'
+                vars_processed.append('airtemp')
+
+            # 2. Surface pressure: Pa -> Pa (no conversion needed)
+            if 'sp' in ds_merged:
+                rename_map['sp'] = 'airpres'
+                vars_processed.append('airpres')
+
+            # 3. Wind speed: m/s -> m/s (already magnitude, no conversion needed)
+            if 'si10' in ds_merged:
+                rename_map['si10'] = 'windspd'
+                vars_processed.append('windspd')
+
+            # Rename variables
+            ds_merged = ds_merged.rename(rename_map)
+            self.logger.info(f"    Renamed: {list(rename_map.values())}")
+
+            # 4. Convert relative humidity to specific humidity
+            self.logger.info("  Converting relative humidity to specific humidity")
+            T = ds_merged['airtemp']  # K
+            P = ds_merged['airpres']  # Pa
+            RH = ds_merged['r2']  # %
+
+            # Magnus formula for saturation vapor pressure (Pa)
+            T_C = T - 273.15
+            e_sat = 611.2 * np.exp(17.67 * T_C / (T_C + 243.5))
+
+            # Actual vapor pressure (Pa)
+            e_a = (RH / 100.0) * e_sat
+
+            # Specific humidity (dimensionless, kg/kg)
+            q = (0.622 * e_a) / (P - 0.378 * e_a)
+
+            ds_merged['spechum'] = q
+            ds_merged['spechum'].attrs = {
+                'units': 'kg kg-1',
+                'long_name': 'specific humidity (calculated from RH)',
+                'method': 'Magnus formula',
+            }
+            vars_processed.append('spechum')
+
+            # 5. Convert precipitation units: kg m-2 -> m s-1
+            self.logger.info("  Converting precipitation units")
+            if 'tp' in ds_merged:
+                # CERRA tp is accumulated over 1-hour forecast period (kg/m² = mm)
+                # Convert to m/s: kg/m² -> m/s = (kg/m²) / (1000 kg/m³) / (3600 s)
+                ds_merged['pptrate'] = ds_merged['tp'] / (1000.0 * 3600.0)
+                ds_merged['pptrate'].attrs = {
+                    'units': 'm s-1',
+                    'long_name': 'precipitation rate',
+                    'method': 'converted from 1-hour accumulated kg/m²',
+                }
+                vars_processed.append('pptrate')
+
+            # 6. Convert shortwave radiation: J m-2 -> W m-2
+            self.logger.info("  Converting shortwave radiation units")
+            if 'ssrd' in ds_merged:
+                # CERRA ssrd is accumulated over 1-hour forecast period (J/m²)
+                # Convert to W/m²: J/m² / 3600 s = W/m²
+                ds_merged['SWRadAtm'] = ds_merged['ssrd'] / 3600.0
+                ds_merged['SWRadAtm'].attrs = {
+                    'units': 'W m-2',
+                    'long_name': 'downward shortwave radiation at surface',
+                    'method': 'converted from 1-hour accumulated J/m²',
+                }
+                vars_processed.append('SWRadAtm')
+
+            # 7. Convert longwave radiation: J m-2 -> W m-2
+            self.logger.info("  Converting longwave radiation units")
+            if 'strd' in ds_merged:
+                # CERRA strd is accumulated over 1-hour forecast period (J/m²)
+                # Convert to W/m²: J/m² / 3600 s = W/m²
+                ds_merged['LWRadAtm'] = ds_merged['strd'] / 3600.0
+                ds_merged['LWRadAtm'].attrs = {
+                    'units': 'W m-2',
+                    'long_name': 'downward longwave radiation at surface',
+                    'method': 'converted from 1-hour accumulated J/m²',
+                }
+                vars_processed.append('LWRadAtm')
+
+            # Keep only SUMMA variables
+            summa_vars = ['airtemp', 'airpres', 'pptrate', 'SWRadAtm', 'windspd', 'spechum', 'LWRadAtm']
+            vars_to_keep = [v for v in summa_vars if v in ds_merged.data_vars]
+
+            # Keep coordinate variables
+            coords_to_keep = ['time', 'y', 'x']
+            if 'latitude' in ds_merged.coords:
+                coords_to_keep.extend(['latitude', 'longitude'])
+            elif 'lat' in ds_merged.coords:
+                coords_to_keep.extend(['lat', 'lon'])
+
+            # Create final dataset with only SUMMA variables + coordinates
+            final_vars = {var: ds_merged[var] for var in vars_to_keep}
+            ds_final = xr.Dataset(
+                final_vars,
+                coords={coord: ds_merged[coord] for coord in coords_to_keep if coord in ds_merged.coords or coord in ds_merged.dims}
+            )
+
+            # Add metadata
+            ds_final.attrs["source"] = "CERRA (Copernicus European Regional Reanalysis)"
+            ds_final.attrs["source_url"] = "https://cds.climate.copernicus.eu/datasets/reanalysis-cerra-single-levels"
+            ds_final.attrs["downloaded_by"] = "SYMFLUENCE cloud_downloader (CDS API dual-product)"
+            ds_final.attrs["download_date"] = pd.Timestamp.now().isoformat()
+            ds_final.attrs["bbox"] = str(self.bbox)
+            ds_final.attrs["download_strategy"] = "Analysis (t2m,r2,sp,si10) + Forecast (tp,ssrd,strd) + Calculated (spechum)"
+
+            # Verify SUMMA variables present
+            summa_vars_present = [v for v in summa_vars if v in ds_final.data_vars]
+            self.logger.info(f"  ✓ SUMMA variables in output: {summa_vars_present}")
+
+            if len(summa_vars_present) < 7:
+                missing = set(summa_vars) - set(summa_vars_present)
+                self.logger.warning(f"  ⚠ Missing SUMMA variables: {missing}")
+
+            # Save final file
+            final_file = output_dir / f"{domain_name}_CERRA_{self.start_date.year}-{self.end_date.year}.nc"
+            ds_final.to_netcdf(final_file)
+
+            file_size_mb = final_file.stat().st_size / (1024 * 1024)
+            self.logger.info(f"✓ CERRA data saved to: {final_file}")
+            self.logger.info(f"  File size: {file_size_mb:.1f} MB")
+
+            # Close datasets
+            ds_analysis.close()
+            ds_forecast.close()
+            ds_final.close()
+
+            # Clean up temp files
+            if temp_analysis.exists():
+                temp_analysis.unlink()
+            if temp_forecast.exists():
+                temp_forecast.unlink()
+
+            return final_file
+
+        except Exception as e:
+            # Clean up temp files on error
+            if temp_analysis.exists():
+                temp_analysis.unlink()
+            if temp_forecast.exists():
+                temp_forecast.unlink()
+            raise RuntimeError(f"CERRA data processing failed: {e}")
 
 
     # ------------------------------------------------------------------
@@ -3234,7 +3951,7 @@ def check_cloud_access_availability(dataset_name: str, logger) -> bool:
     bool
         True if dataset supports cloud access
     """
-    supported_datasets = ['AORC', 'ERA5', 'EM-EARTH', 'HRRR', 'CONUS404', 'GLDAS', 'NEX-GDDP-CMIP6']
+    supported_datasets = ['AORC', 'ERA5', 'EM-EARTH', 'HRRR', 'CONUS404', 'NEX-GDDP-CMIP6', 'CARRA', 'CERRA']
     
     if dataset_name.upper() in supported_datasets:
         logger.info(f"✓ {dataset_name} supports cloud data access")

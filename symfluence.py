@@ -56,6 +56,7 @@ from utils.models.model_manager import ModelManager
 from utils.evaluation.analysis_manager import AnalysisManager
 from utils.optimization.optimization_manager import OptimizationManager
 from utils.cli.cli_argument_manager import CLIArgumentManager
+from utils.config.config_loader import load_config
 
 
 class SYMFLUENCE:
@@ -103,13 +104,9 @@ class SYMFLUENCE:
     
     def _load_and_merge_config(self) -> Dict[str, Any]:
         try:
-            with open(self.config_path, 'r') as f:
-                config = yaml.safe_load(f) or {}
+            return load_config(self.config_path, self.config_overrides, validate=True)
         except FileNotFoundError:
             raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
-        if self.config_overrides:
-            config.update(self.config_overrides)
-        return config
     
     def _initialize_managers(self) -> Dict[str, Any]:
         """Initialize all manager components."""
