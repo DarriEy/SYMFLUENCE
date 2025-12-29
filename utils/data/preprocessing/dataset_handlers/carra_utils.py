@@ -235,9 +235,15 @@ class CARRAHandler(BaseDatasetHandler):
                     center_lat_raw = float(lats_flat[i])
                     center_lon_raw = float(lons_flat[i])
 
-                    # Apply spatial filter if available
+                    # Convert longitude from 0-360 to -180/180 range for consistency
+                    if center_lon_raw > 180:
+                        center_lon_normalized = center_lon_raw - 360
+                    else:
+                        center_lon_normalized = center_lon_raw
+
+                    # Apply spatial filter if available (using normalized longitude)
                     if bbox_filter is not None:
-                        if (center_lon_raw < bbox_filter['lon_min'] or center_lon_raw > bbox_filter['lon_max'] or
+                        if (center_lon_normalized < bbox_filter['lon_min'] or center_lon_normalized > bbox_filter['lon_max'] or
                             center_lat_raw < bbox_filter['lat_min'] or center_lat_raw > bbox_filter['lat_max']):
                             continue
 
