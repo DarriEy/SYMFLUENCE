@@ -33,8 +33,9 @@ except ImportError:
 
 # Backward compatibility warning
 import warnings
-warnings.warn(
-    "The 'confluence' package name is deprecated. Please update your imports to use 'symfluence'.",
-    DeprecationWarning,
-    stacklevel=2
-)
+if __name__.split(".")[0] == "confluence":
+    warnings.warn(
+        "The 'confluence' package name is deprecated. Please update your imports to use 'symfluence'.",
+        DeprecationWarning,
+        stacklevel=2
+    )

@@ -423,12 +423,67 @@ class forcingResampler:
             # NetCDF configuration - use sample file
             # Get coordinate names from dataset handler
             var_lat, var_lon = self.dataset_handler.get_coordinate_names()
-            
+
+            # Detect which SUMMA variables actually exist in the forcing file
+            import xarray as xr
+            with xr.open_dataset(sample_forcing_file) as ds:
+                all_summa_vars = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']
+                available_vars = [v for v in all_summa_vars if v in ds.data_vars]
+
+                if not available_vars:
+                    raise ValueError(f"No SUMMA forcing variables found in {sample_forcing_file}. "
+                                   f"Available variables: {list(ds.data_vars)}")
+
+                self.logger.info(f"Detected {len(available_vars)}/{len(all_summa_vars)} SUMMA variables in forcing file: {available_vars}")
+
+                # Store detected variables for use in weight application
+                self.detected_forcing_vars = available_vars
+
+                # Calculate grid resolution for small grids (needed by EASYMORE)
+                lat_vals = ds[var_lat].values
+                lon_vals = ds[var_lon].values
+
+                # Handle 1D or 2D coordinate arrays
+                if lat_vals.ndim == 1:
+                    lat_size = len(lat_vals)
+                    lon_size = len(lon_vals)
+                elif lat_vals.ndim == 2:
+                    lat_size = lat_vals.shape[0]
+                    lon_size = lat_vals.shape[1]
+                else:
+                    lat_size = 1
+                    lon_size = 1
+
+                # Calculate resolution if grid is small
+                source_nc_resolution = None
+                if lat_size == 1 or lon_size == 1:
+                    # For small grids, estimate resolution from the data or use default
+                    if lat_vals.ndim == 1:
+                        if len(lat_vals) > 1:
+                            res_lat = abs(float(lat_vals[1] - lat_vals[0]))
+                        else:
+                            res_lat = 0.25  # Default for ERA5
+                        if len(lon_vals) > 1:
+                            res_lon = abs(float(lon_vals[1] - lon_vals[0]))
+                        else:
+                            res_lon = 0.25  # Default for ERA5
+                    else:
+                        # 2D arrays - estimate from first row/column
+                        res_lat = 0.25
+                        res_lon = 0.25
+
+                    source_nc_resolution = max(res_lat, res_lon)
+                    self.logger.info(f"Small grid detected ({lat_size}x{lon_size}), setting source_nc_resolution={source_nc_resolution}")
+
             esmr.source_nc = str(sample_forcing_file)
-            esmr.var_names = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']
+            esmr.var_names = available_vars
             esmr.var_lat = var_lat
             esmr.var_lon = var_lon
             esmr.var_time = 'time'
+
+            # Set resolution for small grids
+            if source_nc_resolution is not None:
+                esmr.source_nc_resolution = source_nc_resolution
             
             # Directories
             esmr.temp_dir = str(temp_dir) + '/'
@@ -545,7 +600,16 @@ class forcingResampler:
                 
                 # NetCDF file configuration
                 esmr.source_nc = str(file)
-                esmr.var_names = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']
+                # Use the same detected variables from weight creation
+                if hasattr(self, 'detected_forcing_vars') and self.detected_forcing_vars:
+                    esmr.var_names = self.detected_forcing_vars
+                else:
+                    # Fallback to detecting variables from this file
+                    import xarray as xr
+                    with xr.open_dataset(file) as ds:
+                        all_summa_vars = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']
+                        esmr.var_names = [v for v in all_summa_vars if v in ds.data_vars]
+
                 esmr.var_lat = var_lat
                 esmr.var_lon = var_lon
                 esmr.var_time = 'time'
