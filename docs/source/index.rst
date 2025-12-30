@@ -5,22 +5,21 @@
 SYMFLUENCE Documentation
 ========================
 
-**SYnergistic Modelling Framework for Linking and Unifying Earth-system Nexii for Computational Exploration**
+**Earth-system modeling. Simplified.**
 
 ---
 
 Overview
 --------
 
-**SYMFLUENCE** is a computational hydrological modeling platform that integrates data preparation, model setup, optimization, and evaluation in a unified workflow.  
-It enables reproducible, scalable, and extensible experiments for hydrological and environmental modeling.
+**SYMFLUENCE** is a computational framework for Earth-system modeling that integrates data preparation, model setup, calibration, and evaluation in unified workflows.
 
 **Core capabilities:**
 - Multi-model integration (SUMMA, FUSE, NextGen, GR4J, LSTM, mizuRoute)
-- Automated workflows for data-to-results reproducibility
-- Parallel optimization and calibration
-- High-performance and HPC execution
-- Comprehensive evaluation and reporting tools
+- Automated parameter calibration and optimization
+- Parallel execution and HPC support
+- Reproducible workflows from data to results
+- Comprehensive evaluation and reporting
 
 ---
 
@@ -41,6 +40,7 @@ Quick Start
    installation
    getting_started
    configuration
+   calibration
    examples
 
 .. toctree::
