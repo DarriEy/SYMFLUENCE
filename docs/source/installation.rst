@@ -18,15 +18,6 @@ What this does:
 - Installs Python dependencies with ``pip``
 - Reuses the environment on subsequent runs
 
-Backward Compatibility
-----------------------
-For users transitioning from CONFLUENCE, the old command still works:
-
-.. code-block:: bash
-
-   ./confluence --install
-
-This wrapper will be deprecated in a future release. Please update to ``./symfluence``.
 
 Manual Setup (Optional)
 -----------------------

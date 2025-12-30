@@ -41,8 +41,6 @@ Define experiment identifiers, paths, and computational options.
    LOG_TO_FILE: True
    LOG_FORMAT: detailed
 
-**Note:** For backward compatibility, ``CONFLUENCE_DATA_DIR`` and ``CONFLUENCE_CODE_DIR`` are still supported but deprecated. Please update to ``SYMFLUENCE_DATA_DIR`` and ``SYMFLUENCE_CODE_DIR``.
-
 ---
 
 Geospatial Definition
