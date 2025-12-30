@@ -16,6 +16,8 @@ from symfluence import SYMFLUENCE
 import xarray as xr
 
 
+@pytest.mark.slow
+@pytest.mark.requires_data
 def test_cerra_full_summa_pipeline():
     """
     Test complete SUMMA pipeline with CERRA forcing for Fyrisån, Sweden.
@@ -172,6 +174,8 @@ def test_cerra_full_summa_pipeline():
     print("="*80)
 
 
+@pytest.mark.slow
+@pytest.mark.requires_data
 def test_carra_full_summa_pipeline():
     """
     Test complete SUMMA pipeline with CARRA forcing for Elliðaár, Iceland.
