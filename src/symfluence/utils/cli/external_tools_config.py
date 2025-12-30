@@ -523,21 +523,22 @@ echo "   HDF_PATH: ${HDF_PATH}"
 echo ""
 
 # Construct library and include paths to override Makefile's hardcoded values
-# Find the actual lib directory (could be lib, lib64, or lib/x86_64-linux-gnu)
-if [ -d "${NCDF_PATH}/lib64" ]; then
-  NCDF_LIB_DIR="${NCDF_PATH}/lib64"
-elif [ -d "${NCDF_PATH}/lib/x86_64-linux-gnu" ]; then
+# Find the actual lib directory by checking for actual library files
+# Prioritize architecture-specific dirs on Debian/Ubuntu systems
+if [ -d "${NCDF_PATH}/lib/x86_64-linux-gnu" ] && ls "${NCDF_PATH}/lib/x86_64-linux-gnu"/libnetcdff.* >/dev/null 2>&1; then
   NCDF_LIB_DIR="${NCDF_PATH}/lib/x86_64-linux-gnu"
+elif [ -d "${NCDF_PATH}/lib64" ] && ls "${NCDF_PATH}/lib64"/libnetcdff.* >/dev/null 2>&1; then
+  NCDF_LIB_DIR="${NCDF_PATH}/lib64"
 elif [ -d "${NCDF_PATH}/lib" ]; then
   NCDF_LIB_DIR="${NCDF_PATH}/lib"
 else
   NCDF_LIB_DIR="${NCDF_PATH}/lib"
 fi
 
-if [ -d "${HDF_PATH}/lib64" ]; then
-  HDF_LIB_DIR="${HDF_PATH}/lib64"
-elif [ -d "${HDF_PATH}/lib/x86_64-linux-gnu" ]; then
+if [ -d "${HDF_PATH}/lib/x86_64-linux-gnu" ] && ls "${HDF_PATH}/lib/x86_64-linux-gnu"/libhdf5.* >/dev/null 2>&1; then
   HDF_LIB_DIR="${HDF_PATH}/lib/x86_64-linux-gnu"
+elif [ -d "${HDF_PATH}/lib64" ] && ls "${HDF_PATH}/lib64"/libhdf5.* >/dev/null 2>&1; then
+  HDF_LIB_DIR="${HDF_PATH}/lib64"
 elif [ -d "${HDF_PATH}/lib" ]; then
   HDF_LIB_DIR="${HDF_PATH}/lib"
 else
