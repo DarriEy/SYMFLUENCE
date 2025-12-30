@@ -84,7 +84,7 @@ jobs:
       CI: "1"
       NONINTERACTIVE: "1"
       SYMFLUENCE_CODE: ${{ github.workspace }}
-      SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+      SYMFLUENCE_DATA: ${{ github.workspace }}_data
 
     steps:
       - name: Free up disk space (Linux)
@@ -143,14 +143,13 @@ jobs:
           brew install gcc cmake ninja open-mpi netcdf netcdf-fortran hdf5 gdal wget
 
           # Install GDAL Python bindings
-          # Get GDAL major.minor version and install compatible Python bindings
+          # Get GDAL version from library
           GDAL_VERSION=$(gdal-config --version)
           GDAL_MAJOR_MINOR=$(echo $GDAL_VERSION | cut -d. -f1,2)
 
-          # Try exact version first, fall back to compatible version
-          python3 -m pip install "GDAL==${GDAL_VERSION}" || \
-            python3 -m pip install "GDAL~=${GDAL_MAJOR_MINOR}.0" || \
-            python3 -m pip install "GDAL>=${GDAL_MAJOR_MINOR}.0,<$(echo $GDAL_MAJOR_MINOR | awk -F. '{print $1"."$2+1}').0"
+          # Install GDAL Python bindings <= installed library version
+          # This ensures compatibility (Python bindings can't be newer than library)
+          python3 -m pip install "GDAL>=${GDAL_MAJOR_MINOR}.0,<=${GDAL_VERSION}"
 
           gcc --version
           mpicc --version
