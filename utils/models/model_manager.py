@@ -193,7 +193,7 @@ class ModelManager:
                     if needs_mizuroute:
                         self.logger.info("Initializing mizuRoute preprocessor for SUMMA")
                         # Hint to mizu preproc which upstream model is providing qsim
-                        self.config['MIZU_FROM_MODEL'] = 'SUMMA'
+                        self.config['MIZU_FROM_MODEL'] = 'SUMMA'  # Note: Setting config value
                         mp = MizuRoutePreProcessor(self.config, self.logger)
                         mp.run_preprocessing()
 
@@ -203,7 +203,7 @@ class ModelManager:
                     if needs_mizuroute:
                         self.logger.info("Initializing mizuRoute preprocessor for FUSE")
                         # Tell the mizu preprocessor to emit a FUSE-style control file
-                        self.config['MIZU_FROM_MODEL'] = 'FUSE'
+                        self.config['MIZU_FROM_MODEL'] = 'FUSE'  # Note: Setting config value
                         mp = MizuRoutePreProcessor(self.config, self.logger)
                         mp.run_preprocessing()
 

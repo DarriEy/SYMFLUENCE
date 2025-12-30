@@ -38,9 +38,9 @@ class DomainDiscretizer:
         self.root_path = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = self.root_path / f"domain_{self.domain_name}"
-        dem_name = self.config['DEM_NAME']
+        dem_name = self.config.get('DEM_NAME')
         if dem_name == "default":
-            dem_name = f"domain_{self.config['DOMAIN_NAME']}_elv.tif"
+            dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
 
         self.dem_path = self._get_file_path("DEM_PATH", "attributes/elevation/dem", dem_name)
         self.catchment_dir = self.project_dir / 'shapefiles' / 'catchment'
@@ -52,7 +52,7 @@ class DomainDiscretizer:
         elif delineation_method == 'lumped':
             self.delineation_suffix = 'lumped'
         elif delineation_method == 'subset':
-            self.delineation_suffix = f"subset_{self.config['GEOFABRIC_TYPE']}"
+            self.delineation_suffix = f"subset_{self.config.get('GEOFABRIC_TYPE')}"
 
     def sort_catchment_shape(self):
         """
@@ -80,7 +80,7 @@ class DomainDiscretizer:
                 method_suffix = discretization_method.replace(',', '_')
             else:
                 method_suffix = discretization_method
-            self.catchment_name = f"{self.config['DOMAIN_NAME']}_HRUs_{method_suffix}.shp"
+            self.catchment_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{method_suffix}.shp"
         self.gruId = self.config.get('CATCHMENT_SHP_GRUID')
         self.hruId = self.config.get('CATCHMENT_SHP_HRUID')
 
@@ -241,9 +241,9 @@ class DomainDiscretizer:
             attr_lower = attr.lower()
             
             if attr_lower == 'elevation':
-                dem_name = self.config['DEM_NAME']
+                dem_name = self.config.get('DEM_NAME')
                 if dem_name == "default":
-                    dem_name = f"domain_{self.config['DOMAIN_NAME']}_elv.tif"
+                    dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
                 
                 raster_path = self._get_file_path("DEM_PATH", "attributes/elevation/dem", dem_name)
                 band_size = float(self.config.get('ELEVATION_BAND_SIZE'))
@@ -257,7 +257,7 @@ class DomainDiscretizer:
                 
             elif attr_lower == 'soilclass':
                 raster_path = self._get_file_path("SOIL_CLASS_PATH", "attributes/soilclass/", 
-                                                f"domain_{self.config['DOMAIN_NAME']}_soil_classes.tif")
+                                                f"domain_{self.config.get('DOMAIN_NAME')}_soil_classes.tif")
                 raster_info[attr] = {
                     'path': raster_path,
                     'type': 'discrete',
@@ -266,7 +266,7 @@ class DomainDiscretizer:
                 
             elif attr_lower == 'landclass':
                 raster_path = self._get_file_path("LAND_CLASS_PATH", "attributes/landclass", 
-                                                f"domain_{self.config['DOMAIN_NAME']}_land_classes.tif")
+                                                f"domain_{self.config.get('DOMAIN_NAME')}_land_classes.tif")
                 raster_info[attr] = {
                     'path': raster_path,
                     'type': 'discrete',
@@ -280,9 +280,9 @@ class DomainDiscretizer:
                 # Calculate radiation if it doesn't exist
                 if not radiation_raster.exists():
                     self.logger.info("Annual radiation raster not found. Calculating radiation...")
-                    dem_name = self.config['DEM_NAME']
+                    dem_name = self.config.get('DEM_NAME')
                     if dem_name == "default":
-                        dem_name = f"domain_{self.config['DOMAIN_NAME']}_elv.tif"
+                        dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
                     dem_raster = self._get_file_path("DEM_PATH", "attributes/elevation/dem", dem_name)
                     radiation_raster = self._calculate_annual_radiation(dem_raster, radiation_raster)
                     if radiation_raster is None:
@@ -302,9 +302,9 @@ class DomainDiscretizer:
                 # Calculate aspect if it doesn't exist
                 if not aspect_raster.exists():
                     self.logger.info("Aspect raster not found. Calculating aspect...")
-                    dem_name = self.config['DEM_NAME']
+                    dem_name = self.config.get('DEM_NAME')
                     if dem_name == "default":
-                        dem_name = f"domain_{self.config['DOMAIN_NAME']}_elv.tif"
+                        dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
                     dem_raster = self._get_file_path("DEM_PATH", "attributes/elevation/dem", dem_name)
                     aspect_raster = self._calculate_aspect(dem_raster, aspect_raster)
                     if aspect_raster is None:
@@ -772,9 +772,9 @@ class DomainDiscretizer:
         else:
             gru_shapefile = self._get_file_path("RIVER_BASINS_PATH", "shapefiles/river_basins", self.config.get('RIVER_BASINS_NAME'))
         
-        dem_name = self.config['DEM_NAME']
+        dem_name = self.config.get('DEM_NAME')
         if dem_name == "default":
-            dem_name = f"domain_{self.config['DOMAIN_NAME']}_elv.tif"
+            dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
 
         dem_raster = self._get_file_path("DEM_PATH", "attributes/elevation/dem", dem_name)
         output_shapefile = self._get_file_path("CATCHMENT_PATH", "shapefiles/catchment", f"{self.domain_name}_HRUs_elevation.shp")
@@ -803,7 +803,7 @@ class DomainDiscretizer:
             Optional[Path]: Path to the output HRU shapefile, or None if discretization fails.
         """
         gru_shapefile = self._get_file_path("RIVER_BASINS_PATH", "shapefiles/river_basins", f"{self.domain_name}_riverBasins_{self.delineation_suffix}.shp")
-        soil_raster = self._get_file_path("SOIL_CLASS_PATH", "attributes/soilclass/", f"domain_{self.config['DOMAIN_NAME']}_soil_classes.tif")
+        soil_raster = self._get_file_path("SOIL_CLASS_PATH", "attributes/soilclass/", f"domain_{self.config.get('DOMAIN_NAME')}_soil_classes.tif")
         output_shapefile = self._get_file_path("CATCHMENT_PATH", "shapefiles/catchment", f"{self.domain_name}_HRUs_soilclass.shp")
         output_plot = self._get_file_path("CATCHMENT_PLOT_DIR", "plots/catchment", f"{self.domain_name}_HRUs_soilclass.png")
 
@@ -836,7 +836,7 @@ class DomainDiscretizer:
         else:
             gru_shapefile = self._get_file_path("RIVER_BASINS_PATH", "shapefiles/river_basins", self.config.get('RIVER_BASINS_NAME'))
 
-        land_raster = self._get_file_path("LAND_CLASS_PATH","attributes/landclass", f"domain_{self.config['DOMAIN_NAME']}_land_classes.tif")
+        land_raster = self._get_file_path("LAND_CLASS_PATH","attributes/landclass", f"domain_{self.config.get('DOMAIN_NAME')}_land_classes.tif")
         output_shapefile = self._get_file_path("CATCHMENT_PATH", "shapefiles/catchment", f"{self.domain_name}_HRUs_landclass.shp")
         output_plot = self._get_file_path("CATCHMENT_PLOT_DIR", "plots/catchment", f"{self.domain_name}_HRUs_landclass.png")
 
@@ -872,9 +872,9 @@ class DomainDiscretizer:
             gru_shapefile = self._get_file_path("RIVER_BASINS_PATH", "shapefiles/river_basins", 
                                                self.config.get('RIVER_BASINS_NAME'))
 
-        dem_name = self.config['DEM_NAME']
+        dem_name = self.config.get('DEM_NAME')
         if dem_name == "default":
-            dem_name = f"domain_{self.config['DOMAIN_NAME']}_elv.tif"
+            dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
 
         dem_raster = self._get_file_path("DEM_PATH", "attributes/elevation/dem", dem_name)
         aspect_raster = self._get_file_path("ASPECT_PATH", "attributes/aspect", "aspect.tif")
@@ -1035,9 +1035,9 @@ class DomainDiscretizer:
             Optional[Path]: Path to the output HRU shapefile, or None if discretization fails.
         """
         gru_shapefile = self._get_file_path("RIVER_BASINS_PATH", "shapefiles/river_basins", f"{self.domain_name}_riverBasins_{self.delineation_suffix}.shp")
-        dem_name = self.config['DEM_NAME']
+        dem_name = self.config.get('DEM_NAME')
         if dem_name == "default":
-            dem_name = f"domain_{self.config['DOMAIN_NAME']}_elv.tif"
+            dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
 
         dem_raster = self._get_file_path("DEM_PATH", "attributes/elevation/dem", dem_name)
         radiation_raster = self._get_file_path("RADIATION_PATH", "attributes/radiation", "annual_radiation.tif")

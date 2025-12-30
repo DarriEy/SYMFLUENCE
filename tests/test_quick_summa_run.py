@@ -105,14 +105,14 @@ def test_cerra_summa_quick():
             print(f"   ✗ Preprocessing failed: {e}")
             raise
     else:
-        print(f"\n2. ✓ Using existing preprocessed forcing: {merged_files[0].name}")
+        print(f"\n3. ✓ Using existing preprocessed forcing: {merged_files[0].name}")
         with xr.open_dataset(merged_files[0]) as ds:
             n_hrus = ds.dims.get('hru', 0)
             n_time = ds.dims.get('time', 0)
             print(f"   Dimensions: {n_hrus} HRUs x {n_time} timesteps")
 
     # Build SUMMA model
-    print("\n3. Building SUMMA model...")
+    print("\n4. Building SUMMA model...")
     try:
         sym.managers['model'].preprocess_models()
         print("   ✓ SUMMA model build completed")
@@ -140,7 +140,7 @@ def test_cerra_summa_quick():
         raise
 
     # Run SUMMA simulation
-    print("\n4. Running SUMMA simulation...")
+    print("\n5. Running SUMMA simulation...")
     try:
         sym.managers['model'].run_models()
         print("   ✓ SUMMA simulation completed")
@@ -228,15 +228,18 @@ def test_carra_summa_quick():
         )
     print(f"   ✓ Using existing domain: {project_dir}")
 
-    # Check forcing data exists
+    # Check forcing data exists, download if missing
     raw_forcing_dir = project_dir / 'forcing' / 'raw_data'
     carra_files = list(raw_forcing_dir.glob('*CARRA*.nc'))
     if not carra_files:
-        raise FileNotFoundError(
-            "No CARRA forcing data found. "
-            "Run test_regional_reanalysis.py first to download forcing."
-        )
-    print(f"   ✓ Using existing forcing: {carra_files[0].name}")
+        print("\n2. Downloading CARRA forcing data...")
+        sym.managers['data'].acquire_forcings()
+        carra_files = list(raw_forcing_dir.glob('*CARRA*.nc'))
+        if not carra_files:
+            raise FileNotFoundError("CARRA forcing download failed")
+        print(f"   ✓ Downloaded forcing: {carra_files[0].name}")
+    else:
+        print(f"   ✓ Using existing forcing: {carra_files[0].name}")
 
     # Verify forcing has SUMMA variables
     with xr.open_dataset(carra_files[0]) as ds:
@@ -251,7 +254,7 @@ def test_carra_summa_quick():
     merged_files = list(merged_dir.glob('*_remapped_*.nc')) if merged_dir.exists() else []
 
     if not merged_files:
-        print("\n2. Preprocessing forcing data (subsetting to basin HRUs)...")
+        print("\n3. Preprocessing forcing data (subsetting to basin HRUs)...")
         print("   This may take a while for the first run...")
         try:
             sym.managers['data'].run_model_agnostic_preprocessing()
@@ -270,14 +273,14 @@ def test_carra_summa_quick():
             print(f"   ✗ Preprocessing failed: {e}")
             raise
     else:
-        print(f"\n2. ✓ Using existing preprocessed forcing: {merged_files[0].name}")
+        print(f"\n3. ✓ Using existing preprocessed forcing: {merged_files[0].name}")
         with xr.open_dataset(merged_files[0]) as ds:
             n_hrus = ds.dims.get('hru', 0)
             n_time = ds.dims.get('time', 0)
             print(f"   Dimensions: {n_hrus} HRUs x {n_time} timesteps")
 
     # Build SUMMA model
-    print("\n3. Building SUMMA model...")
+    print("\n4. Building SUMMA model...")
     try:
         sym.managers['model'].preprocess_models()
         print("   ✓ SUMMA model build completed")
@@ -305,7 +308,7 @@ def test_carra_summa_quick():
         raise
 
     # Run SUMMA simulation
-    print("\n4. Running SUMMA simulation...")
+    print("\n5. Running SUMMA simulation...")
     try:
         sym.managers['model'].run_models()
         print("   ✓ SUMMA simulation completed")

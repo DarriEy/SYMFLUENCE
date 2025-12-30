@@ -41,19 +41,19 @@ class forcingResampler:
     def __init__(self, config, logger):
         self.config = config
         self.logger = logger
-        self.domain_name = self.config['DOMAIN_NAME']
+        self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}"
         self.shapefile_path = self.project_dir / 'shapefiles' / 'forcing'
-        dem_name = self.config['DEM_NAME']
+        dem_name = self.config.get('DEM_NAME')
         if dem_name == "default":
-            dem_name = f"domain_{self.config['DOMAIN_NAME']}_elv.tif"
+            dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
 
         self.dem_path = self._get_default_path('DEM_PATH', f"attributes/elevation/dem/{dem_name}")
         self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
         self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
-            self.catchment_name = f"{self.config['DOMAIN_NAME']}_HRUs_{str(self.config['DOMAIN_DISCRETIZATION']).replace(',','_')}.shp"
+            self.catchment_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{str(self.config.get('DOMAIN_DISCRETIZATION')).replace(',','_')}.shp"
         self.forcing_dataset = self.config.get('FORCING_DATASET').lower()
         self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/raw_data')
         
@@ -125,7 +125,7 @@ class forcingResampler:
         
         # Check if shapefile already exists
         self.shapefile_path.mkdir(parents=True, exist_ok=True)
-        output_shapefile = self.shapefile_path / f"forcing_{self.config['FORCING_DATASET']}.shp"
+        output_shapefile = self.shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
         
         if output_shapefile.exists():
             try:
@@ -255,8 +255,8 @@ class forcingResampler:
             Path: Expected output file path
         """
         # Extract base information
-        domain_name = self.config['DOMAIN_NAME']
-        forcing_dataset = self.config['FORCING_DATASET']
+        domain_name = self.config.get('DOMAIN_NAME')
+        forcing_dataset = self.config.get('FORCING_DATASET')
         input_stem = input_file.stem
         
         # Handle RDRS and CASR specific naming patterns
@@ -374,7 +374,7 @@ class forcingResampler:
             Path to the remapping netCDF file
         """
         # Ensure shapefiles are in WGS84
-        source_shp_path = self.project_dir / 'shapefiles' / 'forcing' / f"forcing_{self.config['FORCING_DATASET']}.shp"
+        source_shp_path = self.project_dir / 'shapefiles' / 'forcing' / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
         target_shp_path = self.catchment_path / self.catchment_name
         
         source_shp_wgs84 = self._ensure_shapefile_wgs84(source_shp_path, "_wgs84")
@@ -388,7 +388,7 @@ class forcingResampler:
             actual_hru_field = self.config.get('CATCHMENT_SHP_HRUID')
         
         # Define remap file path
-        case_name = f"{self.config['DOMAIN_NAME']}_{self.config['FORCING_DATASET']}"
+        case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
         remap_file = intersect_path / f"{case_name}_{actual_hru_field}_remapping.nc"
         
         # Check if remap file already exists
@@ -414,7 +414,8 @@ class forcingResampler:
             esmr.source_shp = str(source_shp_wgs84)
             esmr.source_shp_lat = self.config.get('FORCING_SHAPE_LAT_NAME')
             esmr.source_shp_lon = self.config.get('FORCING_SHAPE_LON_NAME')
-            
+            esmr.source_shp_ID = self.config.get('FORCING_SHAPE_ID_NAME', 'ID')  # Default to 'ID' if not specified
+
             esmr.target_shp = str(target_shp_wgs84)
             esmr.target_shp_ID = actual_hru_field
             esmr.target_shp_lat = self.config.get('CATCHMENT_SHP_LAT')
@@ -592,7 +593,7 @@ class forcingResampler:
                 esmr = easymore.Easymore()
                 
                 esmr.author_name = 'SUMMA public workflow scripts'
-                esmr.case_name = f"{self.config['DOMAIN_NAME']}_{self.config['FORCING_DATASET']}"
+                esmr.case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
                 
                 # Coordinate variables
                 # Get coordinate names from dataset handler
@@ -911,7 +912,7 @@ class forcingResampler:
             
             try:
                 # Ensure shapefiles are in WGS84 for easymore
-                source_shp_path = self.project_dir / 'shapefiles' / 'forcing' / f"forcing_{self.config['FORCING_DATASET']}.shp"
+                source_shp_path = self.project_dir / 'shapefiles' / 'forcing' / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
                 target_shp_path = self.catchment_path / self.catchment_name
                 
                 # Convert to WGS84 if needed
@@ -923,13 +924,14 @@ class forcingResampler:
                 
                 esmr.author_name = 'SUMMA public workflow scripts'
                 esmr.license = 'Copernicus data use license: https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
-                esmr.case_name = f"{self.config['DOMAIN_NAME']}_{self.config['FORCING_DATASET']}"
+                esmr.case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
                 
                 # Use WGS84 shapefiles
                 esmr.source_shp = str(source_shp_wgs84)
                 esmr.source_shp_lat = self.config.get('FORCING_SHAPE_LAT_NAME')
                 esmr.source_shp_lon = self.config.get('FORCING_SHAPE_LON_NAME')
-                
+                esmr.source_shp_ID = self.config.get('FORCING_SHAPE_ID_NAME', 'ID')  # Default to 'ID' if not specified
+
                 esmr.target_shp = str(target_shp_wgs84)
                 esmr.target_shp_ID = actual_hru_field  # Use the actual unique field name
                 esmr.target_shp_lat = self.config.get('CATCHMENT_SHP_LAT')
@@ -1045,7 +1047,7 @@ class forcingResampler:
             
             try:
                 # Get shapefile paths
-                source_shp_path = self.project_dir / 'shapefiles' / 'forcing' / f"forcing_{self.config['FORCING_DATASET']}.shp"
+                source_shp_path = self.project_dir / 'shapefiles' / 'forcing' / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
                 target_shp_path = self.catchment_path / self.catchment_name
                 
                 # Verify files exist
@@ -1088,13 +1090,14 @@ class forcingResampler:
                 
                 esmr.author_name = 'SUMMA public workflow scripts'
                 esmr.license = 'Copernicus data use license: https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
-                esmr.case_name = f"{self.config['DOMAIN_NAME']}_{self.config['FORCING_DATASET']}"
+                esmr.case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
                 
                 # Use absolute paths
                 esmr.source_shp = str(source_shp_wgs84)
                 esmr.source_shp_lat = self.config.get('FORCING_SHAPE_LAT_NAME')
                 esmr.source_shp_lon = self.config.get('FORCING_SHAPE_LON_NAME')
-                
+                esmr.source_shp_ID = self.config.get('FORCING_SHAPE_ID_NAME', 'ID')  # Default to 'ID' if not specified
+
                 esmr.target_shp = str(target_shp_wgs84)
                 esmr.target_shp_ID = self.config.get('CATCHMENT_SHP_HRUID')
                 esmr.target_shp_lat = self.config.get('CATCHMENT_SHP_LAT')
@@ -1197,10 +1200,10 @@ class geospatialStatistics:
         self.catchment_path = self._get_file_path('CATCHMENT_PATH', 'shapefiles/catchment')
         self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
-            self.catchment_name = f"{self.config['DOMAIN_NAME']}_HRUs_{str(self.config['DOMAIN_DISCRETIZATION']).replace(',','_')}.shp"
-        dem_name = self.config['DEM_NAME']
+            self.catchment_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{str(self.config.get('DOMAIN_DISCRETIZATION')).replace(',','_')}.shp"
+        dem_name = self.config.get('DEM_NAME')
         if dem_name == "default":
-            dem_name = f"domain_{self.config['DOMAIN_NAME']}_elv.tif"
+            dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
 
         self.dem_path = self._get_file_path('DEM_PATH', f"attributes/elevation/dem/{dem_name}")
         self.soil_path = self._get_file_path('SOIL_CLASS_PATH', 'attributes/soilclass')
@@ -1542,9 +1545,9 @@ class geospatialStatistics:
         
         self.logger.info("Calculating soil statistics")
         catchment_gdf = gpd.read_file(self.catchment_path / self.catchment_name)
-        soil_name = self.config['SOIL_CLASS_NAME']
+        soil_name = self.config.get('SOIL_CLASS_NAME')
         if soil_name == 'default':
-            soil_name = f"domain_{self.config['DOMAIN_NAME']}_soil_classes.tif"
+            soil_name = f"domain_{self.config.get('DOMAIN_NAME')}_soil_classes.tif"
         soil_raster = self.soil_path / soil_name
         
         try:
@@ -1635,9 +1638,9 @@ class geospatialStatistics:
         
         self.logger.info("Calculating land statistics")
         catchment_gdf = gpd.read_file(self.catchment_path / self.catchment_name)
-        land_name = self.config['LAND_CLASS_NAME']
+        land_name = self.config.get('LAND_CLASS_NAME')
         if land_name == 'default':
-            land_name = f"domain_{self.config['DOMAIN_NAME']}_land_classes.tif"
+            land_name = f"domain_{self.config.get('DOMAIN_NAME')}_land_classes.tif"
         land_raster = self.land_path / land_name
         
         try:

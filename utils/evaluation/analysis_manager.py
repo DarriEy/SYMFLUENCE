@@ -93,8 +93,8 @@ class AnalysisManager:
             preprocessor = BenchmarkPreprocessor(self.config, self.logger)
             
             # Extract calibration and evaluation periods
-            calib_start = self.config['CALIBRATION_PERIOD'].split(',')[0].strip()
-            eval_end = self.config['EVALUATION_PERIOD'].split(',')[1].strip()
+            calib_start = self.config.get('CALIBRATION_PERIOD').split(',')[0].strip()
+            eval_end = self.config.get('EVALUATION_PERIOD').split(',')[1].strip()
             
             benchmark_data = preprocessor.preprocess_benchmark_data(calib_start, eval_end)
             

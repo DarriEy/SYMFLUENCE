@@ -73,8 +73,8 @@ class NgenCalibrationTarget:
 
         # project_dir is already the domain directory, use it directly
         domain_dir = self.project_dir
-        if "paths" in self.config and "domain_dir" in self.config["paths"]:
-            domain_dir = Path(self.config["paths"]["domain_dir"])
+        if "paths" in self.config and "domain_dir" in self.config.get("paths"):
+            domain_dir = Path(self.config.get("paths")["domain_dir"])
 
         # explicit shapefile path in config?
         shp_cfg = (self.config.get("shapefiles", {}) or {}).get("catchment")
@@ -177,8 +177,8 @@ class NgenStreamflowTarget(NgenCalibrationTarget):
         # so we should use it directly
         domain_dir = None
         # Allow explicit project/domain override
-        if "paths" in self.config and "domain_dir" in self.config["paths"]:
-            domain_dir = Path(self.config["paths"]["domain_dir"])
+        if "paths" in self.config and "domain_dir" in self.config.get("paths"):
+            domain_dir = Path(self.config.get("paths")["domain_dir"])
         else:
             # Use project_dir directly - it's already the domain directory
             domain_dir = self.project_dir

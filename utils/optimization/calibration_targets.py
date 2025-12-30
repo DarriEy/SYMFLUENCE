@@ -2680,7 +2680,7 @@ class TWSTarget:
         """Get path to GRACE observations file."""
         # Check explicit config path first
         if 'TWS_OBS_PATH' in self.config:
-            return Path(self.config['TWS_OBS_PATH'])
+            return Path(self.config.get('TWS_OBS_PATH'))
         
         # Try standard locations
         domain_name = self.config.get('DOMAIN_NAME', '')

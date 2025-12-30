@@ -41,7 +41,7 @@ class GRPreProcessor:
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
         self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
-            self.catchment_name = f"{self.domain_name}_HRUs_{self.config['DOMAIN_DISCRETIZATION']}.shp"
+            self.catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
         
         # Spatial mode configuration
         self.spatial_mode = self.config.get('GR_SPATIAL_MODE', 'lumped')
@@ -170,7 +170,7 @@ class GRPreProcessor:
             # Open and concatenate all forcing files
             ds = xr.open_mfdataset(forcing_files)
             variable_handler = VariableHandler(config=self.config, logger=self.logger, 
-                                            dataset=self.config['FORCING_DATASET'], model='GR')
+                                            dataset=self.config.get('FORCING_DATASET'), model='GR')
             
             # Process variables
             ds_variable_handler = variable_handler.process_forcing_data(ds)
@@ -488,12 +488,12 @@ class GRRunner:
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
         self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
-            self.catchment_name = f"{self.domain_name}_HRUs_{self.config['DOMAIN_DISCRETIZATION']}.shp"
+            self.catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
         
         # GR-specific paths
         self.gr_setup_dir = self.project_dir / "settings" / "GR"
         self.forcing_gr_path = self.project_dir / 'forcing' / 'GR_input'
-        self.output_path = self.project_dir / 'simulations' / self.config['EXPERIMENT_ID'] / 'GR'
+        self.output_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'GR'
         self.output_path.mkdir(parents=True, exist_ok=True)
         
         # Model configuration
@@ -578,10 +578,10 @@ class GRRunner:
                 Zmean = np.mean(masked_dem)
             
             # Get simulation periods
-            time_start = pd.to_datetime(self.config['EXPERIMENT_TIME_START'])
-            time_end = pd.to_datetime(self.config['EXPERIMENT_TIME_END'])
-            spinup_start = pd.to_datetime(self.config['SPINUP_PERIOD'].split(',')[0].strip()).strftime('%Y-%m-%d')
-            spinup_end = pd.to_datetime(self.config['SPINUP_PERIOD'].split(',')[1].strip()).strftime('%Y-%m-%d')
+            time_start = pd.to_datetime(self.config.get('EXPERIMENT_TIME_START'))
+            time_end = pd.to_datetime(self.config.get('EXPERIMENT_TIME_END'))
+            spinup_start = pd.to_datetime(self.config.get('SPINUP_PERIOD').split(',')[0].strip()).strftime('%Y-%m-%d')
+            spinup_end = pd.to_datetime(self.config.get('SPINUP_PERIOD').split(',')[1].strip()).strftime('%Y-%m-%d')
             run_start = time_start.strftime('%Y-%m-%d')
             run_end = time_end.strftime('%Y-%m-%d')
             
@@ -752,14 +752,14 @@ class GRRunner:
             'model': 'GR4J-CemaNeige',
             'spatial_mode': 'distributed',
             'domain': self.domain_name,
-            'experiment_id': self.config['EXPERIMENT_ID'],
+            'experiment_id': self.config.get('EXPERIMENT_ID'),
             'n_hrus': n_hrus,
             'creation_date': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
             'description': 'Distributed GR4J simulation results for mizuRoute routing'
         }
         
         # Save to NetCDF
-        output_file = self.output_path / f"{self.domain_name}_{self.config['EXPERIMENT_ID']}_runs_def.nc"
+        output_file = self.output_path / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_runs_def.nc"
         
         encoding = {
             'time': {'dtype': 'float64'},
@@ -814,7 +814,7 @@ class GRRunner:
 
     def _setup_gr_mizuroute_config(self):
         """Update configuration for GR-mizuRoute integration"""
-        
+
         # Set mizuRoute to look for GR output instead of SUMMA
         self.config['MIZU_FROM_MODEL'] = 'GR'
 
@@ -841,13 +841,13 @@ class GRRunner:
                 Hypso = np.percentile(masked_dem, np.arange(0, 101, 1))
                 Zmean = np.mean(masked_dem)
 
-            time_start = pd.to_datetime(self.config['EXPERIMENT_TIME_START'])
-            time_end = pd.to_datetime(self.config['EXPERIMENT_TIME_END'])
+            time_start = pd.to_datetime(self.config.get('EXPERIMENT_TIME_START'))
+            time_end = pd.to_datetime(self.config.get('EXPERIMENT_TIME_END'))
             
-            spinup_start = pd.to_datetime(self.config['SPINUP_PERIOD'].split(',')[0].strip()).strftime('%Y-%m-%d')
-            spinup_end = pd.to_datetime(self.config['SPINUP_PERIOD'].split(',')[1].strip()).strftime('%Y-%m-%d')
-            calib_start = pd.to_datetime(self.config['CALIBRATION_PERIOD'].split(',')[0].strip()).strftime('%Y-%m-%d')
-            calib_end = pd.to_datetime(self.config['CALIBRATION_PERIOD'].split(',')[1].strip()).strftime('%Y-%m-%d')
+            spinup_start = pd.to_datetime(self.config.get('SPINUP_PERIOD').split(',')[0].strip()).strftime('%Y-%m-%d')
+            spinup_end = pd.to_datetime(self.config.get('SPINUP_PERIOD').split(',')[1].strip()).strftime('%Y-%m-%d')
+            calib_start = pd.to_datetime(self.config.get('CALIBRATION_PERIOD').split(',')[0].strip()).strftime('%Y-%m-%d')
+            calib_end = pd.to_datetime(self.config.get('CALIBRATION_PERIOD').split(',')[1].strip()).strftime('%Y-%m-%d')
             run_start = time_start.strftime('%Y-%m-%d')
             run_end = time_end.strftime('%Y-%m-%d')
             
@@ -918,7 +918,7 @@ class GRRunner:
                 
                 # Calibration criterion
                 InputsCrit <- CreateInputsCrit(
-                    FUN_CRIT = ErrorCrit_{self.config['OPTIMIZATION_METRIC']},
+                    FUN_CRIT = ErrorCrit_{self.config.get('OPTIMIZATION_METRIC')},
                     InputsModel = InputsModel,
                     RunOptions = RunOptions,
                     Obs = BasinObs$q_obs[Ind_Cal]
@@ -1068,7 +1068,7 @@ class GRPostprocessor:
         q_sim_cms = sim_df['flow'] * area_km2 / 86.4
         
         # Read existing results or create new
-        output_file = self.results_dir / f"{self.config['EXPERIMENT_ID']}_results.csv"
+        output_file = self.results_dir / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
         if output_file.exists():
             results_df = pd.read_csv(output_file, index_col=0, parse_dates=True)
         else:
@@ -1091,10 +1091,10 @@ class GRPostprocessor:
         
         if needs_routing:
             # Get routed streamflow from mizuRoute output
-            mizuroute_output_dir = self.project_dir / 'simulations' / self.config['EXPERIMENT_ID'] / 'mizuRoute'
+            mizuroute_output_dir = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'mizuRoute'
             
             # Find mizuRoute output file
-            output_files = list(mizuroute_output_dir.glob(f"{self.config['EXPERIMENT_ID']}*.nc"))
+            output_files = list(mizuroute_output_dir.glob(f"{self.config.get('EXPERIMENT_ID')}*.nc"))
             
             if not output_files:
                 self.logger.error(f"No mizuRoute output files found in {mizuroute_output_dir}")
@@ -1134,8 +1134,8 @@ class GRPostprocessor:
             
         else:
             # No routing - sum all HRU outputs
-            gr_output = self.project_dir / 'simulations' / self.config['EXPERIMENT_ID'] / 'GR' / \
-                        f"{self.domain_name}_{self.config['EXPERIMENT_ID']}_runs_def.nc"
+            gr_output = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'GR' / \
+                        f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_runs_def.nc"
             
             if not gr_output.exists():
                 self.logger.error(f"GR output not found: {gr_output}")
@@ -1164,7 +1164,7 @@ class GRPostprocessor:
         q_cms = q_df['flow'] * area_km2 / 86.4
         
         # Save to results
-        output_file = self.results_dir / f"{self.config['EXPERIMENT_ID']}_results.csv"
+        output_file = self.results_dir / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
         if output_file.exists():
             results_df = pd.read_csv(output_file, index_col=0, parse_dates=True)
         else:
@@ -1186,4 +1186,4 @@ class GRPostprocessor:
     @property
     def output_path(self):
         """Get output path for backwards compatibility"""
-        return self.project_dir / 'simulations' / self.config['EXPERIMENT_ID'] / 'GR'
+        return self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'GR'

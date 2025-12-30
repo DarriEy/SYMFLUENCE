@@ -412,7 +412,7 @@ class CloudForcingDownloader:
         Base directory for the current SYMFLUENCE domain, e.g.
         SYMFLUENCE_DATA_DIR / f\"domain_{DOMAIN_NAME}\".
         """
-        base = Path(self.config["SYMFLUENCE_DATA_DIR"])
+        base = Path(self.config.get("SYMFLUENCE_DATA_DIR"))
         domain_name = self.config.get("DOMAIN_NAME", "domain")
         d = base / f"domain_{domain_name}"
         d.mkdir(parents=True, exist_ok=True)
@@ -513,8 +513,8 @@ class CloudForcingDownloader:
         if cfg_time_slice is not None:
             start_date_str, end_date_str = cfg_time_slice
         else:
-            exp_start = pd.to_datetime(self.config["EXPERIMENT_TIME_START"])
-            exp_end   = pd.to_datetime(self.config["EXPERIMENT_TIME_END"])
+            exp_start = pd.to_datetime(self.config.get("EXPERIMENT_TIME_START"))
+            exp_end   = pd.to_datetime(self.config.get("EXPERIMENT_TIME_END"))
             start_date_str = exp_start.strftime("%Y-%m-%d")
             end_date_str   = exp_end.strftime("%Y-%m-%d")
             self.logger.info(
@@ -3121,7 +3121,7 @@ class CloudForcingDownloader:
           NASADEM_LOCAL_DIR: directory with NASADEM_HGT_*.zip or *_hgt files
         """
         elev_dir = self._attribute_dir("elevation")
-        tiles_dir = Path(self.config["NASADEM_LOCAL_DIR"])
+        tiles_dir = Path(self.config.get("NASADEM_LOCAL_DIR"))
         if not tiles_dir.exists():
             raise FileNotFoundError(f"NASADEM_LOCAL_DIR does not exist: {tiles_dir}")
 

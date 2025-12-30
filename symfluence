@@ -379,8 +379,6 @@ find_symfluence_script() {
 
     if [[ -n "${SYMFLUENCE_CODE_DIR}" ]]; then
         search_paths=("${SYMFLUENCE_CODE_DIR}/${SYMFLUENCE_SCRIPT}" "${search_paths[@]}")
-    elif [[ -n "${CONFLUENCE_CODE_DIR}" ]]; then
-        search_paths=("${CONFLUENCE_CODE_DIR}/${SYMFLUENCE_SCRIPT}" "${search_paths[@]}")
     fi
 
     local path
@@ -461,8 +459,7 @@ ${SCRIPT_NAME}: SYMFLUENCE Python script not found
 
 This wrapper looks for symfluence.py in:
   - Current directory and parent directories
-  - \$SYMFLUENCE_CODE_DIR (preferred)
-  - \$CONFLUENCE_CODE_DIR (legacy)
+  - \$SYMFLUENCE_CODE_DIR
 
 Fix:
   1) Run this from the SYMFLUENCE project dir, or
@@ -503,7 +500,6 @@ EOF
             echo "Virtual env: ${VIRTUAL_ENV:-'None active'}"
             echo "Working directory: $(pwd)"
             echo "SYMFLUENCE_CODE_DIR: ${SYMFLUENCE_CODE_DIR:-'Not set'}"
-            echo "CONFLUENCE_CODE_DIR (legacy): ${CONFLUENCE_CODE_DIR:-'Not set'}"
             exit 0
             ;;
         --wrapper-debug) set -x; return 1 ;;
