@@ -145,11 +145,17 @@ jobs:
           # Install GDAL Python bindings
           # Get GDAL version from library
           GDAL_VERSION=$(gdal-config --version)
-          GDAL_MAJOR_MINOR=$(echo $GDAL_VERSION | cut -d. -f1,2)
+          GDAL_MAJOR=$(echo $GDAL_VERSION | cut -d. -f1)
+          GDAL_MINOR=$(echo $GDAL_VERSION | cut -d. -f2)
+          GDAL_PATCH=$(echo $GDAL_VERSION | cut -d. -f3 | cut -d_ -f1)
 
-          # Install GDAL Python bindings <= installed library version
-          # This ensures compatibility (Python bindings can't be newer than library)
-          python3 -m pip install "GDAL>=${GDAL_MAJOR_MINOR}.0,<=${GDAL_VERSION}"
+          # Calculate next patch version for upper bound (allows post releases like 3.12.0.post1)
+          NEXT_PATCH=$((GDAL_PATCH + 1))
+
+          # Install compatible GDAL Python bindings
+          # Example: for GDAL 3.12.0, install "GDAL>=3.12.0,<3.12.1"
+          # This allows 3.12.0.post1 but prevents 3.12.1 which may be incompatible
+          python3 -m pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
 
           gcc --version
           mpicc --version
