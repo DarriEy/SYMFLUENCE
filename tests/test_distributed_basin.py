@@ -137,6 +137,8 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
     return cfg_path, config
 
 
+@pytest.mark.slow
+@pytest.mark.requires_data
 def test_distributed_basin_workflow(config_path, test_data_dir):
     """
     Test elevation-based distributed basin workflow for SUMMA.

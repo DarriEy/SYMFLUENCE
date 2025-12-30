@@ -140,6 +140,8 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
 MODELS = ["SUMMA", "FUSE", "NGEN"]
 
 
+@pytest.mark.slow
+@pytest.mark.requires_data
 @pytest.mark.parametrize("model", MODELS)
 def test_semi_distributed_basin_workflow(config_path, test_data_dir, model):
     """
