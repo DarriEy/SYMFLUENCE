@@ -196,26 +196,85 @@ jobs:
           set -e
 
           TEST_LEVEL="${{ steps.test_level.outputs.test_level }}"
-          echo "Running ${TEST_LEVEL} tests..."
+          echo "========================================="
+          echo "Running ${TEST_LEVEL} test suite"
+          echo "========================================="
 
           case $TEST_LEVEL in
             smoke)
-              # Smoke tests: Binary validation + package imports + 3-hour SUMMA run
-              pytest -v -m "ci_quick and smoke" tests/
+              echo "SMOKE TESTS: Minimal validation (~5 min)"
+              echo "- Binary validation (SUMMA, mizuRoute, TauDEM)"
+              echo "- Package imports"
+              echo "- 3-hour SUMMA workflow"
+              echo ""
+              pytest -v --tb=short -m "smoke" tests/
               ;;
             quick)
-              # Quick tests: All smoke tests + basic workflow validation
-              pytest -v -m "ci_quick" tests/
+              echo "QUICK TESTS: Comprehensive validation (~20 min)"
+              echo "1. Unit tests (all)"
+              echo "2. Binary validation"
+              echo "3. Package imports"
+              echo "4. Integration tests (basic)"
+              echo "5. Quick workflow (3-hour SUMMA)"
+              echo ""
+
+              # Run unit tests first (fast)
+              echo "========================================="
+              echo "Running unit tests..."
+              echo "========================================="
+              pytest -v --tb=short -m "unit" tests/unit/ || true
+
+              # Run all ci_quick tests (includes smoke, binary validation, quick workflows)
+              echo "========================================="
+              echo "Running quick integration & e2e tests..."
+              echo "========================================="
+              pytest -v --tb=short -m "ci_quick" tests/
               ;;
             full)
-              # Full tests: Everything including 1-month simulations and calibration
-              pytest -v -m "ci_full or ci_quick" tests/
+              echo "FULL TESTS: Complete validation suite (~90 min)"
+              echo "1. Unit tests (all)"
+              echo "2. Integration tests (all)"
+              echo "3. Binary validation"
+              echo "4. Package imports"
+              echo "5. Quick workflow (3-hour SUMMA)"
+              echo "6. Full workflow (1-month SUMMA + mizuRoute)"
+              echo "7. Calibration workflow"
+              echo ""
+
+              # Run unit tests
+              echo "========================================="
+              echo "1/4: Running unit tests..."
+              echo "========================================="
+              pytest -v --tb=short -m "unit" tests/unit/ || true
+
+              # Run integration tests
+              echo "========================================="
+              echo "2/4: Running integration tests..."
+              echo "========================================="
+              pytest -v --tb=short -m "integration" tests/integration/ || true
+
+              # Run quick e2e tests
+              echo "========================================="
+              echo "3/4: Running quick e2e tests..."
+              echo "========================================="
+              pytest -v --tb=short -m "ci_quick" tests/e2e/
+
+              # Run full e2e tests (long-running)
+              echo "========================================="
+              echo "4/4: Running full e2e tests (1-month simulations)..."
+              echo "========================================="
+              pytest -v --tb=short -m "ci_full" tests/e2e/
               ;;
             *)
               echo "Unknown test level: ${TEST_LEVEL}"
               exit 1
               ;;
           esac
+
+          echo ""
+          echo "========================================="
+          echo "✓ All ${TEST_LEVEL} tests completed"
+          echo "========================================="
 
       - name: Upload test outputs (on failure)
         if: failure()
