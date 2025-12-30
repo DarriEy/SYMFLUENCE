@@ -29,36 +29,64 @@ concurrency:
 
 jobs:
   # ===========================================================================
+  # SETUP: Determine test mode and generate matrix
+  # ===========================================================================
+  setup:
+    name: Setup Test Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      test_level: ${{ steps.determine.outputs.test_level }}
+      matrix: ${{ steps.determine.outputs.matrix }}
+    steps:
+      - name: Determine test level and generate matrix
+        id: determine
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TEST_LEVEL="${{ github.event.inputs.test_level }}"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            TEST_LEVEL="full"
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            TEST_LEVEL="full"
+          else
+            TEST_LEVEL="quick"
+          fi
+
+          echo "test_level=${TEST_LEVEL}" >> $GITHUB_OUTPUT
+          echo "Test level: ${TEST_LEVEL}"
+
+          # Generate matrix based on test level
+          if [ "$TEST_LEVEL" = "full" ]; then
+            # Full mode: all combinations
+            MATRIX='{"include":[
+              {"os":"ubuntu-latest","python-version":"3.9"},
+              {"os":"ubuntu-latest","python-version":"3.10"},
+              {"os":"ubuntu-latest","python-version":"3.11"},
+              {"os":"macos-latest","python-version":"3.10"},
+              {"os":"macos-latest","python-version":"3.11"}
+            ]}'
+          else
+            # Quick mode: only 3.11 on each platform
+            MATRIX='{"include":[
+              {"os":"ubuntu-latest","python-version":"3.11"},
+              {"os":"macos-latest","python-version":"3.11"}
+            ]}'
+          fi
+
+          echo "matrix=${MATRIX}" >> $GITHUB_OUTPUT
+          echo "Matrix: ${MATRIX}"
+
+  # ===========================================================================
   # PHASE 1: Install everything once (per platform/python combo)
   # ===========================================================================
   install:
     name: Install (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    needs: setup
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
-    # Skip full-only combinations unless in full mode
-    if: |
-      matrix.full-only != true ||
-      github.event_name == 'schedule' ||
-      github.ref == 'refs/heads/main' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.test_level == 'full')
 
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ['3.11']  # Default: test with 3.11
-        include:
-          # Full mode: test multiple Python versions on Linux
-          - os: ubuntu-latest
-            python-version: '3.9'
-            full-only: true
-          - os: ubuntu-latest
-            python-version: '3.10'
-            full-only: true
-          # Full mode: test multiple Python versions on macOS
-          - os: macos-latest
-            python-version: '3.10'
-            full-only: true
+      matrix: ${{fromJson(needs.setup.outputs.matrix)}}
 
     env:
       TZ: UTC
@@ -66,9 +94,6 @@ jobs:
       NONINTERACTIVE: "1"
       SYMFLUENCE_CODE: ${{ github.workspace }}
       SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
-
-    outputs:
-      test_level: ${{ steps.test_level.outputs.test_level }}
 
     steps:
       - name: Free up disk space (Linux)
@@ -195,21 +220,6 @@ jobs:
           chmod +x ./symfluence
           ./symfluence --install
 
-      - name: Determine test level
-        id: test_level
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TEST_LEVEL="${{ github.event.inputs.test_level }}"
-          elif [ "${{ github.event_name }}" = "schedule" ]; then
-            TEST_LEVEL="full"
-          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            TEST_LEVEL="full"
-          else
-            TEST_LEVEL="quick"
-          fi
-          echo "test_level=${TEST_LEVEL}" >> $GITHUB_OUTPUT
-          echo "Test level determined: ${TEST_LEVEL}"
-
       - name: Package installation for parallel jobs
         run: |
           set -e
@@ -249,33 +259,13 @@ jobs:
 
   unit-tests:
     name: Unit Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
-    needs: install
+    needs: [setup, install]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
-    # Skip full-only combinations unless in full mode
-    if: |
-      matrix.full-only != true ||
-      github.event_name == 'schedule' ||
-      github.ref == 'refs/heads/main' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.test_level == 'full')
 
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ['3.11']  # Default: test with 3.11
-        include:
-          # Full mode: test multiple Python versions on Linux
-          - os: ubuntu-latest
-            python-version: '3.9'
-            full-only: true
-          - os: ubuntu-latest
-            python-version: '3.10'
-            full-only: true
-          # Full mode: test multiple Python versions on macOS
-          - os: macos-latest
-            python-version: '3.10'
-            full-only: true
+      matrix: ${{fromJson(needs.setup.outputs.matrix)}}
 
     steps:
       - name: Checkout
@@ -306,7 +296,7 @@ jobs:
 
   binary-validation:
     name: Binary Validation
-    needs: install
+    needs: [setup, install]
     runs-on: ubuntu-22.04
     timeout-minutes: 10
 
@@ -358,10 +348,10 @@ jobs:
 
   integration-tests:
     name: Integration Tests
-    needs: install
+    needs: [setup, install]
     runs-on: ubuntu-22.04
     timeout-minutes: 15
-    if: needs.install.outputs.test_level != 'smoke'
+    if: needs.setup.outputs.test_level != 'smoke'
 
     steps:
       - name: Checkout
@@ -407,10 +397,10 @@ jobs:
 
   e2e-quick:
     name: E2E Quick (3-hour SUMMA)
-    needs: install
+    needs: [setup, install]
     runs-on: ubuntu-22.04
     timeout-minutes: 20
-    if: needs.install.outputs.test_level != 'smoke'
+    if: needs.setup.outputs.test_level != 'smoke'
 
     steps:
       - name: Checkout
@@ -477,10 +467,10 @@ jobs:
 
   e2e-full:
     name: E2E Full (1-month + Calibration)
-    needs: install
+    needs: [setup, install]
     runs-on: ubuntu-22.04
     timeout-minutes: 60
-    if: needs.install.outputs.test_level == 'full'
+    if: needs.setup.outputs.test_level == 'full'
 
     steps:
       - name: Checkout
