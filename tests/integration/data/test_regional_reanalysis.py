@@ -11,6 +11,9 @@ from symfluence import SYMFLUENCE
 from utils.helpers import load_config_template, write_config
 
 
+
+pytestmark = [pytest.mark.integration, pytest.mark.data, pytest.mark.requires_cloud, pytest.mark.slow]
+
 @pytest.fixture
 def temp_config(tmp_path, symfluence_code_dir, symfluence_data_root):
     """Create a temporary config based on the template."""

@@ -15,6 +15,9 @@ from symfluence import SYMFLUENCE
 from utils.helpers import load_config_template, write_config
 
 
+
+pytestmark = [pytest.mark.integration, pytest.mark.data, pytest.mark.requires_cloud, pytest.mark.slow]
+
 @pytest.fixture(scope="module")
 def base_config(tmp_path_factory, symfluence_code_dir, symfluence_data_root):
     """Create a base Paradise config for cloud acquisition tests."""

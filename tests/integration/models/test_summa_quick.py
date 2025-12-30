@@ -11,6 +11,9 @@ from symfluence import SYMFLUENCE
 import xarray as xr
 
 
+
+pytestmark = [pytest.mark.integration, pytest.mark.models, pytest.mark.summa, pytest.mark.requires_data, pytest.mark.slow]
+
 @pytest.mark.slow
 @pytest.mark.requires_data
 def test_cerra_summa_quick():
