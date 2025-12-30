@@ -588,7 +588,7 @@ class FLASHPostProcessor:
             self.logger.info("Extracting FLASH streamflow results")
             
             # Define paths
-            sim_path = self.project_dir / 'simulations' / self.config['EXPERIMENT_ID'] / 'FLASH' / f'{self.config["EXPERIMENT_ID"]}_FLASH_output.nc'
+            sim_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'FLASH' / f'{self.config.get("EXPERIMENT_ID")}_FLASH_output.nc'
             
             # Read simulation results
             ds = xr.open_dataset(sim_path)
@@ -616,14 +616,14 @@ class FLASHPostProcessor:
             results_df.attrs = {
                 'model': 'FLASH',
                 'domain': self.domain_name,
-                'experiment_id': self.config['EXPERIMENT_ID'],
+                'experiment_id': self.config.get('EXPERIMENT_ID'),
                 'catchment_area_km2': area_km2,
                 'creation_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'units': 'm3/s'
             }
             
             # Load existing results if file exists, otherwise create new DataFrame
-            output_file = self.results_dir / f"{self.config['EXPERIMENT_ID']}_results.csv"
+            output_file = self.results_dir / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
             if output_file.exists():
                 existing_df = pd.read_csv(output_file, index_col=0, parse_dates=True)
                 # Reindex the new results to match existing index

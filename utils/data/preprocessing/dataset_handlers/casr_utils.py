@@ -323,7 +323,7 @@ class CASRHandler(BaseDatasetHandler):
         """
         self.logger.info("Creating CASR grid shapefile")
         
-        output_shapefile = shapefile_path / f"forcing_{self.config['FORCING_DATASET']}.shp"
+        output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
         
         try:
             # Find a CASR file to get grid information

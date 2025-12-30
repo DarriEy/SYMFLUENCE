@@ -40,7 +40,7 @@ class TimeseriesVisualizer:
         """Read simulation results and observed streamflow."""
         try:
             # Read simulation results
-            results_file = self.project_dir / "results" / f"{self.config['EXPERIMENT_ID']}_results.csv"
+            results_file = self.project_dir / "results" / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
             if not results_file.exists():
                 raise FileNotFoundError(f"Results file not found: {results_file}")
             
@@ -240,7 +240,7 @@ class TimeseriesVisualizer:
         plt.tight_layout()
         
         # Save plot
-        plt.savefig(self.plots_dir / f'{self.config["EXPERIMENT_ID"]}_timeseries_comparison.png', dpi=300, bbox_inches='tight')
+        plt.savefig(self.plots_dir / f'{self.config.get("EXPERIMENT_ID")}_timeseries_comparison.png', dpi=300, bbox_inches='tight')
         plt.close()
 
     def plot_diagnostics(self, df: pd.DataFrame):
@@ -357,7 +357,7 @@ class TimeseriesVisualizer:
                     fontsize=14, y=1.02)
         
         plt.tight_layout()
-        plot_path = self.plots_dir / f'{self.config["EXPERIMENT_ID"]}_diagnostic_plots.png'
+        plot_path = self.plots_dir / f'{self.config.get("EXPERIMENT_ID")}_diagnostic_plots.png'
         plt.savefig(plot_path, dpi=300, bbox_inches='tight')
         plt.close()
         
@@ -371,7 +371,7 @@ class TimeseriesVisualizer:
             print(df)
             # Calculate metrics
             metrics_df = self.calculate_metrics(df)
-            metrics_df.to_csv(self.plots_dir / f'{self.config["EXPERIMENT_ID"]}_performance_metrics.csv', index=False)
+            metrics_df.to_csv(self.plots_dir / f'{self.config.get("EXPERIMENT_ID")}_performance_metrics.csv', index=False)
             
             # Create plots
             self.plot_timeseries(df)

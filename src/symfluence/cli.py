@@ -1,6 +1,8 @@
 def main():
     import sys
+    from pathlib import Path
     from utils.cli.cli_argument_manager import CLIArgumentManager
+    from symfluence import SYMFLUENCE
 
     cli = CLIArgumentManager()
     args = cli.parse_arguments()
@@ -11,7 +13,7 @@ def main():
             print(f"❌ {e}", file=sys.stderr)
         return 2
 
-    # Quick direct switches for “management” flags that should act immediately
+    # Quick direct switches for "management" flags that should act immediately
     if getattr(args, "validate_environment", False):
         cli.validate_environment()
         return 0
@@ -62,14 +64,34 @@ def main():
         cli.handle_slurm_job_submission(plan)
         return 0
 
-    # Default: workflow / steps
+    # Default: workflow / steps execution
     plan = cli.get_execution_plan(args)
     if getattr(args, "dry_run", False):
         print("🔍 DRY RUN — planned execution:")
         print(plan)
         return 0
 
-    # TODO: Call our orchestrator here to execute the plan.
-    print("🚀 Execution plan (orchestrator hook point):")
-    print(plan)
-    return 0
+    # Execute the workflow orchestrator
+    try:
+        config_path = Path(args.config)
+        config_overrides = plan.get('config_overrides', {})
+        debug_mode = plan['settings'].get('debug', False)
+
+        # Initialize SYMFLUENCE instance
+        symfluence = SYMFLUENCE(
+            config_path,
+            config_overrides=config_overrides,
+            debug_mode=debug_mode
+        )
+
+        # Execute based on mode
+        if plan['mode'] == 'individual_steps':
+            symfluence.run_individual_steps(plan['steps'])
+        else:
+            # Full workflow execution
+            symfluence.run_workflow()
+
+        return 0
+    except Exception as e:
+        print(f"❌ Workflow execution failed: {e}", file=sys.stderr)
+        return 1

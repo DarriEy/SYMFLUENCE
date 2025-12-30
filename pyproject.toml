@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "symfluence"
-version = "0.5.0"         # <- static to avoid plugin issues
+version = "0.6.0"         # <- static to avoid plugin issues
 description = "SYnergistic Modelling Framework for Linking and Unifying Earth-system Nexii for Computational Exploration"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -84,3 +84,24 @@ include = [
 
 [tool.hatch.build.targets.wheel.force-include]
 "symfluence_version.py" = "symfluence_version.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+]
+markers = [
+    "slow: marks tests as slow (integration tests, calibration demos)",
+    "calibration: marks calibration-related tests",
+    "requires_data: marks tests that require external data downloads",
+]
+filterwarnings = [
+    "ignore:Conversion of an array with ndim > 0 to a scalar is deprecated:DeprecationWarning",
+]
+# Default: run all tests including slow ones
+# To skip slow tests in CI: pytest -m "not slow"

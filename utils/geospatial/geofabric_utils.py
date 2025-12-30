@@ -65,9 +65,9 @@ class GeofabricDelineator:
 
     def _get_dem_path(self) -> Path:
         dem_path = self.config.get('DEM_PATH')
-        dem_name = self.config['DEM_NAME']
+        dem_name = self.config.get('DEM_NAME')
         if dem_name == "default":
-            dem_name = f"domain_{self.config['DOMAIN_NAME']}_elv.tif"
+            dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
 
         if dem_path == 'default':
             return self.project_dir / 'attributes' / 'elevation' / 'dem' / dem_name
@@ -75,7 +75,7 @@ class GeofabricDelineator:
         return Path(dem_path / dem_name)
 
     def _set_taudem_path(self):
-        taudem_dir = self.config['TAUDEM_DIR']
+        taudem_dir = self.config.get('TAUDEM_DIR')
         os.environ['PATH'] = f"{os.environ['PATH']}:{taudem_dir}"
 
     def delineate_geofabric(self) -> Tuple[Optional[Path], Optional[Path]]:
@@ -113,7 +113,7 @@ class GeofabricDelineator:
         else:
             pour_point_path = Path(pour_point_path)
         
-        if self.config['POUR_POINT_SHP_NAME'] == "default":
+        if self.config.get('POUR_POINT_SHP_NAME') == "default":
             pour_point_path = pour_point_path / f"{self.domain_name}_pourPoint.shp"
         
         if not pour_point_path.exists():
@@ -1560,12 +1560,12 @@ class GeofabricDelineator:
         if subset_basins_path == 'default':
             subset_basins_path = self.project_dir / "shapefiles" / "river_basins" / f"{self.domain_name}_riverBasins_delineate.shp"
         else:
-            subset_basins_path = Path(self.config['OUTPUT_BASINS_PATH'])
+            subset_basins_path = Path(self.config.get('OUTPUT_BASINS_PATH'))
 
         if subset_rivers_path == 'default':
             subset_rivers_path = self.project_dir / "shapefiles" / "river_network" / f"{self.domain_name}_riverNetwork_delineate.shp"
         else:
-            subset_rivers_path = Path(self.config['OUTPUT_RIVERS_PATH'])
+            subset_rivers_path = Path(self.config.get('OUTPUT_RIVERS_PATH'))
 
         return subset_basins_path, subset_rivers_path
 
@@ -1722,15 +1722,15 @@ class GeofabricSubsetter:
         fabric_config = self.hydrofabric_types[hydrofabric_type]
 
         # Load data
-        basins = self.load_geopandas(self.config['SOURCE_GEOFABRIC_BASINS_PATH'])
-        rivers = self.load_geopandas(self.config['SOURCE_GEOFABRIC_RIVERS_PATH'])
+        basins = self.load_geopandas(self.config.get('SOURCE_GEOFABRIC_BASINS_PATH'))
+        rivers = self.load_geopandas(self.config.get('SOURCE_GEOFABRIC_RIVERS_PATH'))
         
-        if self.config['POUR_POINT_SHP_PATH'] == 'default':
+        if self.config.get('POUR_POINT_SHP_PATH') == 'default':
             pourPoint_path = self.project_dir / "shapefiles" / "pour_point"
         else:
-            pourPoint_path = Path(self.config['POUR_POINT_SHP_PATH'])
+            pourPoint_path = Path(self.config.get('POUR_POINT_SHP_PATH'))
 
-        if self.config['POUR_POINT_SHP_NAME'] == "default":
+        if self.config.get('POUR_POINT_SHP_NAME') == "default":
             pourPoint_name = f"{self.domain_name}_pourPoint.shp"    
 
         pour_point = self.load_geopandas(pourPoint_path / pourPoint_name)
@@ -1896,15 +1896,15 @@ class GeofabricSubsetter:
             subset_basins (gpd.GeoDataFrame): Subset of basins to save.
             subset_rivers (gpd.GeoDataFrame): Subset of rivers to save.
         """
-        if self.config['OUTPUT_BASINS_PATH'] == 'default':
+        if self.config.get('OUTPUT_BASINS_PATH') == 'default':
             output_basins_path = self.project_dir / "shapefiles" / "river_basins" / f"{self.domain_name}_riverBasins_subset_{self.config.get('GEOFABRIC_TYPE')}.shp"
         else:
-            output_basins_path = Path(self.config['OUTPUT_BASINS_PATH'])
+            output_basins_path = Path(self.config.get('OUTPUT_BASINS_PATH'))
 
-        if self.config['OUTPUT_RIVERS_PATH'] == 'default':
+        if self.config.get('OUTPUT_RIVERS_PATH') == 'default':
             output_rivers_path = self.project_dir / "shapefiles" / "river_network" / f"{self.domain_name}_riverNetwork_subset_{self.config.get('GEOFABRIC_TYPE')}.shp"
         else:
-            output_rivers_path = Path(self.config['OUTPUT_RIVERS_PATH'])
+            output_rivers_path = Path(self.config.get('OUTPUT_RIVERS_PATH'))
 
         output_basins_path.parent.mkdir(parents=True, exist_ok=True)
         output_rivers_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1945,9 +1945,9 @@ class LumpedWatershedDelineator:
         if self.taudem_dir == "default":
             self.taudem_dir = str(self.data_dir / 'installs' / 'TauDEM' / 'bin')
 
-        dem_name = self.config['DEM_NAME']
+        dem_name = self.config.get('DEM_NAME')
         if dem_name == "default":
-            dem_name = f"domain_{self.config['DOMAIN_NAME']}_elv.tif"
+            dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
 
         if self.dem_path == 'default':
             self.dem_path = self.project_dir / 'attributes' / 'elevation' / 'dem' / dem_name
@@ -1985,9 +1985,9 @@ class LumpedWatershedDelineator:
         if pour_point_path == 'default':
             pour_point_path = self.project_dir / "shapefiles" / "pour_point"
         else:
-            pour_point_path = Path(self.config['POUR_POINT_SHP_PATH'])
+            pour_point_path = Path(self.config.get('POUR_POINT_SHP_PATH'))
             
-        if self.config['POUR_POINT_SHP_NAME'] == "default":
+        if self.config.get('POUR_POINT_SHP_NAME') == "default":
             pour_point_path = pour_point_path / f"{self.domain_name}_pourPoint.shp"
         
         self.pour_point_path = pour_point_path

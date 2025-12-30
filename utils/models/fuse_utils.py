@@ -50,7 +50,7 @@ class FUSEPreProcessor:
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
         self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
-            self.catchment_name = f"{self.domain_name}_HRUs_{self.config['DOMAIN_DISCRETIZATION']}.shp"
+            self.catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
 
     def _get_timestep_config(self):
         """
@@ -577,7 +577,7 @@ class FUSEPreProcessor:
                 raise FileNotFoundError("No forcing files found in basin-averaged data directory")
             
             variable_handler = VariableHandler(config=self.config, logger=self.logger, 
-                                            dataset=self.config['FORCING_DATASET'], model='FUSE')
+                                            dataset=self.config.get('FORCING_DATASET'), model='FUSE')
             ds = xr.open_mfdataset(forcing_files, data_vars='all')
             ds = variable_handler.process_forcing_data(ds)
             
@@ -1009,10 +1009,10 @@ class FUSEPreProcessor:
             'SETNGS_PATH': str(self.project_dir / 'settings' / 'FUSE') + '/',
             'INPUT_PATH': str(self.project_dir / 'forcing' / 'FUSE_input') + '/',
             'OUTPUT_PATH': str(self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'FUSE') + '/',
-            'METRIC': self.config['OPTIMIZATION_METRIC'],
-            'MAXN': str(self.config['NUMBER_OF_ITERATIONS']),
-            'FMODEL_ID': self.config['EXPERIMENT_ID'],
-            'M_DECISIONS': f"fuse_zDecisions_{self.config['EXPERIMENT_ID']}.txt"
+            'METRIC': self.config.get('OPTIMIZATION_METRIC'),
+            'MAXN': str(self.config.get('NUMBER_OF_ITERATIONS')),
+            'FMODEL_ID': self.config.get('EXPERIMENT_ID'),
+            'M_DECISIONS': f"fuse_zDecisions_{self.config.get('EXPERIMENT_ID')}.txt"
         }
 
         # Get and format dates from config
@@ -2043,8 +2043,8 @@ class FUSERunner:
                     f"subcat_{subcat_id}_input.nc"
                 )
                 content = content.replace(
-                    f"/{self.config['EXPERIMENT_ID']}/FUSE/",
-                    f"/{self.config['EXPERIMENT_ID']}/FUSE/subcat_{subcat_id}/"
+                    f"/{self.config.get('EXPERIMENT_ID')}/FUSE/",
+                    f"/{self.config.get('EXPERIMENT_ID')}/FUSE/subcat_{subcat_id}/"
                 )
                 
                 with open(fm_file, 'w') as f:
@@ -2110,8 +2110,8 @@ class FUSERunner:
     def _ensure_best_output_file(self):
         """Ensure the expected 'best' output file exists by copying from 'def' output if needed"""
         
-        def_file = self.output_path / f"{self.domain_name}_{self.config['EXPERIMENT_ID']}_runs_def.nc"
-        best_file = self.output_path / f"{self.domain_name}_{self.config['EXPERIMENT_ID']}_runs_best.nc"
+        def_file = self.output_path / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_runs_def.nc"
+        best_file = self.output_path / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_runs_best.nc"
         
         if def_file.exists() and not best_file.exists():
             self.logger.info(f"Copying {def_file.name} to {best_file.name} for compatibility")
@@ -2310,7 +2310,7 @@ class FUSERunner:
                 'model': 'FUSE',
                 'spatial_mode': 'distributed',
                 'domain': self.domain_name,
-                'experiment_id': self.config['EXPERIMENT_ID'],
+                'experiment_id': self.config.get('EXPERIMENT_ID'),
                 'n_subcatchments': len(subcatchment_ids),
                 'creation_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'description': 'Combined FUSE distributed simulation results'
@@ -2323,7 +2323,7 @@ class FUSERunner:
             }
             
             # Save the combined dataset
-            combined_file = self.output_path / f"{self.domain_name}_{self.config['EXPERIMENT_ID']}_distributed_results.nc"
+            combined_file = self.output_path / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_distributed_results.nc"
             
             # Define encoding for better compression and compatibility
             encoding = {}
@@ -2358,7 +2358,7 @@ class FUSERunner:
             
             # Also create a simplified streamflow-only file for easier analysis
             if 'q_routed' in combined_ds.data_vars:
-                streamflow_file = self.output_path / f"{self.domain_name}_{self.config['EXPERIMENT_ID']}_streamflow_distributed.nc"
+                streamflow_file = self.output_path / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_streamflow_distributed.nc"
                 streamflow_ds = combined_ds[['q_routed']].copy()
                 streamflow_ds.to_netcdf(streamflow_file, encoding={'q_routed': encoding.get('q_routed', {})})
                 self.logger.info(f"Streamflow-only file saved to: {streamflow_file}")
@@ -2384,7 +2384,7 @@ class FUSERunner:
             catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
             catchment_name = self.config.get('CATCHMENT_SHP_NAME')
             if catchment_name == 'default':
-                catchment_name = f"{self.domain_name}_HRUs_{self.config['DOMAIN_DISCRETIZATION']}.shp"
+                catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
             
             catchment = gpd.read_file(catchment_path / catchment_name)
             if 'GRU_ID' in catchment.columns:
@@ -2505,7 +2505,7 @@ class FUSERunner:
         catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
         catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if catchment_name == 'default':
-            catchment_name = f"{self.domain_name}_HRUs_{self.config['DOMAIN_DISCRETIZATION']}.shp"
+            catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
         
         catchment = gpd.read_file(catchment_path / catchment_name)
         
@@ -2626,8 +2626,8 @@ class FUSERunner:
             # 1) Locate the FUSE output that the control file points to
             #    Control uses: <fname_qsim> DOMAIN_EXPERIMENT_runs_def.nc
             #    Prefer runs_def; fall back to runs_best if needed.
-            out_dir = self.project_dir / "simulations" / self.config['EXPERIMENT_ID'] / "FUSE"
-            base = f"{self.domain_name}_{self.config['EXPERIMENT_ID']}"
+            out_dir = self.project_dir / "simulations" / self.config.get('EXPERIMENT_ID') / "FUSE"
+            base = f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}"
             candidates = [
                 out_dir / f"{base}_runs_def.nc",
                 out_dir / f"{base}_runs_best.nc",
@@ -2729,12 +2729,12 @@ class FUSERunner:
 
     def _setup_fuse_mizuroute_config(self):
         """Update configuration for FUSE-mizuRoute integration"""
-        
+
         # Update input file name for mizuRoute
         self.config['EXPERIMENT_ID_TEMP'] = self.config.get('EXPERIMENT_ID')  # Backup
-        
+
         # Set mizuRoute to look for FUSE output instead of SUMMA
-        mizuroute_input_file = f"{self.config['EXPERIMENT_ID']}_fuse_runoff.nc"
+        mizuroute_input_file = f"{self.config.get('EXPERIMENT_ID')}_fuse_runoff.nc"
 
     def _is_snow_optimization(self) -> bool:
         """Check if this is a snow optimization run by examining the forcing data."""
@@ -2766,8 +2766,8 @@ class FUSERunner:
     def _copy_default_to_best_params(self):
         """Copy default parameter file to best parameter file for snow optimization."""
         try:
-            default_params = self.output_path / f"{self.domain_name}_{self.config['EXPERIMENT_ID']}_para_def.nc"
-            best_params = self.output_path / f"{self.domain_name}_{self.config['EXPERIMENT_ID']}_para_sce.nc"
+            default_params = self.output_path / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_para_def.nc"
+            best_params = self.output_path / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_para_sce.nc"
             
             if default_params.exists():
                 import shutil
@@ -2802,7 +2802,7 @@ class FUSERunner:
         self.logger.debug("Executing FUSE model")
         
         # Construct command
-        fuse_fm = self.config['SETTINGS_FUSE_FILEMANAGER']
+        fuse_fm = self.config.get('SETTINGS_FUSE_FILEMANAGER')
         if fuse_fm == 'default':
             fuse_fm = 'fm_catch.txt'
             
@@ -2812,7 +2812,7 @@ class FUSERunner:
         command = [
             str(fuse_exe),
             str(control_file),
-            self.config['DOMAIN_NAME'],
+            self.config.get('DOMAIN_NAME'),
             mode
         ]
             # ADD THIS: Add parameter file for run_pre mode
@@ -2939,7 +2939,7 @@ class FuseDecisionAnalyzer:
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.output_folder = self.project_dir / "plots" / "FUSE_decision_analysis"
         self.output_folder.mkdir(parents=True, exist_ok=True)
-        self.model_decisions_path = self.project_dir / "settings" / "FUSE" / f"fuse_zDecisions_{self.config['EXPERIMENT_ID']}.txt"
+        self.model_decisions_path = self.project_dir / "settings" / "FUSE" / f"fuse_zDecisions_{self.config.get('EXPERIMENT_ID')}.txt"
 
         # Initialize FuseRunner
         self.fuse_runner = FUSERunner(config, logger)
@@ -3141,11 +3141,11 @@ class FuseDecisionAnalyzer:
         """Calculate performance metrics comparing simulated and observed streamflow."""
         obs_file_path = self.config.get('OBSERVATIONS_PATH')
         if obs_file_path == 'default':
-            obs_file_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self.config['DOMAIN_NAME']}_streamflow_processed.csv"
+            obs_file_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self.config.get('DOMAIN_NAME')}_streamflow_processed.csv"
         else:
             obs_file_path = Path(obs_file_path)
 
-        sim_file_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'FUSE' / f"{self.config['DOMAIN_NAME']}_{self.config['EXPERIMENT_ID']}_runs_best.nc"
+        sim_file_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'FUSE' / f"{self.config.get('DOMAIN_NAME')}_{self.config.get('EXPERIMENT_ID')}_runs_best.nc"
 
         # Read observations if not already loaded
         if self.observed_streamflow is None:
@@ -3354,7 +3354,7 @@ class FUSEPostprocessor:
             self.logger.info("Extracting FUSE streamflow results")
             
             # Define paths
-            sim_path = self.project_dir / 'simulations' / self.config['EXPERIMENT_ID'] / 'FUSE' / f"{self.domain_name}_{self.config['EXPERIMENT_ID']}_runs_best.nc"
+            sim_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'FUSE' / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_runs_best.nc"
             
             # Read simulation results
             ds = xr.open_dataset(sim_path)
@@ -3393,14 +3393,14 @@ class FUSEPostprocessor:
             results_df.attrs = {
                 'model': 'FUSE',
                 'domain': self.domain_name,
-                'experiment_id': self.config['EXPERIMENT_ID'],
+                'experiment_id': self.config.get('EXPERIMENT_ID'),
                 'catchment_area_km2': area_km2,
                 'creation_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'units': 'm3/s'
             }
             
             # Save to CSV
-            output_file = self.results_dir / f"{self.config['EXPERIMENT_ID']}_results.csv"
+            output_file = self.results_dir / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
             results_df.to_csv(output_file)
             
             self.logger.info(f"Results saved to: {output_file}")

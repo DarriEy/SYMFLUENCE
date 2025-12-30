@@ -278,7 +278,7 @@ class AORCHandler(BaseDatasetHandler):
         """
         self.logger.info("Creating AORC grid shapefile")
 
-        output_shapefile = shapefile_path / f"forcing_{self.config['FORCING_DATASET']}.shp"
+        output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
 
         # Choose a file to infer grid from
         aorc_files = list(merged_forcing_path.glob('*.nc'))

@@ -1161,8 +1161,8 @@ class attributeProcessor:
         results = {}
         
         # Load temperature and precipitation data
-        temp_path = self.project_dir / "forcing" / "basin_averaged_data" / f"{self.config['DOMAIN_NAME']}_temperature.csv"
-        precip_path = self.project_dir / "forcing" / "basin_averaged_data" / f"{self.config['DOMAIN_NAME']}_precipitation.csv"
+        temp_path = self.project_dir / "forcing" / "basin_averaged_data" / f"{self.config.get('DOMAIN_NAME')}_temperature.csv"
+        precip_path = self.project_dir / "forcing" / "basin_averaged_data" / f"{self.config.get('DOMAIN_NAME')}_precipitation.csv"
         
         if not temp_path.exists() or not precip_path.exists():
             self.logger.warning("Temperature or precipitation data not found for seasonality calculation")
@@ -1283,9 +1283,9 @@ class attributeProcessor:
         results = {}
         
         # Look for required data
-        precip_path = self.project_dir / "forcing" / "basin_averaged_data" / f"{self.config['DOMAIN_NAME']}_precipitation.csv"
-        pet_path = self.project_dir / "forcing" / "basin_averaged_data" / f"{self.config['DOMAIN_NAME']}_pet.csv"
-        streamflow_path = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.config['DOMAIN_NAME']}_streamflow_processed.csv"
+        precip_path = self.project_dir / "forcing" / "basin_averaged_data" / f"{self.config.get('DOMAIN_NAME')}_precipitation.csv"
+        pet_path = self.project_dir / "forcing" / "basin_averaged_data" / f"{self.config.get('DOMAIN_NAME')}_pet.csv"
+        streamflow_path = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.config.get('DOMAIN_NAME')}_streamflow_processed.csv"
         
         if not precip_path.exists() or not streamflow_path.exists():
             self.logger.warning("Cannot calculate water balance: missing precipitation or streamflow data")
@@ -1964,7 +1964,7 @@ class attributeProcessor:
         results = {}
         
         # Load streamflow data
-        streamflow_path = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.config['DOMAIN_NAME']}_streamflow_processed.csv"
+        streamflow_path = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.config.get('DOMAIN_NAME')}_streamflow_processed.csv"
         
         if not streamflow_path.exists():
             self.logger.warning(f"Streamflow data not found: {streamflow_path}")
@@ -2060,7 +2060,7 @@ class attributeProcessor:
                 results["hydrology.half_flow_day_std"] = np.std(half_flow_dates)
             
             # Calculate runoff ratio if precipitation data is available
-            precip_path = self.project_dir / "forcing" / "basin_averaged_data" / f"{self.config['DOMAIN_NAME']}_precipitation.csv"
+            precip_path = self.project_dir / "forcing" / "basin_averaged_data" / f"{self.config.get('DOMAIN_NAME')}_precipitation.csv"
             
             if precip_path.exists():
                 precip_df = pd.read_csv(precip_path, parse_dates=['date'])
@@ -2096,7 +2096,7 @@ class attributeProcessor:
         results = {}
         
         # Load streamflow data
-        streamflow_path = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.config['DOMAIN_NAME']}_streamflow_processed.csv"
+        streamflow_path = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.config.get('DOMAIN_NAME')}_streamflow_processed.csv"
         
         if not streamflow_path.exists():
             self.logger.warning(f"Streamflow data not found: {streamflow_path}")

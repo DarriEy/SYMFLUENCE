@@ -65,10 +65,10 @@ class HYPEPreProcessor:
         
         #mapping geofabric fields to model names
         self.geofabric_mapping ={
-            'basinID': {'in_varname':self.config['RIVER_BASIN_SHP_RM_GRUID']},
-            'nextDownID': {'in_varname': self.config['RIVER_NETWORK_SHP_DOWNSEGID']},
-            'area': {'in_varname':self.config['RIVER_BASIN_SHP_AREA'], 'in_units':'m^2', 'out_units':'m^2'},
-            'rivlen': {'in_varname':self.config['RIVER_NETWORK_SHP_LENGTH'], 'in_units':'m', 'out_units':'m'}
+            'basinID': {'in_varname':self.config.get('RIVER_BASIN_SHP_RM_GRUID')},
+            'nextDownID': {'in_varname': self.config.get('RIVER_NETWORK_SHP_DOWNSEGID')},
+            'area': {'in_varname':self.config.get('RIVER_BASIN_SHP_AREA'), 'in_units':'m^2', 'out_units':'m^2'},
+            'rivlen': {'in_varname':self.config.get('RIVER_NETWORK_SHP_LENGTH'), 'in_units':'m', 'out_units':'m'}
         }
 
         # domain subbasins and rivers
@@ -292,7 +292,7 @@ class HYPEPostProcessor:
             self.logger.info(f"Index type: {type(cout.index)}")
             
             # Get outlet ID and log it
-            outlet_id = str(self.config['SIM_REACH_ID'])
+            outlet_id = str(self.config.get('SIM_REACH_ID'))
             self.logger.info(f"Processing outlet ID: {outlet_id}")
             
             # Create results DataFrame
@@ -306,12 +306,12 @@ class HYPEPostProcessor:
             self.logger.info(f"Results columns: {results.columns.tolist()}")
             
             # Save individual streamflow results
-            output_file = self.results_dir / f"{self.config['EXPERIMENT_ID']}_streamflow.csv"
+            output_file = self.results_dir / f"{self.config.get('EXPERIMENT_ID')}_streamflow.csv"
             self.logger.info(f"Saving individual results to: {output_file}")
             results.to_csv(output_file)
             
             # Append to experiment results file
-            results_file = self.project_dir / "results" / f"{self.config['EXPERIMENT_ID']}_results.csv"
+            results_file = self.project_dir / "results" / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
             self.logger.info(f"Appending to combined results file: {results_file}")
             
             cms_data = results.copy()
@@ -338,7 +338,7 @@ class HYPEPostProcessor:
             self.logger.info("Creating streamflow comparison plot")
             
             # Read simulated streamflow
-            sim_path = self.results_dir / f"{self.config['EXPERIMENT_ID']}_streamflow.csv"
+            sim_path = self.results_dir / f"{self.config.get('EXPERIMENT_ID')}_streamflow.csv"
             self.logger.info(f"Reading simulated streamflow from: {sim_path}")
             
             # Add explicit time parsing
@@ -369,7 +369,7 @@ class HYPEPostProcessor:
             self.logger.info(f"Observed flow index type: {type(obs_flow.index)}")
             
             # Get outlet ID
-            outlet_id = str(self.config['SIM_REACH_ID'])
+            outlet_id = str(self.config.get('SIM_REACH_ID'))
             self.logger.info(f"Processing outlet ID: {outlet_id}")
             
             sim_col = 'HYPE_discharge_cms'
@@ -399,7 +399,7 @@ class HYPEPostProcessor:
             plot_dir.mkdir(parents=True, exist_ok=True)
             
             # Save plot
-            plot_path = plot_dir / f"{self.config['EXPERIMENT_ID']}_HYPE_streamflow_comparison.png"
+            plot_path = plot_dir / f"{self.config.get('EXPERIMENT_ID')}_HYPE_streamflow_comparison.png"
             self.logger.info(f"Saving plot to: {plot_path}")
             plt.savefig(plot_path, dpi=300, bbox_inches='tight')
             plt.close()

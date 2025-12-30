@@ -225,7 +225,7 @@ class VisualizationReporter:
             visualizer = VisualizationReporter(self.config, self.logger)
 
             if model == 'SUMMA':
-                visualizer.plot_summa_outputs(self.config['EXPERIMENT_ID'])
+                visualizer.plot_summa_outputs(self.config.get('EXPERIMENT_ID'))
                 
                 # Check if using lumped domain definition
                 if self.config.get('DOMAIN_DEFINITION_METHOD') == 'lumped':
@@ -233,7 +233,7 @@ class VisualizationReporter:
                     self.logger.info("Using lumped model output from SUMMA averageRoutedRunoff")
                     
                     # Define model_outputs and obs_files
-                    summa_output_file = str(self.project_dir / "simulations" / self.config['EXPERIMENT_ID'] / "SUMMA" / f"{self.config['EXPERIMENT_ID']}_timestep.nc")
+                    summa_output_file = str(self.project_dir / "simulations" / self.config.get('EXPERIMENT_ID') / "SUMMA" / f"{self.config.get('EXPERIMENT_ID')}_timestep.nc")
                     model_outputs = [(f"{model}", summa_output_file)]
                     
                     obs_files = [
@@ -276,7 +276,7 @@ class VisualizationReporter:
                         runoff = runoff * area_m2
                         
                         # Make a netCDF file that mimics mizuRoute output format
-                        modified_file = str(self.project_dir / "simulations" / self.config['EXPERIMENT_ID'] / "SUMMA" / f"{self.config['EXPERIMENT_ID']}_modified_for_viz.nc")
+                        modified_file = str(self.project_dir / "simulations" / self.config.get('EXPERIMENT_ID') / "SUMMA" / f"{self.config.get('EXPERIMENT_ID')}_modified_for_viz.nc")
                         
                         # Create a new dataset with the expected structure
                         new_ds = xr.Dataset(
@@ -311,7 +311,7 @@ class VisualizationReporter:
                         # Just update in-memory config without updating file
                         visualizer.update_sim_reach_id()
                     model_outputs = [
-                        (f"{model}", str(self.project_dir / "simulations" / self.config['EXPERIMENT_ID'] / "mizuRoute" / f"{self.config['EXPERIMENT_ID']}*.nc"))
+                        (f"{model}", str(self.project_dir / "simulations" / self.config.get('EXPERIMENT_ID') / "mizuRoute" / f"{self.config.get('EXPERIMENT_ID')}*.nc"))
                     ]
                     obs_files = [
                         ('Observed', str(self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.config.get('DOMAIN_NAME')}_streamflow_processed.csv"))
@@ -320,7 +320,7 @@ class VisualizationReporter:
                     
             elif model == 'FUSE':
                 model_outputs = [
-                    ("FUSE", str(self.project_dir / "simulations" / self.config['EXPERIMENT_ID'] / "FUSE" / f"{self.config['DOMAIN_NAME']}_{self.config['EXPERIMENT_ID']}_runs_best.nc"))
+                    ("FUSE", str(self.project_dir / "simulations" / self.config.get('EXPERIMENT_ID') / "FUSE" / f"{self.config.get('DOMAIN_NAME')}_{self.config.get('EXPERIMENT_ID')}_runs_best.nc"))
                 ]
                 obs_files = [
                     ('Observed', str(self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.config.get('DOMAIN_NAME')}_streamflow_processed.csv"))
@@ -743,7 +743,7 @@ class VisualizationReporter:
             # Load the river network shapefile
             river_network_name = self.config.get('RIVER_NETWORK_SHP_NAME')
             if river_network_name == 'default':
-                river_network_name = f"{self.config['DOMAIN_NAME']}_riverNetwork_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
+                river_network_name = f"{self.config.get('DOMAIN_NAME')}_riverNetwork_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
 
             river_network_path = self._get_file_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network', river_network_name)
             river_network_gdf = gpd.read_file(river_network_path)
@@ -834,7 +834,7 @@ class VisualizationReporter:
             # Catchment
             catchment_name = self.config.get('RIVER_BASINS_NAME')
             if catchment_name == 'default':
-                catchment_name = f"{self.config['DOMAIN_NAME']}_riverBasins_{self.config['DOMAIN_DEFINITION_METHOD']}.shp"
+                catchment_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
             catchment_path = self._get_file_path('RIVER_BASINS_PATH', 'shapefiles/river_basins', catchment_name)
             catchment_gdf = gpd.read_file(catchment_path)
             
@@ -1051,8 +1051,8 @@ class VisualizationReporter:
             bounds: [xmin, ymin, xmax, ymax] in EPSG:3857
         """
         try:
-            
-            basemap_path = Path(self.config['BASEMAP_PATH'])
+
+            basemap_path = Path(self.config.get('BASEMAP_PATH'))
             
             if basemap_path is None:
                 self.logger.warning("Global basemap not found in any standard location. Plotting without basemap.")

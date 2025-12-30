@@ -67,7 +67,7 @@ class MizuRoutePreProcessor:
             gru_ids = self.subcatchment_gru_ids
         else:
             # Fallback: load from delineated catchments shapefile
-            catchment_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.config['DOMAIN_NAME']}_catchment_delineated.shp"
+            catchment_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.config.get('DOMAIN_NAME')}_catchment_delineated.shp"
             shp_catchments = gpd.read_file(catchment_path)
             weights = shp_catchments['avg_subbas'].values
             gru_ids = shp_catchments['GRU_ID'].values.astype(int)
@@ -132,12 +132,12 @@ class MizuRoutePreProcessor:
         experiment_output_mizuroute = self.config.get('EXPERIMENT_OUTPUT_MIZUROUTE')
 
         if experiment_output_gr == 'default':
-            experiment_output_gr = self.project_dir / f"simulations/{self.config['EXPERIMENT_ID']}" / 'GR'
+            experiment_output_gr = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'GR'
         else:
             experiment_output_gr = Path(experiment_output_gr)
 
         if experiment_output_mizuroute == 'default':
-            experiment_output_mizuroute = self.project_dir / f"simulations/{self.config['EXPERIMENT_ID']}" / 'mizuRoute'
+            experiment_output_mizuroute = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'mizuRoute'
         else:
             experiment_output_mizuroute = Path(experiment_output_mizuroute)
 
@@ -247,7 +247,7 @@ class MizuRoutePreProcessor:
         river_network_name = self.config.get('RIVER_NETWORK_SHP_NAME')
 
         if river_network_name == 'default':
-            river_network_name = f"{self.config['DOMAIN_NAME']}_riverNetwork_{self.config.get('DOMAIN_DEFINITION_METHOD','delineate')}.shp"
+            river_network_name = f"{self.config.get('DOMAIN_NAME')}_riverNetwork_{self.config.get('DOMAIN_DEFINITION_METHOD','delineate')}.shp"
         
         if river_network_path == 'default':
             river_network_path = self.project_dir / 'shapefiles/river_network'
@@ -258,7 +258,7 @@ class MizuRoutePreProcessor:
         river_basin_name = self.config.get('RIVER_BASINS_NAME')
 
         if river_basin_name == 'default':
-            river_basin_name = f"{self.config['DOMAIN_NAME']}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
+            river_basin_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
 
         if river_basin_path == 'default':
             river_basin_path = self.project_dir / 'shapefiles/river_basins'
@@ -281,7 +281,7 @@ class MizuRoutePreProcessor:
             self.logger.info("Using delineated catchments for lumped-to-distributed routing")
             
             # Load the delineated catchments shapefile
-            catchment_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.config['DOMAIN_NAME']}_catchment_delineated.shp"
+            catchment_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.config.get('DOMAIN_NAME')}_catchment_delineated.shp"
             if not catchment_path.exists():
                 raise FileNotFoundError(f"Delineated catchment shapefile not found: {catchment_path}")
             
@@ -557,7 +557,7 @@ class MizuRoutePreProcessor:
         hm_catchment_path = Path(self.config.get('CATCHMENT_PATH'))
         hm_catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if hm_catchment_name == 'default':
-            hm_catchment_name = f"{self.config['DOMAIN_NAME']}_HRUs_{self.config['DOMAIN_DISCRETIZATION']}.shp"
+            hm_catchment_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
 
         rm_catchment_path = Path(self.config.get('RIVER_BASINS_PATH'))
         rm_catchment_name = self.config.get('RIVER_BASINS_NAME')
@@ -677,12 +677,12 @@ class MizuRoutePreProcessor:
         experiment_output_mizuroute = self.config.get('EXPERIMENT_OUTPUT_MIZUROUTE')
 
         if experiment_output_fuse == 'default':
-            experiment_output_fuse = self.project_dir / f"simulations/{self.config['EXPERIMENT_ID']}" / 'FUSE'
+            experiment_output_fuse = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'FUSE'
         else:
             experiment_output_fuse = Path(experiment_output_fuse)
 
         if experiment_output_mizuroute == 'default':
-            experiment_output_mizuroute = self.project_dir / f"simulations/{self.config['EXPERIMENT_ID']}" / 'mizuRoute'
+            experiment_output_mizuroute = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'mizuRoute'
         else:
             experiment_output_mizuroute = Path(experiment_output_mizuroute)
 
@@ -790,12 +790,12 @@ class MizuRoutePreProcessor:
         experiment_output_mizuroute = self.config.get('EXPERIMENT_OUTPUT_SUMMA')
 
         if experiment_output_summa == 'default':
-            experiment_output_summa = self.project_dir / f"simulations/{self.config['EXPERIMENT_ID']}" / 'SUMMA'
+            experiment_output_summa = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'SUMMA'
         else:
             experiment_output_summa = Path(experiment_output_summa)
 
         if experiment_output_mizuroute == 'default':
-            experiment_output_mizuroute = self.project_dir / f"simulations/{self.config['EXPERIMENT_ID']}" / 'mizuRoute'
+            experiment_output_mizuroute = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'mizuRoute'
         else:
             experiment_output_mizuroute = Path(experiment_output_mizuroute)
 
@@ -890,13 +890,13 @@ class MizuRouteRunner:
         # For FUSE, check if it has already converted its output
         if 'FUSE' in active_models:
             self.logger.debug("Fixing FUSE time precision for mizuRoute compatibility")
-            experiment_output_dir = self.project_dir / f"simulations/{self.config['EXPERIMENT_ID']}" / 'FUSE'
+            experiment_output_dir = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'FUSE'
             runoff_filename = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('EXPERIMENT_ID')}_runs_def.nc"
         else:
             self.logger.info("Fixing SUMMA time precision for mizuRoute compatibility")
             experiment_output_summa = self.config.get('EXPERIMENT_OUTPUT_SUMMA')
             if experiment_output_summa == 'default':
-                experiment_output_dir = self.project_dir / f"simulations/{self.config['EXPERIMENT_ID']}" / 'SUMMA'
+                experiment_output_dir = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'SUMMA'
             else:
                 experiment_output_dir = Path(experiment_output_summa)
             runoff_filename = f"{self.config.get('EXPERIMENT_ID')}_timestep.nc"
