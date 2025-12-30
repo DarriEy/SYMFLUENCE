@@ -1,25 +1,33 @@
 <!doctype html>
-<!--
-  This page is an updated version of the SYMFLUENCE landing page with a more polished look.
-  It follows several best‑practice recommendations for professional research websites:
-  • A cohesive colour palette with a clear accent colour to improve user experience【527454147069200†L80-L92】.
-  • Easy‑to‑read fonts imported from Google Fonts【527454147069200†L94-L112】.
-  • A subtle hero background image with a dark overlay to create a striking first impression【413784637907179†L79-L105】.
-  • Simplified layout and generous white space to avoid clutter【527454147069200†L246-L255】【527454147069200†L272-L284】.
-  • Clear call‑to‑action buttons highlighting the most important actions【527454147069200†L199-L208】.
-  If you plan to deploy this page, be sure to host the background image locally or ensure that
-  the remote image URL is stable. Credit NASA for the Earth image (public domain) used in the hero.
--->
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SYMFLUENCE</title>
-  <meta name="description" content="SYMFLUENCE: Earth‑system modeling framework. Simplified." />
+  <title>SYMFLUENCE - Earth System Modeling Framework</title>
+  <meta name="description" content="SYMFLUENCE: Professional Earth system modeling framework for hydrology, climate, and environmental research. Simplified workflows, powerful analysis." />
+  <meta name="keywords" content="hydrology, climate modeling, earth system, research, SUMMA, mizuRoute, scientific computing" />
+  <meta name="author" content="Darri Eythorsson" />
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://symfluence.org/" />
+  <meta property="og:title" content="SYMFLUENCE - Earth System Modeling Framework" />
+  <meta property="og:description" content="Professional Earth system modeling framework for hydrology and climate research" />
+  
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image" />
+  <meta property="twitter:url" content="https://symfluence.org/" />
+  <meta property="twitter:title" content="SYMFLUENCE - Earth System Modeling Framework" />
+  <meta property="twitter:description" content="Professional Earth system modeling framework for hydrology and climate research" />
+  
   <!-- Preconnect to Google Fonts for performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Lato:wght@400;700&display=swap" rel="stylesheet">
+  
+  <!-- Preload critical resources -->
+  <link rel="preload" href="https://images.unsplash.com/photo-1446776653964-20c1d3a81b06" as="image" type="image/jpeg">
+  
   <style>
     :root {
       /* Light mode palette */
@@ -121,6 +129,10 @@
       background-image: url('https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Whole_world_-_land_and_oceans.jpg/1280px-Whole_world_-_land_and_oceans.jpg');
       background-size: cover;
       background-position: center;
+      background-attachment: fixed;
+      will-change: transform;
+      transform: translateZ(0);
+      backface-visibility: hidden;
       border-radius: 16px;
       overflow: hidden;
       min-height: clamp(320px, 50vh, 540px);
