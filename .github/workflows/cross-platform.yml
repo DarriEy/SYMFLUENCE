@@ -135,6 +135,16 @@ jobs:
         run: |
           brew install gcc cmake open-mpi netcdf netcdf-fortran hdf5 gdal udunits
 
+          # Set up Fortran compiler paths (Homebrew gcc includes gfortran)
+          # Find the gcc version installed by Homebrew
+          GCC_VER=$(ls /opt/homebrew/bin/gfortran-* 2>/dev/null | head -1 | sed 's/.*gfortran-//')
+          if [ -n "$GCC_VER" ]; then
+            echo "FC=/opt/homebrew/bin/gfortran-${GCC_VER}" >> $GITHUB_ENV
+            echo "CC=/opt/homebrew/bin/gcc-${GCC_VER}" >> $GITHUB_ENV
+            echo "CXX=/opt/homebrew/bin/g++-${GCC_VER}" >> $GITHUB_ENV
+            echo "/opt/homebrew/bin" >> $GITHUB_PATH
+          fi
+
       - name: Free up disk space (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -223,6 +233,16 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install gcc cmake open-mpi netcdf netcdf-fortran hdf5 gdal udunits
+
+          # Set up Fortran compiler paths (Homebrew gcc includes gfortran)
+          # Find the gcc version installed by Homebrew
+          GCC_VER=$(ls /opt/homebrew/bin/gfortran-* 2>/dev/null | head -1 | sed 's/.*gfortran-//')
+          if [ -n "$GCC_VER" ]; then
+            echo "FC=/opt/homebrew/bin/gfortran-${GCC_VER}" >> $GITHUB_ENV
+            echo "CC=/opt/homebrew/bin/gcc-${GCC_VER}" >> $GITHUB_ENV
+            echo "CXX=/opt/homebrew/bin/g++-${GCC_VER}" >> $GITHUB_ENV
+            echo "/opt/homebrew/bin" >> $GITHUB_PATH
+          fi
 
       - name: Free up disk space (Linux)
         if: runner.os == 'Linux'
