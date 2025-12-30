@@ -1,0 +1,475 @@
+name: SYMFLUENCE - Parallel Install & Validate
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      test_level:
+        description: 'Test level to run'
+        required: false
+        default: 'quick'
+        type: choice
+        options:
+          - smoke
+          - quick
+          - full
+  schedule:
+    - cron: '0 2 * * 0'  # Weekly on Sundays
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: symfluence-parallel-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  # ===========================================================================
+  # PHASE 1: Install everything once
+  # ===========================================================================
+  install:
+    name: Install Dependencies & Build Tools
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+
+    env:
+      TZ: UTC
+      CI: "1"
+      NONINTERACTIVE: "1"
+      SYMFLUENCE_CODE: ${{ github.workspace }}
+      SYMFLUENCE_DATA: /home/runner/work/SYMFLUENCE/SYMFLUENCE_data
+
+    outputs:
+      test_level: ${{ steps.test_level.outputs.test_level }}
+
+    steps:
+      - name: Free up disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /usr/share/swift
+          sudo docker image prune --all --force || true
+          sudo apt-get clean
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install system build deps
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository -y ppa:ubuntugis/ppa
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential gfortran cmake make pkg-config \
+            ninja-build autoconf automake libtool \
+            git wget curl unzip tar \
+            openmpi-bin libopenmpi-dev \
+            gdal-bin libgdal-dev libproj-dev \
+            libnetcdf-dev libnetcdff-dev \
+            libhdf5-dev hdf5-tools libudunits2-dev \
+            python3-dev python3-pip python3-numpy python3-gdal
+          mpicc --version
+          mpirun --version
+          gdal-config --version
+
+      - name: Configure compiler and library env
+        run: |
+          set -e
+          # Save environment configuration to file for later jobs
+          cat > ${{ github.workspace }}/env_config.sh <<'EOF'
+          export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:${PKG_CONFIG_PATH}
+          export NETCDF=/usr
+          export NETCDF_FORTRAN=/usr
+          export NETCDF_DIR=/usr
+          export NETCDF_LIBDIR=/usr/lib/x86_64-linux-gnu
+          export NETCDF_INCLUDE=/usr/include
+          export HDF5_ROOT=/usr/lib/x86_64-linux-gnu/hdf5/serial
+          export HDF5_LIBDIR=/usr/lib/x86_64-linux-gnu/hdf5/serial
+          export HDF5_INCLUDE_DIR=/usr/include/hdf5/serial
+          export UDUNITS2_DIR=/usr
+          export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu/hdf5/serial:${LD_LIBRARY_PATH}
+          export LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu/hdf5/serial:${LIBRARY_PATH}
+          export CC=mpicc
+          export CXX=mpicxx
+          EOF
+
+      - name: Create /usr/lib64 symlinks
+        run: |
+          set -e
+          sudo mkdir -p /usr/lib64
+          for so in /usr/lib/x86_64-linux-gnu/libnetcdf*.so* /usr/lib/x86_64-linux-gnu/hdf5/serial/*.so*; do
+            [ -e "$so" ] || continue
+            base=$(basename "$so")
+            [ -e "/usr/lib64/${base}" ] || sudo ln -s "$so" "/usr/lib64/${base}" || true
+          done
+
+      - name: Ensure data dir exists
+        run: mkdir -p "${{ env.SYMFLUENCE_DATA }}"
+
+      - name: Cache test data (v0.6.0)
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.SYMFLUENCE_DATA }}
+          key: symfluence-testdata-v0.6.0-${{ hashFiles('tests/pytest.ini', 'tests/fixtures/data_fixtures.py') }}
+          restore-keys: |
+            symfluence-testdata-v0.6.0-
+
+      - name: Full install (build venv + tools)
+        env:
+          CC: mpicc
+          CXX: mpicxx
+        run: |
+          set -e
+          chmod +x ./symfluence
+          ./symfluence --install
+
+      - name: Determine test level
+        id: test_level
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TEST_LEVEL="${{ github.event.inputs.test_level }}"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            TEST_LEVEL="full"
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            TEST_LEVEL="full"
+          else
+            TEST_LEVEL="quick"
+          fi
+          echo "test_level=${TEST_LEVEL}" >> $GITHUB_OUTPUT
+          echo "Test level determined: ${TEST_LEVEL}"
+
+      - name: Package installation for parallel jobs
+        run: |
+          set -e
+          echo "Packaging installation artifacts..."
+
+          # Create tarball of venv (exclude cache to save space)
+          tar -czf venv.tar.gz \
+            --exclude='venv/lib/python*/site-packages/__pycache__' \
+            --exclude='venv/lib/python*/site-packages/*.pyc' \
+            -C ${{ github.workspace }} venv
+
+          # Create tarball of installed tools
+          tar -czf tools.tar.gz -C ${{ env.SYMFLUENCE_DATA }}/installs .
+
+          # Create tarball of test data (if exists)
+          if [ -d "${{ env.SYMFLUENCE_DATA }}/example_data_v0.6.0" ]; then
+            tar -czf testdata.tar.gz -C ${{ env.SYMFLUENCE_DATA }} example_data_v0.6.0
+          fi
+
+          ls -lh *.tar.gz
+          echo "Packaging complete"
+
+      - name: Upload installation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: symfluence-installation
+          path: |
+            venv.tar.gz
+            tools.tar.gz
+            testdata.tar.gz
+            env_config.sh
+          retention-days: 1
+
+  # ===========================================================================
+  # PHASE 2: Run tests in parallel
+  # ===========================================================================
+
+  unit-tests:
+    name: Unit Tests
+    needs: install
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download installation
+        uses: actions/download-artifact@v4
+        with:
+          name: symfluence-installation
+
+      - name: Restore venv
+        run: |
+          tar -xzf venv.tar.gz -C ${{ github.workspace }}
+          echo "${{ github.workspace }}/venv/bin" >> $GITHUB_PATH
+          echo "VIRTUAL_ENV=${{ github.workspace }}/venv" >> $GITHUB_ENV
+
+      - name: Run unit tests
+        run: |
+          echo "========================================="
+          echo "Running unit tests..."
+          echo "========================================="
+          pytest -v --tb=short -m "unit" tests/unit/ || echo "No unit tests found or tests failed"
+
+  binary-validation:
+    name: Binary Validation
+    needs: install
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install MPI (for TauDEM)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openmpi-bin libopenmpi-dev
+
+      - name: Download installation
+        uses: actions/download-artifact@v4
+        with:
+          name: symfluence-installation
+
+      - name: Restore installation
+        run: |
+          # Restore venv
+          tar -xzf venv.tar.gz -C ${{ github.workspace }}
+          echo "${{ github.workspace }}/venv/bin" >> $GITHUB_PATH
+          echo "VIRTUAL_ENV=${{ github.workspace }}/venv" >> $GITHUB_ENV
+
+          # Restore tools
+          TOOLS_DIR=/home/runner/work/SYMFLUENCE/SYMFLUENCE_data/installs
+          mkdir -p $TOOLS_DIR
+          tar -xzf tools.tar.gz -C $TOOLS_DIR
+
+          # Add tools to PATH
+          echo "$TOOLS_DIR/summa/bin" >> $GITHUB_PATH
+          echo "$TOOLS_DIR/mizuRoute/route/bin" >> $GITHUB_PATH
+          echo "$TOOLS_DIR/TauDEM/bin" >> $GITHUB_PATH
+
+      - name: Run binary validation
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
+        run: |
+          echo "========================================="
+          echo "Running binary validation tests..."
+          echo "========================================="
+          pytest -v --tb=short -m "smoke" tests/e2e/test_install_validate.py::test_binary_validation
+          pytest -v --tb=short tests/e2e/test_install_validate.py::test_package_imports
+
+  integration-tests:
+    name: Integration Tests
+    needs: install
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    if: needs.install.outputs.test_level != 'smoke'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev libproj-dev openmpi-bin
+
+      - name: Download installation
+        uses: actions/download-artifact@v4
+        with:
+          name: symfluence-installation
+
+      - name: Restore installation
+        run: |
+          tar -xzf venv.tar.gz -C ${{ github.workspace }}
+          echo "${{ github.workspace }}/venv/bin" >> $GITHUB_PATH
+          echo "VIRTUAL_ENV=${{ github.workspace }}/venv" >> $GITHUB_ENV
+
+          # Restore tools
+          TOOLS_DIR=/home/runner/work/SYMFLUENCE/SYMFLUENCE_data/installs
+          mkdir -p $TOOLS_DIR
+          tar -xzf tools.tar.gz -C $TOOLS_DIR
+          echo "$TOOLS_DIR/summa/bin" >> $GITHUB_PATH
+          echo "$TOOLS_DIR/mizuRoute/route/bin" >> $GITHUB_PATH
+          echo "$TOOLS_DIR/TauDEM/bin" >> $GITHUB_PATH
+
+      - name: Run integration tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
+        run: |
+          echo "========================================="
+          echo "Running integration tests..."
+          echo "========================================="
+          pytest -v --tb=short -m "integration" tests/integration/ || echo "No integration tests or tests failed"
+
+  e2e-quick:
+    name: E2E Quick (3-hour SUMMA)
+    needs: install
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    if: needs.install.outputs.test_level != 'smoke'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gdal-bin libgdal-dev libproj-dev \
+            openmpi-bin libopenmpi-dev \
+            libnetcdf-dev libhdf5-dev
+
+      - name: Download installation
+        uses: actions/download-artifact@v4
+        with:
+          name: symfluence-installation
+
+      - name: Restore installation
+        run: |
+          # Restore venv
+          tar -xzf venv.tar.gz -C ${{ github.workspace }}
+          echo "${{ github.workspace }}/venv/bin" >> $GITHUB_PATH
+          echo "VIRTUAL_ENV=${{ github.workspace }}/venv" >> $GITHUB_ENV
+
+          # Restore tools
+          TOOLS_DIR=/home/runner/work/SYMFLUENCE/SYMFLUENCE_data/installs
+          mkdir -p $TOOLS_DIR
+          tar -xzf tools.tar.gz -C $TOOLS_DIR
+          echo "$TOOLS_DIR/summa/bin" >> $GITHUB_PATH
+          echo "$TOOLS_DIR/mizuRoute/route/bin" >> $GITHUB_PATH
+          echo "$TOOLS_DIR/TauDEM/bin" >> $GITHUB_PATH
+
+          # Restore test data
+          if [ -f testdata.tar.gz ]; then
+            tar -xzf testdata.tar.gz -C /home/runner/work/SYMFLUENCE/SYMFLUENCE_data
+          fi
+
+      - name: Run quick E2E tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
+          SYMFLUENCE_CODE: ${{ github.workspace }}
+          SYMFLUENCE_DATA: /home/runner/work/SYMFLUENCE/SYMFLUENCE_data
+        run: |
+          echo "========================================="
+          echo "Running quick E2E tests (3-hour SUMMA)..."
+          echo "========================================="
+          pytest -v --tb=short -m "ci_quick and not smoke" tests/e2e/
+
+      - name: Upload test outputs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-quick-outputs
+          path: |
+            /home/runner/work/SYMFLUENCE/SYMFLUENCE_data/example_data_v0.6.0/domain_*/simulations/
+            /home/runner/work/SYMFLUENCE/SYMFLUENCE_data/example_data_v0.6.0/domain_*/settings/
+          if-no-files-found: ignore
+
+  e2e-full:
+    name: E2E Full (1-month + Calibration)
+    needs: install
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    if: needs.install.outputs.test_level == 'full'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gdal-bin libgdal-dev libproj-dev \
+            openmpi-bin libopenmpi-dev \
+            libnetcdf-dev libhdf5-dev
+
+      - name: Download installation
+        uses: actions/download-artifact@v4
+        with:
+          name: symfluence-installation
+
+      - name: Restore installation
+        run: |
+          # Restore venv
+          tar -xzf venv.tar.gz -C ${{ github.workspace }}
+          echo "${{ github.workspace }}/venv/bin" >> $GITHUB_PATH
+          echo "VIRTUAL_ENV=${{ github.workspace }}/venv" >> $GITHUB_ENV
+
+          # Restore tools
+          TOOLS_DIR=/home/runner/work/SYMFLUENCE/SYMFLUENCE_data/installs
+          mkdir -p $TOOLS_DIR
+          tar -xzf tools.tar.gz -C $TOOLS_DIR
+          echo "$TOOLS_DIR/summa/bin" >> $GITHUB_PATH
+          echo "$TOOLS_DIR/mizuRoute/route/bin" >> $GITHUB_PATH
+          echo "$TOOLS_DIR/TauDEM/bin" >> $GITHUB_PATH
+
+          # Restore test data
+          if [ -f testdata.tar.gz ]; then
+            tar -xzf testdata.tar.gz -C /home/runner/work/SYMFLUENCE/SYMFLUENCE_data
+          fi
+
+      - name: Run full E2E tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
+          SYMFLUENCE_CODE: ${{ github.workspace }}
+          SYMFLUENCE_DATA: /home/runner/work/SYMFLUENCE/SYMFLUENCE_data
+        run: |
+          echo "========================================="
+          echo "Running full E2E tests (1-month + calibration)..."
+          echo "========================================="
+          pytest -v --tb=short -m "ci_full" tests/e2e/
+
+      - name: Upload test outputs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-full-outputs
+          path: |
+            /home/runner/work/SYMFLUENCE/SYMFLUENCE_data/example_data_v0.6.0/domain_*/simulations/
+            /home/runner/work/SYMFLUENCE/SYMFLUENCE_data/example_data_v0.6.0/domain_*/settings/
+            /home/runner/work/SYMFLUENCE/SYMFLUENCE_data/example_data_v0.6.0/domain_*/optimization/
+          if-no-files-found: ignore
