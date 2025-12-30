@@ -4,6 +4,21 @@ Changelog
 All notable changes to this project are documented here.
 This file follows a concise, category-based format (Added / Changed / Removed / Fixed).
 
+Version 0.5.6
+-------------
+
+Added
+-----
+- **Model Registry System:** Introduced a decorator-based plugin system (``ModelRegistry``) to simplify adding new hydrological models.
+- **Self-Registering Models:** SUMMA, FUSE, GR, HYPE, FLASH, NGEN, and mizuRoute now register themselves automatically.
+
+Changed
+-------
+- **Project Restructuring:** Migrated to a standard ``src``-layout (``src/symfluence/``).
+- **Namespace Unification:** All utility modules moved under the ``symfluence.utils`` namespace.
+- **ModelManager Refactoring:** ``ModelManager`` now dynamically loads models via the registry, reducing coupling and boilerplate.
+- **CLI improvements:** Enhanced dev-wrapper (``symfluence.py``) that delegates to the proper package entry point.
+
 Version 0.2.0 (Unreleased)
 --------------------------
 
