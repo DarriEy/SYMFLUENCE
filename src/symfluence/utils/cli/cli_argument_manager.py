@@ -1567,6 +1567,9 @@ For more information, visit: https://github.com/DarriEy/SYMFLUENCE
             if binary_ops.get('validate_binaries', False):
                 print("\n🔧 Binary Validation Requested")
                 results = cli_manager.validate_binaries(symfluence_instance)
+                # validate_binaries returns True when all valid, or dict with results
+                if results is True:
+                    return True
                 return len(results['missing_tools']) == 0 and len(results['failed_tools']) == 0
             
             if binary_ops.get('get_executables') is not None:
