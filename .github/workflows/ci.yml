@@ -60,6 +60,12 @@ jobs:
             requirements.txt
             pyproject.toml
 
+      - name: Install GDAL Python bindings
+        run: |
+          # Install GDAL Python bindings matching system GDAL version
+          GDAL_VERSION=$(gdal-config --version)
+          pip install GDAL==$GDAL_VERSION
+
       - name: Install deps (requirements.txt)
         if: hashFiles('requirements.txt') != ''
         run: |
