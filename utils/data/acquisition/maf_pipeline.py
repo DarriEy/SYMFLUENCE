@@ -31,11 +31,11 @@ class gistoolRunner:
             self.tool_cache = '$HOME/cache_dir/'
 
         #Get the path to the directory containing the gistool script
-        self.gistool_path = self.config['GISTOOL_PATH']
+        self.gistool_path = self.config.get('GISTOOL_PATH')
         if self.gistool_path == 'default':
-            self.gistool_path = Path(self.config['SYMFLUENCE_DATA_DIR']) / 'installs/gistool'
+            self.gistool_path = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / 'installs/gistool'
         else: 
-            self.gistool_path = self.config['GISTOOL_PATH']
+            self.gistool_path = self.config.get('GISTOOL_PATH')
     
     def create_gistool_command(self, dataset, output_dir, lat_lims, lon_lims, variables, start_date=None, end_date=None):
         dataset_dir = dataset
@@ -45,17 +45,17 @@ class gistoolRunner:
         gistool_command = [
             f"{self.gistool_path}/extract-gis.sh",
             f"--dataset={dataset}",
-            f"--dataset-dir={self.config['GISTOOL_DATASET_ROOT']}{dataset_dir}",
+            f"--dataset-dir={self.config.get('GISTOOL_DATASET_ROOT')}{dataset_dir}",
             f"--output-dir={output_dir}",
             f"--lat-lims={lat_lims}",
             f"--lon-lims={lon_lims}",
             f"--variable={variables}",
             f"--prefix=domain_{self.domain_name}_",
-            #f"--lib-path={self.config['GISTOOL_LIB_PATH']}"
+            #f"--lib-path={self.config.get('GISTOOL_LIB_PATH')}"
             #"--submit-job",
             "--print-geotiff=true",
             f"--cache={self.tool_cache}_{self.domain_name}",
-            f"--cluster={self.config['CLUSTER_JSON']}"
+            f"--cluster={self.config.get('CLUSTER_JSON')}"
         ] 
         
         self.logger.info(f'gistool command: {gistool_command}')
@@ -91,11 +91,11 @@ class datatoolRunner:
             self.tool_cache = '$HOME/cache_dir/'
         
         #Get the path to the directory containing the datatool script
-        self.datatool_path = self.config['DATATOOL_PATH']
+        self.datatool_path = self.config.get('DATATOOL_PATH')
         if self.datatool_path == 'default':
-            self.datatool_path = Path(self.config['SYMFLUENCE_DATA_DIR']) / 'installs/datatool'
+            self.datatool_path = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / 'installs/datatool'
         else: 
-            self.datatool_path = self.config['DATATOOL_PATH']
+            self.datatool_path = self.config.get('DATATOOL_PATH')
     
     def create_datatool_command(self, dataset, output_dir, start_date, end_date, lat_lims, lon_lims, variables):
         dataset_dir = dataset
@@ -110,7 +110,7 @@ class datatoolRunner:
         datatool_command = [
         f"{self.datatool_path}/extract-dataset.sh",
         f"--dataset={dataset}",
-        f"--dataset-dir={self.config['DATATOOL_DATASET_ROOT']}{dataset_dir}",
+        f"--dataset-dir={self.config.get('DATATOOL_DATASET_ROOT')}{dataset_dir}",
         f"--output-dir={output_dir}",
         f"--start-date={start_date}",
         f"--end-date={end_date}",
@@ -120,7 +120,7 @@ class datatoolRunner:
         f"--prefix=domain_{self.domain_name}_",
         f"--submit-job",
         f"--cache={self.tool_cache}",
-        f"--cluster={self.config['CLUSTER_JSON']}",
+        f"--cluster={self.config.get('CLUSTER_JSON')}",
         ] 
 
         return datatool_command

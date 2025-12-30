@@ -35,15 +35,15 @@ class DataAcquisitionProcessor:
 
         subbasins_name = self.config.get('RIVER_BASINS_NAME')
         if subbasins_name == 'default':
-            subbasins_name = f"{self.config['DOMAIN_NAME']}_riverBasins_{self.config['DOMAIN_DEFINITION_METHOD']}.shp"
+            subbasins_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
 
         tool_cache = self.config.get('TOOL_CACHE')
         if tool_cache == 'default':
             tool_cache = '$HOME/cache_dir/'
 
-        variables = self.config['FORCING_VARIABLES']
+        variables = self.config.get('FORCING_VARIABLES')
         if variables == 'default':
-            variables = self.variable_handler.get_dataset_variables(dataset = self.config['FORCING_DATASET'])
+            variables = self.variable_handler.get_dataset_variables(dataset = self.config.get('FORCING_DATASET'))
 
         maf_config = {
             "exec": {
@@ -280,13 +280,13 @@ class DataPreProcessor:
         self.logger.info("Calculating elevation statistics")
         subbasins_name = self.config.get('CATCHMENT_SHP_NAME')
         if subbasins_name == 'default':
-            subbasins_name = f"{self.config['DOMAIN_NAME']}_HRUs_{self.config['DOMAIN_DISCRETIZATION']}.shp"
+            subbasins_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
 
         catchment_path = self._get_file_path('CATCHMENT_PATH', 'shapefiles/catchment', subbasins_name)
 
-        dem_name = self.config['DEM_NAME']
+        dem_name = self.config.get('DEM_NAME')
         if dem_name == "default":
-            dem_name = f"domain_{self.config['DOMAIN_NAME']}_elv.tif"
+            dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
 
         dem_path = self._get_file_path('DEM_PATH', 'attributes/elevation/dem', dem_name)
         dem_name = self.config.get('INTERSECT_DEM_NAME')
@@ -319,12 +319,12 @@ class DataPreProcessor:
         self.logger.info("Calculating soil statistics")
         subbasins_name = self.config.get('CATCHMENT_SHP_NAME')
         if subbasins_name == 'default':
-            subbasins_name = f"{self.config['DOMAIN_NAME']}_HRUs_{self.config['DOMAIN_DISCRETIZATION']}.shp"
+            subbasins_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
 
         catchment_path = self._get_file_path('CATCHMENT_PATH', 'shapefiles/catchment', subbasins_name)
-        soil_name = self.config['SOIL_CLASS_NAME']
+        soil_name = self.config.get('SOIL_CLASS_NAME')
         if soil_name == 'default':
-            soil_name = f"domain_{self.config['DOMAIN_NAME']}_soil_classes.tif"
+            soil_name = f"domain_{self.config.get('DOMAIN_NAME')}_soil_classes.tif"
         soil_path = self._get_file_path('SOIL_CLASS_PATH', 'attributes/soilclass/', soil_name)
         intersect_soil_name = self.config.get('INTERSECT_SOIL_NAME')
         if intersect_soil_name == 'default':
@@ -381,12 +381,12 @@ class DataPreProcessor:
         self.logger.info("Calculating land statistics")
         subbasins_name = self.config.get('CATCHMENT_SHP_NAME')
         if subbasins_name == 'default':
-            subbasins_name = f"{self.config['DOMAIN_NAME']}_HRUs_{self.config['DOMAIN_DISCRETIZATION']}.shp"
+            subbasins_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
 
         catchment_path = self._get_file_path('CATCHMENT_PATH', 'shapefiles/catchment', subbasins_name)
-        land_name = self.config['LAND_CLASS_NAME']
+        land_name = self.config.get('LAND_CLASS_NAME')
         if land_name == 'default':
-            land_name = f"domain_{self.config['DOMAIN_NAME']}_land_classes.tif"
+            land_name = f"domain_{self.config.get('DOMAIN_NAME')}_land_classes.tif"
         land_path = self._get_file_path('LAND_CLASS_PATH', 'attributes/landclass/', land_name)
         intersect_name = self.config.get('INTERSECT_LAND_NAME')
         if intersect_name == 'default':
@@ -1185,7 +1185,7 @@ class ObservedDataProcessor:
                 # Determine the shapefile path
                 subbasins_name = self.config.get('RIVER_BASINS_NAME')
                 if subbasins_name == 'default':
-                    subbasins_name = f"{self.config['DOMAIN_NAME']}_riverBasins.shp"
+                    subbasins_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins.shp"
                 
                 shapefile_path = self.project_dir / "shapefiles/river_basins" / subbasins_name
                 

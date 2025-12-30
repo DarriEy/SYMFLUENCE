@@ -6,12 +6,16 @@ This test runs a quick calibration demo for both Elliðaár and Fyris catchments
 using observational discharge data.
 """
 
+import pytest
 import yaml
 from pathlib import Path
 from symfluence import SYMFLUENCE
 import sys
 
 
+@pytest.mark.slow
+@pytest.mark.calibration
+@pytest.mark.requires_data
 def test_ellioaar_calibration():
     """Run calibration demo for Elliðaár, Iceland."""
     print("\n" + "="*80)
@@ -105,6 +109,9 @@ def test_ellioaar_calibration():
         return None
 
 
+@pytest.mark.slow
+@pytest.mark.calibration
+@pytest.mark.requires_data
 def test_fyris_calibration():
     """Run calibration demo for Fyris, Uppsala."""
     print("\n" + "="*80)

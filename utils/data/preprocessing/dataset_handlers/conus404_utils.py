@@ -313,7 +313,7 @@ class CONUS404Handler(BaseDatasetHandler):
         """
         self.logger.info("Creating CONUS404 grid shapefile")
 
-        output_shapefile = shapefile_path / f"forcing_{self.config['FORCING_DATASET']}.shp"
+        output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
 
         # 🔧 Only use CONUS404 processed files, not ANY .nc
         patterns = [

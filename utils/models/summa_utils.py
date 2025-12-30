@@ -41,9 +41,9 @@ class SummaPreProcessor:
         self.summa_setup_dir = self.project_dir / "settings" / "SUMMA"
         self.shapefile_path = self.project_dir / 'shapefiles' / 'forcing'
         self.settings_path = self.project_dir / 'settings/SUMMA'
-        dem_name = self.config['DEM_NAME']
+        dem_name = self.config.get('DEM_NAME')
         if dem_name == "default":
-            dem_name = f"domain_{self.config['DOMAIN_NAME']}_elv.tif"
+            dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
         self.dem_path = self._get_default_path('DEM_PATH', f"attributes/elevation/dem/{dem_name}")
 
         self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/merged_data')
@@ -54,12 +54,12 @@ class SummaPreProcessor:
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
         self.river_network_name = self.config.get('RIVER_NETWORK_SHP_NAME')
         if self.river_network_name == 'default':
-            self.river_network_name = f"{self.config['DOMAIN_NAME']}_riverNetwork_delineate.shp"
+            self.river_network_name = f"{self.config.get('DOMAIN_NAME')}_riverNetwork_delineate.shp"
 
         self.river_network_path = self._get_default_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network')
         self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
-            self.catchment_name = f"{self.config['DOMAIN_NAME']}_HRUs_{self.config['DOMAIN_DISCRETIZATION']}.shp"
+            self.catchment_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
 
         # Handles and variables
         self.hruId = self.config.get('CATCHMENT_SHP_HRUID')
@@ -1859,8 +1859,8 @@ class SUMMAPostprocessor:
             # Get simulation output path
             if self.config.get('SIMULATIONS_PATH') == 'default':
                 # Parse the start time and extract the date portion
-                start_date = self.config['EXPERIMENT_TIME_START'].split()[0]  # Gets '2011-01-01' from '2011-01-01 01:00'
-                sim_file_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'mizuRoute' / f"{self.config['EXPERIMENT_ID']}.h.{start_date}-03600.nc"
+                start_date = self.config.get('EXPERIMENT_TIME_START').split()[0]  # Gets '2011-01-01' from '2011-01-01 01:00'
+                sim_file_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'mizuRoute' / f"{self.config.get('EXPERIMENT_ID')}.h.{start_date}-03600.nc"
             else:
                 sim_file_path = Path(self.config.get('SIMULATIONS_PATH'))
                 
@@ -1885,7 +1885,7 @@ class SUMMAPostprocessor:
             q_sim_daily = q_sim['IRFroutedRunoff'].resample('D').mean()
             
             # Read existing results file if it exists
-            output_file = self.results_dir / f"{self.config['EXPERIMENT_ID']}_results.csv"
+            output_file = self.results_dir / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
             if output_file.exists():
                 results_df = pd.read_csv(output_file, index_col=0, parse_dates=True)
             else:
@@ -2066,7 +2066,7 @@ class SummaRunner:
         # Get total GRU count from catchment shapefile
         subbasins_name = self.config.get('CATCHMENT_SHP_NAME')
         if subbasins_name == 'default':
-            subbasins_name = f"{self.config['DOMAIN_NAME']}_HRUs_{self.config['DOMAIN_DISCRETIZATION']}.shp"
+            subbasins_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
         subbasins_shapefile = self.project_dir / "shapefiles" / "catchment" / subbasins_name
         
         # Read shapefile and count unique GRU_IDs

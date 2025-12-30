@@ -156,7 +156,7 @@ class ERA5Handler(BaseDatasetHandler):
         """
         self.logger.info("Creating ERA5 shapefile")
         
-        output_shapefile = shapefile_path / f"forcing_{self.config['FORCING_DATASET']}.shp"
+        output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
         
         try:
             # Find an .nc file in the forcing path

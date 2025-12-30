@@ -162,7 +162,7 @@ class DataManager:
                         "DEM_SOURCE is merit_hydro - using MAF/gistool for elevation"
                     )
                     gr = gistoolRunner(self.config, self.logger)
-                    bbox = self.config['BOUNDING_BOX_COORDS'].split('/')
+                    bbox = self.config.get('BOUNDING_BOX_COORDS').split('/')
                     latlims = f"{bbox[0]},{bbox[2]}"
                     lonlims = f"{bbox[1]},{bbox[3]}"
                     self._acquire_elevation_data(gr, dem_dir, latlims, lonlims)
@@ -208,9 +208,9 @@ class DataManager:
             
             # Initialize the gistool runner
             gr = gistoolRunner(self.config, self.logger)
-            
+
             # Get lat and lon limits from bounding box
-            bbox = self.config['BOUNDING_BOX_COORDS'].split('/')
+            bbox = self.config.get('BOUNDING_BOX_COORDS').split('/')
             latlims = f"{bbox[0]},{bbox[2]}"
             lonlims = f"{bbox[1]},{bbox[3]}"
             
@@ -429,29 +429,29 @@ class DataManager:
             # Create output directory
             raw_data_dir = self.project_dir / 'forcing' / 'raw_data'
             raw_data_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Get lat and lon limits
-            bbox = self.config['BOUNDING_BOX_COORDS'].split('/')
+            bbox = self.config.get('BOUNDING_BOX_COORDS').split('/')
             latlims = f"{bbox[2]},{bbox[0]}"
             lonlims = f"{bbox[1]},{bbox[3]}"
-            
+
             # Get variables to download
             variables = self.config.get('FORCING_VARIABLES', 'default')
             if variables == 'default':
                 variables = self.variable_handler.get_dataset_variables(
-                    dataset=self.config['FORCING_DATASET']
+                    dataset=self.config.get('FORCING_DATASET')
                 )
-            
+
             try:
                 # Create and execute datatool command
                 datatool_command = dr.create_datatool_command(
-                    dataset=self.config['FORCING_DATASET'],
+                    dataset=self.config.get('FORCING_DATASET'),
                     output_dir=raw_data_dir,
                     lat_lims=latlims,
                     lon_lims=lonlims,
                     variables=variables,
-                    start_date=self.config['EXPERIMENT_TIME_START'],
-                    end_date=self.config['EXPERIMENT_TIME_END']
+                    start_date=self.config.get('EXPERIMENT_TIME_START'),
+                    end_date=self.config.get('EXPERIMENT_TIME_END')
                 )
                 dr.execute_datatool_command(datatool_command)
                 
@@ -498,26 +498,26 @@ class DataManager:
                 raise FileNotFoundError(f"EM-Earth temperature directory not found: {em_earth_tmean_dir}")
             
             # Get bounding box and check size
-            bbox = self.config['BOUNDING_BOX_COORDS']  # format: lat_max/lon_min/lat_min/lon_max
+            bbox = self.config.get('BOUNDING_BOX_COORDS')  # format: lat_max/lon_min/lat_min/lon_max
             bbox_parts = bbox.split('/')
             lat_max, lon_min, lat_min, lon_max = map(float, bbox_parts)
             lat_range = lat_max - lat_min
             lon_range = lon_max - lon_min
-            
+
             # Log watershed characteristics
             self.logger.info(f"Watershed bounding box: {bbox}")
             self.logger.info(f"Watershed size: {lat_range:.4f}° x {lon_range:.4f}° (~{lat_range*111:.1f}km x {lon_range*111:.1f}km)")
-            
+
             # Check if watershed is very small
             min_bbox_size = self.config.get('EM_EARTH_MIN_BBOX_SIZE', 0.1)
             if lat_range < min_bbox_size or lon_range < min_bbox_size:
                 self.logger.warning(f"Very small watershed detected. EM-Earth processing will use spatial averaging.")
                 self.logger.info(f"Minimum bounding box size: {min_bbox_size}° (~{min_bbox_size*111:.1f}km)")
-            
+
             # Parse time range
             try:
-                start_date = datetime.strptime(self.config['EXPERIMENT_TIME_START'], '%Y-%m-%d %H:%M')
-                end_date = datetime.strptime(self.config['EXPERIMENT_TIME_END'], '%Y-%m-%d %H:%M')
+                start_date = datetime.strptime(self.config.get('EXPERIMENT_TIME_START'), '%Y-%m-%d %H:%M')
+                end_date = datetime.strptime(self.config.get('EXPERIMENT_TIME_END'), '%Y-%m-%d %H:%M')
             except ValueError as e:
                 raise ValueError(f"Invalid date format in configuration: {str(e)}")
             
@@ -1040,7 +1040,7 @@ class DataManager:
             # Get basin shapefile for remapping
             subbasins_name = self.config.get('RIVER_BASINS_NAME')
             if subbasins_name == 'default':
-                subbasins_name = f"{self.config['DOMAIN_NAME']}_riverBasins_{self.config['DOMAIN_DEFINITION_METHOD']}.shp"
+                subbasins_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
             
             basin_shapefile = self.project_dir / "shapefiles/river_basins" / subbasins_name
             

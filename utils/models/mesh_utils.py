@@ -40,7 +40,7 @@ class MESHPreProcessor:
         self.catchment_path = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
         self.catchment_name = self.config.get('RIVER_BASINS_NAME')
         if self.catchment_name == 'default':
-            self.catchment_name = f"{self.domain_name}_riverBasins_{self.config['DOMAIN_DEFINITION_METHOD']}.shp"
+            self.catchment_name = f"{self.domain_name}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
 
         self.rivers_path = self._get_default_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network')
         self.rivers_name = self.config.get('RIVER_NETWORK_SHP_NAME')
@@ -219,15 +219,15 @@ class MESHRunner:
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
         self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
-            self.catchment_name = f"{self.domain_name}_HRUs_{self.config['DOMAIN_DISCRETIZATION']}.shp"
+            self.catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
         
         # MESH-specific paths
         self.mesh_setup_dir = self.project_dir / "settings" / "MESH"
         self.forcing_mesh_path = self.project_dir / 'forcing' / 'MESH_input'
-        self.output_path = self.project_dir / 'simulations' / self.config['EXPERIMENT_ID'] / 'MESH'
+        self.output_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'MESH'
         self.output_path.mkdir(parents=True, exist_ok=True)
         self.mesh_exe = self.config.get('MESH_EXE')
-        self.mesh_install_path = Path(self.config['SYMFLUENCE_DATA_DIR']) / 'installs' / 'MESH-DEV'
+        self.mesh_install_path = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / 'installs' / 'MESH-DEV'
 
         # Model configuration
 
@@ -293,7 +293,7 @@ class MESHPostProcessor:
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
         self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
-            self.catchment_name = f"{self.domain_name}_HRUs_{self.config['DOMAIN_DISCRETIZATION']}.shp"
+            self.catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
 
     def extract_streamflow(self):
         return

@@ -66,9 +66,9 @@ class TRoutePreProcessor:
 
         # Define paths using SYMFLUENCE conventions
         river_network_path = self.project_dir / 'shapefiles/river_network'
-        river_network_name = f"{self.config['DOMAIN_NAME']}_riverNetwork_{self.config.get('DOMAIN_DEFINITION_METHOD','delineate')}.shp"
+        river_network_name = f"{self.config.get('DOMAIN_NAME')}_riverNetwork_{self.config.get('DOMAIN_DEFINITION_METHOD','delineate')}.shp"
         river_basin_path = self.project_dir / 'shapefiles/river_basins'
-        river_basin_name = f"{self.config['DOMAIN_NAME']}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
+        river_basin_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
         topology_name = self.config.get('SETTINGS_TROUTE_TOPOLOGY', 'troute_topology.nc')
         topology_filepath = self.troute_setup_dir / topology_name
 

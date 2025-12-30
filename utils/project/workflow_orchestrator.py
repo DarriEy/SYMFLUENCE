@@ -60,12 +60,11 @@ class WorkflowOrchestrator:
         self.logging_manager = logging_manager
         self.domain_name = config.get('DOMAIN_NAME')
         self.experiment_id = config.get('EXPERIMENT_ID')
-        
-        # Support both old (CONFLUENCE) and new (SYMFLUENCE) config keys
-        data_dir = config.get('SYMFLUENCE_DATA_DIR') or config.get('CONFLUENCE_DATA_DIR')
+
+        data_dir = config.get('SYMFLUENCE_DATA_DIR')
         if not data_dir:
-            raise KeyError("Neither SYMFLUENCE_DATA_DIR nor CONFLUENCE_DATA_DIR found in config")
-        
+            raise KeyError("SYMFLUENCE_DATA_DIR not found in config")
+
         self.project_dir = Path(data_dir) / f"domain_{self.domain_name}"
     
     def define_workflow_steps(self) -> List[Tuple[Callable, Callable, str]]:
@@ -123,7 +122,7 @@ class WorkflowOrchestrator:
             (
                 self.managers['domain'].discretize_domain,
                 lambda: (self.project_dir / "shapefiles" / "catchment" / 
-                        f"{self.domain_name}_HRUs_{str(self.config['DOMAIN_DISCRETIZATION']).replace(',','_')}.shp").exists(),
+                        f"{self.domain_name}_HRUs_{str(self.config.get('DOMAIN_DISCRETIZATION')).replace(',','_')}.shp").exists(),
                 "Discretizing domain into hydrological response units"
             ),
             
@@ -374,9 +373,9 @@ class WorkflowOrchestrator:
                 self.logger.error(f"Required configuration missing: {key}")
                 valid = False
         
-        # Check for data directory (either old or new name)
-        if not (self.config.get('SYMFLUENCE_DATA_DIR') or self.config.get('CONFLUENCE_DATA_DIR')):
-            self.logger.error("Required configuration missing: SYMFLUENCE_DATA_DIR (or CONFLUENCE_DATA_DIR)")
+        # Check for data directory
+        if not self.config.get('SYMFLUENCE_DATA_DIR'):
+            self.logger.error("Required configuration missing: SYMFLUENCE_DATA_DIR")
             valid = False
         
         # Check manager initialization
