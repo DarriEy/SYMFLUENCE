@@ -141,6 +141,8 @@ FORCING_CASES = [
 ]
 
 
+@pytest.mark.slow
+@pytest.mark.requires_data
 @pytest.mark.parametrize("case", FORCING_CASES)
 def test_cloud_forcing_acquisition(prepared_project, case):
     """
