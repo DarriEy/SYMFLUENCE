@@ -122,9 +122,7 @@ jobs:
         run: |
           set -e
           sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository -y ppa:ubuntugis/ppa
-          sudo apt-get update
+          # Ubuntu 24.04 (noble) has recent GDAL in main repos, no PPA needed
           sudo apt-get install -y \
             build-essential gfortran cmake make pkg-config \
             ninja-build autoconf automake libtool \
@@ -143,9 +141,16 @@ jobs:
         run: |
           set -e
           brew install gcc cmake ninja open-mpi netcdf netcdf-fortran hdf5 gdal wget
+
+          # Install GDAL Python bindings
+          # Get GDAL version and install matching Python bindings
+          GDAL_VERSION=$(gdal-config --version)
+          python3 -m pip install "GDAL==${GDAL_VERSION}"
+
           gcc --version
           mpicc --version
           gdal-config --version
+          python3 -c "from osgeo import gdal; print(f'GDAL Python bindings: {gdal.__version__}')"
 
       - name: Configure compiler and library env (Linux)
         if: runner.os == 'Linux'
