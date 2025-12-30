@@ -8,9 +8,18 @@ It delegates all execution to the actual package entry point in src/symfluence/c
 import sys
 from pathlib import Path
 
-# Add src to python path for development so 'symfluence' package is found
-src_path = Path(__file__).parent / "src"
-sys.path.insert(0, str(src_path))
+# Check if package is already installed
+package_installed = False
+try:
+    import symfluence
+    package_installed = True
+except ImportError:
+    pass
+
+# Only add src to path if package is not installed
+if not package_installed:
+    src_path = Path(__file__).parent / "src"
+    sys.path.insert(0, str(src_path))
 
 try:
     from symfluence.cli import main
