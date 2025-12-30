@@ -621,6 +621,14 @@ EOF
 
         print_success "Python environment setup complete"
 
+        # Install SYMFLUENCE package in editable mode
+        print_info "Installing SYMFLUENCE package..."
+        pip install -e . || {
+            print_error "SYMFLUENCE package installation failed"
+            exit 1
+        }
+        print_success "SYMFLUENCE package installed"
+
         # External tools (mirrors your existing flow)
         cd "$symfluence_dir"
         print_info "Installing external tools..."
