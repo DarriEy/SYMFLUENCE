@@ -2,10 +2,20 @@ name: SYMFLUENCE - Full Install & Validate
 
 on:
   push:
-    branches: [ main ]  # Only run on main branch pushes (releases)
+    branches: [ main, develop ]  # Run on main and develop pushes
   pull_request:
-    branches: [ main ]  # Run on PRs to main
-  workflow_dispatch: {}  # Allow manual trigger
+    branches: [ main, develop ]  # Run on PRs to main/develop
+  workflow_dispatch:
+    inputs:
+      test_level:
+        description: 'Test level to run'
+        required: false
+        default: 'quick'
+        type: choice
+        options:
+          - smoke
+          - quick
+          - full
   schedule:
     - cron: '0 2 * * 0'  # Run weekly on Sundays at 2 AM UTC
 
@@ -20,6 +30,8 @@ concurrency:
 jobs:
   install-validate:
     runs-on: ubuntu-22.04
+    timeout-minutes: 90
+
     env:
       TZ: UTC
       CI: "1"
@@ -128,6 +140,14 @@ jobs:
       - name: Ensure data dir exists
         run: mkdir -p "${{ env.SYMFLUENCE_DATA }}"
 
+      - name: Cache test data (v0.6.0)
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.SYMFLUENCE_DATA }}
+          key: symfluence-testdata-v0.6.0-${{ hashFiles('tests/pytest.ini', 'tests/fixtures/data_fixtures.py') }}
+          restore-keys: |
+            symfluence-testdata-v0.6.0-
+
       - name: Full install (build venv + tools)
         env:
           CC: mpicc
@@ -137,271 +157,78 @@ jobs:
           chmod +x ./symfluence
           ./symfluence --install
 
-      - name: Validate binaries
-        run: |
-          set -e
-          . ./venv/bin/activate || . ./.venv/bin/activate
-          python --version
-          python symfluence.py --validate_binaries
-
-      - name: Verify venv & package import
-        run: |
-          set -euo pipefail
-          PY="./venv/bin/python"
-          "$PY" --version
-          "$PY" -c "import symfluence; print('symfluence OK')"
-
-      - name: Create CI config from template (no external deps)
-        run: |
-          set -euo pipefail
-          mkdir -p 0_config_files
-          # Guard: ensure template exists
-          test -f 0_config_files/config_template.yaml || { echo "Missing 0_config_files/config_template.yaml"; ls -la 0_config_files || true; exit 1; }
-          cp 0_config_files/config_template.yaml 0_config_files/config_ci_bow.yaml
-          cat >> 0_config_files/config_ci_bow.yaml <<'YAML'
-          # --- CI overrides (last wins) ---
-          SYMFLUENCE_CODE_DIR: "${{ env.SYMFLUENCE_CODE }}"
-          SYMFLUENCE_DATA_DIR: "${{ env.SYMFLUENCE_DATA }}"
-          DOMAIN_NAME: "Bow_at_Banff"
-          DOMAIN_DEFINITION_METHOD: "lumped"
-          LOG_LEVEL: "INFO"
-          YAML
-
-          echo "---- First 200 lines of merged config_ci_bow.yaml ----"
-          sed -n '1,200p' 0_config_files/config_ci_bow.yaml
-
-      - name: Wrapper info (with config)
-        run: |
-          set -euo pipefail
-          ./symfluence --wrapper-info --config 0_config_files/config_ci_bow.yaml || true
-
-      - name: Run --setup_project (direct venv probe + wrapper)
-        run: |
-          set -euo pipefail
-
-          echo "---- sanity: config exists? ----"
-          ls -la 0_config_files
-          sed -n '1,120p' 0_config_files/config_ci_bow.yaml
-
-          echo "---- PROBE A: run via venv python (should produce logs) ----"
-          set +e
-          ./venv/bin/python symfluence.py --config 0_config_files/config_ci_bow.yaml --setup_project \
-            > _setup_stdout_A.log 2> _setup_stderr_A.log
-          rcA=$?
-          set -e
-          echo "rcA=$rcA"
-          echo "---- STDOUT A (head) ----"; sed -n '1,120p' _setup_stdout_A.log || true
-          echo "---- STDERR A (head) ----"; sed -n '1,120p' _setup_stderr_A.log || true
-
-          echo "---- PROBE B: run via wrapper (should match A) ----"
-          set +e
-          ./symfluence --config 0_config_files/config_ci_bow.yaml --setup_project \
-            > _setup_stdout_B.log 2> _setup_stderr_B.log
-          rcB=$?
-          set -e
-          echo "rcB=$rcB"
-          echo "---- STDOUT B (head) ----"; sed -n '1,120p' _setup_stdout_B.log || true
-          echo "---- STDERR B (head) ----"; sed -n '1,120p' _setup_stderr_B.log || true
-
-          # Fail if wrapper fails but direct venv python works
-          if [ "$rcA" -eq 0 ] && [ "$rcB" -ne 0 ]; then
-            echo "❌ Wrapper failed but direct venv python succeeded: wrapper needs a fix"
-            exit $rcB
-          fi
-
-          if [ "$rcA" -ne 0 ]; then
-            echo "❌ Even direct venv python failed — not a wrapper problem"
-            exit $rcA
-          fi
-
-          echo "✅ setup_project OK (via both paths)"
-
-      - name: Assert domain directory exists
-        run: |
-          set -eo pipefail
-          TARGET="${SYMFLUENCE_DATA}/domain_Bow_at_Banff"
-          if [ -d "$TARGET" ]; then
-            echo "✅ Found ${TARGET}"
-          else
-            echo "❌ Expected domain directory at ${TARGET}"
-            ls -la "${SYMFLUENCE_DATA}" || true
-            exit 1
-          fi
-
-      - name: Copy test data into domain directory
-        run: |
-          set -eo pipefail
-          SRC="${SYMFLUENCE_CODE}/src/data/domain_Bow_at_Banff"
-          DEST="${SYMFLUENCE_DATA}/domain_Bow_at_Banff"
-          echo "📦 Copying test data from ${SRC} → ${DEST}"
-          if [ -d "${SRC}" ]; then
-            mkdir -p "${DEST}"
-            cp -a "${SRC}/." "${DEST}/"
-            echo "✅ Copied contents:"
-            ls -R "${DEST}" || true
-          else
-            echo "❌ Source directory not found: ${SRC}"
-            ls -la "${SYMFLUENCE_CODE}/src/data" || true
-            exit 1
-          fi
-
-      - name: Run --create_pour_point
-        run: |
-          set -eo pipefail
-          ./symfluence --config 0_config_files/config_ci_bow.yaml --create_pour_point 
-
-      - name: Assert pour point exists
-        run: |
-          set -eo pipefail
-          BASE="${SYMFLUENCE_DATA}/domain_Bow_at_Banff/shapefiles/pour_point"
-          if compgen -G "${BASE}/Bow_at_Banff_pourPoint."{shp,gpkg,geojson} > /dev/null; then
-            echo "✅ Found pour point file in ${BASE}"
-            ls -la "${BASE}" || true
-          else
-            echo "❌ Expected pour point file (Bow_at_Banff_pourPoint.{shp|gpkg|geojson}) under ${BASE}"
-            ls -la "${BASE}" || true
-            exit 1
-          fi
-
-      - name: Export TauDEM on PATH (before define_domain)
+      - name: Add TauDEM to PATH
         run: |
           set -e
           echo "${{ env.SYMFLUENCE_DATA }}/installs/TauDEM/bin" >> $GITHUB_PATH
-          echo "PATH now: $PATH"
-          which pitremove || true
-          which moveoutletstostreams || true
 
-      - name: Run --define_domain
+      - name: Activate venv for subsequent steps
         run: |
-          set -eo pipefail
-          ./symfluence --config 0_config_files/config_ci_bow.yaml --define_domain 
+          set -e
+          echo "VIRTUAL_ENV=${{ env.SYMFLUENCE_CODE }}/venv" >> $GITHUB_ENV
+          echo "${{ env.SYMFLUENCE_CODE }}/venv/bin" >> $GITHUB_PATH
 
-      - name: Assert define_domain output exists
+      - name: Determine test level
+        id: test_level
         run: |
-          set -eo pipefail
-          TARGET="${SYMFLUENCE_DATA}/domain_Bow_at_Banff/shapefiles/river_basins/Bow_at_Banff_riverBasins_lumped.shp"
-          if [ -f "$TARGET" ]; then
-            echo "✅ Found domain shapefile: ${TARGET}"
+          # Determine which test level to run
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TEST_LEVEL="${{ github.event.inputs.test_level }}"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            TEST_LEVEL="full"
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            TEST_LEVEL="full"
           else
-            echo "❌ Expected output not found: ${TARGET}"
-            ls -R "${SYMFLUENCE_DATA}/domain_Bow_at_Banff/shapefiles" || true
-            exit 1
+            TEST_LEVEL="quick"
           fi
+          echo "test_level=${TEST_LEVEL}" >> $GITHUB_OUTPUT
+          echo "Running test level: ${TEST_LEVEL}"
 
-      - name: Run --discretize_domain
+      - name: Run validation tests
+        env:
+          PYTHONPATH: ${{ env.SYMFLUENCE_CODE }}:${{ env.SYMFLUENCE_CODE }}/tests
         run: |
-          set -eo pipefail
-          ./symfluence --config 0_config_files/config_ci_bow.yaml --discretize_domain 
+          set -e
 
-      - name: Assert discretize_domain output exists
-        run: |
-          set -euo pipefail
-          TARGET="${SYMFLUENCE_DATA}/domain_Bow_at_Banff/shapefiles/catchment/Bow_at_Banff_HRUs_GRUs.shp"
-          if [ -f "$TARGET" ]; then
-            echo "✅ Found discretization shapefile: ${TARGET}"
-          else
-            echo "❌ Expected output not found: ${TARGET}"
-            ls -R "${SYMFLUENCE_DATA}/domain_Bow_at_Banff/shapefiles" || true
-            exit 1
-          fi
+          TEST_LEVEL="${{ steps.test_level.outputs.test_level }}"
+          echo "Running ${TEST_LEVEL} tests..."
 
-      - name: Run --model_agnostic_preprocessing
-        run: |
-          set -eo pipefail
-          ./symfluence --config 0_config_files/config_ci_bow.yaml --model_agnostic_preprocessing 
+          case $TEST_LEVEL in
+            smoke)
+              # Smoke tests: Binary validation + package imports + 3-hour SUMMA run
+              pytest -v -m "ci_quick and smoke" tests/
+              ;;
+            quick)
+              # Quick tests: All smoke tests + basic workflow validation
+              pytest -v -m "ci_quick" tests/
+              ;;
+            full)
+              # Full tests: Everything including 1-month simulations and calibration
+              pytest -v -m "ci_full or ci_quick" tests/
+              ;;
+            *)
+              echo "Unknown test level: ${TEST_LEVEL}"
+              exit 1
+              ;;
+          esac
 
-      - name: Assert --model_agnostic_preprocessing output exists
-        run: |
-          set -euo pipefail
-          TARGET="${SYMFLUENCE_DATA}/domain_Bow_at_Banff/forcing/basin_averaged_data/"
-          if [ -d "$TARGET" ]; then
-            echo "✅ Found basin averaged data: ${TARGET}"
-          else
-            echo "❌ Expected output not found: ${TARGET}"
-            ls -R "${SYMFLUENCE_DATA}/domain_Bow_at_Banff/forcing/" || true
-            exit 1
-          fi
-
-      - name: Run --model_specific_preprocessing
-        run: |
-          set -eo pipefail
-          ./symfluence --config 0_config_files/config_ci_bow.yaml --model_specific_preprocessing 
-
-      - name: Assert --model_specific_preprocessing output exists
-        run: |
-          set -euo pipefail
-          TARGET="${SYMFLUENCE_DATA}/domain_Bow_at_Banff/forcing/SUMMA_input/"
-          if [ -d "$TARGET" ]; then
-            echo "✅ Found SUMMA_input data: ${TARGET}"
-          else
-            echo "❌ Expected output not found: ${TARGET}"
-            ls -R "${SYMFLUENCE_DATA}/domain_Bow_at_Banff/forcing/" || true
-            exit 1
-          fi
-
-      - name: Run --run_model
-        run: |
-          set -eo pipefail
-          ./symfluence --config 0_config_files/config_ci_bow.yaml --run_model 
-
-      - name: Assert --run_model output exists
-        run: |
-          set -euo pipefail
-          TARGET="${SYMFLUENCE_DATA}/domain_Bow_at_Banff/simulations/run_1/SUMMA/run_1_timestep.nc"
-          if [ -f "$TARGET" ]; then
-            echo "✅ Found SUMMA output data: ${TARGET}"
-          else
-            echo "❌ Expected output not found: ${TARGET}"
-            ls -R "${SYMFLUENCE_DATA}/domain_Bow_at_Banff/simulations/run_1/SUMMA/" || true
-            exit 1
-          fi
-
-      - name: Run --calibrate_model
-        run: |
-          set -eo pipefail
-          ./symfluence --config 0_config_files/config_ci_bow.yaml --calibrate_model 
-
-      - name: Assert --calibrate_model output exists
-        run: |
-          set -euo pipefail
-          TARGET="${SYMFLUENCE_DATA}/domain_Bow_at_Banff/simulations/run_de/"
-          if [ -d "$TARGET" ]; then
-            echo "✅ Found calibration output target: ${TARGET}"
-          else
-            echo "❌ Expected output not found: ${TARGET}"
-            ls -R "${SYMFLUENCE_DATA}/domain_Bow_at_Banff/simulations/" || true
-            exit 1
-          fi
-
-      - name: Run --run_benchmarking
-        run: |
-          set -eo pipefail
-          ./symfluence --config 0_config_files/config_ci_bow.yaml --run_benchmarking 
-
-      - name: Assert --run_benchmarking output exists
-        run: |
-          set -euo pipefail
-          TARGET="${SYMFLUENCE_DATA}/domain_Bow_at_Banff/evaluation/"
-          if [ -d "$TARGET" ]; then
-            echo "✅ Found benchmark output target: ${TARGET}"
-          else
-            echo "❌ Expected output not found: ${TARGET}"
-            ls -R "${SYMFLUENCE_DATA}/domain_Bow_at_Banff/evaluation/" || true
-            exit 1
-          fi
-
-      - name: Upload step-test artifacts (on fail)
+      - name: Upload test outputs (on failure)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: step-test-artifacts
+          name: test-outputs
           path: |
-            _workLog_*/**
-            ${{ env.SYMFLUENCE_DATA }}/domain_Bow_at_Banff/**
+            ${{ env.SYMFLUENCE_DATA }}/example_data_v0.6.0/domain_*/simulations/
+            ${{ env.SYMFLUENCE_DATA }}/example_data_v0.6.0/domain_*/settings/
+            ${{ env.SYMFLUENCE_DATA }}/example_data_v0.6.0/domain_*/forcing/
           if-no-files-found: ignore
 
-      - name: List created domain content (for logs)
-        run: |
-          set -e
-          ls -la "${SYMFLUENCE_DATA}" || true
-          ls -la "${SYMFLUENCE_DATA}"/domain_* || true
+      - name: Upload pytest logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-logs
+          path: |
+            pytest*.log
+            .pytest_cache/
+          if-no-files-found: ignore
