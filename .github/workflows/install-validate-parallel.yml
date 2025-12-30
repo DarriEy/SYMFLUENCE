@@ -143,9 +143,14 @@ jobs:
           brew install gcc cmake ninja open-mpi netcdf netcdf-fortran hdf5 gdal wget
 
           # Install GDAL Python bindings
-          # Get GDAL version and install matching Python bindings
+          # Get GDAL major.minor version and install compatible Python bindings
           GDAL_VERSION=$(gdal-config --version)
-          python3 -m pip install "GDAL==${GDAL_VERSION}"
+          GDAL_MAJOR_MINOR=$(echo $GDAL_VERSION | cut -d. -f1,2)
+
+          # Try exact version first, fall back to compatible version
+          python3 -m pip install "GDAL==${GDAL_VERSION}" || \
+            python3 -m pip install "GDAL~=${GDAL_MAJOR_MINOR}.0" || \
+            python3 -m pip install "GDAL>=${GDAL_MAJOR_MINOR}.0,<$(echo $GDAL_MAJOR_MINOR | awk -F. '{print $1"."$2+1}').0"
 
           gcc --version
           mpicc --version
