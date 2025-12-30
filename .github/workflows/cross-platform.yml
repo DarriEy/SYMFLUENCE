@@ -61,8 +61,13 @@ jobs:
             GDAL_VERSION=$(gdal-config --version)
             pip install GDAL==$GDAL_VERSION
           elif [[ "${{ matrix.os }}" == "macos-"* ]]; then
-            # macOS GDAL from brew
-            pip install gdal
+            # macOS GDAL from brew - install compatible version
+            GDAL_VERSION=$(gdal-config --version)
+            GDAL_MAJOR=$(echo $GDAL_VERSION | cut -d. -f1)
+            GDAL_MINOR=$(echo $GDAL_VERSION | cut -d. -f2)
+            GDAL_PATCH=$(echo $GDAL_VERSION | cut -d. -f3 | cut -d_ -f1)
+            NEXT_PATCH=$((GDAL_PATCH + 1))
+            pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
           fi
 
           # Install package with dev dependencies
@@ -133,7 +138,13 @@ jobs:
             GDAL_VERSION=$(gdal-config --version)
             pip install GDAL==$GDAL_VERSION
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            pip install gdal
+            # macOS GDAL from brew - install compatible version
+            GDAL_VERSION=$(gdal-config --version)
+            GDAL_MAJOR=$(echo $GDAL_VERSION | cut -d. -f1)
+            GDAL_MINOR=$(echo $GDAL_VERSION | cut -d. -f2)
+            GDAL_PATCH=$(echo $GDAL_VERSION | cut -d. -f3 | cut -d_ -f1)
+            NEXT_PATCH=$((GDAL_PATCH + 1))
+            pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
           fi
 
           if [ -f requirements.txt ]; then
@@ -228,7 +239,13 @@ jobs:
             GDAL_VERSION=$(gdal-config --version)
             pip install GDAL==$GDAL_VERSION
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            pip install gdal
+            # macOS GDAL from brew - install compatible version
+            GDAL_VERSION=$(gdal-config --version)
+            GDAL_MAJOR=$(echo $GDAL_VERSION | cut -d. -f1)
+            GDAL_MINOR=$(echo $GDAL_VERSION | cut -d. -f2)
+            GDAL_PATCH=$(echo $GDAL_VERSION | cut -d. -f3 | cut -d_ -f1)
+            NEXT_PATCH=$((GDAL_PATCH + 1))
+            pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
           fi
 
           if [ -f requirements.txt ]; then
