@@ -44,8 +44,7 @@ SYMFLUENCE uses a comprehensive testing strategy with multiple test levels to en
 **What it does:**
 - **Unit Tests Matrix:** All OS × All Python versions
   - Ubuntu (Linux)
-  - macOS 13 (Intel)
-  - macOS 14 (ARM/M1/M2)
+  - macOS latest (ARM/M1/M2/M3)
   - Python 3.9, 3.10, 3.11
 - **Binary Validation Matrix:** All platforms
   - Validates SUMMA, mizuRoute, TauDEM work on each OS
