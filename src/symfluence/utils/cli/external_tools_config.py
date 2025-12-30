@@ -105,7 +105,7 @@ cd "sundials-${SUNDIALS_VER}"
 rm -rf build && mkdir build && cd build
 cmake .. \
   -DBUILD_FORTRAN_MODULE_INTERFACE=ON \
-  -DCMAKE_Fortran_COMPILER=gfortran \
+  -DCMAKE_Fortran_COMPILER="$FC" \
   -DCMAKE_INSTALL_PREFIX="${SUNDIALS_PREFIX}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_SHARED_LIBS=ON \
@@ -187,7 +187,7 @@ cmake -S build -B cmake_build \
   -DSUNDIALS_ROOT="$SUNDIALS_DIR" \
   -DNETCDF_PATH="${NETCDF:-/usr}" \
   -DNETCDF_FORTRAN_PATH="${NETCDF_FORTRAN:-/usr}" \
-  -DCMAKE_Fortran_COMPILER=gfortran \
+  -DCMAKE_Fortran_COMPILER="$FC" \
   -DCMAKE_Fortran_FLAGS="-ffree-form -ffree-line-length-none"
 
 # Build all targets (repo scripts use 'all', not just 'summa_sundials')
