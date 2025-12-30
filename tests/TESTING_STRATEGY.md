@@ -16,7 +16,7 @@ SYMFLUENCE uses a comprehensive testing strategy with multiple test levels to en
 - Checks code style and common issues
 - No installation of external binaries required
 
-### 2. SYMFLUENCE - Full Install & Validate (`.github/workflows/install-validate.yml`)
+### 2. SYMFLUENCE - Parallel Install & Validate (`.github/workflows/install-validate-parallel.yml`)
 **Triggers:**
 - Push/PR to main or develop (runs **quick** tests)
 - Manual dispatch with test level selection (smoke/quick/full)
@@ -24,9 +24,38 @@ SYMFLUENCE uses a comprehensive testing strategy with multiple test levels to en
 - Main branch pushes (runs **full** tests)
 
 **What it does:**
-- Full installation of SUMMA, mizuRoute, TauDEM, FUSE binaries
-- Complete Python environment setup
-- Comprehensive testing based on trigger
+- **Phase 1:** Install dependencies once (~20 min)
+  - Build SUMMA, mizuRoute, TauDEM, FUSE
+  - Package as artifacts
+- **Phase 2:** Run tests in parallel (~45 min for full)
+  - Unit Tests
+  - Binary Validation
+  - Integration Tests
+  - E2E Quick (3-hour SUMMA)
+  - E2E Full (1-month workflows + calibration)
+
+**Performance:** 33-60% faster than sequential execution
+
+### 3. Cross-Platform Testing (`.github/workflows/cross-platform.yml`)
+**Triggers:** Every push/PR to main or develop
+**Duration:** ~20-30 minutes
+**Purpose:** Ensure compatibility across OS and Python versions
+
+**What it does:**
+- **Unit Tests Matrix:** All OS × All Python versions
+  - Ubuntu (Linux)
+  - macOS 13 (Intel)
+  - macOS 14 (ARM/M1/M2)
+  - Python 3.9, 3.10, 3.11
+- **Binary Validation Matrix:** All platforms
+  - Validates SUMMA, mizuRoute, TauDEM work on each OS
+- **Integration Tests:** Subset (Linux + macOS ARM)
+  - Basic workflow tests on each platform
+
+### 4. SYMFLUENCE - Full Install & Validate (`.github/workflows/install-validate.yml`)
+**Status:** Legacy sequential workflow (kept for comparison)
+**Duration:** ~90 minutes for full tests
+**Will be deprecated** once parallel workflow is validated
 
 ## Test Levels
 
