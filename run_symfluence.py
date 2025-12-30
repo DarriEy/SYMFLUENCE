@@ -8,15 +8,15 @@ It delegates all execution to the actual package entry point in src/symfluence/c
 import sys
 from pathlib import Path
 
-# Check if package is already installed
+# Check if package is fully installed (including utils)
 package_installed = False
 try:
-    import symfluence
+    import symfluence.utils
     package_installed = True
 except ImportError:
     pass
 
-# Only add src to path if package is not installed
+# Only add src to path if package is not fully installed
 if not package_installed:
     src_path = Path(__file__).parent / "src"
     sys.path.insert(0, str(src_path))
