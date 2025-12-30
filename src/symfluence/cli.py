@@ -1,8 +1,8 @@
 def main():
     import sys
     from pathlib import Path
-    from utils.cli.cli_argument_manager import CLIArgumentManager
-    from symfluence import SYMFLUENCE
+    from symfluence.utils.cli.cli_argument_manager import CLIArgumentManager
+    from symfluence.core import SYMFLUENCE
 
     cli = CLIArgumentManager()
     args = cli.parse_arguments()
