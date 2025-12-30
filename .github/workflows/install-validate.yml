@@ -2,10 +2,12 @@ name: SYMFLUENCE - Full Install & Validate
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]  # Only run on main branch pushes (releases)
   pull_request:
-    branches: [ main, develop ]
-  workflow_dispatch: {}
+    branches: [ main ]  # Run on PRs to main
+  workflow_dispatch: {}  # Allow manual trigger
+  schedule:
+    - cron: '0 2 * * 0'  # Run weekly on Sundays at 2 AM UTC
 
 defaults:
   run:
