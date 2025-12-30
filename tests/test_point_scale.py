@@ -117,6 +117,8 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
     return cfg_path, config
 
 
+@pytest.mark.slow
+@pytest.mark.requires_data
 def test_point_scale_workflow(config_path):
     """
     Test point-scale workflow for SUMMA.
