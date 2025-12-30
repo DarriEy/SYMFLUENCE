@@ -157,9 +157,14 @@ jobs:
           chmod +x ./symfluence
           ./symfluence --install
 
-      - name: Add TauDEM to PATH
+      - name: Add external tools to PATH
         run: |
           set -e
+          # Add SUMMA
+          echo "${{ env.SYMFLUENCE_DATA }}/installs/summa/bin" >> $GITHUB_PATH
+          # Add mizuRoute
+          echo "${{ env.SYMFLUENCE_DATA }}/installs/mizuRoute/bin" >> $GITHUB_PATH
+          # Add TauDEM
           echo "${{ env.SYMFLUENCE_DATA }}/installs/TauDEM/bin" >> $GITHUB_PATH
 
       - name: Activate venv for subsequent steps
