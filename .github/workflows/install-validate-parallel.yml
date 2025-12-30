@@ -29,19 +29,37 @@ concurrency:
 
 jobs:
   # ===========================================================================
-  # PHASE 1: Install everything once
+  # PHASE 1: Install everything once (per platform/python combo)
   # ===========================================================================
   install:
-    name: Install Dependencies & Build Tools
-    runs-on: ubuntu-22.04
-    timeout-minutes: 25
+    name: Install (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ['3.11']  # Default: test with 3.11
+        include:
+          # Full mode: test multiple Python versions on Linux
+          - os: ubuntu-latest
+            python-version: '3.9'
+            full-only: true
+          - os: ubuntu-latest
+            python-version: '3.10'
+            full-only: true
+          # Full mode: test multiple Python versions on macOS
+          - os: macos-latest
+            python-version: '3.10'
+            full-only: true
 
     env:
       TZ: UTC
       CI: "1"
       NONINTERACTIVE: "1"
       SYMFLUENCE_CODE: ${{ github.workspace }}
-      SYMFLUENCE_DATA: /home/runner/work/SYMFLUENCE/SYMFLUENCE_data
+      SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
 
     outputs:
       test_level: ${{ steps.test_level.outputs.test_level }}
@@ -73,10 +91,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
-      - name: Install system build deps
+      - name: Install system build deps (Linux)
+        if: runner.os == 'Linux'
         run: |
           set -e
           sudo apt-get update
@@ -94,6 +113,15 @@ jobs:
             python3-dev python3-pip python3-numpy python3-gdal
           mpicc --version
           mpirun --version
+          gdal-config --version
+
+      - name: Install system build deps (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -e
+          brew install gcc cmake ninja open-mpi netcdf netcdf-fortran hdf5 gdal wget
+          gcc --version
+          mpicc --version
           gdal-config --version
 
       - name: Configure compiler and library env
@@ -165,7 +193,7 @@ jobs:
       - name: Package installation for parallel jobs
         run: |
           set -e
-          echo "Packaging installation artifacts..."
+          echo "Packaging installation artifacts for ${{ matrix.os }} Python ${{ matrix.python-version }}..."
 
           # Create tarball of venv (exclude cache to save space)
           tar -czf venv.tar.gz \
@@ -187,7 +215,7 @@ jobs:
       - name: Upload installation artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: symfluence-installation
+          name: symfluence-installation-${{ matrix.os }}-py${{ matrix.python-version }}
           path: |
             venv.tar.gz
             tools.tar.gz
@@ -200,10 +228,16 @@ jobs:
   # ===========================================================================
 
   unit-tests:
-    name: Unit Tests
+    name: Unit Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
     needs: install
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ['3.11', '3.10', '3.9']
 
     steps:
       - name: Checkout
@@ -212,12 +246,13 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
 
       - name: Download installation
         uses: actions/download-artifact@v4
         with:
-          name: symfluence-installation
+          name: symfluence-installation-${{ matrix.os }}-py${{ matrix.python-version }}
+        continue-on-error: true  # May not exist for all combos
 
       - name: Restore venv
         run: |
