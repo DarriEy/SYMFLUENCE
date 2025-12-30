@@ -111,7 +111,7 @@ def test_quick_workflow_summa_only(
     config["SYMFLUENCE_CODE_DIR"] = str(symfluence_code_dir)
 
     # Minimal 3-hour simulation
-    config["DOMAIN_NAME"] = "bow_banff_minimal"
+    config["DOMAIN_NAME"] = "Bow_at_Banff_lumped"  # Match existing test data files
     config["EXPERIMENT_ID"] = f"test_quick_{tmp_path.name}"
     config["EXPERIMENT_TIME_START"] = "2004-01-01 01:00"
     config["EXPERIMENT_TIME_END"] = "2004-01-01 04:00"  # 3 hours
@@ -211,7 +211,7 @@ def test_full_workflow_1month(
     config["SYMFLUENCE_CODE_DIR"] = str(symfluence_code_dir)
 
     # 1-month simulation
-    config["DOMAIN_NAME"] = "bow_banff_minimal"
+    config["DOMAIN_NAME"] = "Bow_at_Banff_lumped"  # Match existing test data files
     config["EXPERIMENT_ID"] = f"test_full_{model}_{tmp_path.name}"
     config["EXPERIMENT_TIME_START"] = "2004-01-01 01:00"
     config["EXPERIMENT_TIME_END"] = "2004-01-31 23:00"  # 1 month
@@ -275,7 +275,7 @@ def test_calibration_workflow(tmp_path, symfluence_code_dir, symfluence_data_roo
     config["SYMFLUENCE_CODE_DIR"] = str(symfluence_code_dir)
 
     # Calibration settings
-    config["DOMAIN_NAME"] = "bow_banff_minimal"
+    config["DOMAIN_NAME"] = "Bow_at_Banff_lumped"  # Match existing test data files
     config["EXPERIMENT_ID"] = f"test_calib_{tmp_path.name}"
     config["EXPERIMENT_TIME_START"] = "2004-01-01 01:00"
     config["EXPERIMENT_TIME_END"] = "2004-01-31 23:00"
