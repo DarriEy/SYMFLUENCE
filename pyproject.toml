@@ -2,9 +2,12 @@
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build]
+packages = ["src/symfluence"]
+
 [project]
 name = "symfluence"
-version = "0.6.0"         # <- static to avoid plugin issues
+version = "0.5.6"         # <- static to avoid plugin issues
 description = "SYnergistic Modelling Framework for Linking and Unifying Earth-system Nexii for Computational Exploration"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -67,23 +70,14 @@ Source = "https://github.com/DarriEy/SYMFLUENCE"
 Issues = "https://github.com/DarriEy/SYMFLUENCE/issues"
 Documentation = "https://symfluence.org/"
 
-[tool.hatch.build.targets.wheel]
-# ship both the wrapper and your existing utils package (no moves)
-packages = ["src/symfluence", "utils"]
-
 [tool.hatch.build.targets.sdist]
 include = [
   "src/symfluence",
-  "utils",
   "README.md",
   "LICENSE",
   "MANIFEST.in",
-  "requirements.txt",
-  "symfluence_version.py" 
+  "requirements.txt"
 ]
-
-[tool.hatch.build.targets.wheel.force-include]
-"symfluence_version.py" = "symfluence_version.py"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
