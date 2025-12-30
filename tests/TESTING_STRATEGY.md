@@ -24,17 +24,26 @@ SYMFLUENCE uses a comprehensive testing strategy with multiple test levels to en
 - Main branch pushes (runs **full** tests)
 
 **What it does:**
-- **Phase 1:** Install dependencies once (~20 min)
+- **Phase 1:** Install dependencies on multi-platform matrix (~20-30 min)
+  - Quick mode: 2 jobs (ubuntu-latest + macos-latest × Python 3.11)
+  - Full mode: 5 jobs (ubuntu × [3.9, 3.10, 3.11] + macos × [3.10, 3.11])
+  - Platform-specific dependency installation (apt vs brew)
   - Build SUMMA, mizuRoute, TauDEM, FUSE
-  - Package as artifacts
+  - Package as platform-specific artifacts
 - **Phase 2:** Run tests in parallel (~45 min for full)
-  - Unit Tests
-  - Binary Validation
-  - Integration Tests
-  - E2E Quick (3-hour SUMMA)
-  - E2E Full (1-month workflows + calibration)
+  - Unit Tests (runs on all platform/Python combos)
+  - Binary Validation (ubuntu-latest only)
+  - Integration Tests (ubuntu-latest only)
+  - E2E Quick (3-hour SUMMA, ubuntu-latest only)
+  - E2E Full (1-month workflows + calibration, ubuntu-latest only)
 
 **Performance:** 33-60% faster than sequential execution
+
+**Multi-Platform Support:**
+- Tests builds on both Linux (x86_64) and macOS (ARM)
+- Validates unit tests across Python 3.9, 3.10, 3.11
+- Platform-specific compiler configurations
+- Artifact naming: `symfluence-installation-{os}-py{version}`
 
 ### 3. Cross-Platform Testing (`.github/workflows/cross-platform.yml`)
 **Triggers:** Every push/PR to main or develop
