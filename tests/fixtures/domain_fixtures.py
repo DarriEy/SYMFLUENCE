@@ -25,7 +25,7 @@ def minimal_config_3hr(tmp_path, symfluence_code_dir):
     Returns:
         tuple: (config_path, config_dict)
     """
-    from tests.utils.helpers import load_config_template, write_config
+    from ..utils.helpers import load_config_template, write_config
 
     config = load_config_template(symfluence_code_dir)
 
@@ -58,7 +58,7 @@ def standard_config_1month(tmp_path, symfluence_code_dir):
     Returns:
         tuple: (config_path, config_dict)
     """
-    from tests.utils.helpers import load_config_template, write_config
+    from ..utils.helpers import load_config_template, write_config
 
     config = load_config_template(symfluence_code_dir)
 
@@ -94,7 +94,7 @@ def calibration_config(tmp_path, symfluence_code_dir):
     Returns:
         tuple: (config_path, config_dict)
     """
-    from tests.utils.helpers import load_config_template, write_config
+    from ..utils.helpers import load_config_template, write_config
 
     config = load_config_template(symfluence_code_dir)
 

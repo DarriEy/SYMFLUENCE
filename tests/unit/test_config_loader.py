@@ -1,7 +1,17 @@
+"""
+Unit tests for configuration normalization and validation.
+
+Tests the config_loader module's ability to handle aliases, type coercion,
+and validation of configuration dictionaries.
+"""
+
 import pytest
 import yaml
 
-from utils.config.config_loader import normalize_config, validate_config
+from symfluence.utils.config.config_loader import normalize_config, validate_config
+
+
+pytestmark = [pytest.mark.unit, pytest.mark.quick]
 
 
 def test_normalize_config_aliases_and_case():

@@ -1,8 +1,8 @@
 """
-SYMFLUENCE Regional Domain Integration Tests
+SYMFLUENCE Point-Scale Integration Tests
 
-Tests the regional workflow from notebook 03a (Iceland example) for SUMMA.
-Builds and runs the model without calibration.
+Tests the point-scale workflow from notebook 01a (Paradise SNOTEL example).
+Runs a short SUMMA simulation for a point domain.
 """
 
 import pytest
@@ -14,8 +14,8 @@ from pathlib import Path
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
-from test_helpers import load_config_template, write_config
-from utils_geospatial import (
+from tests.utils.helpers import load_config_template, write_config
+from tests.utils.geospatial import (
     assert_shapefile_signature_matches,
     load_shapefile_signature,
 )
@@ -26,14 +26,11 @@ EXAMPLE_DATA_URL = "https://github.com/DarriEy/SYMFLUENCE/releases/download/exam
 
 @pytest.fixture(scope="module")
 def test_data_dir(symfluence_data_root):
-    """
-    Download and extract example data to ../SYMFLUENCE_data/ for testing.
-    """
-    # Use ../SYMFLUENCE_data/ parallel to the code directory
+    """Ensure example data exists in a writable SYMFLUENCE_data directory."""
     data_root = symfluence_data_root
 
     # Check if example domain already exists
-    example_domain = "domain_Iceland"
+    example_domain = "domain_paradise"
     example_domain_path = data_root / example_domain
 
     # Download if it doesn't exist
@@ -75,7 +72,7 @@ def test_data_dir(symfluence_data_root):
     else:
         print(f"Using existing test data at {example_domain_path}")
 
-    yield data_root
+    return data_root
 
 
 @pytest.fixture(scope="function")
@@ -88,42 +85,30 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
     config["SYMFLUENCE_DATA_DIR"] = str(test_data_dir)
     config["SYMFLUENCE_CODE_DIR"] = str(symfluence_code_dir)
 
-    # Regional Iceland settings from notebook 03a
-    config["DOMAIN_NAME"] = "Iceland"
-    config["DOMAIN_DEFINITION_METHOD"] = "delineate"
-    config["DELINEATION_METHOD"] = "stream_threshold"
-    config["DELINEATE_COASTAL_WATERSHEDS"] = False
-    config["DELINEATE_BY_POURPOINT"] = False
-    config["CLEANUP_INTERMEDIATE_FILES"] = False
-
-    config["BOUNDING_BOX_COORDS"] = "66.5/-25.0/63.0/-13.0"
-    config["POUR_POINT_COORDS"] = "64.01/-16.01"
-    config["STREAM_THRESHOLD"] = 2000
-
-    # Experiment settings (shortened for testing)
-    config["EXPERIMENT_ID"] = f"test_{tmp_path.name}"
-    config["EXPERIMENT_TIME_START"] = "2010-01-01 01:00"
-    config["EXPERIMENT_TIME_END"] = "2010-01-01 23:00"
-
-    # Limit forcing remapping to a single monthly file
-    source_forcing_dir = (
-        Path(config["SYMFLUENCE_DATA_DIR"])
-        / f"domain_{config['DOMAIN_NAME']}"
-        / "forcing"
-        / "raw_data"
-    )
-    subset_dir = tmp_path / "forcing_subset"
-    subset_dir.mkdir(parents=True, exist_ok=True)
-    forcing_candidates = sorted(source_forcing_dir.glob("*.nc"))
-    if not forcing_candidates:
-        raise FileNotFoundError(f"No forcing files found in {source_forcing_dir}")
-    shutil.copy2(forcing_candidates[0], subset_dir / forcing_candidates[0].name)
-    config["FORCING_PATH"] = str(subset_dir)
-
-    # Model settings
-    config["HYDROLOGICAL_MODEL"] = "SUMMA"
-    config["ROUTING_MODEL"] = "mizuRoute"
+    # Point-scale settings from notebook 01a
+    config["DOMAIN_DEFINITION_METHOD"] = "point"
     config["DOMAIN_DISCRETIZATION"] = "GRUs"
+    config["BOUNDING_BOX_COORDS"] = "46.781/-121.751/46.779/-121.749"
+    config["POUR_POINT_COORDS"] = "46.78/-121.75"
+
+    # Data sources
+    config["DOWNLOAD_SNOTEL"] = False
+    config["SNOTEL_STATION"] = "679"
+
+    # Model and forcing
+    config["HYDROLOGICAL_MODEL"] = "SUMMA"
+    config["FORCING_DATASET"] = "ERA5"
+
+    # Short 1-month period for testing
+    config["EXPERIMENT_TIME_START"] = "2000-01-01 01:00"
+    config["EXPERIMENT_TIME_END"] = "2000-01-31 23:00"
+    config["CALIBRATION_PERIOD"] = "2000-01-05, 2000-01-19"
+    config["EVALUATION_PERIOD"] = "2000-01-20, 2000-01-30"
+    config["SPINUP_PERIOD"] = "2000-01-01, 2000-01-04"
+
+    # Domain and experiment ids
+    config["DOMAIN_NAME"] = "paradise"
+    config["EXPERIMENT_ID"] = f"test_{tmp_path.name}"
 
     # Save config
     cfg_path = tmp_path / "test_config.yaml"
@@ -134,14 +119,14 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
 
 @pytest.mark.slow
 @pytest.mark.requires_data
-def test_regional_domain_workflow(config_path):
+def test_point_scale_workflow(config_path):
     """
-    Test regional domain workflow for SUMMA (no calibration).
+    Test point-scale workflow for SUMMA.
 
-    Follows notebook 03a workflow:
+    Follows notebook 01a workflow:
     1. Setup project
     2. Create pour point
-    3. Define regional domain
+    3. Define domain (point)
     4. Discretize domain
     5. Model-agnostic preprocessing
     6. Model-specific preprocessing
@@ -157,21 +142,14 @@ def test_regional_domain_workflow(config_path):
     baseline_river_basins = (
         baseline_dir
         / "river_basins"
-        / f"{config['DOMAIN_NAME']}_riverBasins_delineate.shp"
-    )
-    baseline_river_network = (
-        baseline_dir
-        / "river_network"
-        / f"{config['DOMAIN_NAME']}_riverNetwork_delineate.shp"
+        / f"{config['DOMAIN_NAME']}_riverBasins_point.shp"
     )
     baseline_hrus = (
         baseline_dir / "catchment" / f"{config['DOMAIN_NAME']}_HRUs_GRUs.shp"
     )
     assert baseline_river_basins.exists(), "Baseline river basins shapefile missing"
-    assert baseline_river_network.exists(), "Baseline river network shapefile missing"
     assert baseline_hrus.exists(), "Baseline HRU shapefile missing"
     expected_river_basins = load_shapefile_signature(baseline_river_basins)
-    expected_river_network = load_shapefile_signature(baseline_river_network)
     expected_hrus = load_shapefile_signature(baseline_hrus)
 
     # Initialize SYMFLUENCE
@@ -185,8 +163,8 @@ def test_regional_domain_workflow(config_path):
     pour_point_path = symfluence.managers["project"].create_pour_point()
     assert Path(pour_point_path).exists(), "Pour point shapefile should be created"
 
-    # Step 3: Define regional domain
-    watershed_path, delineation_artifacts = symfluence.managers["domain"].define_domain()
+    # Step 3: Define domain (point)
+    domain_path, delineation_artifacts = symfluence.managers["domain"].define_domain()
     assert (
         delineation_artifacts.method == config["DOMAIN_DEFINITION_METHOD"]
     ), "Delineation method mismatch"
@@ -197,17 +175,12 @@ def test_regional_domain_workflow(config_path):
         discretization_artifacts.method == config["DOMAIN_DISCRETIZATION"]
     ), "Discretization method mismatch"
 
-    # Verify geospatial artifacts (03a)
+    # Verify geospatial artifacts (01a)
     shapefile_dir = project_dir / "shapefiles"
     river_basins_path = delineation_artifacts.river_basins_path or (
         shapefile_dir
         / "river_basins"
-        / f"{config['DOMAIN_NAME']}_riverBasins_delineate.shp"
-    )
-    river_network_path = delineation_artifacts.river_network_path or (
-        shapefile_dir
-        / "river_network"
-        / f"{config['DOMAIN_NAME']}_riverNetwork_delineate.shp"
+        / f"{config['DOMAIN_NAME']}_riverBasins_point.shp"
     )
     hrus_path = (
         discretization_artifacts.hru_paths
@@ -215,18 +188,11 @@ def test_regional_domain_workflow(config_path):
         else shapefile_dir / "catchment" / f"{config['DOMAIN_NAME']}_HRUs_GRUs.shp"
     )
     assert river_basins_path.exists()
-    assert river_network_path.exists()
     assert hrus_path.exists()
     assert_shapefile_signature_matches(river_basins_path, expected_river_basins)
-    assert_shapefile_signature_matches(river_network_path, expected_river_network)
     assert_shapefile_signature_matches(hrus_path, expected_hrus)
 
     # Step 5: Model-agnostic preprocessing
-    for subdir in ["SUMMA_input", "basin_averaged_data", "merged_path"]:
-        shutil.rmtree(project_dir / "forcing" / subdir, ignore_errors=True)
-    weights_dir = project_dir / "shapefiles" / "catchment_intersection" / "with_forcing"
-    for weight_file in weights_dir.glob("*_HRU_ID_remapping.nc"):
-        weight_file.unlink(missing_ok=True)
     symfluence.managers["data"].run_model_agnostic_preprocessing()
 
     # Step 6: Model-specific preprocessing
@@ -236,11 +202,8 @@ def test_regional_domain_workflow(config_path):
     symfluence.managers["model"].run_models()
 
     # Check model output exists
-    sim_dir = project_dir / "simulations" / config["EXPERIMENT_ID"]
-    summa_dir = sim_dir / "SUMMA"
-    routing_dir = sim_dir / "mizuRoute"
-    assert summa_dir.exists(), "SUMMA simulation output directory should exist"
-    assert routing_dir.exists(), "mizuRoute simulation output directory should exist"
+    sim_dir = project_dir / "simulations" / config["EXPERIMENT_ID"] / "SUMMA"
+    assert sim_dir.exists(), "SUMMA simulation output directory should exist"
 
 
 if __name__ == "__main__":
