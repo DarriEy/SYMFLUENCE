@@ -35,6 +35,12 @@ jobs:
     name: Install (${{ matrix.os }}, Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    # Skip full-only combinations unless in full mode
+    if: |
+      matrix.full-only != true ||
+      github.event_name == 'schedule' ||
+      github.ref == 'refs/heads/main' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.test_level == 'full')
 
     strategy:
       fail-fast: false
@@ -65,7 +71,8 @@ jobs:
       test_level: ${{ steps.test_level.outputs.test_level }}
 
     steps:
-      - name: Free up disk space
+      - name: Free up disk space (Linux)
+        if: runner.os == 'Linux'
         run: |
           echo "Disk space before cleanup:"
           df -h
@@ -124,7 +131,8 @@ jobs:
           mpicc --version
           gdal-config --version
 
-      - name: Configure compiler and library env
+      - name: Configure compiler and library env (Linux)
+        if: runner.os == 'Linux'
         run: |
           set -e
           # Save environment configuration to file for later jobs
@@ -145,7 +153,19 @@ jobs:
           export CXX=mpicxx
           EOF
 
-      - name: Create /usr/lib64 symlinks
+      - name: Configure compiler and library env (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -e
+          # Save environment configuration to file for later jobs
+          cat > ${{ github.workspace }}/env_config.sh <<'EOF'
+          export CC=gcc-14
+          export CXX=g++-14
+          export FC=gfortran-14
+          EOF
+
+      - name: Create /usr/lib64 symlinks (Linux only)
+        if: runner.os == 'Linux'
         run: |
           set -e
           sudo mkdir -p /usr/lib64
@@ -232,12 +252,30 @@ jobs:
     needs: install
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
+    # Skip full-only combinations unless in full mode
+    if: |
+      matrix.full-only != true ||
+      github.event_name == 'schedule' ||
+      github.ref == 'refs/heads/main' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.test_level == 'full')
 
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ['3.11', '3.10', '3.9']
+        python-version: ['3.11']  # Default: test with 3.11
+        include:
+          # Full mode: test multiple Python versions on Linux
+          - os: ubuntu-latest
+            python-version: '3.9'
+            full-only: true
+          - os: ubuntu-latest
+            python-version: '3.10'
+            full-only: true
+          # Full mode: test multiple Python versions on macOS
+          - os: macos-latest
+            python-version: '3.10'
+            full-only: true
 
     steps:
       - name: Checkout
@@ -252,7 +290,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: symfluence-installation-${{ matrix.os }}-py${{ matrix.python-version }}
-        continue-on-error: true  # May not exist for all combos
 
       - name: Restore venv
         run: |
@@ -290,7 +327,7 @@ jobs:
       - name: Download installation
         uses: actions/download-artifact@v4
         with:
-          name: symfluence-installation
+          name: symfluence-installation-ubuntu-latest-py3.11
 
       - name: Restore installation
         run: |
@@ -343,7 +380,7 @@ jobs:
       - name: Download installation
         uses: actions/download-artifact@v4
         with:
-          name: symfluence-installation
+          name: symfluence-installation-ubuntu-latest-py3.11
 
       - name: Restore installation
         run: |
@@ -395,7 +432,7 @@ jobs:
       - name: Download installation
         uses: actions/download-artifact@v4
         with:
-          name: symfluence-installation
+          name: symfluence-installation-ubuntu-latest-py3.11
 
       - name: Restore installation
         run: |
@@ -465,7 +502,7 @@ jobs:
       - name: Download installation
         uses: actions/download-artifact@v4
         with:
-          name: symfluence-installation
+          name: symfluence-installation-ubuntu-latest-py3.11
 
       - name: Restore installation
         run: |
