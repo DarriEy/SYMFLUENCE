@@ -24,6 +24,9 @@ from utils.geospatial import (
 EXAMPLE_DATA_URL = "https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-v0.5.5/example_data_v0.5.5.zip"
 
 
+
+pytestmark = [pytest.mark.integration, pytest.mark.domain, pytest.mark.requires_data, pytest.mark.slow]
+
 @pytest.fixture(scope="module")
 def test_data_dir(symfluence_data_root):
     """Ensure example data exists in a writable SYMFLUENCE_data directory."""

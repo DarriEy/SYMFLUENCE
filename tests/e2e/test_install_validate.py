@@ -12,6 +12,9 @@ from pathlib import Path
 from symfluence import SYMFLUENCE
 
 
+
+pytestmark = [pytest.mark.e2e, pytest.mark.ci_quick]
+
 @pytest.mark.e2e
 @pytest.mark.ci_quick
 @pytest.mark.smoke
