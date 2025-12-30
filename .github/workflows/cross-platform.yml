@@ -53,6 +53,8 @@ jobs:
           fi
 
       - name: Install Python dependencies
+        env:
+          RPY2_CFFI_MODE: ABI  # Skip R requirement for rpy2
         run: |
           python -m pip install --upgrade pip
 
@@ -131,6 +133,8 @@ jobs:
           brew install gcc cmake open-mpi netcdf netcdf-fortran hdf5 gdal
 
       - name: Install Python dependencies
+        env:
+          RPY2_CFFI_MODE: ABI  # Skip R requirement for rpy2
         run: |
           python -m pip install --upgrade pip
 
@@ -232,6 +236,8 @@ jobs:
           brew install gcc cmake open-mpi netcdf netcdf-fortran hdf5 gdal
 
       - name: Install Python dependencies
+        env:
+          RPY2_CFFI_MODE: ABI  # Skip R requirement for rpy2
         run: |
           python -m pip install --upgrade pip
 
