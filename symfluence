@@ -19,7 +19,7 @@ trap 'error_handler $LINENO' ERR
 # Configuration
 # ----------------------------------------------------------------------
 SCRIPT_NAME="symfluence"
-SYMFLUENCE_SCRIPT="symfluence.py"
+SYMFLUENCE_SCRIPT="run_symfluence.py"
 MIN_PYTHON_VERSION="3.11"
 REQUIRED_PYTHON_VERSION="3.11"
 
