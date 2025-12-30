@@ -131,7 +131,7 @@ class WorkflowOrchestrator:
                 self.managers['data'].process_observed_data,
                 lambda: (self.project_dir / "observations" / "streamflow" / "preprocessed" /
                         f"{self.domain_name}_streamflow_processed.csv").exists(),
-                "Processing observed streamflow data"
+                "Processing observed data"
             ),
             (
                 self.managers['data'].acquire_forcings,

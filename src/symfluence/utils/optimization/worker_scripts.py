@@ -1648,6 +1648,12 @@ def _apply_parameters_worker(params: Dict, task_data: Dict, settings_dir: Path, 
         local_params = [p.strip() for p in config.get('PARAMS_TO_CALIBRATE', '').split(',') if p.strip()]
         basin_params = [p.strip() for p in config.get('BASIN_PARAMS_TO_CALIBRATE', '').split(',') if p.strip()]
         depth_params = ['total_mult', 'shape_factor'] if config.get('CALIBRATE_DEPTH', False) else []
+        
+        # Add support for new multiplier
+        if 'total_soil_depth_multiplier' in params:
+            if 'total_soil_depth_multiplier' not in depth_params:
+                depth_params.append('total_soil_depth_multiplier')
+        
         mizuroute_params = []
         
         if config.get('CALIBRATE_MIZUROUTE', False):
@@ -1655,7 +1661,8 @@ def _apply_parameters_worker(params: Dict, task_data: Dict, settings_dir: Path, 
             mizuroute_params = [p.strip() for p in mizuroute_params_str.split(',') if p.strip()]
         
         # 1. Handle soil depth parameters
-        if depth_params and 'total_mult' in params and 'shape_factor' in params:
+        has_depth_params = any(p in params for p in ['total_soil_depth_multiplier', 'total_mult', 'shape_factor'])
+        if has_depth_params:
             logger.debug("Updating soil depths (consistent)")
             if not _update_soil_depths_worker(params, task_data, settings_dir, logger, debug_info):
                 return False
@@ -1695,8 +1702,15 @@ def _update_soil_depths_worker(params: Dict, task_data: Dict, settings_dir: Path
         
         original_depths = np.array(original_depths_list)
         
-        total_mult = params['total_mult'][0] if isinstance(params['total_mult'], np.ndarray) else params['total_mult']
-        shape_factor = params['shape_factor'][0] if isinstance(params['shape_factor'], np.ndarray) else params['shape_factor']
+        # Support both new and legacy parameter names
+        total_mult = params.get('total_soil_depth_multiplier')
+        if total_mult is None:
+            total_mult = params.get('total_mult', 1.0)
+            
+        shape_factor = params.get('shape_factor', 1.0)
+        
+        if isinstance(total_mult, np.ndarray): total_mult = total_mult[0]
+        if isinstance(shape_factor, np.ndarray): shape_factor = shape_factor[0]
         
         logger.debug(f"Updating soil depths: total_mult={total_mult:.3f}, shape_factor={shape_factor:.3f}")
         
