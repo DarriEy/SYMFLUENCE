@@ -412,7 +412,7 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
         """
         self.logger.info("Creating NEX-GDDP-CMIP6 grid shapefile")
 
-        output_shapefile = shapefile_path / f"forcing_{self.config['FORCING_DATASET']}.shp"
+        output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
 
         nex_files = list(merged_forcing_path.glob("*.nc"))
         if not nex_files:

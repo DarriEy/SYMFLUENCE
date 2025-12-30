@@ -275,7 +275,7 @@ class HRRRHandler(BaseDatasetHandler):
         """
         self.logger.info("Creating HRRR grid shapefile")
 
-        output_shapefile = shapefile_path / f"forcing_{self.config['FORCING_DATASET']}.shp"
+        output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
 
         hrrr_files = list(merged_forcing_path.glob("*.nc"))
         if not hrrr_files:

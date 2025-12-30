@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Optional
 
 import yaml
+
+from utils.config.defaults import ConfigDefaults
 
 
 ALIAS_MAP = {
@@ -68,15 +71,70 @@ def load_config(
     overrides: Optional[Mapping[str, Any]] = None,
     *,
     validate: bool = True,
+    use_env: bool = True,
 ) -> Dict[str, Any]:
+    """
+    Load configuration with precedence: CLI overrides > ENV vars > Config file > Defaults
+
+    Args:
+        path: Path to configuration YAML file
+        overrides: Dictionary of CLI/programmatic overrides
+        validate: Whether to validate required keys
+        use_env: Whether to load environment variables (default: True)
+
+    Returns:
+        Normalized and merged configuration dictionary
+
+    Environment Variables:
+        Config values can be overridden with environment variables prefixed with SYMFLUENCE_
+        Example: SYMFLUENCE_DEBUG_MODE=true will set DEBUG_MODE to True
+    """
+    # 1. Start with defaults
+    config = ConfigDefaults.get_defaults().copy()
+
+    # 2. Load from file
     with open(path, "r") as f:
-        config = yaml.safe_load(f) or {}
+        file_config = yaml.safe_load(f) or {}
+    config.update(file_config)
+
+    # 3. Override with environment variables
+    if use_env:
+        env_overrides = _load_env_overrides()
+        config.update(env_overrides)
+
+    # 4. Apply CLI overrides (highest priority)
     if overrides:
         config.update(overrides)
+
+    # 5. Normalize and validate
     normalized = normalize_config(config)
     if validate:
         validate_config(normalized)
     return normalized
+
+
+def _load_env_overrides() -> Dict[str, Any]:
+    """
+    Load configuration overrides from environment variables.
+
+    Environment variables prefixed with SYMFLUENCE_ are loaded as config overrides.
+    Examples:
+        SYMFLUENCE_DEBUG_MODE=true -> DEBUG_MODE: true
+        SYMFLUENCE_MPI_PROCESSES=4 -> MPI_PROCESSES: 4
+
+    Returns:
+        Dictionary of environment variable overrides
+    """
+    env_overrides = {}
+    prefix = "SYMFLUENCE_"
+
+    for env_key, env_value in os.environ.items():
+        if env_key.startswith(prefix):
+            # Remove prefix to get config key
+            config_key = env_key[len(prefix):]
+            env_overrides[config_key] = env_value
+
+    return env_overrides
 
 
 def normalize_config(config: Mapping[str, Any]) -> Dict[str, Any]:

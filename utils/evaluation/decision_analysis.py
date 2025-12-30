@@ -55,14 +55,14 @@ class DecisionAnalyzer:
     def calculate_performance_metrics(self) -> Tuple[float, float, float, float, float]:
         obs_file_path = self.config.get('OBSERVATIONS_PATH')
         if obs_file_path == 'default':
-            obs_file_path = self.project_dir / 'observations'/ 'streamflow' / 'preprocessed' / f"{self.config['DOMAIN_NAME']}_streamflow_processed.csv"
+            obs_file_path = self.project_dir / 'observations'/ 'streamflow' / 'preprocessed' / f"{self.config.get('DOMAIN_NAME')}_streamflow_processed.csv"
         else:
             obs_file_path = Path(obs_file_path)
 
         sim_reach_ID = self.config.get('SIM_REACH_ID')
 
         if self.config.get('SIMULATIONS_PATH') == 'default':
-            sim_file_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'mizuRoute' / f"{self.config['EXPERIMENT_ID']}.h.{self.config.get('EXPERIMENT_TIME_START').split('-')[0]}-01-01-03600.nc"
+            sim_file_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'mizuRoute' / f"{self.config.get('EXPERIMENT_ID')}.h.{self.config.get('EXPERIMENT_TIME_START').split('-')[0]}-01-01-03600.nc"
         else:
             sim_file_path = Path(self.config.get('SIMULATIONS_PATH'))
 

@@ -1,6 +1,6 @@
 # Configuration Files
 
-This directory contains the configuration templates that control all aspects of CONFLUENCE workflows.  
+This directory contains the configuration templates that control all aspects of SYMFLUENCE workflows.  
 Configurations define experiment setup, model selection, data paths, and analysis parameters across the workflow—from conceptualization to evaluation.
 
 ---
@@ -37,7 +37,7 @@ Each section uses values defined in earlier ones.
 This ensures parameter inheritance, consistent file paths, and workflow synchronization.
 
 ### Path Management
-Default paths align with CONFLUENCE’s directory structure, but you can override them to match existing data or cluster environments.
+Default paths align with SYMFLUENCE's directory structure, but you can override them to match existing data or cluster environments.
 
 ### Multi-Model Workflows
 You can run several models within a single configuration for intercomparison or ensemble experiments.  

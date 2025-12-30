@@ -109,7 +109,7 @@ class ProjectManager:
         
         try:
             # Parse coordinates
-            lat, lon = map(float, self.config['POUR_POINT_COORDS'].split('/'))
+            lat, lon = map(float, self.config.get('POUR_POINT_COORDS').split('/'))
             point = Point(lon, lat)  # Note: Point takes (lon, lat) order
             
             # Create GeoDataFrame
@@ -118,12 +118,12 @@ class ProjectManager:
             # Determine output path
             output_path = self.project_dir / "shapefiles" / "pour_point"
             if self.config.get('POUR_POINT_SHP_PATH', 'default') != 'default':
-                output_path = Path(self.config['POUR_POINT_SHP_PATH'])
+                output_path = Path(self.config.get('POUR_POINT_SHP_PATH'))
             
             # Determine shapefile name
             pour_point_shp_name = f"{self.domain_name}_pourPoint.shp"
             if self.config.get('POUR_POINT_SHP_NAME', 'default') != 'default':
-                pour_point_shp_name = self.config['POUR_POINT_SHP_NAME']
+                pour_point_shp_name = self.config.get('POUR_POINT_SHP_NAME')
             
             # Ensure output directory exists
             output_path.mkdir(parents=True, exist_ok=True)
