@@ -14,8 +14,8 @@ from pathlib import Path
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
-from tests.utils.helpers import load_config_template, write_config
-from tests.utils.geospatial import (
+from utils.helpers import load_config_template, write_config
+from utils.geospatial import (
     assert_shapefile_signature_matches,
     load_shapefile_signature,
 )
