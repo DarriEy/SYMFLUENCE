@@ -93,8 +93,9 @@ jobs:
         run: |
           if [ -d "tests" ]; then
             if python -c "import importlib.util as u; exit(0 if u.find_spec('pytest') else 1)"; then
-              # Run all tests including slow ones (calibration demos, full pipelines)
-              pytest -v --tb=short
+              # Run tests, skipping those that require external data downloads
+              # Include slow tests but skip requires_data (cloud data, calibration data)
+              pytest -v --tb=short -m "not requires_data"
             else
               echo "pytest not installed; skipping tests"
             fi
