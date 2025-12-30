@@ -217,16 +217,24 @@ install_gdal_python() {
     print_success "Found system GDAL: $v"
     print_info "Installing matching GDAL Python bindings..."
 
-    if pip install "GDAL==$v"; then
+    # Try exact version first
+    if pip install "GDAL==$v" 2>/dev/null; then
         print_success "Installed GDAL Python bindings $v"
         return 0
     fi
 
-    local mm
-    mm=$(echo "$v" | cut -d. -f1,2)
-    print_info "Trying GDAL>=$mm.0,<$mm.99..."
-    if pip install "GDAL>=${mm}.0,<${mm}.99"; then
-        print_success "Installed GDAL Python bindings for $mm.x"
+    # Extract version components, handling potential suffixes like 3.12.0_1
+    local GDAL_MAJOR GDAL_MINOR GDAL_PATCH NEXT_PATCH
+    GDAL_MAJOR=$(echo "$v" | cut -d. -f1)
+    GDAL_MINOR=$(echo "$v" | cut -d. -f2)
+    GDAL_PATCH=$(echo "$v" | cut -d. -f3 | cut -d_ -f1)
+    NEXT_PATCH=$((GDAL_PATCH + 1))
+
+    # Try version range that allows same patch + post-releases, but not next patch
+    # E.g., for GDAL 3.12.0: allows 3.12.0, 3.12.0.post1, etc. but not 3.12.1
+    print_info "Trying GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}..."
+    if pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"; then
+        print_success "Installed GDAL Python bindings compatible with $v"
         return 0
     fi
 
