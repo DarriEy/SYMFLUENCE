@@ -50,7 +50,7 @@ def test_cerra_summa_quick():
     config['HYDROLOGICAL_MODEL'] = 'SUMMA'
 
     # Save config
-    temp_config = Path('test_quick_summa_config.yaml')
+    temp_config = Path('tests/configs/test_quick_summa_config.yaml')
     with open(temp_config, 'w') as f:
         yaml.dump(config, f)
 
@@ -217,7 +217,7 @@ def test_carra_summa_quick():
     config['HYDROLOGICAL_MODEL'] = 'SUMMA'
 
     # Save config
-    temp_config = Path('test_quick_summa_config.yaml')
+    temp_config = Path('tests/configs/test_quick_summa_config.yaml')
     with open(temp_config, 'w') as f:
         yaml.dump(config, f)
 

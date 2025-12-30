@@ -62,7 +62,7 @@ def test_ellioaar_calibration():
     config['OBSERVATIONS_PATH'] = 'default'  # Will use observations/streamflow/preprocessed/
 
     # Save config
-    temp_config = Path('test_calibration_ellioaar_config.yaml')
+    temp_config = Path('tests/configs/test_calibration_ellioaar_config.yaml')
     with open(temp_config, 'w') as f:
         yaml.dump(config, f)
 
@@ -157,7 +157,7 @@ def test_fyris_calibration():
     config['OBSERVATIONS_PATH'] = 'default'
 
     # Save config
-    temp_config = Path('test_calibration_fyris_config.yaml')
+    temp_config = Path('tests/configs/test_calibration_fyris_config.yaml')
     with open(temp_config, 'w') as f:
         yaml.dump(config, f)
 
