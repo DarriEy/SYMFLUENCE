@@ -21,7 +21,7 @@ from utils_geospatial import (
 )
 
 # GitHub release URL for example data
-EXAMPLE_DATA_URL = "https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-v0.2/example_data_v0.2.zip"
+EXAMPLE_DATA_URL = "https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-v0.5.5/example_data_v0.5.5.zip"
 
 
 @pytest.fixture(scope="module")
@@ -39,7 +39,7 @@ def test_data_dir(symfluence_data_root):
     # Download if it doesn't exist
     if not example_domain_path.exists():
         print(f"\nDownloading example data to {data_root}...")
-        zip_path = data_root / "example_data_v0.2.zip"
+        zip_path = data_root / "example_data_v0.5.5.zip"
 
         # Download
         response = requests.get(EXAMPLE_DATA_URL, stream=True, timeout=600)
@@ -58,7 +58,7 @@ def test_data_dir(symfluence_data_root):
             zip_ref.extractall(extract_dir)
 
         # Move the domain to data root
-        example_data_dir = extract_dir / "example_data_v0.2"
+        example_data_dir = extract_dir / "example_data_v0.5.5"
         src_domain = example_data_dir / example_domain
 
         if src_domain.exists():
