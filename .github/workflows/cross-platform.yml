@@ -106,6 +106,7 @@ jobs:
     env:
       SYMFLUENCE_CODE: ${{ github.workspace }}
       SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+      RPY2_CFFI_MODE: ABI  # Skip R requirement for rpy2
 
     steps:
       - name: Checkout
@@ -117,7 +118,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'pip'
 
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
@@ -144,30 +144,6 @@ jobs:
           sudo rm -rf /usr/local/share/boost
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
           df -h
-
-      - name: Install Python dependencies
-        env:
-          RPY2_CFFI_MODE: ABI  # Skip R requirement for rpy2
-        run: |
-          python -m pip install --upgrade pip
-
-          if [[ "${{ runner.os }}" == "Linux" ]]; then
-            GDAL_VERSION=$(gdal-config --version)
-            pip install GDAL==$GDAL_VERSION
-          elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            # macOS GDAL from brew - install compatible version
-            GDAL_VERSION=$(gdal-config --version)
-            GDAL_MAJOR=$(echo $GDAL_VERSION | cut -d. -f1)
-            GDAL_MINOR=$(echo $GDAL_VERSION | cut -d. -f2)
-            GDAL_PATCH=$(echo $GDAL_VERSION | cut -d. -f3 | cut -d_ -f1)
-            NEXT_PATCH=$((GDAL_PATCH + 1))
-            pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
-          fi
-
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          fi
-          pip install -e .
 
       - name: Cache external tools
         id: cache-tools
@@ -219,6 +195,7 @@ jobs:
     env:
       SYMFLUENCE_CODE: ${{ github.workspace }}
       SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+      RPY2_CFFI_MODE: ABI  # Skip R requirement for rpy2
 
     steps:
       - name: Checkout
@@ -230,7 +207,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'pip'
 
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
@@ -257,30 +233,6 @@ jobs:
           sudo rm -rf /usr/local/share/boost
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
           df -h
-
-      - name: Install Python dependencies
-        env:
-          RPY2_CFFI_MODE: ABI  # Skip R requirement for rpy2
-        run: |
-          python -m pip install --upgrade pip
-
-          if [[ "${{ runner.os }}" == "Linux" ]]; then
-            GDAL_VERSION=$(gdal-config --version)
-            pip install GDAL==$GDAL_VERSION
-          elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            # macOS GDAL from brew - install compatible version
-            GDAL_VERSION=$(gdal-config --version)
-            GDAL_MAJOR=$(echo $GDAL_VERSION | cut -d. -f1)
-            GDAL_MINOR=$(echo $GDAL_VERSION | cut -d. -f2)
-            GDAL_PATCH=$(echo $GDAL_VERSION | cut -d. -f3 | cut -d_ -f1)
-            NEXT_PATCH=$((GDAL_PATCH + 1))
-            pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
-          fi
-
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          fi
-          pip install -e .
 
       - name: Cache external tools
         id: cache-tools
