@@ -42,6 +42,7 @@ Quick Start
    configuration
    calibration
    examples
+   earth_engine_integration
 
 .. toctree::
    :maxdepth: 2
