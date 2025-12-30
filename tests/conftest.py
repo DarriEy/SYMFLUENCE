@@ -3,14 +3,15 @@ import sys
 
 import pytest
 
-from test_helpers import load_config_template, write_config
-
+# Add directories to path BEFORE importing local modules
 SYMFLUENCE_CODE_DIR = Path(__file__).parent.parent.resolve()
 if str(SYMFLUENCE_CODE_DIR) not in sys.path:
     sys.path.insert(0, str(SYMFLUENCE_CODE_DIR))
 TESTS_DIR = Path(__file__).parent.resolve()
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
+
+from test_helpers import load_config_template, write_config
 
 
 @pytest.fixture(scope="session")
