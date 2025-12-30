@@ -8,7 +8,7 @@ import yaml
 import shutil
 from pathlib import Path
 from symfluence import SYMFLUENCE
-from tests.utils.helpers import load_config_template, write_config
+from utils.helpers import load_config_template, write_config
 
 
 @pytest.fixture
