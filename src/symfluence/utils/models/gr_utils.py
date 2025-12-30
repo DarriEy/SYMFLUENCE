@@ -5,15 +5,26 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import geopandas as gpd
-import rpy2.robjects as robjects
-from rpy2.robjects.packages import importr
 import rasterio
-from rpy2.robjects import pandas2ri
-from rpy2.robjects.conversion import localconverter
 import shutil
 
 from symfluence.utils.data.utilities.variable_utils import VariableHandler
 from .registry import ModelRegistry
+
+# Optional R/rpy2 support - only needed for GR models
+try:
+    import rpy2.robjects as robjects
+    from rpy2.robjects.packages import importr
+    from rpy2.robjects import pandas2ri
+    from rpy2.robjects.conversion import localconverter
+    HAS_RPY2 = True
+except (ImportError, ValueError) as e:
+    # ValueError can occur if R_HOME is not set even when rpy2 is installed
+    HAS_RPY2 = False
+    robjects = None
+    importr = None
+    pandas2ri = None
+    localconverter = None
 
 @ModelRegistry.register_preprocessor('GR')
 class GRPreProcessor:
@@ -30,6 +41,12 @@ class GRPreProcessor:
         domain_name (str): Name of the domain being processed
     """
     def __init__(self, config: Dict[str, Any], logger: Any):
+        if not HAS_RPY2:
+            raise ImportError(
+                "GR models require R and rpy2. "
+                "Please install R and rpy2, or use a different model. "
+                "See https://rpy2.github.io/doc/latest/html/overview.html#installation"
+            )
         self.config = config
         self.logger = logger
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
@@ -483,6 +500,12 @@ class GRRunner:
     """
     
     def __init__(self, config: Dict[str, Any], logger: Any):
+        if not HAS_RPY2:
+            raise ImportError(
+                "GR models require R and rpy2. "
+                "Please install R and rpy2, or use a different model. "
+                "See https://rpy2.github.io/doc/latest/html/overview.html#installation"
+            )
         self.config = config
         self.logger = logger
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
@@ -1003,6 +1026,12 @@ class GRPostprocessor:
     Supports both lumped and distributed modes.
     """
     def __init__(self, config: Dict[str, Any], logger: Any):
+        if not HAS_RPY2:
+            raise ImportError(
+                "GR models require R and rpy2. "
+                "Please install R and rpy2, or use a different model. "
+                "See https://rpy2.github.io/doc/latest/html/overview.html#installation"
+            )
         self.config = config
         self.logger = logger
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
