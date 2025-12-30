@@ -28,6 +28,15 @@ jobs:
       SYMFLUENCE_DATA: /home/runner/work/SYMFLUENCE/SYMFLUENCE_data
 
     steps:
+      - name: Free up disk space
+        run: |
+          # Remove unnecessary pre-installed software to free ~10GB
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
