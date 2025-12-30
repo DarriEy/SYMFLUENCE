@@ -163,7 +163,7 @@ jobs:
           # Add SUMMA
           echo "${{ env.SYMFLUENCE_DATA }}/installs/summa/bin" >> $GITHUB_PATH
           # Add mizuRoute
-          echo "${{ env.SYMFLUENCE_DATA }}/installs/mizuRoute/bin" >> $GITHUB_PATH
+          echo "${{ env.SYMFLUENCE_DATA }}/installs/mizuRoute/route/bin" >> $GITHUB_PATH
           # Add TauDEM
           echo "${{ env.SYMFLUENCE_DATA }}/installs/TauDEM/bin" >> $GITHUB_PATH
 
