@@ -34,7 +34,9 @@ SYMFLUENCE uses a comprehensive testing strategy with multiple test levels to en
 **Command:** `pytest -m "smoke"`
 **When:** Manual dispatch only
 **Coverage:**
-- ✅ Binary validation (SUMMA, mizuRoute, TauDEM)
+- ✅ Binary validation
+  - Required: SUMMA, mizuRoute, TauDEM
+  - Optional: FUSE, NGEN (if installed)
 - ✅ Package imports
 - ✅ 3-hour SUMMA workflow
 
@@ -43,7 +45,7 @@ SYMFLUENCE uses a comprehensive testing strategy with multiple test levels to en
 **When:** Every push/PR to develop
 **Coverage:**
 - ✅ All unit tests
-- ✅ Binary validation
+- ✅ Binary validation (SUMMA, mizuRoute, TauDEM + optional FUSE/NGEN)
 - ✅ Package imports
 - ✅ Basic integration tests
 - ✅ 3-hour SUMMA workflow (quick e2e)
@@ -54,7 +56,7 @@ SYMFLUENCE uses a comprehensive testing strategy with multiple test levels to en
 **Coverage:**
 - ✅ All unit tests
 - ✅ All integration tests
-- ✅ Binary validation
+- ✅ Binary validation (all models: SUMMA, mizuRoute, TauDEM, FUSE, NGEN)
 - ✅ Package imports
 - ✅ 3-hour SUMMA workflow
 - ✅ 1-month SUMMA + mizuRoute workflow
