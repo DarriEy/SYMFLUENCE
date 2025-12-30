@@ -30,7 +30,7 @@ def test_binary_validation(symfluence_code_dir):
     assert summa_path is not None, "SUMMA binary not found in PATH"
 
     # Check for mizuRoute
-    mizu_path = shutil.which("mizuroute.exe")
+    mizu_path = shutil.which("mizuRoute.exe")  # Capital R in Route
     assert mizu_path is not None, "mizuRoute binary not found in PATH"
 
     # Check for TauDEM tools
