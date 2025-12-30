@@ -31,7 +31,7 @@ def summa_config(tmp_path, symfluence_code_dir):
     Returns:
         tuple: (config_path, config_dict)
     """
-    from tests.utils.helpers import load_config_template, write_config
+    from ..utils.helpers import load_config_template, write_config
 
     config = load_config_template(symfluence_code_dir)
     config["HYDROLOGICAL_MODEL"] = "SUMMA"
@@ -56,7 +56,7 @@ def fuse_config(tmp_path, symfluence_code_dir):
     Returns:
         tuple: (config_path, config_dict)
     """
-    from tests.utils.helpers import load_config_template, write_config
+    from ..utils.helpers import load_config_template, write_config
 
     config = load_config_template(symfluence_code_dir)
     config["HYDROLOGICAL_MODEL"] = "FUSE"
@@ -80,7 +80,7 @@ def ngen_config(tmp_path, symfluence_code_dir):
     Returns:
         tuple: (config_path, config_dict)
     """
-    from tests.utils.helpers import load_config_template, write_config
+    from ..utils.helpers import load_config_template, write_config
 
     config = load_config_template(symfluence_code_dir)
     config["HYDROLOGICAL_MODEL"] = "NGEN"

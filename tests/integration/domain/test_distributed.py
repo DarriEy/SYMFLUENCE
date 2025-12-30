@@ -1,8 +1,8 @@
 """
-SYMFLUENCE Semi-Distributed Basin Integration Tests
+SYMFLUENCE Distributed Basin Integration Tests
 
-Tests the semi-distributed basin workflow from notebook 02b for supported models.
-Downloads example data and reuses the lumped domain assets for a short simulation.
+Tests the elevation-based distributed workflow from notebook 02c for SUMMA.
+Reuses data from the semi-distributed example when available.
 """
 
 import pytest
@@ -14,14 +14,14 @@ from pathlib import Path
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
-from test_helpers import load_config_template, write_config
-from utils_geospatial import (
+from tests.utils.helpers import load_config_template, write_config
+from tests.utils.geospatial import (
     assert_shapefile_signature_matches,
     load_shapefile_signature,
 )
 
 # GitHub release URL for example data
-EXAMPLE_DATA_URL = "https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-v0.5.5/example_data_v0.5.5.zip"
+EXAMPLE_DATA_URL = "https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-v0.2/example_data_v0.2.zip"
 
 
 @pytest.fixture(scope="module")
@@ -39,7 +39,7 @@ def test_data_dir(symfluence_data_root):
     # Download if it doesn't exist
     if not example_domain_path.exists():
         print(f"\nDownloading example data to {data_root}...")
-        zip_path = data_root / "example_data_v0.5.5.zip"
+        zip_path = data_root / "example_data_v0.2.zip"
 
         # Download
         response = requests.get(EXAMPLE_DATA_URL, stream=True, timeout=600)
@@ -58,7 +58,7 @@ def test_data_dir(symfluence_data_root):
             zip_ref.extractall(extract_dir)
 
         # Move the domain to data root
-        example_data_dir = extract_dir / "example_data_v0.5.5"
+        example_data_dir = extract_dir / "example_data_v0.2"
         src_domain = example_data_dir / example_domain
 
         if src_domain.exists():
@@ -104,16 +104,16 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
     config["SYMFLUENCE_DATA_DIR"] = str(test_data_dir)
     config["SYMFLUENCE_CODE_DIR"] = str(symfluence_code_dir)
 
-    # Domain settings from notebook 02b
-    config["DOMAIN_NAME"] = "Bow_at_Banff_semi_distributed"
+    # Domain settings from notebook 02c
+    config["DOMAIN_NAME"] = "Bow_at_Banff_elevation"
     config["EXPERIMENT_ID"] = f"test_{tmp_path.name}"
     config["POUR_POINT_COORDS"] = "51.1722/-115.5717"
 
-    # Semi-distributed basin settings
-    config["DELINEATION_METHOD"] = "stream_threshold"
+    # Elevation-based discretization
     config["DOMAIN_DEFINITION_METHOD"] = "delineate"
     config["STREAM_THRESHOLD"] = 5000
-    config["DOMAIN_DISCRETIZATION"] = "GRUs"
+    config["DOMAIN_DISCRETIZATION"] = "elevation"
+    config["ELEVATION_BAND_SIZE"] = 400
 
     # Short 1-month period for testing
     config["EXPERIMENT_TIME_START"] = "2004-01-01 01:00"
@@ -137,21 +137,17 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
     return cfg_path, config
 
 
-MODELS = ["SUMMA", "FUSE", "NGEN"]
-
-
 @pytest.mark.slow
 @pytest.mark.requires_data
-@pytest.mark.parametrize("model", MODELS)
-def test_semi_distributed_basin_workflow(config_path, test_data_dir, model):
+def test_distributed_basin_workflow(config_path, test_data_dir):
     """
-    Test semi-distributed basin workflow for each model.
+    Test elevation-based distributed basin workflow for SUMMA.
 
-    Follows notebook 02b workflow:
+    Follows notebook 02c workflow:
     1. Setup project
-    2. Reuse data from lumped basin example
+    2. Reuse data from semi-distributed example
     3. Define domain (watershed delineation)
-    4. Discretize domain
+    4. Discretize domain (elevation bands)
     5. Model-agnostic preprocessing
     6. Model-specific preprocessing
     7. Run model
@@ -159,25 +155,15 @@ def test_semi_distributed_basin_workflow(config_path, test_data_dir, model):
     """
     cfg_path, config = config_path
 
-    # Update model in config
-    config["HYDROLOGICAL_MODEL"] = model
-    if model == "SUMMA":
-        config["ROUTING_MODEL"] = "mizuRoute"
-        config["MIZU_FROM_MODEL"] = "SUMMA"
-        config["SETTINGS_MIZU_ROUTING_VAR"] = "averageRoutedRunoff"
-        config["SETTINGS_MIZU_ROUTING_UNITS"] = "m/s"
-        config["SETTINGS_MIZU_ROUTING_DT"] = "3600"
-        config["PARAMS_TO_CALIBRATE"] = "k_soil,theta_sat"
-        config["BASIN_PARAMS_TO_CALIBRATE"] = "routingGammaScale"
-    elif model == "FUSE":
-        config["FUSE_SPATIAL_MODE"] = "semi_distributed"
-        config["SETTINGS_FUSE_PARAMS_TO_CALIBRATE"] = "MAXWATR_1,MAXWATR_2,BASERTE"
-    elif model == "NGEN":
-        config["NGEN_MODULES_TO_CALIBRATE"] = "CFE"
-        config["NGEN_CFE_PARAMS_TO_CALIBRATE"] = "smcmax,satdk,bb"
-        config["NGEN_INSTALL_PATH"] = str(
-            Path(config["SYMFLUENCE_DATA_DIR"]) / "installs" / "ngen" / "cmake_build"
-        )
+    # Configure SUMMA with routing
+    config["HYDROLOGICAL_MODEL"] = "SUMMA"
+    config["ROUTING_MODEL"] = "mizuRoute"
+    config["MIZU_FROM_MODEL"] = "SUMMA"
+    config["SETTINGS_MIZU_ROUTING_VAR"] = "averageRoutedRunoff"
+    config["SETTINGS_MIZU_ROUTING_UNITS"] = "m/s"
+    config["SETTINGS_MIZU_ROUTING_DT"] = "3600"
+    config["PARAMS_TO_CALIBRATE"] = "k_soil,theta_sat"
+    config["BASIN_PARAMS_TO_CALIBRATE"] = "routingGammaScale"
 
     # Save updated config
     write_config(config, cfg_path)
@@ -198,7 +184,9 @@ def test_semi_distributed_basin_workflow(config_path, test_data_dir, model):
         / f"{config['DOMAIN_NAME']}_riverNetwork_delineate.shp"
     )
     baseline_hrus = (
-        baseline_dir / "catchment" / f"{config['DOMAIN_NAME']}_HRUs_GRUs.shp"
+        baseline_dir
+        / "catchment"
+        / f"{config['DOMAIN_NAME']}_HRUs_elevation.shp"
     )
     assert baseline_river_basins.exists(), "Baseline river basins shapefile missing"
     assert baseline_river_network.exists(), "Baseline river network shapefile missing"
@@ -214,22 +202,24 @@ def test_semi_distributed_basin_workflow(config_path, test_data_dir, model):
     project_dir = symfluence.managers["project"].setup_project()
     assert project_dir.exists(), "Project directory should be created"
 
-    # Step 2: Reuse data from the lumped example domain
-    lumped_domain = "Bow_at_Banff_lumped"
-    lumped_data_dir = test_data_dir / f"domain_{lumped_domain}"
+    # Step 2: Reuse data from the semi-distributed domain when available
+    semi_dist_domain = "Bow_at_Banff_semi_distributed"
+    semi_dist_data_dir = test_data_dir / f"domain_{semi_dist_domain}"
     reusable_data = {
-        "Elevation": lumped_data_dir / "attributes" / "elevation",
-        "Land Cover": lumped_data_dir / "attributes" / "landclass",
-        "Soils": lumped_data_dir / "attributes" / "soilclass",
-        "Forcing": lumped_data_dir / "forcing" / "raw_data",
-        "Streamflow": lumped_data_dir / "observations" / "streamflow",
+        "Elevation": semi_dist_data_dir / "attributes" / "elevation",
+        "Land Cover": semi_dist_data_dir / "attributes" / "landclass",
+        "Soils": semi_dist_data_dir / "attributes" / "soilclass",
+        "Forcing": semi_dist_data_dir / "forcing" / "raw_data",
+        "Stream Network": semi_dist_data_dir / "shapefiles" / "river_network",
+        "GRUs": semi_dist_data_dir / "shapefiles" / "river_basins",
+        "Streamflow": semi_dist_data_dir / "observations" / "streamflow",
     }
     for _, src_path in reusable_data.items():
         if src_path.exists():
-            rel_path = src_path.relative_to(lumped_data_dir)
+            rel_path = src_path.relative_to(semi_dist_data_dir)
             dst_path = project_dir / rel_path
             _copy_with_name_adaptation(
-                src_path, dst_path, lumped_domain, config["DOMAIN_NAME"]
+                src_path, dst_path, semi_dist_domain, config["DOMAIN_NAME"]
             )
 
     pour_point_path = symfluence.managers["project"].create_pour_point()
@@ -242,13 +232,13 @@ def test_semi_distributed_basin_workflow(config_path, test_data_dir, model):
     ), "Delineation method mismatch"
     # watershed_path can be None for workflows that use existing data
 
-    # Step 4: Discretize domain
+    # Step 4: Discretize domain (elevation bands)
     hru_path, discretization_artifacts = symfluence.managers["domain"].discretize_domain()
     assert (
         discretization_artifacts.method == config["DOMAIN_DISCRETIZATION"]
     ), "Discretization method mismatch"
 
-    # Verify geospatial artifacts (02b)
+    # Verify geospatial artifacts (02c)
     shapefile_dir = project_dir / "shapefiles"
     river_basins_path = delineation_artifacts.river_basins_path or (
         shapefile_dir
@@ -263,7 +253,9 @@ def test_semi_distributed_basin_workflow(config_path, test_data_dir, model):
     hrus_path = (
         discretization_artifacts.hru_paths
         if isinstance(discretization_artifacts.hru_paths, Path)
-        else shapefile_dir / "catchment" / f"{config['DOMAIN_NAME']}_HRUs_GRUs.shp"
+        else shapefile_dir
+        / "catchment"
+        / f"{config['DOMAIN_NAME']}_HRUs_elevation.shp"
     )
     assert river_basins_path.exists()
     assert river_network_path.exists()
@@ -282,8 +274,8 @@ def test_semi_distributed_basin_workflow(config_path, test_data_dir, model):
     symfluence.managers["model"].run_models()
 
     # Check model output exists
-    sim_dir = project_dir / "simulations" / config["EXPERIMENT_ID"] / model
-    assert sim_dir.exists(), f"{model} simulation output directory should exist"
+    sim_dir = project_dir / "simulations" / config["EXPERIMENT_ID"] / "SUMMA"
+    assert sim_dir.exists(), "SUMMA simulation output directory should exist"
 
     # Step 8: Calibrate model
     results_file = symfluence.managers["optimization"].calibrate_model()
