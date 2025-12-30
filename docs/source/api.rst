@@ -16,19 +16,6 @@ Quick Start
    conf = SYMFLUENCE("my_project.yaml")
    conf.run_workflow()  # executes the orchestrated end-to-end pipeline
 
-Backward Compatibility
-----------------------
-For users transitioning from CONFLUENCE, the old import still works:
-
-.. code-block:: python
-
-   from CONFLUENCE import CONFLUENCE  # Deprecated, use SYMFLUENCE
-
-   conf = CONFLUENCE("my_project.yaml")
-   conf.run_workflow()
-
-This compatibility wrapper will be removed in a future release.
-
 Managers and Responsibilities
 -----------------------------
 Internally, SYMFLUENCE composes several managers, coordinated by the workflow orchestrator:

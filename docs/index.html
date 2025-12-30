@@ -15,7 +15,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SYMFLUENCE</title>
-  <meta name="description" content="SYMFLUENCE: SYnergistic Modelling Framework for Linking and Unifying Earth‑system Nexii for Computational Exploration." />
+  <meta name="description" content="SYMFLUENCE: Earth‑system modeling framework. Simplified." />
   <!-- Preconnect to Google Fonts for performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -270,13 +270,12 @@
     <header>
       <div class="brand">
         <h1 class="brand__title">SYMFLUENCE</h1>
-        <span class="chip" title="Formerly CONFLUENCE">Formerly CONFLUENCE</span>
       </div>
       <nav aria-label="Primary">
         <a href="#about">About</a>
         <a href="#docs">Docs</a>
+        <a href="#connected-projects">Projects</a>
         <a href="#publications">Publications</a>
-        <a href="#acknowledgements">Acknowledgements</a>
         <a href="https://github.com/DarriEy/SYMFLUENCE" target="_blank" rel="noopener">GitHub</a>
       </nav>
     </header>
@@ -284,19 +283,18 @@
     <main>
       <section class="hero" id="about">
         <div class="hero__inner">
-          <h1>SYnergistic Modelling Framework for Linking and Unifying Earth‑system Nexii for Computational Exploration</h1>
-          <h2>A research and modeling framework for integrated Earth‑system simulation</h2>
-          <p>SYMFLUENCE is an open research framework for composing, calibrating, and running
-            coupled Earth‑system models at scale. The effort is designed and led at the
-            <strong>University of Calgary</strong> in collaboration with partners.</p>
+          <h1>SYMFLUENCE</h1>
+          <h2>Earth‑system modeling. Simplified.</h2>
+          <p>A framework for coupling, calibrating, and running Earth‑system models. 
+            Built at the University of Calgary. Open source. No compromises.</p>
           <div class="tags">
             <span class="tag">University of Calgary</span>
             <span class="tag">Open‑source</span>
             <span class="tag">Earth‑system modeling</span>
           </div>
           <div class="cta" role="group" aria-label="Primary calls to action">
-            <a class="btn btn--primary" href="https://symfluence.readthedocs.io/" target="_blank" rel="noopener">Read the Docs</a>
-            <a class="btn" href="https://github.com/DarriEy/SYMFLUENCE" target="_blank" rel="noopener">View on GitHub</a>
+            <a class="btn btn--primary" href="https://symfluence.readthedocs.io/" target="_blank" rel="noopener">Documentation</a>
+            <a class="btn" href="https://github.com/DarriEy/SYMFLUENCE" target="_blank" rel="noopener">Source Code</a>
           </div>
         </div>
       </section>
@@ -304,34 +302,45 @@
       <div class="grid">
         <section id="docs" class="card">
           <h3>Documentation</h3>
-          <p>Looking for installation instructions, tutorials, or the API reference? Visit our documentation on Read the Docs.
-            If the docs are not yet live, this link will become active once the first build is published.</p>
+          <p>Installation. Tutorials. API reference. Everything you need to get started.</p>
           <p><a href="https://symfluence.readthedocs.io/" target="_blank" rel="noopener">symfluence.readthedocs.io</a></p>
-          <p>For development status and issue tracking, see the <a href="https://github.com/DarriEy/SYMFLUENCE" target="_blank" rel="noopener">project repository</a>.</p>
+          <p>Development status and issues: <a href="https://github.com/DarriEy/SYMFLUENCE" target="_blank" rel="noopener">GitHub repository</a>.</p>
         </section>
-        <section id="publications" class="card">
-          <h3>Related Publications</h3>
-          <ul class="pubs">
-            <li>
-              Eythorsson, D., &amp; Clark, M. (2025). <em>Toward automated scientific discovery in hydrology: The opportunities and dangers of AI‑augmented research frameworks</em>. <em>Hydrological Processes</em>, 39(1), e70065.
-              <a href="https://onlinelibrary.wiley.com/doi/pdf/10.1002/hyp.70065" target="_blank" rel="noopener">PDF</a> ·
-              <a href="https://onlinelibrary.wiley.com/doi/10.1002/hyp.70065" target="_blank" rel="noopener">Publisher page</a>
-            </li>
-          </ul>
-          <p class="ack">Note: SYMFLUENCE builds on experience from prior work referred to as <em>CONFLUENCE</em> and is evolving to support broader coupling, calibration, and workflows.</p>
+        
+        <section id="connected-projects" class="card">
+          <h3>Connected Projects</h3>
+          <p><strong>DODO:</strong> Differentiable optimization for distributed hydrological models. 
+            End-to-end gradients from outlet to parameters.</p>
+          <p><strong>DELTA:</strong> AI research assistant for hydrology. 
+            Conversational modeling and analysis. <a href="https://darriey.github.io/DELTA_2.0/" target="_blank" rel="noopener">Live demo</a>.</p>
+          <p class="ack">Experimental frameworks. Use with caution.</p>
         </section>
       </div>
 
-      <section id="acknowledgements" class="card">
-        <h3>Acknowledgements</h3>
-        <p class="ack">This research was supported by the Cooperative Institute for Research to Operations in Hydrology (CIROH)
-          with funding under award NA22NWS4320003 from the NOAA Cooperative Institute Program. The statements, findings,
-          conclusions, and recommendations are those of the author(s) and do not necessarily reflect the opinions of NOAA.</p>
-      </section>
+      <div class="grid">
+        <section id="publications" class="card">
+          <h3>Publications</h3>
+          <ul class="pubs">
+            <li>
+              Eythorsson, D., &amp; Clark, M. (2025). Toward automated scientific discovery in hydrology: 
+              The opportunities and dangers of AI‑augmented research frameworks. 
+              <em>Hydrological Processes</em>, 39(1), e70065.
+              <a href="https://onlinelibrary.wiley.com/doi/pdf/10.1002/hyp.70065" target="_blank" rel="noopener">PDF</a> ·
+              <a href="https://onlinelibrary.wiley.com/doi/10.1002/hyp.70065" target="_blank" rel="noopener">DOI</a>
+            </li>
+          </ul>
+        </section>
+
+        <section id="acknowledgements" class="card">
+          <h3>Support</h3>
+          <p class="ack">Supported by CIROH under NOAA award NA22NWS4320003. 
+            Findings and recommendations are those of the authors.</p>
+        </section>
+      </div>
     </main>
 
     <footer>
-      <div>&copy; <span id="year"></span> SYMFLUENCE · <span class="chip">Formerly CONFLUENCE</span></div>
+      <div>&copy; <span id="year"></span> SYMFLUENCE</div>
       <div class="foot-links">
         <a href="https://github.com/DarriEy/SYMFLUENCE" target="_blank" rel="noopener">GitHub</a>
         <a href="https://symfluence.readthedocs.io/" target="_blank" rel="noopener">Docs</a>
