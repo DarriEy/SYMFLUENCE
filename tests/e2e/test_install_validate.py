@@ -136,24 +136,24 @@ def test_quick_workflow_summa_only(
     project_dir = sym.managers["project"].setup_project()
     assert project_dir.exists(), "Project directory should be created"
 
-    # Copy existing forcing data from bow_domain
+    # Copy existing forcing data from bow_domain (skip if same location)
     import shutil
     src_forcing = bow_domain / "forcing" / "raw_data"
     dst_forcing = project_dir / "forcing" / "raw_data"
-    if src_forcing.exists():
+    if src_forcing.exists() and src_forcing.resolve() != dst_forcing.resolve():
         dst_forcing.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(src_forcing, dst_forcing, dirs_exist_ok=True)
 
-    # Copy existing shapefiles
+    # Copy existing shapefiles (skip if same location)
     src_shapefiles = bow_domain / "shapefiles"
     dst_shapefiles = project_dir / "shapefiles"
-    if src_shapefiles.exists():
+    if src_shapefiles.exists() and src_shapefiles.resolve() != dst_shapefiles.resolve():
         shutil.copytree(src_shapefiles, dst_shapefiles, dirs_exist_ok=True)
 
-    # Copy existing attributes
+    # Copy existing attributes (skip if same location)
     src_attributes = bow_domain / "attributes"
     dst_attributes = project_dir / "attributes"
-    if src_attributes.exists():
+    if src_attributes.exists() and src_attributes.resolve() != dst_attributes.resolve():
         shutil.copytree(src_attributes, dst_attributes, dirs_exist_ok=True)
 
     # Model-agnostic preprocessing
@@ -233,12 +233,12 @@ def test_full_workflow_1month(
     sym = SYMFLUENCE(cfg_path)
     project_dir = sym.managers["project"].setup_project()
 
-    # Copy data (same as quick test)
+    # Copy data (same as quick test, skip if same location)
     import shutil
     for subdir in ["forcing/raw_data", "shapefiles", "attributes"]:
         src = bow_domain / subdir
         dst = project_dir / subdir
-        if src.exists():
+        if src.exists() and src.resolve() != dst.resolve():
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(src, dst, dirs_exist_ok=True)
 
@@ -300,12 +300,12 @@ def test_calibration_workflow(tmp_path, symfluence_code_dir, symfluence_data_roo
     sym = SYMFLUENCE(cfg_path)
     project_dir = sym.managers["project"].setup_project()
 
-    # Copy data
+    # Copy data (skip if same location)
     import shutil
     for subdir in ["forcing/raw_data", "shapefiles", "attributes", "observations"]:
         src = bow_domain / subdir
         dst = project_dir / subdir
-        if src.exists():
+        if src.exists() and src.resolve() != dst.resolve():
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(src, dst, dirs_exist_ok=True)
 
