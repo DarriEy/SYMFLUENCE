@@ -22,27 +22,87 @@ def test_binary_validation(symfluence_code_dir):
     """
     Validate all external tool binaries are functional.
 
-    Tests that SUMMA, mizuRoute, TauDEM, and FUSE executables exist
-    and can be executed.
+    Tests that required binaries (SUMMA, mizuRoute, TauDEM) exist and can be executed.
+    Also validates optional binaries (FUSE, NGEN) if they are installed.
     """
+    # Required binaries
+    print("\n" + "="*60)
+    print("Validating REQUIRED binaries...")
+    print("="*60)
+
     # Check for SUMMA
     summa_path = shutil.which("summa.exe")
     assert summa_path is not None, "SUMMA binary not found in PATH"
+    print(f"✓ SUMMA found: {summa_path}")
+
+    # Verify SUMMA can run (check version)
+    result = subprocess.run(["summa.exe", "--version"], capture_output=True, text=True)
+    print(f"  SUMMA version output: {result.stdout.strip() or result.stderr.strip()}")
 
     # Check for mizuRoute
     mizu_path = shutil.which("mizuRoute.exe")  # Capital R in Route
     assert mizu_path is not None, "mizuRoute binary not found in PATH"
+    print(f"✓ mizuRoute found: {mizu_path}")
 
-    # Check for TauDEM tools
+    # Check for TauDEM tools (required for domain preprocessing)
     taudem_tools = ["pitremove", "d8flowdir", "aread8", "threshold", "streamnet", "gagewatershed"]
+    print(f"✓ Checking {len(taudem_tools)} TauDEM tools...")
     for tool in taudem_tools:
         tool_path = shutil.which(tool)
         assert tool_path is not None, f"TauDEM tool '{tool}' not found in PATH"
+    print(f"  All {len(taudem_tools)} TauDEM tools found")
 
-    # Check for FUSE (optional)
+    # Optional binaries
+    print("\n" + "="*60)
+    print("Validating OPTIONAL binaries...")
+    print("="*60)
+
+    optional_found = []
+    optional_missing = []
+
+    # Check for FUSE (optional alternative hydrological model)
     fuse_path = shutil.which("fuse.exe")
-    if fuse_path is None:
-        pytest.skip("FUSE binary not found (optional)")
+    if fuse_path:
+        print(f"✓ FUSE found: {fuse_path}")
+        optional_found.append("FUSE")
+        # Try to verify FUSE can run
+        try:
+            result = subprocess.run(["fuse.exe", "--version"],
+                                  capture_output=True, text=True, timeout=5)
+            print(f"  FUSE version output: {result.stdout.strip() or result.stderr.strip()}")
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            print(f"  FUSE found but version check failed (may be normal)")
+    else:
+        print("⚠ FUSE not found (optional)")
+        optional_missing.append("FUSE")
+
+    # Check for NGEN (optional NextGen framework)
+    ngen_path = shutil.which("ngen")
+    if ngen_path:
+        print(f"✓ NGEN found: {ngen_path}")
+        optional_found.append("NGEN")
+        # Try to verify NGEN can run
+        try:
+            result = subprocess.run(["ngen", "--help"],
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 or "ngen" in result.stdout.lower():
+                print(f"  NGEN verified working")
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            print(f"  NGEN found but verification failed")
+    else:
+        print("⚠ NGEN not found (optional)")
+        optional_missing.append("NGEN")
+
+    # Summary
+    print("\n" + "="*60)
+    print("Binary Validation Summary")
+    print("="*60)
+    print(f"Required: SUMMA, mizuRoute, TauDEM - ALL FOUND ✓")
+    if optional_found:
+        print(f"Optional found: {', '.join(optional_found)}")
+    if optional_missing:
+        print(f"Optional missing: {', '.join(optional_missing)}")
+    print("="*60)
 
 
 @pytest.mark.e2e
