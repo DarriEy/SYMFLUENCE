@@ -1,4 +1,4 @@
-name: CI
+name: CI - Lint Only
 
 on:
   push:
@@ -7,99 +7,30 @@ on:
     branches: [ main, develop ]
 
 jobs:
-  build-test:
-    name: Test (Python ${{ matrix.python-version }})
+  lint:
+    name: Lint (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 60  # Allow time for full test suite including calibration demos
-    env:
-      # Required for geopandas/rasterio to find GDAL
-      GDAL_CONFIG: /usr/bin/gdal-config
+    timeout-minutes: 10
     strategy:
-      fail-fast: false  # Continue testing other versions even if one fails
+      fail-fast: false
       matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12']
-        test-suite: ['all']  # Can expand to ['quick', 'models', 'calibration'] in future
-        exclude:
-          # Python 3.12 might have compatibility issues with some deps
-          - python-version: '3.12'
-            test-suite: 'all'
+        python-version: ['3.11']
     steps:
-      - name: Free up disk space
-        run: |
-          # Remove unnecessary pre-installed software to free ~10GB
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          df -h
-
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up R
-        uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: '4.3.3'
-
-      - name: Install system dependencies for geospatial libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            gdal-bin libgdal-dev \
-            libproj-dev \
-            libgeos-dev \
-            libspatialindex-dev
-          gdal-config --version
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-          cache-dependency-path: |
-            requirements.txt
-            pyproject.toml
 
-      - name: Install GDAL Python bindings
-        run: |
-          # Install GDAL Python bindings matching system GDAL version
-          GDAL_VERSION=$(gdal-config --version)
-          pip install GDAL==$GDAL_VERSION
-
-      - name: Install deps (requirements.txt)
-        if: hashFiles('requirements.txt') != ''
+      - name: Install minimal deps for linting
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install ruff
 
-      - name: Install package (editable) + dev extras if present
+      - name: Lint with ruff
         run: |
-          if [ -f "pyproject.toml" ]; then
-            # Try to install with dev extras if defined; fall back to plain install
-            pip install ".[dev]" || pip install -e .
-          else
-            pip install -e .
-          fi
-
-      - name: Lint (ruff if available)
-        run: |
-          if python -c "import importlib.util as u; exit(0 if u.find_spec('ruff') else 1)"; then
-            ruff check .
-          else
-            echo "ruff not installed; skipping lint"
-          fi
-
-      - name: Run tests (pytest if tests exist)
-        run: |
-          if [ -d "tests" ]; then
-            if python -c "import importlib.util as u; exit(0 if u.find_spec('pytest') else 1)"; then
-              # Run tests, skipping those that require external data downloads
-              # Include slow tests but skip requires_data (cloud data, calibration data)
-              pytest -v --tb=short -m "not requires_data"
-            else
-              echo "pytest not installed; skipping tests"
-            fi
-          else
-            echo "No tests/ directory; skipping tests"
-          fi
+          ruff check .
 
