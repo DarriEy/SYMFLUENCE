@@ -32,6 +32,9 @@ jobs:
         exclude:
           # Python 3.12 may have compatibility issues with some deps
           - python-version: '3.12'
+          # Python 3.9 on macOS has copulae build issues
+          - os: macos-latest
+            python-version: '3.9'
 
     steps:
       - name: Checkout
@@ -131,6 +134,16 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install gcc cmake open-mpi netcdf netcdf-fortran hdf5 gdal
+
+      - name: Free up disk space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # Remove unnecessary packages to free up disk space
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
 
       - name: Install Python dependencies
         env:
@@ -234,6 +247,16 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install gcc cmake open-mpi netcdf netcdf-fortran hdf5 gdal
+
+      - name: Free up disk space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # Remove unnecessary packages to free up disk space
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
 
       - name: Install Python dependencies
         env:
