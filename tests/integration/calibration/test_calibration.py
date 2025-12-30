@@ -13,6 +13,9 @@ from symfluence import SYMFLUENCE
 import sys
 
 
+
+pytestmark = [pytest.mark.integration, pytest.mark.calibration, pytest.mark.requires_data, pytest.mark.slow]
+
 @pytest.mark.slow
 @pytest.mark.calibration
 @pytest.mark.requires_data
