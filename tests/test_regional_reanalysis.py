@@ -43,6 +43,8 @@ def temp_config(tmp_path, symfluence_code_dir, symfluence_data_root):
     return cfg_path
 
 
+@pytest.mark.slow
+@pytest.mark.requires_data
 def test_carra_full_pipeline(temp_config):
     """
     Test CARRA (Arctic) data acquisition for Elliðaár, Iceland.
@@ -111,6 +113,8 @@ def test_carra_full_pipeline(temp_config):
     # easymore segfault is a known library issue, not CARRA-specific.
 
 
+@pytest.mark.slow
+@pytest.mark.requires_data
 def test_cerra_full_pipeline(temp_config):
     """
     Test CERRA (Europe) data acquisition for Fyrisån, Sweden.
