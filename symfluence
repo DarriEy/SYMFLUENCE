@@ -198,6 +198,14 @@ check_rpy2_dependencies() {
 }
 
 install_gdal_python() {
+    # Check if GDAL Python bindings are already installed
+    if python -c "from osgeo import gdal" >/dev/null 2>&1; then
+        local installed_version
+        installed_version=$(python -c "from osgeo import gdal; print(gdal.__version__)" 2>/dev/null || echo "unknown")
+        print_success "GDAL Python bindings already installed (version: $installed_version)"
+        return 0
+    fi
+
     print_info "Detecting system GDAL version..."
     if ! command -v gdal-config >/dev/null 2>&1; then
         print_warning "gdal-config not found; skipping GDAL Python bindings"
