@@ -535,9 +535,10 @@ else
   NCDF_LIB_DIR="${NCDF_PATH}/lib"
 fi
 
-if [ -d "${HDF_PATH}/lib/x86_64-linux-gnu" ] && ls "${HDF_PATH}/lib/x86_64-linux-gnu"/libhdf5.* >/dev/null 2>&1; then
+# HDF5 detection - try arch-specific first, check for any .so or .a files
+if [ -d "${HDF_PATH}/lib/x86_64-linux-gnu" ] && (ls "${HDF_PATH}/lib/x86_64-linux-gnu"/libhdf5*.so* >/dev/null 2>&1 || ls "${HDF_PATH}/lib/x86_64-linux-gnu"/libhdf5*.a >/dev/null 2>&1); then
   HDF_LIB_DIR="${HDF_PATH}/lib/x86_64-linux-gnu"
-elif [ -d "${HDF_PATH}/lib64" ] && ls "${HDF_PATH}/lib64"/libhdf5.* >/dev/null 2>&1; then
+elif [ -d "${HDF_PATH}/lib64" ] && (ls "${HDF_PATH}/lib64"/libhdf5*.so* >/dev/null 2>&1 || ls "${HDF_PATH}/lib64"/libhdf5*.a >/dev/null 2>&1); then
   HDF_LIB_DIR="${HDF_PATH}/lib64"
 elif [ -d "${HDF_PATH}/lib" ]; then
   HDF_LIB_DIR="${HDF_PATH}/lib"
