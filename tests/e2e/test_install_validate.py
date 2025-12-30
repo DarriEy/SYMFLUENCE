@@ -100,7 +100,7 @@ def test_quick_workflow_summa_only(
 
     This is a smoke test for CI - fast validation of core functionality.
     """
-    from ..utils.helpers import load_config_template, write_config
+    from tests.utils.helpers import load_config_template, write_config
 
     # Create test configuration
     config = load_config_template(symfluence_code_dir)
@@ -200,7 +200,7 @@ def test_full_workflow_1month(
 
     This is a more comprehensive test for full CI validation.
     """
-    from ..utils.helpers import load_config_template, write_config
+    from tests.utils.helpers import load_config_template, write_config
 
     # Create test configuration
     config = load_config_template(symfluence_code_dir)
@@ -264,7 +264,7 @@ def test_calibration_workflow(tmp_path, symfluence_code_dir, symfluence_data_roo
     4. Calibrate model (minimal iterations for testing)
     5. Verify calibration outputs
     """
-    from ..utils.helpers import load_config_template, write_config
+    from tests.utils.helpers import load_config_template, write_config
 
     # Create test configuration
     config = load_config_template(symfluence_code_dir)
