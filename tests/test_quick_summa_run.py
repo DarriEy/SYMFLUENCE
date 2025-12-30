@@ -5,11 +5,14 @@ Uses pre-existing domains from test_regional_reanalysis.py tests.
 Only tests: preprocessing → SUMMA build → SUMMA run
 """
 import yaml
+import pytest
 from pathlib import Path
 from symfluence import SYMFLUENCE
 import xarray as xr
 
 
+@pytest.mark.slow
+@pytest.mark.requires_data
 def test_cerra_summa_quick():
     """
     Quick SUMMA test with CERRA forcing for pre-existing Fyrisån domain.
@@ -174,6 +177,8 @@ def test_cerra_summa_quick():
     return True
 
 
+@pytest.mark.slow
+@pytest.mark.requires_data
 def test_carra_summa_quick():
     """
     Quick SUMMA test with CARRA forcing for pre-existing Elliðaár domain.
