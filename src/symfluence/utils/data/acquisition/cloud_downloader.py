@@ -45,6 +45,10 @@ class CloudForcingDownloader:
         handler = AcquisitionRegistry.get_handler('SOILGRIDS', self.config, self.logger)
         return handler.download(Path(self.config.get('SYMFLUENCE_DATA_DIR')))
 
+    def download_global_soilclasses(self) -> Path:
+        """Alias for download_soilgrids_soilclasses for backward compatibility."""
+        return self.download_soilgrids_soilclasses()
+
     def download_modis_landcover(self) -> Path:
         handler = AcquisitionRegistry.get_handler('MODIS_LANDCOVER', self.config, self.logger)
         return handler.download(Path(self.config.get('SYMFLUENCE_DATA_DIR')))

@@ -20,6 +20,7 @@ from symfluence.utils.data.utilities.archive_utils import tar_directory
 from symfluence.utils.data.acquisition.cloud_downloader import CloudForcingDownloader, check_cloud_access_availability
 from symfluence.utils.data.acquisition.maf_pipeline import gistoolRunner, datatoolRunner 
 from symfluence.utils.data.acquisition.data_utils import ObservedDataProcessor 
+from symfluence.utils.data.observation.registry import ObservationRegistry
 
 class DataManager:
     """
@@ -865,51 +866,37 @@ class DataManager:
             
     def process_observed_data(self):
         """
-        Process observed streamflow data.
-        
-        This method handles the acquisition and preprocessing of observed streamflow
-        data, which is used for model calibration and evaluation. It supports multiple
-        data providers (WSC, USGS, VI, NIWA) and handles the necessary data format
-        conversions and quality control.
-        
-        The processing includes:
-        1. Downloading data from the specified provider (if enabled)
-        2. Converting units if necessary
-        3. Aligning the time series with the model time period
-        4. Quality control and gap handling
-        5. Saving the processed data in a standardized format
-        
-        The method delegates the actual processing to the ObservedDataProcessor class,
-        which contains the provider-specific logic.
-        
-        Raises:
-            FileNotFoundError: If required data files cannot be found
-            ValueError: If data formatting or quality issues are detected
-            Exception: For other errors during data processing
+        Process observed data including streamflow and additional variables.
         """
         self.logger.info("Processing observed data")
         
         try:
+            # 1. Traditional streamflow processing
             observed_data_processor = ObservedDataProcessor(self.config, self.logger)
-            # Process streamflow data
             observed_data_processor.process_streamflow_data()
-            
-            # Process SNOTEL data
             observed_data_processor.process_snotel_data()
-
-            # Process FLUXNET data
             observed_data_processor.process_fluxnet_data()
-
-            # Process FLUXNET data
             observed_data_processor.process_usgs_groundwater_data()
+
+            # 2. Registry-based additional observations (GRACE, MODIS, etc.)
+            additional_obs = self.config.get('ADDITIONAL_OBSERVATIONS', [])
+            if isinstance(additional_obs, str):
+                additional_obs = [o.strip() for o in additional_obs.split(',')]
+            
+            for obs_type in additional_obs:
+                try:
+                    handler = ObservationRegistry.get_handler(obs_type, self.config, self.logger)
+                    raw_path = handler.acquire()
+                    handler.process(raw_path)
+                except Exception as e:
+                    self.logger.warning(f"Failed to process additional observation {obs_type}: {e}")
 
             self.logger.info("Observed data processing completed successfully")
             
         except Exception as e:
             self.logger.error(f"Error during observed data processing: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
             raise
+
     
     def run_model_agnostic_preprocessing(self):
         """

@@ -96,6 +96,7 @@ from fuse_worker_functions import (
 
 from ngen_optimizer import NgenOptimizer
 from symfluence.utils.optimization.local_scratch_manager import LocalScratchManager
+from symfluence.utils.optimization.transformers import TransformationManager
 
 # ============= PARAMETER MANAGEMENT =============
 
@@ -110,7 +111,17 @@ class ParameterManager:
         # Parse parameter lists
         self.local_params = [p.strip() for p in config.get('PARAMS_TO_CALIBRATE', '').split(',') if p.strip()]
         self.basin_params = [p.strip() for p in config.get('BASIN_PARAMS_TO_CALIBRATE', '').split(',') if p.strip()]
-        self.depth_params = ['total_mult', 'shape_factor'] if config.get('CALIBRATE_DEPTH', False) else []
+        
+        # Identify depth parameters
+        self.depth_params = []
+        if config.get('CALIBRATE_DEPTH', False):
+            self.depth_params = ['total_mult', 'shape_factor']
+        
+        # Add special multiplier if in list
+        if 'total_soil_depth_multiplier' in self.local_params:
+            self.depth_params.append('total_soil_depth_multiplier')
+            self.local_params.remove('total_soil_depth_multiplier')
+            
         self.mizuroute_params = []
         
         if config.get('CALIBRATE_MIZUROUTE', False):
@@ -209,8 +220,11 @@ class ParameterManager:
         
         # Add depth parameter bounds
         if self.depth_params:
-            bounds['total_mult'] = {'min': 0.1, 'max': 5.0}
-            bounds['shape_factor'] = {'min': 0.1, 'max': 3.0}
+            if 'total_mult' in self.depth_params or 'total_soil_depth_multiplier' in self.depth_params:
+                bounds['total_mult'] = {'min': 0.1, 'max': 5.0}
+                bounds['total_soil_depth_multiplier'] = {'min': 0.1, 'max': 5.0}
+            if 'shape_factor' in self.depth_params:
+                bounds['shape_factor'] = {'min': 0.1, 'max': 3.0}
         
         # Add mizuRoute parameter bounds
         if self.mizuroute_params:
@@ -1115,6 +1129,7 @@ class BaseOptimizer(ABC):
         
         # Initialize component managers
         self.parameter_manager = ParameterManager(config, logger, self.optimization_settings_dir)
+        self.transformation_manager = TransformationManager(config, logger)
         self._setup_optimization_directories()
         
         self.calibration_target = self._create_calibration_target()
@@ -2854,22 +2869,23 @@ if __name__ == "__main__":
         self.logger.info("=" * 60)
 
     def _apply_parameters(self, best_params: Dict) -> bool:
-        """Apply parameters with detailed debugging"""
+        """Apply parameters with support for transformations"""
         try:
-            #self.logger.info("DEBUG: Entering parameter application")
+            # 1. Apply specialized transformations (soil depth multipliers, etc.)
+            if not self.transformation_manager.transform(best_params, self.optimization_settings_dir):
+                self.logger.error("Parameter transformations failed")
+                return False
             
-            # Update soil depths if depth calibration enabled
+            # 2. Update soil depths if legacy depth calibration enabled
             if (hasattr(self.parameter_manager, 'depth_params') and 
                 self.parameter_manager.depth_params and 
                 'total_mult' in best_params and 'shape_factor' in best_params):
                 
-                #self.logger.info("DEBUG: Updating soil depths...")
                 if not self.parameter_manager._update_soil_depths(best_params):
-                    self.logger.error("DEBUG: Soil depth update failed")
+                    self.logger.error("Legacy soil depth update failed")
                     return False
-                #self.logger.info("DEBUG: Soil depth update successful")
             
-            # Update mizuRoute parameters if enabled
+            # 3. Update mizuRoute parameters if enabled
             if (hasattr(self.parameter_manager, 'mizuroute_params') and 
                 self.parameter_manager.mizuroute_params):
                 

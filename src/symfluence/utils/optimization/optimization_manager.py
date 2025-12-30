@@ -11,10 +11,12 @@ import numpy as np
 from symfluence.utils.optimization.iterative_optimizer import DEOptimizer, DDSOptimizer, AsyncDDSOptimizer, PopulationDDSOptimizer, PSOOptimizer, NSGA2Optimizer, SCEUAOptimizer # type: ignore
 from symfluence.utils.optimization.large_domain_emulator import LargeDomainEmulator
 from symfluence.utils.optimization.differentiable_parameter_emulator import DifferentiableParameterOptimizer, EmulatorConfig
+from symfluence.utils.optimization.objective_registry import ObjectiveRegistry
+from symfluence.utils.optimization.transformers import TransformationManager
 
 class OptimizationManager:
     """
-    Manages all optimization operations including calibration and emulation.
+    Coordinates model optimization, calibration, and parameter emulation.
     
     The OptimizationManager is responsible for coordinating model calibration and 
     parameter emulation within the SYMFLUENCE framework. It provides a unified 
@@ -83,6 +85,8 @@ class OptimizationManager:
             self.logger
         )
         
+        # Initialize transformation manager
+        self.transformation_manager = TransformationManager(self.config, self.logger)
         
         # Define optimizer mapping
         self.optimizers = {
@@ -754,6 +758,29 @@ class OptimizationManager:
             'DDS': 'Dynamically Dimensioned Search'
         }
     
+    def _apply_parameter_transformations(self, params: Dict[str, float], settings_dir: Path) -> bool:
+        """
+        Applies transformations to parameters (e.g., soil depth multipliers).
+        """
+        return self.transformation_manager.transform(params, settings_dir)
+
+    def _calculate_multivariate_objective(self, sim_results: Dict[str, pd.Series]) -> float:
+        """
+        Calculates a composite objective score from multivariate simulation results.
+        """
+        # 1. Get the multivariate objective handler
+        objective_handler = ObjectiveRegistry.get_objective('MULTIVARIATE', self.config, self.logger)
+        if not objective_handler:
+            return 1000.0
+            
+        # 2. Use AnalysisManager to evaluate variables
+        from symfluence.utils.evaluation.analysis_manager import AnalysisManager
+        am = AnalysisManager(self.config, self.logger)
+        eval_results = am.run_multivariate_evaluation(sim_results)
+        
+        # 3. Calculate scalar objective
+        return objective_handler.calculate(eval_results)
+
     def load_optimization_results(self, filename: str = None) -> Optional[Dict]:
         """
         Load optimization results from file.

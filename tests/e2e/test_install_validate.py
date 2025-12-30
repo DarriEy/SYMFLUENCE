@@ -18,30 +18,70 @@ pytestmark = [pytest.mark.e2e, pytest.mark.ci_quick]
 @pytest.mark.e2e
 @pytest.mark.ci_quick
 @pytest.mark.smoke
-def test_binary_validation(symfluence_code_dir):
+def test_binary_validation(symfluence_code_dir, symfluence_data_root):
     """
     Validate all external tool binaries are functional.
 
     Tests that required binaries (SUMMA, mizuRoute, TauDEM) exist and can be executed.
     Also validates optional binaries (FUSE, NGEN) if they are installed.
     """
+    from utils.helpers import load_config_template
+
+    # Load config to get installation paths
+    config = load_config_template(symfluence_code_dir)
+    data_dir = Path(config.get("SYMFLUENCE_DATA_DIR", symfluence_data_root))
+
     # Required binaries
     print("\n" + "="*60)
     print("Validating REQUIRED binaries...")
     print("="*60)
 
-    # Check for SUMMA
-    summa_path = shutil.which("summa.exe")
-    assert summa_path is not None, "SUMMA binary not found in PATH"
+    # Check for SUMMA - use configured path
+    summa_install_path = config.get("SUMMA_INSTALL_PATH", "default")
+    if summa_install_path == "default":
+        summa_install_path = data_dir / "installs" / "summa" / "bin"
+    else:
+        summa_install_path = Path(summa_install_path)
+
+    summa_exe = config.get("SUMMA_EXE", "summa.exe")
+
+    # Try PATH first, then fall back to configured location
+    summa_in_path = shutil.which(summa_exe)
+    if summa_in_path:
+        summa_path = Path(summa_in_path)
+    else:
+        # Check configured installation directory
+        summa_path = summa_install_path / summa_exe
+        # Also try the symlink summa.exe if the configured exe doesn't exist
+        if not summa_path.exists() and summa_exe != "summa.exe":
+            summa_path_symlink = summa_install_path / "summa.exe"
+            if summa_path_symlink.exists():
+                summa_path = summa_path_symlink
+
+    assert summa_path.exists(), f"SUMMA binary not found at {summa_path} (checked PATH and {summa_install_path})"
     print(f"✓ SUMMA found: {summa_path}")
 
     # Verify SUMMA can run (check version)
-    result = subprocess.run(["summa.exe", "--version"], capture_output=True, text=True)
+    result = subprocess.run([str(summa_path), "--version"], capture_output=True, text=True)
     print(f"  SUMMA version output: {result.stdout.strip() or result.stderr.strip()}")
 
-    # Check for mizuRoute
-    mizu_path = shutil.which("mizuRoute.exe")  # Capital R in Route
-    assert mizu_path is not None, "mizuRoute binary not found in PATH"
+    # Check for mizuRoute - use configured path
+    mizu_install_path = config.get("INSTALL_PATH_MIZUROUTE", "default")
+    if mizu_install_path == "default":
+        mizu_install_path = data_dir / "installs" / "mizuRoute" / "route" / "bin"
+    else:
+        mizu_install_path = Path(mizu_install_path)
+
+    mizu_exe = config.get("EXE_NAME_MIZUROUTE", "mizuRoute.exe")
+
+    # Try PATH first, then fall back to configured location
+    mizu_in_path = shutil.which(mizu_exe)
+    if mizu_in_path:
+        mizu_path = Path(mizu_in_path)
+    else:
+        mizu_path = mizu_install_path / mizu_exe
+
+    assert mizu_path.exists(), f"mizuRoute binary not found at {mizu_path} (checked PATH and {mizu_install_path})"
     print(f"✓ mizuRoute found: {mizu_path}")
 
     # Check for TauDEM tools (required for domain preprocessing)
