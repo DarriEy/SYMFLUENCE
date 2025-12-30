@@ -13,11 +13,11 @@ from pathlib import Path
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
-from tests.utils.geospatial import (
+from utils.geospatial import (
     assert_shapefile_signature_matches,
     load_shapefile_signature,
 )
-from tests.utils.helpers import write_config
+from utils.helpers import write_config
 
 # GitHub release URL for example data
 EXAMPLE_DATA_URL = "https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-v0.2/example_data_v0.2.zip"
@@ -86,7 +86,7 @@ def test_data_dir(symfluence_code_dir, symfluence_data_root):
 def config_path(test_data_dir, tmp_path, symfluence_code_dir):
     """Create test configuration based on config_template.yaml."""
     # Load template
-    from tests.utils.helpers import load_config_template
+    from utils.helpers import load_config_template
 
     config = load_config_template(symfluence_code_dir)
 
