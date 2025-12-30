@@ -105,9 +105,42 @@ Set verbosity in YAML (e.g., ``LOG_LEVEL: INFO``) and inspect logs under
 
 Extending SYMFLUENCE
 --------------------
-- Add new model adapters under ``utils/models/`` and register them in preprocessing/run steps
-- Add optimization strategies under ``optimization`` and expose via configuration
-- Create new analyses in ``analysis`` and wire into the orchestrated sequence
+SYMFLUENCE is designed for extensibility. The most common extension point is adding support for a new hydrological model.
+
+Adding a New Model
+~~~~~~~~~~~~~~~~~~
+As of v0.5.6, SYMFLUENCE uses a **Model Registry** system. To add a new model:
+
+1. Create a new utility module in ``src/symfluence/utils/models/``.
+2. Use the ``ModelRegistry`` decorators to register your preprocessor, runner, and postprocessor classes:
+
+   .. code-block:: python
+
+      from .registry import ModelRegistry
+
+      @ModelRegistry.register_preprocessor('MY_MODEL')
+      class MyPreProcessor:
+          def __init__(self, config, logger): ...
+          def run_preprocessing(self): ...
+
+      @ModelRegistry.register_runner('MY_MODEL', method_name='run_my_model')
+      class MyRunner:
+          def __init__(self, config, logger): ...
+          def run_my_model(self): ...
+
+      @ModelRegistry.register_postprocessor('MY_MODEL')
+      class MyPostProcessor:
+          def __init__(self, config, logger): ...
+          def extract_streamflow(self): ...
+
+3. Import your module in ``src/symfluence/utils/models/__init__.py`` to ensure registration.
+
+The ``ModelManager`` will then automatically support your model if it is listed in the ``HYDROLOGICAL_MODEL`` configuration parameter.
+
+Other Extensions
+~~~~~~~~~~~~~~~~
+- **Optimization strategies:** Add new strategies under ``utils/optimization/`` and expose them via the ``OptimizationManager``.
+- **Analyses:** Create new analysis modules in ``utils/evaluation/`` and wire them into the orchestrated sequence in ``WorkflowOrchestrator``.
 
 References
 ----------
