@@ -25,10 +25,31 @@ class CONUS404Acquirer(BaseAcquisitionHandler):
         ds_spatial = ds_full.isel({ds_full[lat_name].dims[0]: slice(iy.min(), iy.max()+1), ds_full[lat_name].dims[1]: slice(ix.min(), ix.max()+1)})
         ds_subset = ds_spatial.sel(time=slice(self.start_date, self.end_date))
         req_vars = ["T2", "Q2", "PSFC", "U10", "V10"]
-        for c in [["ACSWDNB", "SWDOWN"], ["ACLWDNB", "LWDOWN"], ["RAINRATE", "PRATE"]]:
+        for c in [["ACSWDNB", "SWDOWN"], ["ACLWDNB", "LWDOWN"], ["ACDRIPR", "RAINRATE", "PRATE"]]:
             v = next((v for v in c if v in ds_subset.data_vars), None)
             if v: req_vars.append(v)
-        ds_final = ds_subset[req_vars].load()
+        ds_raw = ds_subset[req_vars].load()
+
+        # Standardize variable names to match preprocessing expectations
+        rename_map = {
+            "T2": "airtemp",
+            "Q2": "spechum",
+            "PSFC": "airpres",
+            "U10": "windspd_u",
+            "V10": "windspd_v",
+            "ACSWDNB": "SWRadAtm",
+            "SWDOWN": "SWRadAtm",
+            "ACLWDNB": "LWRadAtm",
+            "LWDOWN": "LWRadAtm",
+            "ACDRIPR": "pptrate",
+            "RAINRATE": "pptrate",
+            "PRATE": "pptrate"
+        }
+
+        # Rename variables that exist
+        to_rename = {old: new for old, new in rename_map.items() if old in ds_raw.data_vars}
+        ds_final = ds_raw.rename(to_rename)
+
         ds_final.attrs.update({"source": "CONUS404", "bbox": str(self.bbox)})
         output_dir.mkdir(parents=True, exist_ok=True)
         out_f = output_dir / f"{self.domain_name}_CONUS404_{self.start_date.year}-{self.end_date.year}.nc"

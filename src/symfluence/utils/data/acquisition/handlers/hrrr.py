@@ -48,6 +48,12 @@ class HRRRAcquirer(BaseAcquisitionHandler):
             tr = Transformer.from_crs("+proj=lcc +lat_0=38.5 +lon_0=-97.5 +lat_1=38.5 +lat_2=38.5 +x_0=0 +y_0=0 +R=6371229 +units=m +no_defs", "EPSG:4326", always_xy=True)
             lon_m, lat_m = tr.transform(*np.meshgrid(ds_final.coords["projection_x_coordinate"].values, ds_final.coords["projection_y_coordinate"].values))
             ds_final = ds_final.assign_coords(longitude=(["projection_y_coordinate", "projection_x_coordinate"], lon_m.astype(np.float32)), latitude=(["projection_y_coordinate", "projection_x_coordinate"], lat_m.astype(np.float32)))
+
+        # Convert float16 to float32 (NetCDF doesn't support float16)
+        for var in ds_final.data_vars:
+            if ds_final[var].dtype == np.float16:
+                ds_final[var] = ds_final[var].astype(np.float32)
+
         output_dir.mkdir(parents=True, exist_ok=True)
         out_f = output_dir / f"{self.domain_name}_HRRR_hourly_{self.start_date.strftime('%Y%m%d')}-{self.end_date.strftime('%Y%m%d')}.nc"
         ds_final.to_netcdf(out_f)

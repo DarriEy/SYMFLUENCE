@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import logging
+import pandas as pd
 from typing import Dict, Any, Optional
 
 from symfluence.utils.evaluation.decision_analysis import DecisionAnalyzer # type: ignore
@@ -9,7 +10,7 @@ from symfluence.utils.evaluation.sensitivity_analysis import SensitivityAnalyzer
 from symfluence.utils.evaluation.benchmarking import Benchmarker, BenchmarkPreprocessor # type: ignore
 from symfluence.utils.reporting.result_vizualisation_utils import BenchmarkVizualiser # type: ignore
 from symfluence.utils.models.fuse_utils import FuseDecisionAnalyzer # type: ignore
-
+from symfluence.utils.evaluation.registry import EvaluationRegistry
 
 class AnalysisManager:
     """
@@ -367,6 +368,45 @@ class AnalysisManager:
         
         return status
     
+    def run_multivariate_evaluation(self, sim_results: Dict[str, pd.Series]) -> Dict[str, Dict[str, float]]:
+        """
+        Run multivariate evaluation against all available observations.
+        """
+        self.logger.info("Starting multivariate evaluation")
+        results = {}
+        
+        # 1. Load observations
+        obs_data = self._load_all_observations()
+        
+        # 2. Evaluate each variable
+        for var_type, obs_series in obs_data.items():
+            evaluator = EvaluationRegistry.get_evaluator(var_type, self.config, self.logger)
+            if evaluator and var_type in sim_results:
+                self.logger.info(f"Evaluating {var_type}")
+                results[var_type] = evaluator.calculate_metrics(sim_results[var_type], obs_series)
+                
+        return results
+
+    def _load_all_observations(self) -> Dict[str, pd.Series]:
+        """Load all preprocessed observations."""
+        obs = {}
+        
+        # Streamflow
+        sf_file = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
+        if sf_file.exists():
+            df = pd.read_csv(sf_file, parse_dates=True, index_col=0)
+            obs['STREAMFLOW'] = df.iloc[:, 0]
+            
+        # GRACE/TWS
+        tws_file = self.project_dir / "observations" / "grace" / "preprocessed" / f"{self.domain_name}_grace_tws_processed.csv"
+        if tws_file.exists():
+            df = pd.read_csv(tws_file, parse_dates=True, index_col=0)
+            if 'grace_jpl_anomaly' in df.columns:
+                obs['TWS'] = df['grace_jpl_anomaly']
+                
+        # Add others...
+        return obs
+
     def validate_analysis_requirements(self) -> Dict[str, bool]:
         """
         Validate that requirements are met for running analyses.

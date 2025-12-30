@@ -16,8 +16,14 @@ class GeospatialAcquirer(BaseAcquisitionHandler):
 class SoilGridsAcquirer(BaseAcquisitionHandler):
     def download(self, output_dir: Path) -> Path:
         soil_dir = self._attribute_dir("soilclass")
-        wcs_map, coverage = self.config.get("SOILGRIDS_WCS_MAP"), self.config.get("SOILGRIDS_COVERAGE_ID")
-        if not wcs_map or not coverage: raise ValueError("SoilGrids requires map and coverage ID.")
+
+        # Get layer name from config or use default
+        layer = self.config.get("SOILGRIDS_LAYER", "wrb_0-5cm_mode")
+
+        # Use default WCS map and coverage if not specified
+        wcs_map = self.config.get("SOILGRIDS_WCS_MAP", "/vsicurl/https://files.isric.org/soilgrids/latest/data/wrb/wrb_0-5cm_mode.vrt")
+        coverage = self.config.get("SOILGRIDS_COVERAGE_ID", layer)
+
         params = [("map", wcs_map), ("SERVICE", "WCS"), ("VERSION", "2.0.1"), ("REQUEST", "GetCoverage"), ("COVERAGEID", coverage), ("FORMAT", "GEOTIFF_INT16"), ("SUBSETTINGCRS", "http://www.opengis.net/def/crs/EPSG/0/4326"), ("OUTPUTCRS", "http://www.opengis.net/def/crs/EPSG/0/4326"), ("SUBSET", f"Lat({self.bbox['lat_min']},{self.bbox['lat_max']})"), ("SUBSET", f"Lon({self.bbox['lon_min']},{self.bbox['lon_max']})")]
         resp = requests.get("https://maps.isric.org/mapserv", params=params, stream=True)
         resp.raise_for_status()

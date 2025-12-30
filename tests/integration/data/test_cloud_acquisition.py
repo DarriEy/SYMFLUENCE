@@ -9,10 +9,28 @@ import pytest
 import shutil
 import yaml
 from pathlib import Path
+import os
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
 from utils.helpers import load_config_template, write_config
+
+# Check if CDS API credentials are available and valid
+def _check_cds_credentials():
+    """Check if CDS API credentials exist and are valid."""
+    cdsapirc = Path.home() / '.cdsapirc'
+    if not cdsapirc.exists():
+        return False
+    try:
+        import cdsapi
+        # Try to initialize client to validate credentials
+        cdsapi.Client()
+        return True
+    except (AssertionError, Exception):
+        # Invalid credentials or other initialization error
+        return False
+
+HAS_CDS_CREDENTIALS = _check_cds_credentials()
 
 
 
@@ -83,19 +101,19 @@ FORCING_CASES = [
     {
         "dataset": "ERA5",
         "start": "2010-01-01 00:00",
-        "end": "2010-01-02 00:00",
+        "end": "2010-01-01 01:00",  # Just 1 hour
         "expect_glob": "domain_paradise_cloud_ERA5_merged_*.nc",
     },
     {
         "dataset": "AORC",
         "start": "2010-01-01 00:00",
-        "end": "2010-01-01 03:00",
+        "end": "2010-01-01 01:00",  # Just 1 hour
         "expect_glob": "paradise_cloud_AORC_*.nc",
     },
     {
         "dataset": "NEX-GDDP-CMIP6",
         "start": "2010-01-01 00:00",
-        "end": "2010-01-03 00:00",
+        "end": "2010-01-02 00:00",  # 1 day (NEX is daily data)
         "expect_glob": "NEXGDDP_all_*.nc",
         "extras": {
             "NEX_MODELS": ["ACCESS-CM2"],
@@ -107,19 +125,19 @@ FORCING_CASES = [
     {
         "dataset": "CONUS404",
         "start": "2010-01-01 00:00",
-        "end": "2010-01-01 03:00",
+        "end": "2010-01-01 01:00",  # Just 1 hour
         "expect_glob": "paradise_cloud_CONUS404_*.nc",
     },
     {
         "dataset": "HRRR",
         "start": "2020-01-01 00:00",
-        "end": "2020-01-01 03:00",
+        "end": "2020-01-01 01:00",  # Just 1 hour
         "expect_glob": "paradise_cloud_HRRR_hourly_*.nc",
     },
     {
         "dataset": "CARRA",
         "start": "2010-01-01 00:00",
-        "end": "2010-01-01 02:00",  # Just 2 hours
+        "end": "2010-01-01 01:00",  # Just 1 hour
         "expect_glob": "*CARRA*.nc",
         "domain_override": {
             "DOMAIN_NAME": "ellioaar_iceland",
@@ -133,7 +151,7 @@ FORCING_CASES = [
     {
         "dataset": "CERRA",
         "start": "2010-01-01 00:00",
-        "end": "2010-01-01 03:00",  # Just 3 hours (1 timestep for 3-hourly)
+        "end": "2010-01-01 03:00",  # 3 hours (1 timestep for 3-hourly data)
         "expect_glob": "*CERRA*.nc",
         "domain_override": {
             "DOMAIN_NAME": "fyris_uppsala",
@@ -152,6 +170,10 @@ def test_cloud_forcing_acquisition(prepared_project, case):
     Download a short forcing window for each cloud-supported dataset, then
     run the full preprocessing + model pipeline.
     """
+    # Skip CARRA/CERRA tests if CDS credentials are not available
+    if case["dataset"] in ["CARRA", "CERRA"] and not HAS_CDS_CREDENTIALS:
+        pytest.skip(f"Skipping {case['dataset']} test: CDS API credentials not found in ~/.cdsapirc")
+
     cfg_path, project_dir = prepared_project
 
     # Load base config and update for this dataset

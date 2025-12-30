@@ -18,7 +18,11 @@ class AORCAcquirer(BaseAcquisitionHandler):
                 store = s3fs.S3Map(f'noaa-nws-aorc-v1-1-1km/{year}.zarr', s3=fs)
                 ds = xr.open_zarr(store)
                 lon1, lon2 = sorted([self.bbox['lon_min'], self.bbox['lon_max']])
-                lon_min, lon_max = (lon1 + 360.0) % 360.0, (lon2 + 360.0) % 360.0 if float(ds['longitude'].max()) > 180.0 else (lon1, lon2)
+                # Convert to 0-360 if dataset uses that convention
+                if float(ds['longitude'].max()) > 180.0:
+                    lon_min, lon_max = (lon1 + 360.0) % 360.0, (lon2 + 360.0) % 360.0
+                else:
+                    lon_min, lon_max = lon1, lon2
                 ds_subset = ds.sel(latitude=slice(self.bbox['lat_min'], self.bbox['lat_max']), longitude=slice(lon_min, lon_max))
                 ds_subset = ds_subset.sel(time=slice(max(self.start_date, pd.Timestamp(f'{year}-01-01')), min(self.end_date, pd.Timestamp(f'{year}-12-31 23:59:59'))))
                 if len(ds_subset.time) > 0: datasets.append(ds_subset)
