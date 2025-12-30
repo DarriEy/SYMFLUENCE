@@ -286,7 +286,7 @@ _is_bad_path() {
 }
 
 update_config_paths_in_yaml() {
-    # $1: path to YAML config (e.g., ./0_config_files/config.yaml)
+    # $1: path to YAML config (e.g., ./tests/configs/config.yaml)
     local cfg="$1"
     local CODE="$PWD"
     local DATA_BASE="$PWD/../SYMFLUENCE_data"; mkdir -p "$DATA_BASE"; local DATA="$(cd "$DATA_BASE" && pwd)"
@@ -527,7 +527,7 @@ main() {
     #set_default_symfluence_paths
     
     # Update config.yaml with PWD-based paths if current values are bad/missing (optional)
-    local CONFIG_YAML="./0_config_files/config_template.yaml"
+    local CONFIG_YAML="./tests/configs/config_template.yaml"
     if [[ -f "$CONFIG_YAML" ]] && declare -f update_config_paths_in_yaml >/dev/null 2>&1; then
         update_config_paths_in_yaml "$CONFIG_YAML" || {
             print_warning "Config update failed, continuing without update"
@@ -629,12 +629,18 @@ EOF
         }
         print_success "SYMFLUENCE package installed"
 
-        # External tools (mirrors your existing flow)
+        # External tools - use installed symfluence command
         cd "$symfluence_dir"
         print_info "Installing external tools..."
-        $python_cmd "$SYMFLUENCE_SCRIPT" --get_executables
+        symfluence --get_executables || {
+            print_error "External tools installation failed"
+            exit 1
+        }
         print_info "Validating installation..."
-        $python_cmd "$SYMFLUENCE_SCRIPT" --validate_binaries
+        symfluence --validate_binaries || {
+            print_error "Binary validation failed"
+            exit 1
+        }
 
         echo ""
         print_success "Installation complete!"
