@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-13, macos-14]  # Intel Mac, ARM Mac, Linux
+        os: [ubuntu-latest, macos-latest]  # Linux, ARM Mac (M1/M2)
         python-version: ['3.9', '3.10', '3.11', '3.12']
         exclude:
           # Python 3.12 may have compatibility issues with some deps
@@ -86,13 +86,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-13, macos-14]
+        os: [ubuntu-latest, macos-latest]  # Linux, ARM Mac (M1/M2)
         include:
           - os: ubuntu-latest
             python-version: '3.11'
-          - os: macos-13  # Intel Mac
-            python-version: '3.11'
-          - os: macos-14  # ARM Mac (M1/M2)
+          - os: macos-latest  # ARM Mac (M1/M2)
             python-version: '3.11'
 
     env:
@@ -187,7 +185,7 @@ jobs:
           - os: ubuntu-latest
             python-version: '3.11'
           # Test on macOS with latest Python
-          - os: macos-14  # ARM Mac
+          - os: macos-latest  # ARM Mac (M1/M2)
             python-version: '3.11'
 
     env:
