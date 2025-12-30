@@ -3,7 +3,7 @@ Troubleshooting
 
 Overview
 --------
-This guide outlines how to diagnose and resolve common issues in CONFLUENCE related to configuration, installation, runtime execution, and HPC workflows.
+This guide outlines how to diagnose and resolve common issues in SYMFLUENCE related to configuration, installation, runtime execution, and HPC workflows.
 
 ---
 
