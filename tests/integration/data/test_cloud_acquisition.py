@@ -12,7 +12,7 @@ from pathlib import Path
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
-from test_helpers import load_config_template, write_config
+from tests.utils.helpers import load_config_template, write_config
 
 
 @pytest.fixture(scope="module")
