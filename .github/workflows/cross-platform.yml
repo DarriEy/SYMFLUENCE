@@ -160,7 +160,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.SYMFLUENCE_DATA }}/installs
-          key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v2
+          key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v3
 
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
@@ -259,7 +259,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.SYMFLUENCE_DATA }}/installs
-          key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v2
+          key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v3
 
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
