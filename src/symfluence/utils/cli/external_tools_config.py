@@ -81,6 +81,7 @@ def get_external_tools_definitions() -> Dict[str, Dict[str, Any]]:
             'branch': None,
             'install_dir': 'sundials',
             'build_commands': [
+                common_env,
                 r'''
 # Build SUNDIALS from release tarball (shared libs OK; SUMMA will link).
 set -e
@@ -147,6 +148,7 @@ cmake --build . --target install -j ${NCORES:-4}
             'install_dir': 'summa',
             'requires': ['sundials'],
             'build_commands': [
+                common_env,
                 r'''
 # Build SUMMA against SUNDIALS + NetCDF, leverage SUMMA's CMake-based build
 set -e
