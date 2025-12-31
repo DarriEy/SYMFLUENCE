@@ -207,6 +207,17 @@ jobs:
             "${{ env.SYMFLUENCE_DATA }}/installs" \
             "./release"
 
+      - name: Verify binary portability
+        if: success() && runner.os == 'macOS'
+        run: |
+          set -e
+          chmod +x ./scripts/verify_binary_portability.sh
+          ./scripts/verify_binary_portability.sh \
+            "./release/symfluence-tools/bin" || {
+            echo "⚠️  Portability verification had warnings but continuing..."
+            echo "   Review the output above for potential issues"
+          }
+
       - name: Create release tarball
         if: success() && runner.os == 'macOS'
         run: |
