@@ -4,6 +4,19 @@ from pathlib import Path
 import logging
 from typing import Dict, Any, List, Tuple, Callable
 from datetime import datetime
+from dataclasses import dataclass
+
+
+@dataclass
+class WorkflowStep:
+    """
+    Represents a single step in the SYMFLUENCE workflow.
+    """
+    name: str
+    cli_name: str
+    func: Callable
+    check_func: Callable
+    description: str
 
 
 class WorkflowOrchestrator:
@@ -67,25 +80,12 @@ class WorkflowOrchestrator:
 
         self.project_dir = Path(data_dir) / f"domain_{self.domain_name}"
     
-    def define_workflow_steps(self) -> List[Tuple[Callable, Callable, str]]:
+    def define_workflow_steps(self) -> List[WorkflowStep]:
         """
         Define the workflow steps with their output validation checks and descriptions.
         
-        This method establishes the complete sequence of operations for a SYMFLUENCE
-        modeling workflow. Each step consists of:
-        1. A function to execute (typically a method from a manager component)
-        2. A check function that verifies the step's output exists
-        3. A human-readable description of what the step does
-        
-        The workflow follows a logical progression through five main phases:
-        1. Project initialization
-        2. Geospatial domain definition and analysis
-        3. Model-agnostic data preprocessing
-        4. Model-specific processing and execution
-        5. Optimization, emulation, and analysis
-        
         Returns:
-            List[Tuple[Callable, Callable, str]]: List of (function, check_function, description) tuples
+            List[WorkflowStep]: List of WorkflowStep objects
         """
 
         # Get configured analyses
@@ -94,113 +94,145 @@ class WorkflowOrchestrator:
 
         return [
             # --- Project Initialization ---
-            (
-                self.managers['project'].setup_project,
-                lambda: (self.project_dir / 'shapefiles').exists(),
-                "Setting up project structure and directories"
+            WorkflowStep(
+                name="setup_project",
+                cli_name="setup_project",
+                func=self.managers['project'].setup_project,
+                check_func=lambda: (self.project_dir / 'shapefiles').exists(),
+                description="Setting up project structure and directories"
             ),
             
             # --- Geospatial Domain Definition and Analysis ---
-            (
-                self.managers['project'].create_pour_point,
-                lambda: (self.project_dir / "shapefiles" / "pour_point" / 
+            WorkflowStep(
+                name="create_pour_point",
+                cli_name="create_pour_point",
+                func=self.managers['project'].create_pour_point,
+                check_func=lambda: (self.project_dir / "shapefiles" / "pour_point" / 
                         f"{self.domain_name}_pourPoint.shp").exists(),
-                "Creating watershed pour point"
+                description="Creating watershed pour point"
             ),
-            (
-                self.managers['data'].acquire_attributes,
-                lambda: (self.project_dir / "attributes" / "soilclass" / 
+            WorkflowStep(
+                name="acquire_attributes",
+                cli_name="acquire_attributes",
+                func=self.managers['data'].acquire_attributes,
+                check_func=lambda: (self.project_dir / "attributes" / "soilclass" / 
                         f"domain_{self.domain_name}_soil_classes.tif").exists(),
-                "Acquiring geospatial attributes and data"
+                description="Acquiring geospatial attributes and data"
             ),
-            (
-                self.managers['domain'].define_domain,
-                lambda: (self.project_dir / "shapefiles" / "river_basins" / 
+            WorkflowStep(
+                name="define_domain",
+                cli_name="define_domain",
+                func=self.managers['domain'].define_domain,
+                check_func=lambda: (self.project_dir / "shapefiles" / "river_basins" / 
                         f"{self.domain_name}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp").exists(),
-                "Defining hydrological domain boundaries"
+                description="Defining hydrological domain boundaries"
             ),
-            (
-                self.managers['domain'].discretize_domain,
-                lambda: (self.project_dir / "shapefiles" / "catchment" / 
+            WorkflowStep(
+                name="discretize_domain",
+                cli_name="discretize_domain",
+                func=self.managers['domain'].discretize_domain,
+                check_func=lambda: (self.project_dir / "shapefiles" / "catchment" / 
                         f"{self.domain_name}_HRUs_{str(self.config.get('DOMAIN_DISCRETIZATION')).replace(',','_')}.shp").exists(),
-                "Discretizing domain into hydrological response units"
+                description="Discretizing domain into hydrological response units"
             ),
             
             # --- Model-Agnostic Data Preprocessing ---
-            (
-                self.managers['data'].process_observed_data,
-                lambda: (self.project_dir / "observations" / "streamflow" / "preprocessed" /
+            WorkflowStep(
+                name="process_observed_data",
+                cli_name="process_observed_data",
+                func=self.managers['data'].process_observed_data,
+                check_func=lambda: (self.project_dir / "observations" / "streamflow" / "preprocessed" /
                         f"{self.domain_name}_streamflow_processed.csv").exists(),
-                "Processing observed data"
+                description="Processing observed data"
             ),
-            (
-                self.managers['data'].acquire_forcings,
-                lambda: (self.project_dir / "forcing" / "raw_data").exists(),
-                "Acquiring meteorological forcing data"
+            WorkflowStep(
+                name="acquire_forcings",
+                cli_name="acquire_forcings",
+                func=self.managers['data'].acquire_forcings,
+                check_func=lambda: (self.project_dir / "forcing" / "raw_data").exists(),
+                description="Acquiring meteorological forcing data"
             ),
-            (
-                self.managers['data'].run_model_agnostic_preprocessing,
-                lambda: (self.project_dir / "forcing" / "basin_averaged_data").exists(),
-                "Running model-agnostic data preprocessing"
+            WorkflowStep(
+                name="run_model_agnostic_preprocessing",
+                cli_name="model_agnostic_preprocessing",
+                func=self.managers['data'].run_model_agnostic_preprocessing,
+                check_func=lambda: (self.project_dir / "forcing" / "basin_averaged_data").exists(),
+                description="Running model-agnostic data preprocessing"
             ),
             # --- Model-Specific Preprocessing and Execution ---
-            (
-                self.managers['model'].preprocess_models,
-                lambda: any((self.project_dir / "settings").glob(f"*_{self.config.get('HYDROLOGICAL_MODEL', 'SUMMA')}*")),
-                "Preprocessing model-specific input files"
+            WorkflowStep(
+                name="preprocess_models",
+                cli_name="setup_model",
+                func=self.managers['model'].preprocess_models,
+                check_func=lambda: any((self.project_dir / "settings").glob(f"*_{self.config.get('HYDROLOGICAL_MODEL', 'SUMMA')}*")),
+                description="Preprocessing model-specific input files"
             ),
-            (
-                self.managers['model'].run_models,
-                lambda: (self.project_dir / "simulations" / 
+            WorkflowStep(
+                name="run_models",
+                cli_name="run_model",
+                func=self.managers['model'].run_models,
+                check_func=lambda: (self.project_dir / "simulations" / 
                         f"{self.experiment_id}_{self.config.get('HYDROLOGICAL_MODEL', 'SUMMA')}_output.nc").exists(),
-                "Running hydrological model simulation"
+                description="Running hydrological model simulation"
             ),
-            (
-                self.managers['model'].postprocess_results,
-                lambda: (self.project_dir / "simulations" / 
+            WorkflowStep(
+                name="postprocess_results",
+                cli_name="postprocess_results",
+                func=self.managers['model'].postprocess_results,
+                check_func=lambda: (self.project_dir / "simulations" / 
                         f"{self.experiment_id}_postprocessed.nc").exists(),
-                "Post-processing simulation results"
+                description="Post-processing simulation results"
             ),
             
             # --- Optimization and Emulation Steps ---
-            (
-                self.managers['optimization'].calibrate_model,
-                lambda: ('optimization' in optimizations and 
+            WorkflowStep(
+                name="calibrate_model",
+                cli_name="calibrate_model",
+                func=self.managers['optimization'].calibrate_model,
+                check_func=lambda: ('optimization' in optimizations and 
                         (self.project_dir / "optimization" / 
                         f"{self.experiment_id}_parallel_iteration_results.csv").exists()),
-                "Calibrating model parameters"
+                description="Calibrating model parameters"
             ),
             
-            (
-                self.managers['optimization'].run_emulation,
-                lambda: ('emulation' in optimizations and
+            WorkflowStep(
+                name="run_emulation",
+                cli_name="run_emulation",
+                func=self.managers['optimization'].run_emulation,
+                check_func=lambda: ('emulation' in optimizations and
                         (self.project_dir / "emulation" / self.experiment_id / 
                         "rf_emulation" / "optimized_parameters.csv").exists()),
-                "Running parameter emulation analysis"
+                description="Running parameter emulation analysis"
             ),
             
             # --- Analysis Steps ---
-            (
-                self.managers['analysis'].run_benchmarking,
-                lambda: ('benchmarking' in analyses and
+            WorkflowStep(
+                name="run_benchmarking",
+                cli_name="run_benchmarking",
+                func=self.managers['analysis'].run_benchmarking,
+                check_func=lambda: ('benchmarking' in analyses and
                         (self.project_dir / "evaluation" / "benchmark_scores.csv").exists()),
-                "Running model benchmarking analysis"
+                description="Running model benchmarking analysis"
             ),
             
-            (
-                self.managers['analysis'].run_decision_analysis,
-                lambda: ('decision' in analyses and
+            WorkflowStep(
+                name="run_decision_analysis",
+                cli_name="run_decision_analysis",
+                func=self.managers['analysis'].run_decision_analysis,
+                check_func=lambda: ('decision' in analyses and
                         (self.project_dir / "optimization" / 
                         f"{self.experiment_id}_model_decisions_comparison.csv").exists()),
-                "Analyzing modeling decisions impact"
+                description="Analyzing modeling decisions impact"
             ),
             
-            (
-                self.managers['analysis'].run_sensitivity_analysis,
-                lambda: ('sensitivity' in analyses and
+            WorkflowStep(
+                name="run_sensitivity_analysis",
+                cli_name="run_sensitivity_analysis",
+                func=self.managers['analysis'].run_sensitivity_analysis,
+                check_func=lambda: ('sensitivity' in analyses and
                         (self.project_dir / "plots" / "sensitivity_analysis" / 
                         "all_sensitivity_results.csv").exists()),
-                "Running parameter sensitivity analysis"
+                description="Running parameter sensitivity analysis"
             ),
             
         ]
@@ -256,23 +288,23 @@ class WorkflowOrchestrator:
         failed_steps = 0
         
         # Execute each step
-        for idx, (step_func, check_func, description) in enumerate(workflow_steps, 1):
-            step_name = step_func.__name__
+        for idx, step in enumerate(workflow_steps, 1):
+            step_name = step.name
             
             # FIXED: Use log_step_header() instead of non-existent format_step_header()
             if self.logging_manager:
-                self.logging_manager.log_step_header(idx, total_steps, step_name, description)
+                self.logging_manager.log_step_header(idx, total_steps, step_name, step.description)
             else:
                 self.logger.info(f"\nStep {idx}/{total_steps}: {step_name}")
-                self.logger.info(f"{description}")
+                self.logger.info(f"{step.description}")
                 self.logger.info("=" * 40)
             
             try:
-                if force_run or not check_func():
+                if force_run or not step.check_func():
                     step_start_time = datetime.now()
-                    self.logger.info(f"Executing: {description}")
+                    self.logger.info(f"Executing: {step.description}")
                     
-                    step_func()
+                    step.func()
                     
                     step_end_time = datetime.now()
                     duration = (step_end_time - step_start_time).total_seconds()
@@ -281,7 +313,7 @@ class WorkflowOrchestrator:
                     if self.logging_manager:
                         self.logging_manager.log_completion(
                             success=True, 
-                            message=description, 
+                            message=step.description, 
                             duration=duration
                         )
                     else:
@@ -291,7 +323,7 @@ class WorkflowOrchestrator:
                 else:
                     # Log skip
                     if self.logging_manager:
-                        self.logging_manager.log_substep(f"Skipping: {description} (Output already exists)")
+                        self.logging_manager.log_substep(f"Skipping: {step.description} (Output already exists)")
                     else:
                         self.logger.info(f"→ Skipping: {step_name} (Output already exists)")
                     
@@ -419,9 +451,9 @@ class WorkflowOrchestrator:
             'step_details': []
         }
         
-        for step_func, check_func, description in workflow_steps:
-            step_name = step_func.__name__
-            is_complete = check_func()
+        for step in workflow_steps:
+            step_name = step.name
+            is_complete = step.check_func()
             
             if is_complete:
                 status['completed_steps'] += 1
@@ -430,7 +462,8 @@ class WorkflowOrchestrator:
             
             status['step_details'].append({
                 'name': step_name,
-                'description': description,
+                'cli_name': step.cli_name,
+                'description': step.description,
                 'complete': is_complete
             })
         

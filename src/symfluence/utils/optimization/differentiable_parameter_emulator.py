@@ -65,7 +65,7 @@ import yaml
 from tqdm import tqdm
 
 # Reuse iterative optimizer backend for SUMMA IO/parallelism
-from iterative_optimizer import DEOptimizer  # type: ignore
+from symfluence.utils.optimization.iterative_optimizer import DEOptimizer
 
 
 # ==============================
