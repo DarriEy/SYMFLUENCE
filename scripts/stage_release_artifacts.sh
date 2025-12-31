@@ -332,7 +332,7 @@ print_info "Licenses:"
 ls -1 LICENSES/ | sed 's/^/  /'
 echo ""
 print_info "Directory structure:"
-tree -L 2 "$STAGE_DIR" 2>/dev/null || find "$STAGE_DIR" -maxdepth 2 -type f -o -type d
+tree -L 2 . 2>/dev/null || find . -maxdepth 2 -type f -o -type d
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if [ $STAGED_COUNT -eq 0 ]; then
