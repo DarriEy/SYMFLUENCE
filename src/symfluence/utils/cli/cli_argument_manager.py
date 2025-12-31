@@ -259,6 +259,16 @@ class CLIArgumentManager:
             action='store_true',
             help='Force reinstallation of tools even if they already exist'
         )
+        binary_mgmt_group.add_argument(
+            '--doctor',
+            action='store_true',
+            help='Run system diagnostics: check binaries, toolchain, and system libraries'
+        )
+        binary_mgmt_group.add_argument(
+            '--tools_info',
+            action='store_true',
+            help='Display installed tools information from toolchain metadata'
+        )
         
         # Workflow execution options
         workflow_group = self.parser.add_argument_group('Workflow Execution')
@@ -558,7 +568,9 @@ For more information, visit: https://github.com/DarriEy/SYMFLUENCE
         # Check if operations that don't need config files are being run
         binary_management_ops = (
             (hasattr(args, 'get_executables') and args.get_executables is not None) or
-            getattr(args, 'validate_binaries', False)
+            getattr(args, 'validate_binaries', False) or
+            getattr(args, 'doctor', False) or
+            getattr(args, 'tools_info', False)
         )
         
         standalone_management_ops = (
@@ -669,12 +681,17 @@ For more information, visit: https://github.com/DarriEy/SYMFLUENCE
             return plan
         
         # Handle binary management operations
-        if (hasattr(args, 'get_executables') and args.get_executables is not None) or getattr(args, 'validate_binaries', False):
+        if (hasattr(args, 'get_executables') and args.get_executables is not None) or \
+           getattr(args, 'validate_binaries', False) or \
+           getattr(args, 'doctor', False) or \
+           getattr(args, 'tools_info', False):
             plan['mode'] = 'binary_management'
             plan['binary_operations'] = {
                 'get_executables': getattr(args, 'get_executables', None),
                 'validate_binaries': getattr(args, 'validate_binaries', False),
-                'force_install': getattr(args, 'force_install', False)
+                'force_install': getattr(args, 'force_install', False),
+                'doctor': getattr(args, 'doctor', False),
+                'tools_info': getattr(args, 'tools_info', False)
             }
             return plan
         

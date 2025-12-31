@@ -40,7 +40,11 @@ def main():
         return cli.launch_example_notebook(args.example_notebook)
 
     # For installer/binaries
-    if getattr(args, "get_executables", None) is not None or getattr(args, "validate_binaries", False) or getattr(args, "force_install", False):
+    if getattr(args, "get_executables", None) is not None or \
+       getattr(args, "validate_binaries", False) or \
+       getattr(args, "force_install", False) or \
+       getattr(args, "doctor", False) or \
+       getattr(args, "tools_info", False):
         plan = cli.get_execution_plan(args)
         ok = cli.handle_binary_management(plan)
         return 0 if ok else 1
