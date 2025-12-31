@@ -304,8 +304,16 @@ _is_bad_path() {
 update_config_paths_in_yaml() {
     # $1: path to YAML config (e.g., ./0_config_files/config.yaml)
     local cfg="$1"
-    local CODE="$PWD"
-    local DATA_BASE="$PWD/../SYMFLUENCE_data"; mkdir -p "$DATA_BASE"; local DATA="$(cd "$DATA_BASE" && pwd)"
+    local CODE="${SYMFLUENCE_CODE_DIR:-$PWD}"
+    # Use SYMFLUENCE_DATA_DIR if set, otherwise fall back to PWD/../SYMFLUENCE_data
+    local DATA
+    if [[ -n "${SYMFLUENCE_DATA_DIR:-}" && -d "${SYMFLUENCE_DATA_DIR}" ]]; then
+        DATA="${SYMFLUENCE_DATA_DIR}"
+    elif [[ -n "${SYMFLUENCE_DATA:-}" && -d "${SYMFLUENCE_DATA}" ]]; then
+        DATA="${SYMFLUENCE_DATA}"
+    else
+        local DATA_BASE="$PWD/../SYMFLUENCE_data"; mkdir -p "$DATA_BASE"; DATA="$(cd "$DATA_BASE" && pwd)"
+    fi
 
     # Ensure file exists
     if [[ ! -f "$cfg" ]]; then

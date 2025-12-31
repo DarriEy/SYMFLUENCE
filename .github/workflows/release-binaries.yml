@@ -94,6 +94,11 @@ jobs:
             echo "/opt/homebrew/bin" >> $GITHUB_PATH
           fi
 
+          # Help CMake find Homebrew packages (especially udunits)
+          echo "CMAKE_PREFIX_PATH=/opt/homebrew" >> $GITHUB_ENV
+          echo "UDUNITS2_ROOT=/opt/homebrew" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
+
       # ========================================================================
       # Build Tools
       # ========================================================================
