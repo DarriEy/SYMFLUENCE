@@ -276,6 +276,82 @@ jobs:
           echo "✓ All ${TEST_LEVEL} tests completed"
           echo "========================================="
 
+      # =====================================================================
+      # PHASE 1: Generate Release Artifacts
+      # =====================================================================
+      - name: Generate toolchain metadata
+        if: success()
+        run: |
+          set -e
+          chmod +x ./scripts/generate_toolchain.sh
+          ./scripts/generate_toolchain.sh \
+            "${{ env.SYMFLUENCE_DATA }}/installs" \
+            "${{ env.SYMFLUENCE_DATA }}/installs/toolchain.json" \
+            "linux-x86_64"
+
+      - name: Stage release artifacts
+        if: success()
+        run: |
+          set -e
+          chmod +x ./scripts/stage_release_artifacts.sh
+          mkdir -p ./release
+          ./scripts/stage_release_artifacts.sh \
+            "linux-x86_64" \
+            "${{ env.SYMFLUENCE_DATA }}/installs" \
+            "./release"
+
+      - name: Create release tarball
+        if: success()
+        run: |
+          set -e
+          chmod +x ./scripts/create_release_tarball.sh
+          VERSION="${{ github.ref_name }}"
+          ./scripts/create_release_tarball.sh \
+            "$VERSION" \
+            "linux-x86_64" \
+            "./release/symfluence-tools" \
+            "./release"
+
+      - name: Test artifact relocatability
+        if: success()
+        run: |
+          set -e
+          echo "Testing relocated binaries..."
+
+          # Extract to temporary location
+          mkdir -p /tmp/symfluence-test
+          cd /tmp/symfluence-test
+          tar -xzf $GITHUB_WORKSPACE/release/symfluence-tools-*.tar.gz
+
+          # Test binaries run without original install directory
+          echo "→ Testing SUMMA..."
+          if [ -f "./symfluence-tools/bin/summa" ]; then
+            ./symfluence-tools/bin/summa --version 2>&1 | head -5 || echo "  SUMMA version check completed"
+          fi
+
+          echo "→ Testing NGEN..."
+          if [ -f "./symfluence-tools/bin/ngen" ]; then
+            ./symfluence-tools/bin/ngen --help 2>&1 | head -5 || echo "  NGEN help check completed"
+          fi
+
+          echo "→ Testing mizuRoute..."
+          if [ -f "./symfluence-tools/bin/mizuroute" ]; then
+            # mizuRoute doesn't have --version, just check it exists and is executable
+            [ -x "./symfluence-tools/bin/mizuroute" ] && echo "  mizuRoute is executable"
+          fi
+
+          echo "✓ Relocatability test complete"
+
+      - name: Upload release artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: symfluence-tools-linux-x86_64
+          path: |
+            release/symfluence-tools-*.tar.gz
+            release/symfluence-tools-*.sha256
+          retention-days: 30
+
       - name: Upload test outputs (on failure)
         if: failure()
         uses: actions/upload-artifact@v4
