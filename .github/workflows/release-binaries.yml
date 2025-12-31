@@ -108,16 +108,12 @@ jobs:
 
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
 
-          # Use Python from setup-python action (not system Python or Homebrew)
-          if [ -n "$pythonLocation" ]; then
-            PYTHON_CMD="$pythonLocation/bin/python3"
-            echo "Using Python from setup-python: $PYTHON_CMD"
-          else
-            PYTHON_CMD="$(which python3)"
-            echo "Using Python from PATH: $PYTHON_CMD"
-          fi
-
-          # Verify Python version
+          # Use python3 from PATH (setup-python adds it to PATH)
+          # Explicitly use python3, not python, to ensure correct version
+          PYTHON_CMD="python3"
+          echo "Python location in PATH:"
+          which python3
+          echo "Python version:"
           "$PYTHON_CMD" --version
 
           # Install SYMFLUENCE package
