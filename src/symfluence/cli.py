@@ -13,6 +13,20 @@ def main():
             print(f"❌ {e}", file=sys.stderr)
         return 2
 
+    # Agent mode handling (must be first - it's an alternative interface)
+    if getattr(args, "agent", False) or getattr(args, "agent_prompt", None):
+        from symfluence.utils.cli.agent.agent_manager import AgentManager
+
+        verbose = getattr(args, "agent_verbose", False)
+        agent = AgentManager(cli_manager=cli, config_path=args.config, verbose=verbose)
+
+        if args.agent_prompt:
+            # Single prompt mode
+            return agent.run_single_prompt(args.agent_prompt)
+        else:
+            # Interactive mode
+            return agent.run_interactive_mode()
+
     # Quick direct switches for "management" flags that should act immediately
     if getattr(args, "validate_environment", False):
         cli.validate_environment()
@@ -38,6 +52,14 @@ def main():
         return 0
     if getattr(args, "example_notebook", None):
         return cli.launch_example_notebook(args.example_notebook)
+
+    # Handle initialization operations
+    if getattr(args, "list_presets", False) or \
+       getattr(args, "show_preset", None) or \
+       getattr(args, "init", None):
+        plan = cli.get_execution_plan(args)
+        ok = cli.handle_initialization(plan)
+        return 0 if ok else 1
 
     # For installer/binaries
     if getattr(args, "get_executables", None) is not None or \
