@@ -26,6 +26,7 @@ dependencies = [
   "torch",
   "scikit-learn",
   "pyswarms",
+  "gdal",
   "geopandas",
   "rasterio",
   "pyproj",
