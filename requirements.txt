@@ -16,6 +16,7 @@ scikit-learn
 pyswarms
 
 # Geospatial libraries
+gdal
 geopandas
 rasterio
 pyproj
