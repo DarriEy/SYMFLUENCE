@@ -107,14 +107,14 @@ jobs:
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
 
           # Verify Python is available
-          python --version
-          which python
+          python3 --version
+          which python3
 
           # Install SYMFLUENCE package
-          pip install -e .
+          python3 -m pip install -e .
 
           # Build external tools using Python module directly
-          python -m symfluence.cli --get_executables
+          python3 -m symfluence.cli --get_executables
 
       # ========================================================================
       # Generate Release Artifacts
