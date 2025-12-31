@@ -125,9 +125,10 @@ jobs:
           # Install GDAL Python bindings (macOS needs this via pip)
           if [ "$RUNNER_OS" = "macOS" ]; then
             echo "Installing GDAL Python bindings..."
-            # Get major.minor version (e.g., 3.12 from 3.12.0)
-            GDAL_VERSION=$(gdal-config --version | cut -d. -f1-2)
-            "$PYTHON_CMD" -m pip install "gdal>=${GDAL_VERSION},<$((${GDAL_VERSION%%.*}+1)).0"
+            # Get exact version from gdal-config
+            GDAL_VERSION=$(gdal-config --version)
+            echo "Detected GDAL version: $GDAL_VERSION"
+            "$PYTHON_CMD" -m pip install "gdal==${GDAL_VERSION}"
           fi
 
           # Install SYMFLUENCE package
@@ -146,6 +147,11 @@ jobs:
           fi
 
           echo "Build external tools completed successfully"
+          
+          # Debug: Verify installation directory
+          echo "Verifying installation directory:"
+          ls -la "${{ env.SYMFLUENCE_DATA }}" || echo "SYMFLUENCE_DATA not found"
+          ls -la "${{ env.SYMFLUENCE_DATA }}/installs" || echo "installs directory not found"
 
       # ========================================================================
       # Generate Release Artifacts
