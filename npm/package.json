@@ -4,7 +4,7 @@
   "description": "Structure for Unifying Multiple Modeling Alternatives - Pre-compiled hydrological modeling tools",
   "main": "index.js",
   "bin": {
-    "symfluence": "./bin/symfluence"
+    "symfluence": "bin/symfluence"
   },
   "scripts": {
     "postinstall": "node install.js"
@@ -35,7 +35,7 @@
   "license": "GPL-3.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/DarriEy/SYMFLUENCE.git"
+    "url": "git+https://github.com/DarriEy/SYMFLUENCE.git"
   },
   "homepage": "https://github.com/DarriEy/SYMFLUENCE",
   "bugs": {

@@ -16,7 +16,7 @@
 
 ## Quick Links
 
-- **Install:** `pip install symfluence`
+- **Install:** `npm install -g symfluence` or `pip install symfluence`
 - **Documentation:** [symfluence.readthedocs.io](https://symfluence.readthedocs.io)
 - **Website:** [symfluence.org](https://symfluence.org)
 - **Discussions:** [GitHub Discussions](https://github.com/DarriEy/SYMFLUENCE/discussions)
@@ -25,15 +25,55 @@
 ---
 
 ## Installation
-Environment setup varies by system.  
-Use the built-in installer whenever possible:
+
+### Quick Start (Recommended)
+
+**Option 1: npm (Includes pre-built binaries)**
+```bash
+# Install globally (includes SUMMA, mizuRoute, FUSE, NGEN, TauDEM)
+npm install -g symfluence
+
+# Verify installation
+symfluence info
+
+# Check system compatibility
+symfluence --doctor
+```
+
+**Requirements:**
+- **Linux**: Ubuntu 22.04+, RHEL 9+, or Debian 12+ (x86_64)
+- **macOS**: macOS 12+ (Apple Silicon M1/M2/M3)
+- **System libraries**: NetCDF, HDF5 (install via package manager)
+
+**Option 2: Python only**
+```bash
+# Install Python framework
+pip install symfluence
+
+# Install modeling tools separately (if npm not used)
+python -m symfluence.cli --get_executables
+```
+
+### Development Installation
+
+For development or custom builds:
 
 ```bash
+# Clone repository
+git clone https://github.com/DarriEy/SYMFLUENCE.git
+cd SYMFLUENCE
+
+# Use built-in installer
 ./symfluence --install
 ```
 
-This creates a clean Python 3.11 virtual environment, installs dependencies, and registers local binaries.  
-For detailed instructions (ARC, FIR, Anvil, macOS), see [INSTALL.md](INSTALL.md).
+This creates a clean Python 3.11 virtual environment, installs dependencies, and builds binaries.
+For detailed instructions (ARC, FIR, Anvil, custom builds), see [INSTALL.md](INSTALL.md).
+
+### System Requirements
+
+- **npm installation**: See [npm/README.md](npm/README.md) for platform-specific requirements
+- **Development**: See [docs/SYSTEM_REQUIREMENTS.md](docs/SYSTEM_REQUIREMENTS.md) for build dependencies
 
 ---
 
