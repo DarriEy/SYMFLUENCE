@@ -185,6 +185,23 @@ jobs:
           echo "VIRTUAL_ENV=${{ env.SYMFLUENCE_CODE }}/venv" >> $GITHUB_ENV
           echo "${{ env.SYMFLUENCE_CODE }}/venv/bin" >> $GITHUB_PATH
 
+      - name: Debug SUMMA library dependencies
+        run: |
+          echo "========================================="
+          echo "Debugging SUMMA library dependencies"
+          echo "========================================="
+          echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH:-not set}"
+          echo ""
+          echo "SUMMA binary location:"
+          which summa_sundials.exe || echo "SUMMA not in PATH"
+          echo ""
+          echo "Running ldd on SUMMA binary:"
+          ldd ${{ env.SYMFLUENCE_DATA }}/installs/summa/bin/summa_sundials.exe || echo "ldd failed"
+          echo ""
+          echo "Checking SUNDIALS libraries:"
+          ls -la ${{ env.SYMFLUENCE_DATA }}/installs/sundials/install/sundials/lib/ || echo "SUNDIALS lib directory not found"
+          echo "========================================="
+
       - name: Determine test level
         id: test_level
         run: |
