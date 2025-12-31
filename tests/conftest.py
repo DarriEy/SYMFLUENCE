@@ -41,7 +41,13 @@ def symfluence_code_dir():
 @pytest.fixture(scope="session")
 def symfluence_data_root(symfluence_code_dir):
     """Path to SYMFLUENCE_data directory (shared test data)."""
-    data_root = symfluence_code_dir.parent / "SYMFLUENCE_data"
+    import os
+    # Respect SYMFLUENCE_DATA environment variable if set (for CI)
+    env_data_dir = os.environ.get("SYMFLUENCE_DATA")
+    if env_data_dir:
+        data_root = Path(env_data_dir)
+    else:
+        data_root = symfluence_code_dir.parent / "SYMFLUENCE_data"
     data_root.mkdir(parents=True, exist_ok=True)
     return data_root
 
