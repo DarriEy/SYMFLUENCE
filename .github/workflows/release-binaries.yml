@@ -105,8 +105,16 @@ jobs:
       - name: Build external tools
         run: |
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
-          chmod +x ./symfluence
-          ./symfluence --install
+
+          # Verify Python is available
+          python --version
+          which python
+
+          # Install SYMFLUENCE package
+          pip install -e .
+
+          # Build external tools using Python module directly
+          python -m symfluence.cli --get_executables
 
       # ========================================================================
       # Generate Release Artifacts
