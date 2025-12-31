@@ -352,6 +352,8 @@ jobs:
           name: symfluence-installation-ubuntu-latest-py3.11
 
       - name: Restore installation
+        env:
+          SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
         run: |
           # Restore venv
           tar -xzf venv.tar.gz -C ${{ github.workspace }}
@@ -359,7 +361,7 @@ jobs:
           echo "VIRTUAL_ENV=${{ github.workspace }}/venv" >> $GITHUB_ENV
 
           # Restore tools
-          TOOLS_DIR=/home/runner/work/SYMFLUENCE/SYMFLUENCE_data/installs
+          TOOLS_DIR=$SYMFLUENCE_DATA/installs
           mkdir -p $TOOLS_DIR
           tar -xzf tools.tar.gz -C $TOOLS_DIR
 
@@ -371,6 +373,7 @@ jobs:
       - name: Run binary validation
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
+          SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
         run: |
           echo "========================================="
           echo "Running binary validation tests..."
@@ -405,13 +408,15 @@ jobs:
           name: symfluence-installation-ubuntu-latest-py3.11
 
       - name: Restore installation
+        env:
+          SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
         run: |
           tar -xzf venv.tar.gz -C ${{ github.workspace }}
           echo "${{ github.workspace }}/venv/bin" >> $GITHUB_PATH
           echo "VIRTUAL_ENV=${{ github.workspace }}/venv" >> $GITHUB_ENV
 
           # Restore tools
-          TOOLS_DIR=/home/runner/work/SYMFLUENCE/SYMFLUENCE_data/installs
+          TOOLS_DIR=$SYMFLUENCE_DATA/installs
           mkdir -p $TOOLS_DIR
           tar -xzf tools.tar.gz -C $TOOLS_DIR
           echo "$TOOLS_DIR/summa/bin" >> $GITHUB_PATH
@@ -421,6 +426,7 @@ jobs:
       - name: Run integration tests
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
+          SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
         run: |
           echo "========================================="
           echo "Running integration tests..."
@@ -457,6 +463,8 @@ jobs:
           name: symfluence-installation-ubuntu-latest-py3.11
 
       - name: Restore installation
+        env:
+          SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
         run: |
           # Restore venv
           tar -xzf venv.tar.gz -C ${{ github.workspace }}
@@ -464,7 +472,7 @@ jobs:
           echo "VIRTUAL_ENV=${{ github.workspace }}/venv" >> $GITHUB_ENV
 
           # Restore tools
-          TOOLS_DIR=/home/runner/work/SYMFLUENCE/SYMFLUENCE_data/installs
+          TOOLS_DIR=$SYMFLUENCE_DATA/installs
           mkdir -p $TOOLS_DIR
           tar -xzf tools.tar.gz -C $TOOLS_DIR
           echo "$TOOLS_DIR/summa/bin" >> $GITHUB_PATH
@@ -473,7 +481,7 @@ jobs:
 
           # Restore test data
           if [ -f testdata.tar.gz ]; then
-            tar -xzf testdata.tar.gz -C ${{ github.workspace }}/symfluence_data
+            tar -xzf testdata.tar.gz -C $SYMFLUENCE_DATA
           fi
 
       - name: Run quick E2E tests
@@ -527,6 +535,8 @@ jobs:
           name: symfluence-installation-ubuntu-latest-py3.11
 
       - name: Restore installation
+        env:
+          SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
         run: |
           # Restore venv
           tar -xzf venv.tar.gz -C ${{ github.workspace }}
@@ -534,7 +544,7 @@ jobs:
           echo "VIRTUAL_ENV=${{ github.workspace }}/venv" >> $GITHUB_ENV
 
           # Restore tools
-          TOOLS_DIR=/home/runner/work/SYMFLUENCE/SYMFLUENCE_data/installs
+          TOOLS_DIR=$SYMFLUENCE_DATA/installs
           mkdir -p $TOOLS_DIR
           tar -xzf tools.tar.gz -C $TOOLS_DIR
           echo "$TOOLS_DIR/summa/bin" >> $GITHUB_PATH
@@ -543,7 +553,7 @@ jobs:
 
           # Restore test data
           if [ -f testdata.tar.gz ]; then
-            tar -xzf testdata.tar.gz -C ${{ github.workspace }}/symfluence_data
+            tar -xzf testdata.tar.gz -C $SYMFLUENCE_DATA
           fi
 
       - name: Run full E2E tests
