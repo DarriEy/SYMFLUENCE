@@ -23,18 +23,30 @@ class BinaryManager:
 
     def handle_binary_management(self, execution_plan: Dict[str, Any], symfluence_instance: Optional[Any] = None) -> bool:
         """
-        Handle binary management operations (validate_binaries, get_executables).
-        
+        Handle binary management operations (validate_binaries, get_executables, doctor, tools_info).
+
         Args:
             execution_plan: Execution plan from CLI manager
             symfluence_instance: SYMFLUENCE instance (optional)
-        
+
         Returns:
             bool: Success status
         """
         try:
             binary_ops = execution_plan.get('binary_operations', {})
-            
+
+            # Handle doctor command (system diagnostics)
+            if binary_ops.get('doctor', False):
+                print("\n🔍 SYMFLUENCE System Diagnostics")
+                self.run_doctor()
+                return True
+
+            # Handle tools_info command
+            if binary_ops.get('tools_info', False):
+                print("\n🔧 SYMFLUENCE Installed Tools\n")
+                self.show_tools_info()
+                return True
+
             if binary_ops.get('validate_binaries', False):
                 print("\n🔧 Binary Validation Requested")
                 results = self.validate_binaries(symfluence_instance)
@@ -42,27 +54,27 @@ class BinaryManager:
                 if results is True:
                     return True
                 return len(results['missing_tools']) == 0 and len(results['failed_tools']) == 0
-            
+
             if binary_ops.get('get_executables') is not None:
                 print("\n🚀 Executable Installation Requested")
                 specific_tools = binary_ops.get('get_executables')
                 force_install = binary_ops.get('force_install', False)
                 dry_run = execution_plan.get('settings', {}).get('dry_run', False)
-                
+
                 if isinstance(specific_tools, list) and len(specific_tools) == 0:
                     specific_tools = None
-                
+
                 results = self.get_executables(
                     specific_tools=specific_tools,
                     symfluence_instance=symfluence_instance,
                     force=force_install,
                     dry_run=dry_run
                 )
-                
+
                 return len(results['failed']) == 0
-            
+
             return True
-        
+
         except Exception as e:
             print(f"❌ Error in binary management: {str(e)}")
             return False
@@ -604,3 +616,234 @@ class BinaryManager:
                 pass
 
         return config
+
+    def detect_npm_binaries(self) -> Optional[Path]:
+        """
+        Detect if SYMFLUENCE binaries are installed via npm.
+
+        Returns:
+            Path to npm-installed binaries, or None if not found
+        """
+        try:
+            # Try to get global npm root
+            result = subprocess.run(
+                ['npm', 'root', '-g'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            if result.returncode == 0:
+                npm_root = Path(result.stdout.strip())
+                npm_bin_dir = npm_root / 'symfluence' / 'dist' / 'bin'
+
+                if npm_bin_dir.exists() and npm_bin_dir.is_dir():
+                    return npm_bin_dir
+
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+            pass
+
+        return None
+
+    def run_doctor(self) -> None:
+        """
+        Run system diagnostics: check binaries, toolchain, and system libraries.
+        """
+        print("\n" + "=" * 60)
+
+        # Check binaries
+        print("\n📦 Checking binaries...")
+        print("-" * 40)
+
+        symfluence_data = os.getenv('SYMFLUENCE_DATA')
+        npm_bin_dir = self.detect_npm_binaries()
+
+        if npm_bin_dir:
+            print(f"   ℹ️  Detected npm-installed binaries: {npm_bin_dir}")
+
+        binary_paths = {
+            'summa': 'installs/summa/bin/summa.exe',
+            'mizuroute': 'installs/mizuRoute/route/bin/mizuRoute.exe',
+            'fuse': 'installs/fuse/bin/fuse.exe',
+            'ngen': 'installs/ngen/cmake_build/ngen',
+            'taudem': 'installs/TauDEM/bin',  # Directory with multiple tools
+        }
+
+        found_binaries = 0
+        total_binaries = len(binary_paths)
+
+        for name, rel_path in binary_paths.items():
+            # Check in SYMFLUENCE_DATA first
+            found = False
+            location = None
+
+            if symfluence_data:
+                full_path = Path(symfluence_data) / rel_path
+                if name == 'taudem':
+                    if full_path.exists() and full_path.is_dir():
+                        found = True
+                        location = full_path
+                else:
+                    if full_path.exists():
+                        found = True
+                        location = full_path
+
+            # Check npm installation as fallback
+            if not found and npm_bin_dir:
+                npm_path = npm_bin_dir / name
+                if npm_path.exists():
+                    found = True
+                    location = npm_path
+
+            if found:
+                print(f"   ✅ {name:<12} {location}")
+                found_binaries += 1
+            else:
+                print(f"   ❌ {name:<12} Not found")
+
+        # Check toolchain metadata
+        print("\n🔧 Toolchain metadata...")
+        print("-" * 40)
+
+        toolchain_locations = []
+        if symfluence_data:
+            toolchain_locations.append(Path(symfluence_data) / 'installs' / 'toolchain.json')
+        if npm_bin_dir:
+            toolchain_locations.append(npm_bin_dir.parent / 'toolchain.json')
+
+        toolchain_found = False
+        for toolchain_path in toolchain_locations:
+            if toolchain_path.exists():
+                try:
+                    import json
+                    with open(toolchain_path) as f:
+                        toolchain = json.load(f)
+
+                    platform = toolchain.get('platform', 'unknown')
+                    build_date = toolchain.get('build_date', 'unknown')
+                    fortran = toolchain.get('compilers', {}).get('fortran', 'unknown')
+
+                    print(f"   ✅ Found: {toolchain_path}")
+                    print(f"      Platform: {platform}")
+                    print(f"      Build date: {build_date}")
+                    print(f"      Fortran: {fortran}")
+                    toolchain_found = True
+                    break
+                except Exception as e:
+                    print(f"   ⚠️  Error reading {toolchain_path}: {e}")
+
+        if not toolchain_found:
+            print("   ❌ No toolchain metadata found")
+
+        # Check system libraries
+        print("\n📚 System libraries...")
+        print("-" * 40)
+
+        system_tools = {
+            'nc-config': 'NetCDF',
+            'nf-config': 'NetCDF-Fortran',
+            'h5cc': 'HDF5',
+            'gdal-config': 'GDAL',
+            'mpirun': 'MPI',
+        }
+
+        found_libs = 0
+        for tool, name in system_tools.items():
+            location = shutil.which(tool)
+            if location:
+                print(f"   ✅ {name:<16} {location}")
+                found_libs += 1
+            else:
+                print(f"   ❌ {name:<16} Not found")
+
+        # Summary
+        print("\n" + "=" * 60)
+        print("📊 Summary:")
+        print(f"   Binaries: {found_binaries}/{total_binaries} found")
+        print(f"   Toolchain metadata: {'✅ Found' if toolchain_found else '❌ Not found'}")
+        print(f"   System libraries: {found_libs}/{len(system_tools)} found")
+
+        if found_binaries == total_binaries and toolchain_found and found_libs >= 3:
+            print("\n✅ System is ready for SYMFLUENCE!")
+        elif found_binaries == 0:
+            print("\n⚠️  No binaries found. Install with:")
+            print("   • npm install -g symfluence (for pre-built binaries)")
+            print("   • ./symfluence --get_executables (to build from source)")
+        else:
+            print("\n⚠️  Some components missing. Review output above.")
+
+        print("=" * 60 + "\n")
+
+    def show_tools_info(self) -> None:
+        """
+        Display installed tools information from toolchain metadata.
+        """
+        symfluence_data = os.getenv('SYMFLUENCE_DATA')
+        npm_bin_dir = self.detect_npm_binaries()
+
+        toolchain_locations = []
+        if symfluence_data:
+            toolchain_locations.append(Path(symfluence_data) / 'installs' / 'toolchain.json')
+        if npm_bin_dir:
+            toolchain_locations.append(npm_bin_dir.parent / 'toolchain.json')
+
+        toolchain_path = None
+        for path in toolchain_locations:
+            if path.exists():
+                toolchain_path = path
+                break
+
+        if not toolchain_path:
+            print("❌ No toolchain metadata found.")
+            print("\nℹ️  Toolchain metadata is generated during installation.")
+            print("   Install binaries with:")
+            print("   • npm install -g symfluence")
+            print("   • ./symfluence --get_executables\n")
+            return
+
+        try:
+            import json
+            with open(toolchain_path) as f:
+                toolchain = json.load(f)
+
+            print("=" * 60)
+            print(f"Platform: {toolchain.get('platform', 'unknown')}")
+            print(f"Build Date: {toolchain.get('build_date', 'unknown')}")
+            print(f"Toolchain file: {toolchain_path}")
+
+            # Compilers
+            if 'compilers' in toolchain:
+                print("\n🛠️  Compilers:")
+                print("-" * 40)
+                compilers = toolchain['compilers']
+                for key, value in compilers.items():
+                    print(f"   {key.capitalize():<12} {value}")
+
+            # Libraries
+            if 'libraries' in toolchain:
+                print("\n📚 Libraries:")
+                print("-" * 40)
+                libraries = toolchain['libraries']
+                for key, value in libraries.items():
+                    print(f"   {key.capitalize():<12} {value}")
+
+            # Tools
+            if 'tools' in toolchain:
+                print("\n🔨 Installed Tools:")
+                print("-" * 40)
+                for tool_name, tool_info in toolchain['tools'].items():
+                    print(f"\n   {tool_name.upper()}:")
+                    if 'commit' in tool_info:
+                        commit_short = tool_info['commit'][:8] if len(tool_info['commit']) > 8 else tool_info['commit']
+                        print(f"      Commit: {commit_short}")
+                    if 'branch' in tool_info:
+                        print(f"      Branch: {tool_info['branch']}")
+                    if 'executable' in tool_info:
+                        print(f"      Executable: {tool_info['executable']}")
+
+            print("\n" + "=" * 60 + "\n")
+
+        except json.JSONDecodeError:
+            print(f"❌ Error: Toolchain file is not valid JSON: {toolchain_path}")
+        except Exception as e:
+            print(f"❌ Error reading toolchain file: {e}")
