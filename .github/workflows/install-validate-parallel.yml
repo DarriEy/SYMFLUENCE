@@ -487,10 +487,13 @@ jobs:
           echo "$TOOLS_DIR/TauDEM/bin" >> $GITHUB_PATH
 
           # Set LD_LIBRARY_PATH for SUMMA runtime dependencies
-          SUNDIALS_LIB="$TOOLS_DIR/sundials/lib"
+          SUNDIALS_LIB="$TOOLS_DIR/sundials/install/sundials/lib"
           if [ -d "$SUNDIALS_LIB" ]; then
             echo "LD_LIBRARY_PATH=$SUNDIALS_LIB:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-/usr/lib/x86_64-linux-gnu}" >> $GITHUB_ENV
-            echo "Added SUNDIALS library path: $SUNDIALS_LIB"
+            echo "✓ Added SUNDIALS library path: $SUNDIALS_LIB"
+          else
+            echo "⚠ SUNDIALS library directory not found at: $SUNDIALS_LIB"
+            ls -la "$TOOLS_DIR/sundials/" || true
           fi
 
           # Restore test data
@@ -569,10 +572,13 @@ jobs:
           echo "$TOOLS_DIR/TauDEM/bin" >> $GITHUB_PATH
 
           # Set LD_LIBRARY_PATH for SUMMA runtime dependencies
-          SUNDIALS_LIB="$TOOLS_DIR/sundials/lib"
+          SUNDIALS_LIB="$TOOLS_DIR/sundials/install/sundials/lib"
           if [ -d "$SUNDIALS_LIB" ]; then
             echo "LD_LIBRARY_PATH=$SUNDIALS_LIB:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-/usr/lib/x86_64-linux-gnu}" >> $GITHUB_ENV
-            echo "Added SUNDIALS library path: $SUNDIALS_LIB"
+            echo "✓ Added SUNDIALS library path: $SUNDIALS_LIB"
+          else
+            echo "⚠ SUNDIALS library directory not found at: $SUNDIALS_LIB"
+            ls -la "$TOOLS_DIR/sundials/" || true
           fi
 
           # Restore test data
