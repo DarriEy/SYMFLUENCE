@@ -99,3 +99,7 @@ def main():
     except Exception as e:
         print(f"❌ Workflow execution failed: {e}", file=sys.stderr)
         return 1
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main())

@@ -105,46 +105,37 @@ jobs:
 
       - name: Build external tools
         run: |
-          set +e  # Don't exit on error, we want to see what fails
-
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
 
-          # Ensure we use Python from setup-python action, not system/Homebrew Python
-          # setup-python sets Python3_ROOT_DIR, prepend its bin to PATH
-          if [ -n "$Python3_ROOT_DIR" ] && [ -d "$Python3_ROOT_DIR/bin" ]; then
+          # Ensure we use Python from setup-python action
+          if [ -n "$Python3_ROOT_DIR" ]; then
             export PATH="$Python3_ROOT_DIR/bin:$PATH"
             echo "Prepended Python3_ROOT_DIR to PATH: $Python3_ROOT_DIR/bin"
+          elif [ -n "$pythonLocation" ]; then
+            export PATH="$pythonLocation/bin:$PATH"
+            echo "Prepended pythonLocation to PATH: $pythonLocation/bin"
           fi
 
           # Verify we're using the correct Python
           PYTHON_CMD="python3"
-          echo "Python location:"
-          which python3
-          echo "Python version:"
-          "$PYTHON_CMD" --version
+          echo "Python location: $(which python3)"
+          echo "Python version: $($PYTHON_CMD --version)"
 
           # Install GDAL Python bindings (macOS needs this via pip)
           if [ "$RUNNER_OS" = "macOS" ]; then
             echo "Installing GDAL Python bindings..."
-            # Get major.minor version (e.g., 3.12 from 3.12.0)
-            GDAL_VERSION=$(gdal-config --version | cut -d. -f1-2)
-            "$PYTHON_CMD" -m pip install "gdal>=${GDAL_VERSION},<$((${GDAL_VERSION%%.*}+1)).0.post1"
+            GDAL_VERSION=$(gdal-config --version)
+            # Use strict version range to match system libgdal precisely
+            # e.g., if 3.12.0, allow 3.12.0.post1 but NOT 3.12.1
+            "$PYTHON_CMD" -m pip install "gdal>=${GDAL_VERSION},<${GDAL_VERSION%.*}.$((${GDAL_VERSION##*.}+1))"
           fi
 
           # Install SYMFLUENCE package
           "$PYTHON_CMD" -m pip install -e .
-          if [ $? -ne 0 ]; then
-            echo "ERROR: pip install failed"
-            exit 1
-          fi
 
           # Build external tools using Python module directly
           echo "Running: $PYTHON_CMD -m symfluence.cli --get_executables"
           "$PYTHON_CMD" -m symfluence.cli --get_executables
-          if [ $? -ne 0 ]; then
-            echo "ERROR: get_executables failed with exit code $?"
-            exit 1
-          fi
 
           echo "Build external tools completed successfully"
           
