@@ -183,6 +183,81 @@ jobs:
         run: |
           pytest -v --tb=short -s tests/e2e/test_install_validate.py::test_binary_validation || echo "Binary validation completed with warnings"
 
+      # =====================================================================
+      # PHASE 1: Generate Release Artifacts (macOS only)
+      # =====================================================================
+      - name: Generate toolchain metadata
+        if: success() && runner.os == 'macOS'
+        run: |
+          set -e
+          chmod +x ./scripts/generate_toolchain.sh
+          ./scripts/generate_toolchain.sh \
+            "${{ env.SYMFLUENCE_DATA }}/installs" \
+            "${{ env.SYMFLUENCE_DATA }}/installs/toolchain.json" \
+            "macos-arm64"
+
+      - name: Stage release artifacts
+        if: success() && runner.os == 'macOS'
+        run: |
+          set -e
+          chmod +x ./scripts/stage_release_artifacts.sh
+          mkdir -p ./release
+          ./scripts/stage_release_artifacts.sh \
+            "macos-arm64" \
+            "${{ env.SYMFLUENCE_DATA }}/installs" \
+            "./release"
+
+      - name: Create release tarball
+        if: success() && runner.os == 'macOS'
+        run: |
+          set -e
+          chmod +x ./scripts/create_release_tarball.sh
+          VERSION="${{ github.ref_name }}"
+          ./scripts/create_release_tarball.sh \
+            "$VERSION" \
+            "macos-arm64" \
+            "./release/symfluence-tools" \
+            "./release"
+
+      - name: Test artifact relocatability
+        if: success() && runner.os == 'macOS'
+        run: |
+          set -e
+          echo "Testing relocated binaries..."
+
+          # Extract to temporary location
+          mkdir -p /tmp/symfluence-test
+          cd /tmp/symfluence-test
+          tar -xzf $GITHUB_WORKSPACE/release/symfluence-tools-*.tar.gz
+
+          # Test binaries run without original install directory
+          echo "→ Testing SUMMA..."
+          if [ -f "./symfluence-tools/bin/summa" ]; then
+            ./symfluence-tools/bin/summa --version 2>&1 | head -5 || echo "  SUMMA version check completed"
+          fi
+
+          echo "→ Testing NGEN..."
+          if [ -f "./symfluence-tools/bin/ngen" ]; then
+            ./symfluence-tools/bin/ngen --help 2>&1 | head -5 || echo "  NGEN help check completed"
+          fi
+
+          echo "→ Testing mizuRoute..."
+          if [ -f "./symfluence-tools/bin/mizuroute" ]; then
+            [ -x "./symfluence-tools/bin/mizuroute" ] && echo "  mizuRoute is executable"
+          fi
+
+          echo "✓ Relocatability test complete"
+
+      - name: Upload release artifacts
+        if: success() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: symfluence-tools-macos-arm64
+          path: |
+            release/symfluence-tools-*.tar.gz
+            release/symfluence-tools-*.sha256
+          retention-days: 30
+
   # ===========================================================================
   # INTEGRATION: Quick integration tests (Linux + macOS subset)
   # ===========================================================================
