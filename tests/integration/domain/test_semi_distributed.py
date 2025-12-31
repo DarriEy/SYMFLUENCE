@@ -118,19 +118,19 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
     config["STREAM_THRESHOLD"] = 5000
     config["DOMAIN_DISCRETIZATION"] = "GRUs"
 
-    # Short 1-month period for testing
+    # Optimized: 5-day period for faster testing (was 31 days)
     config["EXPERIMENT_TIME_START"] = "2004-01-01 01:00"
-    config["EXPERIMENT_TIME_END"] = "2004-01-31 23:00"
-    config["CALIBRATION_PERIOD"] = "2004-01-05, 2004-01-19"
-    config["EVALUATION_PERIOD"] = "2004-01-20, 2004-01-30"
-    config["SPINUP_PERIOD"] = "2004-01-01, 2004-01-04"
+    config["EXPERIMENT_TIME_END"] = "2004-01-05 23:00"
+    config["CALIBRATION_PERIOD"] = "2004-01-02, 2004-01-04"
+    config["EVALUATION_PERIOD"] = "2004-01-05, 2004-01-05"
+    config["SPINUP_PERIOD"] = "2004-01-01, 2004-01-01"
 
     # Streamflow
     config["STATION_ID"] = "05BB001"
     config["DOWNLOAD_WSC_DATA"] = False
 
-    # Minimal calibration for testing
-    config["NUMBER_OF_ITERATIONS"] = 3
+    # Minimal calibration for testing (optimized: 2 iterations, was 3)
+    config["NUMBER_OF_ITERATIONS"] = 2
     config["RANDOM_SEED"] = 42
 
     # Save config
