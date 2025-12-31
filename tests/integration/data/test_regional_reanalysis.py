@@ -12,7 +12,7 @@ from utils.helpers import load_config_template, write_config
 
 
 
-pytestmark = [pytest.mark.integration, pytest.mark.data, pytest.mark.requires_cloud, pytest.mark.slow]
+pytestmark = [pytest.mark.integration, pytest.mark.data, pytest.mark.requires_cloud, pytest.mark.requires_acquisition, pytest.mark.slow]
 
 @pytest.fixture
 def temp_config(tmp_path, symfluence_code_dir, symfluence_data_root):
@@ -68,7 +68,7 @@ def test_carra_full_pipeline(temp_config):
     config["CARRA_DOMAIN"] = "west_domain"
     config["EXPERIMENT_ID"] = "test_carra"
     config["EXPERIMENT_TIME_START"] = "2010-01-01 00:00"
-    config["EXPERIMENT_TIME_END"] = "2010-01-01 02:00"  # Just 2 hours
+    config["EXPERIMENT_TIME_END"] = "2010-01-01 03:00"  # Just 3 hours
 
     write_config(config, temp_config)
 
@@ -137,7 +137,7 @@ def test_cerra_full_pipeline(temp_config):
     config["FORCING_DATASET"] = "CERRA"
     config["EXPERIMENT_ID"] = "test_cerra"
     config["EXPERIMENT_TIME_START"] = "2010-01-01 00:00"
-    config["EXPERIMENT_TIME_END"] = "2010-01-01 03:00"  # 3 hours (1 timestep for 3-hourly)
+    config["EXPERIMENT_TIME_END"] = "2010-01-01 03:00"  # 3 hours
 
     write_config(config, temp_config)
 
