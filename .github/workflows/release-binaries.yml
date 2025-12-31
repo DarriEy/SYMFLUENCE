@@ -104,17 +104,38 @@ jobs:
 
       - name: Build external tools
         run: |
+          set +e  # Don't exit on error, we want to see what fails
+
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
 
-          # Verify Python is available
-          python3 --version
-          which python3
+          # Use Python from setup-python action (not system Python or Homebrew)
+          if [ -n "$pythonLocation" ]; then
+            PYTHON_CMD="$pythonLocation/bin/python3"
+            echo "Using Python from setup-python: $PYTHON_CMD"
+          else
+            PYTHON_CMD="$(which python3)"
+            echo "Using Python from PATH: $PYTHON_CMD"
+          fi
+
+          # Verify Python version
+          "$PYTHON_CMD" --version
 
           # Install SYMFLUENCE package
-          python3 -m pip install -e .
+          "$PYTHON_CMD" -m pip install -e .
+          if [ $? -ne 0 ]; then
+            echo "ERROR: pip install failed"
+            exit 1
+          fi
 
           # Build external tools using Python module directly
-          python3 -m symfluence.cli --get_executables
+          echo "Running: $PYTHON_CMD -m symfluence.cli --get_executables"
+          "$PYTHON_CMD" -m symfluence.cli --get_executables
+          if [ $? -ne 0 ]; then
+            echo "ERROR: get_executables failed with exit code $?"
+            exit 1
+          fi
+
+          echo "Build external tools completed successfully"
 
       # ========================================================================
       # Generate Release Artifacts
