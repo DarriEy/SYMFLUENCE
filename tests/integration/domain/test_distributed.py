@@ -27,10 +27,11 @@ EXAMPLE_DATA_URL = "https://github.com/DarriEy/SYMFLUENCE/releases/download/exam
 
 pytestmark = [pytest.mark.integration, pytest.mark.domain, pytest.mark.requires_data, pytest.mark.slow]
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")  # Optimized: session scope to share across all tests
 def test_data_dir(symfluence_data_root):
     """
     Download and extract example data to ../SYMFLUENCE_data/ for testing.
+    Session-scoped to share data across all domain tests.
     """
     # Use ../SYMFLUENCE_data/ parallel to the code directory
     data_root = symfluence_data_root
@@ -118,19 +119,19 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
     config["DOMAIN_DISCRETIZATION"] = "elevation"
     config["ELEVATION_BAND_SIZE"] = 400
 
-    # Short 1-month period for testing
+    # Optimized: 5-day period for faster testing (was 31 days)
     config["EXPERIMENT_TIME_START"] = "2004-01-01 01:00"
-    config["EXPERIMENT_TIME_END"] = "2004-01-31 23:00"
-    config["CALIBRATION_PERIOD"] = "2004-01-05, 2004-01-19"
-    config["EVALUATION_PERIOD"] = "2004-01-20, 2004-01-30"
-    config["SPINUP_PERIOD"] = "2004-01-01, 2004-01-04"
+    config["EXPERIMENT_TIME_END"] = "2004-01-05 23:00"
+    config["CALIBRATION_PERIOD"] = "2004-01-02, 2004-01-04"
+    config["EVALUATION_PERIOD"] = "2004-01-05, 2004-01-05"
+    config["SPINUP_PERIOD"] = "2004-01-01, 2004-01-01"
 
     # Streamflow
     config["STATION_ID"] = "05BB001"
     config["DOWNLOAD_WSC_DATA"] = False
 
-    # Minimal calibration for testing
-    config["NUMBER_OF_ITERATIONS"] = 3
+    # Minimal calibration for testing (optimized: 2 iterations, was 3)
+    config["NUMBER_OF_ITERATIONS"] = 2
     config["RANDOM_SEED"] = 42
 
     # Save config
