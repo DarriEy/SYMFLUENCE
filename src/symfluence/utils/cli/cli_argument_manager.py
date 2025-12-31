@@ -74,7 +74,11 @@ class CLIArgumentManager:
         self.binary_manager = BinaryManager()
         self.job_scheduler = JobScheduler()
         self.notebook_service = NotebookService()
-        
+
+        # Initialize initialization manager for --init command
+        from .initialization_manager import InitializationManager
+        self.init_manager = InitializationManager()
+
         # For backward compatibility within this class if needed
         self.external_tools = self.binary_manager.external_tools
         
@@ -460,6 +464,105 @@ class CLIArgumentManager:
             metavar='ID',
             help='Open an example notebook (e.g., 1a, 3b) in Jupyter using the root venv'
         )
+
+        # AI Agent Mode
+        agent_group = self.parser.add_argument_group('AI Agent Mode')
+        agent_group.add_argument(
+            '--agent',
+            action='store_true',
+            help='Start interactive AI agent mode for natural language workflow control'
+        )
+        agent_group.add_argument(
+            '--agent-prompt',
+            type=str,
+            metavar='PROMPT',
+            help='Execute a single agent prompt and exit (non-interactive mode)'
+        )
+        agent_group.add_argument(
+            '--agent-verbose',
+            action='store_true',
+            help='Show verbose agent output including tool calls and reasoning'
+        )
+
+        # ============================================================================
+        # PROJECT INITIALIZATION
+        # ============================================================================
+        init_group = self.parser.add_argument_group('Project Initialization')
+        init_group.add_argument(
+            '--init',
+            type=str,
+            nargs='?',
+            const='_no_preset_',
+            metavar='PRESET',
+            help='Initialize new project with optional preset (e.g., fuse-provo, summa-basic, fuse-basic)'
+        )
+        init_group.add_argument(
+            '--domain',
+            type=str,
+            help='Domain name for the project'
+        )
+        init_group.add_argument(
+            '--model',
+            type=str,
+            choices=['SUMMA', 'FUSE', 'GR', 'HYPE'],
+            help='Hydrological model to use'
+        )
+        init_group.add_argument(
+            '--start-date',
+            type=str,
+            help='Simulation start date (YYYY-MM-DD)'
+        )
+        init_group.add_argument(
+            '--end-date',
+            type=str,
+            help='Simulation end date (YYYY-MM-DD)'
+        )
+        init_group.add_argument(
+            '--forcing',
+            type=str,
+            help='Forcing dataset (e.g., ERA5, RDRS, CONUS404, NLDAS)'
+        )
+        init_group.add_argument(
+            '--discretization',
+            type=str,
+            help='Discretization method (e.g., lumped, elevation, GRUs)'
+        )
+        init_group.add_argument(
+            '--definition-method',
+            type=str,
+            help='Domain definition method (e.g., lumped, delineate, existing_shape, point)'
+        )
+        init_group.add_argument(
+            '--output-dir',
+            type=str,
+            help='Output directory for config file (default: ./0_config_files/)'
+        )
+        init_group.add_argument(
+            '--scaffold',
+            action='store_true',
+            help='Create full directory structure immediately'
+        )
+        init_group.add_argument(
+            '--list-presets',
+            action='store_true',
+            help='List all available presets'
+        )
+        init_group.add_argument(
+            '--show-preset',
+            type=str,
+            metavar='PRESET',
+            help='Show detailed information about a preset'
+        )
+        init_group.add_argument(
+            '--minimal',
+            action='store_true',
+            help='Create minimal config (required fields only)'
+        )
+        init_group.add_argument(
+            '--comprehensive',
+            action='store_true',
+            help='Create comprehensive config (all fields, default)'
+        )
     
     def _get_examples_text(self) -> str:
         """Generate examples text for help output including new binary management commands."""
@@ -584,14 +687,35 @@ For more information, visit: https://github.com/DarriEy/SYMFLUENCE
             (args.validate_config and not args.pour_point)
         )
         
+        # Validate init options
+        init_ops = (
+            getattr(args, 'list_presets', False) or
+            getattr(args, 'show_preset', None) or
+            getattr(args, 'init', None)
+        )
+
+        if getattr(args, 'init', None):
+            # Check if preset is valid (if provided)
+            if args.init != '_no_preset_' and args.init not in self.init_manager.presets:
+                errors.append(
+                    f"Unknown preset: {args.init}. Use --list-presets to see available options"
+                )
+
+            # Check required fields if no preset
+            if args.init == '_no_preset_':
+                if not getattr(args, 'domain', None):
+                    errors.append("--domain is required when not using a preset")
+                if not getattr(args, 'model', None):
+                    errors.append("--model is required when not using a preset")
+
         # Only validate config file if we actually need it
-        needs_config_file = not (binary_management_ops or standalone_management_ops or status_only_ops)
-        
+        needs_config_file = not (binary_management_ops or standalone_management_ops or status_only_ops or init_ops)
+
         if needs_config_file and not args.pour_point:
             config_path = Path(args.config)
             if not config_path.exists():
                 errors.append(f"Configuration file not found: {config_path}")
-        
+
         return len(errors) == 0, errors
     
     def _validate_coordinates(self, coord_string: str) -> bool:
@@ -679,7 +803,32 @@ For more information, visit: https://github.com/DarriEy/SYMFLUENCE
             plan['mode'] = 'example_notebook'
             plan['example_notebook'] = args.example_notebook.strip()
             return plan
-        
+
+        # Handle initialization operations
+        if getattr(args, 'list_presets', False) or \
+           getattr(args, 'show_preset', None) or \
+           getattr(args, 'init', None):
+            plan['mode'] = 'initialization'
+            plan['init_operations'] = {
+                'list_presets': getattr(args, 'list_presets', False),
+                'show_preset': getattr(args, 'show_preset', None),
+                'preset_name': None if args.init == '_no_preset_' else args.init if getattr(args, 'init', None) else None,
+                'cli_overrides': {
+                    'domain': getattr(args, 'domain', None),
+                    'model': getattr(args, 'model', None),
+                    'start_date': getattr(args, 'start_date', None),
+                    'end_date': getattr(args, 'end_date', None),
+                    'forcing': getattr(args, 'forcing', None),
+                    'discretization': getattr(args, 'discretization', None),
+                    'definition_method': getattr(args, 'definition_method', None),
+                },
+                'output_dir': getattr(args, 'output_dir', None),
+                'scaffold': getattr(args, 'scaffold', False),
+                'minimal': getattr(args, 'minimal', False),
+                'comprehensive': getattr(args, 'comprehensive', False),
+            }
+            return plan
+
         # Handle binary management operations
         if (hasattr(args, 'get_executables') and args.get_executables is not None) or \
            getattr(args, 'validate_binaries', False) or \
@@ -1014,6 +1163,69 @@ For more information, visit: https://github.com/DarriEy/SYMFLUENCE
     def detect_environment(self, *args, **kwargs):
         """Detect whether we're running on HPC or a personal computer."""
         return self.job_scheduler.detect_environment(*args, **kwargs)
+
+    def handle_initialization(self, plan: Dict[str, Any]) -> bool:
+        """
+        Handle project initialization operations.
+
+        Args:
+            plan: Execution plan dict containing init_operations
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        ops = plan['init_operations']
+
+        # Handle info operations
+        if ops.get('list_presets'):
+            self.init_manager.list_presets()
+            return True
+
+        if ops.get('show_preset'):
+            self.init_manager.show_preset(ops['show_preset'])
+            return True
+
+        # Handle config generation
+        try:
+            config = self.init_manager.generate_config(
+                preset_name=ops['preset_name'],
+                cli_overrides=ops['cli_overrides'],
+                minimal=ops['minimal'],
+                comprehensive=ops['comprehensive']
+            )
+        except Exception as e:
+            print(f"❌ Failed to generate config: {e}", file=sys.stderr)
+            return False
+
+        # Determine output path
+        from pathlib import Path
+        output_dir = Path(ops.get('output_dir') or './0_config_files')
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        domain_name = config['DOMAIN_NAME']
+        config_file = output_dir / f"config_{domain_name}.yaml"
+
+        # Write config
+        try:
+            written_path = self.init_manager.write_config(config, config_file)
+            print(f"✅ Created config file: {written_path}")
+        except Exception as e:
+            print(f"❌ Failed to write config: {e}", file=sys.stderr)
+            return False
+
+        # Create scaffold if requested
+        if ops.get('scaffold'):
+            try:
+                scaffold_path = self.init_manager.create_scaffold(config)
+                print(f"✅ Created project structure: {scaffold_path}")
+            except Exception as e:
+                print(f"❌ Failed to create scaffold: {e}", file=sys.stderr)
+                return False
+        else:
+            print(f"\n📁 To create project structure, run:")
+            print(f"   symfluence --config {written_path} --setup_project")
+
+        return True
 
 
 # ============================================================================
