@@ -330,7 +330,7 @@ jobs:
   binary-validation:
     name: Binary Validation
     needs: [setup, install]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
@@ -342,10 +342,12 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install MPI (for TauDEM)
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y openmpi-bin libopenmpi-dev
+          sudo apt-get install -y \
+            gdal-bin libgdal-dev libproj-dev \
+            openmpi-bin libopenmpi-dev
 
       - name: Download installation
         uses: actions/download-artifact@v4
@@ -387,7 +389,7 @@ jobs:
   integration-tests:
     name: Integration Tests
     needs: [setup, install]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     if: needs.setup.outputs.test_level != 'smoke'
 
@@ -441,7 +443,7 @@ jobs:
   e2e-quick:
     name: E2E Quick (3-hour SUMMA)
     needs: [setup, install]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     if: needs.setup.outputs.test_level != 'smoke'
 
@@ -526,7 +528,7 @@ jobs:
   e2e-full:
     name: E2E Full (1-month + Calibration)
     needs: [setup, install]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     if: needs.setup.outputs.test_level == 'full'
 
