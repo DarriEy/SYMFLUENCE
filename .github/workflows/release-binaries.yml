@@ -18,6 +18,9 @@ concurrency:
   group: release-${{ github.ref_name }}
   cancel-in-progress: false  # Don't cancel releases
 
+permissions:
+  contents: write  # Required for creating/updating releases
+
 jobs:
   build-and-release:
     name: Build & Release (${{ matrix.platform }})
@@ -37,8 +40,8 @@ jobs:
 
     env:
       SYMFLUENCE_CODE: ${{ github.workspace }}
-      SYMFLUENCE_DATA: ${{ github.workspace }}/data
-      SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/data
+      SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
+      SYMFLUENCE_DATA_DIR: ${{ github.workspace }}/symfluence_data
       RPY2_CFFI_MODE: ABI
 
     steps:
