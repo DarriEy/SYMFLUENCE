@@ -112,9 +112,11 @@ class BinaryManager:
                     config = self._ensure_valid_config_paths(config, config_path)
             except:
                 pass
-        
+
         # Determine installation directory
-        data_dir = config.get('SYMFLUENCE_DATA_DIR', '.')
+        # Priority: 1) Environment variable, 2) Config file, 3) Current directory
+        import os
+        data_dir = os.getenv('SYMFLUENCE_DATA') or config.get('SYMFLUENCE_DATA_DIR', '.')
         install_base_dir = Path(data_dir) / 'installs'
         
         print(f"📁 Installation directory: {install_base_dir}")
