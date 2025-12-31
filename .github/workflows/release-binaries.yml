@@ -251,11 +251,78 @@ jobs:
           retention-days: 90
 
   # ===========================================================================
+  # Publish to npm
+  # ===========================================================================
+  publish-npm:
+    name: Publish to npm
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    if: success() && !github.event.release.prerelease
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify package version matches release tag
+        working-directory: npm
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+
+          # Remove 'v' prefix from tag
+          VERSION="${TAG#v}"
+
+          # Get version from package.json
+          PKG_VERSION=$(node -p "require('./package.json').version")
+
+          echo "Release tag: $TAG"
+          echo "Version from tag: $VERSION"
+          echo "Package.json version: $PKG_VERSION"
+
+          if [ "$VERSION" != "$PKG_VERSION" ]; then
+            echo "❌ Version mismatch!"
+            echo "   package.json has $PKG_VERSION but release tag is $TAG"
+            echo "   Update npm/package.json to version $VERSION and try again"
+            exit 1
+          fi
+
+          echo "✅ Version check passed: $VERSION"
+
+      - name: Publish to npm (dry run)
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: npm
+        run: |
+          echo "🏃 Running npm publish in dry-run mode (workflow_dispatch)"
+          npm publish --dry-run
+          echo ""
+          echo "ℹ️  This was a dry run. To actually publish:"
+          echo "   1. Ensure NPM_TOKEN is set in repository secrets"
+          echo "   2. Create a release (not workflow_dispatch)"
+
+      - name: Publish to npm (production)
+        if: github.event_name == 'release'
+        working-directory: npm
+        run: |
+          echo "📦 Publishing to npm registry..."
+          npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ===========================================================================
   # Release Summary
   # ===========================================================================
   release-summary:
     name: Release Summary
-    needs: build-and-release
+    needs: [build-and-release, publish-npm]
     runs-on: ubuntu-latest
     if: always()
 
@@ -265,7 +332,8 @@ jobs:
           echo "========================================="
           echo "Release Build Summary"
           echo "========================================="
-          echo "Status: ${{ needs.build-and-release.result }}"
+          echo "Build status: ${{ needs.build-and-release.result }}"
+          echo "npm publish status: ${{ needs.publish-npm.result }}"
 
           if [ "${{ needs.build-and-release.result }}" = "success" ]; then
             echo "✅ All platform builds completed successfully"
@@ -286,4 +354,16 @@ jobs:
           else
             echo "❌ Release build failed"
             exit 1
+          fi
+
+          if [ "${{ needs.publish-npm.result }}" = "success" ]; then
+            echo ""
+            echo "📦 npm package published successfully"
+            echo "   Install with: npm install -g symfluence"
+          elif [ "${{ needs.publish-npm.result }}" = "skipped" ]; then
+            echo ""
+            echo "ℹ️  npm publish skipped (prerelease or workflow_dispatch)"
+          else
+            echo ""
+            echo "⚠️  npm publish failed or was skipped"
           fi
