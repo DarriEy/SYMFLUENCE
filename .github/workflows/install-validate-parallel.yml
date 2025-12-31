@@ -193,12 +193,23 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           set -e
+          # Detect GCC version installed by Homebrew
+          GCC_VER=$(ls /opt/homebrew/bin/gfortran-* 2>/dev/null | head -1 | sed 's/.*gfortran-//')
+          if [ -z "$GCC_VER" ]; then
+            echo "Warning: Could not detect gfortran version, using defaults"
+            GCC_VER="14"
+          fi
+
           # Save environment configuration to file for later jobs
-          cat > ${{ github.workspace }}/env_config.sh <<'EOF'
-          export CC=gcc-14
-          export CXX=g++-14
-          export FC=gfortran-14
+          cat > ${{ github.workspace }}/env_config.sh <<EOF
+          export CC=/opt/homebrew/bin/gcc-${GCC_VER}
+          export CXX=/opt/homebrew/bin/g++-${GCC_VER}
+          export FC=/opt/homebrew/bin/gfortran-${GCC_VER}
+          export PATH=/opt/homebrew/bin:\$PATH
           EOF
+
+          echo "Created env_config.sh with GCC version ${GCC_VER}"
+          cat ${{ github.workspace }}/env_config.sh
 
       - name: Create /usr/lib64 symlinks (Linux only)
         if: runner.os == 'Linux'
@@ -228,6 +239,16 @@ jobs:
           CXX: mpicxx
         run: |
           set -e
+          # Source environment configuration (contains FC and other compiler settings)
+          if [ -f "${{ github.workspace }}/env_config.sh" ]; then
+            echo "Sourcing env_config.sh..."
+            source ${{ github.workspace }}/env_config.sh
+            echo "Environment after sourcing:"
+            echo "  CC=$CC"
+            echo "  CXX=$CXX"
+            echo "  FC=${FC:-not set}"
+          fi
+
           chmod +x ./symfluence
           ./symfluence --install
 
