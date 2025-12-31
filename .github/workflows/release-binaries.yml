@@ -62,7 +62,7 @@ jobs:
           sudo apt-get install -y \
             build-essential gfortran cmake \
             openmpi-bin libopenmpi-dev \
-            gdal-bin libgdal-dev \
+            gdal-bin libgdal-dev python3-gdal \
             libnetcdf-dev libnetcdff-dev \
             libhdf5-dev libudunits2-dev
 
@@ -121,6 +121,12 @@ jobs:
           which python3
           echo "Python version:"
           "$PYTHON_CMD" --version
+
+          # Install GDAL Python bindings (macOS needs this via pip)
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            echo "Installing GDAL Python bindings..."
+            "$PYTHON_CMD" -m pip install gdal==$(gdal-config --version)
+          fi
 
           # Install SYMFLUENCE package
           "$PYTHON_CMD" -m pip install -e .
