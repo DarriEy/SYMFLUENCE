@@ -38,6 +38,7 @@ jobs:
       NONINTERACTIVE: "1"
       SYMFLUENCE_CODE: ${{ github.workspace }}
       SYMFLUENCE_DATA: /home/runner/work/SYMFLUENCE/SYMFLUENCE_data
+      FC: gfortran
 
     steps:
       - name: Free up disk space
@@ -152,6 +153,7 @@ jobs:
         env:
           CC: mpicc
           CXX: mpicxx
+          FC: gfortran
         run: |
           set -e
           chmod +x ./symfluence

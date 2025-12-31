@@ -221,28 +221,29 @@ class BinaryManager:
                     os.chdir(tool_install_dir)
                     
                     try:
-                        for i, cmd in enumerate(tool_info['build_commands'], 1):
-                            print(f"      Building step {i}...")
-                            build_result = subprocess.run(
-                                cmd,
-                                shell=True,
-                                check=True,
-                                capture_output=True,
-                                text=True,
-                                executable='/bin/bash'
-                            )
-                            # Show output for critical tools
-                            if tool_name in ['summa', 'sundials', 'mizuroute']:
-                                if build_result.stdout:
-                                    print(f"         === Build Output ===")
-                                    for line in build_result.stdout.strip().split('\n'):
-                                        print(f"         {line}")
-                            else:
-                                if build_result.stdout:
-                                    lines = build_result.stdout.strip().split('\n')
-                                    for line in lines[-5:]:
-                                        print(f"         {line}")
-                            print(f"         ✅ Build step {i} completed")
+                        # Combine all commands into a single script to preserve env vars
+                        combined_script = "\n".join(tool_info['build_commands'])
+                        
+                        build_result = subprocess.run(
+                            combined_script,
+                            shell=True,
+                            check=True,
+                            capture_output=True,
+                            text=True,
+                            executable='/bin/bash'
+                        )
+                        
+                        # Show output for critical tools
+                        if tool_name in ['summa', 'sundials', 'mizuroute', 'fuse', 'ngen']:
+                            if build_result.stdout:
+                                print(f"      === Build Output ===")
+                                for line in build_result.stdout.strip().split('\n'):
+                                    print(f"         {line}")
+                        else:
+                            if build_result.stdout:
+                                lines = build_result.stdout.strip().split('\n')
+                                for line in lines[-10:]:
+                                    print(f"         {line}")
                         
                         print(f"   ✅ Build successful")
                         installation_results['successful'].append(tool_name)

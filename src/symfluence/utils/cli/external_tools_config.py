@@ -30,9 +30,16 @@ def get_common_build_environment() -> str:
     """
     return r'''
 set -e
-# Compiler: force short name to satisfy Makefile sanity checks
-export FC="${FC:-gfortran}"
-export FC_EXE="${FC_EXE:-gfortran}"
+# Compiler: force absolute path if possible to satisfy CMake/Makefile
+if [ -n "$FC" ] && [ -x "$FC" ]; then
+    export FC="$FC"
+elif command -v gfortran >/dev/null 2>&1; then
+    export FC="$(command -v gfortran)"
+else
+    export FC="${FC:-gfortran}"
+fi
+export FC_EXE="$FC"
+
 # Discover libraries (fallback to /usr)
 export NETCDF="${NETCDF:-$(nc-config --prefix 2>/dev/null || echo /usr)}"
 export NETCDF_FORTRAN="${NETCDF_FORTRAN:-$(nf-config --prefix 2>/dev/null || echo /usr)}"
