@@ -133,55 +133,25 @@ class SYMFLUENCE:
         errors = []
         warns = []
 
-        # Resolve workflow functions once
+        # Resolve workflow steps from orchestrator
         workflow_steps = self.workflow_orchestrator.define_workflow_steps()
-        name_to_fn = {}
-        for item in workflow_steps:
-            if isinstance(item, (tuple, list)) and len(item) >= 2:
-                fn, _check = item[0], item[1]
-                if hasattr(fn, "__name__"):
-                    name_to_fn[fn.__name__] = fn
-
-        cli_to_function = {
-            "setup_project": "setup_project",
-            "create_pour_point": "create_pour_point",
-            "acquire_attributes": "acquire_attributes",
-            "define_domain": "define_domain",
-            "discretize_domain": "discretize_domain",
-            "setup_model": "preprocess_models",
-            "run_model": "run_models",
-            "calibrate_model": "calibrate_model",
-            "run_emulation": "run_emulation",
-            "run_benchmarking": "run_benchmarking",
-            "run_decision_analysis": "run_decision_analysis",
-            "run_sensitivity_analysis": "run_sensitivity_analysis",
-            "postprocess_results": "postprocess_results",
-            "process_observed_data": "process_observed_data",
-            "acquire_forcings": "acquire_forcings",
-            "model_agnostic_preprocessing": "run_model_agnostic_preprocessing",
-            "model_specific_preprocessing": "preprocess_models",
-        }
+        cli_to_step = {step.cli_name: step for step in workflow_steps}
 
         status = "completed"
         try:
             self.logger.info(f"Starting individual step execution: {', '.join(step_names)}")
 
             for cli_name in step_names:
-                impl = cli_to_function.get(cli_name)
-                if not impl:
+                step = cli_to_step.get(cli_name)
+                if not step:
                     self.logger.warning(f"Step '{cli_name}' not recognized; skipping")
                     continue
 
-                fn = name_to_fn.get(impl)
-                if not fn:
-                    self.logger.warning(f"Function '{impl}' not found; skipping step '{cli_name}'")
-                    continue
-
-                self.logger.info(f"Executing step: {cli_name} -> {impl}")
+                self.logger.info(f"Executing step: {cli_name} -> {step.name}")
                 # Force execution; skip completion checks in CLI wrapper
                 try:
-                    fn()
-                    steps_completed.append({"cli": cli_name, "fn": impl})
+                    step.func()
+                    steps_completed.append({"cli": cli_name, "fn": step.name})
                     self.logger.info(f"✓ Completed step: {cli_name}")
                 except Exception as e:
                     status = "partial" if steps_completed else "failed"
