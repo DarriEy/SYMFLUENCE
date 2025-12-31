@@ -73,6 +73,13 @@ class OptimizationManager:
         """
         self.config = config
         self.logger = logger
+        
+        # Validate required fields
+        required_fields = ['SYMFLUENCE_DATA_DIR', 'DOMAIN_NAME', 'EXPERIMENT_ID']
+        for field in required_fields:
+            if field not in self.config:
+                raise KeyError(f"Missing required configuration field: {field}")
+
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
