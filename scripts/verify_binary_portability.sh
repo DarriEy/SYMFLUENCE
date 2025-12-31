@@ -33,23 +33,12 @@ print_warning() { echo -e "${YELLOW}⚠${NC} $1"; }
 print_info()    { echo -e "${BLUE}→${NC} $1"; }
 
 # Parse arguments
-BINARIES_DIR="${1:-}"
+BINARIES_DIR="$(realpath "${1:-}")"
 
-if [ -z "$BINARIES_DIR" ]; then
+if [ -z "$BINARIES_DIR" ] || [ ! -d "$BINARIES_DIR" ]; then
     cat >&2 <<EOF
 Usage: $0 <binaries_dir>
-
-Arguments:
-  binaries_dir   Directory containing binaries to verify
-
-Example:
-  $0 ./release/symfluence-tools/bin
 EOF
-    exit 1
-fi
-
-if [ ! -d "$BINARIES_DIR" ]; then
-    print_error "Directory not found: $BINARIES_DIR"
     exit 1
 fi
 
