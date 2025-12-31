@@ -108,10 +108,16 @@ jobs:
 
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
 
-          # Use python3 from PATH (setup-python adds it to PATH)
-          # Explicitly use python3, not python, to ensure correct version
+          # Ensure we use Python from setup-python action, not system/Homebrew Python
+          # setup-python sets Python3_ROOT_DIR, prepend its bin to PATH
+          if [ -n "$Python3_ROOT_DIR" ] && [ -d "$Python3_ROOT_DIR/bin" ]; then
+            export PATH="$Python3_ROOT_DIR/bin:$PATH"
+            echo "Prepended Python3_ROOT_DIR to PATH: $Python3_ROOT_DIR/bin"
+          fi
+
+          # Verify we're using the correct Python
           PYTHON_CMD="python3"
-          echo "Python location in PATH:"
+          echo "Python location:"
           which python3
           echo "Python version:"
           "$PYTHON_CMD" --version
