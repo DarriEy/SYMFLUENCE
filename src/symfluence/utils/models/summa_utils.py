@@ -2372,23 +2372,27 @@ echo "Completed all GRUs for this job at $(date)"
 
         # Run SUMMA
         os.makedirs(summa_log_path, exist_ok=True)
-        summa_command = f"{str(summa_path / summa_exe)} -m {str(settings_path / filemanager)}"
+        summa_binary = str(summa_path / summa_exe)
+        filemanager_path = str(settings_path / filemanager)
 
         # Get current environment and ensure LD_LIBRARY_PATH is set
         env = os.environ.copy()
         ld_library_path = env.get('LD_LIBRARY_PATH', '')
         self.logger.info(f"Running SUMMA with LD_LIBRARY_PATH: {ld_library_path}")
-        self.logger.info(f"SUMMA command: {summa_command}")
+        self.logger.info(f"SUMMA binary: {summa_binary}")
+        self.logger.info(f"File manager: {filemanager_path}")
 
         try:
             with open(summa_log_path / summa_log_name, 'w') as log_file:
-                subprocess.run(summa_command, shell=True, check=True, stdout=log_file, stderr=subprocess.STDOUT, env=env)
+                # Use shell=False and pass command as list for better reliability
+                subprocess.run([summa_binary, '-m', filemanager_path], check=True, stdout=log_file, stderr=subprocess.STDOUT, env=env)
             self.logger.info("SUMMA run completed successfully")
             return summa_out_path
 
         except subprocess.CalledProcessError as e:
             self.logger.error(f"SUMMA run failed with error: {e}")
             self.logger.error(f"LD_LIBRARY_PATH was: {ld_library_path}")
+            self.logger.error(f"Binary path was: {summa_binary}")
             raise
 
     def _get_config_path(self, config_key: str, default_suffix: str) -> Path:
