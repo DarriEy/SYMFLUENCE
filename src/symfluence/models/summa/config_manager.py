@@ -179,8 +179,11 @@ class SummaConfigManager(PathResolverMixin):
                 self.logger.debug(f"Copied {source_file} to {dest_file}")
 
             # Ensure TWS variables are in outputControl if doing TWS optimization
+            # Check both primary and secondary targets for multi-objective calibration
             target = self.config_dict.get('OPTIMIZATION_TARGET', '').lower()
-            if target in ['tws', 'grace', 'grace_tws']:
+            target2 = self.config_dict.get('OPTIMIZATION_TARGET2', '').lower()
+            tws_targets = ['tws', 'grace', 'grace_tws', 'total_storage', 'stor_grace']
+            if target in tws_targets or target2 in tws_targets:
                 output_control_path = settings_path / 'outputControl.txt'
                 if output_control_path.exists():
                     with open(output_control_path, 'r') as f:
