@@ -301,9 +301,9 @@ fi
 
 # Edit the Makefile in-place
 echo "=== Editing Makefile ==="
-perl -i -pe "s|^FC\s*=\s*$|FC = gnu|" Makefile
-perl -i -pe "s|^FC_EXE\s*=\s*$|FC_EXE = ${FC_EXE:-gfortran}|" Makefile
-perl -i -pe "s|^EXE\s*=\s*$|EXE = mizuRoute.exe|" Makefile
+perl -i -pe "s|^FC\s*=.*$|FC = gnu|" Makefile
+perl -i -pe "s|^FC_EXE\s*=.*$|FC_EXE = ${FC:-gfortran}|" Makefile
+perl -i -pe "s|^EXE\s*=.*$|EXE = mizuRoute.exe|" Makefile
 perl -i -pe "s|^F_MASTER\s*=.*$|F_MASTER = $F_MASTER_PATH/|" Makefile
 perl -i -pe "s|^\s*NCDF_PATH\s*=.*$| NCDF_PATH = ${NETCDF_TO_USE}|" Makefile
 perl -i -pe "s|^isOpenMP\s*=.*$|isOpenMP = no|" Makefile
