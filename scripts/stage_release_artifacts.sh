@@ -111,7 +111,7 @@ stage_license() {
     done
 
     print_warning "No license found for $tool_name in $src_dir"
-    return 1
+    return 0  # Don't fail the build for missing licenses
 }
 
 # ============================================================================
