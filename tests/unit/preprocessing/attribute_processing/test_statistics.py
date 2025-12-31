@@ -30,7 +30,7 @@ class TestCalculateStatistics:
         """Test statistics calculation for non-circular attributes (elevation, slope, etc.)."""
         processor = ElevationProcessor(base_config, test_logger)
 
-        with patch('rasterstats.zonal_stats', return_value=mock_zonal_stats_result):
+        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_zonal_stats_result):
             result = processor.calculate_statistics(mock_dem_file, "elevation")
 
         # Should return dict with mean, min, max, std (no median in default stats)
@@ -41,9 +41,9 @@ class TestCalculateStatistics:
         assert "elevation_std" in result
 
         # Check values match actual DEM file statistics
-        assert isinstance(result["elevation_mean"], (int, float))
-        assert isinstance(result["elevation_min"], (int, float))
-        assert isinstance(result["elevation_max"], (int, float))
+        assert isinstance(result["elevation_mean"], (int, float, np.floating))
+        assert isinstance(result["elevation_min"], (int, float, np.floating))
+        assert isinstance(result["elevation_max"], (int, float, np.floating))
 
     def test_calculate_statistics_aspect_circular(
         self, base_config, test_logger, lumped_catchment_shapefile, mock_dem_file
@@ -62,12 +62,13 @@ class TestCalculateStatistics:
             "count": len(aspect_values)
         }]
 
-        with patch('rasterstats.zonal_stats', return_value=mock_result) as mock_zs:
+        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result) as mock_zs:
             # Configure mock to return pixel values when raster_out=True
             mock_zs.return_value = [{"raster": aspect_values}]
 
-            with patch.object(processor, 'catchment_path', lumped_catchment_shapefile.parent):
-                result = processor.calculate_statistics(mock_dem_file, "aspect")
+            # Ensure catchment_path is a file path, not a directory
+            processor.catchment_path = lumped_catchment_shapefile
+            result = processor.calculate_statistics(mock_dem_file, "aspect")
 
         # Should use circular statistics (circmean, circstd)
         assert isinstance(result, dict)
@@ -141,15 +142,15 @@ class TestCalculateStatistics:
         aspect_values = np.array([0, 90, 180, 270] * 25)
         mock_result = [{"raster": aspect_values}]
 
-        with patch('rasterstats.zonal_stats', return_value=mock_result):
+        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result):
+            # Ensure catchment_path is a file path
+            processor.catchment_path = lumped_catchment_shapefile
             result = processor.calculate_statistics(mock_dem_file, "aspect")
 
         # Check that results include circular statistics
-        # Note: The mocking may not work as expected since calculate_statistics
-        # defines its own calc_circmean function, so we just verify output
         assert isinstance(result, dict)
         if "aspect_circmean" in result:
-            assert isinstance(result["aspect_circmean"], (int, float))
+            assert isinstance(result["aspect_circmean"], (int, float, np.floating))
 
     def test_calculate_statistics_aspect_conversion_to_radians(
         self, base_config, test_logger, lumped_catchment_shapefile, mock_dem_file
@@ -161,13 +162,13 @@ class TestCalculateStatistics:
         aspect_deg = np.array([0, 90, 180, 270])
         mock_result = [{"raster": aspect_deg}]
 
-        with patch('rasterstats.zonal_stats', return_value=mock_result):
+        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result):
+            # Ensure catchment_path is a file path
+            processor.catchment_path = lumped_catchment_shapefile
             result = processor.calculate_statistics(mock_dem_file, "aspect")
 
             # Verify result contains aspect statistics
             assert isinstance(result, dict)
-            # The implementation uses its own calc_circmean function with scipy.stats.circmean
-            # internally, so we just verify the output is reasonable
             if "aspect_circmean" in result:
                 assert 0 <= result["aspect_circmean"] <= 360
 
@@ -187,11 +188,11 @@ class TestCalculateStatistics:
             "count": 50  # Only 50 valid pixels out of 100
         }]
 
-        with patch('rasterstats.zonal_stats', return_value=mock_result):
+        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result):
             result = processor.calculate_statistics(mock_dem_file, "elevation")
 
         # Should still return valid statistics for non-masked pixels
-        assert isinstance(result["elevation_mean"], (int, float))
+        assert isinstance(result["elevation_mean"], (int, float, np.floating))
         # Note: rasterstats may not return 'count' in the default stats
         if "elevation_count" in result:
             assert result["elevation_count"] > 0
@@ -202,7 +203,7 @@ class TestCalculateStatistics:
         """Test that attribute name is correctly incorporated into result keys."""
         processor = ElevationProcessor(base_config, test_logger)
 
-        with patch('rasterstats.zonal_stats', return_value=mock_zonal_stats_result):
+        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_zonal_stats_result):
             result = processor.calculate_statistics(mock_dem_file, "custom_attr")
 
         # All keys should start with attribute name
@@ -257,11 +258,13 @@ class TestCalculateStatisticsEdgeCases:
             return [{"min": 0.0, "max": 359.0}]
 
         with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', side_effect=mock_zonal_with_raster):
+            # Ensure catchment_path is a file path
+            processor.catchment_path = lumped_catchment_shapefile
             result = processor.calculate_statistics(mock_dem_file, "aspect")
 
         # Should have circular statistics
         if "aspect_circmean" in result:
-            assert isinstance(result["aspect_circmean"], (int, float))
+            assert isinstance(result["aspect_circmean"], (int, float, np.floating))
             # Mean should be near 0 (or near 360) - allow wider range since circular mean calculation varies
             assert result["aspect_circmean"] < 15 or result["aspect_circmean"] > 345
 
@@ -279,12 +282,14 @@ class TestCalculateStatisticsEdgeCases:
         bimodal_aspect = np.array([0] * 50 + [180] * 50)
         mock_result = [{"raster": bimodal_aspect}]
 
-        with patch('rasterstats.zonal_stats', return_value=mock_result):
+        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result):
+            # Ensure catchment_path is a file path
+            processor.catchment_path = lumped_catchment_shapefile
             result = processor.calculate_statistics(mock_dem_file, "aspect")
 
         # Circular mean for bimodal distribution
         if "aspect_circmean" in result:
-            assert isinstance(result["aspect_circmean"], (int, float))
+            assert isinstance(result["aspect_circmean"], (int, float, np.floating))
 
             # Circular std should be relatively high for bimodal
             if "aspect_circstd" in result:
