@@ -172,7 +172,8 @@ jobs:
           # Add SUNDIALS library path for SUMMA runtime dependencies
           SUNDIALS_LIB="${{ env.SYMFLUENCE_DATA }}/installs/sundials/lib"
           if [ -d "$SUNDIALS_LIB" ]; then
-            echo "LD_LIBRARY_PATH=$SUNDIALS_LIB:/usr/lib/x86_64-linux-gnu:\${LD_LIBRARY_PATH:-}" >> $GITHUB_ENV
+            echo "LD_LIBRARY_PATH=$SUNDIALS_LIB:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
+            echo "Added SUNDIALS library path: $SUNDIALS_LIB"
           fi
 
       - name: Activate venv for subsequent steps
