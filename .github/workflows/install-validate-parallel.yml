@@ -84,7 +84,7 @@ jobs:
       CI: "1"
       NONINTERACTIVE: "1"
       SYMFLUENCE_CODE: ${{ github.workspace }}
-      SYMFLUENCE_DATA: ${{ github.workspace }}_data
+      SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
 
     steps:
       - name: Free up disk space (Linux)
@@ -447,14 +447,14 @@ jobs:
 
           # Restore test data
           if [ -f testdata.tar.gz ]; then
-            tar -xzf testdata.tar.gz -C /home/runner/work/SYMFLUENCE/SYMFLUENCE_data
+            tar -xzf testdata.tar.gz -C ${{ github.workspace }}/symfluence_data
           fi
 
       - name: Run quick E2E tests
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
           SYMFLUENCE_CODE: ${{ github.workspace }}
-          SYMFLUENCE_DATA: /home/runner/work/SYMFLUENCE/SYMFLUENCE_data
+          SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
         run: |
           echo "========================================="
           echo "Running quick E2E tests (3-hour SUMMA)..."
@@ -517,14 +517,14 @@ jobs:
 
           # Restore test data
           if [ -f testdata.tar.gz ]; then
-            tar -xzf testdata.tar.gz -C /home/runner/work/SYMFLUENCE/SYMFLUENCE_data
+            tar -xzf testdata.tar.gz -C ${{ github.workspace }}/symfluence_data
           fi
 
       - name: Run full E2E tests
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
           SYMFLUENCE_CODE: ${{ github.workspace }}
-          SYMFLUENCE_DATA: /home/runner/work/SYMFLUENCE/SYMFLUENCE_data
+          SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
         run: |
           echo "========================================="
           echo "Running full E2E tests (1-month + calibration)..."
