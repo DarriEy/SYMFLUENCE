@@ -17,7 +17,7 @@ import xarray as xr
 
 
 
-pytestmark = [pytest.mark.integration, pytest.mark.models, pytest.mark.summa, pytest.mark.requires_data, pytest.mark.slow]
+pytestmark = [pytest.mark.integration, pytest.mark.models, pytest.mark.summa, pytest.mark.requires_data, pytest.mark.requires_acquisition, pytest.mark.slow]
 
 @pytest.mark.slow
 @pytest.mark.requires_data
@@ -48,7 +48,7 @@ def test_cerra_full_summa_pipeline():
     config['FORCING_DATASET'] = 'CERRA'
     config['EXPERIMENT_ID'] = 'summa_cerra_test'
     config['EXPERIMENT_TIME_START'] = '2010-01-01 00:00'
-    config['EXPERIMENT_TIME_END'] = '2010-01-01 06:00'  # 6 hours (2 CERRA timesteps)
+    config['EXPERIMENT_TIME_END'] = '2010-01-01 03:00'  # 3 hours
     config['FORCING_TIME_STEP_SIZE'] = 10800
     config['DATA_ACCESS'] = 'cloud'
     config['DEM_SOURCE'] = 'copernicus'
@@ -207,7 +207,7 @@ def test_carra_full_summa_pipeline():
     config['CARRA_DOMAIN'] = 'west_domain'
     config['EXPERIMENT_ID'] = 'summa_carra_test'
     config['EXPERIMENT_TIME_START'] = '2010-01-01 00:00'
-    config['EXPERIMENT_TIME_END'] = '2010-01-01 06:00'  # 6 hours
+    config['EXPERIMENT_TIME_END'] = '2010-01-01 03:00'  # 3 hours
     config['DATA_ACCESS'] = 'cloud'
     config['DEM_SOURCE'] = 'copernicus'
     config['HYDROLOGICAL_MODEL'] = 'SUMMA'

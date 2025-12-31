@@ -36,19 +36,12 @@ PLATFORM="${2:-}"
 STAGED_DIR="${3:-}"
 OUTPUT_DIR="${4:-}"
 
-if [ -z "$VERSION" ] || [ -z "$PLATFORM" ] || [ -z "$STAGED_DIR" ] || [ -z "$OUTPUT_DIR" ]; then
-    cat >&2 <<EOF
-Usage: $0 <version> <platform> <staged_dir> <output_dir>
+# Resolve absolute paths
+STAGED_DIR="$(realpath "$STAGED_DIR")"
+OUTPUT_DIR="$(realpath "$OUTPUT_DIR")"
 
-Arguments:
-  version        Version tag (e.g., v0.7.0)
-  platform       Platform identifier (e.g., linux-x86_64)
-  staged_dir     Directory containing staged symfluence-tools/
-  output_dir     Directory to write tarball
-
-Example:
-  $0 v0.7.0 linux-x86_64 ./release/symfluence-tools ./release
-EOF
+if [ ! -d "$STAGED_DIR" ]; then
+    print_error "Staged directory not found: $STAGED_DIR"
     exit 1
 fi
 

@@ -56,6 +56,10 @@ EOF
     exit 1
 fi
 
+# Resolve absolute paths
+INSTALLS_DIR="$(realpath "$INSTALLS_DIR")"
+OUTPUT_DIR="$(realpath "$OUTPUT_DIR")"
+
 if [ ! -d "$INSTALLS_DIR" ]; then
     print_error "Installation directory not found: $INSTALLS_DIR"
     exit 1
