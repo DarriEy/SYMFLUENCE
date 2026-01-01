@@ -1,9 +1,18 @@
+"""
+CDS Dataset Handlers for Regional Reanalysis Products.
+
+Provides acquisition handlers for CARRA (Arctic) and CERRA (European) datasets
+from the Copernicus Climate Data Store, using a shared base class to eliminate
+code duplication.
+"""
+
 import xarray as xr
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 import logging
+from abc import ABC, abstractmethod
 
 try:
     import cdsapi
@@ -14,302 +23,444 @@ except ImportError:
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 
-@AcquisitionRegistry.register('CARRA')
-class CARRAAcquirer(BaseAcquisitionHandler):
+
+class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
     """
-    CARRA (Copernicus Arctic Regional Reanalysis) data acquisition handler.
-    Uses dual-product strategy (analysis + forecast).
+    Abstract base handler for CDS regional reanalysis products.
+
+    Implements common dual-product download strategy (analysis + forecast),
+    time alignment, spatial subsetting, unit conversions, and variable derivations.
+
+    Subclasses must implement abstract methods to specify dataset-specific
+    configurations such as temporal resolution, variable lists, and spatial handling.
     """
-    
+
     def download(self, output_dir: Path) -> Path:
+        """Download and process regional reanalysis data."""
         if not HAS_CDSAPI:
-            raise ImportError("cdsapi package is required for CARRA downloads.")
-            
+            raise ImportError(
+                f"cdsapi package is required for {self._get_dataset_id()} downloads."
+            )
+
+        # Initialize CDS client
         c = cdsapi.Client()
-        domain = self.config.get("CARRA_DOMAIN", "west_domain")
+
+        # Build temporal parameters
         years = list(range(self.start_date.year, self.end_date.year + 1))
         months = [f"{m:02d}" for m in range(self.start_date.month, self.end_date.month + 1)]
-        
-        # Build date list
         dates = pd.date_range(self.start_date, self.end_date, freq='D')
         days = sorted(list(set([d.strftime('%d') for d in dates])))
-        
-        # CARRA is hourly
-        hours = [f"{h:02d}:00" for h in range(0, 24)]
-        
-        output_dir.mkdir(parents=True, exist_ok=True)
-        af = output_dir / f"{self.domain_name}_CARRA_analysis_temp.nc"
-        ff = output_dir / f"{self.domain_name}_CARRA_forecast_temp.nc"
-        
-        # 1. Download Analysis (Meteorology)
-        analysis_req = {
-            "domain": domain,
-            "level_type": "surface_or_atmosphere",
-            "product_type": "analysis",
-            "variable": [
-                "2m_temperature",
-                "2m_relative_humidity",
-                "10m_u_component_of_wind",
-                "10m_v_component_of_wind",
-                "surface_pressure"
-            ],
-            "year": [str(y) for y in years],
-            "month": months,
-            "day": days,
-            "time": hours,
-            "data_format": "netcdf"
-        }
-        
-        # 2. Download Forecast (Fluxes)
-        forecast_req = {
-            "domain": domain,
-            "level_type": "surface_or_atmosphere",
-            "product_type": "forecast",
-            "leadtime_hour": ["1"],
-            "variable": [
-                "total_precipitation",
-                "surface_solar_radiation_downwards",
-                "surface_thermal_radiation_downwards"
-            ],
-            "year": [str(y) for y in years],
-            "month": months,
-            "day": days,
-            "time": hours,
-            "data_format": "netcdf"
-        }
-        
-        logging.info(f"Downloading CARRA analysis data for {self.domain_name}...")
-        c.retrieve("reanalysis-carra-single-levels", analysis_req, str(af))
-        
-        logging.info(f"Downloading CARRA forecast data for {self.domain_name}...")
-        c.retrieve("reanalysis-carra-single-levels", forecast_req, str(ff))
-        
-        # 3. Process and Merge
-        with xr.open_dataset(af) as dsa, xr.open_dataset(ff) as dsf:
-            # Handle naming inconsistency in time dimension
-            time_name_a = 'valid_time' if 'valid_time' in dsa.dims else 'time'
-            time_name_f = 'valid_time' if 'valid_time' in dsf.dims else 'time'
-            
-            dsa = dsa.rename({time_name_a: 'time'})
-            dsf = dsf.rename({time_name_f: 'time'})
-            
-            # Forecast variables in CARRA are often shifted
-            # Leadtime 1h means the valid_time is 1h after the nominal time
-            # We want to align them.
-            dsf['time'] = dsf['time'] - pd.Timedelta(hours=1)
-            
-            # Merge
-            dsm = xr.merge([dsa, dsf], join='inner')
-            
-            # Spatial subsetting if bbox is available
-            if hasattr(self, 'bbox') and self.bbox:
-                lat = dsm.latitude.values
-                lon = dsm.longitude.values
-                
-                # Normalize lon to [0, 360] for CARRA comparison if needed, 
-                # or just use what's in the file. CARRA typically uses [0, 360].
-                # Our bbox is likely [-180, 180].
-                def normalize_lon(l):
-                    return l % 360
-                
-                target_lon_min = normalize_lon(self.bbox['lon_min'])
-                target_lon_max = normalize_lon(self.bbox['lon_max'])
-                
-                # Handle wrapping around prime meridian
-                if target_lon_min > target_lon_max:
-                    lon_mask = (lon >= target_lon_min) | (lon <= target_lon_max)
-                else:
-                    lon_mask = (lon >= target_lon_min) & (lon <= target_lon_max)
+        hours = self._get_time_hours()
 
-                mask = (
-                    (lat >= self.bbox['lat_min']) & (lat <= self.bbox['lat_max']) &
-                    lon_mask
-                )
-                
-                y_idx, x_idx = np.where(mask)
-                if len(y_idx) > 0:
-                    # Add a small buffer of 2 grid cells
-                    y_min = max(0, y_idx.min() - 2)
-                    y_max = min(dsm.dims['y'] - 1, y_idx.max() + 2)
-                    x_min = max(0, x_idx.min() - 2)
-                    x_max = min(dsm.dims['x'] - 1, x_idx.max() + 2)
-                    
-                    dsm = dsm.isel(y=slice(y_min, y_max + 1), 
-                                   x=slice(x_min, x_max + 1))
-                    logging.info(f"Spatially subsetted to {dsm.dims['y']}x{dsm.dims['x']} grid")
-                else:
-                    logging.warning(f"No grid points found in bbox {self.bbox}, keeping full domain")
-            
-            # Rename to SUMMA standards
-            rename_map = {
-                't2m': 'airtemp',
-                'sp': 'airpres',
-                'u10': 'wind_u',
-                'v10': 'wind_v',
-                'tp': 'pptrate',
-                'ssrd': 'SWRadAtm',
-                'strd': 'LWRadAtm'
-            }
-            dsm = dsm.rename({k: v for k, v in rename_map.items() if k in dsm.variables})
-            
-            # Derived variables
-            if 'wind_u' in dsm and 'wind_v' in dsm:
-                dsm['windspd'] = np.sqrt(dsm['wind_u']**2 + dsm['wind_v']**2)
-                
-            if 'r2' in dsm and 'airtemp' in dsm and 'airpres' in dsm:
-                # Specific humidity calculation
-                T = dsm['airtemp']
-                RH = dsm['r2']
-                P = dsm['airpres']
-                es = 611.2 * np.exp(17.67 * (T - 273.15) / (T - 29.65))
-                e = (RH / 100.0) * es
-                dsm['spechum'] = (0.622 * e) / (P - 0.378 * e)
-            
-            # Unit conversions
-            if 'pptrate' in dsm:
-                # CARRA tp is in kg/m2 (mm) per leadtime (1h) -> m/s
-                dsm['pptrate'] = (dsm['pptrate'] * 0.001) / 3600.0
-                
-            if 'SWRadAtm' in dsm:
-                # CARRA ssrd is in J/m2 per leadtime (1h) -> W/m2
-                dsm['SWRadAtm'] = dsm['SWRadAtm'] / 3600.0
-                
-            if 'LWRadAtm' in dsm:
-                # CARRA strd is in J/m2 per leadtime (1h) -> W/m2
-                dsm['LWRadAtm'] = dsm['LWRadAtm'] / 3600.0
-            
-            # Subset to final time range
-            dsm = dsm.sel(time=slice(self.start_date, self.end_date))
-            
-            # Final cleanup and save
-            final_vars = ['airtemp', 'airpres', 'pptrate', 'SWRadAtm', 'windspd', 'spechum', 'LWRadAtm']
-            available_vars = [v for v in final_vars if v in dsm.variables]
-            
-            final_f = output_dir / f"{self.domain_name}_CARRA_{self.start_date.year}-{self.end_date.year}.nc"
-            dsm[available_vars].to_netcdf(final_f)
-            
+        # Setup output files
+        output_dir.mkdir(parents=True, exist_ok=True)
+        af = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_analysis_temp.nc"
+        ff = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_forecast_temp.nc"
+
+        # Build requests
+        analysis_req = self._build_analysis_request(years, months, days, hours)
+        forecast_req = self._build_forecast_request(years, months, days, hours)
+
+        # Download both products
+        logging.info(f"Downloading {self._get_dataset_id()} analysis data for {self.domain_name}...")
+        c.retrieve(self._get_dataset_name(), analysis_req, str(af))
+
+        logging.info(f"Downloading {self._get_dataset_id()} forecast data for {self.domain_name}...")
+        c.retrieve(self._get_dataset_name(), forecast_req, str(ff))
+
+        # Process and merge
+        final_f = self._process_and_merge(af, ff, output_dir)
+
+        # Cleanup temp files
         for f in [af, ff]:
-            if f.exists(): f.unlink()
-            
+            if f.exists():
+                f.unlink()
+
         return final_f
 
-@AcquisitionRegistry.register('CERRA')
-class CERRAAcquirer(BaseAcquisitionHandler):
-    """
-    CERRA (Copernicus European Regional Reanalysis) data acquisition handler.
-    CERRA is 3-hourly.
-    """
-    
-    def download(self, output_dir: Path) -> Path:
-        if not HAS_CDSAPI:
-            raise ImportError("cdsapi package is required for CERRA downloads.")
-            
-        c = cdsapi.Client()
-        years = list(range(self.start_date.year, self.end_date.year + 1))
-        months = [f"{m:02d}" for m in range(self.start_date.month, self.end_date.month + 1)]
-        
-        dates = pd.date_range(self.start_date, self.end_date, freq='D')
-        days = sorted(list(set([d.strftime('%d') for d in dates])))
-        
-        # CERRA is 3-hourly
-        hours = [f"{h:02d}:00" for h in range(0, 24, 3)]
-        
-        output_dir.mkdir(parents=True, exist_ok=True)
-        af = output_dir / f"{self.domain_name}_CERRA_analysis_temp.nc"
-        ff = output_dir / f"{self.domain_name}_CERRA_forecast_temp.nc"
-        
-        # 1. Download Analysis
-        analysis_req = {
+    def _get_time_hours(self) -> List[str]:
+        """Generate hourly time strings based on temporal resolution."""
+        resolution = self._get_temporal_resolution()
+        return [f"{h:02d}:00" for h in range(0, 24, resolution)]
+
+    def _build_analysis_request(
+        self, years: List[int], months: List[str], days: List[str], hours: List[str]
+    ) -> Dict[str, Any]:
+        """Build CDS API request for analysis product."""
+        request = {
+            "level_type": "surface_or_atmosphere",
             "product_type": "analysis",
-            "level_type": "surface_or_atmosphere",
-            "variable": [
-                "2m_temperature",
-                "2m_relative_humidity",
-                "surface_pressure",
-                "10m_wind_speed"
-            ],
+            "variable": self._get_analysis_variables(),
             "year": [str(y) for y in years],
             "month": months,
             "day": days,
             "time": hours,
-            "data_format": "netcdf",
-            "data_type": "reanalysis"
+            "data_format": "netcdf"
         }
-        
-        # 2. Download Forecast
-        forecast_req = {
+
+        # Add domain if applicable (CARRA-specific)
+        domain = self._get_domain()
+        if domain:
+            request["domain"] = domain
+
+        # Add subclass-specific parameters (e.g., CERRA's data_type)
+        request.update(self._get_additional_request_params())
+
+        return request
+
+    def _build_forecast_request(
+        self, years: List[int], months: List[str], days: List[str], hours: List[str]
+    ) -> Dict[str, Any]:
+        """Build CDS API request for forecast product."""
+        request = {
+            "level_type": "surface_or_atmosphere",
             "product_type": "forecast",
-            "level_type": "surface_or_atmosphere",
-            "leadtime_hour": ["1"],
-            "variable": [
-                "total_precipitation",
-                "surface_solar_radiation_downwards",
-                "surface_thermal_radiation_downwards"
-            ],
+            "leadtime_hour": [self._get_leadtime_hour()],
+            "variable": self._get_forecast_variables(),
             "year": [str(y) for y in years],
             "month": months,
             "day": days,
             "time": hours,
-            "data_format": "netcdf",
-            "data_type": "reanalysis"
+            "data_format": "netcdf"
         }
-        
-        logging.info(f"Downloading CERRA analysis data for {self.domain_name}...")
-        c.retrieve("reanalysis-cerra-single-levels", analysis_req, str(af))
-        
-        logging.info(f"Downloading CERRA forecast data for {self.domain_name}...")
-        c.retrieve("reanalysis-cerra-single-levels", forecast_req, str(ff))
-        
-        # 3. Process and Merge
-        with xr.open_dataset(af) as dsa, xr.open_dataset(ff) as dsf:
-            time_name_a = 'valid_time' if 'valid_time' in dsa.dims else 'time'
-            time_name_f = 'valid_time' if 'valid_time' in dsf.dims else 'time'
-            
-            dsa = dsa.rename({time_name_a: 'time'})
-            dsf = dsf.rename({time_name_f: 'time'})
-            
-            # Align forecast
-            dsf['time'] = dsf['time'] - pd.Timedelta(hours=1)
-            
+
+        # Add domain if applicable
+        domain = self._get_domain()
+        if domain:
+            request["domain"] = domain
+
+        # Add subclass-specific parameters
+        request.update(self._get_additional_request_params())
+
+        return request
+
+    def _process_and_merge(
+        self, analysis_file: Path, forecast_file: Path, output_dir: Path
+    ) -> Path:
+        """Process, merge, subset, and save final dataset."""
+        with xr.open_dataset(analysis_file) as dsa, xr.open_dataset(forecast_file) as dsf:
+            # Standardize time dimension names
+            dsa = self._standardize_time_dimension(dsa)
+            dsf = self._standardize_time_dimension(dsf)
+
+            # Align forecast time (correct for leadtime offset)
+            leadtime_hours = int(self._get_leadtime_hour())
+            dsf['time'] = dsf['time'] - pd.Timedelta(hours=leadtime_hours)
+
+            # Merge datasets
             dsm = xr.merge([dsa, dsf], join='inner')
-            
+
             # Spatial subsetting
             if hasattr(self, 'bbox') and self.bbox:
-                lat = dsm.latitude.values
-                lon = dsm.longitude.values
-                mask = (
-                    (lat >= self.bbox['lat_min']) & (lat <= self.bbox['lat_max']) &
-                    (lon >= self.bbox['lon_min']) & (lon <= self.bbox['lon_max'])
-                )
-                y_idx, x_idx = np.where(mask)
-                if len(y_idx) > 0:
-                    dsm = dsm.isel(y=slice(y_idx.min(), y_idx.max() + 1), 
-                                   x=slice(x_idx.min(), x_idx.max() + 1))
-            
-            # Rename and derived
-            rename_map = {'t2m': 'airtemp', 'sp': 'airpres', 'si10': 'windspd', 'tp': 'pptrate', 'ssrd': 'SWRadAtm', 'strd': 'LWRadAtm'}
-            dsm = dsm.rename({k: v for k, v in rename_map.items() if k in dsm.variables})
-            
-            if 'r2' in dsm:
-                T = dsm['airtemp']; RH = dsm['r2']; P = dsm['airpres']
-                es = 611.2 * np.exp(17.67 * (T - 273.15) / (T + 243.5))
-                e = (RH / 100.0) * es
-                dsm['spechum'] = (0.622 * e) / (P - 0.378 * e)
-            
-            # Unit conversions (CERRA tp/ssrd/strd also in J/m2 or kg/m2 per leadtime)
-            if 'pptrate' in dsm: dsm['pptrate'] = (dsm['pptrate'] * 0.001) / 3600.0
-            if 'SWRadAtm' in dsm: dsm['SWRadAtm'] = dsm['SWRadAtm'] / 3600.0
-            if 'LWRadAtm' in dsm: dsm['LWRadAtm'] = dsm['LWRadAtm'] / 3600.0
-            
+                dsm = self._spatial_subset(dsm)
+
+            # Rename to SUMMA standards
+            dsm = self._rename_variables(dsm)
+
+            # Calculate derived variables
+            dsm = self._calculate_derived_variables(dsm)
+
+            # Unit conversions
+            dsm = self._convert_units(dsm)
+
+            # Temporal subsetting
             dsm = dsm.sel(time=slice(self.start_date, self.end_date))
-            
-            final_vars = ['airtemp', 'airpres', 'pptrate', 'SWRadAtm', 'windspd', 'spechum', 'LWRadAtm']
-            available_vars = [v for v in final_vars if v in dsm.variables]
-            
-            final_f = output_dir / f"{self.domain_name}_CERRA_{self.start_date.year}-{self.end_date.year}.nc"
-            dsm[available_vars].to_netcdf(final_f)
-            
-        for f in [af, ff]:
-            if f.exists(): f.unlink()
-            
+
+            # Save final dataset
+            final_f = self._save_final_dataset(dsm, output_dir)
+
         return final_f
+
+    def _standardize_time_dimension(self, ds: xr.Dataset) -> xr.Dataset:
+        """Rename time dimension to standard 'time'."""
+        time_name = 'valid_time' if 'valid_time' in ds.dims else 'time'
+        return ds.rename({time_name: 'time'})
+
+    def _spatial_subset(self, ds: xr.Dataset) -> xr.Dataset:
+        """Apply spatial subsetting based on bounding box."""
+        lat = ds.latitude.values
+        lon = ds.longitude.values
+
+        # Create spatial mask (subclass-specific longitude handling)
+        mask = self._create_spatial_mask(lat, lon)
+
+        y_idx, x_idx = np.where(mask)
+        if len(y_idx) > 0:
+            # Add buffer (subclass can override)
+            buffer = self._get_spatial_buffer()
+            y_min = max(0, y_idx.min() - buffer)
+            y_max = min(ds.dims['y'] - 1, y_idx.max() + buffer)
+            x_min = max(0, x_idx.min() - buffer)
+            x_max = min(ds.dims['x'] - 1, x_idx.max() + buffer)
+
+            ds = ds.isel(y=slice(y_min, y_max + 1), x=slice(x_min, x_max + 1))
+            logging.info(f"Spatially subsetted to {ds.dims['y']}x{ds.dims['x']} grid")
+        else:
+            logging.warning(f"No grid points found in bbox {self.bbox}, keeping full domain")
+
+        return ds
+
+    def _rename_variables(self, ds: xr.Dataset) -> xr.Dataset:
+        """Rename variables to SUMMA standards."""
+        rename_map = {
+            't2m': 'airtemp',
+            'sp': 'airpres',
+            'u10': 'wind_u',
+            'v10': 'wind_v',
+            'si10': 'windspd',  # CERRA provides this directly
+            'tp': 'pptrate',
+            'ssrd': 'SWRadAtm',
+            'strd': 'LWRadAtm'
+        }
+        return ds.rename({k: v for k, v in rename_map.items() if k in ds.variables})
+
+    def _calculate_derived_variables(self, ds: xr.Dataset) -> xr.Dataset:
+        """Calculate derived meteorological variables."""
+        # Wind speed from components (if not already present)
+        if 'wind_u' in ds and 'wind_v' in ds and 'windspd' not in ds:
+            ds['windspd'] = np.sqrt(ds['wind_u']**2 + ds['wind_v']**2)
+
+        # Specific humidity from relative humidity
+        if 'r2' in ds and 'airtemp' in ds and 'airpres' in ds:
+            ds['spechum'] = self._calculate_specific_humidity(
+                ds['airtemp'], ds['r2'], ds['airpres']
+            )
+
+        return ds
+
+    def _calculate_specific_humidity(
+        self, T: xr.DataArray, RH: xr.DataArray, P: xr.DataArray
+    ) -> xr.DataArray:
+        """
+        Calculate specific humidity from temperature, RH, and pressure.
+
+        Uses Magnus formula for saturation vapor pressure. Subclasses can
+        override _get_magnus_denominator() for dataset-specific formulas.
+        """
+        # Saturation vapor pressure (Magnus formula)
+        T_celsius = T - 273.15
+        denominator = self._get_magnus_denominator(T_celsius)
+        es = 611.2 * np.exp(17.67 * T_celsius / denominator)
+
+        # Actual vapor pressure
+        e = (RH / 100.0) * es
+
+        # Specific humidity
+        return (0.622 * e) / (P - 0.378 * e)
+
+    def _convert_units(self, ds: xr.Dataset) -> xr.Dataset:
+        """Convert units to SUMMA standards."""
+        resolution_hours = self._get_temporal_resolution()
+        resolution_seconds = resolution_hours * 3600
+
+        # Precipitation: kg/m2 per leadtime -> m/s
+        if 'pptrate' in ds:
+            ds['pptrate'] = (ds['pptrate'] * 0.001) / resolution_seconds
+
+        # Radiation: J/m2 per leadtime -> W/m2
+        if 'SWRadAtm' in ds:
+            ds['SWRadAtm'] = ds['SWRadAtm'] / resolution_seconds
+
+        if 'LWRadAtm' in ds:
+            ds['LWRadAtm'] = ds['LWRadAtm'] / resolution_seconds
+
+        return ds
+
+    def _save_final_dataset(self, ds: xr.Dataset, output_dir: Path) -> Path:
+        """Save final processed dataset."""
+        final_vars = ['airtemp', 'airpres', 'pptrate', 'SWRadAtm',
+                     'windspd', 'spechum', 'LWRadAtm']
+        available_vars = [v for v in final_vars if v in ds.variables]
+
+        final_f = output_dir / (
+            f"{self.domain_name}_{self._get_dataset_id()}_"
+            f"{self.start_date.year}-{self.end_date.year}.nc"
+        )
+        ds[available_vars].to_netcdf(final_f)
+
+        return final_f
+
+    # Abstract methods to be implemented by subclasses
+
+    @abstractmethod
+    def _get_dataset_name(self) -> str:
+        """Return CDS dataset name (e.g., 'reanalysis-carra-single-levels')."""
+        pass
+
+    @abstractmethod
+    def _get_dataset_id(self) -> str:
+        """Return short dataset ID for filenames (e.g., 'CARRA')."""
+        pass
+
+    @abstractmethod
+    def _get_domain(self) -> Optional[str]:
+        """Return domain identifier or None if not applicable."""
+        pass
+
+    @abstractmethod
+    def _get_temporal_resolution(self) -> int:
+        """Return temporal resolution in hours (e.g., 1 for hourly, 3 for 3-hourly)."""
+        pass
+
+    @abstractmethod
+    def _get_analysis_variables(self) -> List[str]:
+        """Return list of analysis variables to download."""
+        pass
+
+    @abstractmethod
+    def _get_forecast_variables(self) -> List[str]:
+        """Return list of forecast variables to download."""
+        pass
+
+    @abstractmethod
+    def _get_leadtime_hour(self) -> str:
+        """Return leadtime hour as string (e.g., '1')."""
+        pass
+
+    @abstractmethod
+    def _get_additional_request_params(self) -> Dict[str, Any]:
+        """Return additional dataset-specific request parameters."""
+        pass
+
+    @abstractmethod
+    def _create_spatial_mask(self, lat: np.ndarray, lon: np.ndarray) -> np.ndarray:
+        """
+        Create spatial mask for subsetting.
+
+        Must handle dataset-specific longitude conventions (0-360 vs -180-180).
+        """
+        pass
+
+    # Optional methods with sensible defaults (can be overridden)
+
+    def _get_spatial_buffer(self) -> int:
+        """Return number of grid cells to add as buffer (default: 0)."""
+        return 0
+
+    def _get_magnus_denominator(self, T_celsius: xr.DataArray) -> xr.DataArray:
+        """Return Magnus formula denominator (default: standard formula T + 243.5)."""
+        return T_celsius + 243.5
+
+
+@AcquisitionRegistry.register('CARRA')
+class CARRAAcquirer(CDSRegionalReanalysisHandler):
+    """
+    CARRA (Copernicus Arctic Regional Reanalysis) data acquisition handler.
+
+    Hourly data covering the Arctic region with special longitude handling (0-360°).
+    """
+
+    def _get_dataset_name(self) -> str:
+        return "reanalysis-carra-single-levels"
+
+    def _get_dataset_id(self) -> str:
+        return "CARRA"
+
+    def _get_domain(self) -> Optional[str]:
+        return self.config.get("CARRA_DOMAIN", "west_domain")
+
+    def _get_temporal_resolution(self) -> int:
+        return 1  # Hourly
+
+    def _get_analysis_variables(self) -> List[str]:
+        return [
+            "2m_temperature",
+            "2m_relative_humidity",
+            "10m_u_component_of_wind",
+            "10m_v_component_of_wind",
+            "surface_pressure"
+        ]
+
+    def _get_forecast_variables(self) -> List[str]:
+        return [
+            "total_precipitation",
+            "surface_solar_radiation_downwards",
+            "surface_thermal_radiation_downwards"
+        ]
+
+    def _get_leadtime_hour(self) -> str:
+        return "1"
+
+    def _get_additional_request_params(self) -> Dict[str, Any]:
+        return {}  # CARRA doesn't need data_type parameter
+
+    def _create_spatial_mask(self, lat: np.ndarray, lon: np.ndarray) -> np.ndarray:
+        """Create mask with CARRA longitude handling (0-360 degrees)."""
+        # Normalize bbox to [0, 360]
+        target_lon_min = self.bbox['lon_min'] % 360
+        target_lon_max = self.bbox['lon_max'] % 360
+
+        # Handle wrapping around prime meridian
+        if target_lon_min > target_lon_max:
+            lon_mask = (lon >= target_lon_min) | (lon <= target_lon_max)
+        else:
+            lon_mask = (lon >= target_lon_min) & (lon <= target_lon_max)
+
+        mask = (
+            (lat >= self.bbox['lat_min']) & (lat <= self.bbox['lat_max']) &
+            lon_mask
+        )
+
+        return mask
+
+    def _get_spatial_buffer(self) -> int:
+        return 2  # CARRA uses 2-cell buffer
+
+    def _get_magnus_denominator(self, T_celsius: xr.DataArray) -> xr.DataArray:
+        return T_celsius - 29.65  # CARRA-specific formula
+
+
+@AcquisitionRegistry.register('CERRA')
+class CERRAAcquirer(CDSRegionalReanalysisHandler):
+    """
+    CERRA (Copernicus European Regional Reanalysis) data acquisition handler.
+
+    3-hourly data covering Europe with standard longitude handling (-180 to 180°).
+    """
+
+    def _get_dataset_name(self) -> str:
+        return "reanalysis-cerra-single-levels"
+
+    def _get_dataset_id(self) -> str:
+        return "CERRA"
+
+    def _get_domain(self) -> Optional[str]:
+        return None  # CERRA doesn't use domain parameter
+
+    def _get_temporal_resolution(self) -> int:
+        return 3  # 3-hourly
+
+    def _get_analysis_variables(self) -> List[str]:
+        return [
+            "2m_temperature",
+            "2m_relative_humidity",
+            "surface_pressure",
+            "10m_wind_speed"  # CERRA provides combined wind speed
+        ]
+
+    def _get_forecast_variables(self) -> List[str]:
+        return [
+            "total_precipitation",
+            "surface_solar_radiation_downwards",
+            "surface_thermal_radiation_downwards"
+        ]
+
+    def _get_leadtime_hour(self) -> str:
+        return "1"
+
+    def _get_additional_request_params(self) -> Dict[str, Any]:
+        return {"data_type": "reanalysis"}  # CERRA requires this
+
+    def _create_spatial_mask(self, lat: np.ndarray, lon: np.ndarray) -> np.ndarray:
+        """Create mask with CERRA longitude handling (-180 to 180 degrees)."""
+        # Standard longitude handling for European domain
+        mask = (
+            (lat >= self.bbox['lat_min']) & (lat <= self.bbox['lat_max']) &
+            (lon >= self.bbox['lon_min']) & (lon <= self.bbox['lon_max'])
+        )
+
+        return mask
+
+    # Uses default implementations for:
+    # - _get_spatial_buffer (0)
+    # - _get_magnus_denominator (standard T + 243.5)

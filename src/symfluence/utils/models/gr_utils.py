@@ -9,9 +9,12 @@ import rasterio
 import shutil
 
 from symfluence.utils.data.utilities.variable_utils import VariableHandler
+from symfluence.utils.common.path_resolver import PathResolverMixin
+from symfluence.utils.common.constants import UnitConversion
+from symfluence.utils.common.geospatial_utils import GeospatialUtilsMixin
 from .registry import ModelRegistry
-from .base import BaseModelPreProcessor
-from .mixins import PETCalculatorMixin
+from .base import BaseModelPreProcessor, BaseModelRunner, BaseModelPostProcessor
+from .mixins import PETCalculatorMixin, ObservationLoaderMixin
 
 # Optional R/rpy2 support - only needed for GR models
 try:
@@ -29,13 +32,14 @@ except (ImportError, ValueError) as e:
     localconverter = None
 
 @ModelRegistry.register_preprocessor('GR')
-class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
+class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, ObservationLoaderMixin):
     """
     Preprocessor for the GR family of models (initially GR4J).
 
     Handles data preparation, PET calculation, snow module setup, and file organization.
     Supports both lumped and distributed spatial modes.
-    Inherits common functionality from BaseModelPreProcessor and PET calculations from PETCalculatorMixin.
+    Inherits common functionality from BaseModelPreProcessor, PET calculations from PETCalculatorMixin,
+    geospatial utilities from GeospatialUtilsMixin, and observation loading from ObservationLoaderMixin.
 
     Attributes:
         config: Configuration settings for GR models (inherited)
@@ -150,7 +154,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
         self.logger.info(f"Total catchment area from GRU_area: {area_km2:.2f} km2")
         
         # Convert units from cms to mm/day
-        obs_daily['discharge_mmday'] = obs_daily['discharge_cms'] / area_km2 * 86.4
+        obs_daily['discharge_mmday'] = obs_daily['discharge_cms'] / area_km2 * UnitConversion.MM_DAY_TO_CMS
         
         # Create observation dataset
         obs_ds = xr.Dataset(
@@ -158,9 +162,9 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
             coords={'time': obs_daily.index.values}
         )
         
-        # Read catchment and get centroid
+        # Read catchment and get centroid (using inherited GeospatialUtilsMixin)
         catchment = gpd.read_file(self.catchment_path / self.catchment_name)
-        mean_lon, mean_lat = self._get_catchment_centroid(catchment)
+        mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
         
         # Calculate PET
         pet = self.calculate_pet_oudin(ds['temp'], mean_lat)
@@ -235,7 +239,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
             basin_gdf = gpd.read_file(basin_path)
             
             area_km2 = basin_gdf['GRU_area'].sum() / 1e6
-            obs_daily['discharge_mmday'] = obs_daily['discharge_cms'] / area_km2 * 86.4
+            obs_daily['discharge_mmday'] = obs_daily['discharge_cms'] / area_km2 * UnitConversion.MM_DAY_TO_CMS
         else:
             self.logger.warning("No streamflow observations found")
             obs_daily = None
@@ -328,98 +332,64 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
         
         return output_file
 
-    def _get_catchment_centroid(self, catchment_gdf):
-        """
-        Helper function to correctly calculate catchment centroid with proper CRS handling.
-        
-        Args:
-            catchment_gdf (gpd.GeoDataFrame): The catchment GeoDataFrame
-        
-        Returns:
-            tuple: (longitude, latitude) of the catchment centroid
-        """
-        # Ensure we have the CRS information
-        if catchment_gdf.crs is None:
-            self.logger.warning("Catchment CRS is not defined, assuming EPSG:4326")
-            catchment_gdf.set_crs(epsg=4326, inplace=True)
-            
-        # Convert to geographic coordinates if not already
-        catchment_geo = catchment_gdf.to_crs(epsg=4326)
-        
-        # Get a rough center point (using bounds instead of centroid)
-        bounds = catchment_geo.total_bounds  # (minx, miny, maxx, maxy)
-        center_lon = (bounds[0] + bounds[2]) / 2
-        center_lat = (bounds[1] + bounds[3]) / 2
-        
-        # Calculate UTM zone from the center point
-        utm_zone = int((center_lon + 180) / 6) + 1
-        epsg_code = f"326{utm_zone:02d}" if center_lat >= 0 else f"327{utm_zone:02d}"
-        
-        # Project to appropriate UTM zone
-        catchment_utm = catchment_geo.to_crs(f"EPSG:{epsg_code}")
-        
-        # Calculate centroid in UTM coordinates
-        centroid_utm = catchment_utm.geometry.centroid.iloc[0]
-        
-        # Create a GeoDataFrame with the centroid point
-        centroid_gdf = gpd.GeoDataFrame(
-            geometry=[centroid_utm], 
-            crs=f"EPSG:{epsg_code}"
-        )
-        
-        # Convert back to geographic coordinates
-        centroid_geo = centroid_gdf.to_crs(epsg=4326)
-        
-        # Extract coordinates
-        lon, lat = centroid_geo.geometry.x[0], centroid_geo.geometry.y[0]
-        
-        self.logger.info(f"Calculated catchment centroid: {lon:.6f}°E, {lat:.6f}°N (UTM Zone {utm_zone})")
-
-        return lon, lat
-
+    # Removed: _get_catchment_centroid() - now inherited from GeospatialUtilsMixin
     # Removed: _get_default_path() and _get_file_path() - now inherited from BaseModelPreProcessor
 
 
 @ModelRegistry.register_runner('GR', method_name='run_gr')
-class GRRunner:
+class GRRunner(BaseModelRunner):
     """
     Runner class for the GR family of models (initially GR4J).
     Handles model execution, state management, and output processing.
     Now supports both lumped and distributed spatial modes.
-    
+
     Attributes:
         config (Dict[str, Any]): Configuration settings for GR models
         logger (Any): Logger object for recording run information
         project_dir (Path): Directory for the current project
         domain_name (str): Name of the domain being processed
     """
-    
+
     def __init__(self, config: Dict[str, Any], logger: Any):
+        # GR-specific: Check rpy2 dependency BEFORE calling super()
         if not HAS_RPY2:
             raise ImportError(
                 "GR models require R and rpy2. "
                 "Please install R and rpy2, or use a different model. "
                 "See https://rpy2.github.io/doc/latest/html/overview.html#installation"
             )
-        self.config = config
-        self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
+
+        # Call base class
+        super().__init__(config, logger)
+
+        # GR uses 'output_path' alias for backwards compatibility
+        self.output_path = self.output_dir
+
+        # GR-specific configuration
+        self.spatial_mode = self.config.get('GR_SPATIAL_MODE', 'lumped')
+        self.needs_routing = self._check_routing_requirements()
+
+    def _setup_model_specific_paths(self) -> None:
+        """Set up GR-specific paths."""
+        # Catchment paths (uses PathResolverMixin from base)
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
         self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
-            self.catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
-        
-        # GR-specific paths
+            discretization = self.config.get('DOMAIN_DISCRETIZATION')
+            self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
+
+        # GR setup and forcing paths
         self.gr_setup_dir = self.project_dir / "settings" / "GR"
         self.forcing_gr_path = self.project_dir / 'forcing' / 'GR_input'
-        self.output_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'GR'
-        self.output_path.mkdir(parents=True, exist_ok=True)
-        
-        # Model configuration
-        self.spatial_mode = self.config.get('GR_SPATIAL_MODE', 'lumped')
-        self.needs_routing = self._check_routing_requirements()
+
+    def _get_model_name(self) -> str:
+        """Return model name for GR."""
+        return "GR"
+
+    def _get_output_dir(self) -> Path:
+        """GR uses output_path naming."""
+        experiment_id = self.config.get('EXPERIMENT_ID')
+        return self.project_dir / 'simulations' / experiment_id / 'GR'
 
     def run_gr(self) -> Optional[Path]:
         """
@@ -907,27 +877,30 @@ class GRRunner:
 
 
 @ModelRegistry.register_postprocessor('GR')
-class GRPostprocessor:
+class GRPostprocessor(BaseModelPostProcessor):
     """
     Postprocessor for GR (GR4J/CemaNeige) model outputs.
     Handles extraction and processing of simulation results.
     Supports both lumped and distributed modes.
     """
-    def __init__(self, config: Dict[str, Any], logger: Any):
+
+    def _get_model_name(self) -> str:
+        """Return the model name."""
+        return "GR"
+
+    def _setup_model_specific_paths(self) -> None:
+        """Set up GR-specific paths and check dependencies."""
+        # Check for R/rpy2 dependency
         if not HAS_RPY2:
             raise ImportError(
                 "GR models require R and rpy2. "
                 "Please install R and rpy2, or use a different model. "
                 "See https://rpy2.github.io/doc/latest/html/overview.html#installation"
             )
-        self.config = config
-        self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.results_dir = self.project_dir / "results"
-        self.results_dir.mkdir(parents=True, exist_ok=True)
+
+        # GR-specific configuration
         self.spatial_mode = self.config.get('GR_SPATIAL_MODE', 'lumped')
+        self.output_path = self.sim_dir  # Alias for consistency with existing code
 
     def extract_streamflow(self) -> Optional[Path]:
         """
@@ -979,14 +952,19 @@ class GRPostprocessor:
         basin_name = self.config.get('RIVER_BASINS_NAME')
         if basin_name == 'default':
             basin_name = f"{self.domain_name}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
-        basin_path = self._get_file_path('RIVER_BASINS_PATH', 'shapefiles/river_basins', basin_name)
+        basin_path = self._get_file_path(
+            path_key='RIVER_BASINS_PATH',
+            name_key='RIVER_BASINS_NAME',
+            default_subpath='shapefiles/river_basins',
+            default_name=basin_name
+        )
         basin_gdf = gpd.read_file(basin_path)
         
         area_km2 = basin_gdf['GRU_area'].sum() / 1e6
         self.logger.info(f"Total catchment area: {area_km2:.2f} km2")
         
         # Convert units from mm/day to m3/s (cms)
-        q_sim_cms = sim_df['flow'] * area_km2 / 86.4
+        q_sim_cms = sim_df['flow'] * area_km2 / UnitConversion.MM_DAY_TO_CMS
         
         # Read existing results or create new
         output_file = self.results_dir / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
@@ -1075,14 +1053,19 @@ class GRPostprocessor:
         basin_name = self.config.get('RIVER_BASINS_NAME')
         if basin_name == 'default':
             basin_name = f"{self.domain_name}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
-        basin_path = self._get_file_path('RIVER_BASINS_PATH', 'shapefiles/river_basins', basin_name)
+        basin_path = self._get_file_path(
+            path_key='RIVER_BASINS_PATH',
+            name_key='RIVER_BASINS_NAME',
+            default_subpath='shapefiles/river_basins',
+            default_name=basin_name
+        )
         basin_gdf = gpd.read_file(basin_path)
         
         area_km2 = basin_gdf['GRU_area'].sum() / 1e6
         self.logger.info(f"Total catchment area: {area_km2:.2f} km2")
         
         # Convert units
-        q_cms = q_df['flow'] * area_km2 / 86.4
+        q_cms = q_df['flow'] * area_km2 / UnitConversion.MM_DAY_TO_CMS
         
         # Save to results
         output_file = self.results_dir / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
@@ -1096,14 +1079,7 @@ class GRPostprocessor:
         
         self.logger.info(f"Distributed GR results appended to: {output_file}")
         return output_file
-            
-    def _get_file_path(self, file_type: str, file_def_path: str, file_name: str) -> Path:
-        """Helper method to get file paths from config or defaults."""
-        if self.config.get(file_type) == 'default':
-            return self.project_dir / file_def_path / file_name
-        else:
-            return Path(self.config.get(file_type))
-    
+
     @property
     def output_path(self):
         """Get output path for backwards compatibility"""

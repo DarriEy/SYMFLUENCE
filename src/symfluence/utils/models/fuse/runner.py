@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt # type: ignore
 import xarray as xr # type: ignore
 from typing import Dict, List, Tuple, Any
 from ..registry import ModelRegistry
-from ..base import BaseModelPreProcessor
+from ..base import BaseModelPreProcessor, BaseModelRunner
 from ..mixins import PETCalculatorMixin
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -28,36 +28,44 @@ from symfluence.utils.data.utilities.variable_utils import VariableHandler # typ
 
 
 @ModelRegistry.register_runner('FUSE', method_name='run_fuse')
-class FUSERunner:
+class FUSERunner(BaseModelRunner):
     """
     Runner class for the FUSE (Framework for Understanding Structural Errors) model.
     Handles model execution, output processing, and file management.
-    
+
     Attributes:
         config (Dict[str, Any]): Configuration settings for FUSE
         logger (Any): Logger object for recording run information
         project_dir (Path): Directory for the current project
         domain_name (str): Name of the domain being processed
     """
-    
+
     def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
-        self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.result_dir = self.project_dir / "simulations" / self.config.get('EXPERIMENT_ID') / "FUSE"
-        self.result_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Initialize required paths
+        # Call base class
+        super().__init__(config, logger)
+
+        # FUSE-specific: result_dir is an alias for output_dir
+        self.result_dir = self.output_dir
+
+        # FUSE-specific initialization
         self.fuse_path = self._get_install_path()
         self.output_path = self._get_output_path()
-        self.setup_dir = self.project_dir / "settings" / "FUSE"
-        self.forcing_fuse_path = self.project_dir / 'forcing' / 'FUSE_input'
-        
-        # Spatial mode
         self.spatial_mode = self.config.get('FUSE_SPATIAL_MODE', 'lumped')
         self.needs_routing = self._check_routing_requirements()
+
+    def _setup_model_specific_paths(self) -> None:
+        """Set up FUSE-specific paths."""
+        self.setup_dir = self.project_dir / "settings" / "FUSE"
+        self.forcing_fuse_path = self.project_dir / 'forcing' / 'FUSE_input'
+
+    def _get_model_name(self) -> str:
+        """Return model name for FUSE."""
+        return "FUSE"
+
+    def _get_output_dir(self) -> Path:
+        """FUSE uses custom result_dir naming."""
+        experiment_id = self.config.get('EXPERIMENT_ID')
+        return self.project_dir / "simulations" / experiment_id / "FUSE"
 
     def _convert_fuse_distributed_to_mizuroute_format(self):
         """
@@ -685,19 +693,6 @@ class FUSERunner:
                 # Create simple subcatchment IDs
                 return np.arange(1, len(catchment) + 1)
 
-    def _get_default_path(self, path_key: str, default_subpath: str) -> Path:
-        """
-        Get a path from config or use a default based on the project directory.
-        Helper method for FUSERunner class.
-        """
-        try:
-            path_value = self.config.get(path_key)
-            if path_value == 'default' or path_value is None:
-                return self.project_dir / default_subpath
-            return Path(path_value)
-        except KeyError:
-            self.logger.error(f"Config key '{path_key}' not found")
-            raise
 
     def _run_individual_subcatchments(self, subcatchments) -> bool:
         """Run FUSE separately for each subcatchment"""

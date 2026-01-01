@@ -13,32 +13,33 @@ from typing import Dict, Any, Optional
 import pandas as pd  # type: ignore
 import xarray as xr  # type: ignore
 
+# SYMFLUENCE imports
+from ..base import BaseModelPostProcessor
 
-class SUMMAPostprocessor:
+
+class SUMMAPostprocessor(BaseModelPostProcessor):
     """
     Postprocessor for SUMMA model outputs via MizuRoute routing.
     Handles extraction and processing of simulation results.
     """
-    def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
-        self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.results_dir = self.project_dir / "results"
-        self.results_dir.mkdir(parents=True, exist_ok=True)
+
+    def _get_model_name(self) -> str:
+        """Return the model name."""
+        return "SUMMA"
+
+    def _setup_model_specific_paths(self) -> None:
+        """Set up SUMMA-specific paths for MizuRoute outputs."""
+        self.mizuroute_dir = self.project_dir / 'simulations' / self.experiment_id / 'mizuRoute'
 
     def extract_streamflow(self) -> Optional[Path]:
         """Extract streamflow from MizuRoute outputs for spatial mode."""
         self.logger.info("Extracting SUMMA/MizuRoute streamflow results")
         try:
-            self.logger.info("Extracting SUMMA/MizuRoute streamflow results")
-
             # Get simulation output path
             if self.config.get('SIMULATIONS_PATH') == 'default':
                 # Parse the start time and extract the date portion
                 start_date = self.config.get('EXPERIMENT_TIME_START').split()[0]  # Gets '2011-01-01' from '2011-01-01 01:00'
-                sim_file_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'mizuRoute' / f"{self.config.get('EXPERIMENT_ID')}.h.{start_date}-03600.nc"
+                sim_file_path = self.mizuroute_dir / f"{self.experiment_id}.h.{start_date}-03600.nc"
             else:
                 sim_file_path = Path(self.config.get('SIMULATIONS_PATH'))
 
@@ -47,13 +48,13 @@ class SUMMAPostprocessor:
                 return None
 
             # Get simulation reach ID
-            sim_reach_ID = self.config.get('SIM_REACH_ID')
+            sim_reach_ID = int(self.config.get('SIM_REACH_ID'))
 
             # Read simulation data
             ds = xr.open_dataset(sim_file_path, engine='netcdf4')
 
             # Extract data for the specific reach
-            segment_index = ds['reachID'].values == int(sim_reach_ID)
+            segment_index = ds['reachID'].values == sim_reach_ID
             sim_df = ds.sel(seg=segment_index)
             q_sim = sim_df['IRFroutedRunoff'].to_dataframe().reset_index()
             q_sim.set_index('time', inplace=True)
@@ -62,20 +63,8 @@ class SUMMAPostprocessor:
             # Convert from hourly to daily average
             q_sim_daily = q_sim['IRFroutedRunoff'].resample('D').mean()
 
-            # Read existing results file if it exists
-            output_file = self.results_dir / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
-            if output_file.exists():
-                results_df = pd.read_csv(output_file, index_col=0, parse_dates=True)
-            else:
-                results_df = pd.DataFrame(index=q_sim_daily.index)
-
-            # Add SUMMA results
-            results_df['SUMMA_discharge_cms'] = q_sim_daily
-
-            # Save updated results
-            results_df.to_csv(output_file)
-
-            return output_file
+            # Use inherited helper to save results
+            return self.save_streamflow_to_results(q_sim_daily)
 
         except Exception as e:
             self.logger.error(f"Error extracting SUMMA streamflow: {str(e)}")

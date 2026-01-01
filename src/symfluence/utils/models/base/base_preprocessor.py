@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 import shutil
 
+from symfluence.utils.common.path_resolver import PathResolverMixin
+from symfluence.utils.common.constants import UnitConversion
 from symfluence.utils.exceptions import (
     ModelExecutionError,
     ConfigurationError,
@@ -24,7 +26,7 @@ from symfluence.utils.exceptions import (
 )
 
 
-class BaseModelPreProcessor(ABC):
+class BaseModelPreProcessor(ABC, PathResolverMixin):
     """
     Abstract base class for all model preprocessors.
 
@@ -122,23 +124,6 @@ class BaseModelPreProcessor(ABC):
         """
         pass
 
-    def _get_default_path(self, config_key: str, default_subpath: str) -> Path:
-        """
-        Get path from config or use default relative to project directory.
-
-        Args:
-            config_key: Key to look up in configuration
-            default_subpath: Default path relative to project_dir
-
-        Returns:
-            Resolved path
-        """
-        path_value = self.config.get(config_key)
-
-        if path_value == 'default' or path_value is None:
-            return self.project_dir / default_subpath
-
-        return Path(path_value)
 
     def _get_file_path(self, file_type: str, path_key: str,
                        name_key: str, default_name: str) -> Path:
@@ -336,7 +321,7 @@ class BaseModelPreProcessor(ABC):
                 'resample_freq': 'h',
                 'time_units': 'hours since 1970-01-01',
                 'time_unit': 'h',
-                'conversion_factor': 3.6,  # cms to mm/hour
+                'conversion_factor': UnitConversion.MM_HOUR_TO_CMS,  # cms to mm/hour
                 'time_label': 'hourly',
                 'timestep_seconds': 3600
             }
@@ -345,7 +330,7 @@ class BaseModelPreProcessor(ABC):
                 'resample_freq': 'D',
                 'time_units': 'days since 1970-01-01',
                 'time_unit': 'D',
-                'conversion_factor': 86.4,  # cms to mm/day
+                'conversion_factor': UnitConversion.MM_DAY_TO_CMS,  # cms to mm/day
                 'time_label': 'daily',
                 'timestep_seconds': 86400
             }
