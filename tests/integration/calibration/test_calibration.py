@@ -41,12 +41,12 @@ def test_ellioaar_calibration(ellioaar_domain):
     config['DEM_SOURCE'] = 'copernicus'
     config['HYDROLOGICAL_MODEL'] = 'SUMMA'
 
-    # ULTRA-SHORT period for CI/demo - using 2010 which is likely in data bundle
+    # ULTRA-SHORT period for CI/demo
     config['EXPERIMENT_ID'] = 'calib_demo_short'
-    config['EXPERIMENT_TIME_START'] = '2010-01-01 00:00'
-    config['EXPERIMENT_TIME_END'] = '2010-01-03 00:00'  # 2 days
-    config['CALIBRATION_PERIOD'] = '2010-01-02, 2010-01-03'
-    config['SPINUP_PERIOD'] = '2010-01-01, 2010-01-01'
+    config['EXPERIMENT_TIME_START'] = '2020-01-01 00:00'
+    config['EXPERIMENT_TIME_END'] = '2020-01-03 00:00'  # 2 days
+    config['CALIBRATION_PERIOD'] = '2020-01-02, 2020-01-03'
+    config['SPINUP_PERIOD'] = '2020-01-01, 2020-01-01'
 
     # Optimization configuration
     config['OPTIMIZATION_METHODS'] = ['iteration']
@@ -93,7 +93,6 @@ def test_ellioaar_calibration(ellioaar_domain):
     try:
         results_file = sym.managers['optimization'].calibrate_model()
         assert results_file is not None
-        return results_file
     except Exception as e:
         pytest.fail(f"Calibration failed: {e}")
 
@@ -158,8 +157,14 @@ def test_fyris_calibration(fyris_domain):
 
     sym.managers['project'].setup_project()
 
-    print("\n2. Ensuring data availability...")
-    sym.managers['data'].acquire_forcings()
+    # Check if we already have forcing data
+    forcing_files = list((project_dir / "forcing" / "raw_data").glob("*CERRA*.nc"))
+    if not forcing_files:
+        print("\n2. Ensuring data availability...")
+        sym.managers['data'].acquire_forcings()
+    else:
+        print(f"\n2. ✓ Using existing forcing data ({len(forcing_files)} files)")
+
     sym.managers['data'].run_model_agnostic_preprocessing()
     sym.managers['model'].preprocess_models()
 
@@ -168,7 +173,6 @@ def test_fyris_calibration(fyris_domain):
     try:
         results_file = sym.managers['optimization'].calibrate_model()
         assert results_file is not None
-        return results_file
     except Exception as e:
         pytest.fail(f"Calibration failed: {e}")
 

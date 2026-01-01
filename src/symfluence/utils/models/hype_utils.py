@@ -17,32 +17,33 @@ import seaborn as sns # type: ignore
 
 from symfluence.utils.models.hypeFlow import write_hype_forcing, write_hype_geo_files, write_hype_par_file, write_hype_info_filedir_files # type: ignore
 from .registry import ModelRegistry
+from .base import BaseModelPreProcessor
 
 
 @ModelRegistry.register_preprocessor('HYPE')
-class HYPEPreProcessor:
+class HYPEPreProcessor(BaseModelPreProcessor):
     """
     HYPE (HYdrological Predictions for the Environment) preprocessor for SYMFLUENCE.
+
     Handles preparation of HYPE model inputs using SYMFLUENCE's data structure.
-    
+    Inherits common functionality from BaseModelPreProcessor.
+
     Attributes:
-        config (Dict[str, Any]): SYMFLUENCE configuration settings
-        logger (logging.Logger): Logger for the preprocessing workflow
-        project_dir (Path): Project directory path
-        domain_name (str): Name of the modeling domain
+        config: SYMFLUENCE configuration settings (inherited)
+        logger: Logger for the preprocessing workflow (inherited)
+        project_dir: Project directory path (inherited)
+        domain_name: Name of the modeling domain (inherited)
+        setup_dir: HYPE setup directory (inherited as model-specific)
     """
-    
+
+    def _get_model_name(self) -> str:
+        """Return model name for HYPE."""
+        return "HYPE"
+
     def __init__(self, config: Dict[str, Any], logger: Any):
         """Initialize HYPE preprocessor with SYMFLUENCE config."""
-        self.config = config
-        self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        
-        # Define HYPE-specific paths
-        self.hype_setup_dir = self.project_dir / "settings" / "HYPE"
-        self.hype_setup_dir.mkdir(parents=True, exist_ok=True)
+        # Initialize base class
+        super().__init__(config, logger)
         self.gistool_output = f"{str(self.project_dir / 'attributes' / 'gistool-outputs')}/"
         self.easymore_output = f"{str(self.project_dir / 'forcing' / 'easymore-outputs')}/"
         self.hype_setup_dir = f"{str(self.project_dir / 'settings' / 'HYPE')}/"

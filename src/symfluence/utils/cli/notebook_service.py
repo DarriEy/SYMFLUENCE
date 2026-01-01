@@ -96,7 +96,7 @@ class NotebookService:
             print(f"⚠️  Could not ensure ipykernel: {e}")
 
         # Try to launch Jupyter
-        tool = "jupyter-lab" if prefer_lab else "jupyter-notebook"
+        tool = "jupyterlab" if prefer_lab else "notebook"
         try:
             subprocess.run([str(python_exe), "-m", tool, str(nb_path)])
             return 0

@@ -13,63 +13,58 @@ import shutil
 # import necessary libraries
 import meshflow # type: ignore # version v0.1.0-dev1
 
-class MESHPreProcessor:
+from .base import BaseModelPreProcessor
+
+
+class MESHPreProcessor(BaseModelPreProcessor):
     """
     Preprocessor for the MESH model.
-    Handles data preparation, PET calculation, snow module setup, and file organization.
-    
-    Attributes:
-        config (Dict[str, Any]): Configuration settings for MESH
-        logger (Any): Logger object for recording processing information
-        project_dir (Path): Directory for the current project
-        gr_setup_dir (Path): Directory for MESH setup files
-        domain_name (str): Name of the domain being processed
-    """
-    def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
-        self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.mesh_setup_dir = self.project_dir / "settings" / "MESH"
-        
-        # MESH-specific paths
-        self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
-        self.forcing_mesh_path = self.project_dir / 'forcing' / 'MESH_input'
 
+    Handles data preparation using meshflow library for MESH model setup.
+    Inherits common functionality from BaseModelPreProcessor.
+
+    Attributes:
+        config: Configuration settings for MESH
+        logger: Logger object for recording processing information
+        project_dir: Directory for the current project
+        setup_dir: Directory for MESH setup files (inherited)
+        domain_name: Name of the domain being processed (inherited)
+    """
+
+    def _get_model_name(self) -> str:
+        """Return model name for MESH."""
+        return "MESH"
+
+    def __init__(self, config: Dict[str, Any], logger: Any):
+        # Initialize base class (handles common paths)
+        super().__init__(config, logger)
+
+        # MESH-specific catchment path (uses river basins instead of catchment)
         self.catchment_path = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
         self.catchment_name = self.config.get('RIVER_BASINS_NAME')
         if self.catchment_name == 'default':
             self.catchment_name = f"{self.domain_name}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
 
-        self.rivers_path = self._get_default_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network')
-        self.rivers_name = self.config.get('RIVER_NETWORK_SHP_NAME')
-        if self.rivers_name == 'default':
-            self.rivers_name = f"{self.domain_name}_riverNetwork_delineate.shp"
+        # River network paths
+        self.rivers_path = self.get_river_network_path().parent
+        self.rivers_name = self.get_river_network_path().name
 
     def run_preprocessing(self):
         """Run the complete MESH preprocessing workflow."""
         self.logger.info("Starting MESH preprocessing")
         try:
+            # Use base class method to create directories
             self.create_directories()
+
             config = self.create_json()
             self.prepare_forcing_data(config)
-
 
             self.logger.info("MESH preprocessing completed successfully")
         except Exception as e:
             self.logger.error(f"Error during MESH preprocessing: {str(e)}")
             raise
 
-    def create_directories(self):
-        """Create necessary directories for GR model setup."""
-        dirs_to_create = [
-            self.mesh_setup_dir,
-            self.forcing_mesh_path,
-        ]
-        for dir_path in dirs_to_create:
-            dir_path.mkdir(parents=True, exist_ok=True)
-            self.logger.info(f"Created directory: {dir_path}")
+    # Removed: create_directories() - now uses base class method via run_preprocessing()
 
 
     def create_json(self):
@@ -177,25 +172,11 @@ class MESHPreProcessor:
         exp = meshflow.MESHWorkflow(**config)
         exp.run()
 
-        # create a directory for MESH setup
-        self.forcing_mesh_path.mkdir(parents=True, exist_ok=True)
+        # Save drainage database and forcing files
+        # (forcing_dir already created by base class create_directories())
+        exp.save(self.forcing_dir)
 
-        # saving drainage database and forcing files
-        exp.save(self.forcing_mesh_path)
-
-
-    def _get_default_path(self, path_key: str, default_subpath: str) -> Path:
-        """Get path from config or use default based on project directory."""
-        path_value = self.config.get(path_key)
-        if path_value == 'default' or path_value is None:
-            return self.project_dir / default_subpath
-        return Path(path_value)
-    
-    def _get_file_path(self, file_type, file_def_path, file_name):
-        if self.config.get(f'{file_type}') == 'default':
-            return self.project_dir / file_def_path / file_name
-        else:
-            return Path(self.config.get(f'{file_type}'))
+    # Removed: _get_default_path() and _get_file_path() - now inherited from BaseModelPreProcessor
 
 
 class MESHRunner:
