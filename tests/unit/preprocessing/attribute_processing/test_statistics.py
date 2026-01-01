@@ -53,19 +53,15 @@ class TestCalculateStatistics:
 
         # Mock zonal_stats to return aspect data with pixel values
         aspect_values = np.array([0, 45, 90, 135, 180, 225, 270, 315] * 12 + [0, 45, 90, 135])
+        # Mock result should include circular statistics for aspect
         mock_result = [{
             "min": 0.0,
-            "max": 359.0,
-            "mean": 180.0,  # Linear mean (not valid for circular)
-            "median": 175.0,
-            "std": 90.0,
-            "count": len(aspect_values)
+            "max": 315.0,
+            "circmean": 157.5,  # Circular mean for the aspect values
+            "circstd": 105.0    # Circular standard deviation
         }]
 
         with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result) as mock_zs:
-            # Configure mock to return pixel values when raster_out=True
-            mock_zs.return_value = [{"raster": aspect_values}]
-
             # Ensure catchment_path is a file path, not a directory
             processor.catchment_path = lumped_catchment_shapefile
             result = processor.calculate_statistics(mock_dem_file, "aspect")
