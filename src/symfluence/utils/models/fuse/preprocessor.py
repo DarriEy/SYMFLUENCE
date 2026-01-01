@@ -20,7 +20,9 @@ import xarray as xr # type: ignore
 from typing import Dict, List, Tuple, Any
 from ..registry import ModelRegistry
 from ..base import BaseModelPreProcessor
-from ..mixins import PETCalculatorMixin
+from ..mixins import PETCalculatorMixin, ObservationLoaderMixin
+from symfluence.utils.common.constants import UnitConversion
+from symfluence.utils.common.geospatial_utils import GeospatialUtilsMixin
 from symfluence.utils.exceptions import (
     ModelExecutionError,
     FileOperationError,
@@ -33,10 +35,11 @@ from symfluence.utils.data.utilities.variable_utils import VariableHandler # typ
 
 
 @ModelRegistry.register_preprocessor('FUSE')
-class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
+class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, ObservationLoaderMixin):
     """
     Preprocessor for the FUSE (Framework for Understanding Structural Errors) model.
     Handles data preparation, PET calculation, and file setup for FUSE model runs.
+    Inherits geospatial utilities from GeospatialUtilsMixin and observation loading from ObservationLoaderMixin.
 
     Attributes:
         config (Dict[str, Any]): Configuration settings for FUSE
@@ -73,7 +76,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
                 'resample_freq': 'h',
                 'time_units': 'hours since 1970-01-01',
                 'time_unit': 'h',  # for pd.to_timedelta
-                'conversion_factor': 3.6,  # cms to mm/hour: Q(mm/hr) = Q(cms) * 3.6 / Area(km2)
+                'conversion_factor': UnitConversion.MM_HOUR_TO_CMS,  # cms to mm/hour: Q(mm/hr) = Q(cms) * 3.6 / Area(km2)
                 'time_label': 'hourly',
                 'timestep_seconds': 3600
             }
@@ -82,7 +85,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
                 'resample_freq': 'D',
                 'time_units': 'days since 1970-01-01',
                 'time_unit': 'D',
-                'conversion_factor': 86.4,  # cms to mm/day: Q(mm/day) = Q(cms) * 86.4 / Area(km2)
+                'conversion_factor': UnitConversion.MM_DAY_TO_CMS,  # cms to mm/day: Q(mm/day) = Q(cms) * 86.4 / Area(km2)
                 'time_label': 'daily',
                 'timestep_seconds': 86400
             }
@@ -94,7 +97,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
                     'resample_freq': f'{int(hours)}h',
                     'time_units': 'hours since 1970-01-01',
                     'time_unit': 'h',
-                    'conversion_factor': 3.6 * hours,  # Scale from hourly
+                    'conversion_factor': UnitConversion.MM_HOUR_TO_CMS * hours,  # Scale from hourly
                     'time_label': f'{int(hours)}-hourly',
                     'timestep_seconds': timestep_seconds
                 }
@@ -104,7 +107,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
                     'resample_freq': f'{int(days)}D',
                     'time_units': 'days since 1970-01-01',
                     'time_unit': 'D',
-                    'conversion_factor': 86.4 * days,  # Scale from daily
+                    'conversion_factor': UnitConversion.MM_DAY_TO_CMS * days,  # Scale from daily
                     'time_label': f'{int(days)}-daily',
                     'timestep_seconds': timestep_seconds
                 }
@@ -336,7 +339,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
             # Calculate PET for the correct spatial configuration
             if spatial_mode == 'lumped':
                 catchment = gpd.read_file(self.catchment_path / self.catchment_name)
-                mean_lon, mean_lat = self._get_catchment_centroid(catchment)
+                mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
                 pet = self._calculate_pet(ds['temp'], mean_lat, pet_method)
             else:
                 # For distributed modes, calculate PET after spatial organization and resampling
@@ -668,7 +671,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
         
         # Get reference coordinates
         catchment = gpd.read_file(self.catchment_path / self.catchment_name)
-        mean_lon, mean_lat = self._get_catchment_centroid(catchment)
+        mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
         
         # Create time index with correct frequency
         time_index = pd.date_range(start=ds.time.min().values, end=ds.time.max().values, freq=ts_config['resample_freq'])
@@ -796,54 +799,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
 
         
 
-    def _get_catchment_centroid(self, catchment_gdf):
-        """
-        Helper function to correctly calculate catchment centroid with proper CRS handling.
-        
-        Args:
-            catchment_gdf (gpd.GeoDataFrame): The catchment GeoDataFrame
-        
-        Returns:
-            tuple: (longitude, latitude) of the catchment centroid
-        """
-        # Ensure we have the CRS information
-        if catchment_gdf.crs is None:
-            self.logger.warning("Catchment CRS is not defined, assuming EPSG:4326")
-            catchment_gdf.set_crs(epsg=4326, inplace=True)
-            
-        # Convert to geographic coordinates if not already
-        catchment_geo = catchment_gdf.to_crs(epsg=4326)
-        
-        # Get a rough center point (using bounds instead of centroid)
-        bounds = catchment_geo.total_bounds  # (minx, miny, maxx, maxy)
-        center_lon = (bounds[0] + bounds[2]) / 2
-        center_lat = (bounds[1] + bounds[3]) / 2
-        
-        # Calculate UTM zone from the center point
-        utm_zone = int((center_lon + 180) / 6) + 1
-        epsg_code = f"326{utm_zone:02d}" if center_lat >= 0 else f"327{utm_zone:02d}"
-        
-        # Project to appropriate UTM zone
-        catchment_utm = catchment_geo.to_crs(f"EPSG:{epsg_code}")
-        
-        # Calculate centroid in UTM coordinates
-        centroid_utm = catchment_utm.geometry.centroid.iloc[0]
-        
-        # Create a GeoDataFrame with the centroid point
-        centroid_gdf = gpd.GeoDataFrame(
-            geometry=[centroid_utm], 
-            crs=f"EPSG:{epsg_code}"
-        )
-        
-        # Convert back to geographic coordinates
-        centroid_geo = centroid_gdf.to_crs(epsg=4326)
-        
-        # Extract coordinates
-        lon, lat = centroid_geo.geometry.x[0], centroid_geo.geometry.y[0]
-        
-        self.logger.info(f"Calculated catchment centroid: {lon:.6f}°E, {lat:.6f}°N (UTM Zone {utm_zone})")
-        
-        return lon, lat
+    # Removed: _get_catchment_centroid() - now inherited from GeospatialUtilsMixin
 
     def create_elevation_bands(self):
         """Create elevation bands netCDF file for FUSE input with distributed support."""
@@ -871,7 +827,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
         
         # Get reference coordinates (same as used in forcing file)
         catchment = gpd.read_file(self.catchment_path / self.catchment_name)
-        mean_lon, mean_lat = self._get_catchment_centroid(catchment)
+        mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
         
         # For now, create simple elevation bands for all subcatchments
         # In future, this could use subcatchment-specific elevation data
@@ -1042,7 +998,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
         try:
             # Get catchment centroid for coordinates
             catchment = gpd.read_file(self.catchment_path / self.catchment_name)
-            mean_lon, mean_lat = self._get_catchment_centroid(catchment)
+            mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
             
             # Create simple single elevation band for lumped mode
             coords = {
@@ -1107,7 +1063,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
         try:
             # Get catchment for reference latitude
             catchment = gpd.read_file(self.catchment_path / self.catchment_name)
-            mean_lon, mean_lat = self._get_catchment_centroid(catchment)
+            mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
             
             # For distributed modes, use the same latitude for all subcatchments/HRUs
             if 'hru' in ds.dims:
@@ -1139,7 +1095,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
             self.logger.warning(f"Error calculating distributed PET, falling back to lumped: {str(e)}")
             # Fallback to lumped calculation
             catchment = gpd.read_file(self.catchment_path / self.catchment_name)
-            mean_lon, mean_lat = self._get_catchment_centroid(catchment)
+            mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
             return self._calculate_pet(ds['temp'], mean_lat, pet_method)
 
     def _get_encoding_dict(self, fuse_forcing):
@@ -1197,7 +1153,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
         
         # Get catchment centroid for coordinates
         catchment = gpd.read_file(self.catchment_path / self.catchment_name)
-        mean_lon, mean_lat = self._get_catchment_centroid(catchment)
+        mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
         
         # Convert all time coordinates to pandas datetime for comparison
         ds_start = pd.to_datetime(ds.time.min().values)

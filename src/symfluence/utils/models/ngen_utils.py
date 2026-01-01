@@ -24,7 +24,8 @@ from typing import Dict, Any, Optional, List, Tuple
 from shutil import copyfile
 import netCDF4 as nc4
 from .registry import ModelRegistry
-from .base import BaseModelPreProcessor
+from .base import BaseModelPreProcessor, BaseModelRunner, BaseModelPostProcessor
+from .mixins import ObservationLoaderMixin
 from symfluence.utils.exceptions import (
     ModelExecutionError,
     FileOperationError,
@@ -32,7 +33,7 @@ from symfluence.utils.exceptions import (
 )
 
 @ModelRegistry.register_preprocessor('NGEN')
-class NgenPreProcessor(BaseModelPreProcessor):
+class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
     """
     Preprocessor for NextGen Framework.
 
@@ -42,6 +43,8 @@ class NgenPreProcessor(BaseModelPreProcessor):
     - Forcing data (NetCDF)
     - Model configurations (CFE, PET, NOAH-OWP)
     - Realization configuration (JSON)
+
+    Inherits observation loading from ObservationLoaderMixin.
     """
 
     def _get_model_name(self) -> str:
@@ -891,33 +894,42 @@ num_timesteps=1
 
 
 @ModelRegistry.register_runner('NGEN', method_name='run_model')
-class NgenRunner:
+class NgenRunner(BaseModelRunner):
     """
     Runner for NextGen Framework simulations.
-    
+
     Handles execution of ngen with proper paths and error handling.
     """
-    
+
     def __init__(self, config: Dict[str, Any], logger: Any):
         """
         Initialize the NextGen runner.
-        
+
         Args:
             config: Configuration dictionary
             logger: Logger object
         """
-        self.config = config
-        self.logger = logger
+        # Call base class
+        super().__init__(config, logger)
 
-        self.project_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{config.get('DOMAIN_NAME')}"
-        self.ngen_setup_dir = self.project_dir / "settings" / "NGEN"
-        
-        # Get ngen installation path
+        # Ngen-specific: Complex exe path resolution
         ngen_install_path = config.get('NGEN_INSTALL_PATH', 'default')
         if ngen_install_path == 'default':
             self.ngen_exe = Path(config.get('SYMFLUENCE_DATA_DIR')).parent / 'installs' / 'ngen' / 'build' / 'ngen'
         else:
             self.ngen_exe = Path(ngen_install_path) / 'ngen'
+
+    def _setup_model_specific_paths(self) -> None:
+        """Set up NGEN-specific paths."""
+        self.ngen_setup_dir = self.project_dir / "settings" / "NGEN"
+
+    def _get_model_name(self) -> str:
+        """Return model name for NextGen."""
+        return "NGEN"
+
+    def _should_create_output_dir(self) -> bool:
+        """NGEN creates directories on-demand in run_model."""
+        return False
     
     def run_model(self, experiment_id: str = None):
         """
@@ -1026,35 +1038,35 @@ class NgenRunner:
 
 
 @ModelRegistry.register_postprocessor('NGEN')
-class NgenPostprocessor:
+class NgenPostprocessor(BaseModelPostProcessor):
     """
     Postprocessor for NextGen Framework outputs.
-    
     Handles extraction and analysis of simulation results.
+    Inherits common functionality from BaseModelPostProcessor.
+
+    Attributes:
+        config (Dict[str, Any]): Configuration settings (inherited)
+        logger (Any): Logger instance (inherited)
+        project_dir (Path): Project directory path (inherited)
+        domain_name (str): Name of the modeling domain (inherited)
+        results_dir (Path): Results directory (inherited)
     """
-    
-    def __init__(self, config: Dict[str, Any], logger: Any):
-        """
-        Initialize the NextGen postprocessor.
-        
-        Args:
-            config: Configuration dictionary
-            logger: Logger object
-        """
-        self.config = config
-        self.logger = logger
-        
-        self.project_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{config.get('DOMAIN_NAME')}"
-        self.results_dir = self.project_dir / "results"
-        self.results_dir.mkdir(parents=True, exist_ok=True)
+
+    def _get_model_name(self) -> str:
+        """Return model name for NGEN."""
+        return "NGEN"
     
     def extract_streamflow(self, experiment_id: str = None) -> Optional[Path]:
         """
         Extract streamflow from ngen nexus outputs.
-        
+
+        Note: NGEN postprocessor accepts an optional experiment_id parameter,
+        which differs from the base class signature. This is necessary to support
+        NGEN's multi-experiment workflow.
+
         Args:
             experiment_id: Experiment identifier (default: from config)
-            
+
         Returns:
             Path to extracted streamflow CSV file
         """

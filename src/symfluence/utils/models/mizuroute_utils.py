@@ -12,7 +12,7 @@ import easymore as esmr # type: ignore
 import subprocess
 import xarray as xr
 from .registry import ModelRegistry
-from .base import BaseModelPreProcessor
+from .base import BaseModelPreProcessor, BaseModelRunner
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
@@ -862,7 +862,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor):
     
 
 @ModelRegistry.register_runner('MIZUROUTE', method_name='run_mizuroute')
-class MizuRouteRunner:
+class MizuRouteRunner(BaseModelRunner):
     """
     A class to run the mizuRoute model.
 
@@ -877,11 +877,19 @@ class MizuRouteRunner:
         project_dir (Path): Directory for the current project.
     """
     def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
-        self.logger = logger
-        self.root_path = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.root_path / f"domain_{self.domain_name}"
+        # Call base class
+        super().__init__(config, logger)
+
+        # MizuRoute uses 'root_path' alias for backwards compatibility
+        self.root_path = self.data_dir
+
+    def _get_model_name(self) -> str:
+        """Return model name for MizuRoute."""
+        return "MizuRoute"
+
+    def _should_create_output_dir(self) -> bool:
+        """MizuRoute creates directories on-demand."""
+        return False
 
     def fix_time_precision(self):
         """

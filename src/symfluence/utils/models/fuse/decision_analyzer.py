@@ -21,6 +21,7 @@ from typing import Dict, List, Tuple, Any
 from ..registry import ModelRegistry
 from ..base import BaseModelPreProcessor
 from ..mixins import PETCalculatorMixin
+from symfluence.utils.common.constants import UnitConversion
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from symfluence.utils.evaluation.calculate_sim_stats import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE # type: ignore
@@ -272,7 +273,7 @@ class FuseDecisionAnalyzer:
         
         # Convert units from mm/day to cms
         # Q(cms) = Q(mm/day) * Area(km2) / 86.4
-        dfSim = dfSim * self.area_km2 / 86.4
+        dfSim = dfSim * self.area_km2 / UnitConversion.MM_DAY_TO_CMS
 
         # Store this simulation result
         current_combo = tuple(self.get_current_decisions())
