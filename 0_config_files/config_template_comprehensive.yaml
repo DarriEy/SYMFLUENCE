@@ -1,0 +1,696 @@
+### ============================================= CONFLUENCE Configuration Template v2.0 =============================================
+# This comprehensive configuration template includes all available CONFLUENCE settings for advanced hydrological modeling workflows.
+# The configuration is organized into logical sections that mirror the workflow progression from conceptualization to evaluation.
+# 
+# Key Features Covered:
+# - Traditional and neural network-based optimization
+# - Multi-model workflows with advanced settings
+# - HPC and parallel processing capabilities  
+# - Comprehensive attribute processing
+# - Advanced evaluation and benchmarking
+# - Large-scale and large-sample applications
+#
+# Configuration Hierarchy:
+# 1. Global settings - foundational paths and identifiers
+# 2. Experiment settings - domain and temporal configuration
+# 3. Geospatial settings - spatial domain definition and discretization
+# 4. Model-agnostic settings - data preprocessing and forcing preparation
+# 5. Model-specific settings - individual model configuration
+# 6. Evaluation settings - performance assessment and benchmarking
+# 7. Optimization settings - both traditional and advanced gradient-based approaches
+# 8. Advanced features - HPC, binary management, and specialized workflows
+
+## ================================================= 0. Global Settings =================================================================
+
+# Core directory paths - customize these for your system
+CONFLUENCE_DATA_DIR: "/path/to/confluence/data"              # Root directory for all CONFLUENCE data
+CONFLUENCE_CODE_DIR: "/path/to/confluence/code"              # Root directory for CONFLUENCE code and executables
+
+# System configuration
+CONFIG_FORMAT: yaml                                           # Configuration file format: yaml, json
+DEBUG_MODE: false                                            # Enable detailed debug logging
+LOG_LEVEL: INFO                                              # Logging level: DEBUG, INFO, WARNING, ERROR
+FORCE_RUN_ALL_STEPS: false                                   # Force rerun of all workflow steps
+
+## ================================================= 1. Experiment Settings =============================================================
+
+# Basic experiment configuration
+DOMAIN_NAME: "Example_Watershed"                             # Unique identifier for the modeling domain
+EXPERIMENT_ID: "run_001"                                     # Unique identifier for this experiment
+DESCRIPTION: "Example CONFLUENCE configuration template"      # Description of this configuration
+
+# Temporal settings
+EXPERIMENT_TIME_START: "2010-01-01 00:00"                   # Simulation start time (YYYY-MM-DD HH:MM)
+EXPERIMENT_TIME_END: "2020-12-31 23:00"                     # Simulation end time (YYYY-MM-DD HH:MM)
+EXPERIMENT_TIME_STEP: 3600                                   # Simulation time step in seconds
+CALIBRATION_PERIOD: "2010-01-01, 2015-12-31"               # Calibration period (comma-separated start, end)
+VALIDATION_PERIOD: "2016-01-01, 2020-12-31"                # Validation period (comma-separated start, end)
+
+# Spin-up configuration
+SPINUP_YEARS: 2                                              # Number of years for model spin-up
+SPINUP_START: "2008-01-01 00:00"                            # Spin-up start time (auto-calculated if not specified)
+
+## ================================================= 2. Geospatial Settings =============================================================
+
+# Domain definition method
+DOMAIN_DEFINITION_METHOD: delineate                         # Options: delineate, existing_shape, lumped, point
+
+# Pour point configuration
+POUR_POINT_COORDS: default                                  # Pour point coordinates as lat/lon (e.g., "51.1722/-115.5717") or 'default'
+POUR_POINT_SHP_PATH: default                               # Path to pour point shapefile
+POUR_POINT_SHP_NAME: default                               # Name of pour point shapefile
+
+# Existing domain configuration (if using existing_shape)
+CATCHMENT_PATH: default                                     # Path to existing catchment shapefile directory
+CATCHMENT_SHP_NAME: default                                 # Name of existing catchment shapefile
+RIVER_NETWORK_SHP_PATH: default                            # Path to river network shapefile directory  
+RIVER_NETWORK_SHP_NAME: default                            # Name of river network shapefile
+RIVER_BASINS_SHP_PATH: default                             # Path to river basins shapefile directory
+RIVER_BASINS_SHP_NAME: default                             # Name of river basins shapefile
+
+# Spatial discretization
+DOMAIN_DISCRETIZATION: elevation                           # Options: grus, elevation, aspect, soilclass, landclass, radiation, or combined (e.g., "elevation,landclass")
+DISCRETIZATION_ELEVATION_BANDS: 5                          # Number of elevation bands (for elevation discretization)
+DISCRETIZATION_ELEVATION_METHOD: quantile                   # Elevation banding method: quantile, equal_interval
+DISCRETIZATION_MIN_HRU_SIZE: 1.0                           # Minimum HRU size in km²
+DISCRETIZATION_MERGE_THRESHOLD: 0.5                        # Threshold for merging small HRUs
+
+# Coordinate system
+TARGET_CRS: EPSG:4326                                       # Target coordinate reference system
+REPROJECT_INPUTS: true                                      # Reproject input data to target CRS
+
+# DEM processing
+DEM_BUFFER: 5000                                            # Buffer around domain for DEM processing (meters)
+DEM_RESOLUTION: 90                                          # Target DEM resolution (meters)
+FILL_DEM_SINKS: true                                        # Fill sinks in DEM for flow routing
+
+## ================================================= 3. Model-Agnostic Settings =========================================================
+
+# Forcing data configuration
+FORCING_DATASET: ERA5                                       # Primary forcing dataset: ERA5, RDRS, NLDAS, custom
+FORCING_TIME_STEP: 3600                                     # Forcing data time step (seconds)
+FORCING_START_DATE: "2008-01-01"                           # Forcing data start date (includes spin-up)
+FORCING_END_DATE: "2020-12-31"                             # Forcing data end date
+FORCING_VARIABLES: [temp, pres, wind, spfh, dlwr, dswr, prate] # Required forcing variables
+
+# Secondary/backup forcing datasets
+FORCING_DATASETS_SECONDARY: [RDRS, NLDAS]                  # Backup forcing datasets if primary fails
+FORCING_PRIORITY: [ERA5, RDRS, NLDAS]                      # Priority order for forcing datasets
+
+# Data processing options
+USE_PARALLELIZED_FORCING: true                              # Use parallel processing for forcing data
+MPI_PROCESSES: 4                                            # Number of MPI processes for parallel operations
+FORCING_QUALITY_CONTROL: true                              # Enable quality control for forcing data
+FORCING_GAP_FILL: true                                      # Fill gaps in forcing data
+FORCING_BIAS_CORRECTION: false                             # Apply bias correction to forcing data
+
+# Basin averaging
+BASIN_AVERAGING_METHOD: weights                             # Options: weights, simple_average, distance_weighted
+BASIN_ELEVATION_CORRECTION: true                           # Apply elevation-based temperature correction
+TEMPERATURE_LAPSE_RATE: -0.0065                            # Temperature lapse rate (°C/m)
+
+# Data paths
+RAW_FORCING_PATH: default                                   # Path to raw forcing data
+PROCESSED_FORCING_PATH: default                            # Path for processed forcing data
+MERGED_FORCING_PATH: default                                # Path for merged forcing data
+BASIN_AVERAGED_FORCING_PATH: default                       # Path for basin-averaged forcing data
+
+## ================================================= 4. Model-Specific Settings =========================================================
+
+# Model selection
+HYDROLOGICAL_MODEL: SUMMA                                   # Primary model: SUMMA, FUSE, GR, HYPE, FLASH, MESH
+HYDROLOGICAL_MODELS_ENSEMBLE: [SUMMA, FUSE]               # Multiple models for ensemble runs
+ROUTING_MODEL: mizuRoute                                    # Routing model: mizuRoute, none
+MODEL_COUPLING: loose                                       # Coupling type: tight, loose, none
+
+### 4.1 SUMMA Configuration ================================================================================================
+
+# SUMMA execution settings
+SUMMA_EXE: summa_sundials.exe                              # SUMMA executable name
+SUMMA_INSTALL_PATH: default                                 # Path to SUMMA installation
+SETTINGS_SUMMA_PATH: default                               # Path to SUMMA settings directory
+SETTINGS_SUMMA_USE_PARALLEL_SUMMA: false                    # Use parallel SUMMA execution
+SETTINGS_SUMMA_PARALLEL_EXE: summa_actors.exe              # Parallel SUMMA executable
+
+# SUMMA spatial configuration
+SETTINGS_SUMMA_CONNECT_HRUS: yes                           # Connect HRUs: yes, no
+SETTINGS_SUMMA_SPATIAL_MODE: distributed                   # Spatial mode: lumped, distributed
+
+# SUMMA file management
+SETTINGS_SUMMA_FILEMANAGER: fileManager.txt                # File manager name
+SETTINGS_SUMMA_FORCING_LIST: forcingFileList.txt          # Forcing file list name
+SETTINGS_SUMMA_COLDSTATE: coldState.nc                     # Initial conditions file
+SETTINGS_SUMMA_TRIALPARAMS: trialParams.nc                 # Trial parameters file
+SETTINGS_SUMMA_ATTRIBUTES: attributes.nc                   # Attributes file
+SETTINGS_SUMMA_OUTPUT: outputControl.txt                   # Output control file
+SETTINGS_SUMMA_BASIN_PARAMS_FILE: basinParamInfo.txt       # Basin parameters file
+SETTINGS_SUMMA_LOCAL_PARAMS_FILE: localParamInfo.txt       # Local parameters file
+
+# SUMMA trial parameters
+SETTINGS_SUMMA_TRIALPARAM_N: 0                             # Number of trial parameters
+SETTINGS_SUMMA_TRIALPARAM_1: ""                            # Trial parameter specification
+
+# SUMMA output configuration
+EXPERIMENT_OUTPUT_SUMMA: default                           # SUMMA output directory
+EXPERIMENT_LOG_SUMMA: default                              # SUMMA log directory
+SUMMA_OUTPUT_FREQUENCY: daily                              # Output frequency: hourly, daily, monthly
+SUMMA_OUTPUT_VARIABLES: [scalarTotalSoilWat, scalarSWE, scalarTotalET, averageRoutedRunoff] # Output variables
+
+# SUMMA model decisions (comprehensive set)
+SUMMA_DECISION_OPTIONS:
+  # Snow processes
+  snowIncept: [lightSnow, stickySnow]                      # Snow interception options
+  windPrfile: [exponential, logarithmic]                   # Wind profile options  
+  astability: [standard, louisinv, mahrtexp]              # Atmospheric stability options
+  canopyEmis: [simplExp, difTwoStream]                     # Canopy emissivity options
+  snowLayers: [CLM_2010, jrdn1991]                        # Snow layering options
+  thCondSnow: [tyen1965, melr1977, jrdn1991, smnv2000]    # Snow thermal conductivity
+  thCondSoil: [funcSoilWet, mixConstit, hanssonVZJ]       # Soil thermal conductivity
+  spatial_gw: [localColumn, singleBasin]                   # Groundwater representation
+  subRouting: [timeDlay, qInstant]                         # Sub-basin routing
+  
+  # Radiation processes  
+  canopySrad: [noah_mp, CLM_2stream, NL_scatter, BeersLaw] # Canopy shortwave radiation
+  albedoLand: [varDecay, conDecay, constAlb]              # Land surface albedo
+  compaction: [consettl, anderson]                         # Snow compaction
+  snowLayers: [CLM_2010, jrdn1991]                        # Snow layer dynamics
+  alb_method: [conDecay, varDecay]                         # Albedo evolution
+  
+  # Soil and vegetation processes
+  num_method: [itertive, non_iter, itersurf]              # Numerical method
+  fDerivMeth: [numerical, analytic]                        # Derivative method
+  LAI_method: [monTable, specified]                        # LAI specification
+  cIntercept: [storageFunc, notPopulated]                  # Canopy interception
+  f_Richards: [moisture, mixdform]                         # Richards equation form
+  groundwatr: [qTopmodl, bigBuckt, noXplict]              # Groundwater parameterization
+  hc_profile: [constant, pow_prof, parabolic]             # Hydraulic conductivity profile
+  bcUpprTdyn: [presTemp, nrg_flux]                        # Upper boundary dynamics
+  bcLowrTdyn: [presTemp, zeroFlux]                         # Lower boundary dynamics
+  bcUpprSoiH: [liq_flux, presHead]                        # Upper soil hydrology BC
+  bcLowrSoiH: [drainage, presHead, botmPres]              # Lower soil hydrology BC
+  veg_traits: [CM_QJRMS1988, vegTypeTable]                # Vegetation traits
+  rootProfil: [powerLaw, doubleExp]                        # Root profile
+  canopyHyd: [bucket, rootWeight]                          # Canopy hydrology
+  snowResis: [vegTypeTable, Seller1992]                   # Snow resistance
+
+### 4.2 mizuRoute Configuration ============================================================================================
+
+# mizuRoute execution
+ROUTING_EXE: mizuroute.exe                                  # mizuRoute executable
+MIZUROUTE_INSTALL_PATH: default                            # mizuRoute installation path
+SETTINGS_MIZUROUTE_PATH: default                           # mizuRoute settings path
+EXPERIMENT_OUTPUT_MIZUROUTE: default                       # mizuRoute output directory
+EXPERIMENT_LOG_MIZUROUTE: default                          # mizuRoute log directory
+
+# mizuRoute parameters
+SETTINGS_MIZU_CONTROL_FILE: control.txt                    # mizuRoute control file
+SETTINGS_MIZU_PARAMETERS: param.nml                        # mizuRoute parameters file
+SETTINGS_MIZU_TOPOLOGY: topology.nc                        # Stream network topology
+SETTINGS_MIZU_REMAP: remap.nc                             # HRU-segment mapping
+SETTINGS_MIZU_GAGE: gage.txt                              # Gauge information
+
+# mizuRoute routing configuration  
+SETTINGS_MIZU_ROUTING_METHOD: 1                            # Routing method: 0=both, 1=IRF, 2=KWT
+SETTINGS_MIZU_ROUTING_DT: 3600                             # Routing time step (seconds)
+SETTINGS_MIZU_ROUTING_UNITS: "m/s"                         # Routing variable units
+SETTINGS_MIZU_ROUTING_VAR: averageRoutedRunoff             # Routing variable name
+SETTINGS_MIZU_OUTPUT_FREQ: single                          # Output frequency
+SETTINGS_MIZU_OUTPUT_VARS: 1                               # Output variables selection
+SETTINGS_MIZU_MAKE_OUTLET: "n/a"                          # Outlet specification
+SETTINGS_MIZU_NEEDS_REMAP: no                             # Remapping requirement
+SETTINGS_MIZU_BASIN_ROUTING: 0                            # Basin routing flag
+
+### 4.3 FUSE Configuration =================================================================================================
+
+# FUSE execution
+FUSE_EXE: fuse.exe                                         # FUSE executable name
+FUSE_INSTALL_PATH: default                                 # FUSE installation path
+SETTINGS_FUSE_PATH: default                                # FUSE settings directory
+SETTINGS_FUSE_FILEMANAGER: fm_catch.txt                   # FUSE file manager
+EXPERIMENT_OUTPUT_FUSE: default                            # FUSE output directory
+
+# FUSE spatial configuration
+FUSE_SPATIAL_MODE: lumped                                  # Spatial mode: lumped, distributed
+FUSE_ELEVATION_BANDS: 5                                    # Number of elevation bands
+FUSE_ROUTING_MODE: none                                    # Routing mode: none, simple, complex
+
+# FUSE model structure decisions
+FUSE_DECISION_OPTIONS:
+  RFERR: [additive_e, multiplc_e]                         # Rainfall error model
+  ARCH1: [onestate_1, tension1_1, tension2_1]            # Upper soil architecture  
+  ARCH2: [fixedsiz_2, tens2pll_2, unlimfrc_2, unlimpow_2] # Lower soil architecture
+  QSURF: [arno_x_vic, prms_varnt, tmdl_param]            # Surface runoff
+  QPERC: [perc_f2sat, perc_w2sat, perc_lower]            # Percolation
+  ESOIL: [sequential, rootweight]                          # Soil evaporation
+  QINTF: [intflwnone, intflwsome]                         # Interflow  
+  Q_TDH: [rout_gamma, no_routing]                         # Routing
+  SNOWM: [temp_index, no_snowmod]                         # Snow module
+
+# FUSE parameters (example - full list would be extensive)
+FUSE_PARAMETERS:
+  rferr_add: [0.0, 2.0]                                   # Additive rainfall error [min, max]
+  rferr_mlt: [0.5, 1.5]                                   # Multiplicative rainfall error [min, max]
+  maxwatr_1: [25, 500]                                    # Maximum storage in upper layer [min, max]
+  maxwatr_2: [50, 5000]                                   # Maximum storage in lower layer [min, max]
+  fracten: [0.05, 0.95]                                   # Fraction of tension storage [min, max]
+  frchzne: [0.05, 0.95]                                   # Fraction of rootzone layer [min, max]
+
+### 4.4 GR Model Configuration =============================================================================================
+
+# GR execution
+GR_MODEL_TYPE: GR4J                                        # GR model variant: GR4J, GR5J, GR6J
+GR_INSTALL_PATH: default                                   # GR installation path (R environment)
+SETTINGS_GR_PATH: default                                  # GR settings directory
+SETTINGS_GR_CONTROL: control_gr.txt                       # GR control file
+EXPERIMENT_OUTPUT_GR: default                              # GR output directory
+
+# GR spatial configuration
+GR_SPATIAL_MODE: lumped                                    # Spatial mode: lumped, semi_distributed
+GR_CALIBRATION_MODE: manual                               # Calibration mode: manual, automatic
+GR_SNOW_MODULE: CemaNeige                                  # Snow module: none, CemaNeige
+
+# GR parameters (for GR4J)
+GR_PARAMETERS:
+  X1: [100, 1200]                                         # Production store capacity [min, max] mm
+  X2: [-5, 3]                                             # Intercatchment exchange [min, max] mm/day  
+  X3: [20, 300]                                           # Routing store capacity [min, max] mm
+  X4: [1.1, 2.9]                                          # Unit hydrograph time constant [min, max] days
+
+### 4.5 HYPE Configuration =================================================================================================
+
+# HYPE execution
+HYPE_EXE: hype.exe                                         # HYPE executable
+HYPE_INSTALL_PATH: default                                 # HYPE installation path
+SETTINGS_HYPE_PATH: default                                # HYPE settings directory
+EXPERIMENT_OUTPUT_HYPE: default                            # HYPE output directory
+
+# HYPE configuration files
+HYPE_INFO_FILE: info.txt                                   # HYPE info file
+HYPE_PAR_FILE: par.txt                                     # HYPE parameter file
+HYPE_GEODATA_FILE: geodata.txt                             # HYPE geodata file
+HYPE_SUBMODEL_FILE: submodel.txt                           # HYPE submodel file
+
+### 4.6 FLASH Configuration ================================================================================================
+
+# FLASH execution  
+FLASH_EXE: flash.exe                                       # FLASH executable
+FLASH_INSTALL_PATH: default                                # FLASH installation path
+SETTINGS_FLASH_PATH: default                               # FLASH settings directory
+EXPERIMENT_OUTPUT_FLASH: default                           # FLASH output directory
+
+# FLASH configuration
+FLASH_TIME_STEP: 300                                       # FLASH time step (seconds)
+FLASH_ROUTING_METHOD: kinematic                            # Routing method: kinematic, diffusive
+
+### 4.7 MESH Configuration =================================================================================================
+
+# MESH execution
+MESH_EXE: mesh.exe                                         # MESH executable  
+MESH_INSTALL_PATH: default                                 # MESH installation path
+SETTINGS_MESH_PATH: default                                # MESH settings directory
+EXPERIMENT_OUTPUT_MESH: default                            # MESH output directory
+MESH_FORCING_PATH: default                                 # Forcing input directory for meshflow
+MESH_FORCING_VARS: default                                 # List of forcing variables for MESH
+MESH_FORCING_UNITS: default                                # Mapping of forcing vars to source units
+MESH_FORCING_TO_UNITS: default                             # Mapping of forcing vars to target units
+MESH_LANDCOVER_STATS_PATH: default                         # Full path to landcover stats CSV
+MESH_LANDCOVER_STATS_DIR: default                          # Directory containing landcover stats CSV
+MESH_LANDCOVER_STATS_FILE: default                         # Landcover stats CSV filename
+MESH_MAIN_ID: default                                      # Main river segment ID column
+MESH_DS_MAIN_ID: default                                   # Downstream segment ID column
+MESH_LANDCOVER_CLASSES: default                            # Landcover class mapping
+MESH_DDB_VARS: default                                     # Drainage database variable mapping
+MESH_DDB_UNITS: default                                    # Drainage database units
+MESH_DDB_TO_UNITS: default                                 # Drainage database target units
+MESH_DDB_MIN_VALUES: default                               # Drainage database minimum values
+MESH_GRU_DIM: default                                      # GRU dimension name
+MESH_HRU_DIM: default                                      # HRU dimension name
+MESH_OUTLET_VALUE: default                                 # Outlet value for routing
+
+## ================================================= 5. Evaluation Settings =============================================================
+
+# Evaluation data sources
+EVALUATION_DATA: [streamflow, snow, evapotranspiration, soil_moisture, groundwater] # Data types for evaluation
+OBSERVED_DATA_PROVIDERS: [WSC, USGS, NRCS, FLUXNET, ISMN] # Data providers
+
+# Streamflow evaluation
+STREAMFLOW_GAUGE_ID: "05BB001"                            # Gauge identifier
+STREAMFLOW_DATA_SOURCE: WSC                                # Data source: WSC, USGS, VI, NIWA, custom
+STREAMFLOW_DOWNLOAD: true                                  # Auto-download streamflow data
+STREAMFLOW_QUALITY_CONTROL: true                          # Apply quality control
+STREAMFLOW_UNITS: cms                                      # Units: cms, cfs, mm/day
+
+# Snow evaluation  
+SNOW_DATA_SOURCE: SNOTEL                                  # Snow data source: SNOTEL, manual
+SNOW_STATIONS: [1234, 5678]                               # Snow station IDs
+SNOW_VARIABLES: [SWE, snow_depth, temperature]            # Snow variables to evaluate
+
+# Flux tower evaluation
+FLUXNET_SITE_ID: "US-Ha1"                                 # FLUXNET site identifier  
+FLUXNET_VARIABLES: [LE, H, NEE, GPP]                      # Flux variables
+FLUXNET_QC_LEVEL: 2                                       # Quality control level
+
+# Soil moisture evaluation
+ISMN_NETWORK: SCAN                                         # ISMN network name
+ISMN_STATIONS: [2053, 2055]                               # ISMN station IDs
+SOIL_MOISTURE_DEPTHS: [0.05, 0.10, 0.20, 0.50]          # Measurement depths (m)
+
+# Performance metrics
+EVALUATION_METRICS: [KGE, NSE, RMSE, MAE, BIAS, R2]       # Performance metrics
+PRIMARY_METRIC: KGE                                        # Primary optimization metric
+OPTIMIZATION_METRIC: KGE                                   # Optimization target metric
+CALIBRATION_VARIABLE: streamflow                          # Variable for calibration
+
+# Evaluation periods
+EVALUATION_PERIODS:
+  calibration: ["2010-01-01", "2015-12-31"]              # Calibration period
+  validation: ["2016-01-01", "2020-12-31"]               # Validation period
+  full_period: ["2010-01-01", "2020-12-31"]              # Full evaluation period
+
+# Statistical analysis
+RUN_SENSITIVITY_ANALYSIS: true                            # Enable sensitivity analysis
+RUN_DECISION_ANALYSIS: true                               # Enable decision analysis  
+RUN_UNCERTAINTY_ANALYSIS: false                           # Enable uncertainty analysis
+BENCHMARK_ANALYSIS: true                                  # Enable benchmark analysis
+BENCHMARK_TYPES: [schaefli_gupta, mean_annual, climatology] # Benchmark types
+
+# Visualization settings
+CREATE_EVALUATION_PLOTS: true                             # Generate evaluation plots
+PLOT_TIME_SERIES: true                                    # Plot time series comparisons
+PLOT_SCATTER: true                                        # Plot scatter plots
+PLOT_FLOW_DURATION: true                                  # Plot flow duration curves
+PLOT_SEASONAL: true                                       # Plot seasonal analysis
+PLOT_FORMAT: png                                          # Plot format: png, pdf, svg
+
+## ================================================= 6. Optimization Settings ===========================================================
+
+### 6.1 General Optimization Settings ==================================================================================
+
+# Optimization algorithm selection
+OPTIMIZATION_ALGORITHM: DE                                 # Traditional: DE, PSO, SCEUA, NSGA2
+OPTIMIZATION_STRATEGY: traditional                         # Options: traditional, neural_network, hybrid
+
+# Common optimization parameters
+NUMBER_OF_ITERATIONS: 1000                                 # Maximum number of iterations/generations
+POPULATION_SIZE: 50                                        # Population size for evolutionary algorithms
+CONVERGENCE_TOLERANCE: 1e-6                               # Convergence tolerance
+MAX_FUNCTION_EVALUATIONS: 50000                           # Maximum function evaluations
+RANDOM_SEED: 42                                           # Random seed for reproducibility
+
+# Parameter selection
+PARAMS_TO_CALIBRATE: "tempCritRain,k_soil,vGn_n,theta_sat,theta_res,rootingDepth" # Local parameters
+BASIN_PARAMS_TO_CALIBRATE: "routingGammaScale"            # Basin parameters
+CALIBRATION_BOUNDS:                                        # Parameter bounds [min, max]
+  tempCritRain: [272.16, 274.16]                         # Critical rain temperature (K)
+  k_soil: [1e-7, 1e-3]                                    # Soil hydraulic conductivity (m/s)
+  vGn_n: [1.2, 3.0]                                       # van Genuchten n parameter (-)
+  theta_sat: [0.3, 0.6]                                   # Saturated water content (-)
+  theta_res: [0.001, 0.1]                                 # Residual water content (-)
+  rootingDepth: [0.1, 10.0]                               # Rooting depth (m)
+
+### 6.2 Traditional Optimization Algorithms =============================================================================
+
+# Differential Evolution (DE)
+DE_STRATEGY: best1bin                                      # DE strategy: best1bin, rand1bin, currenttobest1bin
+DE_MUTATION_FACTOR: 0.5                                   # Mutation factor (F)
+DE_CROSSOVER_PROBABILITY: 0.7                             # Crossover probability (CR)
+DE_POLISH: false                                          # Apply local search polish
+
+# Particle Swarm Optimization (PSO)  
+PSO_INERTIA: 0.9                                          # Inertia weight
+PSO_COGNITIVE: 2.0                                        # Cognitive parameter (c1)
+PSO_SOCIAL: 2.0                                           # Social parameter (c2)
+PSO_VELOCITY_CLAMP: 0.5                                   # Velocity clamping factor
+
+# SCE-UA parameters
+SCEUA_COMPLEXES: 5                                        # Number of complexes
+SCEUA_POINTS_PER_COMPLEX: 10                             # Points per complex
+SCEUA_ALPHA: 1.0                                          # Reflection parameter
+SCEUA_BETA: 0.5                                           # Contraction parameter
+
+# Multi-objective optimization (NSGA-II)
+NSGA2_CROSSOVER_PROBABILITY: 0.9                         # Crossover probability
+NSGA2_MUTATION_PROBABILITY: 0.1                          # Mutation probability
+NSGA2_CROWDING_DISTANCE: 2                               # Crowding distance parameter
+
+### 6.3 Neural Network-Based Optimization ===============================================================================
+
+# Differentiable Parameter Emulation (DPE)
+EMULATOR_SETTING: EMULATOR                                # Options: EMULATOR, FD, SUMMA_AUTODIFF, SUMMA_AUTODIFF_FD
+USE_NEURAL_NETWORK_OPTIMIZATION: false                    # Enable neural network optimization
+
+# Neural network architecture  
+DPE_HIDDEN_DIMS: [256, 128, 64, 32]                      # Hidden layer dimensions
+DPE_ACTIVATION: swish                                      # Activation function: relu, swish, tanh
+DPE_DROPOUT: 0.1                                          # Dropout rate
+DPE_BATCH_NORM: true                                      # Use batch normalization
+
+# Training data generation
+DPE_TRAINING_SAMPLES: 500                                 # Number of training samples
+DPE_VALIDATION_SAMPLES: 100                               # Number of validation samples
+DPE_BATCH_SIZE: 32                                        # Batch size for training
+DPE_TRAINING_CACHE: default                               # Training data cache directory
+DPE_FORCE_RETRAIN: false                                  # Force regeneration of training data
+
+# Neural network training
+DPE_EPOCHS: 300                                           # Training epochs
+DPE_LEARNING_RATE: 1e-3                                   # Learning rate
+DPE_OPTIMIZER: Adam                                        # Optimizer: Adam, SGD, RMSprop
+DPE_WEIGHT_DECAY: 1e-5                                    # Weight decay (L2 regularization)
+DPE_EARLY_STOPPING_PATIENCE: 50                          # Early stopping patience
+
+# Gradient-based optimization
+DPE_OPTIMIZATION_LR: 1e-2                                 # Optimization learning rate
+DPE_OPTIMIZATION_STEPS: 200                               # Optimization steps
+DPE_OPTIMIZATION_MOMENTUM: 0.9                           # Momentum for optimization
+
+# Advanced emulation settings
+DPE_USE_NN_HEAD: true                                     # Use neural network head
+DPE_USE_SUNDIALS: true                                    # Use SUNDIALS for autodiff
+DPE_AUTODIFF_STEPS: 200                                   # Autodiff optimization steps
+DPE_AUTODIFF_LR: 1e-2                                    # Autodiff learning rate
+
+# Finite difference settings (for FD mode)
+DPE_FD_STEP: 1e-3                                        # Finite difference step size
+DPE_GD_STEP_SIZE: 1e-1                                   # Gradient descent step size
+
+# Iterative refinement
+DPE_ITERATE_MAX_ITERATIONS: 10                           # Maximum iterative refinement cycles
+DPE_ITERATE_SAMPLES_PER_CYCLE: 50                        # Samples per refinement cycle
+DPE_ITERATE_SAMPLING_RADIUS: 0.1                         # Sampling radius around optimum
+DPE_ITERATE_CONVERGENCE_TOL: 1e-4                        # Convergence tolerance for iterative optimization
+DPE_ITERATE_MIN_IMPROVEMENT: 1e-6                        # Minimum improvement threshold
+
+# Objective weighting (for multi-objective)
+DPE_OBJECTIVE_WEIGHTS:                                    # Objective function weights
+  KGE: 1.0                                                # KGE weight (positive to maximize)
+  NSE: 0.5                                                # NSE weight (if using multiple objectives)
+  RMSE: -0.3                                              # RMSE weight (negative to minimize)
+
+### 6.4 Parallel and HPC Optimization ==================================================================================
+
+# Parallel processing
+USE_PARALLEL_OPTIMIZATION: true                           # Enable parallel optimization
+PARALLEL_PROCESSES: 4                                     # Number of parallel processes
+PARALLEL_METHOD: multiprocessing                          # Options: multiprocessing, mpi, joblib
+CLEANUP_PARALLEL_DIRS: true                               # Clean up parallel directories
+
+# HPC settings  
+HPC_SCHEDULER: SLURM                                      # HPC scheduler: SLURM, PBS, SGE, none
+HPC_PARTITION: compute                                     # HPC partition name
+HPC_WALLTIME: "24:00:00"                                  # Wall time limit
+HPC_MEMORY: "64GB"                                        # Memory requirement
+HPC_NODES: 1                                              # Number of nodes
+HPC_TASKS_PER_NODE: 16                                    # Tasks per node
+HPC_MODULE_LOADS: ["python/3.9", "netcdf/4.7.4"]        # Modules to load
+
+# Checkpointing and restart
+ENABLE_CHECKPOINTING: true                                # Enable optimization checkpointing
+CHECKPOINT_FREQUENCY: 100                                 # Checkpoint every N iterations
+RESTART_FROM_CHECKPOINT: false                           # Restart from checkpoint
+CHECKPOINT_DIR: default                                   # Checkpoint directory
+
+## ================================================= 7. Attribute Processing ============================================================
+
+# Enable/disable attribute processing
+PROCESS_CHARACTERISTIC_ATTRIBUTES: true                   # Process catchment characteristics
+ATTRIBUTES_PROCESS_LUMPED: true                           # Process lumped attributes for distributed domains
+ATTRIBUTES_OVERWRITE_EXISTING: false                      # Overwrite existing attribute files
+CLEANUP_INTERMEDIATE_FILES: true                          # Clean up temporary processing files
+
+# Attribute data directories
+ATTRIBUTES_DATA_DIR: default                              # Base directory for attribute data
+ATTRIBUTES_OUTPUT_DIR: default                            # Output directory for processed attributes
+
+# Topographic attributes
+ATTRIBUTES_MERIT_PATH: default                            # MERIT DEM data path
+ELEVATION_STATS: [mean, median, std, min, max, range]     # Elevation statistics to compute
+SLOPE_STATS: [mean, median, std, min, max]                # Slope statistics
+ASPECT_STATS: [mean_circular, std_circular]               # Aspect statistics (circular)
+
+# Soil attributes
+ATTRIBUTES_SOILGRIDS_PATH: default                        # SoilGrids data path
+ATTRIBUTES_PELLETIER_PATH: default                        # Pelletier soil data path  
+SOIL_VARIABLES: [clay, sand, silt, organic_carbon, bulk_density, ph] # Soil variables
+SOIL_DEPTHS: [0, 5, 15, 30, 60, 100, 200]                # Soil depth layers (cm)
+
+# Land cover attributes
+ATTRIBUTES_MODIS_PATH: default                            # MODIS land cover path
+ATTRIBUTES_GLCLU_PATH: default                            # GLCLU land cover path
+LANDCOVER_YEAR: 2019                                      # Land cover data year
+LANDCOVER_AGGREGATION: dominant                           # Aggregation method: dominant, fractional, area_weighted
+
+# Climate attributes
+ATTRIBUTES_WORLDCLIM_PATH: default                        # WorldClim data path
+ATTRIBUTES_FOREST_HEIGHT_PATH: default                    # Forest height data path
+CLIMATE_VARIABLES: [temp_mean, temp_min, temp_max, precip, humidity] # Climate variables
+CLIMATE_PERIODS: [annual, seasonal, monthly]              # Temporal aggregation periods
+
+# Geological attributes
+ATTRIBUTES_GLIM_PATH: default                             # GLiM geological data path
+ATTRIBUTES_GROUNDWATER_PATH: default                      # Groundwater data path
+GEOLOGY_VARIABLES: [rock_type, permeability, porosity]    # Geological variables
+
+# Hydrological attributes
+ATTRIBUTES_STREAMFLOW_PATH: default                       # Streamflow data path for signatures
+HRU_GAUGE_MAPPING: {}                                     # HRU to gauge ID mapping
+HYDROLOGICAL_SIGNATURES: [q_mean, q95, q05, baseflow_index, recession_constant] # Signatures to compute
+
+# Open water attributes  
+ATTRIBUTES_GLWD_PATH: default                             # Global Lakes and Wetlands Database path
+ATTRIBUTES_HYDROLAKES_PATH: default                       # HydroLAKES data path
+WATER_BODY_THRESHOLD: 0.01                               # Minimum water body fraction threshold
+
+## ================================================= 8. Advanced Features ===============================================================
+
+### 8.1 Binary and Dependency Management ===============================================================================
+
+# Executable validation
+VALIDATE_BINARIES: true                                   # Validate model executables on startup
+AUTO_INSTALL_DEPENDENCIES: false                         # Auto-install missing dependencies
+BINARY_CHECK_TIMEOUT: 30                                 # Timeout for binary checks (seconds)
+
+# Installation paths for external tools
+TAUDEM_INSTALL_PATH: default                              # TauDEM installation path
+GISTOOL_INSTALL_PATH: default                            # GIS tool installation path  
+DATATOOL_INSTALL_PATH: default                           # Data processing tool installation path
+
+### 8.2 Large-Scale and HPC Features ===================================================================================
+
+# Large domain processing
+LARGE_DOMAIN_MODE: false                                 # Enable large domain optimizations
+MEMORY_EFFICIENT_PROCESSING: true                        # Use memory-efficient algorithms
+CHUNK_SIZE: 1000                                         # Processing chunk size for large datasets
+PARALLEL_IO: true                                        # Use parallel I/O operations
+
+# Domain decomposition (for very large domains)
+DOMAIN_DECOMPOSITION: false                              # Enable domain decomposition
+DECOMPOSITION_METHOD: spatial                            # Method: spatial, hydrological, hybrid
+NUM_SUBDOMAINS: 4                                        # Number of subdomains
+SUBDOMAIN_OVERLAP: 2                                     # Overlap between subdomains (grid cells)
+
+# Memory management
+MAX_MEMORY_USAGE: "32GB"                                 # Maximum memory usage limit
+MEMORY_MONITORING: true                                  # Monitor memory usage
+SWAP_TO_DISK: false                                      # Allow swapping to disk for large datasets
+
+### 8.3 Workflow Management ========================================================================================== 
+
+# Resume and restart capabilities  
+RESUME_FROM_STEP: null                                    # Resume from specific step (step name or null)
+SKIP_COMPLETED_STEPS: true                               # Skip already completed steps
+FORCE_RERUN_STEPS: []                                    # Force rerun specific steps (list of step names)
+
+# Workflow validation
+VALIDATE_INPUTS: true                                     # Validate inputs before processing
+VALIDATE_OUTPUTS: true                                   # Validate outputs after each step
+DRY_RUN_MODE: false                                       # Run workflow validation without execution
+
+# Error handling
+STOP_ON_ERROR: true                                       # Stop workflow on first error
+CONTINUE_ON_WARNING: true                                 # Continue workflow on warnings
+ERROR_RETRY_COUNT: 3                                     # Number of retries for failed operations
+ERROR_RETRY_DELAY: 60                                    # Delay between retries (seconds)
+
+# Logging and monitoring
+DETAILED_LOGGING: false                                   # Enable detailed step-by-step logging
+PERFORMANCE_MONITORING: true                             # Monitor performance metrics
+LOG_RETENTION_DAYS: 30                                   # Number of days to retain logs
+CREATE_RUN_SUMMARY: true                                 # Create execution summary
+
+### 8.4 Integration and Interoperability ==============================================================================
+
+# External model coupling
+EXTERNAL_MODEL_COUPLING: false                           # Enable coupling with external models
+COUPLING_TIME_STEP: 3600                                 # Coupling time step (seconds)
+COUPLING_VARIABLES: [discharge, temperature, precipitation] # Variables to exchange
+
+# Data format support
+NETCDF_COMPRESSION: 4                                    # NetCDF compression level (0-9)
+NETCDF_CHUNKING: true                                    # Enable NetCDF chunking
+OUTPUT_FORMATS: [netcdf, csv, geotiff]                   # Supported output formats
+METADATA_STANDARDS: [CF, ACDD]                           # Metadata standards compliance
+
+# API and web service integration
+ENABLE_API_SERVER: false                                 # Enable REST API server
+API_PORT: 8080                                           # API server port
+WEB_INTERFACE: false                                     # Enable web interface
+DATABASE_CONNECTION: null                                # Database connection string for results storage
+
+### 8.5 Quality Assurance and Testing =================================================================================
+
+# Model verification
+RUN_MODEL_TESTS: false                                   # Run model verification tests
+TEST_SUITE: basic                                        # Test suite: basic, comprehensive, custom
+BENCHMARK_REFERENCE_RUNS: false                          # Compare against reference runs
+MASS_BALANCE_CHECK: true                                 # Check mass balance closure
+ENERGY_BALANCE_CHECK: false                              # Check energy balance closure
+
+# Reproducibility
+ENSURE_REPRODUCIBILITY: true                            # Enable strict reproducibility mode
+RECORD_ENVIRONMENT: true                                # Record computational environment
+VERSION_CONTROL_INTEGRATION: false                       # Integrate with version control systems
+PROVENANCE_TRACKING: true                               # Track data and processing provenance
+
+# Documentation generation
+AUTO_GENERATE_DOCS: false                               # Auto-generate run documentation
+INCLUDE_PLOTS_IN_DOCS: true                             # Include plots in documentation
+DOC_FORMAT: html                                        # Documentation format: html, pdf, markdown
+
+### 8.6 Experimental and Development Features =======================================================================
+
+# Feature flags (for experimental features)
+ENABLE_EXPERIMENTAL_FEATURES: false                     # Enable experimental features
+FEATURE_FLAGS:                                          # Individual feature flags
+  new_routing_algorithm: false                          # New routing algorithm
+  advanced_snow_physics: false                         # Enhanced snow physics
+  machine_learning_bias_correction: false              # ML bias correction
+  real_time_data_assimilation: false                   # Real-time data assimilation
+
+# Development and debugging
+DEVELOPMENT_MODE: false                                  # Enable development mode
+DEBUG_MEMORY_USAGE: false                               # Debug memory usage
+PROFILE_PERFORMANCE: false                              # Enable performance profiling
+SAVE_INTERMEDIATE_RESULTS: false                        # Save intermediate processing results
+VERBOSE_ERROR_MESSAGES: true                            # Provide verbose error messages
+
+# Custom extensions
+CUSTOM_EXTENSIONS_PATH: null                            # Path to custom extensions
+PLUGIN_DIRECTORIES: []                                  # Directories containing plugins
+USER_DEFINED_METRICS: {}                               # User-defined performance metrics
+CUSTOM_PREPROCESSING_STEPS: []                          # Custom preprocessing steps
+
+## ================================================= End Configuration ==================================================================
+
+# Configuration validation
+CONFIG_VERSION: "2.0"                                   # Configuration template version
+LAST_UPDATED: "2025-01-13"                             # Last update date
+VALIDATION_SCHEMA: "confluence_v2"                      # Validation schema identifier
+
+# Notes:
+# - All 'default' paths will be automatically resolved by CONFLUENCE
+# - Customize paths only if deviating from standard directory structure  
+# - Enable only the features and models you need for your specific application
+# - Many advanced features require additional setup and dependencies
+# - Refer to CONFLUENCE documentation for detailed parameter descriptions
+# - Test configurations with --dry_run before full execution
