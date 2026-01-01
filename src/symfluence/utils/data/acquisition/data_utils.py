@@ -15,6 +15,7 @@ from datetime import datetime
 import time
 
 from symfluence.utils.data.utilities.variable_utils import VariableHandler # type: ignore
+from symfluence.utils.common.constants import UnitConversion
 
 class DataAcquisitionProcessor:
     def __init__(self, config: Dict[str, Any], logger: Any):
@@ -472,11 +473,11 @@ class ObservedDataProcessor:
             return Path(self.config.get(f'{file_type}'))
 
     def get_resample_freq(self):
-        if self.forcing_time_step_size == 3600:
+        if self.forcing_time_step_size == UnitConversion.SECONDS_PER_HOUR:
             return 'h'
         if self.forcing_time_step_size == 10800:
             return 'h'
-        elif self.forcing_time_step_size == 86400:
+        elif self.forcing_time_step_size == UnitConversion.SECONDS_PER_DAY:
             return 'D'
         else:
             return f'{self.forcing_time_step_size}s'
@@ -1247,10 +1248,10 @@ class ObservedDataProcessor:
                 self.logger.info(f"Basin area: {basin_area_km2:.2f} km²")
                 
                 # Convert discharge from mm/d to m³/s
-                # Formula: m³/s = (mm/d × basin_area_km² × 1000) / 86400
+                # Formula: m³/s = (mm/d × basin_area_km² × 1000) / SECONDS_PER_DAY
                 # 1000: convert km² to m²
-                # 86400: seconds in a day
-                conversion_factor = (basin_area_km2 * 1000) / 86400
+                # SECONDS_PER_DAY: seconds in a day (86400)
+                conversion_factor = (basin_area_km2 * 1000) / UnitConversion.SECONDS_PER_DAY
                 caravans_data['discharge_cms'] = caravans_data['discharge_mmd'] * conversion_factor
                 
                 self.logger.info(f"Converted discharge from mm/d to m³/s using conversion factor: {conversion_factor:.6f}")
@@ -1337,7 +1338,7 @@ class ObservedDataProcessor:
         parameter_cd = "00060"  # Discharge parameter code (cubic feet per second)
         
         # Conversion factor from cubic feet per second (cfs) to cubic meters per second (cms)
-        CFS_TO_CMS = 0.0283168
+        CFS_TO_CMS = UnitConversion.CFS_TO_CMS
         
         self.logger.info(f"Retrieving discharge data for station {station_id}")
         self.logger.info(f"Time period: {start_date} to {end_date}")
@@ -1552,7 +1553,7 @@ class ObservedDataProcessor:
 
         usgs_data = usgs_data.loc[1:]
         usgs_data['discharge_cfs'] = pd.to_numeric(usgs_data[usgs_data.columns[4]], errors='coerce')
-        usgs_data['discharge_cms'] = usgs_data['discharge_cfs'] * 0.028316847
+        usgs_data['discharge_cms'] = usgs_data['discharge_cfs'] * UnitConversion.CFS_TO_CMS
         usgs_data['datetime'] = pd.to_datetime(usgs_data['datetime'], format='%Y-%m-%d %H:%M', errors='coerce')
         usgs_data = usgs_data.dropna(subset=['datetime'])
         usgs_data.set_index('datetime', inplace=True)
