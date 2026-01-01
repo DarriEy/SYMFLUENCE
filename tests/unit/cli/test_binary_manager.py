@@ -1,6 +1,7 @@
 """Unit tests for BinaryManager."""
 
 import pytest
+import subprocess
 from unittest.mock import patch, MagicMock, mock_open, call
 from pathlib import Path
 
