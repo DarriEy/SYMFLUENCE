@@ -904,13 +904,6 @@ class GRRunner:
             import traceback
             self.logger.error(traceback.format_exc())
             return False
-    
-    def _get_default_path(self, path_key: str, default_subpath: str) -> Path:
-        """Get path from config or use default based on project directory."""
-        path_value = self.config.get(path_key)
-        if path_value == 'default' or path_value is None:
-            return self.project_dir / default_subpath
-        return Path(path_value)
 
 
 @ModelRegistry.register_postprocessor('GR')
