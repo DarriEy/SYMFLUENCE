@@ -13,6 +13,7 @@ from typing import Dict, Any
 # Local imports
 from symfluence.utils.models.registry import ModelRegistry
 from symfluence.utils.models.base import BaseModelPreProcessor
+from symfluence.utils.models.mixins import ObservationLoaderMixin
 from .forcing_processor import SummaForcingProcessor
 from .config_manager import SummaConfigManager
 from .attributes_manager import SummaAttributesManager
@@ -23,11 +24,12 @@ from symfluence.utils.exceptions import (
 
 
 @ModelRegistry.register_preprocessor('SUMMA')
-class SummaPreProcessor(BaseModelPreProcessor):
+class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
     """
     Preprocessor for the SUMMA (Structure for Unifying Multiple Modeling Alternatives) model.
 
     Handles data preparation, configuration, and file setup for SUMMA model runs.
+    Inherits observation loading from ObservationLoaderMixin.
     """
 
     def _get_model_name(self) -> str:

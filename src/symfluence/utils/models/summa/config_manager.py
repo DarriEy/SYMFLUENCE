@@ -21,8 +21,11 @@ import rasterio  # type: ignore
 import rasterstats  # type: ignore
 import xarray as xr  # type: ignore
 
+# SYMFLUENCE imports
+from symfluence.utils.common.path_resolver import PathResolverMixin
 
-class SummaConfigManager:
+
+class SummaConfigManager(PathResolverMixin):
     """
     Manager for SUMMA configuration files.
 
@@ -106,18 +109,12 @@ class SummaConfigManager:
 
     def _get_default_path(self, path_key: str, default_subpath: str) -> Path:
         """Get a path from config or use a default based on the project directory."""
+        # Use callback if provided (delegates to parent preprocessor's mixin method)
         if self._get_default_path_callback:
             return self._get_default_path_callback(path_key, default_subpath)
 
-        # Fallback implementation
-        try:
-            path_value = self.config.get(path_key)
-            if path_value == 'default' or path_value is None:
-                return self.project_dir / default_subpath
-            return Path(path_value)
-        except KeyError:
-            self.logger.error(f"Config key '{path_key}' not found")
-            raise
+        # Otherwise use the inherited PathResolverMixin method
+        return super()._get_default_path(path_key, default_subpath)
 
     def _get_simulation_times(self) -> Tuple[str, str]:
         """Get the simulation start and end times from config or calculate defaults."""

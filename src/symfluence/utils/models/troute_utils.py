@@ -22,7 +22,7 @@ from shutil import copyfile
 from datetime import datetime
 from typing import Dict, Any
 import subprocess
-from .base import BaseModelPreProcessor
+from .base import BaseModelPreProcessor, BaseModelRunner
 
 class TRoutePreProcessor(BaseModelPreProcessor):
     """
@@ -158,12 +158,19 @@ class TRoutePreProcessor(BaseModelPreProcessor):
         var.units = units
 
 
-class TRouteRunner:
+class TRouteRunner(BaseModelRunner):
     """A standalone runner for the t-route model."""
     def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
-        self.logger = logger
-        self.project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}"
+        # Call base class
+        super().__init__(config, logger)
+
+    def _get_model_name(self) -> str:
+        """Return model name for TRoute."""
+        return "TRoute"
+
+    def _should_create_output_dir(self) -> bool:
+        """TRoute creates directories on-demand."""
+        return False
 
     def run_troute(self):
         """

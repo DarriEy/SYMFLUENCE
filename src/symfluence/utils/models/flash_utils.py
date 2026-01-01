@@ -18,6 +18,7 @@ from torch.utils.data import TensorDataset, DataLoader # type: ignore
 import geopandas as gpd # type: ignore
 from datetime import datetime
 from .registry import ModelRegistry
+from .base import BaseModelPostProcessor
 
 from symfluence.utils.evaluation.calculate_sim_stats import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE, get_KGEnp # type: ignore
 
@@ -560,85 +561,43 @@ class FLASH:
         }
     
 @ModelRegistry.register_postprocessor('FLASH')
-class FLASHPostProcessor:
+class FLASHPostProcessor(BaseModelPostProcessor):
     """
     Postprocessor for FLASH model outputs.
     Handles extraction, processing, and saving of simulation results.
-    
+
     Attributes:
         config (Dict[str, Any]): Configuration settings for FLASH
         logger (Any): Logger object for recording processing information
         project_dir (Path): Directory for the current project
         domain_name (str): Name of the domain being processed
     """
-    def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
-        self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.results_dir = self.project_dir / "results"
-        self.results_dir.mkdir(parents=True, exist_ok=True)
+
+    def _get_model_name(self) -> str:
+        """Return the model name."""
+        return "FLASH"
 
     def extract_streamflow(self) -> Optional[Path]:
         """
         Extract simulated streamflow from FLASH output and save to CSV.
-        
+
         Returns:
             Optional[Path]: Path to the saved CSV file if successful, None otherwise
         """
         try:
             self.logger.info("Extracting FLASH streamflow results")
-            
+
             # Define paths
-            sim_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'FLASH' / f'{self.config.get("EXPERIMENT_ID")}_FLASH_output.nc'
-            
+            sim_path = self.sim_dir / f'{self.experiment_id}_FLASH_output.nc'
+
             # Read simulation results
             ds = xr.open_dataset(sim_path)
-            
+
             # Extract streamflow
             q_sim = ds['predicted_streamflow'].to_pandas()
-            
-            # Get catchment area from river basins shapefile
-            basin_name = self.config.get('RIVER_BASINS_NAME')
-            if basin_name == 'default':
-                basin_name = f"{self.domain_name}_riverBasins_delineate.shp"
-            basin_path = self._get_file_path('RIVER_BASINS_PATH', 'shapefiles/river_basins', basin_name)
-            basin_gdf = gpd.read_file(basin_path)
-            
-            # Calculate total area in km2
-            area_km2 = basin_gdf['GRU_area'].sum() / 1e6
-            self.logger.info(f"Total catchment area: {area_km2:.2f} km2")
-            
-            # Create DataFrame with FLASH-prefixed column name
-            results_df = pd.DataFrame({
-                'FLASH_discharge_cms': q_sim
-            }, index=q_sim.index)
-            
-            # Add metadata as attributes
-            results_df.attrs = {
-                'model': 'FLASH',
-                'domain': self.domain_name,
-                'experiment_id': self.config.get('EXPERIMENT_ID'),
-                'catchment_area_km2': area_km2,
-                'creation_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'units': 'm3/s'
-            }
-            
-            # Load existing results if file exists, otherwise create new DataFrame
-            output_file = self.results_dir / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
-            if output_file.exists():
-                existing_df = pd.read_csv(output_file, index_col=0, parse_dates=True)
-                # Reindex the new results to match existing index
-                results_df = results_df.reindex(existing_df.index)
-                # Merge existing results with new results
-                results_df = pd.concat([existing_df, results_df], axis=1)
-            
-            # Save to CSV
-            results_df.to_csv(output_file)
-            
-            self.logger.info(f"Results saved to: {output_file}")
-            return output_file
+
+            # Use inherited helper to save results
+            return self.save_streamflow_to_results(q_sim)
             
         except Exception as e:
             self.logger.error(f"Error extracting streamflow: {str(e)}")
