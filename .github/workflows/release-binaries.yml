@@ -57,6 +57,15 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       # ========================================================================
+      # Pre-Release Validation
+      # ========================================================================
+      - name: Validate version synchronization
+        run: |
+          echo "Checking that pyproject.toml and npm/package.json versions match..."
+          chmod +x scripts/check_version_sync.sh
+          ./scripts/check_version_sync.sh
+
+      # ========================================================================
       # Linux System Dependencies
       # ========================================================================
       - name: Install system dependencies (Linux)

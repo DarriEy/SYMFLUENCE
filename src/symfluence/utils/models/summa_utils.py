@@ -19,53 +19,56 @@ import shutil
 import rasterio # type: ignore
 import psutil # type: ignore
 from .registry import ModelRegistry
+from .base import BaseModelPreProcessor
 
 @ModelRegistry.register_preprocessor('SUMMA')
-class SummaPreProcessor:
-    def __init__(self, config: Dict[str, Any], logger: Any):
-        
-        """
+class SummaPreProcessor(BaseModelPreProcessor):
+    """
+    Preprocessor for the SUMMA (Structure for Unifying Multiple Modeling Alternatives) model.
 
-        Initialize the SummaPreProcessor_spatial class.
+    Handles data preparation, configuration, and file setup for SUMMA model runs.
+    """
+
+    def _get_model_name(self) -> str:
+        """Return model name for directory structure."""
+        return "SUMMA"
+
+    def __init__(self, config: Dict[str, Any], logger: Any):
+        """
+        Initialize the SummaPreProcessor.
 
         Args:
             config (Dict[str, Any]): Configuration dictionary containing setup parameters.
             logger (Any): Logger object for recording processing information.
         """
+        # Initialize base class (handles standard paths and directories)
+        super().__init__(config, logger)
 
-        # Config and Logger
-        self.config = config
-        self.logger = logger
-
-        # Directories and paths
-        self.project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}"
-        self.summa_setup_dir = self.project_dir / "settings" / "SUMMA"
+        # SUMMA-specific paths
         self.shapefile_path = self.project_dir / 'shapefiles' / 'forcing'
-        self.settings_path = self.project_dir / 'settings/SUMMA'
         dem_name = self.config.get('DEM_NAME')
         if dem_name == "default":
-            dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
+            dem_name = f"domain_{self.domain_name}_elv.tif"
         self.dem_path = self._get_default_path('DEM_PATH', f"attributes/elevation/dem/{dem_name}")
-
         self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/merged_data')
         self.intersect_path = self.project_dir / 'shapefiles' / 'catchment_intersection' / 'with_forcing'
-        self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
-        self.forcing_basin_path.mkdir(parents=True, exist_ok=True)
         self.forcing_summa_path = self.project_dir / 'forcing' / 'SUMMA_input'
-        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.river_network_name = self.config.get('RIVER_NETWORK_SHP_NAME')
-        if self.river_network_name == 'default':
-            self.river_network_name = f"{self.config.get('DOMAIN_NAME')}_riverNetwork_delineate.shp"
 
-        self.river_network_path = self._get_default_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network')
+        # Catchment paths (SUMMA-specific usage)
+        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
         self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
-            self.catchment_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
+            self.catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
 
-        # Handles and variables
+        # River network paths (SUMMA-specific usage)
+        self.river_network_path = self._get_default_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network')
+        self.river_network_name = self.config.get('RIVER_NETWORK_SHP_NAME')
+        if self.river_network_name == 'default':
+            self.river_network_name = f"{self.domain_name}_riverNetwork_delineate.shp"
+
+        # SUMMA-specific configuration
         self.hruId = self.config.get('CATCHMENT_SHP_HRUID')
         self.gruId = self.config.get('CATCHMENT_SHP_GRUID')
-        self.domain_name = self.config.get('DOMAIN_NAME')
         self.forcing_dataset = self.config.get('FORCING_DATASET').lower()
         self.data_step = int(self.config.get('FORCING_TIME_STEP_SIZE'))
         self.coldstate_name = self.config.get('SETTINGS_SUMMA_COLDSTATE')
@@ -167,7 +170,7 @@ class SummaPreProcessor:
             if not filemanager_name:
                 raise ValueError("SETTINGS_SUMMA_FILEMANAGER is missing from configuration")
 
-            filemanager_path = self.summa_setup_dir / filemanager_name
+            filemanager_path = self.setup_dir / filemanager_name
 
             with open(filemanager_path, 'w') as fm:
                 fm.write(f"controlVersion       'SUMMA_FILE_MANAGER_V3.0.0'\n")
@@ -829,7 +832,7 @@ class SummaPreProcessor:
         domain_name = self.config.get("DOMAIN_NAME")
         forcing_path = self.project_dir / "forcing" / "SUMMA_input"
         file_list_path = (
-            self.summa_setup_dir / self.config.get("SETTINGS_SUMMA_FORCING_LIST")
+            self.setup_dir / self.config.get("SETTINGS_SUMMA_FORCING_LIST")
         )
 
         forcing_dataset_upper = forcing_dataset.upper()
@@ -1009,7 +1012,7 @@ class SummaPreProcessor:
             'mLayerMatricHead': MatricHead
         }
 
-        coldstate_path = self.settings_path / self.coldstate_name
+        coldstate_path = self.setup_dir / self.coldstate_name
 
         def create_and_fill_nc_var(nc, newVarName, newVarVal, fillDim1, fillDim2, newVarDim, newVarType, fillVal):
             if newVarName in ['iLayerHeight', 'mLayerDepth']:
@@ -1101,7 +1104,7 @@ class SummaPreProcessor:
                     val = float(arr[1])
                 all_tp[arr[0]] = val
 
-        parameter_path = self.settings_path / self.parameter_name
+        parameter_path = self.setup_dir / self.parameter_name
 
         with nc4.Dataset(parameter_path, "w", format="NETCDF4") as tp:
             # Set attributes
@@ -1277,7 +1280,7 @@ class SummaPreProcessor:
         num_hru = len(hru_ids)
         num_gru = len(gru_ids)
 
-        attribute_path = self.settings_path / self.attribute_name
+        attribute_path = self.setup_dir / self.attribute_name
 
         with nc4.Dataset(attribute_path, "w", format="NETCDF4") as att:
             # Set attributes

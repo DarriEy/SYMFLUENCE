@@ -12,16 +12,19 @@ import easymore as esmr # type: ignore
 import subprocess
 import xarray as xr
 from .registry import ModelRegistry
+from .base import BaseModelPreProcessor
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 @ModelRegistry.register_preprocessor('MIZUROUTE')
-class MizuRoutePreProcessor:
+class MizuRoutePreProcessor(BaseModelPreProcessor):
+    def _get_model_name(self) -> str:
+        """Return model name for directory structure."""
+        return "mizuRoute"
+
     def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
-        self.logger = logger
-        self.project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}"
-        self.mizuroute_setup_dir = self.project_dir / "settings" / "mizuRoute"
+        # Initialize base class (handles standard paths and directories)
+        super().__init__(config, logger)
 
 
     def run_preprocessing(self):
@@ -46,10 +49,10 @@ class MizuRoutePreProcessor:
     def copy_base_settings(self):
         self.logger.info("Copying mizuRoute base settings")
         base_settings_path = Path(self.config.get('SYMFLUENCE_CODE_DIR')) / '0_base_settings' / 'mizuRoute'
-        self.mizuroute_setup_dir.mkdir(parents=True, exist_ok=True)
+        self.setup_dir.mkdir(parents=True, exist_ok=True)
 
         for file in os.listdir(base_settings_path):
-            copyfile(base_settings_path / file, self.mizuroute_setup_dir / file)
+            copyfile(base_settings_path / file, self.setup_dir / file)
         self.logger.info("mizuRoute base settings copied")
 
     def create_area_weighted_remap_file(self):
@@ -57,7 +60,7 @@ class MizuRoutePreProcessor:
         self.logger.info("Creating area-weighted remapping file")
         
         # Load topology to get HRU information
-        topology_file = self.mizuroute_setup_dir / self.config.get('SETTINGS_MIZU_TOPOLOGY')
+        topology_file = self.setup_dir / self.config.get('SETTINGS_MIZU_TOPOLOGY')
         with xr.open_dataset(topology_file) as topo:
             hru_ids = topo['hruId'].values
         
@@ -76,7 +79,7 @@ class MizuRoutePreProcessor:
         
         remap_name = self.config.get('SETTINGS_MIZU_REMAP')
         
-        with nc4.Dataset(self.mizuroute_setup_dir / remap_name, 'w', format='NETCDF4') as ncid:
+        with nc4.Dataset(self.setup_dir / remap_name, 'w', format='NETCDF4') as ncid:
             # Set attributes
             ncid.setncattr('Author', "Created by SUMMA workflow scripts")
             ncid.setncattr('Purpose', 'Area-weighted remapping for lumped to distributed routing')
@@ -118,7 +121,7 @@ class MizuRoutePreProcessor:
         
         control_name = self.config.get('SETTINGS_MIZU_CONTROL_FILE', 'mizuRoute_control_GR.txt')
         
-        with open(self.mizuroute_setup_dir / control_name, 'w') as cf:
+        with open(self.setup_dir / control_name, 'w') as cf:
             self._write_control_file_header(cf)
             self._write_gr_control_file_directories(cf)
             self._write_control_file_parameters(cf)
@@ -144,7 +147,7 @@ class MizuRoutePreProcessor:
             experiment_output_mizuroute = Path(experiment_output_mizuroute)
 
         cf.write("!\n! --- DEFINE DIRECTORIES \n")
-        cf.write(f"<ancil_dir>             {self.mizuroute_setup_dir}/    ! Folder that contains ancillary data (river network, remapping netCDF) \n")
+        cf.write(f"<ancil_dir>             {self.setup_dir}/    ! Folder that contains ancillary data (river network, remapping netCDF) \n")
         cf.write(f"<input_dir>             {experiment_output_gr}/    ! Folder that contains runoff data from GR4J \n")
         cf.write(f"<output_dir>            {experiment_output_mizuroute}/    ! Folder that will contain mizuRoute simulations \n")
 
@@ -413,7 +416,7 @@ class MizuRoutePreProcessor:
                     self.logger.warning(f"Outlet ID {outlet_id} not found in river network")
         
         # Create the netCDF file
-        with nc4.Dataset(self.mizuroute_setup_dir / topology_name, 'w', format='NETCDF4') as ncid:
+        with nc4.Dataset(self.setup_dir / topology_name, 'w', format='NETCDF4') as ncid:
             self._set_topology_attributes(ncid)
             self._create_topology_dimensions(ncid, num_seg, num_hru)
             
@@ -428,7 +431,7 @@ class MizuRoutePreProcessor:
             self._create_and_fill_nc_var(ncid, 'hruToSegId', 'int', 'hru', hru_to_seg_ids, 'ID of the stream segment to which the HRU discharges', '-')
             self._create_and_fill_nc_var(ncid, 'area', 'f8', 'hru', hru_areas, 'HRU area', 'm^2')
         
-        self.logger.info(f"Network topology file created at {self.mizuroute_setup_dir / topology_name}")
+        self.logger.info(f"Network topology file created at {self.setup_dir / topology_name}")
         
     def _find_closest_segment_to_pour_point(self, shp_river):
         """
@@ -506,7 +509,7 @@ class MizuRoutePreProcessor:
         self.logger.info("Creating equal-weight remapping file")
         
         # Load topology to get segment information
-        topology_file = self.mizuroute_setup_dir / self.config.get('SETTINGS_MIZU_TOPOLOGY')
+        topology_file = self.setup_dir / self.config.get('SETTINGS_MIZU_TOPOLOGY')
         with xr.open_dataset(topology_file) as topo:
             seg_ids = topo['segId'].values
             hru_ids = topo['hruId'].values  # Now we have multiple HRUs
@@ -517,7 +520,7 @@ class MizuRoutePreProcessor:
         
         remap_name = self.config.get('SETTINGS_MIZU_REMAP')
         
-        with nc4.Dataset(self.mizuroute_setup_dir / remap_name, 'w', format='NETCDF4') as ncid:
+        with nc4.Dataset(self.setup_dir / remap_name, 'w', format='NETCDF4') as ncid:
             # Set attributes
             ncid.setncattr('Author', "Created by SUMMA workflow scripts")
             ncid.setncattr('Purpose', 'Equal-weight remapping for lumped to distributed routing')
@@ -604,14 +607,14 @@ class MizuRoutePreProcessor:
         # Create remapping netCDF file
         self._create_remap_file(intersected_shape, remap_name)
         
-        self.logger.info(f"Remapping file created at {self.mizuroute_setup_dir / remap_name}")
+        self.logger.info(f"Remapping file created at {self.setup_dir / remap_name}")
 
     def create_control_file(self):
         self.logger.debug("Creating mizuRoute control file")
         
         control_name = self.config.get('SETTINGS_MIZU_CONTROL_FILE')
         
-        with open(self.mizuroute_setup_dir / control_name, 'w') as cf:
+        with open(self.setup_dir / control_name, 'w') as cf:
             self._write_control_file_header(cf)
             self._write_control_file_directories(cf)
             self._write_control_file_parameters(cf)
@@ -621,7 +624,7 @@ class MizuRoutePreProcessor:
             self._write_control_file_remapping(cf)
             self._write_control_file_miscellaneous(cf)
         
-        self.logger.debug(f"mizuRoute control file created at {self.mizuroute_setup_dir / control_name}")
+        self.logger.debug(f"mizuRoute control file created at {self.setup_dir / control_name}")
 
     def _write_control_file_runoff(self, cf):
         """Write SUMMA-specific runoff file settings"""
@@ -663,7 +666,7 @@ class MizuRoutePreProcessor:
         
         control_name = self.config.get('SETTINGS_MIZU_CONTROL_FILE')
         
-        with open(self.mizuroute_setup_dir / control_name, 'w') as cf:
+        with open(self.setup_dir / control_name, 'w') as cf:
             self._write_control_file_header(cf)
             self._write_fuse_control_file_directories(cf)  # FUSE-specific directories
             self._write_control_file_parameters(cf)
@@ -689,7 +692,7 @@ class MizuRoutePreProcessor:
             experiment_output_mizuroute = Path(experiment_output_mizuroute)
 
         cf.write("!\n! --- DEFINE DIRECTORIES \n")
-        cf.write(f"<ancil_dir>             {self.mizuroute_setup_dir}/    ! Folder that contains ancillary data (river network, remapping netCDF) \n")
+        cf.write(f"<ancil_dir>             {self.setup_dir}/    ! Folder that contains ancillary data (river network, remapping netCDF) \n")
         cf.write(f"<input_dir>             {experiment_output_fuse}/    ! Folder that contains runoff data from FUSE \n")
         cf.write(f"<output_dir>            {experiment_output_mizuroute}/    ! Folder that will contain mizuRoute simulations \n")
 
@@ -757,7 +760,7 @@ class MizuRoutePreProcessor:
         num_hru = len(intersected_shape[f"S_1_{self.config.get('RIVER_BASIN_SHP_RM_HRUID')}"].unique())
         num_data = len(intersected_shape)
         
-        with nc4.Dataset(self.mizuroute_setup_dir / remap_name, 'w', format='NETCDF4') as ncid:
+        with nc4.Dataset(self.setup_dir / remap_name, 'w', format='NETCDF4') as ncid:
             self._set_remap_attributes(ncid)
             self._create_remap_dimensions(ncid, num_hru, num_data)
             self._create_remap_variables(ncid)
@@ -802,7 +805,7 @@ class MizuRoutePreProcessor:
             experiment_output_mizuroute = Path(experiment_output_mizuroute)
 
         cf.write("!\n! --- DEFINE DIRECTORIES \n")
-        cf.write(f"<ancil_dir>             {self.mizuroute_setup_dir}/    ! Folder that contains ancillary data (river network, remapping netCDF) \n")
+        cf.write(f"<ancil_dir>             {self.setup_dir}/    ! Folder that contains ancillary data (river network, remapping netCDF) \n")
         cf.write(f"<input_dir>             {experiment_output_summa}/    ! Folder that contains runoff data from SUMMA \n")
         cf.write(f"<output_dir>            {experiment_output_mizuroute}/    ! Folder that will contain mizuRoute simulations \n")
 
