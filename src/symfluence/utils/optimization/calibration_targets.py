@@ -25,6 +25,8 @@ from typing import Dict, Any, List, Tuple, Optional
 from abc import ABC, abstractmethod
 import re
 
+from symfluence.utils.common import metrics
+
 class CalibrationTarget(ABC):
     """Abstract base class for different calibration variables (streamflow, snow, etc.)"""
     
@@ -320,46 +322,22 @@ class CalibrationTarget(ABC):
             # Clean data
             observed = pd.to_numeric(observed, errors='coerce')
             simulated = pd.to_numeric(simulated, errors='coerce')
-            
-            valid = ~(observed.isna() | simulated.isna())
-            observed = observed[valid]
-            simulated = simulated[valid]
-            
-            if len(observed) == 0:
-                return {'KGE': np.nan, 'NSE': np.nan, 'RMSE': np.nan, 'PBIAS': np.nan, 'MAE': np.nan}
-            
-            # Nash-Sutcliffe Efficiency
-            mean_obs = observed.mean()
-            nse_num = ((observed - simulated) ** 2).sum()
-            nse_den = ((observed - mean_obs) ** 2).sum()
-            nse = 1 - (nse_num / nse_den) if nse_den > 0 else np.nan
-            
-            # Root Mean Square Error
-            rmse = np.sqrt(((observed - simulated) ** 2).mean())
-            
-            # Percent Bias
-            pbias = 100 * (simulated.sum() - observed.sum()) / observed.sum() if observed.sum() != 0 else np.nan
-            
-            # Kling-Gupta Efficiency
-            r = observed.corr(simulated)
-            alpha = simulated.std() / observed.std() if observed.std() != 0 else np.nan
-            beta = simulated.mean() / mean_obs if mean_obs != 0 else np.nan
-            kge = 1 - np.sqrt((r - 1)**2 + (alpha - 1)**2 + (beta - 1)**2) if not np.isnan(r + alpha + beta) else np.nan
-            
-            # Mean Absolute Error
-            mae = (observed - simulated).abs().mean()
-            
+
+            # Use centralized metrics module for all calculations
+            result = metrics.calculate_all_metrics(observed, simulated)
+
+            # Return subset of metrics for compatibility
             return {
-                'KGE': kge,
-                'NSE': nse,
-                'RMSE': rmse,
-                'PBIAS': pbias,
-                'MAE': mae,
-                'r': r,
-                'alpha': alpha,
-                'beta': beta
+                'KGE': result['KGE'],
+                'NSE': result['NSE'],
+                'RMSE': result['RMSE'],
+                'PBIAS': result['PBIAS'],
+                'MAE': result['MAE'],
+                'r': result['r'],
+                'alpha': result['alpha'],
+                'beta': result['beta']
             }
-            
+
         except Exception as e:
             self.logger.error(f"Error calculating performance metrics: {str(e)}")
             return {'KGE': np.nan, 'NSE': np.nan, 'RMSE': np.nan, 'PBIAS': np.nan, 'MAE': np.nan}
@@ -3044,76 +3022,42 @@ class TWSTarget:
         Dict[str, float]
             Dictionary containing KGE, NSE, RMSE, correlation, bias, etc.
         """
-        metrics = {}
-        
         # Remove any remaining NaN
         valid = ~(np.isnan(sim) | np.isnan(obs))
-        sim = sim[valid]
-        obs = obs[valid]
-        
-        if len(sim) < 3:
+        sim_clean = sim[valid]
+        obs_clean = obs[valid]
+
+        if len(sim_clean) < 3:
             return self._empty_metrics()
-        
-        # Basic statistics
-        sim_mean = np.mean(sim)
-        obs_mean = np.mean(obs)
-        sim_std = np.std(sim)
-        obs_std = np.std(obs)
-        
-        # Correlation coefficient
-        if sim_std > 0 and obs_std > 0:
-            correlation = np.corrcoef(sim, obs)[0, 1]
-        else:
-            correlation = 0.0
-        metrics['correlation'] = correlation
-        
-        # Bias
-        bias = sim_mean - obs_mean
-        metrics['bias'] = bias
-        metrics['pbias'] = 100 * bias / obs_mean if obs_mean != 0 else 0.0
-        
-        # RMSE
-        rmse = np.sqrt(np.mean((sim - obs) ** 2))
-        metrics['RMSE'] = rmse
-        
-        # Normalized RMSE
-        metrics['NRMSE'] = rmse / obs_std if obs_std > 0 else np.nan
-        
-        # NSE (Nash-Sutcliffe Efficiency)
-        ss_res = np.sum((obs - sim) ** 2)
-        ss_tot = np.sum((obs - obs_mean) ** 2)
-        nse = 1 - ss_res / ss_tot if ss_tot > 0 else -np.inf
-        metrics['NSE'] = nse
-        
-        # KGE (Kling-Gupta Efficiency)
-        if sim_std > 0 and obs_std > 0:
-            r = correlation
-            alpha = sim_std / obs_std  # Variability ratio
-            beta = sim_mean / obs_mean if obs_mean != 0 else 1.0  # Bias ratio
-            
-            kge = 1 - np.sqrt((r - 1)**2 + (alpha - 1)**2 + (beta - 1)**2)
-        else:
-            kge = -np.inf
-        metrics['KGE'] = kge
-        
-        # KGE components
-        metrics['KGE_r'] = correlation
-        metrics['KGE_alpha'] = sim_std / obs_std if obs_std > 0 else np.nan
-        metrics['KGE_beta'] = sim_mean / obs_mean if obs_mean != 0 else np.nan
-        
-        # Additional metrics
-        metrics['n_months'] = len(sim)
-        metrics['sim_mean'] = sim_mean
-        metrics['obs_mean'] = obs_mean
-        metrics['sim_std'] = sim_std
-        metrics['obs_std'] = obs_std
-        
+
+        # Use centralized metrics module for standard calculations
+        standard_metrics = metrics.calculate_all_metrics(obs_clean, sim_clean)
+
+        # Additional TWS-specific statistics
+        result = {
+            'KGE': standard_metrics['KGE'],
+            'NSE': standard_metrics['NSE'],
+            'RMSE': standard_metrics['RMSE'],
+            'NRMSE': standard_metrics['NRMSE'],
+            'correlation': standard_metrics['correlation'],
+            'bias': standard_metrics['bias'],
+            'pbias': standard_metrics['PBIAS'],
+            'KGE_r': standard_metrics['r'],
+            'KGE_alpha': standard_metrics['alpha'],
+            'KGE_beta': standard_metrics['beta'],
+            'n_months': len(sim_clean),
+            'sim_mean': np.mean(sim_clean),
+            'obs_mean': np.mean(obs_clean),
+            'sim_std': np.std(sim_clean),
+            'obs_std': np.std(obs_clean),
+        }
+
         # Amplitude ratio (important for TWS seasonal cycle)
-        sim_amplitude = np.max(sim) - np.min(sim)
-        obs_amplitude = np.max(obs) - np.min(obs)
-        metrics['amplitude_ratio'] = sim_amplitude / obs_amplitude if obs_amplitude > 0 else np.nan
-        
-        return metrics
+        sim_amplitude = np.max(sim_clean) - np.min(sim_clean)
+        obs_amplitude = np.max(obs_clean) - np.min(obs_clean)
+        result['amplitude_ratio'] = sim_amplitude / obs_amplitude if obs_amplitude > 0 else np.nan
+
+        return result
     
     def _empty_metrics(self) -> Dict[str, float]:
         """Return dictionary with NaN metrics when calculation fails."""

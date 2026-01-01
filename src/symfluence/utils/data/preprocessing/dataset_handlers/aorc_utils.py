@@ -9,6 +9,7 @@ from shapely.geometry import Polygon
 
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
+from symfluence.utils.common.constants import UnitConversion
 
 
 @DatasetRegistry.register('aorc')
@@ -23,7 +24,7 @@ class AORCHandler(BaseDatasetHandler):
     """
     def __init__(self, config, logger, project_dir, **kwargs):
         super().__init__(config, logger, project_dir, **kwargs)
-        self.forcing_timestep_seconds = float(self.forcing_timestep_seconds) if hasattr(self, 'forcing_timestep_seconds') else 3600.0
+        self.forcing_timestep_seconds = float(self.forcing_timestep_seconds) if hasattr(self, 'forcing_timestep_seconds') else float(UnitConversion.SECONDS_PER_HOUR)
     # ---------- Variable mapping / standardization ----------
 
     def get_variable_mapping(self) -> Dict[str, str]:
