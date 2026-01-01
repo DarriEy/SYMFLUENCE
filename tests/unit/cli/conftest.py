@@ -67,70 +67,87 @@ def mock_external_tools():
 
     Provides a simplified tool definition structure for testing
     dependency resolution, installation, and validation logic.
+    Matches the actual structure from external_tools_config.py
     """
     return {
         'sundials': {
-            'name': 'SUNDIALS',
             'description': 'SUite of Nonlinear and DIfferential/ALgebraic equation Solvers',
+            'config_path_key': 'SUNDIALS_INSTALL_PATH',
+            'config_exe_key': 'SUNDIALS_DIR',
+            'default_path_suffix': 'installs/sundials/install/sundials/',
+            'default_exe': 'lib/libsundials_core.a',
             'repository': 'https://github.com/LLNL/sundials.git',
-            'tag': 'v6.5.0',
-            'build_dir': 'build',
+            'branch': None,
+            'install_dir': 'sundials',
             'build_commands': [
                 'mkdir -p build',
                 'cd build && cmake ..',
                 'cd build && make',
                 'cd build && make install'
             ],
-            'install_path_suffix': 'bin/external_tools/sundials',
             'dependencies': [],
+            'test_command': None,
             'verify_install': {
                 'check_type': 'exists',
                 'file_paths': ['lib/libsundials_cvode.so']
-            }
+            },
+            'order': 1
         },
         'summa': {
-            'name': 'SUMMA',
             'description': 'Structure for Unifying Multiple Modeling Alternatives',
+            'config_path_key': 'SUMMA_INSTALL_PATH',
+            'config_exe_key': 'SUMMA_EXE',
+            'default_path_suffix': 'installs/summa/bin',
+            'default_exe': 'summa.exe',
             'repository': 'https://github.com/NCAR/summa.git',
-            'tag': 'v3.0.3',
-            'build_dir': 'build',
+            'branch': 'develop_sundials',
+            'install_dir': 'summa',
+            'requires': ['sundials'],
             'build_commands': [
                 'mkdir -p build',
                 'cd build && cmake ..',
                 'cd build && make'
             ],
-            'install_path_suffix': 'bin/external_tools/summa',
             'dependencies': ['sundials'],
+            'test_command': {'command': '--version', 'timeout': 10},
             'verify_install': {
                 'check_type': 'exists',
                 'file_paths': ['bin/summa.exe']
             },
-            'test_command': {
-                'command': '--version',
-                'timeout': 10
-            }
+            'order': 2
         },
         'mizuroute': {
-            'name': 'mizuRoute',
             'description': 'River routing model',
+            'config_path_key': 'MIZUROUTE_INSTALL_PATH',
+            'config_exe_key': 'MIZUROUTE_EXE',
+            'default_path_suffix': 'installs/mizuroute/bin',
+            'default_exe': 'mizuroute.exe',
             'repository': 'https://github.com/NCAR/mizuRoute.git',
-            'tag': 'v2.0.1',
+            'branch': None,
+            'install_dir': 'mizuroute',
             'build_commands': ['make'],
-            'install_path_suffix': 'bin/external_tools/mizuRoute',
             'dependencies': [],
-            'verify_install': None
+            'test_command': None,
+            'verify_install': None,
+            'order': 3
         },
         'taudem': {
-            'name': 'TauDEM',
             'description': 'Terrain Analysis Using Digital Elevation Models',
+            'config_path_key': 'TAUDEM_INSTALL_PATH',
+            'config_exe_key': 'TAUDEM_DIR',
+            'default_path_suffix': 'installs/taudem/bin',
+            'default_exe': 'pitremove',
             'repository': 'https://github.com/dtarb/TauDEM.git',
+            'branch': None,
+            'install_dir': 'taudem',
             'build_commands': ['mkdir -p build', 'cd build && cmake ..', 'cd build && make'],
-            'install_path_suffix': 'bin/external_tools/taudem',
             'dependencies': [],
+            'test_command': None,
             'verify_install': {
                 'check_type': 'exists_any',
                 'file_paths': ['bin/pitremove', 'bin/d8flowdir', 'bin/aread8']
-            }
+            },
+            'order': 4
         }
     }
 
