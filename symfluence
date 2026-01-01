@@ -656,12 +656,12 @@ EOF
         # External tools - use installed symfluence command
         cd "$symfluence_dir"
         print_info "Installing external tools..."
-        symfluence --get_executables || {
+        symfluence binary install || {
             print_error "External tools installation failed"
             exit 1
         }
         print_info "Validating installation..."
-        symfluence --validate_binaries || {
+        symfluence binary validate || {
             print_error "Binary validation failed"
             exit 1
         }
