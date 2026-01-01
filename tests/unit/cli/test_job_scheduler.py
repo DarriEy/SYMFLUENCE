@@ -1,6 +1,7 @@
 """Unit tests for JobScheduler."""
 
 import pytest
+import subprocess
 from unittest.mock import patch, MagicMock, mock_open, call
 from pathlib import Path
 
@@ -303,11 +304,11 @@ class TestJobMonitoring:
     @patch('time.sleep')  # Mock sleep to speed up test
     def test_monitor_until_completion(self, mock_sleep, mock_subprocess, job_scheduler):
         """Test job monitoring until completion."""
-        # Mock squeue returning RUNNING then COMPLETED
+        # Mock squeue returning RUNNING then empty (job completed and removed from queue)
         mock_subprocess.side_effect = [
             MagicMock(stdout='RUNNING\n', stderr='', returncode=0),
             MagicMock(stdout='RUNNING\n', stderr='', returncode=0),
-            MagicMock(stdout='COMPLETED\n', stderr='', returncode=0),
+            MagicMock(stdout='', stderr='', returncode=0),  # Empty stdout signals job done
         ]
 
         job_scheduler._monitor_slurm_job('12345')
