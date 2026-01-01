@@ -8,6 +8,11 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
 from src.symfluence.utils.models.base import BaseModelPreProcessor
+from src.symfluence.utils.exceptions import (
+    ConfigurationError,
+    FileOperationError,
+    ModelExecutionError
+)
 
 
 class ConcretePreProcessor(BaseModelPreProcessor):
@@ -25,13 +30,17 @@ def config(tmp_path):
     """Create a test configuration."""
     return {
         'SYMFLUENCE_DATA_DIR': str(tmp_path),
+        'SYMFLUENCE_CODE_DIR': str(tmp_path / 'code'),
         'DOMAIN_NAME': 'test_domain',
+        'FORCING_DATASET': 'ERA5',  # Required by validation
+        'FORCING_TIME_STEP_SIZE': 3600,
         'DOMAIN_DISCRETIZATION': 'lumped',
         'DOMAIN_DEFINITION_METHOD': 'lumped',
         'CATCHMENT_PATH': 'default',
         'CATCHMENT_SHP_NAME': 'default',
         'RIVER_NETWORK_SHP_PATH': 'default',
-        'RIVER_NETWORK_SHP_NAME': 'default'
+        'RIVER_NETWORK_SHP_NAME': 'default',
+        'DEM_NAME': 'default',
     }
 
 
@@ -266,6 +275,143 @@ class TestAbstractMethods:
 
         with pytest.raises(TypeError):
             IncompletePreProcessor(config, logger)
+
+
+class TestConfigurationValidation:
+    """Test configuration validation."""
+
+    def test_missing_required_config_keys(self, logger):
+        """Test that missing required config keys raise ConfigurationError."""
+        incomplete_config = {
+            'DOMAIN_NAME': 'test'
+            # Missing SYMFLUENCE_DATA_DIR and FORCING_DATASET
+        }
+
+        with pytest.raises(ConfigurationError) as exc_info:
+            ConcretePreProcessor(incomplete_config, logger)
+
+        assert 'Missing required configuration keys' in str(exc_info.value)
+
+    def test_valid_config_passes_validation(self, config, logger):
+        """Test that valid configuration passes validation."""
+        # Should not raise any exception
+        preprocessor = ConcretePreProcessor(config, logger)
+        assert preprocessor is not None
+
+
+class TestNewMethods:
+    """Test newly added methods in refactoring."""
+
+    def test_get_dem_path_default(self, preprocessor):
+        """Test get_dem_path with default DEM name."""
+        result = preprocessor.get_dem_path()
+        expected = preprocessor.project_dir / 'attributes' / 'elevation' / 'dem' / 'domain_test_domain_elv.tif'
+        assert result == expected
+
+    def test_get_dem_path_custom(self, preprocessor):
+        """Test get_dem_path with custom DEM name."""
+        preprocessor.config['DEM_NAME'] = 'custom_dem.tif'
+        result = preprocessor.get_dem_path()
+        expected = preprocessor.project_dir / 'attributes' / 'elevation' / 'dem' / 'custom_dem.tif'
+        assert result == expected
+
+    def test_get_timestep_config_hourly(self, preprocessor):
+        """Test get_timestep_config for hourly data."""
+        preprocessor.forcing_time_step_size = 3600
+        config = preprocessor.get_timestep_config()
+
+        assert config['resample_freq'] == 'h'
+        assert config['time_units'] == 'hours since 1970-01-01'
+        assert config['time_unit'] == 'h'
+        assert config['conversion_factor'] == 3.6
+        assert config['time_label'] == 'hourly'
+        assert config['timestep_seconds'] == 3600
+
+    def test_get_timestep_config_daily(self, preprocessor):
+        """Test get_timestep_config for daily data."""
+        preprocessor.forcing_time_step_size = 86400
+        config = preprocessor.get_timestep_config()
+
+        assert config['resample_freq'] == 'D'
+        assert config['time_units'] == 'days since 1970-01-01'
+        assert config['time_unit'] == 'D'
+        assert config['conversion_factor'] == 86.4
+        assert config['time_label'] == 'daily'
+        assert config['timestep_seconds'] == 86400
+
+    def test_get_timestep_config_custom(self, preprocessor):
+        """Test get_timestep_config for custom timestep."""
+        preprocessor.forcing_time_step_size = 10800  # 3 hours
+        config = preprocessor.get_timestep_config()
+
+        assert config['resample_freq'] == '3h'
+        assert config['time_label'] == '3-hourly'
+        assert config['conversion_factor'] == 3.6 * 3
+
+    def test_get_base_settings_source_dir(self, preprocessor, tmp_path):
+        """Test get_base_settings_source_dir."""
+        result = preprocessor.get_base_settings_source_dir()
+        expected = Path(preprocessor.config['SYMFLUENCE_CODE_DIR']) / '0_base_settings' / 'TEST'
+        assert result == expected
+
+
+class TestNewAttributes:
+    """Test newly added attributes."""
+
+    def test_forcing_raw_path(self, preprocessor):
+        """Test that forcing_raw_path is set correctly."""
+        expected = preprocessor.project_dir / 'forcing' / 'raw_data'
+        assert preprocessor.forcing_raw_path == expected
+
+    def test_merged_forcing_path(self, preprocessor):
+        """Test that merged_forcing_path is set correctly."""
+        expected = preprocessor.project_dir / 'forcing' / 'merged_data'
+        assert preprocessor.merged_forcing_path == expected
+
+    def test_shapefile_path(self, preprocessor):
+        """Test that shapefile_path is set correctly."""
+        expected = preprocessor.project_dir / 'shapefiles' / 'forcing'
+        assert preprocessor.shapefile_path == expected
+
+    def test_intersect_path(self, preprocessor):
+        """Test that intersect_path is set correctly."""
+        expected = preprocessor.project_dir / 'shapefiles' / 'catchment_intersection' / 'with_forcing'
+        assert preprocessor.intersect_path == expected
+
+    def test_forcing_dataset(self, preprocessor):
+        """Test that forcing_dataset is set correctly."""
+        assert preprocessor.forcing_dataset == 'era5'
+
+    def test_forcing_time_step_size(self, preprocessor):
+        """Test that forcing_time_step_size is set correctly."""
+        assert preprocessor.forcing_time_step_size == 3600
+
+
+class TestErrorHandling:
+    """Test error handling improvements."""
+
+    def test_create_directories_raises_on_failure(self, preprocessor, logger):
+        """Test that create_directories raises FileOperationError on failure."""
+        # Make setup_dir point to a file (not a directory) to cause mkdir to fail
+        bad_file = preprocessor.project_dir / 'bad_file'
+        bad_file.parent.mkdir(parents=True, exist_ok=True)
+        bad_file.write_text('This is a file, not a directory')
+
+        preprocessor.setup_dir = bad_file
+
+        with pytest.raises(FileOperationError) as exc_info:
+            preprocessor.create_directories()
+
+        assert 'Failed to create directory' in str(exc_info.value)
+
+    def test_copy_base_settings_raises_on_missing_dir(self, preprocessor, tmp_path):
+        """Test that copy_base_settings raises FileOperationError for missing source."""
+        non_existent = tmp_path / 'does_not_exist'
+
+        with pytest.raises(FileOperationError) as exc_info:
+            preprocessor.copy_base_settings(source_dir=non_existent)
+
+        assert 'does not exist' in str(exc_info.value)
 
 
 if __name__ == '__main__':
