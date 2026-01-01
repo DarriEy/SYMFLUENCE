@@ -294,7 +294,7 @@ For more help on a specific command:
             'install',
             help='Install external tools'
         )
-        install_parser.add_argument('tools', nargs='*', choices=EXTERNAL_TOOLS, metavar='TOOL',
+        install_parser.add_argument('tools', nargs='*', metavar='TOOL',
                                   help=f'Tools to install. If not specified, installs all. Choices: {", ".join(EXTERNAL_TOOLS)}')
         install_parser.add_argument('--force', action='store_true',
                                   help='Force reinstall even if already installed')
