@@ -22,6 +22,8 @@ import gc
 from rasterio.windows import from_bounds
 import warnings
 
+from symfluence.utils.common.path_resolver import PathResolverMixin
+
 # Add the path to dataset handlers if not already in sys.path
 # Adjust this import based on your actual package structure
 try:
@@ -37,7 +39,7 @@ except ImportError:
         )
 
 
-class forcingResampler:
+class forcingResampler(PathResolverMixin):
     def __init__(self, config, logger):
         self.config = config
         self.logger = logger
@@ -76,12 +78,6 @@ class forcingResampler:
             self.merge_forcings()
             self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/merged_path')
             self.merged_forcing_path.mkdir(parents=True, exist_ok=True)
-            
-    def _get_default_path(self, path_key, default_subpath):
-        path_value = self.config.get(path_key)
-        if path_value == 'default' or path_value is None:
-            return self.project_dir / default_subpath
-        return Path(path_value)
 
     def run_resampling(self):
         self.logger.info("Starting forcing data resampling process")

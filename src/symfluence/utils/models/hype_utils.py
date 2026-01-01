@@ -17,16 +17,17 @@ import seaborn as sns # type: ignore
 
 from symfluence.utils.models.hypeFlow import write_hype_forcing, write_hype_geo_files, write_hype_par_file, write_hype_info_filedir_files # type: ignore
 from .registry import ModelRegistry
-from .base import BaseModelPreProcessor
+from .base import BaseModelPreProcessor, BaseModelRunner, BaseModelPostProcessor
+from .mixins import ObservationLoaderMixin
 
 
 @ModelRegistry.register_preprocessor('HYPE')
-class HYPEPreProcessor(BaseModelPreProcessor):
+class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
     """
     HYPE (HYdrological Predictions for the Environment) preprocessor for SYMFLUENCE.
 
     Handles preparation of HYPE model inputs using SYMFLUENCE's data structure.
-    Inherits common functionality from BaseModelPreProcessor.
+    Inherits common functionality from BaseModelPreProcessor and observation loading from ObservationLoaderMixin.
 
     Attributes:
         config: SYMFLUENCE configuration settings (inherited)
@@ -103,33 +104,37 @@ class HYPEPreProcessor(BaseModelPreProcessor):
             raise
 
 @ModelRegistry.register_runner('HYPE', method_name='run_hype')
-class HYPERunner:
+class HYPERunner(BaseModelRunner):
     """
     Runner class for the HYPE model within SYMFLUENCE.
     Handles model execution and run-time management.
-    
+
     Attributes:
         config (Dict[str, Any]): Configuration settings
         logger (logging.Logger): Logger instance
         project_dir (Path): Project directory path
         domain_name (str): Name of the modeling domain
     """
-    
+
     def __init__(self, config: Dict[str, Any], logger: Any):
         """Initialize HYPE runner."""
-        self.config = config
-        self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        
-        # Set up HYPE paths
+        # Call base class
+        super().__init__(config, logger)
+
+        # HYPE-specific: Get installation path
         self.hype_dir = self._get_hype_path()
+
+    def _setup_model_specific_paths(self) -> None:
+        """Set up HYPE-specific paths."""
         self.setup_dir = self.project_dir / "settings" / "HYPE"
-        self.output_dir = self._get_output_path()
-        
-        # Create output directory
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def _get_model_name(self) -> str:
+        """Return model name for HYPE."""
+        return "HYPE"
+
+    def _get_output_dir(self) -> Path:
+        """HYPE uses custom output path resolution."""
+        return self._get_output_path()
 
     def run_hype(self) -> Optional[Path]:
         """
@@ -231,31 +236,24 @@ class HYPERunner:
 
 
 @ModelRegistry.register_postprocessor('HYPE')
-class HYPEPostProcessor:
+class HYPEPostProcessor(BaseModelPostProcessor):
     """
     Postprocessor for HYPE model outputs within SYMFLUENCE.
     Handles output extraction, processing, and analysis.
-    
+    Inherits common functionality from BaseModelPostProcessor.
+
     Attributes:
-        config (Dict[str, Any]): Configuration settings
-        logger (logging.Logger): Logger instance
-        project_dir (Path): Project directory path
-        domain_name (str): Name of the modeling domain
+        config (Dict[str, Any]): Configuration settings (inherited)
+        logger (logging.Logger): Logger instance (inherited)
+        project_dir (Path): Project directory path (inherited)
+        domain_name (str): Name of the modeling domain (inherited)
+        sim_dir (Path): HYPE simulation output directory
+        results_dir (Path): Results directory (inherited)
     """
-    
-    def __init__(self, config: Dict[str, Any], logger: Any):
-        """Initialize HYPE postprocessor."""
-        self.config = config
-        self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        
-        # Setup paths
-        self.sim_dir = (self.project_dir / "simulations" / 
-                       self.config.get('EXPERIMENT_ID') / "HYPE")
-        self.results_dir = self.project_dir / "results"
-        self.results_dir.mkdir(parents=True, exist_ok=True)
+
+    def _get_model_name(self) -> str:
+        """Return model name for HYPE."""
+        return "HYPE"
 
     def extract_results(self) -> Dict[str, Path]:
         """
@@ -280,59 +278,40 @@ class HYPEPostProcessor:
             raise
 
     def extract_streamflow(self) -> Optional[Path]:
+        """
+        Extract simulated streamflow from HYPE output and save to CSV.
+        Reads timeCOUT.txt file (HYPE-specific format) and extracts outlet discharge.
+
+        Returns:
+            Optional[Path]: Path to the saved CSV file if successful, None otherwise
+        """
         try:
             self.logger.info("Processing HYPE streamflow results for outlet")
-            
-            # Log input file path
+
+            # Read HYPE timeCOUT.txt output (HYPE-specific format)
             cout_path = self.sim_dir / "timeCOUT.txt"
             self.logger.info(f"Reading HYPE output from: {cout_path}")
-            
-            # Read computed discharge
+
             cout = pd.read_csv(cout_path, sep='\t', skiprows=lambda x: x == 0, parse_dates=['DATE'])
-            self.logger.info(f"Initial cout DataFrame shape: {cout.shape}")
-            self.logger.info(f"Cout columns: {cout.columns.tolist()}")
-            
-            # Set DATE as index
             cout.set_index('DATE', inplace=True)
-            self.logger.info(f"Index type: {type(cout.index)}")
-            
-            # Get outlet ID and log it
+
+            # Extract outlet discharge
             outlet_id = str(self.config.get('SIM_REACH_ID'))
             self.logger.info(f"Processing outlet ID: {outlet_id}")
-            
-            # Create results DataFrame
+
             if outlet_id not in cout.columns:
                 self.logger.error(f"Outlet ID {outlet_id} not found in columns: {cout.columns.tolist()}")
                 raise KeyError(f"Outlet ID {outlet_id} not found in HYPE output")
-                
-            results = pd.DataFrame(cout[outlet_id])
-            results.columns = ['HYPE_discharge_cms']
-            self.logger.info(f"Results DataFrame shape: {results.shape}")
-            self.logger.info(f"Results columns: {results.columns.tolist()}")
-            
-            # Save individual streamflow results
-            output_file = self.results_dir / f"{self.config.get('EXPERIMENT_ID')}_streamflow.csv"
-            self.logger.info(f"Saving individual results to: {output_file}")
-            results.to_csv(output_file)
-            
-            # Append to experiment results file
-            results_file = self.project_dir / "results" / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
-            self.logger.info(f"Appending to combined results file: {results_file}")
-            
-            cms_data = results.copy()
-            
-            if results_file.exists():
-                self.logger.info("Reading existing results file")
-                existing_results = pd.read_csv(results_file, index_col=0, parse_dates=True)
-                self.logger.info(f"Existing results shape: {existing_results.shape}")
-                combined_results = pd.concat([existing_results, cms_data], axis=1)
-            else:
-                self.logger.info("No existing results file found, creating new")
-                combined_results = cms_data
-                
-            self.logger.info(f"Final combined results shape: {combined_results.shape}")
-            combined_results.to_csv(results_file)
-                        
+
+            # Extract streamflow series for outlet
+            q_sim = cout[outlet_id]
+
+            # Use inherited save method
+            return self.save_streamflow_to_results(
+                q_sim,
+                model_column_name='HYPE_discharge_cms'
+            )
+
         except Exception as e:
             self.logger.error(f"Error extracting streamflow: {str(e)}")
             self.logger.exception("Full traceback:")

@@ -13,15 +13,17 @@ import shutil
 # import necessary libraries
 import meshflow # type: ignore # version v0.1.0-dev1
 
-from .base import BaseModelPreProcessor
+from .base import BaseModelPreProcessor, BaseModelRunner, BaseModelPostProcessor
+from .mixins import ObservationLoaderMixin
+from ..common.path_resolver import PathResolverMixin
 
 
-class MESHPreProcessor(BaseModelPreProcessor):
+class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
     """
     Preprocessor for the MESH model.
 
     Handles data preparation using meshflow library for MESH model setup.
-    Inherits common functionality from BaseModelPreProcessor.
+    Inherits common functionality from BaseModelPreProcessor and observation loading from ObservationLoaderMixin.
 
     Attributes:
         config: Configuration settings for MESH
@@ -179,38 +181,49 @@ class MESHPreProcessor(BaseModelPreProcessor):
     # Removed: _get_default_path() and _get_file_path() - now inherited from BaseModelPreProcessor
 
 
-class MESHRunner:
+class MESHRunner(BaseModelRunner):
     """
     Runner class for the MESH model.
     Handles model execution, state management, and output processing.
-    
+
     Attributes:
         config (Dict[str, Any]): Configuration settings for MESH model
         logger (Any): Logger object for recording run information
         project_dir (Path): Directory for the current project
         domain_name (str): Name of the domain being processed
     """
-    
+
     def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
-        self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
-        if self.catchment_name == 'default':
-            self.catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
-        
-        # MESH-specific paths
-        self.mesh_setup_dir = self.project_dir / "settings" / "MESH"
-        self.forcing_mesh_path = self.project_dir / 'forcing' / 'MESH_input'
-        self.output_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'MESH'
-        self.output_path.mkdir(parents=True, exist_ok=True)
+        # Call base class
+        super().__init__(config, logger)
+
+        # MESH-specific configuration
         self.mesh_exe = self.config.get('MESH_EXE')
         self.mesh_install_path = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / 'installs' / 'MESH-DEV'
 
         # Model configuration
+
+    def _setup_model_specific_paths(self) -> None:
+        """Set up MESH-specific paths."""
+        # Catchment paths (now has PathResolverMixin via BaseModelRunner)
+        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
+        self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
+        if self.catchment_name == 'default':
+            discretization = self.config.get('DOMAIN_DISCRETIZATION')
+            self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
+
+        # MESH-specific paths
+        self.mesh_setup_dir = self.project_dir / "settings" / "MESH"
+        self.forcing_mesh_path = self.project_dir / 'forcing' / 'MESH_input'
+
+    def _get_model_name(self) -> str:
+        """Return model name for MESH."""
+        return "MESH"
+
+    def _get_output_dir(self) -> Path:
+        """MESH output directory."""
+        experiment_id = self.config.get('EXPERIMENT_ID')
+        return self.project_dir / 'simulations' / experiment_id / 'MESH'
 
 
     def run_MESH(self) -> Optional[Path]:
@@ -249,20 +262,23 @@ class MESHRunner:
         print(cmd)
         return cmd
 
+from .registry import ModelRegistry
 
-class MESHPostProcessor:
+@ModelRegistry.register_postprocessor('MESH')
+class MESHPostProcessor(BaseModelPostProcessor):
     """
-    Post processor for the MESH model
+    Postprocessor for the MESH model.
+
+    Handles extraction and processing of MESH model simulation results.
     """
-    def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
-        self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
+
+    def _get_model_name(self) -> str:
+        """Return the model name."""
+        return "MESH"
+
+    def _setup_model_specific_paths(self) -> None:
+        """Set up MESH-specific paths."""
         self.gr_setup_dir = self.project_dir / "settings" / "MESH"
-        
-        # MESH specific paths
         self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
         self.forcing_gr_path = self.project_dir / 'forcing' / 'MESH_input'
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
@@ -270,12 +286,11 @@ class MESHPostProcessor:
         if self.catchment_name == 'default':
             self.catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
 
-    def extract_streamflow(self):
-        return
+    def extract_streamflow(self) -> Optional[Path]:
+        """
+        Extract streamflow from MESH outputs.
 
-    def _get_default_path(self, path_key: str, default_subpath: str) -> Path:
-        """Get path from config or use default based on project directory."""
-        path_value = self.config.get(path_key)
-        if path_value == 'default' or path_value is None:
-            return self.project_dir / default_subpath
-        return Path(path_value)
+        Note: MESH streamflow extraction not yet implemented.
+        """
+        self.logger.warning("MESH streamflow extraction not yet implemented")
+        return None

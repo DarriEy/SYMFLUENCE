@@ -28,10 +28,11 @@ import xarray as xr
 
 # Local imports
 from ..registry import ModelRegistry
+from ..base import BaseModelRunner
 
 
 @ModelRegistry.register_runner('SUMMA', method_name='run_summa')
-class SummaRunner:
+class SummaRunner(BaseModelRunner):
     """
     A class to run the SUMMA (Structure for Unifying Multiple Modeling Alternatives) model.
 
@@ -46,11 +47,19 @@ class SummaRunner:
         project_dir (Path): Directory for the current project.
     """
     def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
-        self.logger = logger
-        self.root_path = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.root_path / f"domain_{self.domain_name}"
+        # Call base class
+        super().__init__(config, logger)
+
+        # SummaRunner uses 'root_path' alias for backwards compatibility
+        self.root_path = self.data_dir
+
+    def _get_model_name(self) -> str:
+        """Return model name for SUMMA."""
+        return "SUMMA"
+
+    def _should_create_output_dir(self) -> bool:
+        """SUMMA creates output dirs on-demand in run methods."""
+        return False
 
     def run_summa(self):
         """
