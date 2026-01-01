@@ -57,7 +57,7 @@ class SUMMAPostprocessor:
             sim_df = ds.sel(seg=segment_index)
             q_sim = sim_df['IRFroutedRunoff'].to_dataframe().reset_index()
             q_sim.set_index('time', inplace=True)
-            q_sim.index = q_sim.index.index.round(freq='h')
+            q_sim.index = q_sim.index.round(freq='h')
 
             # Convert from hourly to daily average
             q_sim_daily = q_sim['IRFroutedRunoff'].resample('D').mean()
