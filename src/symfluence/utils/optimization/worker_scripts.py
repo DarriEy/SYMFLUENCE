@@ -52,21 +52,21 @@ def resample_to_timestep(data: pd.Series, target_timestep: str, logger) -> pd.Se
         
         # Check if already at target timestep
         if target_timestep == 'hourly' and pd.Timedelta(minutes=45) <= time_diff <= pd.Timedelta(minutes=75):
-            logger.debug("DEBUG: Data already at hourly timestep")
+            logger.debug("Data already at hourly timestep")
             return data
         elif target_timestep == 'daily' and pd.Timedelta(hours=20) <= time_diff <= pd.Timedelta(hours=28):
-            logger.debug("DEBUG: Data already at daily timestep")
+            logger.debug("Data already at daily timestep")
             return data
         
         # Perform resampling
         if target_timestep == 'hourly':
             if time_diff < pd.Timedelta(hours=1):
                 # Upsampling: sub-hourly to hourly (mean aggregation)
-                logger.info(f"DEBUG: Aggregating {time_diff} data to hourly using mean")
+                logger.debug(f"Aggregating {time_diff} data to hourly using mean")
                 resampled = data.resample('H').mean()
             elif time_diff > pd.Timedelta(hours=1):
                 # Downsampling: daily/coarser to hourly (interpolation)
-                logger.info(f"DEBUG: Interpolating {time_diff} data to hourly")
+                logger.debug(f"Interpolating {time_diff} data to hourly")
                 resampled = data.resample('H').asfreq()
                 resampled = resampled.interpolate(method='time', limit_direction='both')
             else:
@@ -75,11 +75,11 @@ def resample_to_timestep(data: pd.Series, target_timestep: str, logger) -> pd.Se
         elif target_timestep == 'daily':
             if time_diff < pd.Timedelta(days=1):
                 # Upsampling: hourly/sub-daily to daily (mean aggregation)
-                logger.info(f"DEBUG: Aggregating {time_diff} data to daily using mean")
+                logger.debug(f"Aggregating {time_diff} data to daily using mean")
                 resampled = data.resample('D').mean()
             elif time_diff > pd.Timedelta(days=1):
                 # Downsampling: weekly/monthly to daily (interpolation)
-                logger.info(f"DEBUG: Interpolating {time_diff} data to daily")
+                logger.debug(f"Interpolating {time_diff} data to daily")
                 resampled = data.resample('D').asfreq()
                 resampled = resampled.interpolate(method='time', limit_direction='both')
             else:
@@ -90,13 +90,13 @@ def resample_to_timestep(data: pd.Series, target_timestep: str, logger) -> pd.Se
         # Remove any NaN values introduced by resampling at edges
         resampled = resampled.dropna()
         
-        logger.info(f"DEBUG: Resampled from {len(data)} to {len(resampled)} points (target: {target_timestep})")
+        logger.debug(f"Resampled from {len(data)} to {len(resampled)} points (target: {target_timestep})")
         
         return resampled
         
     except Exception as e:
-        logger.error(f"DEBUG: Error resampling to {target_timestep}: {str(e)}")
-        logger.warning("DEBUG: Returning original data without resampling")
+        logger.debug(f"Error resampling to {target_timestep}: {str(e)}")
+        logger.debug("Returning original data without resampling")
         return data
 
 
@@ -1034,11 +1034,11 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
         import pandas as pd
         import numpy as np
         
-        logger.info("DEBUG: Starting inline metrics calculation")
-        logger.info(f"DEBUG: SUMMA dir: {summa_dir}")
-        logger.info(f"DEBUG: mizuRoute dir: {mizuroute_dir}")
-        logger.info(f"DEBUG: SUMMA dir exists: {summa_dir.exists()}")
-        logger.info(f"DEBUG: mizuRoute dir exists: {mizuroute_dir.exists() if mizuroute_dir else 'None'}")
+        logger.debug("Starting inline metrics calculation")
+        logger.debug(f"SUMMA dir: {summa_dir}")
+        logger.debug(f"mizuRoute dir: {mizuroute_dir}")
+        logger.debug(f"SUMMA dir exists: {summa_dir.exists()}")
+        logger.debug(f"mizuRoute dir exists: {mizuroute_dir.exists() if mizuroute_dir else 'None'}")
         
         # Priority 1: Look for mizuRoute output files first (already in m³/s)
         sim_files = []
@@ -1047,58 +1047,58 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
         
         if mizuroute_dir and mizuroute_dir.exists():
             mizu_files = list(mizuroute_dir.glob("*.nc"))
-            logger.info(f"DEBUG: Found {len(mizu_files)} mizuRoute .nc files")
+            logger.debug(f"Found {len(mizu_files)} mizuRoute .nc files")
             for f in mizu_files[:3]:  # Show first 3
-                logger.info(f"DEBUG: mizuRoute file: {f.name}")
+                logger.debug(f"mizuRoute file: {f.name}")
             
             if mizu_files:
                 sim_files = mizu_files
                 use_mizuroute = True
-                logger.info("DEBUG: Using mizuRoute files (already in m³/s)")
+                logger.debug("Using mizuRoute files (already in m³/s)")
         
         # Priority 2: If no mizuRoute files, look for SUMMA files (need m/s to m³/s conversion)
         if not sim_files:
             summa_files = list(summa_dir.glob("*timestep.nc"))
-            logger.info(f"DEBUG: Found {len(summa_files)} SUMMA timestep files")
+            logger.debug(f"Found {len(summa_files)} SUMMA timestep files")
             for f in summa_files[:3]:  # Show first 3
-                logger.info(f"DEBUG: SUMMA file: {f.name}")
+                logger.debug(f"SUMMA file: {f.name}")
             
             if summa_files:
                 sim_files = summa_files
                 use_mizuroute = False
-                logger.info("DEBUG: Using SUMMA files (need m/s to m³/s conversion)")
+                logger.debug("Using SUMMA files (need m/s to m³/s conversion)")
                 
                 # Get the ACTUAL catchment area for unit conversion
                 try:
                     catchment_area = _get_catchment_area_worker(config, logger)
-                    logger.info(f"DEBUG: Catchment area for conversion: {catchment_area:.0f} m²")
+                    logger.debug(f"Catchment area for conversion: {catchment_area:.0f} m²")
                 except Exception as e:
-                    logger.error(f"DEBUG: Error getting catchment area: {str(e)}")
+                    logger.debug(f"Error getting catchment area: {str(e)}")
                     catchment_area = 1e6  # Default fallback
-                    logger.info(f"DEBUG: Using fallback catchment area: {catchment_area:.0f} m²")
+                    logger.debug(f"Using fallback catchment area: {catchment_area:.0f} m²")
         
         # Check if we found any simulation files
         if not sim_files:
-            logger.error("DEBUG: No simulation files found")
-            logger.error(f"DEBUG: SUMMA dir contents: {list(summa_dir.glob('*')) if summa_dir.exists() else 'DIR_NOT_EXISTS'}")
+            logger.debug("No simulation files found")
+            logger.debug(f"SUMMA dir contents: {list(summa_dir.glob('*')) if summa_dir.exists() else 'DIR_NOT_EXISTS'}")
             if mizuroute_dir and mizuroute_dir.exists():
-                logger.error(f"DEBUG: mizuRoute dir contents: {list(mizuroute_dir.glob('*'))}")
+                logger.debug(f"mizuRoute dir contents: {list(mizuroute_dir.glob('*'))}")
             return None
         
         sim_file = sim_files[0]
-        logger.info(f"DEBUG: Using simulation file: {sim_file}")
+        logger.debug(f"Using simulation file: {sim_file}")
         
         # Extract simulated streamflow
-        logger.info(f"DEBUG: Extracting simulated streamflow (use_mizuroute={use_mizuroute})...")
+        logger.debug(f"Extracting simulated streamflow (use_mizuroute={use_mizuroute})...")
         
         try:
             with xr.open_dataset(sim_file) as ds:
-                logger.info(f"DEBUG: Dataset variables: {list(ds.variables.keys())}")
-                logger.info(f"DEBUG: Dataset dimensions: {dict(ds.sizes)}")
+                logger.debug(f"Dataset variables: {list(ds.variables.keys())}")
+                logger.debug(f"Dataset dimensions: {dict(ds.sizes)}")
                 
                 if use_mizuroute:
                     # mizuRoute output - select segment with highest average runoff (outlet)
-                    logger.info("DEBUG: Selecting segment with highest average runoff (outlet)")
+                    logger.debug("Selecting segment with highest average runoff (outlet)")
                     
                     # Find routing variable to use for selection
                     routing_vars = ['IRFroutedRunoff', 'KWTroutedRunoff', 'averageRoutedRunoff']
@@ -1107,17 +1107,17 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                     for var_name in routing_vars:
                         if var_name in ds.variables:
                             routing_var = var_name
-                            logger.info(f"DEBUG: Found routing variable: {routing_var}")
+                            logger.debug(f"Found routing variable: {routing_var}")
                             break
                     
                     if routing_var is None:
-                        logger.error("DEBUG: No routing variable found in mizuRoute output")
-                        logger.error(f"DEBUG: Available variables: {list(ds.variables.keys())}")
+                        logger.debug("No routing variable found in mizuRoute output")
+                        logger.debug(f"Available variables: {list(ds.variables.keys())}")
                         return None
                     
                     var = ds[routing_var]
-                    logger.info(f"DEBUG: Variable dimensions: {var.dims}")
-                    logger.info(f"DEBUG: Variable shape: {var.shape}")
+                    logger.debug(f"Variable dimensions: {var.dims}")
+                    logger.debug(f"Variable shape: {var.shape}")
                     
                     try:
                         # Calculate average runoff for each segment to find outlet
@@ -1125,7 +1125,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                             # Calculate mean runoff across time for each segment
                             segment_means = var.mean(dim='time').values
                             outlet_seg_idx = np.argmax(segment_means)
-                            logger.info(f"DEBUG: Found outlet at segment index {outlet_seg_idx} with mean runoff {segment_means[outlet_seg_idx]:.3f} m³/s")
+                            logger.debug(f"Found outlet at segment index {outlet_seg_idx} with mean runoff {segment_means[outlet_seg_idx]:.3f} m³/s")
                             
                             # Extract time series for outlet segment
                             sim_data = var.isel(seg=outlet_seg_idx).to_pandas()
@@ -1134,20 +1134,20 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                             # Calculate mean runoff across time for each reach
                             reach_means = var.mean(dim='time').values
                             outlet_reach_idx = np.argmax(reach_means)
-                            logger.info(f"DEBUG: Found outlet at reach index {outlet_reach_idx} with mean runoff {reach_means[outlet_reach_idx]:.3f} m³/s")
+                            logger.debug(f"Found outlet at reach index {outlet_reach_idx} with mean runoff {reach_means[outlet_reach_idx]:.3f} m³/s")
                             
                             # Extract time series for outlet reach
                             sim_data = var.isel(reachID=outlet_reach_idx).to_pandas()
                             
                         else:
-                            logger.error(f"DEBUG: Unexpected dimensions for {routing_var}: {var.dims}")
+                            logger.debug(f"Unexpected dimensions for {routing_var}: {var.dims}")
                             return None
                         
-                        logger.info(f"DEBUG: Extracted {routing_var} from outlet segment with {len(sim_data)} timesteps (mizuRoute - no unit conversion)")
-                        logger.info(f"DEBUG: Sim data range: {sim_data.min():.3f} to {sim_data.max():.3f} m³/s")
+                        logger.debug(f"Extracted {routing_var} from outlet segment with {len(sim_data)} timesteps (mizuRoute - no unit conversion)")
+                        logger.debug(f"Sim data range: {sim_data.min():.3f} to {sim_data.max():.3f} m³/s")
                         
                     except Exception as e:
-                        logger.error(f"DEBUG: Error extracting outlet segment from {routing_var}: {str(e)}")
+                        logger.debug(f"Error extracting outlet segment from {routing_var}: {str(e)}")
                         return None
                         
                 else:
@@ -1157,10 +1157,10 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                     
                     for var_name in summa_vars:
                         if var_name in ds.variables:
-                            logger.info(f"DEBUG: Found SUMMA variable: {var_name}")
+                            logger.debug(f"Found SUMMA variable: {var_name}")
                             var = ds[var_name]
-                            logger.info(f"DEBUG: Variable dimensions: {var.dims}")
-                            logger.info(f"DEBUG: Variable shape: {var.shape}")
+                            logger.debug(f"Variable dimensions: {var.dims}")
+                            logger.debug(f"Variable shape: {var.shape}")
                             
                             try:
                                 if len(var.shape) > 1:
@@ -1179,56 +1179,56 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                                     sim_data = var.to_pandas()
                                 
                                 # Convert units for SUMMA (m/s to m³/s) using ACTUAL catchment area
-                                logger.info(f"DEBUG: Converting SUMMA units: {var_name} * {catchment_area:.0f} m²")
-                                logger.info(f"DEBUG: Pre-scaling range: {sim_data.min():.6f} to {sim_data.max():.6f} m/s")
+                                logger.debug(f"Converting SUMMA units: {var_name} * {catchment_area:.0f} m²")
+                                logger.debug(f"Pre-scaling range: {sim_data.min():.6f} to {sim_data.max():.6f} m/s")
                                 sim_data = sim_data * catchment_area
-                                logger.info(f"DEBUG: Post-scaling range: {sim_data.min():.3f} to {sim_data.max():.3f} m³/s")
+                                logger.debug(f"Post-scaling range: {sim_data.min():.3f} to {sim_data.max():.3f} m³/s")
                                 
-                                logger.info(f"DEBUG: Extracted {var_name} with {len(sim_data)} timesteps, applied area scaling")
+                                logger.debug(f"Extracted {var_name} with {len(sim_data)} timesteps, applied area scaling")
                                 break
                             except Exception as e:
-                                logger.error(f"DEBUG: Error extracting {var_name}: {str(e)}")
+                                logger.debug(f"Error extracting {var_name}: {str(e)}")
                                 continue
                     
                     if sim_data is None:
-                        logger.error(f"DEBUG: No SUMMA variable found or extracted successfully")
+                        logger.debug(f"No SUMMA variable found or extracted successfully")
                         return None
         
         except Exception as e:
-            logger.error(f"DEBUG: Error reading simulation file {sim_file}: {str(e)}")
+            logger.debug(f"Error reading simulation file {sim_file}: {str(e)}")
             return None
         
         # Load observed data
-        logger.info("DEBUG: Loading observed data...")
+        logger.debug("Loading observed data...")
         
         try:
             domain_name = config.get('DOMAIN_NAME')
             project_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{domain_name}"
             obs_path = project_dir / "observations" / "streamflow" / "preprocessed" / f"{domain_name}_streamflow_processed.csv"
             
-            logger.info(f"DEBUG: Domain name: {domain_name}")
-            logger.info(f"DEBUG: Project dir: {project_dir}")
-            logger.info(f"DEBUG: Observed data path: {obs_path}")
-            logger.info(f"DEBUG: Project dir exists: {project_dir.exists()}")
-            logger.info(f"DEBUG: Observed data exists: {obs_path.exists()}")
+            logger.debug(f"Domain name: {domain_name}")
+            logger.debug(f"Project dir: {project_dir}")
+            logger.debug(f"Observed data path: {obs_path}")
+            logger.debug(f"Project dir exists: {project_dir.exists()}")
+            logger.debug(f"Observed data exists: {obs_path.exists()}")
             
             if not obs_path.exists():
-                logger.error(f"DEBUG: Observed data not found: {obs_path}")
+                logger.debug(f"Observed data not found: {obs_path}")
                 if project_dir.exists():
-                    logger.error(f"DEBUG: Project dir contents: {list(project_dir.glob('*'))}")
+                    logger.debug(f"Project dir contents: {list(project_dir.glob('*'))}")
                     obs_dir = project_dir / "observations"
                     if obs_dir.exists():
-                        logger.error(f"DEBUG: Observations dir contents: {list(obs_dir.glob('*'))}")
+                        logger.debug(f"Observations dir contents: {list(obs_dir.glob('*'))}")
                         streamflow_dir = obs_dir / "streamflow"
                         if streamflow_dir.exists():
-                            logger.error(f"DEBUG: Streamflow dir contents: {list(streamflow_dir.glob('*'))}")
+                            logger.debug(f"Streamflow dir contents: {list(streamflow_dir.glob('*'))}")
                             preproc_dir = streamflow_dir / "preprocessed"
                             if preproc_dir.exists():
-                                logger.error(f"DEBUG: Preprocessed dir contents: {list(preproc_dir.glob('*'))}")
+                                logger.debug(f"Preprocessed dir contents: {list(preproc_dir.glob('*'))}")
                 return None
             
             obs_df = pd.read_csv(obs_path)
-            logger.info(f"DEBUG: Loaded observed data with {len(obs_df)} rows and columns: {list(obs_df.columns)}")
+            logger.debug(f"Loaded observed data with {len(obs_df)} rows and columns: {list(obs_df.columns)}")
             
             # Find date and flow columns
             date_col = None
@@ -1243,34 +1243,34 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                     flow_col = col
                     break
             
-            logger.info(f"DEBUG: Date column: {date_col}")
-            logger.info(f"DEBUG: Flow column: {flow_col}")
+            logger.debug(f"Date column: {date_col}")
+            logger.debug(f"Flow column: {flow_col}")
             
             if not date_col or not flow_col:
-                logger.error(f"DEBUG: Could not identify date/flow columns. Date: {date_col}, Flow: {flow_col}")
+                logger.debug(f"Could not identify date/flow columns. Date: {date_col}, Flow: {flow_col}")
                 return None
             
             obs_df['DateTime'] = pd.to_datetime(obs_df[date_col])
             obs_df.set_index('DateTime', inplace=True)
             obs_data = obs_df[flow_col]
             
-            logger.info(f"DEBUG: Observed data period: {obs_data.index.min()} to {obs_data.index.max()}")
-            logger.info(f"DEBUG: Observed data range: {obs_data.min():.3f} to {obs_data.max():.3f}")
+            logger.debug(f"Observed data period: {obs_data.index.min()} to {obs_data.index.max()}")
+            logger.debug(f"Observed data range: {obs_data.min():.3f} to {obs_data.max():.3f}")
             
         except Exception as e:
-            logger.error(f"DEBUG: Error loading observed data: {str(e)}")
+            logger.debug(f"Error loading observed data: {str(e)}")
             import traceback
-            logger.error(f"DEBUG: Traceback: {traceback.format_exc()}")
+            logger.debug(f"Traceback: {traceback.format_exc()}")
             return None
         
-        logger.info(f"DEBUG: Simulated data period: {sim_data.index.min()} to {sim_data.index.max()}")
-        logger.info(f"DEBUG: Simulated data range: {sim_data.min():.3f} to {sim_data.max():.3f}")
-        logger.info(f"DEBUG: Simulated data frequency: {sim_data.index.freq}")
-        logger.info(f"DEBUG: Simulated data timezone: {sim_data.index.tz}")
-        logger.info(f"DEBUG: First 5 sim timestamps: {sim_data.index[:5].tolist()}")
+        logger.debug(f"Simulated data period: {sim_data.index.min()} to {sim_data.index.max()}")
+        logger.debug(f"Simulated data range: {sim_data.min():.3f} to {sim_data.max():.3f}")
+        logger.debug(f"Simulated data frequency: {sim_data.index.freq}")
+        logger.debug(f"Simulated data timezone: {sim_data.index.tz}")
+        logger.debug(f"First 5 sim timestamps: {sim_data.index[:5].tolist()}")
         
         # Filter to calibration period
-        logger.info("DEBUG: Filtering to calibration period...")
+        logger.debug("Filtering to calibration period...")
         
         cal_period = config.get('CALIBRATION_PERIOD', '')
         if cal_period:
@@ -1280,40 +1280,40 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                     start_date = pd.Timestamp(dates[0])
                     end_date = pd.Timestamp(dates[1])
                     
-                    logger.info(f"DEBUG: Filtering to calibration period: {start_date} to {end_date}")
+                    logger.debug(f"Filtering to calibration period: {start_date} to {end_date}")
                     
                     obs_mask = (obs_data.index >= start_date) & (obs_data.index <= end_date)
                     obs_period = obs_data[obs_mask]
                     
                     # ENHANCED: Check simulation time format before rounding
-                    logger.info(f"DEBUG: Sim data before rounding - first 5: {sim_data.index[:5].tolist()}")
-                    logger.info(f"DEBUG: Sim data sample times: {sim_data.index[::100][:5].tolist()}")  # Every 100th
+                    logger.debug(f"Sim data before rounding - first 5: {sim_data.index[:5].tolist()}")
+                    logger.debug(f"Sim data sample times: {sim_data.index[::100][:5].tolist()}")  # Every 100th
                     
                     # More careful time rounding - check if we need it
                     sim_time_diff = sim_data.index[1] - sim_data.index[0] if len(sim_data) > 1 else pd.Timedelta(hours=1)
-                    logger.info(f"DEBUG: Simulation time step: {sim_time_diff}")
+                    logger.debug(f"Simulation time step: {sim_time_diff}")
                     
                     # Only round if time step is roughly hourly
                     if pd.Timedelta(minutes=45) <= sim_time_diff <= pd.Timedelta(minutes=75):
                         sim_data.index = sim_data.index.round('h')
-                        logger.info("DEBUG: Rounded simulation times to nearest hour")
+                        logger.debug("Rounded simulation times to nearest hour")
                     else:
-                        logger.info(f"DEBUG: Not rounding - time step is {sim_time_diff}")
+                        logger.debug(f"Not rounding - time step is {sim_time_diff}")
                     
                     sim_mask = (sim_data.index >= start_date) & (sim_data.index <= end_date)
                     sim_period = sim_data[sim_mask]
                     
-                    logger.info(f"DEBUG: Filtered obs points: {len(obs_period)}")
-                    logger.info(f"DEBUG: Filtered sim points: {len(sim_period)}")
+                    logger.debug(f"Filtered obs points: {len(obs_period)}")
+                    logger.debug(f"Filtered sim points: {len(sim_period)}")
                     
                     # ENHANCED: Check time alignment before intersection
-                    logger.info(f"DEBUG: Obs period: {obs_period.index.min()} to {obs_period.index.max()}")
-                    logger.info(f"DEBUG: Sim period: {sim_period.index.min()} to {sim_period.index.max()}")
-                    logger.info(f"DEBUG: Obs timezone: {obs_period.index.tz}")
-                    logger.info(f"DEBUG: Sim timezone: {sim_period.index.tz}")
+                    logger.debug(f"Obs period: {obs_period.index.min()} to {obs_period.index.max()}")
+                    logger.debug(f"Sim period: {sim_period.index.min()} to {sim_period.index.max()}")
+                    logger.debug(f"Obs timezone: {obs_period.index.tz}")
+                    logger.debug(f"Sim timezone: {sim_period.index.tz}")
                     
                 else:
-                    logger.warning("DEBUG: Invalid calibration period format, using full data")
+                    logger.debug("Invalid calibration period format, using full data")
                     obs_period = obs_data
                     sim_period = sim_data
                     
@@ -1323,7 +1323,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                         sim_period.index = sim_period.index.round('h')
                         
             except Exception as e:
-                logger.error(f"DEBUG: Error parsing calibration period: {str(e)}")
+                logger.debug(f"Error parsing calibration period: {str(e)}")
                 obs_period = obs_data
                 sim_period = sim_data
                 
@@ -1332,7 +1332,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                 if pd.Timedelta(minutes=45) <= sim_time_diff <= pd.Timedelta(minutes=75):
                     sim_period.index = sim_period.index.round('h')
         else:
-            logger.info("DEBUG: No calibration period specified, using full data")
+            logger.debug("No calibration period specified, using full data")
             obs_period = obs_data
             sim_period = sim_data
             
@@ -1344,42 +1344,42 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
         
         # Check for timezone mismatches and try to fix
         if obs_period.index.tz is not None and sim_period.index.tz is None:
-            logger.info("DEBUG: Converting sim times to observed timezone")
+            logger.debug("Converting sim times to observed timezone")
             sim_period.index = sim_period.index.tz_localize(obs_period.index.tz)
         elif obs_period.index.tz is None and sim_period.index.tz is not None:
-            logger.info("DEBUG: Converting obs times to simulation timezone")
+            logger.debug("Converting obs times to simulation timezone")
             obs_period.index = obs_period.index.tz_localize(sim_period.index.tz)
         elif obs_period.index.tz != sim_period.index.tz:
-            logger.info(f"DEBUG: Converting timezones - obs: {obs_period.index.tz}, sim: {sim_period.index.tz}")
+            logger.debug(f"Converting timezones - obs: {obs_period.index.tz}, sim: {sim_period.index.tz}")
             sim_period.index = sim_period.index.tz_convert(obs_period.index.tz)
         
         # Sample timestamps for alignment checking
-        logger.info(f"DEBUG: Obs sample times: {obs_period.index[::max(1,len(obs_period)//5)][:5].tolist()}")
-        logger.info(f"DEBUG: Sim sample times: {sim_period.index[::max(1,len(sim_period)//5)][:5].tolist()}")
+        logger.debug(f"Obs sample times: {obs_period.index[::max(1,len(obs_period)//5)][:5].tolist()}")
+        logger.debug(f"Sim sample times: {sim_period.index[::max(1,len(sim_period)//5)][:5].tolist()}")
         
         calibration_timestep = config.get('CALIBRATION_TIMESTEP', 'native').lower()
         
 
         # Apply timestep resampling if specified in config
         if calibration_timestep != 'native':
-            logger.info(f"DEBUG: Resampling to {calibration_timestep} timestep for calibration")
+            logger.debug(f"Resampling to {calibration_timestep} timestep for calibration")
             obs_period = resample_to_timestep(obs_period, calibration_timestep, logger)
             sim_period = resample_to_timestep(sim_period, calibration_timestep, logger)
             
-            logger.info(f"DEBUG: After resampling - obs points: {len(obs_period)}, sim points: {len(sim_period)}")
+            logger.debug(f"After resampling - obs points: {len(obs_period)}, sim points: {len(sim_period)}")
             
             # Log sample of resampled times
             if len(obs_period) > 0:
-                logger.info(f"DEBUG: Resampled obs sample times: {obs_period.index[::max(1,len(obs_period)//5)][:5].tolist()}")
+                logger.debug(f"Resampled obs sample times: {obs_period.index[::max(1,len(obs_period)//5)][:5].tolist()}")
             if len(sim_period) > 0:
-                logger.info(f"DEBUG: Resampled sim sample times: {sim_period.index[::max(1,len(sim_period)//5)][:5].tolist()}")
+                logger.debug(f"Resampled sim sample times: {sim_period.index[::max(1,len(sim_period)//5)][:5].tolist()}")
 
         # Find intersection
         common_idx = obs_period.index.intersection(sim_period.index)
-        logger.info(f"DEBUG: Common time indices: {len(common_idx)}")
+        logger.debug(f"Common time indices: {len(common_idx)}")
         
         if len(common_idx) == 0:
-            logger.error("DEBUG: No common time indices - checking for near matches")
+            logger.debug("No common time indices - checking for near matches")
             
             # Try to find near matches (within 1 hour)
             obs_times = obs_period.index
@@ -1392,14 +1392,14 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                     closest_sim = sim_times[np.argmin(np.abs(sim_times - obs_time))]
                     diff = abs(closest_sim - obs_time)
                     time_diffs.append(diff)
-                    logger.error(f"DEBUG: Obs {obs_time} closest to Sim {closest_sim} (diff: {diff})")
+                    logger.debug(f"Obs {obs_time} closest to Sim {closest_sim} (diff: {diff})")
                 
                 min_diff = min(time_diffs) if time_diffs else pd.Timedelta(days=1)
-                logger.error(f"DEBUG: Minimum time difference: {min_diff}")
+                logger.debug(f"Minimum time difference: {min_diff}")
                 
                 # If differences are small, try approximate matching
                 if min_diff <= pd.Timedelta(hours=1):
-                    logger.info("DEBUG: Attempting approximate time matching (±30 min)")
+                    logger.debug("Attempting approximate time matching (±30 min)")
                     
                     # Create aligned series by finding nearest neighbors
                     aligned_obs = []
@@ -1420,46 +1420,46 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                     if len(aligned_obs) > 0:
                         obs_common = pd.Series(aligned_obs, index=aligned_times)
                         sim_common = pd.Series(aligned_sim, index=aligned_times)
-                        logger.info(f"DEBUG: Approximate matching found {len(aligned_obs)} pairs")
+                        logger.debug(f"Approximate matching found {len(aligned_obs)} pairs")
                     else:
-                        logger.error("DEBUG: No approximate matches found")
+                        logger.debug("No approximate matches found")
                         return None
                 else:
-                    logger.error("DEBUG: Time differences too large for alignment")
+                    logger.debug("Time differences too large for alignment")
                     return None
             else:
-                logger.error("DEBUG: Empty time series")
+                logger.debug("Empty time series")
                 return None
         else:
             # Normal intersection worked
             obs_common = pd.to_numeric(obs_period.loc[common_idx], errors='coerce')
             sim_common = pd.to_numeric(sim_period.loc[common_idx], errors='coerce')
-            logger.info(f"DEBUG: Successfully aligned {len(common_idx)} time points")
+            logger.debug(f"Successfully aligned {len(common_idx)} time points")
         
         # Remove invalid data
-        logger.info("DEBUG: Cleaning data...")
+        logger.debug("Cleaning data...")
         
-        logger.info(f"DEBUG: Before cleaning - obs: {len(obs_common)}, sim: {len(sim_common)}")
-        logger.info(f"DEBUG: Obs NaN count: {obs_common.isna().sum()}")
-        logger.info(f"DEBUG: Sim NaN count: {sim_common.isna().sum()}")
-        logger.info(f"DEBUG: Obs <= 0 count: {(obs_common <= 0).sum()}")
-        logger.info(f"DEBUG: Sim <= 0 count: {(sim_common <= 0).sum()}")
+        logger.debug(f"Before cleaning - obs: {len(obs_common)}, sim: {len(sim_common)}")
+        logger.debug(f"Obs NaN count: {obs_common.isna().sum()}")
+        logger.debug(f"Sim NaN count: {sim_common.isna().sum()}")
+        logger.debug(f"Obs <= 0 count: {(obs_common <= 0).sum()}")
+        logger.debug(f"Sim <= 0 count: {(sim_common <= 0).sum()}")
         
         valid = ~(obs_common.isna() | sim_common.isna() | (obs_common <= 0) | (sim_common <= 0))
         obs_valid = obs_common[valid]
         sim_valid = sim_common[valid]
         
-        logger.info(f"DEBUG: Valid data points after cleaning: {len(obs_valid)}")
+        logger.debug(f"Valid data points after cleaning: {len(obs_valid)}")
         
         if len(obs_valid) < 10:
-            logger.error(f"DEBUG: Insufficient valid data points: {len(obs_valid)}")
+            logger.debug(f"Insufficient valid data points: {len(obs_valid)}")
             return None
         
-        logger.info(f"DEBUG: Final obs range: {obs_valid.min():.3f} to {obs_valid.max():.3f}")
-        logger.info(f"DEBUG: Final sim range: {sim_valid.min():.3f} to {sim_valid.max():.3f}")
+        logger.debug(f"Final obs range: {obs_valid.min():.3f} to {obs_valid.max():.3f}")
+        logger.debug(f"Final sim range: {sim_valid.min():.3f} to {sim_valid.max():.3f}")
         
         # Calculate metrics
-        logger.info("DEBUG: Calculating metrics...")
+        logger.debug("Calculating metrics...")
         
         try:
             # Calculate NSE
@@ -1479,8 +1479,8 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
             mae = (obs_valid - sim_valid).abs().mean()
             pbias = 100 * (sim_valid.sum() - obs_valid.sum()) / obs_valid.sum() if obs_valid.sum() != 0 else np.nan
             
-            logger.info(f"DEBUG: Calculated metrics - NSE: {nse:.6f}, KGE: {kge:.6f}, RMSE: {rmse:.6f}")
-            logger.info(f"DEBUG: Additional metrics - r: {r:.6f}, alpha: {alpha:.6f}, beta: {beta:.6f}")
+            logger.debug(f"Calculated metrics - NSE: {nse:.6f}, KGE: {kge:.6f}, RMSE: {rmse:.6f}")
+            logger.debug(f"Additional metrics - r: {r:.6f}, alpha: {alpha:.6f}, beta: {beta:.6f}")
             
             result = {
                 'Calib_NSE': nse,
@@ -1498,25 +1498,25 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                 'PBIAS': pbias
             }
             
-            logger.info("DEBUG: Metrics calculation completed successfully")
+            logger.debug("Metrics calculation completed successfully")
             return result
             
         except Exception as e:
-            logger.error(f"DEBUG: Error in metrics calculation: {str(e)}")
+            logger.debug(f"Error in metrics calculation: {str(e)}")
             import traceback
-            logger.error(f"DEBUG: Metrics traceback: {traceback.format_exc()}")
+            logger.debug(f"Metrics traceback: {traceback.format_exc()}")
             return None
         
     except ImportError as e:
-        logger.error(f"DEBUG: Import error: {str(e)}")
+        logger.debug(f"Import error: {str(e)}")
         return None
     except FileNotFoundError as e:
-        logger.error(f"DEBUG: File not found error: {str(e)}")
+        logger.debug(f"File not found error: {str(e)}")
         return None
     except Exception as e:
-        logger.error(f"DEBUG: Error in inline metrics calculation: {str(e)}")
+        logger.debug(f"Error in inline metrics calculation: {str(e)}")
         import traceback
-        logger.error(f"DEBUG: Full traceback: {traceback.format_exc()}")
+        logger.debug(f"Full traceback: {traceback.format_exc()}")
         return None
 
 def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir: str, 

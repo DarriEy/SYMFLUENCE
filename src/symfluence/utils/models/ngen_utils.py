@@ -24,12 +24,13 @@ from typing import Dict, Any, Optional, List, Tuple
 from shutil import copyfile
 import netCDF4 as nc4
 from .registry import ModelRegistry
+from .base import BaseModelPreProcessor
 
 @ModelRegistry.register_preprocessor('NGEN')
-class NgenPreProcessor:
+class NgenPreProcessor(BaseModelPreProcessor):
     """
     Preprocessor for NextGen Framework.
-    
+
     Handles conversion of SYMFLUENCE data to ngen-compatible formats including:
     - Catchment geometry (geopackage)
     - Nexus points (GeoJSON)
@@ -37,68 +38,44 @@ class NgenPreProcessor:
     - Model configurations (CFE, PET, NOAH-OWP)
     - Realization configuration (JSON)
     """
-    
+
+    def _get_model_name(self) -> str:
+        """Return model name for directory structure."""
+        return "NGEN"
+
     def __init__(self, config: Dict[str, Any], logger: Any):
         """
         Initialize the NextGen preprocessor.
-        
+
         Args:
             config: Configuration dictionary
             logger: Logger object
         """
-        self.config = config
-        self.logger = logger
-        
-        # Directories
-        self.project_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{config.get('DOMAIN_NAME')}"
-        self.ngen_setup_dir = self.project_dir / "settings" / "ngen"
-        self.forcing_dir = self.project_dir / "forcing" / "NGEN_input"
-        
-        # Shapefiles
-        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = config.get('CATCHMENT_SHP_NAME', 'default')
-        if self.catchment_name == 'default':
-            self.catchment_name = f"{config.get('DOMAIN_NAME')}_HRUs_{config.get('DOMAIN_DISCRETIZATION', 'GRUs')}.shp"
-        
-        self.river_network_path = self._get_default_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network')
-        self.river_network_name = config.get('RIVER_NETWORK_SHP_NAME', 'default')
-        if self.river_network_name == 'default':
-            self.river_network_name = f"{config.get('DOMAIN_NAME')}_riverNetwork_delineate.shp"
-        
-        # Forcing
-        self.basin_forcing_dir = self.project_dir / "forcing" / "basin_averaged_data"
-        
-        # IDs
+        # Initialize base class (handles standard paths and directories)
+        super().__init__(config, logger)
+
+        # NGen-specific configuration
         self.hru_id_col = config.get('CATCHMENT_SHP_HRUID', 'HRU_ID')
-        self.domain_name = config.get('DOMAIN_NAME')
-        
-    def _get_default_path(self, key: str, default_subpath: str) -> Path:
-        """Get path from config or use default."""
-        path_value = self.config.get(key, 'default')
-        if path_value == 'default' or path_value is None:
-            return self.project_dir / default_subpath
-        return Path(path_value)
     
     def _copy_noah_parameter_tables(self):
         """
         Copy Noah-OWP parameter tables from base settings to domain settings.
-        
+
         Copies GENPARM.TBL, MPTABLE.TBL, and SOILPARM.TBL from:
             SYMFLUENCE_CODE_DIR/0_base_settings/NOAH/parameters/
         To:
             domain_dir/settings/ngen/NOAH/parameters/
         """
         self.logger.info("Copying Noah-OWP parameter tables")
-        
+
         # Get path to SYMFLUENCE code directory (parent of SYMFLUENCE_DATA_DIR)
-        symfluence_data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        symfluence_code_dir = symfluence_data_dir.parent / 'SYMFLUENCE'
-        
+        symfluence_code_dir = self.data_dir.parent / 'SYMFLUENCE'
+
         # Source directory for Noah parameter tables
         source_param_dir = symfluence_code_dir / '0_base_settings' / 'NOAH' / 'parameters'
-        
+
         # Destination directory
-        dest_param_dir = self.ngen_setup_dir / 'NOAH' / 'parameters'
+        dest_param_dir = self.setup_dir / 'NOAH' / 'parameters'
         
         # Parameter table files to copy
         param_files = ['GENPARM.TBL', 'MPTABLE.TBL', 'SOILPARM.TBL']
@@ -117,7 +94,7 @@ class NgenPreProcessor:
     def run_preprocessing(self):
         """
         Execute complete ngen preprocessing workflow.
-        
+
         Steps:
         1. Create ngen directory structure
         2. Copy Noah-OWP parameter tables from base settings
@@ -128,14 +105,15 @@ class NgenPreProcessor:
         7. Generate realization config JSON
         """
         self.logger.info("Starting NextGen preprocessing")
-        
+
         # Create directory structure
-        self.ngen_setup_dir.mkdir(parents=True, exist_ok=True)
-        self.forcing_dir.mkdir(parents=True, exist_ok=True)
-        (self.ngen_setup_dir / "CFE").mkdir(exist_ok=True)
-        (self.ngen_setup_dir / "PET").mkdir(exist_ok=True)
-        (self.ngen_setup_dir / "NOAH").mkdir(exist_ok=True)
-        (self.ngen_setup_dir / "NOAH" / "parameters").mkdir(exist_ok=True)
+        additional_dirs = [
+            self.setup_dir / "CFE",
+            self.setup_dir / "PET",
+            self.setup_dir / "NOAH",
+            self.setup_dir / "NOAH" / "parameters"
+        ]
+        self.create_directories(additional_dirs=additional_dirs)
         
         # Copy Noah-OWP parameter tables from base settings
         self._copy_noah_parameter_tables()
@@ -158,17 +136,17 @@ class NgenPreProcessor:
     def create_nexus_geojson(self) -> Path:
         """
         Create nexus GeoJSON from river network topology.
-        
+
         Nexus points represent junctions and outlets in the stream network.
         Each catchment flows to a nexus point.
-        
+
         Returns:
             Path to nexus GeoJSON file
         """
         self.logger.info("Creating nexus GeoJSON")
-        
+
         # Load river network
-        river_network_file = self.river_network_path / self.river_network_name
+        river_network_file = self.get_river_network_path()
         if not river_network_file.exists():
             self.logger.warning(f"River network not found: {river_network_file}")
             # For lumped catchments, create a single outlet nexus
@@ -232,19 +210,19 @@ class NgenPreProcessor:
         }
         
         # Save to file
-        nexus_file = self.ngen_setup_dir / "nexus.geojson"
+        nexus_file = self.setup_dir / "nexus.geojson"
         with open(nexus_file, 'w') as f:
             json.dump(nexus_geojson, f, indent=2)
-        
+
         self.logger.info(f"Created nexus file with {len(nexus_features)} nexus points: {nexus_file}")
         return nexus_file
-    
+
     def _create_simple_nexus(self) -> Path:
         """Create a simple single-nexus for lumped catchments."""
         self.logger.info("Creating simple outlet nexus for lumped catchment")
-        
+
         # Load catchment to get centroid
-        catchment_file = self.catchment_path / self.catchment_name
+        catchment_file = self.get_catchment_path()
         catchment_gdf = gpd.read_file(catchment_file)
         
         # Get catchment centroid in projected CRS, then convert to WGS84
@@ -275,30 +253,30 @@ class NgenPreProcessor:
             }]
         }
         
-        nexus_file = self.ngen_setup_dir / "nexus.geojson"
+        nexus_file = self.setup_dir / "nexus.geojson"
         with open(nexus_file, 'w') as f:
             json.dump(nexus_geojson, f, indent=2)
-        
+
         self.logger.info(f"Created simple nexus file: {nexus_file}")
         return nexus_file
-    
+
     def create_catchment_geopackage(self) -> Path:
         """
         Create ngen-compatible geopackage from SYMFLUENCE catchment shapefile.
-        
+
         The geopackage must contain a 'divides' layer with required attributes:
         - divide_id: Catchment identifier
         - toid: ID of downstream catchment (or nexus)
         - areasqkm: Catchment area
         - geometry: Polygon geometry
-        
+
         Returns:
             Path to catchment geopackage
         """
         self.logger.info("Creating catchment geopackage")
-        
+
         # Load catchment shapefile
-        catchment_file = self.catchment_path / self.catchment_name
+        catchment_file = self.get_catchment_path()
         catchment_gdf = gpd.read_file(catchment_file)
         
         # Create divides layer
@@ -353,40 +331,40 @@ class NgenPreProcessor:
         divides_gdf.index.name = 'id'
         
         # Save as geopackage
-        gpkg_file = self.ngen_setup_dir / f"{self.domain_name}_catchments.gpkg"
+        gpkg_file = self.setup_dir / f"{self.domain_name}_catchments.gpkg"
         divides_gdf.to_file(gpkg_file, layer='divides', driver='GPKG')
-        
+
         self.logger.info(f"Created catchment geopackage with {len(divides_gdf)} catchments: {gpkg_file}")
         return gpkg_file
-    
+
     def prepare_forcing_data(self) -> Path:
         """
         Convert SYMFLUENCE basin-averaged ERA5 forcing to ngen format.
-        
+
         Processes:
         1. Load all monthly forcing files
         2. Merge across time
         3. Map variable names (ERA5 → ngen)
         4. Reorganize dimensions (hru, time) → (catchment-id, time)
         5. Add catchment IDs
-        
+
         Returns:
             Path to ngen forcing NetCDF file
         """
         self.logger.info("Preparing forcing data for ngen")
-        
+
         # Load catchment IDs - must match divide_id format in geopackage (cat-X)
-        catchment_file = self.catchment_path / self.catchment_name
+        catchment_file = self.get_catchment_path()
         catchment_gdf = gpd.read_file(catchment_file)
         catchment_ids = [f"cat-{x}" for x in catchment_gdf[self.hru_id_col].astype(str).tolist()]
         n_catchments = len(catchment_ids)
-        
+
         self.logger.info(f"Processing forcing for {n_catchments} catchments")
-        
+
         # Get forcing files
-        forcing_files = sorted(self.basin_forcing_dir.glob("*.nc"))
+        forcing_files = sorted(self.forcing_basin_path.glob("*.nc"))
         if not forcing_files:
-            raise FileNotFoundError(f"No forcing files found in {self.basin_forcing_dir}")
+            raise FileNotFoundError(f"No forcing files found in {self.forcing_basin_path}")
         
         self.logger.info(f"Found {len(forcing_files)} forcing files")
         
@@ -556,16 +534,16 @@ class NgenPreProcessor:
     def generate_model_configs(self):
         """
         Generate model-specific configuration files for each catchment.
-        
+
         Creates:
         - CFE (Conceptual Functional Equivalent) configs
-        - PET (Potential Evapotranspiration) configs  
+        - PET (Potential Evapotranspiration) configs
         - NOAH-OWP (Noah-Owens-Pries) configs
         """
         self.logger.info("Generating model configuration files")
-        
+
         # Load catchment data for parameters
-        catchment_file = self.catchment_path / self.catchment_name
+        catchment_file = self.get_catchment_path()
         catchment_gdf = gpd.read_file(catchment_file)
         
         # Store the CRS for use in config generation
@@ -613,7 +591,7 @@ DEBUG=0
 giuh_ordinates=0.65,0.35
 """
         
-        config_file = self.ngen_setup_dir / "CFE" / f"cat-{catchment_id}_bmi_config_cfe_pass.txt"
+        config_file = self.setup_dir / "CFE" / f"cat-{catchment_id}_bmi_config_cfe_pass.txt"
         with open(config_file, 'w') as f:
             f.write(config_text)
     
@@ -645,7 +623,7 @@ time_step_size_s=3600
 num_timesteps=1
 """
         
-        config_file = self.ngen_setup_dir / "PET" / f"cat-{catchment_id}_pet_config.txt"
+        config_file = self.setup_dir / "PET" / f"cat-{catchment_id}_pet_config.txt"
         with open(config_file, 'w') as f:
             f.write(config_text)
     
@@ -683,7 +661,7 @@ num_timesteps=1
         
         # Absolute path to parameters directory
         # Noah-OWP requires absolute path since ngen runs from its build directory
-        param_dir = str((self.ngen_setup_dir / "NOAH" / "parameters").resolve()) + "/"
+        param_dir = str((self.setup_dir / "NOAH" / "parameters").resolve()) + "/"
         
         # Create Noah-OWP configuration file
         config_text = f"""&timing
@@ -754,7 +732,7 @@ num_timesteps=1
 /
 """
         
-        config_file = self.ngen_setup_dir / "NOAH" / f"cat-{catchment_id}.input"
+        config_file = self.setup_dir / "NOAH" / f"cat-{catchment_id}.input"
         with open(config_file, 'w') as f:
             f.write(config_text)
 
@@ -775,9 +753,9 @@ num_timesteps=1
         forcing_abs_path = str(forcing_file.resolve())
         
         # Model configuration directories
-        cfe_config_base = str((self.ngen_setup_dir / "CFE").resolve())
-        pet_config_base = str((self.ngen_setup_dir / "PET").resolve())
-        noah_config_base = str((self.ngen_setup_dir / "NOAH").resolve())
+        cfe_config_base = str((self.setup_dir / "CFE").resolve())
+        pet_config_base = str((self.setup_dir / "PET").resolve())
+        noah_config_base = str((self.setup_dir / "NOAH").resolve())
         
         # Get simulation time bounds - handle 'default' string
         sim_start = self.config.get('EXPERIMENT_TIME_START', '2000-01-01 00:00:00')
@@ -892,10 +870,10 @@ num_timesteps=1
         }
         
         # Save configuration
-        config_file = self.ngen_setup_dir / "realization_config.json"
+        config_file = self.setup_dir / "realization_config.json"
         with open(config_file, 'w') as f:
             json.dump(config, f, indent=2)
-        
+
         self.logger.info(f"Created realization config: {config_file}")
 
 
@@ -917,9 +895,9 @@ class NgenRunner:
         """
         self.config = config
         self.logger = logger
-        
+
         self.project_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{config.get('DOMAIN_NAME')}"
-        self.ngen_setup_dir = self.project_dir / "settings" / "ngen"
+        self.ngen_setup_dir = self.project_dir / "settings" / "NGEN"
         
         # Get ngen installation path
         ngen_install_path = config.get('NGEN_INSTALL_PATH', 'default')

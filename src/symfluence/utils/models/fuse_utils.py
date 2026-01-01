@@ -19,39 +19,38 @@ import matplotlib.pyplot as plt # type: ignore
 import xarray as xr # type: ignore
 from typing import Dict, List, Tuple, Any
 from .registry import ModelRegistry
+from .base import BaseModelPreProcessor
+from .mixins import PETCalculatorMixin
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from symfluence.utils.evaluation.calculate_sim_stats import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE # type: ignore
 from symfluence.utils.data.utilities.variable_utils import VariableHandler # type: ignore
 
 @ModelRegistry.register_preprocessor('FUSE')
-class FUSEPreProcessor:
+class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
     """
     Preprocessor for the FUSE (Framework for Understanding Structural Errors) model.
     Handles data preparation, PET calculation, and file setup for FUSE model runs.
-    
+
     Attributes:
         config (Dict[str, Any]): Configuration settings for FUSE
         logger (Any): Logger object for recording processing information
         project_dir (Path): Directory for the current project
-        fuse_setup_dir (Path): Directory for FUSE setup files
+        setup_dir (Path): Directory for FUSE setup files
         domain_name (str): Name of the domain being processed
     """
+
+    def _get_model_name(self) -> str:
+        """Return model name for directory structure."""
+        return "FUSE"
+
     def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
-        self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.fuse_setup_dir = self.project_dir / "settings" / "FUSE"
-        
+        # Initialize base class (handles standard paths and directories)
+        super().__init__(config, logger)
+
         # FUSE-specific paths
-        self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
         self.forcing_fuse_path = self.project_dir / 'forcing' / 'FUSE_input'
-        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
-        if self.catchment_name == 'default':
-            self.catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
+        self.catchment_path = self.get_catchment_path()
 
     def _get_timestep_config(self):
         """
@@ -121,7 +120,7 @@ class FUSEPreProcessor:
     def create_directories(self):
         """Create necessary directories for FUSE setup."""
         dirs_to_create = [
-            self.fuse_setup_dir,
+            self.setup_dir,
             self.forcing_fuse_path,
         ]
         for dir_path in dirs_to_create:
@@ -178,297 +177,6 @@ class FUSEPreProcessor:
         except Exception as e:
             self.logger.error(f"Error copying base settings: {e}")
             raise
-
-    def calculate_pet_hargreaves(self, temp_data: xr.DataArray, lat: float) -> xr.DataArray:
-        """
-        Calculate PET using Hargreaves method.
-        Requires mean temperature only (simplified version without min/max temps).
-        
-        Args:
-            temp_data (xr.DataArray): Temperature data (auto-detects K or C)
-            lat (float): Latitude of the catchment centroid
-            
-        Returns:
-            xr.DataArray: Calculated PET in mm/day
-        """
-        self.logger.info("Calculating PET using Hargreaves method (simplified)")
-        
-        # Load data if needed
-        if hasattr(temp_data.data, 'compute'):
-            temp_data = temp_data.load()
-        
-        # Check and convert temperature
-        temp_mean = float(temp_data.mean())
-        self.logger.debug(f"Input temperature: Mean={temp_mean:.2f}")
-        
-        # Auto-detect units
-        if temp_mean > 100:  # Kelvin
-            self.logger.info("Temperature in Kelvin, converting to Celsius")
-            temp_C = temp_data - 273.15
-        elif -100 < temp_mean < 60:  # Celsius
-            self.logger.info("Temperature in Celsius, using as-is")
-            temp_C = temp_data
-        else:
-            self.logger.error(f"Cannot determine temperature units. Mean={temp_mean:.2f}")
-            raise ValueError(f"Temperature has unexpected range: mean={temp_mean:.2f}")
-        
-        # Verify reasonable range
-        temp_mean_C = float(temp_C.mean())
-        self.logger.debug(f"Temperature (°C): Mean={temp_mean_C:.2f}")
-        
-        if temp_mean_C < -60 or temp_mean_C > 60:
-            raise ValueError(f"Temperature unrealistic: {temp_mean_C:.2f}°C")
-        
-        # Get time information
-        time_values = pd.to_datetime(temp_data.time.values)
-        doy = xr.DataArray(time_values.dayofyear, coords={'time': temp_data.time}, dims=['time'])
-        
-        # Calculate extraterrestrial radiation (Ra)
-        lat_rad = np.deg2rad(lat)
-        
-        # Solar declination
-        solar_decl = 0.409 * np.sin((2.0 * np.pi / 365.0) * doy - 1.39)
-        
-        # Sunset hour angle
-        cos_arg = -np.tan(lat_rad) * np.tan(solar_decl)
-        cos_arg = cos_arg.clip(-1.0, 1.0)
-        sunset_angle = np.arccos(cos_arg)
-        
-        # Inverse relative distance Earth-Sun
-        dr = 1.0 + 0.033 * np.cos((2.0 * np.pi / 365.0) * doy)
-        
-        # Extraterrestrial radiation (MJ/m²/day)
-        Ra = ((24.0 * 60.0 / np.pi) * 0.082 * dr * 
-            (sunset_angle * np.sin(lat_rad) * np.sin(solar_decl) +
-            np.cos(lat_rad) * np.cos(solar_decl) * np.sin(sunset_angle)))
-        
-        self.logger.debug(f"Solar radiation Ra: Mean={float(Ra.mean()):.2f} MJ/m²/day")
-        
-        # Broadcast Ra if needed for multi-HRU
-        if 'hru' in temp_C.dims:
-            Ra = Ra.broadcast_like(temp_C)
-        
-        # Hargreaves formula (simplified without Tmin/Tmax)
-        # PET = 0.0023 * Ra * (Tmean + 17.8) * TD^0.5
-        # Without Tmin/Tmax, we use a typical diurnal range of 10°C
-        # This makes it: PET = 0.0023 * Ra * (Tmean + 17.8) * sqrt(10)
-        # Converting Ra from MJ/m²/day to equivalent: multiply by 0.408 to get mm/day
-        
-        TD = 10.0  # Assumed temperature range (°C) when min/max not available
-        pet = 0.0023 * (Ra * 0.408) * (temp_C + 17.8) * np.sqrt(TD)
-        
-        # Ensure non-negative
-        pet = xr.where(pet > 0, pet, 0.0)
-        
-        pet.attrs = {
-            'units': 'mm/day',
-            'long_name': 'Potential evapotranspiration',
-            'standard_name': 'water_potential_evaporation_flux',
-            'method': 'Hargreaves (simplified)',
-            'latitude': lat,
-            'note': 'Simplified version using assumed diurnal temperature range of 10°C'
-        }
-        
-        with xr.set_options(use_numbagg=False, use_bottleneck=False):
-            pet_mean = float(pet.mean())
-            self.logger.info(
-                f"PET calculation complete: Mean={pet_mean:.3f} mm/day, "
-                f"Min={float(pet.min()):.3f} mm/day, Max={float(pet.max()):.3f} mm/day"
-            )
-        
-        return pet
-
-
-    def calculate_pet_oudin(self, temp_data: xr.DataArray, lat: float) -> xr.DataArray:
-        """
-        Calculate potential evapotranspiration using Oudin's formula.
-        Handles temperature in either Kelvin or Celsius.
-        
-        Args:
-            temp_data (xr.DataArray): Temperature data (auto-detects K or C)
-            lat (float): Latitude of the catchment centroid
-            
-        Returns:
-            xr.DataArray: Calculated PET in mm/day
-        """
-        self.logger.info("Calculating PET using Oudin's formula")
-        
-        # Check if data needs loading (if using dask)
-        if hasattr(temp_data.data, 'compute'):
-            self.logger.debug("Loading temperature data from dask array...")
-            temp_data = temp_data.load()
-        
-        # Check input temperature and determine if it's Kelvin or Celsius
-        with xr.set_options(use_numbagg=False, use_bottleneck=False):
-            temp_mean = float(temp_data.mean())
-            temp_min = float(temp_data.min())
-            temp_max = float(temp_data.max())
-        
-        self.logger.debug(f"Input temperature: Mean={temp_mean:.2f}, Min={temp_min:.2f}, Max={temp_max:.2f}")
-        
-        # Auto-detect units and convert to Celsius if needed
-        if temp_mean > 100:  # Likely Kelvin (>100K = -173°C, unrealistic for Earth)
-            self.logger.info("Temperature appears to be in Kelvin, converting to Celsius")
-            temp_C = temp_data - 273.15
-        elif -100 < temp_mean < 60:  # Likely Celsius (reasonable range)
-            self.logger.info("Temperature appears to be in Celsius, using as-is")
-            temp_C = temp_data
-        else:
-            self.logger.error(f"Cannot determine temperature units. Mean={temp_mean:.2f}")
-            raise ValueError(f"Temperature data has unexpected range. Mean={temp_mean:.2f}")
-        
-        # Verify final temperature is reasonable
-        with xr.set_options(use_numbagg=False, use_bottleneck=False):
-            temp_mean_C = float(temp_C.mean())
-            self.logger.debug(
-                f"Temperature in Celsius: Mean={temp_mean_C:.2f}°C, "
-                f"Min={float(temp_C.min()):.2f}°C, Max={float(temp_C.max()):.2f}°C"
-            )
-        
-        if temp_mean_C < -60 or temp_mean_C > 60:
-            self.logger.error(f"Temperature is unrealistic: {temp_mean_C:.2f}°C")
-            raise ValueError(f"Unrealistic temperature after conversion: {temp_mean_C:.2f}°C")
-        
-        # Get time information
-        time_values = pd.to_datetime(temp_data.time.values)
-        doy = xr.DataArray(time_values.dayofyear, coords={'time': temp_data.time}, dims=['time'])
-        
-        # Solar calculations (vectorized)
-        lat_rad = np.deg2rad(lat)
-        
-        # Solar declination (radians)
-        solar_decl = 0.409 * np.sin((2.0 * np.pi / 365.0) * doy - 1.39)
-        
-        # Sunset hour angle with numerical stability
-        cos_arg = -np.tan(lat_rad) * np.tan(solar_decl)
-        cos_arg = cos_arg.clip(-1.0, 1.0)
-        sunset_angle = np.arccos(cos_arg)
-        
-        # Inverse relative distance Earth-Sun
-        dr = 1.0 + 0.033 * np.cos((2.0 * np.pi / 365.0) * doy)
-        
-        # Extraterrestrial radiation (MJ/m²/day)
-        Ra = ((24.0 * 60.0 / np.pi) * 0.082 * dr * 
-            (sunset_angle * np.sin(lat_rad) * np.sin(solar_decl) +
-            np.cos(lat_rad) * np.cos(solar_decl) * np.sin(sunset_angle)))
-        
-        with xr.set_options(use_numbagg=False, use_bottleneck=False):
-            self.logger.debug(f"Solar radiation Ra: Mean={float(Ra.mean()):.2f} MJ/m²/day")
-        
-        # Broadcast Ra if needed for multi-HRU
-        if 'hru' in temp_C.dims:
-            Ra = Ra.broadcast_like(temp_C)
-        
-        # Oudin's formula: PET = Ra * (T + 5) / 100 when T + 5 > 0
-        pet = xr.where(temp_C + 5.0 > 0.0, Ra * (temp_C + 5.0) / 100.0, 0.0)
-        
-        pet.attrs = {
-            'units': 'mm/day',
-            'long_name': 'Potential evapotranspiration',
-            'standard_name': 'water_potential_evaporation_flux',
-            'method': 'Oudin et al. (2005)',
-            'latitude': lat
-        }
-        
-        with xr.set_options(use_numbagg=False, use_bottleneck=False):
-            pet_mean = float(pet.mean())
-            self.logger.info(
-                f"PET calculation complete: Mean={pet_mean:.3f} mm/day, "
-                f"Min={float(pet.min()):.3f} mm/day, Max={float(pet.max()):.3f} mm/day"
-            )
-        
-        if pet_mean < 0.1:
-            with xr.set_options(use_numbagg=False, use_bottleneck=False):
-                n_valid = int((temp_C + 5.0 > 0.0).sum())
-            self.logger.warning(f"Very low PET! Days with T>-5°C: {n_valid}/{len(temp_C.time)}")
-        
-        return pet
-
-
-    def calculate_pet_hamon(self, temp_data: xr.DataArray, lat: float) -> xr.DataArray:
-        """
-        Calculate PET using Hamon's method.
-        Handles temperature in either Kelvin or Celsius.
-        
-        Args:
-            temp_data (xr.DataArray): Temperature data (auto-detects K or C)
-            lat (float): Latitude of the catchment centroid
-            
-        Returns:
-            xr.DataArray: Calculated PET in mm/day
-        """
-        self.logger.info("Calculating PET using Hamon's method")
-        
-        # Load data if needed
-        if hasattr(temp_data.data, 'compute'):
-            temp_data = temp_data.load()
-        
-        # Check and convert temperature
-        with xr.set_options(use_numbagg=False, use_bottleneck=False):
-            temp_mean = float(temp_data.mean())
-        
-        self.logger.debug(f"Input temperature: Mean={temp_mean:.2f}")
-        
-        # Auto-detect units
-        if temp_mean > 100:  # Kelvin
-            self.logger.info("Temperature in Kelvin, converting to Celsius")
-            temp_C = temp_data - 273.15
-        elif -100 < temp_mean < 60:  # Celsius
-            self.logger.info("Temperature in Celsius, using as-is")
-            temp_C = temp_data
-        else:
-            self.logger.error(f"Cannot determine temperature units. Mean={temp_mean:.2f}")
-            raise ValueError(f"Temperature has unexpected range: mean={temp_mean:.2f}")
-        
-        # Get values for computation
-        temp_C_vals = temp_C.values
-        
-        # Verify reasonable range
-        temp_mean_C = np.nanmean(temp_C_vals)
-        self.logger.debug(f"Temperature (°C): Mean={temp_mean_C:.2f}, "
-                        f"Min={np.nanmin(temp_C_vals):.2f}, Max={np.nanmax(temp_C_vals):.2f}")
-        
-        if temp_mean_C < -60 or temp_mean_C > 60:
-            raise ValueError(f"Temperature unrealistic: {temp_mean_C:.2f}°C")
-        
-        # Day of year
-        dates = pd.to_datetime(temp_data.time.values)
-        doy = dates.dayofyear.values
-        
-        # Solar calculations
-        lat_rad = np.deg2rad(lat)
-        decl = 0.409 * np.sin(2.0 * np.pi / 365.0 * doy - 1.39)
-        cos_arg = np.clip(-np.tan(lat_rad) * np.tan(decl), -1.0, 1.0)
-        sunset_angle = np.arccos(cos_arg)
-        daylight_hours = 24.0 * sunset_angle / np.pi
-        
-        # Saturated vapor pressure (kPa)
-        e_sat = 0.6108 * np.exp(17.27 * temp_C_vals / (temp_C_vals + 237.3))
-        
-        # Hamon PET (mm/day)
-        if len(temp_C_vals.shape) > 1:
-            daylight_hours = daylight_hours.reshape(-1, 1)
-        
-        pet_values = 0.1651 * daylight_hours * e_sat * 2.54
-        pet_values = np.maximum(pet_values, 0.0)
-        
-        # Create DataArray
-        if 'hru' in temp_data.dims:
-            pet = xr.DataArray(pet_values, coords=temp_data.coords, dims=temp_data.dims)
-        else:
-            pet = xr.DataArray(pet_values, coords={'time': temp_data.time}, dims=['time'])
-        
-        pet.attrs = {
-            'units': 'mm/day',
-            'long_name': 'Potential evapotranspiration',
-            'method': 'Hamon',
-            'latitude': lat
-        }
-        
-        self.logger.info(f"PET calculation complete: Mean={np.nanmean(pet_values):.3f} mm/day, "
-                        f"Max={np.nanmax(pet_values):.3f} mm/day")
-        
-        return pet
 
     def generate_synthetic_hydrograph(self, ds, area_km2, mean_temp_threshold=0.0):
         """
@@ -1003,7 +711,7 @@ class FUSEPreProcessor:
         self.logger.info("Creating FUSE file manager file")
 
         # Define source and destination paths
-        template_path = self.fuse_setup_dir / 'fm_catch.txt'
+        template_path = self.setup_dir / 'fm_catch.txt'
         
         # Define the paths to replace
         settings = {
@@ -1762,7 +1470,7 @@ class FUSERunner:
         # Initialize required paths
         self.fuse_path = self._get_install_path()
         self.output_path = self._get_output_path()
-        self.fuse_setup_dir = self.project_dir / "settings" / "FUSE"
+        self.setup_dir = self.project_dir / "settings" / "FUSE"
         self.forcing_fuse_path = self.project_dir / 'forcing' / 'FUSE_input'
         
         # Spatial mode
@@ -1977,7 +1685,7 @@ class FUSERunner:
         try:
             # Use the main file manager (points to distributed forcing file)
             fuse_exe = self.fuse_path / self.config.get('FUSE_EXE', 'fuse.exe')
-            control_file = self.fuse_setup_dir / 'fm_catch.txt'
+            control_file = self.setup_dir / 'fm_catch.txt'
             
             # Run FUSE once for the entire distributed domain
             command = [
@@ -1999,7 +1707,7 @@ class FUSERunner:
                     stdout=f,
                     stderr=subprocess.STDOUT,
                     text=True,
-                    cwd=str(self.fuse_setup_dir)
+                    cwd=str(self.setup_dir)
                 )
             
             if result.returncode == 0:
@@ -2022,11 +1730,11 @@ class FUSERunner:
         
         try:
             # Create subcatchment-specific settings directory
-            subcat_settings_dir = self.fuse_setup_dir / f"subcat_{subcat_id}"
+            subcat_settings_dir = self.setup_dir / f"subcat_{subcat_id}"
             subcat_settings_dir.mkdir(exist_ok=True)
             
             # Copy base settings files
-            base_settings_dir = self.fuse_setup_dir
+            base_settings_dir = self.setup_dir
             
             for file in base_settings_dir.glob("*.txt"):
                 if "subcat_" not in file.name:  # Don't copy other subcatchment files
