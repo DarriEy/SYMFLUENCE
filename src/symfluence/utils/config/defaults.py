@@ -110,3 +110,95 @@ class ConfigDefaults:
             Default value for the key, or fallback if not found
         """
         return getattr(cls, key, fallback)
+
+
+class ModelDefaults:
+    """Model-specific default configuration values."""
+
+    FUSE = {
+        'FUSE_SPATIAL_MODE': 'lumped',
+        'ROUTING_MODEL': 'none',
+        'FUSE_INSTALL_PATH': 'default',
+        'SETTINGS_FUSE_PATH': 'default',
+        'SETTINGS_FUSE_FILEMANAGER': 'fm_catch.txt',
+        'FUSE_EXE': 'fuse.exe',
+        'EXPERIMENT_OUTPUT_FUSE': 'default',
+    }
+
+    SUMMA = {
+        'ROUTING_MODEL': 'mizuRoute',
+        'SUMMA_INSTALL_PATH': 'default',
+        'SETTINGS_SUMMA_PATH': 'default',
+        'SETTINGS_SUMMA_FILEMANAGER': 'fileManager.txt',
+        'SUMMA_EXE': 'summa_sundials.exe',
+        'SETTINGS_SUMMA_CONNECT_HRUS': 'yes',
+        'SETTINGS_SUMMA_USE_PARALLEL_SUMMA': False,
+        'EXPERIMENT_OUTPUT_SUMMA': 'default',
+        'INSTALL_PATH_MIZUROUTE': 'default',
+        'EXE_NAME_MIZUROUTE': 'mizuroute.exe',
+        'SETTINGS_MIZU_PATH': 'default',
+        'EXPERIMENT_OUTPUT_MIZUROUTE': 'default',
+    }
+
+    GR = {
+        'GR_MODEL_TYPE': 'GR4J',
+        'GR_SPATIAL_MODE': 'lumped',
+        'GR_EXE': 'GR.r',
+    }
+
+    HYPE = {
+        'SETTINGS_HYPE_PATH': 'default',
+        'HYPE_INSTALL_PATH': 'default',
+        'HYPE_EXE': 'hype',
+        'SETTINGS_HYPE_CONTROL_FILE': 'info.txt',
+    }
+
+    @classmethod
+    def get_defaults_for_model(cls, model: str) -> Dict[str, Any]:
+        """
+        Get default configuration for a specific model.
+
+        Args:
+            model: Model name (FUSE, SUMMA, GR, HYPE, etc.)
+
+        Returns:
+            Dict[str, Any]: Model-specific default configuration
+        """
+        return getattr(cls, model.upper(), {}).copy()
+
+
+class ForcingDefaults:
+    """Forcing dataset-specific default configuration values."""
+
+    ERA5 = {
+        'FORCING_TIME_STEP_SIZE': 3600,
+        'DATA_ACCESS': 'cloud',
+    }
+
+    CONUS404 = {
+        'FORCING_TIME_STEP_SIZE': 3600,
+        'DATA_ACCESS': 'cloud',
+    }
+
+    RDRS = {
+        'FORCING_TIME_STEP_SIZE': 3600,
+        'DATA_ACCESS': 'cloud',
+    }
+
+    NLDAS = {
+        'FORCING_TIME_STEP_SIZE': 3600,
+        'DATA_ACCESS': 'cloud',
+    }
+
+    @classmethod
+    def get_defaults_for_forcing(cls, forcing: str) -> Dict[str, Any]:
+        """
+        Get default configuration for a specific forcing dataset.
+
+        Args:
+            forcing: Forcing dataset name (ERA5, CONUS404, etc.)
+
+        Returns:
+            Dict[str, Any]: Forcing-specific default configuration
+        """
+        return getattr(cls, forcing.upper(), {}).copy()

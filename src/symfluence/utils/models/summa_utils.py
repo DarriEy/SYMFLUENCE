@@ -1,25 +1,32 @@
+# Standard library imports
 import os
-import sys
-from pathlib import Path
-import xarray as xr # type: ignore
-import pandas as pd # type: ignore
-import numpy as np # type: ignore
-import geopandas as gpd # type: ignore
-import xarray as xr # type: ignore
-from typing import Dict, Any, Optional
-import subprocess
-import netCDF4 as nc4 # type: ignore
-from shutil import copyfile
-from pathlib import Path
-from datetime import datetime
-from shutil import copyfile
-import rasterstats # type: ignore
-from shapely.geometry import Polygon # type: ignore
 import shutil
-import rasterio # type: ignore
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+from shutil import copyfile
+from typing import Dict, Any, Optional
+
+# Third-party imports
+import geopandas as gpd # type: ignore
+import netCDF4 as nc4 # type: ignore
+import numpy as np # type: ignore
+import pandas as pd # type: ignore
 import psutil # type: ignore
+import rasterio # type: ignore
+import rasterstats # type: ignore
+import xarray as xr # type: ignore
+from shapely.geometry import Polygon # type: ignore
+
+# Local imports
 from .registry import ModelRegistry
 from .base import BaseModelPreProcessor
+from symfluence.utils.exceptions import (
+    ModelExecutionError,
+    FileOperationError,
+    symfluence_error_handler
+)
 
 @ModelRegistry.register_preprocessor('SUMMA')
 class SummaPreProcessor(BaseModelPreProcessor):
@@ -41,36 +48,28 @@ class SummaPreProcessor(BaseModelPreProcessor):
             config (Dict[str, Any]): Configuration dictionary containing setup parameters.
             logger (Any): Logger object for recording processing information.
         """
-        # Initialize base class (handles standard paths and directories)
+        # Initialize base class (handles standard paths and common setup)
         super().__init__(config, logger)
 
-        # SUMMA-specific paths
-        self.shapefile_path = self.project_dir / 'shapefiles' / 'forcing'
-        dem_name = self.config.get('DEM_NAME')
-        if dem_name == "default":
-            dem_name = f"domain_{self.domain_name}_elv.tif"
-        self.dem_path = self._get_default_path('DEM_PATH', f"attributes/elevation/dem/{dem_name}")
-        self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/merged_data')
-        self.intersect_path = self.project_dir / 'shapefiles' / 'catchment_intersection' / 'with_forcing'
+        # SUMMA-specific paths (base class now handles shapefile_path, merged_forcing_path, intersect_path)
+        self.dem_path = self.get_dem_path()
         self.forcing_summa_path = self.project_dir / 'forcing' / 'SUMMA_input'
 
-        # Catchment paths (SUMMA-specific usage)
+        # Catchment and river network (use base class methods)
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
         self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
             self.catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
 
-        # River network paths (SUMMA-specific usage)
         self.river_network_path = self._get_default_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network')
         self.river_network_name = self.config.get('RIVER_NETWORK_SHP_NAME')
         if self.river_network_name == 'default':
             self.river_network_name = f"{self.domain_name}_riverNetwork_delineate.shp"
 
-        # SUMMA-specific configuration
+        # SUMMA-specific configuration (base class now handles forcing_dataset)
         self.hruId = self.config.get('CATCHMENT_SHP_HRUID')
         self.gruId = self.config.get('CATCHMENT_SHP_GRUID')
-        self.forcing_dataset = self.config.get('FORCING_DATASET').lower()
-        self.data_step = int(self.config.get('FORCING_TIME_STEP_SIZE'))
+        self.data_step = self.forcing_time_step_size  # Use base class attribute
         self.coldstate_name = self.config.get('SETTINGS_SUMMA_COLDSTATE')
         self.parameter_name = self.config.get('SETTINGS_SUMMA_TRIALPARAMS')
         self.attribute_name = self.config.get('SETTINGS_SUMMA_ATTRIBUTES')
@@ -80,14 +79,18 @@ class SummaPreProcessor(BaseModelPreProcessor):
         """
         Run the complete SUMMA spatial preprocessing workflow.
 
-        This method orchestrates the  preprocessing pipeline.
+        This method orchestrates the preprocessing pipeline.
 
         Raises:
-            Exception: If any step in the preprocessing pipeline fails.
+            ModelExecutionError: If any step in the preprocessing pipeline fails.
         """
         self.logger.info("Starting SUMMA spatial preprocessing")
-        
-        try:
+
+        with symfluence_error_handler(
+            "SUMMA preprocessing",
+            self.logger,
+            error_type=ModelExecutionError
+        ):
             self.apply_datastep_and_lapse_rate()
             self.copy_base_settings()
             self.create_file_manager()
@@ -97,9 +100,6 @@ class SummaPreProcessor(BaseModelPreProcessor):
             self.create_attributes_file()
 
             self.logger.info("SUMMA spatial preprocessing completed successfully")
-        except Exception as e:
-            self.logger.error(f"Error during SUMMA spatial preprocessing: {str(e)}")
-            raise
 
     def copy_base_settings(self):
         """
@@ -116,8 +116,8 @@ class SummaPreProcessor(BaseModelPreProcessor):
             PermissionError: If there are permission issues when creating directories or copying files.
         """
         self.logger.info("Copying SUMMA base settings")
-        
-        base_settings_path = Path(self.config.get('SYMFLUENCE_CODE_DIR')) / '0_base_settings' / 'SUMMA'
+
+        base_settings_path = self.get_base_settings_source_dir()
         settings_path = self._get_default_path('SETTINGS_SUMMA_PATH', 'settings/SUMMA')
         
         try:
