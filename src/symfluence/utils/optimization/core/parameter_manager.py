@@ -7,50 +7,89 @@ import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-class ParameterManager:
+from symfluence.utils.optimization.core.base_parameter_manager import BaseParameterManager
+
+
+class ParameterManager(BaseParameterManager):
     """Handles parameter bounds, normalization, file generation, and soil depth calculations"""
     
     def __init__(self, config: Dict, logger: logging.Logger, optimization_settings_dir: Path):
-        self.config = config
-        self.logger = logger
-        self.optimization_settings_dir = optimization_settings_dir
-        
+        # Initialize base class
+        super().__init__(config, logger, optimization_settings_dir)
+
+        # SUMMA-specific setup
         # Parse parameter lists
         self.local_params = [p.strip() for p in config.get('PARAMS_TO_CALIBRATE', '').split(',') if p.strip()]
         self.basin_params = [p.strip() for p in config.get('BASIN_PARAMS_TO_CALIBRATE', '').split(',') if p.strip()]
-        
+
         # Identify depth parameters
         self.depth_params = []
         if config.get('CALIBRATE_DEPTH', False):
             self.depth_params = ['total_mult', 'shape_factor']
-        
+
         # Add special multiplier if in list
         if 'total_soil_depth_multiplier' in self.local_params:
             self.depth_params.append('total_soil_depth_multiplier')
             self.local_params.remove('total_soil_depth_multiplier')
-            
+
         self.mizuroute_params = []
-        
+
         if config.get('CALIBRATE_MIZUROUTE', False):
             mizuroute_params_str = config.get('MIZUROUTE_PARAMS_TO_CALIBRATE', 'velo,diff')
             self.mizuroute_params = [p.strip() for p in mizuroute_params_str.split(',') if p.strip()]
-        
-        # Load parameter bounds
-        self.param_bounds = self._parse_all_bounds()
-        
+
         # Load original soil depths if depth calibration enabled
         self.original_depths = None
         if self.depth_params:
             self.original_depths = self._load_original_depths()
-        
-        # Get attribute file path
-        self.attr_file_path = self.optimization_settings_dir / config.get('SETTINGS_SUMMA_ATTRIBUTES', 'attributes.nc')
-    
-    @property
-    def all_param_names(self) -> List[str]:
-        """Get list of all parameter names"""
+
+        # Get attribute file path (use settings_dir from base class)
+        self.attr_file_path = self.settings_dir / config.get('SETTINGS_SUMMA_ATTRIBUTES', 'attributes.nc')
+
+    # ========================================================================
+    # IMPLEMENT ABSTRACT METHODS FROM BASE CLASS
+    # ========================================================================
+
+    def _get_parameter_names(self) -> List[str]:
+        """Return all SUMMA parameter names in calibration order."""
         return self.local_params + self.basin_params + self.depth_params + self.mizuroute_params
+
+    def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
+        """Parse SUMMA parameter bounds from localParamInfo.txt, etc."""
+        return self._parse_all_bounds()
+
+    def update_model_files(self, params: Dict[str, np.ndarray]) -> bool:
+        """Update SUMMA files: trialParams.nc, coldState.nc, mizuRoute."""
+        success = True
+        success = success and self._generate_trial_params_file(params)
+        if self.depth_params:
+            success = success and self._update_soil_depths(params)
+        if self.mizuroute_params:
+            success = success and self._update_mizuroute_parameters(params)
+        return success
+
+    # Note: get_initial_parameters() is already defined below
     
+    # Note: all_param_names property is inherited from BaseParameterManager
+
+    # ========================================================================
+    # OVERRIDE FORMATTING HOOK FOR SUMMA'S ARRAY-BASED PARAMETERS
+    # ========================================================================
+
+    def _format_parameter_value(self, param_name: str, value: float) -> Any:
+        """
+        SUMMA uses arrays for most parameters.
+        Override base class to return np.ndarray instead of float.
+        """
+        if param_name in self.depth_params:
+            return np.array([value])
+        elif param_name in self.mizuroute_params:
+            return value  # mizuRoute uses scalars
+        elif param_name in self.basin_params:
+            return np.array([value])
+        else:
+            # Local parameters - expand to HRU count
+            return self._expand_to_hru_count(value)
     def get_initial_parameters(self) -> Optional[Dict[str, np.ndarray]]:
         """Get initial parameter values from existing files or defaults"""
         # Try to load existing optimized parameters
@@ -63,65 +102,28 @@ class ParameterManager:
         #self.logger.info("Extracting initial parameters from default values")
         return self._extract_default_parameters()
     
-    def normalize_parameters(self, params: Dict[str, np.ndarray]) -> np.ndarray:
-        """Convert parameter dictionary to normalized array [0,1]"""
-        normalized = np.zeros(len(self.all_param_names))
-        
-        for i, param_name in enumerate(self.all_param_names):
-            if param_name in params and param_name in self.param_bounds:
-                bounds = self.param_bounds[param_name]
-                
-                # Get parameter value
-                param_values = params[param_name]
-                if isinstance(param_values, np.ndarray) and len(param_values) > 1:
-                    value = np.mean(param_values)  # Use mean for multi-value parameters
-                else:
-                    value = param_values[0] if isinstance(param_values, np.ndarray) else param_values
-                
-                # Normalize to [0,1]
-                normalized[i] = (value - bounds['min']) / (bounds['max'] - bounds['min'])
-        
-        return np.clip(normalized, 0, 1)
-    
-    def denormalize_parameters(self, normalized_array: np.ndarray) -> Dict[str, np.ndarray]:
-        """Convert normalized array back to parameter dictionary"""
-        params = {}
-        
-        for i, param_name in enumerate(self.all_param_names):
-            if param_name in self.param_bounds:
-                bounds = self.param_bounds[param_name]
-                denorm_value = bounds['min'] + normalized_array[i] * (bounds['max'] - bounds['min'])
-                
-                # Validate bounds
-                denorm_value = np.clip(denorm_value, bounds['min'], bounds['max'])
-                
-                # Format based on parameter type
-                if param_name in self.depth_params:
-                    params[param_name] = np.array([denorm_value])
-                elif param_name in self.mizuroute_params:
-                    params[param_name] = denorm_value
-                elif param_name in self.basin_params:
-                    params[param_name] = np.array([denorm_value])
-                else:
-                    # Local parameters - expand to HRU count
-                    params[param_name] = self._expand_to_hru_count(denorm_value)
-        
-        return params
-    
-    
+    # ========================================================================
+    # NOTE: The following methods are now inherited from BaseParameterManager:
+    # - normalize_parameters()
+    # - denormalize_parameters()
+    # These shared implementations use the _format_parameter_value() hook above
+    # to return arrays instead of floats. This eliminates ~100 lines of duplicated code!
+    # ========================================================================
+
+
     def _parse_all_bounds(self) -> Dict[str, Dict[str, float]]:
         """Parse parameter bounds from all parameter info files"""
         bounds = {}
         
         # Parse local parameter bounds
         if self.local_params:
-            local_param_file = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}" / 'settings' / 'SUMMA' / 'localParamInfo.txt'
+            local_param_file = self.settings_dir / 'localParamInfo.txt'
             local_bounds = self._parse_param_info_file(local_param_file, self.local_params)
             bounds.update(local_bounds)
-        
+
         # Parse basin parameter bounds
         if self.basin_params:
-            basin_param_file = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}" / 'settings' / 'SUMMA' / 'basinParamInfo.txt'
+            basin_param_file = self.settings_dir / 'basinParamInfo.txt'
             basin_bounds = self._parse_param_info_file(basin_param_file, self.basin_params)
             bounds.update(basin_bounds)
         
@@ -220,15 +222,15 @@ class ParameterManager:
         # Parse local parameters
         if self.local_params:
             local_defaults = self._parse_defaults_from_file(
-                self.optimization_settings_dir / 'localParamInfo.txt', 
+                self.settings_dir / 'localParamInfo.txt',
                 self.local_params
             )
             defaults.update(local_defaults)
-        
+
         # Parse basin parameters
         if self.basin_params:
             basin_defaults = self._parse_defaults_from_file(
-                self.optimization_settings_dir / 'basinParamInfo.txt',
+                self.settings_dir / 'basinParamInfo.txt',
                 self.basin_params
             )
             defaults.update(basin_defaults)
@@ -322,7 +324,7 @@ class ParameterManager:
     def _load_original_depths(self) -> Optional[np.ndarray]:
         """Load original soil depths from coldState.nc"""
         try:
-            coldstate_path = self.optimization_settings_dir / self.config.get('SETTINGS_SUMMA_COLDSTATE', 'coldState.nc')
+            coldstate_path = self.settings_dir / self.config.get('SETTINGS_SUMMA_COLDSTATE', 'coldState.nc')
             
             if not coldstate_path.exists():
                 return None
@@ -356,7 +358,7 @@ class ParameterManager:
                 heights[i + 1] = heights[i] + new_depths[i]
             
             # Update coldState.nc
-            coldstate_path = self.optimization_settings_dir / self.config.get('SETTINGS_SUMMA_COLDSTATE', 'coldState.nc')
+            coldstate_path = self.settings_dir / self.config.get('SETTINGS_SUMMA_COLDSTATE', 'coldState.nc')
             
             with nc.Dataset(coldstate_path, 'r+') as ds:
                 if 'mLayerDepth' not in ds.variables or 'iLayerHeight' not in ds.variables:
@@ -401,7 +403,7 @@ class ParameterManager:
     def _update_mizuroute_parameters(self, params: Dict) -> bool:
         """Update mizuRoute parameters in param.nml.default"""
         try:
-            mizuroute_settings_dir = self.optimization_settings_dir.parent / "mizuRoute"
+            mizuroute_settings_dir = self.settings_dir.parent / "mizuRoute"
             param_file = mizuroute_settings_dir / "param.nml.default"
             
             if not param_file.exists():
@@ -438,7 +440,7 @@ class ParameterManager:
     def _generate_trial_params_file(self, params: Dict[str, np.ndarray]) -> bool:
         """Generate trialParams.nc file with proper dimensions"""
         try:
-            trial_params_path = self.optimization_settings_dir / self.config.get('SETTINGS_SUMMA_TRIALPARAMS', 'trialParams.nc')
+            trial_params_path = self.settings_dir / self.config.get('SETTINGS_SUMMA_TRIALPARAMS', 'trialParams.nc')
             
             # Get HRU and GRU counts from attributes
             with xr.open_dataset(self.attr_file_path) as ds:
