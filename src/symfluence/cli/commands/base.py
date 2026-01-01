@@ -24,23 +24,20 @@ class BaseCommand(ABC):
     """
 
     @staticmethod
-    def load_typed_config(config_path: str, required: bool = True) -> Optional['SymfluenceConfig']:
+    def load_config(config_path: str, required: bool = True) -> Optional[Dict[str, Any]]:
         """
-        Load configuration from YAML file using SymfluenceConfig.
+        Load configuration from YAML file.
 
         Args:
             config_path: Path to configuration file
             required: Whether config file is required. If True, raises error if not found.
 
         Returns:
-            SymfluenceConfig instance, or None if not required and not found
+            Configuration dictionary, or None if not required and not found
 
         Raises:
-            SystemExit: If required=True and config file is invalid or missing
+            SystemExit: If required=True and config file doesn't exist or is invalid
         """
-        from symfluence.core.config.models import SymfluenceConfig
-        from symfluence.core.exceptions import ConfigurationError
-
         path = Path(config_path)
 
         if not path.exists():
@@ -51,9 +48,11 @@ class BaseCommand(ABC):
                 return None
 
         try:
-            return SymfluenceConfig.from_file(path)
-        except ConfigurationError as e:
-            print(f"Error: Invalid configuration in {config_path}:\n{e}", file=sys.stderr)
+            with open(path, 'r') as f:
+                config = yaml.safe_load(f)
+            return config
+        except yaml.YAMLError as e:
+            print(f"Error: Invalid YAML in config file: {e}", file=sys.stderr)
             sys.exit(1)
         except Exception as e:
             print(f"Error: Failed to load config file: {e}", file=sys.stderr)
@@ -98,7 +97,7 @@ class BaseCommand(ABC):
             return args.config
         else:
             # Default config path
-            return './config.yaml'
+            return './0_config_files/config_template.yaml'
 
     @staticmethod
     def print_error(message: str) -> None:

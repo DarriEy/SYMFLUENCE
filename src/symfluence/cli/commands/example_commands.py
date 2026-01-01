@@ -27,7 +27,7 @@ class ExampleCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.cli.notebook_service import NotebookService
+            from symfluence.utils.cli.notebook_service import NotebookService
 
             notebook_service = NotebookService()
 
@@ -54,7 +54,7 @@ class ExampleCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to launch notebook: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1
@@ -101,7 +101,7 @@ class ExampleCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to list examples: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1

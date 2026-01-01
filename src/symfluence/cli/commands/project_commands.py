@@ -29,33 +29,12 @@ class ProjectCommands(BaseCommand):
         """
         try:
             # Import initialization manager
-            from symfluence.cli.initialization_manager import InitializationManager
+            from symfluence.utils.cli.initialization_manager import InitializationManager
 
             init_manager = InitializationManager()
 
             # Build initialization operations dict
             preset_name = args.preset if args.preset else None
-
-            # Validate required parameters if no preset is given
-            if not preset_name:
-                if not args.domain:
-                    import sys
-                    sys.stderr.write("Error: --domain is required when not using a preset\n")
-                    return 2
-                if not args.model:
-                    import sys
-                    sys.stderr.write("Error: --model is required when not using a preset\n")
-                    return 2
-
-            # Validate preset if given
-            if preset_name:
-                from symfluence.cli.init_presets import get_preset
-                try:
-                    get_preset(preset_name)
-                except ValueError:
-                    import sys
-                    sys.stderr.write(f"Error: Unknown preset '{preset_name}'\n")
-                    return 2
 
             cli_overrides = {
                 'domain': args.domain,
@@ -77,43 +56,26 @@ class ProjectCommands(BaseCommand):
 
             BaseCommand.print_info("🌱 Initializing SYMFLUENCE project...")
 
-            # Generate config
-            config = init_manager.generate_config(
+            # Call initialization manager
+            success = init_manager.generate_config(
                 preset_name=preset_name,
                 cli_overrides=cli_overrides,
+                output_dir=output_dir,
+                scaffold=scaffold,
                 minimal=minimal,
                 comprehensive=comprehensive
             )
 
-            # Determine domain name for output file
-            domain_name = config.get('DOMAIN_NAME', 'unnamed_domain')
-            output_path = Path(output_dir) / f'config_{domain_name}.yaml'
-
-            # Write config file
-            written_path = init_manager.write_config(config, output_path)
-            BaseCommand.print_success(f"✅ Created config file: {written_path}")
-
-            # Create scaffold if requested
-            if scaffold:
-                try:
-                    domain_dir = init_manager.create_scaffold(config)
-                    BaseCommand.print_success(f"📁 Created project structure: {domain_dir}")
-                except Exception as e:
-                    BaseCommand.print_warning(f"Failed to create scaffold: {e}")
-
-            # Show next steps
-            BaseCommand.print_info("\n📁 To create project structure, run:")
-            BaseCommand.print_info(f"   symfluence workflow step setup_project --config {written_path}")
-            BaseCommand.print_info("\n✨ Next steps:")
-            BaseCommand.print_info("   1. Review and customize the configuration file")
-            BaseCommand.print_info("   2. Run setup_project to create directory structure")
-            BaseCommand.print_info("   3. Use 'symfluence workflow steps' to see available workflow commands")
-
-            return 0
+            if success:
+                BaseCommand.print_success("Project initialized successfully")
+                return 0
+            else:
+                BaseCommand.print_error("Project initialization failed")
+                return 1
 
         except Exception as e:
             BaseCommand.print_error(f"Initialization failed: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1
@@ -148,38 +110,35 @@ class ProjectCommands(BaseCommand):
             BaseCommand.print_info(f"   Domain name: {args.domain_name}")
             BaseCommand.print_info(f"   Definition method: {args.domain_def}")
 
-            from symfluence.project.pour_point_workflow import setup_pour_point_workflow
+            # TODO: Refactor pour point setup to not depend on old CLIArgumentManager
+            # For now, import from the archived version
+            import sys
+            import importlib.util
+            from pathlib import Path
 
-            result = setup_pour_point_workflow(
+            old_cli_path = Path(__file__).parent.parent / "cli_argument_manager.py.old"
+            spec = importlib.util.spec_from_file_location("cli_argument_manager_old", old_cli_path)
+            cli_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(cli_module)
+
+            cli_manager = cli_module.CLIArgumentManager()
+
+            # Call the pour point setup
+            cli_manager.setup_pour_point_workflow(
                 coordinates=args.coordinates,
                 domain_def_method=args.domain_def,
                 domain_name=args.domain_name,
                 bounding_box_coords=getattr(args, 'bounding_box_coords', None),
+                symfluence_code_dir=None,
+                experiment_id=getattr(args, 'experiment_id', None)
             )
 
-            if result.used_auto_bounding_box:
-                BaseCommand.print_info(
-                    f"Auto-calculated bounding box (1-degree buffer): {result.bounding_box_coords}"
-                )
-            else:
-                BaseCommand.print_info(
-                    f"User-provided bounding box: {result.bounding_box_coords}"
-                )
-
-            BaseCommand.print_success(f"Created config file: {result.config_file}")
-            BaseCommand.print_info("Next steps:")
-            BaseCommand.print_info(f"  1. Review the generated config file: {result.config_file}")
-            BaseCommand.print_info("  2. Run the pour point workflow steps:")
-            BaseCommand.print_info(
-                "     symfluence workflow step setup_project create_pour_point define_domain discretize_domain "
-                f"--config {result.config_file}"
-            )
             BaseCommand.print_success("Pour point workflow setup completed")
             return 0
 
         except Exception as e:
             BaseCommand.print_error(f"Pour point setup failed: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1
@@ -196,7 +155,7 @@ class ProjectCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.cli.initialization_manager import InitializationManager
+            from symfluence.utils.cli.initialization_manager import InitializationManager
 
             init_manager = InitializationManager()
 
@@ -222,7 +181,7 @@ class ProjectCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to list presets: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1
@@ -239,20 +198,32 @@ class ProjectCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.cli.initialization_manager import InitializationManager
+            from symfluence.utils.cli.initialization_manager import InitializationManager
 
             init_manager = InitializationManager()
 
             preset_name = args.preset_name
 
-            # Show preset details (prints directly, handles errors internally)
-            init_manager.show_preset(preset_name)
+            BaseCommand.print_info(f"Preset: {preset_name}")
+            BaseCommand.print_info("=" * 70)
+
+            # Show preset details
+            preset_info = init_manager.show_preset(preset_name)
+            if preset_info:
+                if isinstance(preset_info, dict):
+                    for key, value in preset_info.items():
+                        BaseCommand.print_info(f"{key:25s}: {value}")
+                else:
+                    BaseCommand.print_info(str(preset_info))
+            else:
+                BaseCommand.print_error(f"Preset '{preset_name}' not found")
+                return 1
 
             return 0
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to show preset: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1

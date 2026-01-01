@@ -63,11 +63,11 @@ def resample_to_timestep(data: pd.Series, target_timestep: str, logger) -> pd.Se
             if time_diff < pd.Timedelta(hours=1):
                 # Upsampling: sub-hourly to hourly (mean aggregation)
                 logger.debug(f"Aggregating {time_diff} data to hourly using mean")
-                resampled = data.resample('h').mean()
+                resampled = data.resample('H').mean()
             elif time_diff > pd.Timedelta(hours=1):
                 # Downsampling: daily/coarser to hourly (interpolation)
                 logger.debug(f"Interpolating {time_diff} data to hourly")
-                resampled = data.resample('h').asfreq()
+                resampled = data.resample('H').asfreq()
                 resampled = resampled.interpolate(method='time', limit_direction='both')
             else:
                 resampled = data
@@ -321,7 +321,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
         debug_info['stage'] = 'summa_execution'
         logger.info("Running SUMMA")
         summa_start = time.time()
-        if not _run_summa_worker(summa_exe, file_manager, summa_dir, logger, debug_info, summa_settings_dir):
+        if not _run_summa_worker(summa_exe, file_manager, summa_dir, logger, debug_info):
             error_msg = 'SUMMA simulation failed'
             logger.error(error_msg)
             eval_runtime = time.time() - eval_start_time
@@ -346,8 +346,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
             domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
             routing_delineation = config.get('ROUTING_DELINEATION', 'river_network')
             
-            # ONLY convert if domain is lumped but routing expects a network
-            if domain_method in ['lumped', 'point'] and routing_delineation == 'river_network':
+            if config.get('ROUTING_DELINEATION', 'river_network') == 'river_network':
                 logger.info("Converting lumped SUMMA output to distributed format")
                 if not _convert_lumped_to_distributed_worker(task_data, summa_dir, logger, debug_info):
                     error_msg = 'Lumped-to-distributed conversion failed'
@@ -386,11 +385,11 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
         metrics_start = time.time()
         
         if is_multiobjective:
-            logger.info("Starting multi-objective metrics calculation")
+            logger.info("Starting INLINE multi-objective metrics calculation")
 
             try:
-                # Use proper calibration target instead of inline streamflow-only calculation
-                metrics = _calculate_metrics_with_target(
+                # Use inline metrics calculation
+                metrics = _calculate_metrics_inline_worker(
                     summa_dir,
                     mizuroute_dir if needs_routing else None,
                     task_data['config'],
@@ -398,7 +397,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                 )
 
                 if not metrics:
-                    error_msg = 'Metrics calculation failed'
+                    error_msg = 'Inline metrics calculation failed'
                     logger.error(error_msg)
                     eval_runtime = time.time() - eval_start_time
                     return {
@@ -487,18 +486,18 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
         
         else:
             # Single-objective evaluation
-            logger.info("Single-objective evaluation using calibration target")
-
+            logger.info("Single-objective evaluation using inline calculation")
+            
             try:
-                metrics = _calculate_metrics_with_target(
-                    summa_dir,
-                    mizuroute_dir if needs_routing else None,
-                    task_data['config'],
+                metrics = _calculate_metrics_inline_worker(
+                    summa_dir, 
+                    mizuroute_dir if needs_routing else None, 
+                    task_data['config'], 
                     logger
                 )
                 
                 if not metrics:
-                    error_msg = 'Metrics calculation failed'
+                    error_msg = 'Inline metrics calculation failed'
                     logger.error(error_msg)
                     eval_runtime = time.time() - eval_start_time
                     return {
@@ -522,7 +521,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                             break
                 
                 if score is None:
-                    logger.error(f"Could not extract {target_metric} from metrics. Available metrics: {list(metrics.keys())}")
+                    logger.error(f"Could not extract {target_metric} from metrics: {list(metrics.keys())}")
                     eval_runtime = time.time() - eval_start_time
                     return {
                         'individual_id': individual_id,
@@ -638,6 +637,7 @@ def fix_summa_time_precision_inplace(input_file: Path, logger=None) -> None:
         if logger:
             logger.error(f"Error fixing time precision in-place: {e}")
         # Fall back to original method if in-place modification fails
+        from symfluence.utils.optimization.worker_scripts import fix_summa_time_precision
         fix_summa_time_precision(input_file, None)
 
 def fix_summa_time_precision(input_file, output_file=None):
@@ -693,11 +693,11 @@ def fix_summa_time_precision(input_file, output_file=None):
             else:
                 # Fallback: assume hourly from a standard reference
                 ref_time = pd.Timestamp('1990-01-01')
-                timestamps = ref_time + pd.to_timedelta(time_vals, unit='h')
+                timestamps = ref_time + pd.to_timedelta(time_vals, unit='H')
         else:
             # No units attribute, try to interpret as hours since 1990
             ref_time = pd.Timestamp('1990-01-01')
-            timestamps = ref_time + pd.to_timedelta(time_vals, unit='h')
+            timestamps = ref_time + pd.to_timedelta(time_vals, unit='H')
         
         # Round to nearest hour
         rounded_timestamps = timestamps.round('H')
@@ -835,12 +835,7 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
             # Open without decoding times to avoid conversion issues
             summa_ds = xr.open_dataset(summa_file, decode_times=False)
             
-            # Handle the case where config has 'default' as value - use model-specific default
-            routing_var_config = task_data['config'].get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
-            if routing_var_config in ('default', None, ''):
-                routing_var = 'averageRoutedRunoff'  # SUMMA default for routing
-            else:
-                routing_var = routing_var_config
+            routing_var = task_data['config'].get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
             available_vars = list(summa_ds.variables.keys())
             
             # Find the best variable to use
@@ -965,47 +960,29 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
     try:
         domain_name = config.get('DOMAIN_NAME')
         project_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{domain_name}"
-
-        # Priority 1: Try SUMMA attributes file first (most reliable)
-        attrs_file = project_dir / 'settings' / 'SUMMA' / 'attributes.nc'
-        if attrs_file.exists():
-            try:
-                import xarray as xr
-                with xr.open_dataset(attrs_file) as attrs:
-                    if 'HRUarea' in attrs.data_vars:
-                        catchment_area_m2 = float(attrs['HRUarea'].values.sum())
-                        if 0 < catchment_area_m2 < 1e12:  # Reasonable area check
-                            logger.warning(f"WORKER DEBUG: Using catchment area from SUMMA attributes: {catchment_area_m2:.0f} m²")
-                            return catchment_area_m2
-                    else:
-                        logger.debug("HRUarea not found in SUMMA attributes file")
-            except Exception as e:
-                logger.debug(f"Error reading SUMMA attributes file: {str(e)}")
-        else:
-            logger.debug(f"SUMMA attributes file not found: {attrs_file}")
-
-        # Priority 2: Try basin shapefile
+        
+        # Try basin shapefile first
         basin_path = project_dir / "shapefiles" / "river_basins"
         basin_files = list(basin_path.glob("*.shp"))
-
+        
         if basin_files:
             try:
                 import geopandas as gpd
                 gdf = gpd.read_file(basin_files[0])
                 area_col = config.get('RIVER_BASIN_SHP_AREA', 'GRU_area')
-
+                
                 logger.debug(f"Found basin shapefile: {basin_files[0]}")
                 logger.debug(f"Looking for area column: {area_col}")
                 logger.debug(f"Available columns: {list(gdf.columns)}")
-
+                
                 if area_col in gdf.columns:
                     total_area = gdf[area_col].sum()
                     logger.debug(f"Total area from column: {total_area}")
-
+                    
                     if 0 < total_area < 1e12:  # Reasonable area check
                         logger.info(f"Using catchment area from shapefile: {total_area:.0f} m²")
                         return total_area
-
+                
                 # Fallback: calculate from geometry
                 if gdf.crs and gdf.crs.is_geographic:
                     # Reproject to UTM for area calculation
@@ -1013,139 +990,55 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
                     utm_zone = int(((centroid.x + 180) / 6) % 60) + 1
                     utm_crs = f"+proj=utm +zone={utm_zone} +north +datum=WGS84 +units=m +no_defs"
                     gdf = gdf.to_crs(utm_crs)
-
+                
                 geom_area = gdf.geometry.area.sum()
                 logger.info(f"Using catchment area from geometry: {geom_area:.0f} m²")
                 return geom_area
-
+                
             except ImportError:
                 logger.warning("geopandas not available for area calculation")
             except Exception as e:
                 logger.warning(f"Error reading basin shapefile: {str(e)}")
-
-        # Priority 3: Try catchment shapefile
+        
+        # Alternative: try catchment shapefile
         catchment_path = project_dir / "shapefiles" / "catchment"
         catchment_files = list(catchment_path.glob("*.shp"))
-
+        
         if catchment_files:
             try:
                 import geopandas as gpd
                 gdf = gpd.read_file(catchment_files[0])
                 area_col = config.get('CATCHMENT_SHP_AREA', 'HRU_area')
-
+                
                 if area_col in gdf.columns:
                     total_area = gdf[area_col].sum()
                     if 0 < total_area < 1e12:
                         logger.info(f"Using catchment area from catchment shapefile: {total_area:.0f} m²")
                         return total_area
-
+                        
             except Exception as e:
                 logger.warning(f"Error reading catchment shapefile: {str(e)}")
-
+        
     except Exception as e:
         logger.warning(f"Could not calculate catchment area: {str(e)}")
-
+    
     # Fallback
     logger.warning("Using default catchment area: 1,000,000 m²")
     return 1e6
 
 
-def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config: Dict, logger) -> Dict:
-    """
-    Calculate metrics using proper CalibrationTarget classes.
-
-    This replaces the inline streamflow-only calculation to support all calibration targets
-    including streamflow, SWE, SCA, ET, soil moisture, etc.
-    """
-    try:
-        from ..calibration_targets import (
-            StreamflowTarget, SnowTarget, GroundwaterTarget, ETTarget,
-            SoilMoistureTarget, TWSTarget
-        )
-        from pathlib import Path as PathType
-
-        # Get the project directory from config
-        project_dir = PathType(config.get('SYMFLUENCE_DATA_DIR', '.')) / f"domain_{config.get('DOMAIN_NAME')}"
-
-        # Determine the calibration target type
-        calibration_var = config.get('CALIBRATION_VARIABLE', 'streamflow')
-        optimization_target = config.get('OPTIMIZATION_TARGET', calibration_var).lower()
-
-        logger.debug(f"Creating calibration target for: {optimization_target}")
-
-        # Create the appropriate calibration target
-        if optimization_target in ['streamflow', 'flow', 'discharge']:
-            target = StreamflowTarget(config, project_dir, logger)
-        elif optimization_target in ['swe', 'sca', 'snow_depth', 'snow']:
-            target = SnowTarget(config, project_dir, logger)
-        elif optimization_target in ['gw_depth', 'gw_grace', 'groundwater', 'gw']:
-            target = GroundwaterTarget(config, project_dir, logger)
-        elif optimization_target in ['et', 'latent_heat', 'evapotranspiration']:
-            target = ETTarget(config, project_dir, logger)
-        elif optimization_target in ['sm_point', 'sm_smap', 'sm_esa', 'sm_ismn', 'soil_moisture', 'sm']:
-            target = SoilMoistureTarget(config, project_dir, logger)
-        elif optimization_target in ['tws', 'grace', 'grace_tws', 'total_storage', 'stor_grace']:
-            target = TWSTarget(config, project_dir, logger)
-        else:
-            # Default to streamflow
-            logger.warning(f"Unknown optimization target '{optimization_target}', defaulting to streamflow")
-            target = StreamflowTarget(config, project_dir, logger)
-
-        # Calculate metrics using the target
-        logger.debug(f"Calculating metrics from {summa_dir}")
-
-        # DIAGNOSTIC: Check what files exist and their SWE values
-        import glob
-        day_files = list(Path(summa_dir).glob("*_day.nc"))
-        if day_files:
-            import xarray as xr
-            with xr.open_dataset(day_files[0]) as ds:
-                if 'scalarSWE' in ds:
-                    swe_raw = ds['scalarSWE']
-                    # Print to stderr so it's captured in MPI output
-                    print(f"[WORKER DIAG] SWE in file: min={float(swe_raw.min()):.3f}, max={float(swe_raw.max()):.3f} kg/m²", flush=True)
-
-        metrics = target.calculate_metrics(
-            summa_dir,
-            mizuroute_dir=mizuroute_dir,
-            calibration_only=True
-        )
-
-        if metrics:
-            logger.debug(f"Metrics calculated successfully: {list(metrics.keys())}")
-            # Print metrics to stderr for MPI capture
-            print(f"[WORKER DIAG] Metrics: KGE={metrics.get('KGE', 'N/A'):.4f}", flush=True)
-            return metrics
-        else:
-            logger.warning("Calibration target returned empty metrics")
-            print(f"[WORKER DIAG] WARNING: Empty metrics returned!", flush=True)
-            return None
-
-    except Exception as e:
-        import traceback
-        logger.error(f"Error calculating metrics with calibration target: {str(e)}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return None
-
-
 def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, config: Dict, logger) -> Dict:
-    """
-    Calculate metrics inline without using CalibrationTarget classes (STREAMFLOW ONLY).
-
-    DEPRECATED: This function is kept for backward compatibility but only supports streamflow.
-    Use _calculate_metrics_with_target instead for multi-target support.
-    """
+    """Calculate metrics inline without using CalibrationTarget classes"""
     try:
         import xarray as xr
         import pandas as pd
         import numpy as np
-
-        logger.warning("WORKER DEBUG: Starting inline metrics calculation")
+        
         logger.debug("Starting inline metrics calculation")
-        logger.warning(f"WORKER DEBUG: SUMMA dir: {summa_dir}")
-        logger.warning(f"WORKER DEBUG: mizuRoute dir: {mizuroute_dir}")
-        logger.warning(f"WORKER DEBUG: SUMMA dir exists: {summa_dir.exists()}")
-        logger.warning(f"WORKER DEBUG: mizuRoute dir exists: {mizuroute_dir.exists() if mizuroute_dir else 'None'}")
+        logger.debug(f"SUMMA dir: {summa_dir}")
+        logger.debug(f"mizuRoute dir: {mizuroute_dir}")
+        logger.debug(f"SUMMA dir exists: {summa_dir.exists()}")
+        logger.debug(f"mizuRoute dir exists: {mizuroute_dir.exists() if mizuroute_dir else 'None'}")
         
         # Priority 1: Look for mizuRoute output files first (already in m³/s)
         sim_files = []
@@ -1164,38 +1057,33 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                 logger.debug("Using mizuRoute files (already in m³/s)")
         
         # Priority 2: If no mizuRoute files, look for SUMMA files (need m/s to m³/s conversion)
-        # Only allow fallback to SUMMA if BOTH domain and routing are lumped
         if not sim_files:
-            domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-            routing_delineation = config.get('ROUTING_DELINEATION', 'lumped')
+            summa_files = list(summa_dir.glob("*timestep.nc"))
+            logger.debug(f"Found {len(summa_files)} SUMMA timestep files")
+            for f in summa_files[:3]:  # Show first 3
+                logger.debug(f"SUMMA file: {f.name}")
             
-            if domain_method == 'lumped' and routing_delineation == 'lumped':
-                summa_files = list(summa_dir.glob("*timestep.nc"))
-                logger.debug(f"Found {len(summa_files)} SUMMA timestep files")
+            if summa_files:
+                sim_files = summa_files
+                use_mizuroute = False
+                logger.debug("Using SUMMA files (need m/s to m³/s conversion)")
                 
-                if summa_files:
-                    sim_files = summa_files
-                    use_mizuroute = False
-                    logger.debug("Using SUMMA files (lumped domain and routing, need m/s to m³/s conversion)")
-                    
-                    # Get the ACTUAL catchment area for unit conversion
-                    try:
-                        catchment_area = _get_catchment_area_worker(config, logger)
-                        logger.warning(f"WORKER DEBUG: Got catchment area = {catchment_area:.2e} m²")
-                    except Exception as e:
-                        logger.debug(f"Error getting catchment area: {str(e)}")
-                        catchment_area = 1e6  # Default fallback
-            else:
-                logger.error(f"No mizuRoute output found and domain/routing not both lumped (Domain: {domain_method}, Routing: {routing_delineation}). Cannot fall back to SUMMA runoff.")
-                return None
+                # Get the ACTUAL catchment area for unit conversion
+                try:
+                    catchment_area = _get_catchment_area_worker(config, logger)
+                    logger.debug(f"Catchment area for conversion: {catchment_area:.0f} m²")
+                except Exception as e:
+                    logger.debug(f"Error getting catchment area: {str(e)}")
+                    catchment_area = 1e6  # Default fallback
+                    logger.debug(f"Using fallback catchment area: {catchment_area:.0f} m²")
         
         # Check if we found any simulation files
         if not sim_files:
-            logger.warning("WORKER DEBUG: No simulation files found")
             logger.debug("No simulation files found")
+            logger.debug(f"SUMMA dir contents: {list(summa_dir.glob('*')) if summa_dir.exists() else 'DIR_NOT_EXISTS'}")
+            if mizuroute_dir and mizuroute_dir.exists():
+                logger.debug(f"mizuRoute dir contents: {list(mizuroute_dir.glob('*'))}")
             return None
-
-        logger.warning(f"WORKER DEBUG: Found {len(sim_files)} simulation files, use_mizuroute={use_mizuroute}")
         
         sim_file = sim_files[0]
         logger.debug(f"Using simulation file: {sim_file}")
@@ -1205,8 +1093,13 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
         
         try:
             with xr.open_dataset(sim_file) as ds:
+                logger.debug(f"Dataset variables: {list(ds.variables.keys())}")
+                logger.debug(f"Dataset dimensions: {dict(ds.sizes)}")
+                
                 if use_mizuroute:
                     # mizuRoute output - select segment with highest average runoff (outlet)
+                    logger.debug("Selecting segment with highest average runoff (outlet)")
+                    
                     # Find routing variable to use for selection
                     routing_vars = ['IRFroutedRunoff', 'KWTroutedRunoff', 'averageRoutedRunoff']
                     routing_var = None
@@ -1214,12 +1107,17 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                     for var_name in routing_vars:
                         if var_name in ds.variables:
                             routing_var = var_name
+                            logger.debug(f"Found routing variable: {routing_var}")
                             break
                     
                     if routing_var is None:
+                        logger.debug("No routing variable found in mizuRoute output")
+                        logger.debug(f"Available variables: {list(ds.variables.keys())}")
                         return None
                     
                     var = ds[routing_var]
+                    logger.debug(f"Variable dimensions: {var.dims}")
+                    logger.debug(f"Variable shape: {var.shape}")
                     
                     try:
                         # Calculate average runoff for each segment to find outlet
@@ -1227,18 +1125,26 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                             # Calculate mean runoff across time for each segment
                             segment_means = var.mean(dim='time').values
                             outlet_seg_idx = np.argmax(segment_means)
+                            logger.debug(f"Found outlet at segment index {outlet_seg_idx} with mean runoff {segment_means[outlet_seg_idx]:.3f} m³/s")
+                            
                             # Extract time series for outlet segment
                             sim_data = var.isel(seg=outlet_seg_idx).to_pandas()
+                            
                         elif 'reachID' in var.dims:
                             # Calculate mean runoff across time for each reach
                             reach_means = var.mean(dim='time').values
                             outlet_reach_idx = np.argmax(reach_means)
+                            logger.debug(f"Found outlet at reach index {outlet_reach_idx} with mean runoff {reach_means[outlet_reach_idx]:.3f} m³/s")
+                            
                             # Extract time series for outlet reach
                             sim_data = var.isel(reachID=outlet_reach_idx).to_pandas()
+                            
                         else:
+                            logger.debug(f"Unexpected dimensions for {routing_var}: {var.dims}")
                             return None
                         
-                        logger.warning(f"WORKER DEBUG: Extracted {routing_var} (mizuRoute), mean = {float(sim_data.mean()):.2f} m³/s")
+                        logger.debug(f"Extracted {routing_var} from outlet segment with {len(sim_data)} timesteps (mizuRoute - no unit conversion)")
+                        logger.debug(f"Sim data range: {sim_data.min():.3f} to {sim_data.max():.3f} m³/s")
                         
                     except Exception as e:
                         logger.debug(f"Error extracting outlet segment from {routing_var}: {str(e)}")
@@ -1251,118 +1157,121 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                     
                     for var_name in summa_vars:
                         if var_name in ds.variables:
+                            logger.debug(f"Found SUMMA variable: {var_name}")
                             var = ds[var_name]
+                            logger.debug(f"Variable dimensions: {var.dims}")
+                            logger.debug(f"Variable shape: {var.shape}")
                             
                             try:
-                                # Attempt area-weighted aggregation first
-                                aggregated = False
                                 if len(var.shape) > 1:
-                                    try:
-                                        # Look for attributes.nc in common locations
-                                        possible_attr_paths = [
-                                            summa_dir.parent.parent.parent / 'settings' / 'SUMMA' / 'attributes.nc',
-                                            Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{config.get('DOMAIN_NAME')}" / 'settings' / 'SUMMA' / 'attributes.nc'
-                                        ]
-                                        
-                                        attrs_file = None
-                                        for p in possible_attr_paths:
-                                            if p.exists():
-                                                attrs_file = p
-                                                break
-                                        
-                                        if attrs_file:
-                                            with xr.open_dataset(attrs_file) as attrs:
-                                                # Handle HRU dimension
-                                                if 'hru' in var.dims and 'HRUarea' in attrs:
-                                                    areas = attrs['HRUarea']
-                                                    if areas.sizes['hru'] == var.sizes['hru']:
-                                                        sim_data = (var * areas).sum(dim='hru').to_pandas()
-                                                        aggregated = True
-                                                        logger.warning(f"WORKER DEBUG: Performed area-weighted aggregation (HRU), mean = {float(sim_data.mean()):.2f} m³/s")
-                                                
-                                                # Handle GRU dimension
-                                                elif 'gru' in var.dims and 'GRUarea' in attrs:
-                                                    areas = attrs['GRUarea']
-                                                    if areas.sizes['gru'] == var.sizes['gru']:
-                                                        sim_data = (var * areas).sum(dim='gru').to_pandas()
-                                                        aggregated = True
-                                                        logger.warning(f"WORKER DEBUG: Performed area-weighted aggregation (GRU), mean = {float(sim_data.mean()):.2f} m³/s")
-
-                                                # Handle GRU dimension with HRUarea fallback
-                                                elif 'gru' in var.dims and 'HRUarea' in attrs:
-                                                    if attrs.sizes['hru'] == var.sizes['gru']:
-                                                        areas = attrs['HRUarea']
-                                                        dim_name = 'hru' if 'hru' in areas.dims else 'gru'
-                                                        sim_data = (var * areas).sum(dim=dim_name).to_pandas()
-                                                        aggregated = True
-                                                        logger.warning(f"WORKER DEBUG: Performed area-weighted aggregation (GRU fallback), mean = {float(sim_data.mean()):.2f} m³/s")
-                                    except Exception as e:
-                                        logger.debug(f"Aggregation failed, falling back: {e}")
-
-                                if not aggregated:
-                                    if len(var.shape) > 1:
-                                        if 'hru' in var.dims:
-                                            sim_data = var.isel(hru=0).to_pandas()
-                                        elif 'gru' in var.dims:
-                                            sim_data = var.isel(gru=0).to_pandas()
-                                        else:
-                                            non_time_dims = [dim for dim in var.dims if dim != 'time']
-                                            if non_time_dims:
-                                                sim_data = var.isel({non_time_dims[0]: 0}).to_pandas()
-                                            else:
-                                                sim_data = var.to_pandas()
+                                    if 'hru' in var.dims:
+                                        sim_data = var.isel(hru=0).to_pandas()
+                                    elif 'gru' in var.dims:
+                                        sim_data = var.isel(gru=0).to_pandas()
                                     else:
-                                        sim_data = var.to_pandas()
-                                    
-                                    # Convert units for SUMMA (m/s to m³/s) using ACTUAL catchment area
-                                    logger.warning(f"WORKER DEBUG: Converting {var_name} using catchment area = {catchment_area:.2e} m²")
-                                    logger.warning(f"WORKER DEBUG: Pre-conversion mean = {sim_data.mean():.2e}")
-                                    sim_data = sim_data * catchment_area
-                                    logger.warning(f"WORKER DEBUG: Post-conversion mean = {float(sim_data.mean()):.2f} m³/s")
+                                        # Take first spatial index
+                                        non_time_dims = [dim for dim in var.dims if dim != 'time']
+                                        if non_time_dims:
+                                            sim_data = var.isel({non_time_dims[0]: 0}).to_pandas()
+                                        else:
+                                            sim_data = var.to_pandas()
+                                else:
+                                    sim_data = var.to_pandas()
                                 
+                                # Convert units for SUMMA (m/s to m³/s) using ACTUAL catchment area
+                                logger.debug(f"Converting SUMMA units: {var_name} * {catchment_area:.0f} m²")
+                                logger.debug(f"Pre-scaling range: {sim_data.min():.6f} to {sim_data.max():.6f} m/s")
+                                sim_data = sim_data * catchment_area
+                                logger.debug(f"Post-scaling range: {sim_data.min():.3f} to {sim_data.max():.3f} m³/s")
+                                
+                                logger.debug(f"Extracted {var_name} with {len(sim_data)} timesteps, applied area scaling")
                                 break
                             except Exception as e:
+                                logger.debug(f"Error extracting {var_name}: {str(e)}")
                                 continue
                     
                     if sim_data is None:
-                        logger.warning("WORKER DEBUG: sim_data is None after trying all SUMMA variables")
+                        logger.debug(f"No SUMMA variable found or extracted successfully")
                         return None
-
+        
         except Exception as e:
-            logger.warning(f"WORKER DEBUG: Exception extracting simulated streamflow: {str(e)}")
-            import traceback
-            logger.warning(f"WORKER DEBUG: Traceback: {traceback.format_exc()}")
+            logger.debug(f"Error reading simulation file {sim_file}: {str(e)}")
             return None
         
         # Load observed data
+        logger.debug("Loading observed data...")
+        
         try:
             domain_name = config.get('DOMAIN_NAME')
             project_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{domain_name}"
             obs_path = project_dir / "observations" / "streamflow" / "preprocessed" / f"{domain_name}_streamflow_processed.csv"
-
-            logger.warning(f"WORKER DEBUG: Looking for observations at: {obs_path}")
+            
+            logger.debug(f"Domain name: {domain_name}")
+            logger.debug(f"Project dir: {project_dir}")
+            logger.debug(f"Observed data path: {obs_path}")
+            logger.debug(f"Project dir exists: {project_dir.exists()}")
+            logger.debug(f"Observed data exists: {obs_path.exists()}")
+            
             if not obs_path.exists():
-                logger.warning("WORKER DEBUG: Observation file does not exist")
+                logger.debug(f"Observed data not found: {obs_path}")
+                if project_dir.exists():
+                    logger.debug(f"Project dir contents: {list(project_dir.glob('*'))}")
+                    obs_dir = project_dir / "observations"
+                    if obs_dir.exists():
+                        logger.debug(f"Observations dir contents: {list(obs_dir.glob('*'))}")
+                        streamflow_dir = obs_dir / "streamflow"
+                        if streamflow_dir.exists():
+                            logger.debug(f"Streamflow dir contents: {list(streamflow_dir.glob('*'))}")
+                            preproc_dir = streamflow_dir / "preprocessed"
+                            if preproc_dir.exists():
+                                logger.debug(f"Preprocessed dir contents: {list(preproc_dir.glob('*'))}")
                 return None
             
             obs_df = pd.read_csv(obs_path)
-            date_col = next((col for col in obs_df.columns if any(term in col.lower() for term in ['date', 'time', 'datetime'])), None)
-            flow_col = next((col for col in obs_df.columns if any(term in col.lower() for term in ['flow', 'discharge', 'q_', 'streamflow'])), None)
-
-            logger.warning(f"WORKER DEBUG: Found date_col={date_col}, flow_col={flow_col}")
+            logger.debug(f"Loaded observed data with {len(obs_df)} rows and columns: {list(obs_df.columns)}")
+            
+            # Find date and flow columns
+            date_col = None
+            for col in obs_df.columns:
+                if any(term in col.lower() for term in ['date', 'time', 'datetime']):
+                    date_col = col
+                    break
+            
+            flow_col = None
+            for col in obs_df.columns:
+                if any(term in col.lower() for term in ['flow', 'discharge', 'q_', 'streamflow']):
+                    flow_col = col
+                    break
+            
+            logger.debug(f"Date column: {date_col}")
+            logger.debug(f"Flow column: {flow_col}")
+            
             if not date_col or not flow_col:
-                logger.warning("WORKER DEBUG: Missing date or flow column in observations")
+                logger.debug(f"Could not identify date/flow columns. Date: {date_col}, Flow: {flow_col}")
                 return None
-
+            
             obs_df['DateTime'] = pd.to_datetime(obs_df[date_col])
             obs_df.set_index('DateTime', inplace=True)
             obs_data = obs_df[flow_col]
-            logger.warning(f"WORKER DEBUG: Loaded {len(obs_data)} observation points")
+            
+            logger.debug(f"Observed data period: {obs_data.index.min()} to {obs_data.index.max()}")
+            logger.debug(f"Observed data range: {obs_data.min():.3f} to {obs_data.max():.3f}")
+            
         except Exception as e:
-            logger.warning(f"WORKER DEBUG: Exception loading observations: {str(e)}")
+            logger.debug(f"Error loading observed data: {str(e)}")
+            import traceback
+            logger.debug(f"Traceback: {traceback.format_exc()}")
             return None
         
+        logger.debug(f"Simulated data period: {sim_data.index.min()} to {sim_data.index.max()}")
+        logger.debug(f"Simulated data range: {sim_data.min():.3f} to {sim_data.max():.3f}")
+        logger.debug(f"Simulated data frequency: {sim_data.index.freq}")
+        logger.debug(f"Simulated data timezone: {sim_data.index.tz}")
+        logger.debug(f"First 5 sim timestamps: {sim_data.index[:5].tolist()}")
+        
         # Filter to calibration period
+        logger.debug("Filtering to calibration period...")
+        
         cal_period = config.get('CALIBRATION_PERIOD', '')
         if cal_period:
             try:
@@ -1371,92 +1280,223 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                     start_date = pd.Timestamp(dates[0])
                     end_date = pd.Timestamp(dates[1])
                     
+                    logger.debug(f"Filtering to calibration period: {start_date} to {end_date}")
+                    
                     obs_mask = (obs_data.index >= start_date) & (obs_data.index <= end_date)
                     obs_period = obs_data[obs_mask]
                     
-                    # Round sim times if needed
+                    # ENHANCED: Check simulation time format before rounding
+                    logger.debug(f"Sim data before rounding - first 5: {sim_data.index[:5].tolist()}")
+                    logger.debug(f"Sim data sample times: {sim_data.index[::100][:5].tolist()}")  # Every 100th
+                    
+                    # More careful time rounding - check if we need it
                     sim_time_diff = sim_data.index[1] - sim_data.index[0] if len(sim_data) > 1 else pd.Timedelta(hours=1)
+                    logger.debug(f"Simulation time step: {sim_time_diff}")
+                    
+                    # Only round if time step is roughly hourly
                     if pd.Timedelta(minutes=45) <= sim_time_diff <= pd.Timedelta(minutes=75):
                         sim_data.index = sim_data.index.round('h')
+                        logger.debug("Rounded simulation times to nearest hour")
+                    else:
+                        logger.debug(f"Not rounding - time step is {sim_time_diff}")
                     
                     sim_mask = (sim_data.index >= start_date) & (sim_data.index <= end_date)
                     sim_period = sim_data[sim_mask]
-                    logger.warning(f"WORKER DEBUG: After period filtering, sim_period mean = {float(sim_period.mean()):.2f}")
+                    
+                    logger.debug(f"Filtered obs points: {len(obs_period)}")
+                    logger.debug(f"Filtered sim points: {len(sim_period)}")
+                    
+                    # ENHANCED: Check time alignment before intersection
+                    logger.debug(f"Obs period: {obs_period.index.min()} to {obs_period.index.max()}")
+                    logger.debug(f"Sim period: {sim_period.index.min()} to {sim_period.index.max()}")
+                    logger.debug(f"Obs timezone: {obs_period.index.tz}")
+                    logger.debug(f"Sim timezone: {sim_period.index.tz}")
+                    
                 else:
+                    logger.debug("Invalid calibration period format, using full data")
                     obs_period = obs_data
                     sim_period = sim_data
+                    
+                    # Same careful rounding for full data
+                    sim_time_diff = sim_data.index[1] - sim_data.index[0] if len(sim_data) > 1 else pd.Timedelta(hours=1)
+                    if pd.Timedelta(minutes=45) <= sim_time_diff <= pd.Timedelta(minutes=75):
+                        sim_period.index = sim_period.index.round('h')
+                        
             except Exception as e:
+                logger.debug(f"Error parsing calibration period: {str(e)}")
                 obs_period = obs_data
                 sim_period = sim_data
+                
+                # Same careful rounding for error case
+                sim_time_diff = sim_data.index[1] - sim_data.index[0] if len(sim_data) > 1 else pd.Timedelta(hours=1)
+                if pd.Timedelta(minutes=45) <= sim_time_diff <= pd.Timedelta(minutes=75):
+                    sim_period.index = sim_period.index.round('h')
         else:
+            logger.debug("No calibration period specified, using full data")
             obs_period = obs_data
             sim_period = sim_data
+            
+            # Same careful rounding
+            sim_time_diff = sim_data.index[1] - sim_data.index[0] if len(sim_data) > 1 else pd.Timedelta(hours=1)
+            if pd.Timedelta(minutes=45) <= sim_time_diff <= pd.Timedelta(minutes=75):
+                sim_period.index = sim_period.index.round('h')
+
         
-        # Timezone alignment
+        # Check for timezone mismatches and try to fix
         if obs_period.index.tz is not None and sim_period.index.tz is None:
+            logger.debug("Converting sim times to observed timezone")
             sim_period.index = sim_period.index.tz_localize(obs_period.index.tz)
         elif obs_period.index.tz is None and sim_period.index.tz is not None:
+            logger.debug("Converting obs times to simulation timezone")
             obs_period.index = obs_period.index.tz_localize(sim_period.index.tz)
+        elif obs_period.index.tz != sim_period.index.tz:
+            logger.debug(f"Converting timezones - obs: {obs_period.index.tz}, sim: {sim_period.index.tz}")
+            sim_period.index = sim_period.index.tz_convert(obs_period.index.tz)
         
-        # Resampling
+        # Sample timestamps for alignment checking
+        logger.debug(f"Obs sample times: {obs_period.index[::max(1,len(obs_period)//5)][:5].tolist()}")
+        logger.debug(f"Sim sample times: {sim_period.index[::max(1,len(sim_period)//5)][:5].tolist()}")
+        
         calibration_timestep = config.get('CALIBRATION_TIMESTEP', 'native').lower()
+        
+
+        # Apply timestep resampling if specified in config
         if calibration_timestep != 'native':
+            logger.debug(f"Resampling to {calibration_timestep} timestep for calibration")
             obs_period = resample_to_timestep(obs_period, calibration_timestep, logger)
             sim_period = resample_to_timestep(sim_period, calibration_timestep, logger)
-            logger.warning(f"WORKER DEBUG: After resampling, sim_period mean = {float(sim_period.mean()):.2f}")
+            
+            logger.debug(f"After resampling - obs points: {len(obs_period)}, sim points: {len(sim_period)}")
+            
+            # Log sample of resampled times
+            if len(obs_period) > 0:
+                logger.debug(f"Resampled obs sample times: {obs_period.index[::max(1,len(obs_period)//5)][:5].tolist()}")
+            if len(sim_period) > 0:
+                logger.debug(f"Resampled sim sample times: {sim_period.index[::max(1,len(sim_period)//5)][:5].tolist()}")
 
-        # Alignment
+        # Find intersection
         common_idx = obs_period.index.intersection(sim_period.index)
-        logger.warning(f"WORKER DEBUG: obs_period has {len(obs_period)} points, sim_period has {len(sim_period)} points")
-        logger.warning(f"WORKER DEBUG: obs_period type: {type(obs_period)}, sim_period type: {type(sim_period)}")
-        logger.warning(f"WORKER DEBUG: Common index has {len(common_idx)} points")
-        if len(common_idx) == 0:
-            logger.warning("WORKER DEBUG: No common timesteps between sim and obs")
-            return None
-
-        # Ensure we're working with Series
-        if isinstance(obs_period, pd.DataFrame):
-            obs_period = obs_period.squeeze()
-        if isinstance(sim_period, pd.DataFrame):
-            sim_period = sim_period.squeeze()
-
-        obs_common = pd.to_numeric(obs_period.loc[common_idx], errors='coerce')
-        sim_common = pd.to_numeric(sim_period.loc[common_idx], errors='coerce')
-        logger.warning(f"WORKER DEBUG: After intersection, sim_common mean = {float(sim_common.mean()):.2f}")
+        logger.debug(f"Common time indices: {len(common_idx)}")
         
-        # Final cleaning
-        valid = ~(obs_common.isna() | sim_common.isna() | (obs_common < -900) | (sim_common < -900))
+        if len(common_idx) == 0:
+            logger.debug("No common time indices - checking for near matches")
+            
+            # Try to find near matches (within 1 hour)
+            obs_times = obs_period.index
+            sim_times = sim_period.index
+            
+            # Find closest matches
+            if len(obs_times) > 0 and len(sim_times) > 0:
+                time_diffs = []
+                for obs_time in obs_times[:10]:  # Check first 10
+                    closest_sim = sim_times[np.argmin(np.abs(sim_times - obs_time))]
+                    diff = abs(closest_sim - obs_time)
+                    time_diffs.append(diff)
+                    logger.debug(f"Obs {obs_time} closest to Sim {closest_sim} (diff: {diff})")
+                
+                min_diff = min(time_diffs) if time_diffs else pd.Timedelta(days=1)
+                logger.debug(f"Minimum time difference: {min_diff}")
+                
+                # If differences are small, try approximate matching
+                if min_diff <= pd.Timedelta(hours=1):
+                    logger.debug("Attempting approximate time matching (±30 min)")
+                    
+                    # Create aligned series by finding nearest neighbors
+                    aligned_obs = []
+                    aligned_sim = []
+                    aligned_times = []
+                    
+                    for obs_time in obs_times:
+                        # Find closest sim time within 30 minutes
+                        time_diffs = np.abs(sim_times - obs_time)
+                        min_diff_idx = np.argmin(time_diffs)
+                        min_diff = time_diffs[min_diff_idx]
+                        
+                        if min_diff <= pd.Timedelta(minutes=30):
+                            aligned_obs.append(obs_period.loc[obs_time])
+                            aligned_sim.append(sim_period.iloc[min_diff_idx])
+                            aligned_times.append(obs_time)
+                    
+                    if len(aligned_obs) > 0:
+                        obs_common = pd.Series(aligned_obs, index=aligned_times)
+                        sim_common = pd.Series(aligned_sim, index=aligned_times)
+                        logger.debug(f"Approximate matching found {len(aligned_obs)} pairs")
+                    else:
+                        logger.debug("No approximate matches found")
+                        return None
+                else:
+                    logger.debug("Time differences too large for alignment")
+                    return None
+            else:
+                logger.debug("Empty time series")
+                return None
+        else:
+            # Normal intersection worked
+            obs_common = pd.to_numeric(obs_period.loc[common_idx], errors='coerce')
+            sim_common = pd.to_numeric(sim_period.loc[common_idx], errors='coerce')
+            logger.debug(f"Successfully aligned {len(common_idx)} time points")
+        
+        # Remove invalid data
+        logger.debug("Cleaning data...")
+        
+        logger.debug(f"Before cleaning - obs: {len(obs_common)}, sim: {len(sim_common)}")
+        logger.debug(f"Obs NaN count: {obs_common.isna().sum()}")
+        logger.debug(f"Sim NaN count: {sim_common.isna().sum()}")
+        logger.debug(f"Obs <= 0 count: {(obs_common <= 0).sum()}")
+        logger.debug(f"Sim <= 0 count: {(sim_common <= 0).sum()}")
+        
+        valid = ~(obs_common.isna() | sim_common.isna() | (obs_common <= 0) | (sim_common <= 0))
         obs_valid = obs_common[valid]
         sim_valid = sim_common[valid]
         
+        logger.debug(f"Valid data points after cleaning: {len(obs_valid)}")
+        
         if len(obs_valid) < 10:
+            logger.debug(f"Insufficient valid data points: {len(obs_valid)}")
             return None
         
+        logger.debug(f"Final obs range: {obs_valid.min():.3f} to {obs_valid.max():.3f}")
+        logger.debug(f"Final sim range: {sim_valid.min():.3f} to {sim_valid.max():.3f}")
+        
         # Calculate metrics
+        logger.debug("Calculating metrics...")
+        
         try:
+            # Calculate NSE
             mean_obs = obs_valid.mean()
             nse_num = ((obs_valid - sim_valid) ** 2).sum()
             nse_den = ((obs_valid - mean_obs) ** 2).sum()
             nse = 1 - (nse_num / nse_den) if nse_den > 0 else np.nan
             
+            # Calculate KGE
             r = obs_valid.corr(sim_valid)
             alpha = sim_valid.std() / obs_valid.std() if obs_valid.std() != 0 else np.nan
             beta = sim_valid.mean() / mean_obs if mean_obs != 0 else np.nan
             kge = 1 - np.sqrt((r - 1)**2 + (alpha - 1)**2 + (beta - 1)**2)
             
+            # Calculate additional metrics
             rmse = np.sqrt(((obs_valid - sim_valid) ** 2).mean())
             mae = (obs_valid - sim_valid).abs().mean()
             pbias = 100 * (sim_valid.sum() - obs_valid.sum()) / obs_valid.sum() if obs_valid.sum() != 0 else np.nan
             
-            logger.warning(f"WORKER DEBUG: Final KGE = {kge:.4f} (obs_mean={mean_obs:.2f}, sim_mean={float(sim_valid.mean()):.2f})")
+            logger.debug(f"Calculated metrics - NSE: {nse:.6f}, KGE: {kge:.6f}, RMSE: {rmse:.6f}")
+            logger.debug(f"Additional metrics - r: {r:.6f}, alpha: {alpha:.6f}, beta: {beta:.6f}")
             
-            return {
-                'Calib_NSE': nse, 'Calib_KGE': kge, 'Calib_RMSE': rmse, 'Calib_MAE': mae, 'Calib_PBIAS': pbias,
-                'Calib_r': r, 'Calib_alpha': alpha, 'Calib_beta': beta,
-                'NSE': nse, 'KGE': kge, 'RMSE': rmse, 'MAE': mae, 'PBIAS': pbias
+            result = {
+                'Calib_NSE': nse,
+                'Calib_KGE': kge,
+                'Calib_RMSE': rmse,
+                'Calib_MAE': mae,
+                'Calib_PBIAS': pbias,
+                'Calib_r': r,
+                'Calib_alpha': alpha,
+                'Calib_beta': beta,
+                'NSE': nse,
+                'KGE': kge,
+                'RMSE': rmse,
+                'MAE': mae,
+                'PBIAS': pbias
             }
-        except Exception as e:
-            return None
             
             logger.debug("Metrics calculation completed successfully")
             return result
@@ -1468,15 +1508,15 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
             return None
         
     except ImportError as e:
-        logger.warning(f"WORKER DEBUG: Import error: {str(e)}")
+        logger.debug(f"Import error: {str(e)}")
         return None
     except FileNotFoundError as e:
-        logger.warning(f"WORKER DEBUG: File not found error: {str(e)}")
+        logger.debug(f"File not found error: {str(e)}")
         return None
     except Exception as e:
-        logger.warning(f"WORKER DEBUG: Error in inline metrics calculation: {str(e)}")
+        logger.debug(f"Error in inline metrics calculation: {str(e)}")
         import traceback
-        logger.warning(f"WORKER DEBUG: Full traceback: {traceback.format_exc()}")
+        logger.debug(f"Full traceback: {traceback.format_exc()}")
         return None
 
 def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir: str, 
@@ -1512,9 +1552,10 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
     List[float]
         [objective1, objective2] values
     """
-    from ..calibration_targets import (
-        StreamflowTarget, SnowTarget, GroundwaterTarget, ETTarget, SoilMoistureTarget, TWSTarget
+    from calibration_targets import (
+        StreamflowTarget, SnowTarget, GroundwaterTarget, ETTarget, SoilMoistureTarget
     )
+    from tws_calibration_target import TWSTarget
     from pathlib import Path
     
     project_path = Path(project_dir)
@@ -1531,9 +1572,9 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
             return GroundwaterTarget(config, project_path, logger)
         elif target_type in ['et', 'latent_heat', 'evapotranspiration']:
             return ETTarget(config, project_path, logger)
-        elif target_type in ['sm_point', 'sm_smap', 'sm_esa', 'sm_ismn', 'soil_moisture', 'sm']:
+        elif target_type in ['sm_point', 'sm_smap', 'sm_esa', 'soil_moisture', 'sm']:
             return SoilMoistureTarget(config, project_path, logger)
-        elif target_type in ['tws', 'grace', 'grace_tws', 'total_storage', 'stor_grace']:
+        elif target_type in ['tws', 'grace', 'grace_tws', 'total_storage']:
             return TWSTarget(config, project_path, logger)
         else:
             # Default to streamflow
@@ -1575,14 +1616,8 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
             secondary_target = create_target(secondary_target_type)
             
             # Calculate metrics
-            primary_metrics = primary_target.calculate_metrics(
-                summa_dir,
-                mizuroute_dir=mizuroute_dir
-            )
-            secondary_metrics = secondary_target.calculate_metrics(
-                summa_dir,
-                mizuroute_dir=mizuroute_dir
-            )
+            primary_metrics = primary_target.calculate_metrics(summa_dir, mizuroute_dir)
+            secondary_metrics = secondary_target.calculate_metrics(summa_dir, mizuroute_dir)
             
             obj1 = extract_metric(primary_metrics, primary_metric)
             obj2 = extract_metric(secondary_metrics, secondary_metric)
@@ -1592,10 +1627,7 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
             target_type = task.get('calibration_variable', 'streamflow')
             target = create_target(target_type)
             
-            metrics = target.calculate_metrics(
-                summa_dir,
-                mizuroute_dir=mizuroute_dir
-            )
+            metrics = target.calculate_metrics(summa_dir, mizuroute_dir)
             
             obj1 = extract_metric(metrics, 'NSE')
             obj2 = extract_metric(metrics, 'KGE')
@@ -1613,8 +1645,8 @@ def _apply_parameters_worker(params: Dict, task_data: Dict, settings_dir: Path, 
         logger.debug(f"Applying parameters: {list(params.keys())} (consistent method)")
         
         # Parse parameter lists EXACTLY as ParameterManager does
-        local_params = [p.strip() for p in (config.get('PARAMS_TO_CALIBRATE') or '').split(',') if p.strip()]
-        basin_params = [p.strip() for p in (config.get('BASIN_PARAMS_TO_CALIBRATE') or '').split(',') if p.strip()]
+        local_params = [p.strip() for p in config.get('PARAMS_TO_CALIBRATE', '').split(',') if p.strip()]
+        basin_params = [p.strip() for p in config.get('BASIN_PARAMS_TO_CALIBRATE', '').split(',') if p.strip()]
         depth_params = ['total_mult', 'shape_factor'] if config.get('CALIBRATE_DEPTH', False) else []
         
         # Add support for new multiplier
@@ -1665,7 +1697,7 @@ def _update_soil_depths_worker(params: Dict, task_data: Dict, settings_dir: Path
     try:
         original_depths_list = task_data.get('original_depths')
         if not original_depths_list:
-            logger.debug("No original depths provided, skipping soil depth update")
+            logger.warning("No original depths provided, skipping soil depth update")
             return True
         
         original_depths = np.array(original_depths_list)
@@ -1908,7 +1940,7 @@ def _generate_trial_params_worker(params: Dict, settings_dir: Path, logger, debu
         return False
 
 
-def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logger, debug_info: Dict, summa_settings_dir: Path = None) -> bool:
+def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logger, debug_info: Dict) -> bool:
     """SUMMA execution without log files to save disk space"""
     try:
         # Create log directory
@@ -1928,73 +1960,6 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
         summa_exe_str = str(summa_exe)
         file_manager_str = str(file_manager)
         
-        # Verify executable permissions
-        if not os.access(summa_exe, os.X_OK):
-            error_msg = f"SUMMA executable is not executable: {summa_exe}"
-            logger.error(error_msg)
-            debug_info['errors'].append(error_msg)
-            return False
-
-        # Update file manager with correct output path and settings path
-        try:
-            with open(file_manager, 'r') as f:
-                lines = f.readlines()
-
-            updated_lines = []
-            output_path_updated = False
-            settings_path_updated = False
-
-            # Ensure paths end with slash for SUMMA
-            output_path_str = str(summa_dir)
-            if not output_path_str.endswith(os.sep):
-                output_path_str += os.sep
-
-            # Prepare settings path if provided
-            settings_path_str = None
-            if summa_settings_dir is not None:
-                settings_path_str = str(summa_settings_dir)
-                if not settings_path_str.endswith(os.sep):
-                    settings_path_str += os.sep
-
-            for line in lines:
-                if 'outputPath' in line and not line.strip().startswith('!'):
-                    # Preserve comment if present
-                    parts = line.split('!')
-                    comment = '!' + parts[1] if len(parts) > 1 else ''
-
-                    # Update path - SUMMA requires quoted strings
-                    updated_lines.append(f"outputPath '{output_path_str}' {comment}\n")
-                    output_path_updated = True
-                elif 'settingsPath' in line and not line.strip().startswith('!') and settings_path_str is not None:
-                    # Preserve comment if present
-                    parts = line.split('!')
-                    comment = '!' + parts[1] if len(parts) > 1 else ''
-
-                    # Update settings path - SUMMA requires quoted strings
-                    updated_lines.append(f"settingsPath '{settings_path_str}' {comment}\n")
-                    settings_path_updated = True
-                else:
-                    updated_lines.append(line)
-
-            if not output_path_updated:
-                # If outputPath not found, append it (though uncommon for valid file manager)
-                updated_lines.append(f"outputPath '{output_path_str}'\n")
-
-            if settings_path_str is not None and not settings_path_updated:
-                # If settingsPath not found, append it
-                updated_lines.append(f"settingsPath '{settings_path_str}'\n")
-
-            with open(file_manager, 'w') as f:
-                f.writelines(updated_lines)
-
-            logger.debug(f"Updated file manager output path to: {output_path_str}")
-            if settings_path_str is not None:
-                logger.debug(f"Updated file manager settings path to: {settings_path_str}")
-
-        except Exception as e:
-            logger.warning(f"Failed to update file manager paths: {e}")
-            # Continue anyway, hoping it works or fails later
-        
         # Build command
         cmd = f"{summa_exe_str} -m {file_manager_str}"
         
@@ -2002,6 +1967,13 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
         logger.debug(f"Working directory: {summa_dir}")
         
         debug_info['commands_run'].append(f"SUMMA: {cmd}")
+        
+        # Verify executable permissions
+        if not os.access(summa_exe, os.X_OK):
+            error_msg = f"SUMMA executable is not executable: {summa_exe}"
+            logger.error(error_msg)
+            debug_info['errors'].append(error_msg)
+            return False
         
         # Run SUMMA 
         with open(log_file, 'w') as f:
@@ -2015,8 +1987,8 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
             result = subprocess.run(
                 cmd,
                 shell=True,
-                stdout=f,
-                stderr=subprocess.STDOUT,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 check=True,
                 env=env,
                 cwd=str(summa_dir)
@@ -2028,8 +2000,7 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
             # Look for any .nc files
             nc_files = list(summa_dir.glob("*.nc"))
             if not nc_files:
-                dir_contents = list(summa_dir.glob("*"))
-                error_msg = f"No SUMMA output files found in {summa_dir}. Contents: {[f.name for f in dir_contents]}"
+                error_msg = f"No SUMMA output files found in {summa_dir}"
                 logger.error(error_msg)
                 debug_info['errors'].append(error_msg)
                 return False

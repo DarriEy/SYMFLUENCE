@@ -67,87 +67,70 @@ def mock_external_tools():
 
     Provides a simplified tool definition structure for testing
     dependency resolution, installation, and validation logic.
-    Matches the actual structure from external_tools_config.py
     """
     return {
         'sundials': {
+            'name': 'SUNDIALS',
             'description': 'SUite of Nonlinear and DIfferential/ALgebraic equation Solvers',
-            'config_path_key': 'SUNDIALS_INSTALL_PATH',
-            'config_exe_key': 'SUNDIALS_DIR',
-            'default_path_suffix': 'installs/sundials/install/sundials/',
-            'default_exe': 'lib/libsundials_core.a',
             'repository': 'https://github.com/LLNL/sundials.git',
-            'branch': None,
-            'install_dir': 'sundials',
+            'tag': 'v6.5.0',
+            'build_dir': 'build',
             'build_commands': [
                 'mkdir -p build',
                 'cd build && cmake ..',
                 'cd build && make',
                 'cd build && make install'
             ],
+            'install_path_suffix': 'bin/external_tools/sundials',
             'dependencies': [],
-            'test_command': None,
             'verify_install': {
                 'check_type': 'exists',
                 'file_paths': ['lib/libsundials_cvode.so']
-            },
-            'order': 1
+            }
         },
         'summa': {
+            'name': 'SUMMA',
             'description': 'Structure for Unifying Multiple Modeling Alternatives',
-            'config_path_key': 'SUMMA_INSTALL_PATH',
-            'config_exe_key': 'SUMMA_EXE',
-            'default_path_suffix': 'installs/summa/bin',
-            'default_exe': 'summa.exe',
             'repository': 'https://github.com/NCAR/summa.git',
-            'branch': 'develop_sundials',
-            'install_dir': 'summa',
-            'requires': ['sundials'],
+            'tag': 'v3.0.3',
+            'build_dir': 'build',
             'build_commands': [
                 'mkdir -p build',
                 'cd build && cmake ..',
                 'cd build && make'
             ],
+            'install_path_suffix': 'bin/external_tools/summa',
             'dependencies': ['sundials'],
-            'test_command': {'command': '--version', 'timeout': 10},
             'verify_install': {
                 'check_type': 'exists',
                 'file_paths': ['bin/summa.exe']
             },
-            'order': 2
+            'test_command': {
+                'command': '--version',
+                'timeout': 10
+            }
         },
         'mizuroute': {
+            'name': 'mizuRoute',
             'description': 'River routing model',
-            'config_path_key': 'MIZUROUTE_INSTALL_PATH',
-            'config_exe_key': 'MIZUROUTE_EXE',
-            'default_path_suffix': 'installs/mizuroute/bin',
-            'default_exe': 'mizuroute.exe',
             'repository': 'https://github.com/NCAR/mizuRoute.git',
-            'branch': None,
-            'install_dir': 'mizuroute',
+            'tag': 'v2.0.1',
             'build_commands': ['make'],
+            'install_path_suffix': 'bin/external_tools/mizuRoute',
             'dependencies': [],
-            'test_command': None,
-            'verify_install': None,
-            'order': 3
+            'verify_install': None
         },
         'taudem': {
+            'name': 'TauDEM',
             'description': 'Terrain Analysis Using Digital Elevation Models',
-            'config_path_key': 'TAUDEM_INSTALL_PATH',
-            'config_exe_key': 'TAUDEM_DIR',
-            'default_path_suffix': 'installs/taudem/bin',
-            'default_exe': 'pitremove',
             'repository': 'https://github.com/dtarb/TauDEM.git',
-            'branch': None,
-            'install_dir': 'taudem',
             'build_commands': ['mkdir -p build', 'cd build && cmake ..', 'cd build && make'],
+            'install_path_suffix': 'bin/external_tools/taudem',
             'dependencies': [],
-            'test_command': None,
             'verify_install': {
                 'check_type': 'exists_any',
                 'file_paths': ['bin/pitremove', 'bin/d8flowdir', 'bin/aread8']
-            },
-            'order': 4
+            }
         }
     }
 
@@ -204,7 +187,7 @@ def binary_manager(mock_external_tools, tmp_path):
     - Mocked external_tools_config
     - Temporary installation directory
     """
-    from symfluence.cli.binary_manager import BinaryManager
+    from symfluence.utils.cli.binary_manager import BinaryManager
 
     # Create manager with mocked external tools
     manager = BinaryManager(external_tools=mock_external_tools)
@@ -221,7 +204,7 @@ def job_scheduler():
     Creates a JobScheduler instance for testing SLURM script
     generation and job submission logic.
     """
-    from symfluence.cli.job_scheduler import JobScheduler
+    from symfluence.utils.cli.job_scheduler import JobScheduler
 
     return JobScheduler()
 
@@ -234,7 +217,7 @@ def notebook_service(tmp_path):
     - Temporary repo root
     - Mock examples directory
     """
-    from symfluence.cli.notebook_service import NotebookService
+    from symfluence.utils.cli.notebook_service import NotebookService
 
     service = NotebookService()
 
@@ -290,6 +273,19 @@ def mock_yaml_load():
     return _mock_load
 
 
+@pytest.fixture
+def mock_logger():
+    """Mock logger for testing log output.
+
+    Provides a MagicMock logger that captures all logging calls
+    for verification in tests.
+    """
+    logger = MagicMock()
+    logger.info = MagicMock()
+    logger.warning = MagicMock()
+    logger.error = MagicMock()
+    logger.debug = MagicMock()
+    return logger
 
 
 @pytest.fixture(autouse=True)

@@ -27,7 +27,7 @@ class AgentCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.agent import AgentManager
+            from symfluence.utils.cli.agent.agent_manager import AgentManager
 
             verbose = getattr(args, 'verbose', False)
             config_path = BaseCommand.get_config_path(args)
@@ -36,6 +36,7 @@ class AgentCommands(BaseCommand):
 
             # Initialize agent manager
             agent = AgentManager(
+                cli_manager=None,  # Will need to adapt agent to work without CLIArgumentManager
                 config_path=config_path,
                 verbose=verbose
             )
@@ -45,7 +46,7 @@ class AgentCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to start agent: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1
@@ -64,7 +65,7 @@ class AgentCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.agent import AgentManager
+            from symfluence.utils.cli.agent.agent_manager import AgentManager
 
             verbose = getattr(args, 'verbose', False)
             config_path = BaseCommand.get_config_path(args)
@@ -74,6 +75,7 @@ class AgentCommands(BaseCommand):
 
             # Initialize agent manager
             agent = AgentManager(
+                cli_manager=None,  # Will need to adapt agent to work without CLIArgumentManager
                 config_path=config_path,
                 verbose=verbose
             )
@@ -83,7 +85,7 @@ class AgentCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to execute prompt: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1

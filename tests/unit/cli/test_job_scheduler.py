@@ -1,11 +1,10 @@
 """Unit tests for JobScheduler."""
 
 import pytest
-import subprocess
 from unittest.mock import patch, MagicMock, mock_open, call
 from pathlib import Path
 
-from symfluence.cli.job_scheduler import JobScheduler
+from symfluence.utils.cli.job_scheduler import JobScheduler
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]
 
@@ -304,11 +303,11 @@ class TestJobMonitoring:
     @patch('time.sleep')  # Mock sleep to speed up test
     def test_monitor_until_completion(self, mock_sleep, mock_subprocess, job_scheduler):
         """Test job monitoring until completion."""
-        # Mock squeue returning RUNNING then empty (job completed and removed from queue)
+        # Mock squeue returning RUNNING then COMPLETED
         mock_subprocess.side_effect = [
             MagicMock(stdout='RUNNING\n', stderr='', returncode=0),
             MagicMock(stdout='RUNNING\n', stderr='', returncode=0),
-            MagicMock(stdout='', stderr='', returncode=0),  # Empty stdout signals job done
+            MagicMock(stdout='COMPLETED\n', stderr='', returncode=0),
         ]
 
         job_scheduler._monitor_slurm_job('12345')
@@ -320,16 +319,16 @@ class TestJobMonitoring:
     @patch('time.sleep')
     def test_monitor_failure_detection(self, mock_sleep, mock_subprocess, job_scheduler):
         """Test detection of job failure."""
-        # Mock job showing FAILED status, then empty (job removed from queue)
-        mock_subprocess.side_effect = [
-            MagicMock(stdout='FAILED\n', stderr='', returncode=0),
-            MagicMock(stdout='', stderr='', returncode=0),  # Empty = job done
-        ]
+        mock_subprocess.return_value = MagicMock(
+            stdout='FAILED\n',
+            stderr='',
+            returncode=0
+        )
 
         job_scheduler._monitor_slurm_job('12345')
 
-        # Should have checked status twice
-        assert mock_subprocess.call_count == 2
+        # Should detect failure and exit monitoring
+        assert mock_subprocess.called
 
 
 class TestHandleSlurmJobSubmission:

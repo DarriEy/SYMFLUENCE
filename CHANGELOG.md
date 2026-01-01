@@ -3,6 +3,96 @@
 All notable changes to SYMFLUENCE are documented here.
 
 ---
+## [0.7.0] - 2025-12-31
+
+### BREAKING CHANGES: CLI Refactored to Subcommand Architecture
+
+**This is a major breaking change that completely refactors the CLI from a flat flag-based interface to a modern two-level subcommand architecture. All existing CLI commands will need to be updated.**
+
+### Changed
+- **Complete CLI Refactor**
+  - Replaced 1,261-line `cli_argument_manager.py` with modular subcommand architecture
+  - New structure: `symfluence <category> <action>` instead of `symfluence --flag`
+  - 7 command categories: workflow, project, binary, config, job, example, agent
+  - Eliminated complex mode detection logic - commands dispatch directly to handlers
+  - Archived old `cli_argument_manager.py` to `cli_argument_manager.py.old`
+
+- **New CLI Structure**
+  ```bash
+  # Workflow commands
+  symfluence workflow run [--config CONFIG]
+  symfluence workflow step STEP_NAME
+  symfluence workflow list-steps
+  symfluence workflow status
+
+  # Project commands
+  symfluence project init [PRESET]
+  symfluence project pour-point LAT/LON --domain-name NAME --definition METHOD
+  symfluence project list-presets
+
+  # Binary/tool commands
+  symfluence binary install [TOOL...]
+  symfluence binary validate
+  symfluence binary doctor
+
+  # Configuration commands
+  symfluence config validate
+  symfluence config validate-env
+  symfluence config list-templates
+
+  # Job commands
+  symfluence job submit [WORKFLOW_CMD] [SLURM_OPTIONS]
+
+  # Example commands
+  symfluence example launch EXAMPLE_ID
+  symfluence example list
+
+  # Agent commands
+  symfluence agent start
+  symfluence agent run PROMPT
+  ```
+
+### Added
+- New modular command structure in `src/symfluence/utils/cli/`:
+  - `argument_parser.py` - Main parser with subcommand structure
+  - `validators.py` - Validation utilities (coordinates, bounding boxes, config files)
+  - `commands/` directory with command handlers:
+    - `base.py` - Base command class with common utilities
+    - `workflow_commands.py` - Workflow execution handlers
+    - `project_commands.py` - Project initialization handlers
+    - `binary_commands.py` - Tool management handlers
+    - `config_commands.py` - Configuration handlers
+    - `job_commands.py` - SLURM job handlers
+    - `example_commands.py` - Notebook handlers
+    - `agent_commands.py` - AI agent handlers
+
+### Migration Guide
+
+| Old Command (v0.6.0) | New Command (v0.7.0) |
+|----------------------|----------------------|
+| `symfluence --calibrate_model` | `symfluence workflow step calibrate_model` |
+| `symfluence --setup_project --create_pour_point` | `symfluence workflow steps setup_project create_pour_point` |
+| `symfluence --get_executables summa` | `symfluence binary install summa` |
+| `symfluence --validate_binaries` | `symfluence binary validate` |
+| `symfluence --doctor` | `symfluence binary doctor` |
+| `symfluence --init fuse-provo --scaffold` | `symfluence project init fuse-provo --scaffold` |
+| `symfluence --list_presets` | `symfluence project list-presets` |
+| `symfluence --workflow_status` | `symfluence workflow status` |
+| `symfluence --list_steps` | `symfluence workflow list-steps` |
+| `symfluence --pour_point 51/-115 --domain_def delineate --domain_name Test` | `symfluence project pour-point 51/-115 --domain-name Test --definition delineate` |
+| `symfluence --agent` | `symfluence agent start` |
+| `symfluence --example_notebook 1a` | `symfluence example launch 1a` |
+
+**Benefits of new CLI:**
+- Clearer command organization and discoverability
+- Better help messages (`symfluence workflow --help` shows workflow-specific options)
+- Easier to extend with new commands
+- Industry-standard pattern (like git, docker, kubectl)
+- No mode detection ambiguity
+
+**For scripts/automation:** Update all CLI invocations to use the new subcommand syntax. No backward compatibility mode is provided.
+
+---
 ## [0.6.0] - 2025-12-29
 
 ### Major: Calibration Infrastructure & CLI Completion
