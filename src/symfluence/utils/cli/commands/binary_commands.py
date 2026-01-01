@@ -87,12 +87,10 @@ class BinaryCommands(BaseCommand):
 
             binary_manager = BinaryManager()
 
-            verbose = getattr(args, 'verbose', False)
-
             BaseCommand.print_info("🔍 Validating installed binaries...")
 
             # Call binary manager validation
-            success = binary_manager.validate_binaries(verbose=verbose)
+            success = binary_manager.validate_binaries()
 
             if success:
                 BaseCommand.print_success("All binaries validated successfully")
