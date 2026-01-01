@@ -22,19 +22,23 @@ from shutil import copyfile
 from datetime import datetime
 from typing import Dict, Any
 import subprocess
+from .base import BaseModelPreProcessor
 
-class TRoutePreProcessor:
+class TRoutePreProcessor(BaseModelPreProcessor):
     """
     A standalone preprocessor for t-route within the SYMFLUENCE framework.
 
-    This class creates all necessary input and configuration files for a 
+    This class creates all necessary input and configuration files for a
     t-route run without any dependency on other routing model utilities.
     """
+
+    def _get_model_name(self) -> str:
+        """Return model name for directory structure."""
+        return "troute"
+
     def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
-        self.logger = logger
-        self.project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}"
-        self.troute_setup_dir = self.project_dir / "settings" / "troute"
+        # Initialize base class (handles standard paths and directories)
+        super().__init__(config, logger)
 
     def run_preprocessing(self):
         """Main entry point for running all t-route preprocessing steps."""
@@ -48,14 +52,14 @@ class TRoutePreProcessor:
         """Copies base settings for t-route from the 0_base_settings directory."""
         self.logger.info("Copying t-route base settings...")
         base_settings_path = Path(self.config.get('SYMFLUENCE_CODE_DIR')) / '0_base_settings' / 'troute'
-        self.troute_setup_dir.mkdir(parents=True, exist_ok=True)
+        self.setup_dir.mkdir(parents=True, exist_ok=True)
         
         if not base_settings_path.exists():
             self.logger.warning(f"Base settings directory not found at {base_settings_path}. Skipping copy.")
             return
 
         for file in os.listdir(base_settings_path):
-            copyfile(base_settings_path / file, self.troute_setup_dir / file)
+            copyfile(base_settings_path / file, self.setup_dir / file)
         self.logger.info("t-route base settings copied.")
 
     def create_troute_topology_file(self):
@@ -70,7 +74,7 @@ class TRoutePreProcessor:
         river_basin_path = self.project_dir / 'shapefiles/river_basins'
         river_basin_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
         topology_name = self.config.get('SETTINGS_TROUTE_TOPOLOGY', 'troute_topology.nc')
-        topology_filepath = self.troute_setup_dir / topology_name
+        topology_filepath = self.setup_dir / topology_name
 
         # Load shapefiles
         shp_river = gpd.read_file(river_network_path / river_network_name)
@@ -127,7 +131,7 @@ class TRoutePreProcessor:
         # Build configuration dictionary matching t-route's schema
         config_dict = {
             'log_parameters': {'showtiming': True, 'log_level': 'DEBUG'},
-            'network_topology_parameters': {'supernetwork_parameters': {'geo_file_path': str(self.troute_setup_dir / topology_name)}},
+            'network_topology_parameters': {'supernetwork_parameters': {'geo_file_path': str(self.setup_dir / topology_name)}},
             'compute_parameters': {
                 'restart_parameters': {'start_datetime': self.config.get('EXPERIMENT_TIME_START')},
                 'forcing_parameters': {
@@ -141,7 +145,7 @@ class TRoutePreProcessor:
 
         # Write dictionary to YAML file
         yaml_filename = self.config.get('SETTINGS_TROUTE_CONFIG_FILE', 'troute_config.yml')
-        yaml_filepath = self.troute_setup_dir / yaml_filename
+        yaml_filepath = self.setup_dir / yaml_filename
         with open(yaml_filepath, 'w') as f:
             yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False, indent=2)
         self.logger.info(f"t-route YAML config written to {yaml_filepath}")

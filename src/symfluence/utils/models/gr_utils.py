@@ -10,6 +10,8 @@ import shutil
 
 from symfluence.utils.data.utilities.variable_utils import VariableHandler
 from .registry import ModelRegistry
+from .base import BaseModelPreProcessor
+from .mixins import PETCalculatorMixin
 
 # Optional R/rpy2 support - only needed for GR models
 try:
@@ -27,19 +29,27 @@ except (ImportError, ValueError) as e:
     localconverter = None
 
 @ModelRegistry.register_preprocessor('GR')
-class GRPreProcessor:
+class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
     """
     Preprocessor for the GR family of models (initially GR4J).
+
     Handles data preparation, PET calculation, snow module setup, and file organization.
-    Now supports both lumped and distributed spatial modes.
-    
+    Supports both lumped and distributed spatial modes.
+    Inherits common functionality from BaseModelPreProcessor and PET calculations from PETCalculatorMixin.
+
     Attributes:
-        config (Dict[str, Any]): Configuration settings for GR models
-        logger (Any): Logger object for recording processing information
-        project_dir (Path): Directory for the current project
-        gr_setup_dir (Path): Directory for GR setup files
-        domain_name (str): Name of the domain being processed
+        config: Configuration settings for GR models (inherited)
+        logger: Logger object for recording processing information (inherited)
+        project_dir: Directory for the current project (inherited)
+        setup_dir: Directory for GR setup files (inherited)
+        domain_name: Name of the domain being processed (inherited)
+        spatial_mode: Spatial mode ('lumped' or 'distributed')
     """
+
+    def _get_model_name(self) -> str:
+        """Return model name for GR."""
+        return "GR"
+
     def __init__(self, config: Dict[str, Any], logger: Any):
         if not HAS_RPY2:
             raise ImportError(
@@ -47,21 +57,13 @@ class GRPreProcessor:
                 "Please install R and rpy2, or use a different model. "
                 "See https://rpy2.github.io/doc/latest/html/overview.html#installation"
             )
-        self.config = config
-        self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.gr_setup_dir = self.project_dir / "settings" / "GR"
-        
-        # GR-specific paths
-        self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
-        self.forcing_gr_path = self.project_dir / 'forcing' / 'GR_input'
-        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
-        if self.catchment_name == 'default':
-            self.catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
-        
+
+        # Initialize base class
+        super().__init__(config, logger)
+
+        # GR-specific catchment configuration
+        self.catchment_path = self.get_catchment_path()
+
         # Spatial mode configuration
         self.spatial_mode = self.config.get('GR_SPATIAL_MODE', 'lumped')
 
@@ -69,6 +71,7 @@ class GRPreProcessor:
         """Run the complete GR preprocessing workflow."""
         self.logger.info(f"Starting GR preprocessing in {self.spatial_mode} mode")
         try:
+            # Use base class method to create directories
             self.create_directories()
             self.prepare_forcing_data()
             self.logger.info("GR preprocessing completed successfully")
@@ -76,105 +79,8 @@ class GRPreProcessor:
             self.logger.error(f"Error during GR preprocessing: {str(e)}")
             raise
 
-    def create_directories(self):
-        """Create necessary directories for GR model setup."""
-        dirs_to_create = [
-            self.gr_setup_dir,
-            self.forcing_gr_path,
-        ]
-        for dir_path in dirs_to_create:
-            dir_path.mkdir(parents=True, exist_ok=True)
-            self.logger.info(f"Created directory: {dir_path}")
-
-    def calculate_pet_oudin(self, temp_data: xr.DataArray, lat: float) -> xr.DataArray:
-        """
-        Calculate potential evapotranspiration using Oudin's formula.
-        Optimized implementation with proper temperature handling.
-        
-        Args:
-            temp_data (xr.DataArray): Temperature data in either Kelvin or Celsius
-            lat (float): Latitude of the catchment centroid in degrees
-            
-        Returns:
-            xr.DataArray: Calculated PET in mm/day
-        """
-        self.logger.info("Calculating PET using Oudin's formula (optimized)")
-        
-        with xr.set_options(use_numbagg=False, use_bottleneck=False):
-            # Check if temperature is likely in Kelvin (values > 100) and convert to Celsius if needed
-            temp_max = float(temp_data.max())
-            if temp_max > 100:
-                self.logger.info(f"Converting temperature from Kelvin to Celsius (max value: {temp_max})")
-                temp_C = temp_data - 273.15
-            else:
-                self.logger.info(f"Temperature appears to be in Celsius already (max value: {temp_max})")
-                temp_C = temp_data
-        
-        with xr.set_options(use_numbagg=False, use_bottleneck=False):
-            # Debug temperature values
-            self.logger.info(f"Temperature range: {float(temp_C.min()):.2f}°C to {float(temp_C.max()):.2f}°C")
-        
-        # Get dates
-        dates = pd.DatetimeIndex(temp_data.time.values)
-        
-        # Convert latitude to radians
-        lat_rad = np.deg2rad(lat)
-        
-        # Calculate day of year as array
-        doy = np.array(dates.dayofyear)
-        
-        # Calculate solar declination (radians)
-        solar_decl = 0.409 * np.sin(2 * np.pi / 365 * doy - 1.39)
-        
-        # Calculate sunset hour angle (radians)
-        # Handle potential numerical issues with clipping
-        cos_arg = -np.tan(lat_rad) * np.tan(solar_decl)
-        # Clip to valid range for arccos
-        cos_arg = np.clip(cos_arg, -1.0, 1.0)
-        sunset_angle = np.arccos(cos_arg)
-        
-        # Calculate extraterrestrial radiation (Ra) - MJ/m²/day
-        dr = 1 + 0.033 * np.cos(2 * np.pi / 365 * doy)
-        Ra = (24 * 60 / np.pi) * 0.082 * dr * (
-            sunset_angle * np.sin(lat_rad) * np.sin(solar_decl) +
-            np.cos(lat_rad) * np.cos(solar_decl) * np.sin(sunset_angle)
-        )
-        
-        # Debug Ra values
-        self.logger.info(f"Extraterrestrial radiation range: {Ra.min():.2f} to {Ra.max():.2f} MJ/m²/day")
-        
-        # Broadcast Ra if needed for multi-HRU
-        if 'hru' in temp_C.dims:
-            Ra = Ra.broadcast_like(temp_C)
-        
-        # Oudin's formula: PET = Ra * (T + 5) / 100 when T + 5 > 0
-        # Create a temperature adjusted array
-        temp_adj = temp_C.values + 5
-        
-        # Apply the formula with vectorized operations
-        pet_values = np.where(temp_adj > 0, Ra * temp_adj / 100, 0)
-        
-        # Create a new DataArray with the same dimensions and coordinates
-        pet = xr.DataArray(
-            pet_values,
-            coords=temp_C.coords,
-            dims=temp_C.dims,
-            attrs={
-                'units': 'mm/day',
-                'long_name': 'Potential evapotranspiration (Oudin formula)',
-                'standard_name': 'water_potential_evaporation_flux'
-            }
-        )
-        
-        with xr.set_options(use_numbagg=False, use_bottleneck=False):
-            # Check if PET has reasonable values
-            pet_min, pet_max = float(pet.min()), float(pet.max())
-            self.logger.info(f"PET range: {pet_min:.4f} to {pet_max:.4f} mm/day")
-        
-        if pet_max < 0.001:
-            self.logger.warning("PET values are all near zero! This may indicate an issue with the calculation.")
-        
-        return pet
+    # Removed: create_directories() - now uses base class method
+    # Removed: calculate_pet_oudin() - now uses PETCalculatorMixin
 
     def prepare_forcing_data(self):
         """
@@ -468,21 +374,10 @@ class GRPreProcessor:
         lon, lat = centroid_geo.geometry.x[0], centroid_geo.geometry.y[0]
         
         self.logger.info(f"Calculated catchment centroid: {lon:.6f}°E, {lat:.6f}°N (UTM Zone {utm_zone})")
-        
+
         return lon, lat
 
-    def _get_default_path(self, path_key: str, default_subpath: str) -> Path:
-        """Get path from config or use default based on project directory."""
-        path_value = self.config.get(path_key)
-        if path_value == 'default' or path_value is None:
-            return self.project_dir / default_subpath
-        return Path(path_value)
-    
-    def _get_file_path(self, file_type, file_def_path, file_name):
-        if self.config.get(f'{file_type}') == 'default':
-            return self.project_dir / file_def_path / file_name
-        else:
-            return Path(self.config.get(f'{file_type}'))
+    # Removed: _get_default_path() and _get_file_path() - now inherited from BaseModelPreProcessor
 
 
 @ModelRegistry.register_runner('GR', method_name='run_gr')

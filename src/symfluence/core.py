@@ -22,7 +22,6 @@ from symfluence.utils.geospatial.domain_manager import DomainManager
 from symfluence.utils.models.model_manager import ModelManager
 from symfluence.utils.evaluation.analysis_manager import AnalysisManager
 from symfluence.utils.optimization.optimization_manager import OptimizationManager
-from symfluence.utils.cli.cli_argument_manager import CLIArgumentManager
 from symfluence.utils.config.config_loader import load_config
 
 

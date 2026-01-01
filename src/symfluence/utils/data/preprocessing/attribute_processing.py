@@ -1,5 +1,6 @@
 
 import os
+import warnings
 import numpy as np # type: ignore
 import netCDF4 as nc # type: ignore
 from pathlib import Path
@@ -14,6 +15,17 @@ from scipy.stats import skew, kurtosis, circmean
 from shapely.geometry import box
 from rasterio.mask import mask # type: ignore
 import baseflow # type: ignore
+
+
+# Deprecation warning
+warnings.warn(
+    "attribute_processing.py is deprecated and will be removed in a future version. "
+    "Please use attribute_processing_refactored.py instead, which provides a modular "
+    "architecture with specialized processors for better maintainability and testing.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
 
 class attributeProcessor:
     """
