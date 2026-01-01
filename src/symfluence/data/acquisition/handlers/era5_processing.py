@@ -1,0 +1,371 @@
+"""
+ERA5 Processing Utilities for SYMFLUENCE.
+
+This module provides shared functions for processing ERA5 data from both
+ARCO (Google Cloud Zarr) and CDS (Copernicus Climate Data Store) pathways.
+"""
+
+import xarray as xr
+import numpy as np
+from typing import Dict, Optional, Union, Tuple
+import logging
+
+# Valid ranges for ERA5 variables after processing
+ERA5_VARIABLE_RANGES = {
+    'LWRadAtm': {'min': 50.0, 'max': 600.0},
+    'SWRadAtm': {'min': 0.0, 'max': 1500.0},
+    'pptrate': {'min': 0.0, 'max': 1.0},  # mm/s
+}
+
+# SUMMA variable attributes
+SUMMA_VARIABLE_ATTRS = {
+    'airpres': {'units': 'Pa', 'long_name': 'air pressure', 'standard_name': 'air_pressure'},
+    'airtemp': {'units': 'K', 'long_name': 'air temperature', 'standard_name': 'air_temperature'},
+    'windspd': {'units': 'm s-1', 'long_name': 'wind speed', 'standard_name': 'wind_speed'},
+    'spechum': {'units': 'kg kg-1', 'long_name': 'specific humidity', 'standard_name': 'specific_humidity'},
+    'pptrate': {'units': 'mm/s', 'long_name': 'precipitation rate', 'standard_name': 'precipitation_rate'},
+    'SWRadAtm': {'units': 'W m-2', 'long_name': 'shortwave radiation', 'standard_name': 'surface_downwelling_shortwave_flux_in_air'},
+    'LWRadAtm': {'units': 'W m-2', 'long_name': 'longwave radiation', 'standard_name': 'surface_downwelling_longwave_flux_in_air'},
+}
+
+# Variable name mappings for different ERA5 sources
+ARCO_VARIABLE_NAMES = {
+    'temperature': '2m_temperature',
+    'dewpoint': '2m_dewpoint_temperature',
+    'pressure': 'surface_pressure',
+    'wind_u': '10m_u_component_of_wind',
+    'wind_v': '10m_v_component_of_wind',
+    'precipitation': 'total_precipitation',
+    'sw_radiation': 'surface_solar_radiation_downwards',
+    'lw_radiation': 'surface_thermal_radiation_downwards',
+}
+
+CDS_VARIABLE_NAMES = {
+    'temperature': ['t2m', '2m_temperature'],
+    'dewpoint': ['d2m', '2m_dewpoint_temperature'],
+    'pressure': ['sp', 'surface_pressure'],
+    'wind_u': ['u10', '10m_u_component_of_wind'],
+    'wind_v': ['v10', '10m_v_component_of_wind'],
+    'precipitation': ['tp', 'total_precipitation'],
+    'sw_radiation': ['ssrd', 'surface_solar_radiation_downwards'],
+    'lw_radiation': ['strd', 'surface_thermal_radiation_downwards'],
+}
+
+
+def calculate_wind_speed(u: xr.DataArray, v: xr.DataArray) -> xr.DataArray:
+    """
+    Calculate wind speed from u and v components.
+
+    Args:
+        u: Eastward wind component (m/s)
+        v: Northward wind component (m/s)
+
+    Returns:
+        Wind speed magnitude (m/s)
+    """
+    windspd = np.sqrt(u**2 + v**2).astype('float32')
+    windspd.attrs = SUMMA_VARIABLE_ATTRS['windspd']
+    return windspd
+
+
+def calculate_specific_humidity(dewpoint_K: xr.DataArray, pressure_Pa: xr.DataArray) -> xr.DataArray:
+    """
+    Calculate specific humidity from dewpoint temperature and pressure.
+
+    Uses the Magnus formula for saturation vapor pressure.
+
+    Args:
+        dewpoint_K: Dewpoint temperature in Kelvin
+        pressure_Pa: Surface pressure in Pascals
+
+    Returns:
+        Specific humidity (kg/kg)
+    """
+    Td_C = dewpoint_K - 273.15
+
+    # Saturation vapor pressure (Pa) using Magnus formula
+    es = 611.2 * np.exp((17.67 * Td_C) / (Td_C + 243.5))
+
+    # Mixing ratio
+    # Guard against division by zero or negative values
+    denom = xr.where((pressure_Pa - es) <= 1.0, 1.0, pressure_Pa - es)
+    r = 0.622 * es / denom
+
+    # Specific humidity from mixing ratio
+    spechum = (r / (1.0 + r)).astype('float32')
+    spechum.attrs = SUMMA_VARIABLE_ATTRS['spechum']
+    return spechum
+
+
+def deaccumulate_to_rate(
+    accumulated: xr.DataArray,
+    time_seconds: xr.DataArray,
+    scale_factor: float = 1.0,
+    negate_if_negative: bool = False,
+    var_name: str = ''
+) -> xr.DataArray:
+    """
+    Convert accumulated ERA5 variable to instantaneous rate.
+
+    ERA5 accumulated variables (precipitation, radiation) need to be
+    de-accumulated by taking the time difference and dividing by the
+    time step duration.
+
+    Args:
+        accumulated: Accumulated variable values
+        time_seconds: Time step durations in seconds
+        scale_factor: Scaling factor to apply (e.g., 1000 for m to mm conversion)
+        negate_if_negative: If True, negate values if minimum is negative
+                           (handles ERA5's negative downward flux convention)
+        var_name: Variable name for range clamping (e.g., 'pptrate', 'LWRadAtm')
+
+    Returns:
+        Instantaneous rate values
+    """
+    val = accumulated
+
+    # Handle ERA5's negative downward flux convention if needed
+    if negate_if_negative:
+        if float(val.min()) < 0.0:
+            val = -val
+
+    # De-accumulate: take time difference
+    diff = val.diff('time')
+
+    # Handle accumulation resets (when diff is negative, indicating new accumulation period)
+    # For resets, use the current value as the increment
+    diff = xr.where(diff >= 0, diff, val.isel(time=slice(1, None)))
+
+    # Handle NaN/inf
+    diff = xr.where(np.isfinite(diff), diff, 0.0)
+
+    # Convert to rate and scale
+    rate = (diff / time_seconds) * scale_factor
+
+    # Apply valid range if specified
+    if var_name in ERA5_VARIABLE_RANGES:
+        min_val = ERA5_VARIABLE_RANGES[var_name]['min']
+        max_val = ERA5_VARIABLE_RANGES[var_name]['max']
+        rate = xr.where(np.isfinite(rate), rate, min_val).clip(min=min_val, max=max_val)
+    else:
+        rate = xr.where(np.isfinite(rate), rate, 0.0).clip(min=0.0)
+
+    return rate.astype('float32')
+
+
+def apply_valid_range(data: xr.DataArray, var_name: str) -> xr.DataArray:
+    """
+    Clip data to valid physical range for the given variable.
+
+    Args:
+        data: Input data array
+        var_name: Variable name (e.g., 'LWRadAtm', 'SWRadAtm', 'pptrate')
+
+    Returns:
+        Data clipped to valid range
+    """
+    if var_name in ERA5_VARIABLE_RANGES:
+        min_val = ERA5_VARIABLE_RANGES[var_name]['min']
+        max_val = ERA5_VARIABLE_RANGES[var_name]['max']
+        return data.clip(min=min_val, max=max_val)
+    return data
+
+
+def find_variable(ds: xr.Dataset, var_type: str, source: str = 'arco') -> Optional[str]:
+    """
+    Find variable name in dataset based on variable type and source.
+
+    Args:
+        ds: xarray Dataset
+        var_type: Variable type ('temperature', 'dewpoint', 'pressure', etc.)
+        source: Data source ('arco' or 'cds')
+
+    Returns:
+        Variable name if found, None otherwise
+    """
+    if source == 'arco':
+        var_name = ARCO_VARIABLE_NAMES.get(var_type)
+        if var_name and var_name in ds.data_vars:
+            return var_name
+    else:
+        # CDS source - try multiple possible names
+        candidates = CDS_VARIABLE_NAMES.get(var_type, [])
+        for candidate in candidates:
+            if candidate in ds.data_vars or candidate in ds.variables:
+                return candidate
+    return None
+
+
+def era5_to_summa_schema(
+    ds: xr.Dataset,
+    source: str = 'arco',
+    logger: Optional[logging.Logger] = None
+) -> xr.Dataset:
+    """
+    Convert ERA5 dataset to SUMMA forcing schema.
+
+    This is the main processing function that handles both ARCO and CDS data sources.
+
+    Args:
+        ds: Input ERA5 dataset (must have 'time' dimension with at least 2 timesteps)
+        source: Data source ('arco' or 'cds')
+        logger: Optional logger for diagnostic messages
+
+    Returns:
+        Dataset with SUMMA-schema variables:
+        - airpres: Air pressure (Pa)
+        - airtemp: Air temperature (K)
+        - windspd: Wind speed (m/s)
+        - spechum: Specific humidity (kg/kg)
+        - pptrate: Precipitation rate (mm/s)
+        - SWRadAtm: Shortwave radiation (W/m2)
+        - LWRadAtm: Longwave radiation (W/m2)
+    """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+
+    if 'time' not in ds.dims or ds.sizes['time'] < 2:
+        logger.warning("Dataset has insufficient time steps for de-accumulation")
+        return ds
+
+    # Sort by time
+    ds = ds.sortby('time')
+
+    # For ARCO source, slice off first timestep after de-accumulation
+    # For CDS source, we prepend the first value to maintain time dimension
+
+    processed_vars = {}
+
+    # Calculate time step duration in seconds
+    dt = (ds['time'].diff('time') / np.timedelta64(1, 's')).astype('float32')
+
+    # === Instantaneous variables ===
+
+    # Temperature
+    temp_var = find_variable(ds, 'temperature', source)
+    if temp_var:
+        if source == 'arco':
+            processed_vars['airtemp'] = ds[temp_var].isel(time=slice(1, None)).astype('float32')
+        else:
+            processed_vars['airtemp'] = ds[temp_var].astype('float32')
+        processed_vars['airtemp'].attrs = SUMMA_VARIABLE_ATTRS['airtemp']
+        logger.debug(f"Processed temperature from {temp_var}")
+
+    # Pressure
+    pres_var = find_variable(ds, 'pressure', source)
+    if pres_var:
+        if source == 'arco':
+            processed_vars['airpres'] = ds[pres_var].isel(time=slice(1, None)).astype('float32')
+        else:
+            processed_vars['airpres'] = ds[pres_var].astype('float32')
+        processed_vars['airpres'].attrs = SUMMA_VARIABLE_ATTRS['airpres']
+        logger.debug(f"Processed pressure from {pres_var}")
+
+    # Wind components -> wind speed
+    u_var = find_variable(ds, 'wind_u', source)
+    v_var = find_variable(ds, 'wind_v', source)
+    if u_var and v_var:
+        if source == 'arco':
+            u = ds[u_var].isel(time=slice(1, None))
+            v = ds[v_var].isel(time=slice(1, None))
+        else:
+            u = ds[u_var]
+            v = ds[v_var]
+        processed_vars['windspd'] = calculate_wind_speed(u, v)
+        logger.debug(f"Calculated wind speed from {u_var}, {v_var}")
+
+    # Specific humidity (from dewpoint and pressure)
+    dew_var = find_variable(ds, 'dewpoint', source)
+    if dew_var and pres_var:
+        if source == 'arco':
+            dewpoint = ds[dew_var].isel(time=slice(1, None))
+            pressure = ds[pres_var].isel(time=slice(1, None))
+        else:
+            dewpoint = ds[dew_var]
+            pressure = ds[pres_var]
+        processed_vars['spechum'] = calculate_specific_humidity(dewpoint, pressure)
+        logger.debug(f"Calculated specific humidity from {dew_var}, {pres_var}")
+
+    # === Accumulated variables (need de-accumulation) ===
+
+    # Precipitation
+    precip_var = find_variable(ds, 'precipitation', source)
+    if precip_var:
+        pptrate = deaccumulate_to_rate(
+            ds[precip_var], dt,
+            scale_factor=1000.0,  # m to mm
+            negate_if_negative=False,
+            var_name='pptrate'
+        )
+        if source == 'arco':
+            processed_vars['pptrate'] = pptrate
+        else:
+            # For CDS, prepend first value to maintain time dimension
+            original_times = ds['time'].values
+            first_val = pptrate.isel(time=0).drop_vars('time')
+            pptrate_full = xr.concat([first_val.expand_dims('time'), pptrate.drop_vars('time')], dim='time')
+            processed_vars['pptrate'] = pptrate_full.assign_coords(time=original_times)
+        processed_vars['pptrate'].attrs = SUMMA_VARIABLE_ATTRS['pptrate']
+        logger.debug(f"Processed precipitation from {precip_var}")
+
+    # Shortwave radiation
+    sw_var = find_variable(ds, 'sw_radiation', source)
+    if sw_var:
+        sw_rad = deaccumulate_to_rate(
+            ds[sw_var], dt,
+            scale_factor=1.0,
+            negate_if_negative=False,
+            var_name='SWRadAtm'
+        )
+        if source == 'arco':
+            processed_vars['SWRadAtm'] = sw_rad
+        else:
+            original_times = ds['time'].values
+            first_val = sw_rad.isel(time=0).drop_vars('time')
+            sw_rad_full = xr.concat([first_val.expand_dims('time'), sw_rad.drop_vars('time')], dim='time')
+            processed_vars['SWRadAtm'] = sw_rad_full.assign_coords(time=original_times)
+        processed_vars['SWRadAtm'].attrs = SUMMA_VARIABLE_ATTRS['SWRadAtm']
+        logger.debug(f"Processed shortwave radiation from {sw_var}")
+
+    # Longwave radiation - CRITICAL: ERA5 may encode downward flux as negative
+    lw_var = find_variable(ds, 'lw_radiation', source)
+    if lw_var:
+        lw_rad = deaccumulate_to_rate(
+            ds[lw_var], dt,
+            scale_factor=1.0,
+            negate_if_negative=True,  # Handle negative downward flux convention
+            var_name='LWRadAtm'
+        )
+        if source == 'arco':
+            processed_vars['LWRadAtm'] = lw_rad
+        else:
+            original_times = ds['time'].values
+            first_val = lw_rad.isel(time=0).drop_vars('time')
+            lw_rad_full = xr.concat([first_val.expand_dims('time'), lw_rad.drop_vars('time')], dim='time')
+            processed_vars['LWRadAtm'] = lw_rad_full.assign_coords(time=original_times)
+        processed_vars['LWRadAtm'].attrs = SUMMA_VARIABLE_ATTRS['LWRadAtm']
+
+        # Validate longwave radiation
+        lw_mean = float(processed_vars['LWRadAtm'].mean().values)
+        if lw_mean < 80:
+            raise ValueError(f"LW radiation too low: {lw_mean:.1f} W/m^2 (min threshold: 80)")
+        elif lw_mean < 150:
+            logger.warning(f"LW radiation relatively low: {lw_mean:.1f} W/m^2 (expected for cold climates)")
+        else:
+            logger.debug(f"LW radiation: mean={lw_mean:.1f} W/m^2")
+
+    # Build output dataset
+    if source == 'arco':
+        # Use sliced time coordinates (after first timestep)
+        ds_base = ds.isel(time=slice(1, None))
+        out_coords = {c: ds_base.coords[c] for c in ds_base.coords}
+    else:
+        out_coords = {c: ds.coords[c] for c in ['time', 'latitude', 'longitude'] if c in ds.coords}
+
+    ds_out = xr.Dataset(data_vars=processed_vars, coords=out_coords)
+
+    # Ensure consistent dimension ordering
+    if 'latitude' in ds_out.dims and 'longitude' in ds_out.dims:
+        ds_out = ds_out.transpose('time', 'latitude', 'longitude', missing_dims='ignore')
+
+    return ds_out

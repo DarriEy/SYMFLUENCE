@@ -27,7 +27,7 @@ class JobCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.cli.job_scheduler import JobScheduler
+            from symfluence.utils.cli.job_scheduler import JobScheduler
 
             job_scheduler = JobScheduler()
 
@@ -75,7 +75,7 @@ class JobCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Job submission failed: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1

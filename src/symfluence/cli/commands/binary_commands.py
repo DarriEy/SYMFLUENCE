@@ -26,22 +26,13 @@ class BinaryCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.cli.binary_manager import BinaryManager
+            from symfluence.utils.cli.binary_manager import BinaryManager
 
             binary_manager = BinaryManager()
 
             # Get tools to install
             tools = args.tools if args.tools else None  # None means install all
             force = args.force
-
-            # Validate tool names
-            if tools:
-                from symfluence.cli.argument_parser import EXTERNAL_TOOLS
-                invalid_tools = [t for t in tools if t not in EXTERNAL_TOOLS]
-                if invalid_tools:
-                    BaseCommand.print_error(f"Invalid tool names: {', '.join(invalid_tools)}")
-                    BaseCommand.print_info(f"Available tools: {', '.join(EXTERNAL_TOOLS)}")
-                    return 1
 
             if tools:
                 BaseCommand.print_info(f"📦 Installing tools: {', '.join(tools)}")
@@ -53,8 +44,8 @@ class BinaryCommands(BaseCommand):
 
             # Call binary manager to install
             success = binary_manager.get_executables(
-                specific_tools=tools,
-                force=force
+                tools=tools,
+                force_install=force
             )
 
             if success:
@@ -66,7 +57,7 @@ class BinaryCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Installation failed: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1
@@ -83,14 +74,16 @@ class BinaryCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.cli.binary_manager import BinaryManager
+            from symfluence.utils.cli.binary_manager import BinaryManager
 
             binary_manager = BinaryManager()
+
+            verbose = getattr(args, 'verbose', False)
 
             BaseCommand.print_info("🔍 Validating installed binaries...")
 
             # Call binary manager validation
-            success = binary_manager.validate_binaries()
+            success = binary_manager.validate_binaries(verbose=verbose)
 
             if success:
                 BaseCommand.print_success("All binaries validated successfully")
@@ -101,7 +94,7 @@ class BinaryCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Validation failed: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1
@@ -120,7 +113,7 @@ class BinaryCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.cli.binary_manager import BinaryManager
+            from symfluence.utils.cli.binary_manager import BinaryManager
 
             binary_manager = BinaryManager()
 
@@ -141,7 +134,7 @@ class BinaryCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Diagnostics failed: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1
@@ -160,7 +153,7 @@ class BinaryCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.cli.binary_manager import BinaryManager
+            from symfluence.utils.cli.binary_manager import BinaryManager
 
             binary_manager = BinaryManager()
 
@@ -179,7 +172,7 @@ class BinaryCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to get tools info: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1

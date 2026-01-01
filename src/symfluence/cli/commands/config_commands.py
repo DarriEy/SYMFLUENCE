@@ -26,26 +26,29 @@ class ConfigCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            # Load templates from package data
-            from symfluence.resources import list_config_templates
+            # Look for template files in the config directory
+            base_dir = Path(__file__).parent.parent.parent.parent.parent / '0_config_files'
 
             BaseCommand.print_info("Available configuration templates:")
             BaseCommand.print_info("=" * 70)
 
-            templates = list_config_templates()
-            if templates:
-                for i, template in enumerate(templates, 1):
-                    BaseCommand.print_info(f"{i:2}. {template.name}")
-                BaseCommand.print_info("=" * 70)
-                BaseCommand.print_info(f"Total: {len(templates)} templates")
+            if base_dir.exists():
+                templates = list(base_dir.glob('*template*.yaml'))
+                if templates:
+                    for i, template in enumerate(templates, 1):
+                        BaseCommand.print_info(f"{i:2}. {template.name}")
+                    BaseCommand.print_info("=" * 70)
+                    BaseCommand.print_info(f"Total: {len(templates)} templates")
+                else:
+                    BaseCommand.print_info("No template files found")
             else:
-                BaseCommand.print_info("No template files found")
+                BaseCommand.print_info(f"Config directory not found: {base_dir}")
 
             return 0
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to list templates: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1
@@ -83,7 +86,7 @@ class ConfigCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Config update failed: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1
@@ -104,15 +107,26 @@ class ConfigCommands(BaseCommand):
 
             BaseCommand.print_info(f"✓ Validating configuration: {config_path}")
 
-            # Load and validate config
-            config = BaseCommand.load_typed_config(config_path, required=True)
-            
-            BaseCommand.print_success("Configuration validated successfully")
-            return 0
+            # Load config to validate YAML syntax
+            config = BaseCommand.load_config(config_path, required=True)
+            if config is None:
+                return 1
+
+            BaseCommand.print_info("✓ Configuration file is valid YAML")
+
+            # Try to initialize SYMFLUENCE to validate structure
+            from symfluence.core import SYMFLUENCE
+            try:
+                symfluence = SYMFLUENCE(config_path, debug_mode=args.debug)
+                BaseCommand.print_success("Configuration validated successfully")
+                return 0
+            except Exception as e:
+                BaseCommand.print_error(f"Configuration structure validation failed: {e}")
+                return 1
 
         except Exception as e:
             BaseCommand.print_error(f"Validation failed: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1
@@ -164,7 +178,7 @@ class ConfigCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Environment validation failed: {e}")
-            if getattr(args, 'debug', False):
+            if args.debug:
                 import traceback
                 traceback.print_exc()
             return 1

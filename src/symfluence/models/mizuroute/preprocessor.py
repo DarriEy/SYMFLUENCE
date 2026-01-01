@@ -1,37 +1,23 @@
-"""
-MizuRoute Model Preprocessor.
-
-Handles spatial preprocessing and configuration generation for the mizuRoute routing model.
-"""
-
 import os
 import sys
-import pandas as pd
-import netCDF4 as nc4
-import geopandas as gpd
-import numpy as np
+import pandas as pd # type: ignore
+import netCDF4 as nc4 # type: ignore
+import geopandas as gpd # type: ignore
+import numpy as np # type: ignore
 from pathlib import Path
 from shutil import copyfile
 from datetime import datetime
 from typing import Dict, Any
-import easymore
+import easymore as esmr # type: ignore
+import subprocess
 import xarray as xr
+from .registry import ModelRegistry
+from .base import BaseModelPreProcessor
 
-from symfluence.models.registry import ModelRegistry
-from symfluence.models.base import BaseModelPreProcessor
-from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
-
-def _create_easymore_instance():
-    """Create an EASYMORE instance handling different module structures."""
-    if hasattr(easymore, "Easymore"):
-        return easymore.Easymore()
-    if hasattr(easymore, "easymore"):
-        return easymore.easymore()
-    raise AttributeError("easymore module does not expose an Easymore class")
-
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 @ModelRegistry.register_preprocessor('MIZUROUTE')
-class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
+class MizuRoutePreProcessor(BaseModelPreProcessor):
     def _get_model_name(self) -> str:
         """Return model name for directory structure."""
         return "mizuRoute"
@@ -39,60 +25,20 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
     def __init__(self, config: Dict[str, Any], logger: Any):
         # Initialize base class (handles standard paths and directories)
         super().__init__(config, logger)
-        
-        self.logger.debug(f"MizuRoutePreProcessor initialized. Default setup_dir: {self.setup_dir}")
-        
-        # Override setup_dir if SETTINGS_MIZU_PATH is provided (for isolated parallel runs)
-        mizu_settings_path = self.config_dict.get('SETTINGS_MIZU_PATH')
-        if mizu_settings_path and mizu_settings_path != 'default':
-            self.setup_dir = Path(mizu_settings_path)
-            self.logger.debug(f"MizuRoutePreProcessor using custom setup_dir from SETTINGS_MIZU_PATH: {self.setup_dir}")
-        
-        # Ensure setup directory exists
-        if not self.setup_dir.exists():
-            self.logger.info(f"Creating mizuRoute setup directory: {self.setup_dir}")
-            self.setup_dir.mkdir(parents=True, exist_ok=True)
-        else:
-            self.logger.debug(f"mizuRoute setup directory already exists: {self.setup_dir}")
 
 
     def run_preprocessing(self):
         self.logger.debug("Starting mizuRoute spatial preprocessing")
         self.copy_base_settings()
         self.create_network_topology_file()
-
-        # Phase 3: Use typed config when available
-        if self.config:
-            needs_remap = self.config.model.mizuroute.needs_remap if self.config.model.mizuroute else False
-            from_model = self.config.model.mizuroute.from_model if self.config.model.mizuroute else None
-            fuse_routing = self._resolve_config_value(
-                lambda: self.config.model.fuse.routing_integration if self.config.model.fuse else None,
-                'FUSE_ROUTING_INTEGRATION'
-            )
-            gr_routing = self._resolve_config_value(
-                lambda: self.config.model.gr.routing_integration if self.config.model.gr else None,
-                'GR_ROUTING_INTEGRATION'
-            )
-        else:
-            needs_remap = self.config_dict.get('SETTINGS_MIZU_NEEDS_REMAP')
-            from_model = self.config_dict.get('MIZU_FROM_MODEL')
-            fuse_routing = self.config_dict.get('FUSE_ROUTING_INTEGRATION')
-            gr_routing = self.config_dict.get('GR_ROUTING_INTEGRATION')
-
-        # Check if lumped-to-distributed remapping is needed (set during topology creation)
-        if getattr(self, 'needs_remap_lumped_distributed', False):
-            self.logger.info("Creating area-weighted remap file for lumped-to-distributed routing")
-            self.create_area_weighted_remap_file()
-            needs_remap = True  # Override to enable remapping in control file
-
-        self.logger.info(f"Should we remap?: {needs_remap}")
-        if needs_remap and not getattr(self, 'needs_remap_lumped_distributed', False):
+        self.logger.info(f"Should we remap?: {self.config.get('SETTINGS_MIZU_NEEDS_REMAP')}")
+        if self.config.get('SETTINGS_MIZU_NEEDS_REMAP'):
             self.remap_summa_catchments_to_routing()
 
-        # Choose control writer based on source model
-        if from_model == 'FUSE' or fuse_routing == 'mizuRoute':
+        # NEW: choose control writer based on source model
+        if self.config.get('MIZU_FROM_MODEL') == 'FUSE' or self.config.get('FUSE_ROUTING_INTEGRATION') == 'mizuRoute':
             self.create_fuse_control_file()
-        elif from_model == 'GR' or gr_routing == 'mizuRoute':
+        elif self.config.get('MIZU_FROM_MODEL') == 'GR' or self.config.get('GR_ROUTING_INTEGRATION') == 'mizuRoute':
             self.create_gr_control_file()
         else:
             self.create_control_file()
@@ -102,8 +48,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def copy_base_settings(self):
         self.logger.info("Copying mizuRoute base settings")
-        from symfluence.resources import get_base_settings_dir
-        base_settings_path = get_base_settings_dir('mizuRoute')
+        base_settings_path = Path(self.config.get('SYMFLUENCE_CODE_DIR')) / '0_base_settings' / 'mizuRoute'
         self.setup_dir.mkdir(parents=True, exist_ok=True)
 
         for file in os.listdir(base_settings_path):
@@ -115,7 +60,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         self.logger.info("Creating area-weighted remapping file")
         
         # Load topology to get HRU information
-        topology_file = self.setup_dir / self.config_dict.get('SETTINGS_MIZU_TOPOLOGY')
+        topology_file = self.setup_dir / self.config.get('SETTINGS_MIZU_TOPOLOGY')
         with xr.open_dataset(topology_file) as topo:
             hru_ids = topo['hruId'].values
         
@@ -127,13 +72,12 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
             gru_ids = self.subcatchment_gru_ids
         else:
             # Fallback: load from delineated catchments shapefile
-            catchment_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.config_dict.get('DOMAIN_NAME')}_catchment_delineated.shp"
+            catchment_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.config.get('DOMAIN_NAME')}_catchment_delineated.shp"
             shp_catchments = gpd.read_file(catchment_path)
             weights = shp_catchments['avg_subbas'].values
-        remap_name = self.config_dict.get('SETTINGS_MIZU_REMAP')
-        if not remap_name:
-            remap_name = "remap_file.nc"
-            self.logger.warning(f"SETTINGS_MIZU_REMAP not found in config, using default: {remap_name}")
+            gru_ids = shp_catchments['GRU_ID'].values.astype(int)
+        
+        remap_name = self.config.get('SETTINGS_MIZU_REMAP')
         
         with nc4.Dataset(self.setup_dir / remap_name, 'w', format='NETCDF4') as ncid:
             # Set attributes
@@ -175,7 +119,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         """Create mizuRoute control file specifically for GR4J input"""
         self.logger.debug("Creating mizuRoute control file for GR4J")
         
-        control_name = self.config_dict.get('SETTINGS_MIZU_CONTROL_FILE', 'mizuRoute_control_GR.txt')
+        control_name = self.config.get('SETTINGS_MIZU_CONTROL_FILE', 'mizuRoute_control_GR.txt')
         
         with open(self.setup_dir / control_name, 'w') as cf:
             self._write_control_file_header(cf)
@@ -189,21 +133,18 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def _write_gr_control_file_directories(self, cf):
         """Write GR-specific directory paths for mizuRoute control"""
-        experiment_output_gr = self.config_dict.get('EXPERIMENT_OUTPUT_GR', 'default')
-        experiment_output_mizuroute = self.config_dict.get('EXPERIMENT_OUTPUT_MIZUROUTE')
+        experiment_output_gr = self.config.get('EXPERIMENT_OUTPUT_GR', 'default')
+        experiment_output_mizuroute = self.config.get('EXPERIMENT_OUTPUT_MIZUROUTE')
 
         if experiment_output_gr == 'default':
-            experiment_output_gr = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'GR'
+            experiment_output_gr = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'GR'
         else:
             experiment_output_gr = Path(experiment_output_gr)
 
-        if experiment_output_mizuroute == 'default' or not experiment_output_mizuroute:
-            experiment_output_mizuroute = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'mizuRoute'
+        if experiment_output_mizuroute == 'default':
+            experiment_output_mizuroute = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'mizuRoute'
         else:
             experiment_output_mizuroute = Path(experiment_output_mizuroute)
-            
-        # Ensure output directory exists
-        experiment_output_mizuroute.mkdir(parents=True, exist_ok=True)
 
         cf.write("!\n! --- DEFINE DIRECTORIES \n")
         cf.write(f"<ancil_dir>             {self.setup_dir}/    ! Folder that contains ancillary data (river network, remapping netCDF) \n")
@@ -212,29 +153,11 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def _write_gr_control_file_runoff(self, cf):
         """Write GR-specific runoff file settings"""
-        # Handle 'default' values - use actual defaults for mizuRoute compatibility
-        routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
-        if routing_var in ('default', None, ''):
-            routing_var = 'q_routed'
-
-        routing_units = self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s')
-        if routing_units in ('default', None, ''):
-            routing_units = 'm/s'
-
-        # GR output from airGR is currently daily (86400s)
-        # We force this here to ensure mizuRoute time matching works correctly
-        routing_dt = '86400'
-
-        # GR saves output as {domain_name}_{experiment_id}_runs_def.nc
-        domain_name = self.config_dict.get('DOMAIN_NAME')
-        experiment_id = self.config_dict.get('EXPERIMENT_ID')
-        gr_output_file = f"{domain_name}_{experiment_id}_runs_def.nc"
-
         cf.write("!\n! --- DEFINE RUNOFF FILE \n")
-        cf.write(f"<fname_qsim>            {gr_output_file}    ! netCDF name for GR4J runoff \n")
-        cf.write(f"<vname_qsim>            {routing_var}    ! Variable name for GR4J runoff \n")
-        cf.write(f"<units_qsim>            {routing_units}    ! Units of input runoff \n")
-        cf.write(f"<dt_qsim>               {routing_dt}    ! Time interval of input runoff in seconds \n")
+        cf.write(f"<fname_qsim>            {self.config.get('EXPERIMENT_ID')}_timestep.nc    ! netCDF name for GR4J runoff \n")
+        cf.write(f"<vname_qsim>            {self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')}    ! Variable name for GR4J runoff \n")
+        cf.write(f"<units_qsim>            {self.config.get('SETTINGS_MIZU_ROUTING_UNITS', 'mm/d')}    ! Units of input runoff \n")
+        cf.write(f"<dt_qsim>               {self.config.get('SETTINGS_MIZU_ROUTING_DT', '86400')}    ! Time interval of input runoff in seconds \n")
         cf.write("<dname_time>            time    ! Dimension name for time \n")
         cf.write("<vname_time>            time    ! Variable name for time \n")
         cf.write("<dname_hruid>           gru     ! Dimension name for HM_HRU ID \n")
@@ -254,8 +177,8 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
             bool: True if this appears to be a headwater basin with invalid network data
         """
         # Check for critical None values in key columns
-        seg_id_col = self.config_dict.get('RIVER_NETWORK_SHP_SEGID')
-        downseg_id_col = self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID')
+        seg_id_col = self.config.get('RIVER_NETWORK_SHP_SEGID')
+        downseg_id_col = self.config.get('RIVER_NETWORK_SHP_DOWNSEGID')
         
         if seg_id_col in shp_river.columns and downseg_id_col in shp_river.columns:
             # Check if all segment IDs are None/null
@@ -295,10 +218,10 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         
         # Create synthetic values for the single segment
         synthetic_data = {
-            self.config_dict.get('RIVER_NETWORK_SHP_SEGID'): synthetic_seg_id,
-            self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID'): 0,  # Outlet (downstream ID = 0)
-            self.config_dict.get('RIVER_NETWORK_SHP_LENGTH'): 1000.0,  # Default 1 km length
-            self.config_dict.get('RIVER_NETWORK_SHP_SLOPE'): 0.001,  # Default 0.1% slope
+            self.config.get('RIVER_NETWORK_SHP_SEGID'): synthetic_seg_id,
+            self.config.get('RIVER_NETWORK_SHP_DOWNSEGID'): 0,  # Outlet (downstream ID = 0)
+            self.config.get('RIVER_NETWORK_SHP_LENGTH'): 1000.0,  # Default 1 km length
+            self.config.get('RIVER_NETWORK_SHP_SLOPE'): 0.001,  # Default 0.1% slope
         }
         
         # Get the geometry column name (usually 'geometry')
@@ -306,8 +229,8 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         
         # Create a simple point geometry at the centroid of the original (if it exists)
         if not shp_river.empty and shp_river.geometry.iloc[0] is not None:
-            # Use the centroid of the first geometry, handling CRS projection via mixin
-            synthetic_geom = self.calculate_feature_centroids(shp_river.iloc[[0]]).iloc[0]
+            # Use the centroid of the first geometry
+            synthetic_geom = shp_river.geometry.iloc[0].centroid
         else:
             # Create a default point geometry (this won't be used for actual routing)
             from shapely.geometry import Point
@@ -324,70 +247,49 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def create_network_topology_file(self):
         self.logger.info("Creating network topology file")
-
-        # Check for grid-based distribute mode
-        is_grid_distribute = self.config_dict.get('DOMAIN_DEFINITION_METHOD') == 'distribute'
-        if is_grid_distribute:
-            self._create_grid_topology_file()
-            return
-
-        river_network_path = self.config_dict.get('RIVER_NETWORK_SHP_PATH')
-        river_network_name = self.config_dict.get('RIVER_NETWORK_SHP_NAME')
-        method_suffix = self._get_method_suffix()
-
-        # Check if this is lumped domain with distributed routing
-        # If so, use the delineated river network (from distributed delineation)
-        is_lumped_to_distributed = (
-            self.config_dict.get('DOMAIN_DEFINITION_METHOD') == 'lumped' and
-            self.config_dict.get('ROUTING_DELINEATION', 'river_network') == 'river_network'
-        )
-
-        # For lumped-to-distributed, use delineated river network and catchments
-        routing_suffix = 'delineate' if is_lumped_to_distributed else method_suffix
+        
+        river_network_path = self.config.get('RIVER_NETWORK_SHP_PATH')
+        river_network_name = self.config.get('RIVER_NETWORK_SHP_NAME')
 
         if river_network_name == 'default':
-            river_network_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverNetwork_{routing_suffix}.shp"
-
+            river_network_name = f"{self.config.get('DOMAIN_NAME')}_riverNetwork_{self.config.get('DOMAIN_DEFINITION_METHOD','delineate')}.shp"
+        
         if river_network_path == 'default':
             river_network_path = self.project_dir / 'shapefiles/river_network'
         else:
             river_network_path = Path(river_network_path)
 
-        river_basin_path = self.config_dict.get('RIVER_BASINS_PATH')
-        river_basin_name = self.config_dict.get('RIVER_BASINS_NAME')
+        river_basin_path = self.config.get('RIVER_BASINS_PATH')
+        river_basin_name = self.config.get('RIVER_BASINS_NAME')
 
         if river_basin_name == 'default':
-            river_basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{routing_suffix}.shp"
+            river_basin_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
 
         if river_basin_path == 'default':
             river_basin_path = self.project_dir / 'shapefiles/river_basins'
         else:
             river_basin_path = Path(river_basin_path)        
 
-        topology_name = self.config_dict.get('SETTINGS_MIZU_TOPOLOGY')
-        if not topology_name:
-            topology_name = "mizuRoute_topology.nc"
-            self.logger.warning(f"SETTINGS_MIZU_TOPOLOGY not found in config, using default: {topology_name}")
+        topology_name = self.config.get('SETTINGS_MIZU_TOPOLOGY')
         
         # Load shapefiles
         shp_river = gpd.read_file(river_network_path / river_network_name)
         shp_basin = gpd.read_file(river_basin_path / river_basin_name)
-
+        
+        # Check if this is lumped domain with distributed routing
+        is_lumped_to_distributed = (
+            self.config.get('DOMAIN_DEFINITION_METHOD') == 'lumped' and 
+            self.config.get('ROUTING_DELINEATION', 'river_network') == 'river_network'
+        )
+        
         if is_lumped_to_distributed:
             self.logger.info("Using delineated catchments for lumped-to-distributed routing")
-
-            # For lumped-to-distributed, SUMMA output is converted to gru/gruId format
-            # by the spatial_orchestrator, so mizuRoute control file should use gru/gruId
-            self.summa_uses_gru_runoff = True
-
-            # Enable remapping: map single lumped SUMMA GRU to 25 routing HRUs with area weights
-            self.needs_remap_lumped_distributed = True
-
+            
             # Load the delineated catchments shapefile
-            catchment_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.config_dict.get('DOMAIN_NAME')}_catchment_delineated.shp"
+            catchment_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.config.get('DOMAIN_NAME')}_catchment_delineated.shp"
             if not catchment_path.exists():
                 raise FileNotFoundError(f"Delineated catchment shapefile not found: {catchment_path}")
-
+            
             shp_catchments = gpd.read_file(catchment_path)
             self.logger.info(f"Loaded {len(shp_catchments)} delineated subcatchments")
             
@@ -406,7 +308,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
             hru_to_seg_ids = shp_catchments['GRU_ID'].values.astype(int)  # Each GRU drains to segment with same ID
             
             # Convert fractional areas to actual areas (multiply by total basin area)
-            total_basin_area = shp_basin[self.config_dict.get('RIVER_BASIN_SHP_AREA')].sum()
+            total_basin_area = shp_basin[self.config.get('RIVER_BASIN_SHP_AREA')].sum()
             hru_areas = shp_catchments['avg_subbas'].values * total_basin_area
             
             # Store fractional areas for remapping
@@ -463,50 +365,49 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
                         closest_segment_id = self._find_closest_segment_to_pour_point(shp_river)
                         
                         if len(shp_basin) == 1:
-                            shp_basin.loc[0, self.config_dict.get('RIVER_BASIN_SHP_HRU_TO_SEG')] = closest_segment_id
+                            shp_basin.loc[0, self.config.get('RIVER_BASIN_SHP_HRU_TO_SEG')] = closest_segment_id
                             self.logger.info(f"Set single HRU to drain to closest segment: {closest_segment_id}")
                         
                         num_seg = len(shp_river)
                         num_hru = len(shp_basin)
                         
-                        hru_ids = shp_basin[self.config_dict.get('RIVER_BASIN_SHP_RM_GRUID')].values.astype(int)
-                        hru_to_seg_ids = shp_basin[self.config_dict.get('RIVER_BASIN_SHP_HRU_TO_SEG')].values.astype(int)
-                        hru_areas = shp_basin[self.config_dict.get('RIVER_BASIN_SHP_AREA')].values.astype(float)
+                        hru_ids = shp_basin[self.config.get('RIVER_BASIN_SHP_RM_GRUID')].values.astype(int)
+                        hru_to_seg_ids = shp_basin[self.config.get('RIVER_BASIN_SHP_HRU_TO_SEG')].values.astype(int)
+                        hru_areas = shp_basin[self.config.get('RIVER_BASIN_SHP_AREA')].values.astype(float)
             else:
                 # No attributes file: use original logic
                 self.summa_uses_gru_runoff = False
                 closest_segment_id = self._find_closest_segment_to_pour_point(shp_river)
                 
                 if len(shp_basin) == 1:
-                    shp_basin.loc[0, self.config_dict.get('RIVER_BASIN_SHP_HRU_TO_SEG')] = closest_segment_id
+                    shp_basin.loc[0, self.config.get('RIVER_BASIN_SHP_HRU_TO_SEG')] = closest_segment_id
                     self.logger.info(f"Set single HRU to drain to closest segment: {closest_segment_id}")
                 
                 num_seg = len(shp_river)
                 num_hru = len(shp_basin)
                 
-                hru_ids = shp_basin[self.config_dict.get('RIVER_BASIN_SHP_RM_GRUID')].values.astype(int)
-                hru_to_seg_ids = shp_basin[self.config_dict.get('RIVER_BASIN_SHP_HRU_TO_SEG')].values.astype(int)
-                hru_areas = shp_basin[self.config_dict.get('RIVER_BASIN_SHP_AREA')].values.astype(float)
+                hru_ids = shp_basin[self.config.get('RIVER_BASIN_SHP_RM_GRUID')].values.astype(int)
+                hru_to_seg_ids = shp_basin[self.config.get('RIVER_BASIN_SHP_HRU_TO_SEG')].values.astype(int)
+                hru_areas = shp_basin[self.config.get('RIVER_BASIN_SHP_AREA')].values.astype(float)
         
         # Ensure minimum segment length - now safe from None values
-        length_col = self.config_dict.get('RIVER_NETWORK_SHP_LENGTH')
+        length_col = self.config.get('RIVER_NETWORK_SHP_LENGTH')
         if length_col in shp_river.columns:
             # Convert None/null values to 0 first, then set minimum
             shp_river[length_col] = shp_river[length_col].fillna(0)
             shp_river.loc[shp_river[length_col] == 0, length_col] = 1
         
         # Ensure slope column has valid values
-        slope_col = self.config_dict.get('RIVER_NETWORK_SHP_SLOPE')
+        slope_col = self.config.get('RIVER_NETWORK_SHP_SLOPE')
         if slope_col in shp_river.columns:
             shp_river[slope_col] = shp_river[slope_col].fillna(0.001)  # Default slope
             shp_river.loc[shp_river[slope_col] == 0, slope_col] = 0.001
         
         # Enforce outlets if specified
-        make_outlet = self.config_dict.get('SETTINGS_MIZU_MAKE_OUTLET')
-        if make_outlet and make_outlet != 'n/a':
-            river_outlet_ids = [int(id) for id in make_outlet.split(',')]
-            seg_id_col = self.config_dict.get('RIVER_NETWORK_SHP_SEGID')
-            downseg_id_col = self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID')
+        if self.config.get('SETTINGS_MIZU_MAKE_OUTLET') != 'n/a':
+            river_outlet_ids = [int(id) for id in self.config.get('SETTINGS_MIZU_MAKE_OUTLET').split(',')]
+            seg_id_col = self.config.get('RIVER_NETWORK_SHP_SEGID')
+            downseg_id_col = self.config.get('RIVER_NETWORK_SHP_DOWNSEGID')
             
             for outlet_id in river_outlet_ids:
                 if outlet_id in shp_river[seg_id_col].values:
@@ -520,10 +421,10 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
             self._create_topology_dimensions(ncid, num_seg, num_hru)
             
             # Create segment variables (now safe from None values)
-            self._create_and_fill_nc_var(ncid, 'segId', 'int', 'seg', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_SEGID')].values.astype(int), 'Unique ID of each stream segment', '-')
-            self._create_and_fill_nc_var(ncid, 'downSegId', 'int', 'seg', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID')].values.astype(int), 'ID of the downstream segment', '-')
-            self._create_and_fill_nc_var(ncid, 'slope', 'f8', 'seg', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_SLOPE')].values.astype(float), 'Segment slope', '-')
-            self._create_and_fill_nc_var(ncid, 'length', 'f8', 'seg', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_LENGTH')].values.astype(float), 'Segment length', 'm')
+            self._create_and_fill_nc_var(ncid, 'segId', 'int', 'seg', shp_river[self.config.get('RIVER_NETWORK_SHP_SEGID')].values.astype(int), 'Unique ID of each stream segment', '-')
+            self._create_and_fill_nc_var(ncid, 'downSegId', 'int', 'seg', shp_river[self.config.get('RIVER_NETWORK_SHP_DOWNSEGID')].values.astype(int), 'ID of the downstream segment', '-')
+            self._create_and_fill_nc_var(ncid, 'slope', 'f8', 'seg', shp_river[self.config.get('RIVER_NETWORK_SHP_SLOPE')].values.astype(float), 'Segment slope', '-')
+            self._create_and_fill_nc_var(ncid, 'length', 'f8', 'seg', shp_river[self.config.get('RIVER_NETWORK_SHP_LENGTH')].values.astype(float), 'Segment length', 'm')
             
             # Create HRU variables (using our computed values)
             self._create_and_fill_nc_var(ncid, 'hruId', 'int', 'hru', hru_ids, 'Unique hru ID', '-')
@@ -552,14 +453,14 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         if not pour_point_files:
             self.logger.error(f"No pour point shapefiles found in {pour_point_dir}")
             # Fallback: use outlet segment (downSegId == 0)
-            outlet_mask = shp_river[self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID')] == 0
+            outlet_mask = shp_river[self.config.get('RIVER_NETWORK_SHP_DOWNSEGID')] == 0
             if outlet_mask.any():
-                outlet_seg = shp_river.loc[outlet_mask, self.config_dict.get('RIVER_NETWORK_SHP_SEGID')].iloc[0]
+                outlet_seg = shp_river.loc[outlet_mask, self.config.get('RIVER_NETWORK_SHP_SEGID')].iloc[0]
                 self.logger.warning(f"Using outlet segment as fallback: {outlet_seg}")
                 return outlet_seg
             else:
                 # Last resort: use first segment
-                fallback_seg = shp_river[self.config_dict.get('RIVER_NETWORK_SHP_SEGID')].iloc[0]
+                fallback_seg = shp_river[self.config.get('RIVER_NETWORK_SHP_SEGID')].iloc[0]
                 self.logger.warning(f"Using first segment as fallback: {fallback_seg}")
                 return fallback_seg
         
@@ -579,14 +480,12 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
             
             # Calculate distances from pour point to all river segments
             shp_river_proj = shp_river.to_crs(shp_river.estimate_utm_crs())
-            # Use mixin to get pour point centroid safely if needed (though it's a point)
-            pour_point_centroids = self.calculate_feature_centroids(shp_pour_point.iloc[[0]])
-            pour_point_proj = pour_point_centroids.to_crs(shp_river_proj.crs)
+            pour_point_proj = gpd.GeoSeries([pour_point_geom], crs=shp_pour_point.crs).to_crs(shp_river_proj.crs)
             distances = shp_river_proj.geometry.distance(pour_point_proj.iloc[0])
             
             # Find closest segment
             closest_idx = distances.idxmin()
-            closest_segment_id = shp_river.loc[closest_idx, self.config_dict.get('RIVER_NETWORK_SHP_SEGID')]
+            closest_segment_id = shp_river.loc[closest_idx, self.config.get('RIVER_NETWORK_SHP_SEGID')]
             
             self.logger.info(f"Closest segment to pour point: {closest_segment_id} (distance: {distances.iloc[closest_idx]:.1f} units)")
             
@@ -595,13 +494,13 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         except Exception as e:
             self.logger.error(f"Error finding closest segment: {str(e)}")
             # Fallback to outlet segment
-            outlet_mask = shp_river[self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID')] == 0
+            outlet_mask = shp_river[self.config.get('RIVER_NETWORK_SHP_DOWNSEGID')] == 0
             if outlet_mask.any():
-                outlet_seg = shp_river.loc[outlet_mask, self.config_dict.get('RIVER_NETWORK_SHP_SEGID')].iloc[0]
+                outlet_seg = shp_river.loc[outlet_mask, self.config.get('RIVER_NETWORK_SHP_SEGID')].iloc[0]
                 self.logger.warning(f"Using outlet segment as fallback: {outlet_seg}")
                 return outlet_seg
             else:
-                fallback_seg = shp_river[self.config_dict.get('RIVER_NETWORK_SHP_SEGID')].iloc[0]
+                fallback_seg = shp_river[self.config.get('RIVER_NETWORK_SHP_SEGID')].iloc[0]
                 self.logger.warning(f"Using first segment as fallback: {fallback_seg}")
                 return fallback_seg
 
@@ -610,7 +509,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         self.logger.info("Creating equal-weight remapping file")
         
         # Load topology to get segment information
-        topology_file = self.setup_dir / self.config_dict.get('SETTINGS_MIZU_TOPOLOGY')
+        topology_file = self.setup_dir / self.config.get('SETTINGS_MIZU_TOPOLOGY')
         with xr.open_dataset(topology_file) as topo:
             seg_ids = topo['segId'].values
             hru_ids = topo['hruId'].values  # Now we have multiple HRUs
@@ -619,10 +518,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         n_hrus = len(hru_ids)
         equal_weight = 1.0 / n_hrus  # Equal weight for each HRU
         
-        remap_name = self.config_dict.get('SETTINGS_MIZU_REMAP')
-        if not remap_name:
-            remap_name = "remap_file.nc"
-            self.logger.warning(f"SETTINGS_MIZU_REMAP not found in config, using default: {remap_name}")
+        remap_name = self.config.get('SETTINGS_MIZU_REMAP')
         
         with nc4.Dataset(self.setup_dir / remap_name, 'w', format='NETCDF4') as ncid:
             # Set attributes
@@ -658,21 +554,21 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def remap_summa_catchments_to_routing(self):
         self.logger.info("Remapping SUMMA catchments to routing catchments")
-        if self.config_dict.get('DOMAIN_DEFINITION_METHOD') == 'lumped' and self.config_dict.get('ROUTING_DELINEATION') == 'river_network':
+        if self.config.get('DOMAIN_DEFINITION_METHOD') == 'lumped' and self.config.get('ROUTING_DELINEATION') == 'river_network':
             self.logger.info("Area-weighted mapping for SUMMA catchments to routing catchments")
             self.create_area_weighted_remap_file()  # Changed from create_equal_weight_remap_file
             return
 
-        hm_catchment_path = Path(self.config_dict.get('CATCHMENT_PATH'))
-        hm_catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
+        hm_catchment_path = Path(self.config.get('CATCHMENT_PATH'))
+        hm_catchment_name = self.config.get('CATCHMENT_SHP_NAME')
         if hm_catchment_name == 'default':
-            hm_catchment_name = f"{self.config_dict.get('DOMAIN_NAME')}_HRUs_{self.config_dict.get('DOMAIN_DISCRETIZATION')}.shp"
+            hm_catchment_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
 
-        rm_catchment_path = Path(self.config_dict.get('RIVER_BASINS_PATH'))
-        rm_catchment_name = self.config_dict.get('RIVER_BASINS_NAME')
+        rm_catchment_path = Path(self.config.get('RIVER_BASINS_PATH'))
+        rm_catchment_name = self.config.get('RIVER_BASINS_NAME')
         
-        intersect_path = Path(self.config_dict.get('INTERSECT_ROUTING_PATH'))
-        intersect_name = self.config_dict.get('INTERSECT_ROUTING_NAME')
+        intersect_path = Path(self.config.get('INTERSECT_ROUTING_PATH'))
+        intersect_name = self.config.get('INTERSECT_ROUTING_NAME')
         if intersect_name == 'default':
             intersect_name = 'catchment_with_routing_basins.shp'
         
@@ -681,10 +577,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         else:
             intersect_path = Path(intersect_path)
 
-        remap_name = self.config_dict.get('SETTINGS_MIZU_REMAP')
-        if not remap_name:
-            remap_name = "remap_file.nc"
-            self.logger.warning(f"SETTINGS_MIZU_REMAP not found in config, using default: {remap_name}")
+        remap_name = self.config.get('SETTINGS_MIZU_REMAP')
         
         if hm_catchment_path == 'default':
             hm_catchment_path = self.project_dir / 'shapefiles/catchment' 
@@ -697,14 +590,14 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
             rm_catchment_path = Path(rm_catchment_path)
 
         # Load shapefiles
-        shp_river = gpd.read_file(river_network_path / river_network_name)
-        shp_basin = gpd.read_file(rm_catchment_path / rm_catchment_name)
+        hm_shape = gpd.read_file(hm_catchment_path / hm_catchment_name)
+        rm_shape = gpd.read_file(rm_catchment_path / rm_catchment_name)
         
         # Create intersection
-        esmr_obj = _create_easymore_instance()
+        esmr_caller = esmr()
         hm_shape = hm_shape.to_crs('EPSG:6933')
         rm_shape = rm_shape.to_crs('EPSG:6933')
-        intersected_shape = esmr_obj.intersection_shp(rm_shape, hm_shape)
+        intersected_shape = esmr.intersection_shp(esmr_caller, rm_shape, hm_shape)
         intersected_shape = intersected_shape.to_crs('EPSG:4326')
         intersected_shape.to_file(intersect_path / intersect_name)
         
@@ -719,7 +612,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
     def create_control_file(self):
         self.logger.debug("Creating mizuRoute control file")
         
-        control_name = self.config_dict.get('SETTINGS_MIZU_CONTROL_FILE', 'mizuroute.control')
+        control_name = self.config.get('SETTINGS_MIZU_CONTROL_FILE')
         
         with open(self.setup_dir / control_name, 'w') as cf:
             self._write_control_file_header(cf)
@@ -737,25 +630,12 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         """Write SUMMA-specific runoff file settings"""
         # Check if we should use GRU-level or HRU-level data
         uses_gru = getattr(self, 'summa_uses_gru_runoff', False)
-
-        # Handle 'default' values - use actual defaults for mizuRoute compatibility
-        routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
-        if routing_var in ('default', None, ''):
-            routing_var = 'averageRoutedRunoff'
-
-        routing_units = self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s')
-        if routing_units in ('default', None, ''):
-            routing_units = 'm/s'
-
-        routing_dt = self.config_dict.get('SETTINGS_MIZU_ROUTING_DT', '3600')
-        if routing_dt in ('default', None, ''):
-            routing_dt = '3600'
-
+        
         cf.write("!\n! --- DEFINE RUNOFF FILE \n")
-        cf.write(f"<fname_qsim>            {self.config_dict.get('EXPERIMENT_ID')}_timestep.nc    ! netCDF name for SUMMA runoff \n")
-        cf.write(f"<vname_qsim>            {routing_var}    ! Variable name for SUMMA runoff \n")
-        cf.write(f"<units_qsim>            {routing_units}    ! Units of input runoff \n")
-        cf.write(f"<dt_qsim>               {routing_dt}    ! Time interval of input runoff in seconds \n")
+        cf.write(f"<fname_qsim>            {self.config.get('EXPERIMENT_ID')}_timestep.nc    ! netCDF name for SUMMA runoff \n")
+        cf.write(f"<vname_qsim>            {self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')}    ! Variable name for SUMMA runoff \n")
+        cf.write(f"<units_qsim>            {self.config.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s')}    ! Units of input runoff \n")
+        cf.write(f"<dt_qsim>               {self.config.get('SETTINGS_MIZU_ROUTING_DT', '3600')}    ! Time interval of input runoff in seconds \n")
         cf.write("<dname_time>            time    ! Dimension name for time \n")
         cf.write("<vname_time>            time    ! Variable name for time \n")
         
@@ -780,104 +660,11 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         ncid.createDimension('seg', num_seg)
         ncid.createDimension('hru', num_hru)
 
-    def _create_grid_topology_file(self):
-        """
-        Create mizuRoute topology for grid-based distributed modeling.
-
-        Each grid cell becomes both an HRU and a segment. D8 flow direction
-        determines segment connectivity.
-        """
-        self.logger.info("Creating grid-based network topology for distributed mode")
-
-        # Load grid shapefile with D8 topology
-        grid_path = self.project_dir / 'shapefiles' / 'river_basins' / f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_distribute.shp"
-
-        if not grid_path.exists():
-            self.logger.error(f"Grid basins shapefile not found: {grid_path}")
-            raise FileNotFoundError(f"Grid basins not found: {grid_path}")
-
-        grid_gdf = gpd.read_file(grid_path)
-        num_cells = len(grid_gdf)
-
-        self.logger.info(f"Loaded {num_cells} grid cells from {grid_path}")
-
-        topology_name = self.config_dict.get('SETTINGS_MIZU_TOPOLOGY')
-
-        # Extract topology data from grid shapefile
-        seg_ids = grid_gdf['GRU_ID'].values.astype(int)
-
-        # Get downstream IDs from D8 topology
-        # Note: shapefile truncates column names to 10 chars, so downstream_id becomes downstream
-        if 'downstream_id' in grid_gdf.columns:
-            down_seg_ids = grid_gdf['downstream_id'].values.astype(int)
-        elif 'downstream' in grid_gdf.columns:
-            down_seg_ids = grid_gdf['downstream'].values.astype(int)
-        elif 'DSLINKNO' in grid_gdf.columns:
-            down_seg_ids = grid_gdf['DSLINKNO'].values.astype(int)
-        else:
-            self.logger.warning("No D8 topology found, setting all cells as outlets")
-            down_seg_ids = np.zeros(num_cells, dtype=int)
-
-        # Get slopes from grid
-        if 'slope' in grid_gdf.columns:
-            slopes = grid_gdf['slope'].values.astype(float)
-            # Ensure minimum slope
-            slopes = np.maximum(slopes, 0.001)
-        else:
-            self.logger.warning("No slope data found, using default 0.01")
-            slopes = np.full(num_cells, 0.01)
-
-        # Get cell size for segment length
-        grid_cell_size = self.config_dict.get('GRID_CELL_SIZE', 1000.0)
-        lengths = np.full(num_cells, float(grid_cell_size))
-
-        # HRU variables (each cell is also an HRU)
-        hru_ids = seg_ids.copy()
-        hru_to_seg_ids = seg_ids.copy()  # Each HRU drains to its own segment
-
-        # Get HRU areas
-        if 'GRU_area' in grid_gdf.columns:
-            hru_areas = grid_gdf['GRU_area'].values.astype(float)
-        else:
-            self.logger.warning("No area data found, using cell size squared")
-            hru_areas = np.full(num_cells, grid_cell_size ** 2)
-
-        # Create the netCDF topology file
-        with nc4.Dataset(self.setup_dir / topology_name, 'w', format='NETCDF4') as ncid:
-            self._set_topology_attributes(ncid)
-            self._create_topology_dimensions(ncid, num_cells, num_cells)
-
-            # Create segment variables
-            self._create_and_fill_nc_var(ncid, 'segId', 'int', 'seg', seg_ids,
-                                         'Unique ID of each grid cell segment', '-')
-            self._create_and_fill_nc_var(ncid, 'downSegId', 'int', 'seg', down_seg_ids,
-                                         'ID of downstream grid cell (0=outlet)', '-')
-            self._create_and_fill_nc_var(ncid, 'slope', 'f8', 'seg', slopes,
-                                         'Grid cell slope', '-')
-            self._create_and_fill_nc_var(ncid, 'length', 'f8', 'seg', lengths,
-                                         'Grid cell length (cell size)', 'm')
-
-            # Create HRU variables
-            self._create_and_fill_nc_var(ncid, 'hruId', 'int', 'hru', hru_ids,
-                                         'Unique HRU ID (=grid cell ID)', '-')
-            self._create_and_fill_nc_var(ncid, 'hruToSegId', 'int', 'hru', hru_to_seg_ids,
-                                         'Segment to which HRU drains (=cell ID)', '-')
-            self._create_and_fill_nc_var(ncid, 'area', 'f8', 'hru', hru_areas,
-                                         'HRU area', 'm^2')
-
-        # Count outlets for logging
-        n_outlets = np.sum(down_seg_ids == 0)
-        self.logger.info(f"Grid topology created: {num_cells} cells, {n_outlets} outlets")
-        self.logger.info(f"Topology file: {self.setup_dir / topology_name}")
-
-        # Set flag for control file - grid cells use GRU-level runoff
-        self.summa_uses_gru_runoff = True
-
     def create_fuse_control_file(self):
         """Create mizuRoute control file specifically for FUSE input"""
         self.logger.debug("Creating mizuRoute control file for FUSE")
         
-        control_name = self.config_dict.get('SETTINGS_MIZU_CONTROL_FILE', 'mizuroute.control')
+        control_name = self.config.get('SETTINGS_MIZU_CONTROL_FILE')
         
         with open(self.setup_dir / control_name, 'w') as cf:
             self._write_control_file_header(cf)
@@ -891,21 +678,18 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def _write_fuse_control_file_directories(self, cf):
         """Write FUSE-specific directory paths for mizuRoute control"""
-        experiment_output_fuse = self.config_dict.get('EXPERIMENT_OUTPUT_FUSE')
-        experiment_output_mizuroute = self.config_dict.get('EXPERIMENT_OUTPUT_MIZUROUTE')
+        experiment_output_fuse = self.config.get('EXPERIMENT_OUTPUT_FUSE')
+        experiment_output_mizuroute = self.config.get('EXPERIMENT_OUTPUT_MIZUROUTE')
 
         if experiment_output_fuse == 'default':
-            experiment_output_fuse = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'FUSE'
+            experiment_output_fuse = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'FUSE'
         else:
             experiment_output_fuse = Path(experiment_output_fuse)
 
-        if experiment_output_mizuroute == 'default' or not experiment_output_mizuroute:
-            experiment_output_mizuroute = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'mizuRoute'
+        if experiment_output_mizuroute == 'default':
+            experiment_output_mizuroute = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'mizuRoute'
         else:
             experiment_output_mizuroute = Path(experiment_output_mizuroute)
-            
-        # Ensure output directory exists
-        experiment_output_mizuroute.mkdir(parents=True, exist_ok=True)
 
         cf.write("!\n! --- DEFINE DIRECTORIES \n")
         cf.write(f"<ancil_dir>             {self.setup_dir}/    ! Folder that contains ancillary data (river network, remapping netCDF) \n")
@@ -915,24 +699,11 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def _write_fuse_control_file_runoff(self, cf):
         """Write FUSE-specific runoff file settings"""
-        # Handle 'default' values - use actual defaults for mizuRoute compatibility
-        routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
-        if routing_var in ('default', None, ''):
-            routing_var = 'q_routed'
-
-        routing_units = self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s')
-        if routing_units in ('default', None, ''):
-            routing_units = 'm/s'
-
-        routing_dt = self.config_dict.get('SETTINGS_MIZU_ROUTING_DT', '3600')
-        if routing_dt in ('default', None, ''):
-            routing_dt = '3600'
-
         cf.write("!\n! --- DEFINE RUNOFF FILE \n")
-        cf.write(f"<fname_qsim>            {self.config_dict.get('EXPERIMENT_ID')}_timestep.nc    ! netCDF name for FUSE runoff \n")
-        cf.write(f"<vname_qsim>            {routing_var}    ! Variable name for FUSE runoff \n")
-        cf.write(f"<units_qsim>            {routing_units}    ! Units of input runoff \n")
-        cf.write(f"<dt_qsim>               {routing_dt}    ! Time interval of input runoff in seconds \n")
+        cf.write(f"<fname_qsim>            {self.config.get('EXPERIMENT_ID')}_timestep.nc    ! netCDF name for FUSE runoff \n")
+        cf.write(f"<vname_qsim>            {self.config.get('SETTINGS_MIZU_ROUTING_VAR')}    ! Variable name for FUSE runoff \n")
+        cf.write(f"<units_qsim>            {self.config.get('SETTINGS_MIZU_ROUTING_UNITS')}    ! Units of input runoff \n")
+        cf.write(f"<dt_qsim>               {self.config.get('SETTINGS_MIZU_ROUTING_DT')}    ! Time interval of input runoff in seconds \n")
         cf.write("<dname_time>            time    ! Dimension name for time \n")
         cf.write("<vname_time>            time    ! Variable name for time \n")
         cf.write("<dname_hruid>           gru     ! Dimension name for HM_HRU ID \n")
@@ -943,22 +714,8 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
     def _write_control_file_simulation_controls(self, cf):
         """Enhanced simulation control writing with proper time handling"""
         # Get simulation dates from config
-        sim_start = self.config_dict.get('EXPERIMENT_TIME_START')
-        sim_end = self.config_dict.get('EXPERIMENT_TIME_END')
-        
-        # Determine source model
-        from_model = self.config_dict.get('MIZU_FROM_MODEL', '').upper()
-        gr_routing = self.config_dict.get('GR_ROUTING_INTEGRATION', 'none').lower() == 'mizuroute'
-        
-        # Special handling for GR: force midnight alignment for daily data
-        if from_model == 'GR' or gr_routing:
-            if isinstance(sim_start, str):
-                # Replace any time part with 00:00
-                sim_start = sim_start.split(' ')[0] + " 00:00"
-            if isinstance(sim_end, str):
-                # Replace any time part with 00:00 (or keep as is if daily)
-                sim_end = sim_end.split(' ')[0] + " 00:00"
-            self.logger.debug(f"Forced GR simulation period to midnight: {sim_start} to {sim_end}")
+        sim_start = self.config.get('EXPERIMENT_TIME_START')
+        sim_end = self.config.get('EXPERIMENT_TIME_END')
         
         # Ensure dates are in proper format
         from datetime import datetime
@@ -968,24 +725,24 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
             sim_end = f"{sim_end} 23:00"
         
         cf.write("!\n! --- DEFINE SIMULATION CONTROLS \n")
-        cf.write(f"<case_name>             {self.config_dict.get('EXPERIMENT_ID')}    ! Simulation case name \n")
+        cf.write(f"<case_name>             {self.config.get('EXPERIMENT_ID')}    ! Simulation case name \n")
         cf.write(f"<sim_start>             {sim_start}    ! Time of simulation start \n")
         cf.write(f"<sim_end>               {sim_end}    ! Time of simulation end \n")
-        cf.write(f"<route_opt>             {self.config_dict.get('SETTINGS_MIZU_OUTPUT_VARS')}    ! Option for routing schemes \n")
-        cf.write(f"<newFileFrequency>      {self.config_dict.get('SETTINGS_MIZU_OUTPUT_FREQ')}    ! Frequency for new output files \n")
+        cf.write(f"<route_opt>             {self.config.get('SETTINGS_MIZU_OUTPUT_VARS')}    ! Option for routing schemes \n")
+        cf.write(f"<newFileFrequency>      {self.config.get('SETTINGS_MIZU_OUTPUT_FREQ')}    ! Frequency for new output files \n")
 
     def _create_topology_variables(self, ncid, shp_river, shp_basin):
-        self._create_and_fill_nc_var(ncid, 'segId', 'int', 'seg', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_SEGID')].values.astype(int), 'Unique ID of each stream segment', '-')
-        self._create_and_fill_nc_var(ncid, 'downSegId', 'int', 'seg', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID')].values.astype(int), 'ID of the downstream segment', '-')
-        self._create_and_fill_nc_var(ncid, 'slope', 'f8', 'seg', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_SLOPE')].values.astype(float), 'Segment slope', '-')
-        self._create_and_fill_nc_var(ncid, 'length', 'f8', 'seg', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_LENGTH')].values.astype(float), 'Segment length', 'm')
-        self._create_and_fill_nc_var(ncid, 'hruId', 'int', 'hru', shp_basin[self.config_dict.get('RIVER_BASIN_SHP_RM_GRUID')].values.astype(int), 'Unique hru ID', '-')
-        self._create_and_fill_nc_var(ncid, 'hruToSegId', 'int', 'hru', shp_basin[self.config_dict.get('RIVER_BASIN_SHP_HRU_TO_SEG')].values.astype(int), 'ID of the stream segment to which the HRU discharges', '-')
-        self._create_and_fill_nc_var(ncid, 'area', 'f8', 'hru', shp_basin[self.config_dict.get('RIVER_BASIN_SHP_AREA')].values.astype(float), 'HRU area', 'm^2')
+        self._create_and_fill_nc_var(ncid, 'segId', 'int', 'seg', shp_river[self.config.get('RIVER_NETWORK_SHP_SEGID')].values.astype(int), 'Unique ID of each stream segment', '-')
+        self._create_and_fill_nc_var(ncid, 'downSegId', 'int', 'seg', shp_river[self.config.get('RIVER_NETWORK_SHP_DOWNSEGID')].values.astype(int), 'ID of the downstream segment', '-')
+        self._create_and_fill_nc_var(ncid, 'slope', 'f8', 'seg', shp_river[self.config.get('RIVER_NETWORK_SHP_SLOPE')].values.astype(float), 'Segment slope', '-')
+        self._create_and_fill_nc_var(ncid, 'length', 'f8', 'seg', shp_river[self.config.get('RIVER_NETWORK_SHP_LENGTH')].values.astype(float), 'Segment length', 'm')
+        self._create_and_fill_nc_var(ncid, 'hruId', 'int', 'hru', shp_basin[self.config.get('RIVER_BASIN_SHP_RM_GRUID')].values.astype(int), 'Unique hru ID', '-')
+        self._create_and_fill_nc_var(ncid, 'hruToSegId', 'int', 'hru', shp_basin[self.config.get('RIVER_BASIN_SHP_HRU_TO_SEG')].values.astype(int), 'ID of the stream segment to which the HRU discharges', '-')
+        self._create_and_fill_nc_var(ncid, 'area', 'f8', 'hru', shp_basin[self.config.get('RIVER_BASIN_SHP_AREA')].values.astype(float), 'HRU area', 'm^2')
 
     def _process_remap_variables(self, intersected_shape):
-        int_rm_id = f"S_1_{self.config_dict.get('RIVER_BASIN_SHP_RM_HRUID')}"
-        int_hm_id = f"S_2_{self.config_dict.get('CATCHMENT_SHP_GRUID')}"
+        int_rm_id = f"S_1_{self.config.get('RIVER_BASIN_SHP_RM_HRUID')}"
+        int_hm_id = f"S_2_{self.config.get('CATCHMENT_SHP_GRUID')}"
         int_weight = 'AP1N'
         
         intersected_shape = intersected_shape.sort_values(by=[int_rm_id, int_hm_id])
@@ -1000,7 +757,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         self.nc_weight = [item for sublist in multi_nested_list for item in sublist[0]]
 
     def _create_remap_file(self, intersected_shape, remap_name):
-        num_hru = len(intersected_shape[f"S_1_{self.config_dict.get('RIVER_BASIN_SHP_RM_HRUID')}"].unique())
+        num_hru = len(intersected_shape[f"S_1_{self.config.get('RIVER_BASIN_SHP_RM_HRUID')}"].unique())
         num_data = len(intersected_shape)
         
         with nc4.Dataset(self.setup_dir / remap_name, 'w', format='NETCDF4') as ncid:
@@ -1034,21 +791,18 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         cf.write("! mizuRoute control file generated by SUMMA public workflow scripts \n")
 
     def _write_control_file_directories(self, cf):
-        experiment_output_summa = self.config_dict.get('EXPERIMENT_OUTPUT_SUMMA')
-        experiment_output_mizuroute = self.config_dict.get('EXPERIMENT_OUTPUT_MIZUROUTE')
+        experiment_output_summa = self.config.get('EXPERIMENT_OUTPUT_SUMMA')
+        experiment_output_mizuroute = self.config.get('EXPERIMENT_OUTPUT_SUMMA')
 
         if experiment_output_summa == 'default':
-            experiment_output_summa = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'SUMMA'
+            experiment_output_summa = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'SUMMA'
         else:
             experiment_output_summa = Path(experiment_output_summa)
 
-        if experiment_output_mizuroute == 'default' or not experiment_output_mizuroute:
-            experiment_output_mizuroute = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'mizuRoute'
+        if experiment_output_mizuroute == 'default':
+            experiment_output_mizuroute = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'mizuRoute'
         else:
             experiment_output_mizuroute = Path(experiment_output_mizuroute)
-            
-        # Ensure output directory exists
-        experiment_output_mizuroute.mkdir(parents=True, exist_ok=True)
 
         cf.write("!\n! --- DEFINE DIRECTORIES \n")
         cf.write(f"<ancil_dir>             {self.setup_dir}/    ! Folder that contains ancillary data (river network, remapping netCDF) \n")
@@ -1057,12 +811,12 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def _write_control_file_parameters(self, cf):
         cf.write("!\n! --- NAMELIST FILENAME \n")
-        cf.write(f"<param_nml>             {self.config_dict.get('SETTINGS_MIZU_PARAMETERS')}    ! Spatially constant parameter namelist (should be stored in the ancil_dir) \n")
+        cf.write(f"<param_nml>             {self.config.get('SETTINGS_MIZU_PARAMETERS')}    ! Spatially constant parameter namelist (should be stored in the ancil_dir) \n")
 
 
     def _write_control_file_topology(self, cf):
         cf.write("!\n! --- DEFINE TOPOLOGY FILE \n")
-        cf.write(f"<fname_ntopOld>         {self.config_dict.get('SETTINGS_MIZU_TOPOLOGY')}    ! Name of input netCDF for River Network \n")
+        cf.write(f"<fname_ntopOld>         {self.config.get('SETTINGS_MIZU_TOPOLOGY')}    ! Name of input netCDF for River Network \n")
         cf.write("<dname_sseg>            seg    ! Dimension name for reach in river network netCDF \n")
         cf.write("<dname_nhru>            hru    ! Dimension name for RN_HRU in river network netCDF \n")
         cf.write("<seg_outlet>            -9999    ! Outlet reach ID at which to stop routing (i.e. use subset of full network). -9999 to use full network \n")
@@ -1076,15 +830,11 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def _write_control_file_remapping(self, cf):
         cf.write("!\n! --- DEFINE RUNOFF MAPPING FILE \n")
-        # Check both config flag and lumped-to-distributed flag
-        remap_flag = (
-            self.config_dict.get('SETTINGS_MIZU_NEEDS_REMAP', '') == True or
-            getattr(self, 'needs_remap_lumped_distributed', False)
-        )
+        remap_flag = self.config.get('SETTINGS_MIZU_NEEDS_REMAP', '') == True
         cf.write(f"<is_remap>              {'T' if remap_flag else 'F'}    ! Logical to indicate runoff needs to be remapped to RN_HRU. T or F \n")
-
+        
         if remap_flag:
-            cf.write(f"<fname_remap>           {self.config_dict.get('SETTINGS_MIZU_REMAP')}    ! netCDF name of runoff remapping \n")
+            cf.write(f"<fname_remap>           {self.config.get('SETTINGS_MIZU_REMAP')}    ! netCDF name of runoff remapping \n")
             cf.write("<vname_hruid_in_remap>  RN_hruId    ! Variable name for RN_HRUs \n")
             cf.write("<vname_weight>          weight    ! Variable name for areal weights of overlapping HM_HRUs \n")
             cf.write("<vname_qhruid>          HM_hruId    ! Variable name for HM_HRU ID \n")
@@ -1094,14 +844,14 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def _write_control_file_miscellaneous(self, cf):
         cf.write("!\n! --- MISCELLANEOUS \n")
-        cf.write(f"<doesBasinRoute>        {self.config_dict.get('SETTINGS_MIZU_WITHIN_BASIN')}    ! Hillslope routing options. 0 -> no (already routed by SUMMA), 1 -> use IRF \n")
+        cf.write(f"<doesBasinRoute>        {self.config.get('SETTINGS_MIZU_WITHIN_BASIN')}    ! Hillslope routing options. 0 -> no (already routed by SUMMA), 1 -> use IRF \n")
 
     def _get_default_time(self, time_key, default_year):
-        time_value = self.config_dict.get(time_key)
+        time_value = self.config.get(time_key)
         if time_value == 'default':
             raw_time = [
-                    self.config_dict.get('EXPERIMENT_TIME_START').split('-')[0],  # Get year from full datetime
-                    self.config_dict.get('EXPERIMENT_TIME_END').split('-')[0]
+                    self.config.get('EXPERIMENT_TIME_START').split('-')[0],  # Get year from full datetime
+                    self.config.get('EXPERIMENT_TIME_END').split('-')[0]
                 ]
             year = raw_time[0] if default_year == 'start' else raw_time[1]
             return f"{year}-{'01-01 00:00' if default_year == 'start' else '12-31 23:00'}"
@@ -1109,3 +859,267 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def _pad_string(self, string, pad_to=20):
         return f"{string:{pad_to}}"
+    
+
+@ModelRegistry.register_runner('MIZUROUTE', method_name='run_mizuroute')
+class MizuRouteRunner:
+    """
+    A class to run the mizuRoute model.
+
+    This class handles the execution of the mizuRoute model, including setting up paths,
+    running the model, and managing log files.
+
+    Attributes:
+        config (Dict[str, Any]): Configuration settings for the model run.
+        logger (Any): Logger object for recording run information.
+        root_path (Path): Root path for the project.
+        domain_name (str): Name of the domain being processed.
+        project_dir (Path): Directory for the current project.
+    """
+    def __init__(self, config: Dict[str, Any], logger: Any):
+        self.config = config
+        self.logger = logger
+        self.root_path = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
+        self.domain_name = self.config.get('DOMAIN_NAME')
+        self.project_dir = self.root_path / f"domain_{self.domain_name}"
+
+    def fix_time_precision(self):
+        """
+        Fix model output time precision by rounding to nearest hour.
+        This fixes compatibility issues with mizuRoute time matching.
+        Now supports both SUMMA and FUSE outputs with proper time format detection.
+        """
+        # Determine which model's output to process
+        models = self.config.get('HYDROLOGICAL_MODEL', '').split(',')
+        active_models = [m.strip() for m in models]
+        
+        # For FUSE, check if it has already converted its output
+        if 'FUSE' in active_models:
+            self.logger.debug("Fixing FUSE time precision for mizuRoute compatibility")
+            experiment_output_dir = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'FUSE'
+            runoff_filename = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('EXPERIMENT_ID')}_runs_def.nc"
+        else:
+            self.logger.info("Fixing SUMMA time precision for mizuRoute compatibility")
+            experiment_output_summa = self.config.get('EXPERIMENT_OUTPUT_SUMMA')
+            if experiment_output_summa == 'default':
+                experiment_output_dir = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'SUMMA'
+            else:
+                experiment_output_dir = Path(experiment_output_summa)
+            runoff_filename = f"{self.config.get('EXPERIMENT_ID')}_timestep.nc"
+        
+        runoff_filepath = experiment_output_dir / runoff_filename
+        
+        if not runoff_filepath.exists():
+            self.logger.error(f"Model output file not found: {runoff_filepath}")
+            return
+        
+        try:
+            import xarray as xr
+            import os
+            
+            self.logger.debug(f"Processing {runoff_filepath}")
+            
+            # Open dataset and examine time format
+            ds = xr.open_dataset(runoff_filepath, decode_times=False)
+            
+            # Detect the time format by examining attributes and values
+            time_attrs = ds.time.attrs
+            time_values = ds.time.values
+            
+            self.logger.debug(f"Time units: {time_attrs.get('units', 'No units specified')}")
+            self.logger.debug(f"Time range: {time_values.min()} to {time_values.max()}")
+            
+            # Check if time precision fix is needed and determine format
+            needs_fix = False
+            time_format_detected = None
+            
+            if 'units' in time_attrs:
+                units_str = time_attrs['units'].lower()
+                
+                if 'since 1990-01-01' in units_str:
+                    # SUMMA-style format: seconds since 1990-01-01
+                    time_format_detected = 'summa_seconds_1990'
+                    first_time = pd.to_datetime(time_values[0], unit='s', origin='1990-01-01')
+                    rounded_time = first_time.round('h')
+                    needs_fix = (first_time != rounded_time)
+                    
+                elif 'since' in units_str:
+                    # Other reference time format - extract the reference
+                    import re
+                    since_match = re.search(r'since\s+([0-9-]+(?:\s+[0-9:]+)?)', units_str)
+                    if since_match:
+                        ref_time_str = since_match.group(1).strip()
+                        time_format_detected = f'generic_since_{ref_time_str}'
+                        
+                        # Determine the unit (seconds, hours, days)
+                        if 'second' in units_str:
+                            first_time = pd.to_datetime(time_values[0], unit='s', origin=ref_time_str)
+                            time_unit = 's'
+                        elif 'hour' in units_str:
+                            first_time = pd.to_datetime(time_values[0], unit='h', origin=ref_time_str)
+                            time_unit = 'h'
+                        elif 'day' in units_str:
+                            first_time = pd.to_datetime(time_values[0], unit='D', origin=ref_time_str)
+                            time_unit = 'D'
+                        else:
+                            # Default to seconds
+                            first_time = pd.to_datetime(time_values[0], unit='s', origin=ref_time_str)
+                            time_unit = 's'
+                        
+                        rounded_time = first_time.round('h')
+                        needs_fix = (first_time != rounded_time)
+                        
+                else:
+                    # No 'since' found, might be already in datetime format
+                    time_format_detected = 'unknown'
+                    try:
+                        # Try to interpret as datetime directly
+                        ds_decoded = xr.open_dataset(runoff_filepath, decode_times=True)
+                        first_time = pd.Timestamp(ds_decoded.time.values[0])
+                        rounded_time = first_time.round('h')
+                        needs_fix = (first_time != rounded_time)
+                        ds_decoded.close()
+                        time_format_detected = 'datetime64'
+                    except:
+                        self.logger.warning("Could not determine time format - skipping time precision fix")
+                        ds.close()
+                        return
+            else:
+                # No units attribute - try to decode directly
+                try:
+                    ds_decoded = xr.open_dataset(runoff_filepath, decode_times=True)
+                    first_time = pd.Timestamp(ds_decoded.time.values[0])
+                    rounded_time = first_time.round('h')
+                    needs_fix = (first_time != rounded_time)
+                    ds_decoded.close()
+                    time_format_detected = 'datetime64'
+                except:
+                    self.logger.warning("No time units and cannot decode times - skipping time precision fix")
+                    ds.close()
+                    return
+            
+            self.logger.debug(f"Detected time format: {time_format_detected}")
+            self.logger.debug(f"Needs time precision fix: {needs_fix}")
+            
+            if not needs_fix:
+                self.logger.debug("Time precision is already correct")
+                ds.close()
+                return
+            
+            # Apply the appropriate fix based on detected format
+            if time_format_detected == 'summa_seconds_1990':
+                # Original SUMMA logic
+                self.logger.info("Applying SUMMA-style time precision fix")
+                time_stamps = pd.to_datetime(time_values, unit='s', origin='1990-01-01')
+                rounded_stamps = time_stamps.round('h')
+                reference = pd.Timestamp('1990-01-01')
+                rounded_seconds = (rounded_stamps - reference).total_seconds().values
+                
+                ds = ds.assign_coords(time=rounded_seconds)
+                ds.time.attrs.clear()
+                ds.time.attrs['units'] = 'seconds since 1990-01-01 00:00:00'
+                ds.time.attrs['calendar'] = 'standard'
+                ds.time.attrs['long_name'] = 'time'
+                
+            elif time_format_detected.startswith('generic_since_'):
+                # Generic 'since' format
+                self.logger.info(f"Applying generic time precision fix for format: {time_format_detected}")
+                ref_time_str = time_format_detected.split('generic_since_')[1]
+                
+                time_stamps = pd.to_datetime(time_values, unit=time_unit, origin=ref_time_str)
+                rounded_stamps = time_stamps.round('h')
+                reference = pd.Timestamp(ref_time_str)
+                
+                if time_unit == 's':
+                    rounded_values = (rounded_stamps - reference).total_seconds().values
+                elif time_unit == 'h':
+                    rounded_values = (rounded_stamps - reference) / pd.Timedelta(hours=1)
+                elif time_unit == 'D':
+                    rounded_values = (rounded_stamps - reference) / pd.Timedelta(days=1)
+                
+                ds = ds.assign_coords(time=rounded_values)
+                ds.time.attrs.clear()
+                ds.time.attrs['units'] = f"{time_unit} since {ref_time_str}"
+                ds.time.attrs['calendar'] = 'standard'
+                ds.time.attrs['long_name'] = 'time'
+                
+            elif time_format_detected == 'datetime64':
+                # Already in datetime format, just round
+                self.logger.info("Applying datetime64 time precision fix")
+                ds_decoded = xr.open_dataset(runoff_filepath, decode_times=True)
+                time_stamps = pd.to_datetime(ds_decoded.time.values)
+                rounded_stamps = time_stamps.round('h')
+                
+                # Keep original format but with rounded times
+                ds = ds_decoded.assign_coords(time=rounded_stamps)
+                ds_decoded.close()
+            
+            # Save the corrected file
+            ds.load()
+            ds.close()
+            
+            os.chmod(runoff_filepath, 0o664)
+            ds.to_netcdf(runoff_filepath, format='NETCDF4')
+            self.logger.info("Time precision fixed successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Error fixing time precision: {e}")
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+            raise
+
+    def run_mizuroute(self):
+        """
+        Run the mizuRoute model.
+
+        This method sets up the necessary paths, executes the mizuRoute model,
+        and handles any errors that occur during the run.
+        """
+        self.logger.debug("Starting mizuRoute run")
+        self.fix_time_precision()
+        # Set up paths and filenames
+        mizu_path = self.config.get('INSTALL_PATH_MIZUROUTE')
+        
+        if mizu_path == 'default':
+            mizu_path = self.root_path / 'installs/mizuRoute/route/bin/'
+        else:
+            mizu_path = Path(mizu_path)
+
+        mizu_exe = self.config.get('EXE_NAME_MIZUROUTE')
+        settings_path = self._get_config_path('SETTINGS_MIZU_PATH', 'settings/mizuRoute/')
+        control_file = self.config.get('SETTINGS_MIZU_CONTROL_FILE')
+        
+        experiment_id = self.config.get('EXPERIMENT_ID')
+        mizu_log_path = self._get_config_path('EXPERIMENT_LOG_MIZUROUTE', f"simulations/{experiment_id}/mizuRoute/mizuRoute_logs/")
+        mizu_log_name = "mizuRoute_log.txt"
+        
+        mizu_out_path = self._get_config_path('EXPERIMENT_OUTPUT_MIZUROUTE', f"simulations/{experiment_id}/mizuRoute/")
+
+        # Backup settings if required
+        if self.config.get('EXPERIMENT_BACKUP_SETTINGS') == 'yes':
+            backup_path = mizu_out_path / "run_settings"
+            self._backup_settings(settings_path, backup_path)
+
+        # Run mizuRoute
+        os.makedirs(mizu_log_path, exist_ok=True)
+        mizu_command = f"{mizu_path / mizu_exe} {settings_path / control_file}"
+        self.logger.debug(f'Running mizuRoute with comman: {mizu_command}')
+        try:
+            with open(mizu_log_path / mizu_log_name, 'w') as log_file:
+                subprocess.run(mizu_command, shell=True, check=True, stdout=log_file, stderr=subprocess.STDOUT)
+            self.logger.debug("mizuRoute run completed successfully")
+            return mizu_out_path
+
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"mizuRoute run failed with error: {e}")
+            raise
+
+    def _get_config_path(self, config_key: str, default_suffix: str) -> Path:
+        path = self.config.get(config_key)
+        if path == 'default':
+            return self.project_dir / default_suffix
+        return Path(path)
+
+    def _backup_settings(self, source_path: Path, backup_path: Path):
+        backup_path.mkdir(parents=True, exist_ok=True)
+        os.system(f"cp -R {source_path}/. {backup_path}")
+        self.logger.info(f"Settings backed up to {backup_path}")
