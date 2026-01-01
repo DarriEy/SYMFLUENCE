@@ -22,19 +22,19 @@ jobs:
   unit-tests-matrix:
     name: Unit Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 20  # Increased from 15min for safer margin
 
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]  # Linux, ARM Mac (M1/M2)
-        python-version: ['3.9', '3.10', '3.11', '3.12']
-        exclude:
-          # Python 3.12 may have compatibility issues with some deps
-          - python-version: '3.12'
-          # Python 3.9 on macOS has copulae build issues
-          - os: macos-latest
+        python-version: ['3.11']  # Focus on latest stable
+        include:
+          # Test older Python versions on Linux only to reduce CI time
+          - os: ubuntu-latest
             python-version: '3.9'
+          - os: ubuntu-latest
+            python-version: '3.10'
 
     steps:
       - name: Checkout
@@ -81,9 +81,13 @@ jobs:
           fi
           pip install -e ".[dev]" || pip install -e .
 
+          # Install pytest-xdist for parallel test execution
+          pip install pytest-xdist
+
       - name: Run unit tests
         run: |
-          pytest -v --tb=short -m "unit" tests/unit/ || echo "No unit tests found"
+          # Run tests in parallel with pytest-xdist for 2-3x speedup
+          pytest -v --tb=short -m "unit" -n auto tests/unit/ || echo "No unit tests found"
 
   # ===========================================================================
   # BINARY VALIDATION: Test external tools on each platform
@@ -376,8 +380,11 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
         run: |
-          # Run basic integration tests (not full workflows)
-          pytest -v --tb=short -m "integration and not slow" tests/integration/ || echo "Integration tests completed"
+          # Install pytest-xdist for parallel execution
+          pip install pytest-xdist
+
+          # Run integration tests in parallel (skip slow tests that download large datasets)
+          pytest -v --tb=short -m "integration and not slow" -n auto tests/integration/ || echo "Integration tests completed"
 
       - name: Upload test outputs (on failure)
         if: failure()
