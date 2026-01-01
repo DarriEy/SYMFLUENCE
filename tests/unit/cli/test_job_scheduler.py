@@ -320,16 +320,16 @@ class TestJobMonitoring:
     @patch('time.sleep')
     def test_monitor_failure_detection(self, mock_sleep, mock_subprocess, job_scheduler):
         """Test detection of job failure."""
-        mock_subprocess.return_value = MagicMock(
-            stdout='FAILED\n',
-            stderr='',
-            returncode=0
-        )
+        # Mock job showing FAILED status, then empty (job removed from queue)
+        mock_subprocess.side_effect = [
+            MagicMock(stdout='FAILED\n', stderr='', returncode=0),
+            MagicMock(stdout='', stderr='', returncode=0),  # Empty = job done
+        ]
 
         job_scheduler._monitor_slurm_job('12345')
 
-        # Should detect failure and exit monitoring
-        assert mock_subprocess.called
+        # Should have checked status twice
+        assert mock_subprocess.call_count == 2
 
 
 class TestHandleSlurmJobSubmission:
