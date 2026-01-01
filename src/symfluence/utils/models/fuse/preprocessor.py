@@ -21,6 +21,11 @@ from typing import Dict, List, Tuple, Any
 from ..registry import ModelRegistry
 from ..base import BaseModelPreProcessor
 from ..mixins import PETCalculatorMixin
+from symfluence.utils.exceptions import (
+    ModelExecutionError,
+    FileOperationError,
+    symfluence_error_handler
+)
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from symfluence.utils.evaluation.calculate_sim_stats import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE # type: ignore
@@ -105,18 +110,26 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
                 }
 
     def run_preprocessing(self):
-        """Run the complete FUSE preprocessing workflow."""
+        """
+        Run the complete FUSE preprocessing workflow.
+
+        Raises:
+            ModelExecutionError: If any step in the preprocessing pipeline fails.
+        """
         self.logger.info("Starting FUSE preprocessing")
-        try:
+
+        with symfluence_error_handler(
+            "FUSE preprocessing",
+            self.logger,
+            error_type=ModelExecutionError
+        ):
             self.create_directories()
             self.copy_base_settings()
             self.prepare_forcing_data()
-            self.create_elevation_bands()  
+            self.create_elevation_bands()
             self.create_filemanager()
+
             self.logger.info("FUSE preprocessing completed successfully")
-        except Exception as e:
-            self.logger.error(f"Error during FUSE preprocessing: {str(e)}")
-            raise
 
     def create_directories(self):
         """Create necessary directories for FUSE setup."""
@@ -1417,29 +1430,6 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
         
         return ds_hru
 
-    def _get_default_path(self, path_key: str, default_subpath: str) -> Path:
-        """
-        Get a path from config or use a default based on the project directory.
-
-        Args:
-            path_key (str): The key to look up in the config dictionary.
-            default_subpath (str): The default subpath to use if the config value is 'default'.
-
-        Returns:
-            Path: The resolved path.
-
-        Raises:
-            KeyError: If the path_key is not found in the config.
-        """
-        try:
-            path_value = self.config.get(path_key)
-            if path_value == 'default' or path_value is None:
-                return self.project_dir / default_subpath
-            return Path(path_value)
-        except KeyError:
-            self.logger.error(f"Config key '{path_key}' not found")
-            raise
-         
     def _get_file_path(self, file_type, file_def_path, file_name):
         if self.config.get(f'{file_type}') == 'default':
             return self.project_dir / file_def_path / file_name

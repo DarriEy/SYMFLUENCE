@@ -25,6 +25,11 @@ from shutil import copyfile
 import netCDF4 as nc4
 from .registry import ModelRegistry
 from .base import BaseModelPreProcessor
+from symfluence.utils.exceptions import (
+    ModelExecutionError,
+    FileOperationError,
+    symfluence_error_handler
+)
 
 @ModelRegistry.register_preprocessor('NGEN')
 class NgenPreProcessor(BaseModelPreProcessor):
@@ -103,35 +108,43 @@ class NgenPreProcessor(BaseModelPreProcessor):
         5. Prepare forcing data in ngen format
         6. Generate model-specific configs (CFE, PET, NOAH)
         7. Generate realization config JSON
+
+        Raises:
+            ModelExecutionError: If any step in the preprocessing pipeline fails.
         """
         self.logger.info("Starting NextGen preprocessing")
 
-        # Create directory structure
-        additional_dirs = [
-            self.setup_dir / "CFE",
-            self.setup_dir / "PET",
-            self.setup_dir / "NOAH",
-            self.setup_dir / "NOAH" / "parameters"
-        ]
-        self.create_directories(additional_dirs=additional_dirs)
-        
-        # Copy Noah-OWP parameter tables from base settings
-        self._copy_noah_parameter_tables()
-        
-        # Generate spatial data
-        nexus_file = self.create_nexus_geojson()
-        catchment_file = self.create_catchment_geopackage()
-        
-        # Prepare forcing
-        forcing_file = self.prepare_forcing_data()
-        
-        # Generate model configs
-        self.generate_model_configs()
-        
-        # Generate realization config
-        self.generate_realization_config(catchment_file, nexus_file, forcing_file)
-        
-        self.logger.info("NextGen preprocessing completed")
+        with symfluence_error_handler(
+            "NextGen preprocessing",
+            self.logger,
+            error_type=ModelExecutionError
+        ):
+            # Create directory structure
+            additional_dirs = [
+                self.setup_dir / "CFE",
+                self.setup_dir / "PET",
+                self.setup_dir / "NOAH",
+                self.setup_dir / "NOAH" / "parameters"
+            ]
+            self.create_directories(additional_dirs=additional_dirs)
+
+            # Copy Noah-OWP parameter tables from base settings
+            self._copy_noah_parameter_tables()
+
+            # Generate spatial data
+            nexus_file = self.create_nexus_geojson()
+            catchment_file = self.create_catchment_geopackage()
+
+            # Prepare forcing
+            forcing_file = self.prepare_forcing_data()
+
+            # Generate model configs
+            self.generate_model_configs()
+
+            # Generate realization config
+            self.generate_realization_config(catchment_file, nexus_file, forcing_file)
+
+            self.logger.info("NextGen preprocessing completed")
         
     def create_nexus_geojson(self) -> Path:
         """
