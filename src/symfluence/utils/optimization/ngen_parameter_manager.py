@@ -18,40 +18,40 @@ from typing import Dict, Any, List, Optional
 import logging
 import re
 
+from symfluence.utils.optimization.core.base_parameter_manager import BaseParameterManager
 
-class NgenParameterManager:
+
+class NgenParameterManager(BaseParameterManager):
     """Manages ngen calibration parameters across CFE, NOAH-OWP, and PET modules"""
     
     def __init__(self, config: Dict, logger: logging.Logger, ngen_settings_dir: Path):
         """
         Initialize ngen parameter manager.
-        
+
         Args:
             config: Configuration dictionary
             logger: Logger object
             ngen_settings_dir: Path to ngen settings directory
         """
-        self.config = config
-        self.logger = logger
-        self.ngen_settings_dir = ngen_settings_dir
+        # Initialize base class
+        super().__init__(config, logger, ngen_settings_dir)
+
+        # Ngen-specific setup
         self.domain_name = config.get('DOMAIN_NAME')
         self.experiment_id = config.get('EXPERIMENT_ID')
-        
+
         # Parse which modules to calibrate
         self.modules_to_calibrate = self._parse_modules_to_calibrate()
-        
+
         # Parse parameters to calibrate for each module
         self.params_to_calibrate = self._parse_parameters_to_calibrate()
-        
-        # Define parameter bounds for all supported ngen parameters
-        self.param_bounds = self._get_default_ngen_bounds()
-        
+
         # Path to ngen configuration files
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.ngen_sim_dir = self.project_dir / 'simulations' / self.experiment_id / 'ngen'
         self.ngen_setup_dir = self.project_dir / 'settings' / 'ngen'
-        
+
         # Configuration file paths
         self.realization_config = self.ngen_setup_dir / 'realization.json'
         self.cfe_config = self.ngen_setup_dir / 'CFE' / 'cfe_config.json'
@@ -68,10 +68,48 @@ class NgenParameterManager:
         # BMI text dirs
         self.cfe_txt_dir  = self.ngen_setup_dir / 'CFE'
         self.pet_txt_dir  = self.pet_dir
-        
+
         self.logger.info(f"NgenParameterManager initialized")
         self.logger.info(f"Calibrating modules: {self.modules_to_calibrate}")
         self.logger.info(f"Total parameters to calibrate: {len(self.all_param_names)}")
+
+    # ========================================================================
+    # IMPLEMENT ABSTRACT METHODS FROM BASE CLASS
+    # ========================================================================
+
+    def _get_parameter_names(self) -> List[str]:
+        """Return ngen parameter names in module.param format."""
+        all_params = []
+        for module, params in self.params_to_calibrate.items():
+            # Prefix parameters with module name to avoid conflicts
+            all_params.extend([f"{module}.{p}" for p in params])
+        return all_params
+
+    def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
+        """Return hardcoded ngen parameter bounds in module.param format."""
+        base_bounds = self._get_default_ngen_bounds()
+        bounds = {}
+
+        for module, params in self.params_to_calibrate.items():
+            for param in params:
+                full_param_name = f"{module}.{param}"
+                if param in base_bounds:
+                    bounds[full_param_name] = base_bounds[param]
+                else:
+                    self.logger.warning(
+                        f"No bounds defined for parameter {param}, using default [0.1, 10.0]"
+                    )
+                    bounds[full_param_name] = {'min': 0.1, 'max': 10.0}
+
+        return bounds
+
+    def update_model_files(self, params: Dict[str, float]) -> bool:
+        """Update ngen config files (JSON or BMI text)."""
+        return self.update_config_files(params)
+
+    def get_initial_parameters(self) -> Dict[str, float]:
+        """Get initial ngen parameters (midpoint of bounds)."""
+        return self.get_default_parameters()
     
     def _parse_modules_to_calibrate(self) -> List[str]:
         """Parse which ngen modules to calibrate from config"""
@@ -168,84 +206,24 @@ class NgenParameterManager:
         
         return bounds
 
-    @property
-    def all_param_names(self) -> List[str]:
-        """Get list of all parameter names to calibrate across all modules"""
-        all_params = []
-        for module, params in self.params_to_calibrate.items():
-            # Prefix parameters with module name to avoid conflicts
-            all_params.extend([f"{module}.{p}" for p in params])
-        return all_params
-    
-    def get_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Get parameter bounds for all parameters to calibrate"""
-        bounds = {}
-        
-        for module, params in self.params_to_calibrate.items():
-            for param in params:
-                full_param_name = f"{module}.{param}"
-                if param in self.param_bounds:
-                    bounds[full_param_name] = self.param_bounds[param]
-                else:
-                    self.logger.warning(
-                        f"No bounds defined for parameter {param}, using default [0.1, 10.0]"
-                    )
-                    bounds[full_param_name] = {'min': 0.1, 'max': 10.0}
-        
-        return bounds
-    
+    # Note: all_param_names property and get_parameter_bounds() are inherited from BaseParameterManager
     def get_default_parameters(self) -> Dict[str, float]:
         """Get default parameter values (middle of bounds)"""
-        bounds = self.get_parameter_bounds()
+        bounds = self.param_bounds
         params = {}
-        
+
         for param_name, param_bounds in bounds.items():
             params[param_name] = (param_bounds['min'] + param_bounds['max']) / 2.0
-        
-        return params
-    
-    def normalize_parameters(self, params: Dict[str, float]) -> np.ndarray:
-        """
-        Normalize parameters to [0, 1] range for optimization.
-        
-        Args:
-            params: Dictionary of parameter names and values
-            
-        Returns:
-            Normalized parameter array
-        """
-        bounds = self.get_parameter_bounds()
-        normalized = []
-        
-        for param_name in self.all_param_names:
-            value = params[param_name]
-            param_bounds = bounds[param_name]
-            norm_value = (value - param_bounds['min']) / (param_bounds['max'] - param_bounds['min'])
-            normalized.append(np.clip(norm_value, 0.0, 1.0))
-        
-        return np.array(normalized)
-    
-    def denormalize_parameters(self, normalized_params: np.ndarray) -> Dict[str, float]:
-        """
-        Denormalize parameters from [0, 1] range to actual values.
-        
-        Args:
-            normalized_params: Normalized parameter array
-            
-        Returns:
-            Dictionary of denormalized parameters
-        """
-        bounds = self.get_parameter_bounds()
-        params = {}
-        
-        for i, param_name in enumerate(self.all_param_names):
-            param_bounds = bounds[param_name]
-            value = (normalized_params[i] * (param_bounds['max'] - param_bounds['min']) + 
-                    param_bounds['min'])
-            params[param_name] = float(value)
-        
+
         return params
 
+    # ========================================================================
+    # NOTE: The following methods are now inherited from BaseParameterManager:
+    # - normalize_parameters()
+    # - denormalize_parameters()
+    # - validate_parameters()
+    # These shared implementations eliminate ~80 lines of duplicated code!
+    # ========================================================================
 
     # Validation function to help debug parameter updates
     def validate_parameter_updates(self, param_dict: Dict[str, float], config_file_path: Path) -> bool:
@@ -277,31 +255,7 @@ class NgenParameterManager:
         
         return all_found
 
-
-    def validate_parameters(self, params: Dict[str, float]) -> bool:
-        """
-        Validate that parameters are within bounds.
-        
-        Args:
-            params: Dictionary of parameters to validate
-            
-        Returns:
-            True if all parameters valid, False otherwise
-        """
-        bounds = self.get_parameter_bounds()
-        
-        for param_name, value in params.items():
-            if param_name in bounds:
-                param_bounds = bounds[param_name]
-                if not (param_bounds['min'] <= value <= param_bounds['max']):
-                    self.logger.warning(
-                        f"Parameter {param_name}={value} outside bounds "
-                        f"[{param_bounds['min']}, {param_bounds['max']}]"
-                    )
-                    return False
-        
-        return True
-    
+    # Note: validate_parameters() is now inherited from BaseParameterManager
     def update_config_files(self, params: Dict[str, float]) -> bool:
         """
         Update ngen configuration files with new parameter values.

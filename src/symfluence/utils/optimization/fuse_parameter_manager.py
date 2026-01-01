@@ -15,37 +15,55 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 import logging
 
+from symfluence.utils.optimization.core.base_parameter_manager import BaseParameterManager
 
-class FUSEParameterManager:
+
+class FUSEParameterManager(BaseParameterManager):
     """Handles FUSE parameter bounds, normalization, and file updates - FIXED VERSION"""
     
     def __init__(self, config: Dict, logger: logging.Logger, fuse_settings_dir: Path):
-        self.config = config
-        self.logger = logger
-        self.fuse_settings_dir = fuse_settings_dir
+        # Initialize base class
+        super().__init__(config, logger, fuse_settings_dir)
+
+        # FUSE-specific setup
         self.domain_name = config.get('DOMAIN_NAME')
         self.experiment_id = config.get('EXPERIMENT_ID')
-        
+
         # Parse FUSE parameters to calibrate
         fuse_params_str = config.get('SETTINGS_FUSE_PARAMS_TO_CALIBRATE', '')
         self.fuse_params = [p.strip() for p in fuse_params_str.split(',') if p.strip()]
-        
-        # Define parameter bounds for common FUSE parameters
-        self.param_bounds = self._get_default_fuse_bounds()
-        
+
         # Path to FUSE parameter files
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.fuse_sim_dir = self.project_dir / 'simulations' / self.experiment_id / 'FUSE'
         self.fuse_setup_dir = self.project_dir / 'settings' / 'FUSE'
-        
+
         # Parameter file paths
         self.para_def_path = self.fuse_sim_dir / f"{self.domain_name}_{self.experiment_id}_para_def.nc"
-        self.para_sce_path = self.fuse_sim_dir / f"{self.domain_name}_{self.experiment_id}_para_sce.nc"  
+        self.para_sce_path = self.fuse_sim_dir / f"{self.domain_name}_{self.experiment_id}_para_sce.nc"
         self.para_best_path = self.fuse_sim_dir / f"{self.domain_name}_{self.experiment_id}_para_best.nc"
-        
+
         # CRITICAL: Use para_sce.nc for calibration iterations, but ensure it's properly structured
         self.param_file_path = self.para_def_path
+
+    # ========================================================================
+    # IMPLEMENT ABSTRACT METHODS FROM BASE CLASS
+    # ========================================================================
+
+    def _get_parameter_names(self) -> List[str]:
+        """Return FUSE parameter names from config."""
+        return self.fuse_params
+
+    def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
+        """Return hardcoded FUSE parameter bounds."""
+        return self._get_default_fuse_bounds()
+
+    def update_model_files(self, params: Dict[str, float]) -> bool:
+        """Update FUSE NetCDF parameter file."""
+        return self.update_parameter_file(params)
+
+    # Note: get_initial_parameters() is already defined below and matches the signature
     
     def _get_default_fuse_bounds(self) -> Dict[str, Dict[str, float]]:
         """Define reasonable bounds for FUSE parameters"""
@@ -177,22 +195,8 @@ class FUSEParameterManager:
             # Generic default for unknown parameters
             return 1.0
     
-    @property
-    def all_param_names(self) -> List[str]:
-        """Get list of all FUSE parameter names to calibrate"""
-        return self.fuse_params
-    
-    def get_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Get parameter bounds for calibration"""
-        bounds = {}
-        for param in self.fuse_params:
-            if param in self.param_bounds:
-                bounds[param] = self.param_bounds[param]
-            else:
-                self.logger.warning(f"No bounds defined for parameter {param}, using default [0.1, 10.0]")
-                bounds[param] = {'min': 0.1, 'max': 10.0}
-        return bounds
-    
+    # Note: all_param_names property and get_parameter_bounds() are inherited from BaseParameterManager
+
     def update_parameter_file(self, params: Dict[str, float], use_best_file: bool = False) -> bool:
         """Update FUSE parameter NetCDF file with new parameter values - FIXED VERSION"""
         try:
@@ -292,53 +296,19 @@ class FUSEParameterManager:
     def _get_default_initial_values(self) -> Dict[str, float]:
         """Get default initial parameter values"""
         params = {}
-        bounds = self.get_parameter_bounds()
-        
+        bounds = self.param_bounds
+
         for param_name in self.fuse_params:
             param_bounds = bounds[param_name]
             # Use middle of bounds as default
             params[param_name] = (param_bounds['min'] + param_bounds['max']) / 2
-        
+
         return params
-    
-    def normalize_parameters(self, params: Dict[str, float]) -> np.ndarray:
-        """Normalize parameters to [0, 1] range for optimization"""
-        bounds = self.get_parameter_bounds()
-        normalized = []
-        
-        for param_name in self.fuse_params:
-            value = params[param_name]
-            param_bounds = bounds[param_name]
-            norm_value = (value - param_bounds['min']) / (param_bounds['max'] - param_bounds['min'])
-            normalized.append(np.clip(norm_value, 0.0, 1.0))
-        
-        return np.array(normalized)
-    
-    def denormalize_parameters(self, normalized_params: np.ndarray) -> Dict[str, float]:
-        """Denormalize parameters from [0, 1] range to actual values"""
-        bounds = self.get_parameter_bounds()
-        params = {}
-        
-        for i, param_name in enumerate(self.fuse_params):
-            param_bounds = bounds[param_name]
-            value = (normalized_params[i] * (param_bounds['max'] - param_bounds['min']) + 
-                    param_bounds['min'])
-            params[param_name] = float(value)
-        
-        return params
-    
-    def validate_parameters(self, params: Dict[str, float]) -> bool:
-        """Validate that parameters are within bounds"""
-        bounds = self.get_parameter_bounds()
-        
-        for param_name, value in params.items():
-            if param_name in bounds:
-                param_bounds = bounds[param_name]
-                if not (param_bounds['min'] <= value <= param_bounds['max']):
-                    self.logger.warning(
-                        f"Parameter {param_name}={value} outside bounds "
-                        f"[{param_bounds['min']}, {param_bounds['max']}]"
-                    )
-                    return False
-        
-        return True
+
+    # ========================================================================
+    # NOTE: The following methods are now inherited from BaseParameterManager:
+    # - normalize_parameters()
+    # - denormalize_parameters()
+    # - validate_parameters()
+    # These shared implementations eliminate ~90 lines of duplicated code!
+    # ========================================================================
