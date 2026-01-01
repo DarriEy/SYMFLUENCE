@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Dict, Optional, Any, Tuple, List
 import yaml
 
+from symfluence.utils.config.defaults import ModelDefaults, ForcingDefaults
+
 
 class InitializationManager:
     """Manages project initialization via --init command."""
@@ -23,62 +25,19 @@ class InitializationManager:
         # Get template directory (0_config_files at root of repo)
         self.template_dir = Path(__file__).parent.parent.parent.parent.parent / "0_config_files"
 
-        # Smart defaults by model
+        # Use centralized defaults from config.defaults
         self.model_defaults = {
-            'FUSE': {
-                'FUSE_SPATIAL_MODE': 'lumped',
-                'ROUTING_MODEL': 'none',
-                'FUSE_INSTALL_PATH': 'default',
-                'SETTINGS_FUSE_PATH': 'default',
-                'SETTINGS_FUSE_FILEMANAGER': 'fm_catch.txt',
-                'FUSE_EXE': 'fuse.exe',
-                'EXPERIMENT_OUTPUT_FUSE': 'default',
-            },
-            'SUMMA': {
-                'ROUTING_MODEL': 'mizuRoute',
-                'SUMMA_INSTALL_PATH': 'default',
-                'SETTINGS_SUMMA_PATH': 'default',
-                'SETTINGS_SUMMA_FILEMANAGER': 'fileManager.txt',
-                'SUMMA_EXE': 'summa_sundials.exe',
-                'SETTINGS_SUMMA_CONNECT_HRUS': 'yes',
-                'SETTINGS_SUMMA_USE_PARALLEL_SUMMA': False,
-                'EXPERIMENT_OUTPUT_SUMMA': 'default',
-                'INSTALL_PATH_MIZUROUTE': 'default',
-                'EXE_NAME_MIZUROUTE': 'mizuroute.exe',
-                'SETTINGS_MIZU_PATH': 'default',
-                'EXPERIMENT_OUTPUT_MIZUROUTE': 'default',
-            },
-            'GR': {
-                'GR_MODEL_TYPE': 'GR4J',
-                'GR_SPATIAL_MODE': 'lumped',
-                'GR_EXE': 'GR.r',
-            },
-            'HYPE': {
-                'SETTINGS_HYPE_PATH': 'default',
-                'HYPE_INSTALL_PATH': 'default',
-                'HYPE_EXE': 'hype',
-                'SETTINGS_HYPE_CONTROL_FILE': 'info.txt',
-            }
+            'FUSE': ModelDefaults.FUSE,
+            'SUMMA': ModelDefaults.SUMMA,
+            'GR': ModelDefaults.GR,
+            'HYPE': ModelDefaults.HYPE,
         }
 
-        # Smart defaults by forcing dataset
         self.forcing_defaults = {
-            'ERA5': {
-                'FORCING_TIME_STEP_SIZE': 3600,
-                'DATA_ACCESS': 'cloud',
-            },
-            'CONUS404': {
-                'FORCING_TIME_STEP_SIZE': 3600,
-                'DATA_ACCESS': 'cloud',
-            },
-            'RDRS': {
-                'FORCING_TIME_STEP_SIZE': 3600,
-                'DATA_ACCESS': 'cloud',
-            },
-            'NLDAS': {
-                'FORCING_TIME_STEP_SIZE': 3600,
-                'DATA_ACCESS': 'cloud',
-            }
+            'ERA5': ForcingDefaults.ERA5,
+            'CONUS404': ForcingDefaults.CONUS404,
+            'RDRS': ForcingDefaults.RDRS,
+            'NLDAS': ForcingDefaults.NLDAS,
         }
 
     def list_presets(self) -> None:

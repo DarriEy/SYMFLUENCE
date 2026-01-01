@@ -14,6 +14,15 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 import shutil
 
+from symfluence.utils.exceptions import (
+    ModelExecutionError,
+    ConfigurationError,
+    FileOperationError,
+    validate_config_keys,
+    validate_directory_exists,
+    symfluence_error_handler
+)
+
 
 class BaseModelPreProcessor(ABC):
     """
@@ -41,10 +50,16 @@ class BaseModelPreProcessor(ABC):
         Args:
             config: Configuration dictionary
             logger: Logger instance
+
+        Raises:
+            ConfigurationError: If required configuration keys are missing
         """
         # Core configuration
         self.config = config
         self.logger = logger
+
+        # Validate required configuration keys
+        self._validate_required_config()
 
         # Base paths
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
@@ -58,6 +73,32 @@ class BaseModelPreProcessor(ABC):
 
         # Common forcing paths
         self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
+        self.forcing_raw_path = self._get_default_path('FORCING_RAW_PATH', 'forcing/raw_data')
+        self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/merged_data')
+
+        # Common shapefile paths
+        self.shapefile_path = self.project_dir / 'shapefiles' / 'forcing'
+        self.intersect_path = self.project_dir / 'shapefiles' / 'catchment_intersection' / 'with_forcing'
+
+        # Common configuration
+        self.forcing_dataset = self.config.get('FORCING_DATASET', '').lower()
+        self.forcing_time_step_size = int(self.config.get('FORCING_TIME_STEP_SIZE', 86400))
+
+    def _validate_required_config(self) -> None:
+        """
+        Validate that all required configuration keys are present.
+
+        Subclasses can override to add model-specific required keys.
+
+        Raises:
+            ConfigurationError: If required keys are missing
+        """
+        required_keys = [
+            'SYMFLUENCE_DATA_DIR',
+            'DOMAIN_NAME',
+            'FORCING_DATASET',
+        ]
+        validate_config_keys(self.config, required_keys, f"{self._get_model_name()} preprocessing")
 
     @abstractmethod
     def _get_model_name(self) -> str:
@@ -137,6 +178,9 @@ class BaseModelPreProcessor(ABC):
 
         Args:
             additional_dirs: Optional list of additional directories to create
+
+        Raises:
+            FileOperationError: If directory creation fails
         """
         # Standard directories
         dirs_to_create = [
@@ -148,10 +192,15 @@ class BaseModelPreProcessor(ABC):
         if additional_dirs:
             dirs_to_create.extend(additional_dirs)
 
-        # Create all directories
+        # Create all directories with error handling
         for dir_path in dirs_to_create:
-            dir_path.mkdir(parents=True, exist_ok=True)
-            self.logger.info(f"Created directory: {dir_path}")
+            try:
+                dir_path.mkdir(parents=True, exist_ok=True)
+                self.logger.info(f"Created directory: {dir_path}")
+            except Exception as e:
+                raise FileOperationError(
+                    f"Failed to create directory {dir_path}: {e}"
+                ) from e
 
     def copy_base_settings(self, source_dir: Optional[Path] = None,
                           file_patterns: Optional[List[str]] = None):
@@ -163,10 +212,12 @@ class BaseModelPreProcessor(ABC):
                        If None, uses default location based on model name.
             file_patterns: List of file patterns to copy (e.g., ['*.txt', '*.nc']).
                           If None, copies all files.
+
+        Raises:
+            FileOperationError: If settings cannot be copied
         """
         if source_dir is None:
             # Try to find base settings in package
-            from importlib import resources
             try:
                 # Try to get base settings from package data
                 base_settings_key = f'SETTINGS_{self.model_name}_BASE_PATH'
@@ -183,12 +234,17 @@ class BaseModelPreProcessor(ABC):
                 return
 
         if not source_dir.exists():
-            self.logger.warning(f"Source directory does not exist: {source_dir}")
-            return
+            raise FileOperationError(
+                f"Base settings source directory does not exist: {source_dir}"
+            )
 
         self.logger.info(f"Copying base settings from {source_dir} to {self.setup_dir}")
 
-        try:
+        with symfluence_error_handler(
+            f"copying base settings from {source_dir}",
+            self.logger,
+            error_type=FileOperationError
+        ):
             if file_patterns is None:
                 # Copy entire directory
                 if self.setup_dir.exists():
@@ -204,10 +260,6 @@ class BaseModelPreProcessor(ABC):
                             dest_path = self.setup_dir / file_path.name
                             shutil.copy2(file_path, dest_path)
                             self.logger.info(f"Copied {file_path.name}")
-
-        except Exception as e:
-            self.logger.error(f"Error copying base settings: {e}")
-            raise
 
     def get_catchment_path(self) -> Path:
         """
@@ -248,3 +300,84 @@ class BaseModelPreProcessor(ABC):
             True if lumped, False if distributed
         """
         return self.config.get('DOMAIN_DEFINITION_METHOD') == 'lumped'
+
+    def get_dem_path(self) -> Path:
+        """
+        Get path to DEM file.
+
+        Returns:
+            Path to DEM file
+        """
+        dem_name = self.config.get('DEM_NAME')
+        if dem_name == "default" or dem_name is None:
+            dem_name = f"domain_{self.domain_name}_elv.tif"
+        return self._get_default_path('DEM_PATH', f"attributes/elevation/dem/{dem_name}")
+
+    def get_timestep_config(self) -> Dict[str, Any]:
+        """
+        Get timestep configuration based on FORCING_TIME_STEP_SIZE.
+
+        Provides standardized configuration for time-related parameters used
+        across different models for data processing and unit conversions.
+
+        Returns:
+            Dict with keys:
+                - resample_freq: Pandas resample frequency string (e.g., 'h', 'D')
+                - time_units: NetCDF time units string
+                - time_unit: Pandas timedelta unit
+                - conversion_factor: Factor to convert from cms to mm/timestep
+                - time_label: Human-readable label
+                - timestep_seconds: Timestep in seconds
+        """
+        timestep_seconds = self.forcing_time_step_size
+
+        if timestep_seconds == 3600:  # Hourly
+            return {
+                'resample_freq': 'h',
+                'time_units': 'hours since 1970-01-01',
+                'time_unit': 'h',
+                'conversion_factor': 3.6,  # cms to mm/hour
+                'time_label': 'hourly',
+                'timestep_seconds': 3600
+            }
+        elif timestep_seconds == 86400:  # Daily
+            return {
+                'resample_freq': 'D',
+                'time_units': 'days since 1970-01-01',
+                'time_unit': 'D',
+                'conversion_factor': 86.4,  # cms to mm/day
+                'time_label': 'daily',
+                'timestep_seconds': 86400
+            }
+        else:
+            # Generic case - calculate based on seconds
+            hours = timestep_seconds / 3600
+            if hours < 24:
+                return {
+                    'resample_freq': f'{int(hours)}h',
+                    'time_units': 'hours since 1970-01-01',
+                    'time_unit': 'h',
+                    'conversion_factor': 3.6 * hours,
+                    'time_label': f'{int(hours)}-hourly',
+                    'timestep_seconds': timestep_seconds
+                }
+            else:
+                days = timestep_seconds / 86400
+                return {
+                    'resample_freq': f'{int(days)}D',
+                    'time_units': 'days since 1970-01-01',
+                    'time_unit': 'D',
+                    'conversion_factor': 86.4 * days,
+                    'time_label': f'{int(days)}-daily',
+                    'timestep_seconds': timestep_seconds
+                }
+
+    def get_base_settings_source_dir(self) -> Path:
+        """
+        Get the source directory for base settings files.
+
+        Returns:
+            Path to base settings directory for this model
+        """
+        code_dir = Path(self.config.get('SYMFLUENCE_CODE_DIR'))
+        return code_dir / '0_base_settings' / self.model_name
