@@ -106,10 +106,25 @@ class NSGA2Optimizer(BaseOptimizer):
             if not self._apply_parameters(params): return np.array([-1.0, -1.0])
             if not self.model_executor.run_models(self.summa_sim_dir, self.mizuroute_sim_dir, self.optimization_settings_dir): return np.array([-1.0, -1.0])
             if self.multi_target_mode:
-                obj1 = self._extract_specific_metric(self.primary_target.calculate_metrics(self.summa_sim_dir, self.mizuroute_sim_dir), self.primary_metric)
-                obj2 = self._extract_specific_metric(self.secondary_target.calculate_metrics(self.summa_sim_dir, self.mizuroute_sim_dir), self.secondary_metric)
+                obj1 = self._extract_specific_metric(
+                    self.primary_target.calculate_metrics(
+                        self.summa_sim_dir,
+                        mizuroute_dir=self.mizuroute_sim_dir
+                    ),
+                    self.primary_metric
+                )
+                obj2 = self._extract_specific_metric(
+                    self.secondary_target.calculate_metrics(
+                        self.summa_sim_dir,
+                        mizuroute_dir=self.mizuroute_sim_dir
+                    ),
+                    self.secondary_metric
+                )
             else:
-                metrics = self.calibration_target.calculate_metrics(self.summa_sim_dir, self.mizuroute_sim_dir)
+                metrics = self.calibration_target.calculate_metrics(
+                    self.summa_sim_dir,
+                    mizuroute_dir=self.mizuroute_sim_dir
+                )
                 obj1 = self._extract_specific_metric(metrics, 'NSE'); obj2 = self._extract_specific_metric(metrics, 'KGE')
             return np.array([obj1 or -1.0, obj2 or -1.0])
         except Exception: return np.array([-1.0, -1.0])

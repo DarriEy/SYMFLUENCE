@@ -4,17 +4,54 @@
 from .registry import ModelRegistry
 
 # Import all models to register them
+import logging
+logger = logging.getLogger(__name__)
+
+# Import from modular packages (preferred)
 try:
-    from . import summa_utils
-    from . import fuse_utils
-    from . import gr_utils
-    from . import hype_utils
-    from . import flash_utils
-    from . import mizuroute_utils
-    from . import ngen_utils
-    # from . import mesh_utils
-except ImportError:
-    # Handle cases where some dependencies might be missing
-    pass
+    from . import summa
+except ImportError as e:
+    logger.warning(f"Could not import summa: {e}")
+
+try:
+    from . import fuse
+except ImportError as e:
+    logger.warning(f"Could not import fuse: {e}")
+
+try:
+    from . import ngen
+except ImportError as e:
+    logger.warning(f"Could not import ngen: {e}")
+
+try:
+    from . import mizuroute
+except ImportError as e:
+    logger.warning(f"Could not import mizuroute: {e}")
+
+try:
+    from . import troute
+except ImportError as e:
+    logger.warning(f"Could not import troute: {e}")
+
+try:
+    from . import hype
+except ImportError as e:
+    logger.warning(f"Could not import hype: {e}")
+
+try:
+    from . import mesh
+except ImportError as e:
+    logger.warning(f"Could not import mesh: {e}")
+
+try:
+    from . import flash
+except ImportError as e:
+    logger.warning(f"Could not import flash: {e}")
+
+try:
+    from . import gr
+except ImportError as e:
+    logger.warning(f"Could not import gr: {e}")
+
 
 __all__ = ["ModelRegistry"]

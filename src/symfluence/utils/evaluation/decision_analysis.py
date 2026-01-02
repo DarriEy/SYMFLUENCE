@@ -7,9 +7,9 @@ import itertools
 from typing import List, Tuple
 import xarray as xr # type: ignore
 
-from symfluence.utils.evaluation.calculate_sim_stats import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE # type: ignore
-from symfluence.utils.models.summa_utils import SummaRunner # type: ignore
-from symfluence.utils.models.mizuroute_utils import MizuRouteRunner # type: ignore
+from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE
+from symfluence.utils.models.summa import SummaRunner # type: ignore
+from symfluence.utils.models.mizuroute import MizuRouteRunner # type: ignore
 
     
 class DecisionAnalyzer:

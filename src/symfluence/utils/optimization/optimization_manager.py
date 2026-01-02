@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import logging
+import warnings
 from typing import Dict, Any, Optional
 import pandas as pd
 from datetime import datetime
@@ -9,10 +10,11 @@ import json
 
 import numpy as np
 from symfluence.utils.optimization.iterative_optimizer import DEOptimizer, DDSOptimizer, AsyncDDSOptimizer, PopulationDDSOptimizer, PSOOptimizer, NSGA2Optimizer, SCEUAOptimizer # type: ignore
-from symfluence.utils.optimization.large_domain_emulator import LargeDomainEmulator
-from symfluence.utils.optimization.differentiable_parameter_emulator import DifferentiableParameterOptimizer, EmulatorConfig
+from symfluence.utils.optimization.legacy.large_domain_emulator import LargeDomainEmulator
+from symfluence.utils.optimization.legacy.differentiable_parameter_emulator import DifferentiableParameterOptimizer, EmulatorConfig
 from symfluence.utils.optimization.objective_registry import ObjectiveRegistry
 from symfluence.utils.optimization.transformers import TransformationManager
+from symfluence.utils.optimization.registry import OptimizerRegistry
 
 class OptimizationManager:
     """
@@ -163,7 +165,7 @@ class OptimizationManager:
         
         try:
             # Import here to avoid circular imports
-            from symfluence.utils.optimization.large_domain_emulator import LargeDomainEmulator
+            from symfluence.utils.optimization.legacy.large_domain_emulator import LargeDomainEmulator
             
             # Initialize large domain emulator
             self.large_domain_emulator = LargeDomainEmulator(self.config, self.logger)
@@ -300,21 +302,29 @@ class OptimizationManager:
             Exception: For other errors during calibration
         """
         self.logger.info("Starting model calibration")
-        
+
         # Check if iterative optimization is enabled
         if not 'iteration' in self.config.get('OPTIMIZATION_METHODS', []):
             self.logger.info("Iterative optimization is disabled in configuration")
             return None
-        
+
         # Get the optimization algorithm from config
         opt_algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'PSO')
-        
+
+        # Check if unified optimizer infrastructure should be used
+        use_unified = self.config.get('USE_UNIFIED_OPTIMIZER', False)
+
         try:
             hydrological_models = self.config.get('HYDROLOGICAL_MODEL', '').split(',')
-                        
+
             for model in hydrological_models:
                 model = model.strip().upper()
 
+                # Use registry-based unified optimizer if enabled
+                if use_unified and opt_algorithm in ['DDS', 'PSO', 'SCE-UA', 'DE', 'ADAM', 'LBFGS']:
+                    return self._calibrate_with_registry(model, opt_algorithm)
+
+                # Fall back to legacy model-specific methods
                 if model == 'SUMMA':
                     return self._calibrate_summa(opt_algorithm)
                 elif model == 'FUSE':
@@ -323,7 +333,7 @@ class OptimizationManager:
                     return self._calibrate_ngen(opt_algorithm)
                 else:
                     self.logger.warning(f"Calibration for model {model} not yet implemented")
-            
+
             return None
             
         except Exception as e:
@@ -367,8 +377,11 @@ class OptimizationManager:
         ]
         
         if algorithm not in supported_algorithms:
-            raise ValueError(f"Unsupported optimization algorithm for FUSE: {algorithm}. "
-                            f"Supported: {', '.join(supported_algorithms)}")
+            from symfluence.utils.exceptions import OptimizationError
+            raise OptimizationError(
+                f"Unsupported optimization algorithm for FUSE: '{algorithm}'. "
+                f"Supported algorithms: {', '.join(supported_algorithms)}"
+            )
         
         # Create optimization directory if it doesn't exist
         opt_dir = self.project_dir / "optimization"
@@ -376,7 +389,7 @@ class OptimizationManager:
         
         try:
             # Import FUSEOptimizer
-            from fuse_optimizer import FUSEOptimizer
+            from symfluence.utils.optimization.fuse_optimizer import FUSEOptimizer
             
             # Initialize FUSE optimizer
             self.logger.info(f"Using {algorithm} optimization for FUSE")
@@ -434,7 +447,8 @@ class OptimizationManager:
                 )
                 
             else:
-                raise ValueError(f"Algorithm {algorithm} not implemented for FUSE")
+                from symfluence.utils.exceptions import OptimizationError
+                raise OptimizationError(f"Algorithm '{algorithm}' not implemented for FUSE")
             
             if results_file and results_file.exists():
                 self.logger.info(f"FUSE calibration completed successfully: {results_file}")
@@ -464,9 +478,10 @@ class OptimizationManager:
             'ADAM', 'LBFGS'
         ]
         if algorithm not in supported_algorithms:
-            raise ValueError(
-                f"Unsupported optimization algorithm for NGEN: {algorithm}. "
-                f"Supported: {', '.join(supported_algorithms)}"
+            from symfluence.utils.exceptions import OptimizationError
+            raise OptimizationError(
+                f"Unsupported optimization algorithm for NGEN: '{algorithm}'. "
+                f"Supported algorithms: {', '.join(supported_algorithms)}"
             )
 
         # Create optimization directory if it doesn't exist
@@ -474,7 +489,7 @@ class OptimizationManager:
         opt_dir.mkdir(parents=True, exist_ok=True)
 
         # Lazy import so we don’t require NGEN unless used
-        from ngen_optimizer import NgenOptimizer
+        from symfluence.utils.optimization.ngen_optimizer import NgenOptimizer
 
         self.logger.info(f"Using {algorithm} optimization for NGEN")
         ngen_opt = NgenOptimizer(self.config, self.logger, opt_dir)
@@ -499,7 +514,8 @@ class OptimizationManager:
             lr    = self.config.get('LBFGS_LEARNING_RATE', 0.1)
             results_file = ngen_opt.run_lbfgs(steps=steps, lr=lr)
         else:
-            raise RuntimeError(f"Unhandled NGEN algorithm: {algorithm}")
+            from symfluence.utils.exceptions import OptimizationError
+            raise OptimizationError(f"Unhandled NGEN algorithm: '{algorithm}'")
 
         self.logger.info(f"NGEN calibration complete. Results: {results_file}")
         return results_file
@@ -544,10 +560,23 @@ class OptimizationManager:
     def run_emulation(self) -> Optional[Dict]:
         """
         Entry point for all emulation workflows.
-        
+
         This method dispatches to the appropriate emulation workflow based on
         the OPTIMIZATION_METHODS configuration.
+
+        .. deprecated::
+            run_emulation is deprecated and will be removed in a future version.
+            Consider using the unified model optimizers with gradient-based methods
+            (run_adam, run_lbfgs) instead.
         """
+        warnings.warn(
+            "run_emulation is deprecated. Consider using the unified model optimizers "
+            "(SUMMAModelOptimizer, FUSEModelOptimizer, NgenModelOptimizer) with "
+            "gradient-based methods (run_adam, run_lbfgs) instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+
         optimization_methods = self.config.get('OPTIMIZATION_METHODS', [])
         results = {}
         
@@ -571,6 +600,80 @@ class OptimizationManager:
         
         return results
 
+    def _calibrate_with_registry(self, model_name: str, algorithm: str) -> Optional[Path]:
+        """
+        Calibrate a model using the OptimizerRegistry.
+
+        This method uses the new unified optimizer infrastructure based on
+        BaseModelOptimizer. It provides a cleaner, more maintainable approach
+        to model calibration with consistent algorithm support across all models.
+
+        Args:
+            model_name: Name of the model (e.g., 'SUMMA', 'FUSE', 'NGEN')
+            algorithm: Optimization algorithm to use
+
+        Returns:
+            Optional[Path]: Path to results file or None if calibration failed
+        """
+        # Import model optimizers to trigger registration
+        from symfluence.utils.optimization import model_optimizers  # noqa: F401
+
+        # Get optimizer class from registry
+        optimizer_cls = OptimizerRegistry.get_optimizer(model_name)
+
+        if optimizer_cls is None:
+            self.logger.error(f"No optimizer registered for model: {model_name}")
+            self.logger.info(f"Registered models: {OptimizerRegistry.list_models()}")
+            return None
+
+        # Create optimization directory
+        opt_dir = self.project_dir / "optimization"
+        opt_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            # Initialize optimizer
+            self.logger.info(f"Using {algorithm} optimization for {model_name} (registry-based)")
+            optimizer = optimizer_cls(self.config, self.logger, opt_dir)
+
+            # Map algorithm name to method
+            algorithm_methods = {
+                'DDS': optimizer.run_dds,
+                'PSO': optimizer.run_pso,
+                'SCE-UA': optimizer.run_sce,
+                'DE': optimizer.run_de,
+                'ADAM': lambda: optimizer.run_adam(
+                    steps=self.config.get('ADAM_STEPS', 100),
+                    lr=self.config.get('ADAM_LEARNING_RATE', 0.01)
+                ),
+                'LBFGS': lambda: optimizer.run_lbfgs(
+                    steps=self.config.get('LBFGS_STEPS', 50),
+                    lr=self.config.get('LBFGS_LEARNING_RATE', 0.1)
+                ),
+            }
+
+            # Get algorithm method
+            run_method = algorithm_methods.get(algorithm)
+
+            if run_method is None:
+                self.logger.error(f"Algorithm {algorithm} not supported for registry-based optimization")
+                self.logger.info(f"Supported algorithms: {list(algorithm_methods.keys())}")
+                return None
+
+            # Run optimization
+            results_file = run_method()
+
+            if results_file and Path(results_file).exists():
+                self.logger.info(f"{model_name} calibration completed: {results_file}")
+                return results_file
+            else:
+                self.logger.warning(f"{model_name} calibration completed but results file not found")
+                return None
+
+        except Exception as e:
+            self.logger.error(f"Error during {model_name} {algorithm} optimization: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return None
 
     def _calibrate_summa(self, algorithm: str) -> Optional[Path]:
         """
@@ -964,6 +1067,7 @@ class OptimizationResultsManager:
         results_file = self.opt_dir / filename
         
         if not results_file.exists():
-            raise FileNotFoundError(f"Optimization results file not found: {results_file}")
+            from symfluence.utils.exceptions import FileOperationError
+            raise FileOperationError(f"Optimization results file not found: {results_file}")
         
         return pd.read_csv(results_file)

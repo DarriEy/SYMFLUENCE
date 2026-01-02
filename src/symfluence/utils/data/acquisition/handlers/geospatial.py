@@ -1,5 +1,6 @@
 import math
 from pathlib import Path
+import zipfile
 import requests
 import rasterio
 from rasterio.merge import merge as rio_merge
@@ -22,15 +23,85 @@ class SoilGridsAcquirer(BaseAcquisitionHandler):
         layer = self.config.get("SOILGRIDS_LAYER", "wrb_0-5cm_mode")
 
         # Use default WCS map and coverage if not specified
-        wcs_map = self.config.get("SOILGRIDS_WCS_MAP", "/vsicurl/https://files.isric.org/soilgrids/latest/data/wrb/wrb_0-5cm_mode.vrt")
+        wcs_map = self.config.get("SOILGRIDS_WCS_MAP", "/map/wcs/soilgrids.map")
         coverage = self.config.get("SOILGRIDS_COVERAGE_ID", layer)
 
         params = [("map", wcs_map), ("SERVICE", "WCS"), ("VERSION", "2.0.1"), ("REQUEST", "GetCoverage"), ("COVERAGEID", coverage), ("FORMAT", "GEOTIFF_INT16"), ("SUBSETTINGCRS", "http://www.opengis.net/def/crs/EPSG/0/4326"), ("OUTPUTCRS", "http://www.opengis.net/def/crs/EPSG/0/4326"), ("SUBSET", f"Lat({self.bbox['lat_min']},{self.bbox['lat_max']})"), ("SUBSET", f"Lon({self.bbox['lon_min']},{self.bbox['lon_max']})")]
-        resp = requests.get("https://maps.isric.org/mapserv", params=params, stream=True)
-        resp.raise_for_status()
         out_p = soil_dir / f"domain_{self.domain_name}_soil_classes.tif"
-        with open(out_p, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=65536): f.write(chunk)
+        if out_p.exists() and not self.config.get("FORCE_DOWNLOAD", False):
+            return out_p
+
+        try:
+            resp = requests.get("https://maps.isric.org/mapserv", params=params, stream=True, timeout=60)
+            resp.raise_for_status()
+            content_type = (resp.headers.get("Content-Type") or "").lower()
+            chunks = resp.iter_content(chunk_size=65536)
+            first_chunk = next(chunks, b"")
+            if "text/html" in content_type or first_chunk.lstrip().startswith(b"<"):
+                snippet = first_chunk[:200].decode("utf-8", errors="ignore")
+                raise ValueError(f"SoilGrids WCS returned HTML response: {snippet}")
+            if not first_chunk.startswith((b"II*\x00", b"MM\x00*")):
+                snippet = first_chunk[:200].decode("utf-8", errors="ignore")
+                raise ValueError(f"SoilGrids WCS returned unexpected content: {snippet}")
+            with open(out_p, "wb") as f:
+                f.write(first_chunk)
+                for chunk in chunks:
+                    f.write(chunk)
+            return out_p
+        except Exception as exc:
+            self.logger.warning(f"SoilGrids WCS failed, falling back to HydroShare: {exc}")
+            return self._download_hydroshare_soilclasses(out_p)
+
+    def _download_hydroshare_soilclasses(self, out_p: Path) -> Path:
+        cache_dir = Path(self.config.get("SOILGRIDS_HS_CACHE_DIR", out_p.parent / "cache"))
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        resource_id = self.config.get(
+            "SOILGRIDS_HS_RESOURCE_ID",
+            "1361509511e44adfba814f6950c6e742",
+        )
+        hs_url = self.config.get(
+            "SOILGRIDS_HS_API_URL",
+            f"https://www.hydroshare.org/hsapi/resource/{resource_id}/",
+        )
+
+        zip_path = cache_dir / f"soilgrids_{resource_id}.zip"
+        if not zip_path.exists() or zip_path.stat().st_size == 0 or self.config.get("FORCE_DOWNLOAD", False):
+            tmp_path = zip_path.with_suffix(".zip.part")
+            with requests.get(hs_url, stream=True, timeout=300) as resp:
+                resp.raise_for_status()
+                with open(tmp_path, "wb") as handle:
+                    for chunk in resp.iter_content(chunk_size=65536):
+                        if chunk:
+                            handle.write(chunk)
+            tmp_path.replace(zip_path)
+
+        tif_name = "data/contents/usda_mode_soilclass_250m_ll.tif"
+        cached_tif = cache_dir / "usda_mode_soilclass_250m_ll.tif"
+        if not cached_tif.exists():
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                with zf.open(f"{resource_id}/{tif_name}") as src, open(cached_tif, "wb") as dst:
+                    dst.write(src.read())
+
+        with rasterio.open(cached_tif) as src:
+            win = from_bounds(
+                self.bbox["lon_min"],
+                self.bbox["lat_min"],
+                self.bbox["lon_max"],
+                self.bbox["lat_max"],
+                src.transform,
+            )
+            out_d = src.read(1, window=win)
+            meta = src.meta.copy()
+            meta.update({
+                "height": out_d.shape[0],
+                "width": out_d.shape[1],
+                "transform": src.window_transform(win),
+                "compress": "lzw",
+            })
+
+        with rasterio.open(out_p, "w", **meta) as dst:
+            dst.write(out_d, 1)
         return out_p
 
 @AcquisitionRegistry.register('MODIS_LANDCOVER')

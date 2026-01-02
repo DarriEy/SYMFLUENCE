@@ -1,17 +1,24 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-import geopandas as gpd
-from shapely.geometry import Polygon
-
-from symfluence.utils.geospatial.artifacts import DelineationArtifacts
-from symfluence.utils.geospatial.geofabric_utils import (
+from symfluence.utils.geospatial.geofabric import (
     GeofabricDelineator,
     GeofabricSubsetter,
     LumpedWatershedDelineator,
+    PointDelineator,
 )
+
+
+@dataclass
+class DelineationArtifacts:
+    method: str
+    river_basins_path: Optional[Path] = None
+    river_network_path: Optional[Path] = None
+    pour_point_path: Optional[Path] = None
+    metadata: Dict[str, str] = field(default_factory=dict)
 
 
 def create_point_domain_shapefile(
@@ -21,66 +28,8 @@ def create_point_domain_shapefile(
     """
     Create a square basin shapefile from bounding box coordinates for point modeling.
     """
-    try:
-        logger.info("Creating point domain shapefile from bounding box coordinates")
-
-        bbox_coords = config.get("BOUNDING_BOX_COORDS", "")
-        if not bbox_coords:
-            logger.error("BOUNDING_BOX_COORDS not found in configuration")
-            return None
-
-        try:
-            lat_max, lon_min, lat_min, lon_max = map(float, bbox_coords.split("/"))
-        except ValueError:
-            logger.error(
-                f"Invalid bounding box format: {bbox_coords}. Expected format: lat_max/lon_min/lat_min/lon_max"
-            )
-            return None
-
-        coords = [
-            (lon_min, lat_min),
-            (lon_max, lat_min),
-            (lon_max, lat_max),
-            (lon_min, lat_max),
-            (lon_min, lat_min),
-        ]
-        polygon = Polygon(coords)
-        area_deg2 = polygon.area
-
-        domain_name = config.get("DOMAIN_NAME")
-        data_dir = Path(config.get("SYMFLUENCE_DATA_DIR"))
-        project_dir = data_dir / f"domain_{domain_name}"
-
-        gdf = gpd.GeoDataFrame(
-            {
-                "GRU_ID": [1],
-                "GRU_area": [area_deg2],
-                "basin_name": [domain_name],
-                "method": ["point"],
-            },
-            geometry=[polygon],
-            crs="EPSG:4326",
-        )
-
-        output_dir = project_dir / "shapefiles" / "river_basins"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir / f"{domain_name}_riverBasins_point.shp"
-
-        gdf.to_file(output_path)
-
-        logger.info(f"Point domain shapefile created successfully: {output_path}")
-        logger.info(
-            f"Bounding box: lat_min={lat_min}, lat_max={lat_max}, lon_min={lon_min}, lon_max={lon_max}"
-        )
-        logger.info(f"Area: {area_deg2:.6f} square degrees")
-
-        return output_path
-    except Exception as exc:
-        logger.error(f"Error creating point domain shapefile: {str(exc)}")
-        import traceback
-
-        logger.error(traceback.format_exc())
-        return None
+    delineator = PointDelineator(config, logger)
+    return delineator.create_point_domain_shapefile()
 
 
 class DomainDelineator:
@@ -98,6 +47,7 @@ class DomainDelineator:
         self.delineator = GeofabricDelineator(self.config, self.logger)
         self.lumped_delineator = LumpedWatershedDelineator(self.config, self.logger)
         self.subsetter = GeofabricSubsetter(self.config, self.logger)
+        self.point_delineator = PointDelineator(self.config, self.logger)
 
     def _get_pour_point_path(self) -> Optional[Path]:
         pour_point_path = self.config.get("POUR_POINT_SHP_PATH")
@@ -146,7 +96,7 @@ class DomainDelineator:
             return None, artifacts
 
         if domain_method == "point":
-            output_path = create_point_domain_shapefile(self.config, self.logger)
+            output_path = self.point_delineator.create_point_domain_shapefile()
             artifacts.river_basins_path = output_path
             artifacts.pour_point_path = self._get_pour_point_path()
             return output_path, artifacts

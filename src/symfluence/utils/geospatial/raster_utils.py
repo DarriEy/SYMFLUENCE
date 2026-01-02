@@ -3,6 +3,11 @@ import numpy as np
 import rasterio # type: ignore
 from scipy import stats
 import glob
+import pandas as pd
+import pvlib
+from pathlib import Path
+from logging import Logger
+from typing import Optional
 
 def calculate_landcover_mode(input_dir, output_file, start_year, end_year, domain_name):
     """
@@ -106,3 +111,201 @@ def calculate_landcover_mode(input_dir, output_file, start_year, end_year, domai
         
         # Now write the data
         dst.write(mode_data, 1)
+
+
+def calculate_aspect(dem_raster: Path, aspect_raster: Path, aspect_class_number: int, logger: Logger) -> Optional[Path]:
+    """
+    Calculate aspect (slope direction) from DEM and classify into directional classes.
+    
+    Args:
+        dem_raster: Path to the DEM raster
+        aspect_raster: Path where the aspect raster will be saved
+        aspect_class_number: Number of aspect classes to create
+        logger: Logger object
+        
+    Returns:
+        Path to the created aspect raster or None if failed
+    """
+    logger.info(f"Calculating aspect from DEM: {dem_raster}")
+    
+    try:
+        with rasterio.open(dem_raster) as src:
+            dem = src.read(1)
+            transform = src.transform
+            crs = src.crs
+            nodata = src.nodata
+        
+        # Calculate gradients
+        dy, dx = np.gradient(dem.astype(float))
+        
+        # Calculate aspect in radians, then convert to degrees
+        aspect_rad = np.arctan2(-dx, dy)  # Note the negative sign for dx
+        aspect_deg = np.degrees(aspect_rad)
+        
+        # Convert to compass bearing (0-360 degrees, 0 = North)
+        aspect_deg = (90 - aspect_deg) % 360
+        
+        # Handle flat areas (where both dx and dy are near zero)
+        slope_magnitude = np.sqrt(dx*dx + dy*dy)
+        flat_threshold = 1e-6  # Adjust as needed
+        flat_mask = slope_magnitude < flat_threshold
+        
+        # Classify aspect into directional classes
+        classified_aspect = classify_aspect_into_classes(aspect_deg, flat_mask, aspect_class_number)
+        
+        # Handle nodata values from original DEM
+        if nodata is not None:
+            dem_nodata_mask = dem == nodata
+            classified_aspect[dem_nodata_mask] = -9999
+        
+        # Save the classified aspect raster
+        aspect_raster.parent.mkdir(parents=True, exist_ok=True)
+        
+        with rasterio.open(aspect_raster, 'w', driver='GTiff',
+                        height=classified_aspect.shape[0], width=classified_aspect.shape[1],
+                        count=1, dtype=classified_aspect.dtype,
+                        crs=crs, transform=transform, nodata=-9999) as dst:
+            dst.write(classified_aspect, 1)
+        
+        logger.info(f"Aspect raster saved to: {aspect_raster}")
+        logger.info(f"Aspect classes: {np.unique(classified_aspect[classified_aspect != -9999])}")
+        return aspect_raster
+    
+    except Exception as e:
+        logger.error(f"Error calculating aspect: {str(e)}", exc_info=True)
+        return None
+
+def classify_aspect_into_classes(aspect_deg: np.ndarray, flat_mask: np.ndarray, 
+                                num_classes: int) -> np.ndarray:
+    """
+    Classify aspect degrees into directional classes.
+    
+    Args:
+        aspect_deg: Aspect in degrees (0-360)
+        flat_mask: Boolean mask for flat areas
+        num_classes: Number of aspect classes to create
+        
+    Returns:
+        Classified aspect array
+    """
+    classified = np.zeros_like(aspect_deg, dtype=int)
+    
+    if num_classes == 8:
+        # Standard 8-direction classification
+        # N, NE, E, SE, S, SW, W, NW
+        bins = [0, 22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5, 360]
+        labels = [1, 2, 3, 4, 5, 6, 7, 8, 1]  # Last one wraps to North
+        
+        for i in range(len(bins) - 1):
+            if i == len(bins) - 2:  # Last bin (337.5 to 360)
+                mask = (aspect_deg >= bins[i]) & (aspect_deg <= bins[i+1])
+            else:
+                mask = (aspect_deg >= bins[i]) & (aspect_deg < bins[i+1])
+            classified[mask] = labels[i]
+            
+    elif num_classes == 4:
+        # 4-direction classification (N, E, S, W)
+        bins = [0, 45, 135, 225, 315, 360]
+        labels = [1, 2, 3, 4, 1]  # N, E, S, W, N
+        
+        for i in range(len(bins) - 1):
+            if i == len(bins) - 2:  # Last bin
+                mask = (aspect_deg >= bins[i]) & (aspect_deg <= bins[i+1])
+            else:
+                mask = (aspect_deg >= bins[i]) & (aspect_deg < bins[i+1])
+            classified[mask] = labels[i]
+    
+    else:
+        # Custom number of classes - divide 360 degrees evenly
+        class_width = 360.0 / num_classes
+        for i in range(num_classes):
+            lower = i * class_width
+            upper = (i + 1) * class_width
+            
+            if i == num_classes - 1:  # Last class includes 360
+                mask = (aspect_deg >= lower) & (aspect_deg <= upper)
+            else:
+                mask = (aspect_deg >= lower) & (aspect_deg < upper)
+            classified[mask] = i + 1
+    
+    # Set flat areas to a special class (0)
+    classified[flat_mask] = 0
+    
+    # Set areas that don't fall into any class to -9999 (shouldn't happen but safety)
+    classified[classified == 0] = 0  # Keep flat areas as 0
+    
+    return classified
+
+def calculate_annual_radiation(dem_raster: Path, radiation_raster: Path, logger: Logger) -> Optional[Path]:
+    """
+    Calculate annual radiation from DEM.
+    
+    Args:
+        dem_raster: Path to the DEM raster
+        radiation_raster: Path where the radiation raster will be saved
+        logger: Logger object
+        
+    Returns:
+        Path to the created radiation raster or None if failed
+    """
+    logger.info(f"Calculating annual radiation from DEM: {dem_raster}")
+    
+    try:
+        with rasterio.open(dem_raster) as src:
+            dem = src.read(1)
+            transform = src.transform
+            crs = src.crs
+            bounds = src.bounds
+        
+        center_lat = (bounds.bottom + bounds.top) / 2
+        center_lon = (bounds.left + bounds.right) / 2
+        
+        # Calculate slope and aspect
+        dy, dx = np.gradient(dem)
+        slope = np.arctan(np.sqrt(dx*dx + dy*dy))
+        aspect = np.arctan2(-dx, dy)
+        
+        # Create a DatetimeIndex for the entire year (daily)
+        times = pd.date_range(start='2019-01-01', end='2019-12-31', freq='D')
+        
+        # Create location object
+        location = pvlib.location.Location(latitude=center_lat, longitude=center_lon, altitude=np.mean(dem))
+        
+        # Calculate solar position
+        solar_position = location.get_solarposition(times=times)
+        
+        # Calculate clear sky radiation
+        clearsky = location.get_clearsky(times=times)
+        
+        # Initialize the radiation array
+        radiation = np.zeros_like(dem)
+        
+        logger.info("Calculating radiation for each pixel...")
+        for i in range(dem.shape[0]):
+            for j in range(dem.shape[1]):
+                surface_tilt = np.degrees(slope[i, j])
+                surface_azimuth = np.degrees(aspect[i, j])
+                
+                total_irrad = pvlib.irradiance.get_total_irradiance(
+                    surface_tilt, surface_azimuth,
+                    solar_position['apparent_zenith'], solar_position['azimuth'],
+                    clearsky['dni'], clearsky['ghi'], clearsky['dhi']
+                )
+                
+                radiation[i, j] = total_irrad['poa_global'].sum()
+        
+        # Save the radiation raster
+        radiation_raster.parent.mkdir(parents=True, exist_ok=True)
+        
+        with rasterio.open(radiation_raster, 'w', driver='GTiff',
+                        height=radiation.shape[0], width=radiation.shape[1],
+                        count=1, dtype=radiation.dtype,
+                        crs=crs, transform=transform) as dst:
+            dst.write(radiation, 1)
+        
+        logger.info(f"Radiation raster saved to: {radiation_raster}")
+        return radiation_raster
+    
+    except Exception as e:
+        logger.error(f"Error calculating annual radiation: {str(e)}", exc_info=True)
+        return None

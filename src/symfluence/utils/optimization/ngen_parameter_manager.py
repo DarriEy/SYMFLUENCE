@@ -49,11 +49,11 @@ class NgenParameterManager(BaseParameterManager):
         # Path to ngen configuration files
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.ngen_sim_dir = self.project_dir / 'simulations' / self.experiment_id / 'ngen'
-        self.ngen_setup_dir = self.project_dir / 'settings' / 'ngen'
+        self.ngen_sim_dir = self.project_dir / 'simulations' / self.experiment_id / 'NGEN'
+        self.ngen_setup_dir = self.project_dir / 'settings' / 'NGEN'
 
         # Configuration file paths
-        self.realization_config = self.ngen_setup_dir / 'realization.json'
+        self.realization_config = self.ngen_setup_dir / 'realization_config.json'
         self.cfe_config = self.ngen_setup_dir / 'CFE' / 'cfe_config.json'
         self.cfe_txt_dir = self.ngen_setup_dir / 'CFE'
         self.pet_config = self.ngen_setup_dir / 'PET' / 'pet_config.json'

@@ -66,14 +66,25 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         if self.river_network_name == 'default':
             self.river_network_name = f"{self.domain_name}_riverNetwork_delineate.shp"
 
-        # SUMMA-specific configuration (base class now handles forcing_dataset)
-        self.hruId = self.config.get('CATCHMENT_SHP_HRUID')
-        self.gruId = self.config.get('CATCHMENT_SHP_GRUID')
-        self.data_step = self.forcing_time_step_size  # Use base class attribute
-        self.coldstate_name = self.config.get('SETTINGS_SUMMA_COLDSTATE')
-        self.parameter_name = self.config.get('SETTINGS_SUMMA_TRIALPARAMS')
-        self.attribute_name = self.config.get('SETTINGS_SUMMA_ATTRIBUTES')
-        self.forcing_measurement_height = float(self.config.get('FORCING_MEASUREMENT_HEIGHT'))
+        # SUMMA-specific configuration (Phase 3: Use typed config when available)
+        if self.typed_config:
+            # Typed access (clearer, type-safe)
+            self.hruId = self.typed_config.paths.catchment_hruid
+            self.gruId = self.typed_config.paths.catchment_gruid
+            self.data_step = self.typed_config.forcing.time_step_size
+            self.coldstate_name = self.typed_config.model.summa.coldstate if self.typed_config.model.summa else None
+            self.parameter_name = self.typed_config.model.summa.trialparams if self.typed_config.model.summa else None
+            self.attribute_name = self.typed_config.model.summa.attributes if self.typed_config.model.summa else None
+            self.forcing_measurement_height = float(self.typed_config.forcing.measurement_height)
+        else:
+            # Fallback to dict access for backward compatibility
+            self.hruId = self.config.get('CATCHMENT_SHP_HRUID')
+            self.gruId = self.config.get('CATCHMENT_SHP_GRUID')
+            self.data_step = self.forcing_time_step_size  # Use base class attribute
+            self.coldstate_name = self.config.get('SETTINGS_SUMMA_COLDSTATE')
+            self.parameter_name = self.config.get('SETTINGS_SUMMA_TRIALPARAMS')
+            self.attribute_name = self.config.get('SETTINGS_SUMMA_ATTRIBUTES')
+            self.forcing_measurement_height = float(self.config.get('FORCING_MEASUREMENT_HEIGHT'))
 
         # Initialize forcing processor
         self.forcing_processor = SummaForcingProcessor(
@@ -137,27 +148,28 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         """
         Run the complete SUMMA spatial preprocessing workflow.
 
-        This method orchestrates the preprocessing pipeline.
+        Uses the template method pattern from BaseModelPreProcessor.
 
         Raises:
             ModelExecutionError: If any step in the preprocessing pipeline fails.
         """
         self.logger.info("Starting SUMMA spatial preprocessing")
+        return self.run_preprocessing_template()
 
-        with symfluence_error_handler(
-            "SUMMA preprocessing",
-            self.logger,
-            error_type=ModelExecutionError
-        ):
-            self.apply_datastep_and_lapse_rate()
-            self.copy_base_settings()
-            self.create_file_manager()
-            self.create_forcing_file_list()
-            self.create_initial_conditions()
-            self.create_trial_parameters()
-            self.create_attributes_file()
+    def _pre_setup(self) -> None:
+        """SUMMA-specific pre-setup: apply lapse rate corrections (template hook)."""
+        self.apply_datastep_and_lapse_rate()
 
-            self.logger.info("SUMMA spatial preprocessing completed successfully")
+    def _prepare_forcing(self) -> None:
+        """SUMMA-specific forcing preparation (template hook)."""
+        self.create_forcing_file_list()
+
+    def _create_model_configs(self) -> None:
+        """SUMMA-specific configuration file creation (template hook)."""
+        self.create_file_manager()
+        self.create_initial_conditions()
+        self.create_trial_parameters()
+        self.create_attributes_file()
 
     def copy_base_settings(self):
         """
@@ -249,12 +261,17 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         Raises:
             ValueError: If the time format in the configuration is invalid.
         """
-        sim_start = self.config.get('EXPERIMENT_TIME_START')
-        sim_end = self.config.get('EXPERIMENT_TIME_END')
+        # Phase 3: Use typed config when available
+        if self.typed_config:
+            sim_start = self.typed_config.domain.time_start
+            sim_end = self.typed_config.domain.time_end
+        else:
+            sim_start = self.config.get('EXPERIMENT_TIME_START')
+            sim_end = self.config.get('EXPERIMENT_TIME_END')
 
         if sim_start == 'default' or sim_end == 'default':
-            start_year = self.config.get('EXPERIMENT_TIME_START').split('-')[0]
-            end_year = self.config.get('EXPERIMENT_TIME_END').split('-')[0]
+            start_year = sim_start.split('-')[0] if sim_start != 'default' else None
+            end_year = sim_end.split('-')[0] if sim_end != 'default' else None
             if not start_year or not end_year:
                 raise ValueError("EXPERIMENT_TIME_START or EXPERIMENT_TIME_END is missing from configuration")
             sim_start = f"{start_year}-01-01 01:00" if sim_start == 'default' else sim_start

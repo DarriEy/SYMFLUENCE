@@ -66,8 +66,8 @@ class InitializationManager:
                 print(f"  {name:18} {desc}")
             print()
 
-        print("Use: symfluence --show-preset NAME for details")
-        print("Use: symfluence --init PRESET_NAME to create config\n")
+        print("Use: symfluence project show-preset NAME for details")
+        print("Use: symfluence project init PRESET_NAME to create config\n")
 
     def show_preset(self, preset_name: str) -> None:
         """
@@ -76,8 +76,8 @@ class InitializationManager:
         Args:
             preset_name: Name of preset to show
         """
+        from .init_presets import get_preset
         try:
-            from .init_presets import get_preset
             preset = get_preset(preset_name)
         except ValueError as e:
             print(f"❌ {e}")
@@ -124,7 +124,7 @@ class InitializationManager:
             for category, options in preset['summa_decisions'].items():
                 print(f"  {category}: {options[0]}")
 
-        print(f"\n To use: symfluence --init {preset_name}\n")
+        print(f"\n To use: symfluence project init {preset_name}\n")
 
     def generate_config(
         self,

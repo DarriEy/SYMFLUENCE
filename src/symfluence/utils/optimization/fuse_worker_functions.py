@@ -35,10 +35,11 @@ def _apply_fuse_parameters_worker(config: Dict[str, Any], params: Dict[str, floa
         # Construct parameter file path
         domain_name = config.get('DOMAIN_NAME')
         experiment_id = config.get('EXPERIMENT_ID')
+        fuse_id = config.get('FUSE_FILE_ID', experiment_id)
         data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         
         param_file_path = (data_dir / f"domain_{domain_name}" / 'simulations' / 
-                          experiment_id / 'FUSE' / f"{domain_name}_{experiment_id}_para_def.nc")
+                          experiment_id / 'FUSE' / f"{domain_name}_{fuse_id}_para_def.nc")
         
         if not param_file_path.exists():
             return False
@@ -135,7 +136,7 @@ def _calculate_fuse_metrics_worker(config: Dict[str, Any], metric: str = 'KGE') 
     try:
         # Import evaluation functions
         sys.path.append(str(Path(__file__).resolve().parent.parent))
-        from symfluence.utils.evaluation.calculate_sim_stats import get_KGE, get_NSE, get_RMSE, get_MAE
+        from symfluence.utils.common.metrics import get_KGE, get_NSE, get_RMSE, get_MAE
         
         # Get paths
         domain_name = config.get('DOMAIN_NAME')

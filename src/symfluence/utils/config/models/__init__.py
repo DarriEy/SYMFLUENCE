@@ -1,0 +1,116 @@
+"""
+Hierarchical configuration models for SYMFLUENCE.
+
+This package defines a nested configuration structure that organizes the 346+
+configuration parameters into logical sections while maintaining backward
+compatibility through factory methods and dict-like access.
+
+Key design features:
+- Type-safe hierarchical structure (config.domain.name vs config['DOMAIN_NAME'])
+- Factory methods: from_preset(), from_minimal(), from_file()
+- Backward compatibility: to_dict(), get(), __getitem__()
+- All validation logic preserved from original flat model
+- Immutable configs (frozen=True) to prevent mutation bugs
+"""
+
+# Root config - the main entry point
+from .root import SymfluenceConfig
+
+# System config
+from .system import SystemConfig
+
+# Domain configs
+from .domain import DomainConfig, DelineationConfig
+
+# Forcing configs
+from .forcing import ForcingConfig, NexConfig, EMEarthConfig
+
+# Model configs
+from .model_configs import (
+    ModelConfig,
+    SUMMAConfig,
+    FUSEConfig,
+    GRConfig,
+    HYPEConfig,
+    NGENConfig,
+    MESHConfig,
+    MizuRouteConfig,
+    FLASHConfig,
+)
+
+# Optimization configs
+from .optimization import (
+    OptimizationConfig,
+    PSOConfig,
+    DEConfig,
+    DDSConfig,
+    SCEUAConfig,
+    NSGA2Config,
+    DPEConfig,
+    LargeDomainConfig,
+    EmulationConfig,
+)
+
+# Evaluation configs
+from .evaluation import (
+    EvaluationConfig,
+    StreamflowConfig,
+    SNOTELConfig,
+    FluxNetConfig,
+    USGSGWConfig,
+    SMAPConfig,
+    GRACEConfig,
+    MODISSnowConfig,
+    AttributesConfig,
+)
+
+# Paths configs
+from .paths import PathsConfig, ShapefilePathConfig
+
+
+__all__ = [
+    # Root
+    "SymfluenceConfig",
+    # System
+    "SystemConfig",
+    # Domain
+    "DomainConfig",
+    "DelineationConfig",
+    # Forcing
+    "ForcingConfig",
+    "NexConfig",
+    "EMEarthConfig",
+    # Models
+    "ModelConfig",
+    "SUMMAConfig",
+    "FUSEConfig",
+    "GRConfig",
+    "HYPEConfig",
+    "NGENConfig",
+    "MESHConfig",
+    "MizuRouteConfig",
+    "FLASHConfig",
+    # Optimization
+    "OptimizationConfig",
+    "PSOConfig",
+    "DEConfig",
+    "DDSConfig",
+    "SCEUAConfig",
+    "NSGA2Config",
+    "DPEConfig",
+    "LargeDomainConfig",
+    "EmulationConfig",
+    # Evaluation
+    "EvaluationConfig",
+    "StreamflowConfig",
+    "SNOTELConfig",
+    "FluxNetConfig",
+    "USGSGWConfig",
+    "SMAPConfig",
+    "GRACEConfig",
+    "MODISSnowConfig",
+    "AttributesConfig",
+    # Paths
+    "PathsConfig",
+    "ShapefilePathConfig",
+]

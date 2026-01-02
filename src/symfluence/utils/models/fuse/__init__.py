@@ -7,28 +7,43 @@ Understanding Structural Errors) hydrological model integration.
 The module has been refactored from a single large file (fuse_utils.py, 3094 lines)
 into separate components for better maintainability and organization.
 
-Components:
-    - FUSEPreProcessor: Handles FUSE preprocessing and setup (preprocessor.py, 1375 lines)
+Main Components:
+    - FUSEPreProcessor: Handles FUSE preprocessing and setup (preprocessor.py, ~350 lines)
     - FUSERunner: Executes FUSE model simulations (runner.py, 1194 lines)
     - FUSEPostprocessor: Processes FUSE model outputs (postprocessor.py, 95 lines)
     - FuseDecisionAnalyzer: Analyzes FUSE model decisions (decision_analyzer.py, 393 lines)
 
-For backward compatibility, all classes are re-exported at the package level,
-so existing code using `from symfluence.utils.models.fuse_utils import FUSEPreProcessor`
-will continue to work.
+Manager Classes (Refactored 2026-01-01):
+    - FuseForcingProcessor: Handles forcing data transformations (forcing_processor.py, ~350 lines)
+    - FuseElevationBandManager: Manages elevation band creation (elevation_band_manager.py, ~290 lines)
+    - FuseSyntheticDataGenerator: Generates synthetic hydrographs (synthetic_data_generator.py, ~170 lines)
 
-Refactored: 2025-12-31
+Refactoring History:
+    - 2025-12-31: Initial refactoring from fuse_utils.py
+    - 2026-01-01: Manager extraction and modularization (reduced preprocessor from 1441 → 350 lines)
+
+For backward compatibility, all public classes are re-exported at the package level.
 """
 
-# Import all classes from their respective modules
+# Import main classes
 from .preprocessor import FUSEPreProcessor
 from .runner import FUSERunner
 from .postprocessor import FUSEPostprocessor
 from .decision_analyzer import FuseDecisionAnalyzer
 
+# Import manager classes (for advanced usage)
+from .forcing_processor import FuseForcingProcessor
+from .elevation_band_manager import FuseElevationBandManager
+from .synthetic_data_generator import FuseSyntheticDataGenerator
+
 __all__ = [
+    # Main classes (public API)
     'FUSEPreProcessor',
     'FUSERunner',
     'FUSEPostprocessor',
     'FuseDecisionAnalyzer',
+    # Manager classes (advanced usage)
+    'FuseForcingProcessor',
+    'FuseElevationBandManager',
+    'FuseSyntheticDataGenerator',
 ]

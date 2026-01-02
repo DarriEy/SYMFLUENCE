@@ -43,6 +43,9 @@ def attr_config(tmp_path_factory, symfluence_code_dir, symfluence_data_root):
     config["EXPERIMENT_ID"] = "cloud_attr_acq"
     config["EXPERIMENT_TIME_START"] = "2010-01-01 00:00"
     config["EXPERIMENT_TIME_END"] = "2010-01-02 00:00"
+    config["CALIBRATION_PERIOD"] = None
+    config["EVALUATION_PERIOD"] = None
+    config["SPINUP_PERIOD"] = None
 
     write_config(config, cfg_path)
 

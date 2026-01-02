@@ -462,7 +462,10 @@ class BaseOptimizer(ABC):
             ):
                 return float('-inf')
             
-            metrics = self.calibration_target.calculate_metrics(self.summa_sim_dir, self.mizuroute_sim_dir)
+            metrics = self.calibration_target.calculate_metrics(
+                self.summa_sim_dir,
+                mizuroute_dir=self.mizuroute_sim_dir
+            )
             if not metrics:
                 return float('-inf')
             
@@ -690,7 +693,11 @@ if __name__ == "__main__":
             if not self.model_executor.run_models(self.summa_sim_dir, self.mizuroute_sim_dir, self.optimization_settings_dir):
                 return None
             
-            metrics = self.calibration_target.calculate_metrics(self.summa_sim_dir, self.mizuroute_sim_dir, calibration_only=False)
+            metrics = self.calibration_target.calculate_metrics(
+                self.summa_sim_dir,
+                mizuroute_dir=self.mizuroute_sim_dir,
+                calibration_only=False
+            )
             
             if metrics:
                 return {
@@ -879,4 +886,3 @@ if __name__ == "__main__":
             eval_target = final_result['evaluation_metrics'].get(self.target_metric, 0)
             self.logger.info(f"   Final calibration: {self.target_metric} = {calib_target:.6f}")
             self.logger.info(f"   Final evaluation: {self.target_metric} = {eval_target:.6f}")
-

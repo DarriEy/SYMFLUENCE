@@ -25,10 +25,17 @@ from typing import Dict, Any
 import geopandas as gpd
 import pandas as pd
 import xarray as xr
+import numpy as np
+import netCDF4 as nc4
+import tempfile
 
 # Local imports
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
+from symfluence.utils.exceptions import (
+    ModelExecutionError,
+    symfluence_error_handler
+)
 
 
 @ModelRegistry.register_runner('SUMMA', method_name='run_summa')
@@ -51,7 +58,7 @@ class SummaRunner(BaseModelRunner):
         super().__init__(config, logger)
 
         # SummaRunner uses 'root_path' alias for backwards compatibility
-        self.root_path = self.data_dir
+        self.setup_path_aliases({'root_path': 'data_dir'})
 
     def _get_model_name(self) -> str:
         """Return model name for SUMMA."""
@@ -67,13 +74,25 @@ class SummaRunner(BaseModelRunner):
 
         This method selects the appropriate run mode (parallel, serial, or point)
         based on configuration settings and executes the SUMMA model accordingly.
+
+        Raises:
+            ModelExecutionError: If model execution fails
         """
-        #if self.config.get('SPATIAL_MODE') == 'Point':
-            #self.run_summa_point()
-        if self.config.get('SETTINGS_SUMMA_USE_PARALLEL_SUMMA', False):
-            self.run_summa_parallel()
-        else:
-            self.run_summa_serial()
+        with symfluence_error_handler(
+            "SUMMA model execution",
+            self.logger,
+            error_type=ModelExecutionError
+        ):
+            # Phase 3: Use typed config when available for clearer intent
+            if self.typed_config:
+                use_parallel = self.typed_config.model.summa.use_parallel if self.typed_config.model.summa else False
+            else:
+                use_parallel = self.config.get('SETTINGS_SUMMA_USE_PARALLEL_SUMMA', False)
+
+            if use_parallel:
+                self.run_summa_parallel()
+            else:
+                self.run_summa_serial()
 
     def run_summa_point(self):
         """
@@ -86,14 +105,9 @@ class SummaRunner(BaseModelRunner):
         self.logger.info("Starting SUMMA point simulations")
 
         # Set up paths
-        summa_path = self.config.get('SUMMA_INSTALL_PATH')
-        if summa_path == 'default':
-            summa_path = self.root_path / 'installs/summa/bin/'
-        else:
-            summa_path = Path(summa_path)
-
+        summa_path = self.get_install_path('SUMMA_INSTALL_PATH', 'installs/summa/bin/')
         summa_exe = self.config.get('SUMMA_EXE')
-        setting_path = self._get_config_path('SETTINGS_SUMMA_PATH', 'settings/SUMMA_point/')
+        setting_path = self.get_config_path('SETTINGS_SUMMA_PATH', 'settings/SUMMA_point/')
 
         # Run all sites from the file manager lists
         fm_ic_list_path = setting_path / 'list_fileManager_IC.txt'
@@ -181,19 +195,14 @@ class SummaRunner(BaseModelRunner):
         self.logger.info("Starting parallel SUMMA run with SLURM")
 
         # Set up paths and filenames
-        summa_path = self.config.get('SETTINGS_SUMMA_PARALLEL_PATH')
-        if summa_path == 'default':
-            summa_path = self.root_path / 'installs/summa/bin/'
-        else:
-            summa_path = Path(summa_path)
-
+        summa_path = self.get_install_path('SETTINGS_SUMMA_PARALLEL_PATH', 'installs/summa/bin/')
         summa_exe = self.config.get('SETTINGS_SUMMA_PARALLEL_EXE')
-        settings_path = self._get_config_path('SETTINGS_SUMMA_PATH', 'settings/SUMMA/')
+        settings_path = self.get_config_path('SETTINGS_SUMMA_PATH', 'settings/SUMMA/')
         filemanager = self.config.get('SETTINGS_SUMMA_FILEMANAGER')
 
         experiment_id = self.config.get('EXPERIMENT_ID')
-        summa_log_path = self._get_config_path('EXPERIMENT_LOG_SUMMA', f"simulations/{experiment_id}/SUMMA/SUMMA_logs/")
-        summa_out_path = self._get_config_path('EXPERIMENT_OUTPUT_SUMMA', f"simulations/{experiment_id}/SUMMA/")
+        summa_log_path = self.get_config_path('EXPERIMENT_LOG_SUMMA', f"simulations/{experiment_id}/SUMMA/SUMMA_logs/")
+        summa_out_path = self.get_config_path('EXPERIMENT_OUTPUT_SUMMA', f"simulations/{experiment_id}/SUMMA/")
 
         # Create output and log directories if they don't exist
         summa_log_path.mkdir(parents=True, exist_ok=True)
@@ -481,27 +490,20 @@ echo "Completed all GRUs for this job at $(date)"
         self.logger.info("Starting SUMMA run")
 
         # Set up paths and filenames
-        summa_path = self.config.get('SUMMA_INSTALL_PATH')
-
-        if summa_path == 'default':
-            summa_path = self.root_path / 'installs/summa/bin/'
-        else:
-            summa_path = Path(summa_path)
-
+        summa_path = self.get_install_path('SUMMA_INSTALL_PATH', 'installs/summa/bin/')
         summa_exe = self.config.get('SUMMA_EXE')
-        settings_path = self._get_config_path('SETTINGS_SUMMA_PATH', 'settings/SUMMA/')
+        settings_path = self.get_config_path('SETTINGS_SUMMA_PATH', 'settings/SUMMA/')
         filemanager = self.config.get('SETTINGS_SUMMA_FILEMANAGER')
 
         experiment_id = self.config.get('EXPERIMENT_ID')
-        summa_log_path = self._get_config_path('EXPERIMENT_LOG_SUMMA', f"simulations/{experiment_id}/SUMMA/SUMMA_logs/")
+        summa_log_path = self.get_config_path('EXPERIMENT_LOG_SUMMA', f"simulations/{experiment_id}/SUMMA/SUMMA_logs/")
         summa_log_name = "summa_log.txt"
 
-        summa_out_path = self._get_config_path('EXPERIMENT_OUTPUT_SUMMA', f"simulations/{experiment_id}/SUMMA/")
+        summa_out_path = self.get_config_path('EXPERIMENT_OUTPUT_SUMMA', f"simulations/{experiment_id}/SUMMA/")
 
         # Backup settings if required
         if self.config.get('EXPERIMENT_BACKUP_SETTINGS') == 'yes':
-            backup_path = summa_out_path / "run_settings"
-            self._backup_settings(settings_path, backup_path)
+            self.backup_settings(settings_path, backup_subdir="run_settings")
 
         # Run SUMMA
         os.makedirs(summa_log_path, exist_ok=True)
@@ -520,6 +522,15 @@ echo "Completed all GRUs for this job at $(date)"
                 # Use shell=False and pass command as list for better reliability
                 subprocess.run([summa_binary, '-m', filemanager_path], check=True, stdout=log_file, stderr=subprocess.STDOUT, env=env)
             self.logger.info("SUMMA run completed successfully")
+
+            # Check if we need to convert lumped output for distributed routing
+            domain_method = self.config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+            routing_delineation = self.config.get('ROUTING_DELINEATION', 'lumped')
+
+            if domain_method == 'lumped' and routing_delineation == 'river_network':
+                self.logger.info("Converting lumped SUMMA output for distributed routing")
+                self._convert_lumped_to_distributed_routing()
+
             return summa_out_path
 
         except subprocess.CalledProcessError as e:
@@ -528,16 +539,78 @@ echo "Completed all GRUs for this job at $(date)"
             self.logger.error(f"Binary path was: {summa_binary}")
             raise
 
-    def _get_config_path(self, config_key: str, default_suffix: str) -> Path:
-        path = self.config.get(config_key)
-        if path == 'default':
-            return self.project_dir / default_suffix
-        return Path(path)
+    def _convert_lumped_to_distributed_routing(self):
+        """
+        Convert lumped SUMMA output to format suitable for distributed routing.
+        
+        This handles the case where a lumped model run needs to be mapped to 
+        distributed river segments for routing.
+        """
+        experiment_id = self.config.get('EXPERIMENT_ID')
+        summa_output_dir = self.project_dir / "simulations" / experiment_id / "SUMMA"
+        mizuroute_settings_dir = self.project_dir / "settings" / "mizuRoute"
+        summa_timestep_file = summa_output_dir / f"{experiment_id}_timestep.nc"
+        
+        if not summa_timestep_file.exists():
+            self.logger.warning(f"SUMMA timestep file not found for conversion: {summa_timestep_file}")
+            return
 
-    def _backup_settings(self, source_path: Path, backup_path: Path):
-        backup_path.mkdir(parents=True, exist_ok=True)
-        os.system(f"cp -R {source_path}/. {backup_path}")
-        self.logger.info(f"Settings backed up to {backup_path}")
+        topology_file = mizuroute_settings_dir / self.config.get('SETTINGS_MIZU_TOPOLOGY', 'topology.nc')
+        if not topology_file.exists():
+            self.logger.warning(f"Topology file not found for conversion: {topology_file}")
+            return
+
+        # We assume HRU ID 1 for lumped case, but could read from topology
+        hru_id = 1 
+        
+        routing_var = self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
+        
+        try:
+            summa_output = xr.open_dataset(summa_timestep_file, decode_times=False)
+            
+            mizuForcing = xr.Dataset()
+            original_time = summa_output['time']
+            mizuForcing['time'] = xr.DataArray(original_time.values, dims=('time',), attrs=dict(original_time.attrs))
+            if 'units' in mizuForcing['time'].attrs:
+                mizuForcing['time'].attrs['units'] = mizuForcing['time'].attrs['units'].replace('T', ' ')
+            
+            mizuForcing['gru'] = xr.DataArray([hru_id], dims=('gru',), attrs={'long_name': 'Index of GRU', 'units': '-'})
+            mizuForcing['gruId'] = xr.DataArray([hru_id], dims=('gru',), attrs={'long_name': 'ID of grouped response unit', 'units': '-'})
+            mizuForcing.attrs.update(summa_output.attrs)
+            
+            source_var = None
+            for var in [routing_var, 'averageRoutedRunoff', 'basin__TotalRunoff']:
+                if var in summa_output:
+                    source_var = var
+                    break
+            
+            if source_var:
+                lumped_runoff = summa_output[source_var].values
+                # Handle extra dimensions if present
+                if len(lumped_runoff.shape) == 2:
+                    lumped_runoff = lumped_runoff[:, 0]
+                    
+                mizuForcing[routing_var] = xr.DataArray(lumped_runoff[:, np.newaxis], dims=('time', 'gru'), attrs={'units': 'm/s'})
+                summa_output.close()
+                
+                # Write to temp file then move
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.nc', dir=summa_output_dir) as tmp_file:
+                    temp_path = tmp_file.name
+                
+                mizuForcing.to_netcdf(temp_path, format='NETCDF4')
+                mizuForcing.close()
+                shutil.move(temp_path, summa_timestep_file)
+                self.logger.info(f"Converted {summa_timestep_file} for distributed routing")
+            else:
+                self.logger.warning("Could not find runoff variable for conversion")
+                summa_output.close()
+                
+        except Exception as e:
+            self.logger.error(f"Error converting lumped output: {e}")
+            # Don't fail the run, just log error
+            if 'summa_output' in locals():
+                summa_output.close()
+
 
     def merge_parallel_outputs(self):
         """
@@ -550,8 +623,8 @@ echo "Completed all GRUs for this job at $(date)"
 
         # Get experiment settings
         experiment_id = self.config.get('EXPERIMENT_ID')
-        summa_out_path = self._get_config_path('EXPERIMENT_OUTPUT_SUMMA', f"simulations/{experiment_id}/SUMMA/")
-        mizu_in_path = self._get_config_path('EXPERIMENT_OUTPUT_SUMMA', f"simulations/{experiment_id}/SUMMA/")
+        summa_out_path = self.get_config_path('EXPERIMENT_OUTPUT_SUMMA', f"simulations/{experiment_id}/SUMMA/")
+        mizu_in_path = self.get_config_path('EXPERIMENT_OUTPUT_SUMMA', f"simulations/{experiment_id}/SUMMA/")
         mizu_in_path.mkdir(parents=True, exist_ok=True)
 
         try:

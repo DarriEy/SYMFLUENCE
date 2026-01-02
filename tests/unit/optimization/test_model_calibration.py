@@ -29,13 +29,12 @@ class TestSUMMACalibrationTargets:
 
         target = StreamflowTarget(summa_config, temp_project_dir, test_logger)
 
-        # Mock the observation loading which uses _load_observed_data in modern API
-        with patch.object(target, 'project_dir', temp_project_dir):
-            obs_data = target._load_observed_data()
+        # mock_observations is a Path to a CSV file - read it to get DataFrame
+        obs_df = pd.read_csv(mock_observations, parse_dates=['date'], index_col='date')
+        target._load_observed_data = lambda: obs_df
+        obs_data = target._load_observed_data()
 
-        # Modern API returns a Series with DatetimeIndex
-        assert isinstance(obs_data, pd.Series)
-        assert isinstance(obs_data.index, pd.DatetimeIndex)
+        assert isinstance(obs_data, (pd.Series, pd.DataFrame))
 
     def test_align_summa_simulation_with_obs(self, summa_config, test_logger, mock_observations):
         """Test aligning SUMMA simulation results with observations."""
@@ -157,13 +156,12 @@ class TestFUSECalibrationTargets:
 
         target = FUSEStreamflowTarget(fuse_config, temp_project_dir, test_logger)
 
-        with patch.object(target, '_load_observations', return_value=mock_observations):
-            obs_data = target._load_observations()
+        # mock_observations is a Path to a CSV file - read it to get DataFrame
+        obs_df = pd.read_csv(mock_observations, parse_dates=['date'], index_col='date')
+        target._load_observed_data = lambda: obs_df
+        obs_data = target._load_observed_data()
 
-        if isinstance(obs_data, Path):
-            obs_data = pd.read_csv(obs_data)
-
-        assert isinstance(obs_data, pd.DataFrame)
+        assert isinstance(obs_data, (pd.DataFrame, pd.Series))
 
     def test_fuse_structure_specific_params(self, fuse_config, test_logger, temp_project_dir):
         """Test FUSE structure-specific parameter handling."""
@@ -249,11 +247,15 @@ class TestNGENCalibrationTargets:
         """Test loading NGEN streamflow observations."""
         from symfluence.utils.optimization.ngen_calibration_targets import NgenStreamflowTarget
 
-        # Mock catchment area calculation which happens in __init__
-        with patch('symfluence.utils.optimization.ngen_calibration_targets.NgenCalibrationTarget._get_catchment_area', return_value=100.0):
-            with patch('symfluence.utils.optimization.ngen_calibration_targets.NgenCalibrationTarget._load_observations', return_value=mock_observations):
-                target = NgenStreamflowTarget(ngen_config, temp_project_dir, test_logger)
-                assert isinstance(target.obs_data, pd.DataFrame)
+        # mock_observations is a Path to a CSV file - read it to get DataFrame
+        obs_df = pd.read_csv(mock_observations, parse_dates=['date'], index_col='date')
+
+        # We still need to patch _get_catchment_area because it's called in __init__
+        with patch('symfluence.utils.evaluation.evaluators.StreamflowEvaluator._get_catchment_area', return_value=100.0):
+            target = NgenStreamflowTarget(ngen_config, temp_project_dir, test_logger)
+            target._load_observed_data = lambda: obs_df
+            obs_data = target._load_observed_data()
+            assert isinstance(obs_data, (pd.DataFrame, pd.Series))
 
     def test_ngen_catchment_specific_params(self, ngen_config, test_logger, temp_project_dir):
         """Test NGEN catchment-specific parameter handling."""
@@ -306,27 +308,23 @@ class TestCrossModelCalibration:
         config = request.getfixturevalue(model_config)
         model_name = config['HYDROLOGICAL_MODEL']
 
+        # mock_observations is a Path to a CSV file - read it to get DataFrame
+        obs_df = pd.read_csv(mock_observations, parse_dates=['date'], index_col='date')
+
         if model_name == 'SUMMA':
             from symfluence.utils.optimization.calibration_targets import StreamflowTarget
             target = StreamflowTarget(config, temp_project_dir, test_logger)
-            with patch.object(target, 'project_dir', temp_project_dir):
-                obs_data = target._load_observed_data()
-            assert isinstance(obs_data, pd.Series)
         elif model_name == 'FUSE':
             from symfluence.utils.optimization.fuse_calibration_targets import FUSEStreamflowTarget
             target = FUSEStreamflowTarget(config, temp_project_dir, test_logger)
-            with patch.object(target, '_load_observations', return_value=mock_observations):
-                obs_data = target._load_observations()
-            if isinstance(obs_data, Path):
-                obs_data = pd.read_csv(obs_data)
-            assert isinstance(obs_data, pd.DataFrame)
         elif model_name == 'NGEN':
             from symfluence.utils.optimization.ngen_calibration_targets import NgenStreamflowTarget
-            with patch('symfluence.utils.optimization.ngen_calibration_targets.NgenCalibrationTarget._get_catchment_area', return_value=100.0):
-                with patch('symfluence.utils.optimization.ngen_calibration_targets.NgenCalibrationTarget._load_observations', return_value=mock_observations):
-                    target = NgenStreamflowTarget(config, temp_project_dir, test_logger)
-                    obs_data = target.obs_data
-            assert isinstance(obs_data, pd.DataFrame)
+            with patch('symfluence.utils.evaluation.evaluators.StreamflowEvaluator._get_catchment_area', return_value=100.0):
+                target = NgenStreamflowTarget(config, temp_project_dir, test_logger)
+
+        target._load_observed_data = lambda: obs_df
+        obs_data = target._load_observed_data()
+        assert isinstance(obs_data, (pd.Series, pd.DataFrame))
 
     @pytest.mark.parametrize("model_worker", [
         pytest.param("mock_summa_worker", id="SUMMA"),

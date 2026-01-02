@@ -361,6 +361,14 @@ jobs:
           path: ${{ env.SYMFLUENCE_DATA }}/installs
           key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v3
 
+      - name: Cache raw forcing data
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.SYMFLUENCE_DATA }}/cache/raw_forcing
+          key: raw-forcing-v1-${{ hashFiles('tests/configs/*.yaml', 'tests/integration/data/*.py') }}
+          restore-keys: |
+            raw-forcing-v1-
+
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
         run: |
