@@ -17,6 +17,7 @@ import multiprocessing as mp
 import time
 import uuid
 import sys
+from datetime import datetime
 
 import gc
 from rasterio.windows import from_bounds
@@ -37,6 +38,14 @@ except ImportError:
         raise ImportError(
             f"Cannot import DatasetRegistry. Please ensure dataset handlers are installed. Error: {e}"
         )
+
+
+def _create_easymore_instance():
+    if hasattr(easymore, "Easymore"):
+        return _create_easymore_instance()
+    if hasattr(easymore, "easymore"):
+        return easymore.easymore()
+    raise AttributeError("easymore module does not expose an Easymore class")
 
 
 class forcingResampler(PathResolverMixin):
@@ -132,10 +141,28 @@ class forcingResampler(PathResolverMixin):
                                     'ID', 'elev_m']
                 
                 if all(col in gdf.columns for col in expected_columns) and len(gdf) > 0:
-                    self.logger.info(f"Forcing shapefile already exists: {output_shapefile}. Skipping creation.")
-                    return output_shapefile
+                    # If bbox is larger than existing shapefile bounds, recreate
+                    bbox_str = self.config.get("BOUNDING_BOX_COORDS")
+                    if isinstance(bbox_str, str) and "/" in bbox_str:
+                        try:
+                            lat_max, lon_min, lat_min, lon_max = [float(v) for v in bbox_str.split("/")]
+                            lat_min, lat_max = sorted([lat_min, lat_max])
+                            lon_min, lon_max = sorted([lon_min, lon_max])
+                            minx, miny, maxx, maxy = gdf.total_bounds
+                            tol = 1e-6
+                            if (lon_min < minx - tol or lon_max > maxx + tol or
+                                    lat_min < miny - tol or lat_max > maxy + tol):
+                                self.logger.info("Existing forcing shapefile bounds do not cover current bbox. Recreating.")
+                            else:
+                                self.logger.info(f"Forcing shapefile already exists: {output_shapefile}. Skipping creation.")
+                                return output_shapefile
+                        except Exception as e:
+                            self.logger.warning(f"Error checking bbox vs shapefile bounds: {e}. Recreating.")
+                    else:
+                        self.logger.info(f"Forcing shapefile already exists: {output_shapefile}. Skipping creation.")
+                        return output_shapefile
                 else:
-                    self.logger.info(f"Existing forcing shapefile missing expected columns. Recreating.")
+                    self.logger.info("Existing forcing shapefile missing expected columns. Recreating.")
             except Exception as e:
                 self.logger.warning(f"Error checking existing forcing shapefile: {str(e)}. Recreating.")
         
@@ -270,8 +297,16 @@ class forcingResampler(PathResolverMixin):
             else:
                 # General fallback for other CASR files
                 output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
+        elif forcing_dataset.lower() in ('carra', 'cerra'):
+            start_str = self.config.get('EXPERIMENT_TIME_START')
+            try:
+                dt_start = datetime.strptime(start_str, "%Y-%m-%d %H:%M")
+                time_tag = dt_start.strftime("%Y-%m-%d-%H-%M-%S")
+                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{time_tag}.nc"
+            except Exception:
+                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
         else:
-            # General pattern for other datasets (ERA5, CARRA, etc.)
+            # General pattern for other datasets (ERA5, etc.)
             output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
         
         return self.forcing_basin_path / output_filename
@@ -385,12 +420,16 @@ class forcingResampler(PathResolverMixin):
         
         # Define remap file path
         case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
-        remap_file = intersect_path / f"{case_name}_{actual_hru_field}_remapping.nc"
+        remap_file = intersect_path / f"{case_name}_{actual_hru_field}_remapping.csv"
         
         # Check if remap file already exists
         if remap_file.exists():
-            self.logger.info(f"Remapping weights file already exists: {remap_file}")
-            return remap_file
+            intersect_csv = intersect_path / f"{case_name}_intersected_shapefile.csv"
+            intersect_shp = intersect_path / f"{case_name}_intersected_shapefile.shp"
+            if intersect_csv.exists() or intersect_shp.exists():
+                self.logger.info(f"Remapping weights file already exists: {remap_file}")
+                return remap_file
+            self.logger.info("Remapping weights found but intersected shapefile missing. Recreating.")
         
         self.logger.info("Creating remapping weights (this is done only once)...")
         
@@ -399,12 +438,44 @@ class forcingResampler(PathResolverMixin):
         temp_dir.mkdir(parents=True, exist_ok=True)
         
         try:
+            # Align target longitudes to 0-360 if the source grid uses that frame
+            target_shp_for_easymore = target_shp_wgs84
+            disable_lon_correction = False
+            try:
+                source_gdf = gpd.read_file(source_shp_wgs84)
+                source_lon_field = self.config.get('FORCING_SHAPE_LON_NAME')
+                if source_lon_field in source_gdf.columns:
+                    source_lon_max = float(source_gdf[source_lon_field].max())
+                    if source_lon_max > 180:
+                        target_gdf = gpd.read_file(target_shp_wgs84)
+                        minx, _, maxx, _ = target_gdf.total_bounds
+                        if minx < 0 or maxx < 0:
+                            from shapely.affinity import translate
+                            target_gdf = target_gdf.copy()
+                            target_gdf["geometry"] = target_gdf["geometry"].apply(
+                                lambda geom: translate(geom, xoff=360) if geom is not None else geom
+                            )
+                            target_lon_field = self.config.get('CATCHMENT_SHP_LON')
+                            if target_lon_field in target_gdf.columns:
+                                target_gdf[target_lon_field] = target_gdf[target_lon_field].apply(
+                                    lambda v: v + 360 if v < 0 else v
+                                )
+                            shifted_path = temp_dir / f"{target_shp_wgs84.stem}_lon360.shp"
+                            target_gdf.to_file(shifted_path)
+                            target_shp_for_easymore = shifted_path
+                            disable_lon_correction = True
+                            self.logger.info("Shifted target shapefile longitudes to 0-360 for easymore.")
+            except Exception as e:
+                self.logger.warning(f"Failed to align target longitudes for easymore: {e}")
+
             # Setup easymore for weight creation only
-            esmr = easymore.Easymore()
+            esmr = _create_easymore_instance()
             
             esmr.author_name = 'SUMMA public workflow scripts'
             esmr.license = 'Copernicus data use license: https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
             esmr.case_name = case_name
+            if disable_lon_correction:
+                esmr.correction_shp_lon = False
             
             # Shapefile configuration
             esmr.source_shp = str(source_shp_wgs84)
@@ -412,7 +483,7 @@ class forcingResampler(PathResolverMixin):
             esmr.source_shp_lon = self.config.get('FORCING_SHAPE_LON_NAME')
             esmr.source_shp_ID = self.config.get('FORCING_SHAPE_ID_NAME', 'ID')  # Default to 'ID' if not specified
 
-            esmr.target_shp = str(target_shp_wgs84)
+            esmr.target_shp = str(target_shp_for_easymore)
             esmr.target_shp_ID = actual_hru_field
             esmr.target_shp_lat = self.config.get('CATCHMENT_SHP_LAT')
             esmr.target_shp_lon = self.config.get('CATCHMENT_SHP_LON')
@@ -493,7 +564,7 @@ class forcingResampler(PathResolverMixin):
             esmr.fill_value_list = ['-9999']
             
             # Critical: Tell easymore to ONLY create the remapping weights
-            esmr.only_create_remap_nc = True
+            esmr.only_create_remap_csv = True
             esmr.save_csv = False
             esmr.sort_ID = False
             
@@ -502,7 +573,7 @@ class forcingResampler(PathResolverMixin):
             esmr.nc_remapper()
             
             # Move the remap file to the final location
-            temp_remap = temp_dir / f"{case_name}_remapping.nc"
+            temp_remap = temp_dir / f"{case_name}_remapping.csv"
             if temp_remap.exists():
                 shutil.move(str(temp_remap), str(remap_file))
                 self.logger.info(f"Remapping weights created: {remap_file}")
@@ -560,7 +631,7 @@ class forcingResampler(PathResolverMixin):
         
         Args:
             file: Path to forcing file to process
-            remap_file: Path to pre-computed remapping weights netCDF
+            remap_file: Path to pre-computed remapping weights CSV
             worker_id: Optional worker ID for logging
         
         Returns:
@@ -586,7 +657,7 @@ class forcingResampler(PathResolverMixin):
             
             try:
                 # Setup easymore to APPLY weights only
-                esmr = easymore.Easymore()
+                esmr = _create_easymore_instance()
                 
                 esmr.author_name = 'SUMMA public workflow scripts'
                 esmr.case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
@@ -622,7 +693,7 @@ class forcingResampler(PathResolverMixin):
                 esmr.fill_value_list = ['-9999']
                 
                 # Critical: Point to pre-computed weights file
-                esmr.remap_nc = str(remap_file)
+                esmr.remap_csv = str(remap_file)
                 esmr.save_csv = False
                 esmr.sort_ID = False
                 
@@ -916,7 +987,7 @@ class forcingResampler(PathResolverMixin):
                 target_shp_wgs84, actual_hru_field = self._ensure_shapefile_wgs84(target_shp_path, "_wgs84")
                 
                 # Setup easymore configuration with WGS84 shapefiles
-                esmr = easymore.Easymore()
+                esmr = _create_easymore_instance()
                 
                 esmr.author_name = 'SUMMA public workflow scripts'
                 esmr.license = 'Copernicus data use license: https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
@@ -960,7 +1031,7 @@ class forcingResampler(PathResolverMixin):
                 esmr.sort_ID = False
                 
                 # Handle remap file creation/reuse - include unique field in filename
-                remap_file = f"{esmr.case_name}_{actual_hru_field}_remapping.nc"
+                remap_file = f"{esmr.case_name}_{actual_hru_field}_remapping.csv"
                 remap_path = intersect_path / remap_file
                 
                 if not remap_path.exists():
@@ -968,7 +1039,7 @@ class forcingResampler(PathResolverMixin):
                     esmr.nc_remapper()
                     
                     # Move the remap file to the intersection path
-                    temp_remap = Path(esmr.temp_dir) / f"{esmr.case_name}_remapping.nc"
+                    temp_remap = Path(esmr.temp_dir) / f"{esmr.case_name}_remapping.csv"
                     if temp_remap.exists():
                         shutil.move(str(temp_remap), str(remap_path))
                         
@@ -1082,7 +1153,7 @@ class forcingResampler(PathResolverMixin):
                 self.logger.info(f"Worker {worker_id}: Working in temp directory: {temp_dir}")
                 
                 # Setup easymore configuration with absolute paths
-                esmr = easymore.Easymore()
+                esmr = _create_easymore_instance()
                 
                 esmr.author_name = 'SUMMA public workflow scripts'
                 esmr.license = 'Copernicus data use license: https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
@@ -1128,7 +1199,7 @@ class forcingResampler(PathResolverMixin):
                 esmr.sort_ID = False
                 
                 # Check for existing remap file
-                remap_file = f"{esmr.case_name}_remapping.nc"
+                remap_file = f"{esmr.case_name}_remapping.csv"
                 remap_final_path = intersect_path / remap_file
                 
                 if not remap_final_path.exists():
@@ -1771,3 +1842,8 @@ class geospatialStatistics:
             self.calculate_elevation_stats()
         
         self.logger.info(f"Geospatial statistics completed: {skipped}/{total} steps skipped, {total-skipped}/{total} steps executed")
+
+
+# Backwards-compatible class aliases (expected by DataManager import)
+ForcingResampler = forcingResampler
+GeospatialStatistics = geospatialStatistics

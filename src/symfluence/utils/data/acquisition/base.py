@@ -19,11 +19,15 @@ class BaseAcquisitionHandler(ABC):
         if not bbox_string:
             return {}
         coords = bbox_string.split('/')
+        lat1 = float(coords[0])
+        lon1 = float(coords[1])
+        lat2 = float(coords[2])
+        lon2 = float(coords[3])
         return {
-            'lat_min': float(coords[2]),
-            'lat_max': float(coords[0]),
-            'lon_min': float(coords[3]),
-            'lon_max': float(coords[1])
+            'lat_min': min(lat1, lat2),
+            'lat_max': max(lat1, lat2),
+            'lon_min': min(lon1, lon2),
+            'lon_max': max(lon1, lon2)
         }
 
     @property
