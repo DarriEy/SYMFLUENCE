@@ -14,7 +14,7 @@ import numpy as np
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
-from src.symfluence.utils.data.preprocessing.attribute_processing_refactored import attributeProcessor
+from src.symfluence.utils.data.preprocessing.attribute_processor import attributeProcessor
 from src.symfluence.utils.data.preprocessing.attribute_processors import (
     ElevationProcessor,
     GeologyProcessor,
@@ -87,12 +87,12 @@ class TestBackwardCompatibleImport:
     """Test that backward-compatible imports work."""
 
     def test_attribute_processing_re_exports_refactored(self):
-        """Verify that attribute_processing re-exports from refactored module."""
+        """Verify that attribute_processing re-exports from attribute_processor module."""
         from src.symfluence.utils.data.preprocessing import attribute_processing
-        from src.symfluence.utils.data.preprocessing import attribute_processing_refactored
+        from src.symfluence.utils.data.preprocessing import attribute_processor
 
         # Both should export the same attributeProcessor class
-        assert attribute_processing.attributeProcessor is attribute_processing_refactored.attributeProcessor
+        assert attribute_processing.attributeProcessor is attribute_processor.attributeProcessor
 
 
 class TestIndividualProcessors:
