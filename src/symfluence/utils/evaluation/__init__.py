@@ -1,10 +1,4 @@
 from .registry import EvaluationRegistry
-from . import handlers
+from . import evaluators
 
-# Trigger registration
-try:
-    from .handlers import streamflow, tws, snow, et
-except ImportError:
-    pass
-
-__all__ = ["EvaluationRegistry"]
+__all__ = ["EvaluationRegistry", "evaluators"]

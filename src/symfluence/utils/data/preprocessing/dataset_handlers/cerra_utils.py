@@ -74,88 +74,40 @@ class CERRAHandler(BaseDatasetHandler):
             v = ds['windspd_v']
             windspd = np.sqrt(u**2 + v**2)
             windspd.name = 'windspd'
-            windspd.attrs = {
-                'units': 'm s-1',
-                'long_name': 'wind speed',
-                'standard_name': 'wind_speed',
-            }
             ds['windspd'] = windspd
 
         # Convert total precipitation from accumulated to rate if needed
         if 'pptrate' in ds:
-            # CERRA typically provides accumulated precipitation
-            # Need to convert to rate (m/s)
             p = ds['pptrate']
             if 'units' in p.attrs:
                 units = p.attrs['units'].lower()
                 if 'm' in units and 'hour' not in units and 's-1' not in units:
                     # Accumulated meters - convert to rate
-                    # CERRA is 3-hourly, so divide by 10800 seconds
                     time_diff = ds.time.diff('time').median()
                     if time_diff:
-                        # Convert timedelta to seconds
                         seconds = time_diff.values / np.timedelta64(1, 's')
                         ds['pptrate'] = p / float(seconds)
-                        ds['pptrate'].attrs['units'] = 'm s-1'
-
-            ds['pptrate'].attrs.update({
-                'long_name': 'precipitation rate',
-                'standard_name': 'precipitation_rate',
-            })
 
         # Calculate specific humidity from relative humidity if needed
         if 'spechum' not in ds and 'relhum' in ds and 'airtemp' in ds and 'airpres' in ds:
-            # q = 0.622 * e / (p - 0.378 * e)
-            # where e = (RH/100) * e_sat
-            # and e_sat = 611.2 * exp(17.67 * (T-273.15) / (T-29.65))
             T = ds['airtemp']
             RH = ds['relhum']
             P = ds['airpres']
 
             # Saturation vapor pressure (Pa)
             e_sat = 611.2 * np.exp(17.67 * (T - 273.15) / (T - 29.65))
-
             # Actual vapor pressure (Pa)
             e = (RH / 100.0) * e_sat
-
             # Specific humidity (kg/kg)
             q = 0.622 * e / (P - 0.378 * e)
             q.name = 'spechum'
-            q.attrs = {
-                'units': 'kg kg-1',
-                'long_name': 'specific humidity',
-                'standard_name': 'specific_humidity',
-            }
             ds['spechum'] = q
 
-        # Ensure standard attributes
-        if 'airpres' in ds:
-            ds['airpres'].attrs.update({
-                'units': 'Pa',
-                'long_name': 'air pressure',
-                'standard_name': 'air_pressure'
-            })
-
-        if 'airtemp' in ds:
-            ds['airtemp'].attrs.update({
-                'units': 'K',
-                'long_name': 'air temperature',
-                'standard_name': 'air_temperature'
-            })
-
-        if 'LWRadAtm' in ds:
-            ds['LWRadAtm'].attrs.update({
-                'units': 'W m-2',
-                'long_name': 'downward longwave radiation at the surface',
-                'standard_name': 'surface_downwelling_longwave_flux_in_air'
-            })
-
-        if 'SWRadAtm' in ds:
-            ds['SWRadAtm'].attrs.update({
-                'units': 'W m-2',
-                'long_name': 'downward shortwave radiation at the surface',
-                'standard_name': 'surface_downwelling_shortwave_flux_in_air'
-            })
+        # Apply standard CF-compliant attributes (uses centralized definitions)
+        # CERRA precipitation is in m/s after conversion
+        ds = self.apply_standard_attributes(ds, overrides={
+            'pptrate': {'units': 'm s-1', 'standard_name': 'precipitation_rate'}
+        })
 
         # Add metadata via base helpers
         ds = self.setup_time_encoding(ds)

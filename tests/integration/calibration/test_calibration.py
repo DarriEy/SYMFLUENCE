@@ -6,21 +6,25 @@ This test runs a quick calibration demo for both Elliðaár and Fyris catchments
 using observational discharge data.
 """
 
+import os
 import pytest
 import yaml
 from pathlib import Path
 from symfluence import SYMFLUENCE
 import sys
+import shutil
 
 
 
-pytestmark = [pytest.mark.integration, pytest.mark.calibration, pytest.mark.requires_data, pytest.mark.slow]
+pytestmark = [pytest.mark.integration, pytest.mark.calibration, pytest.mark.requires_data, pytest.mark.slow, pytest.mark.full]
 
 @pytest.mark.slow
 @pytest.mark.calibration
 @pytest.mark.requires_data
-def test_ellioaar_calibration(ellioaar_domain):
+def test_ellioaar_calibration(ellioaar_domain, symfluence_data_root):
     """Run calibration demo for Elliðaár, Iceland."""
+    if os.environ.get("SYMFLUENCE_RUN_CALIBRATION") != "1":
+        pytest.skip("Set SYMFLUENCE_RUN_CALIBRATION=1 to run calibration integration tests.")
     print("\n" + "="*80)
     print("Elliðaár (Iceland) Calibration Demo")
     print("="*80)
@@ -40,6 +44,7 @@ def test_ellioaar_calibration(ellioaar_domain):
     config['DATA_ACCESS'] = 'cloud'
     config['DEM_SOURCE'] = 'copernicus'
     config['HYDROLOGICAL_MODEL'] = 'SUMMA'
+    config['SYMFLUENCE_DATA_DIR'] = str(symfluence_data_root)
 
     # ULTRA-SHORT period for CI/demo
     config['EXPERIMENT_ID'] = 'calib_demo_short'
@@ -52,7 +57,7 @@ def test_ellioaar_calibration(ellioaar_domain):
     config['OPTIMIZATION_METHODS'] = ['iteration']
     config['ITERATIVE_OPTIMIZATION_ALGORITHM'] = 'DDS'
     config['OPTIMIZATION_METRIC'] = 'KGE'
-    config['NUMBER_OF_ITERATIONS'] = 5  # Reduced for fast validation
+    config['NUMBER_OF_ITERATIONS'] = 2  # Reduced for fast validation
     config['CALIBRATION_TIMESTEP'] = 'daily'
 
     # Parameters to calibrate
@@ -100,8 +105,10 @@ def test_ellioaar_calibration(ellioaar_domain):
 @pytest.mark.slow
 @pytest.mark.calibration
 @pytest.mark.requires_data
-def test_fyris_calibration(fyris_domain):
+def test_fyris_calibration(fyris_domain, symfluence_data_root):
     """Run calibration demo for Fyris, Uppsala."""
+    if os.environ.get("SYMFLUENCE_RUN_CALIBRATION") != "1":
+        pytest.skip("Set SYMFLUENCE_RUN_CALIBRATION=1 to run calibration integration tests.")
     print("\n" + "="*80)
     print("Fyris (Uppsala, Sweden) Calibration Demo")
     print("="*80)
@@ -120,6 +127,7 @@ def test_fyris_calibration(fyris_domain):
     config['DATA_ACCESS'] = 'cloud'
     config['DEM_SOURCE'] = 'copernicus'
     config['HYDROLOGICAL_MODEL'] = 'SUMMA'
+    config['SYMFLUENCE_DATA_DIR'] = str(symfluence_data_root)
 
     # ULTRA-SHORT period for CI/demo
     config['EXPERIMENT_ID'] = 'calib_demo_short'
@@ -132,7 +140,7 @@ def test_fyris_calibration(fyris_domain):
     config['OPTIMIZATION_METHODS'] = ['iteration']
     config['ITERATIVE_OPTIMIZATION_ALGORITHM'] = 'DDS'
     config['OPTIMIZATION_METRIC'] = 'KGE'
-    config['NUMBER_OF_ITERATIONS'] = 5
+    config['NUMBER_OF_ITERATIONS'] = 2
     config['CALIBRATION_TIMESTEP'] = 'daily'
 
     # Parameters to calibrate

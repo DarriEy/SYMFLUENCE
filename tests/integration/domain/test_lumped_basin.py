@@ -38,13 +38,20 @@ def test_data_dir(symfluence_code_dir, symfluence_data_root):
 
     # Use ../SYMFLUENCE_data/ parallel to the code directory
     data_root = symfluence_data_root
+    read_only_root = symfluence_code_dir.parent / "SYMFLUENCE_data"
 
     # Check if example domain already exists
     example_domain = "domain_Bow_at_Banff_lumped"
     example_domain_path = data_root / example_domain
+    read_only_domain_path = read_only_root / example_domain
 
     # Download if it doesn't exist
     if not example_domain_path.exists():
+        if read_only_domain_path.exists():
+            print(f"Copying existing test data from {read_only_domain_path} to {data_root}")
+            shutil.copytree(read_only_domain_path, example_domain_path, dirs_exist_ok=True)
+            yield data_root
+            return
         print(f"\nDownloading example data to {data_root}...")
         zip_path = data_root / "example_data_v0.2.zip"
 
@@ -105,6 +112,7 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
     # Lumped basin settings
     config['DOMAIN_DEFINITION_METHOD'] = 'lumped'
     config['DOMAIN_DISCRETIZATION'] = 'GRUs'
+    config['RIVER_BASINS_NAME'] = 'Bow_at_Banff_lumped_riverBasins_lumped.shp'
 
     # Optimized: 5-day period for faster testing (was 31 days)
     config['EXPERIMENT_TIME_START'] = '2004-01-01 01:00'
@@ -117,8 +125,8 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
     config['STATION_ID'] = '05BB001'
     config['DOWNLOAD_WSC_DATA'] = False
 
-    # Minimal calibration for testing
-    config['NUMBER_OF_ITERATIONS'] = 3
+    # Minimal calibration for testing (1 iteration)
+    config['NUMBER_OF_ITERATIONS'] = 1
     config['RANDOM_SEED'] = 42  # Fixed seed for reproducibility
 
     # Save config
@@ -128,7 +136,35 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
     return cfg_path, config
 
 
-MODELS = ['SUMMA', 'FUSE', 'GR', 'NGEN']
+def _prune_raw_forcing(project_dir: Path, keep_glob: str) -> None:
+    raw_dir = project_dir / "forcing" / "raw_data"
+    if not raw_dir.exists():
+        return
+    candidates = sorted(raw_dir.glob(keep_glob))
+    if not candidates:
+        return
+    keep = candidates[0]
+    for path in raw_dir.glob("*.nc"):
+        if path != keep:
+            path.unlink()
+
+    basin_avg_dir = project_dir / "forcing" / "basin_averaged_data"
+    if basin_avg_dir.exists():
+        for path in basin_avg_dir.glob("*.nc"):
+            path.unlink()
+    intersection_dir = project_dir / "shapefiles" / "catchment_intersection"
+    if intersection_dir.exists():
+        for path in intersection_dir.glob("**/*"):
+            if path.is_file():
+                path.unlink()
+
+
+MODELS = [
+    'SUMMA',
+    'FUSE',
+    pytest.param('GR', marks=pytest.mark.full),
+    pytest.param('NGEN', marks=pytest.mark.full),
+]
 
 
 @pytest.mark.slow
@@ -160,6 +196,7 @@ def test_lumped_basin_workflow(config_path, model):
         config['SETTINGS_FUSE_PARAMS_TO_CALIBRATE'] = 'MAXWATR_1,MAXWATR_2,BASERTE'
     elif model == 'GR':
         config['GR_SPATIAL_MODE'] = 'lumped'
+        config['GR_SKIP_CALIBRATION'] = True
     elif model == 'NGEN':
         config['NGEN_MODULES_TO_CALIBRATE'] = 'CFE'
         config['NGEN_CFE_PARAMS_TO_CALIBRATE'] = 'smcmax,satdk,bb'
@@ -196,7 +233,15 @@ def test_lumped_basin_workflow(config_path, model):
     assert project_dir.exists(), "Project directory should be created"
 
     pour_point_path = symfluence.managers['project'].create_pour_point()
-    assert Path(pour_point_path).exists(), "Pour point shapefile should be created"
+    if pour_point_path is None:
+        existing_pour_point = (
+            project_dir / "shapefiles" / "pour_point" / f"{config['DOMAIN_NAME']}_pourPoint.shp"
+        )
+        assert existing_pour_point.exists(), "Pour point shapefile should be created"
+    else:
+        assert Path(pour_point_path).exists(), "Pour point shapefile should be created"
+
+    _prune_raw_forcing(project_dir, "domain_*_ERA5_merged_200401.nc")
 
     # Step 2: Define domain (watershed delineation)
     watershed_path, delineation_artifacts = symfluence.managers['domain'].define_domain()

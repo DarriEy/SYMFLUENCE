@@ -11,8 +11,10 @@ Provides shared infrastructure for all model execution modules including:
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union, List
 import shutil
+import subprocess
+import os
 
 from symfluence.utils.common.path_resolver import PathResolverMixin
 from symfluence.utils.exceptions import (
@@ -20,6 +22,12 @@ from symfluence.utils.exceptions import (
     ConfigurationError,
     validate_config_keys
 )
+
+# Import for type checking only (avoid circular imports)
+try:
+    from symfluence.utils.config.models import SymfluenceConfig
+except ImportError:
+    SymfluenceConfig = None
 
 
 class BaseModelRunner(ABC, PathResolverMixin):
@@ -39,19 +47,25 @@ class BaseModelRunner(ABC, PathResolverMixin):
         output_dir: Directory for model outputs (created if specified)
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: Any):
         """
         Initialize base model runner.
 
         Args:
-            config: Configuration dictionary
+            config: Configuration dictionary or SymfluenceConfig instance (Phase 2)
             logger: Logger instance
 
         Raises:
             ConfigurationError: If required configuration keys are missing
         """
-        # Core configuration
-        self.config = config
+        # Phase 2: Support both typed config and dict config for backward compatibility
+        if SymfluenceConfig and isinstance(config, SymfluenceConfig):
+            self.typed_config = config
+            self.config = config.to_dict(flatten=True)
+        else:
+            self.typed_config = None
+            self.config = config
+
         self.logger = logger
 
         # Validate required configuration keys
@@ -192,3 +206,251 @@ class BaseModelRunner(ABC, PathResolverMixin):
 
         log_path.mkdir(parents=True, exist_ok=True)
         return log_path
+
+    def get_install_path(
+        self,
+        config_key: str,
+        default_subpath: str,
+        relative_to: str = 'data_dir',
+        must_exist: bool = False
+    ) -> Path:
+        """
+        Resolve model installation path from config or use default.
+
+        Args:
+            config_key: Configuration key (e.g., 'SUMMA_INSTALL_PATH')
+            default_subpath: Default path relative to base (e.g., 'installs/summa/bin')
+            relative_to: Base directory ('data_dir' or 'project_dir')
+            must_exist: If True, raise FileNotFoundError if path doesn't exist
+
+        Returns:
+            Path to installation directory
+
+        Raises:
+            FileNotFoundError: If must_exist=True and path doesn't exist
+
+        Example:
+            self.summa_exe = self.get_install_path(
+                'SUMMA_INSTALL_PATH',
+                'installs/summa/bin',
+                must_exist=True
+            ) / 'summa.exe'
+        """
+        install_path = self.config.get(config_key, 'default')
+
+        if install_path == 'default' or install_path is None:
+            base = self.data_dir if relative_to == 'data_dir' else self.project_dir
+            path = base / default_subpath
+        else:
+            path = Path(install_path)
+
+        # Optional validation
+        if must_exist and not path.exists():
+            raise FileNotFoundError(
+                f"Installation path not found: {path}\n"
+                f"Config key: {config_key}"
+            )
+
+        return path
+
+    def execute_model_subprocess(
+        self,
+        command: Union[List[str], str],
+        log_file: Path,
+        cwd: Optional[Path] = None,
+        env: Optional[Dict[str, str]] = None,
+        shell: bool = False,
+        check: bool = True,
+        timeout: Optional[int] = None,
+        success_message: str = "Model execution completed successfully",
+        error_context: Optional[Dict[str, Any]] = None
+    ) -> subprocess.CompletedProcess:
+        """
+        Execute model subprocess with standardized error handling and logging.
+
+        Args:
+            command: Command to execute (list or string)
+            log_file: Path to log file for stdout/stderr
+            cwd: Working directory for command execution
+            env: Environment variables (merged with os.environ)
+            shell: Whether to use shell execution
+            check: Whether to raise CalledProcessError on non-zero exit
+            timeout: Optional timeout in seconds
+            success_message: Message to log on success
+            error_context: Additional context to log on error (e.g., paths, env vars)
+
+        Returns:
+            CompletedProcess object with result information
+
+        Raises:
+            subprocess.CalledProcessError: If execution fails and check=True
+            subprocess.TimeoutExpired: If timeout is exceeded
+        """
+        try:
+            # Merge environment variables
+            run_env = os.environ.copy()
+            if env:
+                run_env.update(env)
+
+            # Ensure log directory exists
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+
+            # Execute subprocess
+            with open(log_file, 'w') as f:
+                result = subprocess.run(
+                    command,
+                    check=check,
+                    stdout=f,
+                    stderr=subprocess.STDOUT,
+                    cwd=cwd,
+                    env=run_env,
+                    shell=shell,
+                    text=True,
+                    timeout=timeout
+                )
+
+            if result.returncode == 0:
+                self.logger.info(success_message)
+            else:
+                self.logger.warning(f"Process exited with code {result.returncode}")
+
+            return result
+
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Model execution failed with return code {e.returncode}"
+            self.logger.error(error_msg)
+
+            # Log error context if provided
+            if error_context:
+                for key, value in error_context.items():
+                    self.logger.error(f"{key}: {value}")
+
+            self.logger.error(f"See log file for details: {log_file}")
+            raise
+
+        except subprocess.TimeoutExpired as e:
+            self.logger.error(f"Process timeout after {timeout} seconds")
+            self.logger.error(f"See log file for details: {log_file}")
+            raise
+
+    def verify_required_files(
+        self,
+        files: Union[Path, List[Path]],
+        context: str = "model execution"
+    ) -> None:
+        """
+        Verify that required files exist, raise FileNotFoundError if missing.
+
+        Args:
+            files: Single path or list of paths to verify
+            context: Description of what these files are for (used in error message)
+
+        Raises:
+            FileNotFoundError: If any required file is missing
+        """
+        # Normalize to list
+        if isinstance(files, Path):
+            files = [files]
+
+        # Check existence
+        missing_files = [f for f in files if not f.exists()]
+
+        if missing_files:
+            error_msg = f"Required files for {context} not found:\n"
+            error_msg += "\n".join(f"  - {f}" for f in missing_files)
+            self.logger.error(error_msg)
+            raise FileNotFoundError(error_msg)
+
+        self.logger.debug(f"Verified {len(files)} required file(s) for {context}")
+
+    def get_config_path(
+        self,
+        config_key: str,
+        default_subpath: str,
+        must_exist: bool = False
+    ) -> Path:
+        """
+        Resolve configuration path with default fallback.
+
+        This is a convenience wrapper around PathResolverMixin._get_default_path
+        with consistent naming for model runners.
+
+        Args:
+            config_key: Configuration key to look up
+            default_subpath: Default path relative to project_dir
+            must_exist: Whether to raise error if path doesn't exist
+
+        Returns:
+            Resolved Path object
+        """
+        return self._get_default_path(config_key, default_subpath, must_exist)
+
+    def verify_model_outputs(
+        self,
+        expected_files: Union[str, List[str]],
+        output_dir: Optional[Path] = None
+    ) -> bool:
+        """
+        Verify that expected model output files exist.
+
+        Args:
+            expected_files: Single filename or list of expected output filenames
+            output_dir: Directory to check (defaults to self.output_dir)
+
+        Returns:
+            True if all files exist, False otherwise
+        """
+        if isinstance(expected_files, str):
+            expected_files = [expected_files]
+
+        check_dir = output_dir or self.output_dir
+
+        missing_files = []
+        for filename in expected_files:
+            if not (check_dir / filename).exists():
+                missing_files.append(filename)
+
+        if missing_files:
+            self.logger.error(
+                f"Missing {len(missing_files)} expected output file(s) in {check_dir}:\n" +
+                "\n".join(f"  - {f}" for f in missing_files)
+            )
+            return False
+
+        self.logger.debug(f"Verified {len(expected_files)} output file(s) in {check_dir}")
+        return True
+
+    def get_experiment_output_dir(
+        self,
+        experiment_id: Optional[str] = None
+    ) -> Path:
+        """
+        Get the experiment-specific output directory for this model.
+
+        Standard pattern: {project_dir}/simulations/{experiment_id}/{model_name}
+
+        Args:
+            experiment_id: Experiment identifier (defaults to config['EXPERIMENT_ID'])
+
+        Returns:
+            Path to experiment output directory
+        """
+        exp_id = experiment_id or self.config.get('EXPERIMENT_ID')
+        return self.project_dir / 'simulations' / exp_id / self.model_name
+
+    def setup_path_aliases(self, aliases: Dict[str, str]) -> None:
+        """
+        Set up legacy path aliases for backward compatibility.
+
+        Args:
+            aliases: Dictionary mapping alias name to source attribute
+                     Example: {'root_path': 'data_dir', 'result_dir': 'output_dir'}
+        """
+        for alias, source_attr in aliases.items():
+            if hasattr(self, source_attr):
+                setattr(self, alias, getattr(self, source_attr))
+                self.logger.debug(f"Set legacy alias: {alias} -> {source_attr}")
+            else:
+                self.logger.warning(
+                    f"Cannot create alias '{alias}': source attribute '{source_attr}' not found"
+                )

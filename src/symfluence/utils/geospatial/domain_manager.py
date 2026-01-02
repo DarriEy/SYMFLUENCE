@@ -4,9 +4,8 @@ from pathlib import Path
 import logging
 from typing import Dict, Any, Optional, Union, Tuple
 
-from symfluence.utils.geospatial.discretization import DomainDiscretizationRunner # type: ignore
-from symfluence.utils.geospatial.delineation import DomainDelineator, create_point_domain_shapefile # type: ignore
-from symfluence.utils.geospatial.artifacts import DelineationArtifacts, DiscretizationArtifacts # type: ignore
+from symfluence.utils.geospatial.discretization import DomainDiscretizationRunner, DiscretizationArtifacts # type: ignore
+from symfluence.utils.geospatial.delineation import DomainDelineator, create_point_domain_shapefile, DelineationArtifacts # type: ignore
 from symfluence.utils.reporting.reporting_utils import VisualizationReporter # type: ignore
 
 

@@ -55,14 +55,43 @@ class ToolExecutor:
     workflow steps, binary management, configuration operations, etc.
     """
 
-    def __init__(self, cli_manager):
+    def __init__(self, cli_manager, tool_registry=None):
         """
         Initialize the tool executor.
 
         Args:
             cli_manager: Instance of CLIArgumentManager
+            tool_registry: Optional instance of ToolRegistry for tool discovery
         """
         self.cli_manager = cli_manager
+        self.tool_registry = tool_registry
+        self._sf_cache: Dict[str, Any] = {}  # Cache for SYMFLUENCE instances
+
+    def _get_symfluence_instance(self, config_path: str, debug_mode: bool = False) -> Any:
+        """
+        Get or create a SYMFLUENCE instance for the given config path.
+
+        Args:
+            config_path: Path to the configuration file
+            debug_mode: Enable debug output
+
+        Returns:
+            SYMFLUENCE instance
+        """
+        config_key = str(Path(config_path).absolute())
+        
+        # Check cache (ignore debug_mode for cache hits, but update if requested)
+        if config_key in self._sf_cache:
+            sf = self._sf_cache[config_key]
+            if debug_mode:
+                sf.debug_mode = True
+            return sf
+            
+        # Create new instance
+        from symfluence.core import SYMFLUENCE
+        sf = SYMFLUENCE(config_path, debug_mode=debug_mode)
+        self._sf_cache[config_key] = sf
+        return sf
 
     def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> ToolResult:
         """
@@ -155,11 +184,8 @@ class ToolExecutor:
             sys.stdout = captured_output = io.StringIO()
 
             try:
-                # Import SYMFLUENCE and execute step
-                from symfluence.core import SYMFLUENCE
-
                 debug_mode = arguments.get('debug', False)
-                symfluence = SYMFLUENCE(config_path, debug_mode=debug_mode)
+                symfluence = self._get_symfluence_instance(config_path, debug_mode=debug_mode)
                 symfluence.run_individual_steps([step_name])
 
                 output = captured_output.getvalue()
@@ -333,8 +359,7 @@ class ToolExecutor:
                 sys.stdout = captured_output = io.StringIO()
 
                 try:
-                    from symfluence.core import SYMFLUENCE
-                    symfluence = SYMFLUENCE(config_path, debug_mode=False)
+                    symfluence = self._get_symfluence_instance(config_path, debug_mode=False)
 
                     if operation == 'show_workflow_status':
                         ops = {"workflow_status": True}
@@ -470,7 +495,7 @@ class ToolExecutor:
         """
         try:
             if operation == 'show_help':
-                from . import system_prompts
+                from symfluence.utils.agent.core import system_prompts
                 return ToolResult(
                     success=True,
                     output=system_prompts.HELP_MESSAGE,
@@ -479,16 +504,26 @@ class ToolExecutor:
                 )
 
             elif operation == 'list_available_tools':
+                if not self.tool_registry:
+                    return ToolResult(
+                        success=False,
+                        output="",
+                        error="Tool registry not available",
+                        exit_code=1
+                    )
+                
+                tools_by_category = self.tool_registry.get_tools_by_category()
                 tools_info = "Available Tools:\n\n"
-                tools_info += "Workflow Steps:\n"
-                for step_name, step_info in self.cli_manager.workflow_steps.items():
-                    tools_info += f"  • {step_name}: {step_info['description']}\n"
-
-                tools_info += "\nBinary Management:\n"
-                tools_info += "  • install_executables: Install external modeling tools\n"
-                tools_info += "  • validate_binaries: Validate installed tools\n"
-                tools_info += "  • run_doctor: System diagnostics\n"
-                tools_info += "  • show_tools_info: Show installed tools info\n"
+                
+                for category, tools in tools_by_category.items():
+                    tools_info += f"{category}:\n"
+                    for tool in tools:
+                        name = tool["function"]["name"]
+                        desc = tool["function"]["description"]
+                        # Use first line of description to keep it concise
+                        short_desc = desc.split('.')[0] if '.' in desc else desc
+                        tools_info += f"  • {name}: {short_desc}\n"
+                    tools_info += "\n"
 
                 return ToolResult(
                     success=True,

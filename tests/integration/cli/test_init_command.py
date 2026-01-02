@@ -1,100 +1,127 @@
 """Integration tests for --init CLI command."""
 
-import pytest
-import subprocess
-import yaml
+import contextlib
+import io
+import os
+import sys
 from pathlib import Path
 
+import pytest
+import yaml
+
+from symfluence import cli as cli_module
+
 pytestmark = [pytest.mark.integration, pytest.mark.cli]
+
+@contextlib.contextmanager
+def _chdir(path: Path | str):
+    current = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(current)
+
+
+@contextlib.contextmanager
+def _env(overrides: dict[str, str]):
+    original = os.environ.copy()
+    os.environ.update(overrides)
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(original)
+
+
+def _run_cli(args, *, cwd=None, env=None):
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    exit_code = 0
+    argv = ["symfluence"] + list(args)
+
+    with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        with _chdir(cwd or os.getcwd()):
+            with _env(env or {}):
+                original_argv = sys.argv
+                sys.argv = argv
+                try:
+                    result = cli_module.main()
+                    if isinstance(result, int):
+                        exit_code = result
+                except SystemExit as exc:
+                    code = exc.code
+                    exit_code = code if isinstance(code, int) else 1
+                finally:
+                    sys.argv = original_argv
+
+    return exit_code, stdout.getvalue(), stderr.getvalue()
 
 
 class TestListPresetsCommand:
     """Test --list-presets command."""
 
     def test_list_presets_success(self):
-        """Test --list-presets command runs successfully."""
-        result = subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--list-presets'],
-            capture_output=True,
-            text=True
-        )
+        """Test list-presets command runs successfully."""
+        exit_code, stdout, _ = _run_cli(['project', 'list-presets'])
 
-        assert result.returncode == 0
-        assert 'Available Presets:' in result.stdout
-        assert 'fuse-provo' in result.stdout
-        assert 'summa-basic' in result.stdout
-        assert 'fuse-basic' in result.stdout
+        assert exit_code == 0
+        assert 'Available Presets:' in stdout
+        assert 'fuse-provo' in stdout
+        assert 'summa-basic' in stdout
+        assert 'fuse-basic' in stdout
 
     def test_list_presets_shows_usage_info(self):
-        """Test --list-presets shows usage information."""
-        result = subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--list-presets'],
-            capture_output=True,
-            text=True
-        )
+        """Test list-presets shows usage information."""
+        _, stdout, _ = _run_cli(['project', 'list-presets'])
 
-        assert 'Use: symfluence --show-preset NAME' in result.stdout
-        assert 'Use: symfluence --init PRESET_NAME' in result.stdout
+        assert 'Use: symfluence project show-preset NAME' in stdout
+        assert 'Use: symfluence project init PRESET_NAME' in stdout
 
 
 class TestShowPresetCommand:
     """Test --show-preset command."""
 
     def test_show_preset_fuse_provo(self):
-        """Test --show-preset fuse-provo command."""
-        result = subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--show-preset', 'fuse-provo'],
-            capture_output=True,
-            text=True
-        )
+        """Test show-preset fuse-provo command."""
+        exit_code, stdout, _ = _run_cli(['project', 'show-preset', 'fuse-provo'])
 
-        assert result.returncode == 0
-        assert 'Preset: fuse-provo' in result.stdout
-        assert 'Description:' in result.stdout
-        assert 'Key Settings:' in result.stdout
-        assert 'FUSE Model Decisions:' in result.stdout
+        assert exit_code == 0
+        assert 'Preset: fuse-provo' in stdout
+        assert 'Description:' in stdout
+        assert 'Key Settings:' in stdout
+        assert 'FUSE Model Decisions:' in stdout
 
     def test_show_preset_summa_basic(self):
-        """Test --show-preset summa-basic command."""
-        result = subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--show-preset', 'summa-basic'],
-            capture_output=True,
-            text=True
-        )
+        """Test show-preset summa-basic command."""
+        exit_code, stdout, _ = _run_cli(['project', 'show-preset', 'summa-basic'])
 
-        assert result.returncode == 0
-        assert 'Preset: summa-basic' in result.stdout
-        assert 'SUMMA' in result.stdout
+        assert exit_code == 0
+        assert 'Preset: summa-basic' in stdout
+        assert 'SUMMA' in stdout
 
     def test_show_preset_invalid_name(self):
-        """Test --show-preset with invalid name."""
-        result = subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--show-preset', 'nonexistent'],
-            capture_output=True,
-            text=True
-        )
+        """Test show-preset with invalid name."""
+        exit_code, stdout, _ = _run_cli(['project', 'show-preset', 'nonexistent'])
 
-        assert result.returncode == 0
-        assert 'Unknown preset' in result.stdout
+        assert exit_code == 0
+        assert 'Unknown preset' in stdout
 
 
 class TestInitCommandWithPreset:
     """Test --init command with presets."""
 
     def test_init_fuse_provo_creates_config(self, tmp_path):
-        """Test --init fuse-provo creates config file."""
+        """Test init fuse-provo creates config file."""
         output_dir = tmp_path / "0_config_files"
 
-        result = subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', 'fuse-provo',
-             '--output-dir', str(output_dir)],
-            capture_output=True,
-            text=True,
-            cwd=str(tmp_path)
+        exit_code, stdout, _ = _run_cli(
+            ['project', 'init', 'fuse-provo', '--output-dir', str(output_dir)],
+            cwd=tmp_path,
         )
 
-        assert result.returncode == 0
-        assert 'Created config file' in result.stdout
+        assert exit_code == 0
+        assert 'Created config file' in stdout
 
         # Check file was created
         config_file = output_dir / 'config_provo_river.yaml'
@@ -104,11 +131,9 @@ class TestInitCommandWithPreset:
         """Test created config is valid YAML."""
         output_dir = tmp_path / "0_config_files"
 
-        subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', 'fuse-provo',
-             '--output-dir', str(output_dir)],
-            capture_output=True,
-            cwd=str(tmp_path)
+        _run_cli(
+            ['project', 'init', 'fuse-provo', '--output-dir', str(output_dir)],
+            cwd=tmp_path,
         )
 
         config_file = output_dir / 'config_provo_river.yaml'
@@ -124,11 +149,9 @@ class TestInitCommandWithPreset:
         """Test created config has expected settings from preset."""
         output_dir = tmp_path / "0_config_files"
 
-        subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', 'fuse-provo',
-             '--output-dir', str(output_dir)],
-            capture_output=True,
-            cwd=str(tmp_path)
+        _run_cli(
+            ['project', 'init', 'fuse-provo', '--output-dir', str(output_dir)],
+            cwd=tmp_path,
         )
 
         config_file = output_dir / 'config_provo_river.yaml'
@@ -142,19 +165,23 @@ class TestInitCommandWithPreset:
         assert config['FUSE_SPATIAL_MODE'] == 'lumped'
 
     def test_init_summa_basic_creates_config(self, tmp_path):
-        """Test --init summa-basic creates config file."""
+        """Test init summa-basic creates config file."""
         output_dir = tmp_path / "0_config_files"
 
-        result = subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', 'summa-basic',
-             '--output-dir', str(output_dir),
-             '--domain', 'test_watershed'],
-            capture_output=True,
-            text=True,
-            cwd=str(tmp_path)
+        exit_code, _, _ = _run_cli(
+            [
+                'project',
+                'init',
+                'summa-basic',
+                '--output-dir',
+                str(output_dir),
+                '--domain',
+                'test_watershed',
+            ],
+            cwd=tmp_path,
         )
 
-        assert result.returncode == 0
+        assert exit_code == 0
 
         config_file = output_dir / 'config_test_watershed.yaml'
         assert config_file.exists()
@@ -170,15 +197,20 @@ class TestInitCommandWithCustomFlags:
     """Test --init command with custom flags."""
 
     def test_init_with_custom_domain(self, tmp_path):
-        """Test --init with custom domain name."""
+        """Test init with custom domain name."""
         output_dir = tmp_path / "0_config_files"
 
-        subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', 'fuse-provo',
-             '--domain', 'my_custom_domain',
-             '--output-dir', str(output_dir)],
-            capture_output=True,
-            cwd=str(tmp_path)
+        _run_cli(
+            [
+                'project',
+                'init',
+                'fuse-provo',
+                '--domain',
+                'my_custom_domain',
+                '--output-dir',
+                str(output_dir),
+            ],
+            cwd=tmp_path,
         )
 
         config_file = output_dir / 'config_my_custom_domain.yaml'
@@ -190,16 +222,22 @@ class TestInitCommandWithCustomFlags:
         assert config['DOMAIN_NAME'] == 'my_custom_domain'
 
     def test_init_with_custom_dates(self, tmp_path):
-        """Test --init with custom start and end dates."""
+        """Test init with custom start and end dates."""
         output_dir = tmp_path / "0_config_files"
 
-        subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', 'fuse-provo',
-             '--start-date', '2015-01-01',
-             '--end-date', '2020-12-31',
-             '--output-dir', str(output_dir)],
-            capture_output=True,
-            cwd=str(tmp_path)
+        _run_cli(
+            [
+                'project',
+                'init',
+                'fuse-provo',
+                '--start-date',
+                '2015-01-01',
+                '--end-date',
+                '2020-12-31',
+                '--output-dir',
+                str(output_dir),
+            ],
+            cwd=tmp_path,
         )
 
         config_file = output_dir / 'config_provo_river.yaml'
@@ -211,15 +249,20 @@ class TestInitCommandWithCustomFlags:
         assert config['EXPERIMENT_TIME_END'] == '2020-12-31 23:00'
 
     def test_init_with_custom_forcing(self, tmp_path):
-        """Test --init with custom forcing dataset."""
+        """Test init with custom forcing dataset."""
         output_dir = tmp_path / "0_config_files"
 
-        subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', 'fuse-provo',
-             '--forcing', 'CONUS404',
-             '--output-dir', str(output_dir)],
-            capture_output=True,
-            cwd=str(tmp_path)
+        _run_cli(
+            [
+                'project',
+                'init',
+                'fuse-provo',
+                '--forcing',
+                'CONUS404',
+                '--output-dir',
+                str(output_dir),
+            ],
+            cwd=tmp_path,
         )
 
         config_file = output_dir / 'config_provo_river.yaml'
@@ -230,16 +273,22 @@ class TestInitCommandWithCustomFlags:
         assert config['FORCING_DATASET'] == 'CONUS404'
 
     def test_init_with_custom_model(self, tmp_path):
-        """Test --init with custom model."""
+        """Test init with custom model."""
         output_dir = tmp_path / "0_config_files"
 
-        subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', 'fuse-basic',
-             '--model', 'SUMMA',
-             '--domain', 'test',
-             '--output-dir', str(output_dir)],
-            capture_output=True,
-            cwd=str(tmp_path)
+        _run_cli(
+            [
+                'project',
+                'init',
+                'fuse-basic',
+                '--model',
+                'SUMMA',
+                '--domain',
+                'test',
+                '--output-dir',
+                str(output_dir),
+            ],
+            cwd=tmp_path,
         )
 
         config_file = output_dir / 'config_test.yaml'
@@ -250,19 +299,28 @@ class TestInitCommandWithCustomFlags:
         assert config['HYDROLOGICAL_MODEL'] == 'SUMMA'
 
     def test_init_with_multiple_custom_flags(self, tmp_path):
-        """Test --init with multiple custom flags."""
+        """Test init with multiple custom flags."""
         output_dir = tmp_path / "0_config_files"
 
-        subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', 'fuse-provo',
-             '--domain', 'complex_test',
-             '--start-date', '2018-01-01',
-             '--end-date', '2022-12-31',
-             '--forcing', 'RDRS',
-             '--discretization', 'elevation',
-             '--output-dir', str(output_dir)],
-            capture_output=True,
-            cwd=str(tmp_path)
+        _run_cli(
+            [
+                'project',
+                'init',
+                'fuse-provo',
+                '--domain',
+                'complex_test',
+                '--start-date',
+                '2018-01-01',
+                '--end-date',
+                '2022-12-31',
+                '--forcing',
+                'RDRS',
+                '--discretization',
+                'elevation',
+                '--output-dir',
+                str(output_dir),
+            ],
+            cwd=tmp_path,
         )
 
         config_file = output_dir / 'config_complex_test.yaml'
@@ -281,18 +339,18 @@ class TestInitCommandWithScaffold:
     """Test --init command with --scaffold option."""
 
     def test_init_with_scaffold_creates_directories(self, tmp_path):
-        """Test --init with --scaffold creates directory structure."""
+        """Test init with --scaffold creates directory structure."""
         output_dir = tmp_path / "0_config_files"
+        env = {
+            'SYMFLUENCE_DATA_DIR': str(tmp_path / 'data'),
+            'PATH': os.environ['PATH'],
+        }
 
         # Create config with custom data dir
-        subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', 'fuse-provo',
-             '--output-dir', str(output_dir),
-             '--scaffold'],
-            capture_output=True,
-            text=True,
-            cwd=str(tmp_path),
-            env={'SYMFLUENCE_DATA_DIR': str(tmp_path / 'data'), 'PATH': subprocess.os.environ['PATH']}
+        _run_cli(
+            ['project', 'init', 'fuse-provo', '--output-dir', str(output_dir), '--scaffold'],
+            cwd=tmp_path,
+            env=env,
         )
 
         # Note: This test may fail if scaffold uses home directory
@@ -300,86 +358,65 @@ class TestInitCommandWithScaffold:
         # For now, just check that command runs without error
 
     def test_init_shows_scaffold_instructions_without_flag(self, tmp_path):
-        """Test --init without --scaffold shows setup instructions."""
+        """Test init without --scaffold shows setup instructions."""
         output_dir = tmp_path / "0_config_files"
 
-        result = subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', 'fuse-provo',
-             '--output-dir', str(output_dir)],
-            capture_output=True,
-            text=True,
-            cwd=str(tmp_path)
+        _, stdout, _ = _run_cli(
+            ['project', 'init', 'fuse-provo', '--output-dir', str(output_dir)],
+            cwd=tmp_path,
         )
 
-        assert 'To create project structure, run:' in result.stdout
-        assert '--setup_project' in result.stdout
+        assert 'To create project structure, run:' in stdout
+        assert 'setup_project' in stdout
 
 
 class TestInitCommandValidation:
     """Test --init command validation."""
 
     def test_init_with_invalid_preset(self):
-        """Test --init with invalid preset name."""
-        result = subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', 'nonexistent-preset'],
-            capture_output=True,
-            text=True
-        )
+        """Test init with invalid preset name."""
+        exit_code, _, stderr = _run_cli(['project', 'init', 'nonexistent-preset'])
 
-        assert result.returncode == 2
-        assert 'Unknown preset' in result.stderr
+        assert exit_code == 2
+        assert 'Unknown preset' in stderr
 
     def test_init_without_preset_requires_domain(self):
-        """Test --init without preset requires --domain."""
-        result = subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init'],
-            capture_output=True,
-            text=True
-        )
+        """Test init without preset requires --domain."""
+        exit_code, _, stderr = _run_cli(['project', 'init'])
 
-        assert result.returncode == 2
-        assert '--domain is required' in result.stderr
+        assert exit_code == 2
+        assert '--domain is required' in stderr
 
     def test_init_without_preset_requires_model(self):
-        """Test --init without preset requires --model."""
-        result = subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', '--domain', 'test'],
-            capture_output=True,
-            text=True
-        )
+        """Test init without preset requires --model."""
+        exit_code, _, stderr = _run_cli(['project', 'init', '--domain', 'test'])
 
-        assert result.returncode == 2
-        assert '--model is required' in result.stderr
+        assert exit_code == 2
+        assert '--model is required' in stderr
 
 
 class TestInitCommandOutput:
     """Test --init command output formatting."""
 
     def test_init_shows_success_message(self, tmp_path):
-        """Test --init shows success message."""
+        """Test init shows success message."""
         output_dir = tmp_path / "0_config_files"
 
-        result = subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', 'fuse-provo',
-             '--output-dir', str(output_dir)],
-            capture_output=True,
-            text=True,
-            cwd=str(tmp_path)
+        _, stdout, _ = _run_cli(
+            ['project', 'init', 'fuse-provo', '--output-dir', str(output_dir)],
+            cwd=tmp_path,
         )
 
-        assert '✅ Created config file' in result.stdout
-        assert 'config_provo_river.yaml' in result.stdout
+        assert '✅ Created config file' in stdout
+        assert 'config_provo_river.yaml' in stdout
 
     def test_init_shows_next_steps(self, tmp_path):
-        """Test --init shows next steps."""
+        """Test init shows next steps."""
         output_dir = tmp_path / "0_config_files"
 
-        result = subprocess.run(
-            ['python3.11', '-m', 'symfluence.cli', '--init', 'fuse-provo',
-             '--output-dir', str(output_dir)],
-            capture_output=True,
-            text=True,
-            cwd=str(tmp_path)
+        _, stdout, _ = _run_cli(
+            ['project', 'init', 'fuse-provo', '--output-dir', str(output_dir)],
+            cwd=tmp_path,
         )
 
-        assert '📁 To create project structure' in result.stdout
+        assert '📁 To create project structure' in stdout

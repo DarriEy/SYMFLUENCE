@@ -13,7 +13,6 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
-import warnings
 
 from src.symfluence.utils.data.preprocessing.attribute_processing_refactored import attributeProcessor
 from src.symfluence.utils.data.preprocessing.attribute_processors import (
@@ -84,22 +83,16 @@ def setup_test_directories(tmp_path, domain_name):
     return project_dir
 
 
-class TestDeprecationWarning:
-    """Test that deprecation warning is raised for original module."""
+class TestBackwardCompatibleImport:
+    """Test that backward-compatible imports work."""
 
-    def test_original_module_raises_deprecation_warning(self):
-        """Verify that importing the original module raises a deprecation warning."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+    def test_attribute_processing_re_exports_refactored(self):
+        """Verify that attribute_processing re-exports from refactored module."""
+        from src.symfluence.utils.data.preprocessing import attribute_processing
+        from src.symfluence.utils.data.preprocessing import attribute_processing_refactored
 
-            # Import the deprecated module
-            from src.symfluence.utils.data.preprocessing import attribute_processing
-
-            # Verify deprecation warning was raised
-            assert len(w) >= 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "deprecated" in str(w[0].message).lower()
-            assert "attribute_processing_refactored" in str(w[0].message)
+        # Both should export the same attributeProcessor class
+        assert attribute_processing.attributeProcessor is attribute_processing_refactored.attributeProcessor
 
 
 class TestIndividualProcessors:

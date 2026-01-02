@@ -22,7 +22,8 @@ from symfluence.utils.geospatial.domain_manager import DomainManager
 from symfluence.utils.models.model_manager import ModelManager
 from symfluence.utils.evaluation.analysis_manager import AnalysisManager
 from symfluence.utils.optimization.optimization_manager import OptimizationManager
-from symfluence.utils.config.config_loader import load_config
+from symfluence.utils.config.config_loader import load_config  # Legacy support
+from symfluence.utils.config.models import SymfluenceConfig
 
 
 class SYMFLUENCE:
@@ -47,8 +48,9 @@ class SYMFLUENCE:
         self.debug_mode = debug_mode
         self.config_overrides = config_overrides or {}
         
-        # Load and merge configuration
-        self.config = self._load_and_merge_config()
+        # Load and merge configuration (Phase 2: New hierarchical config system)
+        self.typed_config = self._load_typed_config()
+        self.config = self.typed_config.to_dict(flatten=True)  # Backward compatibility
         
         # Initialize logging
         self.logging_manager = LoggingManager(self.config, debug_mode=debug_mode)
@@ -68,7 +70,30 @@ class SYMFLUENCE:
         )
         
     
+    def _load_typed_config(self) -> SymfluenceConfig:
+        """
+        Load configuration using new hierarchical SymfluenceConfig.
+
+        Returns:
+            SymfluenceConfig: Fully validated hierarchical configuration
+        """
+        try:
+            return SymfluenceConfig.from_file(
+                self.config_path,
+                overrides=self.config_overrides,
+                use_env=True,
+                validate=True
+            )
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
+
     def _load_and_merge_config(self) -> Dict[str, Any]:
+        """
+        Legacy method for backward compatibility.
+
+        Returns:
+            Dict[str, Any]: Flat configuration dictionary
+        """
         try:
             return load_config(self.config_path, self.config_overrides, validate=True)
         except FileNotFoundError:

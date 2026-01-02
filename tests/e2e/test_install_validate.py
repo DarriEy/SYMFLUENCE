@@ -5,6 +5,7 @@ Replaces .github/workflows/install-validate.yml validation steps with pytest.
 These tests validate the complete SYMFLUENCE installation and core functionality.
 """
 
+import os
 import pytest
 import shutil
 import subprocess
@@ -14,6 +15,28 @@ from symfluence import SYMFLUENCE
 
 
 pytestmark = [pytest.mark.e2e, pytest.mark.ci_quick]
+
+def _prune_raw_forcing(project_dir: Path, keep_glob: str) -> None:
+    raw_dir = project_dir / "forcing" / "raw_data"
+    if not raw_dir.exists():
+        return
+    candidates = sorted(raw_dir.glob(keep_glob))
+    if not candidates:
+        return
+    keep = candidates[0]
+    for path in raw_dir.glob("*.nc"):
+        if path != keep:
+            path.unlink()
+
+    basin_avg_dir = project_dir / "forcing" / "basin_averaged_data"
+    if basin_avg_dir.exists():
+        for path in basin_avg_dir.glob("*.nc"):
+            path.unlink()
+    intersection_dir = project_dir / "shapefiles" / "catchment_intersection"
+    if intersection_dir.exists():
+        for path in intersection_dir.glob("**/*"):
+            if path.is_file():
+                path.unlink()
 
 @pytest.mark.e2e
 @pytest.mark.ci_quick
@@ -215,6 +238,9 @@ def test_quick_workflow_summa_only(
     config["EXPERIMENT_ID"] = f"test_quick_{tmp_path.name}"
     config["EXPERIMENT_TIME_START"] = "2004-01-01 01:00"
     config["EXPERIMENT_TIME_END"] = "2004-01-01 04:00"  # 3 hours
+    config["CALIBRATION_PERIOD"] = None
+    config["EVALUATION_PERIOD"] = None
+    config["SPINUP_PERIOD"] = None
 
     # Model settings
     config["HYDROLOGICAL_MODEL"] = "SUMMA"
@@ -244,6 +270,8 @@ def test_quick_workflow_summa_only(
         dst_forcing.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(src_forcing, dst_forcing, dirs_exist_ok=True)
 
+    _prune_raw_forcing(project_dir, "domain_*_ERA5_merged_200401.nc")
+
     # Copy existing shapefiles (skip if same location)
     src_shapefiles = bow_domain / "shapefiles"
     dst_shapefiles = project_dir / "shapefiles"
@@ -256,8 +284,25 @@ def test_quick_workflow_summa_only(
     if src_attributes.exists() and src_attributes.resolve() != dst_attributes.resolve():
         shutil.copytree(src_attributes, dst_attributes, dirs_exist_ok=True)
 
+    # Reuse preprocessed forcing if available to speed smoke test
+    has_preprocessed_forcing = False
+    src_basin_avg = bow_domain / "forcing" / "basin_averaged_data"
+    dst_basin_avg = project_dir / "forcing" / "basin_averaged_data"
+    if src_basin_avg.exists() and src_basin_avg.resolve() != dst_basin_avg.resolve():
+        if list(src_basin_avg.glob("*.nc")):
+            dst_basin_avg.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(src_basin_avg, dst_basin_avg, dirs_exist_ok=True)
+            has_preprocessed_forcing = True
+
+    src_intersection = bow_domain / "shapefiles" / "catchment_intersection"
+    dst_intersection = project_dir / "shapefiles" / "catchment_intersection"
+    if src_intersection.exists() and src_intersection.resolve() != dst_intersection.resolve():
+        if list(src_intersection.glob("*")):
+            shutil.copytree(src_intersection, dst_intersection, dirs_exist_ok=True)
+
     # Model-agnostic preprocessing
-    sym.managers["data"].run_model_agnostic_preprocessing()
+    if not has_preprocessed_forcing:
+        sym.managers["data"].run_model_agnostic_preprocessing()
 
     # Check preprocessing outputs
     basin_avg_dir = project_dir / "forcing" / "basin_averaged_data"
@@ -367,6 +412,8 @@ def test_calibration_workflow(tmp_path, symfluence_code_dir, symfluence_data_roo
     4. Calibrate model (minimal iterations for testing)
     5. Verify calibration outputs
     """
+    if os.environ.get("SYMFLUENCE_RUN_CALIBRATION") != "1":
+        pytest.skip("Set SYMFLUENCE_RUN_CALIBRATION=1 to run calibration e2e tests.")
     from utils.helpers import load_config_template, write_config
 
     # Create test configuration

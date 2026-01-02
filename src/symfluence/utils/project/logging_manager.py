@@ -9,12 +9,33 @@ import json
 import yaml
 import warnings
 import os
+import tempfile
 
 # Suppress pyogrio field width warnings (non-fatal - data is still written)
 warnings.filterwarnings('ignore', 
                        message='.*not successfully written.*field width.*',
                        category=RuntimeWarning,
                        module='pyogrio.raw')
+
+
+def get_logger(name: str = "symfluence") -> logging.Logger:
+    """
+    Return a configured logger for modules that need lightweight logging.
+    """
+    logger = logging.getLogger(name)
+    if logger.handlers:
+        return logger
+
+    root_logger = logging.getLogger("symfluence")
+    if root_logger.handlers:
+        return root_logger if name == "symfluence" else logger
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    return logger
 
 class LoggingManager:
     """
@@ -72,9 +93,9 @@ class LoggingManager:
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.log_dir = self.project_dir / f"_workLog_{self.domain_name}"
-        
-        # Create log directory
-        self.log_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create log directory with fallback for restricted locations
+        self.log_dir = self._ensure_log_dir(self.log_dir)
         
         # Set up main logger with debug mode consideration
         self.logger = self.setup_logging()
@@ -85,6 +106,24 @@ class LoggingManager:
         
         # Log configuration
         self.config_log_file = self.log_configuration()
+
+    def _ensure_log_dir(self, log_dir: Path) -> Path:
+        """
+        Ensure the log directory is writable, falling back to a temp directory if needed.
+        """
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True)
+            test_file = log_dir / ".symfluence_log_test"
+            test_file.touch()
+            test_file.unlink()
+            return log_dir
+        except (PermissionError, OSError):
+            fallback_dir = Path(tempfile.mkdtemp(prefix="symfluence_logs_"))
+            warnings.warn(
+                f"Log directory '{log_dir}' is not writable; using '{fallback_dir}' instead.",
+                RuntimeWarning
+            )
+            return fallback_dir
     
     def setup_logging(self, log_level: Optional[str] = None) -> logging.Logger:
         """
@@ -154,9 +193,20 @@ class LoggingManager:
             )
         
         # File handler with detailed formatting (always logs everything)
-        file_handler = logging.FileHandler(log_file, encoding='utf-8')
-        file_handler.setLevel(logging.DEBUG)  # Always log everything to file
-        file_handler.setFormatter(detailed_formatter)
+        file_handler = None
+        try:
+            file_handler = logging.FileHandler(log_file, encoding='utf-8')
+            file_handler.setLevel(logging.DEBUG)  # Always log everything to file
+            file_handler.setFormatter(detailed_formatter)
+        except (PermissionError, OSError):
+            fallback_dir = self._ensure_log_dir(Path(tempfile.mkdtemp(prefix="symfluence_logs_")))
+            log_file = fallback_dir / log_file.name
+            try:
+                file_handler = logging.FileHandler(log_file, encoding='utf-8')
+                file_handler.setLevel(logging.DEBUG)
+                file_handler.setFormatter(detailed_formatter)
+            except (PermissionError, OSError):
+                file_handler = None
         
         # Console handler - level depends on debug mode
         console_handler = logging.StreamHandler(sys.stdout)
@@ -171,7 +221,8 @@ class LoggingManager:
             console_handler.addFilter(self.ConsoleFilter())
         
         # Add handlers to logger
-        logger.addHandler(file_handler)
+        if file_handler:
+            logger.addHandler(file_handler)
         logger.addHandler(console_handler)
         
         # Log startup information
@@ -182,7 +233,7 @@ class LoggingManager:
         logger.info(f"Domain: {self.domain_name}")
         logger.info(f"Experiment ID: {self.config.get('EXPERIMENT_ID', 'N/A')}")
         logger.info(f"Log Level: {log_level}")
-        logger.info(f"Log File: {log_file}")
+        logger.info(f"Log File: {log_file}" if file_handler else "Log File: disabled (no write access)")
         logger.info("=" * 60)
         
         return logger

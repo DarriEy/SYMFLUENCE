@@ -6,13 +6,21 @@ import netCDF4 as nc4
 import os
 import cdo
 import pandas as pd
-from   easymore import Easymore
+import easymore
 import numpy       as      np
 import geopandas   as      gpd
 import sys
 from   itertools   import  product
 from alive_progress import alive_bar # type: ignore 
 import shutil
+
+def _create_easymore_instance():
+    """Create an EASYMORE instance handling different module structures."""
+    if hasattr(easymore, "Easymore"):
+        return easymore.Easymore()
+    if hasattr(easymore, "easymore"):
+        return easymore.easymore()
+    raise AttributeError("easymore module does not expose an Easymore class")
 
 # sort geodata from upstream to downstream
 def sort_geodata(geodata):
@@ -184,8 +192,8 @@ def write_hype_forcing(easymore_output, timeshift, forcing_units, geofabric_mapp
         if not output_file_name_txt is None:
             df.to_csv(output_file_name_txt,\
                       sep='\t', na_rep='', index_label='time', float_format='%.3f')
-        esmr = Easymore()
-        ds_daily = esmr.dataframe_to_netcdf_xr(df,
+        esmr_obj = _create_easymore_instance()
+        ds_daily = esmr_obj.dataframe_to_netcdf_xr(df,
                                          data_frame_DateTime_column = var_time,
                                          variable_name = variable_out,
                                          variable_dim_name = 'id',
