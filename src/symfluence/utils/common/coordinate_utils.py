@@ -142,7 +142,7 @@ class BoundingBox:
                 f"lon_min={self.lon_min}, lon_max={self.lon_max})")
 
 
-def parse_bbox(bbox_string: str, format: str = 'lat_max/lon_max/lat_min/lon_min') -> Dict[str, float]:
+def parse_bbox(bbox_string: str, format: str = 'lat_max/lon_min/lat_min/lon_max') -> Dict[str, float]:
     """
     Parse bounding box from string representation.
 
@@ -151,8 +151,10 @@ def parse_bbox(bbox_string: str, format: str = 'lat_max/lon_max/lat_min/lon_min'
     bbox_string : str
         Bounding box as string (slash-separated coordinates)
     format : str, optional
-        Order of coordinates in string (default: 'lat_max/lon_max/lat_min/lon_min')
-        Other common formats:
+        Order of coordinates in string (default: 'lat_max/lon_min/lat_min/lon_max')
+        This is the system standard format (North/West/South/East).
+        Other supported formats:
+        - 'lat_max/lon_max/lat_min/lon_min' (NE corner then SW corner)
         - 'lat_min/lon_min/lat_max/lon_max'
         - 'lon_min/lat_min/lon_max/lat_max'
 
@@ -163,7 +165,7 @@ def parse_bbox(bbox_string: str, format: str = 'lat_max/lon_max/lat_min/lon_min'
 
     Examples
     --------
-    >>> parse_bbox('60.0/-120.0/50.0/-130.0')
+    >>> parse_bbox('60.0/-130.0/50.0/-120.0')
     {'lat_min': 50.0, 'lat_max': 60.0, 'lon_min': -130.0, 'lon_max': -120.0}
     """
     if not bbox_string:
@@ -175,7 +177,14 @@ def parse_bbox(bbox_string: str, format: str = 'lat_max/lon_max/lat_min/lon_min'
         raise ValueError(f"Expected 4 coordinates, got {len(coords)}: {bbox_string}")
 
     # Parse based on format
-    if format == 'lat_max/lon_max/lat_min/lon_min':
+    if format == 'lat_max/lon_min/lat_min/lon_max':  # System standard: N/W/S/E
+        return {
+            'lat_min': coords[2],
+            'lat_max': coords[0],
+            'lon_min': coords[1],
+            'lon_max': coords[3]
+        }
+    elif format == 'lat_max/lon_max/lat_min/lon_min':
         return {
             'lat_min': coords[2],
             'lat_max': coords[0],
