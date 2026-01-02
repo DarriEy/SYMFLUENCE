@@ -20,18 +20,24 @@ import xarray as xr # type: ignore
 from typing import Dict, List, Tuple, Any
 from ..registry import ModelRegistry
 from ..base import BaseModelPreProcessor, BaseModelRunner
-from ..mixins import PETCalculatorMixin
+from ..mixins import PETCalculatorMixin, OutputConverterMixin
+from symfluence.utils.exceptions import (
+    ModelExecutionError,
+    symfluence_error_handler
+)
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from symfluence.utils.evaluation.calculate_sim_stats import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE # type: ignore
+from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE
 from symfluence.utils.data.utilities.variable_utils import VariableHandler # type: ignore
 
 
 @ModelRegistry.register_runner('FUSE', method_name='run_fuse')
-class FUSERunner(BaseModelRunner):
+class FUSERunner(BaseModelRunner, OutputConverterMixin):
     """
     Runner class for the FUSE (Framework for Understanding Structural Errors) model.
     Handles model execution, output processing, and file management.
+
+    Inherits OutputConverterMixin for mizuRoute format conversion.
 
     Attributes:
         config (Dict[str, Any]): Configuration settings for FUSE
@@ -44,19 +50,30 @@ class FUSERunner(BaseModelRunner):
         # Call base class
         super().__init__(config, logger)
 
-        # FUSE-specific: result_dir is an alias for output_dir
-        self.result_dir = self.output_dir
+        # FUSE-specific initialization (Phase 3: Use typed config when available)
+        if self.typed_config:
+            self.spatial_mode = self.typed_config.model.fuse.spatial_mode if self.typed_config.model.fuse else 'lumped'
+        else:
+            self.spatial_mode = self.config.get('FUSE_SPATIAL_MODE', 'lumped')
 
-        # FUSE-specific initialization
-        self.fuse_path = self._get_install_path()
-        self.output_path = self._get_output_path()
-        self.spatial_mode = self.config.get('FUSE_SPATIAL_MODE', 'lumped')
         self.needs_routing = self._check_routing_requirements()
+
+    def _get_fuse_file_id(self) -> str:
+        """Return a short file ID for FUSE outputs/settings."""
+        return self.config.get('FUSE_FILE_ID', self.config.get('EXPERIMENT_ID'))
 
     def _setup_model_specific_paths(self) -> None:
         """Set up FUSE-specific paths."""
         self.setup_dir = self.project_dir / "settings" / "FUSE"
         self.forcing_fuse_path = self.project_dir / 'forcing' / 'FUSE_input'
+
+        # FUSE-specific: Set up installation and output paths
+        self.fuse_path = self.get_install_path('FUSE_INSTALL_PATH', 'installs/fuse/bin')
+        self.output_path = self.get_config_path('EXPERIMENT_OUTPUT_FUSE', f"simulations/{self.config.get('EXPERIMENT_ID')}/FUSE")
+
+        # FUSE-specific: result_dir is an alias for output_dir (backward compatibility)
+        self.output_dir = self.get_experiment_output_dir()
+        self.setup_path_aliases({'result_dir': 'output_dir'})
 
     def _get_model_name(self) -> str:
         """Return model name for FUSE."""
@@ -64,142 +81,78 @@ class FUSERunner(BaseModelRunner):
 
     def _get_output_dir(self) -> Path:
         """FUSE uses custom result_dir naming."""
-        experiment_id = self.config.get('EXPERIMENT_ID')
-        return self.project_dir / "simulations" / experiment_id / "FUSE"
+        return self.get_experiment_output_dir()
 
     def _convert_fuse_distributed_to_mizuroute_format(self):
         """
         Convert FUSE spatial dimensions to mizuRoute format.
-        MINIMAL changes only: latitude->gru, add gruId, squeeze longitude.
-        Preserves ALL original data and time coordinates unchanged.
-        """
-        import xarray as xr
-        import numpy as np
-        import shutil
-        import tempfile
-        import os
 
+        Uses OutputConverterMixin for the core conversion:
+        - Squeezes singleton longitude dimension
+        - Renames latitude → gru
+        - Adds gruId variable
+        """
         experiment_id = self.config.get('EXPERIMENT_ID')
+        fuse_id = self._get_fuse_file_id()
         domain = self.domain_name
-        
+
         fuse_out_dir = self.project_dir / "simulations" / experiment_id / "FUSE"
-        
+
         # Find FUSE output file
         target_files = [
-            fuse_out_dir / f"{domain}_{experiment_id}_runs_def.nc",
-            fuse_out_dir / f"{domain}_{experiment_id}_runs_best.nc"
+            fuse_out_dir / f"{domain}_{fuse_id}_runs_def.nc",
+            fuse_out_dir / f"{domain}_{fuse_id}_runs_best.nc"
         ]
-        
+
         target = None
         for file_path in target_files:
             if file_path.exists():
                 target = file_path
                 break
-        
+
         if target is None:
             raise FileNotFoundError(f"FUSE output not found. Tried: {[str(f) for f in target_files]}")
 
         self.logger.debug(f"Converting FUSE spatial dimensions: {target}")
 
-        # Create backup
-        backup_file = target.with_suffix('.backup.nc')
-        if not backup_file.exists():
-            shutil.copy2(target, backup_file)
-            self.logger.info(f"Created backup: {backup_file}")
+        # Use mixin method for core conversion
+        self.convert_fuse_to_mizuroute(target)
 
-        # Load, modify, and immediately close the dataset
-        with xr.open_dataset(target) as ds:
-            self.logger.debug(f"Original dimensions: {dict(ds.sizes)}")
-            
-            # Step 1: Remove singleton longitude dimension if it exists
-            if 'longitude' in ds.sizes and ds.sizes['longitude'] == 1:
-                ds = ds.squeeze('longitude', drop=True)
-                self.logger.debug("Squeezed longitude dimension")
-            
-            # Step 2: Rename latitude dimension to gru
-            if 'latitude' in ds.sizes:
-                ds = ds.rename({'latitude': 'gru'})
-                self.logger.debug("Renamed latitude -> gru")
-                
-                # Step 3: Create gruId variable from gru coordinates
-                if 'gru' in ds.coords:
-                    gru_values = ds.coords['gru'].values
-                    try:
-                        # Try to convert to integers
-                        gru_ids = gru_values.astype('int32')
-                    except (ValueError, TypeError):
-                        # If conversion fails, use sequential IDs
-                        gru_ids = np.arange(1, len(gru_values) + 1, dtype='int32')
-                        self.logger.warning(f"Using sequential GRU IDs 1-{len(gru_values)}")
-                    
-                    ds['gruId'] = xr.DataArray(
-                        gru_ids,
-                        dims=('gru',),
-                        attrs={'long_name': 'ID of grouped response unit', 'units': '-'}
-                    )
-                    
-                    self.logger.debug(f"Created gruId variable with {len(gru_ids)} GRUs")
-                else:
-                    raise ValueError("No gru coordinate found after renaming")
-            else:
-                raise ValueError("No latitude dimension found in FUSE output")
-            
-            self.logger.debug(f"Final dimensions: {dict(ds.sizes)}")
-            
-            # Load all data into memory before closing
-            ds = ds.load()
-        
-        # Now the original file is closed, we can write to a temp file and replace
-        try:
-            # Make sure target file is writable
-            try:
-                os.chmod(target, 0o664)
-            except Exception as e:
-                self.logger.warning(f"Could not change file permissions: {e}")
-            
-            # Write to temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.nc', dir=target.parent) as tmp_file:
-                temp_path = tmp_file.name
-            
-            # Write the modified dataset to temp file
-            ds.to_netcdf(temp_path, format='NETCDF4')
-            
-            # Replace original with temp file
-            shutil.move(temp_path, str(target))
-            self.logger.debug(f"Spatial conversion completed: {target}")
-            
-            # Ensure _runs_def.nc exists if we processed a different file
-            def_file = fuse_out_dir / f"{domain}_{experiment_id}_runs_def.nc"
-            if target != def_file and not def_file.exists():
-                shutil.copy2(target, def_file)
-                self.logger.info(f"Created runs_def file: {def_file}")
-                
-        except Exception as e:
-            # Clean up temp file if it exists
-            if 'temp_path' in locals() and os.path.exists(temp_path):
-                try:
-                    os.unlink(temp_path)
-                except:
-                    pass
-            raise
+        # Ensure _runs_def.nc exists if we processed a different file
+        def_file = fuse_out_dir / f"{domain}_{fuse_id}_runs_def.nc"
+        if target != def_file and not def_file.exists():
+            shutil.copy2(target, def_file)
+            self.logger.info(f"Created runs_def file: {def_file}")
 
     def run_fuse(self) -> Optional[Path]:
-        """Run FUSE model with distributed support"""
+        """
+        Run FUSE model with distributed support.
+
+        Returns:
+            Path to output directory on success, None on failure
+
+        Raises:
+            ModelExecutionError: If model execution fails
+        """
         self.logger.debug(f"Starting FUSE model run in {self.spatial_mode} mode")
-        
-        try:
+
+        with symfluence_error_handler(
+            "FUSE model execution",
+            self.logger,
+            error_type=ModelExecutionError
+        ):
             # Create output directory
             self.output_path.mkdir(parents=True, exist_ok=True)
-            
+
             # Run FUSE simulations
             success = self._execute_fuse_workflow()
-            
+
             if success:
                 # Handle routing if needed
                 if self.needs_routing:
                     self._convert_fuse_distributed_to_mizuroute_format()
                     success = self._run_distributed_routing()
-                
+
                 if success:
                     self._process_outputs()
                     self.logger.debug("FUSE run completed successfully")
@@ -210,10 +163,6 @@ class FUSERunner(BaseModelRunner):
             else:
                 self.logger.error("FUSE simulation failed")
                 return None
-                
-        except Exception as e:
-            self.logger.error(f"Error during FUSE run: {str(e)}")
-            raise
 
     def _check_routing_requirements(self) -> bool:
         """Check if distributed routing is needed"""
@@ -409,9 +358,9 @@ class FUSERunner(BaseModelRunner):
 
     def _ensure_best_output_file(self):
         """Ensure the expected 'best' output file exists by copying from 'def' output if needed"""
-        
-        def_file = self.output_path / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_runs_def.nc"
-        best_file = self.output_path / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_runs_best.nc"
+        fuse_id = self._get_fuse_file_id()
+        def_file = self.output_path / f"{self.domain_name}_{fuse_id}_runs_def.nc"
+        best_file = self.output_path / f"{self.domain_name}_{fuse_id}_runs_best.nc"
         
         if def_file.exists() and not best_file.exists():
             self.logger.info(f"Copying {def_file.name} to {best_file.name} for compatibility")
@@ -877,12 +826,12 @@ class FUSERunner(BaseModelRunner):
             #    return False
             
             # Create FUSE-specific mizuRoute control file
-            from symfluence.utils.models.mizuroute_utils import MizuRoutePreProcessor
+            from symfluence.utils.models.mizuroute import MizuRoutePreProcessor
             mizu_preprocessor = MizuRoutePreProcessor(self.config, self.logger)
             mizu_preprocessor.create_fuse_control_file()
-            
+
             # Run mizuRoute
-            from symfluence.utils.models.mizuroute_utils import MizuRouteRunner
+            from symfluence.utils.models.mizuroute import MizuRouteRunner
             mizuroute_runner = MizuRouteRunner(self.config, self.logger)
             
             # Update config for FUSE-mizuRoute integration
@@ -914,7 +863,8 @@ class FUSERunner(BaseModelRunner):
             #    Control uses: <fname_qsim> DOMAIN_EXPERIMENT_runs_def.nc
             #    Prefer runs_def; fall back to runs_best if needed.
             out_dir = self.project_dir / "simulations" / self.config.get('EXPERIMENT_ID') / "FUSE"
-            base = f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}"
+            fuse_id = self._get_fuse_file_id()
+            base = f"{self.domain_name}_{fuse_id}"
             candidates = [
                 out_dir / f"{base}_runs_def.nc",
                 out_dir / f"{base}_runs_best.nc",
@@ -959,7 +909,7 @@ class FUSERunner(BaseModelRunner):
         ]
         runoff_src = next((v for v in candidates if v in fuse_ds.data_vars), None)
         if runoff_src is None:
-            raise ValueError(f"No suitable runoff variable found in FUSE output. "
+            raise ModelExecutionError(f"No suitable runoff variable found in FUSE output. "
                             f"Available: {list(fuse_ds.data_vars)}")
 
         # --- Identify spatial axis (one of latitude/longitude must have length > 1)
@@ -1053,8 +1003,9 @@ class FUSERunner(BaseModelRunner):
     def _copy_default_to_best_params(self):
         """Copy default parameter file to best parameter file for snow optimization."""
         try:
-            default_params = self.output_path / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_para_def.nc"
-            best_params = self.output_path / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_para_sce.nc"
+            fuse_id = self._get_fuse_file_id()
+            default_params = self.output_path / f"{self.domain_name}_{fuse_id}_para_def.nc"
+            best_params = self.output_path / f"{self.domain_name}_{fuse_id}_para_sce.nc"
             
             if default_params.exists():
                 import shutil
@@ -1066,18 +1017,6 @@ class FUSERunner(BaseModelRunner):
         except Exception as e:
             self.logger.error(f"Error copying default to best parameters: {str(e)}")
             
-    def _get_install_path(self) -> Path:
-        """Get the FUSE installation path."""
-        fuse_path = self.config.get('FUSE_INSTALL_PATH', 'default')
-        if fuse_path == 'default':
-            return self.data_dir / 'installs' / 'fuse' / 'bin'
-        return Path(fuse_path)
-
-    def _get_output_path(self) -> Path:
-        """Get the path for FUSE outputs."""
-        if self.config.get('EXPERIMENT_OUTPUT_FUSE', 'default') == 'default':
-            return self.project_dir / "simulations" / self.config.get('EXPERIMENT_ID') / "FUSE"
-        return Path(self.config.get('EXPERIMENT_OUTPUT_FUSE'))
 
     def _execute_fuse(self, mode, para_file=None) -> bool:
         """
@@ -1106,23 +1045,18 @@ class FUSERunner(BaseModelRunner):
         if mode == 'run_pre' and para_file:
             command.append(str(para_file))
         
-        # Create log directory
-        log_dir = self.output_path / 'logs'
-        log_dir.mkdir(exist_ok=True)
-        log_file = log_dir / 'fuse_run.log'
-        
+        # Create log file path
+        log_file = self.get_log_path() / 'fuse_run.log'
+
         try:
-            with open(log_file, 'w') as f:
-                result = subprocess.run(
-                    command,
-                    check=True,
-                    stdout=f,
-                    stderr=subprocess.STDOUT,
-                    text=True
-                )
-            self.logger.debug(f"FUSE execution completed with return code: {result.returncode}")
+            result = self.execute_model_subprocess(
+                command,
+                log_file,
+                check=False,  # Don't raise, we'll return boolean
+                success_message=f"FUSE execution completed with return code: {result.returncode if 'result' in locals() else 0}"
+            )
             return result.returncode == 0
-            
+
         except subprocess.CalledProcessError as e:
             self.logger.error(f"FUSE execution failed with error: {str(e)}")
             return False
@@ -1216,4 +1150,3 @@ class FUSERunner(BaseModelRunner):
             if file.exists():
                 shutil.copy2(file, backup_dir / file.name)
                 self.logger.info(f"Backed up {file.name}")
-

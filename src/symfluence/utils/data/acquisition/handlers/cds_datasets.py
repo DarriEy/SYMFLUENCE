@@ -323,7 +323,16 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             'si10': 'windspd',  # CERRA provides this directly
             'tp': 'pptrate',
             'ssrd': 'SWRadAtm',
-            'strd': 'LWRadAtm'
+            'strd': 'LWRadAtm',
+            # Full variable names (for CARRA/CERRA)
+            'surface_thermal_radiation_downwards': 'LWRadAtm',
+            'surface_solar_radiation_downwards': 'SWRadAtm',
+            'total_precipitation': 'pptrate',
+            '2m_temperature': 'airtemp',
+            '2m_relative_humidity': 'r2',
+            '10m_u_component_of_wind': 'wind_u',
+            '10m_v_component_of_wind': 'wind_v',
+            'surface_pressure': 'airpres'
         }
         return ds.rename({k: v for k, v in rename_map.items() if k in ds.variables})
 

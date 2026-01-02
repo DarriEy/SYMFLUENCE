@@ -3,13 +3,23 @@
 
 from pathlib import Path
 import logging
-from typing import Dict, Any, Optional, List
-from symfluence.utils.data.preprocessing.agnosticPreProcessor import forcingResampler, geospatialStatistics 
-from symfluence.utils.data.utilities.variable_utils import VariableHandler 
-from symfluence.utils.data.acquisition.data_utils import ObservedDataProcessor 
+from typing import Dict, Any, Optional, List, Union
+from symfluence.utils.data.preprocessing.agnosticPreProcessor import ForcingResampler, GeospatialStatistics
+from symfluence.utils.data.utilities.variable_utils import VariableHandler
+from symfluence.utils.data.acquisition.observed_processor import ObservedDataProcessor
 from symfluence.utils.data.observation.registry import ObservationRegistry
 from symfluence.utils.data.acquisition.acquisition_service import AcquisitionService
 from symfluence.utils.data.preprocessing.em_earth_integrator import EMEarthIntegrator
+from symfluence.utils.exceptions import (
+    DataAcquisitionError,
+    symfluence_error_handler
+)
+
+# Import for type checking only (avoid circular imports)
+try:
+    from symfluence.utils.config.models import SymfluenceConfig
+except ImportError:
+    SymfluenceConfig = None
 
 class DataManager:
     """
@@ -19,11 +29,18 @@ class DataManager:
     - AcquisitionService: For data download and initial acquisition
     - EMEarthIntegrator: For EM-Earth data processing
     - ObservedDataProcessor: For streamflow/observation processing
-    - geospatialStatistics/forcingResampler: For preprocessing
+    - GeospatialStatistics/ForcingResampler: For preprocessing
     """
     
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
-        self.config = config
+    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: logging.Logger):
+        # Phase 2: Support both typed config and dict config for backward compatibility
+        if SymfluenceConfig and isinstance(config, SymfluenceConfig):
+            self.typed_config = config
+            self.config = config.to_dict(flatten=True)
+        else:
+            self.typed_config = None
+            self.config = config
+
         self.logger = logger
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = self.config.get('DOMAIN_NAME')
@@ -49,10 +66,17 @@ class DataManager:
     def process_observed_data(self):
         """
         Process observed data including streamflow and additional variables.
+
+        Raises:
+            DataAcquisitionError: If data processing fails
         """
         self.logger.info("Processing observed data")
-        
-        try:
+
+        with symfluence_error_handler(
+            "observed data processing",
+            self.logger,
+            error_type=DataAcquisitionError
+        ):
             # 1. Traditional streamflow processing
             observed_data_processor = ObservedDataProcessor(self.config, self.logger)
             observed_data_processor.process_streamflow_data()
@@ -64,7 +88,7 @@ class DataManager:
             additional_obs = self.config.get('ADDITIONAL_OBSERVATIONS', [])
             if isinstance(additional_obs, str):
                 additional_obs = [o.strip() for o in additional_obs.split(',')]
-            
+
             for obs_type in additional_obs:
                 try:
                     handler = ObservationRegistry.get_handler(obs_type, self.config, self.logger)
@@ -74,47 +98,44 @@ class DataManager:
                     self.logger.warning(f"Failed to process additional observation {obs_type}: {e}")
 
             self.logger.info("Observed data processing completed successfully")
-            
-        except Exception as e:
-            self.logger.error(f"Error during observed data processing: {str(e)}")
-            raise
 
     def run_model_agnostic_preprocessing(self):
         """
         Run model-agnostic preprocessing including basin averaging and resampling.
+
+        Raises:
+            DataAcquisitionError: If preprocessing fails
         """
         self.logger.info("Starting model-agnostic preprocessing")
-        
+
         # Create required directories
         basin_averaged_data = self.project_dir / 'forcing' / 'basin_averaged_data'
         catchment_intersection_dir = self.project_dir / 'shapefiles' / 'catchment_intersection'
-        
+
         basin_averaged_data.mkdir(parents=True, exist_ok=True)
         catchment_intersection_dir.mkdir(parents=True, exist_ok=True)
-        
-        try:
+
+        with symfluence_error_handler(
+            "model-agnostic preprocessing",
+            self.logger,
+            error_type=DataAcquisitionError
+        ):
             # Run geospatial statistics
             self.logger.info("Running geospatial statistics")
-            gs = geospatialStatistics(self.config, self.logger)
+            gs = GeospatialStatistics(self.config, self.logger)
             gs.run_statistics()
-            
+
             # Run forcing resampling
             self.logger.info("Running forcing resampling")
-            fr = forcingResampler(self.config, self.logger)
+            fr = ForcingResampler(self.config, self.logger)
             fr.run_resampling()
-            
+
             # Integrate EM-Earth data if supplementation is enabled
             if self.config.get('SUPPLEMENT_FORCING', False):
                 self.logger.info("SUPPLEMENT_FORCING enabled - integrating EM-Earth data")
                 self.em_earth_integrator.integrate_em_earth_data()
-            
+
             self.logger.info("Model-agnostic preprocessing completed successfully")
-            
-        except Exception as e:
-            self.logger.error(f"Error during model-agnostic preprocessing: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            raise
     
     def validate_data_directories(self) -> bool:
         """Validate that required data directories exist."""

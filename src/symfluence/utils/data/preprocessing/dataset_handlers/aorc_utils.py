@@ -119,37 +119,9 @@ class AORCHandler(BaseDatasetHandler):
             ds['pptrate'] = p_rate
 
 
-        # ---- Set / clean other attributes (as you already do) ----
-        if 'airpres' in ds:
-            ds['airpres'].attrs = {
-                'units': 'Pa',
-                'long_name': 'air pressure',
-                'standard_name': 'air_pressure'
-            }
-        if 'airtemp' in ds:
-            ds['airtemp'].attrs = {
-                'units': 'K',
-                'long_name': 'air temperature',
-                'standard_name': 'air_temperature'
-            }
-        if 'spechum' in ds:
-            ds['spechum'].attrs = {
-                'units': 'kg kg-1',
-                'long_name': 'specific humidity',
-                'standard_name': 'specific_humidity'
-            }
-        if 'LWRadAtm' in ds:
-            ds['LWRadAtm'].attrs = {
-                'units': 'W m-2',
-                'long_name': 'downward longwave radiation at the surface',
-                'standard_name': 'surface_downwelling_longwave_flux_in_air'
-            }
-        if 'SWRadAtm' in ds:
-            ds['SWRadAtm'].attrs = {
-                'units': 'W m-2',
-                'long_name': 'downward shortwave radiation at the surface',
-                'standard_name': 'surface_downwelling_shortwave_flux_in_air'
-            }
+        # Apply standard CF-compliant attributes (uses centralized definitions)
+        # Skip pptrate since we already set it with custom units above
+        ds = self.apply_standard_attributes(ds)
 
         return ds
 

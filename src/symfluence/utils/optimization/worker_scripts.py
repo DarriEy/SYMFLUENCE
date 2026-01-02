@@ -1616,8 +1616,14 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
             secondary_target = create_target(secondary_target_type)
             
             # Calculate metrics
-            primary_metrics = primary_target.calculate_metrics(summa_dir, mizuroute_dir)
-            secondary_metrics = secondary_target.calculate_metrics(summa_dir, mizuroute_dir)
+            primary_metrics = primary_target.calculate_metrics(
+                summa_dir,
+                mizuroute_dir=mizuroute_dir
+            )
+            secondary_metrics = secondary_target.calculate_metrics(
+                summa_dir,
+                mizuroute_dir=mizuroute_dir
+            )
             
             obj1 = extract_metric(primary_metrics, primary_metric)
             obj2 = extract_metric(secondary_metrics, secondary_metric)
@@ -1627,7 +1633,10 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
             target_type = task.get('calibration_variable', 'streamflow')
             target = create_target(target_type)
             
-            metrics = target.calculate_metrics(summa_dir, mizuroute_dir)
+            metrics = target.calculate_metrics(
+                summa_dir,
+                mizuroute_dir=mizuroute_dir
+            )
             
             obj1 = extract_metric(metrics, 'NSE')
             obj2 = extract_metric(metrics, 'KGE')

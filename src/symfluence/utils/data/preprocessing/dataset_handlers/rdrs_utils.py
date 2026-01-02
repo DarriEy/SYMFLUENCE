@@ -47,16 +47,16 @@ class RDRSHandler(BaseDatasetHandler):
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """
         Process RDRS dataset with variable renaming and unit conversions.
-        
+
         Unit conversions applied:
         - airpres: mb -> Pa (multiply by 100)
         - airtemp: °C -> K (add 273.15)
         - pptrate: mm/hr -> m/s (divide by 3600)
         - windspd: knots -> m/s (multiply by 0.514444)
-        
+
         Args:
             ds: Input RDRS dataset
-            
+
         Returns:
             Processed dataset with standardized variables and units
         """
@@ -64,58 +64,26 @@ class RDRSHandler(BaseDatasetHandler):
         variable_mapping = self.get_variable_mapping()
         existing_vars = {old: new for old, new in variable_mapping.items() if old in ds.variables}
         ds = ds.rename(existing_vars)
-        
-        # Apply unit conversions
+
+        # Apply unit conversions (must happen before attribute setting)
         if 'airpres' in ds:
             ds['airpres'] = ds['airpres'] * 100
-            ds['airpres'].attrs.update({
-                'units': 'Pa', 
-                'long_name': 'air pressure', 
-                'standard_name': 'air_pressure'
-            })
-        
+
         if 'airtemp' in ds:
             ds['airtemp'] = ds['airtemp'] + 273.15
-            ds['airtemp'].attrs.update({
-                'units': 'K', 
-                'long_name': 'air temperature', 
-                'standard_name': 'air_temperature'
-            })
-        
+
         if 'pptrate' in ds:
             ds['pptrate'] = ds['pptrate'] / 3600
-            ds['pptrate'].attrs.update({
-                'units': 'm s-1', 
-                'long_name': 'precipitation rate', 
-                'standard_name': 'precipitation_rate'
-            })
-        
+
         if 'windspd' in ds:
             ds['windspd'] = ds['windspd'] * 0.514444
-            ds['windspd'].attrs.update({
-                'units': 'm s-1', 
-                'long_name': 'wind speed', 
-                'standard_name': 'wind_speed'
-            })
-        
-        if 'LWRadAtm' in ds:
-            ds['LWRadAtm'].attrs.update({
-                'long_name': 'downward longwave radiation at the surface', 
-                'standard_name': 'surface_downwelling_longwave_flux_in_air'
-            })
-        
-        if 'SWRadAtm' in ds:
-            ds['SWRadAtm'].attrs.update({
-                'long_name': 'downward shortwave radiation at the surface', 
-                'standard_name': 'surface_downwelling_shortwave_flux_in_air'
-            })
-        
-        if 'spechum' in ds:
-            ds['spechum'].attrs.update({
-                'long_name': 'specific humidity', 
-                'standard_name': 'specific_humidity'
-            })
-        
+
+        # Apply standard CF-compliant attributes (uses centralized definitions)
+        # RDRS precipitation is in m/s after conversion
+        ds = self.apply_standard_attributes(ds, overrides={
+            'pptrate': {'units': 'm s-1', 'standard_name': 'precipitation_rate'}
+        })
+
         return ds
     
     def get_coordinate_names(self) -> Tuple[str, str]:

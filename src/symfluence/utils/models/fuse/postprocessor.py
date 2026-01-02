@@ -24,7 +24,7 @@ from ..mixins import PETCalculatorMixin
 from symfluence.utils.common.constants import UnitConversion
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from symfluence.utils.evaluation.calculate_sim_stats import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE # type: ignore
+from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE
 from symfluence.utils.data.utilities.variable_utils import VariableHandler # type: ignore
 
 

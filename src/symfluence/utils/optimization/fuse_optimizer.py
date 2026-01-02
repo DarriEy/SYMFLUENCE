@@ -24,8 +24,12 @@ import torch.optim as optim
 from tqdm import tqdm
 import logging
 
-from fuse_parameter_manager import FUSEParameterManager
-from fuse_calibration_targets import FUSECalibrationTarget, FUSEStreamflowTarget, FUSESnowTarget
+from symfluence.utils.optimization.fuse_parameter_manager import FUSEParameterManager
+from symfluence.utils.optimization.fuse_calibration_targets import (
+    FUSECalibrationTarget,
+    FUSEStreamflowTarget,
+    FUSESnowTarget,
+)
 
 
 class FUSEOptimizer:
@@ -1992,9 +1996,9 @@ class FUSEOptimizer:
             param_file = self._create_parameter_file_for_iteration(params, iteration)
             list_file = self._create_parameter_list_file(param_file, iteration)
             
-            from symfluence.utils.models.fuse_utils import FUSERunner
+            from symfluence.utils.models.fuse import FUSERunner
             fuse_runner = FUSERunner(self.config, self.logger)
-            
+
             # Use run_pre with parameter list file
             success = fuse_runner._execute_fuse('run_pre', list_file)
             return bool(success)
@@ -2109,13 +2113,13 @@ class FUSEOptimizer:
         """Execute FUSE model using run_def with updated constraints, and
         run mizuRoute automatically for distributed mode."""
         try:
-            from symfluence.utils.models.fuse_utils import FUSERunner
+            from symfluence.utils.models.fuse import FUSERunner
             fuse_runner = FUSERunner(self.config, self.logger)
 
             spatial = str(self.config.get('FUSE_SPATIAL_MODE', 'lumped')).lower()
 
             # If distributed/semi_distributed and user asked for mizuRoute, let the runner
-            # handle routing just like in fuse_utils.
+            # handle routing automatically.
             if self.config.get('FUSE_SPATIAL_MODE', 'lumped') == 'distributed':
                 result_path = fuse_runner.run_fuse()
                 return result_path is not None

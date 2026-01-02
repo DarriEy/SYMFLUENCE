@@ -9,6 +9,7 @@ import requests
 import zipfile
 import shutil
 from pathlib import Path
+from symfluence.utils.data.cache import RawForcingCache
 
 
 # Test data bundle configuration
@@ -23,7 +24,7 @@ FALLBACK_URL = f"https://github.com/DarriEy/SYMFLUENCE/releases/download/example
 
 
 @pytest.fixture(scope="session")
-def example_data_bundle(symfluence_data_root):
+def example_data_bundle(symfluence_data_root, symfluence_code_dir):
     """
     Download and extract example data bundle from GitHub release.
 
@@ -41,6 +42,14 @@ def example_data_bundle(symfluence_data_root):
     """
     data_root = symfluence_data_root
     marker_file = data_root / f".{BUNDLE_NAME}_installed"
+    read_only_root = symfluence_code_dir.parent / "SYMFLUENCE_data"
+    read_only_marker = read_only_root / f".{BUNDLE_NAME}_installed"
+
+    if marker_file.exists():
+        return data_root
+
+    if read_only_root != data_root and read_only_marker.exists():
+        return read_only_root
 
     # Check if already downloaded
     if not marker_file.exists():
@@ -187,3 +196,71 @@ def paradise_domain(example_data_bundle):
     if not domain_path.exists():
         pytest.skip(f"Domain not found: {domain_path}")
     return domain_path
+
+
+@pytest.fixture(scope="session")
+def raw_forcing_cache(example_data_bundle, symfluence_data_root):
+    """
+    Session-scoped fixture providing pre-downloaded raw forcing data.
+
+    Checks for raw forcing data in the example data bundle first,
+    then falls back to the global cache if not found.
+
+    This fixture enables fast test execution by avoiding redundant
+    API calls to CDS, ERA5, AORC, etc.
+
+    Returns:
+        callable: Function to retrieve forcing data by dataset/domain/time
+                  Returns Path if cached, None if needs download
+    """
+    # Check if raw_forcing_data exists in bundle
+    bundle_forcing_dir = example_data_bundle / "raw_forcing_data"
+
+    # Global cache location
+    cache_root = symfluence_data_root / "cache" / "raw_forcing"
+
+    def _get_forcing(dataset: str, domain: str, start_time: str, end_time: str):
+        """
+        Get cached raw forcing data if available.
+
+        Parameters
+        ----------
+        dataset : str
+            Forcing dataset name (e.g., "ERA5", "CARRA", "CERRA")
+        domain : str
+            Domain name (e.g., "paradise", "iceland", "sweden")
+        start_time : str
+            Start time in ISO format
+        end_time : str
+            End time in ISO format
+
+        Returns
+        -------
+        Path or None
+            Path to cached forcing file if available, None otherwise
+        """
+        # Try bundle first (pre-packaged test data)
+        if bundle_forcing_dir.exists():
+            # Look for file matching pattern: {domain}_{start}_{end}.nc
+            pattern = f"{domain}_{start_time}_{end_time}.nc"
+            dataset_dir = bundle_forcing_dir / dataset.upper()
+            if dataset_dir.exists():
+                cache_file = dataset_dir / pattern
+                if cache_file.exists():
+                    return cache_file
+
+                # Try without exact time match (fuzzy match)
+                for f in dataset_dir.glob(f"{domain}*.nc"):
+                    return f  # Return first match
+
+        # Try global cache second
+        if cache_root.exists():
+            cache = RawForcingCache(cache_root=cache_root)
+            # Note: This requires knowing the cache key generation logic
+            # For now, return None and let the download proceed
+            # Future enhancement: integrate with cache.get() using proper key
+
+        # No cached data available
+        return None
+
+    return _get_forcing

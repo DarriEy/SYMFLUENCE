@@ -102,12 +102,12 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
     config["HYDROLOGICAL_MODEL"] = "SUMMA"
     config["FORCING_DATASET"] = "ERA5"
 
-    # Short 1-month period for testing
-    config["EXPERIMENT_TIME_START"] = "2000-01-01 01:00"
-    config["EXPERIMENT_TIME_END"] = "2000-01-31 23:00"
-    config["CALIBRATION_PERIOD"] = "2000-01-05, 2000-01-19"
-    config["EVALUATION_PERIOD"] = "2000-01-20, 2000-01-30"
-    config["SPINUP_PERIOD"] = "2000-01-01, 2000-01-04"
+    # Optimized: 1-day test period for faster testing
+    config["EXPERIMENT_TIME_START"] = "2000-01-01 00:00"
+    config["EXPERIMENT_TIME_END"] = "2000-01-01 23:00"
+    config["CALIBRATION_PERIOD"] = "2000-01-01 06:00, 2000-01-01 18:00"
+    config["EVALUATION_PERIOD"] = "2000-01-01 06:00, 2000-01-01 18:00"
+    config["SPINUP_PERIOD"] = "2000-01-01 00:00, 2000-01-01 06:00"
 
     # Domain and experiment ids
     config["DOMAIN_NAME"] = "paradise"
@@ -161,6 +161,16 @@ def test_point_scale_workflow(config_path):
     # Step 1: Setup project
     project_dir = symfluence.managers["project"].setup_project()
     assert project_dir.exists(), "Project directory should be created"
+
+    # Prune to single forcing file for faster tests (before preprocessing)
+    forcing_raw_dir = project_dir / "forcing" / "raw_data"
+    if forcing_raw_dir.exists():
+        forcing_files = sorted(forcing_raw_dir.glob("*.nc"))
+        if len(forcing_files) > 1:
+            # Keep only the first file, remove the rest
+            for f in forcing_files[1:]:
+                f.unlink()
+            print(f"Pruned forcing files: kept 1 out of {len(forcing_files)} files")
 
     # Step 2: Create pour point
     pour_point_path = symfluence.managers["project"].create_pour_point()

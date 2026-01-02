@@ -87,6 +87,9 @@ SYMFLUENCE uses a comprehensive testing strategy with multiple test levels to en
 - ✅ Basic integration tests
 - ✅ 3-hour SUMMA workflow (quick e2e)
 
+Note: tests marked `requires_data`, `requires_cloud`, or `requires_acquisition` are skipped by
+default unless `--run-data` or `--run-cloud` (or `--run-full`) is provided.
+
 ### Full Tests (~90 minutes) **[For main branch & weekly]**
 **Command:** Multiple pytest commands
 **When:** Push to main, weekly schedule
@@ -113,7 +116,7 @@ Tests are organized using pytest markers defined in `pytest.ini`:
 - `@pytest.mark.slow` - Slow tests (>30s)
 
 ### Requirement Markers
-- `@pytest.mark.requires_data` - Requires external data downloads
+- `@pytest.mark.requires_data` - Requires local data bundles (skipped unless `--run-data`)
 - `@pytest.mark.requires_cloud` - Requires cloud API credentials
 - `@pytest.mark.requires_binaries` - Requires external binaries (SUMMA, etc.)
 
@@ -225,6 +228,7 @@ pytest -v -m "integration"
 ### Run all tests except those requiring data
 ```bash
 pytest -v -m "not requires_data"
+pytest -v --run-data -m "requires_data and not requires_cloud"
 ```
 
 ### Run smoke tests

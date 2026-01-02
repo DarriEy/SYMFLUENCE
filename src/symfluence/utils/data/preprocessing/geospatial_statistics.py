@@ -9,28 +9,39 @@ import warnings
 from rasterio.windows import from_bounds
 from shapely.geometry import box
 
+from symfluence.utils.data.path_manager import PathManager
+
+
 class GeospatialStatistics:
+    """
+    Calculates geospatial statistics for catchments (elevation, soil, land cover).
+
+    Uses PathManager for standardized path resolution.
+    """
+
     def __init__(self, config, logger):
         self.config = config
         self.logger = logger
-        self.project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}"
-        self.catchment_path = self._get_file_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
+
+        # Use PathManager for path resolution
+        self.paths = PathManager(config)
+        self.project_dir = self.paths.project_dir
+
+        # Resolve paths using PathManager
+        self.catchment_path = self.paths.resolve('CATCHMENT_PATH', 'shapefiles/catchment')
+
+        self.catchment_name = config.get('CATCHMENT_SHP_NAME', 'default')
         if self.catchment_name == 'default':
-            self.catchment_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{str(self.config.get('DOMAIN_DISCRETIZATION')).replace(',','_')}.shp"
-        dem_name = self.config.get('DEM_NAME')
+            discretization = str(config.get('DOMAIN_DISCRETIZATION', '')).replace(',', '_')
+            self.catchment_name = f"{self.paths.domain_name}_HRUs_{discretization}.shp"
+
+        dem_name = config.get('DEM_NAME', 'default')
         if dem_name == "default":
-            dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
+            dem_name = f"domain_{self.paths.domain_name}_elv.tif"
 
-        self.dem_path = self._get_file_path('DEM_PATH', f"attributes/elevation/dem/{dem_name}")
-        self.soil_path = self._get_file_path('SOIL_CLASS_PATH', 'attributes/soilclass')
-        self.land_path = self._get_file_path('LAND_CLASS_PATH', 'attributes/landclass')
-
-    def _get_file_path(self, file_type, file_def_path):
-        if self.config.get(f'{file_type}') == 'default':
-            return self.project_dir / file_def_path
-        else:
-            return Path(self.config.get(f'{file_type}'))
+        self.dem_path = self.paths.resolve('DEM_PATH', f"attributes/elevation/dem/{dem_name}")
+        self.soil_path = self.paths.resolve('SOIL_CLASS_PATH', 'attributes/soilclass')
+        self.land_path = self.paths.resolve('LAND_CLASS_PATH', 'attributes/landclass')
 
     def get_nodata_value(self, raster_path):
         with rasterio.open(raster_path) as src:
@@ -47,7 +58,7 @@ class GeospatialStatistics:
         OOM on large domains like NWM North America (~2.7M catchments).
         """
         # Get the output path and check if the file already exists
-        intersect_path = self._get_file_path('INTERSECT_DEM_PATH', 'shapefiles/catchment_intersection/with_dem')
+        intersect_path = self.paths.resolve('INTERSECT_DEM_PATH', 'shapefiles/catchment_intersection/with_dem')
         intersect_name = self.config.get('INTERSECT_DEM_NAME')
         if intersect_name == 'default':
             intersect_name = 'catchment_with_dem.shp'
@@ -339,7 +350,7 @@ class GeospatialStatistics:
     def calculate_soil_stats(self):
         """Calculate soil statistics with output file checking and CRS alignment"""
         # Get the output path and check if the file already exists
-        intersect_path = self._get_file_path('INTERSECT_SOIL_PATH', 'shapefiles/catchment_intersection/with_soilgrids')
+        intersect_path = self.paths.resolve('INTERSECT_SOIL_PATH', 'shapefiles/catchment_intersection/with_soilgrids')
         intersect_name = self.config.get('INTERSECT_SOIL_NAME')
         if intersect_name == 'default':
             intersect_name = 'catchment_with_soilclass.shp'
@@ -431,7 +442,7 @@ class GeospatialStatistics:
     def calculate_land_stats(self):
         """Calculate land statistics with output file checking and CRS alignment"""
         # Get the output path and check if the file already exists
-        intersect_path = self._get_file_path('INTERSECT_LAND_PATH', 'shapefiles/catchment_intersection/with_landclass')
+        intersect_path = self.paths.resolve('INTERSECT_LAND_PATH', 'shapefiles/catchment_intersection/with_landclass')
         intersect_name = self.config.get('INTERSECT_LAND_NAME')
         if intersect_name == 'default':
             intersect_name = 'catchment_with_landclass.shp'
@@ -530,7 +541,7 @@ class GeospatialStatistics:
         total = 3  # Total number of statistics operations
         
         # Check soil stats
-        intersect_soil_path = self._get_file_path('INTERSECT_SOIL_PATH', 'shapefiles/catchment_intersection/with_soilgrids')
+        intersect_soil_path = self.paths.resolve('INTERSECT_SOIL_PATH', 'shapefiles/catchment_intersection/with_soilgrids')
         intersect_soil_name = self.config.get('INTERSECT_SOIL_NAME')
         if intersect_soil_name == 'default':
             intersect_soil_name = 'catchment_with_soilclass.shp'
@@ -551,7 +562,7 @@ class GeospatialStatistics:
             self.calculate_soil_stats()
         
         # Check land stats
-        intersect_land_path = self._get_file_path('INTERSECT_LAND_PATH', 'shapefiles/catchment_intersection/with_landclass')
+        intersect_land_path = self.paths.resolve('INTERSECT_LAND_PATH', 'shapefiles/catchment_intersection/with_landclass')
         intersect_land_name = self.config.get('INTERSECT_LAND_NAME')
         if intersect_land_name == 'default':
             intersect_land_name = 'catchment_with_landclass.shp'
@@ -572,7 +583,7 @@ class GeospatialStatistics:
             self.calculate_land_stats()
         
         # Check elevation stats
-        intersect_dem_path = self._get_file_path('INTERSECT_DEM_PATH', 'shapefiles/catchment_intersection/with_dem')
+        intersect_dem_path = self.paths.resolve('INTERSECT_DEM_PATH', 'shapefiles/catchment_intersection/with_dem')
         intersect_dem_name = self.config.get('INTERSECT_DEM_NAME')
         if intersect_dem_name == 'default':
             intersect_dem_name = 'catchment_with_dem.shp'

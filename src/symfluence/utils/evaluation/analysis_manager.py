@@ -9,7 +9,7 @@ from symfluence.utils.evaluation.decision_analysis import DecisionAnalyzer # typ
 from symfluence.utils.evaluation.sensitivity_analysis import SensitivityAnalyzer # type: ignore
 from symfluence.utils.evaluation.benchmarking import Benchmarker, BenchmarkPreprocessor # type: ignore
 from symfluence.utils.reporting.result_vizualisation_utils import BenchmarkVizualiser # type: ignore
-from symfluence.utils.models.fuse_utils import FuseDecisionAnalyzer # type: ignore
+from symfluence.utils.models.fuse import FuseDecisionAnalyzer # type: ignore
 from symfluence.utils.evaluation.registry import EvaluationRegistry
 
 class AnalysisManager:
@@ -376,14 +376,16 @@ class AnalysisManager:
         results = {}
         
         # 1. Load observations
-        obs_data = self._load_all_observations()
+        # Note: ModelEvaluator can load observations from file if not provided,
+        # but here we might want to load them once if shared.
         
         # 2. Evaluate each variable
-        for var_type, obs_series in obs_data.items():
+        for var_type, sim_series in sim_results.items():
             evaluator = EvaluationRegistry.get_evaluator(var_type, self.config, self.logger)
-            if evaluator and var_type in sim_results:
+            if evaluator:
                 self.logger.info(f"Evaluating {var_type}")
-                results[var_type] = evaluator.calculate_metrics(sim_results[var_type], obs_series)
+                # calculate_metrics now handles aligning and filtering
+                results[var_type] = evaluator.calculate_metrics(sim_series, calibration_only=False)
                 
         return results
 
