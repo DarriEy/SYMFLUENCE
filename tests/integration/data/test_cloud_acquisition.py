@@ -38,14 +38,14 @@ def _check_cds_credentials():
 pytestmark = [pytest.mark.integration, pytest.mark.data, pytest.mark.requires_cloud, pytest.mark.slow]
 
 @pytest.fixture(scope="module")
-def base_config(tmp_path_factory, symfluence_code_dir, symfluence_data_root):
+def base_config(tmp_path_factory, symfluence_code_dir):
     """Create a base Paradise config for cloud acquisition tests."""
     tmp_path = tmp_path_factory.mktemp("cloud_acq")
     cfg_path = tmp_path / "test_config.yaml"
 
     # Load template
     config = load_config_template(symfluence_code_dir)
-    data_root = symfluence_data_root
+    data_root = tmp_path_factory.mktemp("cloud_data_root")
 
     # Base paths
     config["SYMFLUENCE_DATA_DIR"] = str(data_root)
