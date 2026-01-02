@@ -44,69 +44,28 @@ class CARRAHandler(BaseDatasetHandler):
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """
         Process CARRA dataset with variable renaming if needed.
-        
+
         CARRA data typically comes in standard units.
-        
+
         Args:
             ds: Input CARRA dataset
-            
+
         Returns:
             Processed dataset with standardized variables
         """
-        # CARRA data is typically already in correct format
+        # Rename variables using mapping
         variable_mapping = self.get_variable_mapping()
         existing_vars = {old: new for old, new in variable_mapping.items() if old in ds.variables}
-        
+
         if existing_vars:
             ds = ds.rename(existing_vars)
-        
-        # Ensure attributes are set correctly
-        if 'airpres' in ds:
-            ds['airpres'].attrs.update({
-                'units': 'Pa', 
-                'long_name': 'air pressure', 
-                'standard_name': 'air_pressure'
-            })
-        
-        if 'airtemp' in ds:
-            ds['airtemp'].attrs.update({
-                'units': 'K', 
-                'long_name': 'air temperature', 
-                'standard_name': 'air_temperature'
-            })
-        
-        if 'pptrate' in ds:
-            ds['pptrate'].attrs.update({
-                'units': 'm s-1', 
-                'long_name': 'precipitation rate', 
-                'standard_name': 'precipitation_rate'
-            })
-        
-        if 'windspd' in ds:
-            ds['windspd'].attrs.update({
-                'units': 'm s-1', 
-                'long_name': 'wind speed', 
-                'standard_name': 'wind_speed'
-            })
-        
-        if 'LWRadAtm' in ds:
-            ds['LWRadAtm'].attrs.update({
-                'long_name': 'downward longwave radiation at the surface', 
-                'standard_name': 'surface_downwelling_longwave_flux_in_air'
-            })
-        
-        if 'SWRadAtm' in ds:
-            ds['SWRadAtm'].attrs.update({
-                'long_name': 'downward shortwave radiation at the surface', 
-                'standard_name': 'surface_downwelling_shortwave_flux_in_air'
-            })
-        
-        if 'spechum' in ds:
-            ds['spechum'].attrs.update({
-                'long_name': 'specific humidity', 
-                'standard_name': 'specific_humidity'
-            })
-        
+
+        # Apply standard CF-compliant attributes (uses centralized definitions)
+        # CARRA precipitation is in m/s, override the default
+        ds = self.apply_standard_attributes(ds, overrides={
+            'pptrate': {'units': 'm s-1', 'standard_name': 'precipitation_rate'}
+        })
+
         return ds
     
     def get_coordinate_names(self) -> Tuple[str, str]:

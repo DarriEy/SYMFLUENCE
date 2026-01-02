@@ -8,11 +8,11 @@ API calls, tool execution, and conversation management.
 import sys
 from typing import Optional
 
-from .api_client import APIClient
-from .conversation_manager import ConversationManager
-from .tool_registry import ToolRegistry
+from symfluence.utils.agent.core.api_client import APIClient
+from symfluence.utils.agent.core.conversation_manager import ConversationManager
+from symfluence.utils.agent.core.tool_registry import ToolRegistry
 from .tool_executor import ToolExecutor
-from . import system_prompts
+from symfluence.utils.agent.core import system_prompts
 
 
 class AgentManager:
@@ -40,7 +40,7 @@ class AgentManager:
         self.api_client = APIClient(verbose=verbose)
         self.conversation_manager = ConversationManager(max_history=50)
         self.tool_registry = ToolRegistry(cli_manager)
-        self.tool_executor = ToolExecutor(cli_manager)
+        self.tool_executor = ToolExecutor(cli_manager, tool_registry=self.tool_registry)
 
     def run_interactive_mode(self) -> int:
         """
@@ -282,56 +282,17 @@ class AgentManager:
         print("Available Tools")
         print("="*60 + "\n")
 
-        print("Workflow Steps:")
-        print("-" * 60)
-        for step_name, step_info in self.cli_manager.workflow_steps.items():
-            print(f"  • {step_name}")
-            print(f"    {step_info['description']}")
-            print()
+        tools_by_category = self.tool_registry.get_tools_by_category()
 
-        print("\nBinary Management:")
-        print("-" * 60)
-        binary_tools = [
-            ("install_executables", "Install external modeling tools"),
-            ("validate_binaries", "Validate installed tools"),
-            ("run_doctor", "Run system diagnostics"),
-            ("show_tools_info", "Show installed tools information")
-        ]
-        for name, desc in binary_tools:
-            print(f"  • {name}")
-            print(f"    {desc}")
+        for category, tools in tools_by_category.items():
+            print(f"{category}:")
+            print("-" * 60)
+            for tool in tools:
+                name = tool["function"]["name"]
+                description = tool["function"]["description"]
+                print(f"  • {name}")
+                print(f"    {description}")
+                print()
             print()
-
-        print("\nConfiguration:")
-        print("-" * 60)
-        config_tools = [
-            ("list_config_templates", "List available config templates"),
-            ("update_config", "Update configuration file"),
-            ("validate_environment", "Validate system environment"),
-            ("validate_config_file", "Validate config file")
-        ]
-        for name, desc in config_tools:
-            print(f"  • {name}")
-            print(f"    {desc}")
-            print()
-
-        print("\nWorkflow Management:")
-        print("-" * 60)
-        mgmt_tools = [
-            ("show_workflow_status", "Show workflow status"),
-            ("list_workflow_steps", "List all workflow steps"),
-            ("resume_from_step", "Resume from specific step"),
-            ("clean_workflow_files", "Clean workflow files")
-        ]
-        for name, desc in mgmt_tools:
-            print(f"  • {name}")
-            print(f"    {desc}")
-            print()
-
-        print("\nDomain Setup:")
-        print("-" * 60)
-        print("  • setup_pour_point_workflow")
-        print("    Set up watershed modeling from pour point coordinates")
-        print()
 
         print("="*60 + "\n")

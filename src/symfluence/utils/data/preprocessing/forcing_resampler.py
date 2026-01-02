@@ -42,7 +42,7 @@ except ImportError:
 
 def _create_easymore_instance():
     if hasattr(easymore, "Easymore"):
-        return _create_easymore_instance()
+        return easymore.Easymore()
     if hasattr(easymore, "easymore"):
         return easymore.easymore()
     raise AttributeError("easymore module does not expose an Easymore class")
@@ -570,7 +570,7 @@ class ForcingResampler(PathResolverMixin):
             
             # Critical: Tell easymore to ONLY create the remapping weights
             esmr.only_create_remap_csv = True
-            esmr.save_csv = False
+            esmr.save_csv = True
             esmr.sort_ID = False
             
             # Create the weights
@@ -579,8 +579,18 @@ class ForcingResampler(PathResolverMixin):
             
             # Move the remap file to the final location
             temp_remap = temp_dir / f"{case_name}_remapping.csv"
-            if temp_remap.exists():
-                shutil.move(str(temp_remap), str(remap_file))
+            candidate_paths = [
+                temp_remap,
+                self.forcing_basin_path / f"{case_name}_remapping.csv",
+            ]
+            if not any(path.exists() for path in candidate_paths):
+                fallback = list(temp_dir.glob("*remapping*.csv")) + list(self.forcing_basin_path.glob("*remapping*.csv"))
+                if fallback:
+                    candidate_paths.extend(fallback)
+
+            remap_source = next((path for path in candidate_paths if path.exists()), None)
+            if remap_source is not None:
+                remap_source.replace(remap_file)
                 self.logger.info(f"Remapping weights created: {remap_file}")
             else:
                 raise FileNotFoundError(f"Expected remapping file not created: {temp_remap}")
@@ -666,6 +676,19 @@ class ForcingResampler(PathResolverMixin):
                 
                 esmr.author_name = 'SUMMA public workflow scripts'
                 esmr.case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
+                
+                target_shp_path = self.catchment_path / self.catchment_name
+                target_result = self._ensure_shapefile_wgs84(target_shp_path, "_wgs84")
+                if isinstance(target_result, tuple):
+                    target_shp_wgs84, actual_hru_field = target_result
+                else:
+                    target_shp_wgs84 = target_result
+                    actual_hru_field = self.config.get('CATCHMENT_SHP_HRUID')
+                
+                esmr.target_shp = str(target_shp_wgs84)
+                esmr.target_shp_ID = actual_hru_field
+                esmr.target_shp_lat = self.config.get('CATCHMENT_SHP_LAT')
+                esmr.target_shp_lon = self.config.get('CATCHMENT_SHP_LON')
                 
                 # Coordinate variables
                 # Get coordinate names from dataset handler

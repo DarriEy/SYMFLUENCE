@@ -5,6 +5,7 @@ Configuration management utilities for loading and writing test configs.
 """
 
 from pathlib import Path
+import os
 import yaml
 
 
@@ -47,3 +48,33 @@ def write_config(config, output_path):
 
     with open(output_path, 'w') as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+
+def has_cds_credentials():
+    """Return True when CDS credentials are configured via env or ~/.cdsapirc."""
+    env_url = os.environ.get("CDSAPI_URL")
+    env_key = os.environ.get("CDSAPI_KEY")
+    if env_url and env_key:
+        return True
+
+    cdsapirc = Path.home() / ".cdsapirc"
+    if not cdsapirc.exists():
+        return False
+
+    try:
+        content = cdsapirc.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+    has_url = False
+    has_key = False
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("url:"):
+            has_url = bool(stripped.split(":", 1)[1].strip())
+        elif stripped.startswith("key:"):
+            has_key = bool(stripped.split(":", 1)[1].strip())
+
+    return has_url and has_key

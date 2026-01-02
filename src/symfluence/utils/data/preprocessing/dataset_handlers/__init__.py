@@ -27,7 +27,11 @@ Usage:
     handler.create_shapefile(...)
 """
 
-from .base_dataset import BaseDatasetHandler
+from .base_dataset import (
+    BaseDatasetHandler,
+    STANDARD_VARIABLE_ATTRIBUTES,
+    apply_standard_variable_attributes,
+)
 from .dataset_registry import DatasetRegistry
 
 # Import all handlers to register them
@@ -43,6 +47,8 @@ from .hrrr_utils import HRRRHandler
 
 __all__ = [
     "BaseDatasetHandler",
+    "STANDARD_VARIABLE_ATTRIBUTES",
+    "apply_standard_variable_attributes",
     "DatasetRegistry",
     "RDRSHandler",
     "CASRHandler",

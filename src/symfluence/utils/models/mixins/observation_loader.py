@@ -14,6 +14,7 @@ import numpy as np
 import logging
 
 from symfluence.utils.common.constants import UnitConversion
+from symfluence.utils.exceptions import DataAcquisitionError
 
 try:
     import geopandas as gpd
@@ -176,15 +177,15 @@ class ObservationLoaderMixin:
         # Find datetime column
         datetime_col = self._find_datetime_column(df)
         if datetime_col is None:
-            raise ValueError(f"Could not identify datetime column. Columns: {list(df.columns)}")
+            raise DataAcquisitionError(f"Could not identify datetime column. Columns: {list(df.columns)}")
 
         # Find discharge column
         discharge_col, source_units = self._find_discharge_column(df)
         if discharge_col is None:
-            raise ValueError(f"Could not identify discharge column. Columns: {list(df.columns)}")
+            raise DataAcquisitionError(f"Could not identify discharge column. Columns: {list(df.columns)}")
 
-        # Parse datetime
-        times = pd.to_datetime(df[datetime_col], utc=True, errors='coerce')
+        # Parse datetime and drop timezone to avoid tz-aware/naive comparisons
+        times = pd.to_datetime(df[datetime_col], utc=True, errors='coerce').dt.tz_convert(None)
 
         # Create series
         series = pd.Series(
@@ -289,7 +290,7 @@ class ObservationLoaderMixin:
             if catchment_area_km2 is None:
                 catchment_area_km2 = self._get_catchment_area()
             if catchment_area_km2 is None:
-                raise ValueError("Catchment area required for mm ↔ cms conversion")
+                raise DataAcquisitionError("Catchment area required for mm ↔ cms conversion")
 
         # Conversions
         if source_units == 'cms':
@@ -314,7 +315,7 @@ class ObservationLoaderMixin:
             return series * catchment_area_km2 / UnitConversion.MM_HOUR_TO_CMS
 
         else:
-            raise ValueError(
+            raise DataAcquisitionError(
                 f"Unsupported unit conversion: {source_units} → {target_units}"
             )
 
@@ -418,4 +419,4 @@ class ObservationLoaderMixin:
             return ds
 
         else:
-            raise ValueError(f"Unknown output format: {output_format}")
+            raise DataAcquisitionError(f"Unknown output format: {output_format}")

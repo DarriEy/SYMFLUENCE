@@ -7,8 +7,8 @@ Tests the base class functionality shared across all model preprocessors.
 import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
-from src.symfluence.utils.models.base import BaseModelPreProcessor
-from src.symfluence.utils.exceptions import (
+from symfluence.utils.models.base import BaseModelPreProcessor
+from symfluence.utils.exceptions import (
     ConfigurationError,
     FileOperationError,
     ModelExecutionError
@@ -404,14 +404,15 @@ class TestErrorHandling:
 
         assert 'Failed to create directory' in str(exc_info.value)
 
-    def test_copy_base_settings_raises_on_missing_dir(self, preprocessor, tmp_path):
-        """Test that copy_base_settings raises FileOperationError for missing source."""
+    def test_copy_base_settings_raises_on_missing_dir(self, preprocessor, tmp_path, logger):
+        """Test that copy_base_settings logs warning but doesn't raise error for missing source."""
         non_existent = tmp_path / 'does_not_exist'
 
-        with pytest.raises(FileOperationError) as exc_info:
-            preprocessor.copy_base_settings(source_dir=non_existent)
+        # Should not raise error now, just log warning
+        preprocessor.copy_base_settings(source_dir=non_existent)
 
-        assert 'does not exist' in str(exc_info.value)
+        assert logger.warning.called
+        assert 'Base settings source directory does not exist' in logger.warning.call_args[0][0]
 
 
 if __name__ == '__main__':

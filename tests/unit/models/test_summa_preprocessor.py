@@ -7,8 +7,8 @@ Tests SUMMA-specific preprocessing functionality.
 import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
-from src.symfluence.utils.models.summa_utils import SummaPreProcessor
-from src.symfluence.utils.exceptions import ModelExecutionError
+from symfluence.utils.models.summa import SummaPreProcessor
+from symfluence.utils.exceptions import ModelExecutionError
 
 
 class TestSummaPreProcessorInitialization:
@@ -194,7 +194,7 @@ class TestSummaRegistration:
 
     def test_summa_registered_as_preprocessor(self):
         """Test that SUMMA is registered in the model registry."""
-        from src.symfluence.utils.models.registry import ModelRegistry
+        from symfluence.utils.models.registry import ModelRegistry
 
         # SUMMA should be registered
         assert 'SUMMA' in ModelRegistry._preprocessors

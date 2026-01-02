@@ -27,9 +27,9 @@ import torch.optim as optim
 from tqdm import tqdm
 import shutil
 
-from ngen_parameter_manager import NgenParameterManager
-from ngen_calibration_targets import NgenCalibrationTarget, NgenStreamflowTarget
-from ngen_worker_functions import (
+from .ngen_parameter_manager import NgenParameterManager
+from .ngen_calibration_targets import NgenCalibrationTarget, NgenStreamflowTarget
+from .ngen_worker_functions import (
     _apply_ngen_parameters_worker,
     _run_ngen_worker,
     _calculate_ngen_metrics_worker,
@@ -66,8 +66,8 @@ class NgenOptimizer:
         # ngen execution settings
         data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         project_dir = data_dir / f"domain_{self.domain_name}"
-        self.ngen_sim_dir = project_dir / 'simulations' / self.experiment_id / 'ngen'
-        self.ngen_setup_dir = project_dir / 'settings' / 'ngen'
+        self.ngen_sim_dir = project_dir / 'simulations' / self.experiment_id / 'NGEN'
+        self.ngen_setup_dir = project_dir / 'settings' / 'NGEN'
         
         # Results tracking
         self.results_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.domain_name}" / "optimization"
@@ -127,7 +127,7 @@ class NgenOptimizer:
             # Create process-specific directories (parallel_proc_00, parallel_proc_01, etc.)
             proc_base_dir = optimization_dir / f"parallel_proc_{proc_id:02d}"
             proc_ngen_dir = proc_base_dir / "ngen"
-            proc_settings_dir = proc_base_dir / "settings" / "ngen"
+            proc_settings_dir = proc_base_dir / "settings" / "NGEN"
             
             # Create directories
             for directory in [proc_base_dir, proc_ngen_dir, proc_settings_dir]:
@@ -233,22 +233,29 @@ class NgenOptimizer:
             if self.use_parallel and proc_id > 0:
                 # For parallel mode, metrics calculation needs to use process-specific output
                 # You may need to modify calibration_target.calculate_metrics to accept output_dir
-                metrics = self.calibration_target.calculate_metrics(self.experiment_id, output_dir=ngen_sim_dir)
+                metrics = self.calibration_target.calculate_metrics(
+                    experiment_id=self.experiment_id,
+                    output_dir=ngen_sim_dir
+                )
             else:
-                metrics = self.calibration_target.calculate_metrics(self.experiment_id)
+                metrics = self.calibration_target.calculate_metrics(
+                    experiment_id=self.experiment_id
+                )
             
             metric_name = self.optimization_metric.upper()
             if metric_name in metrics:
                 fitness = metrics[metric_name]
-                # Reset failure counter on success
-                if self.consecutive_failures > 0:
-                    self.logger.info(f"Model run successful after {self.consecutive_failures} failures")
-                    self.consecutive_failures = 0
-                self.logger.info(f"Fitness (proc {proc_id}): {metric_name}={fitness:.4f}")
-                return fitness
+            elif f"Calib_{metric_name}" in metrics:
+                fitness = metrics[f"Calib_{metric_name}"]
             else:
                 self.logger.error(f"Metric {metric_name} not in results")
                 return -999.0
+            # Reset failure counter on success
+            if self.consecutive_failures > 0:
+                self.logger.info(f"Model run successful after {self.consecutive_failures} failures")
+                self.consecutive_failures = 0
+            self.logger.info(f"Fitness (proc {proc_id}): {metric_name}={fitness:.4f}")
+            return fitness
                 
         except Exception as e:
             self.logger.error(f"Error evaluating parameters (proc {proc_id}): {e}")
@@ -798,7 +805,9 @@ class NgenOptimizer:
         self.logger.info("Evaluating initial NSGA-II population...")
         for i in range(self.population_size):
             params = self.param_manager.denormalize_parameters(population[i])
-            metrics = self.calibration_target.calculate_metrics(self.experiment_id)
+            metrics = self.calibration_target.calculate_metrics(
+                experiment_id=self.experiment_id
+            )
             
             # Extract objectives
             for j, obj in enumerate(self.objectives):
@@ -825,7 +834,9 @@ class NgenOptimizer:
             # Evaluate offspring
             for i in range(len(offspring)):
                 params = self.param_manager.denormalize_parameters(offspring[i])
-                metrics = self.calibration_target.calculate_metrics(self.experiment_id)
+                metrics = self.calibration_target.calculate_metrics(
+                    experiment_id=self.experiment_id
+                )
                 
                 for j, obj in enumerate(self.objectives):
                     offspring_objectives[i, j] = metrics.get(obj.upper(), -999.0)
@@ -1077,7 +1088,8 @@ class NgenOptimizer:
         elif optimizer_choice == 'LBFGS':
             optimizer = optim.LBFGS([x], lr=lr, max_iter=20, line_search_fn='strong_wolfe')
         else:
-            raise ValueError(f"Unknown optimizer: {optimizer_choice}")
+            from symfluence.utils.exceptions import OptimizationError
+            raise OptimizationError(f"Unknown optimizer: '{optimizer_choice}'. Supported: ADAM, LBFGS")
         
         # Optimization state
         best_loss = float('-inf') if self.optimization_metric.upper() in ['KGE', 'KGEp', 'NSE'] else float('inf')

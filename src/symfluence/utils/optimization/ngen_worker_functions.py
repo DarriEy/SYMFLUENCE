@@ -19,7 +19,7 @@ from typing import Dict, Any, List, Tuple, Optional
 
 # Add SYMFLUENCE root directory to path
 # File is at: SYMFLUENCE/utils/optimization/ngen_worker_functions.py
-# We need:  SYMFLUENCE/ (so we can import symfluence.utils.model_utils.ngen_utils)
+# We need:  SYMFLUENCE/ (so we can import symfluence.utils.models.ngen)
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 
@@ -41,7 +41,7 @@ def _apply_ngen_parameters_worker(config: Dict[str, Any], params: Dict[str, floa
         experiment_id = config.get('EXPERIMENT_ID')
         data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         
-        ngen_setup_dir = data_dir / f"domain_{domain_name}" / 'settings' / 'ngen'
+        ngen_setup_dir = data_dir / f"domain_{domain_name}" / 'settings' / 'NGEN'
         
         # Group parameters by module
         module_params = {}
@@ -120,8 +120,8 @@ def _run_ngen_worker(config: Dict[str, Any]) -> bool:
             parallel_config = config
             proc_id = 0
         
-        # Import NgenRunner from ngen_utils
-        from symfluence.utils.models.ngen_utils import NgenRunner
+        # Import NgenRunner from ngen package
+        from symfluence.utils.models.ngen import NgenRunner
         
         domain_name = parallel_config.get('DOMAIN_NAME')
         experiment_id = parallel_config.get('EXPERIMENT_ID')
@@ -176,7 +176,7 @@ def _calculate_ngen_metrics_worker(config: Dict[str, Any], metric: str = 'KGE') 
         target = NgenStreamflowTarget(config, project_dir, logger)
         
         # Calculate metrics
-        metrics = target.calculate_metrics(experiment_id)
+        metrics = target.calculate_metrics(experiment_id=experiment_id)
         
         # Return requested metric
         metric_upper = metric.upper()
@@ -259,7 +259,7 @@ def _extract_ngen_streamflow_worker(config: Dict[str, Any], experiment_id: str) 
         Path to extracted streamflow file, or None if failed
     """
     try:
-        from symfluence.utils.models.ngen_utils import NgenPostprocessor
+        from symfluence.utils.models.ngen import NgenPostprocessor
         import logging
         
         # Create minimal logger

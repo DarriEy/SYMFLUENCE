@@ -10,9 +10,13 @@ Provides shared infrastructure for all model preprocessing modules including:
 """
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union, Tuple
 import shutil
+
+import pandas as pd
+import xarray as xr
 
 from symfluence.utils.common.path_resolver import PathResolverMixin
 from symfluence.utils.common.constants import UnitConversion
@@ -24,6 +28,12 @@ from symfluence.utils.exceptions import (
     validate_directory_exists,
     symfluence_error_handler
 )
+
+# Import for type checking only (avoid circular imports)
+try:
+    from symfluence.utils.config.models import SymfluenceConfig
+except ImportError:
+    SymfluenceConfig = None
 
 
 class BaseModelPreProcessor(ABC, PathResolverMixin):
@@ -45,19 +55,25 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         forcing_basin_path: Directory for basin-averaged forcing data
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: Any):
         """
         Initialize base model preprocessor.
 
         Args:
-            config: Configuration dictionary
+            config: Configuration dictionary or SymfluenceConfig instance (Phase 2)
             logger: Logger instance
 
         Raises:
             ConfigurationError: If required configuration keys are missing
         """
-        # Core configuration
-        self.config = config
+        # Phase 2: Support both typed config and dict config for backward compatibility
+        if SymfluenceConfig and isinstance(config, SymfluenceConfig):
+            self.typed_config = config
+            self.config = config.to_dict(flatten=True)
+        else:
+            self.typed_config = None
+            self.config = config
+
         self.logger = logger
 
         # Validate required configuration keys
@@ -121,6 +137,24 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
 
         Must be implemented by subclasses to define the complete
         preprocessing pipeline for the specific model.
+
+        **Best Practice**: Implementations should use the `symfluence_error_handler`
+        context manager to ensure consistent error handling:
+
+        Example:
+            >>> def run_preprocessing(self):
+            ...     with symfluence_error_handler(
+            ...         f"{self.model_name} preprocessing",
+            ...         self.logger,
+            ...         error_type=ModelExecutionError
+            ...     ):
+            ...         # preprocessing steps here
+            ...         self.create_directories()
+            ...         self.prepare_forcing()
+            ...         # ...
+
+        Raises:
+            ModelExecutionError: If any step in the preprocessing pipeline fails
         """
         pass
 
@@ -202,26 +236,30 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
             FileOperationError: If settings cannot be copied
         """
         if source_dir is None:
-            # Try to find base settings in package
+            # Try to find base settings in config, then fall back to SYMFLUENCE_CODE_DIR
             try:
-                # Try to get base settings from package data
                 base_settings_key = f'SETTINGS_{self.model_name}_BASE_PATH'
                 source_dir = Path(self.config.get(base_settings_key, 'default'))
-
                 if source_dir == Path('default') or not source_dir.exists():
-                    self.logger.warning(
-                        f"Base settings directory not found for {self.model_name}. "
-                        f"Skipping settings copy."
-                    )
-                    return
+                    fallback_dir = self.get_base_settings_source_dir()
+                    if fallback_dir.exists():
+                        source_dir = fallback_dir
+                    else:
+                        self.logger.warning(
+                            f"Base settings directory not found for {self.model_name}. "
+                            f"Skipping settings copy."
+                        )
+                        return
             except Exception as e:
                 self.logger.warning(f"Could not locate base settings: {e}")
                 return
 
-        if not source_dir.exists():
-            raise FileOperationError(
-                f"Base settings source directory does not exist: {source_dir}"
+        if source_dir is not None and not source_dir.exists():
+            self.logger.warning(
+                f"Base settings source directory does not exist: {source_dir}. "
+                f"Skipping settings copy."
             )
+            return
 
         self.logger.info(f"Copying base settings from {source_dir} to {self.setup_dir}")
 
@@ -366,3 +404,183 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         """
         code_dir = Path(self.config.get('SYMFLUENCE_CODE_DIR'))
         return code_dir / '0_base_settings' / self.model_name
+
+    # =========================================================================
+    # Time Window Utilities
+    # =========================================================================
+
+    def get_simulation_time_window(self) -> Optional[Tuple[pd.Timestamp, pd.Timestamp]]:
+        """
+        Get simulation start/end times from typed config or dict config.
+
+        Handles both SymfluenceConfig and dict-based configuration with
+        consistent parsing and error handling.
+
+        Returns:
+            Tuple of (start_time, end_time) as pandas Timestamps, or None if
+            time window cannot be determined.
+        """
+        if self.typed_config:
+            start_raw = self.typed_config.domain.time_start
+            end_raw = self.typed_config.domain.time_end
+        else:
+            start_raw = self.config.get('EXPERIMENT_TIME_START')
+            end_raw = self.config.get('EXPERIMENT_TIME_END')
+
+        if not start_raw or not end_raw:
+            return None
+
+        try:
+            return pd.to_datetime(start_raw), pd.to_datetime(end_raw)
+        except Exception as exc:
+            self.logger.warning(f"Unable to parse simulation time window: {exc}")
+            return None
+
+    def subset_to_simulation_time(
+        self,
+        ds: xr.Dataset,
+        label: str = "Data"
+    ) -> xr.Dataset:
+        """
+        Subset dataset to the configured simulation time window.
+
+        Args:
+            ds: Dataset with a 'time' coordinate
+            label: Label for logging messages (e.g., "Forcing", "Observations")
+
+        Returns:
+            Dataset subset to simulation window, or original if subsetting fails
+        """
+        time_window = self.get_simulation_time_window()
+        if time_window is None or "time" not in ds.coords:
+            return ds
+
+        start_time, end_time = time_window
+        try:
+            subset = ds.sel(time=slice(start_time, end_time))
+        except Exception as exc:
+            self.logger.warning(f"Unable to subset {label} to simulation window: {exc}")
+            return ds
+
+        if len(subset.time) == 0:
+            self.logger.warning(
+                f"{label} has no records in simulation window; using full dataset"
+            )
+            return ds
+
+        self.logger.info(
+            f"{label} subset to simulation window: "
+            f"{subset.time.min().values} to {subset.time.max().values}"
+        )
+        return subset
+
+    def align_datasets_to_period(
+        self,
+        datasets: Dict[str, xr.Dataset],
+        start_time: Union[datetime, pd.Timestamp],
+        end_time: Union[datetime, pd.Timestamp],
+        freq: str = 'D'
+    ) -> Tuple[Dict[str, xr.Dataset], pd.DatetimeIndex]:
+        """
+        Align multiple datasets to a common time period with reindexing.
+
+        This is useful when combining forcing data, observations, and other
+        time series that may have slightly different time ranges.
+
+        Args:
+            datasets: Dict mapping names to xr.Dataset objects
+            start_time: Start of the alignment period
+            end_time: End of the alignment period
+            freq: Pandas frequency string for the time index (e.g., 'D', 'h')
+
+        Returns:
+            Tuple of (aligned_datasets dict, time_index)
+        """
+        time_index = pd.date_range(start=start_time, end=end_time, freq=freq)
+        aligned = {}
+
+        for name, ds in datasets.items():
+            try:
+                aligned[name] = ds.sel(time=slice(start_time, end_time)).reindex(time=time_index)
+            except Exception as exc:
+                self.logger.warning(f"Could not align {name} to time period: {exc}")
+                aligned[name] = ds
+
+        return aligned, time_index
+
+    # =========================================================================
+    # Template Method Pattern for Preprocessing
+    # =========================================================================
+
+    def run_preprocessing_template(self) -> bool:
+        """
+        Template method for preprocessing workflow.
+
+        Provides a standard preprocessing workflow that models can use by
+        overriding the hook methods. This ensures consistent error handling
+        and logging across all model preprocessors.
+
+        The workflow is:
+        1. _pre_setup() - Model-specific pre-setup (optional)
+        2. create_directories() - Create necessary directories
+        3. copy_base_settings() - Copy base settings files
+        4. _prepare_forcing() - Prepare forcing data (model-specific)
+        5. _create_model_configs() - Create model config files (model-specific)
+        6. _post_setup() - Model-specific post-setup (optional)
+
+        Returns:
+            True if preprocessing completed successfully
+
+        Raises:
+            ModelExecutionError: If any step fails
+        """
+        with symfluence_error_handler(
+            f"{self.model_name} preprocessing",
+            self.logger,
+            error_type=ModelExecutionError
+        ):
+            self._pre_setup()
+            self.create_directories()
+            self.copy_base_settings()
+            self._prepare_forcing()
+            self._create_model_configs()
+            self._post_setup()
+            self.logger.info(f"{self.model_name} preprocessing completed successfully")
+            return True
+
+    def _pre_setup(self) -> None:
+        """
+        Hook for model-specific pre-setup tasks.
+
+        Override in subclass to perform any setup needed before directory
+        creation and settings copy. Default implementation does nothing.
+        """
+        pass
+
+    def _prepare_forcing(self) -> None:
+        """
+        Hook for model-specific forcing data preparation.
+
+        Override in subclass to implement forcing data processing.
+        Default implementation does nothing.
+        """
+        pass
+
+    def _create_model_configs(self) -> None:
+        """
+        Hook for model-specific configuration file creation.
+
+        Override in subclass to create model-specific config files
+        (e.g., file managers, parameter files). Default implementation
+        does nothing.
+        """
+        pass
+
+    def _post_setup(self) -> None:
+        """
+        Hook for model-specific post-setup tasks.
+
+        Override in subclass to perform any cleanup or finalization
+        after main preprocessing. Default implementation does nothing.
+        """
+        pass
