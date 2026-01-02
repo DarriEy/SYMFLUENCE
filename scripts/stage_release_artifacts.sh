@@ -146,7 +146,7 @@ print_info "Staging mizuRoute..."
 
 MIZU_DIR="$INSTALLS_DIR/mizuRoute"
 if [ -d "$MIZU_DIR" ]; then
-    stage_binary "$MIZU_DIR/route/bin/mizuRoute.exe" "mizuroute" "mizuRoute" || true
+    stage_binary "$MIZU_DIR/route/bin/mizuRoute.exe" "mizuroute" "mizuRoute"
     stage_license "$MIZU_DIR" "mizuRoute"
 else
     print_warning "mizuRoute not installed"
@@ -159,7 +159,7 @@ print_info "Staging FUSE..."
 
 FUSE_DIR="$INSTALLS_DIR/fuse"
 if [ -d "$FUSE_DIR" ]; then
-    stage_binary "$FUSE_DIR/bin/fuse.exe" "fuse" "FUSE" || true
+    stage_binary "$FUSE_DIR/bin/fuse.exe" "fuse" "FUSE"
     stage_license "$FUSE_DIR" "FUSE"
 else
     print_warning "FUSE not installed"
@@ -172,7 +172,7 @@ print_info "Staging NGEN..."
 
 NGEN_DIR="$INSTALLS_DIR/ngen"
 if [ -d "$NGEN_DIR" ]; then
-    stage_binary "$NGEN_DIR/cmake_build/ngen" "ngen" "NGEN" || true
+    stage_binary "$NGEN_DIR/cmake_build/ngen" "ngen" "NGEN"
     stage_license "$NGEN_DIR" "NGEN"
 else
     print_warning "NGEN not installed"

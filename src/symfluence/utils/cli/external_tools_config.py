@@ -538,10 +538,17 @@ if [ -d "${NCDF_PATH}/lib/x86_64-linux-gnu" ] && ls "${NCDF_PATH}/lib/x86_64-lin
   NCDF_LIB_DIR="${NCDF_PATH}/lib/x86_64-linux-gnu"
 elif [ -d "${NCDF_PATH}/lib64" ] && ls "${NCDF_PATH}/lib64"/libnetcdff.* >/dev/null 2>&1; then
   NCDF_LIB_DIR="${NCDF_PATH}/lib64"
-elif [ -d "${NCDF_PATH}/lib" ]; then
-  NCDF_LIB_DIR="${NCDF_PATH}/lib"
 else
   NCDF_LIB_DIR="${NCDF_PATH}/lib"
+fi
+
+# NetCDF C can be separate from NetCDF-Fortran (e.g., Homebrew)
+if [ -d "${NETCDF}/lib/x86_64-linux-gnu" ] && ls "${NETCDF}/lib/x86_64-linux-gnu"/libnetcdf.* >/dev/null 2>&1; then
+  NCDF_C_LIB_DIR="${NETCDF}/lib/x86_64-linux-gnu"
+elif [ -d "${NETCDF}/lib64" ] && ls "${NETCDF}/lib64"/libnetcdf.* >/dev/null 2>&1; then
+  NCDF_C_LIB_DIR="${NETCDF}/lib64"
+else
+  NCDF_C_LIB_DIR="${NETCDF}/lib"
 fi
 
 # HDF5 detection - Ubuntu stores serial libs in hdf5/serial subdirectory
@@ -552,42 +559,36 @@ elif [ -d "${HDF_PATH}/lib/x86_64-linux-gnu" ] && (ls "${HDF_PATH}/lib/x86_64-li
   HDF_LIB_DIR="${HDF_PATH}/lib/x86_64-linux-gnu"
 elif [ -d "${HDF_PATH}/lib64" ] && (ls "${HDF_PATH}/lib64"/libhdf5*.so* >/dev/null 2>&1 || ls "${HDF_PATH}/lib64"/libhdf5*.a >/dev/null 2>&1); then
   HDF_LIB_DIR="${HDF_PATH}/lib64"
-elif [ -d "${HDF_PATH}/lib" ]; then
-  HDF_LIB_DIR="${HDF_PATH}/lib"
 else
   HDF_LIB_DIR="${HDF_PATH}/lib"
 fi
 
-# On Mac/Homebrew, NetCDF C and NetCDF-Fortran are separate packages
-# Add NetCDF C library path if it's different from NetCDF-Fortran
-NETCDF_C_LIB=""
-if command -v brew >/dev/null 2>&1; then
-  NETCDF_C_PATH="$(brew --prefix netcdf 2>/dev/null || echo "")"
-  if [ -n "$NETCDF_C_PATH" ] && [ "$NETCDF_C_PATH" != "$NCDF_PATH" ]; then
-    NETCDF_C_LIB="-L${NETCDF_C_PATH}/lib"
-  fi
+if [ -d "${HDF_PATH}/include/hdf5/serial" ]; then
+  HDF_INC_DIR="${HDF_PATH}/include/hdf5/serial"
+else
+  HDF_INC_DIR="${HDF_PATH}/include"
 fi
 
-# Override the Makefile's LIBRARIES and INCLUDE variables
-LIBRARIES="-L${NCDF_LIB_DIR} ${NETCDF_C_LIB} -lnetcdff -lnetcdf -L${HDF_LIB_DIR} -lhdf5_hl -lhdf5"
-INCLUDE="-I${NCDF_PATH}/include -I${HDF_PATH}/include"
+# Override the Makefile's LIBS and INCLUDES variables (avoid empty -I/-L tokens)
+LIBS="-L${HDF_LIB_DIR} -lhdf5 -lhdf5_hl -L${NCDF_LIB_DIR} -lnetcdff -L${NCDF_C_LIB_DIR} -lnetcdf"
+INCLUDES="-I${HDF_INC_DIR} -I${NCDF_PATH}/include -I${NETCDF}/include"
 
 # Add legacy compiler flags for compatibility with old Fortran code
 # -fallow-argument-mismatch: allows rank/type mismatches (needed for NetCDF calls)
 # -std=legacy: allows old Fortran features like PAUSE
 EXTRA_FLAGS="-fallow-argument-mismatch -std=legacy"
-FLAGS_NORMA="-O3 -ffree-line-length-none -fmax-errors=0 -cpp ${EXTRA_FLAGS}"
-FLAGS_FIXED="-O2 -c -ffixed-form ${EXTRA_FLAGS}"
+FFLAGS_NORMA="-O3 -ffree-line-length-none -fmax-errors=0 -cpp ${EXTRA_FLAGS}"
+FFLAGS_FIXED="-O2 -c -ffixed-form ${EXTRA_FLAGS}"
 
 echo "🔧 Library flags:"
-echo "   LIBRARIES: ${LIBRARIES}"
-echo "   INCLUDE: ${INCLUDE}"
-echo "   FLAGS_NORMA: ${FLAGS_NORMA}"
+echo "   LIBS: ${LIBS}"
+echo "   INCLUDES: ${INCLUDES}"
+echo "   FFLAGS_NORMA: ${FFLAGS_NORMA}"
 echo ""
 
 # Build sce_16plus.o first separately to avoid the broken Makefile rule
 echo "🔨 Pre-compiling sce_16plus.f..."
-${FC} ${FLAGS_FIXED} -o sce_16plus.o "FUSE_SRC/FUSE_SCE/sce_16plus.f" || {
+${FC} ${FFLAGS_FIXED} -o sce_16plus.o "FUSE_SRC/FUSE_SCE/sce_16plus.f" || {
   echo "❌ Failed to compile sce_16plus.f"
   exit 1
 }
@@ -598,10 +599,10 @@ echo "🔨 Building FUSE..."
 if make \
   FC="${FC}" \
   F_MASTER="${F_MASTER}" \
-  LIBRARIES="${LIBRARIES}" \
-  INCLUDE="${INCLUDE}" \
-  FLAGS_NORMA="${FLAGS_NORMA}" \
-  FLAGS_FIXED="${FLAGS_FIXED}"; then
+  LIBS="${LIBS}" \
+  INCLUDES="${INCLUDES}" \
+  FFLAGS_NORMA="${FFLAGS_NORMA}" \
+  FFLAGS_FIXED="${FFLAGS_FIXED}"; then
   echo "✅ Build completed"
 else
   echo "❌ Build failed"
