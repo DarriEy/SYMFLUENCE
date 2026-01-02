@@ -5,6 +5,7 @@ from typing import Dict, Tuple, List
 import numpy as np
 import xarray as xr
 import geopandas as gpd
+import numpy as np
 from shapely.geometry import Polygon
 
 from .base_dataset import BaseDatasetHandler
@@ -307,12 +308,43 @@ class HRRRHandler(BaseDatasetHandler):
                     f"Available coords: {list(ds.coords)}; variables: {list(ds.data_vars)}"
                 )
 
+        bbox_str = self.config.get("HRRR_BOUNDING_BOX_COORDS") or self.config.get("BOUNDING_BOX_COORDS")
+        if isinstance(bbox_str, str) and "/" in bbox_str:
+            lat_max, lon_min, lat_min, lon_max = [float(v) for v in bbox_str.split("/")]
+            lat_min, lat_max = sorted([lat_min, lat_max])
+            lon_min, lon_max = sorted([lon_min, lon_max])
+        else:
+            lat_min = lat_max = lon_min = lon_max = None
+
+        use_360 = np.nanmax(lon) > 180
+        if use_360 and lon_min is not None and lon_max is not None:
+            if lon_min < 0:
+                lon_min += 360
+            if lon_max < 0:
+                lon_max += 360
+
         geometries = []
         ids = []
         lats = []
         lons = []
 
         if lat.ndim == 1 and lon.ndim == 1:
+            if lat_min is not None:
+                lat_mask = (lat >= lat_min) & (lat <= lat_max)
+                lon_mask = (lon >= lon_min) & (lon <= lon_max)
+                if np.any(lat_mask) and np.any(lon_mask):
+                    i_min, i_max = np.where(lon_mask)[0].min(), np.where(lon_mask)[0].max()
+                    j_min, j_max = np.where(lat_mask)[0].min(), np.where(lat_mask)[0].max()
+                    buffer_cells = int(self.config.get("HRRR_BUFFER_CELLS", 1))
+                    i_min = max(i_min - buffer_cells, 0)
+                    i_max = min(i_max + buffer_cells, len(lon) - 1)
+                    j_min = max(j_min - buffer_cells, 0)
+                    j_max = min(j_max + buffer_cells, len(lat) - 1)
+                    lon = lon[i_min:i_max + 1]
+                    lat = lat[j_min:j_max + 1]
+                else:
+                    self.logger.warning("No HRRR grid points found in bbox; using full grid.")
+
             half_dlat = abs(lat[1] - lat[0]) / 2 if len(lat) > 1 else 0.005
             half_dlon = abs(lon[1] - lon[0]) / 2 if len(lon) > 1 else 0.005
 
@@ -334,9 +366,24 @@ class HRRRHandler(BaseDatasetHandler):
             total_cells = ny * nx
             self.logger.info(f"HRRR grid dimensions (2D): ny={ny}, nx={nx}, total={total_cells}")
 
+            i_min, i_max = 0, ny - 1
+            j_min, j_max = 0, nx - 1
+            if lat_min is not None:
+                mask = (lat >= lat_min) & (lat <= lat_max) & (lon >= lon_min) & (lon <= lon_max)
+                if np.any(mask):
+                    rows, cols = np.where(mask)
+                    buffer_cells = int(self.config.get("HRRR_BUFFER_CELLS", 1))
+                    i_min = max(int(rows.min()) - buffer_cells, 0)
+                    i_max = min(int(rows.max()) + buffer_cells, ny - 1)
+                    j_min = max(int(cols.min()) - buffer_cells, 0)
+                    j_max = min(int(cols.max()) + buffer_cells, nx - 1)
+                else:
+                    self.logger.warning("No HRRR grid points found in bbox; using full grid.")
+
             cell_count = 0
-            for i in range(ny):
-                for j in range(nx):
+            total_cells = (i_max - i_min + 1) * (j_max - j_min + 1)
+            for i in range(i_min, i_max + 1):
+                for j in range(j_min, j_max + 1):
                     lat_corners = [
                         lat[i, j],
                         lat[i, j + 1] if j + 1 < nx else lat[i, j],
