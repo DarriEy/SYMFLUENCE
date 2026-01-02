@@ -481,7 +481,7 @@ show_symfluence_help() {
     cat << EOF
 ${SCRIPT_NAME}: SYMFLUENCE Python script not found
 
-This wrapper looks for symfluence.py in:
+This wrapper looks for ${SYMFLUENCE_SCRIPT} in:
   - Current directory and parent directories
   - \$SYMFLUENCE_CODE_DIR
 
@@ -505,7 +505,7 @@ Wrapper-only options:
   --wrapper-debug    Run wrapper in debug mode
   --install          Set up Python environment and install external tools
 
-All other options are passed to symfluence.py (see 'symfluence --help').
+All other options are passed to ${SYMFLUENCE_SCRIPT} (see 'symfluence --help').
 EOF
             exit 0
             ;;
@@ -518,7 +518,7 @@ EOF
             echo "SYMFLUENCE Wrapper Information"
             echo "=============================="
             echo "Wrapper script: $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
-            echo "symfluence.py: ${symfluence_script:-'Not found'}"
+            echo "${SYMFLUENCE_SCRIPT}: ${symfluence_script:-'Not found'}"
             echo "Python command: ${python_cmd:-'Not found'}"
             echo "Python version: $(${python_cmd} --version 2>/dev/null || echo 'Unknown')"
             echo "Virtual env: ${VIRTUAL_ENV:-'None active'}"
@@ -558,10 +558,10 @@ main() {
         }
     fi
 
-    # Find symfluence.py
+    # Find SYMFLUENCE CLI entry script
     local symfluence_script
     if ! symfluence_script=$(find_symfluence_script); then
-        print_error "symfluence.py not found"
+        print_error "${SYMFLUENCE_SCRIPT} not found"
         echo
         show_symfluence_help
         exit 1
