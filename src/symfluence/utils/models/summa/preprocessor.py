@@ -8,7 +8,11 @@ the preprocessing workflow for SUMMA model runs.
 # Standard library imports
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Tuple
+
+# Third-party imports
+import pandas as pd
+import xarray as xr
 
 # Local imports
 from symfluence.utils.models.registry import ModelRegistry
@@ -179,6 +183,10 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         Delegates to the forcing processor for actual implementation.
         """
         self.forcing_processor.apply_datastep_and_lapse_rate()
+        if self.data_step != self.forcing_processor.data_step:
+            self.data_step = self.forcing_processor.data_step
+            self.config_manager.data_step = self.forcing_processor.data_step
+            self.logger.info(f"Updated SUMMA data step to {self.data_step}s based on forcing data")
 
     def create_forcing_file_list(self):
         """
@@ -252,6 +260,33 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             sim_start = f"{start_year}-01-01 01:00" if sim_start == 'default' else sim_start
             sim_end = f"{end_year}-12-31 22:00" if sim_end == 'default' else sim_end
 
+        forcing_times = self._get_forcing_times()
+        if forcing_times:
+            sim_start_dt = datetime.strptime(sim_start, "%Y-%m-%d %H:%M")
+            sim_end_dt = datetime.strptime(sim_end, "%Y-%m-%d %H:%M")
+
+            start_floor = max((t for t in forcing_times if t <= sim_start_dt), default=forcing_times[0])
+            end_ceil = min((t for t in forcing_times if t >= sim_end_dt), default=forcing_times[-1])
+
+            if start_floor != sim_start_dt:
+                self.logger.info(
+                    f"Adjusting SUMMA start time to forcing timestep: {start_floor}"
+                )
+            if end_ceil != sim_end_dt:
+                self.logger.info(
+                    f"Adjusting SUMMA end time to forcing timestep: {end_ceil}"
+                )
+
+            if start_floor > end_ceil:
+                self.logger.warning(
+                    "Forcing timesteps do not cover requested range; using full forcing span."
+                )
+                start_floor = forcing_times[0]
+                end_ceil = forcing_times[-1]
+
+            sim_start = start_floor.strftime("%Y-%m-%d %H:%M")
+            sim_end = end_ceil.strftime("%Y-%m-%d %H:%M")
+
         # Validate time format
         try:
             datetime.strptime(sim_start, "%Y-%m-%d %H:%M")
@@ -260,3 +295,39 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             raise ValueError("Invalid time format in configuration. Expected 'YYYY-MM-DD HH:MM'")
 
         return sim_start, sim_end
+
+    def _get_forcing_time_range(self) -> Optional[Tuple[datetime, datetime]]:
+        forcing_times = self._get_forcing_times()
+        if not forcing_times:
+            return None
+
+        return (forcing_times[0], forcing_times[-1])
+
+    def _get_forcing_times(self) -> list[datetime]:
+        forcing_dir = self.forcing_summa_path
+        if not forcing_dir.exists():
+            return []
+
+        forcing_files = sorted(forcing_dir.glob("*.nc"))
+        if not forcing_files:
+            return []
+
+        unique_times = set()
+        for forcing_file in forcing_files:
+            try:
+                with xr.open_dataset(forcing_file) as ds:
+                    if "time" not in ds:
+                        continue
+                    times = pd.to_datetime(ds["time"].values)
+            except Exception as exc:
+                self.logger.warning(f"Failed to read forcing times from {forcing_file}: {exc}")
+                continue
+
+            if len(times) == 0:
+                continue
+            unique_times.update(pd.to_datetime(times).to_pydatetime())
+
+        if not unique_times:
+            return []
+
+        return sorted(unique_times)

@@ -9,6 +9,7 @@ NaN value handling, and data validation for SUMMA model compatibility.
 # Standard library imports
 import gc
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -162,8 +163,25 @@ class SummaForcingProcessor:
         if total_files == 0:
             raise FileNotFoundError(f"No forcing files found in {self.forcing_basin_path}")
 
+        inferred_step = self._infer_forcing_step_from_filenames(forcing_files)
+        if inferred_step and inferred_step != self.data_step:
+            self.logger.info(
+                f"Updating forcing time step to {inferred_step}s based on forcing file cadence"
+            )
+            self.data_step = inferred_step
+            self.config['FORCING_TIME_STEP_SIZE'] = inferred_step
+
         # Prepare output directory
         self.forcing_summa_path.mkdir(parents=True, exist_ok=True)
+        prefix = f"{self.domain_name}_{self.forcing_dataset}".lower()
+        for existing_file in self.forcing_summa_path.glob("*.nc"):
+            if not existing_file.name.lower().startswith(prefix):
+                continue
+            try:
+                existing_file.unlink()
+                self.logger.info(f"Removed stale SUMMA forcing file {existing_file}")
+            except OSError as exc:
+                self.logger.warning(f"Failed to remove stale SUMMA forcing file {existing_file}: {exc}")
 
         # Define column names and lapse rate
         gru_id = f'S_1_{self.gruId}'
@@ -173,6 +191,9 @@ class SummaForcingProcessor:
         forcing_elev = 'S_2_elev_m'
         weights = 'weight'
         lapse_rate = float(self.config.get('LAPSE_RATE'))  # [K m-1]
+
+        if catchment_elev not in topo_data.columns and 'S_1_elev_mean' in topo_data.columns:
+            catchment_elev = 'S_1_elev_mean'
 
         # Pre-calculate lapse values efficiently
         self.logger.info("Pre-calculating lapse rate corrections...")
@@ -278,6 +299,9 @@ class SummaForcingProcessor:
 
             # 2. FIX NaN VALUES IN FORCING DATA
             #dat = self._fix_nan_values(dat, file)
+
+            # 2b. ENSURE REQUIRED VARIABLES EXIST
+            dat = self._ensure_required_forcing_variables(dat, file)
 
             # 3. VALIDATE DATA RANGES
             dat = self._validate_and_fix_data_ranges(dat, file)
@@ -419,8 +443,16 @@ class SummaForcingProcessor:
 
                 if match_percentage < 90:
                     self.logger.warning(f"File {filename}: Only {match_percentage:.1f}% of time steps match expected step size")
-                    actual_median_step = np.median(time_diffs)
-                    self.logger.warning(f"File {filename}: Expected step: {expected_step}s, Actual median: {actual_median_step:.0f}s")
+                    actual_median_step = int(np.median(time_diffs))
+                    self.logger.warning(
+                        f"File {filename}: Expected step: {expected_step}s, Actual median: {actual_median_step:.0f}s"
+                    )
+                    if actual_median_step > 0 and abs(actual_median_step - expected_step) > expected_step * 0.01:
+                        self.logger.warning(
+                            f"File {filename}: Updating forcing time step to {actual_median_step}s to match data"
+                        )
+                        self.data_step = actual_median_step
+                        self.config['FORCING_TIME_STEP_SIZE'] = actual_median_step
                 else:
                     self.logger.debug(f"File {filename}: Time steps are consistent ({match_percentage:.1f}% match)")
 
@@ -570,6 +602,53 @@ class SummaForcingProcessor:
 
         return dataset
 
+    def _ensure_required_forcing_variables(self, dataset: xr.Dataset, filename: str) -> xr.Dataset:
+        """
+        Ensure all required forcing variables exist in the dataset.
+
+        Some forcing products (e.g., CARRA) can omit variables like LWRadAtm.
+        SUMMA expects a full set of forcing variables, so add missing variables
+        with reasonable defaults and log a warning.
+        """
+        required_vars = ['airtemp', 'airpres', 'spechum', 'windspd', 'pptrate', 'LWRadAtm', 'SWRadAtm']
+        defaults = {
+            'airtemp': 273.15,   # 0°C in Kelvin
+            'airpres': 101325.0, # Standard pressure in Pa
+            'spechum': 0.005,    # Reasonable specific humidity
+            'windspd': 2.0,      # Light wind in m/s
+            'pptrate': 0.0,      # No precipitation
+            'LWRadAtm': 300.0,   # Reasonable longwave radiation W/m^2
+            'SWRadAtm': 0.0      # Default shortwave radiation W/m^2
+        }
+        units = {
+            'airtemp': 'K',
+            'airpres': 'Pa',
+            'spechum': 'kg/kg',
+            'windspd': 'm/s',
+            'pptrate': 'mm/s',
+            'LWRadAtm': 'W/m2',
+            'SWRadAtm': 'W/m2'
+        }
+
+        time_len = len(dataset.time)
+        hru_len = len(dataset.hru)
+
+        for var in required_vars:
+            if var in dataset:
+                continue
+            default_val = defaults[var]
+            self.logger.warning(
+                f"File {filename}: Missing {var}; filling with default {default_val}"
+            )
+            data = xr.DataArray(
+                np.full((time_len, hru_len), default_val, dtype=np.float32),
+                dims=('time', 'hru')
+            )
+            data.attrs.update({'units': units.get(var, '')})
+            dataset[var] = data
+
+        return dataset
+
     def _validate_and_fix_data_ranges(self, dataset: xr.Dataset, filename: str) -> xr.Dataset:
         """
         Validate and fix unrealistic data ranges that could cause SUMMA to fail.
@@ -645,6 +724,30 @@ class SummaForcingProcessor:
                                     f"expected {expected_shape}")
 
         self.logger.debug(f"File {filename}: Passed final validation for SUMMA compatibility")
+
+    def _infer_forcing_step_from_filenames(self, forcing_files: List[str]) -> int | None:
+        forcing_times = []
+        for forcing_file in forcing_files:
+            stem = Path(forcing_file).stem
+            time_token = stem.split("_")[-1]
+            try:
+                forcing_times.append(datetime.strptime(time_token, "%Y-%m-%d-%H-%M-%S"))
+            except ValueError:
+                continue
+
+        if len(forcing_times) < 2:
+            return None
+
+        forcing_times.sort()
+        diffs = [
+            (forcing_times[idx] - forcing_times[idx - 1]).total_seconds()
+            for idx in range(1, len(forcing_times))
+            if forcing_times[idx] > forcing_times[idx - 1]
+        ]
+        if not diffs:
+            return None
+
+        return int(np.median(diffs))
 
     def _determine_batch_size(self, total_files: int) -> int:
         """

@@ -10,15 +10,18 @@ import shutil
 import yaml
 from pathlib import Path
 import os
+import multiprocessing
+import traceback
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
 from utils.helpers import load_config_template, write_config
 
-# Check if CDS API credentials are available and valid
+# Check if CDS API credentials are available and valid (late-bound to avoid
+# network calls at import time).
 def _check_cds_credentials():
     """Check if CDS API credentials exist and are valid."""
-    cdsapirc = Path.home() / '.cdsapirc'
+    cdsapirc = Path.home() / ".cdsapirc"
     if not cdsapirc.exists():
         return False
     try:
@@ -29,8 +32,6 @@ def _check_cds_credentials():
     except (AssertionError, Exception):
         # Invalid credentials or other initialization error
         return False
-
-HAS_CDS_CREDENTIALS = _check_cds_credentials()
 
 
 
@@ -54,7 +55,7 @@ def base_config(tmp_path_factory, symfluence_code_dir, symfluence_data_root):
     config["DOMAIN_NAME"] = "paradise_cloud"
     config["DOMAIN_DEFINITION_METHOD"] = "point"
     config["DOMAIN_DISCRETIZATION"] = "GRUs"
-    config["BOUNDING_BOX_COORDS"] = "46.9/-121.9/46.6/-121.6"
+    config["BOUNDING_BOX_COORDS"] = "47.2/-122.4/46.3/-121.3"
     config["POUR_POINT_COORDS"] = "46.78/-121.75"
 
     # Cloud access for attributes/forcings
@@ -102,13 +103,13 @@ FORCING_CASES = [
         "dataset": "ERA5",
         "start": "2010-01-01 00:00",
         "end": "2010-01-01 01:00",  # Just 1 hour
-        "expect_glob": "domain_paradise_cloud_ERA5_merged_*.nc",
+        "expect_glob": ["ERA5_*.nc", "*ERA5_merged_*.nc"],
     },
     {
         "dataset": "AORC",
         "start": "2010-01-01 00:00",
         "end": "2010-01-01 01:00",  # Just 1 hour
-        "expect_glob": "paradise_cloud_AORC_*.nc",
+        "expect_glob": "*AORC_*.nc",
     },
     {
         "dataset": "NEX-GDDP-CMIP6",
@@ -126,18 +127,23 @@ FORCING_CASES = [
         "dataset": "CONUS404",
         "start": "2010-01-01 00:00",
         "end": "2010-01-01 01:00",  # Just 1 hour
-        "expect_glob": "paradise_cloud_CONUS404_*.nc",
+        "expect_glob": "*CONUS404_*.nc",
     },
     {
         "dataset": "HRRR",
         "start": "2020-01-01 00:00",
         "end": "2020-01-01 01:00",  # Just 1 hour
-        "expect_glob": "paradise_cloud_HRRR_hourly_*.nc",
+        "expect_glob": ["paradise_cloud_HRRR_hourly_*.nc", "HRRR_*.nc"],
+        "extras": {
+            "HRRR_BOUNDING_BOX_COORDS": "46.79/-121.76/46.77/-121.74",
+            "HRRR_VARS": ["TMP"],
+            "HRRR_BUFFER_CELLS": 0,
+        },
     },
     {
         "dataset": "CARRA",
-        "start": "2010-01-01 00:00",
-        "end": "2010-01-01 01:00",  # Just 1 hour
+        "start": "2010-01-01 01:00",
+        "end": "2010-01-01 03:00",  # 3 hours starting at 01:00
         "expect_glob": "*CARRA*.nc",
         "domain_override": {
             "DOMAIN_NAME": "ellioaar_iceland",
@@ -161,21 +167,19 @@ FORCING_CASES = [
     },
 ]
 
+def _selected_cases():
+    """Optionally filter forcing cases with CLOUD_DATASET env var."""
+    selected = os.environ.get("CLOUD_DATASET")
+    if not selected:
+        return FORCING_CASES
+    selected_norm = selected.strip().lower()
+    return [
+        case
+        for case in FORCING_CASES
+        if case["dataset"].strip().lower() == selected_norm
+    ]
 
-@pytest.mark.slow
-@pytest.mark.requires_data
-@pytest.mark.parametrize("case", FORCING_CASES)
-def test_cloud_forcing_acquisition(prepared_project, case):
-    """
-    Download a short forcing window for each cloud-supported dataset, then
-    run the full preprocessing + model pipeline.
-    """
-    # Skip CARRA/CERRA tests if CDS credentials are not available
-    if case["dataset"] in ["CARRA", "CERRA"] and not HAS_CDS_CREDENTIALS:
-        pytest.skip(f"Skipping {case['dataset']} test: CDS API credentials not found in ~/.cdsapirc")
-
-    cfg_path, project_dir = prepared_project
-
+def _run_case_logic(cfg_path: Path, project_dir: Path, case: dict) -> None:
     # Load base config and update for this dataset
     with open(cfg_path, "r") as f:
         config = yaml.safe_load(f)
@@ -231,7 +235,13 @@ def test_cloud_forcing_acquisition(prepared_project, case):
     symfluence.managers["data"].acquire_forcings()
 
     raw_data_dir = project_dir / "forcing" / "raw_data"
-    matches = list(raw_data_dir.glob(case["expect_glob"]))
+    expect_glob = case["expect_glob"]
+    if isinstance(expect_glob, (list, tuple)):
+        matches = []
+        for pattern in expect_glob:
+            matches.extend(raw_data_dir.glob(pattern))
+    else:
+        matches = list(raw_data_dir.glob(expect_glob))
     assert matches, f"No forcing output found for {case['dataset']} in {raw_data_dir}"
 
     # Run full preprocessing and model
@@ -241,6 +251,57 @@ def test_cloud_forcing_acquisition(prepared_project, case):
 
     sim_dir = project_dir / "simulations" / config["EXPERIMENT_ID"] / "SUMMA"
     assert sim_dir.exists(), f"SUMMA simulation output directory missing for {case['dataset']}"
+
+def _run_case_worker(cfg_path_str: str, project_dir_str: str, case: dict, result_queue) -> None:
+    try:
+        _run_case_logic(Path(cfg_path_str), Path(project_dir_str), case)
+        result_queue.put({"ok": True})
+    except Exception:
+        result_queue.put({"ok": False, "traceback": traceback.format_exc()})
+
+def _execute_case_in_subprocess(cfg_path: Path, project_dir: Path, case: dict) -> None:
+    ctx = multiprocessing.get_context("spawn")
+    result_queue = ctx.Queue()
+    proc = ctx.Process(
+        target=_run_case_worker,
+        args=(str(cfg_path), str(project_dir), case, result_queue),
+    )
+    proc.start()
+    proc.join()
+
+    if proc.exitcode != 0:
+        error = "subprocess crashed"
+        if not result_queue.empty():
+            payload = result_queue.get()
+            if not payload.get("ok"):
+                error = payload.get("traceback", error)
+        raise AssertionError(
+            f"Case {case['dataset']} failed in subprocess (exitcode {proc.exitcode}):\n{error}"
+        )
+
+    if not result_queue.empty():
+        payload = result_queue.get()
+        if not payload.get("ok"):
+            raise AssertionError(
+                f"Case {case['dataset']} failed in subprocess:\n{payload.get('traceback')}"
+            )
+
+
+@pytest.mark.slow
+@pytest.mark.requires_data
+@pytest.mark.parametrize("case", _selected_cases())
+def test_cloud_forcing_acquisition(prepared_project, case):
+    """
+    Download a short forcing window for each cloud-supported dataset, then
+    run the full preprocessing + model pipeline.
+    """
+    # Skip CARRA/CERRA tests if CDS credentials are not available
+    if case["dataset"] in ["CARRA", "CERRA"] and not _check_cds_credentials():
+        pytest.skip(f"Skipping {case['dataset']} test: CDS API credentials not found in ~/.cdsapirc")
+
+    cfg_path, project_dir = prepared_project
+
+    _execute_case_in_subprocess(cfg_path, project_dir, case)
 
 
 if __name__ == "__main__":

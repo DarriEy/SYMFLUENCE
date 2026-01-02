@@ -4,10 +4,12 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import xarray as xr
+import pandas as pd
 from symfluence.utils.data.acquisition.cloud_downloader import CloudForcingDownloader, check_cloud_access_availability
-from symfluence.utils.data.acquisition.maf_pipeline import gistoolRunner, datatoolRunner 
-from symfluence.utils.data.utilities.variable_utils import VariableHandler 
-from symfluence.utils.geospatial.raster_utils import calculate_landcover_mode 
+from symfluence.utils.data.acquisition.maf_pipeline import gistoolRunner, datatoolRunner
+from symfluence.utils.data.utilities.variable_utils import VariableHandler
+from symfluence.utils.geospatial.raster_utils import calculate_landcover_mode
+from symfluence.utils.data.cache import RawForcingCache 
 
 class AcquisitionService:
     """
@@ -158,32 +160,138 @@ class AcquisitionService:
         )
         gistool_runner.execute_gistool_command(gistool_command)
 
+    def _expected_forcing_times(self, dataset: str) -> Optional[pd.DatetimeIndex]:
+        resolution_hours = {
+            "CARRA": 1,
+            "CERRA": 3,
+        }
+        dataset_key = dataset.upper()
+        if dataset_key not in resolution_hours:
+            return None
+
+        start = pd.to_datetime(self.config.get("EXPERIMENT_TIME_START"))
+        end = pd.to_datetime(self.config.get("EXPERIMENT_TIME_END"))
+        if pd.isna(start) or pd.isna(end) or end < start:
+            return None
+
+        freq = f"{resolution_hours[dataset_key]}h"
+        return pd.date_range(start, end, freq=freq)
+
+    def _cached_forcing_has_expected_times(
+        self, cached_file: Path, expected_times: pd.DatetimeIndex
+    ) -> bool:
+        try:
+            with xr.open_dataset(cached_file) as ds:
+                if "time" not in ds:
+                    return False
+                actual_times = pd.to_datetime(ds["time"].values)
+        except Exception as exc:
+            self.logger.warning(f"Failed to validate cached forcing file {cached_file}: {exc}")
+            return False
+
+        if len(actual_times) < len(expected_times):
+            return False
+
+        return actual_times[0] <= expected_times[0] and actual_times[-1] >= expected_times[-1]
+
     def acquire_forcings(self):
         """Acquire forcing data for the model simulation."""
         self.logger.info("Starting forcing data acquisition")
-        
+
         data_access = self.config.get('DATA_ACCESS', 'MAF').upper()
         forcing_dataset = self.config.get('FORCING_DATASET', '').upper()
-        
+        if forcing_dataset in {"CARRA", "CERRA"} and not self.config.get("FORCING_TIME_STEP_SIZE"):
+            self.config["FORCING_TIME_STEP_SIZE"] = 10800
+            self.logger.info(
+                f"Defaulting FORCING_TIME_STEP_SIZE to 10800s for {forcing_dataset}"
+            )
+
         if data_access == 'CLOUD':
             self.logger.info(f"Cloud data access enabled for {forcing_dataset}")
-            
+
             if not check_cloud_access_availability(forcing_dataset, self.logger):
                 raise ValueError(f"Dataset '{forcing_dataset}' does not support DATA_ACCESS: cloud.")
-            
+
             raw_data_dir = self.project_dir / 'forcing' / 'raw_data'
             raw_data_dir.mkdir(parents=True, exist_ok=True)
-            
-            try:
-                downloader = CloudForcingDownloader(self.config, self.logger)
-                output_file = downloader.download_forcing_data(raw_data_dir)
-                self.logger.info(f"✓ Cloud forcing data acquisition completed: {output_file}")
-                
-            except Exception as e:
-                self.logger.error(f"Error during cloud data acquisition: {str(e)}")
-                import traceback
-                self.logger.error(traceback.format_exc())
-                raise
+
+            # Initialize cache
+            cache_root = self.data_dir / 'cache' / 'raw_forcing'
+            cache = RawForcingCache(
+                cache_root=cache_root,
+                max_size_gb=self.config.get('FORCING_CACHE_SIZE_GB', 3.0),
+                ttl_days=self.config.get('FORCING_CACHE_TTL_DAYS', 30),
+                enable_checksum=self.config.get('FORCING_CACHE_CHECKSUM', True)
+            )
+
+            # Generate cache key
+            bbox = self.config.get('BOUNDING_BOX_COORDS')
+            time_start = self.config.get('EXPERIMENT_TIME_START')
+            time_end = self.config.get('EXPERIMENT_TIME_END')
+            variables = self.config.get('FORCING_VARIABLES')
+
+            cache_key = cache.generate_cache_key(
+                dataset=forcing_dataset,
+                bbox=bbox,
+                time_start=time_start,
+                time_end=time_end,
+                variables=variables if isinstance(variables, list) else None
+            )
+
+            # Check cache first
+            cached_file = cache.get(cache_key)
+            if cached_file and not self.config.get('FORCE_DOWNLOAD', False):
+                expected_times = self._expected_forcing_times(forcing_dataset)
+                if expected_times is not None and not self._cached_forcing_has_expected_times(
+                    cached_file, expected_times
+                ):
+                    self.logger.warning(
+                        f"Cached forcing data {cached_file} does not cover the requested time range; "
+                        "re-downloading from source."
+                    )
+                    cached_file = None
+
+            if cached_file and not self.config.get('FORCE_DOWNLOAD', False):
+                self.logger.info(f"✓ Using cached forcing data: {cache_key}")
+                # Copy from cache to project directory
+                import shutil
+                output_file = raw_data_dir / cached_file.name
+                shutil.copy(cached_file, output_file)
+                self.logger.info(f"✓ Copied cached file to: {output_file}")
+            else:
+                # Cache miss - download from source
+                if cached_file:
+                    self.logger.info("FORCE_DOWNLOAD enabled - skipping cache")
+                else:
+                    self.logger.info("Cache miss - downloading from source")
+
+                try:
+                    downloader = CloudForcingDownloader(self.config, self.logger)
+                    output_file = downloader.download_forcing_data(raw_data_dir)
+                    self.logger.info(f"✓ Cloud forcing data acquisition completed: {output_file}")
+
+                    # Store in cache
+                    try:
+                        cache.put(
+                            cache_key=cache_key,
+                            file_path=output_file,
+                            metadata={
+                                'dataset': forcing_dataset,
+                                'bbox': bbox,
+                                'time_range': f"{time_start} to {time_end}",
+                                'variables': variables if isinstance(variables, list) else str(variables),
+                                'domain_name': self.domain_name
+                            }
+                        )
+                    except Exception as cache_error:
+                        self.logger.warning(f"Failed to cache downloaded file: {cache_error}")
+                        # Don't fail the acquisition if caching fails
+
+                except Exception as e:
+                    self.logger.error(f"Error during cloud data acquisition: {str(e)}")
+                    import traceback
+                    self.logger.error(traceback.format_exc())
+                    raise
         
         else:
             self.logger.info("Using traditional MAF data acquisition workflow")

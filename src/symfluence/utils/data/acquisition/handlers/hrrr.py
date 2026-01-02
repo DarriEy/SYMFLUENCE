@@ -15,6 +15,8 @@ class HRRRAcquirer(BaseAcquisitionHandler):
         vars_map = {"TMP": "2m_above_ground", "SPFH": "2m_above_ground", "PRES": "surface", "UGRD": "10m_above_ground", "VGRD": "10m_above_ground", "DSWRF": "surface", "DLWRF": "surface"}
         req_vars = self.config.get("HRRR_VARS")
         if req_vars: vars_map = {k: v for k, v in vars_map.items() if k in req_vars}
+        hrrr_bbox = self._parse_bbox(self.config.get("HRRR_BOUNDING_BOX_COORDS"))
+        bbox = hrrr_bbox if hrrr_bbox else self.bbox
         all_datasets, xy_slice = [], None
         curr = self.start_date.date()
         while curr <= self.end_date.date():
@@ -33,7 +35,12 @@ class HRRRAcquirer(BaseAcquisitionHandler):
                     if v_ds:
                         ds_h = xr.merge(v_ds)
                         if xy_slice is None and "latitude" in ds_h.coords:
-                            mask = (ds_h.latitude >= self.bbox["lat_min"]) & (ds_h.latitude <= self.bbox["lat_max"]) & (ds_h.longitude >= self.bbox["lon_min"]) & (ds_h.longitude <= self.bbox["lon_max"])
+                            mask = (
+                                (ds_h.latitude >= bbox["lat_min"])
+                                & (ds_h.latitude <= bbox["lat_max"])
+                                & (ds_h.longitude >= bbox["lon_min"])
+                                & (ds_h.longitude <= bbox["lon_max"])
+                            )
                             iy, ix = np.where(mask)
                             if len(iy) > 0: xy_slice = (slice(iy.min(), iy.max()+1), slice(ix.min(), ix.max()+1))
                         all_datasets.append(ds_h.isel(y=xy_slice[0], x=xy_slice[1]) if xy_slice else ds_h)

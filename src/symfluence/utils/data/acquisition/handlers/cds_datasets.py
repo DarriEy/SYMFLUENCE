@@ -71,6 +71,20 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         # Process and merge
         final_f = self._process_and_merge(af, ff, output_dir)
 
+        expected_times = self._expected_times()
+        if expected_times is not None and self._get_dataset_id() != "CARRA":
+            actual_len = self._get_time_len(final_f)
+            if actual_len < len(expected_times):
+                logging.warning(
+                    f"{self._get_dataset_id()} returned {actual_len} timesteps for "
+                    f"{len(expected_times)} requested. Re-downloading per timestep."
+                )
+                try:
+                    final_f.unlink()
+                except OSError:
+                    pass
+                final_f = self._download_per_timestep(output_dir, expected_times)
+
         # Cleanup temp files
         for f in [af, ff]:
             if f.exists():
@@ -81,7 +95,13 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
     def _get_time_hours(self) -> List[str]:
         """Generate hourly time strings based on temporal resolution."""
         resolution = self._get_temporal_resolution()
-        return [f"{h:02d}:00" for h in range(0, 24, resolution)]
+        if not self.start_date or not self.end_date:
+            return [f"{h:02d}:00" for h in range(0, 24, resolution)]
+        times = pd.date_range(self.start_date, self.end_date, freq=f"{resolution}h")
+        if times.empty:
+            return [f"{self.start_date:%H}:00"]
+        hours = sorted({t.strftime("%H:00") for t in times})
+        return hours
 
     def _build_analysis_request(
         self, years: List[int], months: List[str], days: List[str], hours: List[str]
@@ -138,20 +158,48 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         self, analysis_file: Path, forecast_file: Path, output_dir: Path
     ) -> Path:
         """Process, merge, subset, and save final dataset."""
+        dsm = self._process_and_merge_datasets(analysis_file, forecast_file)
+
+        # Save final dataset
+        final_f = self._save_final_dataset(dsm, output_dir)
+
+        return final_f
+
+    def _process_and_merge_datasets(
+        self, analysis_file: Path, forecast_file: Path
+    ) -> xr.Dataset:
+        """Process, merge, and subset to return an in-memory dataset."""
         with xr.open_dataset(analysis_file) as dsa, xr.open_dataset(forecast_file) as dsf:
             # Standardize time dimension names
             dsa = self._standardize_time_dimension(dsa)
             dsf = self._standardize_time_dimension(dsf)
 
+            logging.info(
+                f"{self._get_dataset_id()} analysis time range: "
+                f"{self._format_time_range(dsa)}"
+            )
+            logging.info(
+                f"{self._get_dataset_id()} forecast time range (pre-leadtime): "
+                f"{self._format_time_range(dsf)}"
+            )
+
             # Align forecast time (correct for leadtime offset)
             leadtime_hours = int(self._get_leadtime_hour())
-            dsf['time'] = dsf['time'] - pd.Timedelta(hours=leadtime_hours)
+            dsf["time"] = dsf["time"] - pd.Timedelta(hours=leadtime_hours)
+            logging.info(
+                f"{self._get_dataset_id()} forecast time range (post-leadtime): "
+                f"{self._format_time_range(dsf)}"
+            )
 
             # Merge datasets
-            dsm = xr.merge([dsa, dsf], join='inner')
+            dsm = xr.merge([dsa, dsf], join="inner")
+            logging.info(
+                f"{self._get_dataset_id()} merged time range: "
+                f"{self._format_time_range(dsm)}"
+            )
 
             # Spatial subsetting
-            if hasattr(self, 'bbox') and self.bbox:
+            if hasattr(self, "bbox") and self.bbox:
                 dsm = self._spatial_subset(dsm)
 
             # Rename to SUMMA standards
@@ -166,10 +214,75 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             # Temporal subsetting
             dsm = dsm.sel(time=slice(self.start_date, self.end_date))
 
-            # Save final dataset
-            final_f = self._save_final_dataset(dsm, output_dir)
+            return dsm.load()
 
-        return final_f
+    def _format_time_range(self, ds: xr.Dataset) -> str:
+        if "time" not in ds or ds["time"].size == 0:
+            return "empty"
+        times = pd.to_datetime(ds["time"].values)
+        return f"{times.min()} -> {times.max()} ({len(times)} steps)"
+
+    def _expected_times(self) -> Optional[pd.DatetimeIndex]:
+        resolution = self._get_temporal_resolution()
+        if not resolution:
+            return None
+        freq = f"{resolution}h"
+        return pd.date_range(self.start_date, self.end_date, freq=freq)
+
+    def _get_time_len(self, dataset_path: Path) -> int:
+        try:
+            with xr.open_dataset(dataset_path) as ds:
+                if "time" not in ds:
+                    return 0
+                return len(ds["time"])
+        except Exception as exc:
+            logging.warning(f"Failed to read time dimension from {dataset_path}: {exc}")
+            return 0
+
+    def _download_per_timestep(
+        self, output_dir: Path, expected_times: pd.DatetimeIndex
+    ) -> Path:
+        if self._get_dataset_id() == "CARRA":
+            raise RuntimeError(
+                "CARRA CDS requests reject per-timestep retrieval; "
+                "use the multi-hour request only."
+            )
+        c = cdsapi.Client()
+        datasets = []
+        domain_name = self.domain_name
+        dataset_id = self._get_dataset_id()
+
+        for ts in expected_times:
+            years = [str(ts.year)]
+            months = [ts.strftime("%m")]
+            days = [ts.strftime("%d")]
+            hours = [f"{ts:%H}:00"]
+
+            analysis_req = self._build_analysis_request(years, months, days, hours)
+            forecast_req = self._build_forecast_request(years, months, days, hours)
+
+            af = output_dir / f"{domain_name}_{dataset_id}_analysis_{ts:%Y%m%d%H}.nc"
+            ff = output_dir / f"{domain_name}_{dataset_id}_forecast_{ts:%Y%m%d%H}.nc"
+
+            logging.info(
+                f"Downloading {dataset_id} timestep {ts:%Y-%m-%d %H:%M} (analysis/forecast)"
+            )
+            c.retrieve(self._get_dataset_name(), analysis_req, str(af))
+            c.retrieve(self._get_dataset_name(), forecast_req, str(ff))
+
+            ds = self._process_and_merge_datasets(af, ff)
+            datasets.append(ds)
+
+            for f in [af, ff]:
+                if f.exists():
+                    f.unlink()
+
+        combined = xr.concat(datasets, dim="time").sortby("time")
+        if hasattr(combined, "get_index"):
+            time_index = combined.get_index("time")
+            combined = combined.sel(time=~time_index.duplicated())
+
+        return self._save_final_dataset(combined, output_dir)
 
     def _standardize_time_dimension(self, ds: xr.Dataset) -> xr.Dataset:
         """Rename time dimension to standard 'time'."""
