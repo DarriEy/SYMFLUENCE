@@ -1,11 +1,11 @@
 """
 Backward-compatible attribute processing module.
 
-This module re-exports the refactored attributeProcessor for backward compatibility.
-New code should import directly from attribute_processing_refactored.
+This module re-exports the attributeProcessor for backward compatibility.
+New code should import directly from attribute_processor.
 """
 
-from .attribute_processing_refactored import attributeProcessor
+from .attribute_processor import attributeProcessor
 
 __all__ = ['attributeProcessor']
 
