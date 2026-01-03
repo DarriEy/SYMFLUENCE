@@ -14,12 +14,9 @@ from utils.helpers import load_config_template, write_config
 pytestmark = [pytest.mark.integration, pytest.mark.data, pytest.mark.requires_cloud, pytest.mark.slow]
 
 
-@pytest.fixture(scope="module")
-def attr_config(tmp_path_factory, symfluence_code_dir, symfluence_data_root):
+@pytest.fixture
+def base_attr_config(symfluence_code_dir, symfluence_data_root):
     """Create a base config for cloud attribute acquisition tests."""
-    tmp_path = tmp_path_factory.mktemp("cloud_attr_acq")
-    cfg_path = tmp_path / "test_config.yaml"
-
     config = load_config_template(symfluence_code_dir)
     data_root = symfluence_data_root
 
@@ -36,8 +33,6 @@ def attr_config(tmp_path_factory, symfluence_code_dir, symfluence_data_root):
     config["DEM_SOURCE"] = "copernicus"
 
     config["DOWNLOAD_SNOTEL"] = False
-    config["SNOTEL_STATION"] = "679"
-
     config["HYDROLOGICAL_MODEL"] = "SUMMA"
 
     config["EXPERIMENT_ID"] = "cloud_attr_acq"
@@ -46,44 +41,80 @@ def attr_config(tmp_path_factory, symfluence_code_dir, symfluence_data_root):
     config["CALIBRATION_PERIOD"] = None
     config["EVALUATION_PERIOD"] = None
     config["SPINUP_PERIOD"] = None
+    
+    # Disable all by default for single dataset testing
+    config["DOWNLOAD_DEM"] = False
+    config["DOWNLOAD_SOIL"] = False
+    config["DOWNLOAD_LAND_COVER"] = False
 
+    return config
+
+
+def test_cloud_attribute_dem(tmp_path, base_attr_config):
+    """Verify DEM acquisition from cloud source."""
+    config = base_attr_config.copy()
+    config["DOWNLOAD_DEM"] = True
+    config["DOMAIN_NAME"] = "test_dem_only"
+    
+    cfg_path = tmp_path / "test_config_dem.yaml"
     write_config(config, cfg_path)
-
-    return cfg_path
-
-
-@pytest.fixture(scope="module")
-def attr_paths(attr_config):
-    """Acquire cloud attributes once and return expected output paths."""
-    symfluence = SYMFLUENCE(attr_config)
-
+    
+    symfluence = SYMFLUENCE(cfg_path)
     project_dir = Path(symfluence.managers["project"].setup_project())
-    pour_point_path = symfluence.managers["project"].create_pour_point()
-    assert Path(pour_point_path).exists(), "Pour point shapefile should be created"
-
     symfluence.managers["data"].acquire_attributes()
 
-    domain_name = symfluence.config.get("DOMAIN_NAME")
-    dem_path = project_dir / "attributes" / "elevation" / "dem" / f"domain_{domain_name}_elv.tif"
-    soil_path = project_dir / "attributes" / "soilclass" / f"domain_{domain_name}_soil_classes.tif"
-    land_path = project_dir / "attributes" / "landclass" / f"domain_{domain_name}_land_classes.tif"
-
-    return {"dem": dem_path, "soil": soil_path, "land": land_path}
-
-
-def test_cloud_attribute_dem(attr_paths):
-    """Verify DEM acquisition from cloud source."""
-    dem_path = attr_paths["dem"]
+    dem_path = project_dir / "attributes" / "elevation" / "dem" / f"domain_{config['DOMAIN_NAME']}_elv.tif"
     assert dem_path.exists(), f"DEM file missing: {dem_path}"
 
 
-def test_cloud_attribute_soilclass(attr_paths):
+def test_cloud_attribute_soilclass(tmp_path, base_attr_config):
     """Verify soil class acquisition from cloud source."""
-    soil_path = attr_paths["soil"]
+    config = base_attr_config.copy()
+    config["DOWNLOAD_SOIL"] = True
+    config["DOMAIN_NAME"] = "test_soil_only"
+
+    cfg_path = tmp_path / "test_config_soil.yaml"
+    write_config(config, cfg_path)
+
+    symfluence = SYMFLUENCE(cfg_path)
+    project_dir = Path(symfluence.managers["project"].setup_project())
+    symfluence.managers["data"].acquire_attributes()
+
+    soil_path = project_dir / "attributes" / "soilclass" / f"domain_{config['DOMAIN_NAME']}_soil_classes.tif"
     assert soil_path.exists(), f"Soil class file missing: {soil_path}"
 
 
-def test_cloud_attribute_landclass(attr_paths):
-    """Verify land class acquisition from cloud source."""
-    land_path = attr_paths["land"]
+def test_cloud_attribute_landclass_modis(tmp_path, base_attr_config):
+    """Verify MODIS land class acquisition from cloud source."""
+    config = base_attr_config.copy()
+    config["DOWNLOAD_LAND_COVER"] = True
+    config["LAND_CLASS_SOURCE"] = "modis"
+    config["DOMAIN_NAME"] = "test_land_modis_only"
+
+    cfg_path = tmp_path / "test_config_land_modis.yaml"
+    write_config(config, cfg_path)
+
+    symfluence = SYMFLUENCE(cfg_path)
+    project_dir = Path(symfluence.managers["project"].setup_project())
+    symfluence.managers["data"].acquire_attributes()
+
+    land_path = project_dir / "attributes" / "landclass" / f"domain_{config['DOMAIN_NAME']}_land_classes.tif"
+    assert land_path.exists(), f"Land class file missing: {land_path}"
+
+
+def test_cloud_attribute_landclass_usgs(tmp_path, base_attr_config):
+    """Verify USGS NLCD land class acquisition from cloud source."""
+    config = base_attr_config.copy()
+    config["DOWNLOAD_LAND_COVER"] = True
+    config["LAND_CLASS_SOURCE"] = "usgs_nlcd"
+    config["DOMAIN_NAME"] = "test_land_usgs_only"
+
+    cfg_path = tmp_path / "test_config_land_usgs.yaml"
+    write_config(config, cfg_path)
+
+    symfluence = SYMFLUENCE(cfg_path)
+    project_dir = Path(symfluence.managers["project"].setup_project())
+    symfluence.managers["data"].acquire_attributes()
+
+    land_path = project_dir / "attributes" / "landclass" / f"domain_{config['DOMAIN_NAME']}_land_classes.tif"
     assert land_path.exists(), f"Land class file missing: {land_path}"

@@ -53,6 +53,10 @@ class CloudForcingDownloader:
         handler = AcquisitionRegistry.get_handler('MODIS_LANDCOVER', self.config, self.logger)
         return handler.download(Path(self.config.get('SYMFLUENCE_DATA_DIR')))
 
+    def download_usgs_landcover(self) -> Path:
+        handler = AcquisitionRegistry.get_handler('USGS_NLCD', self.config, self.logger)
+        return handler.download(Path(self.config.get('SYMFLUENCE_DATA_DIR')))
+
     def download_copernicus_dem(self) -> Path:
         handler = AcquisitionRegistry.get_handler('COPDEM30', self.config, self.logger)
         return handler.download(Path(self.config.get('SYMFLUENCE_DATA_DIR')))

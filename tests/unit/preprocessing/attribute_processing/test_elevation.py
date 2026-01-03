@@ -247,14 +247,28 @@ class TestProcessElevationAttributes:
 class TestFindDemFile:
     """Tests for find_dem_file method."""
 
-    def test_find_dem_file_with_explicit_path(
-        self, base_config, test_logger, lumped_catchment_shapefile, mock_dem_file
+    def test_find_dem_file_in_dem_dir(
+        self, base_config, test_logger, lumped_catchment_shapefile, temp_project_dir
     ):
-        """Test finding DEM when explicit DEM_PATH is provided."""
-        # Note: This test isn't applicable to the new refactored structure
-        # since ElevationProcessor looks in dem_dir, not DEM_PATH config
-        # Skipping this test as the functionality changed
-        pytest.skip("DEM path resolution changed in refactored version")
+        """Test finding DEM in the expected directory."""
+        # Setup: Create a mock DEM in attributes/elevation/dem
+        # Ensure we use the correct domain directory structure
+        domain_name = base_config['DOMAIN_NAME']
+        dem_dir = temp_project_dir / f"domain_{domain_name}" / "attributes" / "elevation" / "dem"
+        dem_dir.mkdir(parents=True, exist_ok=True)
+        mock_dem = dem_dir / "found_me.tif"
+        mock_dem.touch()
+
+        # Initialize processor
+        # Ensure processor uses the temp_project_dir as data dir
+        base_config['SYMFLUENCE_DATA_DIR'] = str(temp_project_dir)
+        processor = ElevationProcessor(base_config, test_logger)
+
+        # Action: Find DEM
+        found_dem = processor.find_dem_file()
+
+        # Assert: Check if correct file found
+        assert found_dem == mock_dem
 
     def test_find_dem_file_autodiscovery(
         self, base_config, test_logger, lumped_catchment_shapefile, temp_project_dir

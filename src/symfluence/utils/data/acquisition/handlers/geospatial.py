@@ -246,6 +246,65 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
             dst.write(mode_data, 1)
         return out_path
 
+@AcquisitionRegistry.register('USGS_NLCD')
+class USGSLandcoverAcquirer(BaseAcquisitionHandler):
+    def download(self, output_dir: Path) -> Path:
+        lc_dir = self._attribute_dir("landclass")
+        land_name = self.config.get("LAND_CLASS_NAME", "default")
+        if land_name == "default":
+            land_name = f"domain_{self.domain_name}_land_classes.tif"
+        out_path = lc_dir / land_name
+
+        if out_path.exists() and not self.config.get("FORCE_DOWNLOAD", False):
+            return out_path
+        
+        self.logger.info(f"Downloading USGS NLCD for bbox: {self.bbox}")
+
+        # MRLC WCS Endpoint
+        wcs_url = "https://www.mrlc.gov/geoserver/NLCD_Land_Cover/wcs"
+        
+        # Use 2019 data by default
+        coverage_id = self.config.get("NLCD_COVERAGE_ID", "NLCD_2019_Land_Cover_L48")
+
+        # WCS 2.0.1 Params
+        # Note: MRLC WCS can be picky about CRS. Requesting output in 4326.
+        params = [
+            ("service", "WCS"),
+            ("version", "2.0.1"),
+            ("request", "GetCoverage"),
+            ("coverageid", coverage_id),
+            ("subsettingcrs", "http://www.opengis.net/def/crs/EPSG/0/4326"),
+            ("outputcrs", "http://www.opengis.net/def/crs/EPSG/0/4326"),
+            ("subset", f"Lat({self.bbox['lat_min']},{self.bbox['lat_max']})"),
+            ("subset", f"Long({self.bbox['lon_min']},{self.bbox['lon_max']})"),
+            ("format", "image/geotiff")
+        ]
+
+        try:
+            self.logger.info(f"Requesting NLCD coverage {coverage_id}")
+            resp = requests.get(wcs_url, params=params, stream=True, timeout=120)
+            resp.raise_for_status()
+            
+            # Check for XML error response
+            content_type = (resp.headers.get("Content-Type") or "").lower()
+            if "xml" in content_type:
+                # Read a bit to see error
+                snippet = next(resp.iter_content(2048)).decode("utf-8", errors="ignore")
+                raise ValueError(f"NLCD WCS returned XML error: {snippet}")
+
+            with open(out_path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=65536):
+                    f.write(chunk)
+            
+            self.logger.info(f"✓ NLCD acquired: {out_path}")
+            return out_path
+
+        except Exception as e:
+            self.logger.error(f"NLCD acquisition failed: {e}")
+            if out_path.exists():
+                out_path.unlink()
+            raise
+
 @AcquisitionRegistry.register('COPDEM30')
 class CopDEM30Acquirer(BaseAcquisitionHandler):
     def download(self, output_dir: Path) -> Path:

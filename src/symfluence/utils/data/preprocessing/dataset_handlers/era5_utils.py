@@ -5,6 +5,8 @@ This module provides the ERA5-specific implementation for forcing data processin
 ERA5 uses regular lat/lon grids and typically doesn't require merging operations.
 """
 
+import os
+import shutil
 from pathlib import Path
 from typing import Dict, Tuple
 import xarray as xr
@@ -81,18 +83,83 @@ class ERA5Handler(BaseDatasetHandler):
         return ('latitude', 'longitude')
     
     def needs_merging(self) -> bool:
-        """ERA5 data typically doesn't require merging."""
-        return False
+        """
+        ERA5 data needs 'merging' to ensure variable names are standardized.
+        Even if not combining files, we use this step to rename vars (e.g. tp -> pptrate).
+        """
+        return True
     
     def merge_forcings(self, raw_forcing_path: Path, merged_forcing_path: Path,
                       start_year: int, end_year: int) -> None:
         """
-        ERA5 typically doesn't require merging.
+        Process raw ERA5 files to ensure variable names are standardized.
         
-        This method is a no-op for ERA5 but is required by the interface.
+        This step copies raw files to the merged path, applying variable renaming
+        (e.g., tp -> pptrate) via process_dataset().
         """
-        self.logger.info("ERA5 data does not require merging. Skipping merge step.")
-        pass
+        self.logger.info("Processing ERA5 files to standardize variables...")
+        
+        raw_files = sorted(list(raw_forcing_path.glob('*.nc')))
+        if not raw_files:
+            self.logger.warning(f"No raw ERA5 files found in {raw_forcing_path}")
+            return
+
+        # Create a temp dir for processing to avoid lock/permission issues
+        temp_dir = merged_forcing_path.parent / 'temp_processing'
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            for raw_file in raw_files:
+                # Output filename matches input for simplicity in this case
+                output_file = merged_forcing_path / raw_file.name
+                
+                if output_file.exists():
+                    self.logger.debug(f"File already processed: {output_file.name}")
+                    continue
+
+                self.logger.info(f"Processing {raw_file.name} -> {output_file.name}")
+                try:
+                    # Use load() to read into memory and close file handle immediately
+                    with xr.open_dataset(raw_file) as ds:
+                        # Apply standardization (renaming vars like tp->pptrate)
+                        ds_processed = self.process_dataset(ds)
+                        ds_processed.load() # Load into memory
+                    
+                    # Create a deep copy to ensure no ties to the closed file
+                    ds_final = ds_processed.copy(deep=True)
+                    
+                    # Write to a file in temp dir first
+                    temp_output = temp_dir / raw_file.name
+                    if temp_output.exists():
+                        temp_output.unlink()
+                        
+                    ds_final.to_netcdf(temp_output)
+                    ds_final.close()
+                    
+                    # Verify temp file exists
+                    if not temp_output.exists():
+                        raise FileNotFoundError(f"Failed to create temp file: {temp_output}")
+                    
+                    self.logger.info(f"Temp file created: {temp_output} ({temp_output.stat().st_size} bytes)")
+                    
+                    # Move to final filename (copy then delete to be safe)
+                    if output_file.exists():
+                        output_file.unlink()
+                        
+                    shutil.copy2(str(temp_output), str(output_file))
+                    temp_output.unlink()
+                    
+                    self.logger.info(f"Successfully saved {output_file.name}")
+                        
+                except Exception as e:
+                    self.logger.error(f"Failed to process {raw_file.name}: {e}")
+                    raise
+        finally:
+            # Cleanup temp dir
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir, ignore_errors=True)
+        
+        self.logger.info("ERA5 file processing complete.")
     
     def create_shapefile(self, shapefile_path: Path, merged_forcing_path: Path,
                         dem_path: Path, elevation_calculator) -> Path:
