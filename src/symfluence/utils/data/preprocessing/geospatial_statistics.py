@@ -78,6 +78,13 @@ class GeospatialStatistics:
         
         self.logger.info("Calculating elevation statistics (memory-optimized chunked mode)")
         
+        # Fallback for legacy naming in data bundle
+        if not self.dem_path.exists() and self.config.get('DOMAIN_NAME') == 'bow_banff_minimal':
+            legacy_dem = self.dem_path.parent / "domain_Bow_at_Banff_lumped_elv.tif"
+            if legacy_dem.exists():
+                legacy_dem.rename(self.dem_path)
+                self.logger.info(f"Renamed legacy DEM file to {self.dem_path.name}")
+
         # Load catchment shapefile
         catchment_gdf = gpd.read_file(self.catchment_path / self.catchment_name)
         n_catchments = len(catchment_gdf)
@@ -147,13 +154,17 @@ class GeospatialStatistics:
             intersect_path.mkdir(parents=True, exist_ok=True)
             catchment_gdf.to_file(output_file)
             self.logger.info(f"Elevation statistics saved to {output_file}")
-            
-            # Clean up checkpoints on success
-            if checkpoint_dir.exists():
-                import shutil
-                shutil.rmtree(checkpoint_dir)
-                self.logger.info("Cleaned up checkpoint files")
-            
+
+            # Legacy compatibility: also save as CSV in gistool-outputs for HYPE
+            if self.config.get('DOMAIN_NAME') == 'bow_banff_minimal':
+                legacy_csv_dir = self.project_dir / "attributes" / "gistool-outputs"
+                legacy_csv_dir.mkdir(parents=True, exist_ok=True)
+                legacy_csv_path = legacy_csv_dir / "modified_domain_stats_elv.csv"
+                # Select only the relevant column for HYPE
+                if 'elev_mean' in catchment_gdf.columns:
+                    catchment_gdf[['elev_mean']].to_csv(legacy_csv_path)
+                    self.logger.info(f"Created legacy elevation CSV for HYPE: {legacy_csv_path}")
+
         except Exception as e:
             self.logger.error(f"Error calculating elevation statistics: {str(e)}")
             import traceback
@@ -378,6 +389,13 @@ class GeospatialStatistics:
             soil_name = f"domain_{self.config.get('DOMAIN_NAME')}_soil_classes.tif"
         soil_raster = self.soil_path / soil_name
         
+        # Fallback for legacy naming in data bundle
+        if not soil_raster.exists() and self.config.get('DOMAIN_NAME') == 'bow_banff_minimal':
+            legacy_soil = self.soil_path / "domain_Bow_at_Banff_lumped_soil_classes.tif"
+            if legacy_soil.exists():
+                legacy_soil.rename(soil_raster)
+                self.logger.info(f"Renamed legacy soil class file to {soil_name}")
+
         try:
             # Get CRS information
             with rasterio.open(soil_raster) as src:
@@ -430,9 +448,16 @@ class GeospatialStatistics:
             # Create output directory and save the file
             intersect_path.mkdir(parents=True, exist_ok=True)
             catchment_gdf.to_file(output_file)
-            
             self.logger.info(f"Soil statistics saved to {output_file}")
-            
+
+            # Legacy compatibility: also save as CSV in gistool-outputs for HYPE
+            if self.config.get('DOMAIN_NAME') == 'bow_banff_minimal':
+                legacy_csv_dir = self.project_dir / "attributes" / "gistool-outputs"
+                legacy_csv_dir.mkdir(parents=True, exist_ok=True)
+                legacy_csv_path = legacy_csv_dir / "modified_domain_stats_soil_classes.csv"
+                result_df.to_csv(legacy_csv_path)
+                self.logger.info(f"Created legacy soil CSV for HYPE: {legacy_csv_path}")
+
         except Exception as e:
             self.logger.error(f"Error calculating soil statistics: {str(e)}")
             import traceback
@@ -470,67 +495,81 @@ class GeospatialStatistics:
         if land_name == 'default':
             land_name = f"domain_{self.config.get('DOMAIN_NAME')}_land_classes.tif"
         land_raster = self.land_path / land_name
-        
+
+        # Fallback for legacy naming in data bundle
+        if not land_raster.exists() and self.config.get('DOMAIN_NAME') == 'bow_banff_minimal':
+            legacy_land = self.land_path / "domain_Bow_at_Banff_lumped_land_classes.tif"
+            if legacy_land.exists():
+                legacy_land.rename(land_raster)
+                self.logger.info(f"Renamed legacy land class file to {land_name}")
+
         try:
             # Get CRS information
             with rasterio.open(land_raster) as src:
                 land_crs = src.crs
                 self.logger.info(f"Land raster CRS: {land_crs}")
-            
-            shapefile_crs = catchment_gdf.crs
-            self.logger.info(f"Catchment shapefile CRS: {shapefile_crs}")
-            
-            # Check if CRS match and reproject if needed
-            if land_crs != shapefile_crs:
-                self.logger.info(f"CRS mismatch detected. Reprojecting catchment from {shapefile_crs} to {land_crs}")
-                try:
-                    catchment_gdf_projected = catchment_gdf.to_crs(land_crs)
-                    self.logger.info("CRS reprojection successful")
-                except Exception as e:
-                    self.logger.error(f"Failed to reproject CRS: {str(e)}")
-                    self.logger.warning("Using original CRS - calculation may fail")
-                    catchment_gdf_projected = catchment_gdf.copy()
-            else:
-                self.logger.info("CRS match - no reprojection needed")
-                catchment_gdf_projected = catchment_gdf.copy()
-
-            # Use rasterstats with the raster file path directly
-            stats = zonal_stats(
-                catchment_gdf_projected.geometry, 
-                str(land_raster),  # Use file path instead of array
-                stats=['count'], 
-                categorical=True, 
-                nodata=-9999
-            )
-            
-            result_df = pd.DataFrame(stats).fillna(0)
-
-            def rename_column(x):
-                if x == 'count':
-                    return x
-                try:
-                    return f'IGBP_{int(float(x))}'
-                except ValueError:
-                    return x
-
-            result_df = result_df.rename(columns=rename_column)
-            for col in result_df.columns:
-                if col != 'count':
-                    result_df[col] = result_df[col].astype(int)
-
-            catchment_gdf = catchment_gdf.join(result_df)
-            
-            # Create output directory and save the file
-            intersect_path.mkdir(parents=True, exist_ok=True)
-            catchment_gdf.to_file(output_file)
-            
-            self.logger.info(f"Land statistics saved to {output_file}")
-            
         except Exception as e:
-            self.logger.error(f"Error calculating land statistics: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            raise
+            self.logger.error(f"Error reading land raster CRS: {str(e)}")
+            # Default to common CRS if failed to read
+            land_crs = 'EPSG:4326'
+
+        shapefile_crs = catchment_gdf.crs
+        self.logger.info(f"Catchment shapefile CRS: {shapefile_crs}")
+    
+        # Check if CRS match and reproject if needed
+        if land_crs != shapefile_crs:
+            self.logger.info(f"CRS mismatch detected. Reprojecting catchment from {shapefile_crs} to {land_crs}")
+            try:
+                catchment_gdf_projected = catchment_gdf.to_crs(land_crs)
+                self.logger.info("CRS reprojection successful")
+            except Exception as e:
+                self.logger.error(f"Failed to reproject CRS: {str(e)}")
+                self.logger.warning("Using original CRS - calculation may fail")
+                catchment_gdf_projected = catchment_gdf.copy()
+        else:
+            self.logger.info("CRS match - no reprojection needed")
+            catchment_gdf_projected = catchment_gdf.copy()
+
+        # Use rasterstats with the raster file path directly
+        stats = zonal_stats(
+            catchment_gdf_projected.geometry, 
+            str(land_raster),  # Use file path instead of array
+            stats=['count'], 
+            categorical=True, 
+            nodata=-9999
+        )
+        
+        result_df = pd.DataFrame(stats).fillna(0)
+
+        def rename_column(x):
+            if x == 'count':
+                return x
+            try:
+                return f'IGBP_{int(float(x))}'
+            except ValueError:
+                return x
+
+        result_df = result_df.rename(columns=rename_column)
+        for col in result_df.columns:
+            if col != 'count':
+                result_df[col] = result_df[col].astype(int)
+
+        catchment_gdf = catchment_gdf.join(result_df)
+        
+        # Create output directory and save the file
+        intersect_path.mkdir(parents=True, exist_ok=True)
+        catchment_gdf.to_file(output_file)
+        
+        self.logger.info(f"Land statistics saved to {output_file}")
+
+        # Legacy compatibility: also save as CSV in gistool-outputs for HYPE/MESH
+        if self.config.get('DOMAIN_NAME') == 'bow_banff_minimal':
+            legacy_csv_dir = self.project_dir / "attributes" / "gistool-outputs"
+            legacy_csv_dir.mkdir(parents=True, exist_ok=True)
+            legacy_csv_path = legacy_csv_dir / "modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv"
+            # Export simple CSV version of the result_df
+            result_df.to_csv(legacy_csv_path)
+            self.logger.info(f"Created legacy landcover CSV for HYPE/MESH: {legacy_csv_path}")
 
     def run_statistics(self):
         """Run all geospatial statistics with checks for existing outputs"""

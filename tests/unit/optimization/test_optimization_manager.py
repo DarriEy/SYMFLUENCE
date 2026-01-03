@@ -343,7 +343,6 @@ class TestConfigurationValidation:
 class TestPerformance:
     """Performance-related tests."""
 
-    @pytest.mark.skip(reason="Performance test - run manually")
     def test_optimization_runtime(self, dds_config, test_logger, temp_project_dir, mock_observations):
         """Test optimization completes in reasonable time."""
         import time
@@ -362,7 +361,6 @@ class TestPerformance:
         # Should complete in reasonable time (implementation-dependent)
         assert elapsed_time < 60  # seconds
 
-    @pytest.mark.skip(reason="Memory test - run manually")
     def test_memory_usage(self, dds_config, test_logger):
         """Test memory usage during optimization."""
         import tracemalloc

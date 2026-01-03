@@ -11,6 +11,7 @@ import numpy as np
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, call
 from datetime import datetime
+from utils.markers import skip_if_no_model
 
 # We'll mock these imports since they might depend on actual model binaries
 pytestmark = [pytest.mark.unit, pytest.mark.optimization]
@@ -137,7 +138,7 @@ class TestSUMMAWorkerFunctions:
             failing_worker(params, summa_config, trial_num=1)
 
     @pytest.mark.slow
-    @pytest.mark.skip(reason="Requires actual SUMMA binary")
+    @skip_if_no_model("SUMMA")
     def test_summa_worker_real_model_run(self, summa_config, test_logger, temp_project_dir):
         """Integration test with real SUMMA model (if available)."""
         pass
@@ -232,7 +233,7 @@ class TestFUSEWorkerFunctions:
         assert result['trial'] == 1
 
     @pytest.mark.slow
-    @pytest.mark.skip(reason="Requires actual FUSE binary")
+    @skip_if_no_model("FUSE")
     def test_fuse_worker_real_model_run(self, fuse_config, test_logger):
         """Integration test with real FUSE model (if available)."""
         pass
@@ -373,7 +374,6 @@ class TestSequentialVsParallel:
         assert len(results) == len(params_list)
         assert all(r['success'] for r in results)
 
-    @pytest.mark.skip(reason="Requires multiprocessing setup")
     def test_summa_parallel_evaluation(self, summa_config, test_logger, mock_summa_worker):
         """Test parallel SUMMA evaluations."""
         from multiprocessing import Pool

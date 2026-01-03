@@ -343,12 +343,17 @@ def write_hype_geo_files(gistool_output, subbasins_shapefile, rivers_shapefile, 
     def find_data(pattern, fallback_shp_path=None):
         files = glob.glob(gistool_output + pattern)
         if files:
-            return pd.read_csv(files[0]).set_index(basinID)
+            df = pd.read_csv(files[0])
+            # Be robust with index name
+            idx_col = basinID if basinID in df.columns else ('ID' if 'ID' in df.columns else df.columns[0])
+            return df.set_index(idx_col)
         
         if intersect_base_path:
             shp_files = glob.glob(str(Path(intersect_base_path).parent) + fallback_shp_path)
             if shp_files:
-                return gpd.read_file(shp_files[0]).set_index(basinID)
+                gdf = gpd.read_file(shp_files[0])
+                idx_col = basinID if basinID in gdf.columns else ('ID' if 'ID' in gdf.columns else gdf.columns[0])
+                return gdf.set_index(idx_col)
         return None
 
     soil_data = find_data('*stats_soil_classes.csv', '/with_soilgrids/*soilclass.shp')
@@ -363,21 +368,38 @@ def write_hype_geo_files(gistool_output, subbasins_shapefile, rivers_shapefile, 
     lc_cols = [col for col in landcover_data.columns if col.startswith('IGBP_') or col.startswith('frac_')]
     
     for basin_id in landcover_data.index:
-        basin_lc = landcover_data.loc[[basin_id]]
+        # Robust retrieval of basin row
+        if basin_id in landcover_data.index:
+            basin_lc = landcover_data.loc[[basin_id]]
+        elif len(landcover_data) == 1:
+            basin_lc = landcover_data.iloc[[0]]
+        else:
+            continue
+
         active_lc = [col for col in lc_cols if basin_lc[col].values[0] > frac_threshold]
         try:
             lc_values = [int(col.split('_')[1]) for col in active_lc]
         except (ValueError, IndexError):
             lc_values = range(1, len(active_lc) + 1)
         
-        if 'majority' in soil_data.columns:
-            soil_value = [soil_data.loc[basin_id, 'majority']]
+        # Robust retrieval of soil data
+        if basin_id in soil_data.index:
+            basin_soil_data = soil_data.loc[[basin_id]]
+        elif len(soil_data) == 1:
+            basin_soil_data = soil_data.iloc[[0]]
         else:
-            usgs_cols = [col for col in soil_data.columns if col.startswith('USGS_')]
+            basin_soil_data = None
+
+        if basin_soil_data is not None and 'majority' in basin_soil_data.columns:
+            soil_value = [basin_soil_data['majority'].values[0]]
+        elif basin_soil_data is not None:
+            usgs_cols = [col for col in basin_soil_data.columns if col.startswith('USGS_')]
             if usgs_cols:
-                soil_value = [int(soil_data.loc[basin_id, usgs_cols].idxmax().split('_')[1])]
+                soil_value = [int(basin_soil_data[usgs_cols].idxmax(axis=1).values[0].split('_')[1])]
             else:
                 soil_value = [1]
+        else:
+            soil_value = [1]
         
         combinations_set_all.update(product(lc_values, soil_value))
     
@@ -388,20 +410,38 @@ def write_hype_geo_files(gistool_output, subbasins_shapefile, rivers_shapefile, 
     
     # 7. Calculate SLC fractions
     for basin_id in base_df['subid']:
-        basin_lc = landcover_data.loc[[basin_id]]
-        if 'majority' in soil_data.columns:
-            basin_soil = soil_data.loc[basin_id, 'majority']
+        # Robust landcover row retrieval
+        if basin_id in landcover_data.index:
+            basin_lc = landcover_data.loc[[basin_id]]
+        elif len(landcover_data) == 1:
+            basin_lc = landcover_data.iloc[[0]]
         else:
-            usgs_cols = [col for col in soil_data.columns if col.startswith('USGS_')]
-            basin_soil = int(soil_data.loc[basin_id, usgs_cols].idxmax().split('_')[1]) if usgs_cols else 1
+            basin_lc = None
+
+        # Robust soil row retrieval
+        if basin_id in soil_data.index:
+            basin_soil_data = soil_data.loc[[basin_id]]
+        elif len(soil_data) == 1:
+            basin_soil_data = soil_data.iloc[[0]]
+        else:
+            basin_soil_data = None
+
+        if basin_soil_data is not None and 'majority' in basin_soil_data.columns:
+            basin_soil = basin_soil_data['majority'].values[0]
+        elif basin_soil_data is not None:
+            usgs_cols = [col for col in basin_soil_data.columns if col.startswith('USGS_')]
+            basin_soil = int(basin_soil_data[usgs_cols].idxmax(axis=1).values[0].split('_')[1]) if usgs_cols else 1
+        else:
+            basin_soil = 1
 
         for slc_idx, (lc, soil) in enumerate(zip(slc_df['landcover'], slc_df['soil']), 1):
             lc_val = 0
-            for prefix in ['IGBP_', 'frac_']:
-                col = f'{prefix}{lc}'
-                if col in landcover_data.columns:
-                    lc_val = landcover_data.loc[basin_id, col]
-                    break
+            if basin_lc is not None:
+                for prefix in ['IGBP_', 'frac_']:
+                    col = f'{prefix}{lc}'
+                    if col in basin_lc.columns:
+                        lc_val = basin_lc[col].values[0]
+                        break
             
             if lc_val > frac_threshold and basin_soil == soil:
                 base_df.loc[base_df['subid'] == basin_id, f'SLC_{slc_idx}'] = lc_val
@@ -410,10 +450,18 @@ def write_hype_geo_files(gistool_output, subbasins_shapefile, rivers_shapefile, 
     
     # 8. Add remaining properties
     base_df = base_df.join(cat_props, on='subid')
-    if 'mean' in elevation_data.columns:
-        base_df['elev_mean'] = base_df['subid'].map(elevation_data['mean'])
-    else:
-        base_df['elev_mean'] = base_df['subid'].map(elevation_data['elev_mean'])
+    
+    elev_col = 'mean' if 'mean' in elevation_data.columns else 'elev_mean'
+    
+    # Robust elevation mapping
+    def get_elevation(subid):
+        if subid in elevation_data.index:
+            return elevation_data.loc[subid, elev_col]
+        elif len(elevation_data) == 1:
+            return elevation_data[elev_col].iloc[0]
+        return 0.0
+        
+    base_df['elev_mean'] = base_df['subid'].apply(get_elevation)
     
     # 9. Normalize SLC fractions
     slc_cols = [col for col in base_df.columns if col.startswith('SLC_')]

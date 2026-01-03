@@ -442,8 +442,6 @@ def test_calibration_workflow(tmp_path, symfluence_code_dir, symfluence_data_roo
     4. Calibrate model (minimal iterations for testing)
     5. Verify calibration outputs
     """
-    if os.environ.get("SYMFLUENCE_RUN_CALIBRATION") != "1":
-        pytest.skip("Set SYMFLUENCE_RUN_CALIBRATION=1 to run calibration e2e tests.")
     from utils.helpers import load_config_template, write_config
 
     # Create test configuration

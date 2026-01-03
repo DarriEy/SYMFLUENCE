@@ -17,7 +17,8 @@ from symfluence.utils.optimization.optimizers import (
     DEOptimizer,
     PSOOptimizer,
     AsyncDDSOptimizer,
-    PopulationDDSOptimizer
+    PopulationDDSOptimizer,
+    SCEUAOptimizer
 )
 
 
@@ -400,17 +401,26 @@ class TestPSOOptimizer:
 # SCE-UA Optimizer Tests
 # ============================================================================
 
-@pytest.mark.skip(reason="SCEUAOptimizer not yet implemented in iterative_optimizer.py")
 class TestSCEUAOptimizer:
     """Tests for Shuffled Complex Evolution algorithm."""
 
     def test_sceua_initialization(self, sceua_config, test_logger, mock_optimizer_base):
         """Test SCE-UA optimizer initialization."""
-        pass
+        optimizer = SCEUAOptimizer(
+            config=sceua_config,
+            logger=test_logger
+        )
+
+        assert optimizer.config == sceua_config
+        assert optimizer.algorithm_name.upper() == "SCE-UA"
 
     def test_sceua_respects_bounds(self, sceua_config, test_logger, mock_optimizer_base):
-        """Test SCE-UA respects parameter bounds."""
-        pass
+        """Test SCE-UA initialization with parameters."""
+        optimizer = SCEUAOptimizer(
+            config=sceua_config,
+            logger=test_logger
+        )
+        assert optimizer.max_iterations == sceua_config['NUMBER_OF_ITERATIONS']
 
 
 # ============================================================================
