@@ -59,7 +59,7 @@ def preprocessor(config, logger, tmp_path):
     (project_dir / 'forcing' / 'TEST_input').mkdir(parents=True, exist_ok=True)
     # Make sure local base settings exist in the fake code directory
     code_dir = Path(config['SYMFLUENCE_CODE_DIR'])
-    (code_dir / 'src' / 'symfluence' / 'data' / 'base_settings' / 'TEST').mkdir(parents=True, exist_ok=True)
+    (code_dir / 'src' / 'symfluence' / 'resources' / 'base_settings' / 'TEST').mkdir(parents=True, exist_ok=True)
 
     return ConcretePreProcessor(config, logger)
 
@@ -122,7 +122,7 @@ class TestPathResolution:
     def test_get_river_network_path_default(self, preprocessor):
         """Test get_river_network_path with defaults."""
         result = preprocessor.get_river_network_path()
-        expected = preprocessor.project_dir / 'shapefiles' / 'river_network' / 'test_domain_riverNetwork_delineate.shp'
+        expected = preprocessor.project_dir / 'shapefiles' / 'river_network' / 'test_domain_riverNetwork_lumped.shp'
         assert result == expected
 
 
@@ -358,7 +358,7 @@ class TestNewMethods:
             Path(preprocessor.config_dict['SYMFLUENCE_CODE_DIR'])
             / 'src'
             / 'symfluence'
-            / 'data'
+            / 'resources'
             / 'base_settings'
             / 'TEST'
         )

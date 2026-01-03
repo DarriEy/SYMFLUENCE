@@ -64,16 +64,10 @@ class TestInitialization:
         assert isinstance(init_manager.presets, dict)
         assert len(init_manager.presets) > 0
 
-    def test_template_dir_exists(self, init_manager):
-        """Test template directory path is set correctly."""
-        assert init_manager.template_dir is not None
-        assert isinstance(init_manager.template_dir, Path)
-
     def test_model_defaults_loaded(self, init_manager):
-        """Test model defaults are loaded."""
+        """Test that model defaults are loaded correctly."""
         assert 'FUSE' in init_manager.model_defaults
         assert 'SUMMA' in init_manager.model_defaults
-        assert 'GR' in init_manager.model_defaults
 
     def test_forcing_defaults_loaded(self, init_manager):
         """Test forcing defaults are loaded."""

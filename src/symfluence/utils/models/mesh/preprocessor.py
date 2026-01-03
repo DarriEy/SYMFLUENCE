@@ -12,29 +12,23 @@ from pathlib import Path
 
 
 
-# import meshflow  # type: ignore # version >= v0.1.0.dev5
+try:
+    from meshflow.core import MESHWorkflow
+    MESHFLOW_AVAILABLE = True
+except ImportError as e:
+    import logging
+    logging.warning(f"meshflow import failed: {e}. MESH preprocessing will be limited.")
+    MESHFLOW_AVAILABLE = False
 
-
-
-# Placeholder for meshflow.MESHWorkflow since hydrant dependency is unresolved
-
-class MESHWorkflowPlaceholder:
-
-    def __init__(self, **kwargs):
-
-        import logging
-
-        logging.warning("MESHWorkflow is a placeholder. The 'hydrant' dependency for meshflow is missing or incompatible. Please install the correct 'hydrant' to enable MESH preprocessing.")
-
-        pass
-
-    def run(self, save_path=None):
-
-        pass
-
-    def save(self, output_dir):
-
-        pass
+    # Fallback placeholder
+    class MESHWorkflow:
+        def __init__(self, **kwargs):
+            logging.warning("MESHWorkflow placeholder - meshflow not available")
+            pass
+        def run(self, save_path=None):
+            pass
+        def save(self, output_dir):
+            pass
 
 
 
@@ -50,9 +44,11 @@ from ..base import BaseModelPreProcessor
 
 
 from ..mixins import ObservationLoaderMixin
+from ..registry import ModelRegistry
 from symfluence.utils.exceptions import ConfigurationError, ModelExecutionError, symfluence_error_handler
 
 
+@ModelRegistry.register_preprocessor('MESH')
 class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
     """
     Preprocessor for the MESH model.
@@ -259,9 +255,42 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
     def prepare_forcing_data(self, config):
         """Prepare forcing data using meshflow."""
-        exp = MESHWorkflowPlaceholder(**config)
-        exp.run(save_path=self.forcing_dir)
+        if not MESHFLOW_AVAILABLE:
+            self.logger.warning("meshflow not available - skipping MESH preprocessing")
+            return
 
-        # Save drainage database and forcing files
-        # (forcing_dir already created by base class create_directories())
-        exp.save(self.forcing_dir)
+        try:
+            # Check if required files exist
+            required_files = [
+                config.get('riv'),
+                config.get('cat'),
+                config.get('landcover'),
+            ]
+
+            missing_files = [f for f in required_files if f and not Path(f).exists()]
+
+            if missing_files:
+                self.logger.warning(f"MESH preprocessing skipped - missing required files: {missing_files}")
+                self.logger.info("MESH will run without meshflow preprocessing (may fail or produce limited results)")
+                return
+
+            self.logger.info("Initializing MESHWorkflow with configuration")
+            exp = MESHWorkflow(**config)
+
+            self.logger.info(f"Running MESHWorkflow preprocessing, saving to {self.forcing_dir}")
+            exp.run(save_path=str(self.forcing_dir))
+
+            # Save drainage database and forcing files
+            # (forcing_dir already created by base class create_directories())
+            self.logger.info("Saving MESH drainage database and forcing files")
+            exp.save(str(self.forcing_dir))
+
+            self.logger.info("MESH preprocessing completed successfully")
+        except FileNotFoundError as e:
+            self.logger.warning(f"MESH preprocessing skipped - file not found: {str(e)}")
+            self.logger.info("MESH will run without meshflow preprocessing (may fail or produce limited results)")
+        except Exception as e:
+            self.logger.error(f"Error during MESH preprocessing: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise

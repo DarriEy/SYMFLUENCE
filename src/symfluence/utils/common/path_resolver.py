@@ -208,8 +208,9 @@ class PathResolverMixin:
             FileNotFoundError: If must_exist=True and path doesn't exist
             AttributeError: If required attributes (config, project_dir) don't exist
         """
+        config = getattr(self, 'config_dict', getattr(self, 'config', {}))
         return resolve_path(
-            config=self.config_dict,
+            config=config,
             config_key=config_key,
             project_dir=self.project_dir,
             default_subpath=default_subpath,
@@ -245,8 +246,9 @@ class PathResolverMixin:
             FileNotFoundError: If must_exist=True and file doesn't exist
             AttributeError: If required attributes (config, project_dir) don't exist
         """
+        config = getattr(self, 'config_dict', getattr(self, 'config', {}))
         return resolve_file_path(
-            config=self.config_dict,
+            config=config,
             project_dir=self.project_dir,
             path_key=path_key,
             name_key=name_key,

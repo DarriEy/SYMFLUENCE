@@ -8,6 +8,7 @@ Refactored to use the Unified Model Execution Framework.
 import os
 import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
@@ -65,35 +66,79 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
         """MESH output directory."""
         return self.get_experiment_output_dir()
 
-    def run_MESH(self) -> Optional[Path]:
+    def run_mesh(self) -> Optional[Path]:
         """
         Run the MESH model.
 
         Returns:
             Optional[Path]: Path to the output directory if successful, None otherwise
         """
-        # Store current directory
-        original_dir = os.getcwd()
+        self.logger.info("Starting MESH model run")
 
-        # Change to forcing directory for execution
-        os.chdir(self.forcing_mesh_path)
+        try:
+            # Create run command
+            cmd = self._create_run_command()
 
-        cmd = self._create_run_command()
-        subprocess.run(cmd, check=True)
+            # Set up logging
+            log_dir = self.get_log_path()
+            from datetime import datetime
+            current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_file = log_dir / f'mesh_run_{current_time}.log'
 
-        # Change back to original directory
-        os.chdir(original_dir)
-        shutil.rmtree(self.forcing_mesh_path / self.mesh_exe.name)
-        return
+            # Execute MESH (it must run in the forcing directory)
+            self.logger.info(f"Executing command: {' '.join(map(str, cmd))}")
+
+            result = self.execute_model_subprocess(
+                cmd,
+                log_file,
+                cwd=self.forcing_mesh_path,
+                check=False,  # Don't raise on non-zero exit, we'll handle it
+                success_message="MESH simulation completed successfully"
+            )
+
+            # Clean up copied executable
+            mesh_exe_in_forcing = self.forcing_mesh_path / self.mesh_exe.name
+            if mesh_exe_in_forcing.exists() and mesh_exe_in_forcing.is_file():
+                mesh_exe_in_forcing.unlink()
+
+            # Check execution success
+            if result.returncode == 0 and self._verify_outputs():
+                return self.output_dir
+            else:
+                self.logger.error("MESH simulation failed")
+                return None
+
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"MESH execution failed: {str(e)}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error running MESH: {str(e)}")
+            raise
 
     def _create_run_command(self) -> List[str]:
         """Create MESH execution command."""
         # Copy mesh executable to forcing path
         mesh_exe_dest = self.forcing_mesh_path / self.mesh_exe.name
         shutil.copy2(self.mesh_exe, mesh_exe_dest)
+        # Make sure it's executable
+        mesh_exe_dest.chmod(0o755)
 
         cmd = [
-            str(self.mesh_exe)
+            f'./{self.mesh_exe.name}'  # Use relative path since we run in that directory
         ]
-        print(cmd)
         return cmd
+
+    def _verify_outputs(self) -> bool:
+        """Verify MESH output files exist."""
+        required_outputs = [
+            'MESH_output_streamflow.csv',
+        ]
+
+        # Check in forcing directory where MESH runs
+        for output_file in required_outputs:
+            output_path = self.forcing_mesh_path / output_file
+            if not output_path.exists():
+                self.logger.warning(f"Required output file not found: {output_file}")
+                return False
+
+        return True

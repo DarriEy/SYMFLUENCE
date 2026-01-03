@@ -372,7 +372,9 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         river_name = self.config_dict.get('RIVER_NETWORK_SHP_NAME')
 
         if river_name == 'default' or river_name is None:
-            river_name = f"{self.domain_name}_riverNetwork_delineate.shp"
+            # Use the domain definition method for the filename
+            method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'delineate')
+            river_name = f"{self.domain_name}_riverNetwork_{method}.shp"
 
         return river_path / river_name
 
@@ -463,7 +465,7 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         Uses importlib.resources to load base settings from package data,
         working in both development and installed modes. If
         SYMFLUENCE_CODE_DIR is configured, prefer the local copy
-        (new src-based layout first, falling back to legacy 0_base_settings).
+        (src-based layout).
 
         Returns:
             Path to base settings directory for this model
@@ -475,13 +477,9 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         code_dir_value = self.config_dict.get("SYMFLUENCE_CODE_DIR")
         if code_dir_value:
             code_dir = Path(code_dir_value)
-            base_settings_candidates = [
-                code_dir / "src" / "symfluence" / "data" / "base_settings" / self.model_name,
-                code_dir / "0_base_settings" / self.model_name,
-            ]
-            for candidate in base_settings_candidates:
-                if candidate.exists():
-                    return candidate
+            base_settings_src = code_dir / "src" / "symfluence" / "resources" / "base_settings" / self.model_name
+            if base_settings_src.exists():
+                return base_settings_src
 
         return get_base_settings_dir(self.model_name)
 
