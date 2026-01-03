@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 from symfluence.utils.optimization.core.base_parameter_manager import BaseParameterManager
+from symfluence.utils.optimization.core.parameter_bounds_registry import (
+    get_mizuroute_bounds, get_depth_bounds
+)
 
 
 class ParameterManager(BaseParameterManager):
@@ -20,7 +23,7 @@ class ParameterManager(BaseParameterManager):
         # SUMMA-specific setup
         # Parse parameter lists
         self.local_params = [p.strip() for p in config.get('PARAMS_TO_CALIBRATE', '').split(',') if p.strip()]
-        self.basin_params = [p.strip() for p in config.get('BASIN_PARAMS_TO_CALIBRATE', '').split(',') if p.strip()]
+        self.basin_params = [p.strip() for p in (config.get('BASIN_PARAMS_TO_CALIBRATE') or '').split(',') if p.strip()]
 
         # Identify depth parameters
         self.depth_params = []
@@ -127,19 +130,22 @@ class ParameterManager(BaseParameterManager):
             basin_bounds = self._parse_param_info_file(basin_param_file, self.basin_params)
             bounds.update(basin_bounds)
         
-        # Add depth parameter bounds
+        # Add depth parameter bounds from central registry
         if self.depth_params:
-            if 'total_mult' in self.depth_params or 'total_soil_depth_multiplier' in self.depth_params:
-                bounds['total_mult'] = {'min': 0.1, 'max': 5.0}
-                bounds['total_soil_depth_multiplier'] = {'min': 0.1, 'max': 5.0}
-            if 'shape_factor' in self.depth_params:
-                bounds['shape_factor'] = {'min': 0.1, 'max': 3.0}
-        
-        # Add mizuRoute parameter bounds
+            depth_bounds = get_depth_bounds()
+            for param in self.depth_params:
+                if param in depth_bounds:
+                    bounds[param] = depth_bounds[param]
+
+        # Add mizuRoute parameter bounds from central registry
         if self.mizuroute_params:
-            mizuroute_bounds = self._get_mizuroute_bounds()
-            bounds.update(mizuroute_bounds)
-        
+            mizuroute_bounds = get_mizuroute_bounds()
+            for param in self.mizuroute_params:
+                if param in mizuroute_bounds:
+                    bounds[param] = mizuroute_bounds[param]
+                else:
+                    self.logger.warning(f"Unknown mizuRoute parameter: {param}")
+
         return bounds
     
     def _parse_param_info_file(self, file_path: Path, param_names: List[str]) -> Dict[str, Dict[str, float]]:
@@ -184,27 +190,9 @@ class ParameterManager(BaseParameterManager):
             self.logger.error(f"Error reading parameter file {file_path}: {str(e)}")
         
         return bounds
-    
-    def _get_mizuroute_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Get parameter bounds for mizuRoute parameters"""
-        default_bounds = {
-            'velo': {'min': 0.1, 'max': 5.0},
-            'diff': {'min': 100.0, 'max': 5000.0},
-            'mann_n': {'min': 0.01, 'max': 0.1},
-            'wscale': {'min': 0.0001, 'max': 0.01},
-            'fshape': {'min': 1.0, 'max': 5.0},
-            'tscale': {'min': 3600, 'max': 172800}
-        }
-        
-        bounds = {}
-        for param in self.mizuroute_params:
-            if param in default_bounds:
-                bounds[param] = default_bounds[param]
-            else:
-                self.logger.warning(f"Unknown mizuRoute parameter: {param}")
-        
-        return bounds
-    
+
+    # Note: mizuRoute bounds are now provided by the central ParameterBoundsRegistry
+
     def _load_existing_optimized_parameters(self) -> Optional[Dict[str, np.ndarray]]:
         """Load existing optimized parameters from default settings"""
         trial_params_path = self.config.get('SYMFLUENCE_DATA_DIR')

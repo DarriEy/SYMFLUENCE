@@ -1,6 +1,5 @@
 import pandas as pd # type: ignore
 import numpy as np # type: ignore
-import matplotlib.pyplot as plt # type: ignore
 from pathlib import Path 
 #from pyviscous import viscous # type: ignore
 from SALib.analyze import sobol, rbd_fast # type: ignore
@@ -9,9 +8,10 @@ from scipy.stats import spearmanr  # type: ignore
 from tqdm import tqdm # type: ignore
 
 class SensitivityAnalyzer:
-    def __init__(self, config, logger):
+    def __init__(self, config, logger, reporting_manager=None):
         self.config = config
         self.logger = logger
+        self.reporting_manager = reporting_manager
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
@@ -42,7 +42,11 @@ class SensitivityAnalyzer:
         for i, param in tqdm(enumerate(parameter_columns), total=len(parameter_columns), desc="Calculating sensitivities"):
             try:
                 try:
+                    from pyviscous import viscous # type: ignore
                     sensitivity_result = viscous(x, y, i, sensType='total')
+                except ImportError:
+                    self.logger.warning("pyviscous not installed, skipping.")
+                    return pd.Series([-999] * len(parameter_columns), index=parameter_columns)
                 except ValueError:
                     sensitivity_result = viscous(x, y, i, sensType='single')
                 
@@ -113,28 +117,6 @@ class SensitivityAnalyzer:
         self.logger.info("Correlation analysis completed") 
         return pd.Series(correlations, index=parameter_columns)
 
-    def plot_sensitivity(self, sensitivity, output_file):
-        plt.figure(figsize=(10, 6))
-        sensitivity.plot(kind='bar')
-        plt.title("Parameter Sensitivity Analysis")
-        plt.xlabel("Parameters")
-        plt.ylabel("Sensitivity")
-        plt.xticks(rotation=45, ha='right')
-        plt.tight_layout()
-        plt.savefig(output_file)
-        plt.close()
-
-    def plot_sensitivity_comparison(self, all_results, output_file):
-        plt.figure(figsize=(12, 8))
-        all_results.plot(kind='bar')
-        plt.title("Sensitivity Analysis Comparison")
-        plt.xlabel("Parameters")
-        plt.ylabel("Sensitivity")
-        plt.legend(title="Method", bbox_to_anchor=(1.05, 1), loc='upper left')
-        plt.tight_layout()
-        plt.savefig(output_file)
-        plt.close()
-
     def run_sensitivity_analysis(self, results_file):
         self.logger.info("Starting sensitivity analysis")
         
@@ -160,12 +142,26 @@ class SensitivityAnalyzer:
             sensitivity = method(results_preprocessed, metric='Calib_RMSE')
             all_results[name] = sensitivity
             sensitivity.to_csv(self.output_folder / f'{name.lower()}_sensitivity.csv')
-            self.plot_sensitivity(sensitivity, self.output_folder / f'{name.lower()}_sensitivity.png')
+            
+            if self.reporting_manager:
+                self.reporting_manager.visualize_sensitivity_analysis(
+                    sensitivity, 
+                    self.output_folder / f'{name.lower()}_sensitivity.png',
+                    plot_type='single'
+                )
+            
             self.logger.info(f"Saved {name} sensitivity results and plot")
 
         comparison_df = pd.DataFrame(all_results)
         comparison_df.to_csv(self.output_folder / 'all_sensitivity_results.csv')
-        self.plot_sensitivity_comparison(comparison_df, self.output_folder / 'sensitivity_comparison.png')
+        
+        if self.reporting_manager:
+            self.reporting_manager.visualize_sensitivity_analysis(
+                comparison_df, 
+                self.output_folder / 'sensitivity_comparison.png',
+                plot_type='comparison'
+            )
+            
         self.logger.info("Saved comparison of all sensitivity results")
 
         self.logger.info("Sensitivity analysis completed successfully")

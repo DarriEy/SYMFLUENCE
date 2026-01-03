@@ -9,6 +9,10 @@ The SummaRunner handles model execution in various modes:
 - Parallel execution using SLURM job arrays
 - Point simulation mode for multiple point-based simulations
 
+Refactored to use the Unified Model Execution Framework:
+- ModelExecutor: For subprocess and SLURM execution
+- SpatialOrchestrator: For routing integration
+
 Author: SYMFLUENCE Development Team
 """
 
@@ -19,7 +23,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 
 # Third-party imports
 import geopandas as gpd
@@ -32,19 +36,25 @@ import tempfile
 # Local imports
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
+from ..execution import ModelExecutor, SpatialOrchestrator, ExecutionResult, SlurmJobConfig
 from symfluence.utils.exceptions import (
     ModelExecutionError,
     symfluence_error_handler
 )
+from symfluence.utils.data.utilities.netcdf_utils import create_minimal_encoding
 
 
 @ModelRegistry.register_runner('SUMMA', method_name='run_summa')
-class SummaRunner(BaseModelRunner):
+class SummaRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
     """
     A class to run the SUMMA (Structure for Unifying Multiple Modeling Alternatives) model.
 
     This class handles the execution of the SUMMA model, including setting up paths,
     running the model, and managing log files.
+
+    Now uses the Unified Model Execution Framework for:
+    - SLURM job submission and monitoring (via ModelExecutor)
+    - Routing integration (via SpatialOrchestrator)
 
     Attributes:
         config (Dict[str, Any]): Configuration settings for the model run.
@@ -53,9 +63,9 @@ class SummaRunner(BaseModelRunner):
         domain_name (str): Name of the domain being processed.
         project_dir (Path): Directory for the current project.
     """
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
         # Call base class
-        super().__init__(config, logger)
+        super().__init__(config, logger, reporting_manager=reporting_manager)
 
         # SummaRunner uses 'root_path' alias for backwards compatibility
         self.setup_path_aliases({'root_path': 'data_dir'})
@@ -84,10 +94,10 @@ class SummaRunner(BaseModelRunner):
             error_type=ModelExecutionError
         ):
             # Phase 3: Use typed config when available for clearer intent
-            if self.typed_config:
-                use_parallel = self.typed_config.model.summa.use_parallel if self.typed_config.model.summa else False
+            if self.config:
+                use_parallel = self.config.model.summa.use_parallel if self.config.model.summa else False
             else:
-                use_parallel = self.config.get('SETTINGS_SUMMA_USE_PARALLEL_SUMMA', False)
+                use_parallel = self.config_dict.get('SETTINGS_SUMMA_USE_PARALLEL_SUMMA', False)
 
             if use_parallel:
                 self.run_summa_parallel()
@@ -106,7 +116,7 @@ class SummaRunner(BaseModelRunner):
 
         # Set up paths
         summa_path = self.get_install_path('SUMMA_INSTALL_PATH', 'installs/summa/bin/')
-        summa_exe = self.config.get('SUMMA_EXE')
+        summa_exe = self.config_dict.get('SUMMA_EXE')
         setting_path = self.get_config_path('SETTINGS_SUMMA_PATH', 'settings/SUMMA_point/')
 
         # Run all sites from the file manager lists
@@ -129,7 +139,7 @@ class SummaRunner(BaseModelRunner):
             self.logger.warning(f"Mismatch in file manager list lengths: {len(fm_ic_list)} IC files vs {len(fm_list)} main files")
 
         # Create output directory
-        experiment_id = self.config.get('EXPERIMENT_ID')
+        experiment_id = self.config_dict.get('EXPERIMENT_ID')
         main_output_path = self.project_dir / 'simulations' / experiment_id / 'SUMMA_point'
         main_output_path.mkdir(parents=True, exist_ok=True)
 
@@ -148,11 +158,19 @@ class SummaRunner(BaseModelRunner):
 
             # Run initial conditions (IC) simulation
             self.logger.info(f"Running initial conditions simulation for {site_name}")
-            ic_command = f"{str(summa_path / summa_exe)} -m {ic_fm} -r e"
+            ic_command = [str(summa_path / summa_exe), '-m', ic_fm, '-r', 'e']
 
             try:
-                with open(log_path / f"{site_name}_IC.log", 'w') as log_file:
-                    subprocess.run(ic_command, shell=True, check=True, stdout=log_file, stderr=subprocess.STDOUT)
+                ic_result = self.execute_subprocess(
+                    command=ic_command,
+                    log_file=log_path / f"{site_name}_IC.log",
+                    check=False,
+                    success_message=f"IC simulation completed for {site_name}"
+                )
+
+                if not ic_result.success:
+                    self.logger.error(f"IC simulation failed for {site_name}")
+                    continue
 
                 # Find the restart file (newest file with 'restart' in name)
                 site_setting_path = Path(os.path.dirname(ic_fm))
@@ -171,12 +189,19 @@ class SummaRunner(BaseModelRunner):
 
                 # Run main simulation
                 self.logger.info(f"Running main simulation for {site_name}")
-                main_command = f"{str(summa_path / summa_exe)} -m {main_fm}"
+                main_command = [str(summa_path / summa_exe), '-m', main_fm]
 
-                with open(log_path / f"{site_name}_main.log", 'w') as log_file:
-                    subprocess.run(main_command, shell=True, check=True, stdout=log_file, stderr=subprocess.STDOUT)
+                main_result = self.execute_subprocess(
+                    command=main_command,
+                    log_file=log_path / f"{site_name}_main.log",
+                    check=False,
+                    success_message=f"Main simulation completed for {site_name}"
+                )
 
-                self.logger.info(f"Completed simulation for {site_name}")
+                if main_result.success:
+                    self.logger.info(f"Completed simulation for {site_name}")
+                else:
+                    self.logger.error(f"Main simulation failed for {site_name}")
 
             except subprocess.CalledProcessError as e:
                 self.logger.error(f"SUMMA run failed for {site_name} with error code {e.returncode}")
@@ -190,155 +215,87 @@ class SummaRunner(BaseModelRunner):
     def run_summa_parallel(self):
         """
         Run SUMMA in parallel using SLURM array jobs.
-        This method handles GRU-based parallelization using SLURM's job array capability.
+
+        This method uses the ModelExecutor framework for SLURM job management,
+        replacing ~100 lines of inline SLURM code with framework methods.
         """
         self.logger.info("Starting parallel SUMMA run with SLURM")
 
+        # Check SLURM availability using framework method
+        if not self.is_slurm_available():
+            self.logger.error("SLURM 'sbatch' command not found. Is SLURM installed?")
+            raise RuntimeError("SLURM 'sbatch' command not found")
+
         # Set up paths and filenames
         summa_path = self.get_install_path('SETTINGS_SUMMA_PARALLEL_PATH', 'installs/summa/bin/')
-        summa_exe = self.config.get('SETTINGS_SUMMA_PARALLEL_EXE')
+        summa_exe = self.config_dict.get('SETTINGS_SUMMA_PARALLEL_EXE')
         settings_path = self.get_config_path('SETTINGS_SUMMA_PATH', 'settings/SUMMA/')
-        filemanager = self.config.get('SETTINGS_SUMMA_FILEMANAGER')
+        filemanager = self.config_dict.get('SETTINGS_SUMMA_FILEMANAGER')
 
-        experiment_id = self.config.get('EXPERIMENT_ID')
+        experiment_id = self.config_dict.get('EXPERIMENT_ID')
         summa_log_path = self.get_config_path('EXPERIMENT_LOG_SUMMA', f"simulations/{experiment_id}/SUMMA/SUMMA_logs/")
         summa_out_path = self.get_config_path('EXPERIMENT_OUTPUT_SUMMA', f"simulations/{experiment_id}/SUMMA/")
 
-        # Create output and log directories if they don't exist
+        # Create output and log directories
         summa_log_path.mkdir(parents=True, exist_ok=True)
         summa_out_path.mkdir(parents=True, exist_ok=True)
 
         # Get total GRU count from catchment shapefile
-        subbasins_name = self.config.get('CATCHMENT_SHP_NAME')
-        if subbasins_name == 'default':
-            subbasins_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
-        subbasins_shapefile = self.project_dir / "shapefiles" / "catchment" / subbasins_name
+        total_grus = self._count_grus_from_shapefile()
 
-        # Read shapefile and count unique GRU_IDs
-        try:
-            gdf = gpd.read_file(subbasins_shapefile)
-            total_grus = len(gdf[self.config.get('CATCHMENT_SHP_GRUID')].unique())
-            self.logger.info(f"Counted {total_grus} unique GRUs from shapefile: {subbasins_shapefile}")
-        except Exception as e:
-            self.logger.error(f"Error counting GRUs from shapefile: {str(e)}")
-            raise RuntimeError(f"Failed to count GRUs from shapefile {subbasins_shapefile}: {str(e)}")
+        # Use framework method for optimal GRU estimation
+        grus_per_job = self.estimate_optimal_grus_per_job(total_grus)
+        self.logger.info(f"Optimal GRUs per job: {grus_per_job} for {total_grus} total GRUs")
 
-        # Logically estimate GRUs per job based on total GRU count
-        grus_per_job = self._estimate_grus_per_job(total_grus)
-        self.logger.info(f"Estimated optimal GRUs per job: {grus_per_job} for {total_grus} total GRUs")
-
-        # Calculate number of array jobs needed (minimum 1)
-        n_array_jobs = max(1, -(-total_grus // grus_per_job))  # Ceiling division
-
-        self.logger.info(f"Will launch {n_array_jobs} parallel jobs with {grus_per_job} GRUs per job")
-
-        # Create SLURM script
-        slurm_script = self._create_slurm_script(
-            summa_path=summa_path,
-            summa_exe=summa_exe,
-            settings_path=settings_path,
-            filemanager=filemanager,
-            summa_log_path=summa_log_path,
-            summa_out_path=summa_out_path,
+        # Use framework method to create SLURM script
+        script_content = self.create_gru_parallel_script(
+            model_exe=summa_path / summa_exe,
+            file_manager=settings_path / filemanager,
+            log_dir=summa_log_path,
             total_grus=total_grus,
             grus_per_job=grus_per_job,
-            n_array_jobs=n_array_jobs - 1  # SLURM arrays are 0-based
+            job_name=f"SUMMA-{self.domain_name}",
         )
 
         # Write SLURM script
         script_path = self.project_dir / 'run_summa_parallel.sh'
-        with open(script_path, 'w') as f:
-            f.write(slurm_script)
+        script_path.write_text(script_content)
+        script_path.chmod(0o755)
 
-        # Make script executable
-        import os
-        os.chmod(script_path, 0o755)
+        # Backup settings if required
+        if self.config_dict.get('EXPERIMENT_BACKUP_SETTINGS') == 'yes':
+            self.backup_settings(settings_path)
 
-        # Submit job
+        # Use framework method to submit and monitor SLURM job
+        monitor_job = self.config_dict.get('MONITOR_SLURM_JOB', True)
+        result = self.submit_slurm_job(
+            script_path=script_path,
+            wait=monitor_job,
+            poll_interval=60,
+            max_wait_time=3600
+        )
+
+        if not result.success:
+            raise RuntimeError(f"SLURM job failed: {result.error_message}")
+
+        self.logger.info("SUMMA parallel run completed")
+        return self.merge_parallel_outputs()
+
+    def _count_grus_from_shapefile(self) -> int:
+        """Count total GRUs from catchment shapefile."""
+        subbasins_name = self.config_dict.get('CATCHMENT_SHP_NAME')
+        if subbasins_name == 'default':
+            subbasins_name = f"{self.domain_name}_HRUs_{self.config_dict.get('DOMAIN_DISCRETIZATION')}.shp"
+        subbasins_shapefile = self.project_dir / "shapefiles" / "catchment" / subbasins_name
+
         try:
-            import subprocess
-            import shutil
-
-            # Check if sbatch exists in the path
-            if not shutil.which("sbatch"):
-                self.logger.error("SLURM 'sbatch' command not found. Is SLURM installed on this system?")
-                raise RuntimeError("SLURM 'sbatch' command not found")
-
-            # Log the full command being executed
-            cmd = f"sbatch {script_path}"
-            self.logger.info(f"Executing command: {cmd}")
-
-            # Run the command
-            process = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
-            job_id = process.stdout.strip().split()[-1]
-            self.logger.info(f"Submitted SLURM array job with ID: {job_id}")
-
-            # Backup settings if required
-            if self.config.get('EXPERIMENT_BACKUP_SETTINGS') == 'yes':
-                backup_path = summa_out_path / "run_settings"
-                self._backup_settings(settings_path, backup_path)
-
-            # Check if we should monitor the job
-            monitor_job = self.config.get('MONITOR_SLURM_JOB', True)
-            if monitor_job:
-                import time
-
-                self.logger.info(f"Monitoring SLURM job {job_id}")
-
-                # Wait for SLURM job to complete
-                wait_time = 0
-                max_wait_time = 3600  # 1 hour
-                check_interval = 60  # 1 minute
-
-                while wait_time < max_wait_time:
-                    try:
-                        result = subprocess.run(f"squeue -j {job_id}", shell=True, capture_output=True, text=True)
-
-                        # If result only contains header, job is no longer in queue
-                        if result.stdout.count('\n') <= 1:
-                            self.logger.info(f"Job {job_id} no longer in queue, checking status")
-
-                            # Check if job completed successfully
-                            sacct_cmd = f"sacct -j {job_id} -o State -n | head -1"
-                            state_result = subprocess.run(sacct_cmd, shell=True, capture_output=True, text=True)
-                            state = state_result.stdout.strip()
-
-                            if "COMPLETED" in state:
-                                self.logger.info(f"Job {job_id} completed successfully")
-                                break
-                            elif "FAILED" in state or "CANCELLED" in state or "TIMEOUT" in state:
-                                self.logger.error(f"Job {job_id} ended with status: {state}")
-                                raise RuntimeError(f"SLURM job {job_id} failed with status: {state}")
-                            else:
-                                self.logger.warning(f"Job {job_id} has unknown status: {state}")
-                                break
-                        else:
-                            pending_count = result.stdout.count("PENDING")
-                            running_count = result.stdout.count("RUNNING")
-                            self.logger.info(f"Job {job_id} status: {running_count} running, {pending_count} pending")
-                    except subprocess.SubprocessError as e:
-                        self.logger.warning(f"Error checking job status: {str(e)}")
-
-                    # Wait before checking again
-                    time.sleep(check_interval)
-                    wait_time += check_interval
-
-                if wait_time >= max_wait_time:
-                    self.logger.warning(f"Maximum wait time exceeded for job {job_id}. Continuing without waiting for completion.")
-
-            self.logger.info("SUMMA parallel run completed or continuing in background")
-            return self.merge_parallel_outputs()
-
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"Error executing sbatch command: {str(e)}")
-            self.logger.error(f"Command output: {e.stdout}")
-            self.logger.error(f"Command error: {e.stderr}")
-            raise RuntimeError(f"Failed to submit SLURM job. Error: {str(e)}")
+            gdf = gpd.read_file(subbasins_shapefile)
+            total_grus = len(gdf[self.config_dict.get('CATCHMENT_SHP_GRUID')].unique())
+            self.logger.info(f"Counted {total_grus} unique GRUs from: {subbasins_shapefile}")
+            return total_grus
         except Exception as e:
-            self.logger.error(f"Error in parallel SUMMA workflow: {str(e)}")
-            import traceback
-            self.logger.error(f"Traceback: {traceback.format_exc()}")
-            raise
+            self.logger.error(f"Error counting GRUs: {e}")
+            raise RuntimeError(f"Failed to count GRUs from {subbasins_shapefile}: {e}")
 
     def _estimate_grus_per_job(self, total_grus: int) -> int:
         """
@@ -421,7 +378,7 @@ class SummaRunner(BaseModelRunner):
 #SBATCH --cpus-per-task=1
 #SBATCH --time=03:00:00'
 #SBATCH --mem=4G
-#SBATCH --job-name=Summa-{self.config.get('DOMAIN_NAME')}
+#SBATCH --job-name=Summa-{self.config_dict.get('DOMAIN_NAME')}
 #SBATCH --output={summa_log_path}/summa_%A_%a.out
 #SBATCH --error={summa_log_path}/summa_%A_%a.err
 #SBATCH --array=0-{n_array_jobs}
@@ -491,18 +448,18 @@ echo "Completed all GRUs for this job at $(date)"
 
         # Set up paths and filenames
         summa_path = self.get_install_path('SUMMA_INSTALL_PATH', 'installs/summa/bin/')
-        summa_exe = self.config.get('SUMMA_EXE')
+        summa_exe = self.config_dict.get('SUMMA_EXE')
         settings_path = self.get_config_path('SETTINGS_SUMMA_PATH', 'settings/SUMMA/')
-        filemanager = self.config.get('SETTINGS_SUMMA_FILEMANAGER')
+        filemanager = self.config_dict.get('SETTINGS_SUMMA_FILEMANAGER')
 
-        experiment_id = self.config.get('EXPERIMENT_ID')
+        experiment_id = self.config_dict.get('EXPERIMENT_ID')
         summa_log_path = self.get_config_path('EXPERIMENT_LOG_SUMMA', f"simulations/{experiment_id}/SUMMA/SUMMA_logs/")
         summa_log_name = "summa_log.txt"
 
         summa_out_path = self.get_config_path('EXPERIMENT_OUTPUT_SUMMA', f"simulations/{experiment_id}/SUMMA/")
 
         # Backup settings if required
-        if self.config.get('EXPERIMENT_BACKUP_SETTINGS') == 'yes':
+        if self.config_dict.get('EXPERIMENT_BACKUP_SETTINGS') == 'yes':
             self.backup_settings(settings_path, backup_subdir="run_settings")
 
         # Run SUMMA
@@ -518,14 +475,23 @@ echo "Completed all GRUs for this job at $(date)"
         self.logger.info(f"File manager: {filemanager_path}")
 
         try:
-            with open(summa_log_path / summa_log_name, 'w') as log_file:
-                # Use shell=False and pass command as list for better reliability
-                subprocess.run([summa_binary, '-m', filemanager_path], check=True, stdout=log_file, stderr=subprocess.STDOUT, env=env)
-            self.logger.info("SUMMA run completed successfully")
+            # Use standardized subprocess execution from ModelExecutor
+            result = self.execute_subprocess(
+                command=[summa_binary, '-m', filemanager_path],
+                log_file=summa_log_path / summa_log_name,
+                env=env,
+                check=False,
+                success_message="SUMMA run completed successfully"
+            )
+
+            if not result.success:
+                raise subprocess.CalledProcessError(
+                    result.return_code, [summa_binary, '-m', filemanager_path]
+                )
 
             # Check if we need to convert lumped output for distributed routing
-            domain_method = self.config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-            routing_delineation = self.config.get('ROUTING_DELINEATION', 'lumped')
+            domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+            routing_delineation = self.config_dict.get('ROUTING_DELINEATION', 'lumped')
 
             if domain_method == 'lumped' and routing_delineation == 'river_network':
                 self.logger.info("Converting lumped SUMMA output for distributed routing")
@@ -546,7 +512,7 @@ echo "Completed all GRUs for this job at $(date)"
         This handles the case where a lumped model run needs to be mapped to 
         distributed river segments for routing.
         """
-        experiment_id = self.config.get('EXPERIMENT_ID')
+        experiment_id = self.config_dict.get('EXPERIMENT_ID')
         summa_output_dir = self.project_dir / "simulations" / experiment_id / "SUMMA"
         mizuroute_settings_dir = self.project_dir / "settings" / "mizuRoute"
         summa_timestep_file = summa_output_dir / f"{experiment_id}_timestep.nc"
@@ -555,7 +521,7 @@ echo "Completed all GRUs for this job at $(date)"
             self.logger.warning(f"SUMMA timestep file not found for conversion: {summa_timestep_file}")
             return
 
-        topology_file = mizuroute_settings_dir / self.config.get('SETTINGS_MIZU_TOPOLOGY', 'topology.nc')
+        topology_file = mizuroute_settings_dir / self.config_dict.get('SETTINGS_MIZU_TOPOLOGY', 'topology.nc')
         if not topology_file.exists():
             self.logger.warning(f"Topology file not found for conversion: {topology_file}")
             return
@@ -563,7 +529,7 @@ echo "Completed all GRUs for this job at $(date)"
         # We assume HRU ID 1 for lumped case, but could read from topology
         hru_id = 1 
         
-        routing_var = self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
+        routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
         
         try:
             summa_output = xr.open_dataset(summa_timestep_file, decode_times=False)
@@ -622,7 +588,7 @@ echo "Completed all GRUs for this job at $(date)"
         self.logger.info("Starting to merge parallel SUMMA outputs")
 
         # Get experiment settings
-        experiment_id = self.config.get('EXPERIMENT_ID')
+        experiment_id = self.config_dict.get('EXPERIMENT_ID')
         summa_out_path = self.get_config_path('EXPERIMENT_OUTPUT_SUMMA', f"simulations/{experiment_id}/SUMMA/")
         mizu_in_path = self.get_config_path('EXPERIMENT_OUTPUT_SUMMA', f"simulations/{experiment_id}/SUMMA/")
         mizu_in_path.mkdir(parents=True, exist_ok=True)
@@ -679,17 +645,8 @@ echo "Completed all GRUs for this job at $(date)"
 
                 # Save merged data
                 if merged_ds is not None:
-                    # Create encoding dict for all variables
-                    encoding = {
-                        'time': {
-                            'dtype': 'double',
-                            '_FillValue': None
-                        }
-                    }
-
-                    # Add encoding for all other variables
-                    for var in merged_ds.data_vars:
-                        encoding[var] = {'_FillValue': None}
+                    # Use standardized minimal encoding (no compression, no fill values)
+                    encoding = create_minimal_encoding(merged_ds)
 
                     # Preserve the original attributes
                     if 'summaVersion' in merged_ds.attrs:

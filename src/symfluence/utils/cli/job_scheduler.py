@@ -82,8 +82,8 @@ class JobScheduler:
             print(f"💳 Account: {slurm_options['job_account']}")
         if slurm_options.get('job_partition'):
             print(f"📊 Partition: {slurm_options['job_partition']}")
-        
-        config_file = execution_plan.get('config_file', './0_config_files/config_template.yaml')
+
+        config_file = execution_plan.get('config_file', './config.yaml')
         
         script_content = self._create_symfluence_slurm_script(
             execution_plan, slurm_options, config_file

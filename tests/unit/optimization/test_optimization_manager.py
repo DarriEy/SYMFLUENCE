@@ -88,12 +88,12 @@ class TestModelCalibration:
         manager = OptimizationManager(summa_config, test_logger)
 
         with patch.object(manager, 'project_dir', temp_project_dir):
-            with patch.object(manager, '_calibrate_summa') as mock_calibrate:
+            with patch.object(manager, '_calibrate_with_registry') as mock_calibrate:
                 mock_calibrate.return_value = Path("test_results.csv")
 
                 result = manager.calibrate_model()
 
-                mock_calibrate.assert_called_once()
+                mock_calibrate.assert_called_once_with('SUMMA', summa_config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'PSO'))
                 assert result == Path("test_results.csv")
 
     def test_calibrate_fuse_model(self, fuse_config, test_logger, temp_project_dir):
@@ -101,24 +101,24 @@ class TestModelCalibration:
         manager = OptimizationManager(fuse_config, test_logger)
 
         with patch.object(manager, 'project_dir', temp_project_dir):
-            with patch.object(manager, '_calibrate_fuse') as mock_calibrate:
+            with patch.object(manager, '_calibrate_with_registry') as mock_calibrate:
                 mock_calibrate.return_value = Path("test_results.csv")
 
                 result = manager.calibrate_model()
 
-                mock_calibrate.assert_called_once()
+                mock_calibrate.assert_called_once_with('FUSE', fuse_config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'PSO'))
 
     def test_calibrate_ngen_model(self, ngen_config, test_logger, temp_project_dir):
         """Test NGEN model calibration."""
         manager = OptimizationManager(ngen_config, test_logger)
 
         with patch.object(manager, 'project_dir', temp_project_dir):
-            with patch.object(manager, '_calibrate_ngen') as mock_calibrate:
+            with patch.object(manager, '_calibrate_with_registry') as mock_calibrate:
                 mock_calibrate.return_value = Path("test_results.csv")
 
                 result = manager.calibrate_model()
 
-                mock_calibrate.assert_called_once()
+                mock_calibrate.assert_called_once_with('NGEN', ngen_config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'PSO'))
 
     def test_calibration_disabled(self, base_optimization_config, test_logger):
         """Test when calibration is disabled in config."""
@@ -137,16 +137,14 @@ class TestModelCalibration:
 
         manager = OptimizationManager(config, test_logger)
 
-        with patch.object(manager, '_calibrate_summa') as mock_summa:
-            with patch.object(manager, '_calibrate_fuse') as mock_fuse:
-                mock_summa.return_value = Path("summa_results.csv")
-                mock_fuse.return_value = Path("fuse_results.csv")
+        with patch.object(manager, '_calibrate_with_registry') as mock_calibrate:
+            mock_calibrate.return_value = Path("results.csv")
 
-                manager.calibrate_model()
+            manager.calibrate_model()
 
-                # Should call both calibrations
-                mock_summa.assert_called_once()
-                # Note: Current implementation only returns last model's result
+            # Should call registry-based calibration for first model
+            # Note: Current implementation only calibrates first model and returns
+            mock_calibrate.assert_called_once()
 
 
 # ============================================================================
@@ -230,9 +228,11 @@ class TestErrorHandling:
         manager = OptimizationManager(summa_config, test_logger)
 
         with patch.object(manager, 'project_dir', temp_project_dir):
-            # In modern API, it returns None and logs error instead of raising
-            result = manager.calibrate_model()
-            assert result is None
+            with patch.object(manager, '_calibrate_with_registry') as mock_calibrate:
+                # Simulate error by returning None
+                mock_calibrate.return_value = None
+                result = manager.calibrate_model()
+                assert result is None
 
     def test_invalid_parameter_bounds(self, base_optimization_config, test_logger):
         """Test handling of invalid parameter bounds."""
@@ -242,7 +242,7 @@ class TestErrorHandling:
         manager = OptimizationManager(config, test_logger)
 
         # Should handle gracefully or return None
-        with patch.object(manager, '_calibrate_summa') as mock_calibrate:
+        with patch.object(manager, '_calibrate_with_registry') as mock_calibrate:
             mock_calibrate.side_effect = ValueError("Invalid parameter")
             result = manager.calibrate_model()
             assert result is None
@@ -252,7 +252,7 @@ class TestErrorHandling:
         manager = OptimizationManager(dds_config, test_logger)
 
         with patch.object(manager, 'project_dir', temp_project_dir):
-            with patch.object(manager, '_calibrate_summa') as mock_calibrate:
+            with patch.object(manager, '_calibrate_with_registry') as mock_calibrate:
                 # Simulate optimization failure
                 mock_calibrate.side_effect = RuntimeError("Optimization failed")
 
@@ -273,24 +273,16 @@ class TestWorkflowOrchestration:
         """Test complete optimization workflow end-to-end."""
         manager = OptimizationManager(dds_config, test_logger)
 
-        # Mock all components
+        # Mock the registry-based calibration method
         with patch.object(manager, 'project_dir', temp_project_dir):
-            mock_optimizer_class = MagicMock()
-            mock_optimizer = mock_optimizer_class.return_value
-            mock_optimizer.run_optimization.return_value = {
-                'best_parameters': {'theta_sat': 0.45, 'k_soil': 5e-5},
-                'best_score': 0.85,
-                'history': []
-            }
-            
-            # Inject mock into the manager's optimizers map
-            manager.optimizers['DDS'] = mock_optimizer_class
+            with patch.object(manager, '_calibrate_with_registry') as mock_calibrate:
+                mock_calibrate.return_value = Path("test_results.csv")
 
-            result = manager.run_optimization_workflow()
+                result = manager.run_optimization_workflow()
 
-            # Should complete workflow
-            assert 'calibration' in result
-            mock_optimizer.run_optimization.assert_called_once()
+                # Should complete workflow with calibration result
+                assert 'calibration' in result
+                mock_calibrate.assert_called_once()
 
     def test_multi_objective_optimization(self, base_optimization_config, test_logger):
         """Test multi-objective optimization setup."""

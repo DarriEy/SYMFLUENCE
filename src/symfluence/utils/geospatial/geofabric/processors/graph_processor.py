@@ -34,42 +34,54 @@ class RiverGraphProcessor:
 
         The graph direction depends on the hydrofabric type:
         - MERIT/TDX: Edges point downstream (upstream → current)
-        - NWS: Edges point upstream (current → downstream) - reverse direction
+        - NWS/TauDEM: Edges point upstream (current → downstream) if configured as 'downstream'
 
         Args:
             rivers: River network GeoDataFrame
             fabric_config: Configuration dict with keys:
                 - 'river_id_col': Column name for river segment ID
-                - 'upstream_cols': List of upstream column names
-                - 'upstream_default': Default value indicating no upstream link
+                - 'upstream_cols': List of column names (upstream or downstream)
+                - 'upstream_default': Default value indicating no link
+                - 'direction': 'upstream' (default) or 'downstream'
 
         Returns:
             Directed graph of the river network
-
-        Example fabric_config:
-            MERIT: {'river_id_col': 'COMID', 'upstream_cols': ['up1', 'up2', 'up3'],
-                    'upstream_default': -9999}
-            TDX: {'river_id_col': 'LINKNO', 'upstream_cols': ['USLINKNO1', 'USLINKNO2'],
-                  'upstream_default': -9999}
-            NWS: {'river_id_col': 'COMID', 'upstream_cols': ['toCOMID'],
-                  'upstream_default': 0}
         """
         G = nx.DiGraph()
+        
+        # Determine flow direction handling
+        # 'upstream': upstream_cols contain IDs of upstream segments (flow: upstream -> current)
+        # 'downstream': upstream_cols contain IDs of downstream segments (flow: current -> downstream)
+        direction = fabric_config.get('direction', 'upstream')
+        
+        # Legacy support for NWS toCOMID
+        if fabric_config.get('upstream_cols') == ['toCOMID']:
+            direction = 'downstream'
 
         for _, row in rivers.iterrows():
             current_basin = row[fabric_config['river_id_col']]
 
             for up_col in fabric_config['upstream_cols']:
-                upstream_basin = row[up_col]
+                linked_basin = row[up_col]
 
-                # Skip if no upstream link
-                if upstream_basin != fabric_config['upstream_default']:
-                    # NWS uses reverse direction (toCOMID points downstream)
-                    if fabric_config['upstream_cols'] == ['toCOMID']:
-                        G.add_edge(current_basin, upstream_basin)
+                # Skip if no link
+                if linked_basin != fabric_config['upstream_default']:
+                    if direction == 'downstream':
+                        # Flow: current -> linked (downstream)
+                        # We want the graph edges to represent flow direction? 
+                        # Usually river graphs are directed downstream.
+                        # Wait, find_upstream_basins uses nx.ancestors.
+                        # nx.ancestors(G, n) returns all nodes having a path to n.
+                        # If edges are upstream -> downstream (A -> B), then ancestors of B includes A.
+                        # So G should be directed A -> B (downstream).
+                        
+                        # If direction is 'downstream' (current -> linked_basin),
+                        # then we add edge (current, linked).
+                        G.add_edge(current_basin, linked_basin)
                     else:
-                        # MERIT/TDX: upstream → current
-                        G.add_edge(upstream_basin, current_basin)
+                        # If direction is 'upstream' (linked_basin -> current),
+                        # then we add edge (linked, current).
+                        G.add_edge(linked_basin, current_basin)
 
         return G
 

@@ -22,21 +22,6 @@ from symfluence.utils.common import metrics
 from symfluence.utils.evaluation.evaluators import ModelEvaluator, StreamflowEvaluator, SnowEvaluator
 
 
-class FUSECalibrationTarget:
-    """
-    Base class for FUSE calibration targets.
-    
-    Note: Legacy wrapper. New targets should inherit from ModelEvaluator.
-    """
-    def __init__(self, config: Dict[str, Any], project_dir: Path, logger: logging.Logger):
-        self.config = config
-        self.project_dir = project_dir
-        self.logger = logger
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
-        self.is_distributed = config.get('FUSE_SPATIAL_MODE', 'lumped').lower() == 'distributed'
-
-
 class FUSEStreamflowTarget(StreamflowEvaluator):
     """FUSE-specific streamflow evaluator handling lumped/distributed modes."""
     

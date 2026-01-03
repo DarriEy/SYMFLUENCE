@@ -40,7 +40,7 @@ class TestBaseModelPostProcessorInitialization:
 
         processor = ConcretePostProcessor(config, logger)
 
-        assert processor.config == config
+        assert processor.config_dict == config
         assert processor.logger == logger
         assert processor.domain_name == 'test_domain'
         assert processor.experiment_id == 'exp_001'

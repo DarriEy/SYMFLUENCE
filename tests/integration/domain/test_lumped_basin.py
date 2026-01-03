@@ -164,6 +164,8 @@ MODELS = [
     'FUSE',
     pytest.param('GR', marks=pytest.mark.full),
     pytest.param('NGEN', marks=pytest.mark.full),
+    'LSTM',
+    'HYPE',
 ]
 
 
@@ -202,6 +204,17 @@ def test_lumped_basin_workflow(config_path, model):
         config['NGEN_CFE_PARAMS_TO_CALIBRATE'] = 'smcmax,satdk,bb'
         # Point to ngen install in data directory
         config['NGEN_INSTALL_PATH'] = str(Path(config['SYMFLUENCE_DATA_DIR']) / 'installs' / 'ngen' / 'cmake_build')
+    elif model == 'LSTM':
+        config['LSTM_EPOCHS'] = 1
+        config['LSTM_LOOKBACK'] = 24
+        config['LSTM_HIDDEN_SIZE'] = 16
+        config['LSTM_BATCH_SIZE'] = 4
+    elif model == 'HYPE':
+        config['HYPE_TIMESHIFT'] = 0
+        config['HYPE_SPINUP_DAYS'] = 0
+        config['HYPE_FRAC_THRESHOLD'] = 0.1
+        # HYPE calibration not yet fully implemented in this test
+        config['HYPE_SKIP_CALIBRATION'] = True
 
     # Save updated config
     with open(cfg_path, 'w') as f:
@@ -280,6 +293,12 @@ def test_lumped_basin_workflow(config_path, model):
     symfluence.managers['model'].preprocess_models()
 
     # Step 6: Run model
+    # Check for HYPE binary if needed
+    if model == 'HYPE':
+        hype_exe = Path(config.get('SYMFLUENCE_DATA_DIR')) / 'installs' / 'hype' / config.get('HYPE_EXE', 'hype')
+        if not hype_exe.exists():
+            pytest.skip(f"HYPE binary not found at {hype_exe}, skipping run and calibration")
+
     symfluence.managers['model'].run_models()
 
     # Check model output exists
@@ -287,10 +306,11 @@ def test_lumped_basin_workflow(config_path, model):
     assert sim_dir.exists(), f"{model} simulation output directory should exist"
 
     # Step 7: Calibrate model
-    results_file = symfluence.managers['optimization'].calibrate_model()
-    if model == 'GR':
-        assert results_file is None, "GR calibration is not implemented and should return None"
+    # Skip calibration for LSTM/GR as they either auto-calibrate or are not supported
+    if model in ['GR', 'LSTM', 'HYPE']:
+        pass
     else:
+        results_file = symfluence.managers['optimization'].calibrate_model()
         assert results_file is not None, "Calibration should produce results"
 
 

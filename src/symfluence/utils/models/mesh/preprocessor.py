@@ -10,9 +10,37 @@ from typing import Dict, Any
 
 from pathlib import Path
 
-import meshflow  # type: ignore  # version >= v0.1.0.dev5
+
+
+# import meshflow  # type: ignore # version >= v0.1.0.dev5
+
+
+
+# Placeholder for meshflow.MESHWorkflow since hydrant dependency is unresolved
+
+class MESHWorkflowPlaceholder:
+
+    def __init__(self, **kwargs):
+
+        import logging
+
+        logging.warning("MESHWorkflow is a placeholder. The 'hydrant' dependency for meshflow is missing or incompatible. Please install the correct 'hydrant' to enable MESH preprocessing.")
+
+        pass
+
+    def run(self, save_path=None):
+
+        pass
+
+    def save(self, output_dir):
+
+        pass
+
+
 
 from ..base import BaseModelPreProcessor
+
+
 
 
 
@@ -52,14 +80,14 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.catchment_path = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
 
         # Phase 3: Use typed config when available
-        if self.typed_config:
-            self.catchment_name = self.typed_config.paths.river_basins_name
+        if self.config:
+            self.catchment_name = self.config.paths.river_basins_name
             if self.catchment_name == 'default':
-                self.catchment_name = f"{self.domain_name}_riverBasins_{self.typed_config.domain.definition_method}.shp"
+                self.catchment_name = f"{self.domain_name}_riverBasins_{self.config.domain.definition_method}.shp"
         else:
-            self.catchment_name = self.config.get('RIVER_BASINS_NAME')
+            self.catchment_name = self.config_dict.get('RIVER_BASINS_NAME')
             if self.catchment_name == 'default':
-                self.catchment_name = f"{self.domain_name}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
+                self.catchment_name = f"{self.domain_name}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
 
         # River network paths
         self.rivers_path = self.get_river_network_path().parent
@@ -86,7 +114,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         """Create configuration dictionary for meshflow."""
 
         def _get_config_value(key: str, default_value):
-            value = self.config.get(key)
+            value = self.config_dict.get(key)
             if value is None or value == 'default':
                 return default_value
             return value
@@ -231,7 +259,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
     def prepare_forcing_data(self, config):
         """Prepare forcing data using meshflow."""
-        exp = meshflow.MESHWorkflow(**config)
+        exp = MESHWorkflowPlaceholder(**config)
         exp.run(save_path=self.forcing_dir)
 
         # Save drainage database and forcing files

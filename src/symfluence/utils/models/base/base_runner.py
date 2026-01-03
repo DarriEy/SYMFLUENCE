@@ -47,33 +47,55 @@ class BaseModelRunner(ABC, PathResolverMixin):
         output_dir: Directory for model outputs (created if specified)
     """
 
-    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: Any):
+    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: Any, reporting_manager: Optional[Any] = None):
         """
         Initialize base model runner.
 
         Args:
-            config: Configuration dictionary or SymfluenceConfig instance (Phase 2)
+            config: SymfluenceConfig instance (recommended) or configuration dictionary (deprecated)
             logger: Logger instance
+            reporting_manager: ReportingManager instance
 
         Raises:
             ConfigurationError: If required configuration keys are missing
+
+        Note:
+            Passing a dict config is deprecated. Please use SymfluenceConfig for full type safety.
         """
-        # Phase 2: Support both typed config and dict config for backward compatibility
+        import warnings
+
+        # Phase 3: Prioritize typed config, keep dict for backward compatibility
         if SymfluenceConfig and isinstance(config, SymfluenceConfig):
-            self.typed_config = config
-            self.config = config.to_dict(flatten=True)
+            self.config = config  # Typed config is now primary
+            self.typed_config = config  # Alias for consistency
+            self.config_dict = config.to_dict(flatten=True)  # For backward compat
         else:
+            # Dict config - deprecated but still supported
+            warnings.warn(
+                "Passing dict config is deprecated and will be removed in a future version. "
+                "Please use SymfluenceConfig for full type safety.",
+                DeprecationWarning,
+                stacklevel=2
+            )
+            self.config = None  # No typed config available
             self.typed_config = None
-            self.config = config
+            self.config_dict = config
 
         self.logger = logger
+        self.reporting_manager = reporting_manager
 
         # Validate required configuration keys
         self._validate_required_config()
 
         # Base paths (standard naming)
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
+        self.data_dir = Path(self._resolve_config_value(
+            lambda: self.config.paths.data_dir,
+            'SYMFLUENCE_DATA_DIR'
+        ))
+        self.domain_name = self._resolve_config_value(
+            lambda: self.config.domain.name,
+            'DOMAIN_NAME'
+        )
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
         # Model-specific initialization
@@ -101,7 +123,7 @@ class BaseModelRunner(ABC, PathResolverMixin):
             'DOMAIN_NAME',
         ]
         validate_config_keys(
-            self.config,
+            self.config_dict,
             required_keys,
             f"{self._get_model_name()} runner initialization"
         )
@@ -117,6 +139,39 @@ class BaseModelRunner(ABC, PathResolverMixin):
             Model name (e.g., 'SUMMA', 'FUSE', 'GR')
         """
         pass
+
+    def _resolve_config_value(self, typed_accessor: Any, dict_key: str,
+                              default: Any = None) -> Any:
+        """
+        Resolve configuration value from typed or dict config.
+
+        Phase 3: Prioritizes typed config access, falls back to dict only for backward compatibility.
+
+        Args:
+            typed_accessor: Callable or value from typed config (e.g.,
+                           lambda: self.config.domain.time_start)
+            dict_key: Key to use with dict config (fallback)
+            default: Default value if key not found
+
+        Returns:
+            Resolved configuration value
+
+        Example:
+            >>> start_time = self._resolve_config_value(
+            ...     lambda: self.config.domain.time_start,
+            ...     'EXPERIMENT_TIME_START'
+            ... )
+        """
+        if self.config:  # Typed config available (preferred)
+            # Handle callable (lambda) or direct value
+            if callable(typed_accessor):
+                try:
+                    return typed_accessor()
+                except (AttributeError, KeyError):
+                    return default
+            return typed_accessor
+        # Fallback to dict config (deprecated path)
+        return self.config_dict.get(dict_key, default)
 
     def _setup_model_specific_paths(self) -> None:
         """
@@ -153,7 +208,7 @@ class BaseModelRunner(ABC, PathResolverMixin):
         Returns:
             Path to output directory
         """
-        experiment_id = self.config.get('EXPERIMENT_ID')
+        experiment_id = self.config_dict.get('EXPERIMENT_ID')
         return self.project_dir / 'simulations' / experiment_id / self.model_name
 
     def backup_settings(self, source_dir: Path, backup_subdir: str = "run_settings") -> None:
@@ -201,7 +256,7 @@ class BaseModelRunner(ABC, PathResolverMixin):
             log_path = self.output_dir / log_subdir
         else:
             # Fallback if output_dir not set
-            experiment_id = self.config.get('EXPERIMENT_ID', 'default')
+            experiment_id = self.config_dict.get('EXPERIMENT_ID', 'default')
             log_path = self.project_dir / 'simulations' / experiment_id / self.model_name / log_subdir
 
         log_path.mkdir(parents=True, exist_ok=True)
@@ -236,7 +291,7 @@ class BaseModelRunner(ABC, PathResolverMixin):
                 must_exist=True
             ) / 'summa.exe'
         """
-        install_path = self.config.get(config_key, 'default')
+        install_path = self.config_dict.get(config_key, 'default')
 
         if install_path == 'default' or install_path is None:
             base = self.data_dir if relative_to == 'data_dir' else self.project_dir
@@ -252,6 +307,91 @@ class BaseModelRunner(ABC, PathResolverMixin):
             )
 
         return path
+
+    def get_model_executable(
+        self,
+        install_path_key: str,
+        default_install_subpath: str,
+        exe_name_key: Optional[str] = None,
+        default_exe_name: Optional[str] = None,
+        typed_exe_accessor: Optional[Any] = None,
+        relative_to: str = 'data_dir',
+        must_exist: bool = False
+    ) -> Path:
+        """
+        Resolve complete model executable path (install dir + exe name).
+
+        Standardizes the common pattern of:
+        1. Resolving installation directory from config
+        2. Resolving executable name from config
+        3. Combining them into full executable path
+
+        Args:
+            install_path_key: Config key for install directory (e.g., 'FUSE_INSTALL_PATH')
+            default_install_subpath: Default install dir (e.g., 'installs/fuse/bin')
+            exe_name_key: Config key for exe name (e.g., 'FUSE_EXE')
+            default_exe_name: Default exe name (e.g., 'fuse.exe')
+            typed_exe_accessor: Optional lambda for typed config exe name
+            relative_to: Base directory ('data_dir' or 'project_dir')
+            must_exist: If True, raise FileNotFoundError if executable doesn't exist
+
+        Returns:
+            Complete path to model executable
+
+        Raises:
+            FileNotFoundError: If must_exist=True and executable doesn't exist
+
+        Example:
+            >>> # Simple case with dict config
+            >>> self.fuse_exe = self.get_model_executable(
+            ...     'FUSE_INSTALL_PATH',
+            ...     'installs/fuse/bin',
+            ...     'FUSE_EXE',
+            ...     'fuse.exe'
+            ... )
+
+            >>> # With typed config support
+            >>> self.mesh_exe = self.get_model_executable(
+            ...     'MESH_INSTALL_PATH',
+            ...     'installs/MESH-DEV',
+            ...     'MESH_EXE',
+            ...     'sa_mesh',
+            ...     typed_exe_accessor=lambda: self.typed_config.model.mesh.exe if self.typed_config.model.mesh else None
+            ... )
+        """
+        # Get installation directory
+        install_dir = self.get_install_path(
+            install_path_key,
+            default_install_subpath,
+            relative_to=relative_to,
+            must_exist=False  # We'll check exe existence instead
+        )
+
+        # Get executable name
+        if typed_exe_accessor and self.typed_config:
+            try:
+                exe_name = typed_exe_accessor()
+                if exe_name is None:
+                    exe_name = default_exe_name
+            except (AttributeError, KeyError):
+                exe_name = default_exe_name
+        elif exe_name_key:
+            exe_name = self.config_dict.get(exe_name_key, default_exe_name)
+        else:
+            exe_name = default_exe_name
+
+        # Combine into full path
+        exe_path = install_dir / exe_name
+
+        # Optional validation
+        if must_exist and not exe_path.exists():
+            raise FileNotFoundError(
+                f"Model executable not found: {exe_path}\n"
+                f"Install path key: {install_path_key}\n"
+                f"Exe name key: {exe_name_key}"
+            )
+
+        return exe_path
 
     def execute_model_subprocess(
         self,
@@ -435,7 +575,7 @@ class BaseModelRunner(ABC, PathResolverMixin):
         Returns:
             Path to experiment output directory
         """
-        exp_id = experiment_id or self.config.get('EXPERIMENT_ID')
+        exp_id = experiment_id or self.config_dict.get('EXPERIMENT_ID')
         return self.project_dir / 'simulations' / exp_id / self.model_name
 
     def setup_path_aliases(self, aliases: Dict[str, str]) -> None:

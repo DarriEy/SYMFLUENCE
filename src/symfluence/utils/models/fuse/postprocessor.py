@@ -1,29 +1,25 @@
-import os
-import sys
-import time
-import subprocess
-from shutil import rmtree, copyfile
-from typing import Dict, Any, Optional, List
-from pathlib import Path
-import numpy as np # type: ignore
-import pandas as pd # type: ignore
-import geopandas as gpd # type: ignore
-import xarray as xr # type: ignore
-import shutil
-from datetime import datetime
-import rasterio # type: ignore
-from scipy import ndimage
 import csv
 import itertools
-import matplotlib.pyplot as plt # type: ignore
+import os
+import subprocess
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+from shutil import rmtree, copyfile
+from typing import Dict, Any, Optional, List, Tuple
+
+import geopandas as gpd # type: ignore
+import numpy as np # type: ignore
+import pandas as pd # type: ignore
+import rasterio # type: ignore
 import xarray as xr # type: ignore
-from typing import Dict, List, Tuple, Any
-from ..registry import ModelRegistry
+from scipy import ndimage
+
 from ..base import BaseModelPreProcessor, BaseModelPostProcessor
 from ..mixins import PETCalculatorMixin
+from ..registry import ModelRegistry
 from symfluence.utils.common.constants import UnitConversion
-
-sys.path.append(str(Path(__file__).resolve().parent.parent))
 from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE
 from symfluence.utils.data.utilities.variable_utils import VariableHandler # type: ignore
 

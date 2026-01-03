@@ -4,6 +4,8 @@ Forcing data processing utilities for FUSE model.
 This module contains the FuseForcingProcessor class which handles all forcing data
 processing operations including spatial mode transformations, PET calculation,
 observation loading, and NetCDF formatting for FUSE model compatibility.
+
+Uses shared utilities from symfluence.utils.models.utilities for common operations.
 """
 
 from pathlib import Path
@@ -15,6 +17,7 @@ import geopandas as gpd
 
 from symfluence.utils.data.utilities.variable_utils import VariableHandler
 from symfluence.utils.common.constants import UnitConversion
+from ..utilities import ForcingDataProcessor, DataQualityHandler
 
 
 class FuseForcingProcessor:
@@ -322,15 +325,28 @@ class FuseForcingProcessor:
         """
         Get encoding dictionary for netCDF output.
 
+        Uses shared DataQualityHandler for fill values and ForcingDataProcessor
+        for consistent encoding patterns.
+
         Args:
             fuse_forcing: xarray Dataset to encode
 
         Returns:
             Dict: Encoding dictionary for netCDF
         """
-        encoding = {}
+        # Use shared utility for data variable encoding
+        dqh = DataQualityHandler()
+        fill_value = dqh.get_fill_value('float32')
 
-        # Default encoding for coordinates
+        fdp = ForcingDataProcessor(self.config)
+        encoding = fdp.create_encoding_dict(
+            fuse_forcing,
+            fill_value=fill_value,
+            dtype='float32',
+            compression=False
+        )
+
+        # Add coordinate-specific encoding (FUSE requires float64 for coords)
         for coord in fuse_forcing.coords:
             if coord == 'time':
                 encoding[coord] = {'dtype': 'float64'}
@@ -338,12 +354,5 @@ class FuseForcingProcessor:
                 encoding[coord] = {'dtype': 'float64'}
             else:
                 encoding[coord] = {'dtype': 'float32'}
-
-        # Default encoding for data variables
-        for var in fuse_forcing.data_vars:
-            encoding[var] = {
-                '_FillValue': -9999.0,
-                'dtype': 'float32'
-            }
 
         return encoding

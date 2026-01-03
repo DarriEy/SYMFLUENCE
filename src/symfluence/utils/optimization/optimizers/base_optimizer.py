@@ -23,17 +23,18 @@ from symfluence.utils.optimization.transformers import TransformationManager
 from symfluence.utils.optimization.calibration_targets import (
     ETTarget, SnowTarget, GroundwaterTarget, SoilMoistureTarget, StreamflowTarget, CalibrationTarget
 )
-from symfluence.utils.optimization.worker_scripts import _evaluate_parameters_worker_safe, _run_dds_instance_worker
+from symfluence.utils.optimization.workers.summa_parallel_workers import _evaluate_parameters_worker_safe, _run_dds_instance_worker
 
 class BaseOptimizer(ABC):
     """
     Abstract base class for SYMFLUENCE optimizers.
     """
     
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, output_dir: Optional[Path] = None, reporting_manager: Optional[Any] = None):
         """Initialize base optimizer with common components"""
         self.config = config
         self.logger = logger
+        self.reporting_manager = reporting_manager
         
         # Setup basic paths
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
@@ -75,7 +76,11 @@ class BaseOptimizer(ABC):
         self.summa_sim_dir = self.optimization_dir / "SUMMA"
         self.mizuroute_sim_dir = self.optimization_dir / "mizuRoute"
         self.optimization_settings_dir = self.optimization_dir / "settings" / "SUMMA"
-        self.output_dir = self.project_dir / "optimization" / f"{self.algorithm_name}_{self.experiment_id}"
+        # Allow output_dir override, otherwise use default
+        if output_dir:
+            self.output_dir = output_dir
+        else:
+            self.output_dir = self.project_dir / "optimization" / f"{self.algorithm_name}_{self.experiment_id}"
         
         # Initialize component managers
         self.parameter_manager = ParameterManager(config, logger, self.optimization_settings_dir)
@@ -84,7 +89,7 @@ class BaseOptimizer(ABC):
         
         self.calibration_target = self._create_calibration_target()
         self.model_executor = ModelExecutor(config, logger, self.calibration_target)
-        self.results_manager = ResultsManager(config, logger, self.output_dir)
+        self.results_manager = ResultsManager(config, logger, self.output_dir, self.reporting_manager)
         
         # Common algorithm parameters
         self.max_iterations = config.get('NUMBER_OF_ITERATIONS', 100)
@@ -629,7 +634,7 @@ logger = logging.getLogger(__name__)
 
 sys.path.append(r"{Path(__file__).parent.parent.parent.parent.parent}") # Add src path
 
-from symfluence.utils.optimization.worker_scripts import _evaluate_parameters_worker_safe
+from symfluence.utils.optimization.workers.summa_parallel_workers import _evaluate_parameters_worker_safe
 
 def main():
     comm = MPI.COMM_WORLD

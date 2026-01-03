@@ -97,7 +97,7 @@ class BaseCommand(ABC):
             return args.config
         else:
             # Default config path
-            return './0_config_files/config_template.yaml'
+            return './config.yaml'
 
     @staticmethod
     def print_error(message: str) -> None:

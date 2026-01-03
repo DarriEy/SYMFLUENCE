@@ -30,7 +30,8 @@ def test_ellioaar_calibration(ellioaar_domain, symfluence_data_root):
     print("="*80)
 
     # Load template config
-    config_path = Path('0_config_files/config_template.yaml')
+    from symfluence.utils.resources import get_config_template
+    config_path = get_config_template('config_template.yaml')
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
 
@@ -114,7 +115,8 @@ def test_fyris_calibration(fyris_domain, symfluence_data_root):
     print("="*80)
 
     # Load template config
-    config_path = Path('0_config_files/config_template.yaml')
+    from symfluence.utils.resources import get_config_template
+    config_path = get_config_template('config_template.yaml')
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
 

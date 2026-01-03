@@ -36,19 +36,19 @@ class SUMMAPostprocessor(BaseModelPostProcessor):
         self.logger.info("Extracting SUMMA/MizuRoute streamflow results")
         try:
             # Get simulation output path
-            if self.config.get('SIMULATIONS_PATH') == 'default':
+            if self.config_dict.get('SIMULATIONS_PATH') == 'default':
                 # Parse the start time and extract the date portion
-                start_date = self.config.get('EXPERIMENT_TIME_START').split()[0]  # Gets '2011-01-01' from '2011-01-01 01:00'
+                start_date = self.config_dict.get('EXPERIMENT_TIME_START').split()[0]  # Gets '2011-01-01' from '2011-01-01 01:00'
                 sim_file_path = self.mizuroute_dir / f"{self.experiment_id}.h.{start_date}-03600.nc"
             else:
-                sim_file_path = Path(self.config.get('SIMULATIONS_PATH'))
+                sim_file_path = Path(self.config_dict.get('SIMULATIONS_PATH'))
 
             if not sim_file_path.exists():
                 self.logger.error(f"SUMMA/MizuRoute output file not found at: {sim_file_path}")
                 return None
 
             # Get simulation reach ID
-            sim_reach_ID = int(self.config.get('SIM_REACH_ID'))
+            sim_reach_ID = int(self.config_dict.get('SIM_REACH_ID'))
 
             # Read simulation data
             ds = xr.open_dataset(sim_file_path, engine='netcdf4')

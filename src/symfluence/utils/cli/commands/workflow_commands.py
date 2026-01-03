@@ -60,7 +60,8 @@ class WorkflowCommands(BaseCommand):
             BaseCommand.print_info("🚀 Starting full workflow execution...")
             symfluence = SYMFLUENCE(
                 config_path,
-                debug_mode=args.debug
+                debug_mode=args.debug,
+                visualize=args.visualise
             )
 
             # Execute full workflow
@@ -100,7 +101,8 @@ class WorkflowCommands(BaseCommand):
 
             symfluence = SYMFLUENCE(
                 config_path,
-                debug_mode=args.debug
+                debug_mode=args.debug,
+                visualize=args.visualise
             )
 
             # Run single step
@@ -141,7 +143,8 @@ class WorkflowCommands(BaseCommand):
 
             symfluence = SYMFLUENCE(
                 config_path,
-                debug_mode=args.debug
+                debug_mode=args.debug,
+                visualize=args.visualise
             )
 
             # Run multiple steps in order
@@ -178,7 +181,8 @@ class WorkflowCommands(BaseCommand):
 
             symfluence = SYMFLUENCE(
                 config_path,
-                debug_mode=args.debug
+                debug_mode=args.debug,
+                visualize=args.visualise
             )
 
             # Show workflow status
@@ -295,7 +299,8 @@ class WorkflowCommands(BaseCommand):
 
             symfluence = SYMFLUENCE(
                 config_path,
-                debug_mode=args.debug
+                debug_mode=args.debug,
+                visualize=args.visualise
             )
 
             # Run steps from resume point

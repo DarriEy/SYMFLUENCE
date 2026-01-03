@@ -19,7 +19,7 @@ class StreamThresholdMethod:
     where contributing area exceeds a specified threshold.
     """
 
-    def __init__(self, taudem_executor: Any, config: Dict, logger: Any, interim_dir: Path):
+    def __init__(self, taudem_executor: Any, config: Dict, logger: Any, interim_dir: Path, reporting_manager: Optional[Any] = None):
         """
         Initialize threshold method.
 
@@ -28,11 +28,13 @@ class StreamThresholdMethod:
             config: Configuration dictionary
             logger: Logger instance
             interim_dir: Directory for interim TauDEM files
+            reporting_manager: ReportingManager instance
         """
         self.taudem = taudem_executor
         self.config = config
         self.logger = logger
         self.interim_dir = interim_dir
+        self.reporting_manager = reporting_manager
         self.taudem_dir = taudem_executor.taudem_dir
 
     def run(self, dem_path: Path, pour_point_path: Path, mpi_prefix: str) -> None:
@@ -50,7 +52,7 @@ class StreamThresholdMethod:
         if self.config.get('USE_DROP_ANALYSIS', False):
             from .drop_analysis import DropAnalysisMethod
             drop_analyzer = DropAnalysisMethod(
-                self.taudem, self.config, self.logger, self.interim_dir
+                self.taudem, self.config, self.logger, self.interim_dir, self.reporting_manager
             )
             optimal_threshold = drop_analyzer.run(mpi_prefix)
 

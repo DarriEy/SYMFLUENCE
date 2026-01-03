@@ -218,19 +218,19 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'EXPERIMENT_LOG_MIZUROUTE': ('model', 'mizuroute', 'experiment_log'),
     'EXPERIMENT_OUTPUT_MIZUROUTE': ('model', 'mizuroute', 'experiment_output'),
 
-    # Model > FLASH
-    'FLASH_LOAD': ('model', 'flash', 'load'),
-    'FLASH_HIDDEN_SIZE': ('model', 'flash', 'hidden_size'),
-    'FLASH_NUM_LAYERS': ('model', 'flash', 'num_layers'),
-    'FLASH_EPOCHS': ('model', 'flash', 'epochs'),
-    'FLASH_BATCH_SIZE': ('model', 'flash', 'batch_size'),
-    'FLASH_LEARNING_RATE': ('model', 'flash', 'learning_rate'),
-    'FLASH_LEARNING_PATIENCE': ('model', 'flash', 'learning_patience'),
-    'FLASH_LOOKBACK': ('model', 'flash', 'lookback'),
-    'FLASH_DROPOUT': ('model', 'flash', 'dropout'),
-    'FLASH_L2_REGULARIZATION': ('model', 'flash', 'l2_regularization'),
-    'FLASH_USE_ATTENTION': ('model', 'flash', 'use_attention'),
-    'FLASH_USE_SNOW': ('model', 'flash', 'use_snow'),
+    # Model > LSTM
+    'LSTM_LOAD': ('model', 'lstm', 'load'),
+    'LSTM_HIDDEN_SIZE': ('model', 'lstm', 'hidden_size'),
+    'LSTM_NUM_LAYERS': ('model', 'lstm', 'num_layers'),
+    'LSTM_EPOCHS': ('model', 'lstm', 'epochs'),
+    'LSTM_BATCH_SIZE': ('model', 'lstm', 'batch_size'),
+    'LSTM_LEARNING_RATE': ('model', 'lstm', 'learning_rate'),
+    'LSTM_LEARNING_PATIENCE': ('model', 'lstm', 'learning_patience'),
+    'LSTM_LOOKBACK': ('model', 'lstm', 'lookback'),
+    'LSTM_DROPOUT': ('model', 'lstm', 'dropout'),
+    'LSTM_L2_REGULARIZATION': ('model', 'lstm', 'l2_regularization'),
+    'LSTM_USE_ATTENTION': ('model', 'lstm', 'use_attention'),
+    'LSTM_USE_SNOW': ('model', 'lstm', 'use_snow'),
 
     # ========== OPTIMIZATION CONFIGURATION ==========
     'OPTIMIZATION_METHODS': ('optimization', 'methods'),

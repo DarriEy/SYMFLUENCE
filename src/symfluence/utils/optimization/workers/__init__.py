@@ -14,12 +14,14 @@ Available workers:
 - SUMMAWorker: Worker for SUMMA model calibration
 - FUSEWorker: Worker for FUSE model calibration
 - NgenWorker: Worker for NextGen model calibration
+- HYPEWorker: Worker for HYPE model calibration
 """
 
 from .base_worker import BaseWorker, WorkerTask, WorkerResult
 from .summa_worker import SUMMAWorker
 from .fuse_worker import FUSEWorker
 from .ngen_worker import NgenWorker
+from .hype_worker import HYPEWorker
 
 __all__ = [
     'BaseWorker',
@@ -28,4 +30,5 @@ __all__ = [
     'SUMMAWorker',
     'FUSEWorker',
     'NgenWorker',
+    'HYPEWorker',
 ]

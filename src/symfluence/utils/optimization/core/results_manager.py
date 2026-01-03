@@ -8,10 +8,11 @@ from typing import Dict, Any, List, Optional
 class ResultsManager:
     """Handles optimization results, history tracking, and visualization"""
     
-    def __init__(self, config: Dict, logger: logging.Logger, output_dir: Path):
+    def __init__(self, config: Dict, logger: logging.Logger, output_dir: Path, reporting_manager: Optional[Any] = None):
         self.config = config
         self.logger = logger
         self.output_dir = output_dir
+        self.reporting_manager = reporting_manager
         self.domain_name = config.get('DOMAIN_NAME')
         self.experiment_id = config.get('EXPERIMENT_ID')
     
@@ -130,96 +131,20 @@ class ResultsManager:
     
     def _create_plots(self, history: List[Dict], best_params: Dict) -> None:
         """Create optimization progress plots"""
-        try:
-            import matplotlib.pyplot as plt
-            
-            plots_dir = self.output_dir / "plots"
-            plots_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Extract progress data
-            generations = [h['generation'] for h in history]
-            best_scores = [h['best_score'] for h in history if h.get('best_score') is not None]
-            
-            if not best_scores:
-                return
-            
-            # Progress plot
-            plt.figure(figsize=(12, 6))
-            plt.plot(generations[:len(best_scores)], best_scores, 'b-o', markersize=4)
-            plt.xlabel('Generation')
-            plt.ylabel(f"Performance ({self.config.get('OPTIMIZATION_METRIC', 'KGE')})")
-            plt.title(f'Optimization Progress - {self.config.get("CALIBRATION_VARIABLE", "streamflow").title()} Calibration')
-            plt.grid(True, alpha=0.3)
-            
-            # Mark best
-            best_idx = np.nanargmax(best_scores)
-            plt.plot(generations[best_idx], best_scores[best_idx], 'ro', markersize=10,
-                    label=f'Best: {best_scores[best_idx]:.4f} at generation {generations[best_idx]}')
-            plt.legend()
-            
-            plt.tight_layout()
-            plt.savefig(plots_dir / "optimization_progress.png", dpi=300, bbox_inches='tight')
-            plt.close()
-            
-            # Parameter evolution plots for depth parameters
-            if self.config.get('CALIBRATE_DEPTH', False):
-                self._create_depth_parameter_plots(history, plots_dir)
-            
-            self.logger.info("Created optimization plots")
-            
-        except Exception as e:
-            self.logger.error(f"Error creating plots: {str(e)}")
+        if not self.reporting_manager:
+            return
+
+        calibration_variable = self.config.get("CALIBRATION_VARIABLE", "streamflow")
+        metric = self.config.get('OPTIMIZATION_METRIC', 'KGE')
+        self.reporting_manager.visualize_optimization_progress(history, self.output_dir, calibration_variable, metric)
+        
+        # Parameter evolution plots for depth parameters
+        if self.config.get('CALIBRATE_DEPTH', False):
+            self._create_depth_parameter_plots(history, self.output_dir)
     
     def _create_depth_parameter_plots(self, history: List[Dict], plots_dir: Path) -> None:
         """Create depth parameter evolution plots"""
-        try:
-            import matplotlib.pyplot as plt
+        if not self.reporting_manager:
+            return
             
-            # Extract depth parameters
-            generations = []
-            total_mults = []
-            shape_factors = []
-            
-            for h in history:
-                if h.get('best_params') and 'total_mult' in h['best_params'] and 'shape_factor' in h['best_params']:
-                    generations.append(h['generation'])
-                    
-                    tm = h['best_params']['total_mult']
-                    sf = h['best_params']['shape_factor']
-                    
-                    tm_val = tm[0] if isinstance(tm, np.ndarray) and len(tm) > 0 else tm
-                    sf_val = sf[0] if isinstance(sf, np.ndarray) and len(sf) > 0 else sf
-                    
-                    total_mults.append(tm_val)
-                    shape_factors.append(sf_val)
-            
-            if not generations:
-                return
-            
-            # Create subplot figure
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
-            
-            # Total multiplier plot
-            ax1.plot(generations, total_mults, 'g-o', markersize=4)
-            ax1.set_xlabel('Generation')
-            ax1.set_ylabel('Total Depth Multiplier')
-            ax1.set_title('Soil Depth Total Multiplier Evolution')
-            ax1.grid(True, alpha=0.3)
-            ax1.axhline(y=1.0, color='r', linestyle='--', alpha=0.5, label='No change (1.0)')
-            ax1.legend()
-            
-            # Shape factor plot
-            ax2.plot(generations, shape_factors, 'm-o', markersize=4)
-            ax2.set_xlabel('Generation')
-            ax2.set_ylabel('Shape Factor')
-            ax2.set_title('Soil Depth Shape Factor Evolution')
-            ax2.grid(True, alpha=0.3)
-            ax2.axhline(y=1.0, color='r', linestyle='--', alpha=0.5, label='Uniform scaling (1.0)')
-            ax2.legend()
-            
-            plt.tight_layout()
-            plt.savefig(plots_dir / "depth_parameter_evolution.png", dpi=300, bbox_inches='tight')
-            plt.close()
-            
-        except Exception as e:
-            self.logger.error(f"Error creating depth parameter plots: {str(e)}")
+        self.reporting_manager.visualize_optimization_depth_parameters(history, self.output_dir)

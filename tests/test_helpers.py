@@ -6,13 +6,15 @@ from pathlib import Path
 import yaml
 
 
-def load_config_template(symfluence_code_dir):
-    """Load the configuration template from the config files directory."""
-    template_path = Path(symfluence_code_dir) / "0_config_files" / "config_template.yaml"
+def load_config_template(symfluence_code_dir=None):
+    """Load the configuration template from package data.
 
-    if not template_path.exists():
-        raise FileNotFoundError(f"Config template not found at {template_path}")
+    Args:
+        symfluence_code_dir: Deprecated, kept for backward compatibility
+    """
+    from symfluence.utils.resources import get_config_template
 
+    template_path = get_config_template()
     with open(template_path, 'r') as f:
         config = yaml.safe_load(f)
 

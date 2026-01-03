@@ -3,7 +3,7 @@ Hydrological model configuration models.
 
 Contains configuration classes for all supported hydrological models:
 SUMMAConfig, FUSEConfig, GRConfig, HYPEConfig, NGENConfig, MESHConfig,
-MizuRouteConfig, FLASHConfig, and the parent ModelConfig.
+MizuRouteConfig, LSTMConfig, and the parent ModelConfig.
 """
 
 from typing import List, Optional, Dict, Any, Union
@@ -146,22 +146,22 @@ class MizuRouteConfig(BaseModel):
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_MIZUROUTE')
 
 
-class FLASHConfig(BaseModel):
-    """FLASH neural network emulator configuration"""
+class LSTMConfig(BaseModel):
+    """LSTM neural network emulator configuration"""
     model_config = FROZEN_CONFIG
 
-    load: bool = Field(default=False, alias='FLASH_LOAD')
-    hidden_size: int = Field(default=128, alias='FLASH_HIDDEN_SIZE')
-    num_layers: int = Field(default=3, alias='FLASH_NUM_LAYERS')
-    epochs: int = Field(default=300, alias='FLASH_EPOCHS')
-    batch_size: int = Field(default=64, alias='FLASH_BATCH_SIZE')
-    learning_rate: float = Field(default=0.001, alias='FLASH_LEARNING_RATE')
-    learning_patience: int = Field(default=30, alias='FLASH_LEARNING_PATIENCE')
-    lookback: int = Field(default=700, alias='FLASH_LOOKBACK')
-    dropout: float = Field(default=0.2, alias='FLASH_DROPOUT')
-    l2_regularization: float = Field(default=1e-6, alias='FLASH_L2_REGULARIZATION')
-    use_attention: bool = Field(default=True, alias='FLASH_USE_ATTENTION')
-    use_snow: bool = Field(default=False, alias='FLASH_USE_SNOW')
+    load: bool = Field(default=False, alias='LSTM_LOAD', validation_alias='FLASH_LOAD')
+    hidden_size: int = Field(default=128, alias='LSTM_HIDDEN_SIZE', validation_alias='FLASH_HIDDEN_SIZE')
+    num_layers: int = Field(default=3, alias='LSTM_NUM_LAYERS', validation_alias='FLASH_NUM_LAYERS')
+    epochs: int = Field(default=300, alias='LSTM_EPOCHS', validation_alias='FLASH_EPOCHS')
+    batch_size: int = Field(default=64, alias='LSTM_BATCH_SIZE', validation_alias='FLASH_BATCH_SIZE')
+    learning_rate: float = Field(default=0.001, alias='LSTM_LEARNING_RATE', validation_alias='FLASH_LEARNING_RATE')
+    learning_patience: int = Field(default=30, alias='LSTM_LEARNING_PATIENCE', validation_alias='FLASH_LEARNING_PATIENCE')
+    lookback: int = Field(default=700, alias='LSTM_LOOKBACK', validation_alias='FLASH_LOOKBACK')
+    dropout: float = Field(default=0.2, alias='LSTM_DROPOUT', validation_alias='FLASH_DROPOUT')
+    l2_regularization: float = Field(default=1e-6, alias='LSTM_L2_REGULARIZATION', validation_alias='FLASH_L2_REGULARIZATION')
+    use_attention: bool = Field(default=True, alias='LSTM_USE_ATTENTION', validation_alias='FLASH_USE_ATTENTION')
+    use_snow: bool = Field(default=False, alias='LSTM_USE_SNOW', validation_alias='FLASH_USE_SNOW')
 
 
 class ModelConfig(BaseModel):
@@ -180,7 +180,7 @@ class ModelConfig(BaseModel):
     ngen: Optional[NGENConfig] = Field(default=None)
     mesh: Optional[MESHConfig] = Field(default=None)
     mizuroute: Optional[MizuRouteConfig] = Field(default=None)
-    flash: Optional[FLASHConfig] = Field(default=None)
+    lstm: Optional[LSTMConfig] = Field(default=None, alias='lstm', validation_alias='flash')
 
     @field_validator('hydrological_model')
     @classmethod

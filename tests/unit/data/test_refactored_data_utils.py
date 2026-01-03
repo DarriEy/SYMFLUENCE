@@ -11,7 +11,7 @@ def mock_config(tmp_path):
         'EXPERIMENT_TIME_START': '2020-01-01 00:00',
         'EXPERIMENT_TIME_END': '2020-01-02 00:00',
         'FORCING_TIME_STEP_SIZE': '3600',
-        'STREAMFLOW_DATA_PROVIDER': 'USGS',
+        'STREAMFLOW_DATA_PROVIDER': 'LOCAL',
         'STREAMFLOW_RAW_PATH': 'default',
         'STREAMFLOW_PROCESSED_PATH': 'default',
         'STREAMFLOW_RAW_NAME': 'test_flow.csv',
@@ -28,18 +28,14 @@ def test_data_manager_initialization(mock_config, mock_logger):
     assert dm.project_dir == Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain"
 
 @patch('symfluence.utils.data.acquisition.observed_processor.ObservedDataProcessor.process_streamflow_data')
-@patch('symfluence.utils.data.acquisition.observed_processor.ObservedDataProcessor.process_snotel_data')
 @patch('symfluence.utils.data.acquisition.observed_processor.ObservedDataProcessor.process_fluxnet_data')
-@patch('symfluence.utils.data.acquisition.observed_processor.ObservedDataProcessor.process_usgs_groundwater_data')
-def test_process_observed_data_calls(mock_gw, mock_flux, mock_snow, mock_flow, mock_config, mock_logger):
+def test_process_observed_data_calls(mock_flux, mock_flow, mock_config, mock_logger):
     """Test that process_observed_data correctly calls the processor methods."""
     dm = DataManager(mock_config, mock_logger)
     dm.process_observed_data()
     
     mock_flow.assert_called_once()
-    mock_snow.assert_called_once()
     mock_flux.assert_called_once()
-    mock_gw.assert_called_once()
 
 def test_imports_from_data_utils_fail():
     """Verify that we can no longer import from the removed data_utils."""

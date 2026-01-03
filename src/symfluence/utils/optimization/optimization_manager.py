@@ -9,12 +9,17 @@ from datetime import datetime
 import json
 
 import numpy as np
-from symfluence.utils.optimization.iterative_optimizer import DEOptimizer, DDSOptimizer, AsyncDDSOptimizer, PopulationDDSOptimizer, PSOOptimizer, NSGA2Optimizer, SCEUAOptimizer # type: ignore
+# Import optimizers from the optimizers package
+from symfluence.utils.optimization.optimizers import (
+    DEOptimizer, DDSOptimizer, AsyncDDSOptimizer, PopulationDDSOptimizer,
+    PSOOptimizer, NSGA2Optimizer, SCEUAOptimizer
+)
 from symfluence.utils.optimization.legacy.large_domain_emulator import LargeDomainEmulator
 from symfluence.utils.optimization.legacy.differentiable_parameter_emulator import DifferentiableParameterOptimizer, EmulatorConfig
 from symfluence.utils.optimization.objective_registry import ObjectiveRegistry
 from symfluence.utils.optimization.transformers import TransformationManager
 from symfluence.utils.optimization.registry import OptimizerRegistry
+from symfluence.utils.optimization.optimization_results_manager import OptimizationResultsManager
 
 class OptimizationManager:
     """
@@ -56,7 +61,7 @@ class OptimizationManager:
         optimizer_methods (Dict[str, str]): Mapping of algorithm names to method names
     """
     
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the Optimization Manager.
         
@@ -68,6 +73,7 @@ class OptimizationManager:
         Args:
             config (Dict[str, Any]): Configuration dictionary containing all settings
             logger (logging.Logger): Logger instance for recording operations
+            reporting_manager (ReportingManager): ReportingManager instance
             
         Raises:
             KeyError: If essential configuration values are missing
@@ -75,6 +81,7 @@ class OptimizationManager:
         """
         self.config = config
         self.logger = logger
+        self.reporting_manager = reporting_manager
         
         # Validate required fields
         required_fields = ['SYMFLUENCE_DATA_DIR', 'DOMAIN_NAME', 'EXPERIMENT_ID']
@@ -91,7 +98,8 @@ class OptimizationManager:
         self.results_manager = OptimizationResultsManager(
             self.project_dir,
             self.experiment_id,
-            self.logger
+            self.logger,
+            self.reporting_manager
         )
         
         # Initialize transformation manager
@@ -312,7 +320,8 @@ class OptimizationManager:
         opt_algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'PSO')
 
         # Check if unified optimizer infrastructure should be used
-        use_unified = self.config.get('USE_UNIFIED_OPTIMIZER', False)
+        # Default to True - use the new consolidated optimizer infrastructure
+        use_unified = self.config.get('USE_UNIFIED_OPTIMIZER', True)
 
         try:
             hydrological_models = self.config.get('HYDROLOGICAL_MODEL', '').split(',')
@@ -346,179 +355,30 @@ class OptimizationManager:
     def _calibrate_fuse(self, algorithm: str) -> Optional[Path]:
         """
         Calibrate FUSE model using specified algorithm.
-        
-        This is an internal method that handles the specifics of calibrating the
-        FUSE hydrological model. It:
-        1. Creates the optimization directory if it doesn't exist
-        2. Loads the appropriate FUSEOptimizer and runs the algorithm
-        3. Saves and returns the results
-        
-        The method supports different optimization algorithms including:
-        - Population-based: PSO, SCE-UA, DDS, DE, NSGA-II
-        - Gradient-based: ADAM, LBFGS, ADAM-MULTI, LBFGS-MULTI
-        
+
+        Uses the unified optimizer infrastructure via the registry.
+
         Args:
             algorithm (str): Optimization algorithm to use
-            
+
         Returns:
             Optional[Path]: Path to results file or None if optimization failed
-            
-        Raises:
-            ValueError: If the specified algorithm is not supported
-            RuntimeError: If the optimization process fails
-            Exception: For other errors during optimization
         """
-        # UPDATED: Expanded supported algorithms for FUSE
-        supported_algorithms = [
-            # Population-based algorithms
-            'PSO', 'SCE-UA', 'DDS', 'DE', 'NSGA-II',
-            # Gradient-based algorithms
-            'ADAM', 'LBFGS', 'ADAM-MULTI', 'LBFGS-MULTI'
-        ]
-        
-        if algorithm not in supported_algorithms:
-            from symfluence.utils.exceptions import OptimizationError
-            raise OptimizationError(
-                f"Unsupported optimization algorithm for FUSE: '{algorithm}'. "
-                f"Supported algorithms: {', '.join(supported_algorithms)}"
-            )
-        
-        # Create optimization directory if it doesn't exist
-        opt_dir = self.project_dir / "optimization"
-        opt_dir.mkdir(parents=True, exist_ok=True)
-        
-        try:
-            # Import FUSEOptimizer
-            from symfluence.utils.optimization.fuse_optimizer import FUSEOptimizer
-            
-            # Initialize FUSE optimizer
-            self.logger.info(f"Using {algorithm} optimization for FUSE")
-            fuse_optimizer = FUSEOptimizer(self.config, self.logger, opt_dir)
-            
-            # UPDATED: Enhanced algorithm routing with gradient-based methods
-            if algorithm == 'PSO':
-                results_file = fuse_optimizer.run_pso()
-            elif algorithm == 'SCE-UA':
-                results_file = fuse_optimizer.run_sce()
-            elif algorithm == 'DDS':
-                results_file = fuse_optimizer.run_dds()
-            elif algorithm == 'DE':
-                results_file = fuse_optimizer.run_de()
-            elif algorithm == 'NSGA-II':
-                results_file = fuse_optimizer.run_nsga2()
-            
-            # NEW: Gradient-based algorithm routing
-            elif algorithm == 'ADAM':
-                # Get configuration parameters for Adam
-                steps = self.config.get('ADAM_STEPS', 100)
-                lr = self.config.get('ADAM_LEARNING_RATE', 0.01)
-                initial_params = self.config.get('ADAM_INITIAL_PARAMS', None)
-                results_file = fuse_optimizer.run_adam(steps=steps, lr=lr, initial_params=initial_params)
-                
-            elif algorithm == 'LBFGS':
-                # Get configuration parameters for L-BFGS
-                steps = self.config.get('LBFGS_STEPS', 50)
-                lr = self.config.get('LBFGS_LEARNING_RATE', 0.1)
-                initial_params = self.config.get('LBFGS_INITIAL_PARAMS', None)
-                results_file = fuse_optimizer.run_lbfgs(steps=steps, lr=lr, initial_params=initial_params)
-                
-            elif algorithm == 'ADAM-MULTI':
-                # Multi-objective Adam optimization
-                steps = self.config.get('ADAM_STEPS', 100)
-                lr = self.config.get('ADAM_LEARNING_RATE', 0.01)
-                objectives = self.config.get('MULTI_OBJECTIVES', ['NSE', 'KGE'])
-                weights = self.config.get('MULTI_OBJECTIVE_WEIGHTS', [0.5, 0.5])
-                initial_params = self.config.get('ADAM_INITIAL_PARAMS', None)
-                results_file = fuse_optimizer.run_differentiable_multiobjective(
-                    optimizer='ADAM', steps=steps, lr=lr, 
-                    objectives=objectives, weights=weights, initial_params=initial_params
-                )
-                
-            elif algorithm == 'LBFGS-MULTI':
-                # Multi-objective L-BFGS optimization
-                steps = self.config.get('LBFGS_STEPS', 50)
-                lr = self.config.get('LBFGS_LEARNING_RATE', 0.1)
-                objectives = self.config.get('MULTI_OBJECTIVES', ['NSE', 'KGE'])
-                weights = self.config.get('MULTI_OBJECTIVE_WEIGHTS', [0.5, 0.5])
-                initial_params = self.config.get('LBFGS_INITIAL_PARAMS', None)
-                results_file = fuse_optimizer.run_differentiable_multiobjective(
-                    optimizer='LBFGS', steps=steps, lr=lr,
-                    objectives=objectives, weights=weights, initial_params=initial_params
-                )
-                
-            else:
-                from symfluence.utils.exceptions import OptimizationError
-                raise OptimizationError(f"Algorithm '{algorithm}' not implemented for FUSE")
-            
-            if results_file and results_file.exists():
-                self.logger.info(f"FUSE calibration completed successfully: {results_file}")
-                return results_file
-            else:
-                self.logger.warning("FUSE calibration completed but results file not found")
-                return None
-                
-        except ImportError as e:
-            self.logger.error(f"Could not import FUSEOptimizer: {str(e)}")
-            return None
-        except Exception as e:
-            self.logger.error(f"Error during FUSE {algorithm} optimization: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return None
+        return self._calibrate_with_registry('FUSE', algorithm)
 
     def _calibrate_ngen(self, algorithm: str) -> Optional[Path]:
         """
         Calibrate NextGen (NGEN) using the specified algorithm.
-        Mirrors the FUSE calibration flow but dispatches to NgenOptimizer.
+
+        Uses the unified optimizer infrastructure via the registry.
+
+        Args:
+            algorithm (str): Optimization algorithm to use
+
+        Returns:
+            Optional[Path]: Path to results file or None if optimization failed
         """
-        supported_algorithms = [
-            # Population-based
-            'PSO', 'SCE-UA', 'DDS', 'DE', 'NSGA-II',
-            # Gradient-based
-            'ADAM', 'LBFGS'
-        ]
-        if algorithm not in supported_algorithms:
-            from symfluence.utils.exceptions import OptimizationError
-            raise OptimizationError(
-                f"Unsupported optimization algorithm for NGEN: '{algorithm}'. "
-                f"Supported algorithms: {', '.join(supported_algorithms)}"
-            )
-
-        # Create optimization directory if it doesn't exist
-        opt_dir = self.project_dir / "optimization"
-        opt_dir.mkdir(parents=True, exist_ok=True)
-
-        # Lazy import so we don’t require NGEN unless used
-        from symfluence.utils.optimization.ngen_optimizer import NgenOptimizer
-
-        self.logger.info(f"Using {algorithm} optimization for NGEN")
-        ngen_opt = NgenOptimizer(self.config, self.logger, opt_dir)
-
-        # Dispatch to the chosen algorithm (these methods exist in NgenOptimizer)
-        if algorithm == 'PSO':
-            results_file = ngen_opt.run_pso()
-        elif algorithm == 'SCE-UA':
-            results_file = ngen_opt.run_sce()
-        elif algorithm == 'DDS':
-            results_file = ngen_opt.run_dds()
-        elif algorithm == 'DE':
-            results_file = ngen_opt.run_de()
-        elif algorithm == 'NSGA-II':
-            results_file = ngen_opt.run_nsga2()
-        elif algorithm == 'ADAM':
-            steps = self.config.get('ADAM_STEPS', 100)
-            lr    = self.config.get('ADAM_LEARNING_RATE', 0.01)
-            results_file = ngen_opt.run_adam(steps=steps, lr=lr)
-        elif algorithm == 'LBFGS':
-            steps = self.config.get('LBFGS_STEPS', 50)
-            lr    = self.config.get('LBFGS_LEARNING_RATE', 0.1)
-            results_file = ngen_opt.run_lbfgs(steps=steps, lr=lr)
-        else:
-            from symfluence.utils.exceptions import OptimizationError
-            raise OptimizationError(f"Unhandled NGEN algorithm: '{algorithm}'")
-
-        self.logger.info(f"NGEN calibration complete. Results: {results_file}")
-        return results_file
+        return self._calibrate_with_registry('NGEN', algorithm)
 
 
     def differentiable_parameter_emulation(self):
@@ -633,7 +493,7 @@ class OptimizationManager:
         try:
             # Initialize optimizer
             self.logger.info(f"Using {algorithm} optimization for {model_name} (registry-based)")
-            optimizer = optimizer_cls(self.config, self.logger, opt_dir)
+            optimizer = optimizer_cls(self.config, self.logger, opt_dir, reporting_manager=self.reporting_manager)
 
             # Map algorithm name to method
             algorithm_methods = {
@@ -641,6 +501,7 @@ class OptimizationManager:
                 'PSO': optimizer.run_pso,
                 'SCE-UA': optimizer.run_sce,
                 'DE': optimizer.run_de,
+                'NSGA-II': getattr(optimizer, 'run_nsga2', None),
                 'ADAM': lambda: optimizer.run_adam(
                     steps=self.config.get('ADAM_STEPS', 100),
                     lr=self.config.get('ADAM_LEARNING_RATE', 0.01)
@@ -833,7 +694,7 @@ class OptimizationManager:
         
         # Check parameters to calibrate
         local_params = self.config.get('PARAMS_TO_CALIBRATE', '')
-        basin_params = self.config.get('BASIN_PARAMS_TO_CALIBRATE', '')
+        basin_params = self.config.get('BASIN_PARAMS_TO_CALIBRATE') or ''
         validation['parameters_defined'] = bool(local_params or basin_params)
         
         # Check metric
@@ -934,138 +795,6 @@ class OptimizationManager:
             self.logger.error(f"Error loading optimization results: {str(e)}")
             return None
 
-class OptimizationResultsManager:
-    """Manages saving and loading of optimization results."""
-    
-    def __init__(self, project_dir: Path, experiment_id: str, logger: logging.Logger):
-        self.project_dir = project_dir
-        self.experiment_id = experiment_id
-        self.logger = logger
-        self.opt_dir = project_dir / "optimization"
-        self.opt_dir.mkdir(parents=True, exist_ok=True)
-    
-    def save_optimization_results(self, results: Dict[str, Any], algorithm: str, target_metric: str = 'KGE') -> Optional[Path]:
-        """
-        Save optimization results to a CSV file for compatibility with other parts of SYMFLUENCE.
-        
-        Args:
-            results: Dictionary with optimization results
-            algorithm: Name of the optimization algorithm used
-            target_metric: Target optimization metric (default: 'KGE')
-        
-        Returns:
-            Path to the saved results file or None if save failed
-        """
-        try:
-            # Get best parameters and score
-            best_params = results.get('best_parameters', {})
-            best_score = results.get('best_score', None)
-            
-            if not best_params or best_score is None:
-                self.logger.warning("No valid optimization results to save")
-                return None
-            
-            # Create DataFrame from best parameters
-            results_data = {}
-            
-            # First add iteration column
-            results_data['iteration'] = [0]
-            
-            # Add score column with appropriate name based on the target metric
-            results_data[target_metric] = [best_score]
-            
-            # Add parameter columns
-            for param_name, values in best_params.items():
-                if isinstance(values, np.ndarray) and len(values) > 1:
-                    # For parameters with multiple values (like HRU-level parameters),
-                    # save the mean value
-                    results_data[param_name] = [float(np.mean(values))]
-                else:
-                    # For scalar parameters or single-value arrays
-                    results_data[param_name] = [float(values[0]) if isinstance(values, np.ndarray) else float(values)]
-            
-            # Create DataFrame
-            results_df = pd.DataFrame(results_data)
-            
-            # Save to standard location
-            results_file = self.opt_dir / f"{self.experiment_id}_parallel_iteration_results.csv"
-            results_df.to_csv(results_file, index=False)
-            self.logger.info(f"Saved optimization results to {results_file}")
-            
-            # Also save detailed results to optimizer-specific files
-            self._save_optimization_history(results.get('history', []), algorithm, target_metric, best_params)
-            
-            return results_file
-            
-        except Exception as e:
-            self.logger.error(f"Error saving optimization results: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return None
-    
-    def _save_optimization_history(self, history: list, algorithm: str, target_metric: str, best_params: Dict[str, Any]):
-        """
-        Save optimization history to algorithm-specific file.
-        
-        Args:
-            history: List of optimization history
-            algorithm: Name of the optimization algorithm
-            target_metric: Target optimization metric
-            best_params: Best parameters from optimization
-        """
-        if not history:
-            return
-        
-        try:
-            # Extract iteration history data
-            history_data = {
-                'iteration': [],
-                target_metric: [],
-            }
-            
-            # Add parameter columns to history data
-            for param_name in best_params.keys():
-                history_data[param_name] = []
-            
-            # Fill history data
-            for h in history:
-                history_data['iteration'].append(h.get('iteration', 0))
-                history_data[target_metric].append(h.get('best_score', np.nan))
-                
-                # Add parameter values
-                if 'best_params' in h and h['best_params']:
-                    for param_name, values in h['best_params'].items():
-                        if param_name in history_data:
-                            if isinstance(values, np.ndarray) and len(values) > 1:
-                                history_data[param_name].append(float(np.mean(values)))
-                            else:
-                                val = float(values[0]) if isinstance(values, np.ndarray) else float(values)
-                                history_data[param_name].append(val)
-            
-            # Create DataFrame and save
-            history_df = pd.DataFrame(history_data)
-            history_file = self.opt_dir / f"{self.experiment_id}_{algorithm.lower()}_history.csv"
-            history_df.to_csv(history_file, index=False)
-            self.logger.info(f"Saved optimization history to {history_file}")
-            
-        except Exception as e:
-            self.logger.error(f"Error saving optimization history: {str(e)}")
-    
-    def load_optimization_results(self, filename: str = None) -> pd.DataFrame:
-        """
-        Load optimization results from CSV file.
-        
-        Args:
-            filename: Name of the file to load. If None, uses default naming.
-        
-        Returns:
-            DataFrame with optimization results
-        """
-        if filename is None:
-            filename = f"{self.experiment_id}_parallel_iteration_results.csv"
-        
-        results_file = self.opt_dir / filename
-        
         if not results_file.exists():
             from symfluence.utils.exceptions import FileOperationError
             raise FileOperationError(f"Optimization results file not found: {results_file}")

@@ -29,9 +29,9 @@ class MESHPostProcessor(BaseModelPostProcessor):
         self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
         self.forcing_gr_path = self.project_dir / 'forcing' / 'MESH_input'
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
+        self.catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
-            self.catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
+            self.catchment_name = f"{self.domain_name}_HRUs_{self.config_dict.get('DOMAIN_DISCRETIZATION')}.shp"
 
     def extract_streamflow(self) -> Optional[Path]:
         """

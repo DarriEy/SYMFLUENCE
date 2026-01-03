@@ -36,7 +36,8 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
         self,
         config: Dict[str, Any],
         logger: logging.Logger,
-        optimization_settings_dir: Optional[Path] = None
+        optimization_settings_dir: Optional[Path] = None,
+        reporting_manager: Optional[Any] = None
     ):
         """
         Initialize SUMMA optimizer.
@@ -45,8 +46,9 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
             config: Configuration dictionary
             logger: Logger instance
             optimization_settings_dir: Optional path to optimization settings
+            reporting_manager: ReportingManager instance
         """
-        super().__init__(config, logger, optimization_settings_dir)
+        super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
         # SUMMA-specific paths
         self.summa_exe_path = self._get_summa_executable_path()
@@ -75,12 +77,14 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
         """Create SUMMA calibration target based on configuration."""
         from ..calibration_targets import (
             StreamflowTarget, ETTarget, SnowTarget,
-            GroundwaterTarget, SoilMoistureTarget
+            GroundwaterTarget, SoilMoistureTarget, MultivariateTarget
         )
 
         target_type = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
 
-        if target_type in ['et', 'evapotranspiration']:
+        if target_type == 'multivariate':
+            return MultivariateTarget(self.config, self.project_dir, self.logger)
+        elif target_type in ['et', 'evapotranspiration']:
             return ETTarget(self.config, self.project_dir, self.logger)
         elif target_type in ['snow', 'swe', 'sca']:
             return SnowTarget(self.config, self.project_dir, self.logger)

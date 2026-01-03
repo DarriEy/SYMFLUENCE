@@ -31,13 +31,10 @@ env/
 .env/
 .venv/
 
-# Ignore everything in 0_config_files
+# Ignore everything in 0_config_files (user workspace)
 0_config_files/*
 
-
-# But keep config_template.yaml
-!0_config_files/config_template.yaml
-!0_config_files/config_template_comprehensive.yaml
+# Keep only the README explaining the new structure
 !0_config_files/README.md
 
 

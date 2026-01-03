@@ -128,9 +128,9 @@ Select hydrologic and routing models, and configure per-model parameters.
 .. code-block:: yaml
 
    GR_SPATIAL_MODE: lumped
-   FLASH_HIDDEN_SIZE: 256
-   FLASH_EPOCHS: 100
-   FLASH_USE_ATTENTION: True
+   LSTM_HIDDEN_SIZE: 256
+   LSTM_EPOCHS: 100
+   LSTM_USE_ATTENTION: True
 
 ---
 

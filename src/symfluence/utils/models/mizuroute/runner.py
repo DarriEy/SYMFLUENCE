@@ -2,6 +2,7 @@
 MizuRoute Model Runner.
 
 Manages the execution of the mizuRoute routing model.
+Refactored to use the Unified Model Execution Framework.
 """
 
 import os
@@ -11,19 +12,22 @@ import subprocess
 import traceback
 import xarray as xr
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 
 from symfluence.utils.models.registry import ModelRegistry
 from symfluence.utils.models.base import BaseModelRunner
+from symfluence.utils.models.execution import ModelExecutor
 
 
 @ModelRegistry.register_runner('MIZUROUTE', method_name='run_mizuroute')
-class MizuRouteRunner(BaseModelRunner):
+class MizuRouteRunner(BaseModelRunner, ModelExecutor):
     """
     A class to run the mizuRoute model.
 
     This class handles the execution of the mizuRoute model, including setting up paths,
     running the model, and managing log files.
+
+    Uses the Unified Model Execution Framework for subprocess execution.
 
     Attributes:
         config (Dict[str, Any]): Configuration settings for the model run.
@@ -32,9 +36,9 @@ class MizuRouteRunner(BaseModelRunner):
         domain_name (str): Name of the domain being processed.
         project_dir (Path): Directory for the current project.
     """
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
         # Call base class
-        super().__init__(config, logger)
+        super().__init__(config, logger, reporting_manager=reporting_manager)
 
         # MizuRoute uses 'root_path' alias for backwards compatibility
         self.setup_path_aliases({'root_path': 'data_dir'})
@@ -54,22 +58,22 @@ class MizuRouteRunner(BaseModelRunner):
         Now supports both SUMMA and FUSE outputs with proper time format detection.
         """
         # Determine which model's output to process
-        models = self.config.get('HYDROLOGICAL_MODEL', '').split(',')
+        models = self.config_dict.get('HYDROLOGICAL_MODEL', '').split(',')
         active_models = [m.strip() for m in models]
         
         # For FUSE, check if it has already converted its output
         if 'FUSE' in active_models:
             self.logger.debug("Fixing FUSE time precision for mizuRoute compatibility")
-            experiment_output_dir = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'FUSE'
-            runoff_filename = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('EXPERIMENT_ID')}_runs_def.nc"
+            experiment_output_dir = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'FUSE'
+            runoff_filename = f"{self.config_dict.get('DOMAIN_NAME')}_{self.config_dict.get('EXPERIMENT_ID')}_runs_def.nc"
         else:
             self.logger.info("Fixing SUMMA time precision for mizuRoute compatibility")
-            experiment_output_summa = self.config.get('EXPERIMENT_OUTPUT_SUMMA')
+            experiment_output_summa = self.config_dict.get('EXPERIMENT_OUTPUT_SUMMA')
             if experiment_output_summa == 'default':
-                experiment_output_dir = self.project_dir / f"simulations/{self.config.get('EXPERIMENT_ID')}" / 'SUMMA'
+                experiment_output_dir = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'SUMMA'
             else:
                 experiment_output_dir = Path(experiment_output_summa)
-            runoff_filename = f"{self.config.get('EXPERIMENT_ID')}_timestep.nc"
+            runoff_filename = f"{self.config_dict.get('EXPERIMENT_ID')}_timestep.nc"
         
         runoff_filepath = experiment_output_dir / runoff_filename
         
@@ -243,18 +247,18 @@ class MizuRouteRunner(BaseModelRunner):
 
         # Set up paths and filenames
         mizu_path = self.get_install_path('INSTALL_PATH_MIZUROUTE', 'installs/mizuRoute/route/bin/')
-        mizu_exe = self.config.get('EXE_NAME_MIZUROUTE')
+        mizu_exe = self.config_dict.get('EXE_NAME_MIZUROUTE')
         settings_path = self.get_config_path('SETTINGS_MIZU_PATH', 'settings/mizuRoute/')
-        control_file = self.config.get('SETTINGS_MIZU_CONTROL_FILE')
+        control_file = self.config_dict.get('SETTINGS_MIZU_CONTROL_FILE')
 
-        experiment_id = self.config.get('EXPERIMENT_ID')
+        experiment_id = self.config_dict.get('EXPERIMENT_ID')
         mizu_log_path = self.get_config_path('EXPERIMENT_LOG_MIZUROUTE', f"simulations/{experiment_id}/mizuRoute/mizuRoute_logs/")
         mizu_log_name = "mizuRoute_log.txt"
 
         mizu_out_path = self.get_config_path('EXPERIMENT_OUTPUT_MIZUROUTE', f"simulations/{experiment_id}/mizuRoute/")
 
         # Backup settings if required
-        if self.config.get('EXPERIMENT_BACKUP_SETTINGS') == 'yes':
+        if self.config_dict.get('EXPERIMENT_BACKUP_SETTINGS') == 'yes':
             self.backup_settings(settings_path, backup_subdir="run_settings")
 
         # Run mizuRoute

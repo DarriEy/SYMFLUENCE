@@ -209,7 +209,7 @@ class PathResolverMixin:
             AttributeError: If required attributes (config, project_dir) don't exist
         """
         return resolve_path(
-            config=self.config,
+            config=self.config_dict,
             config_key=config_key,
             project_dir=self.project_dir,
             default_subpath=default_subpath,
@@ -246,7 +246,7 @@ class PathResolverMixin:
             AttributeError: If required attributes (config, project_dir) don't exist
         """
         return resolve_file_path(
-            config=self.config,
+            config=self.config_dict,
             project_dir=self.project_dir,
             path_key=path_key,
             name_key=name_key,

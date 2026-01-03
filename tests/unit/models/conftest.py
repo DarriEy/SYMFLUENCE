@@ -88,7 +88,7 @@ def setup_test_directories(temp_dir, base_config):
 
     # Create base settings directories for models
     for model in ['SUMMA', 'FUSE', 'GR', 'HYPE']:
-        base_settings = code_dir / '0_base_settings' / model
+        base_settings = code_dir / 'src' / 'symfluence' / 'data' / 'base_settings' / model
         base_settings.mkdir(parents=True, exist_ok=True)
 
         # Create dummy settings files

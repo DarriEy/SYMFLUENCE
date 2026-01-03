@@ -11,7 +11,7 @@ Provides shared infrastructure for all model postprocessing modules including:
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 import pandas as pd
 import xarray as xr
 
@@ -55,32 +55,58 @@ class BaseModelPostProcessor(ABC, PathResolverMixin):
         ...         pass
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: Any, reporting_manager: Optional[Any] = None):
         """
         Initialize base model postprocessor.
 
         Args:
-            config: Configuration dictionary
+            config: SymfluenceConfig instance (recommended) or configuration dictionary (deprecated)
             logger: Logger instance
+            reporting_manager: ReportingManager instance
 
         Raises:
             ConfigurationError: If required configuration keys are missing
+
+        Note:
+            Passing a dict config is deprecated. Please use SymfluenceConfig for full type safety.
         """
-        # Core configuration
-        self.config = config
+        import warnings
+
+        # Import for type checking
+        try:
+            from symfluence.utils.config.models import SymfluenceConfig
+        except ImportError:
+            SymfluenceConfig = None
+
+        # Phase 3: Prioritize typed config, keep dict for backward compatibility
+        if SymfluenceConfig and isinstance(config, SymfluenceConfig):
+            self.config = config  # Typed config is now primary
+            self.config_dict = config.to_dict(flatten=True)  # For backward compat
+        else:
+            # Dict config - deprecated but still supported
+            warnings.warn(
+                "Passing dict config is deprecated and will be removed in a future version. "
+                "Please use SymfluenceConfig for full type safety.",
+                DeprecationWarning,
+                stacklevel=2
+            )
+            self.config = None  # No typed config available
+            self.config_dict = config
+
         self.logger = logger
+        self.reporting_manager = reporting_manager
 
         # Validate required configuration keys
         self._validate_required_config()
 
         # Base paths (standard naming convention)
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
+        self.data_dir = Path(self.config_dict.get('SYMFLUENCE_DATA_DIR'))
+        self.domain_name = self.config_dict.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
         # Model-specific initialization
         self.model_name = self._get_model_name()
-        self.experiment_id = self.config.get('EXPERIMENT_ID', 'default_experiment')
+        self.experiment_id = self.config_dict.get('EXPERIMENT_ID', 'default_experiment')
 
         # Standard output directories
         self.sim_dir = self._get_simulation_dir()
@@ -101,7 +127,7 @@ class BaseModelPostProcessor(ABC, PathResolverMixin):
             'DOMAIN_NAME',
         ]
         validate_config_keys(
-            self.config,
+            self.config_dict,
             required_keys,
             f"{self._get_model_name() if hasattr(self, '_get_model_name') else 'Model'} postprocessor initialization"
         )
@@ -156,7 +182,7 @@ class BaseModelPostProcessor(ABC, PathResolverMixin):
         Example:
             >>> def _setup_model_specific_paths(self):
             ...     self.routing_dir = self.sim_dir / 'routing'
-            ...     self.spatial_mode = self.config.get('GR_SPATIAL_MODE', 'lumped')
+            ...     self.spatial_mode = self.config_dict.get('GR_SPATIAL_MODE', 'lumped')
         """
         pass
 
@@ -206,9 +232,9 @@ class BaseModelPostProcessor(ABC, PathResolverMixin):
         """
         import geopandas as gpd
 
-        basin_name = self.config.get('RIVER_BASINS_NAME')
+        basin_name = self.config_dict.get('RIVER_BASINS_NAME')
         if basin_name == 'default' or basin_name is None:
-            basin_name = f"{self.domain_name}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
+            basin_name = f"{self.domain_name}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
 
         basin_path = self._get_file_path(
             path_key='RIVER_BASINS_PATH',

@@ -36,15 +36,17 @@ class GeofabricDelineator(BaseGeofabricDelineator):
     - multi_scale: Multi-scale hierarchical
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
         """
         Initialize distributed geofabric delineator.
 
         Args:
             config: Configuration dictionary
             logger: Logger instance
+            reporting_manager: ReportingManager instance
         """
         super().__init__(config, logger)
+        self.reporting_manager = reporting_manager
 
         # Stream delineation method
         self.delineation_method = self.config.get('DELINEATION_METHOD', 'stream_threshold').lower()
@@ -65,7 +67,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
 
         # Initialize stream method instances
         self.stream_methods = {
-            'stream_threshold': StreamThresholdMethod(self.taudem, config, logger, self.interim_dir),
+            'stream_threshold': StreamThresholdMethod(self.taudem, config, logger, self.interim_dir, self.reporting_manager),
             'curvature': CurvatureMethod(self.taudem, config, logger, self.interim_dir),
             'slope_area': SlopeAreaMethod(self.taudem, config, logger, self.interim_dir),
             'multi_scale': MultiScaleMethod(self.taudem, config, logger, self.interim_dir),
@@ -223,7 +225,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
 
                 # Find basin containing pour point
                 downstream_basin_id = CRSUtils.find_basin_for_pour_point(
-                    pour_point, basins, self.logger
+                    pour_point, basins
                 )
 
                 # Build river network graph
@@ -231,7 +233,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
 
                 # Find upstream basins
                 upstream_basin_ids = self.graph.find_upstream_basins(
-                    downstream_basin_id, river_graph
+                    downstream_basin_id, river_graph, self.logger
                 )
 
                 # Subset to upstream area
@@ -265,7 +267,29 @@ class GeofabricDelineator(BaseGeofabricDelineator):
             Tuple of processed (basins, rivers)
         """
         # Set GRU_ID from DN field
-        basins['GRU_ID'] = basins['DN']
+        if 'GRU_ID' in basins.columns:
+            pass
+        elif 'DN' in basins.columns:
+            basins['GRU_ID'] = basins['DN']
+        elif 'value' in basins.columns:
+            basins['GRU_ID'] = basins['value']
+        elif 'ID' in basins.columns:
+            basins['GRU_ID'] = basins['ID']
+        else:
+            self.logger.warning(f"'DN' column not found in basins. Available columns: {list(basins.columns)}")
+            # Fallback to first column if it exists, hoping it's the ID
+            if len(basins.columns) > 0:
+                # Avoid using geometry column
+                cols = [c for c in basins.columns if c != 'geometry']
+                if cols:
+                    first_col = cols[0]
+                    self.logger.warning(f"Using '{first_col}' as GRU_ID fallback.")
+                    basins['GRU_ID'] = basins[first_col]
+                else:
+                     raise KeyError("No suitable ID column found in basins shapefile")
+            else:
+                raise KeyError("No suitable ID column found in basins shapefile ('DN', 'value', 'ID')")
+
         rivers['GRU_ID'] = rivers['LINKNO']
 
         # Calculate areas in UTM
@@ -349,17 +373,19 @@ class GeofabricDelineator(BaseGeofabricDelineator):
         self.logger.info(f"Subset basins shapefile saved to: {basins_path}")
         self.logger.info(f"Subset rivers shapefile saved to: {rivers_path}")
 
-    def _get_fabric_config(self) -> Dict[str, str]:
+    def _get_fabric_config(self) -> Dict[str, Any]:
         """
         Get hydrofabric configuration for graph processing.
 
         Returns:
             Dictionary with column name mappings
         """
-        # Assume TauDEM output uses standard column names
+        # TauDEM output standard column names
         return {
-            'link_id_col': 'LINKNO',
-            'downstream_col': 'DSLINKNO'
+            'river_id_col': 'LINKNO',
+            'upstream_cols': ['DSLINKNO'],
+            'upstream_default': -1,
+            'direction': 'downstream'
         }
 
     def delineate_coastal(self, work_log_dir: Optional[Path] = None) -> Tuple[Optional[Path], Optional[Path]]:

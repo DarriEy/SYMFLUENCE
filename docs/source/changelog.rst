@@ -10,7 +10,7 @@ Version 0.5.6
 Added
 -----
 - **Model Registry System:** Introduced a decorator-based plugin system (``ModelRegistry``) to simplify adding new hydrological models.
-- **Self-Registering Models:** SUMMA, FUSE, GR, HYPE, FLASH, NGEN, and mizuRoute now register themselves automatically.
+- **Self-Registering Models:** SUMMA, FUSE, GR, HYPE, LSTM, NGEN, and mizuRoute now register themselves automatically.
 
 Changed
 -------

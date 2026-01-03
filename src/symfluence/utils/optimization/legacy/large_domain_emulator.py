@@ -31,10 +31,13 @@ from sklearn.neighbors import BallTree
 from tqdm import tqdm
 
 # Import SYMFLUENCE backend components
-
-from symfluence.utils.optimization.iterative_optimizer import DEOptimizer
-from symfluence.utils.optimization.iterative_optimizer import ParameterManager, ModelExecutor, ResultsManager
-from symfluence.utils.optimization.iterative_optimizer import CalibrationTarget, StreamflowTarget, SnowTarget, SoilMoistureTarget
+from symfluence.utils.optimization.optimizers.de_optimizer import DEOptimizer
+from symfluence.utils.optimization.core.parameter_manager import ParameterManager
+from symfluence.utils.optimization.core.model_executor import ModelExecutor
+from symfluence.utils.optimization.core.results_manager import ResultsManager
+from symfluence.utils.optimization.calibration_targets import (
+    CalibrationTarget, StreamflowTarget, SnowTarget, SoilMoistureTarget
+)
 from symfluence.utils.optimization.legacy.differentiable_parameter_emulator import ObjectiveHead
 
 

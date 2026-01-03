@@ -10,6 +10,7 @@ from symfluence.utils.geospatial.geofabric import (
     LumpedWatershedDelineator,
     PointDelineator,
 )
+from symfluence.utils.common.path_resolver import PathResolverMixin
 
 
 @dataclass
@@ -32,58 +33,45 @@ def create_point_domain_shapefile(
     return delineator.create_point_domain_shapefile()
 
 
-class DomainDelineator:
+class DomainDelineator(PathResolverMixin):
     """
     Handles domain delineation with explicit artifact tracking.
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
         self.config = config
+        self.config_dict = config  # For PathResolverMixin
         self.logger = logger
+        self.reporting_manager = reporting_manager
         self.data_dir = Path(self.config.get("SYMFLUENCE_DATA_DIR"))
         self.domain_name = self.config.get("DOMAIN_NAME")
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
-        self.delineator = GeofabricDelineator(self.config, self.logger)
+        self.delineator = GeofabricDelineator(self.config, self.logger, self.reporting_manager)
         self.lumped_delineator = LumpedWatershedDelineator(self.config, self.logger)
         self.subsetter = GeofabricSubsetter(self.config, self.logger)
         self.point_delineator = PointDelineator(self.config, self.logger)
 
     def _get_pour_point_path(self) -> Optional[Path]:
-        pour_point_path = self.config.get("POUR_POINT_SHP_PATH")
-        if pour_point_path == "default":
-            pour_point_path = self.project_dir / "shapefiles" / "pour_point"
-        else:
-            pour_point_path = Path(pour_point_path)
-
-        pour_point_name = self.config.get("POUR_POINT_SHP_NAME", "default")
-        if pour_point_name == "default":
-            pour_point_path = pour_point_path / f"{self.domain_name}_pourPoint.shp"
-        else:
-            pour_point_path = pour_point_path / pour_point_name
-
-        return pour_point_path
+        return self._get_file_path(
+            path_key="POUR_POINT_SHP_PATH",
+            name_key="POUR_POINT_SHP_NAME",
+            default_subpath="shapefiles/pour_point",
+            default_name=f"{self.domain_name}_pourPoint.shp"
+        )
 
     def _get_subset_paths(self) -> Tuple[Path, Path]:
-        if self.config.get("OUTPUT_BASINS_PATH") == "default":
-            basins_path = (
-                self.project_dir
-                / "shapefiles"
-                / "river_basins"
-                / f"{self.domain_name}_riverBasins_subset_{self.config.get('GEOFABRIC_TYPE')}.shp"
-            )
-        else:
-            basins_path = Path(self.config.get("OUTPUT_BASINS_PATH"))
+        geofabric_type = self.config.get('GEOFABRIC_TYPE')
+        
+        basins_path = self._get_default_path(
+            config_key="OUTPUT_BASINS_PATH",
+            default_subpath=f"shapefiles/river_basins/{self.domain_name}_riverBasins_subset_{geofabric_type}.shp"
+        )
 
-        if self.config.get("OUTPUT_RIVERS_PATH") == "default":
-            rivers_path = (
-                self.project_dir
-                / "shapefiles"
-                / "river_network"
-                / f"{self.domain_name}_riverNetwork_subset_{self.config.get('GEOFABRIC_TYPE')}.shp"
-            )
-        else:
-            rivers_path = Path(self.config.get("OUTPUT_RIVERS_PATH"))
+        rivers_path = self._get_default_path(
+            config_key="OUTPUT_RIVERS_PATH",
+            default_subpath=f"shapefiles/river_network/{self.domain_name}_riverNetwork_subset_{geofabric_type}.shp"
+        )
 
         return basins_path, rivers_path
 

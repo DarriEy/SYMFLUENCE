@@ -118,7 +118,7 @@ class DDSOptimizer(BaseOptimizer):
             dds_tasks.append(task)
         
         from concurrent.futures import ProcessPoolExecutor, as_completed
-        from symfluence.utils.optimization.worker_scripts import _run_dds_instance_worker
+        from symfluence.utils.optimization.workers.summa_parallel_workers import _run_dds_instance_worker
         
         results = []
         with ProcessPoolExecutor(max_workers=min(len(dds_tasks), self.num_processes)) as executor:

@@ -22,8 +22,6 @@ class InitializationManager:
         from .init_presets import load_presets
 
         self.presets = load_presets()
-        # Get template directory (0_config_files at root of repo)
-        self.template_dir = Path(__file__).parent.parent.parent.parent.parent / "0_config_files"
 
         # Use centralized defaults from config.defaults
         self.model_defaults = {
@@ -153,12 +151,9 @@ class InitializationManager:
             # For minimal, we'll create a basic structure
             config = self._create_minimal_config()
         else:
-            # Load comprehensive template
-            template_path = self.template_dir / 'config_template_comprehensive.yaml'
-            if not template_path.exists():
-                raise FileNotFoundError(
-                    f"Template not found: {template_path}"
-                )
+            # Load comprehensive template from package data
+            from symfluence.utils.resources import get_config_template
+            template_path = get_config_template('config_template_comprehensive.yaml')
             config = self._load_yaml(template_path)
 
         # Step 2: Apply preset if specified
@@ -438,7 +433,7 @@ class InitializationManager:
                 errors.append(f"End date must be after start date: {start} >= {end}")
 
         # Validate model
-        valid_models = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'FLASH', 'MESH']
+        valid_models = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'LSTM', 'MESH']
         model = config.get('HYDROLOGICAL_MODEL')
         if model and model not in valid_models:
             errors.append(f"Invalid model: {model}. Must be one of {valid_models}")

@@ -95,6 +95,36 @@ class UnitConversion:
     PA_TO_KPA = 0.001
     """Convert Pascals to kiloPascals."""
 
+    # Length conversions
+    FEET_TO_METERS = 0.3048
+    """
+    Convert feet to meters.
+
+    1 foot = 0.3048 meters (exact, international foot)
+
+    Commonly used for groundwater level measurements which may be
+    reported in either feet or meters below land surface.
+
+    Example:
+        >>> depth_ft = 50  # feet below ground surface
+        >>> depth_m = depth_ft * UnitConversion.FEET_TO_METERS
+        >>> print(f"{depth_m:.2f} meters")
+        15.24 meters
+    """
+
+    METERS_TO_FEET = 3.28084
+    """
+    Convert meters to feet.
+
+    1 meter = 3.28084 feet (approximate)
+
+    Example:
+        >>> depth_m = 15.24  # meters below ground surface
+        >>> depth_ft = depth_m * UnitConversion.METERS_TO_FEET
+        >>> print(f"{depth_ft:.2f} feet")
+        50.00 feet
+    """
+
     @classmethod
     def mm_per_timestep_to_cms_factor(
         cls,

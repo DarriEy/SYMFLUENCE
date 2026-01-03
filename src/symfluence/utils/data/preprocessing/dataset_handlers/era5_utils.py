@@ -16,6 +16,7 @@ from .dataset_registry import DatasetRegistry
 
 
 @DatasetRegistry.register('era5')
+@DatasetRegistry.register('era5_cds')
 class ERA5Handler(BaseDatasetHandler):
     """Handler for ERA5 (ECMWF Reanalysis v5) dataset."""
     
@@ -131,8 +132,17 @@ class ERA5Handler(BaseDatasetHandler):
                 with xr.open_dataset(forcing_file) as src:
                     lat = src[source_name_lat].values
                     lon = src[source_name_lon].values
-                
+
                 self.logger.info(f"ERA5 dimensions: lat={lat.shape}, lon={lon.shape}")
+
+                # Check for empty dimensions
+                if lat.size == 0 or lon.size == 0:
+                    raise ValueError(
+                        f"ERA5 forcing file has empty spatial dimensions (lat: {lat.shape}, lon: {lon.shape}). "
+                        f"This typically happens when the bounding box is smaller than ERA5's 0.25° resolution. "
+                        f"Please use a larger bounding box (at least 0.5° x 0.5°) or use a higher-resolution "
+                        f"forcing dataset like HRRR or CONUS404 for small domains."
+                    )
             except Exception as e:
                 self.logger.error(f"Error reading ERA5 dimensions: {str(e)}")
                 raise

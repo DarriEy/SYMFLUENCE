@@ -1,7 +1,6 @@
 import pandas as pd # type: ignore
 import sys
 import csv
-import matplotlib.pyplot as plt # type: ignore
 from pathlib import Path 
 import itertools
 from typing import List, Tuple
@@ -13,9 +12,10 @@ from symfluence.utils.models.mizuroute import MizuRouteRunner # type: ignore
 
     
 class DecisionAnalyzer:
-    def __init__(self, config, logger):
+    def __init__(self, config, logger, reporting_manager=None):
         self.config = config
         self.logger = logger
+        self.reporting_manager = reporting_manager
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
@@ -126,29 +126,6 @@ class DecisionAnalyzer:
         self.logger.info("Decision analysis completed")
         return master_file
 
-    def plot_decision_impacts(self, results_file: Path):
-        self.logger.info("Plotting decision impacts")
-        
-        df = pd.read_csv(results_file)
-        metrics = ['kge', 'kgep', 'nse', 'mae', 'rmse']
-        decisions = [col for col in df.columns if col not in ['Iteration'] + metrics]
-
-        for metric in metrics:
-            plt.figure(figsize=(12, 6 * len(decisions)))
-            for i, decision in enumerate(decisions, 1):
-                plt.subplot(len(decisions), 1, i)
-                impact = df.groupby(decision)[metric].mean().sort_values(ascending=False)
-                impact.plot(kind='bar')
-                plt.title(f'Impact of {decision} on {metric}')
-                plt.ylabel(metric)
-                plt.xticks(rotation=45, ha='right')
-            
-            plt.tight_layout()
-            plt.savefig(self.output_folder / f'{metric}_decision_impacts.png')
-            plt.close()
-
-        self.logger.info("Decision impact plots saved")
-
     def analyze_results(self, results_file: Path):
         self.logger.info("Analyzing decision results")
         
@@ -180,6 +157,7 @@ class DecisionAnalyzer:
 
     def run_full_analysis(self):
         results_file = self.run_decision_analysis()
-        self.plot_decision_impacts(results_file)
+        if self.reporting_manager:
+            self.reporting_manager.visualize_decision_impacts(results_file, self.output_folder)
         best_combinations = self.analyze_results(results_file)
         return results_file, best_combinations

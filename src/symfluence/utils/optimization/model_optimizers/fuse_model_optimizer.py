@@ -36,7 +36,8 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         self,
         config: Dict[str, Any],
         logger: logging.Logger,
-        optimization_settings_dir: Optional[Path] = None
+        optimization_settings_dir: Optional[Path] = None,
+        reporting_manager: Optional[Any] = None
     ):
         """
         Initialize FUSE optimizer.
@@ -45,8 +46,9 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             config: Configuration dictionary
             logger: Logger instance
             optimization_settings_dir: Optional path to optimization settings
+            reporting_manager: ReportingManager instance
         """
-        super().__init__(config, logger, optimization_settings_dir)
+        super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
         # FUSE-specific paths
         self.fuse_exe_path = self._get_fuse_executable_path()

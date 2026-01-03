@@ -52,7 +52,7 @@ class GRPostprocessor(BaseModelPostProcessor):
             )
 
         # GR-specific configuration
-        self.spatial_mode = self.config.get('GR_SPATIAL_MODE', 'lumped')
+        self.spatial_mode = self.config_dict.get('GR_SPATIAL_MODE', 'lumped')
         self._output_path = self.sim_dir  # Alias for consistency with existing code
 
     def extract_streamflow(self) -> Optional[Path]:
@@ -103,9 +103,9 @@ class GRPostprocessor(BaseModelPostProcessor):
 
         # Get catchment area
         basin_dir = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
-        basin_name = self.config.get('RIVER_BASINS_NAME')
+        basin_name = self.config_dict.get('RIVER_BASINS_NAME')
         if basin_name == 'default' or basin_name is None:
-            basin_name = f"{self.domain_name}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
+            basin_name = f"{self.domain_name}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
         basin_path = basin_dir / basin_name
         basin_gdf = gpd.read_file(basin_path)
 
@@ -116,7 +116,7 @@ class GRPostprocessor(BaseModelPostProcessor):
         q_sim_cms = sim_df['flow'] * area_km2 / UnitConversion.MM_DAY_TO_CMS
 
         # Read existing results or create new
-        output_file = self.results_dir / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
+        output_file = self.results_dir / f"{self.config_dict.get('EXPERIMENT_ID')}_results.csv"
         if output_file.exists():
             results_df = pd.read_csv(output_file, index_col=0, parse_dates=True)
         else:
@@ -135,14 +135,14 @@ class GRPostprocessor(BaseModelPostProcessor):
         """Extract streamflow from distributed GR4J run (after routing)"""
 
         # Check if routing was performed
-        needs_routing = self.config.get('GR_ROUTING_INTEGRATION') == 'mizuRoute'
+        needs_routing = self.config_dict.get('GR_ROUTING_INTEGRATION') == 'mizuRoute'
 
         if needs_routing:
             # Get routed streamflow from mizuRoute output
-            mizuroute_output_dir = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'mizuRoute'
+            mizuroute_output_dir = self.project_dir / 'simulations' / self.config_dict.get('EXPERIMENT_ID') / 'mizuRoute'
 
             # Find mizuRoute output file
-            output_files = list(mizuroute_output_dir.glob(f"{self.config.get('EXPERIMENT_ID')}*.nc"))
+            output_files = list(mizuroute_output_dir.glob(f"{self.config_dict.get('EXPERIMENT_ID')}*.nc"))
 
             if not output_files:
                 self.logger.error(f"No mizuRoute output files found in {mizuroute_output_dir}")
@@ -182,8 +182,8 @@ class GRPostprocessor(BaseModelPostProcessor):
 
         else:
             # No routing - sum all HRU outputs
-            gr_output = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'GR' / \
-                        f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_runs_def.nc"
+            gr_output = self.project_dir / 'simulations' / self.config_dict.get('EXPERIMENT_ID') / 'GR' / \
+                        f"{self.domain_name}_{self.config_dict.get('EXPERIMENT_ID')}_runs_def.nc"
 
             if not gr_output.exists():
                 self.logger.error(f"GR output not found: {gr_output}")
@@ -192,7 +192,7 @@ class GRPostprocessor(BaseModelPostProcessor):
             ds = xr.open_dataset(gr_output)
 
             # Sum across all GRUs
-            routing_var = self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+            routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
             q_total = ds[routing_var].sum(dim='gru')
 
             # Convert to DataFrame
@@ -200,9 +200,9 @@ class GRPostprocessor(BaseModelPostProcessor):
 
         # Convert from mm/day to m3/s
         basin_dir = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
-        basin_name = self.config.get('RIVER_BASINS_NAME')
+        basin_name = self.config_dict.get('RIVER_BASINS_NAME')
         if basin_name == 'default' or basin_name is None:
-            basin_name = f"{self.domain_name}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
+            basin_name = f"{self.domain_name}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
         basin_path = basin_dir / basin_name
         basin_gdf = gpd.read_file(basin_path)
 
@@ -213,7 +213,7 @@ class GRPostprocessor(BaseModelPostProcessor):
         q_cms = q_df['flow'] * area_km2 / UnitConversion.MM_DAY_TO_CMS
 
         # Save to results
-        output_file = self.results_dir / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
+        output_file = self.results_dir / f"{self.config_dict.get('EXPERIMENT_ID')}_results.csv"
         if output_file.exists():
             results_df = pd.read_csv(output_file, index_col=0, parse_dates=True)
         else:
@@ -228,4 +228,4 @@ class GRPostprocessor(BaseModelPostProcessor):
     @property
     def output_path(self):
         """Get output path for backwards compatibility"""
-        return self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'GR'
+        return self.project_dir / 'simulations' / self.config_dict.get('EXPERIMENT_ID') / 'GR'

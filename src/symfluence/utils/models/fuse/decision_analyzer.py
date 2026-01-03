@@ -15,9 +15,8 @@ import rasterio # type: ignore
 from scipy import ndimage
 import csv
 import itertools
-import matplotlib.pyplot as plt # type: ignore
-import xarray as xr # type: ignore
 from typing import Dict, List, Tuple, Any
+import xarray as xr # type: ignore
 from ..registry import ModelRegistry
 from ..base import BaseModelPreProcessor
 from ..mixins import PETCalculatorMixin
@@ -29,15 +28,16 @@ from symfluence.utils.data.utilities.variable_utils import VariableHandler # typ
 
 
 class FuseDecisionAnalyzer:
-    def __init__(self, config, logger):
+    def __init__(self, config, logger, reporting_manager=None):
         self.config = config
         self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
+        self.reporting_manager = reporting_manager
+        self.data_dir = Path(self.config_dict.get('SYMFLUENCE_DATA_DIR'))
+        self.domain_name = self.config_dict.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.output_folder = self.project_dir / "plots" / "FUSE_decision_analysis"
         self.output_folder.mkdir(parents=True, exist_ok=True)
-        self.model_decisions_path = self.project_dir / "settings" / "FUSE" / f"fuse_zDecisions_{self.config.get('EXPERIMENT_ID')}.txt"
+        self.model_decisions_path = self.project_dir / "settings" / "FUSE" / f"fuse_zDecisions_{self.config_dict.get('EXPERIMENT_ID')}.txt"
 
         # Initialize FuseRunner
         self.fuse_runner = FUSERunner(config, logger)
@@ -76,7 +76,7 @@ class FuseDecisionAnalyzer:
         }
 
         # Try to get decision options from config
-        config_options = self.config.get('FUSE_DECISION_OPTIONS')
+        config_options = self.config_dict.get('FUSE_DECISION_OPTIONS')
         
         if config_options:
             self.logger.info("Using decision options from config file")
@@ -171,79 +171,15 @@ class FuseDecisionAnalyzer:
         
         return decisions
 
-    def plot_hydrographs(self, results_file: Path, metric: str = 'kge'):
-        """
-        Plot all simulated hydrographs with top 5% highlighted, showing only the overlapping period.
-        
-        Args:
-            results_file (Path): Path to the results CSV file
-            metric (str): Metric to use for selecting top performers ('kge', 'nse', etc.)
-        """
-        self.logger.info(f"Creating hydrograph plot using {metric} metric")
-        
-        # Read results file
-        results_df = pd.read_csv(results_file)
-        
-        # Calculate threshold for top 5%
-        if metric in ['mae', 'rmse']:  # Lower is better
-            threshold = results_df[metric].quantile(0.05)
-            top_combinations = results_df[results_df[metric] <= threshold]
-        else:  # Higher is better
-            threshold = results_df[metric].quantile(0.95)
-            top_combinations = results_df[results_df[metric] >= threshold]
-
-        # Find overlapping period across all simulations and observations
-        start_date = self.observed_streamflow.index.min()
-        end_date = self.observed_streamflow.index.max()
-        
-        for sim in self.simulation_results.values():
-            start_date = max(start_date, sim.index.min())
-            end_date = min(end_date, sim.index.max())
-        
-        # Calculate y-axis limit from top 5% simulations
-        max_top5 = 0
-        for _, row in top_combinations.iterrows():
-            combo = tuple(row[list(self.decision_options.keys())])
-            if combo in self.simulation_results:
-                sim = self.simulation_results[combo]
-                sim_overlap = sim.loc[start_date:end_date]
-                max_top5 = max(max_top5, sim_overlap.max())
-
-        # Customize plot
-        plt.title(f'Hydrograph Comparison ({start_date.strftime("%Y-%m-%d")} to {end_date.strftime("%Y-%m-%d")})\n'
-                 f'Top 5% combinations by {metric} metric highlighted', 
-                 fontsize=14, pad=20)
-        plt.xlabel('Date', fontsize=12)
-        plt.ylabel('Streamflow (m³/s)', fontsize=12)
-        plt.grid(True, alpha=0.3)
-        plt.ylim(0, max_top5 * 1.1)  # Add 10% padding above the maximum value
-        
-        # Add legend
-        plt.plot([], [], color='lightgray', label='All combinations')
-        plt.plot([], [], color='blue', alpha=0.3, label=f'Top 5% by {metric}')
-        plt.legend(fontsize=10)
-        
-        # Save plot
-        plot_file = self.output_folder / f'hydrograph_comparison_{metric}.png'
-        plt.savefig(plot_file, dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        self.logger.info(f"Hydrograph plot saved to: {plot_file}")
-        
-        # Create summary of top combinations
-        summary_file = self.output_folder / f'top_combinations_{metric}.csv'
-        top_combinations.to_csv(summary_file, index=False)
-        self.logger.info(f"Top combinations saved to: {summary_file}")
-
     def calculate_performance_metrics(self) -> Tuple[float, float, float, float, float]:
         """Calculate performance metrics comparing simulated and observed streamflow."""
-        obs_file_path = self.config.get('OBSERVATIONS_PATH')
+        obs_file_path = self.config_dict.get('OBSERVATIONS_PATH')
         if obs_file_path == 'default':
-            obs_file_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self.config.get('DOMAIN_NAME')}_streamflow_processed.csv"
+            obs_file_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self.config_dict.get('DOMAIN_NAME')}_streamflow_processed.csv"
         else:
             obs_file_path = Path(obs_file_path)
 
-        sim_file_path = self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'FUSE' / f"{self.config.get('DOMAIN_NAME')}_{self.config.get('EXPERIMENT_ID')}_runs_best.nc"
+        sim_file_path = self.project_dir / 'simulations' / self.config_dict.get('EXPERIMENT_ID') / 'FUSE' / f"{self.config_dict.get('DOMAIN_NAME')}_{self.config_dict.get('EXPERIMENT_ID')}_runs_best.nc"
 
         # Read observations if not already loaded
         if self.observed_streamflow is None:
@@ -261,9 +197,9 @@ class FuseDecisionAnalyzer:
 
         # Get area from river basins shapefile using GRU_area if not already calculated
         if self.area_km2 is None:
-            basin_name = self.config.get('RIVER_BASINS_NAME')
+            basin_name = self.config_dict.get('RIVER_BASINS_NAME')
             if basin_name == 'default':
-                basin_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
+                basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
             basin_path = self._get_file_path('RIVER_BASINS_PATH', 'shapefiles/river_basins', basin_name)
             basin_gdf = gpd.read_file(basin_path)
             
@@ -310,7 +246,7 @@ class FuseDecisionAnalyzer:
         optimization_dir = self.project_dir / 'optimization'
         optimization_dir.mkdir(parents=True, exist_ok=True)
 
-        master_file = optimization_dir / f"{self.config.get('EXPERIMENT_ID')}_fuse_decisions_comparison.csv"
+        master_file = optimization_dir / f"{self.config_dict.get('EXPERIMENT_ID')}_fuse_decisions_comparison.csv"
 
         # Write header to master file
         with open(master_file, 'w', newline='') as f:
@@ -345,41 +281,25 @@ class FuseDecisionAnalyzer:
 
         self.logger.info("FUSE decision analysis completed")
         
-        # Create hydrograph plots for different metrics
-        for metric in ['kge', 'nse', 'kgep']:
-            self.plot_hydrographs(master_file, metric)
-        
-        # Create decision impact plots
-        self.plot_decision_impacts(master_file)
+        if self.reporting_manager:
+            # Create hydrograph plots for different metrics
+            for metric in ['kge', 'nse', 'kgep']:
+                self.reporting_manager.visualize_hydrographs_with_highlight(
+                    master_file, 
+                    self.simulation_results, 
+                    self.observed_streamflow,
+                    self.decision_options,
+                    self.output_folder,
+                    metric
+                )
+            
+            # Create decision impact plots
+            self.reporting_manager.visualize_decision_impacts(master_file, self.output_folder)
         
         # Analyze and save best combinations
         best_combinations = self.analyze_results(master_file)
         
         return master_file, best_combinations
-
-    def plot_decision_impacts(self, results_file: Path):
-        """Create plots showing the impact of each decision on model performance."""
-        self.logger.info("Plotting FUSE decision impacts")
-        
-        df = pd.read_csv(results_file)
-        metrics = ['kge', 'kgep', 'nse', 'mae', 'rmse']
-        decisions = list(self.decision_options.keys())
-
-        for metric in metrics:
-            plt.figure(figsize=(12, 6 * len(decisions)))
-            for i, decision in enumerate(decisions, 1):
-                plt.subplot(len(decisions), 1, i)
-                impact = df.groupby(decision)[metric].mean().sort_values(ascending=False)
-                impact.plot(kind='bar')
-                plt.title(f'Impact of {decision} on {metric}')
-                plt.ylabel(metric)
-                plt.xticks(rotation=45, ha='right')
-            
-            plt.tight_layout()
-            plt.savefig(self.output_folder / f'{metric}_decision_impacts.png')
-            plt.close()
-
-        self.logger.info("Decision impact plots saved")
 
     def analyze_results(self, results_file: Path) -> Dict[str, Dict]:
         """Analyze the results and identify the best performing combinations."""
@@ -414,9 +334,9 @@ class FuseDecisionAnalyzer:
         return best_combinations
 
     def _get_file_path(self, file_type, file_def_path, file_name):
-        if self.config.get(f'{file_type}') == 'default':
+        if self.config_dict.get(f'{file_type}') == 'default':
             return self.project_dir / file_def_path / file_name
         else:
-            return Path(self.config.get(f'{file_type}'))
+            return Path(self.config_dict.get(f'{file_type}'))
         
 

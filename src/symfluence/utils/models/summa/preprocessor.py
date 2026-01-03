@@ -57,38 +57,51 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         # Catchment and river network (use base class methods)
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
+        self.catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
-            self.catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
+            self.catchment_name = f"{self.domain_name}_HRUs_{self.config_dict.get('DOMAIN_DISCRETIZATION')}.shp"
 
         self.river_network_path = self._get_default_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network')
-        self.river_network_name = self.config.get('RIVER_NETWORK_SHP_NAME')
+        self.river_network_name = self.config_dict.get('RIVER_NETWORK_SHP_NAME')
         if self.river_network_name == 'default':
             self.river_network_name = f"{self.domain_name}_riverNetwork_delineate.shp"
 
         # SUMMA-specific configuration (Phase 3: Use typed config when available)
-        if self.typed_config:
-            # Typed access (clearer, type-safe)
-            self.hruId = self.typed_config.paths.catchment_hruid
-            self.gruId = self.typed_config.paths.catchment_gruid
-            self.data_step = self.typed_config.forcing.time_step_size
-            self.coldstate_name = self.typed_config.model.summa.coldstate if self.typed_config.model.summa else None
-            self.parameter_name = self.typed_config.model.summa.trialparams if self.typed_config.model.summa else None
-            self.attribute_name = self.typed_config.model.summa.attributes if self.typed_config.model.summa else None
-            self.forcing_measurement_height = float(self.typed_config.forcing.measurement_height)
-        else:
-            # Fallback to dict access for backward compatibility
-            self.hruId = self.config.get('CATCHMENT_SHP_HRUID')
-            self.gruId = self.config.get('CATCHMENT_SHP_GRUID')
-            self.data_step = self.forcing_time_step_size  # Use base class attribute
-            self.coldstate_name = self.config.get('SETTINGS_SUMMA_COLDSTATE')
-            self.parameter_name = self.config.get('SETTINGS_SUMMA_TRIALPARAMS')
-            self.attribute_name = self.config.get('SETTINGS_SUMMA_ATTRIBUTES')
-            self.forcing_measurement_height = float(self.config.get('FORCING_MEASUREMENT_HEIGHT'))
+        self.hruId = self._resolve_config_value(
+            lambda: self.config.paths.catchment_hruid,
+            'CATCHMENT_SHP_HRUID'
+        )
+        self.gruId = self._resolve_config_value(
+            lambda: self.config.paths.catchment_gruid,
+            'CATCHMENT_SHP_GRUID'
+        )
+        self.data_step = self._resolve_config_value(
+            lambda: self.config.forcing.time_step_size,
+            'FORCING_TIME_STEP_SIZE',
+            self.forcing_time_step_size
+        )
+        self.coldstate_name = self._resolve_config_value(
+            lambda: self.config.model.summa.coldstate if self.config.model.summa else None,
+            'SETTINGS_SUMMA_COLDSTATE'
+        )
+        self.parameter_name = self._resolve_config_value(
+            lambda: self.config.model.summa.trialparams if self.config.model.summa else None,
+            'SETTINGS_SUMMA_TRIALPARAMS'
+        )
+        self.attribute_name = self._resolve_config_value(
+            lambda: self.config.model.summa.attributes if self.config.model.summa else None,
+            'SETTINGS_SUMMA_ATTRIBUTES'
+        )
+        self.forcing_measurement_height = float(
+            self._resolve_config_value(
+                lambda: self.config.forcing.measurement_height,
+                'FORCING_MEASUREMENT_HEIGHT'
+            )
+        )
 
         # Initialize forcing processor
         self.forcing_processor = SummaForcingProcessor(
-            config=self.config,
+            config=self.config_dict,
             logger=self.logger,
             forcing_basin_path=self.forcing_basin_path,
             forcing_summa_path=self.forcing_summa_path,
@@ -106,7 +119,7 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         # Initialize configuration manager
         self.config_manager = SummaConfigManager(
-            config=self.config,
+            config=self.config_dict,
             logger=self.logger,
             project_dir=self.project_dir,
             setup_dir=self.setup_dir,
@@ -129,7 +142,7 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         # Initialize attributes manager
         self.attributes_manager = SummaAttributesManager(
-            config=self.config,
+            config=self.config_dict,
             logger=self.logger,
             catchment_path=self.catchment_path,
             catchment_name=self.catchment_name,
@@ -262,12 +275,14 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             ValueError: If the time format in the configuration is invalid.
         """
         # Phase 3: Use typed config when available
-        if self.typed_config:
-            sim_start = self.typed_config.domain.time_start
-            sim_end = self.typed_config.domain.time_end
-        else:
-            sim_start = self.config.get('EXPERIMENT_TIME_START')
-            sim_end = self.config.get('EXPERIMENT_TIME_END')
+        sim_start = self._resolve_config_value(
+            lambda: self.config.domain.time_start,
+            'EXPERIMENT_TIME_START'
+        )
+        sim_end = self._resolve_config_value(
+            lambda: self.config.domain.time_end,
+            'EXPERIMENT_TIME_END'
+        )
 
         if sim_start == 'default' or sim_end == 'default':
             start_year = sim_start.split('-')[0] if sim_start != 'default' else None

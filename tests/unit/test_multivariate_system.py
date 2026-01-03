@@ -2,6 +2,7 @@ import pytest
 import pandas as pd
 import numpy as np
 from pathlib import Path
+from typing import List, Optional
 from symfluence.utils.data.observation.registry import ObservationRegistry
 from symfluence.utils.evaluation.registry import EvaluationRegistry
 from symfluence.utils.optimization.objective_registry import ObjectiveRegistry
@@ -48,7 +49,23 @@ def test_evaluator_alignment():
     from symfluence.utils.evaluation.base import BaseEvaluator
     
     class MockEvaluator(BaseEvaluator):
-        def calculate_metrics(self, sim, obs): return {}
+        def calculate_metrics(self, sim, obs):  # pragma: no cover - simple stub
+            return {}
+
+        def get_simulation_files(self, sim_dir: Path) -> List[Path]:
+            return []
+
+        def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
+            return pd.Series(dtype=float)
+
+        def get_observed_data_path(self) -> Path:
+            return Path(".")
+
+        def needs_routing(self) -> bool:
+            return False
+
+        def _get_observed_data_column(self, columns: List[str]) -> Optional[str]:
+            return columns[0] if columns else None
         
     config = {
         'EXPERIMENT_TIME_START': '2020-01-01 00:00',

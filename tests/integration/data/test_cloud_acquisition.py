@@ -187,7 +187,13 @@ FORCING_CASES = [
         "dataset": "ERA5",
         "start": "2010-01-01 00:00",
         "end": "2010-01-01 01:00",  # Just 1 hour
-        "expect_glob": ["ERA5_*.nc", "*ERA5_merged_*.nc"],
+        "expect_glob": ["ERA5_*.nc", "*ERA5_merged_*.nc", "*ERA5_CDS_*.nc"],  # CDS pathway also produces ERA5_CDS files
+    },
+    {
+        "dataset": "ERA5_CDS",
+        "start": "2010-01-01 00:00",
+        "end": "2010-01-01 01:00",  # Just 1 hour
+        "expect_glob": ["*ERA5_CDS_*.nc"],
     },
     {
         "dataset": "AORC",
@@ -269,8 +275,10 @@ def _run_case_logic(cfg_path: Path, project_dir: Path, case: dict) -> None:
     with open(cfg_path, "r") as f:
         config = yaml.safe_load(f)
 
-    # Use larger bounding box for coarse resolution datasets like CONUS404
-    if case.get("dataset") == "CONUS404":
+    # Use larger bounding box for coarse resolution datasets (ERA5, CONUS404)
+    if case.get("dataset") in ["ERA5", "ERA5_CDS", "CONUS404"]:
+        # ERA5 has 0.25° resolution, need at least 0.5° x 0.5° box to get data
+        # CONUS404 also has coarse resolution
         config["BOUNDING_BOX_COORDS"] = "46.85/-121.85/46.70/-121.65"  # ~0.15° x 0.20° box (~15km x 20km)
 
     # Handle domain override for datasets requiring different geographic locations
@@ -384,8 +392,8 @@ def test_cloud_forcing_acquisition(prepared_project, case):
     Download a short forcing window for each cloud-supported dataset, then
     run the full preprocessing + model pipeline.
     """
-    # Skip CARRA/CERRA tests if CDS credentials are not available
-    if case["dataset"] in ["CARRA", "CERRA"] and not has_cds_credentials():
+    # Skip CDS-based tests if CDS credentials are not available
+    if case["dataset"] in ["CARRA", "CERRA", "ERA5_CDS"] and not has_cds_credentials():
         pytest.skip(f"Skipping {case['dataset']} test: CDS API credentials not found in ~/.cdsapirc")
 
     cfg_path, project_dir = prepared_project

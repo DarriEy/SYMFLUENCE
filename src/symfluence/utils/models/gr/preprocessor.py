@@ -3,6 +3,7 @@ GR model preprocessor.
 
 Handles data preparation, PET calculation, snow module setup, and file organization.
 Supports both lumped and distributed spatial modes.
+Uses shared utilities for forcing data processing and data quality handling.
 """
 
 from typing import Dict, Any
@@ -17,6 +18,7 @@ from symfluence.utils.common.constants import UnitConversion
 from ..registry import ModelRegistry
 from ..base import BaseModelPreProcessor
 from ..mixins import PETCalculatorMixin, ObservationLoaderMixin, DatasetBuilderMixin
+from ..utilities import ForcingDataProcessor, DataQualityHandler
 from symfluence.utils.common.geospatial_utils import GeospatialUtilsMixin
 from symfluence.utils.exceptions import ModelExecutionError, symfluence_error_handler
 
@@ -72,18 +74,21 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
 
         # Phase 3: Use typed config when available
-        if self.typed_config:
-            self.catchment_name = self.typed_config.paths.catchment_shp_name
-            if self.catchment_name == 'default' or self.catchment_name is None:
-                discretization = self.typed_config.domain.discretization
-                self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
-            self.spatial_mode = self.typed_config.model.gr.spatial_mode if self.typed_config.model.gr else 'lumped'
-        else:
-            self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
-            if self.catchment_name == 'default' or self.catchment_name is None:
-                discretization = self.config.get('DOMAIN_DISCRETIZATION')
-                self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
-            self.spatial_mode = self.config.get('GR_SPATIAL_MODE', 'lumped')
+        self.catchment_name = self._resolve_config_value(
+            lambda: self.config.paths.catchment_shp_name,
+            'CATCHMENT_SHP_NAME'
+        )
+        if self.catchment_name == 'default' or self.catchment_name is None:
+            discretization = self._resolve_config_value(
+                lambda: self.config.domain.discretization,
+                'DOMAIN_DISCRETIZATION'
+            )
+            self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
+        self.spatial_mode = self._resolve_config_value(
+            lambda: self.config.model.gr.spatial_mode if self.config.model.gr else 'lumped',
+            'GR_SPATIAL_MODE',
+            'lumped'
+        )
 
     def run_preprocessing(self):
         """
@@ -101,23 +106,21 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
     def prepare_forcing_data(self):
         """
         Prepare forcing data with support for lumped and distributed modes.
+
+        Uses shared ForcingDataProcessor for loading and subsetting.
         """
         try:
-            # Read and process forcing data
-            forcing_files = sorted(self.forcing_basin_path.glob('*.nc'))
-            if not forcing_files:
-                raise FileNotFoundError("No forcing files found in basin-averaged data directory")
-
-            # Open and concatenate all forcing files
-            ds = xr.open_mfdataset(forcing_files)
+            # Use shared ForcingDataProcessor for loading
+            fdp = ForcingDataProcessor(self.config, self.logger)
+            ds = fdp.load_forcing_data(self.forcing_basin_path)
 
             # Subset to simulation window using base class method
             ds = self.subset_to_simulation_time(ds, "Forcing")
 
             variable_handler = VariableHandler(
-                config=self.config,
+                config=self.config_dict,
                 logger=self.logger,
-                dataset=self.config.get('FORCING_DATASET'),
+                dataset=self.config_dict.get('FORCING_DATASET'),
                 model='GR'
             )
 
@@ -141,15 +144,16 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             raise
 
     def _prepare_lumped_forcing(self, ds):
-        """Prepare lumped forcing data (existing implementation)"""
-        # Convert forcing data to daily resolution
-        with xr.set_options(use_flox=False):
-            ds = ds.resample(time='D').mean()
+        """Prepare lumped forcing data using shared utilities."""
+        # Use shared ForcingDataProcessor for resampling
+        fdp = ForcingDataProcessor(self.config, self.logger)
+        ds = fdp.resample_to_frequency(ds, target_freq='D', method='mean')
 
+        # Apply GR-specific unit conversions (Kelvin to Celsius, rate to mm/day)
         try:
-            ds['temp'] = ds['airtemp'] - 273.15
-            ds['pr'] = ds['pptrate'] * 86400
-        except:
+            ds = fdp.apply_unit_conversion(ds, 'airtemp', 'temp_k_to_c', 'temp')
+            ds = fdp.apply_unit_conversion(ds, 'pptrate', 'precip_rate_to_mm_day', 'pr')
+        except Exception:
             pass
 
         # Load streamflow observations
@@ -165,9 +169,9 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
 
         # Get area from river basins shapefile
         basin_dir = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
-        basin_name = self.config.get('RIVER_BASINS_NAME')
+        basin_name = self.config_dict.get('RIVER_BASINS_NAME')
         if basin_name == 'default' or basin_name is None:
-            basin_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
+            basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
         basin_path = basin_dir / basin_name
         basin_gdf = gpd.read_file(basin_path)
 
@@ -219,7 +223,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         return output_file
 
     def _prepare_distributed_forcing(self, ds):
-        """Prepare distributed forcing data for each HRU"""
+        """Prepare distributed forcing data for each HRU using shared utilities."""
 
         # Load catchment to get HRU information
         catchment = gpd.read_file(self.catchment_path / self.catchment_name)
@@ -231,14 +235,15 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             n_hrus = len(catchment)
             ds = ds.expand_dims(hru=n_hrus)
 
-        # Convert to daily resolution
-        with xr.set_options(use_flox=False):
-            ds = ds.resample(time='D').mean()
+        # Use shared ForcingDataProcessor for resampling
+        fdp = ForcingDataProcessor(self.config, self.logger)
+        ds = fdp.resample_to_frequency(ds, target_freq='D', method='mean')
 
+        # Apply GR-specific unit conversions
         try:
-            ds['temp'] = ds['airtemp'] - 273.15
-            ds['pr'] = ds['pptrate'] * 86400
-        except:
+            ds = fdp.apply_unit_conversion(ds, 'airtemp', 'temp_k_to_c', 'temp')
+            ds = fdp.apply_unit_conversion(ds, 'pptrate', 'precip_rate_to_mm_day', 'pr')
+        except Exception:
             pass
 
         # Load streamflow observations (at outlet)
@@ -254,9 +259,9 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
 
             # Get area for unit conversion
             basin_dir = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
-            basin_name = self.config.get('RIVER_BASINS_NAME')
+            basin_name = self.config_dict.get('RIVER_BASINS_NAME')
             if basin_name == 'default' or basin_name is None:
-                basin_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
+                basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
             basin_path = basin_dir / basin_name
             basin_gdf = gpd.read_file(basin_path)
 

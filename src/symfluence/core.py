@@ -22,6 +22,7 @@ from symfluence.utils.geospatial.domain_manager import DomainManager
 from symfluence.utils.models.model_manager import ModelManager
 from symfluence.utils.evaluation.analysis_manager import AnalysisManager
 from symfluence.utils.optimization.optimization_manager import OptimizationManager
+from symfluence.utils.reporting.reporting_manager import ReportingManager
 from symfluence.utils.config.config_loader import load_config  # Legacy support
 from symfluence.utils.config.models import SymfluenceConfig
 
@@ -35,7 +36,7 @@ class SYMFLUENCE:
     pour point setup, SLURM job submission, and comprehensive workflow management.
     """
     
-    def __init__(self, config_path: Path, config_overrides: Dict[str, Any] = None, debug_mode: bool = False):
+    def __init__(self, config_path: Path, config_overrides: Dict[str, Any] = None, debug_mode: bool = False, visualize: bool = False):
         """
         Initialize the SYMFLUENCE system with configuration and CLI options.
         
@@ -43,9 +44,11 @@ class SYMFLUENCE:
             config_path: Path to the configuration file
             config_overrides: Dictionary of configuration overrides from CLI
             debug_mode: Whether to enable debug mode
+            visualize: Whether to enable visualization
         """
         self.config_path = config_path
         self.debug_mode = debug_mode
+        self.visualize = visualize
         self.config_overrides = config_overrides or {}
         
         # Load and merge configuration (Phase 2: New hierarchical config system)
@@ -102,13 +105,17 @@ class SYMFLUENCE:
     def _initialize_managers(self) -> Dict[str, Any]:
         """Initialize all manager components."""
         try:
+            # Initialize ReportingManager first
+            reporting_manager = ReportingManager(self.config, self.logger, visualize=self.visualize)
+
             return {
                 'project': ProjectManager(self.config, self.logger),
-                'domain': DomainManager(self.config, self.logger),
+                'domain': DomainManager(self.config, self.logger, reporting_manager),
                 'data': DataManager(self.config, self.logger),
-                'model': ModelManager(self.config, self.logger),
-                'analysis': AnalysisManager(self.config, self.logger),
+                'model': ModelManager(self.config, self.logger, reporting_manager),
+                'analysis': AnalysisManager(self.config, self.logger, reporting_manager),
                 'optimization': OptimizationManager(self.config, self.logger),
+                'reporting': reporting_manager,
             }
         except Exception as e:
             if hasattr(self, 'logger'):

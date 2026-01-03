@@ -110,13 +110,13 @@ class TestFUSECopyBaseSettings:
         preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
 
         # Create source directory with dummy files
-        source_dir = setup_test_directories['code_dir'] / '0_base_settings' / 'FUSE'
+        source_dir = setup_test_directories['code_dir'] / 'src' / 'symfluence' / 'data' / 'base_settings' / 'FUSE'
         source_dir.mkdir(parents=True, exist_ok=True)
         (source_dir / 'test_settings.txt').write_text('test content')
         (source_dir / 'fuse_zDecisions_902.txt').write_text('decisions')
 
         # Update config to point to source
-        preprocessor.config['SYMFLUENCE_CODE_DIR'] = str(setup_test_directories['code_dir'])
+        preprocessor.config_dict['SYMFLUENCE_CODE_DIR'] = str(setup_test_directories['code_dir'])
 
         # Call copy_base_settings
         preprocessor.copy_base_settings()
@@ -203,7 +203,7 @@ class TestFUSESpatialMode:
         preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
 
         # Config should have lumped mode
-        assert preprocessor.config.get('FUSE_SPATIAL_MODE') == 'lumped'
+        assert preprocessor.config_dict.get('FUSE_SPATIAL_MODE') == 'lumped'
 
 
 class TestFUSERegistration:
