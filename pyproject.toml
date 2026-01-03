@@ -25,7 +25,6 @@ dependencies = [
   "pyviscous",
   "torch",
   "scikit-learn",
-  "pyswarms",
   "gdal",
   "geopandas",
   "rasterio",
@@ -38,21 +37,18 @@ dependencies = [
   "cdo",
   "seaborn",
   "plotly",
-  "findlibs",
   "netCDF4",
   "hydrobm",
   "baseflow",
   "matplotlib",
   "SALib",
   "psutil",
-  "alive-progress",
   "tqdm",
   "contextily",
   "pyyaml",
   "requests",
   "openai>=1.0.0",
   "cdsapi",
-  "hs_restclient",
   "s3fs",
   "numexpr",
   "cftime",
@@ -72,13 +68,18 @@ Source = "https://github.com/DarriEy/SYMFLUENCE"
 Issues = "https://github.com/DarriEy/SYMFLUENCE/issues"
 Documentation = "https://symfluence.org/"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/symfluence"]
+# Note: package data in src/symfluence/data/ is automatically included
+
 [tool.hatch.build.targets.sdist]
 include = [
   "src/symfluence",
   "README.md",
   "LICENSE",
   "MANIFEST.in",
-  "requirements.txt"
+  "requirements.txt",
+  "examples/"
 ]
 
 # NOTE: pytest configuration is in pytest.ini (authoritative source)

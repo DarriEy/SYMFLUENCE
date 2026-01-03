@@ -51,6 +51,7 @@ def _create_easymore_instance():
 class ForcingResampler(PathResolverMixin):
     def __init__(self, config, logger):
         self.config = config
+        self.config_dict = config  # For PathResolverMixin compatibility
         self.logger = logger
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}"
@@ -254,8 +255,112 @@ class ForcingResampler(PathResolverMixin):
 
     def remap_forcing(self):
         self.logger.info("Starting forcing remapping process")
-        self._create_parallelized_weighted_forcing()
+        
+        # Check for point-scale bypass
+        if self.config.get('DOMAIN_DEFINITION_METHOD', '').lower() == 'point':
+            self.logger.info("Point-scale domain detected. Using simplified extraction instead of EASYMORE remapping.")
+            self._process_point_scale_forcing()
+        else:
+            self._create_parallelized_weighted_forcing()
+            
         self.logger.info("Forcing remapping process completed")
+
+    def _process_point_scale_forcing(self):
+        """
+        Simplified extraction for point-scale models.
+        Just takes the single grid cell available in the merged forcing files.
+        """
+        self.forcing_basin_path.mkdir(parents=True, exist_ok=True)
+        intersect_path = self.project_dir / 'shapefiles' / 'catchment_intersection' / 'with_forcing'
+        intersect_path.mkdir(parents=True, exist_ok=True)
+        
+        forcing_files = sorted([f for f in self.merged_forcing_path.glob('*.nc')])
+        
+        if not forcing_files:
+            self.logger.warning("No forcing files found to process")
+            return
+
+        # Create minimal intersected CSV for SUMMA preprocessor
+        case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
+        intersect_csv = intersect_path / f"{case_name}_intersected_shapefile.csv"
+        
+        if not intersect_csv.exists():
+            self.logger.info(f"Creating minimal intersection artifact: {intersect_csv.name}")
+            # Get HRU info
+            target_shp_path = self.catchment_path / self.catchment_name
+            target_gdf = gpd.read_file(target_shp_path)
+            hru_id_field = self.config.get('CATCHMENT_SHP_HRUID')
+            
+            # Create a 1-to-1 mapping for the point
+            # SUMMA expects specific names like S_1_elev_m, S_2_elev_m if lapse rates enabled
+            # and S_1_GRU_ID / S_1_HRU_ID for grouping
+            hru_id_field_val = target_gdf[hru_id_field].values
+            df_int = pd.DataFrame({
+                hru_id_field: hru_id_field_val,
+                'S_1_HRU_ID': hru_id_field_val,
+                'S_1_GRU_ID': target_gdf['GRU_ID'].values if 'GRU_ID' in target_gdf.columns else [1],
+                'ID': [1] * len(target_gdf),
+                'weight': [1.0] * len(target_gdf),
+                'S_1_elev_m': target_gdf['elev_mean'].values if 'elev_mean' in target_gdf.columns else [1600.0],
+                'S_2_elev_m': [1600.0] * len(target_gdf) # Forcing elevation
+            })
+            df_int.to_csv(intersect_csv, index=False)
+
+        for file in forcing_files:
+            output_file = self._determine_output_filename(file)
+            if output_file.exists() and not self.config.get('FORCE_RUN_ALL_STEPS', False):
+                continue
+                
+            self.logger.info(f"Extracting point forcing: {file.name}")
+            with xr.open_dataset(file) as ds:
+                # Instead of mean(), use isel to pick the first cell if it's a grid
+                # This is safer for preserving all data variables
+                spatial_dims = {d: 0 for d in ds.dims if d not in ['time', 'hru']}
+
+                # Check for empty spatial dimensions
+                for dim_name, idx in spatial_dims.items():
+                    if dim_name in ds.dims and ds.sizes[dim_name] == 0:
+                        raise ValueError(
+                            f"Cannot extract point forcing from {file.name}: dimension '{dim_name}' has size 0. "
+                            f"This typically happens when the forcing file was downloaded for a bounding box smaller "
+                            f"than the dataset's resolution. Please use a larger bounding box or a higher-resolution "
+                            f"forcing dataset for small domains."
+                        )
+
+                ds_point = ds.isel(spatial_dims)
+                
+                # Add HRU dimension and variable if missing (required by model runners)
+                if 'hru' not in ds_point.dims:
+                    ds_point = ds_point.expand_dims(hru=[1])
+                
+                if 'hruId' not in ds_point.data_vars:
+                    # Use the first HRU ID from the intersection if available, or default to 1
+                    hru_ids = [1]
+                    if intersect_csv.exists():
+                        try:
+                            df_int = pd.read_csv(intersect_csv)
+                            hru_ids = df_int[self.config.get('CATCHMENT_SHP_HRUID')].values.astype('int32')
+                        except Exception:
+                            pass
+                    ds_point['hruId'] = (('hru',), hru_ids)
+                
+                # Ensure correct dimension order (time, hru)
+                # Important: some variables might be (hru, time) if they were 1D originally
+                # We want everything to be (time, hru)
+                for var in ds_point.data_vars:
+                    if 'time' in ds_point[var].dims and 'hru' in ds_point[var].dims:
+                        ds_point[var] = ds_point[var].transpose('time', 'hru')
+                
+                # Drop coordinates that are no longer relevant to avoid EASYMORE/SUMMA confusion
+                coords_to_drop = ['latitude', 'longitude', 'lat', 'lon', 'expver']
+                ds_point = ds_point.drop_vars([c for c in coords_to_drop if c in ds_point.coords or c in ds_point.data_vars])
+
+                # Clear encoding to avoid "Unlimited dimension" warnings about latitude/longitude
+                for var in ds_point.variables:
+                    ds_point[var].encoding = {}
+
+                ds_point.to_netcdf(output_file)
+                self.logger.info(f"✓ Created point forcing: {output_file.name}")
 
     def _determine_output_filename(self, input_file):
         """
@@ -479,8 +584,11 @@ class ForcingResampler(PathResolverMixin):
             esmr.author_name = 'SUMMA public workflow scripts'
             esmr.license = 'Copernicus data use license: https://cds.climate.copernicus.eu/api/v2/terms/static/licence-to-use-copernicus-products.pdf'
             esmr.case_name = case_name
+            # Disable easymore's internal longitude correction which is buggy with recent pandas
+            esmr.correction_shp_lon = False
             if disable_lon_correction:
-                esmr.correction_shp_lon = False
+                # Already handled manually
+                pass
             
             # Shapefile configuration
             esmr.source_shp = str(source_shp_wgs84)
@@ -676,6 +784,7 @@ class ForcingResampler(PathResolverMixin):
                 
                 esmr.author_name = 'SUMMA public workflow scripts'
                 esmr.case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
+                esmr.correction_shp_lon = False
                 
                 target_shp_path = self.catchment_path / self.catchment_name
                 target_result = self._ensure_shapefile_wgs84(target_shp_path, "_wgs84")

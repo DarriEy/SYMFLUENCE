@@ -63,7 +63,8 @@ class BaseModelOptimizer(
         self,
         config: Dict[str, Any],
         logger: logging.Logger,
-        optimization_settings_dir: Optional[Path] = None
+        optimization_settings_dir: Optional[Path] = None,
+        reporting_manager: Optional[Any] = None
     ):
         """
         Initialize the model optimizer.
@@ -72,9 +73,11 @@ class BaseModelOptimizer(
             config: Configuration dictionary
             logger: Logger instance
             optimization_settings_dir: Optional path to optimization settings
+            reporting_manager: ReportingManager instance
         """
         self.config = config
         self.logger = logger
+        self.reporting_manager = reporting_manager
 
         # Setup paths
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
@@ -120,6 +123,23 @@ class BaseModelOptimizer(
         self.parallel_dirs = {}
         if self.use_parallel:
             self._setup_parallel_dirs()
+
+    def _visualize_progress(self, algorithm: str) -> None:
+        """Helper to visualize optimization progress if reporting manager available."""
+        if self.reporting_manager:
+            calibration_variable = self.config.get("CALIBRATION_VARIABLE", "streamflow")
+            self.reporting_manager.visualize_optimization_progress(
+                self._iteration_history, 
+                self.results_dir.parent / f"{algorithm.lower()}_{self.experiment_id}", # Matches results_dir logic or pass results_dir
+                calibration_variable, 
+                self.target_metric
+            )
+            
+            if self.config.get('CALIBRATE_DEPTH', False):
+                self.reporting_manager.visualize_optimization_depth_parameters(
+                    self._iteration_history, 
+                    self.results_dir.parent / f"{algorithm.lower()}_{self.experiment_id}"
+                )
 
     # =========================================================================
     # Abstract methods - must be implemented by subclasses
@@ -203,7 +223,7 @@ class BaseModelOptimizer(
             Fitness score
         """
         # Denormalize parameters
-        params = self.param_manager.denormalize(normalized_params)
+        params = self.param_manager.denormalize_parameters(normalized_params)
 
         # Create task
         dirs = self.parallel_dirs.get(proc_id, {})
@@ -244,7 +264,7 @@ class BaseModelOptimizer(
             # Parallel evaluation
             tasks = []
             for i, params_normalized in enumerate(population):
-                params = self.param_manager.denormalize(params_normalized)
+                params = self.param_manager.denormalize_parameters(params_normalized)
                 proc_id = i % self.num_processes
                 dirs = self.parallel_dirs.get(proc_id, {})
 
@@ -297,8 +317,8 @@ class BaseModelOptimizer(
         x_best = np.random.uniform(0, 1, n_params)
         f_best = self._evaluate_solution(x_best)
 
-        self.record_iteration(0, f_best, self.param_manager.denormalize(x_best))
-        self.update_best(f_best, self.param_manager.denormalize(x_best), 0)
+        self.record_iteration(0, f_best, self.param_manager.denormalize_parameters(x_best))
+        self.update_best(f_best, self.param_manager.denormalize_parameters(x_best), 0)
 
         # DDS main loop
         for iteration in range(1, self.max_iterations + 1):
@@ -340,7 +360,7 @@ class BaseModelOptimizer(
                 f_best = f_new
 
             # Record results
-            params_dict = self.param_manager.denormalize(x_best)
+            params_dict = self.param_manager.denormalize_parameters(x_best)
             self.record_iteration(iteration, f_best, params_dict)
             self.update_best(f_best, params_dict, iteration)
 
@@ -353,6 +373,7 @@ class BaseModelOptimizer(
         # Save results
         results_path = self.save_results('DDS')
         self.save_best_params('DDS')
+        self._visualize_progress('DDS')
 
         self.logger.info(f"DDS completed in {self.format_elapsed_time()}")
         return results_path
@@ -391,8 +412,8 @@ class BaseModelOptimizer(
         global_best_fit = fitness[global_best_idx]
 
         # Record initial best
-        self.record_iteration(0, global_best_fit, self.param_manager.denormalize(global_best_pos))
-        self.update_best(global_best_fit, self.param_manager.denormalize(global_best_pos), 0)
+        self.record_iteration(0, global_best_fit, self.param_manager.denormalize_parameters(global_best_pos))
+        self.update_best(global_best_fit, self.param_manager.denormalize_parameters(global_best_pos), 0)
 
         # PSO main loop
         for iteration in range(1, self.max_iterations + 1):
@@ -425,7 +446,7 @@ class BaseModelOptimizer(
                 global_best_fit = fitness[global_best_idx]
 
             # Record results
-            params_dict = self.param_manager.denormalize(global_best_pos)
+            params_dict = self.param_manager.denormalize_parameters(global_best_pos)
             self.record_iteration(iteration, global_best_fit, params_dict)
             self.update_best(global_best_fit, params_dict, iteration)
 
@@ -438,6 +459,7 @@ class BaseModelOptimizer(
         # Save results
         results_path = self.save_results('PSO')
         self.save_best_params('PSO')
+        self._visualize_progress('PSO')
 
         self.logger.info(f"PSO completed in {self.format_elapsed_time()}")
         return results_path
@@ -468,8 +490,8 @@ class BaseModelOptimizer(
         best_pos = population[best_idx].copy()
         best_fit = fitness[best_idx]
 
-        self.record_iteration(0, best_fit, self.param_manager.denormalize(best_pos))
-        self.update_best(best_fit, self.param_manager.denormalize(best_pos), 0)
+        self.record_iteration(0, best_fit, self.param_manager.denormalize_parameters(best_pos))
+        self.update_best(best_fit, self.param_manager.denormalize_parameters(best_pos), 0)
 
         # DE main loop
         for iteration in range(1, self.max_iterations + 1):
@@ -501,7 +523,7 @@ class BaseModelOptimizer(
                         best_fit = trial_fitness
 
             # Record results
-            params_dict = self.param_manager.denormalize(best_pos)
+            params_dict = self.param_manager.denormalize_parameters(best_pos)
             self.record_iteration(iteration, best_fit, params_dict)
             self.update_best(best_fit, params_dict, iteration)
 
@@ -514,6 +536,7 @@ class BaseModelOptimizer(
         # Save results
         results_path = self.save_results('DE')
         self.save_best_params('DE')
+        self._visualize_progress('DE')
 
         self.logger.info(f"DE completed in {self.format_elapsed_time()}")
         return results_path
@@ -547,8 +570,8 @@ class BaseModelOptimizer(
         best_pos = population[0].copy()
         best_fit = fitness[0]
 
-        self.record_iteration(0, best_fit, self.param_manager.denormalize(best_pos))
-        self.update_best(best_fit, self.param_manager.denormalize(best_pos), 0)
+        self.record_iteration(0, best_fit, self.param_manager.denormalize_parameters(best_pos))
+        self.update_best(best_fit, self.param_manager.denormalize_parameters(best_pos), 0)
 
         # SCE-UA main loop
         for iteration in range(1, self.max_iterations + 1):
@@ -597,7 +620,7 @@ class BaseModelOptimizer(
                 best_fit = fitness[0]
 
             # Record results
-            params_dict = self.param_manager.denormalize(best_pos)
+            params_dict = self.param_manager.denormalize_parameters(best_pos)
             self.record_iteration(iteration, best_fit, params_dict)
             self.update_best(best_fit, params_dict, iteration)
 
@@ -610,6 +633,7 @@ class BaseModelOptimizer(
         # Save results
         results_path = self.save_results('SCE-UA')
         self.save_best_params('SCE-UA')
+        self._visualize_progress('SCE-UA')
 
         self.logger.info(f"SCE-UA completed in {self.format_elapsed_time()}")
         return results_path
@@ -642,14 +666,15 @@ class BaseModelOptimizer(
             self.record_iteration(
                 record['step'],
                 record['fitness'],
-                self.param_manager.denormalize(best_x)
+                self.param_manager.denormalize_parameters(best_x)
             )
 
-        self.update_best(best_fitness, self.param_manager.denormalize(best_x), steps)
+        self.update_best(best_fitness, self.param_manager.denormalize_parameters(best_x), steps)
 
         # Save results
         results_path = self.save_results('ADAM')
         self.save_best_params('ADAM')
+        self._visualize_progress('ADAM')
 
         self.logger.info(f"Adam completed in {self.format_elapsed_time()}")
         return results_path
@@ -682,14 +707,15 @@ class BaseModelOptimizer(
             self.record_iteration(
                 record['step'],
                 record['fitness'],
-                self.param_manager.denormalize(best_x)
+                self.param_manager.denormalize_parameters(best_x)
             )
 
-        self.update_best(best_fitness, self.param_manager.denormalize(best_x), len(history))
+        self.update_best(best_fitness, self.param_manager.denormalize_parameters(best_x), len(history))
 
         # Save results
         results_path = self.save_results('LBFGS')
         self.save_best_params('LBFGS')
+        self._visualize_progress('LBFGS')
 
         self.logger.info(f"L-BFGS completed in {self.format_elapsed_time()}")
         return results_path

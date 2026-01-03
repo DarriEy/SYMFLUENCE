@@ -2,6 +2,7 @@
 MESH model runner.
 
 Handles MESH model execution, state management, and output processing.
+Refactored to use the Unified Model Execution Framework.
 """
 
 import os
@@ -11,12 +12,17 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 
 from ..base import BaseModelRunner
+from ..execution import ModelExecutor
+from ..registry import ModelRegistry
 
 
-class MESHRunner(BaseModelRunner):
+@ModelRegistry.register_runner('MESH', method_name='run_mesh')
+class MESHRunner(BaseModelRunner, ModelExecutor):
     """
     Runner class for the MESH model.
     Handles model execution, state management, and output processing.
+
+    Uses the Unified Model Execution Framework for subprocess execution.
 
     Attributes:
         config (Dict[str, Any]): Configuration settings for MESH model
@@ -25,26 +31,26 @@ class MESHRunner(BaseModelRunner):
         domain_name (str): Name of the domain being processed
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
         # Call base class
-        super().__init__(config, logger)
-
-        # MESH-specific configuration
-        if self.typed_config and self.typed_config.model.mesh:
-            self.mesh_exe = self.typed_config.model.mesh.exe or 'sa_mesh'
-        else:
-            self.mesh_exe = self.config.get('MESH_EXE', 'sa_mesh')
+        super().__init__(config, logger, reporting_manager=reporting_manager)
 
     def _setup_model_specific_paths(self) -> None:
         """Set up MESH-specific paths."""
-        # MESH installation path
-        self.mesh_install_path = self.get_install_path('MESH_INSTALL_PATH', 'installs/MESH-DEV')
+        # MESH executable path (installation dir + exe name)
+        self.mesh_exe = self.get_model_executable(
+            install_path_key='MESH_INSTALL_PATH',
+            default_install_subpath='installs/MESH-DEV',
+            exe_name_key='MESH_EXE',
+            default_exe_name='sa_mesh',
+            typed_exe_accessor=lambda: self.config.model.mesh.exe if (self.typed_config and self.config.model.mesh) else None
+        )
 
         # Catchment paths (now has PathResolverMixin via BaseModelRunner)
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
+        self.catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
-            discretization = self.config.get('DOMAIN_DISCRETIZATION')
+            discretization = self.config_dict.get('DOMAIN_DISCRETIZATION')
             self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
 
         # MESH-specific paths
@@ -77,19 +83,17 @@ class MESHRunner(BaseModelRunner):
 
         # Change back to original directory
         os.chdir(original_dir)
-        shutil.rmtree(self.forcing_mesh_path / self.mesh_exe)
+        shutil.rmtree(self.forcing_mesh_path / self.mesh_exe.name)
         return
 
     def _create_run_command(self) -> List[str]:
         """Create MESH execution command."""
-        mesh_exe = self.mesh_install_path / self.mesh_exe
         # Copy mesh executable to forcing path
-        mesh_exe_name = mesh_exe.name
-        mesh_exe_dest = self.forcing_mesh_path / mesh_exe_name
-        shutil.copy2(mesh_exe, mesh_exe_dest)
+        mesh_exe_dest = self.forcing_mesh_path / self.mesh_exe.name
+        shutil.copy2(self.mesh_exe, mesh_exe_dest)
 
         cmd = [
-            str(mesh_exe)
+            str(self.mesh_exe)
         ]
         print(cmd)
         return cmd

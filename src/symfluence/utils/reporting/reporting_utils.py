@@ -2,18 +2,11 @@ import sys
 import xarray as xr # type: ignore
 import pandas as pd # type: ignore
 import geopandas as gpd # type: ignore
-import matplotlib.pyplot as plt # type: ignore
 import numpy as np # type: ignore
 from pathlib import Path
 from typing import List, Tuple, Dict, Any, Optional
-import matplotlib.dates as mdates # type: ignore
-from matplotlib.gridspec import GridSpec # type: ignore
-from matplotlib.colors import LinearSegmentedColormap, ListedColormap # type: ignore
 import traceback
 import rasterio # type: ignore
-from matplotlib import gridspec
-from matplotlib.lines import Line2D # type: ignore
-from matplotlib.patches import Patch # type: ignore
 
 from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE, get_KGEnp
 
@@ -39,6 +32,8 @@ class VisualizationReporter:
         Returns:
             Path to the saved plot
         """
+        import matplotlib.pyplot as plt # type: ignore
+        import matplotlib.dates as mdates # type: ignore
         try:
             plot_folder = self.project_dir / "plots" / "results"
             plot_folder.mkdir(parents=True, exist_ok=True)
@@ -213,128 +208,11 @@ class VisualizationReporter:
             return str(plot_filename)
 
         except Exception as e:
-            self.logger.error(f"Error in plot_lumped_streamflow_simulations_vs_observations: {str(e)}")
-            self.logger.error(traceback.format_exc())
             return None
 
-    def visualise_model_output(self, config_path):
-        
-        # Plot streamflow comparison
-        self.logger.info('Starting model output visualisation')
-        for model in self.config.get('HYDROLOGICAL_MODEL').split(','):
-            visualizer = VisualizationReporter(self.config, self.logger)
-
-            if model == 'SUMMA':
-                visualizer.plot_summa_outputs(self.config.get('EXPERIMENT_ID'))
-                
-                # Check if using lumped domain definition
-                if self.config.get('DOMAIN_DEFINITION_METHOD') == 'lumped':
-                    # For lumped model, get streamflow from SUMMA's averageRoutedRunoff
-                    self.logger.info("Using lumped model output from SUMMA averageRoutedRunoff")
-                    
-                    # Define model_outputs and obs_files
-                    summa_output_file = str(self.project_dir / "simulations" / self.config.get('EXPERIMENT_ID') / "SUMMA" / f"{self.config.get('EXPERIMENT_ID')}_timestep.nc")
-                    model_outputs = [(f"{model}", summa_output_file)]
-                    
-                    obs_files = [
-                        ('Observed', str(self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.config.get('DOMAIN_NAME')}_streamflow_processed.csv"))
-                    ]
-                    
-                    try:
-                        # First convert SUMMA output to a format compatible with the visualization function
-                        import xarray as xr
-                        import pandas as pd
-                        import numpy as np
-                        import os
-                        
-                        # Read SUMMA output
-                        ds = xr.open_dataset(summa_output_file)
-                        
-                        # Extract averageRoutedRunoff
-                        runoff = ds['averageRoutedRunoff'].to_pandas()
-                        
-                        # If it's a DataFrame, convert to Series (depends on xarray version)
-                        if isinstance(runoff, pd.DataFrame):
-                            runoff = runoff.iloc[:, 0]
-                            
-                        # Need to get basin area to convert from m/s to m³/s (cms)
-                        basin_name = self.config.get('RIVER_BASINS_NAME', 'default')
-                        if basin_name == 'default':
-                            basin_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
-                        
-                        # Using the helper function for getting the file path
-                        basin_path = self.project_dir / "shapefiles" / "river_basins" / basin_name
-                        if not basin_path.exists() and hasattr(self, '_get_file_path'):
-                            basin_path = self._get_file_path('RIVER_BASINS_PATH', 'shapefiles/river_basins', basin_name)
-                        
-                        import geopandas as gpd
-                        basin_gdf = gpd.read_file(basin_path)
-                        area_col = self.config.get('RIVER_BASIN_SHP_AREA', 'GRU_area')
-                        area_m2 = basin_gdf[area_col].sum()
-                        
-                        # Convert from m/s to m³/s (cms)
-                        runoff = runoff * area_m2
-                        
-                        # Make a netCDF file that mimics mizuRoute output format
-                        modified_file = str(self.project_dir / "simulations" / self.config.get('EXPERIMENT_ID') / "SUMMA" / f"{self.config.get('EXPERIMENT_ID')}_modified_for_viz.nc")
-                        
-                        # Create a new dataset with the expected structure
-                        new_ds = xr.Dataset(
-                            data_vars={
-                                "IRFroutedRunoff": (["time", "seg"], runoff.values[:, np.newaxis]),
-                                "reachID": (["seg"], np.array([1]))
-                            },
-                            coords={
-                                "time": runoff.index,
-                                "seg": np.array([0])
-                            }
-                        )
-                        new_ds.to_netcdf(modified_file)
-                        
-                        # Update model_outputs to use the modified file
-                        model_outputs = [(model, modified_file)]
-                        
-                        # Now call the usual visualization function
-                        plot_file = visualizer.plot_streamflow_simulations_vs_observations(model_outputs, obs_files)
-                        
-                    except Exception as e:
-                        self.logger.error(f"Error preparing lumped SUMMA output for visualization: {str(e)}")
-                        import traceback
-                        self.logger.error(traceback.format_exc())
-                        
-                else:
-                    # For distributed model, use mizuRoute output as usual
-                    # Only attempt to update SIM_REACH_ID if config_path is a string path
-                    if isinstance(config_path, str):
-                        visualizer.update_sim_reach_id(config_path)  # Find and update the sim reach id based on the project pour point
-                    else:
-                        # Just update in-memory config without updating file
-                        visualizer.update_sim_reach_id()
-                    model_outputs = [
-                        (f"{model}", str(self.project_dir / "simulations" / self.config.get('EXPERIMENT_ID') / "mizuRoute" / f"{self.config.get('EXPERIMENT_ID')}*.nc"))
-                    ]
-                    obs_files = [
-                        ('Observed', str(self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.config.get('DOMAIN_NAME')}_streamflow_processed.csv"))
-                    ]
-                    plot_file = visualizer.plot_streamflow_simulations_vs_observations(model_outputs, obs_files)
-                    
-            elif model == 'FUSE':
-                model_outputs = [
-                    ("FUSE", str(self.project_dir / "simulations" / self.config.get('EXPERIMENT_ID') / "FUSE" / f"{self.config.get('DOMAIN_NAME')}_{self.config.get('EXPERIMENT_ID')}_runs_best.nc"))
-                ]
-                obs_files = [
-                    ('Observed', str(self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.config.get('DOMAIN_NAME')}_streamflow_processed.csv"))
-                ]
-                plot_file = visualizer.plot_fuse_streamflow_simulations_vs_observations(model_outputs, obs_files)
-
-            elif model == 'GR':
-                pass
-
-            elif model == 'FLASH':
-                pass
-
-
     def plot_streamflow_simulations_vs_observations(self, model_outputs: List[Tuple[str, str]], obs_files: List[Tuple[str, str]], show_calib_eval_periods: bool = False):
+        import matplotlib.pyplot as plt # type: ignore
+        import matplotlib.dates as mdates # type: ignore
         try:
             plot_folder = self.project_dir / "plots" / "results"
             plot_folder.mkdir(parents=True, exist_ok=True)
@@ -497,6 +375,9 @@ class VisualizationReporter:
                     bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=3))
         
     def plot_snow_simulations_vs_observations(self, model_outputs: List[List[str]]):
+        import matplotlib.pyplot as plt # type: ignore
+        import matplotlib.dates as mdates # type: ignore
+        from matplotlib.gridspec import GridSpec # type: ignore
         try:
             # Read and prepare data
             snow_obs = pd.read_csv(Path(self.config.snow_processed_path) / self.config.snow_processed_name)
@@ -675,6 +556,7 @@ class VisualizationReporter:
         return overall_metrics
 
     def create_metrics_table(self, ax, metrics):
+        from matplotlib.colors import LinearSegmentedColormap # type: ignore
         cell_text = []
         rows = []
         for comparison, values in metrics.items():
@@ -824,6 +706,8 @@ class VisualizationReporter:
         Creates a map visualization of the delineated domain with a basemap.
         Plots catchment boundary, river network (if not lumped), and pour point on top of a contextily basemap.
         """
+        import matplotlib.pyplot as plt # type: ignore
+        from matplotlib.lines import Line2D # type: ignore
         try:
             # Create plot folder if it doesn't exist
             plot_folder = self.project_dir / "plots" / "domain"
@@ -1104,6 +988,9 @@ class VisualizationReporter:
         Returns:
             str: Path to the saved plot
         """
+        import matplotlib.pyplot as plt # type: ignore
+        from matplotlib.colors import ListedColormap # type: ignore
+        from matplotlib.patches import Patch # type: ignore
         try:
             # Create plot folder if it doesn't exist
             plot_folder = self.project_dir / "plots" / "discretization"
@@ -1385,6 +1272,8 @@ class VisualizationReporter:
         Only plots the overlapping time period between observations and simulations.
         Converts FUSE output from mm/day to cms using GRU areas.
         """
+        import matplotlib.pyplot as plt # type: ignore
+        import matplotlib.dates as mdates # type: ignore
         self.logger.info("Creating FUSE streamflow comparison plot")
         
         try:
@@ -1524,6 +1413,9 @@ class VisualizationReporter:
         Returns:
             Dict[str, str]: Dictionary mapping variable names to their plot file paths
         """
+        import matplotlib.pyplot as plt # type: ignore
+        import matplotlib.dates as mdates # type: ignore
+        from matplotlib import gridspec # type: ignore
         try:
             # Construct path to SUMMA output file
             summa_output_file = self.project_dir / "simulations" / experiment_id / "SUMMA" / f"{experiment_id}_day.nc"

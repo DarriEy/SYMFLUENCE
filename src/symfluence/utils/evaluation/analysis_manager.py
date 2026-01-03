@@ -8,7 +8,6 @@ from typing import Dict, Any, Optional
 from symfluence.utils.evaluation.decision_analysis import DecisionAnalyzer # type: ignore
 from symfluence.utils.evaluation.sensitivity_analysis import SensitivityAnalyzer # type: ignore
 from symfluence.utils.evaluation.benchmarking import Benchmarker, BenchmarkPreprocessor # type: ignore
-from symfluence.utils.reporting.result_vizualisation_utils import BenchmarkVizualiser # type: ignore
 from symfluence.utils.models.fuse import FuseDecisionAnalyzer # type: ignore
 from symfluence.utils.evaluation.registry import EvaluationRegistry
 
@@ -41,7 +40,7 @@ class AnalysisManager:
         experiment_id (str): ID of the current experiment
     """
     
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the Analysis Manager.
         
@@ -52,12 +51,14 @@ class AnalysisManager:
         Args:
             config (Dict[str, Any]): Configuration dictionary containing all settings
             logger (logging.Logger): Logger instance for recording operations
+            reporting_manager (ReportingManager): ReportingManager instance
             
         Raises:
             KeyError: If essential configuration values are missing
         """
         self.config = config
         self.logger = logger
+        self.reporting_manager = reporting_manager
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
@@ -104,8 +105,8 @@ class AnalysisManager:
             benchmark_results = benchmarker.run_benchmarking()
             
             # Visualize benchmark results
-            visualizer = BenchmarkVizualiser(self.config, self.logger)
-            visualizer.visualize_benchmarks(benchmark_results)
+            if self.reporting_manager:
+                self.reporting_manager.visualize_benchmarks(benchmark_results)
             
             # Return path to benchmark results
             benchmark_file = self.project_dir / "evaluation" / "benchmark_scores.csv"
@@ -177,26 +178,10 @@ class AnalysisManager:
     def _run_summa_sensitivity_analysis(self) -> Optional[Dict]:
         """
         Run sensitivity analysis for SUMMA model.
-        
-        This internal method handles the specifics of sensitivity analysis for the
-        SUMMA hydrological model. It uses parameter sets from previous optimization
-        results to assess parameter sensitivity through variance-based methods,
-        parameter identifiability, and correlation analysis.
-        
-        The analysis requires optimization results from a prior calibration run,
-        which contain multiple parameter sets and their corresponding performance metrics.
-        
-        Returns:
-            Optional[Dict]: Dictionary containing sensitivity analysis results,
-                          or None if the required files are missing
-                          
-        Raises:
-            FileNotFoundError: If optimization results file is not found
-            Exception: For other errors during analysis
         """
         self.logger.info("Running SUMMA sensitivity analysis")
         
-        sensitivity_analyzer = SensitivityAnalyzer(self.config, self.logger)
+        sensitivity_analyzer = SensitivityAnalyzer(self.config, self.logger, self.reporting_manager)
         results_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
         
         if not results_file.exists():
@@ -208,28 +193,6 @@ class AnalysisManager:
     def run_decision_analysis(self) -> Optional[Dict]:
         """
         Run decision analysis to assess the impact of model structure choices.
-        
-        Decision analysis evaluates how different model structure decisions
-        (e.g., process representations, numerical schemes) affect model performance.
-        This analysis helps:
-        
-        1. Identify optimal combinations of model structure decisions
-        2. Quantify the sensitivity of model performance to structure choices
-        3. Guide model development by focusing on impactful process representations
-        4. Provide insights into process understanding for a specific watershed
-        
-        The method iterates through configured hydrological models, running
-        model-specific decision analyses where supported. Currently,
-        decision analysis is implemented for SUMMA and FUSE models.
-        
-        Returns:
-            Optional[Dict]: Dictionary mapping model names to decision analysis results,
-                          or None if the analysis was disabled or failed
-                          
-        Raises:
-            FileNotFoundError: If required model output files are missing
-            ValueError: If model structure options are invalid
-            Exception: For other errors during decision analysis
         """
         self.logger.info("Starting decision analysis")
         
@@ -264,28 +227,10 @@ class AnalysisManager:
     def _run_summa_decision_analysis(self) -> Dict:
         """
         Run decision analysis for SUMMA model.
-        
-        This internal method handles the specifics of decision analysis for the
-        SUMMA hydrological model. It evaluates different combinations of process
-        representations defined in the DECISION_OPTIONS configuration.
-        
-        The analysis includes:
-        1. Running SUMMA with different combinations of process representations
-        2. Evaluating performance for each combination
-        3. Identifying optimal combinations for different metrics
-        4. Visualizing the impact of different decisions
-        
-        Returns:
-            Dict: Dictionary containing decision analysis results, including:
-                - results_file: Path to the CSV file with detailed results
-                - best_combinations: Dictionary of best combinations for each metric
-                
-        Raises:
-            Exception: For errors during SUMMA decision analysis
         """
         self.logger.info("Running SUMMA decision analysis")
         
-        decision_analyzer = DecisionAnalyzer(self.config, self.logger)
+        decision_analyzer = DecisionAnalyzer(self.config, self.logger, self.reporting_manager)
         results_file, best_combinations = decision_analyzer.run_full_analysis()
         
         self.logger.info("SUMMA decision analysis completed")
@@ -381,7 +326,12 @@ class AnalysisManager:
         
         # 2. Evaluate each variable
         for var_type, sim_series in sim_results.items():
-            evaluator = EvaluationRegistry.get_evaluator(var_type, self.config, self.logger)
+            # For multivariate, the var_type might be SNOW, but we need to know if it's SWE or SCA
+            # We can use the mapping from config if provided
+            target = var_type
+            evaluator = EvaluationRegistry.get_evaluator(
+                var_type, self.config, self.logger, self.project_dir, target=target
+            )
             if evaluator:
                 self.logger.info(f"Evaluating {var_type}")
                 # calculate_metrics now handles aligning and filtering

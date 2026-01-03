@@ -144,6 +144,11 @@ get_tool_git_info() {
                 exe_path="cmake_build/ngen"
             fi
             ;;
+        hype)
+            if [ -f "bin/hype" ]; then
+                exe_path="bin/hype"
+            fi
+            ;;
         taudem)
             if [ -f "bin/pitremove" ]; then
                 exe_path="bin/pitremove"
@@ -245,7 +250,7 @@ print_info "Collecting tool information..."
 TOOLS_JSON=""
 TOOL_COUNT=0
 
-for tool in summa mizuroute fuse ngen taudem sundials; do
+for tool in summa mizuroute fuse ngen hype taudem sundials; do
     tool_dir="$INSTALLS_DIR/$tool"
 
     if [ "$tool" = "mizuroute" ]; then

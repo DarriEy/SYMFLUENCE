@@ -13,9 +13,11 @@ Available optimizers:
 from .summa_optimizer import SUMMAModelOptimizer
 from .fuse_model_optimizer import FUSEModelOptimizer
 from .ngen_model_optimizer import NgenModelOptimizer
+from .hype_model_optimizer import HYPEModelOptimizer
 
 __all__ = [
     'SUMMAModelOptimizer',
     'FUSEModelOptimizer',
     'NgenModelOptimizer',
+    'HYPEModelOptimizer',
 ]

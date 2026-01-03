@@ -129,12 +129,12 @@ class ObservationLoaderMixin:
         candidates = []
 
         # Strategy 1: Explicit path in config
-        obs_path = self.config.get('OBSERVATIONS_PATH')
+        obs_path = self.config_dict.get('OBSERVATIONS_PATH')
         if obs_path and obs_path != 'default':
             candidates.append(Path(obs_path))
 
         # Strategy 2: Nested config
-        obs_nested = self.config.get('observations', {}).get('streamflow', {}).get('path')
+        obs_nested = self.config_dict.get('observations', {}).get('streamflow', {}).get('path')
         if obs_nested:
             candidates.append(Path(obs_nested))
 
@@ -333,9 +333,9 @@ class ObservationLoaderMixin:
 
         try:
             # Try river basins
-            basin_name = self.config.get('RIVER_BASINS_NAME')
+            basin_name = self.config_dict.get('RIVER_BASINS_NAME')
             if basin_name == 'default' or basin_name is None:
-                basin_name = f"{self.domain_name}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
+                basin_name = f"{self.domain_name}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
 
             basin_path = self.project_dir / 'shapefiles' / 'river_basins' / basin_name
 
@@ -362,9 +362,9 @@ class ObservationLoaderMixin:
 
     def _get_catchment_path(self) -> Optional[Path]:
         """Get catchment shapefile path (subclass can override)."""
-        catchment_name = self.config.get('CATCHMENT_SHP_NAME')
+        catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
         if catchment_name == 'default' or catchment_name is None:
-            discretization = self.config.get('DOMAIN_DISCRETIZATION')
+            discretization = self.config_dict.get('DOMAIN_DISCRETIZATION')
             catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
 
         catchment_path = self.project_dir / 'shapefiles' / 'catchment' / catchment_name

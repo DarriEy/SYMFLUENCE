@@ -320,20 +320,26 @@ class SummaForcingProcessor:
                     'long_name': 'Mean total precipitation rate'
                 })
 
-            # Apply lapse rate correction efficiently if enabled
+                # Apply lapse rate correction efficiently if enabled
             if self.config.get('APPLY_LAPSE_RATE') == True:
                 # Get lapse values for the HRUs (vectorized operation)
                 hru_lapse_values = lapse_values.loc[dat['hruId'].values, 'lapse_values'].values
 
-                # Create correction array more efficiently
-                n_time, n_hru = len(dat['time']), len(dat['hru'])
-                lapse_correction = np.broadcast_to(hru_lapse_values[np.newaxis, :], (n_time, n_hru))
+                # Create correction array more efficiently, handling both (time, hru) and (hru, time)
+                if dat['airtemp'].dims == ('time', 'hru'):
+                    lapse_correction = np.broadcast_to(hru_lapse_values[np.newaxis, :], dat['airtemp'].shape)
+                elif dat['airtemp'].dims == ('hru', 'time'):
+                    lapse_correction = np.broadcast_to(hru_lapse_values[:, np.newaxis], dat['airtemp'].shape)
+                else:
+                    self.logger.warning(f"Unexpected airtemp dimensions {dat['airtemp'].dims}, skipping lapse correction")
+                    lapse_correction = 0
 
                 # Store original attributes
                 tmp_units = dat['airtemp'].attrs.get('units', 'K')
 
                 # Apply correction (in-place operation)
-                dat['airtemp'].values += lapse_correction
+                if not isinstance(lapse_correction, int):
+                    dat['airtemp'].values += lapse_correction
                 dat.airtemp.attrs['units'] = tmp_units
 
                 # Clean up temporary arrays

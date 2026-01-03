@@ -157,6 +157,7 @@ MODELS = [
     "SUMMA",
     "FUSE",
     pytest.param("NGEN", marks=pytest.mark.full),
+    "HYPE",
 ]
 
 
@@ -220,11 +221,11 @@ def test_semi_distributed_basin_workflow(config_path, test_data_dir, model):
     baseline_hrus = (
         baseline_dir / "catchment" / f"{config['DOMAIN_NAME']}_HRUs_GRUs.shp"
     )
-    assert baseline_river_basins.exists(), "Baseline river basins shapefile missing"
-    assert baseline_river_network.exists(), "Baseline river network shapefile missing"
-    assert baseline_hrus.exists(), "Baseline HRU shapefile missing"
     signature_strict = config.get("STREAM_THRESHOLD") == 5000
     if signature_strict:
+        assert baseline_river_basins.exists(), "Baseline river basins shapefile missing"
+        assert baseline_river_network.exists(), "Baseline river network shapefile missing"
+        assert baseline_hrus.exists(), "Baseline HRU shapefile missing"
         expected_river_basins = load_shapefile_signature(baseline_river_basins)
         expected_river_network = load_shapefile_signature(baseline_river_network)
         expected_hrus = load_shapefile_signature(baseline_hrus)

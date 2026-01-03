@@ -2,6 +2,7 @@
 NGen Model Preprocessor.
 
 Handles spatial preprocessing and configuration generation for the NOAA NextGen Framework.
+Uses shared utilities for time window management and forcing data processing.
 """
 
 import os
@@ -19,6 +20,8 @@ import netCDF4 as nc4
 from symfluence.utils.models.registry import ModelRegistry
 from symfluence.utils.models.base import BaseModelPreProcessor
 from symfluence.utils.models.mixins import ObservationLoaderMixin
+from symfluence.utils.models.utilities import TimeWindowManager, ForcingDataProcessor
+from symfluence.utils.models.ngen.config_generator import NgenConfigGenerator
 from symfluence.utils.exceptions import (
     ModelExecutionError,
     symfluence_error_handler
@@ -56,8 +59,8 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         super().__init__(config, logger)
 
         # NGen-specific configuration (Phase 3: typed config)
-        if self.typed_config:
-            self.hru_id_col = self.typed_config.paths.catchment_hruid
+        if self.config:
+            self.hru_id_col = self.config.paths.catchment_hruid
         else:
             self.hru_id_col = config.get('CATCHMENT_SHP_HRUID', 'HRU_ID')
 
@@ -76,10 +79,10 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
     def _resolve_ngen_lib_paths(self) -> Dict[str, Path]:
         lib_ext = ".dylib" if sys.platform == "darwin" else ".so"
-        if self.typed_config and self.typed_config.model.ngen:
-            install_path = self.typed_config.model.ngen.install_path
+        if self.config and self.config.model.ngen:
+            install_path = self.config.model.ngen.install_path
         else:
-            install_path = self.config.get('NGEN_INSTALL_PATH', 'default')
+            install_path = self.config_dict.get('NGEN_INSTALL_PATH', 'default')
         if install_path == 'default':
             ngen_root = self.data_dir.parent / 'installs' / 'ngen' / 'build'
         else:
@@ -94,10 +97,10 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
     
     def _copy_noah_parameter_tables(self):
         """
-        Copy Noah-OWP parameter tables from base settings to domain settings.
+        Copy Noah-OWP parameter tables from package data to domain settings.
 
         Copies GENPARM.TBL, MPTABLE.TBL, and SOILPARM.TBL from:
-            SYMFLUENCE_CODE_DIR/0_base_settings/NOAH/parameters/
+            symfluence/data/base_settings/NOAH/parameters/
         To:
             domain_dir/settings/ngen/NOAH/parameters/
         """
@@ -107,20 +110,15 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         self.logger.info("Copying Noah-OWP parameter tables")
 
-        # Get path to SYMFLUENCE code directory from config
-        if self.typed_config:
-            symfluence_code_dir = self.typed_config.system.code_dir
-        else:
-            raw_code_dir = self.config.get('SYMFLUENCE_CODE_DIR')
-            if not raw_code_dir:
-                self.logger.warning(
-                    "SYMFLUENCE_CODE_DIR not set; skipping NOAH parameter table copy"
-                )
-                return
-            symfluence_code_dir = Path(raw_code_dir)
+        # Get source directory from package data
+        from symfluence.utils.resources import get_base_settings_dir
 
-        # Source directory for Noah parameter tables
-        source_param_dir = Path(symfluence_code_dir) / '0_base_settings' / 'NOAH' / 'parameters'
+        try:
+            noah_base_dir = get_base_settings_dir('NOAH')
+            source_param_dir = noah_base_dir / 'parameters'
+        except FileNotFoundError:
+            self.logger.warning("NOAH base settings not found in package; skipping parameter table copy")
+            return
 
         # Destination directory
         dest_param_dir = self.setup_dir / 'NOAH' / 'parameters'
@@ -167,17 +165,16 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         """Override to copy Noah-OWP parameter tables."""
         self._copy_noah_parameter_tables()
 
-    def _pre_setup(self) -> None:
-        """NGEN-specific pre-setup: generate spatial data files (template hook)."""
-        self._nexus_file = self.create_nexus_geojson()
-        self._catchment_file = self.create_catchment_geopackage()
-
     def _prepare_forcing(self) -> None:
         """NGEN-specific forcing data preparation (template hook)."""
         self._forcing_file = self.prepare_forcing_data()
 
     def _create_model_configs(self) -> None:
         """NGEN-specific configuration file creation (template hook)."""
+        # Create spatial data files (moved from _pre_setup to ensure directories exist)
+        self._nexus_file = self.create_nexus_geojson()
+        self._catchment_file = self.create_catchment_geopackage()
+
         self.generate_model_configs()
         self.generate_realization_config(
             self._catchment_file,
@@ -207,8 +204,8 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         river_gdf = gpd.read_file(river_network_file)
         
         # Get segment ID columns
-        seg_id_col = self.config.get('RIVER_NETWORK_SHP_SEGID', 'LINKNO')
-        downstream_col = self.config.get('RIVER_NETWORK_SHP_DOWNSEGID', 'DSLINKNO')
+        seg_id_col = self.config_dict.get('RIVER_NETWORK_SHP_SEGID', 'LINKNO')
+        downstream_col = self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID', 'DSLINKNO')
         
         # Create nexus points at segment endpoints
         nexus_features = []
@@ -397,6 +394,10 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         """
         Convert SYMFLUENCE basin-averaged ERA5 forcing to ngen format.
 
+        Uses shared utilities for loading and time management:
+        - TimeWindowManager for simulation period handling
+        - ForcingDataProcessor for loading and subsetting
+
         Processes:
         1. Load all monthly forcing files
         2. Merge across time
@@ -417,62 +418,61 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         self.logger.info(f"Processing forcing for {n_catchments} catchments")
 
-        # Get forcing files
-        forcing_files = sorted(self.forcing_basin_path.glob("*.nc"))
-        if not forcing_files:
-            raise FileNotFoundError(f"No forcing files found in {self.forcing_basin_path}")
-        
-        self.logger.info(f"Found {len(forcing_files)} forcing files")
-        
-        # Open all files and concatenate
-        datasets = []
-        for f in forcing_files:
-            ds = xr.open_dataset(f)
-            datasets.append(ds)
-        
-        # Concatenate along time dimension
-        forcing_data = xr.concat(datasets, dim='time', data_vars='all')
-        
-        # Get time bounds from config - use defaults if not specified or set to 'default'
-        sim_start = self.config.get('EXPERIMENT_TIME_START', '2000-01-01 00:00:00')
-        sim_end = self.config.get('EXPERIMENT_TIME_END', '2000-12-31 23:00:00')
-        
-        # Handle 'default' string
-        if sim_start == 'default':
-            sim_start = '2000-01-01 00:00:00'
-        if sim_end == 'default':
-            sim_end = '2000-12-31 23:00:00'
-        
-        # Always subset to simulation period
-        start_time = pd.to_datetime(sim_start)
-        end_time = pd.to_datetime(sim_end)
-        
-        # Convert forcing time to datetime if needed
-        time_values = pd.to_datetime(forcing_data.time.values)
-        forcing_data['time'] = time_values
-        
-        # Select time slice for simulation period
-        forcing_data = forcing_data.sel(time=slice(start_time, end_time))
-            
-        self.logger.info(f"Forcing time range: {forcing_data.time.values[0]} to {forcing_data.time.values[-1]}")
-        
-        # Create ngen-formatted dataset
-        ngen_ds = self._create_ngen_forcing_dataset(forcing_data, catchment_ids)
-        
-        # Save to file with NETCDF4 format (supports native string type)
-        output_file = self.forcing_dir / "forcing.nc"
-        ngen_ds.to_netcdf(output_file, format='NETCDF4')
+        # Use shared ForcingDataProcessor for loading
+        fdp = ForcingDataProcessor(self.config, self.logger)
+        forcing_data = fdp.load_forcing_data(self.forcing_basin_path)
 
-        # Write per-catchment CSV forcings for CsvPerFeature provider
-        self._write_csv_forcing_files(forcing_data, catchment_ids)
-        
-        # Close datasets
-        forcing_data.close()
-        for ds in datasets:
-            ds.close()
-        
-        self.logger.info(f"Created ngen forcing file: {output_file}")
-        return output_file
+        # Use shared TimeWindowManager for time handling
+        twm = TimeWindowManager(self.config, self.logger)
+        try:
+            start_time, end_time = twm.get_simulation_times(
+                forcing_path=self.forcing_basin_path,
+                default_start_offset_days=0,
+                default_end_offset_days=0
+            )
+        except ValueError:
+            # Fallback to config values if TimeWindowManager fails
+            sim_start = self.config_dict.get('EXPERIMENT_TIME_START', '2000-01-01 00:00:00')
+            sim_end = self.config_dict.get('EXPERIMENT_TIME_END', '2000-12-31 23:00:00')
+            if sim_start == 'default':
+                sim_start = '2000-01-01 00:00:00'
+            if sim_end == 'default':
+                sim_end = '2000-12-31 23:00:00'
+            start_time = twm.parse_time_string(sim_start)
+            end_time = twm.parse_time_string(sim_end)
+
+        datasets: List[xr.Dataset] = []
+        try:
+            # Convert forcing time to datetime if needed
+            time_values = pd.to_datetime(forcing_data.time.values)
+            forcing_data['time'] = time_values
+
+            # Use shared utility for subsetting
+            forcing_data = fdp.subset_to_time_window(forcing_data, start_time, end_time)
+
+            self.logger.info(f"Forcing time range: {forcing_data.time.values[0]} to {forcing_data.time.values[-1]}")
+
+            datasets.append(forcing_data)
+
+            # Create ngen-formatted dataset
+            ngen_ds = self._create_ngen_forcing_dataset(forcing_data, catchment_ids)
+            datasets.append(ngen_ds)
+
+            # Save to file with NETCDF4 format (supports native string type)
+            output_file = self.forcing_dir / "forcing.nc"
+            ngen_ds.to_netcdf(output_file, format='NETCDF4')
+
+            # Write per-catchment CSV forcings for CsvPerFeature provider
+            self._write_csv_forcing_files(forcing_data, catchment_ids)
+
+            self.logger.info(f"Created ngen forcing file: {output_file}")
+            return output_file
+        finally:
+            for ds in datasets:
+                try:
+                    ds.close()
+                except Exception:
+                    pass
 
     def _write_csv_forcing_files(
         self,
@@ -646,32 +646,23 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         """
         Generate model-specific configuration files for each catchment.
 
-        Creates:
-        - CFE (Conceptual Functional Equivalent) configs
-        - PET (Potential Evapotranspiration) configs
-        - NOAH-OWP (Noah-Owens-Pries) configs
+        Uses NgenConfigGenerator for modular config creation.
+        Creates: CFE, PET, and NOAH-OWP configs.
         """
-        self.logger.info("Generating model configuration files")
-
-        # Load catchment data for parameters
+        # Load catchment data
         catchment_file = self.get_catchment_path()
         catchment_gdf = gpd.read_file(catchment_file)
-        
-        # Store the CRS for use in config generation
         self.catchment_crs = catchment_gdf.crs
-        
-        for idx, catchment in catchment_gdf.iterrows():
-            cat_id = str(catchment[self.hru_id_col])
-            
-            # Generate configs
-            if self._include_cfe:
-                self._generate_cfe_config(cat_id, catchment)
-            if self._include_pet:
-                self._generate_pet_config(cat_id, catchment)
-            if self._include_noah:
-                self._generate_noah_config(cat_id, catchment)
-        
-        self.logger.info(f"Generated configs for {len(catchment_gdf)} catchments")
+
+        # Use config generator
+        config_gen = NgenConfigGenerator(self.config_dict, self.logger, self.setup_dir, self.catchment_crs)
+        config_gen.set_module_availability(
+            cfe=self._include_cfe,
+            pet=self._include_pet,
+            noah=self._include_noah,
+            sloth=self._include_sloth
+        )
+        config_gen.generate_all_configs(catchment_gdf, self.hru_id_col)
     
     def _generate_cfe_config(self, catchment_id: str, catchment_row: gpd.GeoSeries):
         """Generate CFE model configuration file."""
@@ -764,8 +755,8 @@ num_timesteps=1
             centroid = geom_wgs84.iloc[0].centroid
         
         # Get simulation timing from config
-        start_time = self.config.get('EXPERIMENT_TIME_START', '2000-01-01 00:00:00')
-        end_time = self.config.get('EXPERIMENT_TIME_END', '2000-12-31 23:00:00')
+        start_time = self.config_dict.get('EXPERIMENT_TIME_START', '2000-01-01 00:00:00')
+        end_time = self.config_dict.get('EXPERIMENT_TIME_END', '2000-12-31 23:00:00')
         
         # Convert to Noah-OWP format (YYYYMMDDhhmm)
         start_dt = pd.to_datetime(start_time)
@@ -854,172 +845,18 @@ num_timesteps=1
     def generate_realization_config(self, catchment_file: Path, nexus_file: Path, forcing_file: Path):
         """
         Generate ngen realization configuration JSON.
-        
-        This is the main configuration file that ngen uses to:
-        - Define model formulations for each catchment
-        - Specify input/output connections
-        - Configure model parameters
-        - Link to forcing data
+
+        Uses NgenConfigGenerator for modular config creation.
         """
-        self.logger.info("Generating realization configuration")
-        
-        # Get absolute paths
-        forcing_abs_path = str(forcing_file.resolve())
-        
-        # Model configuration directories
-        cfe_config_base = str((self.setup_dir / "CFE").resolve())
-        pet_config_base = str((self.setup_dir / "PET").resolve())
-        noah_config_base = str((self.setup_dir / "NOAH").resolve())
-
-        lib_ext = ".dylib" if sys.platform == "darwin" else ".so"
-
-        forcing_provider = self.config.get("NGEN_FORCING_PROVIDER")
-        if not forcing_provider:
-            forcing_provider = "CsvPerFeature" if sys.platform == "darwin" else "NetCDF"
-        
-        # Get simulation time bounds - handle 'default' string
-        sim_start = self.config.get('EXPERIMENT_TIME_START', '2000-01-01 00:00:00')
-        sim_end = self.config.get('EXPERIMENT_TIME_END', '2000-12-31 23:00:00')
-        
-        if sim_start == 'default':
-            sim_start = '2000-01-01 00:00:00'
-        if sim_end == 'default':
-            sim_end = '2000-12-31 23:00:00'
-        
-        # Ensure time strings have seconds (some configs may omit them)
-        # Convert to datetime and back to ensure proper format
-        sim_start = pd.to_datetime(sim_start).strftime('%Y-%m-%d %H:%M:%S')
-        sim_end = pd.to_datetime(sim_end).strftime('%Y-%m-%d %H:%M:%S')
-        
-        # Create realization config
-        if forcing_provider == "CsvPerFeature":
-            forcing_config = {
-                "path": str((self.forcing_dir / "csv").resolve()),
-                "provider": "CsvPerFeature",
-                "file_pattern": ".*{{id}}.*\\.csv"
-            }
-        else:
-            forcing_config = {
-                "path": forcing_abs_path,
-                "provider": forcing_provider
-            }
-
-        modules = []
-        if self._include_sloth:
-            modules.append({
-                "name": "bmi_c++",
-                "params": {
-                    "model_type_name": "bmi_c++_sloth",
-                    "library_file": f"./extern/sloth/cmake_build/libslothmodel{lib_ext}",
-                    "init_config": "/dev/null",
-                    "allow_exceed_end_time": True,
-                    "main_output_variable": "z",
-                    "uses_forcing_file": False,
-                    "model_params": {
-                        "sloth_ice_fraction_schaake(1,double,m,node)": 0.0,
-                        "sloth_ice_fraction_xinanjiang(1,double,1,node)": 0.0,
-                        "sloth_smp(1,double,1,node)": 0.0
-                    }
-                }
-            })
-
-        if self._include_pet:
-            modules.append({
-                "name": "bmi_c",
-                "params": {
-                    "model_type_name": "PET",
-                    "library_file": f"./extern/evapotranspiration/evapotranspiration/cmake_build/libpetbmi{lib_ext}",
-                    "forcing_file": "",
-                    "init_config": f"{pet_config_base}/{{{{id}}}}_pet_config.txt",
-                    "allow_exceed_end_time": True,
-                    "main_output_variable": "water_potential_evaporation_flux",
-                    "registration_function": "register_bmi_pet",
-                    "uses_forcing_file": False
-                }
-            })
-
-        if self._include_noah:
-            modules.append({
-                "name": "bmi_fortran",
-                "params": {
-                    "model_type_name": "bmi_fortran_noahowp",
-                    "library_file": f"./extern/noah-owp-modular/cmake_build/libsurfacebmi{lib_ext}",
-                    "forcing_file": "",
-                    "init_config": f"{noah_config_base}/{{{{id}}}}.input",
-                    "allow_exceed_end_time": True,
-                    "main_output_variable": "QINSUR",
-                    "uses_forcing_file": False,
-                    "variables_names_map": {
-                        "PRCPNONC": "atmosphere_water__liquid_equivalent_precipitation_rate",
-                        "Q2": "atmosphere_air_water~vapor__relative_saturation",
-                        "SFCTMP": "land_surface_air__temperature",
-                        "UU": "land_surface_wind__x_component_of_velocity",
-                        "VV": "land_surface_wind__y_component_of_velocity",
-                        "LWDN": "land_surface_radiation~incoming~longwave__energy_flux",
-                        "SOLDN": "land_surface_radiation~incoming~shortwave__energy_flux",
-                        "SFCPRS": "land_surface_air__pressure"
-                    }
-                }
-            })
-
-        if self._include_cfe:
-            evap_source = "water_potential_evaporation_flux" if self._include_pet else "ETRAN"
-            modules.append({
-                "name": "bmi_c",
-                "params": {
-                    "model_type_name": "bmi_c_cfe",
-                    "library_file": f"./extern/cfe/cmake_build/libcfebmi{lib_ext}",
-                    "forcing_file": "",
-                    "init_config": f"{cfe_config_base}/{{{{id}}}}_bmi_config_cfe_pass.txt",
-                    "allow_exceed_end_time": True,
-                    "main_output_variable": "Q_OUT",
-                    "registration_function": "register_bmi_cfe",
-                    "variables_names_map": {
-                        "water_potential_evaporation_flux": evap_source,
-                        "atmosphere_air_water~vapor__relative_saturation": "SPFH_2maboveground",
-                        "land_surface_air__temperature": "TMP_2maboveground",
-                        "land_surface_wind__x_component_of_velocity": "UGRD_10maboveground",
-                        "land_surface_wind__y_component_of_velocity": "VGRD_10maboveground",
-                        "land_surface_radiation~incoming~longwave__energy_flux": "DLWRF_surface",
-                        "land_surface_radiation~incoming~shortwave__energy_flux": "DSWRF_surface",
-                        "land_surface_air__pressure": "PRES_surface",
-                        "ice_fraction_schaake": "sloth_ice_fraction_schaake",
-                        "ice_fraction_xinanjiang": "sloth_ice_fraction_xinanjiang",
-                        "soil_moisture_profile": "sloth_smp"
-                    },
-                    "uses_forcing_file": False
-                }
-            })
-
-        experiment_id = self.config.get('EXPERIMENT_ID', 'default_run')
-        output_root = str((self.project_dir / "simulations" / experiment_id / "NGEN").resolve())
-
-        config = {
-            "global": {
-                "formulations": [{
-                    "name": "bmi_multi",
-                    "params": {
-                        "model_type_name": "bmi_multi_noahowp_cfe",
-                        "init_config": "",
-                        "allow_exceed_end_time": True,
-                        "main_output_variable": "Q_OUT",
-                        "modules": modules,
-                        "uses_forcing_file": False
-                    }
-                }],
-                "forcing": forcing_config
-            },
-            "time": {
-                "start_time": sim_start,
-                "end_time": sim_end,
-                "output_interval": 3600
-            },
-            "output_root": output_root
-        }
-        
-        # Save configuration
-        config_file = self.setup_dir / "realization_config.json"
-        with open(config_file, 'w') as f:
-            json.dump(config, f, indent=2)
-
-        self.logger.info(f"Created realization config: {config_file}")
+        # Use config generator
+        config_gen = NgenConfigGenerator(
+            self.config_dict, self.logger, self.setup_dir,
+            getattr(self, 'catchment_crs', None)
+        )
+        config_gen.set_module_availability(
+            cfe=self._include_cfe,
+            pet=self._include_pet,
+            noah=self._include_noah,
+            sloth=self._include_sloth
+        )
+        config_gen.generate_realization_config(forcing_file, self.project_dir)

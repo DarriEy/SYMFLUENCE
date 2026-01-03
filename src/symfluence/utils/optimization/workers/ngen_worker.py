@@ -285,30 +285,7 @@ class NgenWorker(BaseWorker):
         Returns:
             Result dictionary
         """
-        try:
-            # Try to use existing function if available
-            from ..ngen_worker_functions import _evaluate_ngen_parameters_worker
-
-            config = task_data.get('config', {})
-            normalized_params = task_data.get('normalized_params')
-            param_names = task_data.get('param_names', [])
-            param_bounds = task_data.get('param_bounds', {})
-
-            if normalized_params is not None:
-                score = _evaluate_ngen_parameters_worker(
-                    config, normalized_params, param_names, param_bounds
-                )
-                return {
-                    'individual_id': task_data.get('individual_id', 0),
-                    'params': task_data.get('params', {}),
-                    'score': score,
-                }
-
-        except ImportError:
-            pass
-
-        # Fallback: Use worker infrastructure
-        worker = NgenWorker()
+        worker = NgenWorker(config=task_data.get('config'))
         task = WorkerTask.from_legacy_dict(task_data)
         result = worker.evaluate(task)
         return result.to_legacy_dict()

@@ -1,41 +1,37 @@
-import os
-import sys
-import time
-import subprocess
-from shutil import rmtree, copyfile
-from typing import Dict, Any, Optional, List
-from pathlib import Path
-import numpy as np # type: ignore
-import pandas as pd # type: ignore
-import geopandas as gpd # type: ignore
-import xarray as xr # type: ignore
-import shutil
-from datetime import datetime
-import rasterio # type: ignore
-from scipy import ndimage
 import csv
 import itertools
+import os
 import re
-import matplotlib.pyplot as plt # type: ignore
+import subprocess
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+from shutil import rmtree, copyfile
+from typing import Dict, Any, Optional, List, Tuple
+
+import geopandas as gpd # type: ignore
+import numpy as np # type: ignore
+import pandas as pd # type: ignore
+import rasterio # type: ignore
 import xarray as xr # type: ignore
-from typing import Dict, List, Tuple, Any
-from ..registry import ModelRegistry
+from scipy import ndimage
+
 from ..base import BaseModelPreProcessor
 from ..mixins import PETCalculatorMixin, ObservationLoaderMixin, DatasetBuilderMixin
-from .forcing_processor import FuseForcingProcessor
+from ..registry import ModelRegistry
 from .elevation_band_manager import FuseElevationBandManager
+from .forcing_processor import FuseForcingProcessor
 from .synthetic_data_generator import FuseSyntheticDataGenerator
 from symfluence.utils.common.constants import UnitConversion
 from symfluence.utils.common.geospatial_utils import GeospatialUtilsMixin
+from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE
+from symfluence.utils.data.utilities.variable_utils import VariableHandler # type: ignore
 from symfluence.utils.exceptions import (
     ModelExecutionError,
     FileOperationError,
     symfluence_error_handler
 )
-
-sys.path.append(str(Path(__file__).resolve().parent.parent))
-from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE
-from symfluence.utils.data.utilities.variable_utils import VariableHandler # type: ignore
 
 
 @ModelRegistry.register_preprocessor('FUSE')
@@ -70,7 +66,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
 
         # Initialize forcing processor (use base class methods for callbacks)
         self.forcing_processor = FuseForcingProcessor(
-            config=self.config,
+            config=self.config_dict,
             logger=self.logger,
             project_dir=self.project_dir,
             forcing_basin_path=self.forcing_basin_path,
@@ -85,7 +81,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
 
         # Initialize elevation band manager
         self.elevation_band_manager = FuseElevationBandManager(
-            config=self.config,
+            config=self.config_dict,
             logger=self.logger,
             project_dir=self.project_dir,
             forcing_fuse_path=self.forcing_fuse_path,
@@ -99,27 +95,28 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
 
     def _get_fuse_file_id(self) -> str:
         """Get a short file ID for FUSE outputs and settings."""
-        fuse_id = self.config.get('FUSE_FILE_ID')
+        fuse_id = self.config_dict.get('FUSE_FILE_ID')
         if not fuse_id:
-            experiment_id = self.config.get('EXPERIMENT_ID', '')
+            experiment_id = self.config_dict.get('EXPERIMENT_ID', '')
             fuse_id = experiment_id[:6] if experiment_id else 'fuse'
-            self.config['FUSE_FILE_ID'] = fuse_id
+            self.config_dict['FUSE_FILE_ID'] = fuse_id
         return fuse_id
 
     def _get_timestep_config(self):
         """
-        Get timestep configuration based on FORCING_TIME_STEP_SIZE.
+        Get FUSE-specific timestep configuration.
 
-        DEPRECATED: Use self.get_timestep_config() from base class instead.
-        This method is kept for backward compatibility but delegates to base class.
+        FUSE only supports daily timesteps, so this method forces daily
+        resolution regardless of the base config. This differs from
+        the base class get_timestep_config() which respects the config.
 
         Returns:
-            dict: Configuration with resample_freq, time_units, time_unit_factor,
-                conversion_factor, and time_label
+            dict: Configuration with resample_freq, time_units, time_unit,
+                conversion_factor, time_label, and timestep_seconds
         """
         ts_config = self.get_timestep_config()
         if ts_config['time_unit'] == 'h':
-            self.logger.info("FUSE forcing uses daily time units; resampling to daily for compatibility")
+            self.logger.debug("FUSE uses daily timesteps; overriding hourly config")
             return {
                 'resample_freq': 'D',
                 'time_units': 'days since 1970-01-01',
@@ -129,10 +126,6 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 'timestep_seconds': 86400
             }
         return ts_config
-
-    # NOTE: _get_simulation_time_window() and _subset_to_simulation_time() are now
-    # inherited from BaseModelPreProcessor as get_simulation_time_window() and
-    # subset_to_simulation_time()
 
     def run_preprocessing(self):
         """
@@ -183,8 +176,9 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             PermissionError: If there are permission issues when creating directories or copying files.
         """
         self.logger.info("Copying FUSE base settings")
-        
-        base_settings_path = Path(self.config.get('SYMFLUENCE_CODE_DIR')) / '0_base_settings' / 'FUSE'
+
+        from symfluence.utils.resources import get_base_settings_dir
+        base_settings_path = get_base_settings_dir('FUSE')
         settings_path = self._get_default_path('SETTINGS_FUSE_PATH', 'settings/FUSE')
         
         try:
@@ -208,8 +202,8 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 copyfile(source_file, dest_file)
                 self.logger.debug(f"Copied {source_file} to {dest_file}")
             
-            if decision_file_path and decision_file_path.exists() and self.config.get('FUSE_SNOW_MODEL'):
-                snow_model = self.config.get('FUSE_SNOW_MODEL')
+            if decision_file_path and decision_file_path.exists() and self.config_dict.get('FUSE_SNOW_MODEL'):
+                snow_model = self.config_dict.get('FUSE_SNOW_MODEL')
                 with open(decision_file_path, 'r') as f:
                     lines = f.readlines()
                 updated_lines = []
@@ -250,8 +244,8 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             self.logger.info(f"Using {ts_config['time_label']} timestep (resample freq: {ts_config['resample_freq']})")
             
             # Get spatial mode configuration
-            spatial_mode = self.config.get('FUSE_SPATIAL_MODE', 'lumped')
-            subcatchment_dim = self.config.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
+            spatial_mode = self.config_dict.get('FUSE_SPATIAL_MODE', 'lumped')
+            subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
             
             self.logger.info(f"Preparing FUSE forcing data in {spatial_mode} mode")
             
@@ -260,8 +254,8 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             if not forcing_files:
                 raise FileNotFoundError("No forcing files found in basin-averaged data directory")
             
-            variable_handler = VariableHandler(config=self.config, logger=self.logger,
-                                            dataset=self.config.get('FORCING_DATASET'), model='FUSE')
+            variable_handler = VariableHandler(config=self.config_dict, logger=self.logger,
+                                            dataset=self.config_dict.get('FORCING_DATASET'), model='FUSE')
             ds = xr.open_mfdataset(forcing_files, data_vars='all')
             ds = variable_handler.process_forcing_data(ds)
             ds = self.subset_to_simulation_time(ds, "Forcing")
@@ -293,7 +287,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             obs_ds = self._load_streamflow_observations(spatial_mode, ts_config, time_window)
             
             # Get PET method from config (default to 'oudin')
-            pet_method = self.config.get('PET_METHOD', 'oudin').lower()
+            pet_method = self.config_dict.get('PET_METHOD', 'oudin').lower()
             self.logger.info(f"Using PET method: {pet_method}")
             
             # Calculate PET for the correct spatial configuration
@@ -622,16 +616,16 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         settings = {
             'SETNGS_PATH': str(self.project_dir / 'settings' / 'FUSE') + '/',
             'INPUT_PATH': str(self.project_dir / 'forcing' / 'FUSE_input') + '/',
-            'OUTPUT_PATH': str(self.project_dir / 'simulations' / self.config.get('EXPERIMENT_ID') / 'FUSE') + '/',
-            'METRIC': self.config.get('OPTIMIZATION_METRIC'),
-            'MAXN': str(self.config.get('NUMBER_OF_ITERATIONS')),
+            'OUTPUT_PATH': str(self.project_dir / 'simulations' / self.config_dict.get('EXPERIMENT_ID') / 'FUSE') + '/',
+            'METRIC': self.config_dict.get('OPTIMIZATION_METRIC'),
+            'MAXN': str(self.config_dict.get('NUMBER_OF_ITERATIONS')),
             'FMODEL_ID': fuse_id,
             'M_DECISIONS': f"fuse_zDecisions_{fuse_id}.txt"
         }
 
         # Get and format dates from forcing data if available, else config
-        start_time = datetime.strptime(self.config.get('EXPERIMENT_TIME_START'), '%Y-%m-%d %H:%M')
-        end_time = datetime.strptime(self.config.get('EXPERIMENT_TIME_END'), '%Y-%m-%d %H:%M')
+        start_time = datetime.strptime(self.config_dict.get('EXPERIMENT_TIME_START'), '%Y-%m-%d %H:%M')
+        end_time = datetime.strptime(self.config_dict.get('EXPERIMENT_TIME_END'), '%Y-%m-%d %H:%M')
         forcing_file = self.forcing_fuse_path / f"{self.domain_name}_input.nc"
         if forcing_file.exists():
             try:
@@ -642,8 +636,8 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                     end_time = time_vals.max().to_pydatetime()
             except Exception as e:
                 self.logger.warning(f"Unable to read forcing time range from {forcing_file}: {e}")
-        cal_start_time = datetime.strptime(self.config.get('CALIBRATION_PERIOD').split(',')[0], '%Y-%m-%d')
-        cal_end_time = datetime.strptime(self.config.get('CALIBRATION_PERIOD').split(',')[1].strip(), '%Y-%m-%d')
+        cal_start_time = datetime.strptime(self.config_dict.get('CALIBRATION_PERIOD').split(',')[0], '%Y-%m-%d')
+        cal_end_time = datetime.strptime(self.config_dict.get('CALIBRATION_PERIOD').split(',')[1].strip(), '%Y-%m-%d')
 
         date_settings = {
             'date_start_sim': start_time.strftime('%Y-%m-%d'),
@@ -742,71 +736,9 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         """Create elevation bands netCDF file - delegates to elevation band manager"""
         return self.elevation_band_manager.create_elevation_bands()
 
-    def _create_distributed_elevation_bands(self):
-        """Create elevation bands for distributed mode"""
-        
-        # Load subcatchment information to get spatial dimensions
-        subcatchments = self._load_subcatchment_data()
-        n_subcatchments = len(subcatchments)
-        
-        # Get reference coordinates (same as used in forcing file)
-        catchment = gpd.read_file(self.catchment_path)
-        mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
-        
-        # For now, create simple elevation bands for all subcatchments
-        # In future, this could use subcatchment-specific elevation data
-        
-        # Create dataset with distributed spatial structure
-        subcatchment_dim = self.config.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
-        
-        if subcatchment_dim == 'latitude':
-            coords = {
-                'longitude': ('longitude', [mean_lon]),
-                'latitude': ('latitude', subcatchments.astype(float)),
-                'elevation_band': ('elevation_band', [1])  # Simple single band for now
-            }
-            spatial_dims = ['elevation_band', 'latitude', 'longitude']
-        else:
-            coords = {
-                'longitude': ('longitude', subcatchments.astype(float)),
-                'latitude': ('latitude', [mean_lat]), 
-                'elevation_band': ('elevation_band', [1])
-            }
-            spatial_dims = ['elevation_band', 'longitude', 'latitude']
-        
-        ds = xr.Dataset(coords=coords)
-        
-        # Add coordinate attributes
-        ds.longitude.attrs = {'units': 'degreesE', 'long_name': 'longitude'}
-        ds.latitude.attrs = {'units': 'degreesN', 'long_name': 'latitude'} 
-        ds.elevation_band.attrs = {'units': '-', 'long_name': 'elevation_band'}
-        
-        # Create elevation band variables for all subcatchments
-        target_shape = (1, n_subcatchments, 1) if subcatchment_dim == 'latitude' else (1, 1, n_subcatchments)
-        
-        for var_name, value, attrs in [
-            ('area_frac', 1.0, {'units': '-', 'long_name': 'Fraction of the catchment covered by each elevation band'}),
-            ('mean_elev', 1000.0, {'units': 'm asl', 'long_name': 'Mid-point elevation of each elevation band'}),
-            ('prec_frac', 1.0, {'units': '-', 'long_name': 'Fraction of catchment precipitation that falls on each elevation band'})
-        ]:
-            
-            data = np.full(target_shape, value, dtype=np.float32)
-            
-            ds[var_name] = xr.DataArray(
-                data,
-                dims=spatial_dims,
-                coords=ds.coords,
-                attrs=attrs
-            )
-        
-        # Save with proper encoding
-        output_file = self.forcing_fuse_path / f"{self.domain_name}_elev_bands.nc"
-        encoding = {var: {'_FillValue': -9999.0, 'dtype': 'float32'} for var in ds.data_vars}
-        
-        ds.to_netcdf(output_file, encoding=encoding, format='NETCDF4')
-        
-        self.logger.info(f"Created distributed elevation bands file: {output_file}")
-        return output_file
+    # NOTE: _create_distributed_elevation_bands() and _create_lumped_elevation_bands() have been
+    # removed as they are now fully handled by FuseElevationBandManager. This eliminates ~120 lines
+    # of duplicated code.
 
     def _load_streamflow_observations(self, spatial_mode, ts_config=None, time_window=None):
         """
@@ -843,62 +775,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             return_none_on_error=True
         )
 
-        return obs_ds         
-
-    def _create_lumped_elevation_bands(self):
-        """Create elevation bands for lumped mode"""
-        self.logger.info("Creating lumped elevation bands file")
-
-        try:
-            # Get catchment centroid for coordinates
-            catchment = gpd.read_file(self.catchment_path)
-            mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
-            
-            # Create simple single elevation band for lumped mode
-            coords = {
-                'longitude': ('longitude', [mean_lon]),
-                'latitude': ('latitude', [mean_lat]),
-                'elevation_band': ('elevation_band', [1])
-            }
-            
-            ds = xr.Dataset(coords=coords)
-            
-            # Add coordinate attributes
-            ds.longitude.attrs = {'units': 'degreesE', 'long_name': 'longitude'}
-            ds.latitude.attrs = {'units': 'degreesN', 'long_name': 'latitude'} 
-            ds.elevation_band.attrs = {'units': '-', 'long_name': 'elevation_band'}
-            
-            # Create elevation band variables (single band covering entire catchment)
-            target_shape = (1, 1, 1)  # (elevation_band, latitude, longitude)
-            spatial_dims = ['elevation_band', 'latitude', 'longitude']
-            
-            for var_name, value, attrs in [
-                ('area_frac', 1.0, {'units': '-', 'long_name': 'Fraction of the catchment covered by each elevation band'}),
-                ('mean_elev', 1000.0, {'units': 'm asl', 'long_name': 'Mid-point elevation of each elevation band'}),
-                ('prec_frac', 1.0, {'units': '-', 'long_name': 'Fraction of catchment precipitation that falls on each elevation band'})
-            ]:
-                
-                data = np.full(target_shape, value, dtype=np.float32)
-                
-                ds[var_name] = xr.DataArray(
-                    data,
-                    dims=spatial_dims,
-                    coords=ds.coords,
-                    attrs=attrs
-                )
-            
-            # Save with proper encoding
-            output_file = self.forcing_fuse_path / f"{self.domain_name}_elev_bands.nc"
-            encoding = {var: {'_FillValue': -9999.0, 'dtype': 'float32'} for var in ds.data_vars}
-            
-            ds.to_netcdf(output_file, encoding=encoding, format='NETCDF4')
-            
-            self.logger.info(f"Created lumped elevation bands file: {output_file}")
-            return output_file
-            
-        except Exception as e:
-            self.logger.error(f"Error creating lumped elevation bands: {str(e)}")
-            raise
+        return obs_ds
 
     def _calculate_distributed_pet(self, ds, spatial_mode, pet_method='oudin'):
         """Calculate PET for distributed/semi-distributed modes - delegates to forcing processor"""
@@ -1072,7 +949,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         return self.forcing_processor._create_distributed_from_catchment(ds)
 
     def _get_file_path(self, file_type, file_def_path, file_name):
-        if self.config.get(f'{file_type}') == 'default':
+        if self.config_dict.get(f'{file_type}') == 'default':
             return self.project_dir / file_def_path / file_name
         else:
-            return Path(self.config.get(f'{file_type}'))
+            return Path(self.config_dict.get(f'{file_type}'))

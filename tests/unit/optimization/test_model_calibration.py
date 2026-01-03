@@ -82,7 +82,7 @@ class TestSUMMAWorkerFunctions:
 
     def test_summa_parameter_application(self, summa_config, test_logger, temp_project_dir):
         """Test applying parameters to SUMMA trial parameter file."""
-        from symfluence.utils.optimization.worker_scripts import _apply_parameters_worker
+        from symfluence.utils.optimization.workers.summa_parallel_workers import _apply_parameters_worker
 
         # Create mock trial parameter file
         summa_settings_dir = temp_project_dir / "settings" / "SUMMA"
@@ -102,7 +102,7 @@ class TestSUMMAWorkerFunctions:
         debug_info = {}
 
         # Mock the generator worker
-        with patch('symfluence.utils.optimization.worker_scripts._generate_trial_params_worker') as mock_gen:
+        with patch('symfluence.utils.optimization.workers.summa_parallel_workers._generate_trial_params_worker') as mock_gen:
             mock_gen.return_value = True
 
             # Call parameter application
@@ -199,21 +199,23 @@ class TestFUSEWorkerFunctions:
     """Tests for FUSE model evaluation worker functions."""
 
     def test_fuse_parameter_application(self, fuse_config, test_logger, temp_project_dir):
-        """Test applying parameters to FUSE input files."""
-        from symfluence.utils.optimization.fuse_worker_functions import _apply_fuse_parameters_worker
+        """Test applying parameters to FUSE input files via worker class."""
+        from symfluence.utils.optimization.workers.fuse_worker import FUSEWorker
 
         params = {
             'MAXWATR_1': 500.0,
             'PERCRTE': 10.0,
         }
-        
-        # Mock NetCDF writing
-        with patch('symfluence.utils.optimization.fuse_worker_functions.nc.Dataset') as mock_ds:
+
+        worker = FUSEWorker(fuse_config, test_logger)
+
+        # Mock NetCDF writing (nc is imported locally in the method)
+        with patch('netCDF4.Dataset') as mock_ds:
             mock_ds_instance = mock_ds.return_value.__enter__.return_value
             mock_ds_instance.variables = {'MAXWATR_1': MagicMock(), 'PERCRTE': MagicMock()}
-            
+
             with patch('pathlib.Path.exists', return_value=True):
-                result = _apply_fuse_parameters_worker(fuse_config, params)
+                result = worker.apply_parameters(params, temp_project_dir, config=fuse_config)
                 assert result is True
 
     def test_fuse_worker_evaluation(self, fuse_config, test_logger, mock_fuse_worker):
@@ -276,19 +278,21 @@ class TestNGENWorkerFunctions:
     """Tests for NGEN model evaluation worker functions."""
 
     def test_ngen_parameter_application(self, ngen_config, test_logger, temp_project_dir):
-        """Test applying parameters to NGEN realization file."""
-        from symfluence.utils.optimization.ngen_worker_functions import _apply_ngen_parameters_worker
+        """Test applying parameters to NGEN realization file via worker class."""
+        from symfluence.utils.optimization.workers.ngen_worker import NgenWorker
 
         params = {
             'CFE.smcmax': 0.45,
             'CFE.satdk': 5e-5,
         }
 
+        worker = NgenWorker(ngen_config, test_logger)
+
         # Mock JSON file operations
         with patch('builtins.open', create=True), patch('json.load'), patch('json.dump'):
-            # This function uses config and params
-            result = _apply_ngen_parameters_worker(ngen_config, params)
-            assert result is True
+            with patch('pathlib.Path.exists', return_value=True):
+                result = worker.apply_parameters(params, temp_project_dir, config=ngen_config)
+                assert result is True
 
 
 # ============================================================================

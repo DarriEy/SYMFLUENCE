@@ -179,6 +179,19 @@ else
 fi
 
 # ============================================================================
+# Stage HYPE
+# ============================================================================
+print_info "Staging HYPE..."
+
+HYPE_DIR="$INSTALLS_DIR/hype"
+if [ -d "$HYPE_DIR" ]; then
+    stage_binary "$HYPE_DIR/bin/hype" "hype" "HYPE"
+    stage_license "$HYPE_DIR" "HYPE"
+else
+    print_warning "HYPE not installed"
+fi
+
+# ============================================================================
 # Stage TauDEM
 # ============================================================================
 print_info "Staging TauDEM..."
@@ -257,6 +270,7 @@ This archive contains compiled binaries for:
 - **mizuRoute**: River network routing model
 - **FUSE**: Framework for Understanding Structural Errors
 - **NGEN**: NextGen National Water Model Framework
+- **HYPE**: Hydrological Predictions for the Environment
 - **TauDEM**: Terrain Analysis Using Digital Elevation Models
 
 ## Installation

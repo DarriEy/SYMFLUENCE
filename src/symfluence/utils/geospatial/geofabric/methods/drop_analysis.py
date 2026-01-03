@@ -20,7 +20,7 @@ class DropAnalysisMethod:
     where streams objectively begin based on geomorphological principles.
     """
 
-    def __init__(self, taudem_executor: Any, config: Dict, logger: Any, interim_dir: Path):
+    def __init__(self, taudem_executor: Any, config: Dict, logger: Any, interim_dir: Path, reporting_manager: Optional[Any] = None):
         """
         Initialize drop analysis.
 
@@ -29,11 +29,13 @@ class DropAnalysisMethod:
             config: Configuration dictionary
             logger: Logger instance
             interim_dir: Directory for interim TauDEM files
+            reporting_manager: ReportingManager instance
         """
         self.taudem = taudem_executor
         self.config = config
         self.logger = logger
         self.interim_dir = interim_dir
+        self.reporting_manager = reporting_manager
         self.taudem_dir = taudem_executor.taudem_dir
         self.project_dir = interim_dir.parent.parent
 
@@ -105,7 +107,8 @@ class DropAnalysisMethod:
             optimal_threshold = self._find_optimal_threshold(drop_data)
 
             # Save plot
-            self._plot_drop_analysis(drop_data, optimal_threshold)
+            if self.reporting_manager:
+                self.reporting_manager.visualize_drop_analysis(drop_data, optimal_threshold, self.project_dir)
 
             return optimal_threshold
 
@@ -146,41 +149,3 @@ class DropAnalysisMethod:
         self.logger.info(f"Optimal threshold from drop analysis: {optimal_threshold:.0f}")
 
         return optimal_threshold
-
-    def _plot_drop_analysis(self, drop_data: List[Dict], optimal_threshold: float):
-        """
-        Create and save drop analysis plot.
-
-        Args:
-            drop_data: List of dictionaries with threshold and drop statistics
-            optimal_threshold: The selected optimal threshold
-        """
-        try:
-            import matplotlib.pyplot as plt
-
-            thresholds = [d['threshold'] for d in drop_data]
-            mean_drops = [d['mean_drop'] for d in drop_data]
-
-            fig, ax = plt.subplots(figsize=(10, 6))
-            ax.loglog(thresholds, mean_drops, 'bo-', linewidth=2, markersize=8, label='Mean Drop')
-            ax.axvline(optimal_threshold, color='r', linestyle='--', linewidth=2,
-                      label=f'Optimal Threshold = {optimal_threshold:.0f}')
-
-            ax.set_xlabel('Contributing Area Threshold (cells)', fontsize=12)
-            ax.set_ylabel('Mean Stream Drop (m)', fontsize=12)
-            ax.set_title('Drop Analysis for Stream Threshold Selection', fontsize=14)
-            ax.grid(True, alpha=0.3)
-            ax.legend()
-
-            # Save plot
-            plot_path = self.project_dir / "plots" / "drop_analysis.png"
-            plot_path.parent.mkdir(parents=True, exist_ok=True)
-            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-            plt.close()
-
-            self.logger.info(f"Drop analysis plot saved to: {plot_path}")
-
-        except ImportError:
-            self.logger.warning("Matplotlib not available. Skipping drop analysis plot.")
-        except Exception as e:
-            self.logger.warning(f"Could not create drop analysis plot: {str(e)}")

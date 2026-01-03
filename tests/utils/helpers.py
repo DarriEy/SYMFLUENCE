@@ -21,12 +21,13 @@ def load_config_template(symfluence_code_dir):
 
     Raises:
         FileNotFoundError: If config template doesn't exist
+
+    Note:
+        symfluence_code_dir parameter is deprecated, templates are now loaded from package data
     """
-    template_path = Path(symfluence_code_dir) / "0_config_files" / "config_template.yaml"
+    from symfluence.utils.resources import get_config_template
 
-    if not template_path.exists():
-        raise FileNotFoundError(f"Config template not found at {template_path}")
-
+    template_path = get_config_template()
     with open(template_path, 'r') as f:
         config = yaml.safe_load(f)
 

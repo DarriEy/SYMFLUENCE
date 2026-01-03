@@ -36,7 +36,7 @@ WORKFLOW_STEPS = [
 DOMAIN_DEFINITION_METHODS = ['lumped', 'point', 'subset', 'delineate']
 
 # Available tools for binary installation
-EXTERNAL_TOOLS = ['summa', 'mizuroute', 'fuse', 'taudem', 'gistool', 'datatool']
+EXTERNAL_TOOLS = ['summa', 'mizuroute', 'fuse', 'hype', 'taudem', 'gistool', 'datatool']
 
 # Hydrological models
 MODELS = ['SUMMA', 'FUSE', 'GR', 'HYPE']
@@ -72,10 +72,12 @@ For more help on a specific command:
 
         # Global options available to all commands
         parser.add_argument('--config', type=str,
-                          default='./0_config_files/config_template.yaml',
-                          help='Path to configuration file (default: ./0_config_files/config_template.yaml)')
+                          default='./config.yaml',
+                          help='Path to configuration file (default: ./config.yaml)')
         parser.add_argument('--debug', action='store_true',
                           help='Enable debug output')
+        parser.add_argument('--visualise', '--visualize', action='store_true', dest='visualise',
+                          help='Enable visualization during execution')
         parser.add_argument('--dry-run', action='store_true', dest='dry_run',
                           help='Show what would be executed without running')
         parser.add_argument('--version', action='version',
@@ -229,8 +231,8 @@ For more help on a specific command:
         init_parser.add_argument('--definition-method', dest='definition_method', type=str,
                                help='Domain definition method')
         init_parser.add_argument('--output-dir', dest='output_dir', type=str,
-                               default='./0_config_files/',
-                               help='Output directory for config file (default: ./0_config_files/)')
+                               default='./',
+                               help='Output directory for config file (default: ./)')
         init_parser.add_argument('--scaffold', action='store_true',
                                help='Create full directory structure')
         init_parser.add_argument('--minimal', action='store_true',

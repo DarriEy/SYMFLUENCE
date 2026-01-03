@@ -240,13 +240,15 @@ class TestPresetConsistency:
 
     def test_preset_templates_exist(self):
         """Test all presets reference valid template names."""
-        from pathlib import Path
+        from symfluence.utils.resources import get_config_template
 
         presets = load_presets()
-        template_dir = Path(__file__).parent.parent.parent.parent / "0_config_files"
 
         for preset_name, preset in presets.items():
             template_name = preset['base_template']
-            # Just check it's a string and looks like a yaml file
+            # Check it's a valid template name
             assert isinstance(template_name, str)
             assert template_name.endswith('.yaml')
+            # Verify template actually exists in package data
+            template_path = get_config_template(template_name)
+            assert template_path.exists()

@@ -43,14 +43,17 @@ class TRoutePreProcessor(BaseModelPreProcessor):
         self.logger.info("--- t-route Preprocessing Completed Successfully ---")
 
     def copy_base_settings(self):
-        """Copies base settings for t-route from the 0_base_settings directory."""
+        """Copies base settings for t-route from package data."""
         self.logger.info("Copying t-route base settings...")
-        base_settings_path = Path(self.config.get('SYMFLUENCE_CODE_DIR')) / '0_base_settings' / 'troute'
-        self.setup_dir.mkdir(parents=True, exist_ok=True)
-        
-        if not base_settings_path.exists():
-            self.logger.warning(f"Base settings directory not found at {base_settings_path}. Skipping copy.")
+        from symfluence.utils.resources import get_base_settings_dir
+
+        try:
+            base_settings_path = get_base_settings_dir('troute')
+        except FileNotFoundError:
+            self.logger.warning("Base settings for t-route not found in package. Skipping copy.")
             return
+
+        self.setup_dir.mkdir(parents=True, exist_ok=True)
 
         for file in os.listdir(base_settings_path):
             copyfile(base_settings_path / file, self.setup_dir / file)
@@ -64,10 +67,10 @@ class TRoutePreProcessor(BaseModelPreProcessor):
 
         # Define paths using SYMFLUENCE conventions
         river_network_path = self.project_dir / 'shapefiles/river_network'
-        river_network_name = f"{self.config.get('DOMAIN_NAME')}_riverNetwork_{self.config.get('DOMAIN_DEFINITION_METHOD','delineate')}.shp"
+        river_network_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverNetwork_{self.config_dict.get('DOMAIN_DEFINITION_METHOD','delineate')}.shp"
         river_basin_path = self.project_dir / 'shapefiles/river_basins'
-        river_basin_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
-        topology_name = self.config.get('SETTINGS_TROUTE_TOPOLOGY', 'troute_topology.nc')
+        river_basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
+        topology_name = self.config_dict.get('SETTINGS_TROUTE_TOPOLOGY', 'troute_topology.nc')
         topology_filepath = self.setup_dir / topology_name
 
         # Load shapefiles
@@ -86,12 +89,12 @@ class TRoutePreProcessor(BaseModelPreProcessor):
             ncid.createDimension('gages', None) # Unlimited dimension for gages
 
             # Map SYMFLUENCE shapefile columns to t-route's required variable names
-            self._create_and_fill_nc_var(ncid, 'comid', 'i4', 'link', shp_river[self.config.get('RIVER_NETWORK_SHP_SEGID')], 'Unique segment ID')
-            self._create_and_fill_nc_var(ncid, 'to_node', 'i4', 'link', shp_river[self.config.get('RIVER_NETWORK_SHP_DOWNSEGID')], 'Downstream segment ID')
-            self._create_and_fill_nc_var(ncid, 'length', 'f8', 'link', shp_river[self.config.get('RIVER_NETWORK_SHP_LENGTH')], 'Segment length', 'meters')
-            self._create_and_fill_nc_var(ncid, 'slope', 'f8', 'link', shp_river[self.config.get('RIVER_NETWORK_SHP_SLOPE')], 'Segment slope', 'm/m')
-            self._create_and_fill_nc_var(ncid, 'link_id_hru', 'i4', 'nhru', shp_basin[self.config.get('RIVER_BASIN_SHP_HRU_TO_SEG')], 'Segment ID for HRU discharge')
-            self._create_and_fill_nc_var(ncid, 'hru_area_m2', 'f8', 'nhru', shp_basin[self.config.get('RIVER_BASIN_SHP_AREA')], 'HRU area', 'm^2')
+            self._create_and_fill_nc_var(ncid, 'comid', 'i4', 'link', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_SEGID')], 'Unique segment ID')
+            self._create_and_fill_nc_var(ncid, 'to_node', 'i4', 'link', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID')], 'Downstream segment ID')
+            self._create_and_fill_nc_var(ncid, 'length', 'f8', 'link', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_LENGTH')], 'Segment length', 'meters')
+            self._create_and_fill_nc_var(ncid, 'slope', 'f8', 'link', shp_river[self.config_dict.get('RIVER_NETWORK_SHP_SLOPE')], 'Segment slope', 'm/m')
+            self._create_and_fill_nc_var(ncid, 'link_id_hru', 'i4', 'nhru', shp_basin[self.config_dict.get('RIVER_BASIN_SHP_HRU_TO_SEG')], 'Segment ID for HRU discharge')
+            self._create_and_fill_nc_var(ncid, 'hru_area_m2', 'f8', 'nhru', shp_basin[self.config_dict.get('RIVER_BASIN_SHP_AREA')], 'HRU area', 'm^2')
 
             # Add required placeholder variables with sensible defaults
             shp_river['lat'] = shp_river.geometry.centroid.y
@@ -109,16 +112,16 @@ class TRoutePreProcessor(BaseModelPreProcessor):
         self.logger.info("Creating t-route YAML configuration file...")
 
         # Determine paths and parameters from config
-        source_model = self.config.get('TROUTE_FROM_MODEL', 'SUMMA').upper()
-        experiment_id = self.config.get('EXPERIMENT_ID')
+        source_model = self.config_dict.get('TROUTE_FROM_MODEL', 'SUMMA').upper()
+        experiment_id = self.config_dict.get('EXPERIMENT_ID')
         input_dir = self.project_dir / f"simulations/{experiment_id}" / source_model
         output_dir = self.project_dir / f"simulations/{experiment_id}" / 'troute'
-        topology_name = self.config.get('SETTINGS_TROUTE_TOPOLOGY', 'troute_topology.nc')
+        topology_name = self.config_dict.get('SETTINGS_TROUTE_TOPOLOGY', 'troute_topology.nc')
 
         # Calculate nts (Number of Timesteps)
-        start_dt = datetime.fromisoformat(self.config.get('EXPERIMENT_TIME_START'))
-        end_dt = datetime.fromisoformat(self.config.get('EXPERIMENT_TIME_END'))
-        time_step_seconds = int(self.config.get('SETTINGS_TROUTE_DT_SECONDS', 3600))
+        start_dt = datetime.fromisoformat(self.config_dict.get('EXPERIMENT_TIME_START'))
+        end_dt = datetime.fromisoformat(self.config_dict.get('EXPERIMENT_TIME_END'))
+        time_step_seconds = int(self.config_dict.get('SETTINGS_TROUTE_DT_SECONDS', 3600))
         total_seconds = (end_dt - start_dt).total_seconds() + time_step_seconds
         nts = int(total_seconds / time_step_seconds)
 
@@ -127,7 +130,7 @@ class TRoutePreProcessor(BaseModelPreProcessor):
             'log_parameters': {'showtiming': True, 'log_level': 'DEBUG'},
             'network_topology_parameters': {'supernetwork_parameters': {'geo_file_path': str(self.setup_dir / topology_name)}},
             'compute_parameters': {
-                'restart_parameters': {'start_datetime': self.config.get('EXPERIMENT_TIME_START')},
+                'restart_parameters': {'start_datetime': self.config_dict.get('EXPERIMENT_TIME_START')},
                 'forcing_parameters': {
                     'nts': nts,
                     'qlat_input_folder': str(input_dir),
@@ -138,7 +141,7 @@ class TRoutePreProcessor(BaseModelPreProcessor):
         }
 
         # Write dictionary to YAML file
-        yaml_filename = self.config.get('SETTINGS_TROUTE_CONFIG_FILE', 'troute_config.yml')
+        yaml_filename = self.config_dict.get('SETTINGS_TROUTE_CONFIG_FILE', 'troute_config.yml')
         yaml_filepath = self.setup_dir / yaml_filename
         with open(yaml_filepath, 'w') as f:
             yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False, indent=2)

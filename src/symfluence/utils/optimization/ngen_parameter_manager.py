@@ -19,6 +19,7 @@ import logging
 import re
 
 from symfluence.utils.optimization.core.base_parameter_manager import BaseParameterManager
+from symfluence.utils.optimization.core.parameter_bounds_registry import get_ngen_bounds
 
 
 class NgenParameterManager(BaseParameterManager):
@@ -86,8 +87,8 @@ class NgenParameterManager(BaseParameterManager):
         return all_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return hardcoded ngen parameter bounds in module.param format."""
-        base_bounds = self._get_default_ngen_bounds()
+        """Return ngen parameter bounds from central registry in module.param format."""
+        base_bounds = get_ngen_bounds()
         bounds = {}
 
         for module, params in self.params_to_calibrate.items():
@@ -102,6 +103,10 @@ class NgenParameterManager(BaseParameterManager):
                     bounds[full_param_name] = {'min': 0.1, 'max': 10.0}
 
         return bounds
+
+    def _get_default_ngen_bounds(self) -> Dict[str, Dict[str, float]]:
+        """Return default ngen bounds without module prefixes."""
+        return get_ngen_bounds()
 
     def update_model_files(self, params: Dict[str, float]) -> bool:
         """Update ngen config files (JSON or BMI text)."""
@@ -149,63 +154,7 @@ class NgenParameterManager(BaseParameterManager):
         
         return params
 
-    def _get_default_ngen_bounds(self) -> Dict[str, Dict[str, float]]:
-        """
-        Get default parameter bounds for ngen modules.
-        
-        Returns:
-            Dictionary of parameter bounds with 'min' and 'max' values
-        """
-        bounds = {}
-        
-        # CFE (Conceptual Functional Equivalent) parameters
-        bounds['maxsmc'] = {'min': 0.3, 'max': 0.6}       # Maximum soil moisture content (fraction)
-        bounds['wltsmc'] = {'min': 0.02, 'max': 0.15}     # Wilting point soil moisture (fraction)
-        bounds['satdk'] = {'min': 1e-6, 'max': 5e-5}      # Saturated hydraulic conductivity (m/s)
-        bounds['satpsi'] = {'min': 0.05, 'max': 0.5}      # Saturated soil potential (m)
-        bounds['bb'] = {'min': 3.0, 'max': 12.0}          # Pore size distribution index (-)
-        bounds['mult'] = {'min': 500.0, 'max': 2000.0}    # TIGHTENED: Multiplier parameter (mm)
-        bounds['slop'] = {'min': 0.01, 'max': 0.5}        # TOPMODEL slope parameter (-)
-        bounds['smcmax'] = {'min': 0.3, 'max': 0.55}      # Maximum soil moisture (m3/m3)
-        bounds['alpha_fc'] = {'min': 0.3, 'max': 0.8}     # Field capacity coefficient (-)
-        bounds['expon'] = {'min': 1.0, 'max': 6.0}        # TIGHTENED: Exponent parameter (-)
-        
-        bounds['K_lf'] = {'min': 0.01, 'max': 0.5}        # TIGHTENED: Lateral flow coefficient (1/h)
-        bounds['K_nash'] = {'min': 0.01, 'max': 0.4}      # Nash cascade coefficient (1/h)
-        bounds['Klf'] = {'min': 0.01, 'max': 0.5}         # Alias for K_lf
-        bounds['Kn'] = {'min': 0.01, 'max': 0.4}          # Alias for K_nash
-        
-        bounds['Cgw'] = {'min': 0.0001, 'max': 0.005}     # TIGHTENED: Groundwater coefficient (m/h)
-        bounds['max_gw_storage'] = {'min': 0.01, 'max': 0.3}  # TIGHTENED: Maximum groundwater storage (m)
-        bounds['refkdt'] = {'min': 0.5, 'max': 3.0}       # Reference surface runoff parameter (-)
-        
-        # NOAH-OWP parameters (unchanged)
-        bounds['slope'] = {'min': 0.1, 'max': 1.0}
-        bounds['dksat'] = {'min': 1e-7, 'max': 1e-4}
-        bounds['psisat'] = {'min': 0.01, 'max': 1.0}
-        bounds['bexp'] = {'min': 2.0, 'max': 14.0}
-        bounds['smcwlt'] = {'min': 0.01, 'max': 0.3}
-        bounds['smcref'] = {'min': 0.1, 'max': 0.5}
-        bounds['noah_refdk'] = {'min': 1e-7, 'max': 1e-3}
-        bounds['noah_refkdt'] = {'min': 0.5, 'max': 5.0}
-        bounds['noah_czil'] = {'min': 0.02, 'max': 0.2}
-        bounds['noah_z0'] = {'min': 0.001, 'max': 1.0}
-        bounds['noah_frzk'] = {'min': 0.0, 'max': 10.0}
-        bounds['noah_salp'] = {'min': -2.0, 'max': 2.0}
-        bounds['rain_snow_thresh'] = {'min': -2.0, 'max': 2.0}
-        bounds['ZREF'] = {'min': 2.0, 'max': 10.0}
-        
-        # PET parameters (unchanged)
-        bounds['wind_speed_measurement_height_m'] = {'min': 2.0, 'max': 10.0}
-        bounds['humidity_measurement_height_m'] = {'min': 2.0, 'max': 10.0}
-        bounds['pet_albedo'] = {'min': 0.05, 'max': 0.5}
-        bounds['pet_z0_mom'] = {'min': 0.001, 'max': 1.0}
-        bounds['pet_z0_heat'] = {'min': 0.0001, 'max': 0.1}
-        bounds['pet_veg_h'] = {'min': 0.1, 'max': 30.0}
-        bounds['pet_d0'] = {'min': 0.0, 'max': 20.0}
-        
-        return bounds
-
+    # Note: Parameter bounds are now provided by the central ParameterBoundsRegistry
     # Note: all_param_names property and get_parameter_bounds() are inherited from BaseParameterManager
     def get_default_parameters(self) -> Dict[str, float]:
         """Get default parameter values (middle of bounds)"""

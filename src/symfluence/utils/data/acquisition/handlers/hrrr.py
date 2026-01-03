@@ -52,9 +52,21 @@ class HRRRAcquirer(BaseAcquisitionHandler):
         if step > 1: ds_final = ds_final.isel(time=slice(0, None, step))
         if "latitude" not in ds_final.coords and "projection_x_coordinate" in ds_final.coords:
             from pyproj import Transformer
-            tr = Transformer.from_crs("+proj=lcc +lat_0=38.5 +lon_0=-97.5 +lat_1=38.5 +lat_2=38.5 +x_0=0 +y_0=0 +R=6371229 +units=m +no_defs", "EPSG:4326", always_xy=True)
-            lon_m, lat_m = tr.transform(*np.meshgrid(ds_final.coords["projection_x_coordinate"].values, ds_final.coords["projection_y_coordinate"].values))
-            ds_final = ds_final.assign_coords(longitude=(["projection_y_coordinate", "projection_x_coordinate"], lon_m.astype(np.float32)), latitude=(["projection_y_coordinate", "projection_x_coordinate"], lat_m.astype(np.float32)))
+            tr = Transformer.from_crs(
+                "+proj=lcc +lat_0=38.5 +lon_0=-97.5 +lat_1=38.5 +lat_2=38.5 +x_0=0 +y_0=0 +R=6371229 +units=m +no_defs",
+                "EPSG:4326",
+                always_xy=True,
+            )
+            proj_x = ds_final.coords["projection_x_coordinate"].values
+            proj_y = ds_final.coords["projection_y_coordinate"].values
+            x_mesh, y_mesh = np.meshgrid(proj_x, proj_y)
+            lon_flat, lat_flat = tr.transform(x_mesh.ravel(), y_mesh.ravel())
+            lon_m = lon_flat.reshape(x_mesh.shape).astype(np.float32)
+            lat_m = lat_flat.reshape(y_mesh.shape).astype(np.float32)
+            ds_final = ds_final.assign_coords(
+                longitude=(["projection_y_coordinate", "projection_x_coordinate"], lon_m),
+                latitude=(["projection_y_coordinate", "projection_x_coordinate"], lat_m),
+            )
 
         # Convert float16 to float32 (NetCDF doesn't support float16)
         for var in ds_final.data_vars:

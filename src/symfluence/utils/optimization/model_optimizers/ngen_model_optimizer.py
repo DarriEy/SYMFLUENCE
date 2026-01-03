@@ -36,7 +36,8 @@ class NgenModelOptimizer(BaseModelOptimizer):
         self,
         config: Dict[str, Any],
         logger: logging.Logger,
-        optimization_settings_dir: Optional[Path] = None
+        optimization_settings_dir: Optional[Path] = None,
+        reporting_manager: Optional[Any] = None
     ):
         """
         Initialize NextGen optimizer.
@@ -45,8 +46,9 @@ class NgenModelOptimizer(BaseModelOptimizer):
             config: Configuration dictionary
             logger: Logger instance
             optimization_settings_dir: Optional path to optimization settings
+            reporting_manager: ReportingManager instance
         """
-        super().__init__(config, logger, optimization_settings_dir)
+        super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
         # NGEN-specific paths
         self.ngen_sim_dir = self.project_dir / 'simulations' / self.experiment_id / 'NGEN'

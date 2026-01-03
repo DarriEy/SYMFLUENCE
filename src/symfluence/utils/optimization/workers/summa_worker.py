@@ -88,7 +88,7 @@ class SUMMAWorker(BaseWorker):
         """
         try:
             # Import existing function
-            from ..worker_scripts import _apply_parameters_worker
+            from .summa_parallel_workers import _apply_parameters_worker
 
             # Build task_data for legacy function
             task_data = kwargs.get('task_data', {})
@@ -184,7 +184,7 @@ class SUMMAWorker(BaseWorker):
         """
         try:
             # Import existing functions
-            from ..worker_scripts import _run_summa_worker, _run_mizuroute_worker
+            from .summa_parallel_workers import _run_summa_worker, _run_mizuroute_worker
 
             # Resolve paths
             summa_exe = Path(config.get('SUMMA_INSTALL_PATH', 'default'))
@@ -308,23 +308,16 @@ class SUMMAWorker(BaseWorker):
         """
         try:
             # Import existing function
-            from ..worker_scripts import _calculate_metrics_inline_worker
+            from .summa_parallel_workers import _calculate_metrics_inline_worker
 
-            # Build task data
-            task_data = {
-                'config': config,
-                'summa_dir': str(output_dir),
-            }
-            task_data.update(kwargs)
-
-            # Create minimal logger
-            internal_logger = logging.getLogger('summa_worker_metrics')
-            internal_logger.setLevel(logging.WARNING)
-
-            debug_info = {'stage': 'metrics', 'errors': []}
+            # Resolve mizuroute_dir if needed
+            mizuroute_dir = kwargs.get('mizuroute_dir')
+            if not mizuroute_dir and self.needs_routing(config):
+                sim_dir = kwargs.get('sim_dir', output_dir)
+                mizuroute_dir = sim_dir / 'mizuRoute'
 
             metrics = _calculate_metrics_inline_worker(
-                task_data, config, internal_logger, debug_info
+                output_dir, mizuroute_dir, config, internal_logger
             )
 
             # Ensure return is a dict
@@ -421,7 +414,7 @@ class SUMMAWorker(BaseWorker):
         """
         try:
             # Use existing safe wrapper for full functionality
-            from ..worker_scripts import _evaluate_parameters_worker_safe
+            from .summa_parallel_workers import _evaluate_parameters_worker_safe
             return _evaluate_parameters_worker_safe(task_data)
 
         except ImportError:

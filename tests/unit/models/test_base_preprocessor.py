@@ -57,6 +57,9 @@ def preprocessor(config, logger, tmp_path):
     project_dir = tmp_path / 'domain_test_domain'
     (project_dir / 'settings' / 'TEST').mkdir(parents=True, exist_ok=True)
     (project_dir / 'forcing' / 'TEST_input').mkdir(parents=True, exist_ok=True)
+    # Make sure local base settings exist in the fake code directory
+    code_dir = Path(config['SYMFLUENCE_CODE_DIR'])
+    (code_dir / 'src' / 'symfluence' / 'data' / 'base_settings' / 'TEST').mkdir(parents=True, exist_ok=True)
 
     return ConcretePreProcessor(config, logger)
 
@@ -66,7 +69,7 @@ class TestBaseModelPreProcessorInitialization:
 
     def test_initialization(self, preprocessor, config, tmp_path):
         """Test basic initialization."""
-        assert preprocessor.config == config
+        assert preprocessor.config_dict == config
         assert preprocessor.domain_name == 'test_domain'
         assert preprocessor.data_dir == tmp_path
         assert preprocessor.project_dir == tmp_path / 'domain_test_domain'
@@ -106,7 +109,7 @@ class TestPathResolution:
     def test_get_default_path_with_custom(self, preprocessor, tmp_path):
         """Test _get_default_path with custom path."""
         custom_path = tmp_path / 'custom' / 'path'
-        preprocessor.config['CUSTOM_PATH'] = str(custom_path)
+        preprocessor.config_dict['CUSTOM_PATH'] = str(custom_path)
         result = preprocessor._get_default_path('CUSTOM_PATH', 'default/path')
         assert result == custom_path
 
@@ -177,8 +180,8 @@ class TestFilePathResolution:
         """Test _get_file_path with custom path."""
         custom_dir = tmp_path / 'custom'
         custom_dir.mkdir(exist_ok=True)
-        preprocessor.config['FILE_PATH'] = str(custom_dir)
-        preprocessor.config['FILE_NAME'] = 'custom_file.txt'
+        preprocessor.config_dict['FILE_PATH'] = str(custom_dir)
+        preprocessor.config_dict['FILE_NAME'] = 'custom_file.txt'
 
         result = preprocessor._get_file_path(
             'test_file',
@@ -199,7 +202,7 @@ class TestHelperMethods:
 
     def test_is_lumped_false(self, preprocessor):
         """Test _is_lumped returns False for distributed configuration."""
-        preprocessor.config['DOMAIN_DEFINITION_METHOD'] = 'distributed'
+        preprocessor.config_dict['DOMAIN_DEFINITION_METHOD'] = 'distributed'
         assert preprocessor._is_lumped() is False
 
 
@@ -310,7 +313,7 @@ class TestNewMethods:
 
     def test_get_dem_path_custom(self, preprocessor):
         """Test get_dem_path with custom DEM name."""
-        preprocessor.config['DEM_NAME'] = 'custom_dem.tif'
+        preprocessor.config_dict['DEM_NAME'] = 'custom_dem.tif'
         result = preprocessor.get_dem_path()
         expected = preprocessor.project_dir / 'attributes' / 'elevation' / 'dem' / 'custom_dem.tif'
         assert result == expected
@@ -351,7 +354,14 @@ class TestNewMethods:
     def test_get_base_settings_source_dir(self, preprocessor, tmp_path):
         """Test get_base_settings_source_dir."""
         result = preprocessor.get_base_settings_source_dir()
-        expected = Path(preprocessor.config['SYMFLUENCE_CODE_DIR']) / '0_base_settings' / 'TEST'
+        expected = (
+            Path(preprocessor.config_dict['SYMFLUENCE_CODE_DIR'])
+            / 'src'
+            / 'symfluence'
+            / 'data'
+            / 'base_settings'
+            / 'TEST'
+        )
         assert result == expected
 
 

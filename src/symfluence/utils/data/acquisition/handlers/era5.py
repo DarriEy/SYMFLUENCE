@@ -1,3 +1,4 @@
+import os
 import xarray as xr
 import pandas as pd
 import numpy as np
@@ -6,9 +7,35 @@ from typing import Dict, Any, List, Optional, Tuple
 import logging
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+from .era5_cds import ERA5CDSAcquirer
+
+def has_cds_credentials():
+    """Check if CDS API credentials are available."""
+    return os.path.exists(os.path.expanduser('~/.cdsapirc')) or 'CDSAPI_KEY' in os.environ
 
 @AcquisitionRegistry.register('ERA5')
 class ERA5Acquirer(BaseAcquisitionHandler):
+    """
+    Dispatcher for ERA5 data acquisition, choosing between ARCO (Zarr) and CDS (NetCDF) pathways.
+    """
+    def download(self, output_dir: Path) -> Path:
+        # Default to CDS if credentials exist, unless explicitly disabled
+        use_cds = self.config.get('ERA5_USE_CDS', has_cds_credentials())
+        
+        if use_cds:
+            self.logger.info("Using CDS pathway for ERA5")
+            try:
+                return ERA5CDSAcquirer(self.config, self.logger).download(output_dir)
+            except Exception as e:
+                self.logger.warning(f"CDS pathway failed: {e}. Falling back to ARCO if possible.")
+        
+        self.logger.info("Using ARCO (Google Cloud) pathway for ERA5")
+        return ERA5ARCOAcquirer(self.config, self.logger).download(output_dir)
+
+class ERA5ARCOAcquirer(BaseAcquisitionHandler):
+    """
+    ERA5 data acquisition handler using the Google Cloud ARCO-ERA5 (Zarr) pathway.
+    """
     def download(self, output_dir: Path) -> Path:
         self.logger.info("Downloading ERA5 data from Google Cloud ARCO-ERA5")
         domain_name = self.domain_name
@@ -58,6 +85,16 @@ class ERA5Acquirer(BaseAcquisitionHandler):
                 ds_t = ds.sel(time=slice(time_start, chunk_end))
                 if "time" not in ds_t.dims or ds_t.sizes["time"] < 2: continue
                 ds_ts = ds_t.sel(latitude=slice(lat_max_raw, lat_min_raw), longitude=slice(lon_min, lon_max))
+
+                # Check for empty spatial dimensions (bounding box too small for grid resolution)
+                if "latitude" not in ds_ts.dims or "longitude" not in ds_ts.dims:
+                    self.logger.warning(f"Chunk {i}: Missing spatial dimensions after bounding box selection")
+                    continue
+                if ds_ts.sizes.get("latitude", 0) == 0 or ds_ts.sizes.get("longitude", 0) == 0:
+                    self.logger.warning(f"Chunk {i}: Empty spatial dimensions after bounding box selection. "
+                                       f"Bounding box may be too small for ERA5 resolution (0.25°)")
+                    continue
+
                 if step > 1 and "time" in ds_ts.dims: ds_ts = ds_ts.isel(time=slice(0, None, step))
                 if "time" not in ds_ts.dims or ds_ts.sizes["time"] < 2: continue
                 ds_chunk = _era5_to_summa_schema_standalone(ds_ts[[v for v in available_vars if v in ds_ts.data_vars]])
@@ -110,6 +147,13 @@ def _process_era5_chunk_threadsafe(idx, times, ds, vars, step, lat_min, lat_max,
         ds_t = ds.sel(time=slice(ts, end))
         if "time" not in ds_t.dims or ds_t.sizes["time"] < 2: return idx, None, "skipped"
         ds_ts = ds_t.sel(latitude=slice(lat_max, lat_min), longitude=slice(lon_min, lon_max))
+
+        # Check for empty spatial dimensions
+        if "latitude" not in ds_ts.dims or "longitude" not in ds_ts.dims:
+            return idx, None, "skipped: missing spatial dimensions"
+        if ds_ts.sizes.get("latitude", 0) == 0 or ds_ts.sizes.get("longitude", 0) == 0:
+            return idx, None, "skipped: empty spatial dimensions (bbox too small for ERA5 resolution)"
+
         if step > 1 and "time" in ds_ts.dims: ds_ts = ds_ts.isel(time=slice(0, None, step))
         if "time" not in ds_ts.dims or ds_ts.sizes["time"] < 2: return idx, None, "skipped"
         ds_chunk = _era5_to_summa_schema_standalone(ds_ts[[v for v in vars if v in ds_ts.data_vars]])

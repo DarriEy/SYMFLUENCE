@@ -248,7 +248,7 @@ def _format_validation_error(error: ValidationError, config: Dict[str, Any]) -> 
         for field in missing_fields:
             error_lines.append(f"  ✗ {field}")
         error_lines.append("")
-        error_lines.append("  Tip: See 0_config_files/config_template.yaml for all required fields")
+        error_lines.append("  Tip: Use 'symfluence config list' to see available templates")
 
     # Format invalid values with suggestions
     if invalid_values:
@@ -296,8 +296,8 @@ def _format_validation_error(error: ValidationError, config: Dict[str, Any]) -> 
     error_lines.append("")
     error_lines.append("=" * 70)
     error_lines.append("For configuration help:")
-    error_lines.append("  • Template: 0_config_files/config_template.yaml")
-    error_lines.append("  • Examples: 0_config_files/config_*_tutorial.yaml")
+    error_lines.append("  • List templates: symfluence config list")
+    error_lines.append("  • Example configs: examples/configs/*_tutorial.yaml")
     error_lines.append("  • Docs: https://github.com/CH-Earth/SUMMA")
     error_lines.append("=" * 70)
 

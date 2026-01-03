@@ -2,23 +2,29 @@
 TRoute Model Runner.
 
 Manages the execution of the t-route routing model.
+Refactored to use the Unified Model Execution Framework.
 """
 
 import subprocess
 import xarray as xr
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 
 from symfluence.utils.models.registry import ModelRegistry
 from symfluence.utils.models.base import BaseModelRunner
+from symfluence.utils.models.execution import ModelExecutor
 
 
 @ModelRegistry.register_runner('TROUTE', method_name='run_troute')
-class TRouteRunner(BaseModelRunner):
-    """A standalone runner for the t-route model."""
-    def __init__(self, config: Dict[str, Any], logger: Any):
+class TRouteRunner(BaseModelRunner, ModelExecutor):
+    """
+    A standalone runner for the t-route model.
+
+    Uses the Unified Model Execution Framework for subprocess execution.
+    """
+    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
         # Call base class
-        super().__init__(config, logger)
+        super().__init__(config, logger, reporting_manager=reporting_manager)
 
     def _get_model_name(self) -> str:
         """Return model name for TRoute."""
@@ -39,7 +45,7 @@ class TRouteRunner(BaseModelRunner):
 
         # 2. Set up paths for execution
         settings_path = self.project_dir / 'settings' / 'troute'
-        config_file = self.config.get('SETTINGS_TROUTE_CONFIG_FILE', 'troute_config.yml')
+        config_file = self.config_dict.get('SETTINGS_TROUTE_CONFIG_FILE', 'troute_config.yml')
         config_filepath = settings_path / config_file
         troute_out_path = self.get_experiment_output_dir()
         log_path = self.get_log_path()
@@ -72,15 +78,15 @@ class TRouteRunner(BaseModelRunner):
         """
         self.logger.info("Preparing runoff file for t-route...")
 
-        source_model = self.config.get('TROUTE_FROM_MODEL', 'SUMMA').upper()
-        experiment_id = self.config.get('EXPERIMENT_ID')
+        source_model = self.config_dict.get('TROUTE_FROM_MODEL', 'SUMMA').upper()
+        experiment_id = self.config_dict.get('EXPERIMENT_ID')
         runoff_filepath = self.project_dir / f"simulations/{experiment_id}/{source_model}/{experiment_id}_timestep.nc"
 
         # Verify runoff file exists
         self.verify_required_files(runoff_filepath, context="t-route runoff preparation")
 
         # Fetch the original runoff variable name from config
-        original_var = self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
+        original_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
         
         self.logger.debug(f"Checking for variable '{original_var}' in {runoff_filepath}")
 

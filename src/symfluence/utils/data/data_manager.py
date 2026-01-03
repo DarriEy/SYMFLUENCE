@@ -59,6 +59,10 @@ class DataManager:
         """Delegate to AcquisitionService."""
         self.acquisition_service.acquire_forcings()
 
+    def acquire_observations(self):
+        """Delegate to AcquisitionService."""
+        self.acquisition_service.acquire_observations()
+
     def acquire_em_earth_forcings(self):
         """Delegate to AcquisitionService."""
         self.acquisition_service.acquire_em_earth_forcings()
@@ -77,23 +81,61 @@ class DataManager:
             self.logger,
             error_type=DataAcquisitionError
         ):
-            # 1. Traditional streamflow processing
-            observed_data_processor = ObservedDataProcessor(self.config, self.logger)
-            observed_data_processor.process_streamflow_data()
-            observed_data_processor.process_snotel_data()
-            observed_data_processor.process_fluxnet_data()
-            observed_data_processor.process_usgs_groundwater_data()
-
-            # 2. Registry-based additional observations (GRACE, MODIS, etc.)
+            # 1. Parse observations to process
             additional_obs = self.config.get('ADDITIONAL_OBSERVATIONS', [])
             if isinstance(additional_obs, str):
                 additional_obs = [o.strip() for o in additional_obs.split(',')]
+            
+            # 2. Check for primary streamflow provider and handle USGS/WSC migration
+            streamflow_provider = (self.config.get('STREAMFLOW_DATA_PROVIDER') or '').upper()
+            if streamflow_provider == 'USGS' and 'USGS_STREAMFLOW' not in additional_obs:
+                # Automatically add USGS_STREAMFLOW if it's the primary provider but not in additional_obs
+                additional_obs.append('USGS_STREAMFLOW')
+            elif streamflow_provider == 'WSC' and 'WSC_STREAMFLOW' not in additional_obs:
+                additional_obs.append('WSC_STREAMFLOW')
+            
+            # Check for USGS Groundwater download and ensure it's in additional_obs
+            download_usgs_gw = self.config.get('DOWNLOAD_USGS_GW', False)
+            if isinstance(download_usgs_gw, str):
+                download_usgs_gw = download_usgs_gw.lower() == 'true'
+            
+            if download_usgs_gw and 'USGS_GW' not in additional_obs:
+                additional_obs.append('USGS_GW')
+            
+            # Check for MODIS Snow and ensure it's in additional_obs
+            if self.config.get('DOWNLOAD_MODIS_SNOW', False) and 'MODIS_SNOW' not in additional_obs:
+                additional_obs.append('MODIS_SNOW')
+            
+            # Check for SNOTEL download and ensure it's in additional_obs
+            download_snotel = self.config.get('DOWNLOAD_SNOTEL', False)
+            if isinstance(download_snotel, str):
+                download_snotel = download_snotel.lower() == 'true'
+            
+            if download_snotel and 'SNOTEL' not in additional_obs:
+                additional_obs.append('SNOTEL')
+
+            # 3. Traditional streamflow processing (for providers not yet migrated)
+            observed_data_processor = ObservedDataProcessor(self.config, self.logger)
+            
+            # Only run traditional if NOT using the formalized handlers
+            if streamflow_provider not in ['USGS', 'WSC'] or (
+                'USGS_STREAMFLOW' not in additional_obs and 'WSC_STREAMFLOW' not in additional_obs
+            ):
+                observed_data_processor.process_streamflow_data()
+            
+            observed_data_processor.process_fluxnet_data()
+
+            # 4. Registry-based additional observations (GRACE, MODIS, USGS, etc.)
 
             for obs_type in additional_obs:
                 try:
-                    handler = ObservationRegistry.get_handler(obs_type, self.config, self.logger)
-                    raw_path = handler.acquire()
-                    handler.process(raw_path)
+                    if ObservationRegistry.is_registered(obs_type):
+                        self.logger.info(f"Processing registry-based observation: {obs_type}")
+                        handler = ObservationRegistry.get_handler(obs_type, self.config, self.logger)
+                        raw_path = handler.acquire()
+                        handler.process(raw_path)
+                    else:
+                        self.logger.warning(f"Observation type {obs_type} requested but no handler registered.")
                 except Exception as e:
                     self.logger.warning(f"Failed to process additional observation {obs_type}: {e}")
 

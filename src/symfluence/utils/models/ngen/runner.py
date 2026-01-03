@@ -2,51 +2,46 @@
 NGen Model Runner.
 
 Manages the execution of the NOAA NextGen Framework (ngen).
+Refactored to use the Unified Model Execution Framework.
 """
 
 import os
 import subprocess
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 
 from symfluence.utils.models.registry import ModelRegistry
 from symfluence.utils.models.base import BaseModelRunner
+from symfluence.utils.models.execution import ModelExecutor
+from symfluence.utils.exceptions import ModelExecutionError, symfluence_error_handler
 
 
 @ModelRegistry.register_runner('NGEN', method_name='run_model')
-class NgenRunner(BaseModelRunner):
+class NgenRunner(BaseModelRunner, ModelExecutor):
     """
     Runner for NextGen Framework simulations.
 
     Handles execution of ngen with proper paths and error handling.
+    Uses the Unified Model Execution Framework for subprocess execution.
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
-        """
-        Initialize the NextGen runner.
-
-        Args:
-            config: Configuration dictionary
-            logger: Logger object
-        """
+    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
         # Call base class
-        super().__init__(config, logger)
+        super().__init__(config, logger, reporting_manager=reporting_manager)
 
     def _setup_model_specific_paths(self) -> None:
         """Set up NGEN-specific paths."""
         self.ngen_setup_dir = self.project_dir / "settings" / "NGEN"
 
-        # Ngen-specific: Complex exe path resolution
-        # NGEN install path is relative to parent of data_dir
-        if self.typed_config and self.typed_config.model.ngen:
-            ngen_install_path = self.typed_config.model.ngen.install_path
-        else:
-            ngen_install_path = self.config.get('NGEN_INSTALL_PATH', 'default')
-
-        if ngen_install_path == 'default':
-            self.ngen_exe = self.data_dir.parent / 'installs' / 'ngen' / 'build' / 'ngen'
-        else:
-            self.ngen_exe = Path(ngen_install_path) / 'ngen'
+        # Use standardized executable resolution from BaseModelRunner
+        # Note: NGEN install path is relative to parent of data_dir (../installs/ngen/build)
+        self.ngen_exe = self.get_model_executable(
+            install_path_key='NGEN_INSTALL_PATH',
+            default_install_subpath='../installs/ngen/build',
+            exe_name_key=None,  # NGEN exe name is just 'ngen'
+            default_exe_name='ngen',
+            relative_to='data_dir'
+        )
 
     def _get_model_name(self) -> str:
         """Return model name for NextGen."""
@@ -67,99 +62,104 @@ class NgenRunner(BaseModelRunner):
         """
         self.logger.debug("Starting NextGen model run")
 
-        # Get experiment info
-        if experiment_id is None:
-            if self.typed_config:
-                experiment_id = self.typed_config.domain.experiment_id
+        with symfluence_error_handler(
+            "NextGen model execution",
+            self.logger,
+            error_type=ModelExecutionError
+        ):
+            # Get experiment info
+            if experiment_id is None:
+                if self.config:
+                    experiment_id = self.config.domain.experiment_id
+                else:
+                    experiment_id = self.config_dict.get('EXPERIMENT_ID', 'default_run')
+            output_dir = self.get_experiment_output_dir(experiment_id)
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Setup paths for ngen execution
+            if self.config:
+                domain_name = self.config.domain.name
             else:
-                experiment_id = self.config.get('EXPERIMENT_ID', 'default_run')
-        output_dir = self.get_experiment_output_dir(experiment_id)
-        output_dir.mkdir(parents=True, exist_ok=True)
+                domain_name = self.config_dict.get('DOMAIN_NAME')
+            use_geojson = getattr(self, "_use_geojson_catchments", False)
+            if use_geojson:
+                catchment_file = self.ngen_setup_dir / f"{domain_name}_catchments.geojson"
+            else:
+                catchment_file = self.ngen_setup_dir / f"{domain_name}_catchments.gpkg"
+            fallback_catchment_file = self.ngen_setup_dir / f"{domain_name}_catchments.geojson"
+            nexus_file = self.ngen_setup_dir / "nexus.geojson"
+            realization_file = self.ngen_setup_dir / "realization_config.json"
 
-        # Setup paths for ngen execution
-        if self.typed_config:
-            domain_name = self.typed_config.domain.name
-        else:
-            domain_name = self.config.get('DOMAIN_NAME')
-        use_geojson = getattr(self, "_use_geojson_catchments", False)
-        if use_geojson:
-            catchment_file = self.ngen_setup_dir / f"{domain_name}_catchments.geojson"
-        else:
-            catchment_file = self.ngen_setup_dir / f"{domain_name}_catchments.gpkg"
-        fallback_catchment_file = self.ngen_setup_dir / f"{domain_name}_catchments.geojson"
-        nexus_file = self.ngen_setup_dir / "nexus.geojson"
-        realization_file = self.ngen_setup_dir / "realization_config.json"
-
-        # Verify required files exist
-        self.verify_required_files(
-            [catchment_file, nexus_file, realization_file],
-            context="NextGen model execution"
-        )
-
-        # Build ngen command
-        ngen_cmd = [
-            str(self.ngen_exe),
-            str(catchment_file),
-            "all",
-            str(nexus_file),
-            "all",
-            str(realization_file)
-        ]
-
-        self.logger.debug(f"Running command: {' '.join(ngen_cmd)}")
-
-        # Run ngen
-        log_file = output_dir / "ngen_log.txt"
-        try:
-            # Setup environment with library paths
-            env = os.environ.copy()
-
-            self.execute_model_subprocess(
-                ngen_cmd,
-                log_file,
-                cwd=self.ngen_exe.parent,  # Run from ngen build directory (needed for relative library paths)
-                env=env,  # Use modified environment with library paths
-                success_message="NextGen model run completed successfully"
+            # Verify required files exist
+            self.verify_required_files(
+                [catchment_file, nexus_file, realization_file],
+                context="NextGen model execution"
             )
 
-            # Move outputs from build directory to output directory
-            self._move_ngen_outputs(self.ngen_exe.parent, output_dir)
+            # Build ngen command
+            ngen_cmd = [
+                str(self.ngen_exe),
+                str(catchment_file),
+                "all",
+                str(nexus_file),
+                "all",
+                str(realization_file)
+            ]
 
-            return True
+            self.logger.debug(f"Running command: {' '.join(ngen_cmd)}")
 
-        except subprocess.CalledProcessError as e:
-            if not use_geojson and fallback_catchment_file.exists():
-                try:
-                    log_text = log_file.read_text(errors='ignore')
-                except Exception:
-                    log_text = ""
-                sqlite_error = "SQLite3 support required to read GeoPackage files"
-                if sqlite_error in log_text:
-                    self.logger.warning(
-                        "NGEN lacks GeoPackage support; retrying with GeoJSON catchments"
-                    )
-                    ngen_cmd[1] = str(fallback_catchment_file)
+            # Run ngen
+            log_file = output_dir / "ngen_log.txt"
+            try:
+                # Setup environment with library paths
+                env = os.environ.copy()
+
+                self.execute_model_subprocess(
+                    ngen_cmd,
+                    log_file,
+                    cwd=self.ngen_exe.parent,  # Run from ngen build directory (needed for relative library paths)
+                    env=env,  # Use modified environment with library paths
+                    success_message="NextGen model run completed successfully"
+                )
+
+                # Move outputs from build directory to output directory
+                self._move_ngen_outputs(self.ngen_exe.parent, output_dir)
+
+                return True
+
+            except subprocess.CalledProcessError as e:
+                if not use_geojson and fallback_catchment_file.exists():
                     try:
-                        self.execute_model_subprocess(
-                            ngen_cmd,
-                            log_file,
-                            cwd=self.ngen_exe.parent,
-                            env=env,
-                            success_message="NextGen model run completed successfully (GeoJSON fallback)"
+                        log_text = log_file.read_text(errors='ignore')
+                    except Exception:
+                        log_text = ""
+                    sqlite_error = "SQLite3 support required to read GeoPackage files"
+                    if sqlite_error in log_text:
+                        self.logger.warning(
+                            "NGEN lacks GeoPackage support; retrying with GeoJSON catchments"
                         )
-                        self._use_geojson_catchments = True
-                        self._move_ngen_outputs(self.ngen_exe.parent, output_dir)
-                        return True
-                    except subprocess.CalledProcessError as retry_error:
-                        self.logger.error(
-                            f"NextGen model run failed with error code {retry_error.returncode}"
-                        )
-                        self.logger.error(f"Check log file: {log_file}")
-                        return False
+                        ngen_cmd[1] = str(fallback_catchment_file)
+                        try:
+                            self.execute_model_subprocess(
+                                ngen_cmd,
+                                log_file,
+                                cwd=self.ngen_exe.parent,
+                                env=env,
+                                success_message="NextGen model run completed successfully (GeoJSON fallback)"
+                            )
+                            self._use_geojson_catchments = True
+                            self._move_ngen_outputs(self.ngen_exe.parent, output_dir)
+                            return True
+                        except subprocess.CalledProcessError as retry_error:
+                            self.logger.error(
+                                f"NextGen model run failed with error code {retry_error.returncode}"
+                            )
+                            self.logger.error(f"Check log file: {log_file}")
+                            return False
 
-            self.logger.error(f"NextGen model run failed with error code {e.returncode}")
-            self.logger.error(f"Check log file: {log_file}")
-            return False
+                self.logger.error(f"NextGen model run failed with error code {e.returncode}")
+                self.logger.error(f"Check log file: {log_file}")
+                return False
     
     def _move_ngen_outputs(self, build_dir: Path, output_dir: Path):
         """

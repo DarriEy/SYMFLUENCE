@@ -6,31 +6,29 @@ from typing import Dict, Any, Optional, Union, Tuple
 
 from symfluence.utils.geospatial.discretization import DomainDiscretizationRunner, DiscretizationArtifacts # type: ignore
 from symfluence.utils.geospatial.delineation import DomainDelineator, create_point_domain_shapefile, DelineationArtifacts # type: ignore
-from symfluence.utils.reporting.reporting_utils import VisualizationReporter # type: ignore
 
 
 class DomainManager:
     """Manages all domain-related operations including definition, discretization, and visualization."""
     
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the Domain Manager.
         
         Args:
             config: Configuration dictionary
             logger: Logger instance
+            reporting_manager: ReportingManager instance
         """
         self.config = config
         self.logger = logger
+        self.reporting_manager = reporting_manager
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         
-        # Initialize visualization reporter for domain visualizer
-        self.reporter = VisualizationReporter(self.config, self.logger)
-        
         # Initialize domain workflows
-        self.domain_delineator = DomainDelineator(self.config, self.logger)
+        self.domain_delineator = DomainDelineator(self.config, self.logger, self.reporting_manager)
         self.domain_discretizer = None  # Initialized when needed
         self.delineation_artifacts: Optional[DelineationArtifacts] = None
         self.discretization_artifacts: Optional[DiscretizationArtifacts] = None
@@ -115,14 +113,9 @@ class DomainManager:
         Returns:
             Path to the created plot or None if failed
         """
-        try:
-            plot_path = self.reporter.plot_domain()
-            return plot_path
-        except Exception as e:
-            self.logger.error(f"Error visualizing domain: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return None
+        if self.reporting_manager:
+            return self.reporting_manager.visualize_domain()
+        return None
     
     def visualize_discretized_domain(self) -> Optional[Path]:
         """
@@ -131,20 +124,14 @@ class DomainManager:
         Returns:
             Path to the created plot or None if failed
         """
-        try:
+        if self.reporting_manager:
             discretization_method = self.config.get('DOMAIN_DISCRETIZATION')
-            self.logger.info("Creating discretization visualization...")
             if self.config.get('DOMAIN_DEFINITION_METHOD') != 'point':
-                plot_path = self.reporter.plot_discretized_domain(discretization_method)
-                return plot_path
+                return self.reporting_manager.visualize_discretized_domain(discretization_method)
             else:
                 self.logger.info('Point scale model, not creating visualisation')
-                return
-        except Exception as e:
-            self.logger.error(f"Error visualizing discretized domain: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return None
+                return None
+        return None
     
     def get_domain_info(self) -> Dict[str, Any]:
         """

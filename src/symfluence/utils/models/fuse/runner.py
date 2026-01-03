@@ -1,43 +1,53 @@
-import os
-import sys
-import time
-import subprocess
-from shutil import rmtree, copyfile
-from typing import Dict, Any, Optional, List
-from pathlib import Path
-import numpy as np # type: ignore
-import pandas as pd # type: ignore
-import geopandas as gpd # type: ignore
-import xarray as xr # type: ignore
-import shutil
-from datetime import datetime
-import rasterio # type: ignore
-from scipy import ndimage
+"""
+FUSE Runner Module
+
+Refactored to use the Unified Model Execution Framework:
+- ModelExecutor: For subprocess execution
+- SpatialOrchestrator: For routing integration and spatial mode handling
+"""
+
 import csv
 import itertools
-import matplotlib.pyplot as plt # type: ignore
-import xarray as xr # type: ignore
-from typing import Dict, List, Tuple, Any
-from ..registry import ModelRegistry
+import os
+import shutil
+import subprocess
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+from shutil import rmtree, copyfile
+from typing import Dict, Any, Optional, List, Tuple
+
+import geopandas as gpd  # type: ignore
+import numpy as np  # type: ignore
+import pandas as pd  # type: ignore
+import rasterio  # type: ignore
+import xarray as xr  # type: ignore
+from scipy import ndimage
+
 from ..base import BaseModelPreProcessor, BaseModelRunner
 from ..mixins import PETCalculatorMixin, OutputConverterMixin
+from ..execution import ModelExecutor, SpatialOrchestrator, ExecutionResult
+from ..registry import ModelRegistry
+from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE
+from symfluence.utils.data.utilities.variable_utils import VariableHandler  # type: ignore
+from symfluence.utils.data.utilities.netcdf_utils import create_netcdf_encoding
 from symfluence.utils.exceptions import (
     ModelExecutionError,
     symfluence_error_handler
 )
 
-sys.path.append(str(Path(__file__).resolve().parent.parent))
-from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE
-from symfluence.utils.data.utilities.variable_utils import VariableHandler # type: ignore
-
 
 @ModelRegistry.register_runner('FUSE', method_name='run_fuse')
-class FUSERunner(BaseModelRunner, OutputConverterMixin):
+class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConverterMixin):
     """
     Runner class for the FUSE (Framework for Understanding Structural Errors) model.
     Handles model execution, output processing, and file management.
 
-    Inherits OutputConverterMixin for mizuRoute format conversion.
+    Now uses the Unified Model Execution Framework for:
+    - Subprocess execution (via ModelExecutor)
+    - Spatial mode handling and routing (via SpatialOrchestrator)
+    - Output format conversion (via OutputConverterMixin)
 
     Attributes:
         config (Dict[str, Any]): Configuration settings for FUSE
@@ -46,30 +56,36 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
         domain_name (str): Name of the domain being processed
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
         # Call base class
-        super().__init__(config, logger)
+        super().__init__(config, logger, reporting_manager=reporting_manager)
 
         # FUSE-specific initialization (Phase 3: Use typed config when available)
-        if self.typed_config:
-            self.spatial_mode = self.typed_config.model.fuse.spatial_mode if self.typed_config.model.fuse else 'lumped'
-        else:
-            self.spatial_mode = self.config.get('FUSE_SPATIAL_MODE', 'lumped')
+        self.spatial_mode = self._resolve_config_value(
+            lambda: self.config.model.fuse.spatial_mode if self.config.model.fuse else 'lumped',
+            'FUSE_SPATIAL_MODE',
+            'lumped'
+        )
 
         self.needs_routing = self._check_routing_requirements()
 
     def _get_fuse_file_id(self) -> str:
         """Return a short file ID for FUSE outputs/settings."""
-        return self.config.get('FUSE_FILE_ID', self.config.get('EXPERIMENT_ID'))
+        return self.config_dict.get('FUSE_FILE_ID', self.config_dict.get('EXPERIMENT_ID'))
 
     def _setup_model_specific_paths(self) -> None:
         """Set up FUSE-specific paths."""
         self.setup_dir = self.project_dir / "settings" / "FUSE"
         self.forcing_fuse_path = self.project_dir / 'forcing' / 'FUSE_input'
 
-        # FUSE-specific: Set up installation and output paths
-        self.fuse_path = self.get_install_path('FUSE_INSTALL_PATH', 'installs/fuse/bin')
-        self.output_path = self.get_config_path('EXPERIMENT_OUTPUT_FUSE', f"simulations/{self.config.get('EXPERIMENT_ID')}/FUSE")
+        # FUSE executable path (installation dir + exe name)
+        self.fuse_exe = self.get_model_executable(
+            install_path_key='FUSE_INSTALL_PATH',
+            default_install_subpath='installs/fuse/bin',
+            exe_name_key='FUSE_EXE',
+            default_exe_name='fuse.exe'
+        )
+        self.output_path = self.get_config_path('EXPERIMENT_OUTPUT_FUSE', f"simulations/{self.config_dict.get('EXPERIMENT_ID')}/FUSE")
 
         # FUSE-specific: result_dir is an alias for output_dir (backward compatibility)
         self.output_dir = self.get_experiment_output_dir()
@@ -92,7 +108,7 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
         - Renames latitude → gru
         - Adds gruId variable
         """
-        experiment_id = self.config.get('EXPERIMENT_ID')
+        experiment_id = self.config_dict.get('EXPERIMENT_ID')
         fuse_id = self._get_fuse_file_id()
         domain = self.domain_name
 
@@ -166,12 +182,12 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
 
     def _check_routing_requirements(self) -> bool:
         """Check if distributed routing is needed"""
-        routing_integration = self.config.get('FUSE_ROUTING_INTEGRATION', 'none')
+        routing_integration = self.config_dict.get('FUSE_ROUTING_INTEGRATION', 'none')
         
         if routing_integration == 'mizuRoute':
             if self.spatial_mode in ['semi_distributed', 'distributed']:
                 return True
-            elif self.spatial_mode == 'lumped' and self.config.get('ROUTING_DELINEATION') == 'river_network':
+            elif self.spatial_mode == 'lumped' and self.config_dict.get('ROUTING_DELINEATION') == 'river_network':
                 return True
         
         return False
@@ -223,12 +239,11 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
         
         try:
             # Use the main file manager (points to distributed forcing file)
-            fuse_exe = self.fuse_path / self.config.get('FUSE_EXE', 'fuse.exe')
             control_file = self.setup_dir / 'fm_catch.txt'
             
             # Run FUSE once for the entire distributed domain
             command = [
-                str(fuse_exe),
+                str(self.fuse_exe),
                 str(control_file),
                 self.domain_name,  # Use original domain name
                 "run_def"  # Run with default parameters
@@ -292,8 +307,8 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
                     f"subcat_{subcat_id}_input.nc"
                 )
                 content = content.replace(
-                    f"/{self.config.get('EXPERIMENT_ID')}/FUSE/",
-                    f"/{self.config.get('EXPERIMENT_ID')}/FUSE/subcat_{subcat_id}/"
+                    f"/{self.config_dict.get('EXPERIMENT_ID')}/FUSE/",
+                    f"/{self.config_dict.get('EXPERIMENT_ID')}/FUSE/subcat_{subcat_id}/"
                 )
                 
                 with open(fm_file, 'w') as f:
@@ -317,11 +332,10 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
             self._create_subcatchment_elevation_bands(subcat_id)
             
             # Run FUSE with subcatchment-specific settings
-            fuse_exe = self.fuse_path / self.config.get('FUSE_EXE', 'fuse.exe')
             control_file = settings_dir / 'fm_catch.txt'
-            
+
             command = [
-                str(fuse_exe),
+                str(self.fuse_exe),
                 str(control_file),
                 f"{self.domain_name}_subcat_{subcat_id}",
                 "run_def"  # Run with default parameters for distributed mode
@@ -376,7 +390,7 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
         ds = xr.open_dataset(forcing_file)
         
         # Extract data for this subcatchment based on coordinate system
-        subcatchment_dim = self.config.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
+        subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
         
         try:
             if subcatchment_dim == 'latitude':
@@ -559,7 +573,7 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
                 'model': 'FUSE',
                 'spatial_mode': 'distributed',
                 'domain': self.domain_name,
-                'experiment_id': self.config.get('EXPERIMENT_ID'),
+                'experiment_id': self.config_dict.get('EXPERIMENT_ID'),
                 'n_subcatchments': len(subcatchment_ids),
                 'creation_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'description': 'Combined FUSE distributed simulation results'
@@ -572,26 +586,15 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
             }
             
             # Save the combined dataset
-            combined_file = self.output_path / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_distributed_results.nc"
-            
-            # Define encoding for better compression and compatibility
-            encoding = {}
-            for var_name in combined_ds.data_vars:
-                encoding[var_name] = {
-                    'zlib': True,
-                    'complevel': 4,
-                    'shuffle': True,
-                    '_FillValue': -9999.0,
-                    'dtype': 'float32'
-                }
-            
-            # Add coordinate encoding
-            encoding['subcatchment'] = {'dtype': 'int32'}
-            if 'time' in combined_ds.coords:
-                encoding['time'] = {'dtype': 'float64'}
-            if 'param_set' in combined_ds.coords:
-                encoding['param_set'] = {'dtype': 'int32'}
-            
+            combined_file = self.output_path / f"{self.domain_name}_{self.config_dict.get('EXPERIMENT_ID')}_distributed_results.nc"
+
+            # Use standardized encoding utility
+            encoding = create_netcdf_encoding(
+                combined_ds,
+                compression=True,
+                custom_encoding={'subcatchment': {'dtype': 'int32'}}
+            )
+
             # Save to netCDF
             combined_ds.to_netcdf(
                 combined_file,
@@ -607,7 +610,7 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
             
             # Also create a simplified streamflow-only file for easier analysis
             if 'q_routed' in combined_ds.data_vars:
-                streamflow_file = self.output_path / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_streamflow_distributed.nc"
+                streamflow_file = self.output_path / f"{self.domain_name}_{self.config_dict.get('EXPERIMENT_ID')}_streamflow_distributed.nc"
                 streamflow_ds = combined_ds[['q_routed']].copy()
                 streamflow_ds.to_netcdf(streamflow_file, encoding={'q_routed': encoding.get('q_routed', {})})
                 self.logger.info(f"Streamflow-only file saved to: {streamflow_file}")
@@ -631,9 +634,9 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
         else:
             # Use regular HRUs
             catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-            catchment_name = self.config.get('CATCHMENT_SHP_NAME')
+            catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
             if catchment_name == 'default':
-                catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
+                catchment_name = f"{self.domain_name}_HRUs_{self.config_dict.get('DOMAIN_DISCRETIZATION')}.shp"
             
             catchment = gpd.read_file(catchment_path / catchment_name)
             if 'GRU_ID' in catchment.columns:
@@ -686,7 +689,7 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
         ds = xr.open_dataset(forcing_file)
         
         # Extract data for this subcatchment based on coordinate system
-        subcatchment_dim = self.config.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
+        subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
         
         try:
             if subcatchment_dim == 'latitude':
@@ -739,9 +742,9 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
         
         # Get catchment centroid for coordinates
         catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        catchment_name = self.config.get('CATCHMENT_SHP_NAME')
+        catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
         if catchment_name == 'default':
-            catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
+            catchment_name = f"{self.domain_name}_HRUs_{self.config_dict.get('DOMAIN_DISCRETIZATION')}.shp"
         
         catchment = gpd.read_file(catchment_path / catchment_name)
         
@@ -814,41 +817,20 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
         self._create_combined_dataset(combined_outputs)
 
     def _run_distributed_routing(self) -> bool:
-        """Run mizuRoute routing for distributed FUSE output"""
-        
-        try:
-            self.logger.debug("Starting mizuRoute routing for distributed FUSE")
-            
-            # Convert FUSE output to mizuRoute input format
-            #routing_input = self._convert_fuse_to_mizuroute_format()
-            
-            #if not routing_input:
-            #    return False
-            
-            # Create FUSE-specific mizuRoute control file
-            from symfluence.utils.models.mizuroute import MizuRoutePreProcessor
-            mizu_preprocessor = MizuRoutePreProcessor(self.config, self.logger)
-            mizu_preprocessor.create_fuse_control_file()
+        """Run mizuRoute routing for distributed FUSE output.
 
-            # Run mizuRoute
-            from symfluence.utils.models.mizuroute import MizuRouteRunner
-            mizuroute_runner = MizuRouteRunner(self.config, self.logger)
-            
-            # Update config for FUSE-mizuRoute integration
-            self._setup_fuse_mizuroute_config()
-            
-            result = mizuroute_runner.run_mizuroute()
-            
-            if result:
-                self.logger.debug("mizuRoute routing completed successfully")
-                return True
-            else:
-                self.logger.error("mizuRoute routing failed")
-                return False
-                
-        except Exception as e:
-            self.logger.error(f"Error in distributed routing: {str(e)}")
-            return False
+        Uses SpatialOrchestrator._run_mizuroute() for unified routing integration.
+        """
+        self.logger.debug("Starting mizuRoute routing for distributed FUSE")
+
+        # Update config for FUSE-mizuRoute integration
+        self._setup_fuse_mizuroute_config()
+
+        # Use orchestrator method (creates control file and runs mizuRoute)
+        spatial_config = self.get_spatial_config('FUSE')
+        result = self._run_mizuroute(spatial_config, model_name='fuse')
+
+        return result is not None
 
     def _convert_fuse_to_mizuroute_format(self) -> bool:
         """
@@ -862,7 +844,7 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
             # 1) Locate the FUSE output that the control file points to
             #    Control uses: <fname_qsim> DOMAIN_EXPERIMENT_runs_def.nc
             #    Prefer runs_def; fall back to runs_best if needed.
-            out_dir = self.project_dir / "simulations" / self.config.get('EXPERIMENT_ID') / "FUSE"
+            out_dir = self.project_dir / "simulations" / self.config_dict.get('EXPERIMENT_ID') / "FUSE"
             fuse_id = self._get_fuse_file_id()
             base = f"{self.domain_name}_{fuse_id}"
             candidates = [
@@ -900,7 +882,7 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
         - Ensure runoff variable name matches config['SETTINGS_MIZU_ROUTING_VAR']
         """
         # --- Choose runoff variable (prefer q_routed, else sensible fallbacks)
-        routing_var_name = self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+        routing_var_name = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
         candidates = [
             'q_routed', 'q_instnt', 'qsim', 'runoff',
             # fallbacks by substring
@@ -954,7 +936,7 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
             data = data.rename(routing_var_name)
         mizu[routing_var_name] = data
         # Add/normalize attrs (units default to m/s unless overridden)
-        units = self.config.get('SETTINGS_MIZU_ROUTING_UNITS', 'mm/d')
+        units = self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'mm/d')
         mizu[routing_var_name].attrs.update({'long_name': 'FUSE runoff for mizuRoute routing',
                                             'units': units})
 
@@ -968,10 +950,10 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
         """Update configuration for FUSE-mizuRoute integration"""
 
         # Update input file name for mizuRoute
-        self.config['EXPERIMENT_ID_TEMP'] = self.config.get('EXPERIMENT_ID')  # Backup
+        self.config_dict['EXPERIMENT_ID_TEMP'] = self.config_dict.get('EXPERIMENT_ID')  # Backup
 
         # Set mizuRoute to look for FUSE output instead of SUMMA
-        mizuroute_input_file = f"{self.config.get('EXPERIMENT_ID')}_fuse_runoff.nc"
+        mizuroute_input_file = f"{self.config_dict.get('EXPERIMENT_ID')}_fuse_runoff.nc"
 
     def _is_snow_optimization(self) -> bool:
         """Check if this is a snow optimization run by examining the forcing data."""
@@ -988,7 +970,7 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
                             return True
             
             # Also check optimization target from config
-            optimization_target = self.config.get('OPTIMIZATION_TARGET', 'streamflow')
+            optimization_target = self.config_dict.get('OPTIMIZATION_TARGET', 'streamflow')
             if optimization_target in ['swe', 'sca', 'snow_depth', 'snow']:
                 return True
                 
@@ -997,7 +979,7 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
         except Exception as e:
             self.logger.warning(f"Could not determine if snow optimization: {str(e)}")
             # Fall back to checking config
-            optimization_target = self.config.get('OPTIMIZATION_TARGET', 'streamflow')
+            optimization_target = self.config_dict.get('OPTIMIZATION_TARGET', 'streamflow')
             return optimization_target in ['swe', 'sca', 'snow_depth', 'snow']
 
     def _copy_default_to_best_params(self):
@@ -1028,17 +1010,16 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
         self.logger.debug("Executing FUSE model")
         
         # Construct command
-        fuse_fm = self.config.get('SETTINGS_FUSE_FILEMANAGER')
+        fuse_fm = self.config_dict.get('SETTINGS_FUSE_FILEMANAGER')
         if fuse_fm == 'default':
             fuse_fm = 'fm_catch.txt'
-            
-        fuse_exe = self.fuse_path / self.config.get('FUSE_EXE', 'fuse.exe')
+
         control_file = self.project_dir / 'settings' / 'FUSE' / fuse_fm
-        
+
         command = [
-            str(fuse_exe),
+            str(self.fuse_exe),
             str(control_file),
-            self.config.get('DOMAIN_NAME'),
+            self.config_dict.get('DOMAIN_NAME'),
             mode
         ]
             # ADD THIS: Add parameter file for run_pre mode
@@ -1074,11 +1055,11 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
                 # Add metadata
                 ds.attrs['model'] = 'FUSE'
                 ds.attrs['domain'] = self.domain_name
-                ds.attrs['experiment_id'] = self.config.get('EXPERIMENT_ID')
+                ds.attrs['experiment_id'] = self.config_dict.get('EXPERIMENT_ID')
                 ds.attrs['creation_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 
                 # Save processed output
-                processed_file = self.output_path / f"{self.config.get('EXPERIMENT_ID')}_streamflow.nc"
+                processed_file = self.output_path / f"{self.config_dict.get('EXPERIMENT_ID')}_streamflow.nc"
                 ds.to_netcdf(processed_file)
                 self.logger.debug(f"Processed streamflow output saved to: {processed_file}")
         
@@ -1089,11 +1070,11 @@ class FUSERunner(BaseModelRunner, OutputConverterMixin):
                 # Add metadata
                 ds.attrs['model'] = 'FUSE'
                 ds.attrs['domain'] = self.domain_name
-                ds.attrs['experiment_id'] = self.config.get('EXPERIMENT_ID')
+                ds.attrs['experiment_id'] = self.config_dict.get('EXPERIMENT_ID')
                 ds.attrs['creation_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 
                 # Save processed output
-                processed_file = self.output_path / f"{self.config.get('EXPERIMENT_ID')}_states.nc"
+                processed_file = self.output_path / f"{self.config_dict.get('EXPERIMENT_ID')}_states.nc"
                 ds.to_netcdf(processed_file)
                 self.logger.info(f"Processed state variables saved to: {processed_file}")
 

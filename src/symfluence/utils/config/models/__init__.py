@@ -35,7 +35,7 @@ from .model_configs import (
     NGENConfig,
     MESHConfig,
     MizuRouteConfig,
-    FLASHConfig,
+    LSTMConfig,
 )
 
 # Optimization configs
@@ -89,7 +89,7 @@ __all__ = [
     "NGENConfig",
     "MESHConfig",
     "MizuRouteConfig",
-    "FLASHConfig",
+    "LSTMConfig",
     # Optimization
     "OptimizationConfig",
     "PSOConfig",

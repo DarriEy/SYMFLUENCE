@@ -4,13 +4,9 @@ from typing import List, Dict, Any, Tuple
 from pathlib import Path
 import pandas as pd # type: ignore
 import numpy as np # type: ignore
-import matplotlib.pyplot as plt # type: ignore
-import seaborn as sns # type: ignore
-import plotly.graph_objects as go # type: ignore
-import matplotlib.gridspec as gridspec # type: ignore
-import matplotlib.dates as mdates # type: ignore
 
 from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE
+
 
 class resultMapper:
     def __init__(self, config, logger):
@@ -28,13 +24,7 @@ class TimeseriesVisualizer:
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.plots_dir = self.project_dir / "plots" / "results"
         self.plots_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Extend the colors list to match the number of possible models
-        self.colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', 
-                      '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
-        
-        # Define model names and ensure they match your data columns
-        self.model_names = ['FUSE', 'GR', 'FLASH', 'HYPE', 'SUMMA']  # Update this list to match your actual model names
+
 
     def read_results(self) -> pd.DataFrame:
         """Read simulation results and observed streamflow."""
@@ -136,6 +126,7 @@ class TimeseriesVisualizer:
         obs = df['Observed'].values
         
         # Only process models that actually exist in the data
+        self.model_names = ['FUSE', 'GR', 'LSTM', 'HYPE', 'SUMMA']  # Moved here
         available_models = [model for model in self.model_names 
                            if f"{model}_discharge_cms" in df.columns]
         
@@ -171,12 +162,16 @@ class TimeseriesVisualizer:
 
     def plot_timeseries(self, df: pd.DataFrame):
         """Create timeseries plot of all available model results."""
+        import matplotlib.pyplot as plt # type: ignore
         plt.style.use('default')
         
         # Create single figure
         fig, ax = plt.subplots(figsize=(15, 6))
         
         # Find overlapping time period
+        self.model_names = ['FUSE', 'GR', 'LSTM', 'HYPE', 'SUMMA']
+        self.colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', 
+                      '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
         available_models = [model for model in self.model_names 
                           if f"{model}_discharge_cms" in df.columns]
         
@@ -245,8 +240,12 @@ class TimeseriesVisualizer:
 
     def plot_diagnostics(self, df: pd.DataFrame):
         """Create diagnostic plots including scatter plots and flow duration curves."""
+        import matplotlib.pyplot as plt # type: ignore
         # Get models from config
         config_models = self.config.get('HYDROLOGICAL_MODEL', '').split(',')
+        self.model_names = ['FUSE', 'GR', 'LSTM', 'HYPE', 'SUMMA']
+        self.colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', 
+                      '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
         available_models = [model.strip() for model in config_models 
                           if f"{model.strip()}_discharge_cms" in df.columns]
         
@@ -539,8 +538,9 @@ class BenchmarkVizualiser:
         return flows, scores
 
     
-    def _plot_group_stats(self, ax: plt.Axes, scores: pd.DataFrame, benchmarks: List[str]) -> None:
+    def _plot_group_stats(self, ax: Any, scores: pd.DataFrame, benchmarks: List[str]) -> None:
         """Plot performance statistics table with refined professional formatting."""
+        import matplotlib.pyplot as plt # type: ignore
         # Remove existing axis elements
         ax.set_xticks([])
         ax.set_yticks([])
@@ -631,6 +631,9 @@ class BenchmarkVizualiser:
 
     def _create_group_comparison_figure(self, flows: pd.DataFrame, scores: pd.DataFrame, plot_folder: Path) -> str:
         """Create improved figure showing benchmark comparisons by group."""
+        import matplotlib.pyplot as plt # type: ignore
+        import matplotlib.gridspec as gridspec # type: ignore
+        import matplotlib.dates as mdates # type: ignore
         n_groups = len(self.benchmark_groups)
         fig = plt.figure(figsize=(15, 4 * n_groups))
         
@@ -709,6 +712,8 @@ class BenchmarkVizualiser:
 
     def _create_statistics_figure(self, flows: pd.DataFrame, scores: pd.DataFrame, plot_folder: Path) -> str:
         """Create figure showing statistical summaries and performance metrics."""
+        import matplotlib.pyplot as plt # type: ignore
+        import matplotlib.gridspec as gridspec # type: ignore
         fig = plt.figure(figsize=(15, 10))
         gs = gridspec.GridSpec(2, 2)
         
@@ -732,6 +737,8 @@ class BenchmarkVizualiser:
 
     def _create_envelope_figure(self, flows: pd.DataFrame, scores: pd.DataFrame, plot_folder: Path) -> str:
         """Create envelope figure using top 5 benchmarks by KGE."""
+        import matplotlib.pyplot as plt # type: ignore
+        import matplotlib.dates as mdates # type: ignore
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 12))
         
         # Get top 5 benchmarks by KGE
@@ -819,8 +826,10 @@ class BenchmarkVizualiser:
         return str(plot_path)
 
 
-    def _plot_metrics_heatmap(self, ax: plt.Axes, scores: pd.DataFrame) -> None:
+    def _plot_metrics_heatmap(self, ax: Any, scores: pd.DataFrame) -> None:
         """Plot performance metrics heatmap with enhanced styling."""
+        import seaborn as sns # type: ignore
+        import matplotlib.pyplot as plt # type: ignore
         metrics_data = []
         for group_name, group_info in self.benchmark_groups.items():
             for benchmark in group_info['benchmarks']:
@@ -842,9 +851,10 @@ class BenchmarkVizualiser:
         ax.set_title('Performance Metrics')
         plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
 
-    def _plot_statistical_summary(self, ax: plt.Axes, flows: pd.DataFrame,
+    def _plot_statistical_summary(self, ax: Any, flows: pd.DataFrame,
                                 summary_type: str) -> None:
         """Plot statistical summary with different options."""
+        import matplotlib.pyplot as plt # type: ignore
         if summary_type == 'mean_std':
             stats = []
             for group_name, group_info in self.benchmark_groups.items():

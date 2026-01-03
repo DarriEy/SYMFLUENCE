@@ -90,12 +90,12 @@ class TestSummaCopyBaseSettings:
         preprocessor = SummaPreProcessor(summa_config, mock_logger)
 
         # Create source directory with dummy file
-        source_dir = setup_test_directories['code_dir'] / '0_base_settings' / 'SUMMA'
+        source_dir = setup_test_directories['code_dir'] / 'src' / 'symfluence' / 'data' / 'base_settings' / 'SUMMA'
         source_dir.mkdir(parents=True, exist_ok=True)
         (source_dir / 'test_settings.txt').write_text('test content')
 
         # Update config to point to source
-        preprocessor.config['SYMFLUENCE_CODE_DIR'] = str(setup_test_directories['code_dir'])
+        preprocessor.config_dict['SYMFLUENCE_CODE_DIR'] = str(setup_test_directories['code_dir'])
 
         # Call copy_base_settings
         preprocessor.copy_base_settings()

@@ -105,11 +105,12 @@ class BinaryManager:
             config = symfluence_instance.config
         else:
             try:
-                config_path = Path('./0_config_files/config_template.yaml')
-                if config_path.exists():
-                    with open(config_path, 'r') as f:
-                        config = yaml.safe_load(f)
-                    config = self._ensure_valid_config_paths(config, config_path)
+                # Try to load template from package data
+                from symfluence.utils.resources import get_config_template
+                config_path = get_config_template()
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                config = self._ensure_valid_config_paths(config, config_path)
             except:
                 pass
 
@@ -312,16 +313,16 @@ class BinaryManager:
         elif symfluence_instance and hasattr(symfluence_instance, 'workflow_orchestrator'):
             config = symfluence_instance.workflow_orchestrator.config
 
-        # If no config available, try to load default
+        # If no config available, try to load default from package data
         if not config:
             try:
-                config_path = Path('./0_config_files/config_template.yaml')
-                if config_path.exists():
-                    with open(config_path, 'r') as f:
-                        config = yaml.safe_load(f)
-                    print(f"📄 Using config from: {config_path}")
-                else:
-                    print("⚠️  No configuration file found - using default paths")
+                from symfluence.utils.resources import get_config_template
+                config_path = get_config_template()
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                print(f"📄 Using config template from package: {config_path}")
+            except FileNotFoundError:
+                print("⚠️  No configuration file found - using default paths")
             except Exception as e:
                 print(f"⚠️  Could not load config: {str(e)} - using default paths")
 
@@ -664,10 +665,10 @@ class BinaryManager:
         if npm_bin_dir:
             print(f"   ℹ️  Detected npm-installed binaries: {npm_bin_dir}")
 
-        binary_paths = {
             'summa': 'installs/summa/bin/summa.exe',
             'mizuroute': 'installs/mizuRoute/route/bin/mizuRoute.exe',
             'fuse': 'installs/fuse/bin/fuse.exe',
+            'hype': 'installs/hype/bin/hype',
             'ngen': 'installs/ngen/cmake_build/ngen',
             'taudem': 'installs/TauDEM/bin',  # Directory with multiple tools
         }

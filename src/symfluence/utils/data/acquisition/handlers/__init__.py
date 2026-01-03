@@ -14,6 +14,12 @@ except ImportError:
     pass
 
 try:
+    from . import era5_cds
+    _imported.append('era5_cds')
+except ImportError:
+    pass
+
+try:
     from . import aorc
     _imported.append('aorc')
 except ImportError:

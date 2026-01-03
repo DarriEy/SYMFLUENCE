@@ -60,19 +60,33 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         Initialize base model preprocessor.
 
         Args:
-            config: Configuration dictionary or SymfluenceConfig instance (Phase 2)
+            config: SymfluenceConfig instance (recommended) or configuration dictionary (deprecated)
             logger: Logger instance
 
         Raises:
             ConfigurationError: If required configuration keys are missing
+
+        Note:
+            Passing a dict config is deprecated. Please use SymfluenceConfig for full type safety.
         """
-        # Phase 2: Support both typed config and dict config for backward compatibility
+        import warnings
+
+        # Phase 3: Prioritize typed config, keep dict for backward compatibility
         if SymfluenceConfig and isinstance(config, SymfluenceConfig):
-            self.typed_config = config
-            self.config = config.to_dict(flatten=True)
+            self.config = config  # Typed config is now primary
+            self.typed_config = config  # Alias for consistency
+            self.config_dict = config.to_dict(flatten=True)  # For backward compat
         else:
+            # Dict config - deprecated but still supported
+            warnings.warn(
+                "Passing dict config is deprecated and will be removed in a future version. "
+                "Please use SymfluenceConfig for full type safety.",
+                DeprecationWarning,
+                stacklevel=2
+            )
+            self.config = None  # No typed config available
             self.typed_config = None
-            self.config = config
+            self.config_dict = config
 
         self.logger = logger
 
@@ -80,8 +94,14 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         self._validate_required_config()
 
         # Base paths
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
+        self.data_dir = Path(self._resolve_config_value(
+            lambda: self.config.paths.data_dir,
+            'SYMFLUENCE_DATA_DIR'
+        ))
+        self.domain_name = self._resolve_config_value(
+            lambda: self.config.domain.name,
+            'DOMAIN_NAME'
+        )
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
         # Model-specific paths (subclasses should set model_name)
@@ -99,8 +119,16 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         self.intersect_path = self.project_dir / 'shapefiles' / 'catchment_intersection' / 'with_forcing'
 
         # Common configuration
-        self.forcing_dataset = self.config.get('FORCING_DATASET', '').lower()
-        self.forcing_time_step_size = int(self.config.get('FORCING_TIME_STEP_SIZE', 86400))
+        self.forcing_dataset = self._resolve_config_value(
+            lambda: self.config.forcing.dataset,
+            'FORCING_DATASET',
+            ''
+        ).lower()
+        self.forcing_time_step_size = int(self._resolve_config_value(
+            lambda: self.config.forcing.time_step_size,
+            'FORCING_TIME_STEP_SIZE',
+            86400
+        ))
 
     def _validate_required_config(self) -> None:
         """
@@ -116,7 +144,7 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
             'DOMAIN_NAME',
             'FORCING_DATASET',
         ]
-        validate_config_keys(self.config, required_keys, f"{self._get_model_name()} preprocessing")
+        validate_config_keys(self.config_dict, required_keys, f"{self._get_model_name()} preprocessing")
 
     @abstractmethod
     def _get_model_name(self) -> str:
@@ -158,6 +186,39 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         """
         pass
 
+    def _resolve_config_value(self, typed_accessor: Any, dict_key: str,
+                              default: Any = None) -> Any:
+        """
+        Resolve configuration value from typed or dict config.
+
+        Phase 3: Prioritizes typed config access, falls back to dict only for backward compatibility.
+
+        Args:
+            typed_accessor: Callable or value from typed config (e.g.,
+                           lambda: self.config.domain.time_start)
+            dict_key: Key to use with dict config (fallback)
+            default: Default value if key not found
+
+        Returns:
+            Resolved configuration value
+
+        Example:
+            >>> start_time = self._resolve_config_value(
+            ...     lambda: self.config.domain.time_start,
+            ...     'EXPERIMENT_TIME_START'
+            ... )
+        """
+        if self.config:  # Typed config available (preferred)
+            # Handle callable (lambda) or direct value
+            if callable(typed_accessor):
+                try:
+                    return typed_accessor()
+                except (AttributeError, KeyError):
+                    return default
+            return typed_accessor
+        # Fallback to dict config (deprecated path)
+        return self.config_dict.get(dict_key, default)
+
 
     def _get_file_path(self, file_type: str, path_key: str,
                        name_key: str, default_name: str) -> Path:
@@ -174,7 +235,7 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
             Complete file path
         """
         # Get directory path
-        dir_path = self.config.get(path_key)
+        dir_path = self.config_dict.get(path_key)
         if dir_path == 'default' or dir_path is None:
             self.logger.warning(f"No {file_type} path specified, path resolution may fail")
             dir_path = self.project_dir
@@ -182,7 +243,7 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
             dir_path = Path(dir_path)
 
         # Get file name
-        file_name = self.config.get(name_key)
+        file_name = self.config_dict.get(name_key)
         if file_name == 'default' or file_name is None:
             file_name = default_name
 
@@ -239,7 +300,7 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
             # Try to find base settings in config, then fall back to SYMFLUENCE_CODE_DIR
             try:
                 base_settings_key = f'SETTINGS_{self.model_name}_BASE_PATH'
-                source_dir = Path(self.config.get(base_settings_key, 'default'))
+                source_dir = Path(self.config_dict.get(base_settings_key, 'default'))
                 if source_dir == Path('default') or not source_dir.exists():
                     fallback_dir = self.get_base_settings_source_dir()
                     if fallback_dir.exists():
@@ -292,10 +353,10 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
             Path to catchment shapefile
         """
         catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        catchment_name = self.config.get('CATCHMENT_SHP_NAME')
+        catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
 
         if catchment_name == 'default' or catchment_name is None:
-            discretization = self.config.get('DOMAIN_DISCRETIZATION')
+            discretization = self.config_dict.get('DOMAIN_DISCRETIZATION')
             catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
 
         return catchment_path / catchment_name
@@ -308,7 +369,7 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
             Path to river network shapefile
         """
         river_path = self._get_default_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network')
-        river_name = self.config.get('RIVER_NETWORK_SHP_NAME')
+        river_name = self.config_dict.get('RIVER_NETWORK_SHP_NAME')
 
         if river_name == 'default' or river_name is None:
             river_name = f"{self.domain_name}_riverNetwork_delineate.shp"
@@ -322,7 +383,7 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         Returns:
             True if lumped, False if distributed
         """
-        return self.config.get('DOMAIN_DEFINITION_METHOD') == 'lumped'
+        return self.config_dict.get('DOMAIN_DEFINITION_METHOD') == 'lumped'
 
     def get_dem_path(self) -> Path:
         """
@@ -331,7 +392,7 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         Returns:
             Path to DEM file
         """
-        dem_name = self.config.get('DEM_NAME')
+        dem_name = self.config_dict.get('DEM_NAME')
         if dem_name == "default" or dem_name is None:
             dem_name = f"domain_{self.domain_name}_elv.tif"
         return self._get_default_path('DEM_PATH', f"attributes/elevation/dem/{dem_name}")
@@ -399,11 +460,30 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         """
         Get the source directory for base settings files.
 
+        Uses importlib.resources to load base settings from package data,
+        working in both development and installed modes. If
+        SYMFLUENCE_CODE_DIR is configured, prefer the local copy
+        (new src-based layout first, falling back to legacy 0_base_settings).
+
         Returns:
             Path to base settings directory for this model
+
         """
-        code_dir = Path(self.config.get('SYMFLUENCE_CODE_DIR'))
-        return code_dir / '0_base_settings' / self.model_name
+        from symfluence.utils.resources import get_base_settings_dir
+
+
+        code_dir_value = self.config_dict.get("SYMFLUENCE_CODE_DIR")
+        if code_dir_value:
+            code_dir = Path(code_dir_value)
+            base_settings_candidates = [
+                code_dir / "src" / "symfluence" / "data" / "base_settings" / self.model_name,
+                code_dir / "0_base_settings" / self.model_name,
+            ]
+            for candidate in base_settings_candidates:
+                if candidate.exists():
+                    return candidate
+
+        return get_base_settings_dir(self.model_name)
 
     # =========================================================================
     # Time Window Utilities
@@ -420,12 +500,14 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
             Tuple of (start_time, end_time) as pandas Timestamps, or None if
             time window cannot be determined.
         """
-        if self.typed_config:
-            start_raw = self.typed_config.domain.time_start
-            end_raw = self.typed_config.domain.time_end
-        else:
-            start_raw = self.config.get('EXPERIMENT_TIME_START')
-            end_raw = self.config.get('EXPERIMENT_TIME_END')
+        start_raw = self._resolve_config_value(
+            lambda: self.typed_config.domain.time_start,
+            'EXPERIMENT_TIME_START'
+        )
+        end_raw = self._resolve_config_value(
+            lambda: self.typed_config.domain.time_end,
+            'EXPERIMENT_TIME_END'
+        )
 
         if not start_raw or not end_raw:
             return None

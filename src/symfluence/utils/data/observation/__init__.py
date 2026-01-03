@@ -3,7 +3,7 @@ from . import handlers
 
 # Trigger registration
 try:
-    from .handlers import grace, modis_snow, modis_et
+    from .handlers import grace, modis_snow, modis_et, usgs, wsc, snotel
 except ImportError:
     pass
 

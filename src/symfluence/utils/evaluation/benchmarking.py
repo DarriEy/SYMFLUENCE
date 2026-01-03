@@ -1,6 +1,5 @@
 import pandas as pd # type: ignore
 from hydrobm.calculate import calc_bm # type: ignore
-import matplotlib.pyplot as plt # type: ignore
 from pathlib import Path 
 from typing import Dict, Any
 import xarray as xr # type: ignore

@@ -3,6 +3,8 @@ GR model runner.
 
 Handles model execution, state management, and output processing.
 Supports both lumped and distributed spatial modes with optional mizuRoute routing.
+
+Refactored to use the Unified Model Execution Framework.
 """
 
 from typing import Dict, Any, Optional
@@ -17,6 +19,9 @@ import rasterio.mask
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
 from ..mixins import OutputConverterMixin
+from ..execution import ModelExecutor, SpatialOrchestrator
+from symfluence.utils.data.utilities.netcdf_utils import create_netcdf_encoding
+from symfluence.utils.exceptions import ModelExecutionError, symfluence_error_handler
 
 # Optional R/rpy2 support - only needed for GR models
 try:
@@ -34,13 +39,16 @@ except (ImportError, ValueError) as e:
 
 
 @ModelRegistry.register_runner('GR', method_name='run_gr')
-class GRRunner(BaseModelRunner, OutputConverterMixin):
+class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConverterMixin):
     """
     Runner class for the GR family of models (initially GR4J).
     Handles model execution, state management, and output processing.
-    Now supports both lumped and distributed spatial modes.
+    Supports both lumped and distributed spatial modes.
 
-    Inherits OutputConverterMixin for potential mizuRoute format conversion.
+    Uses the Unified Model Execution Framework for:
+    - Subprocess execution (via ModelExecutor)
+    - Spatial mode handling and routing (via SpatialOrchestrator)
+    - Output format conversion (via OutputConverterMixin)
 
     Attributes:
         config (Dict[str, Any]): Configuration settings for GR models
@@ -49,7 +57,7 @@ class GRRunner(BaseModelRunner, OutputConverterMixin):
         domain_name (str): Name of the domain being processed
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
         # GR-specific: Check rpy2 dependency BEFORE calling super()
         if not HAS_RPY2:
             raise ImportError(
@@ -59,16 +67,17 @@ class GRRunner(BaseModelRunner, OutputConverterMixin):
             )
 
         # Call base class
-        super().__init__(config, logger)
+        super().__init__(config, logger, reporting_manager=reporting_manager)
 
         # Keep legacy attribute name for downstream GR code.
         self.output_path = self.output_dir
 
         # GR-specific configuration (Phase 3: typed config)
-        if self.typed_config:
-            self.spatial_mode = self.typed_config.model.gr.spatial_mode if self.typed_config.model.gr else 'lumped'
-        else:
-            self.spatial_mode = self.config.get('GR_SPATIAL_MODE', 'lumped')
+        self.spatial_mode = self._resolve_config_value(
+            lambda: self.config.model.gr.spatial_mode if self.config.model.gr else 'lumped',
+            'GR_SPATIAL_MODE',
+            'lumped'
+        )
 
         self.needs_routing = self._check_routing_requirements()
 
@@ -76,9 +85,9 @@ class GRRunner(BaseModelRunner, OutputConverterMixin):
         """Set up GR-specific paths."""
         # Catchment paths (uses PathResolverMixin from base)
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.config.get('CATCHMENT_SHP_NAME')
+        self.catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
         if self.catchment_name == 'default':
-            discretization = self.config.get('DOMAIN_DISCRETIZATION')
+            discretization = self.config_dict.get('DOMAIN_DISCRETIZATION')
             self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
 
         # GR setup and forcing paths
@@ -102,7 +111,11 @@ class GRRunner(BaseModelRunner, OutputConverterMixin):
         """
         self.logger.info(f"Starting GR model run in {self.spatial_mode} mode")
 
-        try:
+        with symfluence_error_handler(
+            "GR model execution",
+            self.logger,
+            error_type=ModelExecutionError
+        ):
             # Create output directory
             self.output_path.mkdir(parents=True, exist_ok=True)
 
@@ -123,13 +136,9 @@ class GRRunner(BaseModelRunner, OutputConverterMixin):
                 self.logger.error("GR model run failed")
                 return None
 
-        except Exception as e:
-            self.logger.error(f"Error during GR run: {str(e)}")
-            raise
-
     def _check_routing_requirements(self) -> bool:
         """Check if distributed routing is needed"""
-        routing_integration = self.config.get('GR_ROUTING_INTEGRATION', 'none')
+        routing_integration = self.config_dict.get('GR_ROUTING_INTEGRATION', 'none')
 
         if routing_integration == 'mizuRoute':
             if self.spatial_mode == 'distributed':
@@ -171,10 +180,10 @@ class GRRunner(BaseModelRunner, OutputConverterMixin):
                 Zmean = np.mean(masked_dem)
 
             # Get simulation periods
-            time_start = pd.to_datetime(self.config.get('EXPERIMENT_TIME_START'))
-            time_end = pd.to_datetime(self.config.get('EXPERIMENT_TIME_END'))
-            spinup_start = pd.to_datetime(self.config.get('SPINUP_PERIOD').split(',')[0].strip()).strftime('%Y-%m-%d')
-            spinup_end = pd.to_datetime(self.config.get('SPINUP_PERIOD').split(',')[1].strip()).strftime('%Y-%m-%d')
+            time_start = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_START'))
+            time_end = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_END'))
+            spinup_start = pd.to_datetime(self.config_dict.get('SPINUP_PERIOD').split(',')[0].strip()).strftime('%Y-%m-%d')
+            spinup_end = pd.to_datetime(self.config_dict.get('SPINUP_PERIOD').split(',')[1].strip()).strftime('%Y-%m-%d')
             run_start = time_start.strftime('%Y-%m-%d')
             run_end = time_end.strftime('%Y-%m-%d')
 
@@ -322,7 +331,7 @@ class GRRunner(BaseModelRunner, OutputConverterMixin):
         )
 
         # Add streamflow data (in mm/day as GR4J outputs)
-        routing_var = self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+        routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
         ds_out[routing_var] = xr.DataArray(
             results_df.values,
             dims=('time', 'gru'),
@@ -345,21 +354,21 @@ class GRRunner(BaseModelRunner, OutputConverterMixin):
             'model': 'GR4J-CemaNeige',
             'spatial_mode': 'distributed',
             'domain': self.domain_name,
-            'experiment_id': self.config.get('EXPERIMENT_ID'),
+            'experiment_id': self.config_dict.get('EXPERIMENT_ID'),
             'n_hrus': n_hrus,
             'creation_date': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
             'description': 'Distributed GR4J simulation results for mizuRoute routing'
         }
 
         # Save to NetCDF
-        output_file = self.output_path / f"{self.domain_name}_{self.config.get('EXPERIMENT_ID')}_runs_def.nc"
+        output_file = self.output_path / f"{self.domain_name}_{self.config_dict.get('EXPERIMENT_ID')}_runs_def.nc"
 
-        encoding = {
-            'time': {'dtype': 'float64'},
-            'gru': {'dtype': 'int32'},
-            'gruId': {'dtype': 'int32'},
-            routing_var: {'dtype': 'float32', 'zlib': True, 'complevel': 4}
-        }
+        # Use standardized encoding utility
+        encoding = create_netcdf_encoding(
+            ds_out,
+            compression=True,
+            int_vars={'gruId': 'int32'}
+        )
 
         ds_out.to_netcdf(output_file, encoding=encoding, format='NETCDF4')
 
@@ -367,56 +376,33 @@ class GRRunner(BaseModelRunner, OutputConverterMixin):
         self.logger.info(f"Output dimensions: time={len(time_days)}, gru={n_hrus}")
 
     def _run_distributed_routing(self) -> bool:
-        """Run mizuRoute routing for distributed GR4J output"""
+        """Run mizuRoute routing for distributed GR4J output.
 
-        try:
-            self.logger.info("Starting mizuRoute routing for distributed GR4J")
+        Uses SpatialOrchestrator._run_mizuroute() for unified routing integration.
+        """
+        self.logger.info("Starting mizuRoute routing for distributed GR4J")
 
-            # Create GR-specific mizuRoute control file if needed
-            from symfluence.utils.models.mizuroute import MizuRoutePreProcessor
-            mizu_preprocessor = MizuRoutePreProcessor(self.config, self.logger)
+        # Update config for GR-mizuRoute integration
+        self._setup_gr_mizuroute_config()
 
-            # Check if we need to create a GR-specific control file
-            control_file = self.config.get('SETTINGS_MIZU_CONTROL_FILE')
-            if control_file == 'default':
-                control_file = 'mizuRoute_control_GR.txt'
-                self.config['SETTINGS_MIZU_CONTROL_FILE'] = control_file
-                mizu_preprocessor.create_gr_control_file()
+        # Use orchestrator method (creates control file and runs mizuRoute)
+        spatial_config = self.get_spatial_config('GR')
+        result = self._run_mizuroute(spatial_config, model_name='gr')
 
-            # Run mizuRoute
-            from symfluence.utils.models.mizuroute import MizuRouteRunner
-            mizuroute_runner = MizuRouteRunner(self.config, self.logger)
-
-            # Update config for GR-mizuRoute integration
-            self._setup_gr_mizuroute_config()
-
-            result = mizuroute_runner.run_mizuroute()
-
-            if result:
-                self.logger.info("mizuRoute routing completed successfully")
-                return True
-            else:
-                self.logger.error("mizuRoute routing failed")
-                return False
-
-        except Exception as e:
-            self.logger.error(f"Error in distributed routing: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return False
+        return result is not None
 
     def _setup_gr_mizuroute_config(self):
         """Update configuration for GR-mizuRoute integration"""
         # Set mizuRoute to look for GR output instead of SUMMA
-        self.config['MIZU_FROM_MODEL'] = 'GR'
+        self.config_dict['MIZU_FROM_MODEL'] = 'GR'
 
     def _execute_gr_lumped(self):
         """Execute GR4J in lumped mode (existing implementation)"""
         try:
             # Initialize R environment
             base = importr('base')
-            skip_calibration = bool(self.config.get('GR_SKIP_CALIBRATION', False))
-            default_params = self.config.get('GR_DEFAULT_PARAMS', [350, 0, 100, 1.7])
+            skip_calibration = bool(self.config_dict.get('GR_SKIP_CALIBRATION', False))
+            default_params = self.config_dict.get('GR_DEFAULT_PARAMS', [350, 0, 100, 1.7])
             if len(default_params) != 4:
                 raise ValueError("GR_DEFAULT_PARAMS must contain 4 values for X1, X2, X3, X4")
 
@@ -437,13 +423,13 @@ class GRRunner(BaseModelRunner, OutputConverterMixin):
                 Hypso = np.percentile(masked_dem, np.arange(0, 101, 1))
                 Zmean = np.mean(masked_dem)
 
-            time_start = pd.to_datetime(self.config.get('EXPERIMENT_TIME_START'))
-            time_end = pd.to_datetime(self.config.get('EXPERIMENT_TIME_END'))
+            time_start = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_START'))
+            time_end = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_END'))
 
-            spinup_start = pd.to_datetime(self.config.get('SPINUP_PERIOD').split(',')[0].strip()).strftime('%Y-%m-%d')
-            spinup_end = pd.to_datetime(self.config.get('SPINUP_PERIOD').split(',')[1].strip()).strftime('%Y-%m-%d')
-            calib_start = pd.to_datetime(self.config.get('CALIBRATION_PERIOD').split(',')[0].strip()).strftime('%Y-%m-%d')
-            calib_end = pd.to_datetime(self.config.get('CALIBRATION_PERIOD').split(',')[1].strip()).strftime('%Y-%m-%d')
+            spinup_start = pd.to_datetime(self.config_dict.get('SPINUP_PERIOD').split(',')[0].strip()).strftime('%Y-%m-%d')
+            spinup_end = pd.to_datetime(self.config_dict.get('SPINUP_PERIOD').split(',')[1].strip()).strftime('%Y-%m-%d')
+            calib_start = pd.to_datetime(self.config_dict.get('CALIBRATION_PERIOD').split(',')[0].strip()).strftime('%Y-%m-%d')
+            calib_end = pd.to_datetime(self.config_dict.get('CALIBRATION_PERIOD').split(',')[1].strip()).strftime('%Y-%m-%d')
             run_start = time_start.strftime('%Y-%m-%d')
             run_end = time_end.strftime('%Y-%m-%d')
 
@@ -515,7 +501,7 @@ class GRRunner(BaseModelRunner, OutputConverterMixin):
 
                 # Calibration criterion
                 InputsCrit <- CreateInputsCrit(
-                    FUN_CRIT = ErrorCrit_{self.config.get('OPTIMIZATION_METRIC')},
+                    FUN_CRIT = ErrorCrit_{self.config_dict.get('OPTIMIZATION_METRIC')},
                     InputsModel = InputsModel,
                     RunOptions = RunOptions,
                     Obs = BasinObs$q_obs[Ind_Cal]
@@ -557,13 +543,14 @@ class GRRunner(BaseModelRunner, OutputConverterMixin):
                     Param = Param
                 )
 
-                # Create plots directory
-                dir.create("{str(self.project_dir / 'plots' / 'results')}", recursive = TRUE, showWarnings = FALSE)
-
                 # Results preview
-                png("{str(self.project_dir / 'plots' / 'results' / 'GRhydrology_plot.png')}", height = 900, width = 900)
-                plot(OutputsModel, Qobs = BasinObs$q_obs[Ind_Run])
-                dev.off()
+                if ({"TRUE" if self.reporting_manager and self.reporting_manager.visualize else "FALSE"}) {{
+                    # Create plots directory
+                    dir.create("{str(self.project_dir / 'plots' / 'results')}", recursive = TRUE, showWarnings = FALSE)
+                    png("{str(self.project_dir / 'plots' / 'results' / 'GRhydrology_plot.png')}", height = 900, width = 900)
+                    plot(OutputsModel, Qobs = BasinObs$q_obs[Ind_Run])
+                    dev.off()
+                }}
 
                 # Save results
                 save(OutputsModel, file = "{str(self.output_path / 'GR_results.Rdata')}")

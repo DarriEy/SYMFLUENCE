@@ -21,26 +21,6 @@ from symfluence.utils.common import metrics
 from symfluence.utils.evaluation.evaluators import ModelEvaluator, StreamflowEvaluator
 
 
-class NgenCalibrationTarget:
-    """
-    Base class for ngen calibration targets.
-    
-    Note: This is a legacy wrapper. New targets should inherit from ModelEvaluator.
-    """
-    
-    def __init__(self, config: Dict[str, Any], project_dir: Path, logger: logging.Logger):
-        self.config = config
-        self.project_dir = project_dir
-        self.logger = logger
-        # For compatibility with legacy code
-        self.domain_name = config.get('DOMAIN_NAME')
-        self.experiment_id = config.get('EXPERIMENT_ID')
-
-    def calculate_metrics(self, experiment_id: str = None, output_dir: Optional[Path] = None) -> Dict[str, float]:
-        """Calculate performance metrics (to be implemented by subclasses)"""
-        raise NotImplementedError("Subclasses must implement calculate_metrics()")
-
-
 class NgenStreamflowTarget(StreamflowEvaluator):
     """NextGen-specific streamflow evaluator that handles nexus-style outputs."""
     

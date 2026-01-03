@@ -278,21 +278,77 @@ def calculate_annual_radiation(dem_raster: Path, radiation_raster: Path, logger:
         clearsky = location.get_clearsky(times=times)
         
         # Initialize the radiation array
-        radiation = np.zeros_like(dem)
+        radiation = np.zeros_like(dem, dtype=float)
         
-        logger.info("Calculating radiation for each pixel...")
-        for i in range(dem.shape[0]):
-            for j in range(dem.shape[1]):
-                surface_tilt = np.degrees(slope[i, j])
-                surface_azimuth = np.degrees(aspect[i, j])
+        logger.info("Calculating radiation for all pixels (vectorized)...")
+        
+        # Flatten arrays for vectorization
+        slope_flat = np.degrees(slope.flatten())
+        aspect_flat = np.degrees(aspect.flatten())
+        
+        # Calculate solar position (returns a DataFrame with time index)
+        # We need to broadcast this for each pixel, which is memory intensive
+        # Instead, we'll loop through days/times and accumulate radiation
+        
+        # Get solar position for all times (this is constant across the domain for small domains)
+        # For larger domains, this is an approximation
+        solar_pos = location.get_solarposition(times=times)
+        
+        # Get clear sky data
+        cs = location.get_clearsky(times=times)
+        
+        # Transpose solar data for broadcasting
+        # Shape: (n_times,)
+        zenith = solar_pos['apparent_zenith'].values
+        azimuth = solar_pos['azimuth'].values
+        dni = cs['dni'].values
+        ghi = cs['ghi'].values
+        dhi = cs['dhi'].values
+        
+        # To avoid MemoryError on large rasters, we can process in chunks or
+        # keep the loop over time (365 days) which is better than looping over pixels
+        
+        # Initialize total radiation accumulator
+        total_radiation_flat = np.zeros(dem.size)
+        
+        # Process in batches of days to manage memory if needed, 
+        # but for now let's try a vectorized approach over pixels, looping over time
+        # Actually, pvlib can handle arrays for surface_tilt and surface_azimuth
+        
+        # We'll calculate the sum of radiation over the year
+        # This is still heavy if we do all times x all pixels at once
+        # Let's loop over time steps and accumulate, that's safer for memory
+        
+        for t_idx in range(len(times)):
+            # Scalar values for this time step
+            z = zenith[t_idx]
+            az = azimuth[t_idx]
+            d = dni[t_idx]
+            g = ghi[t_idx]
+            dh = dhi[t_idx]
+            
+            # Skip night time
+            if z > 90:
+                continue
                 
-                total_irrad = pvlib.irradiance.get_total_irradiance(
-                    surface_tilt, surface_azimuth,
-                    solar_position['apparent_zenith'], solar_position['azimuth'],
-                    clearsky['dni'], clearsky['ghi'], clearsky['dhi']
-                )
-                
-                radiation[i, j] = total_irrad['poa_global'].sum()
+            # Calculate irradiance for all pixels at this time step
+            irrad = pvlib.irradiance.get_total_irradiance(
+                surface_tilt=slope_flat,
+                surface_azimuth=aspect_flat,
+                solar_zenith=z,
+                solar_azimuth=az,
+                dni=d,
+                ghi=g,
+                dhi=dh
+            )
+            
+            # Accumulate global POA (Plane of Array) radiation
+            # Nan values can occur if inputs are invalid, replace with 0
+            poa = irrad['poa_global'].fillna(0).values
+            total_radiation_flat += poa
+            
+        # Reshape back to 2D
+        radiation = total_radiation_flat.reshape(dem.shape)
         
         # Save the radiation raster
         radiation_raster.parent.mkdir(parents=True, exist_ok=True)
@@ -309,3 +365,93 @@ def calculate_annual_radiation(dem_raster: Path, radiation_raster: Path, logger:
     except Exception as e:
         logger.error(f"Error calculating annual radiation: {str(e)}", exc_info=True)
         return None
+
+def analyze_raster_values(
+    raster_path: Path, 
+    band_size: Optional[float] = None, 
+    logger: Optional[Logger] = None
+) -> np.ndarray:
+    """
+    Analyze raster values to determine discretization thresholds.
+    Reads raster in chunks to handle large files efficiently.
+    
+    Args:
+        raster_path: Path to the raster file
+        band_size: Optional band size for discretization (for continuous data)
+        logger: Optional logger
+        
+    Returns:
+        Array of threshold values
+    """
+    # Process raster in chunks
+    CHUNK_SIZE = 1024  # Adjust based on available memory
+    valid_data = []
+
+    if logger:
+        logger.info(f"Analyzing raster values from: {raster_path}")
+
+    with rasterio.open(raster_path) as src:
+        height = src.height
+        width = src.width
+        nodata = src.nodata
+
+        if logger:
+            logger.info(f"Raster info: {width}x{height} pixels, nodata={nodata}")
+
+        for y in range(0, height, CHUNK_SIZE):
+            for x in range(0, width, CHUNK_SIZE):
+                window = rasterio.windows.Window(
+                    x, y, min(CHUNK_SIZE, width - x), min(CHUNK_SIZE, height - y)
+                )
+                chunk = src.read(1, window=window)
+
+                # Filter out nodata values
+                if nodata is not None:
+                    valid_chunk = chunk[chunk != nodata]
+                else:
+                    valid_chunk = (
+                        chunk[~np.isnan(chunk)]
+                        if chunk.dtype == np.float64
+                        else chunk
+                    )
+
+                if len(valid_chunk) > 0:
+                    valid_data.extend(valid_chunk.flatten())
+
+    if len(valid_data) == 0:
+        raise ValueError("No valid data found in raster")
+
+    valid_data = np.array(valid_data)
+    data_min = np.min(valid_data)
+    data_max = np.max(valid_data)
+
+    if logger:
+        logger.info(f"Valid data range: {data_min:.2f} to {data_max:.2f}")
+        logger.info(f"Total valid pixels: {len(valid_data)}")
+
+    # Calculate thresholds based on the data
+    if band_size is not None:
+        # For elevation-based or radiation-based discretization
+        # Ensure thresholds cover the full data range
+        min_val = data_min
+        max_val = data_max
+
+        # Create bands that fully cover the data range
+        thresholds = np.arange(min_val, max_val + band_size, band_size)
+
+        # Ensure the last threshold covers the maximum value
+        if thresholds[-1] < max_val:
+            thresholds = np.append(thresholds, thresholds[-1] + band_size)
+
+        if logger:
+            logger.info(f"Created {len(thresholds)-1} bands with size {band_size}")
+            logger.info(
+                f"Threshold range: {thresholds[0]:.2f} to {thresholds[-1]:.2f}"
+            )
+    else:
+        # For soil or land class-based discretization
+        thresholds = np.unique(valid_data)
+        if logger:
+            logger.info(f"Found {len(thresholds)} unique classes")
+
+    return thresholds

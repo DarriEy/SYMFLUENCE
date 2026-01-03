@@ -12,7 +12,7 @@ Utilities are organized by capability. Each module provides a focused interface 
 Project initialization, directory layout, and logging infrastructure for reproducible runs. Establishes file organization and detailed execution records for debugging and auditability.
 
 ### Model Integration (`models/`)
-Unified preprocessor → runner → postprocessor pattern. Central selection/dispatch with model-specific utilities for configuration generation, data formatting, execution, and output processing. Supports SUMMA, FUSE, GR, HYPE, FLASH, and MESH.
+Unified preprocessor → runner → postprocessor pattern. Central selection/dispatch with model-specific utilities for configuration generation, data formatting, execution, and output processing. Supports SUMMA, FUSE, GR, HYPE, LSTM, and MESH.
 
 ### Optimization (`optimization/`)
 Two complementary paths:

@@ -302,7 +302,7 @@ _is_bad_path() {
 }
 
 update_config_paths_in_yaml() {
-    # $1: path to YAML config (e.g., ./0_config_files/config.yaml)
+    # $1: path to YAML config (e.g., ./config.yaml)
     local cfg="$1"
     local CODE="${SYMFLUENCE_CODE_DIR:-$PWD}"
     # Use SYMFLUENCE_DATA_DIR if set, otherwise fall back to PWD/../SYMFLUENCE_data
@@ -551,7 +551,7 @@ main() {
     #set_default_symfluence_paths
     
     # Update config.yaml with PWD-based paths if current values are bad/missing (optional)
-    local CONFIG_YAML="./0_config_files/config_template.yaml"
+    local CONFIG_YAML="./config.yaml"
     if [[ -f "$CONFIG_YAML" ]] && declare -f update_config_paths_in_yaml >/dev/null 2>&1; then
         update_config_paths_in_yaml "$CONFIG_YAML" || {
             print_warning "Config update failed, continuing without update"

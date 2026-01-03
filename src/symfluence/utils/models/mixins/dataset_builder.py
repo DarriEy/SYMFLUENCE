@@ -6,7 +6,7 @@ structures, attributes, and variable handling across model preprocessors.
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, Union, List
+from typing import Dict, Any, Optional, Tuple, Union, List, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -250,3 +250,219 @@ class DatasetBuilderMixin:
         )
         ds = xr.Dataset(coords=coords)
         return self.add_coord_attrs(ds, time_units=time_units_str)
+
+    def create_distributed_forcing_coords(
+        self,
+        longitude: Union[float, np.ndarray, List[float]],
+        latitude: Union[float, np.ndarray, List[float]],
+        subcatchments: np.ndarray,
+        time_index: pd.DatetimeIndex,
+        subcatchment_dim: str = 'latitude',
+        time_unit: str = 'D',
+        reference_date: str = '1970-01-01'
+    ) -> Tuple[Dict[str, Tuple[str, Any]], Tuple[str, ...]]:
+        """
+        Create coordinate dictionary for distributed (semi-distributed) forcing datasets.
+
+        Handles the pattern where subcatchments are encoded along either the
+        latitude or longitude dimension, with the other dimension being scalar.
+
+        Args:
+            longitude: Longitude value (scalar if subcatchment_dim='latitude')
+            latitude: Latitude value (scalar if subcatchment_dim='longitude')
+            subcatchments: Array of subcatchment identifiers
+            time_index: Time coordinate
+            subcatchment_dim: Which dimension to use for subcatchments ('latitude' or 'longitude')
+            time_unit: Time unit for numeric conversion
+            reference_date: Reference date for time conversion
+
+        Returns:
+            Tuple of (coords_dict, spatial_dims) where spatial_dims is the
+            dimension order for data variables (e.g., ('time', 'latitude', 'longitude'))
+        """
+        # Convert time to numeric values
+        ref_ts = pd.Timestamp(reference_date)
+        if time_unit == 'h':
+            time_numeric = ((time_index - ref_ts).total_seconds() / 3600).values
+        else:
+            time_numeric = (time_index - ref_ts).days.values
+
+        # Create coordinates based on subcatchment dimension
+        if subcatchment_dim == 'latitude':
+            coords = {
+                'longitude': ('longitude', [longitude] if np.isscalar(longitude) else longitude),
+                'latitude': ('latitude', subcatchments.astype(float)),
+                'time': ('time', time_numeric)
+            }
+            spatial_dims = ('time', 'latitude', 'longitude')
+        elif subcatchment_dim == 'longitude':
+            coords = {
+                'longitude': ('longitude', subcatchments.astype(float)),
+                'latitude': ('latitude', [latitude] if np.isscalar(latitude) else latitude),
+                'time': ('time', time_numeric)
+            }
+            spatial_dims = ('time', 'latitude', 'longitude')
+        else:
+            raise ValueError(f"subcatchment_dim must be 'latitude' or 'longitude', got {subcatchment_dim}")
+
+        return coords, spatial_dims
+
+    def create_distributed_forcing_dataset(
+        self,
+        longitude: Union[float, np.ndarray],
+        latitude: Union[float, np.ndarray],
+        subcatchments: np.ndarray,
+        time_index: pd.DatetimeIndex,
+        subcatchment_dim: str = 'latitude',
+        time_unit: str = 'D',
+        time_units_str: str = 'days since 1970-01-01'
+    ) -> Tuple[xr.Dataset, Tuple[str, ...]]:
+        """
+        Create an empty forcing dataset for distributed mode.
+
+        Args:
+            longitude: Catchment centroid longitude (or array if subcatchment_dim='longitude')
+            latitude: Catchment centroid latitude (or array if subcatchment_dim='latitude')
+            subcatchments: Array of subcatchment identifiers
+            time_index: Time coordinate
+            subcatchment_dim: Which dimension encodes subcatchments
+            time_unit: Unit for time conversion
+            time_units_str: NetCDF time units string
+
+        Returns:
+            Tuple of (dataset, spatial_dims)
+        """
+        coords, spatial_dims = self.create_distributed_forcing_coords(
+            longitude=longitude,
+            latitude=latitude,
+            subcatchments=subcatchments,
+            time_index=time_index,
+            subcatchment_dim=subcatchment_dim,
+            time_unit=time_unit
+        )
+        ds = xr.Dataset(coords=coords)
+        ds = self.add_coord_attrs(ds, time_units=time_units_str)
+        return ds, spatial_dims
+
+    def create_hru_forcing_coords(
+        self,
+        hru_ids: np.ndarray,
+        time_index: pd.DatetimeIndex,
+        time_unit: str = 'D',
+        reference_date: str = '1970-01-01'
+    ) -> Dict[str, Tuple[str, Any]]:
+        """
+        Create coordinate dictionary for HRU-based forcing datasets.
+
+        Used by models like GR that use explicit HRU dimensions rather than
+        lat/lon encoding.
+
+        Args:
+            hru_ids: Array of HRU identifiers
+            time_index: Time coordinate
+            time_unit: Time unit for numeric conversion
+            reference_date: Reference date for time conversion
+
+        Returns:
+            Coords dict suitable for xr.Dataset(coords=...)
+        """
+        ref_ts = pd.Timestamp(reference_date)
+        if time_unit == 'h':
+            time_numeric = ((time_index - ref_ts).total_seconds() / 3600).values
+        else:
+            time_numeric = (time_index - ref_ts).days.values
+
+        return {
+            'time': ('time', time_numeric),
+            'hru': ('hru', hru_ids)
+        }
+
+    def get_standard_encoding_with_compression(
+        self,
+        ds: xr.Dataset,
+        fill_value: float = -9999.0,
+        dtype: str = 'float32',
+        compression: bool = True,
+        complevel: int = 4
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Get encoding dictionary with optional compression for netCDF output.
+
+        Extended version of get_standard_encoding that supports compression.
+
+        Args:
+            ds: Dataset to create encoding for
+            fill_value: Fill value for all variables
+            dtype: Data type for all variables
+            compression: Whether to enable zlib compression
+            complevel: Compression level (1-9)
+
+        Returns:
+            Encoding dict suitable for ds.to_netcdf(encoding=...)
+        """
+        encoding = {}
+        for var in ds.data_vars:
+            var_encoding = {
+                '_FillValue': fill_value,
+                'dtype': dtype
+            }
+            if compression:
+                var_encoding['zlib'] = True
+                var_encoding['complevel'] = complevel
+            encoding[var] = var_encoding
+        return encoding
+
+    def add_variable_with_spatial_dims(
+        self,
+        ds: xr.Dataset,
+        name: str,
+        data: np.ndarray,
+        spatial_dims: Tuple[str, ...],
+        units: str,
+        long_name: str,
+        fill_value: float = -9999.0,
+        dtype: str = 'float32'
+    ) -> xr.Dataset:
+        """
+        Add a variable to the dataset with specified spatial dimensions.
+
+        Handles reshaping of data to match the spatial dimension structure.
+
+        Args:
+            ds: Dataset to modify
+            name: Variable name
+            data: Data array (will be reshaped if needed)
+            spatial_dims: Dimension names tuple (e.g., ('time', 'latitude', 'longitude'))
+            units: Units string
+            long_name: Long name
+            fill_value: Fill value for NaN
+            dtype: Data type
+
+        Returns:
+            Modified dataset
+        """
+        # Handle NaN values
+        if np.any(np.isnan(data)):
+            data = np.nan_to_num(data, nan=fill_value)
+
+        # Reshape if needed
+        expected_shape = tuple(len(ds.coords[d]) for d in spatial_dims)
+        if data.shape != expected_shape:
+            try:
+                data = data.reshape(expected_shape)
+            except ValueError:
+                raise ValueError(
+                    f"Cannot reshape data of shape {data.shape} to expected {expected_shape} "
+                    f"for dimensions {spatial_dims}"
+                )
+
+        # Ensure correct dtype
+        data = data.astype(dtype)
+
+        ds[name] = xr.DataArray(
+            data,
+            dims=spatial_dims,
+            attrs={'units': units, 'long_name': long_name}
+        )
+
+        return ds

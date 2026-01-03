@@ -80,6 +80,7 @@ class SummaConfigManager(PathResolverMixin):
             get_simulation_times_callback: Callback function to get simulation times
         """
         self.config = config
+        self.config_dict = config  # For PathResolverMixin compatibility
         self.logger = logger
         self.project_dir = project_dir
         self.setup_dir = setup_dir
@@ -122,12 +123,12 @@ class SummaConfigManager(PathResolverMixin):
             return self._get_simulation_times_callback()
 
         # Fallback implementation
-        sim_start = self.config.get('EXPERIMENT_TIME_START')
-        sim_end = self.config.get('EXPERIMENT_TIME_END')
+        sim_start = self.config_dict.get('EXPERIMENT_TIME_START')
+        sim_end = self.config_dict.get('EXPERIMENT_TIME_END')
 
         if sim_start == 'default' or sim_end == 'default':
-            start_year = self.config.get('EXPERIMENT_TIME_START').split('-')[0]
-            end_year = self.config.get('EXPERIMENT_TIME_END').split('-')[0]
+            start_year = self.config_dict.get('EXPERIMENT_TIME_START').split('-')[0]
+            end_year = self.config_dict.get('EXPERIMENT_TIME_END').split('-')[0]
             if not start_year or not end_year:
                 raise ValueError("EXPERIMENT_TIME_START or EXPERIMENT_TIME_END is missing from configuration")
             sim_start = f"{start_year}-01-01 01:00" if sim_start == 'default' else sim_start
@@ -162,7 +163,9 @@ class SummaConfigManager(PathResolverMixin):
         if self._get_base_settings_source_dir_callback:
             base_settings_path = self._get_base_settings_source_dir_callback()
         else:
-            raise RuntimeError("No callback provided for get_base_settings_source_dir")
+            # Fallback to direct resource loading if no callback provided
+            from symfluence.utils.resources import get_base_settings_dir
+            base_settings_path = get_base_settings_dir('SUMMA')
 
         settings_path = self._get_default_path('SETTINGS_SUMMA_PATH', 'settings/SUMMA')
 
@@ -205,13 +208,13 @@ class SummaConfigManager(PathResolverMixin):
         self.logger.info("Creating SUMMA file manager")
 
         try:
-            experiment_id = self.config.get('EXPERIMENT_ID')
+            experiment_id = self.config_dict.get('EXPERIMENT_ID')
             if not experiment_id:
                 raise ValueError("EXPERIMENT_ID is missing from configuration")
 
             sim_start, sim_end = self._get_simulation_times()
 
-            filemanager_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER')
+            filemanager_name = self.config_dict.get('SETTINGS_SUMMA_FILEMANAGER')
             if not filemanager_name:
                 raise ValueError("SETTINGS_SUMMA_FILEMANAGER is missing from configuration")
 
@@ -227,10 +230,10 @@ class SummaConfigManager(PathResolverMixin):
                 fm.write(f"forcingPath          '{self._get_default_path('FORCING_SUMMA_PATH', 'forcing/SUMMA_input')}/'\n")
                 fm.write(f"outputPath           '{self.project_dir / 'simulations' / experiment_id / 'SUMMA'}/'\n")
 
-                fm.write(f"initConditionFile    '{self.config.get('SETTINGS_SUMMA_COLDSTATE')}'\n")
-                fm.write(f"attributeFile        '{self.config.get('SETTINGS_SUMMA_ATTRIBUTES')}'\n")
-                fm.write(f"trialParamFile       '{self.config.get('SETTINGS_SUMMA_TRIALPARAMS')}'\n")
-                fm.write(f"forcingListFile      '{self.config.get('SETTINGS_SUMMA_FORCING_LIST')}'\n")
+                fm.write(f"initConditionFile    '{self.config_dict.get('SETTINGS_SUMMA_COLDSTATE')}'\n")
+                fm.write(f"attributeFile        '{self.config_dict.get('SETTINGS_SUMMA_ATTRIBUTES')}'\n")
+                fm.write(f"trialParamFile       '{self.config_dict.get('SETTINGS_SUMMA_TRIALPARAMS')}'\n")
+                fm.write(f"forcingListFile      '{self.config_dict.get('SETTINGS_SUMMA_FORCING_LIST')}'\n")
                 fm.write(f"decisionsFile        'modelDecisions.txt'\n")
                 fm.write(f"outputControlFile    'outputControl.txt'\n")
                 fm.write(f"globalHruParamFile   'localParamInfo.txt'\n")
@@ -301,7 +304,7 @@ class SummaConfigManager(PathResolverMixin):
             },
         }
 
-        choice = self.config.get('SETTINGS_SUMMA_SOILPROFILE', 'FA')
+        choice = self.config_dict.get('SETTINGS_SUMMA_SOILPROFILE', 'FA')
         mLayerDepth  = soil_setups[choice]["mLayerDepth"]
         iLayerHeight = soil_setups[choice]["iLayerHeight"]
 
@@ -309,7 +312,7 @@ class SummaConfigManager(PathResolverMixin):
         ifcToto = len(iLayerHeight)
         midSoil = midToto
         nSoil   = midToto
-        MatricHead = self.config.get('SUMMA_INIT_MATRIC_HEAD', -1.0)
+        MatricHead = self.config_dict.get('SUMMA_INIT_MATRIC_HEAD', -1.0)
 
         # States
         states = {
@@ -437,7 +440,7 @@ class SummaConfigManager(PathResolverMixin):
             var[:] = forcing_hruIds
 
             # Create variables for specified trial parameters
-            if self.config.get('SETTINGS_SUMMA_TRIALPARAM_N') != 0:
+            if self.config_dict.get('SETTINGS_SUMMA_TRIALPARAM_N') != 0:
                 for var, val in all_tp.items():
                     tp_var = tp.createVariable(var, 'f8', 'hru', fill_value=False)
                     tp_var[:] = val

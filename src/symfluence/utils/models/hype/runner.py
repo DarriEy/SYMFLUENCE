@@ -2,6 +2,7 @@
 HYPE model runner.
 
 Handles HYPE model execution and run-time management.
+Refactored to use the Unified Model Execution Framework.
 """
 
 from pathlib import Path
@@ -11,13 +12,16 @@ import subprocess
 
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
+from ..execution import ModelExecutor
 
 
 @ModelRegistry.register_runner('HYPE', method_name='run_hype')
-class HYPERunner(BaseModelRunner):
+class HYPERunner(BaseModelRunner, ModelExecutor):
     """
     Runner class for the HYPE model within SYMFLUENCE.
     Handles model execution and run-time management.
+
+    Uses the Unified Model Execution Framework for subprocess execution.
 
     Attributes:
         config (Dict[str, Any]): Configuration settings
@@ -26,10 +30,9 @@ class HYPERunner(BaseModelRunner):
         domain_name (str): Name of the modeling domain
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
-        """Initialize HYPE runner."""
+    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
         # Call base class
-        super().__init__(config, logger)
+        super().__init__(config, logger, reporting_manager=reporting_manager)
 
     def _setup_model_specific_paths(self) -> None:
         """Set up HYPE-specific paths."""
@@ -44,10 +47,10 @@ class HYPERunner(BaseModelRunner):
 
     def _get_output_dir(self) -> Path:
         """HYPE uses custom output path resolution."""
-        if self.typed_config:
-            experiment_id = self.typed_config.domain.experiment_id
+        if self.config:
+            experiment_id = self.config.domain.experiment_id
         else:
-            experiment_id = self.config.get('EXPERIMENT_ID')
+            experiment_id = self.config_dict.get('EXPERIMENT_ID')
         return self.get_config_path('EXPERIMENT_OUTPUT_HYPE', f"simulations/{experiment_id}/HYPE")
 
     def run_hype(self) -> Optional[Path]:
@@ -84,7 +87,6 @@ class HYPERunner(BaseModelRunner):
                 return self.output_dir
             else:
                 self.logger.error("HYPE simulation failed")
-                self._analyze_log_file(log_file)
                 return None
 
         except subprocess.CalledProcessError as e:
@@ -96,10 +98,10 @@ class HYPERunner(BaseModelRunner):
 
     def _create_run_command(self) -> List[str]:
         """Create HYPE execution command."""
-        if self.typed_config and self.typed_config.model.hype:
-            hype_exe_name = self.typed_config.model.hype.exe or 'hype'
+        if self.typed_config and self.config.model.hype:
+            hype_exe_name = self.config.model.hype.exe or 'hype'
         else:
-            hype_exe_name = self.config.get('HYPE_EXE', 'hype')
+            hype_exe_name = self.config_dict.get('HYPE_EXE', 'hype')
 
         hype_exe = self.hype_dir / hype_exe_name
 

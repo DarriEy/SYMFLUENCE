@@ -48,7 +48,7 @@ def setup_pour_point_workflow(
     if 'EXPERIMENT_ID' not in config or config['EXPERIMENT_ID'] == 'run_1':
         config['EXPERIMENT_ID'] = 'pour_point_setup'
 
-    output_dir = output_dir or Path("0_config_files")
+    output_dir = output_dir or Path(".")
     output_dir.mkdir(parents=True, exist_ok=True)
     output_config_path = output_dir / f"config_{domain_name}.yaml"
 
@@ -105,26 +105,24 @@ def _resolve_template_path(
             return resolved
         raise FileOperationError(f"Config template not found at: {resolved}")
 
+    # Try local paths first for backward compatibility
     possible_locations = [
-        Path("./0_config_files/config_template.yaml"),
-        Path("../0_config_files/config_template.yaml"),
-        Path("../../0_config_files/config_template.yaml"),
+        Path("./config_template.yaml"),
+        Path("../config_template.yaml"),
     ]
-
-    if symfluence_code_dir:
-        possible_locations.insert(
-            0,
-            Path(symfluence_code_dir) / "0_config_files" / "config_template.yaml",
-        )
 
     for location in possible_locations:
         if location.exists():
             return location
 
-    raise FileOperationError(
-        "Config template not found. Tried: "
-        + ", ".join(str(path) for path in possible_locations)
-    )
+    # Fallback to package template
+    try:
+        from symfluence.utils.resources import get_config_template
+        return get_config_template()
+    except FileNotFoundError:
+        raise FileOperationError(
+            "Config template not found. Tried local paths and package template."
+        )
 
 
 def _load_config(template_path: Path) -> Dict[str, Any]:

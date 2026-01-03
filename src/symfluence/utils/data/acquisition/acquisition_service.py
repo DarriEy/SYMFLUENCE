@@ -336,6 +336,34 @@ class AcquisitionService:
             self.logger.info("SUPPLEMENT_FORCING enabled - acquiring EM-Earth data")
             self.acquire_em_earth_forcings()
 
+    def acquire_observations(self):
+        """
+        Acquire additional observations based on configuration.
+        This handles registry-based observations (GRACE, MODIS, etc.) 
+        that require an 'acquire' step before processing.
+        """
+        from symfluence.utils.data.observation.registry import ObservationRegistry
+        
+        additional_obs = self.config.get('ADDITIONAL_OBSERVATIONS', [])
+        if isinstance(additional_obs, str):
+            additional_obs = [o.strip() for o in additional_obs.split(',')]
+            
+        if not additional_obs:
+            return
+
+        self.logger.info(f"Acquiring additional observations: {additional_obs}")
+        
+        for obs_type in additional_obs:
+            try:
+                if ObservationRegistry.is_registered(obs_type):
+                    self.logger.info(f"Acquiring registry-based observation: {obs_type}")
+                    handler = ObservationRegistry.get_handler(obs_type, self.config, self.logger)
+                    handler.acquire()
+                else:
+                    self.logger.debug(f"Skipping acquisition for {obs_type}: no registry handler")
+            except Exception as e:
+                self.logger.warning(f"Failed to acquire additional observation {obs_type}: {e}")
+
     def acquire_em_earth_forcings(self):
         """Acquire EM-Earth precipitation and temperature data."""
         self.logger.info("Starting EM-Earth forcing data acquisition")

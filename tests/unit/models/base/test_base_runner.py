@@ -87,7 +87,7 @@ class TestGetInstallPath:
     def test_custom_path(self, runner, temp_dir):
         """Test custom installation path from config."""
         custom_path = temp_dir / 'custom_install'
-        runner.config['TEST_INSTALL_PATH'] = str(custom_path)
+        runner.config_dict['TEST_INSTALL_PATH'] = str(custom_path)
 
         result = runner.get_install_path(
             'TEST_INSTALL_PATH',
@@ -98,7 +98,7 @@ class TestGetInstallPath:
 
     def test_none_uses_default(self, runner, temp_dir):
         """Test that None config value uses default path."""
-        runner.config['TEST_INSTALL_PATH'] = None
+        runner.config_dict['TEST_INSTALL_PATH'] = None
 
         result = runner.get_install_path(
             'TEST_INSTALL_PATH',
@@ -354,7 +354,7 @@ class TestGetConfigPath:
     def test_custom_path(self, runner, temp_dir):
         """Test config path resolution with custom path."""
         custom_path = temp_dir / 'custom_settings'
-        runner.config['TEST_CONFIG_PATH'] = str(custom_path)
+        runner.config_dict['TEST_CONFIG_PATH'] = str(custom_path)
 
         result = runner.get_config_path(
             'TEST_CONFIG_PATH',

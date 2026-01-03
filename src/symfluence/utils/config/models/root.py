@@ -19,7 +19,7 @@ from .domain import DomainConfig, DelineationConfig
 from .forcing import ForcingConfig, NexConfig, EMEarthConfig
 from .model_configs import (
     ModelConfig, SUMMAConfig, FUSEConfig, GRConfig, HYPEConfig,
-    NGENConfig, MESHConfig, MizuRouteConfig, FLASHConfig
+    NGENConfig, MESHConfig, MizuRouteConfig, LSTMConfig
 )
 from .optimization import (
     OptimizationConfig, PSOConfig, DEConfig, DDSConfig, SCEUAConfig,

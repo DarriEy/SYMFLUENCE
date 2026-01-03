@@ -26,23 +26,20 @@ class ConfigCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            # Look for template files in the config directory
-            base_dir = Path(__file__).parent.parent.parent.parent.parent / '0_config_files'
+            # Load templates from package data
+            from symfluence.utils.resources import list_config_templates
 
             BaseCommand.print_info("Available configuration templates:")
             BaseCommand.print_info("=" * 70)
 
-            if base_dir.exists():
-                templates = list(base_dir.glob('*template*.yaml'))
-                if templates:
-                    for i, template in enumerate(templates, 1):
-                        BaseCommand.print_info(f"{i:2}. {template.name}")
-                    BaseCommand.print_info("=" * 70)
-                    BaseCommand.print_info(f"Total: {len(templates)} templates")
-                else:
-                    BaseCommand.print_info("No template files found")
+            templates = list_config_templates()
+            if templates:
+                for i, template in enumerate(templates, 1):
+                    BaseCommand.print_info(f"{i:2}. {template.name}")
+                BaseCommand.print_info("=" * 70)
+                BaseCommand.print_info(f"Total: {len(templates)} templates")
             else:
-                BaseCommand.print_info(f"Config directory not found: {base_dir}")
+                BaseCommand.print_info("No template files found")
 
             return 0
 

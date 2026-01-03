@@ -156,6 +156,36 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
         print("⚠ NGEN not found (optional)")
         optional_missing.append("NGEN")
 
+    # Check for HYPE (optional hydrological model)
+    hype_install_path = config.get("HYPE_INSTALL_PATH", "default")
+    if hype_install_path == "default":
+        hype_install_path = data_dir / "installs" / "hype"
+    else:
+        hype_install_path = Path(hype_install_path)
+
+    hype_exe_name = config.get("HYPE_EXE", "hype")
+    hype_in_path = shutil.which(hype_exe_name)
+    if hype_in_path:
+        hype_path = Path(hype_in_path)
+    else:
+        hype_path = hype_install_path / hype_exe_name
+
+    if hype_path.exists():
+        print(f"✓ HYPE found: {hype_path}")
+        optional_found.append("HYPE")
+        # Try to verify HYPE can run
+        try:
+            # HYPE usually prints its version/header even if args are missing
+            result = subprocess.run([str(hype_path)],
+                                  capture_output=True, text=True, timeout=5)
+            if "HYPE version" in result.stdout or "HYPE version" in result.stderr:
+                print(f"  HYPE verified working")
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            print(f"  HYPE found but verification failed")
+    else:
+        print(f"⚠ HYPE not found at {hype_path} (optional)")
+        optional_missing.append("HYPE")
+
     # Summary
     print("\n" + "="*60)
     print("Binary Validation Summary")
@@ -328,7 +358,7 @@ def test_quick_workflow_summa_only(
 @pytest.mark.e2e
 @pytest.mark.ci_full
 @pytest.mark.requires_data
-@pytest.mark.parametrize("model", ["SUMMA"])  # Can add FUSE, NGEN later
+@pytest.mark.parametrize("model", ["SUMMA", "HYPE"])  # Can add FUSE, NGEN later
 def test_full_workflow_1month(
     model,
     tmp_path,

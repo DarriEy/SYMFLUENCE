@@ -16,6 +16,7 @@ from typing import Dict, Any, List, Optional
 import logging
 
 from symfluence.utils.optimization.core.base_parameter_manager import BaseParameterManager
+from symfluence.utils.optimization.core.parameter_bounds_registry import get_fuse_bounds
 
 
 class FUSEParameterManager(BaseParameterManager):
@@ -57,46 +58,20 @@ class FUSEParameterManager(BaseParameterManager):
         return self.fuse_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return hardcoded FUSE parameter bounds."""
-        return self._get_default_fuse_bounds()
+        """Return FUSE parameter bounds from central registry."""
+        return get_fuse_bounds()
+
+    def _get_default_fuse_bounds(self) -> Dict[str, Dict[str, float]]:
+        """Get central registry defaults for FUSE parameters."""
+        return get_fuse_bounds()
 
     def update_model_files(self, params: Dict[str, float]) -> bool:
         """Update FUSE NetCDF parameter file."""
         return self.update_parameter_file(params)
 
     # Note: get_initial_parameters() is already defined below and matches the signature
-    
-    def _get_default_fuse_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Define reasonable bounds for FUSE parameters"""
-        return {
-            # Snow parameters (most important for snow-dominated basins)
-            'MBASE': {'min': -5.0, 'max': 5.0},        # Base melt temperature (°C)
-            'MFMAX': {'min': 1.0, 'max': 10.0},        # Maximum melt factor (mm/(°C·day))
-            'MFMIN': {'min': 0.5, 'max': 5.0},         # Minimum melt factor (mm/(°C·day))
-            'PXTEMP': {'min': -2.0, 'max': 2.0},       # Rain-snow partition temperature (°C)
-            'LAPSE': {'min': 3.0, 'max': 10.0},        # Temperature lapse rate (°C/km)
-            
-            # Soil parameters
-            'MAXWATR_1': {'min': 50.0, 'max': 1000.0},   # Maximum storage upper layer (mm)
-            'MAXWATR_2': {'min': 100.0, 'max': 2000.0},  # Maximum storage lower layer (mm)
-            'FRACTEN': {'min': 0.1, 'max': 0.9},         # Fraction tension storage
-            'PERCRTE': {'min': 0.01, 'max': 100.0},      # Percolation rate (mm/day)
-            'PERCEXP': {'min': 1.0, 'max': 20.0},        # Percolation exponent
-            
-            # Baseflow parameters
-            'BASERTE': {'min': 0.001, 'max': 1.0},       # Baseflow rate (mm/day)
-            'QB_POWR': {'min': 1.0, 'max': 10.0},        # Baseflow exponent
-            'QBRATE_2A': {'min': 0.001, 'max': 0.1},     # Primary baseflow depletion (day⁻¹)
-            'QBRATE_2B': {'min': 0.0001, 'max': 0.01},   # Secondary baseflow depletion (day⁻¹)
-            
-            # Routing parameters
-            'TIMEDELAY': {'min': 0.0, 'max': 10.0},      # Time delay in routing (days)
-            
-            # Evapotranspiration parameters
-            'RTFRAC1': {'min': 0.1, 'max': 0.9},         # Fraction roots upper layer
-            'RTFRAC2': {'min': 0.1, 'max': 0.9},         # Fraction roots lower layer
-        }
-    
+    # Note: Parameter bounds are now provided by the central ParameterBoundsRegistry
+
     def verify_and_fix_parameter_files(self) -> bool:
         """Verify parameter file structure and fix indexing issues"""
         try:

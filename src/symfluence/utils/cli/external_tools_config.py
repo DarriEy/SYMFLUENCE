@@ -838,6 +838,74 @@ cmake --build cmake_build --target ngen -j ${NCORES:-4}
         },
 
         # ================================================================
+        # HYPE - Hydrological Predictions for the Environment
+        # ================================================================
+        'hype': {
+            'description': 'HYPE - Hydrological Predictions for the Environment',
+            'config_path_key': 'HYPE_INSTALL_PATH',
+            'config_exe_key': 'HYPE_EXE',
+            'default_path_suffix': 'installs/hype/bin',
+            'default_exe': 'hype',
+            'repository': None,
+            'branch': None,
+            'install_dir': 'hype',
+            'build_commands': [
+                common_env,
+                r'''
+# Download and build HYPE from source
+set -e
+
+HYPE_VER=5.27.0
+HYPE_URL="https://hypecode.smhi.se/wp-content/uploads/hype_src_${HYPE_VER}.zip"
+
+echo "Downloading HYPE source v${HYPE_VER}..."
+rm -f "hype_src_${HYPE_VER}.zip" || true
+wget -q "$HYPE_URL" || curl -fsSL -o "hype_src_${HYPE_VER}.zip" "$HYPE_URL"
+
+mkdir -p src
+unzip -q -o "hype_src_${HYPE_VER}.zip" -d src
+
+echo "Compiling HYPE..."
+# HYPE is a collection of Fortran files. We compile them together.
+# Note: HYPE compilation can be complex depending on the version.
+# This assumes a standard gfortran build of all .f90 files in the src directory.
+
+# Create bin directory
+mkdir -p bin
+
+# Define compiler flags
+FFLAGS="-O3 -ffree-line-length-none -ffixed-line-length-none -fallow-argument-mismatch"
+
+# Find all source files
+# HYPE usually has a mix of .f90 and .f files
+cd src
+# Compilation order sometimes matters for Fortran modules, but gfortran often handles it
+# if we pass all files at once.
+$FC $FFLAGS *.f90 *.f -o ../bin/hype || {
+    # Try alternative if above fails (e.g. only .f90)
+    $FC $FFLAGS *.f90 -o ../bin/hype
+}
+cd ..
+
+if [ -f "bin/hype" ]; then
+    echo "✅ HYPE compiled successfully"
+    chmod +x bin/hype
+else
+    echo "❌ HYPE compilation failed"
+    exit 1
+fi
+                '''.strip()
+            ],
+            'dependencies': ['unzip'],
+            'test_command': None, # HYPE might not have a version flag
+            'verify_install': {
+                'file_paths': ['bin/hype'],
+                'check_type': 'exists'
+            },
+            'order': 11
+        },
+
+        # ================================================================
         # NGIAB - NextGen In A Box
         # ================================================================
         'ngiab': {
