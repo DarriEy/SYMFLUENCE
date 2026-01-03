@@ -18,6 +18,7 @@ from symfluence.utils.models.hype.hypeFlow import (
     write_hype_par_file,
     write_hype_info_filedir_files
 )  # type: ignore
+from symfluence.utils.models.hype.forcing_processor import HYPEForcingProcessor
 from ..registry import ModelRegistry
 from ..base import BaseModelPreProcessor
 from ..mixins import ObservationLoaderMixin
@@ -134,14 +135,16 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
     def _prepare_forcing(self) -> None:
         """HYPE-specific forcing data preparation (template hook)."""
-        write_hype_forcing(
-            self.forcing_input_dir,
-            self.timeshift,
-            self.forcing_units,
-            self.geofabric_mapping,
-            self.output_path,
-            f"{self.cache_path}/"
+        processor = HYPEForcingProcessor(
+            config=self.config_dict,
+            logger=self.logger,
+            forcing_input_dir=self.forcing_input_dir,
+            output_path=self.output_path,
+            cache_path=self.cache_path,
+            timeshift=self.timeshift,
+            forcing_units=self.forcing_units
         )
+        processor.process_forcing()
 
     def _create_model_configs(self) -> None:
         """HYPE-specific configuration file creation (template hook)."""
