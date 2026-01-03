@@ -125,17 +125,52 @@ def skip_if_no_model(model_name):
     """
     Skip test if model binary is not available.
 
+    Checks both the system PATH and standard SYMFLUENCE_data/installs directory.
+
     Args:
-        model_name: Model name (SUMMA, FUSE, NGEN, etc.)
+        model_name: Model name (SUMMA, FUSE, NGEN, HYPE, etc.)
 
     Returns:
         pytest.mark.skipif decorator
     """
     import shutil
+    import os
+    from pathlib import Path
+
+    # 1. Check PATH
     model_available = shutil.which(model_name.lower()) is not None
+    if model_available:
+        return pytest.mark.skipif(False, reason=f"{model_name} binary found in PATH")
+
+    # 2. Check standard install directory
+    # Try to find SYMFLUENCE_data/installs
+    data_dir = os.environ.get("SYMFLUENCE_DATA")
+    if not data_dir:
+        # Fallback to relative path from project root
+        code_dir = Path(__file__).parent.parent.parent
+        data_dir = code_dir.parent / "SYMFLUENCE_data"
+    else:
+        data_dir = Path(data_dir)
+
+    installs_dir = data_dir / "installs"
+    
+    # Map model names to their expected binary paths relative to installs/
+    binary_mappings = {
+        "SUMMA": ["summa/bin/summa.exe", "summa/bin/summa_sundials.exe"],
+        "FUSE": ["fuse/bin/fuse.exe"],
+        "NGEN": ["ngen/cmake_build/ngen"],
+        "HYPE": ["hype/bin/hype", "hype/hype"],
+        "MIZUROUTE": ["mizuroute/bin/mizuRoute.exe"],
+    }
+
+    if model_name.upper() in binary_mappings:
+        for rel_path in binary_mappings[model_name.upper()]:
+            if (installs_dir / rel_path).exists():
+                return pytest.mark.skipif(False, reason=f"{model_name} binary found in installs")
+
     return pytest.mark.skipif(
-        not model_available,
-        reason=f"{model_name} binary not found in PATH"
+        True,
+        reason=f"{model_name} binary not found in PATH or {installs_dir}"
     )
 
 
