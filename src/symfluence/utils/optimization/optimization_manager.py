@@ -14,8 +14,6 @@ from symfluence.utils.optimization.optimizers import (
     DEOptimizer, DDSOptimizer, AsyncDDSOptimizer, PopulationDDSOptimizer,
     PSOOptimizer, NSGA2Optimizer, SCEUAOptimizer
 )
-from symfluence.utils.optimization.legacy.large_domain_emulator import LargeDomainEmulator
-from symfluence.utils.optimization.legacy.differentiable_parameter_emulator import DifferentiableParameterOptimizer, EmulatorConfig
 from symfluence.utils.optimization.objective_registry import ObjectiveRegistry
 from symfluence.utils.optimization.transformers import TransformationManager
 from symfluence.utils.optimization.registry import OptimizerRegistry
@@ -23,31 +21,27 @@ from symfluence.utils.optimization.optimization_results_manager import Optimizat
 
 class OptimizationManager:
     """
-    Coordinates model optimization, calibration, and parameter emulation.
+    Coordinates model optimization and calibration.
     
-    The OptimizationManager is responsible for coordinating model calibration and 
-    parameter emulation within the SYMFLUENCE framework. It provides a unified 
-    interface for different optimization algorithms and handles the interaction 
-    between optimization components and hydrological models.
+    The OptimizationManager is responsible for coordinating model calibration 
+    within the SYMFLUENCE framework. It provides a unified interface for 
+    different optimization algorithms and handles the interaction between 
+    optimization components and hydrological models.
     
     Key responsibilities:
     - Coordinating model calibration using different optimization algorithms
-    - Executing parameter emulation workflows
     - Managing optimization results and performance metrics
     - Validating optimization configurations
     - Providing status information on optimization progress
     
-    The OptimizationManager supports multiple optimization algorithms:
+    The OptimizationManager supports multiple optimization algorithms via
+    OptimizerRegistry:
     - PSO: Particle Swarm Optimization
     - SCE-UA: Shuffled Complex Evolution
     - DDS: Dynamically Dimensioned Search
-    
-    It also supports parameter emulation for rapid exploration of parameter space
-    and uncertainty quantification.
-    
-    The OptimizationManager acts as a bridge between the underlying optimization
-    algorithms and the SYMFLUENCE workflow, ensuring consistent execution and
-    results management.
+    - DE: Differential Evolution
+    - NSGA-II: Non-dominated Sorting Genetic Algorithm II
+    - ADAM/LBFGS: Gradient-based optimization
     
     Attributes:
         config (Dict[str, Any]): Configuration dictionary
@@ -66,9 +60,8 @@ class OptimizationManager:
         Initialize the Optimization Manager.
         
         Sets up the OptimizationManager with the necessary components for model
-        calibration and parameter emulation. This includes initializing the results
-        manager, emulation runner, and mappings between optimization algorithms
-        and their implementation classes.
+        calibration. This includes initializing the results manager and mappings 
+        between optimization algorithms and their implementation classes.
         
         Args:
             config (Dict[str, Any]): Configuration dictionary containing all settings
@@ -130,13 +123,13 @@ class OptimizationManager:
 
     def run_optimization_workflow(self) -> Dict[str, Any]:
         """
-        Main entry point for all optimization and emulation workflows.
+        Main entry point for optimization workflow.
         
         This method checks the OPTIMIZATION_METHODS configuration and runs
-        the appropriate workflows in the correct order.
+        the iterative optimization (calibration) if enabled.
         
         Returns:
-            Dict[str, Any]: Results from all completed workflows
+            Dict[str, Any]: Results from completed workflows
         """
         results = {}
         optimization_methods = self.config.get('OPTIMIZATION_METHODS', [])
@@ -149,146 +142,29 @@ class OptimizationManager:
             if calibration_results:
                 results['calibration'] = str(calibration_results)
         
-        # Run differentiable parameter emulation
-        if 'differentiable_parameter_emulation' in optimization_methods:
-            dpe_results = self.run_emulation()
-            if dpe_results:
-                results['differentiable_parameter_emulation'] = dpe_results
+        # Check for deprecated methods and warn
+        deprecated_methods = [
+            'differentiable_parameter_emulation',
+            'large_domain_emulator',
+            'emulation'
+        ]
         
-        # Run large domain emulation
-        if 'large_domain_emulator' in optimization_methods:
-            lde_results = self.run_large_domain_emulation()
-            if lde_results:
-                results['large_domain_emulation'] = lde_results
+        for method in deprecated_methods:
+            if method in optimization_methods:
+                self.logger.warning(
+                    f"Optimization method '{method}' is deprecated and no longer supported. "
+                    "Use gradient-based optimization (ADAM/LBFGS) via standard model optimizers instead."
+                )
         
         return results
     
-    def run_large_domain_emulation(self) -> Optional[Dict]:
-        """Run large domain emulation workflow."""
-        if not 'large_domain_emulator' in self.config.get('OPTIMIZATION_METHODS', []):
-            self.logger.info("Large domain emulation is disabled in configuration")
-            return None
-        
-        self.logger.info("Starting large domain emulation workflow")
-        
-        try:
-            # Import here to avoid circular imports
-            from symfluence.utils.optimization.legacy.large_domain_emulator import LargeDomainEmulator
-            
-            # Initialize large domain emulator
-            self.large_domain_emulator = LargeDomainEmulator(self.config, self.logger)
-            
-            # Run the distributed emulation workflow
-            results = self.large_domain_emulator.run_distributed_emulation()  # FIXED METHOD NAME
-            
-            if results:
-                self.logger.info("Large domain emulation completed successfully")
-                
-                # Save results using the results manager
-                self._save_large_domain_results(results)
-                
-                return results
-            else:
-                self.logger.warning("Large domain emulation did not produce results")
-                return None
-                
-        except Exception as e:
-            self.logger.error(f"Error during large domain emulation: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return None
-    
-    def _save_large_domain_results(self, results: Dict[str, Any]):
-        """Save large domain emulation results to standard SYMFLUENCE location."""
-        try:
-            # Create large domain results directory
-            lde_results_dir = self.project_dir / "optimization" / "large_domain_emulation"
-            lde_results_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Save comprehensive results
-            results_file = lde_results_dir / f"{self.experiment_id}_large_domain_results.json"
-            with open(results_file, 'w') as f:
-                json.dump(results, f, indent=2, default=str)
-            
-            self.logger.info(f"Saved large domain emulation results to {results_file}")
-            
-            # Save best parameters in SYMFLUENCE format if available
-            optimization_results = results.get('optimization', {})
-            best_params = optimization_results.get('best_parameters')
-            
-            if best_params and isinstance(best_params, dict):
-                # Convert to DataFrame format compatible with other SYMFLUENCE optimizers
-                params_data = {'iteration': [0]}
-                
-                # Add optimization mode and loss
-                mode = optimization_results.get('mode', 'unknown')
-                best_loss = optimization_results.get('best_loss', float('inf'))
-                params_data['optimization_mode'] = [mode]
-                params_data['composite_loss'] = [best_loss]
-                
-                # Add parameter values
-                for param_name, value in best_params.items():
-                    if isinstance(value, (list, np.ndarray)):
-                        params_data[param_name] = [float(np.mean(value))]
-                    else:
-                        params_data[param_name] = [float(value)]
-                
-                # Save as CSV for compatibility
-                params_df = pd.DataFrame(params_data)
-                params_file = lde_results_dir / f"{self.experiment_id}_large_domain_parameters.csv"
-                params_df.to_csv(params_file, index=False)
-                
-                self.logger.info(f"Saved large domain parameters to {params_file}")
-                
-        except Exception as e:
-            self.logger.error(f"Error saving large domain results: {str(e)}")
-    
-    def get_optimization_status(self) -> Dict[str, Any]:
-        """
-        Get status of optimization operations.
-        
-        Enhanced to include large domain emulation status.
-        """
-        status = {
-            'iterative_optimization_enabled': 'iteration' in self.config.get('OPTIMIZATION_METHODS', []),
-            'optimization_algorithm': self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'PSO'),
-            'optimization_metric': self.config.get('OPTIMIZATION_METRIC', 'KGE'),
-            'optimization_dir': str(self.project_dir / "optimization"),
-            'results_exist': False,
-            'emulation_enabled': 'emulation' in self.config.get('OPTIMIZATION_METHODS', []),
-            'rf_emulation_enabled': 'emulation' in self.config.get('OPTIMIZATION_METHODS', []),
-            'differentiable_emulation_enabled': 'differentiable_parameter_emulation' in self.config.get('OPTIMIZATION_METHODS', []),
-            'large_domain_emulation_enabled': 'large_domain_emulator' in self.config.get('OPTIMIZATION_METHODS', [])
-        }
-        
-        # Check for optimization results
-        results_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
-        status['results_exist'] = results_file.exists()
-        
-        # Check for emulation outputs
-        emulation_dir = self.project_dir / "emulation" / self.experiment_id
-        if emulation_dir.exists():
-            status['emulation_parameter_sets'] = (emulation_dir / "parameter_sets.nc").exists()
-            status['ensemble_runs_exist'] = (emulation_dir / "ensemble_runs").exists()
-            status['performance_metrics_exist'] = (emulation_dir / "ensemble_analysis" / "performance_metrics.csv").exists()
-            status['rf_emulation_complete'] = (emulation_dir / "rf_emulation" / "optimized_parameters.csv").exists()
-        
-        # Check for large domain emulation outputs
-        lde_dir = self.project_dir / "optimization" / "large_domain_emulation"
-        if lde_dir.exists():
-            status['large_domain_results_exist'] = (lde_dir / f"{self.experiment_id}_large_domain_results.json").exists()
-            status['large_domain_parameters_exist'] = (lde_dir / f"{self.experiment_id}_large_domain_parameters.csv").exists()
-        
-        return status
-    
-
     def calibrate_model(self) -> Optional[Path]:
         """
         Calibrate the model using the specified optimization algorithm.
         
         This method coordinates the calibration process for the configured
         hydrological model using the optimization algorithm specified in the
-        configuration. It supports calibration for both SUMMA and FUSE models.
+        configuration.
         
         The calibration process involves:
         1. Checking if iterative optimization is enabled in the configuration
@@ -297,8 +173,7 @@ class OptimizationManager:
         4. Saving and returning the path to the calibration results
         
         The optimization algorithm is specified through the ITERATIVE_OPTIMIZATION_ALGORITHM
-        configuration parameter (default: 'PSO'). Supported algorithms include PSO,
-        SCE-UA, DDS, DE, and NSGA-II.
+        configuration parameter (default: 'PSO').
         
         Returns:
             Optional[Path]: Path to calibration results file or None if calibration
@@ -379,86 +254,6 @@ class OptimizationManager:
             Optional[Path]: Path to results file or None if optimization failed
         """
         return self._calibrate_with_registry('NGEN', algorithm)
-
-
-    def differentiable_parameter_emulation(self):
-        """
-        Runs the full Differentiable Parameter Emulation (DPE) workflow.
-        """
-        self.logger.info("Starting Differentiable Parameter Emulation workflow...")
-
-        try:
-            # a. Configure the emulator from your main config file for flexibility
-            #    Add these DPE_* parameters to your main config.yaml if you wish.
-            emulator_config = EmulatorConfig(
-                hidden_dims=self.config.get('DPE_HIDDEN_DIMS', [256, 128, 64]),
-                n_training_samples=self.config.get('DPE_TRAINING_SAMPLES', 500),
-                n_validation_samples=self.config.get('DPE_VALIDATION_SAMPLES', 100),
-                n_epochs=self.config.get('DPE_EPOCHS', 300),
-                optimization_steps=self.config.get('DPE_OPTIMIZATION_STEPS', 200),
-                learning_rate=self.config.get('DPE_LEARNING_RATE', 1e-3),
-                optimization_lr=self.config.get('DPE_OPTIMIZATION_LR', 1e-2),
-            )
-
-            dpe = DifferentiableParameterOptimizer(self.config, self.config.get('DOMAIN_NAME'), emulator_config)
-
-            self.logger.info("Running DPE from config (EMULATOR_SETTING)…")
-            optimized_params = dpe.run_from_config()
-
-            self.logger.info("Validating optimized parameters with a final SUMMA run…")
-            validation_results = dpe.validate_optimization(optimized_params)
-
-            results_dir = Path(f"results_differentiable_{dpe.domain_name}_{datetime.now().strftime('%Y%m%d_%H%M')}")
-            dpe.save_results(optimized_params, results_dir)
-            return True
-
-        except Exception as e:
-            self.logger.error("Differentiable Parameter Emulation workflow failed.", exc_info=True)
-            # Re-raise the exception to be caught by the main SYMFLUENCE error handler
-            raise e    
-
-    def run_emulation(self) -> Optional[Dict]:
-        """
-        Entry point for all emulation workflows.
-
-        This method dispatches to the appropriate emulation workflow based on
-        the OPTIMIZATION_METHODS configuration.
-
-        .. deprecated::
-            run_emulation is deprecated and will be removed in a future version.
-            Consider using the unified model optimizers with gradient-based methods
-            (run_adam, run_lbfgs) instead.
-        """
-        warnings.warn(
-            "run_emulation is deprecated. Consider using the unified model optimizers "
-            "(SUMMAModelOptimizer, FUSEModelOptimizer, NgenModelOptimizer) with "
-            "gradient-based methods (run_adam, run_lbfgs) instead.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-
-        optimization_methods = self.config.get('OPTIMIZATION_METHODS', [])
-        results = {}
-        
-        # Run differentiable parameter emulation
-        if 'differentiable_parameter_emulation' in optimization_methods:
-            dpe_results = self.differentiable_parameter_emulation()
-            if dpe_results:
-                results['differentiable_parameter_emulation'] = dpe_results
-        
-        # Run large domain emulation
-        if 'large_domain_emulator' in optimization_methods:
-            lde_results = self.run_large_domain_emulation()
-            if lde_results:
-                results['large_domain_emulation'] = lde_results
-        
-        # If no emulation methods were configured
-        if not results:
-            if not any(method in optimization_methods for method in ['differentiable_parameter_emulation', 'large_domain_emulator']):
-                self.logger.info("No emulation methods enabled in configuration.")
-            return None
-        
-        return results
 
     def _calibrate_with_registry(self, model_name: str, algorithm: str) -> Optional[Path]:
         """
@@ -612,24 +407,8 @@ class OptimizationManager:
         """
         Get status of optimization operations.
         
-        This method provides a comprehensive status report on the optimization
-        and emulation operations. It checks for the existence of key files and
-        directories to determine which steps have been completed successfully.
-        
-        The status information includes:
-        - Whether iterative optimization is enabled
-        - Which optimization algorithm is configured
-        - Which performance metric is being used
-        - Whether optimization results exist
-        - Whether emulation is enabled and its status
-        - The existence of various emulation outputs
-        
-        This information is useful for tracking progress, diagnosing issues,
-        and providing feedback to users.
-        
         Returns:
-            Dict[str, Any]: Dictionary containing optimization status information,
-                          including configuration settings and existence of output files
+            Dict[str, Any]: Dictionary containing optimization status information
         """
         status = {
             'iterative_optimization_enabled': 'iteration' in self.config.get('OPTIMIZATION_METHODS', []),
@@ -637,21 +416,11 @@ class OptimizationManager:
             'optimization_metric': self.config.get('OPTIMIZATION_METRIC', 'KGE'),
             'optimization_dir': str(self.project_dir / "optimization"),
             'results_exist': False,
-            'emulation_enabled': 'emulation' in self.config.get('OPTIMIZATION_METHODS', []),
-            'rf_emulation_enabled': 'emulation' in self.config.get('OPTIMIZATION_METHODS', [])
         }
         
         # Check for optimization results
         results_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
         status['results_exist'] = results_file.exists()
-        
-        # Check for emulation outputs
-        emulation_dir = self.project_dir / "emulation" / self.experiment_id
-        if emulation_dir.exists():
-            status['emulation_parameter_sets'] = (emulation_dir / "parameter_sets.nc").exists()
-            status['ensemble_runs_exist'] = (emulation_dir / "ensemble_runs").exists()
-            status['performance_metrics_exist'] = (emulation_dir / "ensemble_analysis" / "performance_metrics.csv").exists()
-            status['rf_emulation_complete'] = (emulation_dir / "rf_emulation" / "optimized_parameters.csv").exists()
         
         return status
     
@@ -659,23 +428,8 @@ class OptimizationManager:
         """
         Validate optimization configuration settings.
         
-        This method checks the configuration for optimization to ensure that
-        all required settings are present and valid. It verifies:
-        1. Whether the specified optimization algorithm is supported
-        2. Whether the model to be calibrated is supported
-        3. Whether parameters to calibrate are defined
-        4. Whether the performance metric is valid
-        
-        These validations help prevent runtime errors by catching configuration
-        issues before the optimization process begins.
-        
         Returns:
-            Dict[str, bool]: Dictionary containing validation results for each
-                           aspect of the optimization configuration:
-                           - algorithm_valid: Whether the algorithm is supported
-                           - model_supported: Whether the model is supported for calibration
-                           - parameters_defined: Whether parameters are defined for calibration
-                           - metric_valid: Whether the performance metric is valid
+            Dict[str, bool]: Dictionary containing validation results
         """
         validation = {
             'algorithm_valid': False,
@@ -708,25 +462,17 @@ class OptimizationManager:
         """
         Get list of available optimization algorithms.
         
-        This method provides information about the optimization algorithms
-        supported by the OptimizationManager. The information includes both
-        the algorithm identifiers used in configuration and descriptions of
-        each algorithm.
-        
-        This information is useful for user interfaces and documentation to
-        help users select an appropriate optimization algorithm.
-        
         Returns:
-            Dict[str, str]: Dictionary mapping algorithm identifiers to their
-                          descriptions:
-                          - 'PSO': 'Particle Swarm Optimization'
-                          - 'SCE-UA': 'Shuffled Complex Evolution'
-                          - 'DDS': 'Dynamically Dimensioned Search'
+            Dict[str, str]: Dictionary mapping algorithm identifiers to their descriptions
         """
         return {
             'PSO': 'Particle Swarm Optimization',
             'SCE-UA': 'Shuffled Complex Evolution',
-            'DDS': 'Dynamically Dimensioned Search'
+            'DDS': 'Dynamically Dimensioned Search',
+            'DE': 'Differential Evolution',
+            'NSGA-II': 'Non-dominated Sorting Genetic Algorithm II',
+            'ASYNC-DDS': 'Asynchronous Dynamically Dimensioned Search',
+            'POP-DDS': 'Population Dynamically Dimensioned Search',
         }
     
     def _apply_parameter_transformations(self, params: Dict[str, float], settings_dir: Path) -> bool:
@@ -756,32 +502,19 @@ class OptimizationManager:
         """
         Load optimization results from file.
         
-        This method loads and formats optimization results from a previously
-        completed calibration run. It converts the results from CSV format to
-        a dictionary structure that can be easily used for analysis or visualization.
-        
-        If no filename is provided, the method loads the results for the current
-        experiment ID.
-        
         Args:
             filename (str, optional): Name of results file to load. If None, uses
                                     the default filename based on experiment_id.
             
         Returns:
-            Optional[Dict]: Dictionary with optimization results organized as:
-                          - 'parameters': List of parameter sets as dictionaries
-                          - 'best_iteration': Dictionary of the best parameter set
-                          - 'columns': List of column names from the results file
-                          Returns None if loading fails
-                          
-        Raises:
-            FileNotFoundError: If the results file cannot be found
-            ValueError: If the file format is invalid
-            Exception: For other errors during loading
+            Optional[Dict]: Dictionary with optimization results. Returns None if loading fails.
         """
         try:
             results_df = self.results_manager.load_optimization_results(filename)
             
+            if results_df is None:
+                return None
+
             # Convert DataFrame to dictionary format
             results = {
                 'parameters': results_df.to_dict(orient='records'),
@@ -794,9 +527,3 @@ class OptimizationManager:
         except Exception as e:
             self.logger.error(f"Error loading optimization results: {str(e)}")
             return None
-
-        if not results_file.exists():
-            from symfluence.utils.exceptions import FileOperationError
-            raise FileOperationError(f"Optimization results file not found: {results_file}")
-        
-        return pd.read_csv(results_file)
