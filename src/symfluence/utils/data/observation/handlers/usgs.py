@@ -240,37 +240,42 @@ class USGSGroundwaterHandler(BaseObservationHandler):
             response = requests.get(url_dv, timeout=60)
             response.raise_for_status()
             
-            with open(raw_file, 'w') as f:
-                f.write(response.text)
+            data = response.json()
+            if 'value' in data and 'timeSeries' in data['value'] and data['value']['timeSeries']:
+                with open(raw_file, 'w') as f:
+                    f.write(response.text)
+                return raw_file
             
-            return raw_file
+            # If all fail to provide timeSeries
+            self.logger.warning(f"No groundwater data found for station {station_numeric} in any endpoint (gwlevels, iv, dv).")
+            raise DataAcquisitionError(f"No USGS groundwater data available for station {station_numeric}")
             
         except Exception as e:
             self.logger.error(f"Failed to download USGS groundwater data: {e}")
-            return raw_file
+            raise DataAcquisitionError(f"USGS groundwater acquisition failed: {e}")
 
     def process(self, input_path: Path) -> Path:
         """Process USGS groundwater JSON."""
         import json
         if not input_path.exists():
-            return input_path
+            raise FileNotFoundError(f"USGS GW raw file not found: {input_path}")
 
         try:
             with open(input_path, 'r') as f:
                 data = json.load(f)
         except Exception as e:
             self.logger.error(f"Failed to load USGS GW JSON: {e}")
-            return input_path
+            raise DataAcquisitionError(f"Invalid JSON in USGS GW file: {input_path}") from e
 
         # Robust check for data structure
         if 'value' not in data or 'timeSeries' not in data['value']:
             self.logger.warning(f"No valid timeSeries found in USGS GW data: {input_path}")
-            return input_path
+            raise DataAcquisitionError("No timeSeries structure in USGS GW JSON")
             
         time_series = data['value']['timeSeries']
         if not time_series:
             self.logger.warning("USGS GW timeSeries list is empty")
-            return input_path
+            raise DataAcquisitionError("Empty timeSeries in USGS GW JSON")
 
         dates, values, units = [], [], []
         for ts in time_series:
@@ -299,7 +304,7 @@ class USGSGroundwaterHandler(BaseObservationHandler):
 
         if not dates:
             self.logger.warning("No valid groundwater level records found in USGS JSON")
-            return input_path
+            raise DataAcquisitionError("No valid groundwater level records extracted from USGS JSON")
 
         df = pd.DataFrame({
             'datetime': pd.to_datetime(dates),

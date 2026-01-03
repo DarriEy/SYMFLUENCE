@@ -8,6 +8,7 @@ Refactored to use the Unified Model Execution Framework.
 import os
 import shutil
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -38,14 +39,19 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
 
     def _setup_model_specific_paths(self) -> None:
         """Set up MESH-specific paths."""
-        # MESH executable path (installation dir + exe name)
-        self.mesh_exe = self.get_model_executable(
-            install_path_key='MESH_INSTALL_PATH',
-            default_install_subpath='installs/MESH-DEV',
-            exe_name_key='MESH_EXE',
-            default_exe_name='sa_mesh',
-            typed_exe_accessor=lambda: self.config.model.mesh.exe if (self.typed_config and self.config.model.mesh) else None
-        )
+        # Use the newly compiled version from installs/MESH-Dev by default if it exists
+        local_compiled = Path("/Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/installs/MESH-Dev/sa_mesh")
+        if local_compiled.exists():
+            self.mesh_exe = local_compiled
+        else:
+            # MESH executable path (installation dir + exe name)
+            self.mesh_exe = self.get_model_executable(
+                install_path_key='MESH_INSTALL_PATH',
+                default_install_subpath='installs/MESH-DEV',
+                exe_name_key='MESH_EXE',
+                default_exe_name='sa_mesh',
+                typed_exe_accessor=lambda: self.config.model.mesh.exe if (self.typed_config and self.config.model.mesh) else None
+            )
 
         # Catchment paths (now has PathResolverMixin via BaseModelRunner)
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
@@ -81,31 +87,46 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
 
             # Set up logging
             log_dir = self.get_log_path()
-            from datetime import datetime
             current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
             log_file = log_dir / f'mesh_run_{current_time}.log'
 
             # Execute MESH (it must run in the forcing directory)
             self.logger.info(f"Executing command: {' '.join(map(str, cmd))}")
 
+            # Prepare environment
+            run_env = os.environ.copy()
+            if sys.platform == 'darwin':
+                # Ensure homebrew paths are included
+                brew_lib = "/opt/homebrew/lib"
+                if brew_lib not in run_env.get("DYLD_LIBRARY_PATH", ""):
+                    run_env['DYLD_LIBRARY_PATH'] = f"{brew_lib}:{run_env.get('DYLD_LIBRARY_PATH', '')}"
+
             result = self.execute_model_subprocess(
                 cmd,
                 log_file,
                 cwd=self.forcing_mesh_path,
+                env=run_env,
                 check=False,  # Don't raise on non-zero exit, we'll handle it
                 success_message="MESH simulation completed successfully"
             )
 
-            # Clean up copied executable
-            mesh_exe_in_forcing = self.forcing_mesh_path / self.mesh_exe.name
-            if mesh_exe_in_forcing.exists() and mesh_exe_in_forcing.is_file():
-                mesh_exe_in_forcing.unlink()
-
             # Check execution success
             if result.returncode == 0 and self._verify_outputs():
+                # Clean up copied executable only on success
+                mesh_exe_in_forcing = self.forcing_mesh_path / self.mesh_exe.name
+                if mesh_exe_in_forcing.exists() and mesh_exe_in_forcing.is_file():
+                    mesh_exe_in_forcing.unlink()
                 return self.output_dir
             else:
-                self.logger.error("MESH simulation failed")
+                self.logger.error(f"MESH simulation failed with code {result.returncode}")
+                # Log the end of the log file for easier debugging
+                if log_file.exists():
+                     with open(log_file, 'r') as f:
+                         lines = f.readlines()
+                         last_lines = lines[-20:]
+                         self.logger.error("Last 20 lines of model log:")
+                         for line in last_lines:
+                             self.logger.error(f"  {line.strip()}")
                 return None
 
         except subprocess.CalledProcessError as e:
@@ -142,3 +163,19 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
                 return False
 
         return True
+
+    def _copy_outputs(self) -> None:
+        """Copy MESH outputs from forcing directory to simulation directory."""
+        if not self.output_dir.exists():
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            
+        outputs_to_copy = [
+            'MESH_output_streamflow.csv',
+            'MESH_output_echo_print.txt',
+            'MESH_output_echo_results.txt'
+        ]
+        
+        for out_file in outputs_to_copy:
+            src = self.forcing_mesh_path / out_file
+            if src.exists():
+                shutil.copy2(src, self.output_dir / out_file)

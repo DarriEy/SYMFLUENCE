@@ -44,47 +44,64 @@ class AcquisitionService:
             try:
                 downloader = CloudForcingDownloader(self.config, self.logger)
                 
-                if dem_source == 'copernicus':
-                    self.logger.info("Acquiring Copernicus DEM GLO-30 (30m) from AWS")
-                    elev_file = downloader.download_copernicus_dem()
-                    self.logger.info(f"✓ Copernicus DEM acquired: {elev_file}")
-                    
-                elif dem_source == 'fabdem':
-                    self.logger.info("Acquiring FABDEM (30m, vegetation/building removed)")
-                    elev_file = downloader.download_fabdem()
-                    self.logger.info(f"✓ FABDEM acquired: {elev_file}")
-                    
-                elif dem_source == 'nasadem':
-                    if self.config.get('NASADEM_LOCAL_DIR'):
-                        self.logger.info("Acquiring NASADEM (30m) from local tiles")
-                        elev_file = downloader.download_nasadem_local()
-                        self.logger.info(f"✓ NASADEM acquired: {elev_file}")
-                    else:
-                        raise ValueError("DEM_SOURCE set to 'nasadem' but NASADEM_LOCAL_DIR not configured.")
+                if self.config.get('DOWNLOAD_DEM', True):
+                    if dem_source == 'copernicus':
+                        self.logger.info("Acquiring Copernicus DEM GLO-30 (30m) from AWS")
+                        elev_file = downloader.download_copernicus_dem()
+                        self.logger.info(f"✓ Copernicus DEM acquired: {elev_file}")
                         
-                elif dem_source == 'merit_hydro':
-                    self.logger.info("DEM_SOURCE is merit_hydro - using MAF/gistool for elevation")
-                    gr = gistoolRunner(self.config, self.logger)
-                    bbox = self.config.get('BOUNDING_BOX_COORDS').split('/')
-                    latlims = f"{bbox[0]},{bbox[2]}"
-                    lonlims = f"{bbox[1]},{bbox[3]}"
-                    self._acquire_elevation_data(gr, dem_dir, latlims, lonlims)
-                    self.logger.info("✓ MERIT-Hydro elevation acquired via MAF")
-                    
+                    elif dem_source == 'fabdem':
+                        self.logger.info("Acquiring FABDEM (30m, vegetation/building removed)")
+                        elev_file = downloader.download_fabdem()
+                        self.logger.info(f"✓ FABDEM acquired: {elev_file}")
+                        
+                    elif dem_source == 'nasadem':
+                        if self.config.get('NASADEM_LOCAL_DIR'):
+                            self.logger.info("Acquiring NASADEM (30m) from local tiles")
+                            elev_file = downloader.download_nasadem_local()
+                            self.logger.info(f"✓ NASADEM acquired: {elev_file}")
+                        else:
+                            raise ValueError("DEM_SOURCE set to 'nasadem' but NASADEM_LOCAL_DIR not configured.")
+                            
+                    elif dem_source == 'merit_hydro':
+                        self.logger.info("DEM_SOURCE is merit_hydro - using MAF/gistool for elevation")
+                        gr = gistoolRunner(self.config, self.logger)
+                        bbox = self.config.get('BOUNDING_BOX_COORDS').split('/')
+                        latlims = f"{bbox[0]},{bbox[2]}"
+                        lonlims = f"{bbox[1]},{bbox[3]}"
+                        self._acquire_elevation_data(gr, dem_dir, latlims, lonlims)
+                        self.logger.info("✓ MERIT-Hydro elevation acquired via MAF")
+                        
+                    else:
+                        raise ValueError(f"Unsupported DEM_SOURCE: '{dem_source}'.")
                 else:
-                    raise ValueError(f"Unsupported DEM_SOURCE: '{dem_source}'.")
+                    self.logger.info("Skipping DEM acquisition (DOWNLOAD_DEM is False)")
                 
-                self.logger.info("Acquiring soil class data from SoilGrids")
-                soil_file = downloader.download_global_soilclasses()
-                self.logger.info(f"✓ SoilGrids data acquired: {soil_file}")
+                if self.config.get('DOWNLOAD_SOIL', True):
+                    self.logger.info("Acquiring soil class data from SoilGrids")
+                    soil_file = downloader.download_global_soilclasses()
+                    self.logger.info(f"✓ SoilGrids data acquired: {soil_file}")
+                else:
+                    self.logger.info("Skipping soil class acquisition (DOWNLOAD_SOIL is False)")
                 
-                self.logger.info("Acquiring land cover data (cloud mode)")
-                try:
-                    lc_file = downloader.download_modis_landcover()
-                    self.logger.info(f"✓ Land cover data acquired: {lc_file}")
-                except Exception as e_lc:
-                    self.logger.error(f"Land cover acquisition via download_modis_landcover() failed: {e_lc}")
-                    raise
+                if self.config.get('DOWNLOAD_LAND_COVER', True):
+                    land_source = self.config.get('LAND_CLASS_SOURCE', 'modis').lower()
+                    self.logger.info(f"Acquiring land cover data (cloud mode, source: {land_source})")
+                    
+                    try:
+                        if land_source == 'modis':
+                            lc_file = downloader.download_modis_landcover()
+                        elif land_source == 'usgs_nlcd':
+                            lc_file = downloader.download_usgs_landcover()
+                        else:
+                            raise ValueError(f"Unsupported LAND_CLASS_SOURCE: '{land_source}'. Supported: 'modis', 'usgs_nlcd'.")
+                            
+                        self.logger.info(f"✓ Land cover data acquired: {lc_file}")
+                    except Exception as e_lc:
+                        self.logger.error(f"Land cover acquisition failed: {e_lc}")
+                        raise
+                else:
+                    self.logger.info("Skipping land cover acquisition (DOWNLOAD_LAND_COVER is False)")
                 
             except Exception as e:
                 self.logger.error(f"Error during cloud attribute acquisition: {str(e)}")

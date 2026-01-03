@@ -119,8 +119,10 @@ def test_paradise_modis_full_e2e(tmp_path):
 
     sym.managers['domain'].discretize_domain()
     
-    # 3. Full Data Pipeline (REAL ERA5 and SNOTEL, Mocked MODIS download)
-    with patch('symfluence.utils.data.acquisition.handlers.modis.MODISSnowAcquirer.download') as mock_modis:
+    # 3. Full Data Pipeline (Mocked CDS and MODIS, REAL SNOTEL)
+    with patch('symfluence.utils.data.acquisition.handlers.modis.MODISSnowAcquirer.download') as mock_modis, \
+         patch('symfluence.utils.data.acquisition.handlers.era5_cds.ERA5CDSAcquirer.download') as mock_era5:
+        
         # Create a real-looking MODIS NetCDF for the handler to process
         snow_dir = Path(config_data['SYMFLUENCE_DATA_DIR']) / f"domain_{config_data['DOMAIN_NAME']}" / "observations" / "snow"
         snow_dir.mkdir(parents=True, exist_ok=True)
@@ -134,11 +136,31 @@ def test_paradise_modis_full_e2e(tmp_path):
         )
         ds.to_netcdf(mock_nc)
         mock_modis.return_value = mock_nc
+
+        # Create a real-looking ERA5 NetCDF for the handler to process
+        forcing_raw_dir = Path(config_data['SYMFLUENCE_DATA_DIR']) / f"domain_{config_data['DOMAIN_NAME']}" / "forcing" / "raw_data"
+        forcing_raw_dir.mkdir(parents=True, exist_ok=True)
+        mock_era5_nc = forcing_raw_dir / f"domain_{config_data['DOMAIN_NAME']}_ERA5_CDS_2024_2024.nc"
+        
+        times_h = pd.date_range(config_data['EXPERIMENT_TIME_START'], config_data['EXPERIMENT_TIME_END'], freq='h')
+        ds_e5 = xr.Dataset(
+            data_vars={
+                'airtemp': (('time', 'latitude', 'longitude'), np.random.rand(len(times_h), 1, 1) + 273.15),
+                'airpres': (('time', 'latitude', 'longitude'), np.random.rand(len(times_h), 1, 1) + 101325.0),
+                'pptrate': (('time', 'latitude', 'longitude'), np.random.rand(len(times_h), 1, 1) * 1e-5),
+                'SWRadAtm': (('time', 'latitude', 'longitude'), np.random.rand(len(times_h), 1, 1) * 500),
+                'LWRadAtm': (('time', 'latitude', 'longitude'), np.random.rand(len(times_h), 1, 1) * 300),
+                'windspd': (('time', 'latitude', 'longitude'), np.random.rand(len(times_h), 1, 1) * 5),
+                'spechum': (('time', 'latitude', 'longitude'), np.random.rand(len(times_h), 1, 1) * 0.01)
+            },
+            coords={'time': times_h, 'latitude': [46.78], 'longitude': [-121.75]}
+        )
+        ds_e5.to_netcdf(mock_era5_nc)
+        mock_era5.return_value = mock_era5_nc
         
         sym.managers['data'].acquire_observations()
         sym.managers['data'].process_observed_data()
-    
-    sym.managers['data'].acquire_forcings()
+        sym.managers['data'].acquire_forcings()
     # Run forcing remapping (using the new point-scale bypass)
     sym.managers['data'].run_model_agnostic_preprocessing()
     

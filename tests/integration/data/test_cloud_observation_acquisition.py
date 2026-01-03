@@ -66,7 +66,7 @@ def test_usgs_streamflow_acquisition(mock_config, mock_usgs_response):
     assert len(df) > 0
         
 def test_usgs_groundwater_acquisition(mock_config):
-    """Test the formalized USGS groundwater acquisition pathway (Live Canary)."""
+    """Test the formalized USGS groundwater acquisition pathway (Mocked)."""
     logger = logging.getLogger("test_usgs_gw")
     
     # Update config for real groundwater station
@@ -78,9 +78,37 @@ def test_usgs_groundwater_acquisition(mock_config):
     gw_config['ADDITIONAL_OBSERVATIONS'] = 'USGS_GW'
     gw_config['DATA_ACCESS'] = 'cloud'
     
+    # Mock Response
+    mock_json = {
+        "value": {
+            "timeSeries": [
+                {
+                    "variable": {
+                        "variableName": "Depth to water level, feet below land surface",
+                        "parameterCode": "72019",
+                        "unit": {"unitCode": "ft"}
+                    },
+                    "values": [
+                        {
+                            "value": [
+                                {"dateTime": "2020-01-01T12:00:00.000", "value": "10.5"},
+                                {"dateTime": "2020-01-02T12:00:00.000", "value": "10.4"}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
     dm = DataManager(gw_config, logger)
-    dm.acquire_observations()
-    dm.process_observed_data()
+    
+    with patch('requests.get') as mock_get:
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = mock_json
+        mock_get.return_value.text = json.dumps(mock_json)
+        
+        dm.process_observed_data()
     
     processed_path = Path(gw_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "groundwater" / "test_domain_groundwater_processed.csv"
     
@@ -246,6 +274,8 @@ def test_usgs_gw_full_e2e(tmp_path):
     E2E test for USGS Groundwater data acquisition via API.
     """
     import yaml
+    import json
+    
     config_data = {
         'SYMFLUENCE_DATA_DIR': str(tmp_path),
         'SYMFLUENCE_CODE_DIR': str(Path(__file__).parents[3]),
@@ -294,7 +324,36 @@ def test_usgs_gw_full_e2e(tmp_path):
         yaml.dump(config_data, f)
 
     sym = SYMFLUENCE(config_path=config_file)
-    sym.managers['data'].process_observed_data()
+    
+    # Mock Response
+    mock_json = {
+        "value": {
+            "timeSeries": [
+                {
+                    "variable": {
+                        "variableName": "Depth to water level, feet below land surface",
+                        "parameterCode": "72019",
+                        "unit": {"unitCode": "ft"}
+                    },
+                    "values": [
+                        {
+                            "value": [
+                                {"dateTime": "2022-01-01T12:00:00.000", "value": "10.5"},
+                                {"dateTime": "2022-01-02T12:00:00.000", "value": "10.4"}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
+    with patch('requests.get') as mock_get:
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = mock_json
+        mock_get.return_value.text = json.dumps(mock_json)
+        
+        sym.managers['data'].process_observed_data()
     
     project_dir = Path(config_data['SYMFLUENCE_DATA_DIR']) / f"domain_{config_data['DOMAIN_NAME']}"
     processed_file = project_dir / "observations" / "groundwater" / f"{config_data['DOMAIN_NAME']}_groundwater_processed.csv"
@@ -415,3 +474,96 @@ def test_modis_snow_acquisition_and_processing(mock_config, tmp_path):
     df = pd.read_csv(processed_file)
     assert 'sca' in df.columns
     assert len(df) == len(times)
+
+@pytest.mark.integration
+def test_smap_acquisition_and_processing(mock_config, tmp_path):
+    """Test the SMAP acquisition and processing pathway."""
+    import xarray as xr
+    import numpy as np
+    
+    logger = logging.getLogger("test_smap")
+    
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "soil_moisture" / "smap"
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    mock_file = obs_dir / "smap_test.nc"
+    
+    times = pd.date_range('2020-01-01', '2020-01-05', freq='D')
+    ds = xr.Dataset(
+        data_vars={'soil_moisture': (('time', 'lat', 'lon'), np.random.rand(len(times), 2, 2))},
+        coords={'time': times, 'lat': [40, 41], 'lon': [-105, -104]}
+    )
+    ds.to_netcdf(mock_file)
+    
+    smap_config = mock_config.copy()
+    smap_config['ADDITIONAL_OBSERVATIONS'] = 'SMAP'
+    
+    dm = DataManager(smap_config, logger)
+    dm.acquire_observations()
+    dm.process_observed_data()
+    
+    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "soil_moisture" / "preprocessed" / "test_domain_smap_processed.csv"
+    assert processed_file.exists()
+    df = pd.read_csv(processed_file)
+    assert 'soil_moisture' in df.columns
+
+@pytest.mark.integration
+def test_esa_cci_sm_acquisition_and_processing(mock_config, tmp_path):
+    """Test the ESA CCI SM acquisition and processing pathway."""
+    import xarray as xr
+    import numpy as np
+    
+    logger = logging.getLogger("test_esa")
+    
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "soil_moisture" / "esa_cci"
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    mock_file = obs_dir / "esa_test.nc"
+    
+    times = pd.date_range('2020-01-01', '2020-01-05', freq='D')
+    ds = xr.Dataset(
+        data_vars={'sm': (('time', 'lat', 'lon'), np.random.rand(len(times), 2, 2))},
+        coords={'time': times, 'lat': [40, 41], 'lon': [-105, -104]}
+    )
+    ds.to_netcdf(mock_file)
+    
+    esa_config = mock_config.copy()
+    esa_config['ADDITIONAL_OBSERVATIONS'] = 'ESA_CCI_SM'
+    
+    dm = DataManager(esa_config, logger)
+    dm.acquire_observations()
+    dm.process_observed_data()
+    
+    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "soil_moisture" / "preprocessed" / "test_domain_esa_cci_sm_processed.csv"
+    assert processed_file.exists()
+    df = pd.read_csv(processed_file)
+    assert 'sm' in df.columns
+
+@pytest.mark.integration
+def test_fluxcom_et_acquisition_and_processing(mock_config, tmp_path):
+    """Test the FLUXCOM ET acquisition and processing pathway."""
+    import xarray as xr
+    import numpy as np
+    
+    logger = logging.getLogger("test_fluxcom")
+    
+    obs_dir = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "et" / "fluxcom"
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    mock_file = obs_dir / "fluxcom_test.nc"
+    
+    times = pd.date_range('2020-01-01', '2020-01-05', freq='D')
+    ds = xr.Dataset(
+        data_vars={'ET': (('time', 'lat', 'lon'), np.random.rand(len(times), 2, 2))},
+        coords={'time': times, 'lat': [40, 41], 'lon': [-105, -104]}
+    )
+    ds.to_netcdf(mock_file)
+    
+    fluxcom_config = mock_config.copy()
+    fluxcom_config['ADDITIONAL_OBSERVATIONS'] = 'FLUXCOM_ET'
+    
+    dm = DataManager(fluxcom_config, logger)
+    dm.acquire_observations()
+    dm.process_observed_data()
+    
+    processed_file = Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain" / "observations" / "et" / "preprocessed" / "test_domain_fluxcom_et_processed.csv"
+    assert processed_file.exists()
+    df = pd.read_csv(processed_file)
+    assert 'ET' in df.columns

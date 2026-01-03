@@ -85,9 +85,10 @@ class ForcingResampler(PathResolverMixin):
         # Merge forcings if required by dataset
         if self.dataset_handler.needs_merging():
             self.logger.info(f"{self.forcing_dataset.upper()} requires merging of raw files")
-            self.merge_forcings()
+            # Ensure the directory exists before calling merge_forcings
             self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/merged_path')
             self.merged_forcing_path.mkdir(parents=True, exist_ok=True)
+            self.merge_forcings()
 
     def run_resampling(self):
         self.logger.info("Starting forcing data resampling process")
