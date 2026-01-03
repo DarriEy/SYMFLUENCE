@@ -665,6 +665,7 @@ class BinaryManager:
         if npm_bin_dir:
             print(f"   ℹ️  Detected npm-installed binaries: {npm_bin_dir}")
 
+        binary_paths = {
             'summa': 'installs/summa/bin/summa.exe',
             'mizuroute': 'installs/mizuRoute/route/bin/mizuRoute.exe',
             'fuse': 'installs/fuse/bin/fuse.exe',

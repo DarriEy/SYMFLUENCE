@@ -166,6 +166,7 @@ MODELS = [
     pytest.param('NGEN', marks=pytest.mark.full),
     'LSTM',
     'HYPE',
+    pytest.param('MESH', marks=pytest.mark.full),
 ]
 
 
@@ -215,6 +216,12 @@ def test_lumped_basin_workflow(config_path, model):
         config['HYPE_FRAC_THRESHOLD'] = 0.1
         # HYPE calibration not yet fully implemented in this test
         config['HYPE_SKIP_CALIBRATION'] = True
+    elif model == 'MESH':
+        # MESH configuration
+        config['MESH_SKIP_CALIBRATION'] = True
+        # Point to MESH install in data directory
+        config['MESH_INSTALL_PATH'] = str(Path(config['SYMFLUENCE_DATA_DIR']) / 'installs' / 'MESH-Dev')
+        config['MESH_EXE'] = 'sa_mesh'
 
     # Save updated config
     with open(cfg_path, 'w') as f:
@@ -298,6 +305,10 @@ def test_lumped_basin_workflow(config_path, model):
         hype_exe = Path(config.get('SYMFLUENCE_DATA_DIR')) / 'installs' / 'hype' / config.get('HYPE_EXE', 'hype')
         if not hype_exe.exists():
             pytest.skip(f"HYPE binary not found at {hype_exe}, skipping run and calibration")
+    elif model == 'MESH':
+        mesh_exe = Path(config.get('MESH_INSTALL_PATH', '')) / config.get('MESH_EXE', 'sa_mesh')
+        if not mesh_exe.exists():
+            pytest.skip(f"MESH binary not found at {mesh_exe}, skipping run and calibration")
 
     symfluence.managers['model'].run_models()
 
@@ -306,8 +317,8 @@ def test_lumped_basin_workflow(config_path, model):
     assert sim_dir.exists(), f"{model} simulation output directory should exist"
 
     # Step 7: Calibrate model
-    # Skip calibration for LSTM/GR as they either auto-calibrate or are not supported
-    if model in ['GR', 'LSTM', 'HYPE']:
+    # Skip calibration for LSTM/GR/HYPE/MESH as they either auto-calibrate or are not supported
+    if model in ['GR', 'LSTM', 'HYPE', 'MESH']:
         pass
     else:
         results_file = symfluence.managers['optimization'].calibrate_model()
