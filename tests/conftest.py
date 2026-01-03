@@ -47,12 +47,6 @@ def pytest_addoption(parser):
         help="Run full test matrix (includes tests marked 'full')",
     )
     parser.addoption(
-        "--run-data",
-        action="store_true",
-        default=False,
-        help="Run tests that require local data bundles (requires_data)",
-    )
-    parser.addoption(
         "--run-cloud",
         action="store_true",
         default=False,
@@ -74,14 +68,6 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "requires_cloud" in item.keywords or "requires_acquisition" in item.keywords:
                 item.add_marker(skip_cloud)
-
-    if not config.getoption("--run-data"):
-        skip_data = pytest.mark.skip(
-            reason="Skipped data-dependent tests (use --run-data to enable)"
-        )
-        for item in items:
-            if "requires_data" in item.keywords:
-                item.add_marker(skip_data)
 
 
 @pytest.fixture(scope="session")
