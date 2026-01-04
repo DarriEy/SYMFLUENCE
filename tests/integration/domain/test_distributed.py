@@ -101,7 +101,7 @@ def config_path(example_data_bundle, tmp_path, symfluence_code_dir):
 
 MODELS = [
     "SUMMA",
-    pytest.param("MESH", marks=pytest.mark.full),
+    # MESH not supported: meshflow does not support elevation-based discretization (requires GRU-based setup)
 ]
 
 
@@ -122,6 +122,9 @@ def test_distributed_basin_workflow(config_path, example_data_bundle, model):
     6. Model-specific preprocessing
     7. Run model
     8. Calibrate model
+
+    Note: MESH is excluded because meshflow preprocessing does not support
+    elevation-based HRU discretization (it requires GRU-based river basins).
     """
     cfg_path, config = config_path
 
@@ -135,12 +138,6 @@ def test_distributed_basin_workflow(config_path, example_data_bundle, model):
         config["SETTINGS_MIZU_ROUTING_DT"] = "3600"
         config["PARAMS_TO_CALIBRATE"] = "k_soil,theta_sat"
         config["BASIN_PARAMS_TO_CALIBRATE"] = "routingGammaScale"
-    elif model == "MESH":
-        config["MESH_SKIP_CALIBRATION"] = True
-        config["MESH_INSTALL_PATH"] = str(
-            Path(config["SYMFLUENCE_DATA_DIR"]) / "installs" / "mesh" / "bin"
-        )
-        config["MESH_EXE"] = "mesh.exe"
 
     # Save updated config
     write_config(config, cfg_path)
@@ -284,12 +281,6 @@ def test_distributed_basin_workflow(config_path, example_data_bundle, model):
     symfluence.managers["model"].preprocess_models()
 
     # Step 7: Run model
-    # Check for binary if needed
-    if model == "MESH":
-        mesh_exe = Path(config["SYMFLUENCE_DATA_DIR"]) / "installs" / "mesh" / "bin" / "mesh.exe"
-        if not mesh_exe.exists():
-            pytest.skip(f"MESH binary not found at {mesh_exe}, skipping run and calibration")
-
     symfluence.managers["model"].run_models()
 
     # Check model output exists
@@ -297,12 +288,8 @@ def test_distributed_basin_workflow(config_path, example_data_bundle, model):
     assert sim_dir.exists(), f"{model} simulation output directory should exist"
 
     # Step 8: Calibrate model
-    # Skip calibration for MESH as it's not yet fully supported
-    if model == "MESH":
-        pass
-    else:
-        results_file = symfluence.managers["optimization"].calibrate_model()
-        assert results_file is not None, "Calibration should produce results"
+    results_file = symfluence.managers["optimization"].calibrate_model()
+    assert results_file is not None, "Calibration should produce results"
 
 
 if __name__ == "__main__":

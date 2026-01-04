@@ -320,7 +320,7 @@ perl -i -pe "s|^isOpenMP\s*=.*$|isOpenMP = no|" Makefile
 # Fix LIBNETCDF to include both netcdf-fortran and netcdf C library
 if [ "${NETCDF_C_PATH}" != "${NETCDF_TO_USE}" ]; then
     echo "Fixing LIBNETCDF to include both netcdf-fortran and netcdf C paths"
-    perl -i -0777 -pe "s|LIBNETCDF = -Wl,-rpath,\\\$\(NCDF_PATH\)/lib[^\n]*\\\\\n[^\n]*|LIBNETCDF = -Wl,-rpath,${NETCDF_TO_USE}/lib -Wl,-rpath,${NETCDF_C_PATH}/lib -L${NETCDF_TO_USE}/lib -L${NETCDF_C_PATH}/lib -lnetcdff -lnetcdf|s" Makefile
+    perl -i -0777 -pe "s|LIBNETCDF = -Wl,-rpath,\\\$\\(NCDF_PATH\\)/lib[^\\n]*\\\\n[^\\n]*|LIBNETCDF = -Wl,-rpath,${NETCDF_TO_USE}/lib -Wl,-rpath,${NETCDF_C_PATH}/lib -L${NETCDF_TO_USE}/lib -L${NETCDF_C_PATH}/lib -lnetcdff -lnetcdf|s" Makefile
 fi
 
 # Clean and build
@@ -508,14 +508,14 @@ echo "ℹ️  Compiler: ${FC} (${FC_VER})"
 echo "ℹ️  NetCDF-Fortran: ${NETCDF_FORTRAN}"
 # Check for major version mismatch but only warn
 case "$NETCDF_FORTRAN" in 
-  *gcc-[0-9]*)
+  *gcc-[0-9]*) 
     NETCDF_GCC_VER=$(echo "$NETCDF_FORTRAN" | grep -o 'gcc-[0-9][0-9]*' | cut -d- -f2)
     FC_MAJOR=$(echo "$FC_VER" | grep -o '^[0-9][0-9]*' || echo "0")
     if [ -n "$NETCDF_GCC_VER" ] && [ -n "$FC_MAJOR" ] && [ "$NETCDF_GCC_VER" != "$FC_MAJOR" ]; then
       echo "⚠️  Warning: NetCDF built with GCC ${NETCDF_GCC_VER} but using compiler version ${FC_MAJOR}"
       echo "   This may cause issues. Consider loading matching modules if available."
     fi
-  ;;
+  ;; 
 esac
 
 # --- Build ---
@@ -616,9 +616,9 @@ else
 fi
 
 # Check if binary was created (we're in build dir, so bin is ../bin)
-if [ -f ../bin/fuse.exe ]; then
+if [ -f "../bin/fuse.exe" ]; then
   echo "✅ Binary in ../bin/fuse.exe"
-elif [ -f fuse.exe ]; then
+elif [ -f "fuse.exe" ]; then
   echo "✅ Binary built in build dir, staging to ../bin/"
   mkdir -p ../bin
   cp fuse.exe ../bin/
@@ -631,7 +631,7 @@ else
 fi
 
 # Verify the binary (we're in build dir)
-if [ -f ../bin/fuse.exe ]; then
+if [ -f "../bin/fuse.exe" ]; then
   echo ""
   echo "🧪 Testing binary..."
   ../bin/fuse.exe 2>&1 | head -5 || true
@@ -973,7 +973,7 @@ else
     for try_path in /opt/homebrew/opt/netcdf-fortran /usr/local/opt/netcdf-fortran /usr; do
         if [ -d "$try_path/include" ]; then
             NETCDF_FORTRAN="$try_path"
-            echo "Found NetCDF at: $NETCDF_FORTRAN"
+            echo "Found NetCDF at: $try_path"
             break
         fi
     done
@@ -1190,7 +1190,68 @@ fi
             },
             'order': 12
         },
+        # ================================================================
+        # VMFire - RHESSys Preprocessor
+        # ================================================================
+        'vmfire': {
+            'description': 'VMFire - A tool for processing RHESSys spatial data',
+            'config_path_key': 'VMFIRE_INSTALL_PATH',
+            'config_exe_key': 'VMFIRE_EXE',
+            'default_path_suffix': 'installs/vmfire/bin',
+            'default_exe': 'vmfire',
+            'repository': 'https://github.com/RHESSys/VMFire.git',
+            'branch': None,
+            'install_dir': 'vmfire',
+            'build_commands': [
+                r'''
+set -e
+echo "Building VMFire..."
+make
+mkdir -p bin
+mv vmfire bin/
+chmod +x bin/vmfire
+                '''.strip()
+            ],
+            'dependencies': ['gdal-config'],
+            'test_command': '-h',
+            'verify_install': {
+                'file_paths': ['bin/vmfire'],
+                'check_type': 'exists'
+            },
+            'order': 13
+        },
 
+        # ================================================================
+        # RHESSys - Regional Hydro-Ecologic Simulation System
+        # ================================================================
+        'rhessys': {
+            'description': 'RHESSys - Regional Hydro-Ecologic Simulation System',
+            'config_path_key': 'RHESSYS_INSTALL_PATH',
+            'config_exe_key': 'RHESSys_EXE',
+            'default_path_suffix': 'installs/rhessys/bin',
+            'default_exe': 'rhessys',
+            'repository': 'https://github.com/RHESSys/RHESSys.git',
+            'branch': None,
+            'install_dir': 'rhessys',
+            'requires': ['vmfire'],
+            'build_commands': [
+                r'''
+set -e
+echo "Building RHESSys..."
+make
+mkdir -p bin
+mv rhessys bin/
+chmod +x bin/rhessys
+                '''.strip()
+            ],
+            'dependencies': ['gdal-config', 'proj', 'geos'],
+            'test_command': '-h',
+            'verify_install': {
+                'file_paths': ['bin/rhessys'],
+                'check_type': 'exists'
+            },
+            'order': 14
+        },
         # ================================================================
         # NGIAB - NextGen In A Box
         # ================================================================
