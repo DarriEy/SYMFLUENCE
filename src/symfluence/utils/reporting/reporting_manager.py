@@ -14,6 +14,7 @@ from symfluence.utils.reporting.plotters.optimization_plotter import Optimizatio
 from symfluence.utils.reporting.plotters.analysis_plotter import AnalysisPlotter
 from symfluence.utils.reporting.plotters.benchmark_plotter import BenchmarkPlotter
 from symfluence.utils.reporting.plotters.snow_plotter import SnowPlotter
+from symfluence.utils.reporting.plotters.diagnostic_plotter import DiagnosticPlotter
 
 
 class ReportingManager:
@@ -47,6 +48,7 @@ class ReportingManager:
         self._analysis_plotter = None
         self._benchmark_plotter = None
         self._snow_plotter = None
+        self._diagnostic_plotter = None
 
     # =========================================================================
     # Component Properties (Lazy Initialization)
@@ -118,9 +120,34 @@ class ReportingManager:
             )
         return self._snow_plotter
 
+    @property
+    def diagnostic_plotter(self) -> DiagnosticPlotter:
+        """Lazy initialization of diagnostic plotter."""
+        if self._diagnostic_plotter is None:
+            self._diagnostic_plotter = DiagnosticPlotter(
+                self.config, self.logger, self.plot_config
+            )
+        return self._diagnostic_plotter
+
     # =========================================================================
     # Public Methods
     # =========================================================================
+
+    def visualize_data_distribution(self, data: Any, variable_name: str, stage: str):
+        """
+        Visualize data distribution (histogram/boxplot).
+        """
+        if not self.visualize:
+            return
+        self.diagnostic_plotter.plot_data_distribution(data, variable_name, stage)
+
+    def visualize_spatial_coverage(self, raster_path: Path, variable_name: str, stage: str):
+        """
+        Visualize spatial coverage of raster data.
+        """
+        if not self.visualize:
+            return
+        self.diagnostic_plotter.plot_spatial_coverage(raster_path, variable_name, stage)
 
     def is_visualization_enabled(self) -> bool:
         """Check if visualization is enabled."""

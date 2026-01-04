@@ -15,10 +15,11 @@ from typing import Dict, Any
 
 from symfluence.utils.models.registry import ModelRegistry
 from symfluence.utils.models.base import BaseModelPreProcessor
+from symfluence.utils.common.geospatial_utils import GeospatialUtilsMixin
 
 
 @ModelRegistry.register_preprocessor('TROUTE')
-class TRoutePreProcessor(BaseModelPreProcessor):
+class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
     """
     A standalone preprocessor for t-route within the SYMFLUENCE framework.
 
@@ -97,13 +98,7 @@ class TRoutePreProcessor(BaseModelPreProcessor):
             self._create_and_fill_nc_var(ncid, 'hru_area_m2', 'f8', 'nhru', shp_basin[self.config_dict.get('RIVER_BASIN_SHP_AREA')], 'HRU area', 'm^2')
 
             # Add required placeholder variables with sensible defaults
-            # Calculate centroids in projected CRS to avoid UserWarning about geographic CRS
-            if shp_river.crs and shp_river.crs.is_geographic:
-                # Use Web Mercator (EPSG:3857) for temporary projection
-                # This avoids the warning while providing reasonable centroid for this purpose
-                centroids = shp_river.to_crs(epsg=3857).geometry.centroid.to_crs(shp_river.crs)
-            else:
-                centroids = shp_river.geometry.centroid
+            centroids = self.calculate_feature_centroids(shp_river)
 
             shp_river['lat'] = centroids.y
             shp_river['lon'] = centroids.x

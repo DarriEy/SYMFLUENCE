@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Optional
 from symfluence.utils.data.observation.registry import ObservationRegistry
 from symfluence.utils.evaluation.registry import EvaluationRegistry
-from symfluence.utils.optimization.objective_registry import ObjectiveRegistry
+from symfluence.utils.optimization.objectives import ObjectiveRegistry
 
 def test_observation_registry():
     """Verify that observations are correctly registered and retrievable."""

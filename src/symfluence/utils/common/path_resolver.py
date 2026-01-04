@@ -8,6 +8,7 @@ code duplication across model preprocessors, managers, and utilities.
 from pathlib import Path
 from typing import Dict, Any, Optional
 import logging
+from .mixins import LoggingMixin, ProjectContextMixin
 
 
 def resolve_path(
@@ -145,17 +146,26 @@ def resolve_file_path(
     return file_path
 
 
-class PathResolverMixin:
+try:
+    from .mixins import LoggingMixin, ProjectContextMixin
+except ImportError:
+    # Fallback if being imported from within mixins.py
+    class LoggingMixin:
+        @property
+        def logger(self): return logging.getLogger(self.__class__.__name__)
+    class ProjectContextMixin:
+        @property
+        def config_dict(self): return getattr(self, 'config', {})
+        @property
+        def project_dir(self): return Path('.')
+
+
+class PathResolverMixin(LoggingMixin, ProjectContextMixin):
     """
     Mixin providing path resolution methods for classes with config and project_dir.
 
     This mixin eliminates duplicate `_get_default_path()` implementations across
     model preprocessors, managers, and utilities by providing a standardized interface.
-
-    Requires the following attributes in the class:
-        - self.config: Dict[str, Any] - Configuration dictionary
-        - self.project_dir: Path - Project base directory
-        - self.logger: Optional[logging.Logger] - Logger instance (optional)
 
     Usage:
         class MyPreprocessor(BaseModelPreProcessor, PathResolverMixin):
@@ -167,21 +177,14 @@ class PathResolverMixin:
                     'FORCING_PATH', 'forcing/merged_data'
                 )
 
-                self.dem_path = self._get_file_path(
-                    'DEM_PATH', 'DEM_NAME',
-                    'attributes/elevation/dem', f'domain_{self.domain_name}_elv.tif'
-                )
-
     Examples:
         >>> class TestClass(PathResolverMixin):
         ...     def __init__(self):
-        ...         self.config = {'MY_PATH': 'default'}
-        ...         self.project_dir = Path('/data/test')
-        ...         self.logger = None
+        ...         self.config = {'MY_PATH': 'default', 'DOMAIN_NAME': 'test'}
         ...
         >>> obj = TestClass()
         >>> obj._get_default_path('MY_PATH', 'some/path')
-        Path('/data/test/some/path')
+        Path('./domain_test/some/path')
     """
 
     def _get_default_path(
@@ -206,15 +209,13 @@ class PathResolverMixin:
 
         Raises:
             FileNotFoundError: If must_exist=True and path doesn't exist
-            AttributeError: If required attributes (config, project_dir) don't exist
         """
-        config = getattr(self, 'config_dict', getattr(self, 'config', {}))
         return resolve_path(
-            config=config,
+            config=self.config_dict,
             config_key=config_key,
             project_dir=self.project_dir,
             default_subpath=default_subpath,
-            logger=getattr(self, 'logger', None),
+            logger=self.logger,
             must_exist=must_exist
         )
 
@@ -244,17 +245,15 @@ class PathResolverMixin:
 
         Raises:
             FileNotFoundError: If must_exist=True and file doesn't exist
-            AttributeError: If required attributes (config, project_dir) don't exist
         """
-        config = getattr(self, 'config_dict', getattr(self, 'config', {}))
         return resolve_file_path(
-            config=config,
+            config=self.config_dict,
             project_dir=self.project_dir,
             path_key=path_key,
             name_key=name_key,
             default_subpath=default_subpath,
             default_name=default_name,
-            logger=getattr(self, 'logger', None),
+            logger=self.logger,
             must_exist=must_exist
         )
 
@@ -268,16 +267,10 @@ class PathResolverMixin:
         
         if method is None:
             # Fallback to config lookup
-            config = getattr(self, 'config_dict', None)
-            if config is None:
-                config = getattr(self, 'config', {})
-            method = config.get('DOMAIN_DEFINITION_METHOD', 'delineate')
+            method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'delineate')
         
         if method == 'subset':
-            config = getattr(self, 'config_dict', None)
-            if config is None:
-                config = getattr(self, 'config', {})
-            geofabric_type = config.get('GEOFABRIC_TYPE', 'na')
+            geofabric_type = self.config_dict.get('GEOFABRIC_TYPE', 'na')
             if geofabric_type != 'na':
                 return f"subset_{geofabric_type}"
             return "subset"

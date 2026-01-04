@@ -67,13 +67,19 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         discretizer.logger.info("CRS match - no reprojection needed")
         gru_gdf_projected = gru_gdf.copy()
 
-    # Use rasterstats with the raster file path directly (more efficient and handles CRS properly)
+    # Use rasterstats with the raster array and transform
     try:
+        with rasterio.open(discretizer.dem_path) as src:
+            dem_array = src.read(1)
+            dem_transform = src.transform
+            dem_nodata = src.nodata
+
         zs = rasterstats.zonal_stats(
             gru_gdf_projected.geometry,
-            str(discretizer.dem_path),  # Use file path instead of array
+            dem_array,
+            affine=dem_transform,
             stats=["mean"],
-            nodata=-9999,  # Explicit nodata value
+            nodata=dem_nodata if dem_nodata is not None else -9999,
         )
         gru_gdf["elev_mean"] = [
             item["mean"] if item["mean"] is not None else -9999 for item in zs

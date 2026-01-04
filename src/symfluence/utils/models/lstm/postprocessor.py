@@ -4,35 +4,51 @@ LSTM Model Postprocessor.
 Handles result saving, visualization, and metric calculation for the LSTM model.
 """
 
+from typing import Dict, Any, Optional
 from pathlib import Path
-from typing import Dict, Any, List
 import pandas as pd
 import xarray as xr
 
+from symfluence.utils.models.registry import ModelRegistry
+from symfluence.utils.models.base import BaseModelPostProcessor
 from symfluence.utils.common.metrics import (
     get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE, get_KGEnp
 )
 
-class LSTMPostprocessor:
+@ModelRegistry.register_postprocessor('LSTM')
+class LSTMPostprocessor(BaseModelPostProcessor):
     """
     Handles postprocessing for the LSTM model.
-    
-    Attributes:
-        config (Dict[str, Any]): Configuration dictionary.
-        logger (Any): Logger instance.
-        project_dir (Path): Project directory path.
+    Inherits from BaseModelPostProcessor to use standardized results saving and plotting.
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any, project_dir: Path, reporting_manager: Any = None):
-        self.config = config
-        self.config_dict = config
-        self.logger = logger
-        self.project_dir = project_dir
-        self.reporting_manager = reporting_manager
+    def _get_model_name(self) -> str:
+        return "LSTM"
+
+    def extract_streamflow(self) -> Optional[Path]:
+        """
+        Extract streamflow from LSTM output.
+        
+        For LSTM, results are typically passed directly to save_results by the runner.
+        This method is implemented to satisfy the abstract base class and can be used
+        if we need to reload from the NetCDF file.
+        """
+        try:
+            output_file = self.sim_dir / f"{self.experiment_id}_LSTM_output.nc"
+            if not output_file.exists():
+                return None
+            
+            ds = xr.open_dataset(output_file)
+            if 'predicted_streamflow' in ds:
+                return self.save_streamflow_to_results(ds['predicted_streamflow'].to_series())
+            return None
+        except Exception as e:
+            self.logger.error(f"Error extracting LSTM streamflow: {str(e)}")
+            return None
 
     def save_results(self, results: pd.DataFrame, use_snow: bool):
         """
-        Save LSTM model results to disk as NetCDF.
+        Save LSTM model results to disk as NetCDF and CSV (for standardization).
         
         Args:
             results (pd.DataFrame): Simulation results dataframe.
@@ -41,8 +57,7 @@ class LSTMPostprocessor:
         self.logger.info("Saving LSTM model results")
 
         # Prepare the output directory
-        output_dir = self.project_dir / 'simulations' / self.config_dict.get('EXPERIMENT_ID') / 'LSTM'
-        output_dir.mkdir(parents=True, exist_ok=True)
+        self.sim_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize dataset dictionary with streamflow
         data_vars = {
@@ -69,22 +84,21 @@ class LSTMPostprocessor:
             ds.scalarSWE.attrs['units'] = 'mm'
             ds.scalarSWE.attrs['long_name'] = 'Snow Water Equivalent'
 
-        # Save as NetCDF
-        output_file = output_dir / f"{self.config_dict.get('EXPERIMENT_ID')}_LSTM_output.nc"
+        # Save as NetCDF (Original LSTM format)
+        output_file = self.sim_dir / f"{self.experiment_id}_LSTM_output.nc"
         ds.to_netcdf(output_file)
-
         self.logger.info(f"LSTM results saved to {output_file}")
+
+        # Save Streamflow to Standardized CSV (Triggers Plotting)
+        # We save specifically the streamflow series
+        self.save_streamflow_to_results(
+            results['predicted_streamflow'],
+            model_column_name=f"{self.model_name}_discharge_cms"
+        )
 
     def calculate_metrics(self, obs: pd.Series, sim: pd.Series) -> Dict[str, float]:
         """
         Calculate performance metrics.
-        
-        Args:
-            obs (pd.Series): Observed data.
-            sim (pd.Series): Simulated data.
-            
-        Returns:
-            Dict[str, float]: Dictionary of metrics.
         """
         # Ensure obs and sim have the same length and are aligned
         aligned_data = pd.concat([obs, sim], axis=1, keys=['obs', 'sim']).dropna()
@@ -103,28 +117,3 @@ class LSTMPostprocessor:
             'MAE': get_MAE(obs_vals, sim_vals, transfo=1),
             'KGEnp': get_KGEnp(obs_vals, sim_vals, transfo=1)
         }
-
-    def visualize_results(
-        self,
-        results_df: pd.DataFrame,
-        obs_streamflow: pd.DataFrame,
-        obs_snow: pd.DataFrame,
-        use_snow: bool
-    ):
-        """
-        Visualize simulation results and save plot.
-        
-        Args:
-            results_df (pd.DataFrame): Simulation results.
-            obs_streamflow (pd.DataFrame): Observed streamflow.
-            obs_snow (pd.DataFrame): Observed snow (can be empty).
-            use_snow (bool): Whether snow metrics/plots are required.
-        """
-        if self.reporting_manager:
-            output_dir = self.project_dir / 'plots' / 'results'
-            experiment_id = self.config_dict.get('EXPERIMENT_ID')
-            self.reporting_manager.visualize_lstm_results(
-                results_df, obs_streamflow, obs_snow, use_snow, output_dir, experiment_id
-            )
-        else:
-            self.logger.info("Reporting manager not available, skipping visualization")

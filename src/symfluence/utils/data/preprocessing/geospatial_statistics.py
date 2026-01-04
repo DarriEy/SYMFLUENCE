@@ -133,11 +133,17 @@ class GeospatialStatistics:
             else:
                 # Small enough to process at once
                 self.logger.info("Processing all catchments in single batch")
+                with rasterio.open(self.dem_path) as src:
+                    dem_array = src.read(1)
+                    dem_transform = src.transform
+                    dem_nodata = src.nodata
+
                 stats = zonal_stats(
                     catchment_gdf_projected.geometry,
-                    str(self.dem_path),
+                    dem_array,
+                    affine=dem_transform,
                     stats=['mean'],
-                    nodata=-9999
+                    nodata=dem_nodata if dem_nodata is not None else -9999
                 )
                 for i, stat in enumerate(stats):
                     if stat['mean'] is not None:
@@ -419,13 +425,19 @@ class GeospatialStatistics:
                 self.logger.info("CRS match - no reprojection needed")
                 catchment_gdf_projected = catchment_gdf.copy()
 
-            # Use rasterstats with the raster file path directly
+            # Use rasterstats with the raster array and transform
+            with rasterio.open(soil_raster) as src:
+                soil_array = src.read(1)
+                soil_transform = src.transform
+                soil_nodata = src.nodata
+
             stats = zonal_stats(
                 catchment_gdf_projected.geometry, 
-                str(soil_raster),  # Use file path instead of array
+                soil_array,
+                affine=soil_transform,
                 stats=['count'], 
                 categorical=True, 
-                nodata=-9999
+                nodata=soil_nodata if soil_nodata is not None else -9999
             )
             
             result_df = pd.DataFrame(stats).fillna(0)
@@ -530,13 +542,19 @@ class GeospatialStatistics:
             self.logger.info("CRS match - no reprojection needed")
             catchment_gdf_projected = catchment_gdf.copy()
 
-        # Use rasterstats with the raster file path directly
+        # Use rasterstats with the raster array and transform
+        with rasterio.open(land_raster) as src:
+            land_array = src.read(1)
+            land_transform = src.transform
+            land_nodata = src.nodata
+
         stats = zonal_stats(
             catchment_gdf_projected.geometry, 
-            str(land_raster),  # Use file path instead of array
+            land_array,
+            affine=land_transform,
             stats=['count'], 
             categorical=True, 
-            nodata=-9999
+            nodata=land_nodata if land_nodata is not None else -9999
         )
         
         result_df = pd.DataFrame(stats).fillna(0)

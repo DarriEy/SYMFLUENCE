@@ -439,3 +439,37 @@ def bbox_to_string(
         return f"{bbox['lon_min']}/{bbox['lat_min']}/{bbox['lon_max']}/{bbox['lat_max']}"
     else:
         raise ValueError(f"Unknown format: {format}")
+
+
+class CoordinateUtilsMixin:
+    """
+    Mixin providing coordinate and bounding box utilities to classes.
+    """
+
+    def _parse_bbox(
+        self,
+        bbox_string: Optional[str],
+        format: str = 'lat_max/lon_min/lat_min/lon_max'
+    ) -> Dict[str, float]:
+        """
+        Parse bounding box from string (instance method).
+        """
+        if not bbox_string:
+            return {}
+        return parse_bbox(bbox_string, format=format)
+
+    def _normalize_longitude(
+        self,
+        lon: Union[float, np.ndarray],
+        target_range: str = '0-360'
+    ) -> Union[float, np.ndarray]:
+        """
+        Normalize longitude (instance method).
+        """
+        return normalize_longitude(lon, target_range=target_range)
+
+    def _validate_bbox(self, bbox: Dict[str, float], raise_error: bool = True) -> bool:
+        """
+        Validate bounding box (instance method).
+        """
+        return validate_bbox(bbox, raise_error=raise_error)

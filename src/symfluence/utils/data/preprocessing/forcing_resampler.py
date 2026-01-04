@@ -706,6 +706,13 @@ class ForcingResampler(PathResolverMixin):
                 remap_source.replace(remap_file)
                 self.logger.info(f"Remapping weights created: {remap_file}")
             else:
+                self.logger.error(f"Remapping file not found. Checked: {candidate_paths}")
+                self.logger.error(f"Contents of {temp_dir}:")
+                for p in temp_dir.glob("*"):
+                    self.logger.error(f"  {p.name}")
+                self.logger.error(f"Contents of {self.forcing_basin_path}:")
+                for p in self.forcing_basin_path.glob("*"):
+                    self.logger.error(f"  {p.name}")
                 raise FileNotFoundError(f"Expected remapping file not created: {temp_remap}")
             
             # Move shapefile files

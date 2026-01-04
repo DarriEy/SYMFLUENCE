@@ -224,6 +224,34 @@ class TestGeospatialUtilsMixinCentroid:
         call_args = str(mixin.logger.info.call_args)
         assert 'centroid' in call_args.lower()
 
+    def test_calculate_feature_centroids_multiple(self):
+        """Test calculate_feature_centroids with multiple features."""
+        # Create two squares
+        poly1 = Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)])
+        poly2 = Polygon([(10, 10), (11, 10), (11, 11), (10, 11), (10, 10)])
+        gdf = gpd.GeoDataFrame({'geometry': [poly1, poly2]}, crs='EPSG:4326')
+
+        mixin = MockClass()
+        centroids = mixin.calculate_feature_centroids(gdf)
+
+        assert len(centroids) == 2
+        assert isinstance(centroids, gpd.GeoSeries)
+        
+        # Centroid 1 should be near (0.5, 0.5)
+        assert abs(centroids.iloc[0].x - 0.5) < 0.05
+        assert abs(centroids.iloc[0].y - 0.5) < 0.05
+        
+        # Centroid 2 should be near (10.5, 10.5)
+        assert abs(centroids.iloc[1].x - 10.5) < 0.05
+        assert abs(centroids.iloc[1].y - 10.5) < 0.05
+
+    def test_calculate_feature_centroids_empty(self):
+        """Test calculate_feature_centroids with empty GeoDataFrame."""
+        gdf = gpd.GeoDataFrame({'geometry': []}, crs='EPSG:4326')
+        mixin = MockClass()
+        centroids = mixin.calculate_feature_centroids(gdf)
+        assert len(centroids) == 0
+
 
 class TestGeospatialUtilsMixinAreaCalculation:
     """Test suite for calculate_catchment_area_km2 method."""

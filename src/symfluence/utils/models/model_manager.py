@@ -211,9 +211,11 @@ class ModelManager:
                 postprocessor = postprocessor_class(component_config, self.logger, reporting_manager=self.reporting_manager)
                 
                 # Run postprocessing
+                # Standardized interface: extract_streamflow is the main entry point
                 if hasattr(postprocessor, 'extract_streamflow'):
                     postprocessor.extract_streamflow()
                 elif hasattr(postprocessor, 'extract_results'):
+                    # Legacy support for models that might still use extract_results (e.g. HYPE if not updated)
                     postprocessor.extract_results()
                 else:
                     self.logger.warning(f"No extraction method found for {model} postprocessor")
@@ -224,13 +226,8 @@ class ModelManager:
                 import traceback
                 self.logger.error(traceback.format_exc())
         
-        # Create final visualizations
-        try:
-            if self.reporting_manager:
-                self.reporting_manager.visualize_timeseries_results()
-                self.logger.info("Time series visualizations created")
-        except Exception as e:
-            self.logger.error(f"Error creating time series visualizations: {str(e)}")
+        # Note: visualize_timeseries_results is now triggered automatically by extract_streamflow/save_streamflow_to_results
+
 
     def visualize_outputs(self):
         """Visualize model outputs."""

@@ -1,6 +1,6 @@
 from typing import Dict, Any
-from ..objective_base import BaseObjective
-from ..objective_registry import ObjectiveRegistry
+from .base import BaseObjective
+from .registry import ObjectiveRegistry
 
 @ObjectiveRegistry.register('MULTIVARIATE')
 class MultivariateObjective(BaseObjective):

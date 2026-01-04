@@ -80,7 +80,7 @@ class BenchmarkPlotter(BasePlotter):
             List of paths to created plots
         """
         try:
-            plot_dir = self._ensure_plot_dir('benchmarks')
+            plot_dir = self._ensure_output_dir('benchmarks')
             
             flows = benchmark_results['benchmark_flows']
             scores = pd.DataFrame(benchmark_results['scores'])

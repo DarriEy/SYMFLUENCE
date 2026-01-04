@@ -37,8 +37,6 @@ Running the Examples
 
 3. Run the notebook or script as described inside.
 
-**Note:** For backward compatibility, ``./confluence --install`` still works but is deprecated.
-
 ---
 
 Learning Path

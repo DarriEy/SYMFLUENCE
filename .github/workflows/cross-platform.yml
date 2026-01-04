@@ -65,6 +65,8 @@ jobs:
           if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             GDAL_VERSION=$(gdal-config --version)
             pip install GDAL==$GDAL_VERSION
+            # Install CPU-only torch to save space on Linux
+            pip install torch --index-url https://download.pytorch.org/whl/cpu
           elif [[ "${{ matrix.os }}" == "macos-"* ]]; then
             # macOS GDAL from brew - install compatible version
             GDAL_VERSION=$(gdal-config --version)
@@ -169,7 +171,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.SYMFLUENCE_DATA }}/installs
-          key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v3
+          key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v4
 
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
@@ -359,7 +361,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.SYMFLUENCE_DATA }}/installs
-          key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v3
+          key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v4
 
       - name: Cache raw forcing data
         uses: actions/cache@v4

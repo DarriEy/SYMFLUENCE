@@ -16,9 +16,10 @@ class AcquisitionService:
     Handles data acquisition from various sources (Cloud, MAF, EM-Earth).
     """
     
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Any = None):
         self.config = config
         self.logger = logger
+        self.reporting_manager = reporting_manager
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
@@ -71,9 +72,14 @@ class AcquisitionService:
                         lonlims = f"{bbox[1]},{bbox[3]}"
                         self._acquire_elevation_data(gr, dem_dir, latlims, lonlims)
                         self.logger.info("✓ MERIT-Hydro elevation acquired via MAF")
+                        elev_file = dem_dir / f"domain_{self.domain_name}_elv.tif" # Assuming standard name
                         
                     else:
                         raise ValueError(f"Unsupported DEM_SOURCE: '{dem_source}'.")
+                        
+                    if self.reporting_manager and 'elev_file' in locals() and elev_file and elev_file.exists():
+                        self.reporting_manager.visualize_spatial_coverage(elev_file, 'elevation', 'acquisition')
+
                 else:
                     self.logger.info("Skipping DEM acquisition (DOWNLOAD_DEM is False)")
                 
@@ -81,6 +87,9 @@ class AcquisitionService:
                     self.logger.info("Acquiring soil class data from SoilGrids")
                     soil_file = downloader.download_global_soilclasses()
                     self.logger.info(f"✓ SoilGrids data acquired: {soil_file}")
+                    
+                    if self.reporting_manager and soil_file and soil_file.exists():
+                        self.reporting_manager.visualize_spatial_coverage(soil_file, 'soil_class', 'acquisition')
                 else:
                     self.logger.info("Skipping soil class acquisition (DOWNLOAD_SOIL is False)")
                 
@@ -97,6 +106,9 @@ class AcquisitionService:
                             raise ValueError(f"Unsupported LAND_CLASS_SOURCE: '{land_source}'. Supported: 'modis', 'usgs_nlcd'.")
                             
                         self.logger.info(f"✓ Land cover data acquired: {lc_file}")
+                        
+                        if self.reporting_manager and lc_file and lc_file.exists():
+                            self.reporting_manager.visualize_spatial_coverage(lc_file, 'land_class', 'acquisition')
                     except Exception as e_lc:
                         self.logger.error(f"Land cover acquisition failed: {e_lc}")
                         raise
@@ -121,6 +133,23 @@ class AcquisitionService:
                 self._acquire_landcover_data(gr, landclass_dir, latlims, lonlims)
                 self._acquire_soilclass_data(gr, soilclass_dir, latlims, lonlims)
                 self.logger.info("Attribute acquisition completed successfully")
+                
+                if self.reporting_manager:
+                    # Attempt to visualize acquired files
+                    try:
+                        dem_file = dem_dir / f"domain_{self.domain_name}_elv.tif"
+                        if dem_file.exists():
+                            self.reporting_manager.visualize_spatial_coverage(dem_file, 'elevation', 'acquisition')
+                            
+                        land_file = landclass_dir / f"domain_{self.domain_name}_land_classes.tif"
+                        if land_file.exists():
+                            self.reporting_manager.visualize_spatial_coverage(land_file, 'land_class', 'acquisition')
+                            
+                        soil_file = soilclass_dir / f"domain_{self.domain_name}_soil_classes.tif"
+                        if soil_file.exists():
+                            self.reporting_manager.visualize_spatial_coverage(soil_file, 'soil_class', 'acquisition')
+                    except Exception as e_viz:
+                        self.logger.warning(f"Failed to visualize MAF attributes: {e_viz}")
                 
             except Exception as e:
                 self.logger.error(f"Error during attribute acquisition: {str(e)}")
@@ -286,6 +315,9 @@ class AcquisitionService:
                     downloader = CloudForcingDownloader(self.config, self.logger)
                     output_file = downloader.download_forcing_data(raw_data_dir)
                     self.logger.info(f"✓ Cloud forcing data acquisition completed: {output_file}")
+                    
+                    if self.reporting_manager and output_file and output_file.exists():
+                        self.reporting_manager.visualize_spatial_coverage(output_file, 'forcing_sample', 'acquisition')
 
                     # Store in cache
                     try:
@@ -342,6 +374,12 @@ class AcquisitionService:
                 )
                 dr.execute_datatool_command(datatool_command)
                 self.logger.info("Primary forcing data acquisition completed successfully")
+                
+                if self.reporting_manager:
+                    # Find a sample forcing file
+                    sample_files = list(raw_data_dir.glob("*.nc"))
+                    if sample_files:
+                        self.reporting_manager.visualize_spatial_coverage(sample_files[0], 'forcing_sample', 'acquisition')
                 
             except Exception as e:
                 self.logger.error(f"Error during forcing data acquisition: {str(e)}")
@@ -484,6 +522,10 @@ class AcquisitionService:
             
             if failed_months and success_rate < 50:
                 raise ValueError(f"EM-Earth processing success rate too low ({success_rate:.1f}%).")
+            
+            if self.reporting_manager and processed_files:
+                # Visualize one sample file
+                self.reporting_manager.visualize_spatial_coverage(processed_files[0], 'em_earth_sample', 'acquisition')
             
         except Exception as e:
             self.logger.error(f"Error during EM-Earth forcing data acquisition: {str(e)}")

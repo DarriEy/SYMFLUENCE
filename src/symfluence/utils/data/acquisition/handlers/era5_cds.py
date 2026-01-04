@@ -17,6 +17,7 @@ except ImportError:
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+from symfluence.utils.common.constants import UnitConversion
 
 @AcquisitionRegistry.register('ERA5_CDS')
 class ERA5CDSAcquirer(BaseAcquisitionHandler):
@@ -166,7 +167,7 @@ class ERA5CDSAcquirer(BaseAcquisitionHandler):
             v_tp = next((v for v in ds.variables if any(x in v.lower() for x in ['total_precip', 'tp'])), None)
             if v_tp:
                 self.logger.info(f"Processing precipitation from {v_tp}")
-                pptrate = (ds[v_tp] * 1000.0 / 3600.0).astype('float32')
+                pptrate = (ds[v_tp] * 1000.0 / UnitConversion.SECONDS_PER_HOUR).astype('float32')
                 pptrate.attrs = {'units': 'kg m-2 s-1', 'long_name': 'precipitation rate'}
                 processed_vars['pptrate'] = pptrate
             else:
@@ -178,7 +179,7 @@ class ERA5CDSAcquirer(BaseAcquisitionHandler):
                 self.logger.info(f"Processing shortwave from {v_ssrd}")
                 val = ds[v_ssrd]
                 if val.max() > 10000:
-                    sw_rad = (val / 3600.0).astype('float32')
+                    sw_rad = (val / UnitConversion.SECONDS_PER_HOUR).astype('float32')
                 else:
                     sw_rad = val.astype('float32')
                 sw_rad.attrs = {'units': 'W m-2', 'long_name': 'shortwave radiation'}
@@ -192,7 +193,7 @@ class ERA5CDSAcquirer(BaseAcquisitionHandler):
                 self.logger.info(f"Processing longwave from {v_strd}")
                 val = ds[v_strd]
                 if val.max() > 10000:
-                    lw_rad = (val / 3600.0).astype('float32')
+                    lw_rad = (val / UnitConversion.SECONDS_PER_HOUR).astype('float32')
                 else:
                     lw_rad = val.astype('float32')
                 lw_rad.attrs = {'units': 'W m-2', 'long_name': 'longwave radiation'}

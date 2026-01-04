@@ -8,6 +8,7 @@ from datetime import datetime
 import calendar
 import pandas as pd
 import numpy as np
+from symfluence.utils.common.constants import PhysicalConstants, UnitConversion
 
 # Logic moved from DataManager
 def _perform_em_earth_remapping_logic(input_file: Path, output_file: Path, basin_shapefile: Path, config: Dict[str, Any]) -> bool:
@@ -434,11 +435,11 @@ class EMEarthIntegrator:
                                 original_max = float(em_data_interp.max())
                                 
                                 if 'kg m-2 s-1' in current_units or 'kg m**-2 s**-1' in current_units:
-                                    em_data_interp = em_data_interp / 3600
+                                    em_data_interp = em_data_interp / UnitConversion.SECONDS_PER_HOUR
                                 elif 'm s-1' in current_units:
-                                    em_data_interp = em_data_interp / 3600000
+                                    em_data_interp = em_data_interp / (UnitConversion.SECONDS_PER_HOUR * 1000)
                                 elif 'mm s-1' in current_units or 'mm/s' in current_units:
-                                    em_data_interp = em_data_interp / 3600
+                                    em_data_interp = em_data_interp / UnitConversion.SECONDS_PER_HOUR
                                 else:
                                     updated_ds[forcing_var].attrs['units'] = 'mm/h'
                                 
@@ -449,7 +450,7 @@ class EMEarthIntegrator:
                             elif em_var == 'tmean':
                                 current_units = str(updated_ds[forcing_var].attrs.get('units', ''))
                                 if 'K' in current_units and 'Celsius' not in current_units.lower():
-                                    em_data_interp = em_data_interp + 273.15
+                                    em_data_interp = em_data_interp + PhysicalConstants.KELVIN_OFFSET
                             
                             updated_ds[forcing_var] = em_data_interp
                             

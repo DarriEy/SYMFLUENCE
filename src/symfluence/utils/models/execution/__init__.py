@@ -10,14 +10,26 @@ Components:
     - ExecutionResult: Dataclass for standardized execution results
 """
 
-from .model_executor import ModelExecutor, ExecutionResult, SlurmJobConfig
-from .spatial_orchestrator import SpatialOrchestrator, SpatialMode, RoutingConfig
+from .model_executor import (
+    ModelExecutor,
+    ExecutionResult,
+    SlurmJobConfig,
+    ExecutionMode
+)
+from .spatial_orchestrator import (
+    SpatialOrchestrator, 
+    SpatialMode, 
+    RoutingConfig,
+    SpatialConfig
+)
 
 __all__ = [
     'ModelExecutor',
     'ExecutionResult',
     'SlurmJobConfig',
+    'ExecutionMode',
     'SpatialOrchestrator',
     'SpatialMode',
     'RoutingConfig',
+    'SpatialConfig',
 ]

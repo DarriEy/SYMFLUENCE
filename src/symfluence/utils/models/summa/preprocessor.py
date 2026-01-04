@@ -180,6 +180,7 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
     def _create_model_configs(self) -> None:
         """SUMMA-specific configuration file creation (template hook)."""
         self.create_file_manager()
+        self.create_point_file_manager_lists()
         self.create_initial_conditions()
         self.create_trial_parameters()
         self.create_attributes_file()
@@ -200,6 +201,39 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         Delegates to the configuration manager.
         """
         self.config_manager.create_file_manager()
+
+    def create_point_file_manager_lists(self):
+        """
+        Create file manager list files for point simulations.
+
+        For point domain simulations, the runner expects list files that point to
+        individual file managers. For simple point simulations, we create lists
+        that point to the main file manager.
+        """
+        domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', '')
+
+        if domain_method != 'point':
+            # Only create list files for point simulations
+            return
+
+        self.logger.info("Creating file manager lists for point simulation")
+
+        # Get the file manager path
+        filemanager_name = self.config_dict.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        filemanager_path = self.setup_dir / filemanager_name
+
+        # Create list files pointing to the main file manager
+        fm_list_path = self.setup_dir / 'list_fileManager.txt'
+        fm_ic_list_path = self.setup_dir / 'list_fileManager_IC.txt'
+
+        # For a simple point simulation, both lists point to the same file manager
+        with open(fm_list_path, 'w') as f:
+            f.write(f"{filemanager_path}\n")
+
+        with open(fm_ic_list_path, 'w') as f:
+            f.write(f"{filemanager_path}\n")
+
+        self.logger.info(f"Created file manager lists at {self.setup_dir}")
 
     def apply_datastep_and_lapse_rate(self):
         """

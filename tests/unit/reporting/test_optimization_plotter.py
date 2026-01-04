@@ -89,8 +89,8 @@ class TestOptimizationPlotter:
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
 
-            # Create the plots directory
-            (output_dir / "plots").mkdir(parents=True, exist_ok=True)
+            # Create the reporting directory
+            (output_dir / "reporting").mkdir(parents=True, exist_ok=True)
 
             with patch.object(optimization_plotter, '_setup_matplotlib') as mock_setup, \
                  patch.object(optimization_plotter, '_save_and_close', return_value='/fake/path.png') as mock_save:
@@ -156,8 +156,8 @@ class TestOptimizationPlotter:
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
 
-            # Create the plots directory
-            (output_dir / "plots").mkdir(parents=True, exist_ok=True)
+            # Create the reporting directory
+            (output_dir / "reporting").mkdir(parents=True, exist_ok=True)
 
             with patch.object(optimization_plotter, '_setup_matplotlib') as mock_setup, \
                  patch.object(optimization_plotter, '_save_and_close', return_value='/fake/path.png') as mock_save:
@@ -218,8 +218,8 @@ class TestOptimizationPlotter:
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
 
-            # Create the plots directory
-            (output_dir / "plots").mkdir(parents=True, exist_ok=True)
+            # Create the reporting directory
+            (output_dir / "reporting").mkdir(parents=True, exist_ok=True)
 
             with patch.object(optimization_plotter, '_setup_matplotlib') as mock_setup, \
                  patch.object(optimization_plotter, '_save_and_close', return_value='/fake/path.png'):

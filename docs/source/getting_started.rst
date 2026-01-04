@@ -40,8 +40,6 @@ Quick Start
       ./symfluence --config my_project.yaml --setup_project
       ./symfluence --config my_project.yaml
 
-   **Note:** For backward compatibility, ``./confluence`` still works but will be deprecated.
-
 ---
 
 Example: Bow River Watershed

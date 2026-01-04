@@ -19,7 +19,7 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.utils.common.path_resolver import PathResolverMixin
-from symfluence.utils.common.constants import UnitConversion
+from symfluence.utils.common.constants import UnitConversion, ModelDefaults
 from symfluence.utils.exceptions import (
     ModelExecutionError,
     ConfigurationError,
@@ -432,43 +432,43 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         """
         timestep_seconds = self.forcing_time_step_size
 
-        if timestep_seconds == 3600:  # Hourly
+        if timestep_seconds == ModelDefaults.DEFAULT_TIMESTEP_HOURLY:  # Hourly
             return {
                 'resample_freq': 'h',
                 'time_units': 'hours since 1970-01-01',
                 'time_unit': 'h',
                 'conversion_factor': UnitConversion.MM_HOUR_TO_CMS,  # cms to mm/hour
                 'time_label': 'hourly',
-                'timestep_seconds': 3600
+                'timestep_seconds': ModelDefaults.DEFAULT_TIMESTEP_HOURLY
             }
-        elif timestep_seconds == 86400:  # Daily
+        elif timestep_seconds == ModelDefaults.DEFAULT_TIMESTEP_DAILY:  # Daily
             return {
                 'resample_freq': 'D',
                 'time_units': 'days since 1970-01-01',
                 'time_unit': 'D',
                 'conversion_factor': UnitConversion.MM_DAY_TO_CMS,  # cms to mm/day
                 'time_label': 'daily',
-                'timestep_seconds': 86400
+                'timestep_seconds': ModelDefaults.DEFAULT_TIMESTEP_DAILY
             }
         else:
             # Generic case - calculate based on seconds
-            hours = timestep_seconds / 3600
-            if hours < 24:
+            hours = timestep_seconds / UnitConversion.SECONDS_PER_HOUR
+            if hours < UnitConversion.HOURS_PER_DAY:
                 return {
                     'resample_freq': f'{int(hours)}h',
                     'time_units': 'hours since 1970-01-01',
                     'time_unit': 'h',
-                    'conversion_factor': 3.6 * hours,
+                    'conversion_factor': UnitConversion.MM_HOUR_TO_CMS * hours,
                     'time_label': f'{int(hours)}-hourly',
                     'timestep_seconds': timestep_seconds
                 }
             else:
-                days = timestep_seconds / 86400
+                days = timestep_seconds / UnitConversion.SECONDS_PER_DAY
                 return {
                     'resample_freq': f'{int(days)}D',
                     'time_units': 'days since 1970-01-01',
                     'time_unit': 'D',
-                    'conversion_factor': 86.4 * days,
+                    'conversion_factor': UnitConversion.MM_DAY_TO_CMS * days,
                     'time_label': f'{int(days)}-daily',
                     'timestep_seconds': timestep_seconds
                 }

@@ -318,5 +318,34 @@ class TestRealWorldExamples:
         assert bbox['lon_max'] == 180.0
 
 
+class TestCoordinateUtilsMixin:
+    """Test CoordinateUtilsMixin."""
+
+    from symfluence.utils.common.coordinate_utils import CoordinateUtilsMixin
+
+    class MockClass(CoordinateUtilsMixin):
+        pass
+
+    def test_mixin_parse_bbox(self):
+        """Test mixin _parse_bbox method."""
+        mixin = self.MockClass()
+        bbox = mixin._parse_bbox("60.0/-130.0/50.0/-120.0")
+        assert bbox['lat_min'] == 50.0
+        assert bbox['lat_max'] == 60.0
+        assert bbox['lon_min'] == -130.0
+        assert bbox['lon_max'] == -120.0
+
+    def test_mixin_normalize_longitude(self):
+        """Test mixin _normalize_longitude method."""
+        mixin = self.MockClass()
+        assert mixin._normalize_longitude(-120.0, '0-360') == 240.0
+
+    def test_mixin_validate_bbox(self):
+        """Test mixin _validate_bbox method."""
+        mixin = self.MockClass()
+        bbox = {'lat_min': 50.0, 'lat_max': 60.0, 'lon_min': -130.0, 'lon_max': -120.0}
+        assert mixin._validate_bbox(bbox) is True
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

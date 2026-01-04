@@ -14,6 +14,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Polygon
 
+from symfluence.utils.common.constants import PhysicalConstants, UnitConversion
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
 
@@ -70,10 +71,10 @@ class RDRSHandler(BaseDatasetHandler):
             ds['airpres'] = ds['airpres'] * 100
 
         if 'airtemp' in ds:
-            ds['airtemp'] = ds['airtemp'] + 273.15
+            ds['airtemp'] = ds['airtemp'] + PhysicalConstants.KELVIN_OFFSET
 
         if 'pptrate' in ds:
-            ds['pptrate'] = ds['pptrate'] / 3600
+            ds['pptrate'] = ds['pptrate'] / UnitConversion.SECONDS_PER_HOUR
 
         if 'windspd' in ds:
             ds['windspd'] = ds['windspd'] * 0.514444

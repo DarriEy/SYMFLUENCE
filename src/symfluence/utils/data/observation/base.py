@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import pandas as pd
 import geopandas as gpd
+from symfluence.utils.common.coordinate_utils import CoordinateUtilsMixin
 
-class BaseObservationHandler(ABC):
+class BaseObservationHandler(ABC, CoordinateUtilsMixin):
     def __init__(self, config: Dict[str, Any], logger):
         self.config = config
         self.logger = logger
@@ -17,17 +18,6 @@ class BaseObservationHandler(ABC):
         self.bbox = self._parse_bbox(config.get('BOUNDING_BOX_COORDS'))
         self.start_date = pd.to_datetime(config.get('EXPERIMENT_TIME_START'))
         self.end_date = pd.to_datetime(config.get('EXPERIMENT_TIME_END'))
-
-    def _parse_bbox(self, bbox_string: Optional[str]) -> Dict[str, float]:
-        if not bbox_string:
-            return {}
-        coords = bbox_string.split('/')
-        return {
-            'lat_min': float(coords[2]),
-            'lat_max': float(coords[0]),
-            'lon_min': float(coords[3]),
-            'lon_max': float(coords[1])
-        }
 
     @abstractmethod
     def acquire(self) -> Path:

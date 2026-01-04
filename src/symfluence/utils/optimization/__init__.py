@@ -23,15 +23,15 @@ Usage:
     >>> results = optimizer.run_pso()
 """
 
-from .objective_registry import ObjectiveRegistry
+from .objectives import ObjectiveRegistry
 from .registry import OptimizerRegistry
 from .optimizers.base_model_optimizer import BaseModelOptimizer
 from .workers.base_worker import BaseWorker, WorkerTask, WorkerResult
 
-# Trigger handler registration
-from . import handlers
+# Trigger objective registration
+from . import objectives
 try:
-    from .handlers import multivariate
+    from .objectives import multivariate
 except ImportError:
     pass
 

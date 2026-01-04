@@ -47,10 +47,6 @@ class HYPEPostProcessor(BaseModelPostProcessor):
             self.extract_streamflow()
             self.logger.info("Streamflow extracted successfully")
 
-            if self.reporting_manager:
-                self.plot_streamflow_comparison()
-                self.logger.info("Streamflow comparison plot created successfully")
-
         except Exception as e:
             self.logger.error(f"Error extracting HYPE results: {str(e)}")
             raise
@@ -95,50 +91,4 @@ class HYPEPostProcessor(BaseModelPostProcessor):
             self.logger.exception("Full traceback:")
             return None
 
-    def plot_streamflow_comparison(self) -> Optional[Path]:
-        """
-        Create a comparison plot of simulated vs observed streamflow.
 
-        Returns:
-            Optional[Path]: Path to the saved plot if successful, None otherwise
-        """
-        try:
-            self.logger.info("Creating streamflow comparison plot")
-
-            # Read simulated streamflow
-            sim_path = self.results_dir / f"{self.experiment_id}_streamflow.csv"
-            self.logger.info(f"Reading simulated streamflow from: {sim_path}")
-
-            # Add explicit time parsing
-            sim_flow = pd.read_csv(sim_path)
-            self.logger.info("Original sim_flow columns: " + str(sim_flow.columns.tolist()))
-
-            # Convert the first column to datetime index
-            time_col = sim_flow.columns[0]  # Get the name of the first column
-            self.logger.info(f"Converting time column: {time_col}")
-            sim_flow[time_col] = pd.to_datetime(sim_flow[time_col])
-            sim_flow.set_index(time_col, inplace=True)
-
-            # Read observed streamflow
-            obs_path = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
-            self.logger.info(f"Reading observed streamflow from: {obs_path}")
-
-            # Add explicit datetime parsing for observed data
-            obs_flow = pd.read_csv(obs_path)
-            obs_flow['datetime'] = pd.to_datetime(obs_flow['datetime'])
-            obs_flow.set_index('datetime', inplace=True)
-
-            # Get outlet ID
-            outlet_id = str(self.config_dict.get('SIM_REACH_ID'))
-            
-            if self.reporting_manager:
-                self.reporting_manager.visualize_hype_results(
-                    sim_flow, obs_flow, outlet_id, self.domain_name, self.experiment_id, self.project_dir
-                )
-                return self.project_dir / "plots" / "results" / f"{self.experiment_id}_HYPE_streamflow_comparison.png"
-            
-            return None
-
-        except Exception as e:
-            self.logger.error(f"Error creating streamflow comparison plot: {str(e)}")
-            return None

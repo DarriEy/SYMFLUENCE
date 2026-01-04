@@ -16,12 +16,25 @@ class UnitConversion:
     a single source of truth for unit conversions throughout SYMFLUENCE.
     """
 
+    # Time constants
+    SECONDS_PER_HOUR = 3600
+    """Seconds in one hour."""
+
+    SECONDS_PER_DAY = 86400
+    """Seconds in one day (24 hours × 3600 seconds)."""
+
+    HOURS_PER_DAY = 24
+    """Hours in one day."""
+
+    DAYS_PER_YEAR = 365.25
+    """Average days per year accounting for leap years."""
+
     # Streamflow conversions
-    MM_DAY_TO_CMS = 86.4
+    MM_DAY_TO_CMS = SECONDS_PER_DAY / 1000.0
     """
     Convert mm/day to m³/s (cms) per km² of catchment area.
 
-    Formula: Q(cms) = Q(mm/day) * Area(km²) / 86.4
+    Formula: Q(cms) = Q(mm/day) * Area(km²) / MM_DAY_TO_CMS
 
     Derivation:
         1 mm/day over 1 km² =
@@ -30,21 +43,13 @@ class UnitConversion:
         0.01157 m³/s
 
     Therefore: 86.4 = 86,400 / 1000
-
-    Example:
-        >>> # Convert 10 mm/day to cms for a 100 km² catchment
-        >>> q_mm_day = 10
-        >>> area_km2 = 100
-        >>> q_cms = q_mm_day * area_km2 / UnitConversion.MM_DAY_TO_CMS
-        >>> print(f"{q_cms:.2f} m³/s")
-        11.57 m³/s
     """
 
-    MM_HOUR_TO_CMS = 3.6
+    MM_HOUR_TO_CMS = SECONDS_PER_HOUR / 1000.0
     """
     Convert mm/hour to m³/s per km² of catchment area.
 
-    Formula: Q(cms) = Q(mm/hour) * Area(km²) / 3.6
+    Formula: Q(cms) = Q(mm/hour) * Area(km²) / MM_HOUR_TO_CMS
 
     Derivation:
         1 mm/hour over 1 km² =
@@ -60,26 +65,7 @@ class UnitConversion:
     Convert cubic feet per second to cubic meters per second.
 
     1 cubic foot = 0.028316846592 cubic meters (exact)
-
-    Example:
-        >>> q_cfs = 100
-        >>> q_cms = q_cfs * UnitConversion.CFS_TO_CMS
-        >>> print(f"{q_cms:.2f} m³/s")
-        2.83 m³/s
     """
-
-    # Time conversions
-    SECONDS_PER_HOUR = 3600
-    """Seconds in one hour."""
-
-    SECONDS_PER_DAY = 86400
-    """Seconds in one day (24 hours × 3600 seconds)."""
-
-    HOURS_PER_DAY = 24
-    """Hours in one day."""
-
-    DAYS_PER_YEAR = 365.25
-    """Average days per year accounting for leap years."""
 
     # Area conversions
     M2_TO_KM2 = 1e-6
@@ -101,15 +87,6 @@ class UnitConversion:
     Convert feet to meters.
 
     1 foot = 0.3048 meters (exact, international foot)
-
-    Commonly used for groundwater level measurements which may be
-    reported in either feet or meters below land surface.
-
-    Example:
-        >>> depth_ft = 50  # feet below ground surface
-        >>> depth_m = depth_ft * UnitConversion.FEET_TO_METERS
-        >>> print(f"{depth_m:.2f} meters")
-        15.24 meters
     """
 
     METERS_TO_FEET = 3.28084
@@ -117,12 +94,6 @@ class UnitConversion:
     Convert meters to feet.
 
     1 meter = 3.28084 feet (approximate)
-
-    Example:
-        >>> depth_m = 15.24  # meters below ground surface
-        >>> depth_ft = depth_m * UnitConversion.METERS_TO_FEET
-        >>> print(f"{depth_ft:.2f} feet")
-        50.00 feet
     """
 
     @classmethod
@@ -140,17 +111,6 @@ class UnitConversion:
 
         Returns:
             Conversion factor (timestep_seconds / 1000)
-
-        Example:
-            >>> # For daily timestep
-            >>> factor = UnitConversion.mm_per_timestep_to_cms_factor(86400)
-            >>> print(factor)
-            86.4
-
-            >>> # For hourly timestep
-            >>> factor = UnitConversion.mm_per_timestep_to_cms_factor(3600)
-            >>> print(factor)
-            3.6
         """
         return timestep_seconds / 1000.0
 
@@ -162,6 +122,10 @@ class PhysicalConstants:
     Values are from standard reference sources and widely accepted
     approximations used in hydrological modeling.
     """
+
+    # Temperature conversions
+    KELVIN_OFFSET = 273.15
+    """Offset to convert Celsius to Kelvin (T_K = T_C + 273.15)."""
 
     # Water properties
     WATER_DENSITY = 1000.0
@@ -237,8 +201,4 @@ Convenience dictionary for accessing unit conversion factors.
 
 Provided for backward compatibility and convenience. Prefer using
 UnitConversion class directly for better IDE support and documentation.
-
-Example:
-    >>> from symfluence.utils.common.constants import UNIT_CONVERSIONS
-    >>> factor = UNIT_CONVERSIONS['mm_day_to_cms']
 """

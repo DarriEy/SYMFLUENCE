@@ -15,7 +15,7 @@ class SensitivityAnalyzer:
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.output_folder = self.project_dir / "plots" / "sensitivity_analysis"
+        self.output_folder = self.project_dir / "reporting" / "sensitivity_analysis"
         self.output_folder.mkdir(parents=True, exist_ok=True)
 
     def read_calibration_results(self, file_path):

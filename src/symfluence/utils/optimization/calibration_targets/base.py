@@ -74,7 +74,7 @@ class MultivariateTarget(CalibrationTarget):
 
 
 
-        from .objective_registry import ObjectiveRegistry
+        from ..objectives import ObjectiveRegistry
 
 
 

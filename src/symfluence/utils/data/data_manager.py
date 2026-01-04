@@ -32,7 +32,7 @@ class DataManager:
     - GeospatialStatistics/ForcingResampler: For preprocessing
     """
     
-    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: logging.Logger):
+    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         # Phase 2: Support both typed config and dict config for backward compatibility
         if SymfluenceConfig and isinstance(config, SymfluenceConfig):
             self.typed_config = config
@@ -42,6 +42,7 @@ class DataManager:
             self.config = config
 
         self.logger = logger
+        self.reporting_manager = reporting_manager
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
@@ -50,7 +51,7 @@ class DataManager:
         component_config = self.typed_config if self.typed_config else self.config
 
         # Initialize delegates
-        self.acquisition_service = AcquisitionService(component_config, logger)
+        self.acquisition_service = AcquisitionService(component_config, logger, reporting_manager)
         self.em_earth_integrator = EMEarthIntegrator(component_config, logger)
         self.variable_handler = VariableHandler(component_config, self.logger, 'ERA5', 'SUMMA')
         
@@ -139,7 +140,27 @@ class DataManager:
                         self.logger.info(f"Processing registry-based observation: {obs_type}")
                         handler = ObservationRegistry.get_handler(obs_type, component_config, self.logger)
                         raw_path = handler.acquire()
-                        handler.process(raw_path)
+                        processed_path = handler.process(raw_path)
+                        
+                        # Visualize processed data
+                        if self.reporting_manager and processed_path and processed_path.exists():
+                            if processed_path.suffix == '.csv':
+                                df = pd.read_csv(processed_path)
+                                # Assuming first numeric column is the value
+                                numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+                                if not numeric_cols.empty:
+                                    self.reporting_manager.visualize_data_distribution(
+                                        df[numeric_cols[0]], 
+                                        variable_name=f"{obs_type}_{numeric_cols[0]}", 
+                                        stage='preprocessing'
+                                    )
+                            elif processed_path.suffix in ['.tif', '.nc']:
+                                self.reporting_manager.visualize_spatial_coverage(
+                                    processed_path, 
+                                    variable_name=obs_type, 
+                                    stage='preprocessing'
+                                )
+                                
                     else:
                         self.logger.warning(f"Observation type {obs_type} requested but no handler registered.")
                 except Exception as e:
@@ -180,6 +201,16 @@ class DataManager:
             self.logger.info("Running forcing resampling")
             fr = ForcingResampler(component_config, self.logger)
             fr.run_resampling()
+
+            # Visualize preprocessed forcing if available
+            if self.reporting_manager:
+                try:
+                    # Check for basin averaged files
+                    basin_files = list(basin_averaged_data.glob("*.nc"))
+                    if basin_files:
+                        self.reporting_manager.visualize_spatial_coverage(basin_files[0], 'forcing_processed', 'preprocessing')
+                except Exception as e:
+                    self.logger.warning(f"Failed to visualize preprocessed forcing: {e}")
 
             # Integrate EM-Earth data if supplementation is enabled
             if self.config.get('SUPPLEMENT_FORCING', False):

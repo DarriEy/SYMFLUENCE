@@ -113,59 +113,22 @@ class NgenPostprocessor(BaseModelPostProcessor):
         # Combine all nexus outputs
         combined_streamflow = pd.concat(all_streamflow, ignore_index=True)
         
-        # Save to results directory
-        output_file = self.results_dir / f"ngen_streamflow_{experiment_id}.csv"
-        combined_streamflow.to_csv(output_file, index=False)
+        # Prepare for standard saving: index by datetime, extract streamflow column
+        # Assuming we want to save the first nexus or sum? 
+        # For standardization, let's assume we are interested in one main outlet or we sum them up?
+        # The base `save_streamflow_to_results` expects a Series.
+        # If there are multiple nexuses, this might be tricky. 
+        # However, typically we look at the outlet. 
+        # Let's aggregate by time (summing if multiple outlets? or taking mean?).
+        # For now, let's assume one main outlet or aggregate sum.
+        aggregated_flow = combined_streamflow.groupby('datetime')['streamflow_cms'].sum()
         
-        self.logger.info(f"Extracted streamflow saved to: {output_file}")
-        self.logger.info(f"Total timesteps: {len(combined_streamflow)}")
-        
-        return output_file
-    
-    def plot_streamflow(self, experiment_id: str = None, observed_file: Path = None) -> Optional[Path]:
-        """
-        Create streamflow plots comparing simulated and observed (if available).
-        
-        Args:
-            experiment_id: Experiment identifier
-            observed_file: Path to observed streamflow CSV file
-            
-        Returns:
-            Path to plot file
-        """
-        if not self.reporting_manager:
-            self.logger.info("Reporting manager not available, skipping visualization")
-            return None
-
-        self.logger.info("Creating streamflow plots")
-        
-        if experiment_id is None:
-            experiment_id = self.config_dict.get('EXPERIMENT_ID', 'run_1')
-        
-        # Get streamflow file
-        streamflow_file = self.results_dir / f"ngen_streamflow_{experiment_id}.csv"
-        
-        if not streamflow_file.exists():
-            self.logger.info("Streamflow file not found, extracting first...")
-            streamflow_file = self.extract_streamflow(experiment_id)
-            if streamflow_file is None:
-                return None
-        
-        # Read simulated streamflow
-        sim_df = pd.read_csv(streamflow_file)
-        sim_df['datetime'] = pd.to_datetime(sim_df['datetime'])
-        
-        # Read observed if available
-        obs_df = None
-        if observed_file and Path(observed_file).exists():
-            obs_df = pd.read_csv(observed_file)
-            obs_df['datetime'] = pd.to_datetime(obs_df['datetime'])
-            
-        self.reporting_manager.visualize_ngen_results(
-            sim_df, obs_df, experiment_id, self.results_dir
+        # Save using standard method
+        return self.save_streamflow_to_results(
+            aggregated_flow,
+            model_column_name=f"NGEN_{experiment_id}_discharge_cms"
         )
-        
-        return self.results_dir / f"ngen_streamflow_plot_{experiment_id}.png"
+    
     
     def _calculate_nse(self, observed: np.ndarray, simulated: np.ndarray) -> float:
         """Calculate Nash-Sutcliffe Efficiency."""

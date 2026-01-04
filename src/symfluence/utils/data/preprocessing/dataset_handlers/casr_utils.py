@@ -14,6 +14,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Polygon
 
+from symfluence.utils.common.constants import PhysicalConstants, UnitConversion
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
 
@@ -88,7 +89,7 @@ class CASRHandler(BaseDatasetHandler):
             })
         
         if 'airtemp' in ds:
-            ds['airtemp'] = ds['airtemp'] + 273.15
+            ds['airtemp'] = ds['airtemp'] + PhysicalConstants.KELVIN_OFFSET
             ds['airtemp'].attrs = {}
             ds['airtemp'].attrs.update({
                 'units': 'K', 
@@ -97,7 +98,7 @@ class CASRHandler(BaseDatasetHandler):
             })
         
         if 'pptrate' in ds:
-            ds['pptrate'] = ds['pptrate'] * 1000 / 3600
+            ds['pptrate'] = ds['pptrate'] * 1000 / UnitConversion.SECONDS_PER_HOUR
             ds['pptrate'].attrs = {}
             ds['pptrate'].attrs.update({
                 'units': 'm s-1', 
