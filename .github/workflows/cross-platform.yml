@@ -113,11 +113,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]  # Linux, macOS (Windows skipped - install script needs Windows support)
+        os: [ubuntu-latest, macos-latest, windows-latest]  # Linux, macOS, Windows
         include:
           - os: ubuntu-latest
             python-version: '3.11'
           - os: macos-latest  # ARM Mac (M1/M2)
+            python-version: '3.11'
+          - os: windows-latest
             python-version: '3.11'
 
     env:
@@ -166,6 +168,14 @@ jobs:
           echo "CMAKE_PREFIX_PATH=/opt/homebrew" >> $GITHUB_ENV
           echo "UDUNITS2_ROOT=/opt/homebrew" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
+
+      - name: Setup conda (Windows)
+        if: runner.os == 'Windows'
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-activate-base: true
+          activate-environment: ""
+          miniconda-version: "latest"
 
       - name: Free up disk space (Linux)
         if: runner.os == 'Linux'
@@ -311,7 +321,9 @@ jobs:
           # Test on macOS with latest Python
           - os: macos-latest  # ARM Mac (M1/M2)
             python-version: '3.11'
-          # Windows skipped - install script needs Windows-specific support
+          # Test on Windows with latest Python
+          - os: windows-latest
+            python-version: '3.11'
 
     env:
       SYMFLUENCE_CODE: ${{ github.workspace }}
@@ -359,6 +371,14 @@ jobs:
           echo "CMAKE_PREFIX_PATH=/opt/homebrew" >> $GITHUB_ENV
           echo "UDUNITS2_ROOT=/opt/homebrew" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
+
+      - name: Setup conda (Windows)
+        if: runner.os == 'Windows'
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-activate-base: true
+          activate-environment: ""
+          miniconda-version: "latest"
 
       - name: Free up disk space (Linux)
         if: runner.os == 'Linux'

@@ -16,6 +16,43 @@ error_handler() {
 trap 'error_handler $LINENO' ERR
 
 # ----------------------------------------------------------------------
+# Platform Detection
+# ----------------------------------------------------------------------
+detect_platform() {
+    # Detect OS and set platform-specific variables
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            export PLATFORM="windows"
+            export VENV_ACTIVATE="Scripts/activate"
+            export VENV_BIN="Scripts"
+            export EXE_EXT=".exe"
+            ;;
+        Darwin*)
+            export PLATFORM="macos"
+            export VENV_ACTIVATE="bin/activate"
+            export VENV_BIN="bin"
+            export EXE_EXT=""
+            ;;
+        Linux*)
+            export PLATFORM="linux"
+            export VENV_ACTIVATE="bin/activate"
+            export VENV_BIN="bin"
+            export EXE_EXT=""
+            ;;
+        *)
+            print_warning "Unknown platform: $(uname -s), assuming Unix-like"
+            export PLATFORM="unix"
+            export VENV_ACTIVATE="bin/activate"
+            export VENV_BIN="bin"
+            export EXE_EXT=""
+            ;;
+    esac
+}
+
+# Detect platform before anything else
+detect_platform
+
+# ----------------------------------------------------------------------
 # Configuration
 # ----------------------------------------------------------------------
 SCRIPT_NAME="symfluence"
@@ -460,11 +497,11 @@ check_virtual_env() {
 
     local venv_path
     for venv_path in "${venv_paths[@]}"; do
-        if [[ -f "${venv_path}/bin/activate" ]]; then
+        if [[ -f "${venv_path}/${VENV_ACTIVATE}" ]]; then
             print_info "Found virtual environment: ${venv_path}"
             print_info "Activating virtual environment..."
             export PYTHONPATH="${PYTHONPATH-}"
-            source "${venv_path}/bin/activate"
+            source "${venv_path}/${VENV_ACTIVATE}"
             if [[ -n "$PYTHONPATH" ]]; then
                 export PYTHONPATH=""
             fi
@@ -533,6 +570,65 @@ EOF
 }
 
 # ----------------------------------------------------------------------
+# Windows-specific setup (conda/micromamba)
+# ----------------------------------------------------------------------
+setup_windows_dependencies() {
+    if [[ "$PLATFORM" != "windows" ]]; then
+        return 0
+    fi
+
+    print_info "Setting up Windows dependencies..."
+
+    # Check if conda/mamba is available
+    if command -v mamba >/dev/null 2>&1; then
+        print_info "Using mamba for package management"
+        CONDA_CMD="mamba"
+    elif command -v conda >/dev/null 2>&1; then
+        print_info "Using conda for package management"
+        CONDA_CMD="conda"
+    elif command -v micromamba >/dev/null 2>&1; then
+        print_info "Using micromamba for package management"
+        CONDA_CMD="micromamba"
+    else
+        print_warning "No conda/mamba/micromamba found in PATH"
+        print_info "Attempting to use system conda if available..."
+
+        # Try common conda locations
+        for conda_path in \
+            "$HOME/miniconda3/condabin/conda" \
+            "$HOME/anaconda3/condabin/conda" \
+            "/c/ProgramData/Miniconda3/condabin/conda" \
+            "/c/ProgramData/Anaconda3/condabin/conda"; do
+            if [[ -f "$conda_path" ]]; then
+                print_info "Found conda at: $conda_path"
+                export PATH="$(dirname "$conda_path"):$PATH"
+                CONDA_CMD="conda"
+                break
+            fi
+        done
+
+        if [[ -z "${CONDA_CMD:-}" ]]; then
+            print_warning "Conda not found. Skipping Windows-specific dependencies."
+            print_info "Manual installation required: gdal, netcdf4, hdf5, cmake, ninja"
+            print_info "You can install via: conda install -c conda-forge gdal netcdf4 hdf5 cmake ninja"
+            return 0
+        fi
+    fi
+
+    # Install essential Windows dependencies via conda
+    print_info "Installing Windows build dependencies via ${CONDA_CMD}..."
+    $CONDA_CMD install -c conda-forge -y \
+        cmake \
+        ninja \
+        gdal \
+        netcdf4 \
+        hdf5 \
+        || print_warning "Some conda packages may have failed to install"
+
+    print_success "Windows dependencies setup complete"
+}
+
+# ----------------------------------------------------------------------
 # Main
 # ----------------------------------------------------------------------
 main() {
@@ -581,12 +677,20 @@ main() {
     # ---------------- Installation mode (enhanced) ----------------
     if [[ "$run_install" == "true" ]]; then
         print_info "SYMFLUENCE installation mode"
+        print_info "Platform: $PLATFORM"
         echo ""
         print_info "Prerequisites:"
         print_info "  - Python 3.11+"
         print_info "  - R (optional, for rpy2 features)"
         print_info "  - Required libs/modules (xz, bzip2, libtirpc, zlib, netcdf, gdal, etc.)"
         echo ""
+
+        # Setup Windows dependencies if on Windows
+        if [[ "$PLATFORM" == "windows" ]]; then
+            setup_windows_dependencies || {
+                print_warning "Windows dependency setup had issues, continuing..."
+            }
+        fi
 
         # Create venv if needed
         local venv_path="${symfluence_dir}/venv"
@@ -600,7 +704,7 @@ main() {
 
         # Activate venv
         export PYTHONPATH="${PYTHONPATH-}"
-        source "${venv_path}/bin/activate"
+        source "${venv_path}/${VENV_ACTIVATE}"
 
         # Clear PYTHONPATH to isolate venv
         if [[ -n "$PYTHONPATH" ]]; then
@@ -608,9 +712,9 @@ main() {
             export PYTHONPATH=""
         fi
         # Make clearing persistent for future activations
-        if ! grep -q "Clear PYTHONPATH" "${venv_path}/bin/activate" 2>/dev/null; then
-            if [[ -w "${venv_path}/bin/activate" ]]; then
-                cat >> "${venv_path}/bin/activate" << 'EOF'
+        if ! grep -q "Clear PYTHONPATH" "${venv_path}/${VENV_ACTIVATE}" 2>/dev/null; then
+            if [[ -w "${venv_path}/${VENV_ACTIVATE}" ]]; then
+                cat >> "${venv_path}/${VENV_ACTIVATE}" << 'EOF'
 
 # Clear PYTHONPATH to prevent system package conflicts
 if [ -n "$PYTHONPATH" ]; then
@@ -668,7 +772,7 @@ EOF
 
         echo ""
         print_success "Installation complete!"
-        print_info "To use SYMFLUENCE: source ${venv_path}/bin/activate"
+        print_info "To use SYMFLUENCE: source ${venv_path}/${VENV_ACTIVATE}"
         exit 0
     fi
 
