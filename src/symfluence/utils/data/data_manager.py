@@ -89,12 +89,20 @@ class DataManager(ConfigurableMixin):
             error_type=DataAcquisitionError
         ):
             # 1. Parse observations to process
-            additional_obs = self.config.get('ADDITIONAL_OBSERVATIONS', [])
+            additional_obs = self._resolve_config_value(
+                lambda: self.typed_config.data.additional_observations,
+                'ADDITIONAL_OBSERVATIONS',
+                []
+            )
             if isinstance(additional_obs, str):
                 additional_obs = [o.strip() for o in additional_obs.split(',')]
             
             # 2. Check for primary streamflow provider and handle USGS/WSC migration
-            streamflow_provider = (self.config.get('STREAMFLOW_DATA_PROVIDER') or '').upper()
+            streamflow_provider = str(self._resolve_config_value(
+                lambda: self.typed_config.data.streamflow_data_provider,
+                'STREAMFLOW_DATA_PROVIDER',
+                ''
+            )).upper()
             if streamflow_provider == 'USGS' and 'USGS_STREAMFLOW' not in additional_obs:
                 # Automatically add USGS_STREAMFLOW if it's the primary provider but not in additional_obs
                 additional_obs.append('USGS_STREAMFLOW')
@@ -102,7 +110,11 @@ class DataManager(ConfigurableMixin):
                 additional_obs.append('WSC_STREAMFLOW')
             
             # Check for USGS Groundwater download and ensure it's in additional_obs
-            download_usgs_gw = self.config.get('DOWNLOAD_USGS_GW', False)
+            download_usgs_gw = self._resolve_config_value(
+                lambda: self.typed_config.data.download_usgs_gw,
+                'DOWNLOAD_USGS_GW',
+                False
+            )
             if isinstance(download_usgs_gw, str):
                 download_usgs_gw = download_usgs_gw.lower() == 'true'
             
@@ -110,11 +122,20 @@ class DataManager(ConfigurableMixin):
                 additional_obs.append('USGS_GW')
             
             # Check for MODIS Snow and ensure it's in additional_obs
-            if self.config.get('DOWNLOAD_MODIS_SNOW', False) and 'MODIS_SNOW' not in additional_obs:
+            download_modis_snow = self._resolve_config_value(
+                lambda: self.typed_config.data.download_modis_snow,
+                'DOWNLOAD_MODIS_SNOW',
+                False
+            )
+            if download_modis_snow and 'MODIS_SNOW' not in additional_obs:
                 additional_obs.append('MODIS_SNOW')
             
             # Check for SNOTEL download and ensure it's in additional_obs
-            download_snotel = self.config.get('DOWNLOAD_SNOTEL', False)
+            download_snotel = self._resolve_config_value(
+                lambda: self.typed_config.data.download_snotel,
+                'DOWNLOAD_SNOTEL',
+                False
+            )
             if isinstance(download_snotel, str):
                 download_snotel = download_snotel.lower() == 'true'
             
@@ -213,7 +234,12 @@ class DataManager(ConfigurableMixin):
                     self.logger.warning(f"Failed to visualize preprocessed forcing: {e}")
 
             # Integrate EM-Earth data if supplementation is enabled
-            if self.config.get('SUPPLEMENT_FORCING', False):
+            supplement_forcing = self._resolve_config_value(
+                lambda: self.typed_config.data.supplement_forcing,
+                'SUPPLEMENT_FORCING',
+                False
+            )
+            if supplement_forcing:
                 self.logger.info("SUPPLEMENT_FORCING enabled - integrating EM-Earth data")
                 self.em_earth_integrator.integrate_em_earth_data()
 
@@ -251,7 +277,12 @@ class DataManager(ConfigurableMixin):
         status['soilclass_exists'] = (self.project_dir / 'attributes' / 'soilclass').exists()
         status['landclass_exists'] = (self.project_dir / 'attributes' / 'landclass').exists()
         
-        if self.config.get('SUPPLEMENT_FORCING', False):
+        supplement_forcing = self._resolve_config_value(
+            lambda: self.typed_config.data.supplement_forcing,
+            'SUPPLEMENT_FORCING',
+            False
+        )
+        if supplement_forcing:
             status['em_earth_acquired'] = (self.project_dir / 'forcing' / 'raw_data_em_earth').exists()
             status['em_earth_integrated'] = (self.project_dir / 'forcing' / 'em_earth_remapped').exists()
         else:

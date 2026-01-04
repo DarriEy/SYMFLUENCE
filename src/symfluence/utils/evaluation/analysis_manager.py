@@ -5,11 +5,13 @@ import logging
 import pandas as pd
 from typing import Dict, Any, Optional, Union
 
-from symfluence.utils.evaluation.decision_analysis import DecisionAnalyzer # type: ignore
+from symfluence.utils.models.summa.structure_analyzer import SummaStructureAnalyzer # type: ignore
 from symfluence.utils.evaluation.sensitivity_analysis import SensitivityAnalyzer # type: ignore
 from symfluence.utils.evaluation.benchmarking import Benchmarker, BenchmarkPreprocessor # type: ignore
-from symfluence.utils.models.fuse import FuseDecisionAnalyzer # type: ignore
+from symfluence.utils.models.fuse.structure_analyzer import FuseStructureAnalyzer # type: ignore
 from symfluence.utils.evaluation.registry import EvaluationRegistry
+
+from symfluence.utils.common.mixins import ConfigurableMixin
 
 # Import for type checking only
 try:
@@ -17,7 +19,7 @@ try:
 except ImportError:
     SymfluenceConfig = None
 
-class AnalysisManager:
+class AnalysisManager(ConfigurableMixin):
     """
     Manages all analysis operations including benchmarking, sensitivity, and decision analysis.
     
@@ -40,10 +42,6 @@ class AnalysisManager:
     Attributes:
         config (Dict[str, Any]): Configuration dictionary
         logger (logging.Logger): Logger instance
-        data_dir (Path): Path to the SYMFLUENCE data directory
-        domain_name (str): Name of the hydrological domain
-        project_dir (Path): Path to the project directory
-        experiment_id (str): ID of the current experiment
     """
     
     def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: logging.Logger, reporting_manager: Optional[Any] = None):
@@ -72,9 +70,6 @@ class AnalysisManager:
 
         self.logger = logger
         self.reporting_manager = reporting_manager
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.experiment_id = self.config.get('EXPERIMENT_ID')
         
     def run_benchmarking(self) -> Optional[Path]:
@@ -111,8 +106,17 @@ class AnalysisManager:
             preprocessor = BenchmarkPreprocessor(component_config, self.logger)
             
             # Extract calibration and evaluation periods
-            calib_start = self.config.get('CALIBRATION_PERIOD').split(',')[0].strip()
-            eval_end = self.config.get('EVALUATION_PERIOD').split(',')[1].strip()
+            calib_period = self._resolve_config_value(
+                lambda: self.typed_config.domain.calibration_period,
+                'CALIBRATION_PERIOD'
+            )
+            eval_period = self._resolve_config_value(
+                lambda: self.typed_config.domain.evaluation_period,
+                'EVALUATION_PERIOD'
+            )
+            
+            calib_start = str(calib_period).split(',')[0].strip()
+            eval_end = str(eval_period).split(',')[1].strip()
             
             benchmark_data = preprocessor.preprocess_benchmark_data(calib_start, eval_end)
             
@@ -166,14 +170,24 @@ class AnalysisManager:
         self.logger.info("Starting sensitivity analysis")
         
         # Check if sensitivity analysis is enabled
-        if not self.config.get('RUN_SENSITIVITY_ANALYSIS', True):
+        run_sensitivity = self._resolve_config_value(
+            lambda: self.typed_config.analysis.run_sensitivity_analysis,
+            'RUN_SENSITIVITY_ANALYSIS',
+            True
+        )
+        if not run_sensitivity:
             self.logger.info("Sensitivity analysis is disabled in configuration")
             return None
         
         sensitivity_results = {}
         
         try:
-            hydrological_models = self.config.get('HYDROLOGICAL_MODEL', '').split(',')
+            models_str = self._resolve_config_value(
+                lambda: self.typed_config.model.hydrological_model,
+                'HYDROLOGICAL_MODEL',
+                ''
+            )
+            hydrological_models = str(models_str).split(',')
             
             for model in hydrological_models:
                 model = model.strip()
@@ -214,14 +228,24 @@ class AnalysisManager:
         self.logger.info("Starting decision analysis")
         
         # Check if decision analysis is enabled
-        if not self.config.get('RUN_DECISION_ANALYSIS', True):
+        run_decision = self._resolve_config_value(
+            lambda: self.typed_config.analysis.run_decision_analysis,
+            'RUN_DECISION_ANALYSIS',
+            True
+        )
+        if not run_decision:
             self.logger.info("Decision analysis is disabled in configuration")
             return None
         
         decision_results = {}
         
         try:
-            hydrological_models = self.config.get('HYDROLOGICAL_MODEL', '').split(',')
+            models_str = self._resolve_config_value(
+                lambda: self.typed_config.model.hydrological_model,
+                'HYDROLOGICAL_MODEL',
+                ''
+            )
+            hydrological_models = str(models_str).split(',')
             
             for model in hydrological_models:
                 model = model.strip()
@@ -245,13 +269,13 @@ class AnalysisManager:
         """
         Run decision analysis for SUMMA model.
         """
-        self.logger.info("Running SUMMA decision analysis")
+        self.logger.info("Running SUMMA structure ensemble analysis")
         
         component_config = self.typed_config if self.typed_config else self.config
-        decision_analyzer = DecisionAnalyzer(component_config, self.logger, self.reporting_manager)
-        results_file, best_combinations = decision_analyzer.run_full_analysis()
+        analyzer = SummaStructureAnalyzer(component_config, self.logger, self.reporting_manager)
+        results_file, best_combinations = analyzer.run_full_analysis()
         
-        self.logger.info("SUMMA decision analysis completed")
+        self.logger.info("SUMMA structure ensemble analysis completed")
         self.logger.info(f"Results saved to: {results_file}")
         self.logger.info("Best combinations for each metric:")
         for metric, data in best_combinations.items():
@@ -266,14 +290,17 @@ class AnalysisManager:
         """
         Run decision analysis for FUSE model.
         """
-        self.logger.info("Running FUSE decision analysis")
+        self.logger.info("Running FUSE structure ensemble analysis")
         
         component_config = self.typed_config if self.typed_config else self.config
-        fuse_analyzer = FuseDecisionAnalyzer(component_config, self.logger)
-        results = fuse_analyzer.run_decision_analysis()
+        analyzer = FuseStructureAnalyzer(component_config, self.logger, self.reporting_manager)
+        results_file, best_combinations = analyzer.run_full_analysis()
         
-        self.logger.info("FUSE decision analysis completed")
-        return results
+        self.logger.info("FUSE structure ensemble analysis completed")
+        return {
+            'results_file': results_file,
+            'best_combinations': best_combinations
+        }
     
     def get_analysis_status(self) -> Dict[str, Any]:
         """
@@ -298,8 +325,16 @@ class AnalysisManager:
         """
         status = {
             'benchmarking_complete': (self.project_dir / "evaluation" / "benchmark_scores.csv").exists(),
-            'sensitivity_analysis_available': self.config.get('RUN_SENSITIVITY_ANALYSIS', True),
-            'decision_analysis_available': self.config.get('RUN_DECISION_ANALYSIS', True),
+            'sensitivity_analysis_available': self._resolve_config_value(
+                lambda: self.typed_config.analysis.run_sensitivity_analysis,
+                'RUN_SENSITIVITY_ANALYSIS',
+                True
+            ),
+            'decision_analysis_available': self._resolve_config_value(
+                lambda: self.typed_config.analysis.run_decision_analysis,
+                'RUN_DECISION_ANALYSIS',
+                True
+            ),
             'optimization_results_exist': (self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv").exists(),
         }
         

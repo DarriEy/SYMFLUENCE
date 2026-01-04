@@ -49,7 +49,11 @@ class DomainManager(ConfigurableMixin):
         self.discretization_artifacts: Optional[DiscretizationArtifacts] = None
         
         # Create point domain shapefile if method is 'point'
-        if self.config.get('DOMAIN_DEFINITION_METHOD') == 'point':
+        domain_method = self._resolve_config_value(
+            lambda: self.typed_config.domain.definition_method,
+            'DOMAIN_DEFINITION_METHOD'
+        )
+        if domain_method == 'point':
             self.create_point_domain_shapefile()
     
     def create_point_domain_shapefile(self) -> Optional[Path]:
@@ -74,7 +78,10 @@ class DomainManager(ConfigurableMixin):
         Returns:
             Tuple of the domain result and delineation artifacts
         """
-        domain_method = self.config.get('DOMAIN_DEFINITION_METHOD')
+        domain_method = self._resolve_config_value(
+            lambda: self.typed_config.domain.definition_method,
+            'DOMAIN_DEFINITION_METHOD'
+        )
         self.logger.info(f"Domain definition workflow starting with: {domain_method}")
         
         result, artifacts = self.domain_delineator.define_domain()
@@ -98,7 +105,10 @@ class DomainManager(ConfigurableMixin):
             Tuple of HRU shapefile(s) and discretization artifacts
         """
         try:
-            discretization_method = self.config.get('DOMAIN_DISCRETIZATION')
+            discretization_method = self._resolve_config_value(
+                lambda: self.typed_config.domain.discretization,
+                'DOMAIN_DISCRETIZATION'
+            )
             self.logger.info(f"Discretizing domain using method: {discretization_method}")
             
             # Initialize discretizer if not already done
@@ -140,8 +150,15 @@ class DomainManager(ConfigurableMixin):
             Path to the created plot or None if failed
         """
         if self.reporting_manager:
-            discretization_method = self.config.get('DOMAIN_DISCRETIZATION')
-            if self.config.get('DOMAIN_DEFINITION_METHOD') != 'point':
+            discretization_method = self._resolve_config_value(
+                lambda: self.typed_config.domain.discretization,
+                'DOMAIN_DISCRETIZATION'
+            )
+            domain_method = self._resolve_config_value(
+                lambda: self.typed_config.domain.definition_method,
+                'DOMAIN_DEFINITION_METHOD'
+            )
+            if domain_method != 'point':
                 return self.reporting_manager.visualize_discretized_domain(discretization_method)
             else:
                 self.logger.info('Point scale model, not creating visualisation')
@@ -157,11 +174,26 @@ class DomainManager(ConfigurableMixin):
         """
         info = {
             'domain_name': self.domain_name,
-            'domain_method': self.config.get('DOMAIN_DEFINITION_METHOD'),
-            'spatial_mode': self.config.get('DOMAIN_DEFINITION_METHOD'),
-            'discretization_method': self.config.get('DOMAIN_DISCRETIZATION'),
-            'pour_point_coords': self.config.get('POUR_POINT_COORDS'),
-            'bounding_box': self.config.get('BOUNDING_BOX_COORDS'),
+            'domain_method': self._resolve_config_value(
+                lambda: self.typed_config.domain.definition_method,
+                'DOMAIN_DEFINITION_METHOD'
+            ),
+            'spatial_mode': self._resolve_config_value(
+                lambda: self.typed_config.domain.definition_method,
+                'DOMAIN_DEFINITION_METHOD'
+            ),
+            'discretization_method': self._resolve_config_value(
+                lambda: self.typed_config.domain.discretization,
+                'DOMAIN_DISCRETIZATION'
+            ),
+            'pour_point_coords': self._resolve_config_value(
+                lambda: self.typed_config.domain.pour_point_coords,
+                'POUR_POINT_COORDS'
+            ),
+            'bounding_box': self._resolve_config_value(
+                lambda: self.typed_config.domain.bounding_box_coords,
+                'BOUNDING_BOX_COORDS'
+            ),
             'project_dir': str(self.project_dir),
         }
         
@@ -185,28 +217,36 @@ class DomainManager(ConfigurableMixin):
             True if configuration is valid, False otherwise
         """
         required_settings = [
-            'DOMAIN_NAME',
-            'DOMAIN_DEFINITION_METHOD',
-            'DOMAIN_DISCRETIZATION',
-            'BOUNDING_BOX_COORDS'
+            ('DOMAIN_NAME', lambda: self.typed_config.domain.name),
+            ('DOMAIN_DEFINITION_METHOD', lambda: self.typed_config.domain.definition_method),
+            ('DOMAIN_DISCRETIZATION', lambda: self.typed_config.domain.discretization),
+            ('BOUNDING_BOX_COORDS', lambda: self.typed_config.domain.bounding_box_coords)
         ]
         
         # Check required settings
-        for setting in required_settings:
-            if not self.config.get(setting):
-                self.logger.error(f"Required domain setting missing: {setting}")
+        for dict_key, typed_accessor in required_settings:
+            val = self._resolve_config_value(typed_accessor, dict_key)
+            if not val:
+                self.logger.error(f"Required domain setting missing: {dict_key}")
                 return False
         
         # Validate domain definition method
         valid_methods = ['subset', 'lumped', 'delineate', 'point']  # Added 'point' to valid methods
-        domain_method = self.config.get('DOMAIN_DEFINITION_METHOD')
+        domain_method = self._resolve_config_value(
+            lambda: self.typed_config.domain.definition_method,
+            'DOMAIN_DEFINITION_METHOD'
+        )
         if domain_method not in valid_methods:
             self.logger.error(f"Invalid domain definition method: {domain_method}. Must be one of {valid_methods}")
             return False
         
         # Validate bounding box format
-        bbox = self.config.get('BOUNDING_BOX_COORDS', '')
-        bbox_parts = bbox.split('/')
+        bbox = self._resolve_config_value(
+            lambda: self.typed_config.domain.bounding_box_coords,
+            'BOUNDING_BOX_COORDS',
+            ''
+        )
+        bbox_parts = str(bbox).split('/')
         if len(bbox_parts) != 4:
             self.logger.error(f"Invalid bounding box format: {bbox}. Expected format: lat_max/lon_min/lat_min/lon_max")
             return False
