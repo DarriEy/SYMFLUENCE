@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 import random
 
-from symfluence.utils.optimization.optimizers import (
+from symfluence.optimization.optimizers import (
     BaseOptimizer,
     DDSOptimizer,
     DEOptimizer,

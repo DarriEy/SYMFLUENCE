@@ -60,7 +60,7 @@ dependencies = [
 
 [project.scripts]
 # thin wrapper that delegates to your existing CLI
-symfluence = "symfluence.cli:main"
+symfluence = "symfluence.main_cli:main"
 
 [project.urls]
 Homepage = "https://symfluence.org"

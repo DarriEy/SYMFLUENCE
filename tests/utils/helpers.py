@@ -17,7 +17,7 @@ def load_config_template(symfluence_code_dir):
         symfluence_code_dir: Path to SYMFLUENCE code directory
 
     Returns:
-        dict: Configuration dictionary loaded from template
+        dict: Configuration dictionary loaded from template (flat format)
 
     Raises:
         FileNotFoundError: If config template doesn't exist
@@ -25,13 +25,13 @@ def load_config_template(symfluence_code_dir):
     Note:
         symfluence_code_dir parameter is deprecated, templates are now loaded from package data
     """
+    from symfluence.core.config.models import SymfluenceConfig
     from symfluence.resources import get_config_template
 
     template_path = get_config_template()
-    with open(template_path, 'r') as f:
-        config = yaml.safe_load(f)
-
-    return config
+    # Use SymfluenceConfig to load and validate, then convert to dict for test manipulation
+    config_obj = SymfluenceConfig.from_file(template_path)
+    return config_obj.to_dict(flatten=True)
 
 
 def write_config(config, output_path):

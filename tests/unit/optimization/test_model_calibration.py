@@ -26,7 +26,7 @@ class TestSUMMACalibrationTargets:
 
     def test_load_summa_observations(self, summa_config, test_logger, mock_observations, temp_project_dir):
         """Test loading SUMMA streamflow observations."""
-        from symfluence.utils.optimization.calibration_targets import StreamflowTarget
+        from symfluence.optimization.calibration_targets import StreamflowTarget
 
         target = StreamflowTarget(summa_config, temp_project_dir, test_logger)
 
@@ -39,7 +39,7 @@ class TestSUMMACalibrationTargets:
 
     def test_align_summa_simulation_with_obs(self, summa_config, test_logger, mock_observations):
         """Test aligning SUMMA simulation results with observations."""
-        from symfluence.utils.optimization.calibration_targets import StreamflowTarget
+        from symfluence.optimization.calibration_targets import StreamflowTarget
 
         target = StreamflowTarget(summa_config, Path("/tmp"), test_logger)
 
@@ -58,7 +58,7 @@ class TestSUMMACalibrationTargets:
 
     def test_summa_calibration_period_subset(self, summa_config, test_logger):
         """Test extracting calibration period from full simulation."""
-        from symfluence.utils.optimization.calibration_targets import StreamflowTarget
+        from symfluence.optimization.calibration_targets import StreamflowTarget
 
         config = summa_config.copy()
         config['CALIBRATION_PERIOD'] = '2020-01-10, 2020-01-20'
@@ -83,7 +83,7 @@ class TestSUMMAWorkerFunctions:
 
     def test_summa_parameter_application(self, summa_config, test_logger, temp_project_dir):
         """Test applying parameters to SUMMA trial parameter file."""
-        from symfluence.utils.optimization.workers.summa_parallel_workers import _apply_parameters_worker
+        from symfluence.optimization.workers.summa_parallel_workers import _apply_parameters_worker
 
         # Create mock trial parameter file
         summa_settings_dir = temp_project_dir / "settings" / "SUMMA"
@@ -103,7 +103,7 @@ class TestSUMMAWorkerFunctions:
         debug_info = {}
 
         # Mock the generator worker
-        with patch('symfluence.utils.optimization.workers.summa_parallel_workers._generate_trial_params_worker') as mock_gen:
+        with patch('symfluence.optimization.workers.summa_parallel_workers._generate_trial_params_worker') as mock_gen:
             mock_gen.return_value = True
 
             # Call parameter application
@@ -153,7 +153,7 @@ class TestFUSECalibrationTargets:
 
     def test_load_fuse_observations(self, fuse_config, test_logger, mock_observations, temp_project_dir):
         """Test loading FUSE streamflow observations."""
-        from symfluence.utils.optimization.calibration_targets import FUSEStreamflowTarget
+        from symfluence.optimization.calibration_targets import FUSEStreamflowTarget
 
         target = FUSEStreamflowTarget(fuse_config, temp_project_dir, test_logger)
 
@@ -166,7 +166,7 @@ class TestFUSECalibrationTargets:
 
     def test_fuse_structure_specific_params(self, fuse_config, test_logger, temp_project_dir):
         """Test FUSE structure-specific parameter handling."""
-        from symfluence.utils.optimization.parameter_managers import FUSEParameterManager
+        from symfluence.optimization.parameter_managers import FUSEParameterManager
 
         fuse_settings_dir = temp_project_dir / "settings" / "FUSE"
         fuse_settings_dir.mkdir(parents=True, exist_ok=True)
@@ -189,7 +189,7 @@ class TestFUSECalibrationTargets:
             config = fuse_config.copy()
             config['FUSE_STRUCTURE'] = structure
 
-            from symfluence.utils.optimization.parameter_managers import FUSEParameterManager
+            from symfluence.optimization.parameter_managers import FUSEParameterManager
             manager = FUSEParameterManager(config, test_logger, fuse_settings_dir)
 
             param_bounds = manager.get_parameter_bounds()
@@ -201,7 +201,7 @@ class TestFUSEWorkerFunctions:
 
     def test_fuse_parameter_application(self, fuse_config, test_logger, temp_project_dir):
         """Test applying parameters to FUSE input files via worker class."""
-        from symfluence.utils.optimization.workers.fuse_worker import FUSEWorker
+        from symfluence.optimization.workers.fuse_worker import FUSEWorker
 
         params = {
             'MAXWATR_1': 500.0,
@@ -248,13 +248,13 @@ class TestNGENCalibrationTargets:
 
     def test_load_ngen_observations(self, ngen_config, test_logger, mock_observations, temp_project_dir):
         """Test loading NGEN streamflow observations."""
-        from symfluence.utils.optimization.calibration_targets import NgenStreamflowTarget
+        from symfluence.optimization.calibration_targets import NgenStreamflowTarget
 
         # mock_observations is a Path to a CSV file - read it to get DataFrame
         obs_df = pd.read_csv(mock_observations, parse_dates=['date'], index_col='date')
 
         # We still need to patch _get_catchment_area because it's called in __init__
-        with patch('symfluence.utils.evaluation.evaluators.StreamflowEvaluator._get_catchment_area', return_value=100.0):
+        with patch('symfluence.evaluation.evaluators.StreamflowEvaluator._get_catchment_area', return_value=100.0):
             target = NgenStreamflowTarget(ngen_config, temp_project_dir, test_logger)
             target._load_observed_data = lambda: obs_df
             obs_data = target._load_observed_data()
@@ -262,7 +262,7 @@ class TestNGENCalibrationTargets:
 
     def test_ngen_catchment_specific_params(self, ngen_config, test_logger, temp_project_dir):
         """Test NGEN catchment-specific parameter handling."""
-        from symfluence.utils.optimization.parameter_managers import NgenParameterManager
+        from symfluence.optimization.parameter_managers import NgenParameterManager
 
         ngen_settings_dir = temp_project_dir / "settings" / "ngen"
         ngen_settings_dir.mkdir(parents=True, exist_ok=True)
@@ -280,7 +280,7 @@ class TestNGENWorkerFunctions:
 
     def test_ngen_parameter_application(self, ngen_config, test_logger, temp_project_dir):
         """Test applying parameters to NGEN realization file via worker class."""
-        from symfluence.utils.optimization.workers.ngen_worker import NgenWorker
+        from symfluence.optimization.workers.ngen_worker import NgenWorker
 
         params = {
             'CFE.smcmax': 0.45,
@@ -317,14 +317,14 @@ class TestCrossModelCalibration:
         obs_df = pd.read_csv(mock_observations, parse_dates=['date'], index_col='date')
 
         if model_name == 'SUMMA':
-            from symfluence.utils.optimization.calibration_targets import StreamflowTarget
+            from symfluence.optimization.calibration_targets import StreamflowTarget
             target = StreamflowTarget(config, temp_project_dir, test_logger)
         elif model_name == 'FUSE':
-            from symfluence.utils.optimization.calibration_targets import FUSEStreamflowTarget
+            from symfluence.optimization.calibration_targets import FUSEStreamflowTarget
             target = FUSEStreamflowTarget(config, temp_project_dir, test_logger)
         elif model_name == 'NGEN':
-            from symfluence.utils.optimization.calibration_targets import NgenStreamflowTarget
-            with patch('symfluence.utils.evaluation.evaluators.StreamflowEvaluator._get_catchment_area', return_value=100.0):
+            from symfluence.optimization.calibration_targets import NgenStreamflowTarget
+            with patch('symfluence.evaluation.evaluators.StreamflowEvaluator._get_catchment_area', return_value=100.0):
                 target = NgenStreamflowTarget(config, temp_project_dir, test_logger)
 
         target._load_observed_data = lambda: obs_df

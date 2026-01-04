@@ -164,7 +164,7 @@ def forcing_cache_manager(symfluence_data_root):
     Returns:
         RawForcingCache: Initialized cache manager instance
     """
-    from symfluence.utils.data.cache import RawForcingCache
+    from symfluence.data.cache import RawForcingCache
 
     cache_root = symfluence_data_root / "cache" / "raw_forcing"
     cache = RawForcingCache(

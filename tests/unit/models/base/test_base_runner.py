@@ -18,8 +18,8 @@ import subprocess
 import tempfile
 import shutil
 
-from symfluence.utils.models.base.base_runner import BaseModelRunner
-from symfluence.utils.config.models import SymfluenceConfig
+from symfluence.models.base.base_runner import BaseModelRunner
+from symfluence.core.config.models import SymfluenceConfig
 
 
 class ConcreteModelRunner(BaseModelRunner):

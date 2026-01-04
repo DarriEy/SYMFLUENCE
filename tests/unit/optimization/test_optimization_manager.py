@@ -14,7 +14,7 @@ import numpy as np
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
-from symfluence.utils.optimization.optimization_manager import OptimizationManager
+from symfluence.optimization.optimization_manager import OptimizationManager
 
 
 pytestmark = [pytest.mark.unit, pytest.mark.optimization]

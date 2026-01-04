@@ -11,7 +11,7 @@ import numpy as np
 from pathlib import Path
 from unittest.mock import patch, MagicMock, call
 
-from symfluence.utils.data.preprocessing.attribute_processors.elevation import ElevationProcessor
+from symfluence.data.preprocessing.attribute_processors.elevation import ElevationProcessor
 
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]

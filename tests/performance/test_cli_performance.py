@@ -9,7 +9,7 @@ PYTHON = "python3.11"
 def measure_import_time():
     start = time.perf_counter()
     # Run in a separate process to avoid caching
-    cmd = [PYTHON, "-c", "import sys; from pathlib import Path; sys.path.insert(0, str(Path.cwd() / 'src')); import symfluence.utils.cli.cli_argument_manager"]
+    cmd = [PYTHON, "-c", "import sys; from pathlib import Path; sys.path.insert(0, str(Path.cwd() / 'src')); import symfluence.cli.cli_argument_manager"]
     subprocess.run(cmd, check=True)
     end = time.perf_counter()
     return end - start

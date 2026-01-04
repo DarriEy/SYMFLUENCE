@@ -7,13 +7,13 @@ Tests the base class functionality shared across all model preprocessors.
 import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
-from symfluence.utils.models.base import BaseModelPreProcessor
-from symfluence.utils.exceptions import (
+from symfluence.models.base import BaseModelPreProcessor
+from symfluence.core.exceptions import (
     ConfigurationError,
     FileOperationError,
     ModelExecutionError
 )
-from symfluence.utils.config.models import SymfluenceConfig
+from symfluence.core.config.models import SymfluenceConfig
 
 
 class ConcretePreProcessor(BaseModelPreProcessor):

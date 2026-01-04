@@ -31,7 +31,7 @@ def summa_config(tmp_path, symfluence_code_dir):
     Returns:
         tuple: (config_path, config_dict)
     """
-    from symfluence.utils.config.models import SymfluenceConfig
+    from symfluence.core.config.models import SymfluenceConfig
 
     # Create config using SymfluenceConfig.from_minimal and then update
     config = SymfluenceConfig.from_minimal(
@@ -64,7 +64,7 @@ def fuse_config(tmp_path, symfluence_code_dir):
     Returns:
         tuple: (config_path, config_dict)
     """
-    from symfluence.utils.config.models import SymfluenceConfig
+    from symfluence.core.config.models import SymfluenceConfig
 
     config = SymfluenceConfig.from_minimal(
         domain_name="test_domain",
@@ -94,7 +94,7 @@ def ngen_config(tmp_path, symfluence_code_dir):
     Returns:
         tuple: (config_path, config_dict)
     """
-    from symfluence.utils.config.models import SymfluenceConfig
+    from symfluence.core.config.models import SymfluenceConfig
 
     config = SymfluenceConfig.from_minimal(
         domain_name="test_domain",

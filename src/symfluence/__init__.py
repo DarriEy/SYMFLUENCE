@@ -15,8 +15,8 @@ except ImportError:
 
 # Expose core components for a cleaner API
 from .core import SYMFLUENCE
-from .utils.config.models import SymfluenceConfig
-from .utils.exceptions import (
+from .core.config.models import SymfluenceConfig
+from .core.exceptions import (
     SYMFLUENCEError,
     ConfigurationError,
     ModelExecutionError,

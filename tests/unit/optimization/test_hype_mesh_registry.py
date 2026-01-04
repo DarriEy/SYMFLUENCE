@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 import tempfile
 
-from symfluence.utils.optimization.registry import OptimizerRegistry
+from symfluence.optimization.registry import OptimizerRegistry
 
 
 @pytest.fixture
@@ -68,7 +68,7 @@ class TestHYPERegistration:
 
     def test_hype_optimizer_can_instantiate(self, hype_config, logger, temp_dir):
         """Test that HYPE optimizer can be instantiated."""
-        from symfluence.utils.optimization.model_optimizers.hype_model_optimizer import HYPEModelOptimizer
+        from symfluence.optimization.model_optimizers.hype_model_optimizer import HYPEModelOptimizer
 
         optimizer = HYPEModelOptimizer(hype_config, logger, temp_dir)
         assert optimizer is not None
@@ -76,15 +76,15 @@ class TestHYPERegistration:
 
     def test_hype_worker_can_instantiate(self, hype_config, logger):
         """Test that HYPE worker can be instantiated."""
-        from symfluence.utils.optimization.workers.hype_worker import HYPEWorker
+        from symfluence.optimization.workers.hype_worker import HYPEWorker
 
         worker = HYPEWorker(hype_config, logger)
         assert worker is not None
 
     def test_hype_optimizer_creates_hype_parameter_manager(self, hype_config, logger, temp_dir):
         """Test that HYPE optimizer creates HYPEParameterManager."""
-        from symfluence.utils.optimization.model_optimizers.hype_model_optimizer import HYPEModelOptimizer
-        from symfluence.utils.optimization.parameter_managers import HYPEParameterManager
+        from symfluence.optimization.model_optimizers.hype_model_optimizer import HYPEModelOptimizer
+        from symfluence.optimization.parameter_managers import HYPEParameterManager
 
         optimizer = HYPEModelOptimizer(hype_config, logger, temp_dir)
         param_manager = optimizer._create_parameter_manager()
@@ -98,7 +98,7 @@ class TestMESHRegistration:
     def test_mesh_optimizer_registered(self):
         """Test that MESH optimizer is registered."""
         # Import to trigger registration
-        from symfluence.utils.optimization.model_optimizers.mesh_model_optimizer import MESHModelOptimizer
+        from symfluence.optimization.model_optimizers.mesh_model_optimizer import MESHModelOptimizer
 
         optimizer_cls = OptimizerRegistry.get_optimizer('MESH')
         assert optimizer_cls is not None
@@ -107,7 +107,7 @@ class TestMESHRegistration:
     def test_mesh_worker_registered(self):
         """Test that MESH worker is registered."""
         # Import to trigger registration
-        from symfluence.utils.optimization.workers.mesh_worker import MESHWorker
+        from symfluence.optimization.workers.mesh_worker import MESHWorker
 
         worker_cls = OptimizerRegistry.get_worker('MESH')
         assert worker_cls is not None
@@ -115,7 +115,7 @@ class TestMESHRegistration:
 
     def test_mesh_optimizer_can_instantiate(self, mesh_config, logger, temp_dir):
         """Test that MESH optimizer can be instantiated."""
-        from symfluence.utils.optimization.model_optimizers.mesh_model_optimizer import MESHModelOptimizer
+        from symfluence.optimization.model_optimizers.mesh_model_optimizer import MESHModelOptimizer
 
         optimizer = MESHModelOptimizer(mesh_config, logger, temp_dir)
         assert optimizer is not None
@@ -123,15 +123,15 @@ class TestMESHRegistration:
 
     def test_mesh_worker_can_instantiate(self, mesh_config, logger):
         """Test that MESH worker can be instantiated."""
-        from symfluence.utils.optimization.workers.mesh_worker import MESHWorker
+        from symfluence.optimization.workers.mesh_worker import MESHWorker
 
         worker = MESHWorker(mesh_config, logger)
         assert worker is not None
 
     def test_mesh_optimizer_creates_mesh_parameter_manager(self, mesh_config, logger, temp_dir):
         """Test that MESH optimizer creates MESHParameterManager."""
-        from symfluence.utils.optimization.model_optimizers.mesh_model_optimizer import MESHModelOptimizer
-        from symfluence.utils.optimization.parameter_managers import MESHParameterManager
+        from symfluence.optimization.model_optimizers.mesh_model_optimizer import MESHModelOptimizer
+        from symfluence.optimization.parameter_managers import MESHParameterManager
 
         optimizer = MESHModelOptimizer(mesh_config, logger, temp_dir)
         param_manager = optimizer._create_parameter_manager()

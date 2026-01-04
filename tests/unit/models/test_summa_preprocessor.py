@@ -7,8 +7,8 @@ Tests SUMMA-specific preprocessing functionality.
 import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
-from symfluence.utils.models.summa import SummaPreProcessor
-from symfluence.utils.exceptions import ModelExecutionError
+from symfluence.models.summa import SummaPreProcessor
+from symfluence.core.exceptions import ModelExecutionError
 
 
 class TestSummaPreProcessorInitialization:
@@ -66,7 +66,7 @@ class TestSummaPathResolution:
         # Note: SymfluenceConfig is frozen, but we can re-init if needed.
         # However, for unit tests on preprocessor, we can often just mock the config.
         # But here let's create a new config with the override.
-        from symfluence.utils.config.models import SymfluenceConfig
+        from symfluence.core.config.models import SymfluenceConfig
         overrides = summa_config.to_dict(flatten=True)
         overrides['DEM_NAME'] = 'custom_dem.tif'
         custom_config = SymfluenceConfig(**overrides)
@@ -97,7 +97,7 @@ class TestSummaCopyBaseSettings:
     def test_copy_base_settings_uses_correct_source(self, summa_config, mock_logger, setup_test_directories):
         """Test that copy_base_settings uses correct source directory."""
         # Create a config with overridden code_dir for this test
-        from symfluence.utils.config.models import SymfluenceConfig
+        from symfluence.core.config.models import SymfluenceConfig
         overrides = summa_config.to_dict(flatten=True)
         overrides['SYMFLUENCE_CODE_DIR'] = str(setup_test_directories['code_dir'])
         custom_config = SymfluenceConfig(**overrides)
@@ -176,7 +176,7 @@ class TestSummaRegistration:
 
     def test_summa_registered_as_preprocessor(self):
         """Test that SUMMA is registered in the model registry."""
-        from symfluence.utils.models.registry import ModelRegistry
+        from symfluence.models.registry import ModelRegistry
 
         # SUMMA should be registered
         assert 'SUMMA' in ModelRegistry._preprocessors

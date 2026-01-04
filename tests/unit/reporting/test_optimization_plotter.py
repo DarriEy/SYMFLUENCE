@@ -8,8 +8,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch, Mock
 import tempfile
 
-from symfluence.utils.reporting.plotters.optimization_plotter import OptimizationPlotter
-from symfluence.utils.reporting.config.plot_config import PlotConfig
+from symfluence.reporting.plotters.optimization_plotter import OptimizationPlotter
+from symfluence.reporting.config.plot_config import PlotConfig
 
 
 @pytest.fixture

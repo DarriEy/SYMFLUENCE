@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock, mock_open, call
 from pathlib import Path
 import yaml
 
-from symfluence.utils.cli.initialization_manager import InitializationManager
+from symfluence.cli.initialization_manager import InitializationManager
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]
 
@@ -311,7 +311,7 @@ class TestGenerateConfig:
         mock_load_yaml.return_value = {'BASE_KEY': 'base_value'}
 
         # Mock get_preset from init_presets module
-        with patch('symfluence.utils.cli.init_presets.get_preset', return_value=sample_preset):
+        with patch('symfluence.cli.init_presets.get_preset', return_value=sample_preset):
             config = init_manager.generate_config(
                 preset_name='fuse-provo',
                 cli_overrides={},
@@ -328,7 +328,7 @@ class TestGenerateConfig:
         """Test CLI overrides take precedence over preset."""
         mock_load_yaml.return_value = {}
 
-        with patch('symfluence.utils.cli.init_presets.get_preset', return_value=sample_preset):
+        with patch('symfluence.cli.init_presets.get_preset', return_value=sample_preset):
             config = init_manager.generate_config(
                 preset_name='fuse-provo',
                 cli_overrides={'domain': 'custom_domain'},

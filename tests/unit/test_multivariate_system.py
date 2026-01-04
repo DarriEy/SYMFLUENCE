@@ -3,9 +3,9 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from typing import List, Optional
-from symfluence.utils.data.observation.registry import ObservationRegistry
-from symfluence.utils.evaluation.registry import EvaluationRegistry
-from symfluence.utils.optimization.objectives import ObjectiveRegistry
+from symfluence.data.observation.registry import ObservationRegistry
+from symfluence.evaluation.registry import EvaluationRegistry
+from symfluence.optimization.objectives import ObjectiveRegistry
 
 def test_observation_registry():
     """Verify that observations are correctly registered and retrievable."""
@@ -46,7 +46,7 @@ def test_multivariate_objective_calculation():
 
 def test_evaluator_alignment():
     """Test the base evaluator's time series alignment logic."""
-    from symfluence.utils.evaluation.base import BaseEvaluator
+    from symfluence.evaluation.base import BaseEvaluator
     
     class MockEvaluator(BaseEvaluator):
         def calculate_metrics(self, sim, obs):  # pragma: no cover - simple stub

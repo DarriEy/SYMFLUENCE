@@ -8,7 +8,7 @@ existing code expecting flat dictionaries.
 
 import pytest
 from pathlib import Path
-from symfluence.utils.config.models import SymfluenceConfig, SystemConfig, DomainConfig, ForcingConfig, ModelConfig
+from symfluence.core.config.models import SymfluenceConfig, SystemConfig, DomainConfig, ForcingConfig, ModelConfig
 
 
 class TestDictLikeAccess:

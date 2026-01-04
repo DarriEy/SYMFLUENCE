@@ -111,7 +111,7 @@ Adding a New Model
 ~~~~~~~~~~~~~~~~~~
 As of v0.5.6, SYMFLUENCE uses a **Model Registry** system. To add a new model:
 
-1. Create a new utility module in ``src/symfluence/utils/models/``.
+1. Create a new utility module in ``src/symfluence.models/``.
 2. Use the ``ModelRegistry`` decorators to register your preprocessor, runner, and postprocessor classes:
 
    .. code-block:: python
@@ -133,7 +133,7 @@ As of v0.5.6, SYMFLUENCE uses a **Model Registry** system. To add a new model:
           def __init__(self, config, logger): ...
           def extract_streamflow(self): ...
 
-3. Import your module in ``src/symfluence/utils/models/__init__.py`` to ensure registration.
+3. Import your module in ``src/symfluence.models/__init__.py`` to ensure registration.
 
 The ``ModelManager`` will then automatically support your model if it is listed in the ``HYDROLOGICAL_MODEL`` configuration parameter.
 

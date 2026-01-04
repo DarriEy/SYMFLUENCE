@@ -14,7 +14,7 @@ import pandas as pd
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from symfluence.utils.data.preprocessing.attribute_processors.hydrology import HydrologyProcessor
+from symfluence.data.preprocessing.attribute_processors.hydrology import HydrologyProcessor
 
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]

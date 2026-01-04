@@ -8,8 +8,8 @@ import pytest
 from pydantic import ValidationError
 from pathlib import Path
 
-from symfluence.utils.config.models import SymfluenceConfig
-from symfluence.utils.exceptions import ConfigurationError
+from symfluence.core.config.models import SymfluenceConfig
+from symfluence.core.exceptions import ConfigurationError
 
 
 class TestBasicValidation:

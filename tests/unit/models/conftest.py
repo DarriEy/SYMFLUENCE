@@ -8,7 +8,7 @@ from unittest.mock import Mock, MagicMock
 import tempfile
 import shutil
 
-from symfluence.utils.config.models import SymfluenceConfig
+from symfluence.core.config.models import SymfluenceConfig
 
 
 @pytest.fixture

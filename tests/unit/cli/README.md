@@ -231,7 +231,7 @@ def test_file_existence(mock_exists):
 
 import pytest
 from unittest.mock import patch, MagicMock
-from symfluence.utils.cli.new_component import NewComponent
+from symfluence.cli.new_component import NewComponent
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]
 

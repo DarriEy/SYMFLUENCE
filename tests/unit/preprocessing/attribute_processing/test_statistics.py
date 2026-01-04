@@ -15,7 +15,7 @@ import pandas as pd
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from symfluence.utils.data.preprocessing.attribute_processors.elevation import ElevationProcessor
+from symfluence.data.preprocessing.attribute_processors.elevation import ElevationProcessor
 
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]
@@ -30,7 +30,7 @@ class TestCalculateStatistics:
         """Test statistics calculation for non-circular attributes (elevation, slope, etc.)."""
         processor = ElevationProcessor(base_config, test_logger)
 
-        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_zonal_stats_result):
+        with patch('symfluence.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_zonal_stats_result):
             result = processor.calculate_statistics(mock_dem_file, "elevation")
 
         # Should return dict with mean, min, max, std (no median in default stats)
@@ -61,7 +61,7 @@ class TestCalculateStatistics:
             "circstd": 105.0    # Circular standard deviation
         }]
 
-        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result) as mock_zs:
+        with patch('symfluence.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result) as mock_zs:
             # Ensure catchment_path is a file path, not a directory
             processor.catchment_path = lumped_catchment_shapefile
             result = processor.calculate_statistics(mock_dem_file, "aspect")
@@ -83,7 +83,7 @@ class TestCalculateStatistics:
         # Mock to return empty zonal stats (all None values filtered out)
         empty_stats = [{}]  # Empty dict when all stats are None
 
-        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=empty_stats):
+        with patch('symfluence.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=empty_stats):
             result = processor.calculate_statistics(mock_dem_file, "elevation")
 
         # Should return empty dict when no valid statistics
@@ -113,7 +113,7 @@ class TestCalculateStatistics:
         for i, result in enumerate(multi_hru_results):
             result["mean"] = 150.0 + i * 10
 
-        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=multi_hru_results):
+        with patch('symfluence.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=multi_hru_results):
             result = processor.calculate_statistics(mock_dem_file, "elevation")
 
         # Should return dict with HRU-prefixed keys
@@ -138,7 +138,7 @@ class TestCalculateStatistics:
         aspect_values = np.array([0, 90, 180, 270] * 25)
         mock_result = [{"raster": aspect_values}]
 
-        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result):
+        with patch('symfluence.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result):
             # Ensure catchment_path is a file path
             processor.catchment_path = lumped_catchment_shapefile
             result = processor.calculate_statistics(mock_dem_file, "aspect")
@@ -158,7 +158,7 @@ class TestCalculateStatistics:
         aspect_deg = np.array([0, 90, 180, 270])
         mock_result = [{"raster": aspect_deg}]
 
-        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result):
+        with patch('symfluence.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result):
             # Ensure catchment_path is a file path
             processor.catchment_path = lumped_catchment_shapefile
             result = processor.calculate_statistics(mock_dem_file, "aspect")
@@ -184,7 +184,7 @@ class TestCalculateStatistics:
             "count": 50  # Only 50 valid pixels out of 100
         }]
 
-        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result):
+        with patch('symfluence.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result):
             result = processor.calculate_statistics(mock_dem_file, "elevation")
 
         # Should still return valid statistics for non-masked pixels
@@ -199,7 +199,7 @@ class TestCalculateStatistics:
         """Test that attribute name is correctly incorporated into result keys."""
         processor = ElevationProcessor(base_config, test_logger)
 
-        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_zonal_stats_result):
+        with patch('symfluence.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_zonal_stats_result):
             result = processor.calculate_statistics(mock_dem_file, "custom_attr")
 
         # All keys should start with attribute name
@@ -226,7 +226,7 @@ class TestCalculateStatisticsEdgeCases:
             "std": 0.0
         }]
 
-        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=single_pixel_result):
+        with patch('symfluence.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=single_pixel_result):
             result = processor.calculate_statistics(mock_dem_file, "elevation")
 
         # For single pixel, mean should equal min and max (use approximate check for floating point)
@@ -253,7 +253,7 @@ class TestCalculateStatisticsEdgeCases:
                 return [result]
             return [{"min": 0.0, "max": 359.0}]
 
-        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', side_effect=mock_zonal_with_raster):
+        with patch('symfluence.data.preprocessing.attribute_processors.elevation.zonal_stats', side_effect=mock_zonal_with_raster):
             # Ensure catchment_path is a file path
             processor.catchment_path = lumped_catchment_shapefile
             result = processor.calculate_statistics(mock_dem_file, "aspect")
@@ -278,7 +278,7 @@ class TestCalculateStatisticsEdgeCases:
         bimodal_aspect = np.array([0] * 50 + [180] * 50)
         mock_result = [{"raster": bimodal_aspect}]
 
-        with patch('symfluence.utils.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result):
+        with patch('symfluence.data.preprocessing.attribute_processors.elevation.zonal_stats', return_value=mock_result):
             # Ensure catchment_path is a file path
             processor.catchment_path = lumped_catchment_shapefile
             result = processor.calculate_statistics(mock_dem_file, "aspect")

@@ -11,8 +11,8 @@ import pytest
 from pathlib import Path
 import tempfile
 import os
-from symfluence.utils.config.models import SymfluenceConfig
-from symfluence.utils.exceptions import ConfigurationError
+from symfluence.core.config.models import SymfluenceConfig
+from symfluence.core.exceptions import ConfigurationError
 
 
 class TestFromMinimalFactory:
