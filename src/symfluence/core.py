@@ -10,7 +10,7 @@ except Exception:
 from pathlib import Path
 import yaml
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
 import sys
 
 # Import core components
@@ -122,30 +122,42 @@ class SYMFLUENCE:
     pour point setup, SLURM job submission, and comprehensive workflow management.
     """
     
-    def __init__(self, config_path: Path, config_overrides: Dict[str, Any] = None, debug_mode: bool = False, visualize: bool = False):
+    def __init__(self, config_input: Union[Path, str, SymfluenceConfig], config_overrides: Dict[str, Any] = None, debug_mode: bool = False, visualize: bool = False):
         """
         Initialize the SYMFLUENCE system with configuration and CLI options.
         
         Args:
-            config_path: Path to the configuration file
+            config_input: Path to the configuration file or a SymfluenceConfig instance
             config_overrides: Dictionary of configuration overrides from CLI
             debug_mode: Whether to enable debug mode
             visualize: Whether to enable visualization
         """
-        self.config_path = config_path
         self.debug_mode = debug_mode
         self.visualize = visualize
         self.config_overrides = config_overrides or {}
         
-        # Load and merge configuration (Phase 2: New hierarchical config system)
-        self.typed_config = self._load_typed_config()
+        # Handle different config input types
+        if isinstance(config_input, SymfluenceConfig):
+            self.typed_config = config_input
+            # If overrides provided, we merge them into a flat dict and re-create the model
+            if self.config_overrides:
+                flat_config = self.typed_config.to_dict(flatten=True)
+                flat_config.update(self.config_overrides)
+                self.typed_config = SymfluenceConfig(**flat_config)
+            self.config_path = getattr(config_input, '_source_file', None)
+        else:
+            self.config_path = Path(config_input)
+            self.typed_config = self._load_typed_config()
+
         self.config = self.typed_config.to_dict(flatten=True)  # Backward compatibility
         
         # Initialize logging
         self.logging_manager = LoggingManager(self.config, debug_mode=debug_mode)
         self.logger = self.logging_manager.logger
 
-        self.logger.info(f"SYMFLUENCE initialized with config: {config_path}")
+        self.logger.info(f"SYMFLUENCE initialized")
+        if self.config_path:
+            self.logger.info(f"Config path: {self.config_path}")
         if self.config_overrides:
             self.logger.info(f"Configuration overrides applied: {list(self.config_overrides.keys())}")
 

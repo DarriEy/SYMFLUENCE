@@ -581,3 +581,23 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         after main preprocessing. Default implementation does nothing.
         """
         pass
+
+    @abstractmethod
+    def _get_model_name(self) -> str:
+        """
+        Get the name of the model.
+
+        Returns:
+            Model name string (e.g., 'SUMMA', 'FUSE', 'GR')
+        """
+        pass
+
+    @abstractmethod
+    def run_preprocessing(self) -> bool:
+        """
+        Run model-specific preprocessing.
+
+        Returns:
+            True if preprocessing completed successfully
+        """
+        pass
