@@ -57,7 +57,7 @@ jobs:
           elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             # Windows: Use conda for GDAL and geospatial packages
             echo "Installing GDAL via conda on Windows..."
-            conda install -c conda-forge gdal -y || echo "GDAL installation via conda failed, continuing..."
+            conda install -c conda-forge gdal -y
           fi
 
       - name: Install Python dependencies
@@ -89,7 +89,14 @@ jobs:
 
           # Install package with dev dependencies
           if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
+            if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+              # Skip GDAL on Windows (already installed via conda)
+              grep -v "^gdal" requirements.txt > requirements_temp.txt || true
+              pip install -r requirements_temp.txt || pip install -r requirements.txt
+              rm -f requirements_temp.txt
+            else
+              pip install -r requirements.txt
+            fi
           fi
           pip install -e ".[dev]" || pip install -e .
 
