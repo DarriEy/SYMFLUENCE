@@ -177,7 +177,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         """
         self.logger.info("Copying FUSE base settings")
 
-        from symfluence.utils.resources import get_base_settings_dir
+        from symfluence.resources import get_base_settings_dir
         base_settings_path = get_base_settings_dir('FUSE')
         settings_path = self._get_default_path('SETTINGS_FUSE_PATH', 'settings/FUSE')
         

@@ -1,6 +1,17 @@
-"""Package data for SYMFLUENCE.
+"""Resource loading utilities for SYMFLUENCE package data."""
 
-This module contains static data files distributed with the package:
-- base_settings: Model configuration templates (FUSE, SUMMA, NOAH, mizuRoute, troute)
-- config_templates: Project configuration templates
-"""
+from .manager import (
+    get_base_settings_dir,
+    get_config_template,
+    list_config_templates,
+    copy_base_settings_to_project,
+    copy_config_template_to_project,
+)
+
+__all__ = [
+    'get_base_settings_dir',
+    'get_config_template',
+    'list_config_templates',
+    'copy_base_settings_to_project',
+    'copy_config_template_to_project',
+]

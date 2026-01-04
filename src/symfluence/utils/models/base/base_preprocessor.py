@@ -388,7 +388,7 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
             Path to base settings directory for this model
 
         """
-        from symfluence.utils.resources import get_base_settings_dir
+        from symfluence.resources import get_base_settings_dir
 
 
         code_dir_value = self.config_dict.get("SYMFLUENCE_CODE_DIR")

@@ -27,7 +27,7 @@ class ConfigCommands(BaseCommand):
         """
         try:
             # Load templates from package data
-            from symfluence.utils.resources import list_config_templates
+            from symfluence.resources import list_config_templates
 
             BaseCommand.print_info("Available configuration templates:")
             BaseCommand.print_info("=" * 70)

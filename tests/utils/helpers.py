@@ -25,7 +25,7 @@ def load_config_template(symfluence_code_dir):
     Note:
         symfluence_code_dir parameter is deprecated, templates are now loaded from package data
     """
-    from symfluence.utils.resources import get_config_template
+    from symfluence.resources import get_config_template
 
     template_path = get_config_template()
     with open(template_path, 'r') as f:

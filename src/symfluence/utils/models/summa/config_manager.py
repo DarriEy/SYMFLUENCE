@@ -164,7 +164,7 @@ class SummaConfigManager(PathResolverMixin):
             base_settings_path = self._get_base_settings_source_dir_callback()
         else:
             # Fallback to direct resource loading if no callback provided
-            from symfluence.utils.resources import get_base_settings_dir
+            from symfluence.resources import get_base_settings_dir
             base_settings_path = get_base_settings_dir('SUMMA')
 
         settings_path = self._get_default_path('SETTINGS_SUMMA_PATH', 'settings/SUMMA')
