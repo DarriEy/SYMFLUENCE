@@ -338,7 +338,7 @@ class ObservedDataProcessor:
                 self.logger.warning(f"Standard parsing failed: {e}. Trying alternative format...")
                 try:
                     # Try with flexible parsing (handles multiple delimiters)
-                    caravans_data = pd.read_csv(input_file, sep='[,\s]+', engine='python', header=0)
+                    caravans_data = pd.read_csv(input_file, sep=r'[,\s]+', engine='python', header=0)
                 except Exception as e2:
                     self.logger.error(f"Alternative parsing also failed: {e2}")
                     raise DataAcquisitionError(f"Could not parse CARAVANS data file: {input_file}")

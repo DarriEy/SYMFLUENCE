@@ -14,6 +14,7 @@ from typing import Dict, Any, List, Optional
 import logging
 from abc import ABC, abstractmethod
 import time
+import concurrent.futures
 
 try:
     import cdsapi
@@ -37,14 +38,11 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
     """
 
     def download(self, output_dir: Path) -> Path:
-        """Download and process regional reanalysis data."""
+        """Download and process regional reanalysis data in parallel."""
         if not HAS_CDSAPI:
             raise ImportError(
                 f"cdsapi package is required for {self._get_dataset_id()} downloads."
             )
-
-        # Initialize CDS client
-        c = cdsapi.Client()
 
         # Setup output files
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -53,54 +51,35 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         years_range = list(range(self.start_date.year, self.end_date.year + 1))
         chunk_files = []
         
+        # Use ThreadPoolExecutor for parallel downloads
+        # Limit max_workers to avoid overwhelming the API or local I/O
+        # CDS often queues requests, so 4 is a reasonable balance
+        max_workers = min(len(years_range), 4)
+        
+        logging.info(f"Starting parallel download for {len(years_range)} years with {max_workers} workers...")
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_year = {
+                executor.submit(self._download_and_process_year, year, output_dir): year 
+                for year in years_range
+            }
+            
+            for future in concurrent.futures.as_completed(future_to_year):
+                year = future_to_year[future]
+                try:
+                    chunk_path = future.result()
+                    chunk_files.append(chunk_path)
+                    logging.info(f"Completed processing for year {year}")
+                except Exception as exc:
+                    logging.error(f"Year {year} generated an exception: {exc}")
+                    # Cancel remaining and raise
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    raise exc
+
+        # Merge all yearly chunks
+        chunk_files.sort()
+        
         try:
-            for year in years_range:
-                logging.info(f"Processing {self._get_dataset_id()} for year {year}...")
-                
-                # Determine months for this specific year
-                start_m = 1
-                end_m = 12
-                if year == self.start_date.year:
-                    start_m = self.start_date.month
-                if year == self.end_date.year:
-                    end_m = self.end_date.month
-                
-                current_months = [f"{m:02d}" for m in range(start_m, end_m + 1)]
-                current_years = [str(year)]
-                
-                # Days (all days, API handles invalid dates like Feb 30)
-                days = [f"{d:02d}" for d in range(1, 32)]
-                hours = self._get_time_hours()
-
-                # Temp files for this year
-                af = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_analysis_{year}_temp.nc"
-                ff = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_forecast_{year}_temp.nc"
-
-                # Build requests
-                analysis_req = self._build_analysis_request(current_years, current_months, days, hours)
-                forecast_req = self._build_forecast_request(current_years, current_months, days, hours)
-
-                # Download both products with retry logic
-                logging.info(f"Downloading {self._get_dataset_id()} analysis data for {self.domain_name} ({year})...")
-                self._retrieve_with_retry(c, self._get_dataset_name(), analysis_req, str(af))
-
-                logging.info(f"Downloading {self._get_dataset_id()} forecast data for {self.domain_name} ({year})...")
-                self._retrieve_with_retry(c, self._get_dataset_name(), forecast_req, str(ff))
-
-                # Process and merge this year's data
-                ds_chunk = self._process_and_merge_datasets(af, ff)
-                
-                # Save chunk to disk
-                chunk_path = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_processed_{year}_temp.nc"
-                ds_chunk.to_netcdf(chunk_path)
-                chunk_files.append(chunk_path)
-                ds_chunk.close()
-                
-                # Cleanup raw downloads for this year
-                if af.exists(): af.unlink()
-                if ff.exists(): ff.unlink()
-
-            # Merge all yearly chunks
             if not chunk_files:
                 raise RuntimeError("No data downloaded")
 
@@ -109,9 +88,9 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             with xr.open_mfdataset(chunk_files, combine='by_coords') as ds_final:
                 # Save final dataset
                 final_f = self._save_final_dataset(ds_final, output_dir)
-
+                
         except Exception as e:
-            logging.error(f"Error during download/processing: {e}")
+            logging.error(f"Error during merge: {e}")
             raise e
         finally:
             # Cleanup processed chunks
@@ -123,6 +102,59 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
                         pass
 
         return final_f
+
+    def _download_and_process_year(self, year: int, output_dir: Path) -> Path:
+        """Helper to download and process a single year (executed in thread)."""
+        # Create a thread-local client
+        c = cdsapi.Client()
+        
+        logging.info(f"Processing {self._get_dataset_id()} for year {year}...")
+        
+        # Determine months for this specific year
+        start_m = 1
+        end_m = 12
+        if year == self.start_date.year:
+            start_m = self.start_date.month
+        if year == self.end_date.year:
+            end_m = self.end_date.month
+        
+        current_months = [f"{m:02d}" for m in range(start_m, end_m + 1)]
+        current_years = [str(year)]
+        
+        # Days (all days, API handles invalid dates like Feb 30)
+        days = [f"{d:02d}" for d in range(1, 32)]
+        hours = self._get_time_hours()
+
+        # Temp files for this year
+        af = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_analysis_{year}_temp.nc"
+        ff = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_forecast_{year}_temp.nc"
+
+        try:
+            # Build requests
+            analysis_req = self._build_analysis_request(current_years, current_months, days, hours)
+            forecast_req = self._build_forecast_request(current_years, current_months, days, hours)
+
+            # Download both products
+            logging.info(f"Downloading {self._get_dataset_id()} analysis data for {self.domain_name} ({year})...")
+            self._retrieve_with_retry(c, self._get_dataset_name(), analysis_req, str(af))
+
+            logging.info(f"Downloading {self._get_dataset_id()} forecast data for {self.domain_name} ({year})...")
+            self._retrieve_with_retry(c, self._get_dataset_name(), forecast_req, str(ff))
+
+            # Process and merge this year's data
+            ds_chunk = self._process_and_merge_datasets(af, ff)
+            
+            # Save chunk to disk
+            chunk_path = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_processed_{year}_temp.nc"
+            ds_chunk.to_netcdf(chunk_path)
+            ds_chunk.close()
+            
+            return chunk_path
+            
+        finally:
+            # Cleanup raw downloads for this year
+            if af.exists(): af.unlink()
+            if ff.exists(): ff.unlink()
 
     def _retrieve_with_retry(
         self, client, dataset_name: str, request: Dict[str, Any], target_path: str,

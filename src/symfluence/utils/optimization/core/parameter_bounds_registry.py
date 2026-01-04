@@ -167,6 +167,60 @@ class ParameterBoundsRegistry:
         'shape_factor': ParameterInfo(0.1, 3.0, '-', 'Soil depth shape factor', 'depth'),
     }
 
+    # ========================================================================
+    # HYPE PARAMETERS
+    # ========================================================================
+    HYPE_PARAMS: Dict[str, ParameterInfo] = {
+        # Snow parameters
+        'ttmp': ParameterInfo(-3.0, 3.0, '°C', 'Snowmelt threshold temperature', 'snow'),
+        'cmlt': ParameterInfo(1.0, 15.0, 'mm/°C/day', 'Snowmelt degree-day coefficient', 'snow'),
+        'ttpi': ParameterInfo(0.5, 3.0, '°C', 'Temperature interval for mixed precipitation', 'snow'),
+        'cmrefr': ParameterInfo(0.0, 0.5, '-', 'Snow refreeze capacity', 'snow'),
+
+        # Evapotranspiration parameters
+        'cevp': ParameterInfo(0.0, 1.0, '-', 'Evaporation coefficient', 'et'),
+        'lp': ParameterInfo(0.3, 1.0, '-', 'Threshold for ET reduction', 'et'),
+        'epotdist': ParameterInfo(1.0, 10.0, '-', 'PET depth dependency coefficient', 'et'),
+
+        # Soil hydraulic parameters
+        'rrcs1': ParameterInfo(0.01, 1.0, '1/day', 'Recession coefficient upper layer', 'soil'),
+        'rrcs2': ParameterInfo(0.001, 0.5, '1/day', 'Recession coefficient lower layer', 'soil'),
+        'rrcs3': ParameterInfo(0.0, 0.2, '1/°', 'Recession slope dependence', 'soil'),
+        'wcwp': ParameterInfo(0.01, 0.3, '-', 'Wilting point water content', 'soil'),
+        'wcfc': ParameterInfo(0.1, 0.5, '-', 'Field capacity', 'soil'),
+        'wcep': ParameterInfo(0.1, 0.6, '-', 'Effective porosity', 'soil'),
+        'srrcs': ParameterInfo(0.0, 0.5, '1/day', 'Surface runoff coefficient', 'soil'),
+
+        # Routing parameters
+        'rivvel': ParameterInfo(0.5, 20.0, 'm/s', 'River flow velocity', 'routing'),
+        'damp': ParameterInfo(0.0, 1.0, '-', 'River damping fraction', 'routing'),
+        'qmean': ParameterInfo(50.0, 500.0, 'mm/yr', 'Initial mean flow', 'routing'),
+
+        # Lake parameters
+        'ilratk': ParameterInfo(0.1, 500.0, '-', 'Internal lake rating curve coefficient', 'routing'),
+        'ilratp': ParameterInfo(1.0, 10.0, '-', 'Internal lake rating curve exponent', 'routing'),
+    }
+
+    # ========================================================================
+    # MESH PARAMETERS
+    # ========================================================================
+    MESH_PARAMS: Dict[str, ParameterInfo] = {
+        # CLASS land surface parameters
+        'ZSNL': ParameterInfo(0.001, 0.1, 'm', 'Limiting snow depth', 'snow'),
+        'ZPLG': ParameterInfo(0.0, 0.5, 'm', 'Maximum ponding depth (ground)', 'soil'),
+        'ZPLS': ParameterInfo(0.0, 0.5, 'm', 'Maximum ponding depth (snow)', 'snow'),
+        'FRZTH': ParameterInfo(0.0, 5.0, 'm', 'Frozen soil infiltration threshold', 'soil'),
+        'MANN': ParameterInfo(0.01, 0.3, '-', 'Manning roughness coefficient', 'routing'),
+
+        # Hydrology parameters
+        'RCHARG': ParameterInfo(0.0, 1.0, '-', 'Recharge fraction to groundwater', 'baseflow'),
+        'DRAINFRAC': ParameterInfo(0.0, 1.0, '-', 'Drainage fraction', 'soil'),
+        'BASEFLW': ParameterInfo(0.001, 0.1, 'm/day', 'Baseflow rate', 'baseflow'),
+
+        # Routing parameters
+        'DTMINUSR': ParameterInfo(60.0, 600.0, 's', 'Routing time-step', 'routing'),
+    }
+
     def __init__(self):
         """Initialize registry with all parameter categories combined."""
         self._all_params: Dict[str, ParameterInfo] = {}
@@ -176,6 +230,8 @@ class ParameterBoundsRegistry:
         self._all_params.update(self.ROUTING_PARAMS)
         self._all_params.update(self.ET_PARAMS)
         self._all_params.update(self.DEPTH_PARAMS)
+        self._all_params.update(self.HYPE_PARAMS)
+        self._all_params.update(self.MESH_PARAMS)
 
     def get_bounds(self, param_name: str) -> Optional[Dict[str, float]]:
         """
@@ -359,3 +415,35 @@ def get_depth_bounds() -> Dict[str, Dict[str, float]]:
     """
     depth_params = ['total_mult', 'total_soil_depth_multiplier', 'shape_factor']
     return get_registry().get_bounds_for_params(depth_params)
+
+
+def get_hype_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get all HYPE parameter bounds.
+
+    Returns:
+        Dictionary mapping HYPE param_name -> {'min': float, 'max': float}
+    """
+    hype_params = [
+        'ttmp', 'cmlt', 'ttpi', 'cmrefr',  # Snow
+        'cevp', 'lp', 'epotdist',  # ET
+        'rrcs1', 'rrcs2', 'rrcs3', 'wcwp', 'wcfc', 'wcep', 'srrcs',  # Soil
+        'rivvel', 'damp', 'qmean',  # Routing
+        'ilratk', 'ilratp',  # Lakes
+    ]
+    return get_registry().get_bounds_for_params(hype_params)
+
+
+def get_mesh_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get all MESH parameter bounds.
+
+    Returns:
+        Dictionary mapping MESH param_name -> {'min': float, 'max': float}
+    """
+    mesh_params = [
+        'ZSNL', 'ZPLG', 'ZPLS', 'FRZTH', 'MANN',  # CLASS
+        'RCHARG', 'DRAINFRAC', 'BASEFLW',  # Hydrology
+        'DTMINUSR',  # Routing
+    ]
+    return get_registry().get_bounds_for_params(mesh_params)

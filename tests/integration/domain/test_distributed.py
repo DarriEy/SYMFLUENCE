@@ -99,12 +99,19 @@ def config_path(example_data_bundle, tmp_path, symfluence_code_dir):
     return cfg_path, config
 
 
+MODELS = [
+    "SUMMA",
+    pytest.param("MESH", marks=pytest.mark.full),
+]
+
+
 @pytest.mark.slow
 @pytest.mark.requires_data
 @pytest.mark.full
-def test_distributed_basin_workflow(config_path, example_data_bundle):
+@pytest.mark.parametrize("model", MODELS)
+def test_distributed_basin_workflow(config_path, example_data_bundle, model):
     """
-    Test elevation-based distributed basin workflow for SUMMA.
+    Test elevation-based distributed basin workflow for supported models.
 
     Follows notebook 02c workflow:
     1. Setup project
@@ -118,15 +125,22 @@ def test_distributed_basin_workflow(config_path, example_data_bundle):
     """
     cfg_path, config = config_path
 
-    # Configure SUMMA with routing
-    config["HYDROLOGICAL_MODEL"] = "SUMMA"
-    config["ROUTING_MODEL"] = "mizuRoute"
-    config["MIZU_FROM_MODEL"] = "SUMMA"
-    config["SETTINGS_MIZU_ROUTING_VAR"] = "averageRoutedRunoff"
-    config["SETTINGS_MIZU_ROUTING_UNITS"] = "m/s"
-    config["SETTINGS_MIZU_ROUTING_DT"] = "3600"
-    config["PARAMS_TO_CALIBRATE"] = "k_soil,theta_sat"
-    config["BASIN_PARAMS_TO_CALIBRATE"] = "routingGammaScale"
+    # Update model in config
+    config["HYDROLOGICAL_MODEL"] = model
+    if model == "SUMMA":
+        config["ROUTING_MODEL"] = "mizuRoute"
+        config["MIZU_FROM_MODEL"] = "SUMMA"
+        config["SETTINGS_MIZU_ROUTING_VAR"] = "averageRoutedRunoff"
+        config["SETTINGS_MIZU_ROUTING_UNITS"] = "m/s"
+        config["SETTINGS_MIZU_ROUTING_DT"] = "3600"
+        config["PARAMS_TO_CALIBRATE"] = "k_soil,theta_sat"
+        config["BASIN_PARAMS_TO_CALIBRATE"] = "routingGammaScale"
+    elif model == "MESH":
+        config["MESH_SKIP_CALIBRATION"] = True
+        config["MESH_INSTALL_PATH"] = str(
+            Path(config["SYMFLUENCE_DATA_DIR"]) / "installs" / "mesh" / "bin"
+        )
+        config["MESH_EXE"] = "mesh.exe"
 
     # Save updated config
     write_config(config, cfg_path)
@@ -270,15 +284,25 @@ def test_distributed_basin_workflow(config_path, example_data_bundle):
     symfluence.managers["model"].preprocess_models()
 
     # Step 7: Run model
+    # Check for binary if needed
+    if model == "MESH":
+        mesh_exe = Path(config["SYMFLUENCE_DATA_DIR"]) / "installs" / "mesh" / "bin" / "mesh.exe"
+        if not mesh_exe.exists():
+            pytest.skip(f"MESH binary not found at {mesh_exe}, skipping run and calibration")
+
     symfluence.managers["model"].run_models()
 
     # Check model output exists
-    sim_dir = project_dir / "simulations" / config["EXPERIMENT_ID"] / "SUMMA"
-    assert sim_dir.exists(), "SUMMA simulation output directory should exist"
+    sim_dir = project_dir / "simulations" / config["EXPERIMENT_ID"] / model
+    assert sim_dir.exists(), f"{model} simulation output directory should exist"
 
     # Step 8: Calibrate model
-    results_file = symfluence.managers["optimization"].calibrate_model()
-    assert results_file is not None, "Calibration should produce results"
+    # Skip calibration for MESH as it's not yet fully supported
+    if model == "MESH":
+        pass
+    else:
+        results_file = symfluence.managers["optimization"].calibrate_model()
+        assert results_file is not None, "Calibration should produce results"
 
 
 if __name__ == "__main__":

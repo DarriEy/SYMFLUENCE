@@ -1551,10 +1551,9 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
     List[float]
         [objective1, objective2] values
     """
-    from calibration_targets import (
-        StreamflowTarget, SnowTarget, GroundwaterTarget, ETTarget, SoilMoistureTarget
+    from ..calibration_targets import (
+        StreamflowTarget, SnowTarget, GroundwaterTarget, ETTarget, SoilMoistureTarget, TWSTarget
     )
-    from tws_calibration_target import TWSTarget
     from pathlib import Path
     
     project_path = Path(project_dir)

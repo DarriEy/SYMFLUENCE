@@ -379,7 +379,7 @@ class CopDEM30Acquirer(BaseAcquisitionHandler):
                         max_attempts = 3
                         for attempt in range(1, max_attempts + 1):
                             try:
-                                with session.get(url, stream=True, timeout=120) as r:
+                                with session.get(url, stream=True, timeout=300) as r:
                                     if r.status_code == 200:
                                         with open(local_tile, "wb") as f:
                                             for chunk in r.iter_content(chunk_size=65536):

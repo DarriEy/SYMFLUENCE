@@ -19,9 +19,18 @@ class ERA5Acquirer(BaseAcquisitionHandler):
     Dispatcher for ERA5 data acquisition, choosing between ARCO (Zarr) and CDS (NetCDF) pathways.
     """
     def download(self, output_dir: Path) -> Path:
-        # Default to CDS if credentials exist, unless explicitly disabled
-        use_cds = self.config.get('ERA5_USE_CDS', has_cds_credentials())
+        # Default to ARCO if libraries available, falling back to CDS
+        use_cds = self.config.get('ERA5_USE_CDS')
         
+        if use_cds is None:
+            # Auto-detect preference: ARCO > CDS (faster, no queue)
+            try:
+                import gcsfs
+                import xarray
+                use_cds = False
+            except ImportError:
+                use_cds = has_cds_credentials()
+
         if use_cds:
             self.logger.info("Using CDS pathway for ERA5")
             try:
@@ -77,7 +86,17 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
 
         output_dir.mkdir(parents=True, exist_ok=True)
         chunk_files = []
-        n_workers = int(self.config.get('MPI_PROCESSES', 1))
+        
+        # Default to parallel processing if not specified
+        n_workers_cfg = self.config.get('MPI_PROCESSES')
+        if n_workers_cfg is not None:
+            n_workers = int(n_workers_cfg)
+        else:
+            import os
+            # Use available CPUs but cap at 8 to avoid overwhelming I/O
+            n_workers = min(8, os.cpu_count() or 1)
+            
+        self.logger.info(f"Processing ERA5 with {n_workers} workers")
 
         if n_workers <= 1:
             for i, (chunk_start, chunk_end) in enumerate(chunks, start=1):

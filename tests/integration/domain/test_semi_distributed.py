@@ -105,6 +105,7 @@ MODELS = [
     "FUSE",
     pytest.param("NGEN", marks=pytest.mark.full),
     "HYPE",
+    pytest.param("MESH", marks=pytest.mark.full),
 ]
 
 
@@ -146,6 +147,12 @@ def test_semi_distributed_basin_workflow(config_path, example_data_bundle, model
         config["NGEN_INSTALL_PATH"] = str(
             Path(config["SYMFLUENCE_DATA_DIR"]) / "installs" / "ngen" / "cmake_build"
         )
+    elif model == "MESH":
+        config["MESH_SKIP_CALIBRATION"] = True
+        config["MESH_INSTALL_PATH"] = str(
+            Path(config["SYMFLUENCE_DATA_DIR"]) / "installs" / "mesh" / "bin"
+        )
+        config["MESH_EXE"] = "mesh.exe"
 
     # Save updated config
     write_config(config, cfg_path)
@@ -267,6 +274,16 @@ def test_semi_distributed_basin_workflow(config_path, example_data_bundle, model
     symfluence.managers["model"].preprocess_models()
 
     # Step 7: Run model
+    # Check for binary if needed
+    if model == "HYPE":
+        hype_exe = Path(config["SYMFLUENCE_DATA_DIR"]) / "installs" / "hype" / "bin" / "hype"
+        if not hype_exe.exists():
+            pytest.skip(f"HYPE binary not found at {hype_exe}, skipping run and calibration")
+    elif model == "MESH":
+        mesh_exe = Path(config["SYMFLUENCE_DATA_DIR"]) / "installs" / "mesh" / "bin" / "mesh.exe"
+        if not mesh_exe.exists():
+            pytest.skip(f"MESH binary not found at {mesh_exe}, skipping run and calibration")
+
     symfluence.managers["model"].run_models()
 
     # Check model output exists
@@ -274,8 +291,12 @@ def test_semi_distributed_basin_workflow(config_path, example_data_bundle, model
     assert sim_dir.exists(), f"{model} simulation output directory should exist"
 
     # Step 8: Calibrate model
-    results_file = symfluence.managers["optimization"].calibrate_model()
-    assert results_file is not None, "Calibration should produce results"
+    # Skip calibration for MESH as it's not yet fully supported
+    if model == "MESH":
+        pass
+    else:
+        results_file = symfluence.managers["optimization"].calibrate_model()
+        assert results_file is not None, "Calibration should produce results"
 
 
 if __name__ == "__main__":

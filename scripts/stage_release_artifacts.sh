@@ -159,7 +159,13 @@ print_info "Staging FUSE..."
 
 FUSE_DIR="$INSTALLS_DIR/fuse"
 if [ -d "$FUSE_DIR" ]; then
-    stage_binary "$FUSE_DIR/bin/fuse.exe" "fuse" "FUSE"
+    if [ -f "$FUSE_DIR/bin/fuse.exe" ]; then
+        stage_binary "$FUSE_DIR/bin/fuse.exe" "fuse" "FUSE"
+    elif [ -f "$FUSE_DIR/bin/fuse" ]; then
+        stage_binary "$FUSE_DIR/bin/fuse" "fuse" "FUSE"
+    else
+        print_warning "FUSE binary not found in $FUSE_DIR/bin"
+    fi
     stage_license "$FUSE_DIR" "FUSE"
 else
     print_warning "FUSE not installed"
