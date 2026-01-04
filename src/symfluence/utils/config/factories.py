@@ -98,12 +98,17 @@ def from_file_factory(
     # 6. Validate and create
     if validate:
         try:
-            return cls(**nested_config)
+            instance = cls(**nested_config)
+            # Store source file path as internal attribute
+            object.__setattr__(instance, '_source_file', path)
+            return instance
         except ValidationError as e:
             error_msg = _format_validation_error(e, config_dict)
             raise ConfigurationError(error_msg) from e
     else:
-        return cls.model_construct(**nested_config)
+        instance = cls.model_construct(**nested_config)
+        object.__setattr__(instance, '_source_file', path)
+        return instance
 
 
 def from_preset_factory(
