@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 from symfluence import SYMFLUENCE
 
-pytestmark = [pytest.mark.e2e, pytest.mark.ci_quick, pytest.mark.smoke]
+pytestmark = [pytest.mark.e2e, pytest.mark.ci_quick]
 
 def _prune_raw_forcing(project_dir: Path, keep_glob: str) -> None:
     raw_dir = project_dir / "forcing" / "raw_data"

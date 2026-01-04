@@ -1,8 +1,8 @@
 """
-HYPE Model Optimizer
+MESH Model Optimizer
 
-HYPE-specific optimizer inheriting from BaseModelOptimizer.
-Provides unified interface for all optimization algorithms with HYPE.
+MESH-specific optimizer inheriting from BaseModelOptimizer.
+Provides unified interface for all optimization algorithms with MESH.
 """
 
 import logging
@@ -10,14 +10,14 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 from ..optimizers.base_model_optimizer import BaseModelOptimizer
-from ..workers.hype_worker import HYPEWorker
+from ..workers.mesh_worker import MESHWorker
 from ..registry import OptimizerRegistry
 
 
-@OptimizerRegistry.register_optimizer('HYPE')
-class HYPEModelOptimizer(BaseModelOptimizer):
+@OptimizerRegistry.register_optimizer('MESH')
+class MESHModelOptimizer(BaseModelOptimizer):
     """
-    HYPE-specific optimizer using the unified BaseModelOptimizer framework.
+    MESH-specific optimizer using the unified BaseModelOptimizer framework.
 
     Provides access to all optimization algorithms:
     - run_dds(): Dynamically Dimensioned Search
@@ -26,7 +26,7 @@ class HYPEModelOptimizer(BaseModelOptimizer):
     - run_de(): Differential Evolution
 
     Example:
-        optimizer = HYPEModelOptimizer(config, logger)
+        optimizer = MESHModelOptimizer(config, logger)
         results_path = optimizer.run_dds()
     """
 
@@ -38,7 +38,7 @@ class HYPEModelOptimizer(BaseModelOptimizer):
         reporting_manager: Optional[Any] = None
     ):
         """
-        Initialize HYPE optimizer.
+        Initialize MESH optimizer.
 
         Args:
             config: Configuration dictionary
@@ -48,23 +48,23 @@ class HYPEModelOptimizer(BaseModelOptimizer):
         """
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
-        self.logger.info(f"HYPEModelOptimizer initialized")
+        self.logger.info(f"MESHModelOptimizer initialized")
 
     def _get_model_name(self) -> str:
         """Return model name."""
-        return 'HYPE'
+        return 'MESH'
 
     def _create_parameter_manager(self):
-        """Create HYPE parameter manager."""
-        from ..parameter_managers import HYPEParameterManager
-        return HYPEParameterManager(
+        """Create MESH parameter manager."""
+        from ..parameter_managers import MESHParameterManager
+        return MESHParameterManager(
             self.config,
             self.logger,
             self.optimization_settings_dir
         )
 
     def _create_calibration_target(self):
-        """Create HYPE calibration target based on configuration."""
+        """Create MESH calibration target based on configuration."""
         from ..calibration_targets import (
             StreamflowTarget, MultivariateTarget
         )
@@ -76,20 +76,27 @@ class HYPEModelOptimizer(BaseModelOptimizer):
         else:
             return StreamflowTarget(self.config, self.project_dir, self.logger)
 
-    def _create_worker(self) -> HYPEWorker:
-        """Create HYPE worker."""
-        return HYPEWorker(self.config, self.logger)
+    def _create_worker(self) -> MESHWorker:
+        """Create MESH worker."""
+        return MESHWorker(self.config, self.logger)
 
     def _setup_parallel_dirs(self) -> None:
-        """Setup HYPE-specific parallel directories."""
+        """Setup MESH-specific parallel directories."""
         base_dir = self.project_dir / 'simulations' / f'run_{self.experiment_id}'
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
-            'HYPE',
+            'MESH',
             self.experiment_id
         )
 
-        # Copy HYPE settings to each parallel directory
-        source_settings = self.project_dir / 'settings' / 'HYPE'
-        if source_settings.exists():
-            self.copy_base_settings(source_settings, self.parallel_dirs, 'HYPE')
+        # Copy MESH forcing directory to each parallel directory
+        source_forcing = self.project_dir / 'forcing' / 'MESH_input'
+        if source_forcing.exists():
+            import shutil
+            for parallel_dir in self.parallel_dirs:
+                dest_forcing = parallel_dir / 'forcing' / 'MESH_input'
+                dest_forcing.parent.mkdir(parents=True, exist_ok=True)
+                if dest_forcing.exists():
+                    shutil.rmtree(dest_forcing)
+                shutil.copytree(source_forcing, dest_forcing)
+                self.logger.debug(f"Copied MESH forcing to {dest_forcing}")

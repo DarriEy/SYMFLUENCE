@@ -63,7 +63,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
 
     def _create_parameter_manager(self):
         """Create FUSE parameter manager."""
-        from ..fuse_parameter_manager import FUSEParameterManager
+        from ..parameter_managers import FUSEParameterManager
         return FUSEParameterManager(
             self.config,
             self.logger,
@@ -72,7 +72,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
 
     def _create_calibration_target(self):
         """Create FUSE calibration target based on configuration."""
-        from ..fuse_calibration_targets import (
+        from ..calibration_targets import (
             FUSEStreamflowTarget, FUSESnowTarget
         )
 

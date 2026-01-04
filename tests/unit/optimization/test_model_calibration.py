@@ -153,7 +153,7 @@ class TestFUSECalibrationTargets:
 
     def test_load_fuse_observations(self, fuse_config, test_logger, mock_observations, temp_project_dir):
         """Test loading FUSE streamflow observations."""
-        from symfluence.utils.optimization.fuse_calibration_targets import FUSEStreamflowTarget
+        from symfluence.utils.optimization.calibration_targets import FUSEStreamflowTarget
 
         target = FUSEStreamflowTarget(fuse_config, temp_project_dir, test_logger)
 
@@ -166,7 +166,7 @@ class TestFUSECalibrationTargets:
 
     def test_fuse_structure_specific_params(self, fuse_config, test_logger, temp_project_dir):
         """Test FUSE structure-specific parameter handling."""
-        from symfluence.utils.optimization.fuse_parameter_manager import FUSEParameterManager
+        from symfluence.utils.optimization.parameter_managers import FUSEParameterManager
 
         fuse_settings_dir = temp_project_dir / "settings" / "FUSE"
         fuse_settings_dir.mkdir(parents=True, exist_ok=True)
@@ -189,7 +189,7 @@ class TestFUSECalibrationTargets:
             config = fuse_config.copy()
             config['FUSE_STRUCTURE'] = structure
 
-            from symfluence.utils.optimization.fuse_parameter_manager import FUSEParameterManager
+            from symfluence.utils.optimization.parameter_managers import FUSEParameterManager
             manager = FUSEParameterManager(config, test_logger, fuse_settings_dir)
 
             param_bounds = manager.get_parameter_bounds()
@@ -248,7 +248,7 @@ class TestNGENCalibrationTargets:
 
     def test_load_ngen_observations(self, ngen_config, test_logger, mock_observations, temp_project_dir):
         """Test loading NGEN streamflow observations."""
-        from symfluence.utils.optimization.ngen_calibration_targets import NgenStreamflowTarget
+        from symfluence.utils.optimization.calibration_targets import NgenStreamflowTarget
 
         # mock_observations is a Path to a CSV file - read it to get DataFrame
         obs_df = pd.read_csv(mock_observations, parse_dates=['date'], index_col='date')
@@ -262,7 +262,7 @@ class TestNGENCalibrationTargets:
 
     def test_ngen_catchment_specific_params(self, ngen_config, test_logger, temp_project_dir):
         """Test NGEN catchment-specific parameter handling."""
-        from symfluence.utils.optimization.ngen_parameter_manager import NgenParameterManager
+        from symfluence.utils.optimization.parameter_managers import NgenParameterManager
 
         ngen_settings_dir = temp_project_dir / "settings" / "ngen"
         ngen_settings_dir.mkdir(parents=True, exist_ok=True)
@@ -320,10 +320,10 @@ class TestCrossModelCalibration:
             from symfluence.utils.optimization.calibration_targets import StreamflowTarget
             target = StreamflowTarget(config, temp_project_dir, test_logger)
         elif model_name == 'FUSE':
-            from symfluence.utils.optimization.fuse_calibration_targets import FUSEStreamflowTarget
+            from symfluence.utils.optimization.calibration_targets import FUSEStreamflowTarget
             target = FUSEStreamflowTarget(config, temp_project_dir, test_logger)
         elif model_name == 'NGEN':
-            from symfluence.utils.optimization.ngen_calibration_targets import NgenStreamflowTarget
+            from symfluence.utils.optimization.calibration_targets import NgenStreamflowTarget
             with patch('symfluence.utils.evaluation.evaluators.StreamflowEvaluator._get_catchment_area', return_value=100.0):
                 target = NgenStreamflowTarget(config, temp_project_dir, test_logger)
 

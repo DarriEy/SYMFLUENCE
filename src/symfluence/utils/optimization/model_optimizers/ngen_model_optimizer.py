@@ -62,7 +62,7 @@ class NgenModelOptimizer(BaseModelOptimizer):
 
     def _create_parameter_manager(self):
         """Create NGEN parameter manager."""
-        from ..ngen_parameter_manager import NgenParameterManager
+        from ..parameter_managers import NgenParameterManager
         return NgenParameterManager(
             self.config,
             self.logger,
@@ -71,7 +71,7 @@ class NgenModelOptimizer(BaseModelOptimizer):
 
     def _create_calibration_target(self):
         """Create NGEN calibration target based on configuration."""
-        from ..ngen_calibration_targets import NgenStreamflowTarget
+        from ..calibration_targets import NgenStreamflowTarget
 
         target_type = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
 

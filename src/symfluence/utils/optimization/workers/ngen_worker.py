@@ -179,7 +179,7 @@ class NgenWorker(BaseWorker):
         """
         try:
             # Try to use calibration target
-            from ..ngen_calibration_targets import NgenStreamflowTarget
+            from ..calibration_targets import NgenStreamflowTarget
 
             domain_name = config.get('DOMAIN_NAME')
             experiment_id = config.get('EXPERIMENT_ID')
