@@ -26,10 +26,8 @@ TESTS_DIR = Path(__file__).parent.resolve()
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
-# Import test utilities (backward compatibility)
-from test_helpers import load_config_template, write_config
-
-# Also import from new location
+# Import test utilities
+from utils.helpers import load_config_template, write_config
 from utils import helpers, geospatial
 
 # Load additional fixtures from fixture modules
