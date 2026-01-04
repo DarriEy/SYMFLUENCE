@@ -63,7 +63,9 @@ jobs:
           elif [[ "${{ matrix.os }}" == "macos-"* ]]; then
             brew install gdal cdo
           elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            # Windows: Use conda for GDAL and geospatial packages
+            # Windows: Initialize conda for bash and install GDAL
+            source "$CONDA/etc/profile.d/conda.sh"
+            conda activate base
             echo "Installing GDAL via conda on Windows..."
             conda install -c conda-forge gdal -y
           fi
