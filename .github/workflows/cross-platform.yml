@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]  # Linux, ARM Mac (M1/M2)
+        os: [ubuntu-latest, macos-latest, windows-latest]  # Linux, macOS, Windows
         python-version: ['3.11']  # Focus on latest stable
         include:
           # Test older Python versions on Linux only to reduce CI time
@@ -47,15 +47,21 @@ jobs:
           cache: 'pip'
 
       - name: Install minimal system dependencies
+        shell: bash
         run: |
           if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             sudo apt-get update
             sudo apt-get install -y gdal-bin libgdal-dev cdo
           elif [[ "${{ matrix.os }}" == "macos-"* ]]; then
             brew install gdal cdo
+          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            # Windows: Use conda for GDAL and geospatial packages
+            echo "Installing GDAL via conda on Windows..."
+            conda install -c conda-forge gdal -y || echo "GDAL installation via conda failed, continuing..."
           fi
 
       - name: Install Python dependencies
+        shell: bash
         env:
           RPY2_CFFI_MODE: ABI  # Skip R requirement for rpy2
         run: |
@@ -75,6 +81,11 @@ jobs:
             GDAL_PATCH=$(echo $GDAL_VERSION | cut -d. -f3 | cut -d_ -f1)
             NEXT_PATCH=$((GDAL_PATCH + 1))
             pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
+          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            # Windows: GDAL should be available from conda, install via pip
+            pip install GDAL || echo "GDAL pip install failed, may have been installed via conda"
+            # Install CPU-only torch to save space on Windows
+            pip install torch --index-url https://download.pytorch.org/whl/cpu
           fi
 
           # Install package with dev dependencies
@@ -102,11 +113,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]  # Linux, ARM Mac (M1/M2)
+        os: [ubuntu-latest, macos-latest, windows-latest]  # Linux, macOS, Windows
         include:
           - os: ubuntu-latest
             python-version: '3.11'
           - os: macos-latest  # ARM Mac (M1/M2)
+            python-version: '3.11'
+          - os: windows-latest
             python-version: '3.11'
 
     env:
@@ -156,6 +169,14 @@ jobs:
           echo "UDUNITS2_ROOT=/opt/homebrew" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
 
+      - name: Install system dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          # Windows: Use conda-forge for system dependencies
+          conda install -c conda-forge \
+            gdal netcdf4 hdf5 cmake ninja -y || echo "Conda install completed with warnings"
+
       - name: Free up disk space (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -175,12 +196,14 @@ jobs:
 
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
+        shell: bash
         run: |
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
-          chmod +x ./symfluence
+          chmod +x ./symfluence || true  # chmod may not work on Windows
           ./symfluence --install
 
       - name: Add tools to PATH
+        shell: bash
         run: |
           echo "${{ env.SYMFLUENCE_DATA }}/installs/summa/bin" >> $GITHUB_PATH
           echo "${{ env.SYMFLUENCE_DATA }}/installs/mizuRoute/route/bin" >> $GITHUB_PATH
@@ -281,7 +304,7 @@ jobs:
           retention-days: 30
 
   # ===========================================================================
-  # INTEGRATION: Quick integration tests (Linux + macOS subset)
+  # INTEGRATION: Quick integration tests (Linux + macOS + Windows)
   # ===========================================================================
   integration-tests-matrix:
     name: Integration Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
@@ -297,6 +320,9 @@ jobs:
             python-version: '3.11'
           # Test on macOS with latest Python
           - os: macos-latest  # ARM Mac (M1/M2)
+            python-version: '3.11'
+          # Test on Windows with latest Python
+          - os: windows-latest
             python-version: '3.11'
 
     env:
@@ -346,6 +372,14 @@ jobs:
           echo "UDUNITS2_ROOT=/opt/homebrew" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
 
+      - name: Install system dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          # Windows: Use conda-forge for system dependencies
+          conda install -c conda-forge \
+            gdal netcdf4 hdf5 cmake ninja -y || echo "Conda install completed with warnings"
+
       - name: Free up disk space (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -373,12 +407,14 @@ jobs:
 
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
+        shell: bash
         run: |
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
-          chmod +x ./symfluence
+          chmod +x ./symfluence || true  # chmod may not work on Windows
           ./symfluence --install
 
       - name: Add tools to PATH
+        shell: bash
         run: |
           echo "${{ env.SYMFLUENCE_DATA }}/installs/summa/bin" >> $GITHUB_PATH
           echo "${{ env.SYMFLUENCE_DATA }}/installs/mizuRoute/route/bin" >> $GITHUB_PATH
