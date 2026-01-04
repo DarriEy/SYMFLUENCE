@@ -621,6 +621,7 @@ setup_windows_dependencies() {
         cmake \
         ninja \
         gdal \
+        python-gdal \
         netcdf4 \
         hdf5 \
         || print_warning "Some conda packages may have failed to install"
