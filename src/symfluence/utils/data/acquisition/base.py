@@ -25,7 +25,7 @@ class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
 
     def _attribute_dir(self, subdir: str) -> Path:
         """Get attribute subdirectory, ensuring it exists."""
-        return self.ensure_dir(self.attributes_dir / subdir)
+        return self.ensure_dir(self.project_attributes_dir / subdir)
 
     @abstractmethod
     def download(self, output_dir: Path) -> Path:

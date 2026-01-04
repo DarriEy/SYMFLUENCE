@@ -650,34 +650,3 @@ def calculate_all_metrics(
         'alpha': kge_result['alpha'],
         'beta': kge_result['beta']
     }
-
-
-# Legacy function names for backwards compatibility with calculate_sim_stats.py
-def get_KGE(obs, sim, transfo=1):
-    """Legacy wrapper for kge(). Use kge() for new code."""
-    return kge(obs, sim, transfo)
-
-
-def get_KGEp(obs, sim, transfo=1):
-    """Legacy wrapper for kge_prime(). Use kge_prime() for new code."""
-    return kge_prime(obs, sim, transfo)
-
-
-def get_NSE(obs, sim, transfo=1):
-    """Legacy wrapper for nse(). Use nse() for new code."""
-    return nse(obs, sim, transfo)
-
-
-def get_MAE(obs, sim, transfo=1):
-    """Legacy wrapper for mae(). Use mae() for new code."""
-    return mae(obs, sim, transfo)
-
-
-def get_RMSE(obs, sim, transfo=1):
-    """Legacy wrapper for rmse(). Use rmse() for new code."""
-    return rmse(obs, sim, transfo)
-
-
-def get_KGEnp(obs, sim, transfo=1):
-    """Legacy wrapper for kge_np(). Use kge_np() for new code."""
-    return kge_np(obs, sim, transfo)

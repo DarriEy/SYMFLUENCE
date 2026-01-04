@@ -1,7 +1,7 @@
 """
 SYMFLUENCE AI Agent Module
 
-This module provides an AI-powered agent interface for SYMFLUENCE CLI operations.
+This module provides an AI-powered agent interface for SYMFLUENCE operations.
 Users can interact with SYMFLUENCE workflows using natural language through any
 OpenAI-compatible API (OpenAI, Anthropic, local LLMs, etc.).
 
@@ -14,10 +14,10 @@ Main Components:
 
 Usage:
     # Interactive mode
-    $ symfluence --agent
+    $ symfluence agent start
 
     # Single prompt mode
-    $ symfluence --agent-prompt "Install all modeling tools"
+    $ symfluence agent run "Install all modeling tools"
 
 Environment Variables:
     OPENAI_API_KEY: API authentication key (required)

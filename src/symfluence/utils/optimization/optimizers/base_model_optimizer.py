@@ -371,7 +371,7 @@ class BaseModelOptimizer(
                 )
 
         # Save results
-        results_path = self.save_results('DDS')
+        results_path = self.save_results('DDS', standard_filename=True)
         self.save_best_params('DDS')
         self._visualize_progress('DDS')
 
@@ -457,7 +457,7 @@ class BaseModelOptimizer(
                 )
 
         # Save results
-        results_path = self.save_results('PSO')
+        results_path = self.save_results('PSO', standard_filename=True)
         self.save_best_params('PSO')
         self._visualize_progress('PSO')
 
@@ -534,7 +534,7 @@ class BaseModelOptimizer(
                 )
 
         # Save results
-        results_path = self.save_results('DE')
+        results_path = self.save_results('DE', standard_filename=True)
         self.save_best_params('DE')
         self._visualize_progress('DE')
 
@@ -631,7 +631,7 @@ class BaseModelOptimizer(
                 )
 
         # Save results
-        results_path = self.save_results('SCE-UA')
+        results_path = self.save_results('SCE-UA', standard_filename=True)
         self.save_best_params('SCE-UA')
         self._visualize_progress('SCE-UA')
 
@@ -672,7 +672,7 @@ class BaseModelOptimizer(
         self.update_best(best_fitness, self.param_manager.denormalize_parameters(best_x), steps)
 
         # Save results
-        results_path = self.save_results('ADAM')
+        results_path = self.save_results('ADAM', standard_filename=True)
         self.save_best_params('ADAM')
         self._visualize_progress('ADAM')
 
@@ -713,7 +713,7 @@ class BaseModelOptimizer(
         self.update_best(best_fitness, self.param_manager.denormalize_parameters(best_x), len(history))
 
         # Save results
-        results_path = self.save_results('LBFGS')
+        results_path = self.save_results('LBFGS', standard_filename=True)
         self.save_best_params('LBFGS')
         self._visualize_progress('LBFGS')
 

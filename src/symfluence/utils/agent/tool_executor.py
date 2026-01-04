@@ -51,19 +51,17 @@ class ToolExecutor:
     """
     Executes tools called by the LLM agent.
 
-    This class integrates with the existing CLI argument manager to execute
+    This class integrates with the modern CLI command architecture to execute
     workflow steps, binary management, configuration operations, etc.
     """
 
-    def __init__(self, cli_manager, tool_registry=None):
+    def __init__(self, tool_registry=None):
         """
         Initialize the tool executor.
 
         Args:
-            cli_manager: Instance of CLIArgumentManager
             tool_registry: Optional instance of ToolRegistry for tool discovery
         """
-        self.cli_manager = cli_manager
         self.tool_registry = tool_registry
         self._sf_cache: Dict[str, Any] = {}  # Cache for SYMFLUENCE instances
 
@@ -104,9 +102,11 @@ class ToolExecutor:
         Returns:
             ToolResult with execution status and output
         """
+        from symfluence.utils.cli.commands.workflow_commands import WorkflowCommands
+        
         try:
             # Workflow step execution
-            if tool_name in self.cli_manager.workflow_steps:
+            if tool_name in WorkflowCommands.WORKFLOW_STEPS:
                 return self._execute_workflow_step(tool_name, arguments)
 
             # Binary management operations
@@ -151,7 +151,7 @@ class ToolExecutor:
 
     def _execute_workflow_step(self, step_name: str, arguments: Dict[str, Any]) -> ToolResult:
         """
-        Execute a workflow step using SYMFLUENCE instance.
+        Execute a workflow step using WorkflowCommands.
 
         Args:
             step_name: Name of the workflow step
@@ -160,6 +160,9 @@ class ToolExecutor:
         Returns:
             ToolResult with execution status
         """
+        from symfluence.utils.cli.commands.workflow_commands import WorkflowCommands
+        from argparse import Namespace
+        
         try:
             config_path = arguments.get('config_path')
             if not config_path:
@@ -170,30 +173,27 @@ class ToolExecutor:
                     exit_code=1
                 )
 
-            # Verify config file exists
-            if not Path(config_path).exists():
-                return ToolResult(
-                    success=False,
-                    output="",
-                    error=f"Configuration file not found: {config_path}",
-                    exit_code=2
-                )
-
             # Capture stdout
             old_stdout = sys.stdout
             sys.stdout = captured_output = io.StringIO()
 
             try:
-                debug_mode = arguments.get('debug', False)
-                symfluence = self._get_symfluence_instance(config_path, debug_mode=debug_mode)
-                symfluence.run_individual_steps([step_name])
+                args = Namespace(
+                    config=config_path,
+                    step_name=step_name,
+                    debug=arguments.get('debug', False),
+                    visualise=arguments.get('visualise', False),
+                    force_rerun=arguments.get('force_rerun', False)
+                )
+                
+                exit_code = WorkflowCommands.run_step(args)
 
                 output = captured_output.getvalue()
                 return ToolResult(
-                    success=True,
-                    output=output or f"Successfully completed {step_name}",
-                    error=None,
-                    exit_code=0
+                    success=exit_code == 0,
+                    output=output,
+                    error=None if exit_code == 0 else f"Step {step_name} failed",
+                    exit_code=exit_code
                 )
 
             finally:
@@ -209,48 +209,46 @@ class ToolExecutor:
 
     def _execute_binary_operation(self, operation: str, arguments: Dict[str, Any]) -> ToolResult:
         """
-        Execute binary management operations.
+        Execute binary management operations using BinaryCommands.
 
         Args:
-            operation: Operation name (install_executables, validate_binaries, etc.)
+            operation: Operation name
             arguments: Operation-specific arguments
 
         Returns:
             ToolResult with execution status
         """
+        from symfluence.utils.cli.commands.binary_commands import BinaryCommands
+        from argparse import Namespace
+        
         try:
             old_stdout = sys.stdout
             sys.stdout = captured_output = io.StringIO()
 
             try:
+                args = Namespace(
+                    debug=arguments.get('debug', False),
+                    verbose=arguments.get('verbose', True)
+                )
+                
+                exit_code = 1
                 if operation == 'install_executables':
-                    tools = arguments.get('tools', [])
-                    force_install = arguments.get('force_install', False)
-
-                    # Use binary manager
-                    if tools:
-                        for tool in tools:
-                            self.cli_manager.binary_manager.get_executable(tool, force=force_install)
-                    else:
-                        # Install all tools
-                        for tool_name in self.cli_manager.binary_manager.external_tools.keys():
-                            self.cli_manager.binary_manager.get_executable(tool_name, force=force_install)
-
+                    args.tools = arguments.get('tools', [])
+                    args.force = arguments.get('force_install', False)
+                    exit_code = BinaryCommands.install(args)
                 elif operation == 'validate_binaries':
-                    self.cli_manager.binary_manager.validate_binaries()
-
+                    exit_code = BinaryCommands.validate(args)
                 elif operation == 'run_doctor':
-                    self.cli_manager.binary_manager.run_doctor()
-
+                    exit_code = BinaryCommands.doctor(args)
                 elif operation == 'show_tools_info':
-                    self.cli_manager.binary_manager.show_tools_info()
+                    exit_code = BinaryCommands.info(args)
 
                 output = captured_output.getvalue()
                 return ToolResult(
-                    success=True,
-                    output=output or f"Successfully completed {operation}",
-                    error=None,
-                    exit_code=0
+                    success=exit_code == 0,
+                    output=output,
+                    error=None if exit_code == 0 else f"Binary operation {operation} failed",
+                    exit_code=exit_code
                 )
 
             finally:
@@ -266,7 +264,7 @@ class ToolExecutor:
 
     def _execute_config_operation(self, operation: str, arguments: Dict[str, Any]) -> ToolResult:
         """
-        Execute configuration management operations.
+        Execute configuration management operations using ConfigCommands.
 
         Args:
             operation: Operation name
@@ -275,38 +273,37 @@ class ToolExecutor:
         Returns:
             ToolResult with execution status
         """
+        from symfluence.utils.cli.commands.config_commands import ConfigCommands
+        from argparse import Namespace
+        
         try:
             old_stdout = sys.stdout
             sys.stdout = captured_output = io.StringIO()
 
             try:
+                args = Namespace(
+                    debug=arguments.get('debug', False)
+                )
+                
+                exit_code = 1
                 if operation == 'list_config_templates':
-                    self.cli_manager.list_templates()
-
+                    exit_code = ConfigCommands.list_templates(args)
                 elif operation == 'update_config':
-                    config_file = arguments.get('config_file')
-                    if not config_file:
-                        raise ValueError("config_file argument required")
-                    self.cli_manager.update_config(config_file)
-
+                    args.config_file = arguments.get('config_file')
+                    args.interactive = arguments.get('interactive', False)
+                    exit_code = ConfigCommands.update(args)
                 elif operation == 'validate_environment':
-                    self.cli_manager.validate_environment()
-
+                    exit_code = ConfigCommands.validate_env(args)
                 elif operation == 'validate_config_file':
-                    config_file = arguments.get('config_file')
-                    if not config_file:
-                        raise ValueError("config_file argument required")
-                    # Validate by trying to load it
-                    from symfluence.core import SYMFLUENCE
-                    SYMFLUENCE(config_file, debug_mode=False)
-                    print(f"✓ Configuration file is valid: {config_file}")
+                    args.config = arguments.get('config_file')
+                    exit_code = ConfigCommands.validate(args)
 
                 output = captured_output.getvalue()
                 return ToolResult(
-                    success=True,
-                    output=output or f"Successfully completed {operation}",
-                    error=None,
-                    exit_code=0
+                    success=exit_code == 0,
+                    output=output,
+                    error=None if exit_code == 0 else f"Config operation {operation} failed",
+                    exit_code=exit_code
                 )
 
             finally:
@@ -322,7 +319,7 @@ class ToolExecutor:
 
     def _execute_workflow_management(self, operation: str, arguments: Dict[str, Any]) -> ToolResult:
         """
-        Execute workflow management operations.
+        Execute workflow management operations using WorkflowCommands.
 
         Args:
             operation: Operation name
@@ -331,67 +328,44 @@ class ToolExecutor:
         Returns:
             ToolResult with execution status
         """
+        from symfluence.utils.cli.commands.workflow_commands import WorkflowCommands
+        from argparse import Namespace
+        
         try:
-            if operation == 'list_workflow_steps':
-                steps_info = "Available workflow steps:\n\n"
-                for step_name, step_info in self.cli_manager.workflow_steps.items():
-                    steps_info += f"• {step_name}\n  {step_info['description']}\n\n"
+            old_stdout = sys.stdout
+            sys.stdout = captured_output = io.StringIO()
 
+            try:
+                args = Namespace(
+                    debug=arguments.get('debug', False),
+                    config=arguments.get('config_path'),
+                    visualise=False
+                )
+                
+                exit_code = 1
+                if operation == 'list_workflow_steps':
+                    exit_code = WorkflowCommands.list_steps(args)
+                elif operation == 'show_workflow_status':
+                    exit_code = WorkflowCommands.status(args)
+                elif operation == 'resume_from_step':
+                    args.step_name = arguments.get('step_name')
+                    args.force_rerun = arguments.get('force_rerun', False)
+                    exit_code = WorkflowCommands.resume(args)
+                elif operation == 'clean_workflow_files':
+                    args.level = arguments.get('clean_level', 'intermediate')
+                    args.dry_run = arguments.get('dry_run', False)
+                    exit_code = WorkflowCommands.clean(args)
+
+                output = captured_output.getvalue()
                 return ToolResult(
-                    success=True,
-                    output=steps_info,
-                    error=None,
-                    exit_code=0
+                    success=exit_code == 0,
+                    output=output,
+                    error=None if exit_code == 0 else f"Workflow operation {operation} failed",
+                    exit_code=exit_code
                 )
 
-            # For operations that need a SYMFLUENCE instance, similar to workflow steps
-            elif operation in ['show_workflow_status', 'resume_from_step', 'clean_workflow_files']:
-                config_path = arguments.get('config_path')
-                if not config_path:
-                    return ToolResult(
-                        success=False,
-                        output="",
-                        error="config_path argument is required",
-                        exit_code=1
-                    )
-
-                old_stdout = sys.stdout
-                sys.stdout = captured_output = io.StringIO()
-
-                try:
-                    symfluence = self._get_symfluence_instance(config_path, debug_mode=False)
-
-                    if operation == 'show_workflow_status':
-                        ops = {"workflow_status": True}
-                        self.cli_manager.print_status_information(symfluence, ops)
-
-                    elif operation == 'resume_from_step':
-                        step_name = arguments.get('step_name')
-                        if not step_name:
-                            raise ValueError("step_name argument required")
-                        # Get all steps from specified step onwards
-                        steps = list(self.cli_manager.workflow_steps.keys())
-                        if step_name not in steps:
-                            raise ValueError(f"Unknown step: {step_name}")
-                        start_idx = steps.index(step_name)
-                        resume_steps = steps[start_idx:]
-                        symfluence.run_individual_steps(resume_steps)
-
-                    elif operation == 'clean_workflow_files':
-                        level = arguments.get('clean_level', 'intermediate')
-                        dry_run = arguments.get('dry_run', False)
-                        self.cli_manager.clean_workflow_files(level, symfluence, dry_run)
-
-                    output = captured_output.getvalue()
-                    return ToolResult(
-                        success=True,
-                        output=output or f"Successfully completed {operation}",
-                        error=None,
-                        exit_code=0
-                    )
-
-                finally:
-                    sys.stdout = old_stdout
+            finally:
+                sys.stdout = old_stdout
 
         except Exception as e:
             return ToolResult(
@@ -403,7 +377,7 @@ class ToolExecutor:
 
     def _execute_pour_point_setup(self, arguments: Dict[str, Any]) -> ToolResult:
         """
-        Execute pour point workflow setup.
+        Execute pour point workflow setup using ProjectCommands.
 
         Args:
             arguments: Must include latitude, longitude, domain_name, domain_definition_method
@@ -411,46 +385,37 @@ class ToolExecutor:
         Returns:
             ToolResult with execution status
         """
+        from symfluence.utils.cli.commands.project_commands import ProjectCommands
+        from argparse import Namespace
+        
         try:
-            required = ['latitude', 'longitude', 'domain_name', 'domain_definition_method']
-            for arg in required:
-                if arg not in arguments:
-                    return ToolResult(
-                        success=False,
-                        output="",
-                        error=f"Missing required argument: {arg}",
-                        exit_code=1
-                    )
-
             old_stdout = sys.stdout
             sys.stdout = captured_output = io.StringIO()
 
             try:
-                coordinates = (arguments['latitude'], arguments['longitude'])
-                bounding_box = arguments.get('bounding_box')
-                bounding_box_coords = None
-                if bounding_box:
-                    bounding_box_coords = (
-                        bounding_box['lat_max'],
-                        bounding_box['lon_min'],
-                        bounding_box['lat_min'],
-                        bounding_box['lon_max']
-                    )
-
-                self.cli_manager.setup_pour_point_workflow(
-                    coordinates=coordinates,
-                    domain_def_method=arguments['domain_definition_method'],
+                coords = f"{arguments['latitude']}/{arguments['longitude']}"
+                bbox = None
+                if arguments.get('bounding_box'):
+                    b = arguments['bounding_box']
+                    bbox = f"{b['lat_max']}/{b['lon_min']}/{b['lat_min']}/{b['lon_max']}"
+                
+                args = Namespace(
+                    debug=arguments.get('debug', False),
+                    coordinates=coords,
                     domain_name=arguments['domain_name'],
-                    bounding_box_coords=bounding_box_coords,
-                    symfluence_code_dir=None
+                    domain_def=arguments['domain_definition_method'],
+                    bounding_box_coords=bbox,
+                    experiment_id=arguments.get('experiment_id')
                 )
+                
+                exit_code = ProjectCommands.pour_point(args)
 
                 output = captured_output.getvalue()
                 return ToolResult(
-                    success=True,
-                    output=output or f"Successfully set up pour point workflow for {arguments['domain_name']}",
-                    error=None,
-                    exit_code=0
+                    success=exit_code == 0,
+                    output=output,
+                    error=None if exit_code == 0 else "Pour point setup failed",
+                    exit_code=exit_code
                 )
 
             finally:
@@ -495,13 +460,78 @@ class ToolExecutor:
         """
         try:
             if operation == 'show_help':
-                from symfluence.utils.agent.core import system_prompts
+                from . import system_prompts
                 return ToolResult(
                     success=True,
                     output=system_prompts.HELP_MESSAGE,
                     error=None,
                     exit_code=0
                 )
+
+            elif operation == 'list_available_tools':
+                if not self.tool_registry:
+                    return ToolResult(
+                        success=False,
+                        output="",
+                        error="Tool registry not available",
+                        exit_code=1
+                    )
+                
+                tools_by_category = self.tool_registry.get_tools_by_category()
+                tools_info = "Available Tools:\n\n"
+                
+                for category, tools in tools_by_category.items():
+                    tools_info += f"{category}:\n"
+                    for tool in tools:
+                        name = tool["function"]["name"]
+                        desc = tool["function"]["description"]
+                        # Use first line of description to keep it concise
+                        short_desc = desc.split('.')[0] if '.' in desc else desc
+                        tools_info += f"  • {name}: {short_desc}\n"
+                    tools_info += "\n"
+
+                return ToolResult(
+                    success=True,
+                    output=tools_info,
+                    error=None,
+                    exit_code=0
+                )
+
+            elif operation == 'explain_workflow':
+                explanation = """
+SYMFLUENCE Workflow Explanation:
+
+The typical workflow consists of these sequential steps:
+
+1. setup_project - Initialize project directory structure
+2. acquire_attributes - Download geospatial data (soil, land cover, etc.)
+3. acquire_forcings - Download meteorological forcing data
+4. define_domain - Define hydrological domain boundaries
+5. discretize_domain - Discretize into modeling units (HRUs)
+6. model_agnostic_preprocessing - Preprocess data
+7. model_specific_preprocessing - Setup model-specific inputs
+8. run_model - Execute the model simulation
+9. postprocess_results - Analyze and visualize results
+
+Optional steps:
+  - calibrate_model: Parameter calibration
+  - run_benchmarking: Compare against observations
+  - run_sensitivity_analysis: Parameter sensitivity analysis
+"""
+                return ToolResult(
+                    success=True,
+                    output=explanation,
+                    error=None,
+                    exit_code=0
+                )
+
+        except Exception as e:
+            return ToolResult(
+                success=False,
+                output="",
+                error=str(e),
+                exit_code=1
+            )
 
             elif operation == 'list_available_tools':
                 if not self.tool_registry:

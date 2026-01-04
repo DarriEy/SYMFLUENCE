@@ -46,6 +46,15 @@ class VariableHandler:
             'RDRS_v2.1_P_FB_SFC': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
             'RDRS_v2.1_A_PR0_SFC': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
         },
+        'RDRS_v3.1': {
+            'TT': {'standard_name': 'air_temperature', 'units': 'K'},
+            'P0': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
+            'HU': {'standard_name': 'specific_humidity', 'units': '1'},
+            'UVC': {'standard_name': 'wind_speed', 'units': 'm/s'},
+            'FI': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
+            'FB': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
+            'PR0': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
+        },
         'CASR': {
             'CaSR_v3.1_A_TT_1.5m': {'standard_name': 'air_temperature', 'units': 'K'},
             'CaSR_v3.1_P_P0_SFC': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},

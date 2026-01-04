@@ -143,46 +143,6 @@ class BaseModelRunner(ABC, PathResolverMixin):
         """
         pass
 
-    def _resolve_config_value(self, typed_accessor: Any, dict_key: str,
-                              default: Any = None) -> Any:
-        """
-        Resolve configuration value from typed or dict config.
-
-        Phase 3: Prioritizes typed config access, falls back to dict only for backward compatibility.
-
-        Args:
-            typed_accessor: Callable or value from typed config (e.g.,
-                           lambda: self.config.domain.time_start)
-            dict_key: Key to use with dict config (fallback)
-            default: Default value if key not found
-
-        Returns:
-            Resolved configuration value
-
-        Example:
-            >>> start_time = self._resolve_config_value(
-            ...     lambda: self.config.domain.time_start,
-            ...     'EXPERIMENT_TIME_START'
-            ... )
-        """
-        val = None
-        if self.config:  # Typed config available (preferred)
-            # Handle callable (lambda) or direct value
-            if callable(typed_accessor):
-                try:
-                    val = typed_accessor()
-                except (AttributeError, KeyError):
-                    val = None
-            else:
-                val = typed_accessor
-        
-        # If val is None (either missing from typed config or typed config not used),
-        # fall back to dict config (deprecated path)
-        if val is None:
-            return self.config_dict.get(dict_key, default)
-        
-        return val
-
     def _setup_model_specific_paths(self) -> None:
         """
         Hook for subclasses to set up model-specific paths.

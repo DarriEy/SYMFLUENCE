@@ -19,7 +19,7 @@ import xarray as xr
 
 from symfluence.utils.models.registry import ModelRegistry
 from symfluence.utils.models.base import BaseModelPreProcessor
-from symfluence.utils.common.geospatial_utils import GeospatialUtilsMixin
+from symfluence.utils.geospatial.geometry_utils import GeospatialUtilsMixin
 
 def _create_easymore_instance():
     """Create an EASYMORE instance handling different module structures."""

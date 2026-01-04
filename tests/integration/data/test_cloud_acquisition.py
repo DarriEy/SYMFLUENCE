@@ -256,6 +256,17 @@ FORCING_CASES = [
             "POUR_POINT_COORDS": "59.86/17.65",
         },
     },
+    {
+        "dataset": "RDRS",
+        "start": "2015-01-01 00:00",
+        "end": "2015-01-01 01:00",
+        "expect_glob": "*RDRS*.nc",
+        "domain_override": {
+            "DOMAIN_NAME": "bow_banff",
+            "BOUNDING_BOX_COORDS": "51.20/-115.60/51.15/-115.55",
+            "POUR_POINT_COORDS": "51.17/-115.57",
+        },
+    },
 ]
 
 def _selected_cases():

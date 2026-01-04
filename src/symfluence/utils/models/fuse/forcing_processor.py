@@ -17,10 +17,10 @@ import geopandas as gpd
 
 from symfluence.utils.data.utilities.variable_utils import VariableHandler
 from symfluence.utils.common.constants import UnitConversion
-from ..utilities import ForcingDataProcessor, DataQualityHandler
+from ..utilities import ForcingDataProcessor, DataQualityHandler, BaseForcingProcessor
 
 
-class FuseForcingProcessor:
+class FuseForcingProcessor(BaseForcingProcessor):
     """
     Processor for FUSE forcing data with support for lumped, semi-distributed, and distributed modes.
 
@@ -71,12 +71,17 @@ class FuseForcingProcessor:
             get_simulation_time_window_callback: Callback to parent's _get_simulation_time_window method
             subset_to_simulation_time_callback: Callback to parent's _subset_to_simulation_time method
         """
-        self.config = config
-        self.logger = logger
-        self.project_dir = Path(project_dir)
-        self.forcing_basin_path = Path(forcing_basin_path)
-        self.forcing_fuse_path = Path(forcing_fuse_path)
-        self.catchment_path = Path(catchment_path)
+        super().__init__(
+            config=config,
+            logger=logger,
+            input_path=forcing_basin_path,
+            output_path=forcing_fuse_path,
+            project_dir=project_dir,
+            catchment_path=catchment_path
+        )
+        # Keep original attribute names for backward compatibility
+        self.forcing_basin_path = self.input_path
+        self.forcing_fuse_path = self.output_path
         self.domain_name = domain_name
 
         # Callbacks to parent methods
@@ -84,6 +89,11 @@ class FuseForcingProcessor:
         self.calculate_catchment_centroid = calculate_catchment_centroid_callback
         self._get_simulation_time_window = get_simulation_time_window_callback
         self._subset_to_simulation_time = subset_to_simulation_time_callback
+
+    @property
+    def model_name(self) -> str:
+        """Return model name for logging."""
+        return "FUSE"
 
     def prepare_forcing_data(self, ts_config: Dict[str, Any], pet_method: str = 'oudin') -> Path:
         """

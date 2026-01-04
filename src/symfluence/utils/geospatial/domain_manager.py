@@ -7,6 +7,8 @@ from typing import Dict, Any, Optional, Union, Tuple
 from symfluence.utils.geospatial.discretization import DomainDiscretizationRunner, DiscretizationArtifacts # type: ignore
 from symfluence.utils.geospatial.delineation import DomainDelineator, create_point_domain_shapefile, DelineationArtifacts # type: ignore
 
+from symfluence.utils.common.mixins import ConfigurableMixin
+
 # Import for type checking only
 try:
     from symfluence.utils.config.models import SymfluenceConfig
@@ -14,7 +16,7 @@ except ImportError:
     SymfluenceConfig = None
 
 
-class DomainManager:
+class DomainManager(ConfigurableMixin):
     """Manages all domain-related operations including definition, discretization, and visualization."""
     
     def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: logging.Logger, reporting_manager: Optional[Any] = None):
@@ -36,9 +38,6 @@ class DomainManager:
 
         self.logger = logger
         self.reporting_manager = reporting_manager
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         
         # Use typed config if available for sub-components
         component_config = self.typed_config if self.typed_config else self.config

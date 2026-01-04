@@ -23,7 +23,7 @@ from ..mixins import PETCalculatorMixin
 from symfluence.utils.common.constants import UnitConversion
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE
+from symfluence.utils.evaluation.metrics import kge, kge_prime, nse, mae, rmse
 from symfluence.utils.data.utilities.variable_utils import VariableHandler # type: ignore
 
 
@@ -223,13 +223,13 @@ class FuseDecisionAnalyzer:
         obs = dfObs.values
         sim = dfSim.values
         
-        kge = get_KGE(obs, sim, transfo=1)
-        kgep = get_KGEp(obs, sim, transfo=1)
-        nse = get_NSE(obs, sim, transfo=1)
-        mae = get_MAE(obs, sim, transfo=1)
-        rmse = get_RMSE(obs, sim, transfo=1)
+        kge_val = kge(obs, sim, transfo=1)
+        kgep_val = kge_prime(obs, sim, transfo=1)
+        nse_val = nse(obs, sim, transfo=1)
+        mae_val = mae(obs, sim, transfo=1)
+        rmse_val = rmse(obs, sim, transfo=1)
 
-        return kge, kgep, nse, mae, rmse
+        return kge_val, kgep_val, nse_val, mae_val, rmse_val
 
     def run_decision_analysis(self):
         """
@@ -262,16 +262,18 @@ class FuseDecisionAnalyzer:
                 # Run FUSE model
                 self.fuse_runner.run_fuse()
                 
-                # Calculate performance metrics
-                kge, kgep, nse, mae, rmse = self.calculate_performance_metrics()
+                # Calculate metrics
+                kge_val = kge(obs, sim, transfo=1)
+                kgep_val = kge_prime(obs, sim, transfo=1)
+                nse_val = nse(obs, sim, transfo=1)
+                mae_val = mae(obs, sim, transfo=1)
+                rmse_val = rmse(obs, sim, transfo=1)
 
-                # Write results to master file
                 with open(master_file, 'a', newline='') as f:
                     writer = csv.writer(f)
-                    writer.writerow([i] + list(combination) + [kge, kgep, nse, mae, rmse])
+                    writer.writerow([i] + list(combination) + [kge_val, kgep_val, nse_val, mae_val, rmse_val])
 
-                self.logger.info(f"Combination {i} completed: KGE={kge:.3f}, KGEp={kgep:.3f}, "
-                               f"NSE={nse:.3f}, MAE={mae:.3f}, RMSE={rmse:.3f}")
+                self.logger.info(f"Combination {i} completed: KGE={kge_val:.3f}, KGEp={kgep_val:.3f}, NSE={nse_val:.3f}, MAE={mae_val:.3f}, RMSE={rmse_val:.3f}")
 
             except Exception as e:
                 self.logger.error(f"Error in combination {i}: {str(e)}")

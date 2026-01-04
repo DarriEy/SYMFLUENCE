@@ -182,7 +182,7 @@ class FUSEWorker(BaseWorker):
         try:
             import xarray as xr
             import pandas as pd
-            from symfluence.utils.common.metrics import get_KGE, get_NSE, get_RMSE, get_MAE
+            from symfluence.utils.evaluation.metrics import kge, nse, rmse, mae
 
             # Get paths
             domain_name = config.get('DOMAIN_NAME')
@@ -252,10 +252,10 @@ class FUSEWorker(BaseWorker):
 
             # Calculate metrics
             metrics = {
-                'kge': float(get_KGE(obs_values, sim_values, transfo=1)),
-                'nse': float(get_NSE(obs_values, sim_values, transfo=1)),
-                'rmse': float(get_RMSE(obs_values, sim_values, transfo=1)),
-                'mae': float(get_MAE(obs_values, sim_values, transfo=1)),
+                'kge': float(kge(obs_values, sim_values, transfo=1)),
+                'nse': float(nse(obs_values, sim_values, transfo=1)),
+                'rmse': float(rmse(obs_values, sim_values, transfo=1)),
+                'mae': float(mae(obs_values, sim_values, transfo=1)),
             }
 
             return metrics

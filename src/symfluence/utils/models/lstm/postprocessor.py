@@ -11,8 +11,8 @@ import xarray as xr
 
 from symfluence.utils.models.registry import ModelRegistry
 from symfluence.utils.models.base import BaseModelPostProcessor
-from symfluence.utils.common.metrics import (
-    get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE, get_KGEnp
+from symfluence.utils.evaluation.metrics import (
+    kge, kge_prime, nse, mae, rmse, kge_np
 )
 
 @ModelRegistry.register_postprocessor('LSTM')
@@ -110,10 +110,10 @@ class LSTMPostprocessor(BaseModelPostProcessor):
             return {}
 
         return {
-            'RMSE': get_RMSE(obs_vals, sim_vals, transfo=1),
-            'KGE': get_KGE(obs_vals, sim_vals, transfo=1),
-            'KGEp': get_KGEp(obs_vals, sim_vals, transfo=1),
-            'NSE': get_NSE(obs_vals, sim_vals, transfo=1),
-            'MAE': get_MAE(obs_vals, sim_vals, transfo=1),
-            'KGEnp': get_KGEnp(obs_vals, sim_vals, transfo=1)
+            'RMSE': rmse(obs_vals, sim_vals, transfo=1),
+            'KGE': kge(obs_vals, sim_vals, transfo=1),
+            'KGEp': kge_prime(obs_vals, sim_vals, transfo=1),
+            'NSE': nse(obs_vals, sim_vals, transfo=1),
+            'MAE': mae(obs_vals, sim_vals, transfo=1),
+            'KGEnp': kge_np(obs_vals, sim_vals, transfo=1)
         }

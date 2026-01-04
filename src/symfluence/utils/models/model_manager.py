@@ -11,13 +11,15 @@ from symfluence.utils.models.registry import ModelRegistry
 # Data management
 from symfluence.utils.data.utilities.archive_utils import tar_directory # type: ignore
 
+from symfluence.utils.common.mixins import ConfigurableMixin
+
 # Import for type checking only (avoid circular imports)
 try:
     from symfluence.utils.config.models import SymfluenceConfig
 except ImportError:
     SymfluenceConfig = None
 
-class ModelManager:
+class ModelManager(ConfigurableMixin):
     """
     Manages all hydrological model operations within the SYMFLUENCE framework.
     Uses a registry-based system for easy extension with new models.
@@ -42,9 +44,6 @@ class ModelManager:
 
         self.logger = logger
         self.reporting_manager = reporting_manager
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.experiment_id = self.config.get('EXPERIMENT_ID')
         
     def _resolve_model_workflow(self) -> List[str]:
@@ -230,39 +229,31 @@ class ModelManager:
 
 
     def visualize_outputs(self):
-        """Visualize model outputs."""
+        """Visualize model outputs using registered model visualizers."""
         self.logger.info('Starting model output visualisation')
-        
-        # Note: Visualization still has significant model-specific logic
-        # that ideally should be moved to a 'Reporter' or 'Visualizer' interface.
-        # For now, we adapt it to check the *executed* workflow.
         
         if not self.reporting_manager:
             self.logger.info("Visualization disabled or reporting manager not available.")
             return
 
         workflow = self._resolve_model_workflow()
-        models = self.config.get('HYDROLOGICAL_MODEL', '').split(',') # Primary models
+        # Primary models from configuration
+        models_str = self.config.get('HYDROLOGICAL_MODEL', '')
+        models = [m.strip() for m in models_str.split(',') if m.strip()]
 
-        for model in [m.strip() for m in models]:
-            if model == 'SUMMA':
-                self.reporting_manager.visualize_summa_outputs(self.experiment_id)
-                obs_files = [('Observed', str(self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"))]
-
-                # Check if MizuRoute was part of the workflow
-                if 'MIZUROUTE' in workflow and self.config.get('MIZU_FROM_MODEL') == 'SUMMA':
-                    self.reporting_manager.update_sim_reach_id()
-                    model_outputs = [(model, str(self.project_dir / "simulations" / self.experiment_id / "mizuRoute" / f"{self.experiment_id}*.nc"))]
-                    self.reporting_manager.visualize_model_outputs(model_outputs, obs_files)
-                else:
-                    summa_output_file = str(self.project_dir / "simulations" / self.experiment_id / "SUMMA" / f"{self.experiment_id}_timestep.nc")
-                    model_outputs = [(model, summa_output_file)]
-                    self.reporting_manager.visualize_lumped_model_outputs(model_outputs, obs_files)
-            
-            elif model == 'FUSE':
-                model_outputs = [("FUSE", str(self.project_dir / "simulations" / self.experiment_id / "FUSE" / f"{self.domain_name}_{self.experiment_id}_runs_best.nc"))]
-                obs_files = [('Observed', str(self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"))]
-                self.reporting_manager.visualize_fuse_outputs(model_outputs, obs_files)
-            
+        for model in models:
+            visualizer = ModelRegistry.get_visualizer(model)
+            if visualizer:
+                try:
+                    self.logger.info(f"Using registered visualizer for {model}")
+                    visualizer(
+                        self.reporting_manager, 
+                        self.config, 
+                        self.project_dir, 
+                        self.experiment_id, 
+                        workflow
+                    )
+                except Exception as e:
+                    self.logger.error(f"Error during {model} visualization: {str(e)}")
             else:
-                self.logger.info(f"Visualization for {model} not yet implemented")
+                self.logger.info(f"Visualization for {model} not yet implemented or registered")

@@ -19,7 +19,7 @@ from ..registry import ModelRegistry
 from ..base import BaseModelPreProcessor
 from ..mixins import PETCalculatorMixin, ObservationLoaderMixin, DatasetBuilderMixin
 from ..utilities import ForcingDataProcessor, DataQualityHandler
-from symfluence.utils.common.geospatial_utils import GeospatialUtilsMixin
+from symfluence.utils.geospatial.geometry_utils import GeospatialUtilsMixin
 from symfluence.utils.exceptions import ModelExecutionError, symfluence_error_handler
 
 # Optional R/rpy2 support - only needed for GR models

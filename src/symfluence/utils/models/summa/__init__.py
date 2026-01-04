@@ -7,6 +7,7 @@ This package contains components for running and managing SUMMA model simulation
 from .preprocessor import SummaPreProcessor
 from .runner import SummaRunner
 from .postprocessor import SUMMAPostprocessor
+from .visualizer import visualize_summa
 from .forcing_processor import SummaForcingProcessor
 from .config_manager import SummaConfigManager
 from .attributes_manager import SummaAttributesManager

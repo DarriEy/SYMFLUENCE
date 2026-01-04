@@ -27,7 +27,7 @@ class AgentCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.utils.cli.agent.agent_manager import AgentManager
+            from symfluence.utils.agent import AgentManager
 
             verbose = getattr(args, 'verbose', False)
             config_path = BaseCommand.get_config_path(args)
@@ -36,7 +36,6 @@ class AgentCommands(BaseCommand):
 
             # Initialize agent manager
             agent = AgentManager(
-                cli_manager=None,  # Will need to adapt agent to work without CLIArgumentManager
                 config_path=config_path,
                 verbose=verbose
             )
@@ -65,7 +64,7 @@ class AgentCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.utils.cli.agent.agent_manager import AgentManager
+            from symfluence.utils.agent import AgentManager
 
             verbose = getattr(args, 'verbose', False)
             config_path = BaseCommand.get_config_path(args)
@@ -75,7 +74,6 @@ class AgentCommands(BaseCommand):
 
             # Initialize agent manager
             agent = AgentManager(
-                cli_manager=None,  # Will need to adapt agent to work without CLIArgumentManager
                 config_path=config_path,
                 verbose=verbose
             )

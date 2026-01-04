@@ -149,7 +149,7 @@ class NgenWorker(BaseWorker):
 
             # Initialize and run
             runner = NgenRunner(parallel_config, self.logger)
-            success = runner.run_model(experiment_id)
+            success = runner.run_ngen(experiment_id)
 
             return success
 
@@ -220,7 +220,7 @@ class NgenWorker(BaseWorker):
         """
         try:
             import pandas as pd
-            from symfluence.utils.common.metrics import get_KGE, get_NSE
+            from symfluence.utils.evaluation.metrics import kge, nse
 
             domain_name = config.get('DOMAIN_NAME')
             experiment_id = config.get('EXPERIMENT_ID')
@@ -262,13 +262,14 @@ class NgenWorker(BaseWorker):
             obs = obs[:min_len]
 
             # Calculate metrics
-            kge = get_KGE(obs, sim, transfo=1)
-            nse = get_NSE(obs, sim, transfo=1)
+            dfSim = dfSim.reindex(dfObs.index).dropna()
+            obs = dfObs.values
+            sim = dfSim['q_cms'].values
 
-            return {
-                'kge': float(kge),
-                'nse': float(nse),
-            }
+            kge_val = kge(obs, sim, transfo=1)
+            nse_val = nse(obs, sim, transfo=1)
+
+            return {'kge': float(kge_val), 'nse': float(nse_val)}
 
         except Exception as e:
             self.logger.error(f"Error in direct ngen metrics calculation: {e}")

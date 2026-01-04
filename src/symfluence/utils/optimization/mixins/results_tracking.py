@@ -144,7 +144,8 @@ class ResultsTrackingMixin:
         self,
         algorithm: str,
         metric_name: str = 'KGE',
-        experiment_id: Optional[str] = None
+        experiment_id: Optional[str] = None,
+        standard_filename: bool = False
     ) -> Path:
         """
         Save optimization results to a CSV file.
@@ -153,6 +154,8 @@ class ResultsTrackingMixin:
             algorithm: Algorithm name (e.g., 'PSO', 'DDS')
             metric_name: Name of the optimization metric
             experiment_id: Optional experiment identifier
+            standard_filename: If True, uses the standard SYMFLUENCE naming convention 
+                              ({experiment_id}_parallel_iteration_results.csv)
 
         Returns:
             Path to the saved results file
@@ -168,7 +171,11 @@ class ResultsTrackingMixin:
             return None
 
         # Generate filename
-        filename = f"{experiment_id}_{algorithm.lower()}_results.csv"
+        if standard_filename:
+            filename = f"{experiment_id}_parallel_iteration_results.csv"
+        else:
+            filename = f"{experiment_id}_{algorithm.lower()}_results.csv"
+            
         results_path = self.results_dir / filename
 
         # Save to CSV

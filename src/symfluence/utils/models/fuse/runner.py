@@ -29,7 +29,7 @@ from ..base import BaseModelPreProcessor, BaseModelRunner
 from ..mixins import PETCalculatorMixin, OutputConverterMixin
 from ..execution import ModelExecutor, SpatialOrchestrator, ExecutionResult
 from ..registry import ModelRegistry
-from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE
+from symfluence.utils.evaluation.metrics import kge, kge_prime, nse, mae, rmse
 from symfluence.utils.data.utilities.variable_utils import VariableHandler  # type: ignore
 from symfluence.utils.data.utilities.netcdf_utils import create_netcdf_encoding
 from symfluence.utils.exceptions import (
@@ -131,8 +131,15 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
 
         self.logger.debug(f"Converting FUSE spatial dimensions: {target}")
 
-        # Use mixin method for core conversion
-        self.convert_fuse_to_mizuroute(target)
+        # Use generic mixin method with FUSE-specific parameters
+        self.convert_to_mizuroute_format(
+            input_path=target,
+            squeeze_dims=['longitude'],
+            rename_dims={'latitude': 'gru'},
+            add_id_var='gruId',
+            id_source_dim='gru',
+            create_backup=True
+        )
 
         # Ensure _runs_def.nc exists if we processed a different file
         def_file = fuse_out_dir / f"{domain}_{fuse_id}_runs_def.nc"
