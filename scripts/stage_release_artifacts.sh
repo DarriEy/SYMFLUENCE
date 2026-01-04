@@ -191,7 +191,8 @@ print_info "Staging HYPE..."
 
 HYPE_DIR="$INSTALLS_DIR/hype"
 if [ -d "$HYPE_DIR" ]; then
-    stage_binary "$HYPE_DIR/bin/hype" "hype" "HYPE"
+    # Try to stage HYPE binary (optional, may not be built on all platforms)
+    stage_binary "$HYPE_DIR/bin/hype" "hype" "HYPE" || print_warning "HYPE binary not found (may not be built yet)"
     stage_license "$HYPE_DIR" "HYPE"
 else
     print_warning "HYPE not installed"
