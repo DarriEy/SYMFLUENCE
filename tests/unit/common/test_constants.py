@@ -6,7 +6,7 @@ all conversion factors and physical constants are correct.
 """
 
 import pytest
-from symfluence.utils.common.constants import UnitConversion, PhysicalConstants, ModelDefaults
+from symfluence.core.constants import UnitConversion, PhysicalConstants, ModelDefaults
 
 
 class TestUnitConversion:

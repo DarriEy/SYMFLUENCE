@@ -464,26 +464,26 @@ class TestSUMMAWorkerContract:
 
     def test_summa_worker_registered(self):
         """Test that SUMMAWorker is registered with registry."""
-        from symfluence.utils.optimization.registry import OptimizerRegistry
+        from symfluence.optimization.registry import OptimizerRegistry
         worker_cls = OptimizerRegistry.get_worker('SUMMA')
         assert worker_cls is not None
         assert worker_cls.__name__ == 'SUMMAWorker'
 
     def test_summa_worker_inherits_from_base(self):
         """Test that SUMMAWorker inherits from BaseWorker."""
-        from symfluence.utils.optimization.workers import SUMMAWorker, BaseWorker
+        from symfluence.optimization.workers import SUMMAWorker, BaseWorker
         assert issubclass(SUMMAWorker, BaseWorker)
 
     def test_summa_worker_has_required_methods(self):
         """Test that SUMMAWorker has all required abstract methods."""
-        from symfluence.utils.optimization.workers import SUMMAWorker
+        from symfluence.optimization.workers import SUMMAWorker
         required_methods = ['apply_parameters', 'run_model', 'calculate_metrics']
         for method in required_methods:
             assert hasattr(SUMMAWorker, method)
 
     def test_summa_worker_handles_routing_decision(self):
         """Test that SUMMA worker has routing-related attributes."""
-        from symfluence.utils.optimization.workers import SUMMAWorker
+        from symfluence.optimization.workers import SUMMAWorker
         # The worker should handle routing decisions internally
         assert hasattr(SUMMAWorker, 'run_model')
 
@@ -493,19 +493,19 @@ class TestFUSEWorkerContract:
 
     def test_fuse_worker_registered(self):
         """Test that FUSEWorker is registered with registry."""
-        from symfluence.utils.optimization.registry import OptimizerRegistry
+        from symfluence.optimization.registry import OptimizerRegistry
         worker_cls = OptimizerRegistry.get_worker('FUSE')
         assert worker_cls is not None
         assert worker_cls.__name__ == 'FUSEWorker'
 
     def test_fuse_worker_inherits_from_base(self):
         """Test that FUSEWorker inherits from BaseWorker."""
-        from symfluence.utils.optimization.workers import FUSEWorker, BaseWorker
+        from symfluence.optimization.workers import FUSEWorker, BaseWorker
         assert issubclass(FUSEWorker, BaseWorker)
 
     def test_fuse_worker_has_required_methods(self):
         """Test that FUSEWorker has all required abstract methods."""
-        from symfluence.utils.optimization.workers import FUSEWorker
+        from symfluence.optimization.workers import FUSEWorker
         required_methods = ['apply_parameters', 'run_model', 'calculate_metrics']
         for method in required_methods:
             assert hasattr(FUSEWorker, method)
@@ -516,19 +516,19 @@ class TestNgenWorkerContract:
 
     def test_ngen_worker_registered(self):
         """Test that NgenWorker is registered with registry."""
-        from symfluence.utils.optimization.registry import OptimizerRegistry
+        from symfluence.optimization.registry import OptimizerRegistry
         worker_cls = OptimizerRegistry.get_worker('NGEN')
         assert worker_cls is not None
         assert worker_cls.__name__ == 'NgenWorker'
 
     def test_ngen_worker_inherits_from_base(self):
         """Test that NgenWorker inherits from BaseWorker."""
-        from symfluence.utils.optimization.workers import NgenWorker, BaseWorker
+        from symfluence.optimization.workers import NgenWorker, BaseWorker
         assert issubclass(NgenWorker, BaseWorker)
 
     def test_ngen_worker_has_required_methods(self):
         """Test that NgenWorker has all required abstract methods."""
-        from symfluence.utils.optimization.workers import NgenWorker
+        from symfluence.optimization.workers import NgenWorker
         required_methods = ['apply_parameters', 'run_model', 'calculate_metrics']
         for method in required_methods:
             assert hasattr(NgenWorker, method)

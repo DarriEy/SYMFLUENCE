@@ -3,7 +3,7 @@ Unit tests for PlotConfig dataclass.
 """
 
 import pytest
-from symfluence.utils.reporting.config.plot_config import PlotConfig, DEFAULT_PLOT_CONFIG
+from symfluence.reporting.config.plot_config import PlotConfig, DEFAULT_PLOT_CONFIG
 
 
 class TestPlotConfig:

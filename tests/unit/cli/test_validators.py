@@ -3,7 +3,7 @@
 import pytest
 from pathlib import Path
 
-from symfluence.utils.cli.validators import (
+from symfluence.cli.validators import (
     validate_coordinates,
     validate_bounding_box,
     validate_config_exists,

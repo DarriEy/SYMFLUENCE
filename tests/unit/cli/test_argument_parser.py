@@ -3,7 +3,7 @@
 import pytest
 from argparse import Namespace
 
-from symfluence.utils.cli.argument_parser import CLIParser
+from symfluence.cli.argument_parser import CLIParser
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]
 

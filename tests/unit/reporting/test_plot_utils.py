@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from unittest.mock import MagicMock, patch
 
-from symfluence.utils.reporting.core.plot_utils import (
+from symfluence.reporting.core.plot_utils import (
     calculate_metrics,
     calculate_flow_duration_curve,
     align_timeseries,

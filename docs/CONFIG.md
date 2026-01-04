@@ -15,7 +15,7 @@ This document provides a technical deep dive into the hierarchical configuration
 ## Architecture Components
 
 ```
-src/symfluence/utils/config/
+src/symfluence.core.config/
 ├── models.py          # Hierarchical Pydantic models (main)
 ├── factories.py       # Factory methods (from_file, from_preset, from_minimal)
 ├── transformers.py    # Flat ↔ nested transformations
@@ -504,4 +504,4 @@ Potential improvements for future versions:
 - [Pydantic V2 Documentation](https://docs.pydantic.dev/latest/)
 - [CONFIGURATION.md](CONFIGURATION.md) - User guide
 - [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) - Migration instructions
-- `src/symfluence/utils/config/models.py` - Implementation
+- `src/symfluence.core.config/models.py` - Implementation

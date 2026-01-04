@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
-from symfluence.utils.data.data_manager import DataManager
+from symfluence.data.data_manager import DataManager
 
 @pytest.fixture
 def mock_config(tmp_path):
@@ -27,8 +27,8 @@ def test_data_manager_initialization(mock_config, mock_logger):
     dm = DataManager(mock_config, mock_logger)
     assert dm.project_dir == Path(mock_config['SYMFLUENCE_DATA_DIR']) / "domain_test_domain"
 
-@patch('symfluence.utils.data.acquisition.observed_processor.ObservedDataProcessor.process_streamflow_data')
-@patch('symfluence.utils.data.acquisition.observed_processor.ObservedDataProcessor.process_fluxnet_data')
+@patch('symfluence.data.acquisition.observed_processor.ObservedDataProcessor.process_streamflow_data')
+@patch('symfluence.data.acquisition.observed_processor.ObservedDataProcessor.process_fluxnet_data')
 def test_process_observed_data_calls(mock_flux, mock_flow, mock_config, mock_logger):
     """Test that process_observed_data correctly calls the processor methods."""
     dm = DataManager(mock_config, mock_logger)
@@ -40,4 +40,4 @@ def test_process_observed_data_calls(mock_flux, mock_flow, mock_config, mock_log
 def test_imports_from_data_utils_fail():
     """Verify that we can no longer import from the removed data_utils."""
     with pytest.raises(ImportError):
-        from symfluence.utils.data.acquisition.data_utils import ObservedDataProcessor
+        from symfluence.data.acquisition.data_utils import ObservedDataProcessor

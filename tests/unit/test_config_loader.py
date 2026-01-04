@@ -8,7 +8,7 @@ and validation of configuration dictionaries.
 import pytest
 import yaml
 
-from symfluence.utils.config.config_loader import normalize_config, validate_config
+from symfluence.core.config.config_loader import normalize_config, validate_config
 
 
 pytestmark = [pytest.mark.unit, pytest.mark.quick]

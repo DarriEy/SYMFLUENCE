@@ -2,7 +2,7 @@
 
 import pytest
 
-from symfluence.utils.cli.init_presets import (
+from symfluence.cli.init_presets import (
     PRESETS,
     load_presets,
     get_preset,

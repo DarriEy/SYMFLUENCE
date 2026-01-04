@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch, ANY, PropertyMock
 from pathlib import Path
-from symfluence.utils.reporting.reporting_manager import ReportingManager
+from symfluence.reporting.reporting_manager import ReportingManager
 
 @pytest.fixture
 def mock_config():
@@ -16,37 +16,37 @@ def mock_logger():
 
 @pytest.fixture
 def mock_data_processor():
-    with patch('symfluence.utils.reporting.processors.data_processor.DataProcessor') as mock:
+    with patch('symfluence.reporting.processors.data_processor.DataProcessor') as mock:
         yield mock
 
 @pytest.fixture
 def mock_spatial_processor():
-    with patch('symfluence.utils.reporting.processors.spatial_processor.SpatialProcessor') as mock:
+    with patch('symfluence.reporting.processors.spatial_processor.SpatialProcessor') as mock:
         yield mock
 
 @pytest.fixture
 def mock_domain_plotter():
-    with patch('symfluence.utils.reporting.reporting_manager.DomainPlotter') as mock:
+    with patch('symfluence.reporting.reporting_manager.DomainPlotter') as mock:
         yield mock
 
 @pytest.fixture
 def mock_optimization_plotter():
-    with patch('symfluence.utils.reporting.reporting_manager.OptimizationPlotter') as mock:
+    with patch('symfluence.reporting.reporting_manager.OptimizationPlotter') as mock:
         yield mock
 
 @pytest.fixture
 def mock_analysis_plotter():
-    with patch('symfluence.utils.reporting.reporting_manager.AnalysisPlotter') as mock:
+    with patch('symfluence.reporting.reporting_manager.AnalysisPlotter') as mock:
         yield mock
 
 @pytest.fixture
 def mock_benchmark_plotter():
-    with patch('symfluence.utils.reporting.reporting_manager.BenchmarkPlotter') as mock:
+    with patch('symfluence.reporting.reporting_manager.BenchmarkPlotter') as mock:
         yield mock
 
 @pytest.fixture
 def mock_snow_plotter():
-    with patch('symfluence.utils.reporting.reporting_manager.SnowPlotter') as mock:
+    with patch('symfluence.reporting.reporting_manager.SnowPlotter') as mock:
         yield mock
 
 class TestReportingManager:

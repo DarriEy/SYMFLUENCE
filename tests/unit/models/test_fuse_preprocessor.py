@@ -7,12 +7,12 @@ Tests FUSE-specific preprocessing functionality.
 import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
-from symfluence.utils.models.fuse import FUSEPreProcessor
-from symfluence.utils.exceptions import ModelExecutionError
-from symfluence.utils.config.models import SymfluenceConfig
+from symfluence.models.fuse import FUSEPreProcessor
+from symfluence.core.exceptions import ModelExecutionError
+from symfluence.core.config.models import SymfluenceConfig
 
 
-from symfluence.utils.config.models import SymfluenceConfig
+from symfluence.core.config.models import SymfluenceConfig
 
 
 class TestFUSEPreProcessorInitialization:
@@ -124,7 +124,7 @@ class TestFUSECopyBaseSettings:
     def test_copy_base_settings_uses_correct_source(self, fuse_config, mock_logger, setup_test_directories):
         """Test that copy_base_settings uses correct source directory."""
         # Create a new config with the updated code directory
-        from symfluence.utils.config.models import SymfluenceConfig
+        from symfluence.core.config.models import SymfluenceConfig
         config_dict = fuse_config.to_dict(flatten=True)
         config_dict['SYMFLUENCE_CODE_DIR'] = str(setup_test_directories['code_dir'])
         # Ensure SYMFLUENCE_DATA_DIR is also carried over or explicitly set
@@ -231,7 +231,7 @@ class TestFUSERegistration:
 
     def test_fuse_registered_as_preprocessor(self):
         """Test that FUSE is registered in the model registry."""
-        from symfluence.utils.models.registry import ModelRegistry
+        from symfluence.models.registry import ModelRegistry
 
         # FUSE should be registered
         assert 'FUSE' in ModelRegistry._preprocessors
@@ -242,7 +242,7 @@ class TestFUSEPETCalculator:
 
     def test_has_pet_calculator_mixin(self, fuse_config, mock_logger, setup_test_directories):
         """Test that FUSE preprocessor has PET calculator functionality."""
-        from symfluence.utils.models.mixins import PETCalculatorMixin
+        from symfluence.models.mixins import PETCalculatorMixin
 
         preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
 
@@ -255,7 +255,7 @@ class TestFUSEBaseClassIntegration:
 
     def test_inherits_from_base_preprocessor(self, fuse_config, mock_logger, setup_test_directories):
         """Test that FUSE inherits from BaseModelPreProcessor."""
-        from symfluence.utils.models.base import BaseModelPreProcessor
+        from symfluence.models.base import BaseModelPreProcessor
 
         preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
 

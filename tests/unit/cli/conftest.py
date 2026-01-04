@@ -204,7 +204,7 @@ def binary_manager(mock_external_tools, tmp_path):
     - Mocked external_tools_config
     - Temporary installation directory
     """
-    from symfluence.utils.cli.binary_manager import BinaryManager
+    from symfluence.cli.binary_manager import BinaryManager
 
     # Create manager with mocked external tools
     manager = BinaryManager(external_tools=mock_external_tools)
@@ -221,7 +221,7 @@ def job_scheduler():
     Creates a JobScheduler instance for testing SLURM script
     generation and job submission logic.
     """
-    from symfluence.utils.cli.job_scheduler import JobScheduler
+    from symfluence.cli.job_scheduler import JobScheduler
 
     return JobScheduler()
 
@@ -234,7 +234,7 @@ def notebook_service(tmp_path):
     - Temporary repo root
     - Mock examples directory
     """
-    from symfluence.utils.cli.notebook_service import NotebookService
+    from symfluence.cli.notebook_service import NotebookService
 
     service = NotebookService()
 

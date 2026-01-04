@@ -3,8 +3,8 @@ import xarray as xr
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from symfluence.utils.data.preprocessing.dataset_handlers.rdrs_utils import RDRSHandler
-from symfluence.utils.common.constants import PhysicalConstants
+from symfluence.data.preprocessing.dataset_handlers.rdrs_utils import RDRSHandler
+from symfluence.core.constants import PhysicalConstants
 
 @pytest.fixture
 def rdrs_handler():

@@ -14,8 +14,8 @@ import logging
 import tempfile
 import os
 
-from symfluence.utils.optimization.parameter_managers import HYPEParameterManager, MESHParameterManager
-from symfluence.utils.optimization.core.parameter_bounds_registry import get_hype_bounds, get_mesh_bounds
+from symfluence.optimization.parameter_managers import HYPEParameterManager, MESHParameterManager
+from symfluence.optimization.core.parameter_bounds_registry import get_hype_bounds, get_mesh_bounds
 
 
 @pytest.fixture

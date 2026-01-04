@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from symfluence.utils.geospatial.discretization import DomainDiscretizer
-from symfluence.utils.geospatial.discretization.attributes import combined, elevation
+from symfluence.geospatial.discretization import DomainDiscretizer
+from symfluence.geospatial.discretization.attributes import combined, elevation
 
 
 def _base_config(tmp_path, discretization):

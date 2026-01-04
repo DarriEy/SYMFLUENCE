@@ -18,7 +18,7 @@ from utils.geospatial import (
 from utils.helpers import write_config
 
 
-from symfluence.utils.config.models import SymfluenceConfig
+from symfluence.core.config.models import SymfluenceConfig
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.domain, pytest.mark.requires_data, pytest.mark.slow]

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Any
 import logging
 
-from symfluence.utils.optimization.core.base_parameter_manager import BaseParameterManager
+from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 
 
 class ConcreteParameterManager(BaseParameterManager):

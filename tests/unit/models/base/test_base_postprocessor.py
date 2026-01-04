@@ -11,9 +11,9 @@ import xarray as xr
 import numpy as np
 from pathlib import Path
 from unittest.mock import Mock, MagicMock, patch
-from symfluence.utils.models.base import BaseModelPostProcessor
-from symfluence.utils.common.constants import UnitConversion
-from symfluence.utils.config.models import SymfluenceConfig
+from symfluence.models.base import BaseModelPostProcessor
+from symfluence.core.constants import UnitConversion
+from symfluence.core.config.models import SymfluenceConfig
 
 
 class ConcretePostProcessor(BaseModelPostProcessor):

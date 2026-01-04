@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch, mock_open
 import pandas as pd
 import numpy as np
 
-from symfluence.utils.evaluation.structure_ensemble import BaseStructureEnsembleAnalyzer
+from symfluence.evaluation.structure_ensemble import BaseStructureEnsembleAnalyzer
 
 class MockStructureAnalyzer(BaseStructureEnsembleAnalyzer):
     """Concrete implementation for testing the base class."""

@@ -3,7 +3,7 @@
 import pytest
 from pathlib import Path
 import logging
-from symfluence.utils.common.path_resolver import (
+from symfluence.core.path_resolver import (
     resolve_path,
     resolve_file_path,
     PathResolverMixin

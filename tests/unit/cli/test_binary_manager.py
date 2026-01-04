@@ -5,7 +5,7 @@ import subprocess
 from unittest.mock import patch, MagicMock, mock_open, call
 from pathlib import Path
 
-from symfluence.utils.cli.binary_manager import BinaryManager
+from symfluence.cli.binary_manager import BinaryManager
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]
 

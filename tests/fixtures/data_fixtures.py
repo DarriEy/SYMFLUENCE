@@ -9,7 +9,7 @@ import requests
 import zipfile
 import shutil
 from pathlib import Path
-from symfluence.utils.data.cache import RawForcingCache
+from symfluence.data.cache import RawForcingCache
 
 
 # Test data bundle configuration

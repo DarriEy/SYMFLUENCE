@@ -5,8 +5,8 @@ import logging
 import json
 from unittest.mock import patch, MagicMock
 from symfluence.core import SYMFLUENCE
-from symfluence.utils.data.data_manager import DataManager
-from symfluence.utils.data.observation.registry import ObservationRegistry
+from symfluence.data.data_manager import DataManager
+from symfluence.data.observation.registry import ObservationRegistry
 
 pytestmark = [pytest.mark.integration, pytest.mark.data, pytest.mark.requires_cloud, pytest.mark.slow]
 
@@ -465,7 +465,7 @@ def test_modis_snow_acquisition_and_processing(mock_config, tmp_path):
     dm = DataManager(modis_config, logger)
     
     # Mock the acquirer download to return our mock file instead of hitting THREDDS
-    with patch('symfluence.utils.data.acquisition.handlers.modis.MODISSnowAcquirer.download', return_value=mock_snow_file):
+    with patch('symfluence.data.acquisition.handlers.modis.MODISSnowAcquirer.download', return_value=mock_snow_file):
         dm.acquire_observations()
         dm.process_observed_data()
     
