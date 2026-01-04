@@ -215,6 +215,62 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
         print(f"⚠ MESH not found at {mesh_path} (optional)")
         optional_missing.append("MESH")
 
+    # Check for RHESSys (optional, experimental)
+    rhessys_install_path = config.get("RHESSYS_INSTALL_PATH", "default")
+    if rhessys_install_path == "default":
+        rhessys_install_path = data_dir / "installs" / "rhessys" / "bin"
+    else:
+        rhessys_install_path = Path(rhessys_install_path)
+
+    rhessys_exe_name = config.get("RHESSYS_EXE", "rhessys")
+    rhessys_in_path = shutil.which(rhessys_exe_name)
+    if rhessys_in_path:
+        rhessys_path = Path(rhessys_in_path)
+    else:
+        rhessys_path = rhessys_install_path / rhessys_exe_name
+
+    if rhessys_path.exists():
+        print(f"✓ RHESSys found: {rhessys_path}")
+        optional_found.append("RHESSys")
+        try:
+            result = subprocess.run([str(rhessys_path), "-h"],
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 or "rhessys" in result.stdout.lower() or "usage" in result.stderr.lower():
+                print(f"  RHESSys verified working")
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            print(f"  RHESSys found but verification failed")
+    else:
+        print(f"⚠ RHESSys not found at {rhessys_path} (optional)")
+        optional_missing.append("RHESSys")
+
+    # Check for VMFire (optional, experimental for RHESSys)
+    vmfire_install_path = config.get("VMFIRE_INSTALL_PATH", "default")
+    if vmfire_install_path == "default":
+        vmfire_install_path = data_dir / "installs" / "vmfire" / "bin"
+    else:
+        vmfire_install_path = Path(vmfire_install_path)
+
+    vmfire_exe_name = config.get("VMFIRE_EXE", "vmfire")
+    vmfire_in_path = shutil.which(vmfire_exe_name)
+    if vmfire_in_path:
+        vmfire_path = Path(vmfire_in_path)
+    else:
+        vmfire_path = vmfire_install_path / vmfire_exe_name
+
+    if vmfire_path.exists():
+        print(f"✓ VMFire found: {vmfire_path}")
+        optional_found.append("VMFire")
+        try:
+            result = subprocess.run([str(vmfire_path), "-h"],
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 or "vmfire" in result.stdout.lower() or "usage" in result.stderr.lower():
+                print(f"  VMFire verified working")
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            print(f"  VMFire found but verification failed")
+    else:
+        print(f"⚠ VMFire not found at {vmfire_path} (optional)")
+        optional_missing.append("VMFire")
+
     # Summary
     print("\n" + "="*60)
     print("Binary Validation Summary")

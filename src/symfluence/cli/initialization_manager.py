@@ -39,13 +39,19 @@ class InitializationManager:
         }
 
     def list_presets(self) -> List[Dict[str, Any]]:
-        """Return all available presets with descriptions."""
+        """Return all available presets with descriptions and print to stdout."""
+        print("\n📋 Available Presets:")
+        print("-" * 40)
+        
         preset_list = []
         for name, preset in self.presets.items():
+            desc = preset.get('description', 'No description')
+            print(f"• {name:<15} : {desc}")
             preset_list.append({
                 'name': name,
-                'description': preset.get('description', 'No description')
+                'description': desc
             })
+        print("-" * 40)
         return preset_list
 
     def show_preset(self, preset_name: str) -> None:

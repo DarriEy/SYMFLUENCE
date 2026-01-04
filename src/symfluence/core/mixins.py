@@ -57,8 +57,10 @@ class ConfigMixin:
         if hasattr(self, '_config_dict'):
             return self._config_dict
 
-        # Try self.typed_config or self.config
-        cfg = getattr(self, 'typed_config', getattr(self, 'config', None))
+        # Try self.typed_config or self.config, skipping None values
+        cfg = getattr(self, 'typed_config', None)
+        if cfg is None:
+            cfg = getattr(self, 'config', None)
         
         if cfg is not None:
             # If it has a to_dict method, use it
@@ -169,6 +171,12 @@ class ProjectContextMixin(ConfigMixin):
         """Set the data directory."""
         self._data_dir = Path(value)
 
+    @data_dir.deleter
+    def data_dir(self) -> None:
+        """Delete the data directory override."""
+        if hasattr(self, '_data_dir'):
+            del self._data_dir
+
     @property
     def domain_name(self) -> str:
         """Domain name from configuration."""
@@ -191,6 +199,12 @@ class ProjectContextMixin(ConfigMixin):
         """Set the domain name."""
         self._domain_name = value
 
+    @domain_name.deleter
+    def domain_name(self) -> None:
+        """Delete the domain name override."""
+        if hasattr(self, '_domain_name'):
+            del self._domain_name
+
     @property
     def project_dir(self) -> Path:
         """
@@ -206,6 +220,12 @@ class ProjectContextMixin(ConfigMixin):
     def project_dir(self, value: Union[str, Path]) -> None:
         """Set the project directory."""
         self._project_dir = Path(value)
+
+    @project_dir.deleter
+    def project_dir(self) -> None:
+        """Delete the project directory override."""
+        if hasattr(self, '_project_dir'):
+            del self._project_dir
 
     # Standard subdirectories (based on project convention)
     
