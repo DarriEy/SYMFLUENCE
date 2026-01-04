@@ -40,12 +40,10 @@ class DomainDelineator(PathResolverMixin):
 
     def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
         self.config = config
-        self.config_dict = config  # For PathResolverMixin
         self.logger = logger
         self.reporting_manager = reporting_manager
-        self.data_dir = Path(self.config.get("SYMFLUENCE_DATA_DIR"))
-        self.domain_name = self.config.get("DOMAIN_NAME")
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
+        
+        # properties from mixins: self.project_dir, self.domain_name, self.data_dir are available
 
         self.delineator = GeofabricDelineator(self.config, self.logger, self.reporting_manager)
         self.lumped_delineator = LumpedWatershedDelineator(self.config, self.logger)
@@ -76,48 +74,49 @@ class DomainDelineator(PathResolverMixin):
         return basins_path, rivers_path
 
     def define_domain(self) -> Tuple[Optional[object], DelineationArtifacts]:
-        domain_method = self.config.get("DOMAIN_DEFINITION_METHOD")
-        artifacts = DelineationArtifacts(method=domain_method)
+        with self.time_limit("Domain Definition"):
+            domain_method = self._get_config_value("DOMAIN_DEFINITION_METHOD")
+            artifacts = DelineationArtifacts(method=domain_method)
 
-        if self.config.get("RIVER_BASINS_NAME") != "default":
-            self.logger.info("Shapefile provided, skipping domain definition")
+            if self._get_config_value("RIVER_BASINS_NAME") != "default":
+                self.logger.info("Shapefile provided, skipping domain definition")
+                return None, artifacts
+
+            if domain_method == "point":
+                output_path = self.point_delineator.create_point_domain_shapefile()
+                artifacts.river_basins_path = output_path
+                artifacts.pour_point_path = self._get_pour_point_path()
+                return output_path, artifacts
+
+            if domain_method == "subset":
+                result = self.subsetter.subset_geofabric()
+                basins_path, rivers_path = self._get_subset_paths()
+                artifacts.river_basins_path = basins_path
+                artifacts.river_network_path = rivers_path
+                artifacts.pour_point_path = self._get_pour_point_path()
+                return result, artifacts
+
+            if domain_method == "lumped":
+                river_network_path, river_basins_path = (
+                    self.lumped_delineator.delineate_lumped_watershed()
+                )
+                artifacts.river_network_path = river_network_path
+                artifacts.river_basins_path = river_basins_path
+                artifacts.pour_point_path = self._get_pour_point_path()
+                return (river_network_path, river_basins_path), artifacts
+
+            if domain_method == "delineate":
+                river_network_path, river_basins_path = self.delineator.delineate_geofabric()
+                if self.config.get("DELINEATE_COASTAL_WATERSHEDS"):
+                    coastal_result = self.delineator.delineate_coastal()
+                    if coastal_result and all(coastal_result):
+                        river_network_path, river_basins_path = coastal_result
+                        self.logger.info(f"Coastal delineation completed: {coastal_result}")
+
+                artifacts.river_network_path = river_network_path
+                artifacts.river_basins_path = river_basins_path
+                artifacts.pour_point_path = self._get_pour_point_path()
+                return (river_network_path, river_basins_path), artifacts
+
+            self.logger.error(f"Unknown domain definition method: {domain_method}")
             return None, artifacts
-
-        if domain_method == "point":
-            output_path = self.point_delineator.create_point_domain_shapefile()
-            artifacts.river_basins_path = output_path
-            artifacts.pour_point_path = self._get_pour_point_path()
-            return output_path, artifacts
-
-        if domain_method == "subset":
-            result = self.subsetter.subset_geofabric()
-            basins_path, rivers_path = self._get_subset_paths()
-            artifacts.river_basins_path = basins_path
-            artifacts.river_network_path = rivers_path
-            artifacts.pour_point_path = self._get_pour_point_path()
-            return result, artifacts
-
-        if domain_method == "lumped":
-            river_network_path, river_basins_path = (
-                self.lumped_delineator.delineate_lumped_watershed()
-            )
-            artifacts.river_network_path = river_network_path
-            artifacts.river_basins_path = river_basins_path
-            artifacts.pour_point_path = self._get_pour_point_path()
-            return (river_network_path, river_basins_path), artifacts
-
-        if domain_method == "delineate":
-            river_network_path, river_basins_path = self.delineator.delineate_geofabric()
-            if self.config.get("DELINEATE_COASTAL_WATERSHEDS"):
-                coastal_result = self.delineator.delineate_coastal()
-                if coastal_result and all(coastal_result):
-                    river_network_path, river_basins_path = coastal_result
-                    self.logger.info(f"Coastal delineation completed: {coastal_result}")
-
-            artifacts.river_network_path = river_network_path
-            artifacts.river_basins_path = river_basins_path
-            artifacts.pour_point_path = self._get_pour_point_path()
-            return (river_network_path, river_basins_path), artifacts
-
-        self.logger.error(f"Unknown domain definition method: {domain_method}")
-        return None, artifacts

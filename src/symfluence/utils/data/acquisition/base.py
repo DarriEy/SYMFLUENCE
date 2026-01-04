@@ -5,29 +5,27 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any
 import pandas as pd
-from symfluence.utils.common.coordinate_utils import CoordinateUtilsMixin
+from symfluence.utils.common import ConfigurableMixin, CoordinateUtilsMixin
 
-class BaseAcquisitionHandler(ABC, CoordinateUtilsMixin):
+class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
     def __init__(self, config: Dict[str, Any], logger, reporting_manager: Any = None):
         self.config = config
         self.logger = logger
         self.reporting_manager = reporting_manager
-        self.domain_name = config.get('DOMAIN_NAME', 'domain')
-        self.bbox = self._parse_bbox(config.get('BOUNDING_BOX_COORDS'))
-        self.start_date = pd.to_datetime(config.get('EXPERIMENT_TIME_START'))
-        self.end_date = pd.to_datetime(config.get('EXPERIMENT_TIME_END'))
+        
+        # Standard attributes are provided as properties by mixins
+        self.bbox = self._parse_bbox(self.config_dict.get('BOUNDING_BOX_COORDS'))
+        self.start_date = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_START'))
+        self.end_date = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_END'))
 
     @property
     def domain_dir(self) -> Path:
-        base = Path(self.config.get("SYMFLUENCE_DATA_DIR"))
-        d = base / f"domain_{self.domain_name}"
-        d.mkdir(parents=True, exist_ok=True)
-        return d
+        """Alias for project_dir (backward compatibility)."""
+        return self.ensure_dir(self.project_dir)
 
     def _attribute_dir(self, subdir: str) -> Path:
-        d = self.domain_dir / "attributes" / subdir
-        d.mkdir(parents=True, exist_ok=True)
-        return d
+        """Get attribute subdirectory, ensuring it exists."""
+        return self.ensure_dir(self.attributes_dir / subdir)
 
     @abstractmethod
     def download(self, output_dir: Path) -> Path:

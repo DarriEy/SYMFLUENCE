@@ -152,7 +152,7 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
             'DOMAIN_NAME',
             'FORCING_DATASET',
         ]
-        validate_config_keys(self.config_dict, required_keys, f"{self._get_model_name()} preprocessing")
+        self.validate_config(required_keys, f"{self._get_model_name()} preprocessing")
 
     @abstractmethod
     def _get_model_name(self) -> str:
@@ -287,15 +287,9 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         if additional_dirs:
             dirs_to_create.extend(additional_dirs)
 
-        # Create all directories with error handling
+        # Create all directories using FileUtilsMixin's ensure_dir
         for dir_path in dirs_to_create:
-            try:
-                dir_path.mkdir(parents=True, exist_ok=True)
-                self.logger.info(f"Created directory: {dir_path}")
-            except Exception as e:
-                raise FileOperationError(
-                    f"Failed to create directory {dir_path}: {e}"
-                ) from e
+            self.ensure_dir(dir_path)
 
     def copy_base_settings(self, source_dir: Optional[Path] = None,
                           file_patterns: Optional[List[str]] = None):
@@ -339,26 +333,15 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
 
         self.logger.info(f"Copying base settings from {source_dir} to {self.setup_dir}")
 
-        with symfluence_error_handler(
-            f"copying base settings from {source_dir}",
-            self.logger,
-            error_type=FileOperationError
-        ):
-            if file_patterns is None:
-                # Copy entire directory
-                if self.setup_dir.exists():
-                    shutil.rmtree(self.setup_dir)
-                shutil.copytree(source_dir, self.setup_dir)
-                self.logger.info(f"Copied all files from {source_dir}")
-            else:
-                # Copy specific file patterns
-                self.setup_dir.mkdir(parents=True, exist_ok=True)
-                for pattern in file_patterns:
-                    for file_path in source_dir.glob(pattern):
-                        if file_path.is_file():
-                            dest_path = self.setup_dir / file_path.name
-                            shutil.copy2(file_path, dest_path)
-                            self.logger.info(f"Copied {file_path.name}")
+        # Use FileUtilsMixin's copy methods
+        if file_patterns is None:
+            self.copy_tree(source_dir, self.setup_dir)
+        else:
+            self.ensure_dir(self.setup_dir)
+            for pattern in file_patterns:
+                for file_path in source_dir.glob(pattern):
+                    if file_path.is_file():
+                        self.copy_file(file_path, self.setup_dir / file_path.name)
 
     def get_catchment_path(self) -> Path:
         """

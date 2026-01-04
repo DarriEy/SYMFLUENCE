@@ -27,7 +27,10 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Union
 
 
-class PathManager:
+from symfluence.utils.common import ConfigurableMixin
+
+
+class PathManager(ConfigurableMixin):
     """
     Centralized path resolution for SYMFLUENCE data pipeline.
 
@@ -37,43 +40,53 @@ class PathManager:
     3. Providing standardized access to common subdirectories
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig']):
         """
         Initialize PathManager with configuration.
 
         Args:
-            config: Configuration dictionary containing at minimum:
-                - SYMFLUENCE_DATA_DIR: Base data directory
-                - DOMAIN_NAME: Name of the domain/project
+            config: Configuration dictionary or SymfluenceConfig instance
         """
-        self._config = config
-        self._data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-        self._domain_name = config.get('DOMAIN_NAME', 'domain')
-        self._project_dir = self._data_dir / f"domain_{self._domain_name}"
+        self.config = config
 
-    @property
-    def data_dir(self) -> Path:
-        """Base SYMFLUENCE data directory."""
-        return self._data_dir
-
-    @property
-    def domain_name(self) -> str:
-        """Name of the current domain."""
-        return self._domain_name
-
-    @property
-    def project_dir(self) -> Path:
-        """Project directory: {data_dir}/domain_{domain_name}"""
-        return self._project_dir
-
-    # -------------------------------------------------------------------------
-    # Standard subdirectories
-    # -------------------------------------------------------------------------
+    # Standard subdirectories are now provided by ProjectContextMixin:
+    # project_shapefiles_dir, project_attributes_dir, project_forcing_dir, 
+    # project_observations_dir, project_simulations_dir, project_settings_dir, project_cache_dir
 
     @property
     def shapefiles_dir(self) -> Path:
         """Directory for shapefiles."""
-        return self._project_dir / 'shapefiles'
+        return self.project_shapefiles_dir
+
+    @property
+    def attributes_dir(self) -> Path:
+        """Directory for attributes."""
+        return self.project_attributes_dir
+
+    @property
+    def forcing_dir(self) -> Path:
+        """Directory for forcing."""
+        return self.project_forcing_dir
+
+    @property
+    def observations_dir(self) -> Path:
+        """Directory for observations."""
+        return self.project_observations_dir
+
+    @property
+    def simulations_dir(self) -> Path:
+        """Directory for simulations."""
+        return self.project_simulations_dir
+
+    @property
+    def settings_dir(self) -> Path:
+        """Directory for settings."""
+        return self.project_settings_dir
+
+    @property
+    def cache_dir(self) -> Path:
+        """Directory for cache."""
+        return self.project_cache_dir
 
     @property
     def catchment_dir(self) -> Path:
@@ -86,16 +99,6 @@ class PathManager:
         return self.shapefiles_dir / 'forcing'
 
     @property
-    def attributes_dir(self) -> Path:
-        """Directory for catchment attributes."""
-        return self._project_dir / 'attributes'
-
-    @property
-    def forcing_dir(self) -> Path:
-        """Directory for forcing data."""
-        return self._project_dir / 'forcing'
-
-    @property
     def raw_forcing_dir(self) -> Path:
         """Directory for raw forcing data."""
         return self.forcing_dir / 'raw_data'
@@ -106,11 +109,6 @@ class PathManager:
         return self.forcing_dir / 'merged_data'
 
     @property
-    def observations_dir(self) -> Path:
-        """Directory for observation data."""
-        return self._project_dir / 'observations'
-
-    @property
     def streamflow_dir(self) -> Path:
         """Directory for streamflow observations."""
         return self.observations_dir / 'streamflow'
@@ -119,11 +117,6 @@ class PathManager:
     def dem_dir(self) -> Path:
         """Directory for DEM data."""
         return self.attributes_dir / 'elevation' / 'dem'
-
-    @property
-    def cache_dir(self) -> Path:
-        """Directory for cached data."""
-        return self._project_dir / 'cache'
 
     # -------------------------------------------------------------------------
     # Path resolution methods
@@ -138,35 +131,25 @@ class PathManager:
         """
         Resolve a path based on config, falling back to default if 'default'.
 
-        This replaces the duplicated _get_file_path pattern found across modules.
+        This delegates to the standardized path resolution logic.
 
         Args:
             config_key: Configuration key to check (e.g., 'CATCHMENT_PATH')
-            default_subpath: Default path relative to project_dir (e.g., 'shapefiles/catchment')
+            default_subpath: Default path relative to project_dir
             filename: Optional filename to append to the path
 
         Returns:
             Resolved Path object
-
-        Examples:
-            # Config has CATCHMENT_PATH = 'default'
-            >>> paths.resolve('CATCHMENT_PATH', 'shapefiles/catchment')
-            Path('/data/domain_test/shapefiles/catchment')
-
-            # Config has CATCHMENT_PATH = '/custom/path'
-            >>> paths.resolve('CATCHMENT_PATH', 'shapefiles/catchment')
-            Path('/custom/path')
-
-            # With filename
-            >>> paths.resolve('DEM_PATH', 'attributes/elevation/dem', 'dem.tif')
-            Path('/data/domain_test/attributes/elevation/dem/dem.tif')
         """
-        config_value = self._config.get(config_key, 'default')
-
-        if config_value == 'default':
-            base_path = self._project_dir / default_subpath
-        else:
-            base_path = Path(config_value)
+        from symfluence.utils.common.path_resolver import resolve_path
+        
+        base_path = resolve_path(
+            config=self.config_dict,
+            config_key=config_key,
+            project_dir=self.project_dir,
+            default_subpath=default_subpath,
+            logger=self.logger
+        )
 
         if filename:
             return base_path / filename
@@ -185,44 +168,33 @@ class PathManager:
         Common pattern where both path and filename are configurable.
 
         Args:
-            path_key: Config key for the path (e.g., 'CATCHMENT_PATH')
-            name_key: Config key for the filename (e.g., 'CATCHMENT_SHP_NAME')
+            path_key: Config key for the path
+            name_key: Config key for the filename
             default_subpath: Default path relative to project_dir
-            default_name_pattern: Pattern for default name using domain_name
-                                 (e.g., '{domain}_HRUs_GRUs.shp')
+            default_name_pattern: Pattern for default name (can include {domain})
 
         Returns:
             Full resolved path including filename
-
-        Example:
-            >>> paths.resolve_with_name(
-            ...     'CATCHMENT_PATH', 'CATCHMENT_SHP_NAME',
-            ...     'shapefiles/catchment',
-            ...     '{domain}_HRUs_GRUs.shp'
-            ... )
         """
-        base_path = self.resolve(path_key, default_subpath)
-
-        name_value = self._config.get(name_key, 'default')
-        if name_value == 'default' and default_name_pattern:
-            filename = default_name_pattern.format(domain=self._domain_name)
-        else:
-            filename = name_value
-
-        return base_path / filename
+        from symfluence.utils.common.path_resolver import resolve_file_path
+        
+        default_name = default_name_pattern.format(domain=self.domain_name) if default_name_pattern else 'default'
+        
+        return resolve_file_path(
+            config=self.config_dict,
+            project_dir=self.project_dir,
+            path_key=path_key,
+            name_key=name_key,
+            default_subpath=default_subpath,
+            default_name=default_name,
+            logger=self.logger
+        )
 
     def ensure_dir(self, path: Path) -> Path:
         """
-        Ensure a directory exists, creating it if necessary.
-
-        Args:
-            path: Directory path to ensure exists
-
-        Returns:
-            The same path (for chaining)
+        Ensure a directory exists (delegates to FileUtilsMixin).
         """
-        path.mkdir(parents=True, exist_ok=True)
-        return path
+        return super().ensure_dir(path)
 
     def get_forcing_dataset_dir(self, dataset_name: str, raw: bool = True) -> Path:
         """
