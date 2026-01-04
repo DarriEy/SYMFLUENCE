@@ -106,7 +106,11 @@ class OptimizationManager(ConfigurableMixin):
             Dict[str, Any]: Results from completed workflows
         """
         results = {}
-        optimization_methods = self.config.get('OPTIMIZATION_METHODS', [])
+        optimization_methods = self._resolve_config_value(
+            lambda: self.typed_config.optimization.methods,
+            'OPTIMIZATION_METHODS',
+            []
+        )
         
         self.logger.info(f"Running optimization workflows: {optimization_methods}")
         
@@ -156,15 +160,29 @@ class OptimizationManager(ConfigurableMixin):
         self.logger.info("Starting model calibration")
 
         # Check if iterative optimization is enabled
-        if not 'iteration' in self.config.get('OPTIMIZATION_METHODS', []):
+        optimization_methods = self._resolve_config_value(
+            lambda: self.typed_config.optimization.methods,
+            'OPTIMIZATION_METHODS',
+            []
+        )
+        if not 'iteration' in optimization_methods:
             self.logger.info("Iterative optimization is disabled in configuration")
             return None
 
         # Get the optimization algorithm from config
-        opt_algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'PSO')
+        opt_algorithm = self._resolve_config_value(
+            lambda: self.typed_config.optimization.algorithm,
+            'ITERATIVE_OPTIMIZATION_ALGORITHM',
+            'PSO'
+        )
 
         try:
-            hydrological_models = self.config.get('HYDROLOGICAL_MODEL', '').split(',')
+            models_str = self._resolve_config_value(
+                lambda: self.typed_config.model.hydrological_model,
+                'HYDROLOGICAL_MODEL',
+                ''
+            )
+            hydrological_models = str(models_str).split(',')
 
             for model in hydrological_models:
                 model = model.strip().upper()
@@ -221,12 +239,28 @@ class OptimizationManager(ConfigurableMixin):
                 'DE': optimizer.run_de,
                 'NSGA-II': getattr(optimizer, 'run_nsga2', None),
                 'ADAM': lambda: optimizer.run_adam(
-                    steps=self.config.get('ADAM_STEPS', 100),
-                    lr=self.config.get('ADAM_LEARNING_RATE', 0.01)
+                    steps=self._resolve_config_value(
+                        lambda: self.typed_config.optimization.adam_steps,
+                        'ADAM_STEPS', 
+                        100
+                    ),
+                    lr=self._resolve_config_value(
+                        lambda: self.typed_config.optimization.adam_learning_rate,
+                        'ADAM_LEARNING_RATE',
+                        0.01
+                    )
                 ),
                 'LBFGS': lambda: optimizer.run_lbfgs(
-                    steps=self.config.get('LBFGS_STEPS', 50),
-                    lr=self.config.get('LBFGS_LEARNING_RATE', 0.1)
+                    steps=self._resolve_config_value(
+                        lambda: self.typed_config.optimization.lbfgs_steps,
+                        'LBFGS_STEPS',
+                        50
+                    ),
+                    lr=self._resolve_config_value(
+                        lambda: self.typed_config.optimization.lbfgs_learning_rate,
+                        'LBFGS_LEARNING_RATE',
+                        0.1
+                    )
                 ),
             }
 
@@ -262,10 +296,23 @@ class OptimizationManager(ConfigurableMixin):
         Returns:
             Dict[str, Any]: Dictionary containing optimization status information
         """
+        optimization_methods = self._resolve_config_value(
+            lambda: self.typed_config.optimization.methods,
+            'OPTIMIZATION_METHODS',
+            []
+        )
         status = {
-            'iterative_optimization_enabled': 'iteration' in self.config.get('OPTIMIZATION_METHODS', []),
-            'optimization_algorithm': self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'PSO'),
-            'optimization_metric': self.config.get('OPTIMIZATION_METRIC', 'KGE'),
+            'iterative_optimization_enabled': 'iteration' in optimization_methods,
+            'optimization_algorithm': self._resolve_config_value(
+                lambda: self.typed_config.optimization.algorithm,
+                'ITERATIVE_OPTIMIZATION_ALGORITHM',
+                'PSO'
+            ),
+            'optimization_metric': self._resolve_config_value(
+                lambda: self.typed_config.optimization.metric,
+                'OPTIMIZATION_METRIC',
+                'KGE'
+            ),
             'optimization_dir': str(self.project_dir / "optimization"),
             'results_exist': False,
         }
@@ -291,22 +338,43 @@ class OptimizationManager(ConfigurableMixin):
         }
         
         # Check algorithm
-        algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', '')
+        algorithm = self._resolve_config_value(
+            lambda: self.typed_config.optimization.algorithm,
+            'ITERATIVE_OPTIMIZATION_ALGORITHM',
+            ''
+        )
         supported_algorithms = ['DDS', 'PSO', 'SCE-UA', 'DE', 'ADAM', 'LBFGS', 'NSGA-II']
         validation['algorithm_valid'] = algorithm in supported_algorithms
         
         # Check model support
-        models = self.config.get('HYDROLOGICAL_MODEL', '').split(',')
+        models_str = self._resolve_config_value(
+            lambda: self.typed_config.model.hydrological_model,
+            'HYDROLOGICAL_MODEL',
+            ''
+        )
+        models = str(models_str).split(',')
         validation['model_supported'] = 'SUMMA' in [m.strip() for m in models]
         
         # Check parameters to calibrate
-        local_params = self.config.get('PARAMS_TO_CALIBRATE', '')
-        basin_params = self.config.get('BASIN_PARAMS_TO_CALIBRATE') or ''
+        local_params = self._resolve_config_value(
+            lambda: self.typed_config.optimization.params_to_calibrate,
+            'PARAMS_TO_CALIBRATE',
+            ''
+        )
+        basin_params = self._resolve_config_value(
+            lambda: self.typed_config.optimization.basin_params_to_calibrate,
+            'BASIN_PARAMS_TO_CALIBRATE',
+            ''
+        )
         validation['parameters_defined'] = bool(local_params or basin_params)
         
         # Check metric
         valid_metrics = ['KGE', 'NSE', 'RMSE', 'MAE', 'KGEp']
-        metric = self.config.get('OPTIMIZATION_METRIC', '')
+        metric = self._resolve_config_value(
+            lambda: self.typed_config.optimization.metric,
+            'OPTIMIZATION_METRIC',
+            ''
+        )
         validation['metric_valid'] = metric in valid_metrics
         
         return validation
