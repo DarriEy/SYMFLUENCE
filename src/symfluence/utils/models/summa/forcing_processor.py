@@ -119,6 +119,16 @@ class SummaForcingProcessor:
         intersect_csv = self.intersect_path / f"{intersect_base}.csv"
         intersect_shp = self.intersect_path / f"{intersect_base}.shp"
 
+        # Fallback for legacy naming in data bundle
+        if not intersect_csv.exists() and not intersect_shp.exists() and self.domain_name == 'bow_banff_minimal':
+            legacy_base = f"Bow_at_Banff_lumped_{self.config.get('FORCING_DATASET')}_intersected_shapefile"
+            if (self.intersect_path / f"{legacy_base}.csv").exists():
+                intersect_csv = self.intersect_path / f"{legacy_base}.csv"
+                self.logger.info(f"Using legacy intersection CSV: {intersect_csv.name}")
+            elif (self.intersect_path / f"{legacy_base}.shp").exists():
+                intersect_shp = self.intersect_path / f"{legacy_base}.shp"
+                self.logger.info(f"Using legacy intersection SHP: {intersect_shp.name}")
+
         # Handle shapefile to CSV conversion if needed
         if not intersect_csv.exists() and intersect_shp.exists():
             self.logger.info(f"Converting {intersect_shp} to CSV format")

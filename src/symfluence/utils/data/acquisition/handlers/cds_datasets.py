@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 import logging
 from abc import ABC, abstractmethod
+import time
 
 try:
     import cdsapi
@@ -45,52 +46,133 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         # Initialize CDS client
         c = cdsapi.Client()
 
-        # Build temporal parameters
-        years = list(range(self.start_date.year, self.end_date.year + 1))
-        months = [f"{m:02d}" for m in range(self.start_date.month, self.end_date.month + 1)]
-        dates = pd.date_range(self.start_date, self.end_date, freq='D')
-        days = sorted(list(set([d.strftime('%d') for d in dates])))
-        hours = self._get_time_hours()
-
         # Setup output files
         output_dir.mkdir(parents=True, exist_ok=True)
-        af = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_analysis_temp.nc"
-        ff = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_forecast_temp.nc"
+        
+        # Determine years to process
+        years_range = list(range(self.start_date.year, self.end_date.year + 1))
+        chunk_files = []
+        
+        try:
+            for year in years_range:
+                logging.info(f"Processing {self._get_dataset_id()} for year {year}...")
+                
+                # Determine months for this specific year
+                start_m = 1
+                end_m = 12
+                if year == self.start_date.year:
+                    start_m = self.start_date.month
+                if year == self.end_date.year:
+                    end_m = self.end_date.month
+                
+                current_months = [f"{m:02d}" for m in range(start_m, end_m + 1)]
+                current_years = [str(year)]
+                
+                # Days (all days, API handles invalid dates like Feb 30)
+                days = [f"{d:02d}" for d in range(1, 32)]
+                hours = self._get_time_hours()
 
-        # Build requests
-        analysis_req = self._build_analysis_request(years, months, days, hours)
-        forecast_req = self._build_forecast_request(years, months, days, hours)
+                # Temp files for this year
+                af = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_analysis_{year}_temp.nc"
+                ff = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_forecast_{year}_temp.nc"
 
-        # Download both products
-        logging.info(f"Downloading {self._get_dataset_id()} analysis data for {self.domain_name}...")
-        c.retrieve(self._get_dataset_name(), analysis_req, str(af))
+                # Build requests
+                analysis_req = self._build_analysis_request(current_years, current_months, days, hours)
+                forecast_req = self._build_forecast_request(current_years, current_months, days, hours)
 
-        logging.info(f"Downloading {self._get_dataset_id()} forecast data for {self.domain_name}...")
-        c.retrieve(self._get_dataset_name(), forecast_req, str(ff))
+                # Download both products with retry logic
+                logging.info(f"Downloading {self._get_dataset_id()} analysis data for {self.domain_name} ({year})...")
+                self._retrieve_with_retry(c, self._get_dataset_name(), analysis_req, str(af))
 
-        # Process and merge
-        final_f = self._process_and_merge(af, ff, output_dir)
+                logging.info(f"Downloading {self._get_dataset_id()} forecast data for {self.domain_name} ({year})...")
+                self._retrieve_with_retry(c, self._get_dataset_name(), forecast_req, str(ff))
 
-        expected_times = self._expected_times()
-        if expected_times is not None and self._get_dataset_id() != "CARRA":
-            actual_len = self._get_time_len(final_f)
-            if actual_len < len(expected_times):
-                logging.warning(
-                    f"{self._get_dataset_id()} returned {actual_len} timesteps for "
-                    f"{len(expected_times)} requested. Re-downloading per timestep."
-                )
-                try:
-                    final_f.unlink()
-                except OSError:
-                    pass
-                final_f = self._download_per_timestep(output_dir, expected_times)
+                # Process and merge this year's data
+                ds_chunk = self._process_and_merge_datasets(af, ff)
+                
+                # Save chunk to disk
+                chunk_path = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_processed_{year}_temp.nc"
+                ds_chunk.to_netcdf(chunk_path)
+                chunk_files.append(chunk_path)
+                ds_chunk.close()
+                
+                # Cleanup raw downloads for this year
+                if af.exists(): af.unlink()
+                if ff.exists(): ff.unlink()
 
-        # Cleanup temp files
-        for f in [af, ff]:
-            if f.exists():
-                f.unlink()
+            # Merge all yearly chunks
+            if not chunk_files:
+                raise RuntimeError("No data downloaded")
+
+            logging.info(f"Merging {len(chunk_files)} yearly chunks...")
+            # open_mfdataset creates a dask-backed dataset, good for memory
+            with xr.open_mfdataset(chunk_files, combine='by_coords') as ds_final:
+                # Save final dataset
+                final_f = self._save_final_dataset(ds_final, output_dir)
+
+        except Exception as e:
+            logging.error(f"Error during download/processing: {e}")
+            raise e
+        finally:
+            # Cleanup processed chunks
+            for f in chunk_files:
+                if f.exists():
+                    try:
+                        f.unlink()
+                    except OSError:
+                        pass
 
         return final_f
+
+    def _retrieve_with_retry(
+        self, client, dataset_name: str, request: Dict[str, Any], target_path: str,
+        max_retries: int = 3, base_delay: int = 60
+    ):
+        """
+        Retrieve data from CDS with retry logic for transient errors.
+
+        Args:
+            client: CDS API client
+            dataset_name: Name of the dataset to retrieve
+            request: Request parameters dictionary
+            target_path: Path to save the retrieved data
+            max_retries: Maximum number of retry attempts (default: 3)
+            base_delay: Base delay in seconds between retries (default: 60)
+
+        Raises:
+            Exception: If all retries fail
+        """
+        for attempt in range(max_retries + 1):
+            try:
+                client.retrieve(dataset_name, request, target_path)
+                return  # Success
+            except Exception as e:
+                error_msg = str(e)
+
+                # Check if it's a 403 error
+                is_403 = "403" in error_msg or "Forbidden" in error_msg
+
+                # Check if it's worth retrying
+                should_retry = is_403 or "temporarily" in error_msg.lower() or "maintenance" in error_msg.lower()
+
+                if attempt < max_retries and should_retry:
+                    delay = base_delay * (2 ** attempt)  # Exponential backoff
+                    logging.warning(
+                        f"CDS request failed (attempt {attempt + 1}/{max_retries + 1}): {error_msg}"
+                    )
+                    logging.info(f"Retrying in {delay} seconds...")
+                    time.sleep(delay)
+                else:
+                    # Last attempt or non-retryable error
+                    if is_403:
+                        logging.error(
+                            f"CDS API returned 403 Forbidden error. This may indicate:\n"
+                            f"  1. Temporary service maintenance (retry later)\n"
+                            f"  2. Dataset license not accepted (visit https://cds.climate.copernicus.eu/datasets/{dataset_name})\n"
+                            f"  3. API credentials issue (check ~/.cdsapirc)\n"
+                            f"  4. Rate limiting (too many requests)"
+                        )
+                    raise
 
     def _get_time_hours(self) -> List[str]:
         """Generate hourly time strings based on temporal resolution."""
@@ -267,8 +349,8 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             logging.info(
                 f"Downloading {dataset_id} timestep {ts:%Y-%m-%d %H:%M} (analysis/forecast)"
             )
-            c.retrieve(self._get_dataset_name(), analysis_req, str(af))
-            c.retrieve(self._get_dataset_name(), forecast_req, str(ff))
+            self._retrieve_with_retry(c, self._get_dataset_name(), analysis_req, str(af))
+            self._retrieve_with_retry(c, self._get_dataset_name(), forecast_req, str(ff))
 
             ds = self._process_and_merge_datasets(af, ff)
             datasets.append(ds)

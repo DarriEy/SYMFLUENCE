@@ -62,13 +62,14 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
         self.pour_point_path = pour_point_path
 
         # Define output paths
+        method_suffix = self._get_method_suffix()
         river_basins_path = (
             self.project_dir / "shapefiles" / "river_basins" /
-            f"{self.domain_name}_riverBasins_lumped.shp"
+            f"{self.domain_name}_riverBasins_{method_suffix}.shp"
         )
         river_network_path = (
             self.project_dir / "shapefiles" / "river_network" /
-            f"{self.domain_name}_riverNetwork_lumped.shp"
+            f"{self.domain_name}_riverNetwork_{method_suffix}.shp"
         )
 
         # Create directories if they don't exist
@@ -209,9 +210,10 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
                 self.logger.info(f"Completed TauDEM step: {step}")
 
             # Convert the watershed raster to polygon
+            method_suffix = self._get_method_suffix()
             watershed_shp_path = (
                 self.project_dir / "shapefiles" / "river_basins" /
-                f"{self.domain_name}_riverBasins_lumped.shp"
+                f"{self.domain_name}_riverBasins_{method_suffix}.shp"
             )
             watershed_shp_path.parent.mkdir(parents=True, exist_ok=True)
 

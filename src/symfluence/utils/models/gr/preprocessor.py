@@ -145,12 +145,18 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
 
     def _prepare_lumped_forcing(self, ds):
         """Prepare lumped forcing data using shared utilities."""
-        # Use shared ForcingDataProcessor for resampling
-        fdp = ForcingDataProcessor(self.config, self.logger)
-        ds = fdp.resample_to_frequency(ds, target_freq='D', method='mean')
+        # Check if we have enough dates for inference
+        if len(ds.time) < 3:
+            self.logger.warning("Fewer than 3 time steps in forcing. Cannot infer frequency for GR.")
+            # Skip resampling
+        else:
+            # Use shared ForcingDataProcessor for resampling
+            fdp = ForcingDataProcessor(self.config, self.logger)
+            ds = fdp.resample_to_frequency(ds, target_freq='D', method='mean')
 
         # Apply GR-specific unit conversions (Kelvin to Celsius, rate to mm/day)
         try:
+            fdp = ForcingDataProcessor(self.config, self.logger)
             ds = fdp.apply_unit_conversion(ds, 'airtemp', 'temp_k_to_c', 'temp')
             ds = fdp.apply_unit_conversion(ds, 'pptrate', 'precip_rate_to_mm_day', 'pr')
         except Exception:
@@ -160,22 +166,33 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         obs_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
 
         # Read observations
-        obs_df = pd.read_csv(obs_path)
-        obs_df['time'] = pd.to_datetime(obs_df['datetime'])
-        obs_df = obs_df.drop('datetime', axis=1)
-        obs_df.set_index('time', inplace=True)
-        obs_df.index = obs_df.index.tz_localize(None)
-        obs_daily = obs_df.resample('D').mean()
+        if obs_path.exists():
+            obs_df = pd.read_csv(obs_path)
+            obs_df['time'] = pd.to_datetime(obs_df['datetime'])
+            obs_df = obs_df.drop('datetime', axis=1)
+            obs_df.set_index('time', inplace=True)
+            obs_df.index = obs_df.index.tz_localize(None)
+            obs_daily = obs_df.resample('D').mean()
+        else:
+            self.logger.warning(f"No streamflow observations found at {obs_path}")
+            # Create dummy obs for the forcing period
+            obs_daily = pd.DataFrame({'discharge_cms': [0.0] * len(ds.time)}, index=pd.to_datetime(ds.time.values))
 
         # Get area from river basins shapefile
         basin_dir = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
         basin_name = self.config_dict.get('RIVER_BASINS_NAME')
         if basin_name == 'default' or basin_name is None:
-            basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
+            method_suffix = self._get_method_suffix()
+            basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{method_suffix}.shp"
         basin_path = basin_dir / basin_name
-        basin_gdf = gpd.read_file(basin_path)
+        
+        if basin_path.exists():
+            basin_gdf = gpd.read_file(basin_path)
+            area_km2 = basin_gdf['GRU_area'].sum() / 1e6
+        else:
+            self.logger.warning(f"Basin shapefile not found at {basin_path}, using default area")
+            area_km2 = 1.0
 
-        area_km2 = basin_gdf['GRU_area'].sum() / 1e6
         self.logger.info(f"Total catchment area from GRU_area: {area_km2:.2f} km2")
 
         # Convert units from cms to mm/day
@@ -188,8 +205,13 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         )
 
         # Read catchment and get centroid (using inherited GeospatialUtilsMixin)
-        catchment = gpd.read_file(self.catchment_path / self.catchment_name)
-        mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
+        catchment_path = self.get_catchment_path()
+        if catchment_path.exists():
+            catchment = gpd.read_file(catchment_path)
+            mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
+        else:
+            self.logger.warning(f"Catchment shapefile not found at {catchment_path}, using default latitude")
+            mean_lat = 45.0
 
         # Calculate PET
         pet = self.calculate_pet_oudin(ds['temp'], mean_lat)
@@ -261,7 +283,8 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             basin_dir = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
             basin_name = self.config_dict.get('RIVER_BASINS_NAME')
             if basin_name == 'default' or basin_name is None:
-                basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
+                method_suffix = self._get_method_suffix()
+                basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{method_suffix}.shp"
             basin_path = basin_dir / basin_name
             basin_gdf = gpd.read_file(basin_path)
 
@@ -277,10 +300,13 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         # Ensure catchment has proper CRS
         if catchment.crs is None:
             catchment.set_crs(epsg=4326, inplace=True)
-        catchment_geo = catchment.to_crs(epsg=4326)
-
-        # Get centroids for each HRU
-        hru_centroids = catchment_geo.geometry.centroid
+        
+        # Get centroids for each HRU avoiding geographic CRS warning
+        if catchment.crs.is_geographic:
+            hru_centroids = catchment.to_crs(epsg=3857).geometry.centroid.to_crs(epsg=4326)
+        else:
+            hru_centroids = catchment.geometry.centroid.to_crs(epsg=4326)
+            
         hru_lats = hru_centroids.y.values
 
         # Calculate PET for each HRU

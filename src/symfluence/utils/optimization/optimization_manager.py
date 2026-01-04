@@ -3,7 +3,7 @@
 from pathlib import Path
 import logging
 import warnings
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 import pandas as pd
 from datetime import datetime
 import json
@@ -18,6 +18,12 @@ from symfluence.utils.optimization.objective_registry import ObjectiveRegistry
 from symfluence.utils.optimization.transformers import TransformationManager
 from symfluence.utils.optimization.registry import OptimizerRegistry
 from symfluence.utils.optimization.optimization_results_manager import OptimizationResultsManager
+
+# Import for type checking only
+try:
+    from symfluence.utils.config.models import SymfluenceConfig
+except ImportError:
+    SymfluenceConfig = None
 
 class OptimizationManager:
     """
@@ -55,7 +61,7 @@ class OptimizationManager:
         optimizer_methods (Dict[str, str]): Mapping of algorithm names to method names
     """
     
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the Optimization Manager.
         
@@ -64,15 +70,22 @@ class OptimizationManager:
         between optimization algorithms and their implementation classes.
         
         Args:
-            config (Dict[str, Any]): Configuration dictionary containing all settings
-            logger (logging.Logger): Logger instance for recording operations
-            reporting_manager (ReportingManager): ReportingManager instance
+            config: Configuration dictionary or SymfluenceConfig instance
+            logger: Logger instance
+            reporting_manager: ReportingManager instance
             
         Raises:
             KeyError: If essential configuration values are missing
             ImportError: If required optimizer modules cannot be imported
         """
-        self.config = config
+        # Support both typed config and dict config
+        if SymfluenceConfig and isinstance(config, SymfluenceConfig):
+            self.typed_config = config
+            self.config = config.to_dict(flatten=True)
+        else:
+            self.typed_config = None
+            self.config = config
+
         self.logger = logger
         self.reporting_manager = reporting_manager
         
@@ -87,6 +100,9 @@ class OptimizationManager:
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.experiment_id = self.config.get('EXPERIMENT_ID')
         
+        # Use typed config if available for components
+        component_config = self.typed_config if self.typed_config else self.config
+
         # Initialize results manager
         self.results_manager = OptimizationResultsManager(
             self.project_dir,
@@ -96,7 +112,7 @@ class OptimizationManager:
         )
         
         # Initialize transformation manager
-        self.transformation_manager = TransformationManager(self.config, self.logger)
+        self.transformation_manager = TransformationManager(component_config, self.logger)
         
         # Define optimizer mapping
         self.optimizers = {

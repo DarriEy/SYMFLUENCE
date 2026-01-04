@@ -97,8 +97,16 @@ class TRoutePreProcessor(BaseModelPreProcessor):
             self._create_and_fill_nc_var(ncid, 'hru_area_m2', 'f8', 'nhru', shp_basin[self.config_dict.get('RIVER_BASIN_SHP_AREA')], 'HRU area', 'm^2')
 
             # Add required placeholder variables with sensible defaults
-            shp_river['lat'] = shp_river.geometry.centroid.y
-            shp_river['lon'] = shp_river.geometry.centroid.x
+            # Calculate centroids in projected CRS to avoid UserWarning about geographic CRS
+            if shp_river.crs and shp_river.crs.is_geographic:
+                # Use Web Mercator (EPSG:3857) for temporary projection
+                # This avoids the warning while providing reasonable centroid for this purpose
+                centroids = shp_river.to_crs(epsg=3857).geometry.centroid.to_crs(shp_river.crs)
+            else:
+                centroids = shp_river.geometry.centroid
+
+            shp_river['lat'] = centroids.y
+            shp_river['lon'] = centroids.x
             self._create_and_fill_nc_var(ncid, 'lat', 'f8', 'link', shp_river['lat'], 'Latitude of segment midpoint', 'degrees_north')
             self._create_and_fill_nc_var(ncid, 'lon', 'f8', 'link', shp_river['lon'], 'Longitude of segment midpoint', 'degrees_east')
             self._create_and_fill_nc_var(ncid, 'alt', 'f8', 'link', [0.0] * len(shp_river), 'Mean elevation of segment', 'meters')

@@ -137,6 +137,10 @@ class ForcingDataProcessor:
             self.logger.warning(f"Dataset has no '{time_var}' coordinate, skipping subset")
             return ds
 
+        # Ensure unique time index if we have overlaps in loaded datasets
+        if time_var in ds.dims and len(ds[time_var]) > 0:
+            ds = ds.drop_duplicates(dim=time_var)
+
         original_len = len(ds[time_var])
         ds = ds.sel({time_var: slice(start_time, end_time)})
         new_len = len(ds[time_var])

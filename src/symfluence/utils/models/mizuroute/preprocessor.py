@@ -49,8 +49,14 @@ class MizuRoutePreProcessor(BaseModelPreProcessor):
         if self.config:
             needs_remap = self.config.model.mizuroute.needs_remap if self.config.model.mizuroute else False
             from_model = self.config.model.mizuroute.from_model if self.config.model.mizuroute else None
-            fuse_routing = self.config.model.fuse.routing_integration if self.config.model.fuse else None
-            gr_routing = self.config.model.gr.routing_integration if self.config.model.gr else None
+            fuse_routing = self._resolve_config_value(
+                lambda: self.config.model.fuse.routing_integration if self.config.model.fuse else None,
+                'FUSE_ROUTING_INTEGRATION'
+            )
+            gr_routing = self._resolve_config_value(
+                lambda: self.config.model.gr.routing_integration if self.config.model.gr else None,
+                'GR_ROUTING_INTEGRATION'
+            )
         else:
             needs_remap = self.config_dict.get('SETTINGS_MIZU_NEEDS_REMAP')
             from_model = self.config_dict.get('MIZU_FROM_MODEL')
@@ -256,8 +262,12 @@ class MizuRoutePreProcessor(BaseModelPreProcessor):
         
         # Create a simple point geometry at the centroid of the original (if it exists)
         if not shp_river.empty and shp_river.geometry.iloc[0] is not None:
-            # Use the centroid of the first geometry
-            synthetic_geom = shp_river.geometry.iloc[0].centroid
+            # Use the centroid of the first geometry, handling CRS projection
+            first_geom_series = gpd.GeoSeries([shp_river.geometry.iloc[0]], crs=shp_river.crs)
+            if shp_river.crs and shp_river.crs.is_geographic:
+                synthetic_geom = first_geom_series.to_crs(epsg=3857).centroid.to_crs(shp_river.crs).iloc[0]
+            else:
+                synthetic_geom = first_geom_series.centroid.iloc[0]
         else:
             # Create a default point geometry (this won't be used for actual routing)
             from shapely.geometry import Point
@@ -277,9 +287,10 @@ class MizuRoutePreProcessor(BaseModelPreProcessor):
         
         river_network_path = self.config_dict.get('RIVER_NETWORK_SHP_PATH')
         river_network_name = self.config_dict.get('RIVER_NETWORK_SHP_NAME')
+        method_suffix = self._get_method_suffix()
 
         if river_network_name == 'default':
-            river_network_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverNetwork_{self.config_dict.get('DOMAIN_DEFINITION_METHOD','delineate')}.shp"
+            river_network_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverNetwork_{method_suffix}.shp"
         
         if river_network_path == 'default':
             river_network_path = self.project_dir / 'shapefiles/river_network'
@@ -290,7 +301,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor):
         river_basin_name = self.config_dict.get('RIVER_BASINS_NAME')
 
         if river_basin_name == 'default':
-            river_basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
+            river_basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{method_suffix}.shp"
 
         if river_basin_path == 'default':
             river_basin_path = self.project_dir / 'shapefiles/river_basins'

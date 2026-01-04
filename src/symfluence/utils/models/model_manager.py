@@ -13,7 +13,7 @@ from symfluence.utils.data.utilities.archive_utils import tar_directory # type: 
 
 # Import for type checking only (avoid circular imports)
 try:
-    from symfluence.utils.config.models_v2 import SymfluenceConfig
+    from symfluence.utils.config.models import SymfluenceConfig
 except ImportError:
     SymfluenceConfig = None
 
@@ -136,13 +136,16 @@ class ModelManager:
                 # Run model-specific preprocessing
                 self.logger.info(f"Running preprocessor for {model}")
                 
+                # Use typed config if available to avoid deprecation warnings
+                component_config = self.typed_config if self.typed_config else self.config
+                
                 # Check if preprocessor accepts params
                 import inspect
                 sig = inspect.signature(preprocessor_class.__init__)
                 if 'params' in sig.parameters:
-                    preprocessor = preprocessor_class(self.config, self.logger, params=params)
+                    preprocessor = preprocessor_class(component_config, self.logger, params=params)
                 else:
-                    preprocessor = preprocessor_class(self.config, self.logger)
+                    preprocessor = preprocessor_class(component_config, self.logger)
                     
                 preprocessor.run_preprocessing()
 
@@ -161,6 +164,9 @@ class ModelManager:
         workflow = self._resolve_model_workflow()
         self.logger.info(f"Execution workflow order: {workflow}")
         
+        # Use typed config if available to avoid deprecation warnings
+        component_config = self.typed_config if self.typed_config else self.config
+        
         for model in workflow:
             try:
                 self.logger.info(f"Running model: {model}")
@@ -169,7 +175,7 @@ class ModelManager:
                     self.logger.error(f"Unknown hydrological model or no runner registered: {model}")
                     continue
 
-                runner = runner_class(self.config, self.logger, reporting_manager=self.reporting_manager)
+                runner = runner_class(component_config, self.logger, reporting_manager=self.reporting_manager)
                 method_name = ModelRegistry.get_runner_method(model)
                 if method_name and hasattr(runner, method_name):
                     getattr(runner, method_name)()
@@ -189,6 +195,9 @@ class ModelManager:
         
         workflow = self._resolve_model_workflow()
         
+        # Use typed config if available to avoid deprecation warnings
+        component_config = self.typed_config if self.typed_config else self.config
+        
         for model in workflow:
             try:
                 # Get postprocessor class from registry
@@ -199,7 +208,7 @@ class ModelManager:
                 
                 self.logger.info(f"Post-processing {model}")
                 # Create postprocessor instance
-                postprocessor = postprocessor_class(self.config, self.logger, reporting_manager=self.reporting_manager)
+                postprocessor = postprocessor_class(component_config, self.logger, reporting_manager=self.reporting_manager)
                 
                 # Run postprocessing
                 if hasattr(postprocessor, 'extract_streamflow'):

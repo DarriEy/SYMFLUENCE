@@ -356,20 +356,49 @@ class AcquisitionService:
     def acquire_observations(self):
         """
         Acquire additional observations based on configuration.
-        This handles registry-based observations (GRACE, MODIS, etc.) 
+        This handles registry-based observations (GRACE, MODIS, etc.)
         that require an 'acquire' step before processing.
         """
         from symfluence.utils.data.observation.registry import ObservationRegistry
-        
+
         additional_obs = self.config.get('ADDITIONAL_OBSERVATIONS', [])
         if isinstance(additional_obs, str):
             additional_obs = [o.strip() for o in additional_obs.split(',')]
-            
+
+        # Auto-detect observation types based on config flags (matching process_observed_data logic)
+        streamflow_provider = (self.config.get('STREAMFLOW_DATA_PROVIDER') or '').upper()
+        if streamflow_provider == 'USGS' and 'USGS_STREAMFLOW' not in additional_obs:
+            additional_obs.append('USGS_STREAMFLOW')
+        elif streamflow_provider == 'WSC' and 'WSC_STREAMFLOW' not in additional_obs:
+            additional_obs.append('WSC_STREAMFLOW')
+
+        # Check for USGS Groundwater download
+        download_usgs_gw = self.config.get('DOWNLOAD_USGS_GW', False)
+        if isinstance(download_usgs_gw, str):
+            download_usgs_gw = download_usgs_gw.lower() == 'true'
+        if download_usgs_gw and 'USGS_GW' not in additional_obs:
+            additional_obs.append('USGS_GW')
+
+        # Check for MODIS Snow
+        if self.config.get('DOWNLOAD_MODIS_SNOW', False) and 'MODIS_SNOW' not in additional_obs:
+            additional_obs.append('MODIS_SNOW')
+
+        # Check for SNOTEL
+        download_snotel = self.config.get('DOWNLOAD_SNOTEL', False)
+        if isinstance(download_snotel, str):
+            download_snotel = download_snotel.lower() == 'true'
+        if download_snotel and 'SNOTEL' not in additional_obs:
+            additional_obs.append('SNOTEL')
+
+        # Check for GRACE
+        if self.config.get('DOWNLOAD_GRACE', False) and 'GRACE' not in additional_obs:
+            additional_obs.append('GRACE')
+
         if not additional_obs:
             return
 
         self.logger.info(f"Acquiring additional observations: {additional_obs}")
-        
+
         for obs_type in additional_obs:
             try:
                 if ObservationRegistry.is_registered(obs_type):

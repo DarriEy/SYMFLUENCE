@@ -526,7 +526,8 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
                     save(OutputsCalib, file = "{str(self.output_path / 'GR_calib.Rdata')}")
                     Param <- OutputsCalib$ParamFinalR
                 }} else {{
-                    Param <- c(X1={default_params[0]}, X2={default_params[1]}, X3={default_params[2]}, X4={default_params[3]})
+                    # Add default CemaNeige parameters (CTG=0.0, Kf=3.69) to the 4 GR4J parameters
+                    Param <- c(X1={default_params[0]}, X2={default_params[1]}, X3={default_params[2]}, X4={default_params[3]}, CTG=0.0, Kf=3.69)
                 }}
 
                 # Preparation of RunOptions for full simulation

@@ -18,6 +18,9 @@ from utils.geospatial import (
 from utils.helpers import write_config
 
 
+from symfluence.utils.config.models import SymfluenceConfig
+
+
 pytestmark = [pytest.mark.integration, pytest.mark.domain, pytest.mark.requires_data, pytest.mark.slow]
 
 
@@ -27,23 +30,23 @@ def config_path(bow_domain, tmp_path, symfluence_code_dir):
     # Load template
     from utils.helpers import load_config_template
 
-    config = load_config_template(symfluence_code_dir)
+    config_dict = load_config_template(symfluence_code_dir)
 
     # Update paths
     # bow_domain is the path to the domain directory (e.g. .../domain_Bow_at_Banff_lumped)
-    config['SYMFLUENCE_DATA_DIR'] = str(bow_domain.parent)
-    config['SYMFLUENCE_CODE_DIR'] = str(symfluence_code_dir)
+    config_dict['SYMFLUENCE_DATA_DIR'] = str(bow_domain.parent)
+    config_dict['SYMFLUENCE_CODE_DIR'] = str(symfluence_code_dir)
 
     # Domain settings from notebook 02a
     # Extract domain name from directory name (remove 'domain_' prefix)
     domain_name = bow_domain.name.replace("domain_", "")
-    config['DOMAIN_NAME'] = domain_name
-    config['EXPERIMENT_ID'] = f'test_{tmp_path.name}'  # Unique test experiment ID
-    config['POUR_POINT_COORDS'] = '51.1722/-115.5717'
+    config_dict['DOMAIN_NAME'] = domain_name
+    config_dict['EXPERIMENT_ID'] = f'test_{tmp_path.name}'  # Unique test experiment ID
+    config_dict['POUR_POINT_COORDS'] = '51.1722/-115.5717'
 
     # Lumped basin settings
-    config['DOMAIN_DEFINITION_METHOD'] = 'lumped'
-    config['DOMAIN_DISCRETIZATION'] = 'GRUs'
+    config_dict['DOMAIN_DEFINITION_METHOD'] = 'lumped'
+    config_dict['DOMAIN_DISCRETIZATION'] = 'GRUs'
     
     # Handle different naming conventions in data bundles
     # River basins
@@ -54,7 +57,17 @@ def config_path(bow_domain, tmp_path, symfluence_code_dir):
             shps = list(river_basins_dir.glob("*.shp"))
             if shps:
                 river_basins_name = shps[0].name
-    config['RIVER_BASINS_NAME'] = river_basins_name
+    config_dict['RIVER_BASINS_NAME'] = river_basins_name
+
+    # River network
+    river_network_name = f'{domain_name}_riverNetwork_lumped.shp'
+    river_network_dir = bow_domain / "shapefiles" / "river_network"
+    if not (river_network_dir / river_network_name).exists():
+        if river_network_dir.exists():
+            shps = list(river_network_dir.glob("*.shp"))
+            if shps:
+                river_network_name = shps[0].name
+    config_dict['RIVER_NETWORK_NAME'] = river_network_name
 
     # Catchment/HRUs
     catchment_name = f'{domain_name}_HRUs_GRUs.shp'
@@ -64,26 +77,35 @@ def config_path(bow_domain, tmp_path, symfluence_code_dir):
             shps = list(catchment_dir.glob("*.shp"))
             if shps:
                 catchment_name = shps[0].name
-    config['CATCHMENT_SHP_NAME'] = catchment_name
+    config_dict['CATCHMENT_SHP_NAME'] = catchment_name
 
     # Optimized: 5-day period for faster testing (was 31 days)
-    config['EXPERIMENT_TIME_START'] = '2004-01-01 01:00'
-    config['EXPERIMENT_TIME_END'] = '2004-01-05 23:00'
-    config['CALIBRATION_PERIOD'] = '2004-01-02, 2004-01-04'
-    config['EVALUATION_PERIOD'] = '2004-01-05, 2004-01-05'
-    config['SPINUP_PERIOD'] = '2004-01-01, 2004-01-01'
+    config_dict['EXPERIMENT_TIME_START'] = '2004-01-01 01:00'
+    config_dict['EXPERIMENT_TIME_END'] = '2004-01-05 23:00'
+    config_dict['CALIBRATION_PERIOD'] = '2004-01-02, 2004-01-04'
+    config_dict['EVALUATION_PERIOD'] = '2004-01-05, 2004-01-05'
+    config_dict['SPINUP_PERIOD'] = '2004-01-01, 2004-01-01'
 
     # Streamflow
-    config['STATION_ID'] = '05BB001'
-    config['DOWNLOAD_WSC_DATA'] = False
+    config_dict['STATION_ID'] = '05BB001'
+    config_dict['DOWNLOAD_WSC_DATA'] = False
 
     # Minimal calibration for testing (1 iteration)
-    config['NUMBER_OF_ITERATIONS'] = 1
-    config['RANDOM_SEED'] = 42  # Fixed seed for reproducibility
+    config_dict['NUMBER_OF_ITERATIONS'] = 1
+    config_dict['RANDOM_SEED'] = 42  # Fixed seed for reproducibility
 
-    # Save config
+    # Ensure required fields for SymfluenceConfig are present
+    if 'HYDROLOGICAL_MODEL' not in config_dict:
+        config_dict['HYDROLOGICAL_MODEL'] = 'SUMMA'
+    if 'FORCING_DATASET' not in config_dict:
+        config_dict['FORCING_DATASET'] = 'ERA5'
+
+    # Create and validate SymfluenceConfig
+    config = SymfluenceConfig(**config_dict)
+
+    # Save config back to YAML for SYMFLUENCE initialization
     cfg_path = tmp_path / 'test_config.yaml'
-    write_config(config, cfg_path)
+    write_config(config.to_dict(flatten=True), cfg_path)
 
     return cfg_path, config
 
@@ -92,9 +114,17 @@ def _prune_raw_forcing(project_dir: Path, keep_glob: str) -> None:
     raw_dir = project_dir / "forcing" / "raw_data"
     if not raw_dir.exists():
         return
+    
+    # Try multiple globs to support both old and new names
     candidates = sorted(raw_dir.glob(keep_glob))
     if not candidates:
+        # Try a more generic pattern if the specific one fails
+        if "ERA5" in keep_glob:
+            candidates = sorted(raw_dir.glob("*ERA5*1month*.nc"))
+    
+    if not candidates:
         return
+        
     keep = candidates[0]
     for path in raw_dir.glob("*.nc"):
         if path != keep:
@@ -138,59 +168,63 @@ def test_lumped_basin_workflow(config_path, model):
     6. Run model
     7. Calibrate model
     """
-    cfg_path, config = config_path
+    cfg_path, typed_config = config_path
+    config_dict = typed_config.to_dict(flatten=True)
 
     # Update model in config
-    config['HYDROLOGICAL_MODEL'] = model
+    config_dict['HYDROLOGICAL_MODEL'] = model
     if model == 'SUMMA':
-        config['ROUTING_MODEL'] = 'mizuRoute'
-        config['PARAMS_TO_CALIBRATE'] = 'k_soil,theta_sat'
-        config['BASIN_PARAMS_TO_CALIBRATE'] = 'routingGammaScale'
+        config_dict['ROUTING_MODEL'] = 'mizuRoute'
+        config_dict['PARAMS_TO_CALIBRATE'] = 'k_soil,theta_sat'
+        config_dict['BASIN_PARAMS_TO_CALIBRATE'] = 'routingGammaScale'
     elif model == 'FUSE':
-        config['FUSE_SPATIAL_MODE'] = 'lumped'
-        config['SETTINGS_FUSE_PARAMS_TO_CALIBRATE'] = 'MAXWATR_1,MAXWATR_2,BASERTE'
+        config_dict['FUSE_SPATIAL_MODE'] = 'lumped'
+        config_dict['SETTINGS_FUSE_PARAMS_TO_CALIBRATE'] = 'MAXWATR_1,MAXWATR_2,BASERTE'
     elif model == 'GR':
-        config['GR_SPATIAL_MODE'] = 'lumped'
-        config['GR_SKIP_CALIBRATION'] = True
+        config_dict['GR_SPATIAL_MODE'] = 'lumped'
+        config_dict['GR_SKIP_CALIBRATION'] = True
     elif model == 'NGEN':
-        config['NGEN_MODULES_TO_CALIBRATE'] = 'CFE'
-        config['NGEN_CFE_PARAMS_TO_CALIBRATE'] = 'smcmax,satdk,bb'
+        config_dict['NGEN_MODULES_TO_CALIBRATE'] = 'CFE'
+        config_dict['NGEN_CFE_PARAMS_TO_CALIBRATE'] = 'smcmax,satdk,bb'
         # Point to ngen install in data directory
-        config['NGEN_INSTALL_PATH'] = str(Path(config['SYMFLUENCE_DATA_DIR']) / 'installs' / 'ngen' / 'cmake_build')
+        config_dict['NGEN_INSTALL_PATH'] = str(Path(config_dict['SYMFLUENCE_DATA_DIR']) / 'installs' / 'ngen' / 'cmake_build')
     elif model == 'LSTM':
-        config['LSTM_EPOCHS'] = 1
-        config['LSTM_LOOKBACK'] = 24
-        config['LSTM_HIDDEN_SIZE'] = 16
-        config['LSTM_BATCH_SIZE'] = 4
+        config_dict['LSTM_EPOCHS'] = 1
+        config_dict['LSTM_LOOKBACK'] = 24
+        config_dict['LSTM_HIDDEN_SIZE'] = 16
+        config_dict['LSTM_BATCH_SIZE'] = 4
     elif model == 'HYPE':
-        config['HYPE_TIMESHIFT'] = 0
-        config['HYPE_SPINUP_DAYS'] = 0
-        config['HYPE_FRAC_THRESHOLD'] = 0.1
+        config_dict['HYPE_TIMESHIFT'] = 0
+        config_dict['HYPE_SPINUP_DAYS'] = 0
+        config_dict['HYPE_FRAC_THRESHOLD'] = 0.1
         # HYPE calibration not yet fully implemented in this test
-        config['HYPE_SKIP_CALIBRATION'] = True
+        config_dict['HYPE_SKIP_CALIBRATION'] = True
     elif model == 'MESH':
         # MESH configuration
-        config['MESH_SKIP_CALIBRATION'] = True
+        config_dict['MESH_SKIP_CALIBRATION'] = True
         # Point to MESH install in data directory
-        config['MESH_INSTALL_PATH'] = str(Path(config['SYMFLUENCE_DATA_DIR']) / 'installs' / 'MESH-Dev')
-        config['MESH_EXE'] = 'sa_mesh'
+        config_dict['MESH_INSTALL_PATH'] = str(Path(config_dict['SYMFLUENCE_DATA_DIR']) / 'installs' / 'mesh' / 'bin')
+        config_dict['MESH_EXE'] = 'mesh.exe'
 
-    # Save updated config
+    # Create new validated typed config with model-specific overrides
+    config = SymfluenceConfig(**config_dict)
+
+    # Save updated config to YAML
     with open(cfg_path, 'w') as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+        yaml.dump(config.to_dict(flatten=True), f, default_flow_style=False, sort_keys=False)
 
     baseline_dir = (
-        Path(config["SYMFLUENCE_DATA_DIR"])
-        / f"domain_{config['DOMAIN_NAME']}"
+        Path(config.system.data_dir)
+        / f"domain_{config.domain.name}"
         / "shapefiles"
     )
     baseline_river_basins = (
         baseline_dir
         / "river_basins"
-        / config.get("RIVER_BASINS_NAME", f"{config['DOMAIN_NAME']}_riverBasins_lumped.shp")
+        / config.paths.river_basins_name
     )
     baseline_hrus = (
-        baseline_dir / "catchment" / config.get("CATCHMENT_SHP_NAME", f"{config['DOMAIN_NAME']}_HRUs_GRUs.shp")
+        baseline_dir / "catchment" / config.paths.catchment_name
     )
     assert baseline_river_basins.exists(), f"Baseline river basins shapefile missing: {baseline_river_basins}"
     assert baseline_hrus.exists(), f"Baseline HRU shapefile missing: {baseline_hrus}"
@@ -207,7 +241,7 @@ def test_lumped_basin_workflow(config_path, model):
     pour_point_path = symfluence.managers['project'].create_pour_point()
     if pour_point_path is None:
         existing_pour_point = (
-            project_dir / "shapefiles" / "pour_point" / f"{config['DOMAIN_NAME']}_pourPoint.shp"
+            project_dir / "shapefiles" / "pour_point" / f"{config.domain.name}_pourPoint.shp"
         )
         assert existing_pour_point.exists(), "Pour point shapefile should be created"
     else:
@@ -218,14 +252,14 @@ def test_lumped_basin_workflow(config_path, model):
     # Step 2: Define domain (watershed delineation)
     watershed_path, delineation_artifacts = symfluence.managers['domain'].define_domain()
     assert (
-        delineation_artifacts.method == config["DOMAIN_DEFINITION_METHOD"]
+        delineation_artifacts.method == config.domain.definition_method
     ), "Delineation method mismatch"
     # watershed_path can be None for lumped domains that use existing data
 
     # Step 3: Discretize domain
     hru_path, discretization_artifacts = symfluence.managers['domain'].discretize_domain()
     assert (
-        discretization_artifacts.method == config["DOMAIN_DISCRETIZATION"]
+        discretization_artifacts.method == config.domain.discretization
     ), "Discretization method mismatch"
 
     # Verify geospatial artifacts (02a)
@@ -233,12 +267,12 @@ def test_lumped_basin_workflow(config_path, model):
     river_basins_path = delineation_artifacts.river_basins_path or (
         shapefile_dir
         / "river_basins"
-        / config.get("RIVER_BASINS_NAME", f"{config['DOMAIN_NAME']}_riverBasins_lumped.shp")
+        / config.paths.river_basins_name
     )
     hrus_path = (
         discretization_artifacts.hru_paths
         if isinstance(discretization_artifacts.hru_paths, Path)
-        else shapefile_dir / "catchment" / config.get("CATCHMENT_SHP_NAME", f"{config['DOMAIN_NAME']}_HRUs_GRUs.shp")
+        else shapefile_dir / "catchment" / config.paths.catchment_name
     )
     assert river_basins_path.exists()
     assert hrus_path.exists()
@@ -252,20 +286,20 @@ def test_lumped_basin_workflow(config_path, model):
     symfluence.managers['model'].preprocess_models()
 
     # Step 6: Run model
-    # Check for HYPE binary if needed
+    # Check for binary if needed
     if model == 'HYPE':
-        hype_exe = Path(config.get('SYMFLUENCE_DATA_DIR')) / 'installs' / 'hype' / config.get('HYPE_EXE', 'hype')
+        hype_exe = Path(config.system.data_dir) / 'installs' / 'hype' / 'bin' / 'hype'
         if not hype_exe.exists():
             pytest.skip(f"HYPE binary not found at {hype_exe}, skipping run and calibration")
     elif model == 'MESH':
-        mesh_exe = Path(config.get('MESH_INSTALL_PATH', '')) / config.get('MESH_EXE', 'sa_mesh')
+        mesh_exe = Path(config.system.data_dir) / 'installs' / 'mesh' / 'bin' / 'mesh.exe'
         if not mesh_exe.exists():
             pytest.skip(f"MESH binary not found at {mesh_exe}, skipping run and calibration")
 
     symfluence.managers['model'].run_models()
 
     # Check model output exists
-    sim_dir = project_dir / "simulations" / config['EXPERIMENT_ID'] / model
+    sim_dir = project_dir / "simulations" / config.domain.experiment_id / model
     assert sim_dir.exists(), f"{model} simulation output directory should exist"
 
     # Step 7: Calibrate model
@@ -275,7 +309,6 @@ def test_lumped_basin_workflow(config_path, model):
     else:
         results_file = symfluence.managers['optimization'].calibrate_model()
         assert results_file is not None, "Calibration should produce results"
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

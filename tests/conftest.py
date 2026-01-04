@@ -52,6 +52,18 @@ def pytest_addoption(parser):
         default=False,
         help="Run tests requiring cloud access (credentials + network)",
     )
+    parser.addoption(
+        "--run-full-examples",
+        action="store_true",
+        default=False,
+        help="Run full example tests (multi-year workflows with optimization)",
+    )
+    parser.addoption(
+        "--clear-cache",
+        action="store_true",
+        default=False,
+        help="Clear cached data before running tests (forces re-download)",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
@@ -68,6 +80,14 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "requires_cloud" in item.keywords or "requires_acquisition" in item.keywords:
                 item.add_marker(skip_cloud)
+
+    if not config.getoption("--run-full-examples"):
+        skip_full_examples = pytest.mark.skip(
+            reason="Skipped full example tests (use --run-full-examples to enable)"
+        )
+        for item in items:
+            if "full_examples" in item.keywords:
+                item.add_marker(skip_full_examples)
 
 
 @pytest.fixture(scope="session")
@@ -116,6 +136,17 @@ def tests_dir():
 def config_template(symfluence_code_dir):
     """Load configuration template for tests."""
     return load_config_template(symfluence_code_dir)
+
+
+@pytest.fixture(scope="session")
+def clear_cache_flag(request):
+    """
+    Returns True if --clear-cache flag was passed.
+
+    Use this fixture in tests to determine whether to clear cached data
+    before running acquisition steps.
+    """
+    return request.config.getoption("--clear-cache")
 
 
 @pytest.fixture(scope="session")

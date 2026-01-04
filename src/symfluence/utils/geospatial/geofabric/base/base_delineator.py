@@ -20,7 +20,10 @@ from pathlib import Path
 from typing import Dict, Any
 
 
-class BaseGeofabricDelineator(ABC):
+from symfluence.utils.common.path_resolver import PathResolverMixin
+
+
+class BaseGeofabricDelineator(ABC, PathResolverMixin):
     """
     Abstract base class for all geofabric delineators.
 

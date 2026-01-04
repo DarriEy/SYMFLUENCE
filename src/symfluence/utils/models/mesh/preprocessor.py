@@ -148,6 +148,14 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             
         self.copy_settings_to_forcing()
 
+        # Fix for MESH 1.4 compatibility: Create split parameter files from MESH_parameters.txt
+        params_txt = self.forcing_dir / "MESH_parameters.txt"
+        if params_txt.exists():
+            import shutil
+            self.logger.info("Creating MESH_parameters_CLASS.ini and MESH_parameters_hydrology.ini for MESH 1.4")
+            shutil.copy2(params_txt, self.forcing_dir / "MESH_parameters_CLASS.ini")
+            shutil.copy2(params_txt, self.forcing_dir / "MESH_parameters_hydrology.ini")
+
     def copy_settings_to_forcing(self) -> None:
         """Copy MESH settings files from setup_dir to forcing_dir."""
         self.logger.info(f"Copying MESH settings from {self.setup_dir} to {self.forcing_dir}")
@@ -180,12 +188,13 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         content = f"""MESH input run options file                             # comment line 1                                | * 
 ##### Control Flags #####                               # comment line 2                                | * 
 ----#                                                   # comment line 3                                | * 
-   12                                                   # Number of control flags                       | I5
+   13                                                   # Number of control flags                       | I5
 SHDFILEFLAG         nc                                  # Drainage database format (nc = NetCDF)
-BASINFORCINGFLAG    1                                   # Forcing file format (1=NetCDF)
+BASINFORCINGFLAG    nc                                  # Forcing file format (nc = NetCDF in 1.4)
 RUNMODE             runclass                            # Run mode (runclass = CLASS + Routing)
-RESUMEFLAG          0                                   # Resume from state (0=No)
-SAVERESUMEFLAG      1                                   # Save final state (1=Yes)
+INPUTPARAMSFORMFLAG only txt                            # Parameter file format (txt = MESH_parameters.txt)
+RESUMEFLAG          off                                   # Resume from state (0=No)
+SAVERESUMEFLAG      off                                   # Save final state (1=Yes)
 TIMESTEPFLAG        60                                  # Time step in minutes (default 60)
 OUTFIELDSFLAG       all                                 # Output fields (all, none, default)
 BASINRUNOFFFLAG     ts                                  # Runoff output format (ts = time series)
@@ -370,7 +379,7 @@ INTERPOLATIONFLAG   0                                   # Interpolation (0=No)
             'ddb_min_values': _get_config_value('MESH_DDB_MIN_VALUES', default_ddb_min_values),
             'ddb_local_attrs': filtered_ddb_local_attrs,
             'gru_dim': _get_config_value('MESH_GRU_DIM', 'NGRU'),
-            'hru_dim': _get_config_value('MESH_HRU_DIM', 'subbasin'),
+            'hru_dim': _get_config_value('MESH_HRU_DIM', 'N'),
             'outlet_value': _get_config_value('MESH_OUTLET_VALUE', 0),
         }
         return config
@@ -415,9 +424,13 @@ INTERPOLATIONFLAG   0                                   # Interpolation (0=No)
             self._sanitize_shapefile(str(riv_copy))
             self._sanitize_shapefile(str(cat_copy))
 
+            # Sanitize landcover stats
+            sanitized_landcover = self._sanitize_landcover_stats(config.get('landcover'))
+
             # Update config with sanitized copies
             config['riv'] = str(riv_copy)
             config['cat'] = str(cat_copy)
+            config['landcover'] = str(sanitized_landcover)
 
             import meshflow
             self.logger.info(f"meshflow version: {getattr(meshflow, '__version__', 'unknown')}")
@@ -511,6 +524,51 @@ INTERPOLATIONFLAG   0                                   # Interpolation (0=No)
             self.logger.info("Saving MESH drainage database and forcing files")
             exp.save(str(self.forcing_dir))
 
+            # Rename variables in MESH_forcing.nc for MESH 1.4 compatibility
+            forcing_nc = self.forcing_dir / "MESH_forcing.nc"
+            if forcing_nc.exists():
+                try:
+                    self.logger.info("Renaming forcing variables for MESH 1.4 compatibility")
+                    import xarray as xr
+                    with xr.open_dataset(forcing_nc) as ds:
+                        rename_map = {
+                            'airpres': 'PRES',
+                            'spechum': 'QA',
+                            'airtemp': 'TA',
+                            'windspd': 'UV',
+                            'pptrate': 'PRE',
+                            'SWRadAtm': 'FSIN',
+                            'LWRadAtm': 'FLIN'
+                        }
+                        # Only rename if they exist
+                        existing_rename = {k: v for k, v in rename_map.items() if k in ds.variables}
+                        if existing_rename:
+                            ds_renamed = ds.rename(existing_rename)
+                            # Ensure dimension order is (time, N)
+                            # MESH usually prefers time first for NetCDF forcing
+                            if 'time' in ds_renamed.dims and 'N' in ds_renamed.dims:
+                                ds_renamed = ds_renamed.transpose('time', 'N')
+                            
+                            temp_path = forcing_nc.with_suffix('.tmp.nc')
+                            ds_renamed.to_netcdf(temp_path)
+                            ds_renamed.close()
+                            os.replace(temp_path, forcing_nc)
+                    
+                    # Symlink to split names expected by MESH 1.4 Driver
+                    split_names = [
+                        "basin_shortwave.nc", "basin_longwave.nc", "basin_rain.nc",
+                        "basin_temperature.nc", "basin_wind.nc", "basin_pres.nc",
+                        "basin_humidity.nc", "WR_runoff.nc"
+                    ]
+                    for name in split_names:
+                        dst = self.forcing_dir / name
+                        if dst.exists():
+                            dst.unlink()
+                        os.symlink(forcing_nc.name, dst)
+                    self.logger.info("Created component symlinks for NetCDF forcing")
+                except Exception as e:
+                    self.logger.warning(f"Failed to rename forcing variables or create symlinks: {e}")
+
             self.logger.info("MESH preprocessing completed successfully")
         except FileNotFoundError as e:
             self.logger.warning(f"MESH preprocessing skipped - file not found: {str(e)}")
@@ -539,3 +597,54 @@ INTERPOLATIONFLAG   0                                   # Interpolation (0=No)
                 gdf.to_file(path)
         except Exception as e:
             self.logger.warning(f"Failed to sanitize shapefile {path}: {e}")
+
+    def _sanitize_landcover_stats(self, csv_path: str) -> str:
+        """
+        Sanitize landcover stats CSV for meshflow compatibility.
+        Removes IGBP_ prefix from column names.
+        
+        Args:
+            csv_path: Path to the landcover stats CSV
+            
+        Returns:
+            Path to the sanitized CSV file
+        """
+        if not csv_path:
+            return csv_path
+            
+        path = Path(csv_path)
+        if not path.exists():
+            return csv_path
+            
+        try:
+            import pandas as pd
+            df = pd.read_csv(path)
+            
+            # Remove Unnamed: 0 or similar index columns
+            cols_to_drop = [col for col in df.columns if 'Unnamed' in col]
+            if cols_to_drop:
+                df = df.drop(columns=cols_to_drop)
+            
+            # Check if columns have IGBP_ prefix
+            has_prefix = any(col.startswith('IGBP_') for col in df.columns)
+            
+            if has_prefix or cols_to_drop:
+                self.logger.info(f"Sanitizing landcover stats {path.name}: removing IGBP_ prefix and/or index")
+                
+                def rename_col(col):
+                    if col.startswith('IGBP_'):
+                        return col.replace('IGBP_', '')
+                    return col
+                    
+                df = df.rename(columns=rename_col)
+                
+                # Save to a temp file in forcing directory to avoid modifying source
+                temp_path = self.forcing_dir / f"temp_{path.name}"
+                df.to_csv(temp_path, index=False)
+                return str(temp_path)
+                
+            return csv_path
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to sanitize landcover stats {path}: {e}")
+            return csv_path

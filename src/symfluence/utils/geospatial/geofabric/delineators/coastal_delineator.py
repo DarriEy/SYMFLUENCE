@@ -59,8 +59,9 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             self.logger.info(f"Starting coastal watershed delineation for {self.domain_name}")
 
             # Get paths to existing delineated river basins and network
-            river_basins_path = self.project_dir / "shapefiles" / "river_basins" / f"{self.domain_name}_riverBasins_delineate.shp"
-            river_network_path = self.project_dir / "shapefiles" / "river_network" / f"{self.domain_name}_riverNetwork_delineate.shp"
+            method_suffix = self._get_method_suffix()
+            river_basins_path = self.project_dir / "shapefiles" / "river_basins" / f"{self.domain_name}_riverBasins_{method_suffix}.shp"
+            river_network_path = self.project_dir / "shapefiles" / "river_network" / f"{self.domain_name}_riverNetwork_{method_suffix}.shp"
 
             if not river_basins_path.exists() or not river_network_path.exists():
                 self.logger.error("River basins or network files not found. Run delineate_geofabric first.")
@@ -292,9 +293,10 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             river_network_dir.mkdir(parents=True, exist_ok=True)
 
             # Define output paths
-            river_basins_path = river_basins_dir / f"{self.domain_name}_riverBasins_point.shp"
-            catchment_path = catchment_dir / f"{self.domain_name}_HRUs_point.shp"
-            river_network_path = river_network_dir / f"{self.domain_name}_riverNetwork_point.shp"
+            method_suffix = self._get_method_suffix()
+            river_basins_path = river_basins_dir / f"{self.domain_name}_riverBasins_{method_suffix}.shp"
+            catchment_path = catchment_dir / f"{self.domain_name}_HRUs_{method_suffix}.shp"
+            river_network_path = river_network_dir / f"{self.domain_name}_riverNetwork_{method_suffix}.shp"
 
             # Save shapefiles
             gdf.to_file(river_basins_path)

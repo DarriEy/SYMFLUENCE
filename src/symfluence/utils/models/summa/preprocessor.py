@@ -63,8 +63,8 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         self.river_network_path = self._get_default_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network')
         self.river_network_name = self.config_dict.get('RIVER_NETWORK_SHP_NAME')
-        if self.river_network_name == 'default':
-            self.river_network_name = f"{self.domain_name}_riverNetwork_delineate.shp"
+        if self.river_network_name == 'default' or self.river_network_name is None:
+            self.river_network_name = self.get_river_network_path().name
 
         # SUMMA-specific configuration (Phase 3: Use typed config when available)
         self.hruId = self._resolve_config_value(

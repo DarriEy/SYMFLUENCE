@@ -9,6 +9,10 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 from symfluence.utils.models.fuse import FUSEPreProcessor
 from symfluence.utils.exceptions import ModelExecutionError
+from symfluence.utils.config.models import SymfluenceConfig
+
+
+from symfluence.utils.config.models import SymfluenceConfig
 
 
 class TestFUSEPreProcessorInitialization:
@@ -19,8 +23,8 @@ class TestFUSEPreProcessorInitialization:
         preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
 
         assert preprocessor.model_name == "FUSE"
-        assert preprocessor.domain_name == fuse_config['DOMAIN_NAME']
-        assert preprocessor.forcing_dataset == fuse_config['FORCING_DATASET'].lower()
+        assert preprocessor.domain_name == fuse_config.domain.name
+        assert preprocessor.forcing_dataset == fuse_config.forcing.dataset.lower()
 
     def test_fuse_specific_paths(self, fuse_config, mock_logger, setup_test_directories):
         """Test FUSE-specific path initialization."""
@@ -45,8 +49,11 @@ class TestFUSETimestepConfiguration:
 
     def test_get_timestep_config_hourly(self, fuse_config, mock_logger, setup_test_directories):
         """Test timestep config for hourly data."""
-        fuse_config['FORCING_TIME_STEP_SIZE'] = 3600
-        preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
+        # Create a new config by flattening, updating, and reconstructing
+        config_dict = fuse_config.to_dict(flatten=True)
+        config_dict['FORCING_TIME_STEP_SIZE'] = 3600
+        hourly_config = SymfluenceConfig(**config_dict)
+        preprocessor = FUSEPreProcessor(hourly_config, mock_logger)
 
         config = preprocessor.get_timestep_config()
 
@@ -58,8 +65,11 @@ class TestFUSETimestepConfiguration:
 
     def test_get_timestep_config_daily(self, fuse_config, mock_logger, setup_test_directories):
         """Test timestep config for daily data."""
-        fuse_config['FORCING_TIME_STEP_SIZE'] = 86400
-        preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
+        # Create a new config by flattening, updating, and reconstructing
+        config_dict = fuse_config.to_dict(flatten=True)
+        config_dict['FORCING_TIME_STEP_SIZE'] = 86400
+        daily_config = SymfluenceConfig(**config_dict)
+        preprocessor = FUSEPreProcessor(daily_config, mock_logger)
 
         config = preprocessor.get_timestep_config()
 
@@ -71,8 +81,11 @@ class TestFUSETimestepConfiguration:
 
     def test_get_timestep_config_custom_3hourly(self, fuse_config, mock_logger, setup_test_directories):
         """Test timestep config for 3-hourly data."""
-        fuse_config['FORCING_TIME_STEP_SIZE'] = 10800  # 3 hours
-        preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
+        # Create a new config by flattening, updating, and reconstructing
+        config_dict = fuse_config.to_dict(flatten=True)
+        config_dict['FORCING_TIME_STEP_SIZE'] = 10800  # 3 hours
+        custom_config = SymfluenceConfig(**config_dict)
+        preprocessor = FUSEPreProcessor(custom_config, mock_logger)
 
         config = preprocessor.get_timestep_config()
 
@@ -86,8 +99,11 @@ class TestFUSEDirectoryCreation:
 
     def test_create_directories(self, fuse_config, mock_logger, setup_test_directories, temp_dir):
         """Test FUSE directory creation."""
-        fuse_config['SYMFLUENCE_DATA_DIR'] = str(temp_dir)
-        preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
+        # Create a new config with the updated data directory
+        config_dict = fuse_config.to_dict(flatten=True)
+        config_dict['SYMFLUENCE_DATA_DIR'] = str(temp_dir)
+        custom_data_dir_config = SymfluenceConfig(**config_dict)
+        preprocessor = FUSEPreProcessor(custom_data_dir_config, mock_logger)
 
         # Remove directories if they exist
         import shutil
@@ -107,16 +123,20 @@ class TestFUSECopyBaseSettings:
 
     def test_copy_base_settings_uses_correct_source(self, fuse_config, mock_logger, setup_test_directories):
         """Test that copy_base_settings uses correct source directory."""
-        preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
+        # Create a new config with the updated code directory
+        from symfluence.utils.config.models import SymfluenceConfig
+        config_dict = fuse_config.to_dict(flatten=True)
+        config_dict['SYMFLUENCE_CODE_DIR'] = str(setup_test_directories['code_dir'])
+        # Ensure SYMFLUENCE_DATA_DIR is also carried over or explicitly set
+        config_dict['SYMFLUENCE_DATA_DIR'] = str(setup_test_directories['data_dir'])
+        code_dir_config = SymfluenceConfig(**config_dict)
+        preprocessor = FUSEPreProcessor(code_dir_config, mock_logger)
 
         # Create source directory with dummy files
-        source_dir = setup_test_directories['code_dir'] / 'src' / 'symfluence' / 'data' / 'base_settings' / 'FUSE'
+        source_dir = setup_test_directories['code_dir'] / 'src' / 'symfluence' / 'resources' / 'base_settings' / 'FUSE'
         source_dir.mkdir(parents=True, exist_ok=True)
         (source_dir / 'test_settings.txt').write_text('test content')
         (source_dir / 'fuse_zDecisions_902.txt').write_text('decisions')
-
-        # Update config to point to source
-        preprocessor.config_dict['SYMFLUENCE_CODE_DIR'] = str(setup_test_directories['code_dir'])
 
         # Call copy_base_settings
         preprocessor.copy_base_settings()
@@ -191,7 +211,7 @@ class TestFUSECatchmentPath:
         preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
 
         # Should use base class method
-        expected = preprocessor.project_dir / 'shapefiles' / 'catchment' / f"{fuse_config['DOMAIN_NAME']}_HRUs_{fuse_config['DOMAIN_DISCRETIZATION']}.shp"
+        expected = preprocessor.project_dir / 'shapefiles' / 'catchment' / f"{fuse_config.domain.name}_HRUs_{fuse_config.domain.discretization}.shp"
         assert preprocessor.catchment_path == expected
 
 
@@ -248,7 +268,8 @@ class TestFUSEBaseClassIntegration:
         # Should have base class attributes
         assert hasattr(preprocessor, 'forcing_time_step_size')
         assert hasattr(preprocessor, 'forcing_dataset')
-        assert preprocessor.forcing_time_step_size == fuse_config['FORCING_TIME_STEP_SIZE']
+        assert preprocessor.forcing_time_step_size == fuse_config.forcing.time_step_size
+        assert preprocessor.forcing_dataset == fuse_config.forcing.dataset.lower()
 
     def test_uses_base_class_methods(self, fuse_config, mock_logger, setup_test_directories):
         """Test that FUSE can use base class methods."""

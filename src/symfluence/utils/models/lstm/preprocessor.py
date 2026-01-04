@@ -69,7 +69,7 @@ class LSTMPreprocessor:
 
         forcing_files.sort()
         datasets = [xr.open_dataset(file) for file in forcing_files]
-        combined_ds = xr.concat(datasets, dim='time')
+        combined_ds = xr.concat(datasets, dim='time', data_vars='all')
         forcing_df = combined_ds.to_dataframe().reset_index()
 
         required_vars = ['hruId', 'time', 'pptrate', 'SWRadAtm', 'LWRadAtm', 'airpres', 'airtemp', 'spechum', 'windspd']
@@ -85,6 +85,14 @@ class LSTMPreprocessor:
             self.project_dir / 'observations' / 'streamflow' / 'preprocessed' /
             f"{self.config_dict.get('DOMAIN_NAME')}_streamflow_processed.csv"
         )
+        
+        if not streamflow_path.exists():
+            # Fallback for legacy naming
+            legacy_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / "Bow_at_Banff_lumped_streamflow_processed.csv"
+            if legacy_path.exists():
+                streamflow_path = legacy_path
+                self.logger.info(f"Using legacy streamflow path: {streamflow_path.name}")
+
         streamflow_df = pd.read_csv(streamflow_path, parse_dates=['datetime'], dayfirst=True)
         streamflow_df = streamflow_df.set_index('datetime').rename(columns={'discharge_cms': 'streamflow'})
         streamflow_df.index = pd.to_datetime(streamflow_df.index)

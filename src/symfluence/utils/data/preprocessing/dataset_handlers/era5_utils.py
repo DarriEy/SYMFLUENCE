@@ -125,9 +125,9 @@ class ERA5Handler(BaseDatasetHandler):
                         ds_processed = self.process_dataset(ds)
                         ds_processed.load() # Load into memory
                     
-                    # Create a deep copy to ensure no ties to the closed file
-                    ds_final = ds_processed.copy(deep=True)
-                    
+                    # Clean attributes and encoding via base class method
+                    ds_final = self.clean_variable_attributes(ds_processed)
+
                     # Write to a file in temp dir first
                     temp_output = temp_dir / raw_file.name
                     if temp_output.exists():

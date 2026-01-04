@@ -8,6 +8,8 @@ from symfluence.core import SYMFLUENCE
 from symfluence.utils.data.data_manager import DataManager
 from symfluence.utils.data.observation.registry import ObservationRegistry
 
+pytestmark = [pytest.mark.integration, pytest.mark.data, pytest.mark.requires_cloud, pytest.mark.slow]
+
 @pytest.fixture
 def mock_config(tmp_path):
     return {

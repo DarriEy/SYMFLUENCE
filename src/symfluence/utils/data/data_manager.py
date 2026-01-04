@@ -46,10 +46,13 @@ class DataManager:
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         
+        # Use typed config if available for delegates
+        component_config = self.typed_config if self.typed_config else self.config
+
         # Initialize delegates
-        self.acquisition_service = AcquisitionService(config, logger)
-        self.em_earth_integrator = EMEarthIntegrator(config, logger)
-        self.variable_handler = VariableHandler(self.config, self.logger, 'ERA5', 'SUMMA')
+        self.acquisition_service = AcquisitionService(component_config, logger)
+        self.em_earth_integrator = EMEarthIntegrator(component_config, logger)
+        self.variable_handler = VariableHandler(component_config, self.logger, 'ERA5', 'SUMMA')
         
     def acquire_attributes(self):
         """Delegate to AcquisitionService."""
@@ -75,6 +78,9 @@ class DataManager:
             DataAcquisitionError: If data processing fails
         """
         self.logger.info("Processing observed data")
+        
+        # Use typed config if available
+        component_config = self.typed_config if self.typed_config else self.config
 
         with symfluence_error_handler(
             "observed data processing",
@@ -115,7 +121,7 @@ class DataManager:
                 additional_obs.append('SNOTEL')
 
             # 3. Traditional streamflow processing (for providers not yet migrated)
-            observed_data_processor = ObservedDataProcessor(self.config, self.logger)
+            observed_data_processor = ObservedDataProcessor(component_config, self.logger)
             
             # Only run traditional if NOT using the formalized handlers
             if streamflow_provider not in ['USGS', 'WSC'] or (
@@ -131,7 +137,7 @@ class DataManager:
                 try:
                     if ObservationRegistry.is_registered(obs_type):
                         self.logger.info(f"Processing registry-based observation: {obs_type}")
-                        handler = ObservationRegistry.get_handler(obs_type, self.config, self.logger)
+                        handler = ObservationRegistry.get_handler(obs_type, component_config, self.logger)
                         raw_path = handler.acquire()
                         handler.process(raw_path)
                     else:
@@ -149,6 +155,9 @@ class DataManager:
             DataAcquisitionError: If preprocessing fails
         """
         self.logger.info("Starting model-agnostic preprocessing")
+        
+        # Use typed config if available
+        component_config = self.typed_config if self.typed_config else self.config
 
         # Create required directories
         basin_averaged_data = self.project_dir / 'forcing' / 'basin_averaged_data'
@@ -164,12 +173,12 @@ class DataManager:
         ):
             # Run geospatial statistics
             self.logger.info("Running geospatial statistics")
-            gs = GeospatialStatistics(self.config, self.logger)
+            gs = GeospatialStatistics(component_config, self.logger)
             gs.run_statistics()
 
             # Run forcing resampling
             self.logger.info("Running forcing resampling")
-            fr = ForcingResampler(self.config, self.logger)
+            fr = ForcingResampler(component_config, self.logger)
             fr.run_resampling()
 
             # Integrate EM-Earth data if supplementation is enabled

@@ -79,6 +79,7 @@ class HYPEConfig(BaseModel):
     model_config = FROZEN_CONFIG
 
     install_path: str = Field(default='default', alias='HYPE_INSTALL_PATH')
+    exe: str = Field(default='hype', alias='HYPE_EXE')
     settings_path: str = Field(default='default', alias='SETTINGS_HYPE_PATH')
 
 

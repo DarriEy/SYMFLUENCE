@@ -155,7 +155,8 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             self.setup_dir / "CFE",
             self.setup_dir / "PET",
             self.setup_dir / "NOAH",
-            self.setup_dir / "NOAH" / "parameters"
+            self.setup_dir / "NOAH" / "parameters",
+            self.forcing_dir / "csv" # Ensure CSV forcing directory is created
         ]
         if additional_dirs:
             ngen_dirs.extend(additional_dirs)

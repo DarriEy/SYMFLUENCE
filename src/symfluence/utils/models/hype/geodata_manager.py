@@ -102,11 +102,15 @@ class HYPEGeoDataManager:
         # 3. Catchment properties
         cat = gpd.read_file(subbasins_shapefile)
         area_info = self.geofabric_mapping['area']
+        
+        # Calculate centroids in projected CRS
+        centroids = self._get_projected_centroids(cat)
+        
         cat_props = pd.DataFrame({
             basin_id_col: cat[basin_id_col],
             'area': cat[area_info['in_varname']].values * self.ureg(area_info['in_units']).to(area_info['out_units']).magnitude,
-            'latitude': cat.centroid.y,
-            'longitude': cat.centroid.x
+            'latitude': centroids.y,
+            'longitude': centroids.x
         }).set_index(basin_id_col)
         
         # 4. Load GIS stats
@@ -130,6 +134,20 @@ class HYPEGeoDataManager:
         
         self._write_geoclass(slc_df)
         self.logger.info("GeoData.txt and GeoClass.txt created successfully")
+
+    def _get_projected_centroids(self, gdf: gpd.GeoDataFrame) -> gpd.GeoSeries:
+        """
+        Calculate centroids in a projected CRS and return them in the original CRS.
+        This avoids UserWarning about centroids in geographic CRS.
+        """
+        original_crs = gdf.crs
+        if original_crs and original_crs.is_geographic:
+            # Project to EPSG:3857 (Web Mercator) for centroid calculation
+            gdf_proj = gdf.to_crs(epsg=3857)
+            centroids_proj = gdf_proj.geometry.centroid
+            return centroids_proj.to_crs(original_crs)
+        else:
+            return gdf.geometry.centroid
 
     def _load_gis_stats(self, gistool_output: Path, intersect_base_path: Optional[Path], basin_id_col: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """Robustly load GIS statistics from CSV or shapefile fallbacks."""

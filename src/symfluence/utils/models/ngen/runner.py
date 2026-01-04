@@ -37,10 +37,10 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
         # Note: NGEN install path is relative to parent of data_dir (../installs/ngen/build)
         self.ngen_exe = self.get_model_executable(
             install_path_key='NGEN_INSTALL_PATH',
-            default_install_subpath='../installs/ngen/build',
+            default_install_subpath='installs/ngen/build',
             exe_name_key=None,  # NGEN exe name is just 'ngen'
             default_exe_name='ngen',
-            relative_to='data_dir'
+            relative_to='code_dir'
         )
 
     def _get_model_name(self) -> str:

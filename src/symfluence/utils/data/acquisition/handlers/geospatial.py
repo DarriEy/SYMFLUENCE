@@ -1,13 +1,45 @@
 import math
 from pathlib import Path
 import zipfile
+import time
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import rasterio
 from rasterio.merge import merge as rio_merge
 from rasterio.windows import from_bounds
 import numpy as np
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+
+
+def create_robust_session(max_retries=5, backoff_factor=1.0):
+    """
+    Create a requests session with automatic retry logic for network failures.
+
+    Args:
+        max_retries: Maximum number of retry attempts
+        backoff_factor: Factor for exponential backoff (e.g., 1.0 means 1s, 2s, 4s, 8s, 16s)
+
+    Returns:
+        Configured requests.Session object
+    """
+    session = requests.Session()
+
+    # Configure retry strategy
+    retry_strategy = Retry(
+        total=max_retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=[429, 500, 502, 503, 504],  # Retry on these HTTP status codes
+        allowed_methods=["HEAD", "GET", "OPTIONS"],  # Only retry safe methods
+        raise_on_status=False
+    )
+
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+
+    return session
 
 class GeospatialAcquirer(BaseAcquisitionHandler):
     def download(self, output_dir: Path) -> Path:
@@ -329,24 +361,54 @@ class CopDEM30Acquirer(BaseAcquisitionHandler):
 
         tile_paths = []
         try:
+            # Create session with retry logic
+            session = create_robust_session(max_retries=5, backoff_factor=2.0)
+
             for lat in range(lat_min, lat_max):
                 for lon in range(lon_min, lon_max):
                     lat_str = f"N{lat:02d}" if lat >= 0 else f"S{-lat:02d}"
                     lon_str = f"E{lon:03d}" if lon >= 0 else f"W{-lon:03d}"
                     tile_name = f"Copernicus_DSM_COG_10_{lat_str}_00_{lon_str}_00_DEM"
                     url = f"{base_url}/{tile_name}/{tile_name}.tif"
-                    
+
                     local_tile = dem_dir / f"temp_{tile_name}.tif"
                     if not local_tile.exists():
                         self.logger.info(f"Fetching tile: {tile_name}")
-                        with requests.get(url, stream=True, timeout=60) as r:
-                            if r.status_code == 200:
-                                with open(local_tile, "wb") as f:
-                                    for chunk in r.iter_content(chunk_size=65536): f.write(chunk)
-                                tile_paths.append(local_tile)
-                            else:
-                                self.logger.warning(f"Tile {tile_name} not found (status {r.status_code})")
+
+                        # Retry loop for connection errors (BrokenPipeError, etc.)
+                        max_attempts = 3
+                        for attempt in range(1, max_attempts + 1):
+                            try:
+                                with session.get(url, stream=True, timeout=120) as r:
+                                    if r.status_code == 200:
+                                        with open(local_tile, "wb") as f:
+                                            for chunk in r.iter_content(chunk_size=65536):
+                                                if chunk:  # Filter out keep-alive chunks
+                                                    f.write(chunk)
+                                        self.logger.info(f"✓ Downloaded {tile_name}")
+                                        tile_paths.append(local_tile)
+                                        break  # Success - exit retry loop
+                                    else:
+                                        self.logger.warning(f"Tile {tile_name} not found (status {r.status_code})")
+                                        break  # Don't retry 404s
+                            except (requests.exceptions.ChunkedEncodingError,
+                                    requests.exceptions.ConnectionError,
+                                    BrokenPipeError) as e:
+                                if attempt < max_attempts:
+                                    wait_time = 2 ** attempt  # Exponential backoff: 2s, 4s, 8s
+                                    self.logger.warning(
+                                        f"Download interrupted for {tile_name} (attempt {attempt}/{max_attempts}): {e}. "
+                                        f"Retrying in {wait_time}s..."
+                                    )
+                                    # Remove partial download
+                                    if local_tile.exists():
+                                        local_tile.unlink()
+                                    time.sleep(wait_time)
+                                else:
+                                    self.logger.error(f"Failed to download {tile_name} after {max_attempts} attempts")
+                                    raise
                     else:
+                        self.logger.info(f"Using cached tile: {tile_name}")
                         tile_paths.append(local_tile)
 
             if not tile_paths:
