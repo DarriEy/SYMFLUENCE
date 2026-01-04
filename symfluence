@@ -653,6 +653,9 @@ setup_windows_dependencies() {
         # libgdal=3.11 means any 3.11.x version
         export GDAL_VERSION="3.11.4"
 
+        # Set UTF-8 encoding for Python to handle emoji output on Windows
+        export PYTHONIOENCODING="utf-8"
+
         print_info "Added conda Library paths to environment"
         print_info "GDAL version for pip: $GDAL_VERSION"
     fi
