@@ -200,8 +200,9 @@ jobs:
         run: |
           # Initialize conda for bash on Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            eval "$(conda shell.bash hook)"
+            source "$CONDA/etc/profile.d/conda.sh"
             conda activate base
+            export PATH="$CONDA/condabin:$PATH"
           fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
           chmod +x ./symfluence || true  # chmod may not work on Windows
@@ -416,8 +417,9 @@ jobs:
         run: |
           # Initialize conda for bash on Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            eval "$(conda shell.bash hook)"
+            source "$CONDA/etc/profile.d/conda.sh"
             conda activate base
+            export PATH="$CONDA/condabin:$PATH"
           fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
           chmod +x ./symfluence || true  # chmod may not work on Windows
