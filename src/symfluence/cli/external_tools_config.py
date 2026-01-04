@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """
 SYMFLUENCE External Tools Configuration
 
@@ -26,7 +27,7 @@ def get_common_build_environment() -> str:
     Get common build environment setup used across multiple tools.
     
     Returns:
-        Shell script snippet for environment configuration
+        Shell script snippet for environment configuration.
     """
     return r'''
 set -e
@@ -47,7 +48,6 @@ export HDF5_ROOT="${HDF5_ROOT:-$(h5cc -showconfig 2>/dev/null | awk -F': ' "/Ins
 # Threads
 export NCORES="${NCORES:-4}"
     '''.strip()
-
 
 def get_external_tools_definitions() -> Dict[str, Dict[str, Any]]:
     """
@@ -167,7 +167,7 @@ echo "Using SUNDIALS from: $SUNDIALS_DIR"
 SPECIFY_LINKS=OFF
 
 # macOS: Use manual LAPACK specification (Homebrew OpenBLAS isn't reliably detected by CMake)
-if [[ "$OSTYPE" == "darwin"* ]]; then
+if [ "$(uname)" == "Darwin" ]; then
     echo "macOS detected - using manual LAPACK specification"
     SPECIFY_LINKS=ON
     export LIBRARY_LINKS='-llapack'
@@ -279,7 +279,7 @@ else
     for try_path in /opt/homebrew/opt/netcdf-fortran /opt/homebrew/opt/netcdf /usr/local/opt/netcdf-fortran /usr/local/opt/netcdf /usr/local /usr; do
         if [ -d "$try_path/include" ]; then
             NETCDF_TO_USE="$try_path"
-            echo "Found NetCDF at: $NETCDF_TO_USE"
+            echo "Found NetCDF at: $try_path"
             break
         fi
     done
@@ -320,7 +320,7 @@ perl -i -pe "s|^isOpenMP\s*=.*$|isOpenMP = no|" Makefile
 # Fix LIBNETCDF to include both netcdf-fortran and netcdf C library
 if [ "${NETCDF_C_PATH}" != "${NETCDF_TO_USE}" ]; then
     echo "Fixing LIBNETCDF to include both netcdf-fortran and netcdf C paths"
-    perl -i -0777 -pe "s|LIBNETCDF = -Wl,-rpath,\\\$\\(NCDF_PATH\\)/lib[^\\n]*\\\\n[^\\n]*|LIBNETCDF = -Wl,-rpath,${NETCDF_TO_USE}/lib -Wl,-rpath,${NETCDF_C_PATH}/lib -L${NETCDF_TO_USE}/lib -L${NETCDF_C_PATH}/lib -lnetcdff -lnetcdf|s" Makefile
+    perl -i -0777 -pe "s|LIBNETCDF = -Wl,-rpath,${NETCDF_TO_USE}/lib -Wl,-rpath,${NETCDF_C_PATH}/lib -lnetcdff -lnetcdf|Makefile
 fi
 
 # Clean and build
@@ -360,9 +360,6 @@ fi
 
         # Correct default "executable" (package entry point)
         'default_exe': 'troute/network/__init__.py',
-
-        'repository': 'https://github.com/NOAA-OWP/t-route.git',
-        'branch': None,   # Use upstream default (fixes 'main not found')
 
         # Top-level clone folder
         'install_dir': 't-route',
@@ -408,9 +405,8 @@ exit 0
             'troute/network/__init__.py',
         ],
         'check_type': 'exists_any'
-    },
-
-    'order': 4
+            },
+            'order': 4
         },
 
 
@@ -424,12 +420,11 @@ exit 0
             "default_path_suffix": "installs/fuse/bin",
             "default_exe": "fuse.exe",
             "repository": "https://github.com/CH-Earth/fuse.git",
-            "branch": None,
-            "install_dir": "fuse",
-            "build_commands": [
+            'branch': None,
+            'install_dir': "fuse",
+            'build_commands': [
+                common_env,
                 r'''
-set -e
-
 # --- Compiler configuration ---
 export FC="${FC:-gfortran}"
 export FC_EXE="${FC_EXE:-gfortran}"
@@ -451,6 +446,7 @@ else
       export NETCDF_FORTRAN="$path"
       break
     fi
+  
   done
 fi
 export NETCDF_FORTRAN="${NETCDF_FORTRAN:-/usr}"
@@ -482,8 +478,9 @@ if [ -z "$HDF5_ROOT" ] || [ ! -d "$HDF5_ROOT" ]; then
         export HDF5_ROOT="$path"
         break
       fi
-    done
-  fi
+    
+  
+  done
 fi
 export HDF5_ROOT="${HDF5_ROOT:-/usr}"
 
@@ -515,7 +512,7 @@ case "$NETCDF_FORTRAN" in
       echo "⚠️  Warning: NetCDF built with GCC ${NETCDF_GCC_VER} but using compiler version ${FC_MAJOR}"
       echo "   This may cause issues. Consider loading matching modules if available."
     fi
-  ;; 
+  ;;
 esac
 
 # --- Build ---
@@ -640,15 +637,15 @@ else
   echo "❌ Verification failed: ../bin/fuse.exe not found"
   exit 1
 fi
-                '''
+                '''.strip()
             ],
-            "dependencies": [],
-            "test_command": None,
-            "verify_install": {
-                "file_paths": ["bin/fuse.exe"],
-                "check_type": "exists"
+            'dependencies': [],
+            'test_command': None,  # FUSE exits with error when run without args, which is expected
+            'verify_install': {
+                'file_paths': ['bin/fuse.exe'],
+                'check_type': 'exists'
             },
-            "order": 5
+            'order': 5
         },
 
         # ================================================================
@@ -664,7 +661,9 @@ fi
             'branch': None,
             'install_dir': 'TauDEM',
             'build_commands': [
+                common_env,
                 r'''
+# Build TauDEM from GitHub repository
 set -e
 
 # Use OpenMPI compiler wrappers so CMake/FindMPI can auto-detect everything
@@ -685,11 +684,12 @@ echo "Staging executables..."
 mkdir -p ../bin
 
 # List of expected TauDEM tools (superset — some may not exist on older commits)
-tools="pitremove d8flowdir d8converge dinfconverge dinfflowdir aread8 areadinf threshold \
+tools="pitremove d8flowdir d8converge dinfconverge dinfflowdir aread8 areadinf threshold 
        streamnet slopearea gridnet peukerdouglas lengtharea moveoutletstostreams gagewatershed"
 
 copied=0
-for exe in $tools; do
+for exe in $tools;
+  do
   # Find anywhere under build tree and copy if executable
   p="$(find . -type f -perm -111 -name "$exe" | head -n1 || true)"
   if [ -n "$p" ]; then
@@ -869,13 +869,13 @@ elif [ -n "${NETCDF_FORTRAN}" ] && [ -d "${NETCDF_FORTRAN}/include" ]; then
     echo "Using NETCDF_FORTRAN: ${NETCDF_FORTRAN}"
 elif [ -n "${NETCDF}" ] && [ -d "${NETCDF}/include" ]; then
     NETCDF_FORTRAN="${NETCDF}"
-    echo "Using NETCDF: ${NETCDF_FORTRAN}"
+    echo "Using NETCDF: ${NETCDF_TO_USE}"
 else
     # Try common locations
     for try_path in /opt/homebrew/opt/netcdf-fortran /usr/local/opt/netcdf-fortran /usr; do
         if [ -d "$try_path/include" ]; then
             NETCDF_FORTRAN="$try_path"
-            echo "Found NetCDF at: $NETCDF_FORTRAN"
+            echo "Found NetCDF at: $try_path"
             break
         fi
     done
@@ -967,7 +967,7 @@ elif [ -n "${NETCDF_FORTRAN}" ] && [ -d "${NETCDF_FORTRAN}/include" ]; then
     echo "Using NETCDF_FORTRAN: ${NETCDF_FORTRAN}"
 elif [ -n "${NETCDF}" ] && [ -d "${NETCDF}/include" ]; then
     NETCDF_FORTRAN="${NETCDF}"
-    echo "Using NETCDF: ${NETCDF_FORTRAN}"
+    echo "Using NETCDF: ${NETCDF_TO_USE}"
 else
     # Try common locations
     for try_path in /opt/homebrew/opt/netcdf-fortran /usr/local/opt/netcdf-fortran /usr; do
@@ -1185,42 +1185,11 @@ fi
             'dependencies': [],
             'test_command': None,  # MESH may not have standard --version flag
             'verify_install': {
-                'file_paths': ['bin/mesh.exe', 'bin/sa_mesh', 'sa_mesh', 'mpi_sa_mesh'],
-                'check_type': 'exists_any'
+                'file_paths': ['bin/mesh.exe'],
+                'check_type': 'exists'
             },
             'order': 12
         },
-        # ================================================================
-        # VMFire - RHESSys Preprocessor
-        # ================================================================
-        'vmfire': {
-            'description': 'VMFire - A tool for processing RHESSys spatial data',
-            'config_path_key': 'VMFIRE_INSTALL_PATH',
-            'config_exe_key': 'VMFIRE_EXE',
-            'default_path_suffix': 'installs/vmfire/bin',
-            'default_exe': 'vmfire',
-            'repository': 'https://github.com/RHESSys/VMFire.git',
-            'branch': None,
-            'install_dir': 'vmfire',
-            'build_commands': [
-                r'''
-set -e
-echo "Building VMFire..."
-make
-mkdir -p bin
-mv vmfire bin/
-chmod +x bin/vmfire
-                '''.strip()
-            ],
-            'dependencies': ['gdal-config'],
-            'test_command': '-h',
-            'verify_install': {
-                'file_paths': ['bin/vmfire'],
-                'check_type': 'exists'
-            },
-            'order': 13
-        },
-
         # ================================================================
         # RHESSys - Regional Hydro-Ecologic Simulation System
         # ================================================================
@@ -1233,18 +1202,91 @@ chmod +x bin/vmfire
             'repository': 'https://github.com/RHESSys/RHESSys.git',
             'branch': None,
             'install_dir': 'rhessys',
-            'requires': ['vmfire'],
             'build_commands': [
-                r'''
-set -e
-echo "Building RHESSys..."
-make
-mkdir -p bin
-mv rhessys bin/
-chmod +x bin/rhessys
-                '''.strip()
-            ],
-            'dependencies': ['gdal-config', 'proj', 'geos'],
+                common_env,
+                'set -e',
+                'echo "Building RHESSys..."',
+                'cd rhessys',
+                '',
+                '# Detect GEOS and PROJ',
+                'echo "--- Detecting GEOS and PROJ ---"',
+                'GEOS_CFLAGS=""',
+                'GEOS_LDFLAGS=""',
+                'PROJ_CFLAGS=""',
+                'PROJ_LDFLAGS=""',
+                '',
+                'if command -v pkg-config >/dev/null 2>&1; then',
+                '    if pkg-config --exists geos; then',
+                '        GEOS_CFLAGS="$(pkg-config --cflags geos)"',
+                '        GEOS_LDFLAGS="$(pkg-config --libs geos)"',
+                '        echo "✅ GEOS found via pkg-config"',
+                '    fi',
+                '    if pkg-config --exists proj; then',
+                '        PROJ_CFLAGS="$(pkg-config --cflags proj)"',
+                '        PROJ_LDFLAGS="$(pkg-config --libs proj)"',
+                '        echo "✅ PROJ found via pkg-config"',
+                '    fi',
+                'fi',
+                '',
+                'if [ "$(uname)" == "Darwin" ]; then',
+                '    if [ -z "$GEOS_CFLAGS" ] && command -v brew >/dev/null 2>&1 && brew --prefix geos >/dev/null 2>&1; then',
+                '        GEOS_CFLAGS="-I$(brew --prefix geos)/include"',
+                '        GEOS_LDFLAGS="-L$(brew --prefix geos)/lib -lgeos_c"',
+                '        echo "✅ GEOS found via Homebrew"',
+                '    fi',
+                '    if [ -z "$PROJ_CFLAGS" ] && command -v brew >/dev/null 2>&1 && brew --prefix proj >/dev/null 2>&1; then',
+                '        PROJ_CFLAGS="-I$(brew --prefix proj)/include"',
+                '        PROJ_LDFLAGS="-L$(brew --prefix proj)/lib -lproj"',
+                '        echo "✅ PROJ found via Homebrew"',
+                '    fi',
+                'fi',
+                '',
+                '# Fallback for GEOS if pkg-config/brew failed, look in common places like /usr/local',
+                'if [ -z "$GEOS_CFLAGS" ]; then',
+                '    if [ -d "/usr/local/include" ] && [ -f "/usr/local/lib/libgeos_c.dylib" -o -f "/usr/local/lib/libgeos_c.so" ]; then',
+                '        GEOS_CFLAGS="-I/usr/local/include"',
+                '        GEOS_LDFLAGS="-L/usr/local/lib -lgeos_c"',
+                '        echo "✅ GEOS found in /usr/local"',
+                '    fi',
+                'fi',
+                '',
+                '# Fallback for PROJ if pkg-config/brew failed, look in common places like /usr/local',
+                'if [ -z "$PROJ_CFLAGS" ]; then',
+                '    if [ -d "/usr/local/include" ] && [ -f "/usr/local/lib/libproj.dylib" -o -f "/usr/local/lib/libproj.so" ]; then',
+                '        PROJ_CFLAGS="-I/usr/local/include"',
+                '        PROJ_LDFLAGS="-L/usr/local/lib -lproj"',
+                '        echo "✅ PROJ found in /usr/local"',
+                '    fi',
+                'fi',
+                '',
+                'echo "GEOS_CFLAGS: $GEOS_CFLAGS"',
+                'echo "GEOS_LDFLAGS: $GEOS_LDFLAGS"',
+                'echo "PROJ_CFLAGS: $PROJ_CFLAGS"',
+                'echo "PROJ_LDFLAGS: $PROJ_LDFLAGS"',
+                '',
+                '',
+                '# Apply patches for compiler compatibility',
+                "sed -i.bak 's/int[[:space:]]*key_compare([[:space:]]*void[[:space:]]*\\*[[:space:]]*e1,[[:space:]]*void[[:space:]]*\\*[[:space:]]*e2[[:space:]]*)/int key_compare( const void * e1,  const void *e2 )/g' util/key_compare.c",
+                "sed -i.bak '186s/[[:space:]]*sort_patch_layers(patch, \\*rec);[[:space:]]*/sort_patch_layers(patch, rec);/g' util/sort_patch_layers.c",
+                "sed -i.bak 's/^\\s*#define MAXSTR 200/\\/\\/#define MAXSTR 200/' include/rhessys_fire.h",
+                "sed -i.bak '1s/^/#include \"rhessys.h\"\\n/' init/assign_base_station_xy.c", # Add rhessys.h include
+                                "sed -i.bak -e '/#include \"rhessys.h\"/a\\' -e '#include <math.h>' init/assign_base_station_xy.c",
+                "                sed -i.bak -e '/#include <math.h>/a\\' -e '#define is_approximately(a, b, epsilon) (fabs((a) - (b)) < (epsilon))' init/assign_base_station_xy.c",
+                r"sed -i.bak 's/^\};/\\tdouble lon;\\n\\tdouble lat;\\n\\};/g' include/rhessys.h",
+                '',
+                '# Add grep to verify sort_patch_layers.c line 186 *after* sed',
+                'echo "--- Grepping for \'sort_patch_layers\' call in util/sort_patch_layers.c (after second patch) ---"',
+                'grep -n -C 5 "sort_patch_layers(" util/sort_patch_layers.c || true',
+                '',
+                '# Run make with detected flags',
+                '# Pass CFLAGS and LDFLAGS to make. RHESSys Makefile uses these',
+                'make V=1 CFLAGS="-DCLIM_GRID_XY $GEOS_CFLAGS $PROJ_CFLAGS" LDFLAGS="$GEOS_LDFLAGS $PROJ_LDFLAGS"',
+                'ls -la .',
+                '',
+                'mkdir -p ../bin',
+                'mv rhessys ../bin/ || mv ./rhessys ../bin/ # Try both absolute and relative path for mv',
+                'chmod +x ../bin/rhessys'
+            ],'dependencies': ['gdal-config', 'proj', 'geos'],
             'test_command': '-h',
             'verify_install': {
                 'file_paths': ['bin/rhessys'],
