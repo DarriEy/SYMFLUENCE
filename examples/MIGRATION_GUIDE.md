@@ -66,7 +66,7 @@ with open(config_template, 'r') as f:
 
 **New pattern:**
 ```python
-from symfluence.utils.resources import get_config_template
+from symfluence.resources import get_config_template
 
 # Get template from package
 config_template = get_config_template()
@@ -122,7 +122,7 @@ All 7 notebooks need these changes:
 from pathlib import Path
 import yaml
 from symfluence import SYMFLUENCE
-from symfluence.utils.resources import get_config_template
+from symfluence.resources import get_config_template
 
 # Load template from package data
 config_template = get_config_template()

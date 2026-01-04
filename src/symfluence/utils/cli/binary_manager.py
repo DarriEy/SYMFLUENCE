@@ -48,7 +48,7 @@ class BinaryManager:
         else:
             try:
                 # Try to load template from package data
-                from symfluence.utils.resources import get_config_template
+                from symfluence.resources import get_config_template
                 config_path = get_config_template()
                 with open(config_path, 'r') as f:
                     config = yaml.safe_load(f)
@@ -258,7 +258,7 @@ class BinaryManager:
         # If no config available, try to load default from package data
         if not config:
             try:
-                from symfluence.utils.resources import get_config_template
+                from symfluence.resources import get_config_template
                 config_path = get_config_template()
                 with open(config_path, 'r') as f:
                     config = yaml.safe_load(f)

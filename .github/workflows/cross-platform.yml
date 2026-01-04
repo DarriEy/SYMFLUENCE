@@ -82,8 +82,7 @@ jobs:
             NEXT_PATCH=$((GDAL_PATCH + 1))
             pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
           elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            # Windows: GDAL should be available from conda, install via pip
-            pip install GDAL || echo "GDAL pip install failed, may have been installed via conda"
+            # Windows: Use GDAL from conda (already installed in previous step)
             # Install CPU-only torch to save space on Windows
             pip install torch --index-url https://download.pytorch.org/whl/cpu
           fi

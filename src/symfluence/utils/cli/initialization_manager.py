@@ -133,7 +133,7 @@ class InitializationManager:
             config = self._create_minimal_config()
         else:
             # Load comprehensive template from package data
-            from symfluence.utils.resources import get_config_template
+            from symfluence.resources import get_config_template
             template_path = get_config_template('config_template_comprehensive.yaml')
             config = self._load_yaml(template_path)
 

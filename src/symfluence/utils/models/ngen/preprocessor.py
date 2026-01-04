@@ -111,7 +111,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.logger.info("Copying Noah-OWP parameter tables")
 
         # Get source directory from package data
-        from symfluence.utils.resources import get_base_settings_dir
+        from symfluence.resources import get_base_settings_dir
 
         try:
             noah_base_dir = get_base_settings_dir('NOAH')

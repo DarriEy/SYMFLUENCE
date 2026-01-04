@@ -13,12 +13,28 @@ except ImportError:
     except (ImportError, PackageNotFoundError):
         __version__ = "0.0.0"
 
+# Expose core components for a cleaner API
 from .core import SYMFLUENCE
+from .utils.config.models import SymfluenceConfig
+from .utils.exceptions import (
+    SYMFLUENCEError,
+    ConfigurationError,
+    ModelExecutionError,
+    DataAcquisitionError
+)
 
-__all__ = ["SYMFLUENCE", "__version__"]
+__all__ = [
+    "SYMFLUENCE", 
+    "SymfluenceConfig", 
+    "SYMFLUENCEError",
+    "ConfigurationError",
+    "ModelExecutionError",
+    "DataAcquisitionError",
+    "__version__"
+]
 
 # Suppress overly verbose external logging/warnings
-rpy2_logger = logging.getLogger("rpy2.rinterface_lib.embedded")
+rpy2_logger = logging.getLogger("r2.rinterface_lib.embedded")
 rpy2_logger.setLevel(logging.WARNING)
 rpy2_logger.addHandler(logging.NullHandler())
 rpy2_logger.propagate = False
@@ -31,12 +47,12 @@ warnings.filterwarnings(
 
 os.environ.setdefault(
     "PYTHONWARNINGS",
-    "ignore:Column names longer than 10 characters will be truncated when saved to ESRI Shapefile\\.:UserWarning",
+    "ignore:Column names longer than 10 characters will be truncated when saved to ESRI Shapefile\.:UserWarning",
 )
 
 warnings.filterwarnings(
     "ignore",
-    message="Column names longer than 10 characters will be truncated when saved to ESRI Shapefile\\.",
+    message="Column names longer than 10 characters will be truncated when saved to ESRI Shapefile\.",
     category=UserWarning,
 )
 

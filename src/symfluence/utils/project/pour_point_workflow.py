@@ -117,7 +117,7 @@ def _resolve_template_path(
 
     # Fallback to package template
     try:
-        from symfluence.utils.resources import get_config_template
+        from symfluence.resources import get_config_template
         return get_config_template()
     except FileNotFoundError:
         raise FileOperationError(

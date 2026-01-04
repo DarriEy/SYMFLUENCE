@@ -16,7 +16,7 @@ As of SYMFLUENCE v0.6.0, configuration templates have been moved into the packag
 
 **Via Python:**
 ```python
-from symfluence.utils.resources import get_config_template, list_config_templates
+from symfluence.resources import get_config_template, list_config_templates
 
 # Get default template
 template = get_config_template()
@@ -46,7 +46,7 @@ symfluence project init --output-dir ./0_config_files/
 symfluence project init --output-dir ./0_config_files/
 
 # Or manually copy from package templates
-python -c "from symfluence.utils.resources import get_config_template; \
+python -c "from symfluence.resources import get_config_template; \
            import shutil; \
            shutil.copy(get_config_template(), './0_config_files/my_config.yaml')"
 ```

@@ -240,7 +240,7 @@ class TestPresetConsistency:
 
     def test_preset_templates_exist(self):
         """Test all presets reference valid template names."""
-        from symfluence.utils.resources import get_config_template
+        from symfluence.resources import get_config_template
 
         presets = load_presets()
 
