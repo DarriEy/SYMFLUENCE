@@ -31,17 +31,25 @@ def summa_config(tmp_path, symfluence_code_dir):
     Returns:
         tuple: (config_path, config_dict)
     """
-    from ..utils.helpers import load_config_template, write_config
+    from symfluence.utils.config.models import SymfluenceConfig
 
-    config = load_config_template(symfluence_code_dir)
-    config["HYDROLOGICAL_MODEL"] = "SUMMA"
-    config["ROUTING_MODEL"] = "mizuRoute"
-    config["EXPERIMENT_ID"] = f"test_summa_{tmp_path.name}"
+    # Create config using SymfluenceConfig.from_minimal and then update
+    config = SymfluenceConfig.from_minimal(
+        domain_name="test_domain",
+        model="SUMMA",
+        experiment_id=f"test_summa_{tmp_path.name}",
+        DOMAIN_DEFINITION_METHOD="lumped" # Explicitly set to lumped
+    ).model_dump(by_alias=True)
 
+    # Convert back to SymfluenceConfig, ensuring paths are handled correctly
+    config_obj = SymfluenceConfig(**config)
+    
     cfg_path = tmp_path / "config_summa.yaml"
-    write_config(config, cfg_path)
+    # Use write_config to serialize it for potential later loading
+    from ..utils.helpers import write_config
+    write_config(config_obj, cfg_path)
 
-    return cfg_path, config
+    return config_obj
 
 
 @pytest.fixture(scope="function")
@@ -56,16 +64,22 @@ def fuse_config(tmp_path, symfluence_code_dir):
     Returns:
         tuple: (config_path, config_dict)
     """
-    from ..utils.helpers import load_config_template, write_config
+    from symfluence.utils.config.models import SymfluenceConfig
 
-    config = load_config_template(symfluence_code_dir)
-    config["HYDROLOGICAL_MODEL"] = "FUSE"
-    config["EXPERIMENT_ID"] = f"test_fuse_{tmp_path.name}"
+    config = SymfluenceConfig.from_minimal(
+        domain_name="test_domain",
+        model="FUSE",
+        experiment_id=f"test_fuse_{tmp_path.name}",
+        DOMAIN_DEFINITION_METHOD="lumped"
+    ).model_dump(by_alias=True)
+
+    config_obj = SymfluenceConfig(**config)
 
     cfg_path = tmp_path / "config_fuse.yaml"
-    write_config(config, cfg_path)
+    from ..utils.helpers import write_config
+    write_config(config_obj, cfg_path)
 
-    return cfg_path, config
+    return config_obj
 
 
 @pytest.fixture(scope="function")
@@ -80,13 +94,19 @@ def ngen_config(tmp_path, symfluence_code_dir):
     Returns:
         tuple: (config_path, config_dict)
     """
-    from ..utils.helpers import load_config_template, write_config
+    from symfluence.utils.config.models import SymfluenceConfig
 
-    config = load_config_template(symfluence_code_dir)
-    config["HYDROLOGICAL_MODEL"] = "NGEN"
-    config["EXPERIMENT_ID"] = f"test_ngen_{tmp_path.name}"
+    config = SymfluenceConfig.from_minimal(
+        domain_name="test_domain",
+        model="NGEN",
+        experiment_id=f"test_ngen_{tmp_path.name}",
+        DOMAIN_DEFINITION_METHOD="lumped"
+    ).model_dump(by_alias=True)
+
+    config_obj = SymfluenceConfig(**config)
 
     cfg_path = tmp_path / "config_ngen.yaml"
-    write_config(config, cfg_path)
+    from ..utils.helpers import write_config
+    write_config(config_obj, cfg_path)
 
-    return cfg_path, config
+    return config_obj

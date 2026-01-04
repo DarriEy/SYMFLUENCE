@@ -105,16 +105,20 @@ class SYMFLUENCE:
     def _initialize_managers(self) -> Dict[str, Any]:
         """Initialize all manager components."""
         try:
+            # Use typed config for initialization to support migration
+            # Note: SymfluenceConfig implements get() and __getitem__ for backward compatibility
+            config_to_pass = self.typed_config if self.typed_config else self.config
+
             # Initialize ReportingManager first
-            reporting_manager = ReportingManager(self.config, self.logger, visualize=self.visualize)
+            reporting_manager = ReportingManager(config_to_pass, self.logger, visualize=self.visualize)
 
             return {
-                'project': ProjectManager(self.config, self.logger),
-                'domain': DomainManager(self.config, self.logger, reporting_manager),
-                'data': DataManager(self.config, self.logger),
-                'model': ModelManager(self.config, self.logger, reporting_manager),
-                'analysis': AnalysisManager(self.config, self.logger, reporting_manager),
-                'optimization': OptimizationManager(self.config, self.logger),
+                'project': ProjectManager(config_to_pass, self.logger),
+                'domain': DomainManager(config_to_pass, self.logger, reporting_manager),
+                'data': DataManager(config_to_pass, self.logger),
+                'model': ModelManager(config_to_pass, self.logger, reporting_manager),
+                'analysis': AnalysisManager(config_to_pass, self.logger, reporting_manager),
+                'optimization': OptimizationManager(config_to_pass, self.logger),
                 'reporting': reporting_manager,
             }
         except Exception as e:

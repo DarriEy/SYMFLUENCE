@@ -257,3 +257,29 @@ class PathResolverMixin:
             logger=getattr(self, 'logger', None),
             must_exist=must_exist
         )
+
+    def _get_method_suffix(self) -> str:
+        """
+        Standardized method for getting the delineation suffix for filenames.
+        Prioritizes DOMAIN_DEFINITION_METHOD but handles 'subset' specially.
+        """
+        # Prioritize pre-resolved attribute if available (in BaseModelPreProcessor)
+        method = getattr(self, 'domain_definition_method', None)
+        
+        if method is None:
+            # Fallback to config lookup
+            config = getattr(self, 'config_dict', None)
+            if config is None:
+                config = getattr(self, 'config', {})
+            method = config.get('DOMAIN_DEFINITION_METHOD', 'delineate')
+        
+        if method == 'subset':
+            config = getattr(self, 'config_dict', None)
+            if config is None:
+                config = getattr(self, 'config', {})
+            geofabric_type = config.get('GEOFABRIC_TYPE', 'na')
+            if geofabric_type != 'na':
+                return f"subset_{geofabric_type}"
+            return "subset"
+            
+        return method

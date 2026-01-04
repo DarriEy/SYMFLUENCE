@@ -175,7 +175,7 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
         Returns:
             Tuple of (basins_path, rivers_path)
         """
-        method_suffix = self._get_delineation_method_name()
+        method_suffix = self._get_method_suffix()
 
         if self.config.get('OUTPUT_BASINS_PATH') == 'default':
             basins_path = (

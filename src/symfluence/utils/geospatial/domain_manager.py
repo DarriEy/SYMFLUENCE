@@ -7,28 +7,44 @@ from typing import Dict, Any, Optional, Union, Tuple
 from symfluence.utils.geospatial.discretization import DomainDiscretizationRunner, DiscretizationArtifacts # type: ignore
 from symfluence.utils.geospatial.delineation import DomainDelineator, create_point_domain_shapefile, DelineationArtifacts # type: ignore
 
+# Import for type checking only
+try:
+    from symfluence.utils.config.models import SymfluenceConfig
+except ImportError:
+    SymfluenceConfig = None
+
 
 class DomainManager:
     """Manages all domain-related operations including definition, discretization, and visualization."""
     
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the Domain Manager.
         
         Args:
-            config: Configuration dictionary
+            config: Configuration dictionary or SymfluenceConfig instance
             logger: Logger instance
             reporting_manager: ReportingManager instance
         """
-        self.config = config
+        # Support both typed config and dict config
+        if SymfluenceConfig and isinstance(config, SymfluenceConfig):
+            self.typed_config = config
+            self.config = config.to_dict(flatten=True)
+        else:
+            self.typed_config = None
+            self.config = config
+
         self.logger = logger
         self.reporting_manager = reporting_manager
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         
+        # Use typed config if available for sub-components
+        component_config = self.typed_config if self.typed_config else self.config
+
         # Initialize domain workflows
-        self.domain_delineator = DomainDelineator(self.config, self.logger, self.reporting_manager)
+        self.domain_delineator = DomainDelineator(component_config, self.logger, self.reporting_manager)
         self.domain_discretizer = None  # Initialized when needed
         self.delineation_artifacts: Optional[DelineationArtifacts] = None
         self.discretization_artifacts: Optional[DiscretizationArtifacts] = None
@@ -47,7 +63,8 @@ class DomainManager:
         Returns:
             Path to the created shapefile or None if failed
         """
-        return create_point_domain_shapefile(self.config, self.logger)
+        component_config = self.typed_config if self.typed_config else self.config
+        return create_point_domain_shapefile(component_config, self.logger)
     
     def define_domain(
         self,
@@ -89,7 +106,8 @@ class DomainManager:
             
             # Initialize discretizer if not already done
             if self.domain_discretizer is None:
-                self.domain_discretizer = DomainDiscretizationRunner(self.config, self.logger)
+                component_config = self.typed_config if self.typed_config else self.config
+                self.domain_discretizer = DomainDiscretizationRunner(component_config, self.logger)
             
             # Perform discretization
             hru_shapefile, artifacts = self.domain_discretizer.discretize_domain()

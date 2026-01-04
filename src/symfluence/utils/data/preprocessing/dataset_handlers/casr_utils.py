@@ -274,25 +274,27 @@ class CASRHandler(BaseDatasetHandler):
                     
                     # Set clean attributes based on variable name
                     if var_name == 'airpres':
-                        var.attrs = {'units': 'Pa', 'long_name': 'air pressure', 'standard_name': 'air_pressure', 'missing_value': -999}
+                        var.attrs = {'units': 'Pa', 'long_name': 'air pressure', 'standard_name': 'air_pressure'}
                     elif var_name == 'airtemp':
-                        var.attrs = {'units': 'K', 'long_name': 'air temperature', 'standard_name': 'air_temperature', 'missing_value': -999}
+                        var.attrs = {'units': 'K', 'long_name': 'air temperature', 'standard_name': 'air_temperature'}
                     elif var_name == 'pptrate':
-                        var.attrs = {'units': 'm s-1', 'long_name': 'precipitation rate', 'standard_name': 'precipitation_rate', 'missing_value': -999}
+                        var.attrs = {'units': 'm s-1', 'long_name': 'precipitation rate', 'standard_name': 'precipitation_rate'}
                     elif var_name == 'windspd':
-                        var.attrs = {'units': 'm s-1', 'long_name': 'wind speed', 'standard_name': 'wind_speed', 'missing_value': -999}
+                        var.attrs = {'units': 'm s-1', 'long_name': 'wind speed', 'standard_name': 'wind_speed'}
                     elif var_name == 'windspd_u':
-                        var.attrs = {'units': 'm s-1', 'long_name': 'eastward wind', 'standard_name': 'eastward_wind', 'missing_value': -999}
+                        var.attrs = {'units': 'm s-1', 'long_name': 'eastward wind', 'standard_name': 'eastward_wind'}
                     elif var_name == 'windspd_v':
-                        var.attrs = {'units': 'm s-1', 'long_name': 'northward wind', 'standard_name': 'northward_wind', 'missing_value': -999}
+                        var.attrs = {'units': 'm s-1', 'long_name': 'northward wind', 'standard_name': 'northward_wind'}
                     elif var_name == 'LWRadAtm':
-                        var.attrs = {'units': 'W m-2', 'long_name': 'downward longwave radiation at the surface', 'standard_name': 'surface_downwelling_longwave_flux_in_air', 'missing_value': -999}
+                        var.attrs = {'units': 'W m-2', 'long_name': 'downward longwave radiation at the surface', 'standard_name': 'surface_downwelling_longwave_flux_in_air'}
                     elif var_name == 'SWRadAtm':
-                        var.attrs = {'units': 'W m-2', 'long_name': 'downward shortwave radiation at the surface', 'standard_name': 'surface_downwelling_shortwave_flux_in_air', 'missing_value': -999}
+                        var.attrs = {'units': 'W m-2', 'long_name': 'downward shortwave radiation at the surface', 'standard_name': 'surface_downwelling_shortwave_flux_in_air'}
                     elif var_name == 'spechum':
-                        var.attrs = {'units': 'kg kg-1', 'long_name': 'specific humidity', 'standard_name': 'specific_humidity', 'missing_value': -999}
-                    else:
-                        var.attrs = {'missing_value': -999}
+                        var.attrs = {'units': 'kg kg-1', 'long_name': 'specific humidity', 'standard_name': 'specific_humidity'}
+                    
+                    # Consistently set missing values in encoding
+                    var.encoding['missing_value'] = -999.0
+                    var.encoding['_FillValue'] = -999.0
                 
                 # Save monthly file
                 output_file = merged_forcing_path / f"CASR_monthly_{year}{month:02d}.nc"

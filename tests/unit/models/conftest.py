@@ -8,6 +8,8 @@ from unittest.mock import Mock, MagicMock
 import tempfile
 import shutil
 
+from symfluence.utils.config.models import SymfluenceConfig
+
 
 @pytest.fixture
 def mock_logger():
@@ -32,25 +34,38 @@ def temp_dir():
 
 @pytest.fixture
 def base_config(temp_dir):
-    """Create a base configuration dictionary for testing."""
-    return {
+    """Create a base configuration for testing."""
+    config_dict = {
         'SYMFLUENCE_DATA_DIR': str(temp_dir / 'data'),
         'SYMFLUENCE_CODE_DIR': str(temp_dir / 'code'),
         'DOMAIN_NAME': 'test_domain',
+        'EXPERIMENT_ID': 'test_run',
+        'EXPERIMENT_TIME_START': '2020-01-01 00:00',
+        'EXPERIMENT_TIME_END': '2020-01-02 00:00',
+        'DOMAIN_DEFINITION_METHOD': 'lumped',
+        'DOMAIN_DISCRETIZATION': 'GRUs',
+        'HYDROLOGICAL_MODEL': 'SUMMA',
         'FORCING_DATASET': 'ERA5',
         'FORCING_TIME_STEP_SIZE': 3600,
-        'DOMAIN_DISCRETIZATION': 'GRUs',
-        'CATCHMENT_SHP_NAME': 'default',
-        'RIVER_NETWORK_SHP_NAME': 'default',
-        'DEM_NAME': 'default',
-        'EXPERIMENT_ID': 'test_run',
     }
+    return SymfluenceConfig(**config_dict)
 
 
 @pytest.fixture
-def summa_config(base_config):
+def summa_config(temp_dir):
     """Create a SUMMA-specific configuration."""
-    summa_specific = {
+    config_dict = {
+        'SYMFLUENCE_DATA_DIR': str(temp_dir / 'data'),
+        'SYMFLUENCE_CODE_DIR': str(temp_dir / 'code'),
+        'DOMAIN_NAME': 'test_domain',
+        'EXPERIMENT_ID': 'test_run',
+        'EXPERIMENT_TIME_START': '2020-01-01 00:00',
+        'EXPERIMENT_TIME_END': '2020-01-02 00:00',
+        'DOMAIN_DEFINITION_METHOD': 'lumped',
+        'DOMAIN_DISCRETIZATION': 'GRUs',
+        'HYDROLOGICAL_MODEL': 'SUMMA',
+        'FORCING_DATASET': 'ERA5',
+        'FORCING_TIME_STEP_SIZE': 3600,
         'SETTINGS_SUMMA_PATH': 'default',
         'SETTINGS_SUMMA_FILEMANAGER': 'fileManager.txt',
         'SETTINGS_SUMMA_COLDSTATE': 'coldState.nc',
@@ -60,26 +75,37 @@ def summa_config(base_config):
         'CATCHMENT_SHP_GRUID': 'gruId',
         'FORCING_MEASUREMENT_HEIGHT': 3.0,
     }
-    return {**base_config, **summa_specific}
+    return SymfluenceConfig(**config_dict)
 
 
 @pytest.fixture
-def fuse_config(base_config):
+def fuse_config(temp_dir):
     """Create a FUSE-specific configuration."""
-    fuse_specific = {
+    config_dict = {
+        'SYMFLUENCE_DATA_DIR': str(temp_dir / 'data'),
+        'SYMFLUENCE_CODE_DIR': str(temp_dir / 'code'),
+        'DOMAIN_NAME': 'test_domain',
+        'EXPERIMENT_ID': 'test_run',
+        'EXPERIMENT_TIME_START': '2020-01-01 00:00',
+        'EXPERIMENT_TIME_END': '2020-01-02 00:00',
+        'DOMAIN_DEFINITION_METHOD': 'lumped',
+        'DOMAIN_DISCRETIZATION': 'GRUs',
+        'HYDROLOGICAL_MODEL': 'FUSE',
+        'FORCING_DATASET': 'ERA5',
+        'FORCING_TIME_STEP_SIZE': 3600,
         'SETTINGS_FUSE_PATH': 'default',
         'SETTINGS_FUSE_FILEMANAGER': 'fm_catch.txt',
         'FUSE_SPATIAL_MODE': 'lumped',
     }
-    return {**base_config, **fuse_specific}
+    return SymfluenceConfig(**config_dict)
 
 
 @pytest.fixture
 def setup_test_directories(temp_dir, base_config):
     """Set up common test directory structure."""
-    data_dir = Path(base_config['SYMFLUENCE_DATA_DIR'])
-    code_dir = Path(base_config['SYMFLUENCE_CODE_DIR'])
-    domain_dir = data_dir / f"domain_{base_config['DOMAIN_NAME']}"
+    data_dir = base_config.system.data_dir
+    code_dir = base_config.system.code_dir
+    domain_dir = data_dir / f"domain_{base_config.domain.name}"
 
     # Create directories
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -88,7 +114,7 @@ def setup_test_directories(temp_dir, base_config):
 
     # Create base settings directories for models
     for model in ['SUMMA', 'FUSE', 'GR', 'HYPE']:
-        base_settings = code_dir / 'src' / 'symfluence' / 'data' / 'base_settings' / model
+        base_settings = code_dir / 'src' / 'symfluence' / 'resources' / 'base_settings' / model
         base_settings.mkdir(parents=True, exist_ok=True)
 
         # Create dummy settings files

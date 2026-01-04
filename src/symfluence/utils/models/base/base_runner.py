@@ -89,8 +89,12 @@ class BaseModelRunner(ABC, PathResolverMixin):
 
         # Base paths (standard naming)
         self.data_dir = Path(self._resolve_config_value(
-            lambda: self.config.paths.data_dir,
+            lambda: self.config.system.data_dir,
             'SYMFLUENCE_DATA_DIR'
+        ))
+        self.code_dir = Path(self._resolve_config_value(
+            lambda: self.config.system.code_dir,
+            'SYMFLUENCE_CODE_DIR'
         ))
         self.domain_name = self._resolve_config_value(
             lambda: self.config.domain.name,
@@ -162,16 +166,23 @@ class BaseModelRunner(ABC, PathResolverMixin):
             ...     'EXPERIMENT_TIME_START'
             ... )
         """
+        val = None
         if self.config:  # Typed config available (preferred)
             # Handle callable (lambda) or direct value
             if callable(typed_accessor):
                 try:
-                    return typed_accessor()
+                    val = typed_accessor()
                 except (AttributeError, KeyError):
-                    return default
-            return typed_accessor
-        # Fallback to dict config (deprecated path)
-        return self.config_dict.get(dict_key, default)
+                    val = None
+            else:
+                val = typed_accessor
+        
+        # If val is None (either missing from typed config or typed config not used),
+        # fall back to dict config (deprecated path)
+        if val is None:
+            return self.config_dict.get(dict_key, default)
+        
+        return val
 
     def _setup_model_specific_paths(self) -> None:
         """
@@ -291,13 +302,21 @@ class BaseModelRunner(ABC, PathResolverMixin):
                 must_exist=True
             ) / 'summa.exe'
         """
-        install_path = self.config_dict.get(config_key, 'default')
+        self.logger.debug(f"Resolving install path for key: {config_key}, default: {default_subpath}, relative_to: {relative_to}")
+        install_path = self._resolve_config_value(lambda: self.typed_config.get(config_key.lower()), config_key, 'default')
 
         if install_path == 'default' or install_path is None:
-            base = self.data_dir if relative_to == 'data_dir' else self.project_dir
+            if relative_to == 'data_dir':
+                base = self.data_dir
+            elif relative_to == 'code_dir':
+                base = self.code_dir
+            else:
+                base = self.project_dir
             path = base / default_subpath
+            self.logger.debug(f"Resolved default install path: {path} (from base: {base})")
         else:
             path = Path(install_path)
+            self.logger.debug(f"Using custom install path: {path}")
 
         # Optional validation
         if must_exist and not path.exists():

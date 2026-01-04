@@ -55,13 +55,15 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.forcing_input_dir = self.forcing_basin_path
         self.hype_setup_dir = f"{str(self.project_dir / 'settings' / 'HYPE')}/"
         # Phase 3: Use typed config when available
-        if self.config:
-            experiment_id = self.config.domain.experiment_id
-            forcing_dataset = self.config.domain.forcing_dataset
-        else:
-            experiment_id = self.config_dict.get('EXPERIMENT_ID')
-            forcing_dataset = self.config_dict.get('FORCING_DATASET')
+        forcing_dataset = self._resolve_config_value(
+            lambda: self.config.forcing.dataset,
+            'FORCING_DATASET',
+        )
 
+        experiment_id = self._resolve_config_value(
+            lambda: self.config.domain.experiment_id,
+            'EXPERIMENT_ID'
+        )
         self.hype_results_dir = self.project_dir / "simulations" / experiment_id / "HYPE"
         self.hype_results_dir.mkdir(parents=True, exist_ok=True)
         self.hype_results_dir = f"{str(self.hype_results_dir)}/"
@@ -69,10 +71,22 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.cache_path.mkdir(parents=True, exist_ok=True)
 
         # Initialize time parameters (Phase 3: typed config)
-        if self.typed_config and self.config.model.hype:
-            self.timeshift = self.config.model.hype.timeshift
-            self.spinup_days = self.config.model.hype.spinup_days
-            self.frac_threshold = self.config.model.hype.frac_threshold
+        if self.typed_config and self.typed_config.model.hype:
+            self.timeshift = self._resolve_config_value(
+                lambda: self.typed_config.model.hype.timeshift,
+                'HYPE_TIMESHIFT',
+                0
+            )
+            self.spinup_days = self._resolve_config_value(
+                lambda: self.typed_config.model.hype.spinup_days,
+                'HYPE_SPINUP_DAYS',
+                0
+            )
+            self.frac_threshold = self._resolve_config_value(
+                lambda: self.typed_config.model.hype.frac_threshold,
+                'HYPE_FRAC_THRESHOLD',
+                0.1
+            )
         else:
             self.timeshift = self.config_dict.get('HYPE_TIMESHIFT', 0)
             # Use 0 as default spinup (was 365, but 0 is more sensible for most cases)
@@ -113,14 +127,14 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         }
 
         # domain subbasins and rivers - handle different delineation methods
-        delim_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'delineate')
-        self.subbasins_shapefile = str(self.project_dir / 'shapefiles' / 'river_basins' / f'{self.domain_name}_riverBasins_{delim_method}.shp')
+        method_suffix = self._get_method_suffix()
+        self.subbasins_shapefile = str(self.project_dir / 'shapefiles' / 'river_basins' / f'{self.domain_name}_riverBasins_{method_suffix}.shp')
         
         # River network file might not always exist for lumped domains, fallback to river_basins if needed
-        network_file = self.project_dir / 'shapefiles' / 'river_network' / f'{self.domain_name}_riverNetwork_{delim_method}.shp'
+        network_file = self.project_dir / 'shapefiles' / 'river_network' / f'{self.domain_name}_riverNetwork_{method_suffix}.shp'
         if not network_file.exists():
             # If no network file, try generic or fallback
-            network_file = self.project_dir / 'shapefiles' / 'river_basins' / f'{self.domain_name}_riverBasins_{delim_method}.shp'
+            network_file = self.project_dir / 'shapefiles' / 'river_basins' / f'{self.domain_name}_riverBasins_{method_suffix}.shp'
             
         self.rivers_shapefile = str(network_file)
 
@@ -149,17 +163,40 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
     def _create_model_configs(self) -> None:
         """HYPE-specific configuration file creation (template hook)."""
         # Write geographic data files and get land use information
-        land_uses = write_hype_geo_files(
-            self.gistool_output,
-            self.subbasins_shapefile,
-            self.rivers_shapefile,
-            self.frac_threshold,
-            self.geofabric_mapping,
-            self.output_path,
-            self.intersect_path
-        )
+        # Get basin shapefile path
+        basin_dir = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
+        method_suffix = self._get_method_suffix()
+        basin_name = f"{self.domain_name}_riverBasins_{method_suffix}.shp"
+        basin_path = basin_dir / basin_name
+        
+        # Fallback for legacy naming
+        if not basin_path.exists() and self.domain_name == 'bow_banff_minimal':
+            legacy_basin = basin_dir / "Bow_at_Banff_lumped_riverBasins_lumped.shp"
+            if legacy_basin.exists():
+                basin_path = legacy_basin
+                self.logger.info(f"Using legacy basins path: {basin_path.name}")
 
-        # Write parameter file with dynamic land use parameters
+        # Get river network path
+        river_dir = self._get_default_path('RIVER_NETWORK_PATH', 'shapefiles/river_network')
+        river_name = f"{self.domain_name}_riverNetwork_{method_suffix}.shp"
+        river_path = river_dir / river_name
+        
+        # Fallback for legacy naming
+        if not river_path.exists() and self.domain_name == 'bow_banff_minimal':
+            legacy_river = river_dir / "Bow_at_Banff_lumped_riverNetwork_lumped.shp"
+            if legacy_river.exists():
+                river_path = legacy_river
+                self.logger.info(f"Using legacy river network path: {river_path.name}")
+
+        land_uses = write_hype_geo_files(
+            gistool_output=self.gistool_output,
+            subbasins_shapefile=basin_path,
+            rivers_shapefile=river_path,
+            frac_threshold=self.config_dict.get('HYPE_FRAC_THRESHOLD', 0.05),
+            geofabric_mapping=self.geofabric_mapping,
+            path_to_save=self.output_path,
+            intersect_base_path=self.intersect_path
+        )
         write_hype_par_file(self.output_path, params=self.calibration_params, land_uses=land_uses)
 
         # Get experiment dates from config

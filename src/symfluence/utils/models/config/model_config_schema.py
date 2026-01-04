@@ -479,9 +479,9 @@ def _create_mesh_schema() -> ModelConfigSchema:
         description='Modélisation Environmentale Surface et Hydrologie',
         installation=InstallationConfig(
             install_path_key='MESH_INSTALL_PATH',
-            default_install_subpath='installs/MESH-DEV',
+            default_install_subpath='installs/mesh/bin',
             exe_name_key='MESH_EXE',
-            default_exe_name='sa_mesh'
+            default_exe_name='mesh.exe'
         ),
         execution=ExecutionConfig(
             method='subprocess',

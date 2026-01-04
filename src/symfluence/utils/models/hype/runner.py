@@ -38,8 +38,14 @@ class HYPERunner(BaseModelRunner, ModelExecutor):
         """Set up HYPE-specific paths."""
         self.setup_dir = self.project_dir / "settings" / "HYPE"
 
-        # HYPE-specific: Get installation path
-        self.hype_dir = self.get_install_path('HYPE_INSTALL_PATH', 'installs/hype')
+        # HYPE executable path (installation dir + exe name)
+        self.hype_exe = self.get_model_executable(
+            install_path_key='HYPE_INSTALL_PATH',
+            default_install_subpath='installs/hype/bin',
+            exe_name_key='HYPE_EXE',
+            default_exe_name='hype',
+            typed_exe_accessor=lambda: self.typed_config.model.hype.exe if (self.typed_config and self.typed_config.model.hype) else None
+        )
 
     def _get_model_name(self) -> str:
         """Return model name for HYPE."""
@@ -98,15 +104,8 @@ class HYPERunner(BaseModelRunner, ModelExecutor):
 
     def _create_run_command(self) -> List[str]:
         """Create HYPE execution command."""
-        if self.typed_config and self.config.model.hype:
-            hype_exe_name = self.config.model.hype.exe or 'hype'
-        else:
-            hype_exe_name = self.config_dict.get('HYPE_EXE', 'hype')
-
-        hype_exe = self.hype_dir / hype_exe_name
-
         cmd = [
-            str(hype_exe),
+            str(self.hype_exe),
             str(self.setup_dir) + '/'  # HYPE requires trailing slash
         ]
         print(cmd)

@@ -328,14 +328,15 @@ class GeofabricDelineator(BaseGeofabricDelineator):
         """
         subset_basins_path = self.config.get('OUTPUT_BASINS_PATH')
         subset_rivers_path = self.config.get('OUTPUT_RIVERS_PATH')
+        method_suffix = self._get_method_suffix()
 
         if subset_basins_path == 'default':
-            subset_basins_path = self.project_dir / "shapefiles" / "river_basins" / f"{self.domain_name}_riverBasins_delineate.shp"
+            subset_basins_path = self.project_dir / "shapefiles" / "river_basins" / f"{self.domain_name}_riverBasins_{method_suffix}.shp"
         else:
             subset_basins_path = Path(self.config.get('OUTPUT_BASINS_PATH'))
 
         if subset_rivers_path == 'default':
-            subset_rivers_path = self.project_dir / "shapefiles" / "river_network" / f"{self.domain_name}_riverNetwork_delineate.shp"
+            subset_rivers_path = self.project_dir / "shapefiles" / "river_network" / f"{self.domain_name}_riverNetwork_{method_suffix}.shp"
         else:
             subset_rivers_path = Path(self.config.get('OUTPUT_RIVERS_PATH'))
 

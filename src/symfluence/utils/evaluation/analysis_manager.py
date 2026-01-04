@@ -3,13 +3,19 @@
 from pathlib import Path
 import logging
 import pandas as pd
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 
 from symfluence.utils.evaluation.decision_analysis import DecisionAnalyzer # type: ignore
 from symfluence.utils.evaluation.sensitivity_analysis import SensitivityAnalyzer # type: ignore
 from symfluence.utils.evaluation.benchmarking import Benchmarker, BenchmarkPreprocessor # type: ignore
 from symfluence.utils.models.fuse import FuseDecisionAnalyzer # type: ignore
 from symfluence.utils.evaluation.registry import EvaluationRegistry
+
+# Import for type checking only
+try:
+    from symfluence.utils.config.models import SymfluenceConfig
+except ImportError:
+    SymfluenceConfig = None
 
 class AnalysisManager:
     """
@@ -40,7 +46,7 @@ class AnalysisManager:
         experiment_id (str): ID of the current experiment
     """
     
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the Analysis Manager.
         
@@ -49,14 +55,21 @@ class AnalysisManager:
         for benchmarking, sensitivity analysis, and decision analysis.
         
         Args:
-            config (Dict[str, Any]): Configuration dictionary containing all settings
+            config: Configuration dictionary or SymfluenceConfig instance
             logger (logging.Logger): Logger instance for recording operations
             reporting_manager (ReportingManager): ReportingManager instance
             
         Raises:
             KeyError: If essential configuration values are missing
         """
-        self.config = config
+        # Support both typed config and dict config
+        if SymfluenceConfig and isinstance(config, SymfluenceConfig):
+            self.typed_config = config
+            self.config = config.to_dict(flatten=True)
+        else:
+            self.typed_config = None
+            self.config = config
+
         self.logger = logger
         self.reporting_manager = reporting_manager
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
@@ -91,8 +104,11 @@ class AnalysisManager:
         self.logger.info("Starting benchmarking analysis")
         
         try:
+            # Use typed config if available
+            component_config = self.typed_config if self.typed_config else self.config
+            
             # Preprocess data for benchmarking
-            preprocessor = BenchmarkPreprocessor(self.config, self.logger)
+            preprocessor = BenchmarkPreprocessor(component_config, self.logger)
             
             # Extract calibration and evaluation periods
             calib_start = self.config.get('CALIBRATION_PERIOD').split(',')[0].strip()
@@ -101,7 +117,7 @@ class AnalysisManager:
             benchmark_data = preprocessor.preprocess_benchmark_data(calib_start, eval_end)
             
             # Run benchmarking
-            benchmarker = Benchmarker(self.config, self.logger)
+            benchmarker = Benchmarker(component_config, self.logger)
             benchmark_results = benchmarker.run_benchmarking()
             
             # Visualize benchmark results
@@ -181,7 +197,8 @@ class AnalysisManager:
         """
         self.logger.info("Running SUMMA sensitivity analysis")
         
-        sensitivity_analyzer = SensitivityAnalyzer(self.config, self.logger, self.reporting_manager)
+        component_config = self.typed_config if self.typed_config else self.config
+        sensitivity_analyzer = SensitivityAnalyzer(component_config, self.logger, self.reporting_manager)
         results_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
         
         if not results_file.exists():
@@ -230,7 +247,8 @@ class AnalysisManager:
         """
         self.logger.info("Running SUMMA decision analysis")
         
-        decision_analyzer = DecisionAnalyzer(self.config, self.logger, self.reporting_manager)
+        component_config = self.typed_config if self.typed_config else self.config
+        decision_analyzer = DecisionAnalyzer(component_config, self.logger, self.reporting_manager)
         results_file, best_combinations = decision_analyzer.run_full_analysis()
         
         self.logger.info("SUMMA decision analysis completed")
@@ -247,27 +265,11 @@ class AnalysisManager:
     def _run_fuse_decision_analysis(self) -> Dict:
         """
         Run decision analysis for FUSE model.
-        
-        This internal method handles the specifics of decision analysis for the
-        FUSE hydrological model. FUSE is specifically designed for exploring model
-        structure decisions, offering a flexible framework for combining different
-        process representations.
-        
-        The analysis includes:
-        1. Running FUSE with different structural configurations
-        2. Evaluating performance for each configuration
-        3. Identifying optimal model structures
-        4. Visualizing the impact of different structural choices
-        
-        Returns:
-            Dict: Dictionary containing FUSE decision analysis results
-                
-        Raises:
-            Exception: For errors during FUSE decision analysis
         """
         self.logger.info("Running FUSE decision analysis")
         
-        fuse_analyzer = FuseDecisionAnalyzer(self.config, self.logger)
+        component_config = self.typed_config if self.typed_config else self.config
+        fuse_analyzer = FuseDecisionAnalyzer(component_config, self.logger)
         results = fuse_analyzer.run_decision_analysis()
         
         self.logger.info("FUSE decision analysis completed")

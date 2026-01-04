@@ -17,7 +17,7 @@ BUNDLE_VERSION = "v0.6.0"
 BUNDLE_NAME = f"example_data_{BUNDLE_VERSION}"
 BUNDLE_URL = f"https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-{BUNDLE_VERSION}/{BUNDLE_NAME}.zip"
 
-# Fallback to v0.5.5 if v0.6.0 not available yet
+# Fallback to v0.5.5
 FALLBACK_VERSION = "v0.5.5"
 FALLBACK_NAME = f"example_data_{FALLBACK_VERSION}"
 FALLBACK_URL = f"https://github.com/DarriEy/SYMFLUENCE/releases/download/examples-data-{FALLBACK_VERSION}/{FALLBACK_NAME}.zip"
@@ -153,11 +153,7 @@ def bow_domain(example_data_bundle):
     Returns:
         Path: Path to domain_bow_banff_minimal directory
     """
-    # Try new naming convention first
     domain_path = example_data_bundle / "domain_bow_banff_minimal"
-    if not domain_path.exists():
-        # Fallback to old naming
-        domain_path = example_data_bundle / "domain_Bow_at_Banff_lumped"
     if not domain_path.exists():
         pytest.skip(f"Bow domain not found in {example_data_bundle}")
     return domain_path

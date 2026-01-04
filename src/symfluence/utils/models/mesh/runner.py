@@ -39,19 +39,20 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
 
     def _setup_model_specific_paths(self) -> None:
         """Set up MESH-specific paths."""
-        # Use the newly compiled version from installs/MESH-Dev by default if it exists
-        local_compiled = Path("/Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/installs/MESH-Dev/sa_mesh")
-        if local_compiled.exists():
-            self.mesh_exe = local_compiled
-        else:
-            # MESH executable path (installation dir + exe name)
-            self.mesh_exe = self.get_model_executable(
-                install_path_key='MESH_INSTALL_PATH',
-                default_install_subpath='installs/MESH-DEV',
-                exe_name_key='MESH_EXE',
-                default_exe_name='sa_mesh',
-                typed_exe_accessor=lambda: self.config.model.mesh.exe if (self.typed_config and self.config.model.mesh) else None
-            )
+        # MESH executable path (installation dir + exe name)
+        self.logger.info(f"DEBUG: Setting up MESH paths...")
+        self.logger.info(f"DEBUG: config_dict MESH_INSTALL_PATH: {self.config_dict.get('MESH_INSTALL_PATH', 'NOT FOUND')}")
+        self.logger.info(f"DEBUG: config_dict MESH_EXE: {self.config_dict.get('MESH_EXE', 'NOT FOUND')}")
+
+        self.mesh_exe = self.get_model_executable(
+            install_path_key='MESH_INSTALL_PATH',
+            default_install_subpath='installs/mesh/bin',
+            exe_name_key='MESH_EXE',
+            default_exe_name='mesh.exe',
+            typed_exe_accessor=lambda: self.typed_config.model.mesh.exe if (self.typed_config and self.typed_config.model.mesh) else None
+        )
+
+        self.logger.info(f"DEBUG: Resolved mesh_exe: {self.mesh_exe}")
 
         # Catchment paths (now has PathResolverMixin via BaseModelRunner)
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')

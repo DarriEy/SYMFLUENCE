@@ -176,11 +176,15 @@ class BaseDatasetHandler(ABC):
         ds.attrs.update({'History': f'Created {time.ctime(time.time())}', 'Reason': description})
         return ds
 
-    def clean_variable_attributes(self, ds: xr.Dataset, missing_value: float = -999) -> xr.Dataset:
+    def clean_variable_attributes(self, ds: xr.Dataset, missing_value: float = -999.0) -> xr.Dataset:
         for var in ds.data_vars:
+            # Remove from attributes to avoid conflicts
             if 'missing_value' in ds[var].attrs: del ds[var].attrs['missing_value']
             if '_FillValue' in ds[var].attrs: del ds[var].attrs['_FillValue']
-            ds[var].attrs['missing_value'] = missing_value
+            
+            # Set in encoding for consistent NetCDF output
+            ds[var].encoding['missing_value'] = missing_value
+            ds[var].encoding['_FillValue'] = missing_value
         return ds
 
     def apply_standard_attributes(

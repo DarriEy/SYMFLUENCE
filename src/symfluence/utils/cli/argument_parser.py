@@ -36,10 +36,10 @@ WORKFLOW_STEPS = [
 DOMAIN_DEFINITION_METHODS = ['lumped', 'point', 'subset', 'delineate']
 
 # Available tools for binary installation
-EXTERNAL_TOOLS = ['summa', 'mizuroute', 'fuse', 'hype', 'taudem', 'gistool', 'datatool']
+EXTERNAL_TOOLS = ['summa', 'mizuroute', 'fuse', 'hype', 'mesh', 'taudem', 'gistool', 'datatool']
 
 # Hydrological models
-MODELS = ['SUMMA', 'FUSE', 'GR', 'HYPE']
+MODELS = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'MESH']
 
 
 class CLIParser:

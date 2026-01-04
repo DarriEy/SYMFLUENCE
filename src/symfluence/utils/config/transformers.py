@@ -595,4 +595,12 @@ def flatten_nested_config(config: 'SymfluenceConfig') -> Dict[str, Any]:
     _flatten_section('evaluation', config.evaluation, ('evaluation',))
     _flatten_section('paths', config.paths, ('paths',))
 
+    # Include extra fields from root config (e.g. CUSTOM_PATH in tests)
+    if hasattr(config, 'model_extra') and config.model_extra:
+        for key, value in config.model_extra.items():
+            if isinstance(value, Path):
+                flat[key] = str(value)
+            else:
+                flat[key] = value
+
     return flat

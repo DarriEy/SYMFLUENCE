@@ -27,59 +27,6 @@ EXAMPLE_DATA_URL = "https://github.com/DarriEy/SYMFLUENCE/releases/download/exam
 
 pytestmark = [pytest.mark.integration, pytest.mark.domain, pytest.mark.requires_data, pytest.mark.slow]
 
-@pytest.fixture(scope="module")
-def test_data_dir(symfluence_data_root):
-    """
-    Download and extract example data to ../SYMFLUENCE_data/ for testing.
-    """
-    # Use ../SYMFLUENCE_data/ parallel to the code directory
-    data_root = symfluence_data_root
-
-    # Check if example domain already exists
-    example_domain = "domain_Bow_at_Banff_lumped"
-    example_domain_path = data_root / example_domain
-
-    # Download if it doesn't exist
-    if not example_domain_path.exists():
-        print(f"\nDownloading example data to {data_root}...")
-        zip_path = data_root / "example_data_v0.5.5.zip"
-
-        # Download
-        response = requests.get(EXAMPLE_DATA_URL, stream=True, timeout=600)
-        response.raise_for_status()
-
-        with open(zip_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-
-        print("Extracting example data...")
-        # Extract to a temp location
-        extract_dir = data_root / "temp_extract"
-        extract_dir.mkdir(exist_ok=True)
-
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(extract_dir)
-
-        # Move the domain to data root
-        example_data_dir = extract_dir / "example_data_v0.5.5"
-        src_domain = example_data_dir / example_domain
-
-        if src_domain.exists():
-            src_domain.rename(example_domain_path)
-            print(f"Created domain: {example_domain}")
-        else:
-            raise FileNotFoundError(f"{example_domain} not found in downloaded data")
-
-        # Cleanup
-        zip_path.unlink(missing_ok=True)
-        shutil.rmtree(extract_dir, ignore_errors=True)
-
-        print(f"Test data ready at {example_domain_path}")
-    else:
-        print(f"Using existing test data at {example_domain_path}")
-
-    yield data_root
-
 
 def _copy_with_name_adaptation(src: Path, dst: Path, old_name: str, new_name: str) -> bool:
     """Copy directory or file and adapt filenames containing the old domain name."""
@@ -111,13 +58,13 @@ def _prune_raw_forcing(project_dir: Path, keep_glob: str) -> None:
 
 
 @pytest.fixture(scope="function")
-def config_path(test_data_dir, tmp_path, symfluence_code_dir):
+def config_path(example_data_bundle, tmp_path, symfluence_code_dir):
     """Create test configuration based on config_template.yaml."""
     # Load template
     config = load_config_template(symfluence_code_dir)
 
     # Update paths
-    config["SYMFLUENCE_DATA_DIR"] = str(test_data_dir)
+    config["SYMFLUENCE_DATA_DIR"] = str(example_data_bundle)
     config["SYMFLUENCE_CODE_DIR"] = str(symfluence_code_dir)
 
     # Domain settings from notebook 02b
@@ -164,7 +111,7 @@ MODELS = [
 @pytest.mark.slow
 @pytest.mark.requires_data
 @pytest.mark.parametrize("model", MODELS)
-def test_semi_distributed_basin_workflow(config_path, test_data_dir, model):
+def test_semi_distributed_basin_workflow(config_path, example_data_bundle, model):
     """
     Test semi-distributed basin workflow for each model.
 
@@ -239,7 +186,14 @@ def test_semi_distributed_basin_workflow(config_path, test_data_dir, model):
 
     # Step 2: Reuse data from the lumped example domain
     lumped_domain = "Bow_at_Banff_lumped"
-    lumped_data_dir = test_data_dir / f"domain_{lumped_domain}"
+    lumped_data_dir = example_data_bundle / f"domain_{lumped_domain}"
+    
+    # Fallback for v0.6.0 bundle structure
+    if not lumped_data_dir.exists():
+        lumped_data_dir = example_data_bundle / "domain_bow_banff_minimal"
+        lumped_domain = "Bow_at_Banff_lumped" # Name used inside files in minimal bundle
+        print(f"  Note: Using {lumped_data_dir.name} as data source for reuse.")
+
     reusable_data = {
         "Elevation": lumped_data_dir / "attributes" / "elevation",
         "Land Cover": lumped_data_dir / "attributes" / "landclass",

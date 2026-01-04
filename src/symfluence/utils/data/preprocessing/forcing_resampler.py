@@ -356,9 +356,13 @@ class ForcingResampler(PathResolverMixin):
                 coords_to_drop = ['latitude', 'longitude', 'lat', 'lon', 'expver']
                 ds_point = ds_point.drop_vars([c for c in coords_to_drop if c in ds_point.coords or c in ds_point.data_vars])
 
-                # Clear encoding to avoid "Unlimited dimension" warnings about latitude/longitude
+                # Clear encoding and potentially conflicting attributes
                 for var in ds_point.variables:
                     ds_point[var].encoding = {}
+                    if 'missing_value' in ds_point[var].attrs:
+                        del ds_point[var].attrs['missing_value']
+                    if '_FillValue' in ds_point[var].attrs:
+                        del ds_point[var].attrs['_FillValue']
 
                 ds_point.to_netcdf(output_file)
                 self.logger.info(f"✓ Created point forcing: {output_file.name}")
@@ -837,7 +841,21 @@ class ForcingResampler(PathResolverMixin):
                 
                 # Apply the remapping
                 self.logger.debug(f"{worker_str}Applying remapping weights to {file.name}")
+                
+                # Store list of files before remapping to detect the new one
+                files_before = set(self.forcing_basin_path.glob("*.nc"))
+                
                 esmr.nc_remapper()
+                
+                # Detect the new file
+                files_after = set(self.forcing_basin_path.glob("*.nc"))
+                new_files = files_after - files_before
+                
+                if not output_file.exists() and new_files:
+                    # Move/rename the new file to our expected output name
+                    actual_output = list(new_files)[0]
+                    actual_output.rename(output_file)
+                    self.logger.debug(f"{worker_str}Renamed {actual_output.name} to {output_file.name}")
                 
             finally:
                 # Clean up temp directory

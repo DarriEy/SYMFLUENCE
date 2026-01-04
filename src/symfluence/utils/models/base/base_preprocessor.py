@@ -95,7 +95,7 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
 
         # Base paths
         self.data_dir = Path(self._resolve_config_value(
-            lambda: self.config.paths.data_dir,
+            lambda: self.config.system.data_dir,
             'SYMFLUENCE_DATA_DIR'
         ))
         self.domain_name = self._resolve_config_value(
@@ -103,6 +103,14 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
             'DOMAIN_NAME'
         )
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
+
+        # Domain definition method (needed for path resolution)
+        self.domain_definition_method = self._resolve_config_value(
+            lambda: self.config.domain.definition_method,
+            'DOMAIN_DEFINITION_METHOD'
+        )
+        if self.domain_definition_method is None:
+            self.domain_definition_method = 'lumped'
 
         # Model-specific paths (subclasses should set model_name)
         self.model_name = self._get_model_name()
@@ -208,16 +216,23 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
             ...     'EXPERIMENT_TIME_START'
             ... )
         """
+        val = None
         if self.config:  # Typed config available (preferred)
             # Handle callable (lambda) or direct value
             if callable(typed_accessor):
                 try:
-                    return typed_accessor()
+                    val = typed_accessor()
                 except (AttributeError, KeyError):
-                    return default
-            return typed_accessor
-        # Fallback to dict config (deprecated path)
-        return self.config_dict.get(dict_key, default)
+                    val = None
+            else:
+                val = typed_accessor
+        
+        # If val is None (either missing from typed config or typed config not used),
+        # fall back to dict config (deprecated path)
+        if val is None:
+            return self.config_dict.get(dict_key, default)
+        
+        return val
 
 
     def _get_file_path(self, file_type: str, path_key: str,
@@ -372,9 +387,9 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         river_name = self.config_dict.get('RIVER_NETWORK_SHP_NAME')
 
         if river_name == 'default' or river_name is None:
-            # Use the domain definition method for the filename
-            method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'delineate')
-            river_name = f"{self.domain_name}_riverNetwork_{method}.shp"
+            # Use the standardized method suffix for the filename
+            method_suffix = self._get_method_suffix()
+            river_name = f"{self.domain_name}_riverNetwork_{method_suffix}.shp"
 
         return river_path / river_name
 
@@ -385,7 +400,7 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         Returns:
             True if lumped, False if distributed
         """
-        return self.config_dict.get('DOMAIN_DEFINITION_METHOD') == 'lumped'
+        return self.domain_definition_method == 'lumped'
 
     def get_dem_path(self) -> Path:
         """

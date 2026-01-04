@@ -13,6 +13,7 @@ from symfluence.utils.exceptions import (
     FileOperationError,
     ModelExecutionError
 )
+from symfluence.utils.config.models import SymfluenceConfig
 
 
 class ConcretePreProcessor(BaseModelPreProcessor):
@@ -25,23 +26,29 @@ class ConcretePreProcessor(BaseModelPreProcessor):
         pass
 
 
-@pytest.fixture
-def config(tmp_path):
-    """Create a test configuration."""
-    return {
+def _create_config(tmp_path, overrides=None):
+    """Create a valid SymfluenceConfig with required fields."""
+    base = {
         'SYMFLUENCE_DATA_DIR': str(tmp_path),
         'SYMFLUENCE_CODE_DIR': str(tmp_path / 'code'),
         'DOMAIN_NAME': 'test_domain',
-        'FORCING_DATASET': 'ERA5',  # Required by validation
-        'FORCING_TIME_STEP_SIZE': 3600,
-        'DOMAIN_DISCRETIZATION': 'lumped',
+        'EXPERIMENT_ID': 'exp_001',
+        'EXPERIMENT_TIME_START': '2020-01-01 00:00',
+        'EXPERIMENT_TIME_END': '2020-01-02 00:00',
         'DOMAIN_DEFINITION_METHOD': 'lumped',
-        'CATCHMENT_PATH': 'default',
-        'CATCHMENT_SHP_NAME': 'default',
-        'RIVER_NETWORK_SHP_PATH': 'default',
-        'RIVER_NETWORK_SHP_NAME': 'default',
-        'DEM_NAME': 'default',
+        'DOMAIN_DISCRETIZATION': 'lumped',
+        'HYDROLOGICAL_MODEL': 'SUMMA',
+        'FORCING_DATASET': 'ERA5',
     }
+    if overrides:
+        base.update(overrides)
+    return SymfluenceConfig(**base)
+
+
+@pytest.fixture
+def config(tmp_path):
+    """Create a test configuration."""
+    return _create_config(tmp_path)
 
 
 @pytest.fixture
@@ -58,7 +65,7 @@ def preprocessor(config, logger, tmp_path):
     (project_dir / 'settings' / 'TEST').mkdir(parents=True, exist_ok=True)
     (project_dir / 'forcing' / 'TEST_input').mkdir(parents=True, exist_ok=True)
     # Make sure local base settings exist in the fake code directory
-    code_dir = Path(config['SYMFLUENCE_CODE_DIR'])
+    code_dir = Path(config.system.code_dir)
     (code_dir / 'src' / 'symfluence' / 'resources' / 'base_settings' / 'TEST').mkdir(parents=True, exist_ok=True)
 
     return ConcretePreProcessor(config, logger)
@@ -69,25 +76,26 @@ class TestBaseModelPreProcessorInitialization:
 
     def test_initialization(self, preprocessor, config, tmp_path):
         """Test basic initialization."""
-        assert preprocessor.config_dict == config
+        # Use Path() for comparison since to_dict converts Path to string
+        assert Path(preprocessor.config_dict['SYMFLUENCE_DATA_DIR']) == Path(tmp_path)
         assert preprocessor.domain_name == 'test_domain'
-        assert preprocessor.data_dir == tmp_path
-        assert preprocessor.project_dir == tmp_path / 'domain_test_domain'
+        assert preprocessor.data_dir == Path(tmp_path).resolve() # SymfluenceConfig resolves paths
+        assert preprocessor.project_dir == Path(tmp_path).resolve() / 'domain_test_domain'
         assert preprocessor.model_name == 'TEST'
 
     def test_setup_dir_creation(self, preprocessor, tmp_path):
         """Test that setup_dir is set correctly."""
-        expected_setup_dir = tmp_path / 'domain_test_domain' / 'settings' / 'TEST'
+        expected_setup_dir = Path(tmp_path).resolve() / 'domain_test_domain' / 'settings' / 'TEST'
         assert preprocessor.setup_dir == expected_setup_dir
 
     def test_forcing_dir_creation(self, preprocessor, tmp_path):
         """Test that forcing_dir is set correctly."""
-        expected_forcing_dir = tmp_path / 'domain_test_domain' / 'forcing' / 'TEST_input'
+        expected_forcing_dir = Path(tmp_path).resolve() / 'domain_test_domain' / 'forcing' / 'TEST_input'
         assert preprocessor.forcing_dir == expected_forcing_dir
 
     def test_forcing_basin_path(self, preprocessor, tmp_path):
         """Test that forcing_basin_path is set correctly."""
-        expected_path = tmp_path / 'domain_test_domain' / 'forcing' / 'basin_averaged_data'
+        expected_path = Path(tmp_path).resolve() / 'domain_test_domain' / 'forcing' / 'basin_averaged_data'
         assert preprocessor.forcing_basin_path == expected_path
 
 
@@ -108,10 +116,12 @@ class TestPathResolution:
 
     def test_get_default_path_with_custom(self, preprocessor, tmp_path):
         """Test _get_default_path with custom path."""
-        custom_path = tmp_path / 'custom' / 'path'
-        preprocessor.config_dict['CUSTOM_PATH'] = str(custom_path)
+        custom_path = (tmp_path / 'custom' / 'path').resolve()
+        # Re-initialize with custom path
+        config = _create_config(tmp_path, {'CUSTOM_PATH': str(custom_path)})
+        preprocessor = ConcretePreProcessor(config, preprocessor.logger)
         result = preprocessor._get_default_path('CUSTOM_PATH', 'default/path')
-        assert result == custom_path
+        assert result.resolve() == custom_path
 
     def test_get_catchment_path_default(self, preprocessor):
         """Test get_catchment_path with defaults."""
@@ -133,9 +143,11 @@ class TestDirectoryCreation:
         """Test basic directory creation."""
         # Remove directories if they exist
         if preprocessor.setup_dir.exists():
-            preprocessor.setup_dir.rmdir()
+            import shutil
+            shutil.rmtree(preprocessor.setup_dir)
         if preprocessor.forcing_dir.exists():
-            preprocessor.forcing_dir.rmdir()
+            import shutil
+            shutil.rmtree(preprocessor.forcing_dir)
 
         preprocessor.create_directories()
 
@@ -178,10 +190,15 @@ class TestFilePathResolution:
 
     def test_get_file_path_with_custom_path(self, preprocessor, tmp_path):
         """Test _get_file_path with custom path."""
-        custom_dir = tmp_path / 'custom'
+        custom_dir = (tmp_path / 'custom').resolve()
         custom_dir.mkdir(exist_ok=True)
-        preprocessor.config_dict['FILE_PATH'] = str(custom_dir)
-        preprocessor.config_dict['FILE_NAME'] = 'custom_file.txt'
+        
+        # Re-initialize with custom settings
+        config = _create_config(tmp_path, {
+            'FILE_PATH': str(custom_dir),
+            'FILE_NAME': 'custom_file.txt'
+        })
+        preprocessor = ConcretePreProcessor(config, preprocessor.logger)
 
         result = preprocessor._get_file_path(
             'test_file',
@@ -190,7 +207,7 @@ class TestFilePathResolution:
             'default.txt'
         )
 
-        assert result == custom_dir / 'custom_file.txt'
+        assert result.resolve() == custom_dir / 'custom_file.txt'
 
 
 class TestHelperMethods:
@@ -200,9 +217,10 @@ class TestHelperMethods:
         """Test _is_lumped returns True for lumped configuration."""
         assert preprocessor._is_lumped() is True
 
-    def test_is_lumped_false(self, preprocessor):
+    def test_is_lumped_false(self, preprocessor, tmp_path):
         """Test _is_lumped returns False for distributed configuration."""
-        preprocessor.config_dict['DOMAIN_DEFINITION_METHOD'] = 'distributed'
+        config = _create_config(tmp_path, {'DOMAIN_DEFINITION_METHOD': 'distributed'})
+        preprocessor = ConcretePreProcessor(config, preprocessor.logger)
         assert preprocessor._is_lumped() is False
 
 
@@ -284,14 +302,15 @@ class TestConfigurationValidation:
     """Test configuration validation."""
 
     def test_missing_required_config_keys(self, logger):
-        """Test that missing required config keys raise ConfigurationError."""
+        """Test that missing required config keys raise ValueError (from SymfluenceConfig)."""
         incomplete_config = {
             'DOMAIN_NAME': 'test'
             # Missing SYMFLUENCE_DATA_DIR and FORCING_DATASET
         }
 
-        with pytest.raises(ConfigurationError) as exc_info:
-            ConcretePreProcessor(incomplete_config, logger)
+        # SymfluenceConfig raises ValueError during initialization if required keys are missing
+        with pytest.raises(ValueError) as exc_info:
+            SymfluenceConfig(**incomplete_config)
 
         assert 'Missing required configuration keys' in str(exc_info.value)
 
@@ -311,51 +330,59 @@ class TestNewMethods:
         expected = preprocessor.project_dir / 'attributes' / 'elevation' / 'dem' / 'domain_test_domain_elv.tif'
         assert result == expected
 
-    def test_get_dem_path_custom(self, preprocessor):
+    def test_get_dem_path_custom(self, preprocessor, tmp_path):
         """Test get_dem_path with custom DEM name."""
-        preprocessor.config_dict['DEM_NAME'] = 'custom_dem.tif'
+        # Re-initialize with custom settings
+        config = _create_config(tmp_path, {'DEM_NAME': 'custom_dem.tif'})
+        preprocessor = ConcretePreProcessor(config, preprocessor.logger)
+        
         result = preprocessor.get_dem_path()
         expected = preprocessor.project_dir / 'attributes' / 'elevation' / 'dem' / 'custom_dem.tif'
         assert result == expected
 
-    def test_get_timestep_config_hourly(self, preprocessor):
+    def test_get_timestep_config_hourly(self, preprocessor, tmp_path):
         """Test get_timestep_config for hourly data."""
-        preprocessor.forcing_time_step_size = 3600
-        config = preprocessor.get_timestep_config()
+        config = _create_config(tmp_path, {'FORCING_TIME_STEP_SIZE': 3600})
+        preprocessor = ConcretePreProcessor(config, preprocessor.logger)
+        ts_config = preprocessor.get_timestep_config()
 
-        assert config['resample_freq'] == 'h'
-        assert config['time_units'] == 'hours since 1970-01-01'
-        assert config['time_unit'] == 'h'
-        assert config['conversion_factor'] == 3.6
-        assert config['time_label'] == 'hourly'
-        assert config['timestep_seconds'] == 3600
+        assert ts_config['resample_freq'] == 'h'
+        assert ts_config['time_units'] == 'hours since 1970-01-01'
+        assert ts_config['time_unit'] == 'h'
+        assert ts_config['conversion_factor'] == 3.6
+        assert ts_config['time_label'] == 'hourly'
+        assert ts_config['timestep_seconds'] == 3600
 
-    def test_get_timestep_config_daily(self, preprocessor):
+    def test_get_timestep_config_daily(self, preprocessor, tmp_path):
         """Test get_timestep_config for daily data."""
-        preprocessor.forcing_time_step_size = 86400
-        config = preprocessor.get_timestep_config()
+        config = _create_config(tmp_path, {'FORCING_TIME_STEP_SIZE': 86400})
+        preprocessor = ConcretePreProcessor(config, preprocessor.logger)
+        ts_config = preprocessor.get_timestep_config()
 
-        assert config['resample_freq'] == 'D'
-        assert config['time_units'] == 'days since 1970-01-01'
-        assert config['time_unit'] == 'D'
-        assert config['conversion_factor'] == 86.4
-        assert config['time_label'] == 'daily'
-        assert config['timestep_seconds'] == 86400
+        assert ts_config['resample_freq'] == 'D'
+        assert ts_config['time_units'] == 'days since 1970-01-01'
+        assert ts_config['time_unit'] == 'D'
+        assert ts_config['conversion_factor'] == 86.4
+        assert ts_config['time_label'] == 'daily'
+        assert ts_config['timestep_seconds'] == 86400
 
-    def test_get_timestep_config_custom(self, preprocessor):
+    def test_get_timestep_config_custom(self, preprocessor, tmp_path):
         """Test get_timestep_config for custom timestep."""
-        preprocessor.forcing_time_step_size = 10800  # 3 hours
-        config = preprocessor.get_timestep_config()
+        config = _create_config(tmp_path, {'FORCING_TIME_STEP_SIZE': 10800}) # 3 hours
+        preprocessor = ConcretePreProcessor(config, preprocessor.logger)
+        ts_config = preprocessor.get_timestep_config()
 
-        assert config['resample_freq'] == '3h'
-        assert config['time_label'] == '3-hourly'
-        assert config['conversion_factor'] == 3.6 * 3
+        assert ts_config['resample_freq'] == '3h'
+        assert ts_config['time_label'] == '3-hourly'
+        assert ts_config['conversion_factor'] == 3.6 * 3
 
     def test_get_base_settings_source_dir(self, preprocessor, tmp_path):
         """Test get_base_settings_source_dir."""
         result = preprocessor.get_base_settings_source_dir()
+        # config_dict contains strings for paths
+        code_dir = Path(preprocessor.config_dict['SYMFLUENCE_CODE_DIR'])
         expected = (
-            Path(preprocessor.config_dict['SYMFLUENCE_CODE_DIR'])
+            code_dir
             / 'src'
             / 'symfluence'
             / 'resources'

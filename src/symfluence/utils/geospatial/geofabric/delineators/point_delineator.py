@@ -8,18 +8,18 @@ import geopandas as gpd # type: ignore
 from shapely.geometry import Polygon # type: ignore
 
 
-class PointDelineator:
+from ..base.base_delineator import BaseGeofabricDelineator
+
+
+class PointDelineator(BaseGeofabricDelineator):
     """
     Handles point-scale domain delineation by creating a small square basin
     from bounding box coordinates.
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
-        self.logger = logger
-        self.data_dir = Path(self.config.get("SYMFLUENCE_DATA_DIR"))
-        self.domain_name = self.config.get("DOMAIN_NAME")
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
+    def _get_delineation_method_name(self) -> str:
+        """Return method name for output files."""
+        return "point"
 
     def create_point_domain_shapefile(self) -> Optional[Path]:
         """
@@ -67,7 +67,8 @@ class PointDelineator:
 
             output_dir = self.project_dir / "shapefiles" / "river_basins"
             output_dir.mkdir(parents=True, exist_ok=True)
-            output_path = output_dir / f"{self.domain_name}_riverBasins_point.shp"
+            method_suffix = self._get_method_suffix()
+            output_path = output_dir / f"{self.domain_name}_riverBasins_{method_suffix}.shp"
 
             gdf.to_file(output_path)
 

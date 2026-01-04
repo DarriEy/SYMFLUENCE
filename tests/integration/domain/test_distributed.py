@@ -27,85 +27,43 @@ EXAMPLE_DATA_URL = "https://github.com/DarriEy/SYMFLUENCE/releases/download/exam
 
 pytestmark = [pytest.mark.integration, pytest.mark.domain, pytest.mark.requires_data, pytest.mark.slow]
 
-@pytest.fixture(scope="session")  # Optimized: session scope to share across all tests
-def test_data_dir(symfluence_data_root):
-    """
-    Download and extract example data to ../SYMFLUENCE_data/ for testing.
-    Session-scoped to share data across all domain tests.
-    """
-    # Use ../SYMFLUENCE_data/ parallel to the code directory
-    data_root = symfluence_data_root
-
-    # Check if example domain already exists
-    example_domain = "domain_Bow_at_Banff_lumped"
-    example_domain_path = data_root / example_domain
-
-    # Download if it doesn't exist
-    if not example_domain_path.exists():
-        print(f"\nDownloading example data to {data_root}...")
-        zip_path = data_root / "example_data_v0.2.zip"
-
-        # Download
-        response = requests.get(EXAMPLE_DATA_URL, stream=True, timeout=600)
-        response.raise_for_status()
-
-        with open(zip_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-
-        print("Extracting example data...")
-        # Extract to a temp location
-        extract_dir = data_root / "temp_extract"
-        extract_dir.mkdir(exist_ok=True)
-
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(extract_dir)
-
-        # Move the domain to data root
-        example_data_dir = extract_dir / "example_data_v0.2"
-        src_domain = example_data_dir / example_domain
-
-        if src_domain.exists():
-            src_domain.rename(example_domain_path)
-            print(f"Created domain: {example_domain}")
-        else:
-            raise FileNotFoundError(f"{example_domain} not found in downloaded data")
-
-        # Cleanup
-        zip_path.unlink(missing_ok=True)
-        shutil.rmtree(extract_dir, ignore_errors=True)
-
-        print(f"Test data ready at {example_domain_path}")
-    else:
-        print(f"Using existing test data at {example_domain_path}")
-
-    yield data_root
-
 
 def _copy_with_name_adaptation(src: Path, dst: Path, old_name: str, new_name: str) -> bool:
     """Copy directory or file and adapt filenames containing the old domain name."""
     if not src.exists():
+        print(f"  Warning: Source path does not exist: {src}")
         return False
+    
+    print(f"  Copying {src.name} to {dst.relative_to(dst.parents[2]) if len(dst.parts) > 3 else dst}")
     dst.parent.mkdir(parents=True, exist_ok=True)
+    
     if src.is_file():
         shutil.copy2(src, dst)
-        return True
-    shutil.copytree(src, dst, dirs_exist_ok=True)
-    for file in dst.rglob("*"):
+        files_to_check = [dst]
+    else:
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+        files_to_check = list(dst.rglob("*"))
+    
+    # Sort files to ensure we don't rename a directory before its contents (though rglob handles this ok)
+    # Actually, we only care about files for name adaptation in most cases
+    for file in sorted(files_to_check, key=lambda x: len(str(x)), reverse=True):
         if file.is_file() and old_name in file.name:
-            new_file = file.parent / file.name.replace(old_name, new_name)
-            file.rename(new_file)
+            new_file_name = file.name.replace(old_name, new_name)
+            new_file_path = file.parent / new_file_name
+            if new_file_path != file:
+                file.rename(new_file_path)
+                # print(f"    Renamed: {file.name} -> {new_file_name}")
     return True
 
 
 @pytest.fixture(scope="function")
-def config_path(test_data_dir, tmp_path, symfluence_code_dir):
+def config_path(example_data_bundle, tmp_path, symfluence_code_dir):
     """Create test configuration based on config_template.yaml."""
     # Load template
     config = load_config_template(symfluence_code_dir)
 
     # Update paths
-    config["SYMFLUENCE_DATA_DIR"] = str(test_data_dir)
+    config["SYMFLUENCE_DATA_DIR"] = str(example_data_bundle)
     config["SYMFLUENCE_CODE_DIR"] = str(symfluence_code_dir)
 
     # Domain settings from notebook 02c
@@ -144,7 +102,7 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
 @pytest.mark.slow
 @pytest.mark.requires_data
 @pytest.mark.full
-def test_distributed_basin_workflow(config_path, test_data_dir):
+def test_distributed_basin_workflow(config_path, example_data_bundle):
     """
     Test elevation-based distributed basin workflow for SUMMA.
 
@@ -214,7 +172,14 @@ def test_distributed_basin_workflow(config_path, test_data_dir):
 
     # Step 2: Reuse data from the semi-distributed domain when available
     semi_dist_domain = "Bow_at_Banff_semi_distributed"
-    semi_dist_data_dir = test_data_dir / f"domain_{semi_dist_domain}"
+    semi_dist_data_dir = example_data_bundle / f"domain_{semi_dist_domain}"
+    
+    # Fallback for v0.6.0 bundle structure
+    if not semi_dist_data_dir.exists():
+        semi_dist_data_dir = example_data_bundle / "domain_bow_banff_minimal"
+        semi_dist_domain = "Bow_at_Banff_lumped" # Name used inside files in minimal bundle
+        print(f"  Note: Using {semi_dist_data_dir.name} as data source for reuse.")
+
     reusable_data = {
         "Elevation": semi_dist_data_dir / "attributes" / "elevation",
         "Land Cover": semi_dist_data_dir / "attributes" / "landclass",
@@ -240,7 +205,8 @@ def test_distributed_basin_workflow(config_path, test_data_dir):
         for temp_dir in forcing_dir.glob("temp_*"):
             shutil.rmtree(temp_dir, ignore_errors=True)
     remap_cache = project_dir / "shapefiles" / "catchment_intersection" / "with_forcing"
-    shutil.rmtree(remap_cache, ignore_errors=True)
+    if remap_cache.exists():
+        shutil.rmtree(remap_cache, ignore_errors=True)
 
     # Prune to single forcing file for faster tests
     forcing_raw_dir = project_dir / "forcing" / "raw_data"

@@ -293,6 +293,21 @@ def write_hype_forcing(easymore_output, timeshift, forcing_units, geofabric_mapp
     if os.path.exists(merged_forcing_path):
         os.remove(merged_forcing_path)
 
+def _get_projected_centroids(gdf):
+    """
+    Calculate centroids in a projected CRS and return them in the original CRS.
+    This avoids UserWarning about centroids in geographic CRS.
+    """
+    original_crs = gdf.crs
+    if original_crs and original_crs.is_geographic:
+        # Project to EPSG:3857 (Web Mercator) for centroid calculation
+        # This is a generic projected CRS suitable for avoiding the warning
+        gdf_proj = gdf.to_crs(epsg=3857)
+        centroids_proj = gdf_proj.geometry.centroid
+        return centroids_proj.to_crs(original_crs)
+    else:
+        return gdf.geometry.centroid
+
 # write GeoData and GeoClass files
 def write_hype_geo_files(gistool_output, subbasins_shapefile, rivers_shapefile, frac_threshold, geofabric_mapping, path_to_save, intersect_base_path=None):
     gistool_output = str(gistool_output).rstrip('/') + '/'
@@ -332,11 +347,15 @@ def write_hype_geo_files(gistool_output, subbasins_shapefile, rivers_shapefile, 
     
     # 4. Add catchment properties
     cat = gpd.read_file(subbasins_shapefile)
+    
+    # Calculate centroids using projected CRS to avoid warning
+    centroids = _get_projected_centroids(cat)
+    
     cat_props = pd.DataFrame({
         basinID: cat[basinID],
         'area': cat[geofabric_mapping['area']['in_varname']].values * ureg(geofabric_mapping['area']['in_units']).to(geofabric_mapping['area']['out_units']).magnitude,
-        'latitude': cat.centroid.y,
-        'longitude': cat.centroid.x
+        'latitude': centroids.y,
+        'longitude': centroids.x
     }).set_index(basinID)
     
     # 5. Add soil, landcover and elevation data - be robust with filenames

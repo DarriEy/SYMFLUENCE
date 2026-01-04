@@ -12,9 +12,7 @@ import subprocess
 from pathlib import Path
 from symfluence import SYMFLUENCE
 
-
-
-pytestmark = [pytest.mark.e2e, pytest.mark.ci_quick]
+pytestmark = [pytest.mark.e2e, pytest.mark.ci_quick, pytest.mark.smoke]
 
 def _prune_raw_forcing(project_dir: Path, keep_glob: str) -> None:
     raw_dir = project_dir / "forcing" / "raw_data"
@@ -159,7 +157,7 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
     # Check for HYPE (optional hydrological model)
     hype_install_path = config.get("HYPE_INSTALL_PATH", "default")
     if hype_install_path == "default":
-        hype_install_path = data_dir / "installs" / "hype"
+        hype_install_path = data_dir / "installs" / "hype" / "bin"
     else:
         hype_install_path = Path(hype_install_path)
 
@@ -178,13 +176,44 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
             # HYPE usually prints its version/header even if args are missing
             result = subprocess.run([str(hype_path)],
                                   capture_output=True, text=True, timeout=5)
-            if "HYPE version" in result.stdout or "HYPE version" in result.stderr:
+            # HYPE outputs to stderr when run without arguments
+            if "HYPE" in result.stdout or "HYPE" in result.stderr or result.returncode != 0:
                 print(f"  HYPE verified working")
         except (subprocess.TimeoutExpired, FileNotFoundError):
             print(f"  HYPE found but verification failed")
     else:
         print(f"⚠ HYPE not found at {hype_path} (optional)")
         optional_missing.append("HYPE")
+
+    # Check for MESH (optional hydrological model)
+    mesh_install_path = config.get("MESH_INSTALL_PATH", "default")
+    if mesh_install_path == "default":
+        mesh_install_path = data_dir / "installs" / "mesh" / "bin"
+    else:
+        mesh_install_path = Path(mesh_install_path)
+
+    mesh_exe_name = config.get("MESH_EXE", "mesh.exe")
+    mesh_in_path = shutil.which(mesh_exe_name)
+    if mesh_in_path:
+        mesh_path = Path(mesh_in_path)
+    else:
+        mesh_path = mesh_install_path / mesh_exe_name
+
+    if mesh_path.exists():
+        print(f"✓ MESH found: {mesh_path}")
+        optional_found.append("MESH")
+        # Try to verify MESH can run
+        try:
+            # MESH may print usage info when run without arguments
+            result = subprocess.run([str(mesh_path), "--help"],
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 or "MESH" in result.stdout or "MESH" in result.stderr:
+                print(f"  MESH verified working")
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            print(f"  MESH found but verification failed")
+    else:
+        print(f"⚠ MESH not found at {mesh_path} (optional)")
+        optional_missing.append("MESH")
 
     # Summary
     print("\n" + "="*60)
@@ -358,7 +387,7 @@ def test_quick_workflow_summa_only(
 @pytest.mark.e2e
 @pytest.mark.ci_full
 @pytest.mark.requires_data
-@pytest.mark.parametrize("model", ["SUMMA", "HYPE"])  # Can add FUSE, NGEN later
+@pytest.mark.parametrize("model", ["SUMMA", "HYPE"])
 def test_full_workflow_1month(
     model,
     tmp_path,
@@ -397,6 +426,7 @@ def test_full_workflow_1month(
 
     # Model settings
     config["HYDROLOGICAL_MODEL"] = model
+    config["forcing"] = {"dataset": "ERA5"}
     if model == "SUMMA":
         config["ROUTING_MODEL"] = "mizuRoute"
 

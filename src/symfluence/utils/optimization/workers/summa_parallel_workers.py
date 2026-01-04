@@ -63,11 +63,11 @@ def resample_to_timestep(data: pd.Series, target_timestep: str, logger) -> pd.Se
             if time_diff < pd.Timedelta(hours=1):
                 # Upsampling: sub-hourly to hourly (mean aggregation)
                 logger.debug(f"Aggregating {time_diff} data to hourly using mean")
-                resampled = data.resample('H').mean()
+                resampled = data.resample('h').mean()
             elif time_diff > pd.Timedelta(hours=1):
                 # Downsampling: daily/coarser to hourly (interpolation)
                 logger.debug(f"Interpolating {time_diff} data to hourly")
-                resampled = data.resample('H').asfreq()
+                resampled = data.resample('h').asfreq()
                 resampled = resampled.interpolate(method='time', limit_direction='both')
             else:
                 resampled = data
@@ -692,11 +692,11 @@ def fix_summa_time_precision(input_file, output_file=None):
             else:
                 # Fallback: assume hourly from a standard reference
                 ref_time = pd.Timestamp('1990-01-01')
-                timestamps = ref_time + pd.to_timedelta(time_vals, unit='H')
+                timestamps = ref_time + pd.to_timedelta(time_vals, unit='h')
         else:
             # No units attribute, try to interpret as hours since 1990
             ref_time = pd.Timestamp('1990-01-01')
-            timestamps = ref_time + pd.to_timedelta(time_vals, unit='H')
+            timestamps = ref_time + pd.to_timedelta(time_vals, unit='h')
         
         # Round to nearest hour
         rounded_timestamps = timestamps.round('H')

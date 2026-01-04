@@ -256,7 +256,12 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             
             variable_handler = VariableHandler(config=self.config_dict, logger=self.logger,
                                             dataset=self.config_dict.get('FORCING_DATASET'), model='FUSE')
-            ds = xr.open_mfdataset(forcing_files, data_vars='all')
+            self.logger.debug(f"FUSE forcing_files count: {len(forcing_files)}")
+            # Open the forcing datasets
+            if len(forcing_files) == 1:
+                ds = xr.open_dataset(forcing_files[0])
+            else:
+                ds = xr.open_mfdataset(forcing_files, data_vars='all')
             ds = variable_handler.process_forcing_data(ds)
             ds = self.subset_to_simulation_time(ds, "Forcing")
             

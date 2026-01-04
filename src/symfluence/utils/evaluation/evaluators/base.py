@@ -302,12 +302,12 @@ class ModelEvaluator(ABC):
                 if time_diff < pd.Timedelta(hours=1):
                     # Upsampling: sub-hourly to hourly (mean aggregation)
                     self.logger.info(f"Aggregating {time_diff} data to hourly using mean")
-                    resampled = data.resample('H').mean()
+                    resampled = data.resample('h').mean()
                 elif time_diff > pd.Timedelta(hours=1):
                     # Downsampling: daily/coarser to hourly (interpolation)
                     self.logger.info(f"Interpolating {time_diff} data to hourly")
                     # First resample to hourly (creates NaNs)
-                    resampled = data.resample('H').asfreq()
+                    resampled = data.resample('h').asfreq()
                     # Then interpolate
                     resampled = resampled.interpolate(method='time', limit_direction='both')
                 else:

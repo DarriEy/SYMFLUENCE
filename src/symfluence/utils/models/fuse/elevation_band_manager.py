@@ -251,9 +251,16 @@ class FuseElevationBandManager:
                 latitudes = catchment['latitude'].values
                 longitudes = catchment['longitude'].values
             else:
-                # Calculate centroids
-                catchment_wgs84 = catchment.to_crs("EPSG:4326")
-                centroids = catchment_wgs84.geometry.centroid
+                # Calculate centroids in a way that avoids the geographic CRS warning
+                if catchment.crs and catchment.crs.is_geographic:
+                    # Project to EPSG:3857 for centroid calculation, then back to WGS84
+                    # This avoids the UserWarning: Geometry is in a geographic CRS
+                    centroids_proj = catchment.to_crs(epsg=3857).geometry.centroid
+                    centroids = centroids_proj.to_crs(epsg=4326)
+                else:
+                    # Already projected, calculate centroid then convert to WGS84
+                    centroids = catchment.geometry.centroid.to_crs(epsg=4326)
+                
                 latitudes = centroids.y.values
                 longitudes = centroids.x.values
 
