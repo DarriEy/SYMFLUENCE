@@ -87,37 +87,59 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             merged_forcing_path.unlink()
 
     def _merge_forcing_files(self) -> Optional[Path]:
-        """Merge individual NetCDF files using CDO."""
+        """Merge individual NetCDF files using CDO with xarray fallback."""
         easymore_nc_files = sorted(list(self.forcing_input_dir.glob('*.nc')))
         if not easymore_nc_files:
             self.logger.warning(f"No forcing files found in {self.forcing_input_dir}")
             return None
 
-        # split the files in batches as cdo cannot mergetime long list of file names
-        batch_size = 20
-        if len(easymore_nc_files) < batch_size:
-            batch_size = len(easymore_nc_files)
-        
-        files_split = np.array_split(easymore_nc_files, batch_size)
-        cdo_obj = cdo.Cdo()
-        intermediate_files = []
-
         merged_forcing_path = self.cache_path / 'merged_forcing.nc'
-        for i in tqdm(range(batch_size), desc="Merging forcing batches"):
-            batch_files = [str(f) for f in files_split[i].tolist()]
-            batch_output = self.cache_path / f"forcing_batch_{i}.nc"
-            cdo_obj.mergetime(input=batch_files, output=str(batch_output))
-            intermediate_files.append(batch_output)
+        
+        # Try CDO first (faster for large datasets)
+        try:
+            cdo_obj = cdo.Cdo()
+            # If initialization succeeded, try merging
+            self.logger.info("Merging forcing files with CDO...")
+            
+            # split the files in batches as cdo cannot mergetime long list of file names
+            batch_size = 20
+            if len(easymore_nc_files) < batch_size:
+                batch_size = len(easymore_nc_files)
+            
+            files_split = np.array_split(easymore_nc_files, batch_size)
+            intermediate_files = []
 
-        # Combine intermediate results
-        cdo_obj.mergetime(input=[str(f) for f in intermediate_files], output=str(merged_forcing_path))
+            for i in tqdm(range(batch_size), desc="Merging forcing batches"):
+                batch_files = [str(f) for f in files_split[i].tolist()]
+                batch_output = self.cache_path / f"forcing_batch_{i}.nc"
+                cdo_obj.mergetime(input=batch_files, output=str(batch_output))
+                intermediate_files.append(batch_output)
 
-        # Clean up intermediate files
-        for f in intermediate_files:
-            if f.exists():
-                f.unlink()
+            # Combine intermediate results
+            cdo_obj.mergetime(input=[str(f) for f in intermediate_files], output=str(merged_forcing_path))
+
+            # Clean up intermediate files
+            for f in intermediate_files:
+                if f.exists():
+                    f.unlink()
+            
+            self.logger.info("CDO merge successful")
+
+        except (AttributeError, Exception) as e:
+            self.logger.warning(f"CDO merge failed or CDO not available: {e}. Falling back to xarray...")
+            try:
+                # Fallback to xarray (more portable but slower for huge files)
+                with xr.open_mfdataset(easymore_nc_files, combine='nested', concat_dim='time') as ds:
+                    ds.to_netcdf(merged_forcing_path)
+                self.logger.info("Xarray merge successful")
+            except Exception as xe:
+                self.logger.error(f"Xarray merge also failed: {xe}")
+                return None
 
         # Handle time shift and calendar
+        if not merged_forcing_path.exists():
+            return None
+            
         with xr.open_dataset(merged_forcing_path) as forcing:
             forcing = forcing.convert_calendar('standard')
             if self.timeshift != 0:

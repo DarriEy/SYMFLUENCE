@@ -23,7 +23,7 @@ fiona
 easymore
 rasterstats
 pvlib
-cdo
+cdo>=1.6.0
 seaborn
 plotly
 rpy2

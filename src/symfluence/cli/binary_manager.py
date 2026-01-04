@@ -411,6 +411,37 @@ class BinaryManager:
         else:
             return validation_results
 
+    def handle_binary_management(self, execution_plan: Dict[str, Any]) -> bool:
+        """
+        Legacy dispatcher for binary management operations.
+        """
+        ops = execution_plan.get('binary_operations', {})
+        
+        if ops.get('doctor'):
+            self.run_doctor()
+            return True
+        if ops.get('tools_info'):
+            self.show_tools_info()
+            return True
+        if ops.get('validate_binaries'):
+            return self.validate_binaries() is True
+        if ops.get('get_executables'):
+            tools = ops.get('get_executables')
+            if isinstance(tools, bool):
+                tools = None
+            result = self.get_executables(specific_tools=tools)
+            return len(result.get('failed', [])) == 0
+            
+        return False
+
+    def run_doctor(self) -> bool:
+        """Alias for doctor() for backward compatibility."""
+        return self.doctor()
+
+    def show_tools_info(self) -> bool:
+        """Alias for tools_info() for backward compatibility."""
+        return self.tools_info()
+
     def _check_dependencies(self, dependencies: List[str]) -> List[str]:
         """Check which dependencies are missing from the system."""
         missing_deps = []

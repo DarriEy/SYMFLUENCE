@@ -149,6 +149,7 @@ MODELS = [
     'LSTM',
     'HYPE',
     pytest.param('MESH', marks=pytest.mark.full),
+    pytest.param('RHESSys', marks=pytest.mark.full),
 ]
 
 
@@ -205,6 +206,16 @@ def test_lumped_basin_workflow(config_path, model):
         # Point to MESH install in data directory
         config_dict['MESH_INSTALL_PATH'] = str(Path(config_dict['SYMFLUENCE_DATA_DIR']) / 'installs' / 'mesh' / 'bin')
         config_dict['MESH_EXE'] = 'mesh.exe'
+    elif model == 'RHESSys':
+        # RHESSys configuration
+        config_dict['RHESSYS_SKIP_CALIBRATION'] = True
+        # Point to RHESSys install in data directory
+        config_dict['RHESSYS_INSTALL_PATH'] = str(Path(config_dict['SYMFLUENCE_DATA_DIR']) / 'installs' / 'rhessys' / 'bin')
+        config_dict['RHESSYS_EXE'] = 'rhessys'
+        # VMFire settings
+        config_dict['RHESSYS_USE_VMFIRE'] = True
+        config_dict['VMFIRE_INSTALL_PATH'] = str(Path(config_dict['SYMFLUENCE_DATA_DIR']) / 'installs' / 'vmfire' / 'bin')
+        config_dict['VMFIRE_EXE'] = 'vmfire'
 
     # Create new validated typed config with model-specific overrides
     config = SymfluenceConfig(**config_dict)
@@ -295,6 +306,14 @@ def test_lumped_basin_workflow(config_path, model):
         mesh_exe = Path(config.system.data_dir) / 'installs' / 'mesh' / 'bin' / 'mesh.exe'
         if not mesh_exe.exists():
             pytest.skip(f"MESH binary not found at {mesh_exe}, skipping run and calibration")
+    elif model == 'RHESSys':
+        rhessys_exe = Path(config.system.data_dir) / 'installs' / 'rhessys' / 'bin' / 'rhessys'
+        if not rhessys_exe.exists():
+            pytest.skip(f"RHESSys binary not found at {rhessys_exe}, skipping run and calibration")
+        if config_dict.get('RHESSYS_USE_VMFIRE'):
+            vmfire_exe = Path(config_dict['SYMFLUENCE_DATA_DIR']) / 'installs' / 'vmfire' / 'bin' / 'vmfire'
+            if not vmfire_exe.exists():
+                pytest.skip(f"VMFire binary not found at {vmfire_exe}, skipping run and calibration")
 
     symfluence.managers['model'].run_models()
 
@@ -304,7 +323,7 @@ def test_lumped_basin_workflow(config_path, model):
 
     # Step 7: Calibrate model
     # Skip calibration for LSTM/GR/HYPE/MESH as they either auto-calibrate or are not supported
-    if model in ['GR', 'LSTM', 'HYPE', 'MESH']:
+    if model in ['GR', 'LSTM', 'HYPE', 'MESH', 'RHESSys']:
         pass
     else:
         results_file = symfluence.managers['optimization'].calibrate_model()
