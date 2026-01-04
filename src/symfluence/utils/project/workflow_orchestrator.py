@@ -419,6 +419,65 @@ class WorkflowOrchestrator:
         
         return valid
     
+    def run_individual_steps(self, step_names: List[str], continue_on_error: bool = False) -> List[Dict[str, Any]]:
+        """
+        Execute a specific list of workflow steps by their CLI names.
+        
+        Args:
+            step_names: List of step CLI names to execute
+            continue_on_error: Whether to continue to next step if one fails
+            
+        Returns:
+            List of dictionaries containing execution results for each step
+        """
+        # Resolve workflow steps from orchestrator
+        workflow_steps = self.define_workflow_steps()
+        cli_to_step = {step.cli_name: step for step in workflow_steps}
+        
+        results = []
+        
+        self.logger.info(f"Starting individual step execution: {', '.join(step_names)}")
+        
+        for idx, cli_name in enumerate(step_names, 1):
+            step = cli_to_step.get(cli_name)
+            if not step:
+                self.logger.warning(f"Step '{cli_name}' not recognized; skipping")
+                continue
+
+            # Log step header
+            if self.logging_manager:
+                self.logging_manager.log_step_header(idx, len(step_names), step.name, step.description)
+            else:
+                self.logger.info(f"\nExecuting step: {cli_name} -> {step.name}")
+
+            step_start_time = datetime.now()
+            
+            try:
+                # Force execution; skip completion checks for individual steps
+                step.func()
+                
+                duration = (datetime.now() - step_start_time).total_seconds()
+                
+                if self.logging_manager:
+                    self.logging_manager.log_completion(True, step.description, duration)
+                else:
+                    self.logger.info(f"✓ Completed step: {cli_name}")
+                    
+                results.append({"cli": cli_name, "fn": step.name, "success": True, "duration": duration})
+                
+            except Exception as e:
+                self.logger.error(f"Step '{cli_name}' failed: {e}")
+                
+                if self.logging_manager:
+                    self.logging_manager.log_completion(False, f"{step.description}: {str(e)}")
+                
+                results.append({"cli": cli_name, "fn": step.name, "success": False, "error": str(e)})
+                
+                if not continue_on_error:
+                    raise
+                    
+        return results
+
     def get_workflow_status(self) -> Dict[str, Any]:
         """
         Get the current status of the workflow execution.

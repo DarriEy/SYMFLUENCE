@@ -16,101 +16,9 @@ import sys
 # Import core components
 from symfluence.utils.project.workflow_orchestrator import WorkflowOrchestrator
 from symfluence.utils.project.logging_manager import LoggingManager
+from symfluence.utils.project.manager_factory import LazyManagerDict
 from symfluence.utils.config.config_loader import load_config  # Legacy support
 from symfluence.utils.config.models import SymfluenceConfig
-
-
-class _LazyManagerDict:
-    """
-    Dictionary-like class that lazy-loads manager instances.
-    
-    This improves startup performance by only importing and instantiating
-    managers when they are actually accessed.
-    """
-    def __init__(self, config: Any, logger: Any, visualize: bool = False):
-        self._config = config
-        self._logger = logger
-        self._visualize = visualize
-        self._managers = {}
-        # Reporting manager is a shared dependency that must be instantiated early if needed
-        self._reporting_manager = None
-        
-        # Supported manager keys
-        self._keys = {
-            'project', 'domain', 'data', 'model', 
-            'analysis', 'optimization', 'reporting'
-        }
-
-    def _get_reporting_manager(self):
-        """Get or create the shared reporting manager instance."""
-        if not self._reporting_manager:
-             from symfluence.utils.reporting.reporting_manager import ReportingManager
-             self._reporting_manager = ReportingManager(self._config, self._logger, visualize=self._visualize)
-        return self._reporting_manager
-
-    def __getitem__(self, key):
-        if key not in self._keys:
-            raise KeyError(key)
-        
-        if key in self._managers:
-            return self._managers[key]
-
-        # Initialize requested manager
-        manager = self._create_manager(key)
-        self._managers[key] = manager
-        return manager
-
-    def _create_manager(self, key):
-        """Import and instantiate the specific manager."""
-        self._logger.debug(f"Lazy loading manager: {key}")
-        
-        if key == 'reporting':
-            return self._get_reporting_manager()
-            
-        elif key == 'project':
-             from symfluence.utils.project.project_manager import ProjectManager
-             return ProjectManager(self._config, self._logger)
-             
-        elif key == 'domain':
-             from symfluence.utils.geospatial.domain_manager import DomainManager
-             return DomainManager(self._config, self._logger, self._get_reporting_manager())
-             
-        elif key == 'data':
-             from symfluence.utils.data.data_manager import DataManager
-             return DataManager(self._config, self._logger)
-             
-        elif key == 'model':
-             from symfluence.utils.models.model_manager import ModelManager
-             return ModelManager(self._config, self._logger, self._get_reporting_manager())
-             
-        elif key == 'analysis':
-             from symfluence.utils.evaluation.analysis_manager import AnalysisManager
-             return AnalysisManager(self._config, self._logger, self._get_reporting_manager())
-             
-        elif key == 'optimization':
-             from symfluence.utils.optimization.optimization_manager import OptimizationManager
-             return OptimizationManager(self._config, self._logger)
-             
-        raise KeyError(f"Unknown manager key: {key}")
-    
-    def __contains__(self, key):
-        return key in self._keys
-    
-    def get(self, key, default=None):
-        if key in self._keys:
-            return self[key]
-        return default
-        
-    def keys(self):
-        return self._keys
-    
-    def values(self):
-        # Force initialization of all managers
-        return [self[k] for k in self._keys]
-        
-    def items(self):
-        # Force initialization of all managers
-        return [(k, self[k]) for k in self._keys]
 
 
 class SYMFLUENCE:
@@ -163,7 +71,7 @@ class SYMFLUENCE:
 
 
         # Initialize managers (lazy loaded)
-        self.managers = self._initialize_managers()
+        self.managers = LazyManagerDict(self.typed_config, self.logger, self.visualize)
         
         # Initialize workflow orchestrator
         self.workflow_orchestrator = WorkflowOrchestrator(
@@ -187,32 +95,6 @@ class SYMFLUENCE:
             )
         except FileNotFoundError:
             raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
-
-    def _load_and_merge_config(self) -> Dict[str, Any]:
-        """
-        Legacy method for backward compatibility.
-
-        Returns:
-            Dict[str, Any]: Flat configuration dictionary
-        """
-        try:
-            return load_config(self.config_path, self.config_overrides, validate=True)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
-    
-    def _initialize_managers(self) -> Dict[str, Any]:
-        """Initialize all manager components via lazy loading."""
-        try:
-            # Use typed config for initialization to support migration
-            # Note: SymfluenceConfig implements get() and __getitem__ for backward compatibility
-            config_to_pass = self.typed_config if self.typed_config else self.config
-
-            return _LazyManagerDict(config_to_pass, self.logger, self.visualize)
-            
-        except Exception as e:
-            if hasattr(self, 'logger'):
-                self.logger.error(f"Failed to initialize managers: {str(e)}")
-            raise RuntimeError(f"Manager initialization failed: {str(e)}")
     
     def run_workflow(self) -> None:
         """Execute the complete SYMFLUENCE workflow (CLI wrapper)."""
@@ -224,11 +106,14 @@ class SYMFLUENCE:
         try:
             self.logger.info("Starting complete SYMFLUENCE workflow execution")
 
-            # Run the workflow; if your orchestrator exposes steps executed, collect them
+            # Run the workflow
             self.workflow_orchestrator.run_workflow()
-            steps_completed = getattr(self.workflow_orchestrator, "steps_executed", []) or []
-
-            status = getattr(self.workflow_orchestrator, "get_workflow_status", lambda: "completed")()
+            
+            # Collect status information
+            status_info = self.workflow_orchestrator.get_workflow_status()
+            steps_completed = [s for s in status_info['step_details'] if s['complete']]
+            status = "completed" if status_info['total_steps'] == status_info['completed_steps'] else "partial"
+            
             self.logger.info("Complete SYMFLUENCE workflow execution completed")
 
         except Exception as e:
@@ -249,47 +134,68 @@ class SYMFLUENCE:
                 status=status,
             )
         
-    def run_individual_steps(self, step_names: List[str]) -> None:
-        """Execute specific workflow steps (CLI wrapper)."""
-        start = datetime.now()
-        steps_completed = []
-        errors = []
-        warns = []
-
-        # Resolve workflow steps from orchestrator
-        workflow_steps = self.workflow_orchestrator.define_workflow_steps()
-        cli_to_step = {step.cli_name: step for step in workflow_steps}
-
-        status = "completed"
-        try:
-            self.logger.info(f"Starting individual step execution: {', '.join(step_names)}")
-
-            for cli_name in step_names:
-                step = cli_to_step.get(cli_name)
-                if not step:
-                    self.logger.warning(f"Step '{cli_name}' not recognized; skipping")
-                    continue
-
-                self.logger.info(f"Executing step: {cli_name} -> {step.name}")
-                # Force execution; skip completion checks in CLI wrapper
-                try:
-                    step.func()
-                    steps_completed.append({"cli": cli_name, "fn": step.name})
-                    self.logger.info(f"✓ Completed step: {cli_name}")
-                except Exception as e:
-                    status = "partial" if steps_completed else "failed"
-                    errors.append({"step": cli_name, "error": str(e)})
-                    self.logger.error(f"Step '{cli_name}' failed: {e}")
-                    if not self.config_overrides.get("continue_on_error", False):
-                        raise
-                    # else: continue to the next step
-        finally:
-            end = datetime.now()
-            elapsed_s = (end - start).total_seconds()
-            self.logging_manager.create_run_summary(
-                steps_completed=steps_completed,
-                errors=errors,
-                warnings=warns,
-                execution_time=elapsed_s,
-                status=status,
-            )
+        def run_individual_steps(self, step_names: List[str]) -> None:
+        
+            """Execute specific workflow steps (CLI wrapper)."""
+        
+            start = datetime.now()
+        
+            steps_completed = []
+        
+            errors = []
+        
+            warns = []
+        
+    
+        
+            status = "completed"
+        
+            try:
+        
+                continue_on_error = self.config_overrides.get("continue_on_error", False)
+        
+                
+        
+                # Execute individual steps via orchestrator
+        
+                results = self.workflow_orchestrator.run_individual_steps(step_names, continue_on_error)
+        
+                
+        
+                # Process results for summary
+        
+                for res in results:
+        
+                    if res['success']:
+        
+                        steps_completed.append({"cli": res['cli'], "fn": res['fn']})
+        
+                    else:
+        
+                        errors.append({"step": res['cli'], "error": res['error']})
+        
+                        status = "partial" if steps_completed else "failed"
+        
+    
+        
+            finally:
+        
+                end = datetime.now()
+        
+                elapsed_s = (end - start).total_seconds()
+        
+                self.logging_manager.create_run_summary(
+        
+                    steps_completed=steps_completed,
+        
+                    errors=errors,
+        
+                    warnings=warns,
+        
+                    execution_time=elapsed_s,
+        
+                    status=status,
+        
+                )
+        
+    
