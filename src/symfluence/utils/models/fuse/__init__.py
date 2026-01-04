@@ -11,7 +11,7 @@ Main Components:
     - FUSEPreProcessor: Handles FUSE preprocessing and setup (preprocessor.py, ~350 lines)
     - FUSERunner: Executes FUSE model simulations (runner.py, 1194 lines)
     - FUSEPostprocessor: Processes FUSE model outputs (postprocessor.py, 95 lines)
-    - FuseDecisionAnalyzer: Analyzes FUSE model decisions (decision_analyzer.py, 393 lines)
+    - FuseStructureAnalyzer: Analyzes FUSE model structure ensembles (structure_analyzer.py)
 
 Manager Classes (Refactored 2026-01-01):
     - FuseForcingProcessor: Handles forcing data transformations (forcing_processor.py, ~350 lines)
@@ -29,7 +29,7 @@ For backward compatibility, all public classes are re-exported at the package le
 from .preprocessor import FUSEPreProcessor
 from .runner import FUSERunner
 from .postprocessor import FUSEPostprocessor
-from .decision_analyzer import FuseDecisionAnalyzer
+from .structure_analyzer import FuseStructureAnalyzer
 from .visualizer import visualize_fuse
 
 # Import manager classes (for advanced usage)
@@ -42,7 +42,7 @@ __all__ = [
     'FUSEPreProcessor',
     'FUSERunner',
     'FUSEPostprocessor',
-    'FuseDecisionAnalyzer',
+    'FuseStructureAnalyzer',
     # Manager classes (advanced usage)
     'FuseForcingProcessor',
     'FuseElevationBandManager',
