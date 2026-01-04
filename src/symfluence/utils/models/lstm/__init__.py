@@ -9,6 +9,7 @@ from .runner import LSTMRunner
 from .preprocessor import LSTMPreprocessor
 from .postprocessor import LSTMPostprocessor
 from .model import LSTMModel
+from .visualizer import visualize_lstm
 
 # Alias for backward compatibility
 FLASH = LSTMRunner
@@ -21,6 +22,7 @@ __all__ = [
     'LSTMPreprocessor',
     'LSTMPostprocessor',
     'LSTMModel',
+    'visualize_lstm',
     'FLASH',
     'FlashRunner',
     'FlashPreprocessor',

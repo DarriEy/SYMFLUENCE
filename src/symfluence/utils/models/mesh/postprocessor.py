@@ -80,21 +80,17 @@ class MESHPostProcessor(BaseModelPostProcessor):
             simulated_col = streamflow_columns[0]
             self.logger.info(f"Extracting streamflow from column: {simulated_col}")
 
-            # Create output DataFrame with datetime and streamflow
-            output_df = pd.DataFrame({
-                'datetime': df['datetime'],
-                'streamflow_m3s': df[simulated_col]
-            })
+            # Create output series with datetime and streamflow
+            output_series = pd.Series(
+                df[simulated_col].values,
+                index=df['datetime']
+            )
 
-            # Save to output directory
-            output_dir = self.output_dir
-            output_dir.mkdir(parents=True, exist_ok=True)
-            output_file = output_dir / 'streamflow.csv'
-
-            output_df.to_csv(output_file, index=False)
-            self.logger.info(f"Streamflow extracted to {output_file}")
-
-            return output_file
+            # Use inherited save method
+            return self.save_streamflow_to_results(
+                output_series,
+                model_column_name='MESH_discharge_cms'
+            )
 
         except Exception as e:
             self.logger.error(f"Error extracting MESH streamflow: {str(e)}")

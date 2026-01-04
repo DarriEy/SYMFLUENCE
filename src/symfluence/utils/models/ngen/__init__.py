@@ -14,10 +14,12 @@ from .preprocessor import NgenPreProcessor
 from .runner import NgenRunner
 from .postprocessor import NgenPostprocessor
 from .config_generator import NgenConfigGenerator
+from .visualizer import visualize_ngen
 
 __all__ = [
     'NgenPreProcessor',
     'NgenRunner',
     'NgenPostprocessor',
     'NgenConfigGenerator',
+    'visualize_ngen'
 ]

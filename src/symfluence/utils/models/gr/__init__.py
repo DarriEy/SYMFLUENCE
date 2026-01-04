@@ -8,9 +8,11 @@ Supports both lumped and distributed spatial modes with optional mizuRoute routi
 from .preprocessor import GRPreProcessor
 from .runner import GRRunner
 from .postprocessor import GRPostprocessor
+from .visualizer import visualize_gr
 
 __all__ = [
     'GRPreProcessor',
     'GRRunner',
-    'GRPostprocessor'
+    'GRPostprocessor',
+    'visualize_gr'
 ]
