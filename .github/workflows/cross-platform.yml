@@ -198,6 +198,11 @@ jobs:
         if: steps.cache-tools.outputs.cache-hit != 'true'
         shell: bash
         run: |
+          # Initialize conda for bash on Windows
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            eval "$(conda shell.bash hook)"
+            conda activate base
+          fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
           chmod +x ./symfluence || true  # chmod may not work on Windows
           ./symfluence --install
@@ -409,6 +414,11 @@ jobs:
         if: steps.cache-tools.outputs.cache-hit != 'true'
         shell: bash
         run: |
+          # Initialize conda for bash on Windows
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            eval "$(conda shell.bash hook)"
+            conda activate base
+          fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
           chmod +x ./symfluence || true  # chmod may not work on Windows
           ./symfluence --install

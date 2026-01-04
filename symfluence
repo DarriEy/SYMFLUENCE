@@ -728,7 +728,12 @@ EOF
         fi
 
         print_info "Upgrading pip and preparing environment..."
-        pip install --upgrade pip
+        # Use python -m pip on Windows to avoid file lock issues
+        if [[ "$PLATFORM" == "windows" ]]; then
+            python -m pip install --upgrade pip || print_warning "pip upgrade failed"
+        else
+            pip install --upgrade pip || print_warning "pip upgrade failed"
+        fi
 
         setup_r_environment || print_warning "R setup had issues, continuing..."
 
