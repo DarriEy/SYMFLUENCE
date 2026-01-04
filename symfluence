@@ -244,13 +244,25 @@ install_gdal_python() {
     fi
 
     print_info "Detecting system GDAL version..."
-    if ! command -v gdal-config >/dev/null 2>&1; then
-        print_warning "gdal-config not found; skipping GDAL Python bindings"
+    local v=""
+
+    # Try gdal-config first
+    if command -v gdal-config >/dev/null 2>&1; then
+        v=$(gdal-config --version 2>/dev/null || true)
+    fi
+
+    # Fallback to GDAL_VERSION environment variable (set by Windows conda setup)
+    if [[ -z "$v" && -n "${GDAL_VERSION:-}" ]]; then
+        v="$GDAL_VERSION"
+        print_info "Using GDAL version from environment: $v"
+    fi
+
+    # If still no version, skip
+    if [[ -z "$v" ]]; then
+        print_warning "Could not detect GDAL version (gdal-config not found and GDAL_VERSION not set)"
         return 0
     fi
-    local v
-    v=$(gdal-config --version 2>/dev/null || true)
-    [[ -z "$v" ]] && { print_warning "Could not detect GDAL version"; return 0; }
+
     print_success "Found system GDAL: $v"
     print_info "Installing matching GDAL Python bindings..."
 
@@ -616,13 +628,12 @@ setup_windows_dependencies() {
     fi
 
     # Install essential Windows dependencies via conda
-    # Note: gdal package from conda-forge includes Python bindings
+    # Install C libraries only - Python packages will be installed in venv via pip
     print_info "Installing Windows build dependencies via ${CONDA_CMD}..."
     $CONDA_CMD install -c conda-forge -y \
         cmake \
         ninja \
-        gdal \
-        libgdal \
+        libgdal=3.11 \
         netcdf4 \
         hdf5 \
         || print_warning "Some conda packages may have failed to install"
@@ -637,10 +648,13 @@ setup_windows_dependencies() {
         # Set compiler flags for pip to find GDAL headers/libs
         export INCLUDE="$CONDA/Library/include${INCLUDE:+;$INCLUDE}"
         export LIB="$CONDA/Library/lib${LIB:+;$LIB}"
-        export GDAL_VERSION=$($CONDA/Library/bin/gdal-config --version 2>/dev/null || echo "")
+
+        # Set GDAL version for pip (matching conda libgdal version)
+        # libgdal=3.11 means any 3.11.x version
+        export GDAL_VERSION="3.11.4"
 
         print_info "Added conda Library paths to environment"
-        print_info "GDAL version from conda: ${GDAL_VERSION:-unknown}"
+        print_info "GDAL version for pip: $GDAL_VERSION"
     fi
 
     print_success "Windows dependencies setup complete"
