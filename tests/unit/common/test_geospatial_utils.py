@@ -10,7 +10,7 @@ import geopandas as gpd
 import numpy as np
 from shapely.geometry import Polygon, Point
 from unittest.mock import Mock
-from symfluence.utils.common.geospatial_utils import GeospatialUtilsMixin
+from symfluence.utils.geospatial.geometry_utils import GeospatialUtilsMixin
 
 
 class MockClass(GeospatialUtilsMixin):

@@ -24,8 +24,8 @@ from .elevation_band_manager import FuseElevationBandManager
 from .forcing_processor import FuseForcingProcessor
 from .synthetic_data_generator import FuseSyntheticDataGenerator
 from symfluence.utils.common.constants import UnitConversion
-from symfluence.utils.common.geospatial_utils import GeospatialUtilsMixin
-from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE
+from symfluence.utils.geospatial.geometry_utils import GeospatialUtilsMixin
+from symfluence.utils.evaluation.metrics import kge, kge_prime, nse, mae, rmse
 from symfluence.utils.data.utilities.variable_utils import VariableHandler # type: ignore
 from symfluence.utils.exceptions import (
     ModelExecutionError,

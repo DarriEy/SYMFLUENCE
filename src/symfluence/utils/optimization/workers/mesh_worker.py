@@ -11,8 +11,7 @@ from typing import Dict, Any, Optional
 
 from .base_worker import BaseWorker, WorkerTask, WorkerResult
 from ..registry import OptimizerRegistry
-from symfluence.utils.models.mesh.runner import MESHRunner
-from symfluence.utils.common.metrics import get_KGE, get_NSE
+from symfluence.utils.evaluation.metrics import kge, nse
 
 
 @OptimizerRegistry.register_worker('MESH')
@@ -174,17 +173,13 @@ class MESHWorker(BaseWorker):
                 self.logger.error("No common dates between simulation and observations")
                 return {'kge': self.penalty_score, 'error': 'No common dates'}
 
-            sim_aligned = sim_df.loc[common_idx, flow_col].values
-            obs_aligned = obs_df.loc[common_idx, 'discharge_cms'].values
+            obs_aligned = df_obs.loc[common_index].values
+            sim_aligned = df_sim.loc[common_index].values
 
-            # Calculate metrics
-            kge = get_KGE(obs_aligned, sim_aligned, transfo=1)
-            nse = get_NSE(obs_aligned, sim_aligned, transfo=1)
+            kge_val = kge(obs_aligned, sim_aligned, transfo=1)
+            nse_val = nse(obs_aligned, sim_aligned, transfo=1)
 
-            return {
-                'kge': float(kge),
-                'nse': float(nse),
-            }
+            return {'kge': float(kge_val), 'nse': float(nse_val)}
 
         except Exception as e:
             self.logger.error(f"Error calculating MESH metrics: {e}")

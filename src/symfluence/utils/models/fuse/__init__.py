@@ -30,6 +30,7 @@ from .preprocessor import FUSEPreProcessor
 from .runner import FUSERunner
 from .postprocessor import FUSEPostprocessor
 from .decision_analyzer import FuseDecisionAnalyzer
+from .visualizer import visualize_fuse
 
 # Import manager classes (for advanced usage)
 from .forcing_processor import FuseForcingProcessor

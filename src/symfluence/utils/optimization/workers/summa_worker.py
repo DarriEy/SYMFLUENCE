@@ -353,7 +353,7 @@ class SUMMAWorker(BaseWorker):
         try:
             import xarray as xr
             import pandas as pd
-            from symfluence.utils.common.metrics import get_KGE, get_NSE
+            from symfluence.utils.evaluation.metrics import kge, nse
 
             # Find output file
             output_files = list(output_dir.glob('*_day.nc')) + list(output_dir.glob('*_output.nc'))
@@ -387,12 +387,12 @@ class SUMMAWorker(BaseWorker):
             obs = obs[:min_len]
 
             # Calculate metrics
-            kge = get_KGE(obs, sim, transfo=1)
-            nse = get_NSE(obs, sim, transfo=1)
+            kge_val = kge(obs, sim, transfo=1)
+            nse_val = nse(obs, sim, transfo=1)
 
             return {
-                'kge': float(kge),
-                'nse': float(nse),
+                'kge': float(kge_val),
+                'nse': float(nse_val),
             }
 
         except Exception as e:

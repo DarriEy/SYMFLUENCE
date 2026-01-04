@@ -9,15 +9,12 @@ from datetime import datetime
 import json
 
 import numpy as np
-# Import optimizers from the optimizers package
-from symfluence.utils.optimization.optimizers import (
-    DEOptimizer, DDSOptimizer, AsyncDDSOptimizer, PopulationDDSOptimizer,
-    PSOOptimizer, NSGA2Optimizer, SCEUAOptimizer
-)
 from symfluence.utils.optimization.objectives import ObjectiveRegistry
 from symfluence.utils.optimization.core import TransformationManager
 from symfluence.utils.optimization.registry import OptimizerRegistry
 from symfluence.utils.optimization.optimization_results_manager import OptimizationResultsManager
+
+from symfluence.utils.common.mixins import ConfigurableMixin
 
 # Import for type checking only
 try:
@@ -25,7 +22,7 @@ try:
 except ImportError:
     SymfluenceConfig = None
 
-class OptimizationManager:
+class OptimizationManager(ConfigurableMixin):
     """
     Coordinates model optimization and calibration.
     
@@ -52,13 +49,6 @@ class OptimizationManager:
     Attributes:
         config (Dict[str, Any]): Configuration dictionary
         logger (logging.Logger): Logger instance
-        data_dir (Path): Path to the SYMFLUENCE data directory
-        domain_name (str): Name of the hydrological domain
-        project_dir (Path): Path to the project directory
-        experiment_id (str): ID of the current experiment
-        results_manager (OptimizationResultsManager): Manager for optimization results
-        optimizers (Dict[str, Any]): Mapping of algorithm names to optimizer classes
-        optimizer_methods (Dict[str, str]): Mapping of algorithm names to method names
     """
     
     def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: logging.Logger, reporting_manager: Optional[Any] = None):
@@ -89,19 +79,10 @@ class OptimizationManager:
         self.logger = logger
         self.reporting_manager = reporting_manager
         
-        # Validate required fields
-        required_fields = ['SYMFLUENCE_DATA_DIR', 'DOMAIN_NAME', 'EXPERIMENT_ID']
-        for field in required_fields:
-            if field not in self.config:
-                raise KeyError(f"Missing required configuration field: {field}")
-
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.experiment_id = self.config.get('EXPERIMENT_ID')
-        
         # Use typed config if available for components
         component_config = self.typed_config if self.typed_config else self.config
+
+        self.experiment_id = self.config.get('EXPERIMENT_ID')
 
         # Initialize results manager
         self.results_manager = OptimizationResultsManager(
@@ -113,29 +94,6 @@ class OptimizationManager:
         
         # Initialize transformation manager
         self.transformation_manager = TransformationManager(component_config, self.logger)
-        
-        # Define optimizer mapping
-        self.optimizers = {
-            'DDS': DDSOptimizer,
-            'ASYNC-DDS': AsyncDDSOptimizer,
-            'POP-DDS': PopulationDDSOptimizer,
-            'DE' : DEOptimizer,
-            'PSO': PSOOptimizer,
-            'NSGA-II': NSGA2Optimizer,
-            'SCE-UA': SCEUAOptimizer,
-        }
-        
-        # Define optimizer run method names
-        self.optimizer_methods = {
-            'DDS': 'run_optimization',
-            'ASYNC-DDS': 'run_optimization',
-            'POP-DDS': 'run_optimization',
-            'DE': 'run_optimization',
-            'PSO': 'run_optimization',
-            'NSGA-II': 'run_optimization',
-            'SCE-UA': 'run_optimization' 
-
-        }
 
     def run_optimization_workflow(self) -> Dict[str, Any]:
         """
@@ -185,8 +143,8 @@ class OptimizationManager:
         The calibration process involves:
         1. Checking if iterative optimization is enabled in the configuration
         2. Determining which optimization algorithm to use
-        3. Executing the calibration for each configured hydrological model
-        4. Saving and returning the path to the calibration results
+        3. Executing the calibration for each configured hydrological model using the 
+           unified registry-based infrastructure
         
         The optimization algorithm is specified through the ITERATIVE_OPTIMIZATION_ALGORITHM
         configuration parameter (default: 'PSO').
@@ -194,11 +152,6 @@ class OptimizationManager:
         Returns:
             Optional[Path]: Path to calibration results file or None if calibration
                         was disabled or failed
-                        
-        Raises:
-            ValueError: If the optimization algorithm is not supported
-            RuntimeError: If the calibration process fails
-            Exception: For other errors during calibration
         """
         self.logger.info("Starting model calibration")
 
@@ -210,29 +163,12 @@ class OptimizationManager:
         # Get the optimization algorithm from config
         opt_algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'PSO')
 
-        # Check if unified optimizer infrastructure should be used
-        # Default to True - use the new consolidated optimizer infrastructure
-        use_unified = self.config.get('USE_UNIFIED_OPTIMIZER', True)
-
         try:
             hydrological_models = self.config.get('HYDROLOGICAL_MODEL', '').split(',')
 
             for model in hydrological_models:
                 model = model.strip().upper()
-
-                # Use registry-based unified optimizer if enabled
-                if use_unified and opt_algorithm in ['DDS', 'PSO', 'SCE-UA', 'DE', 'ADAM', 'LBFGS']:
-                    return self._calibrate_with_registry(model, opt_algorithm)
-
-                # Fall back to legacy model-specific methods
-                if model == 'SUMMA':
-                    return self._calibrate_summa(opt_algorithm)
-                elif model == 'FUSE':
-                    return self._calibrate_fuse(opt_algorithm)
-                elif model == 'NGEN':
-                    return self._calibrate_ngen(opt_algorithm)
-                else:
-                    self.logger.warning(f"Calibration for model {model} not yet implemented")
+                return self._calibrate_with_registry(model, opt_algorithm)
 
             return None
             
@@ -241,35 +177,6 @@ class OptimizationManager:
             import traceback
             self.logger.error(traceback.format_exc())
             return None
-
-
-    def _calibrate_fuse(self, algorithm: str) -> Optional[Path]:
-        """
-        Calibrate FUSE model using specified algorithm.
-
-        Uses the unified optimizer infrastructure via the registry.
-
-        Args:
-            algorithm (str): Optimization algorithm to use
-
-        Returns:
-            Optional[Path]: Path to results file or None if optimization failed
-        """
-        return self._calibrate_with_registry('FUSE', algorithm)
-
-    def _calibrate_ngen(self, algorithm: str) -> Optional[Path]:
-        """
-        Calibrate NextGen (NGEN) using the specified algorithm.
-
-        Uses the unified optimizer infrastructure via the registry.
-
-        Args:
-            algorithm (str): Optimization algorithm to use
-
-        Returns:
-            Optional[Path]: Path to results file or None if optimization failed
-        """
-        return self._calibrate_with_registry('NGEN', algorithm)
 
     def _calibrate_with_registry(self, model_name: str, algorithm: str) -> Optional[Path]:
         """
@@ -346,77 +253,6 @@ class OptimizationManager:
             import traceback
             self.logger.error(traceback.format_exc())
             return None
-
-    def _calibrate_summa(self, algorithm: str) -> Optional[Path]:
-        """
-        Calibrate SUMMA model using specified algorithm.
-        
-        This is an internal method that handles the specifics of calibrating the
-        SUMMA hydrological model. It:
-        1. Creates the optimization directory if it doesn't exist
-        2. Loads the appropriate optimizer class based on the algorithm
-        3. Executes the optimization process
-        4. Saves and returns the results
-        
-        The method supports different optimization algorithms (PSO, SCE-UA, DDS)
-        through a dynamic dispatch approach using the optimizers and optimizer_methods
-        mappings.
-        
-        Args:
-            algorithm (str): Optimization algorithm to use ('PSO', 'SCE-UA', or 'DDS')
-            
-        Returns:
-            Optional[Path]: Path to results file or None if optimization failed
-            
-        Raises:
-            ValueError: If the specified algorithm is not supported
-            RuntimeError: If the optimization process fails
-            Exception: For other errors during optimization
-        """
-        # Create optimization directory if it doesn't exist
-        opt_dir = self.project_dir / "optimization"
-        opt_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Get optimizer class
-        optimizer_class = self.optimizers.get(algorithm)
-        
-        if optimizer_class is None:
-            self.logger.error(f"Optimization algorithm {algorithm} not supported")
-            return None
-        
-        # Get optimizer method name
-        method_name = self.optimizer_methods.get(algorithm)
-        
-        if method_name is None:
-            self.logger.error(f"No run method defined for optimizer {algorithm}")
-            return None
-        
-        try:
-            # Initialize optimizer
-            self.logger.info(f"Using {algorithm} optimization")
-            optimizer = optimizer_class(self.config, self.logger)
-            
-            # Run optimization
-            result = getattr(optimizer, method_name)()
-            
-            # Save results to standard location
-            target_metric = self.config.get('OPTIMIZATION_METRIC', 'KGE')
-            results_file = self.results_manager.save_optimization_results(
-                result, algorithm, target_metric
-            )
-            
-            if results_file:
-                self.logger.info(f"Calibration completed successfully: {results_file}")
-                return results_file
-            else:
-                self.logger.warning("Calibration completed but results file not found")
-                return None
-                
-        except Exception as e:
-            self.logger.error(f"Error during {algorithm} optimization: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return None
     
     
     def get_optimization_status(self) -> Dict[str, Any]:
@@ -456,7 +292,8 @@ class OptimizationManager:
         
         # Check algorithm
         algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', '')
-        validation['algorithm_valid'] = algorithm in self.optimizers
+        supported_algorithms = ['DDS', 'PSO', 'SCE-UA', 'DE', 'ADAM', 'LBFGS', 'NSGA-II']
+        validation['algorithm_valid'] = algorithm in supported_algorithms
         
         # Check model support
         models = self.config.get('HYDROLOGICAL_MODEL', '').split(',')

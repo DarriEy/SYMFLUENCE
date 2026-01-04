@@ -16,7 +16,7 @@ import logging
 from typing import Dict, Any, List, Tuple, Optional
 from abc import ABC, abstractmethod
 
-from symfluence.utils.common import metrics
+from symfluence.utils.evaluation import metrics
 
 class ModelEvaluator(ABC):
     """Abstract base class for different evaluation variables (streamflow, snow, etc.)"""

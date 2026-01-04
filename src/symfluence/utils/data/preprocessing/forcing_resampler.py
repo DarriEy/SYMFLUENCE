@@ -696,9 +696,18 @@ class ForcingResampler(PathResolverMixin):
                 temp_remap,
                 self.forcing_basin_path / f"{case_name}_remapping.csv",
             ]
+            
             if not any(path.exists() for path in candidate_paths):
-                fallback = list(temp_dir.glob("*remapping*.csv")) + list(self.forcing_basin_path.glob("*remapping*.csv"))
+                # Search for any CSV file that looks like a mapping file
+                # EASYMORE 2.0.0 often creates files named 'Mapping_*.csv' for each variable
+                mapping_patterns = ["*remapping*.csv", "Mapping_*.csv"]
+                fallback = []
+                for pattern in mapping_patterns:
+                    fallback.extend(list(temp_dir.glob(pattern)))
+                    fallback.extend(list(self.forcing_basin_path.glob(pattern)))
+                
                 if fallback:
+                    self.logger.info(f"Using fallback mapping file: {fallback[0].name}")
                     candidate_paths.extend(fallback)
 
             remap_source = next((path for path in candidate_paths if path.exists()), None)

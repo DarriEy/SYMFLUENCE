@@ -6,7 +6,6 @@ to HYPE-compatible daily observation formats.
 """
 
 # Standard library imports
-import glob
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -18,8 +17,10 @@ import pandas as pd
 import xarray as xr
 from tqdm import tqdm
 
+from ..utilities import BaseForcingProcessor
 
-class HYPEForcingProcessor:
+
+class HYPEForcingProcessor(BaseForcingProcessor):
     """
     Processor for HYPE forcing data.
 
@@ -52,13 +53,22 @@ class HYPEForcingProcessor:
             timeshift: Hour offset for time zone correction
             forcing_units: Mapping of variables to units and names
         """
-        self.config = config
-        self.logger = logger
-        self.forcing_input_dir = Path(forcing_input_dir)
-        self.output_path = Path(output_path)
-        self.cache_path = Path(cache_path)
+        super().__init__(
+            config=config,
+            logger=logger,
+            input_path=forcing_input_dir,
+            output_path=output_path,
+            cache_path=cache_path
+        )
+        # Keep forcing_input_dir as alias for backward compatibility
+        self.forcing_input_dir = self.input_path
         self.timeshift = timeshift
         self.forcing_units = forcing_units or {}
+
+    @property
+    def model_name(self) -> str:
+        """Return model name for logging."""
+        return "HYPE"
 
     def process_forcing(self) -> None:
         """Execute the full HYPE forcing processing workflow."""

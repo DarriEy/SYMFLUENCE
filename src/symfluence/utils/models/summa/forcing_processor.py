@@ -20,9 +20,10 @@ import pandas as pd  # type: ignore
 import psutil  # type: ignore
 import xarray as xr  # type: ignore
 from symfluence.utils.common.constants import PhysicalConstants
+from ..utilities import BaseForcingProcessor
 
 
-class SummaForcingProcessor:
+class SummaForcingProcessor(BaseForcingProcessor):
     """
     Processor for SUMMA forcing data with comprehensive quality control and corrections.
 
@@ -88,20 +89,30 @@ class SummaForcingProcessor:
             hruId: HRU ID field name
             catchment_name: Catchment shapefile filename
         """
-        self.config = config
-        self.logger = logger
-        self.forcing_basin_path = Path(forcing_basin_path)
-        self.forcing_summa_path = Path(forcing_summa_path)
-        self.intersect_path = Path(intersect_path)
-        self.catchment_path = Path(catchment_path)
-        self.project_dir = Path(project_dir)
-        self.setup_dir = Path(setup_dir)
+        super().__init__(
+            config=config,
+            logger=logger,
+            input_path=forcing_basin_path,
+            output_path=forcing_summa_path,
+            intersect_path=intersect_path,
+            catchment_path=catchment_path,
+            project_dir=project_dir,
+            setup_dir=setup_dir
+        )
+        # Keep original attribute names for backward compatibility
+        self.forcing_basin_path = self.input_path
+        self.forcing_summa_path = self.output_path
         self.domain_name = domain_name
         self.forcing_dataset = forcing_dataset
         self.data_step = data_step
         self.gruId = gruId
         self.hruId = hruId
         self.catchment_name = catchment_name
+
+    @property
+    def model_name(self) -> str:
+        """Return model name for logging."""
+        return "SUMMA"
 
     def apply_datastep_and_lapse_rate(self):
         """

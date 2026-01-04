@@ -15,7 +15,7 @@ from typing import Dict, Any
 
 from symfluence.utils.models.registry import ModelRegistry
 from symfluence.utils.models.base import BaseModelPreProcessor
-from symfluence.utils.common.geospatial_utils import GeospatialUtilsMixin
+from symfluence.utils.geospatial.geometry_utils import GeospatialUtilsMixin
 
 
 @ModelRegistry.register_preprocessor('TROUTE')

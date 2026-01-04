@@ -441,7 +441,7 @@ def bbox_to_string(
         raise ValueError(f"Unknown format: {format}")
 
 
-from .mixins import LoggingMixin
+from symfluence.utils.common.mixins import LoggingMixin
 
 
 class CoordinateUtilsMixin(LoggingMixin):

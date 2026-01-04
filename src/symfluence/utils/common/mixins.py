@@ -100,6 +100,44 @@ class ConfigMixin:
         # Fallback to config_dict
         return self.config_dict.get(key, default)
 
+    def _resolve_config_value(self, typed_accessor: Any, dict_key: str,
+                              default: Any = None) -> Any:
+        """
+        Resolve configuration value from typed or dict config.
+
+        Phase 3: Prioritizes typed config access, falls back to dict only for backward compatibility.
+
+        Args:
+            typed_accessor: Callable or value from typed config (e.g.,
+                           lambda: self.config.domain.time_start)
+            dict_key: Key to use with dict config (fallback)
+            default: Default value if key not found
+
+        Returns:
+            Resolved configuration value
+        """
+        val = None
+        typed_cfg = getattr(self, 'typed_config', getattr(self, 'config', None))
+        
+        # Check if typed_cfg is actually a SymfluenceConfig (or similar object)
+        # and not a dict
+        if typed_cfg is not None and not isinstance(typed_cfg, dict):
+            # Handle callable (lambda) or direct value
+            if callable(typed_accessor):
+                try:
+                    val = typed_accessor()
+                except (AttributeError, KeyError):
+                    val = None
+            else:
+                val = typed_accessor
+        
+        # If val is None (either missing from typed config or typed config not used),
+        # fall back to dict config (deprecated path)
+        if val is None:
+            return self.config_dict.get(dict_key, default)
+        
+        return val
+
 
 class ProjectContextMixin(ConfigMixin):
     """

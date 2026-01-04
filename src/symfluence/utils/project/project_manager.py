@@ -2,12 +2,21 @@
 
 from pathlib import Path
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 import geopandas as gpd
 from shapely.geometry import Point
 
 
-class ProjectManager:
+from symfluence.utils.common.mixins import ConfigurableMixin
+
+# Import for type checking only
+try:
+    from symfluence.utils.config.models import SymfluenceConfig
+except ImportError:
+    SymfluenceConfig = None
+
+
+class ProjectManager(ConfigurableMixin):
     """
     Manages project-level operations including directory structure and initialization.
     
@@ -25,13 +34,9 @@ class ProjectManager:
     Attributes:
         config (Dict[str, Any]): Configuration dictionary containing project settings
         logger (logging.Logger): Logger instance for recording operations
-        data_dir (Path): Path to the SYMFLUENCE data directory
-        code_dir (Path): Path to the SYMFLUENCE code directory
-        domain_name (str): Name of the hydrological domain
-        project_dir (Path): Path to the specific project directory for this domain
     """
     
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: logging.Logger):
         """
         Initialize the ProjectManager.
         
@@ -39,15 +44,18 @@ class ProjectManager:
         Sets up the basic paths and identifiers needed for project management.
         
         Args:
-            config (Dict[str, Any]): Configuration dictionary containing project settings
-            logger (logging.Logger): Logger instance for recording operations
+            config: Configuration dictionary or SymfluenceConfig instance
+            logger: Logger instance
         """
-        self.config = config
+        # Support both typed config and dict config
+        if SymfluenceConfig and isinstance(config, SymfluenceConfig):
+            self.typed_config = config
+            self.config = config.to_dict(flatten=True)
+        else:
+            self.typed_config = None
+            self.config = config
+
         self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.code_dir = Path(self.config.get('SYMFLUENCE_CODE_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
     
     def setup_project(self) -> Path:
         """

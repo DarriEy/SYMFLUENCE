@@ -4,7 +4,6 @@ HYPE Worker
 Worker implementation for HYPE model optimization.
 """
 
-import os
 import logging
 import pandas as pd
 from pathlib import Path
@@ -12,9 +11,7 @@ from typing import Dict, Any, Optional
 
 from .base_worker import BaseWorker, WorkerTask, WorkerResult
 from ..registry import OptimizerRegistry
-from symfluence.utils.models.hype.preprocessor import HYPEPreProcessor
-from symfluence.utils.models.hype.runner import HYPERunner
-from symfluence.utils.common.metrics import get_KGE, get_NSE
+from symfluence.utils.evaluation.metrics import kge, nse
 
 
 @OptimizerRegistry.register_worker('HYPE')
@@ -169,17 +166,13 @@ class HYPEWorker(BaseWorker):
             if len(common_idx) == 0:
                 return {'kge': self.penalty_score, 'error': 'No common dates between sim and obs'}
                 
-            sim_aligned = sim_series.loc[common_idx].values
-            obs_aligned = obs_df.loc[common_idx, 'discharge_cms'].values
+            obs_aligned = df_obs.loc[common_index].values
+            sim_aligned = df_sim.loc[common_index].values
 
-            # Calculate metrics
-            kge = get_KGE(obs_aligned, sim_aligned, transfo=1)
-            nse = get_NSE(obs_aligned, sim_aligned, transfo=1)
+            kge_val = kge(obs_aligned, sim_aligned, transfo=1)
+            nse_val = nse(obs_aligned, sim_aligned, transfo=1)
 
-            return {
-                'kge': float(kge),
-                'nse': float(nse),
-            }
+            return {'kge': float(kge_val), 'nse': float(nse_val)}
 
         except Exception as e:
             self.logger.error(f"Error calculating HYPE metrics: {e}")

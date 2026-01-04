@@ -38,34 +38,15 @@ class InitializationManager:
             'NLDAS': ForcingDefaults.NLDAS,
         }
 
-    def list_presets(self) -> None:
-        """Print all available presets with descriptions."""
-        print("\n📋 Available Presets:\n")
-
-        # Group presets by type
-        location_specific = []
-        model_specific = []
-
+    def list_presets(self) -> List[Dict[str, Any]]:
+        """Return all available presets with descriptions."""
+        preset_list = []
         for name, preset in self.presets.items():
-            if 'provo' in name.lower() or 'bow' in name.lower():
-                location_specific.append((name, preset['description']))
-            else:
-                model_specific.append((name, preset['description']))
-
-        if location_specific:
-            print("Location-Specific:")
-            for name, desc in location_specific:
-                print(f"  {name:18} {desc}")
-            print()
-
-        if model_specific:
-            print("Model-Specific:")
-            for name, desc in model_specific:
-                print(f"  {name:18} {desc}")
-            print()
-
-        print("Use: symfluence project show-preset NAME for details")
-        print("Use: symfluence project init PRESET_NAME to create config\n")
+            preset_list.append({
+                'name': name,
+                'description': preset.get('description', 'No description')
+            })
+        return preset_list
 
     def show_preset(self, preset_name: str) -> None:
         """

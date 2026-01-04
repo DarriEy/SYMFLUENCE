@@ -9,8 +9,8 @@ import numpy as np  # type: ignore
 import pandas as pd  # type: ignore
 from typing import Dict, Tuple, Optional, Any
 
-from symfluence.utils.common.metrics import (
-    get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE, get_KGEnp
+from symfluence.utils.evaluation.metrics import (
+    kge, kge_prime, nse, mae, rmse, kge_np
 )
 
 
@@ -65,12 +65,12 @@ def calculate_metrics(obs: np.ndarray, sim: np.ndarray) -> Dict[str, float]:
 
     # Calculate metrics
     return {
-        'RMSE': get_RMSE(obs_clean, sim_clean, transfo=1),
-        'KGE': get_KGE(obs_clean, sim_clean, transfo=1),
-        'KGEp': get_KGEp(obs_clean, sim_clean, transfo=1),
-        'NSE': get_NSE(obs_clean, sim_clean, transfo=1),
-        'MAE': get_MAE(obs_clean, sim_clean, transfo=1),
-        'KGEnp': get_KGEnp(obs_clean, sim_clean, transfo=1)
+        'RMSE': rmse(obs_clean, sim_clean, transfo=1),
+        'KGE': kge(obs_clean, sim_clean, transfo=1),
+        'KGEp': kge_prime(obs_clean, sim_clean, transfo=1),
+        'NSE': nse(obs_clean, sim_clean, transfo=1),
+        'MAE': mae(obs_clean, sim_clean, transfo=1),
+        'KGEnp': kge_np(obs_clean, sim_clean, transfo=1)
     }
 
 

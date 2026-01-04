@@ -16,7 +16,7 @@ from symfluence.utils.models.execution import ModelExecutor
 from symfluence.utils.exceptions import ModelExecutionError, symfluence_error_handler
 
 
-@ModelRegistry.register_runner('NGEN', method_name='run_model')
+@ModelRegistry.register_runner('NGEN', method_name='run_ngen')
 class NgenRunner(BaseModelRunner, ModelExecutor):
     """
     Runner for NextGen Framework simulations.
@@ -48,10 +48,10 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
         return "NGEN"
 
     def _should_create_output_dir(self) -> bool:
-        """NGEN creates directories on-demand in run_model."""
+        """NGEN creates directories on-demand in run_ngen."""
         return False
-    
-    def run_model(self, experiment_id: str = None):
+
+    def run_ngen(self, experiment_id: str = None):
         """
         Execute NextGen model simulation.
 

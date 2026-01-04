@@ -16,15 +16,10 @@ class ToolRegistry:
     tool names to their execution functions.
     """
 
-    def __init__(self, cli_manager):
+    def __init__(self):
         """
         Initialize the tool registry.
-
-        Args:
-            cli_manager: Instance of CLIArgumentManager
         """
-        self.cli_manager = cli_manager
-        
         # Build tools by category
         self.tools_by_category = {
             "Workflow Steps": self._build_workflow_step_tools(),
@@ -69,14 +64,16 @@ class ToolRegistry:
 
     def _build_workflow_step_tools(self) -> List[Dict[str, Any]]:
         """Build tool definitions for all workflow steps."""
+        from symfluence.utils.cli.commands.workflow_commands import WorkflowCommands
+        
         tools = []
 
-        for step_name, step_info in self.cli_manager.workflow_steps.items():
+        for step_name, description in WorkflowCommands.WORKFLOW_STEPS.items():
             tool = {
                 "type": "function",
                 "function": {
                     "name": step_name,
-                    "description": step_info['description'] + ". Requires a valid SYMFLUENCE configuration file.",
+                    "description": description + ". Requires a valid SYMFLUENCE configuration file.",
                     "parameters": {
                         "type": "object",
                         "properties": {

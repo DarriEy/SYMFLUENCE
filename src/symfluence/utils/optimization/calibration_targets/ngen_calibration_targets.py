@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 import logging
 
-from symfluence.utils.common import metrics
+from symfluence.utils.evaluation import metrics
 from symfluence.utils.evaluation.evaluators import ModelEvaluator, StreamflowEvaluator
 
 

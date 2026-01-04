@@ -35,6 +35,14 @@ def bow_config():
     return config_path
 
 
+@pytest.fixture
+def bow_rdrs_config():
+    """Load Bow at Banff SUMMA optimization config with RDRS forcing."""
+    config_path = Path(__file__).parent.parent / "configs" / "test_bow_rdrs_optimization.yaml"
+    assert config_path.exists(), f"Config file not found: {config_path}"
+    return config_path
+
+
 def test_bow_banff_full_workflow(bow_config, clear_cache_flag):
     """
     Full E2E test for Bow River at Banff lumped SUMMA model with optimization.
@@ -67,16 +75,41 @@ def test_bow_banff_full_workflow(bow_config, clear_cache_flag):
     - Use --clear-cache to force re-download of all data
     - Without --clear-cache, existing data will be reused
     """
+    _run_bow_workflow(bow_config, clear_cache_flag)
+
+
+def test_bow_banff_rdrs_workflow(bow_rdrs_config, clear_cache_flag):
+    """
+    Full E2E test for Bow River at Banff lumped SUMMA model with RDRS forcing.
+
+    This test performs a comprehensive workflow:
+    1. Delineates lumped basin for Bow River (Banff, Alberta, Canada)
+    2. Acquires cloud data:
+       - Copernicus DEM
+       - MODIS landcover
+       - RDRS v3.1 forcings (2015-2019, 5 years)
+       - WSC streamflow
+    3. Runs SUMMA preprocessing
+    4. Executes 1000-iteration DDS optimization
+    5. Validates results
+    """
+    _run_bow_workflow(bow_rdrs_config, clear_cache_flag)
+
+
+def _run_bow_workflow(config_path, clear_cache_flag):
+    """Refactored workflow runner to support multiple configurations."""
     import shutil
     import yaml
     from datetime import datetime
+    import os
 
     # Load config first to get domain name
-    with open(bow_config, 'r') as f:
+    with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
 
+    forcing_dataset = config.get('FORCING_DATASET', 'ERA5')
+
     # Set up project directory path
-    import os
     project_base = Path(os.environ.get('SYMFLUENCE_DATA_DIR',
                                        config.get('SYMFLUENCE_DATA_DIR',
                                        '/Users/darrieythorsson/compHydro/code/SYMFLUENCE_data')))
@@ -92,7 +125,7 @@ def test_bow_banff_full_workflow(bow_config, clear_cache_flag):
         print(f"  (Use --clear-cache to force re-download)")
 
     # Initialize SYMFLUENCE with config and enable visualizations
-    sym = SYMFLUENCE(bow_config, visualize=True)
+    sym = SYMFLUENCE(config_path, visualize=True)
     print(f"✓ SYMFLUENCE initialized with visualizations enabled")
 
     # Setup project (creates directory structure)
@@ -160,14 +193,14 @@ def test_bow_banff_full_workflow(bow_config, clear_cache_flag):
     forcing_files = list(forcing_dir.glob("*.nc")) if forcing_dir.exists() else []
 
     if forcing_files and not clear_cache_flag:
-        print(f"✓ Using cached ERA5 forcing data ({len(forcing_files)} files)")
+        print(f"✓ Using cached {forcing_dataset} forcing data ({len(forcing_files)} files)")
     else:
-        print("Acquiring forcing data (ERA5, 2015-2019)...")
+        print(f"Acquiring forcing data ({forcing_dataset}, 2015-2019)...")
         sym.managers["data"].acquire_forcings()
         forcing_files = list(forcing_dir.glob("*.nc")) if forcing_dir.exists() else []
         assert forcing_dir.exists(), "Forcing directory not created"
         assert len(forcing_files) > 0, "No forcing files downloaded"
-        print(f"✓ ERA5 forcing data acquired ({len(forcing_files)} files)")
+        print(f"✓ {forcing_dataset} forcing data acquired ({len(forcing_files)} files)")
 
     # Check if observation data already exists
     streamflow_dir = project_dir / "observations" / "streamflow"
@@ -274,9 +307,10 @@ def test_bow_banff_full_workflow(bow_config, clear_cache_flag):
     print(f"Basin: Bow River at Banff, Alberta, Canada (WSC-05BB001)")
     print(f"Period: 2015-2019 (5 years)")
     print(f"Model: SUMMA (lumped)")
-    print(f"Forcing: ERA5 (Global Reanalysis)")
+    print(f"Forcing: {forcing_dataset}")
     print(f"Optimization: DDS with {num_iterations} iterations")
     print(f"Final {metric_col}: {final_kge:.4f}")
     print(f"Project directory: {project_dir}")
     print("="*80)
     print("✓ All validations passed!")
+

@@ -6,11 +6,12 @@ Tests bounding box parsing, coordinate normalization, and related utilities.
 
 import pytest
 import numpy as np
-from symfluence.utils.common.coordinate_utils import (
+from symfluence.utils.geospatial.coordinate_utils import (
     BoundingBox,
     parse_bbox,
     normalize_longitude,
-    create_coordinate_mask
+    create_coordinate_mask,
+    CoordinateUtilsMixin
 )
 
 
@@ -320,8 +321,6 @@ class TestRealWorldExamples:
 
 class TestCoordinateUtilsMixin:
     """Test CoordinateUtilsMixin."""
-
-    from symfluence.utils.common.coordinate_utils import CoordinateUtilsMixin
 
     class MockClass(CoordinateUtilsMixin):
         pass

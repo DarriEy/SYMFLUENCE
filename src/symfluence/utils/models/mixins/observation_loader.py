@@ -14,6 +14,7 @@ import numpy as np
 import logging
 
 from symfluence.utils.common.constants import UnitConversion
+from symfluence.utils.geospatial.geometry_utils import calculate_catchment_area_km2
 from symfluence.utils.exceptions import DataAcquisitionError
 
 try:
@@ -325,14 +326,14 @@ class ObservationLoaderMixin:
 
         Priority:
         1. River basins shapefile (GRU_area field)
-        2. Catchment shapefile (geometry area)
+        2. Catchment shapefile (geometry area via calculate_catchment_area_km2)
         """
         if not HAS_GEOPANDAS:
             self.logger.warning("geopandas not available, cannot determine catchment area")
             return None
 
         try:
-            # Try river basins
+            # Try river basins first (pre-calculated area field)
             basin_name = self.config_dict.get('RIVER_BASINS_NAME')
             if basin_name == 'default' or basin_name is None:
                 basin_name = f"{self.domain_name}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
@@ -346,13 +347,12 @@ class ObservationLoaderMixin:
                     self.logger.info(f"Using catchment area from river basins: {area_km2:.2f} km2")
                     return area_km2
 
-            # Fallback to catchment shapefile
+            # Fallback to catchment shapefile using shared geospatial utility
             catchment_path = self._get_catchment_path()
             if catchment_path and catchment_path.exists():
-                catchment = gpd.read_file(catchment_path)
-                catchment_proj = catchment.to_crs(catchment.estimate_utm_crs())
-                area_km2 = catchment_proj.geometry.area.sum() / 1e6
-                self.logger.warning(f"Using estimated catchment area: {area_km2:.2f} km2")
+                catchment_gdf = gpd.read_file(catchment_path)
+                area_km2 = calculate_catchment_area_km2(catchment_gdf, logger=self.logger)
+                self.logger.info(f"Using estimated catchment area: {area_km2:.2f} km2")
                 return area_km2
 
         except Exception as e:

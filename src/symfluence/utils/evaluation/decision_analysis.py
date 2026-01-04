@@ -6,7 +6,7 @@ import itertools
 from typing import List, Tuple
 import xarray as xr # type: ignore
 
-from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE
+from symfluence.utils.evaluation.metrics import kge, kge_prime, nse, mae, rmse
 from symfluence.utils.models.summa import SummaRunner # type: ignore
 from symfluence.utils.models.mizuroute import MizuRouteRunner # type: ignore
 
@@ -81,13 +81,13 @@ class DecisionAnalyzer:
         obs = dfObs.values
 
         sim = dfSim['IRFroutedRunoff'].values
-        kge = get_KGE(obs, sim, transfo=1)
-        kgep = get_KGEp(obs, sim, transfo=1)
-        nse = get_NSE(obs, sim, transfo=1)
-        mae = get_MAE(obs, sim, transfo=1)
-        rmse = get_RMSE(obs, sim, transfo=1)
+        kge_val = kge(obs, sim, transfo=1)
+        kgep_val = kge_prime(obs, sim, transfo=1)
+        nse_val = nse(obs, sim, transfo=1)
+        mae_val = mae(obs, sim, transfo=1)
+        rmse_val = rmse(obs, sim, transfo=1)
 
-        return kge, kgep, nse, mae, rmse
+        return kge_val, kgep_val, nse_val, mae_val, rmse_val
 
     def run_decision_analysis(self):
         self.logger.info("Starting decision analysis")

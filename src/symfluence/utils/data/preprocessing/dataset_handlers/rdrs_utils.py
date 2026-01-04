@@ -43,6 +43,16 @@ class RDRSHandler(BaseDatasetHandler):
             'RDRS_v2.1_P_UVC_10m': 'windspd',
             'RDRS_v2.1_P_UUC_10m': 'windspd_u',
             'RDRS_v2.1_P_VVC_10m': 'windspd_v',
+            # RDRS v3.1 short names
+            'FI': 'LWRadAtm',
+            'FB': 'SWRadAtm',
+            'PR0': 'pptrate',
+            'P0': 'airpres',
+            'TT': 'airtemp',
+            'HU': 'spechum',
+            'UVC': 'windspd',
+            'UUC': 'windspd_u',
+            'VVC': 'windspd_v',
         }
     
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
@@ -68,16 +78,27 @@ class RDRSHandler(BaseDatasetHandler):
 
         # Apply unit conversions (must happen before attribute setting)
         if 'airpres' in ds:
-            ds['airpres'] = ds['airpres'] * 100
+            # RDRS v2.1 uses mb, but v3.1 might use Pa
+            if ds['airpres'].max() < 2000: # Probably mb
+                ds['airpres'] = ds['airpres'] * 100
 
         if 'airtemp' in ds:
-            ds['airtemp'] = ds['airtemp'] + PhysicalConstants.KELVIN_OFFSET
+            # RDRS v2.1 uses Celsius, but v3.1 might use Kelvin
+            if ds['airtemp'].max() < 100: # Probably Celsius
+                ds['airtemp'] = ds['airtemp'] + PhysicalConstants.KELVIN_OFFSET
 
         if 'pptrate' in ds:
-            ds['pptrate'] = ds['pptrate'] / UnitConversion.SECONDS_PER_HOUR
+            # RDRS v2.1 uses mm/hr, but v3.1 might use kg/m2/s (which is mm/s)
+            # Check if it's already small enough to be m/s
+            if ds['pptrate'].max() > 0.1: # Probably mm/hr
+                ds['pptrate'] = ds['pptrate'] / UnitConversion.SECONDS_PER_HOUR
 
         if 'windspd' in ds:
-            ds['windspd'] = ds['windspd'] * 0.514444
+            # RDRS v2.1 uses knots, but v3.1 uses m/s
+            if 'UVC' in existing_vars: # v3.1 names
+                pass
+            else:
+                ds['windspd'] = ds['windspd'] * 0.514444
 
         # Apply standard CF-compliant attributes (uses centralized definitions)
         # RDRS precipitation is in m/s after conversion

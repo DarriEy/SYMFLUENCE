@@ -21,64 +21,6 @@ class BinaryManager:
         """
         self.external_tools = external_tools or get_external_tools_definitions()
 
-    def handle_binary_management(self, execution_plan: Dict[str, Any], symfluence_instance: Optional[Any] = None) -> bool:
-        """
-        Handle binary management operations (validate_binaries, get_executables, doctor, tools_info).
-
-        Args:
-            execution_plan: Execution plan from CLI manager
-            symfluence_instance: SYMFLUENCE instance (optional)
-
-        Returns:
-            bool: Success status
-        """
-        try:
-            binary_ops = execution_plan.get('binary_operations', {})
-
-            # Handle doctor command (system diagnostics)
-            if binary_ops.get('doctor', False):
-                print("\n🔍 SYMFLUENCE System Diagnostics")
-                self.run_doctor()
-                return True
-
-            # Handle tools_info command
-            if binary_ops.get('tools_info', False):
-                print("\n🔧 SYMFLUENCE Installed Tools\n")
-                self.show_tools_info()
-                return True
-
-            if binary_ops.get('validate_binaries', False):
-                print("\n🔧 Binary Validation Requested")
-                results = self.validate_binaries(symfluence_instance)
-                # validate_binaries returns True when all valid, or dict with results
-                if results is True:
-                    return True
-                return len(results['missing_tools']) == 0 and len(results['failed_tools']) == 0
-
-            if binary_ops.get('get_executables') is not None:
-                print("\n🚀 Executable Installation Requested")
-                specific_tools = binary_ops.get('get_executables')
-                force_install = binary_ops.get('force_install', False)
-                dry_run = execution_plan.get('settings', {}).get('dry_run', False)
-
-                if isinstance(specific_tools, list) and len(specific_tools) == 0:
-                    specific_tools = None
-
-                results = self.get_executables(
-                    specific_tools=specific_tools,
-                    symfluence_instance=symfluence_instance,
-                    force=force_install,
-                    dry_run=dry_run
-                )
-
-                return len(results['failed']) == 0
-
-            return True
-
-        except Exception as e:
-            print(f"❌ Error in binary management: {str(e)}")
-            return False
-
     def get_executables(self, specific_tools: List[str] = None, symfluence_instance=None,
                         force: bool = False, dry_run: bool = False) -> Dict[str, Any]:
         """
@@ -649,7 +591,7 @@ class BinaryManager:
 
         return None
 
-    def run_doctor(self) -> None:
+    def doctor(self) -> bool:
         """
         Run system diagnostics: check binaries, toolchain, and system libraries.
         """
@@ -778,8 +720,9 @@ class BinaryManager:
             print("\n⚠️  Some components missing. Review output above.")
 
         print("=" * 60 + "\n")
+        return True
 
-    def show_tools_info(self) -> None:
+    def tools_info(self) -> bool:
         """
         Display installed tools information from toolchain metadata.
         """
@@ -847,8 +790,11 @@ class BinaryManager:
                         print(f"      Executable: {tool_info['executable']}")
 
             print("\n" + "=" * 60 + "\n")
+            return True
 
         except json.JSONDecodeError:
             print(f"❌ Error: Toolchain file is not valid JSON: {toolchain_path}")
+            return False
         except Exception as e:
             print(f"❌ Error reading toolchain file: {e}")
+            return False

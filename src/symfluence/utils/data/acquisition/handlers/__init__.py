@@ -62,6 +62,12 @@ except ImportError:
     pass
 
 try:
+    from . import rdrs
+    _imported.append('rdrs')
+except ImportError:
+    pass
+
+try:
     from . import observation_acquirers
     _imported.append('observation_acquirers')
 except ImportError:

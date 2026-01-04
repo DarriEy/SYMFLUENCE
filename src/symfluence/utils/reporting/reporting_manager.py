@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Union
 from pathlib import Path
 
 # Config
@@ -24,17 +24,25 @@ class ReportingManager:
     to specialized processors and plotters.
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any, visualize: bool = False):
+    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: Any, visualize: bool = False):
         """
         Initialize the ReportingManager.
 
         Args:
-            config: Configuration dictionary.
+            config: Configuration dictionary or SymfluenceConfig instance.
             logger: Logger instance.
             visualize: Boolean flag indicating if visualization is enabled.
                        If False, most visualization methods will return early.
         """
-        self.config = config
+        # Phase 3: Support both typed config and dict config
+        from symfluence.utils.config.models import SymfluenceConfig
+        if isinstance(config, SymfluenceConfig):
+            self.typed_config = config
+            self.config = config.to_dict(flatten=True)
+        else:
+            self.typed_config = None
+            self.config = config
+
         self.logger = logger
         self.visualize = visualize
         self.project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}"

@@ -20,7 +20,7 @@ from ..base import BaseModelPreProcessor, BaseModelPostProcessor
 from ..mixins import PETCalculatorMixin
 from ..registry import ModelRegistry
 from symfluence.utils.common.constants import UnitConversion
-from symfluence.utils.common.metrics import get_KGE, get_KGEp, get_NSE, get_MAE, get_RMSE
+from symfluence.utils.evaluation.metrics import kge, kge_prime, nse, mae, rmse
 from symfluence.utils.data.utilities.variable_utils import VariableHandler # type: ignore
 
 

@@ -4,7 +4,8 @@
 from pathlib import Path
 import logging
 from typing import Dict, Any, Optional, List, Union
-from symfluence.utils.data.preprocessing.agnosticPreProcessor import ForcingResampler, GeospatialStatistics
+from symfluence.utils.data.preprocessing.forcing_resampler import ForcingResampler
+from symfluence.utils.data.preprocessing.geospatial_statistics import GeospatialStatistics
 from symfluence.utils.data.utilities.variable_utils import VariableHandler
 from symfluence.utils.data.acquisition.observed_processor import ObservedDataProcessor
 from symfluence.utils.data.observation.registry import ObservationRegistry
@@ -15,13 +16,15 @@ from symfluence.utils.exceptions import (
     symfluence_error_handler
 )
 
+from symfluence.utils.common.mixins import ConfigurableMixin
+
 # Import for type checking only (avoid circular imports)
 try:
     from symfluence.utils.config.models import SymfluenceConfig
 except ImportError:
     SymfluenceConfig = None
 
-class DataManager:
+class DataManager(ConfigurableMixin):
     """
     Manages all data acquisition and preprocessing operations for SYMFLUENCE.
     
@@ -43,9 +46,6 @@ class DataManager:
 
         self.logger = logger
         self.reporting_manager = reporting_manager
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         
         # Use typed config if available for delegates
         component_config = self.typed_config if self.typed_config else self.config

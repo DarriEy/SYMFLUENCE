@@ -66,7 +66,7 @@ class MizuRouteModelOptimizer(BaseModelOptimizer):
 
     def _run_model(self) -> bool:
         """Execute the MizuRoute model."""
-        return self.runner.run_model()
+        return self.runner.run_mizuroute()
 
     def _get_simulation_results(self) -> Dict[str, Any]:
         """

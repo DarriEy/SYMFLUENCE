@@ -8,11 +8,11 @@ API calls, tool execution, and conversation management.
 import sys
 from typing import Optional
 
-from symfluence.utils.agent.core.api_client import APIClient
-from symfluence.utils.agent.core.conversation_manager import ConversationManager
-from symfluence.utils.agent.core.tool_registry import ToolRegistry
+from .api_client import APIClient
+from .conversation_manager import ConversationManager
+from .tool_registry import ToolRegistry
 from .tool_executor import ToolExecutor
-from symfluence.utils.agent.core import system_prompts
+from . import system_prompts
 
 
 class AgentManager:
@@ -23,24 +23,22 @@ class AgentManager:
     and tool executor to provide an intelligent assistant for SYMFLUENCE workflows.
     """
 
-    def __init__(self, cli_manager, config_path: str, verbose: bool = False):
+    def __init__(self, config_path: str, verbose: bool = False):
         """
         Initialize the agent manager.
 
         Args:
-            cli_manager: Instance of CLIArgumentManager
             config_path: Default config path for workflows
             verbose: Enable verbose output
         """
-        self.cli_manager = cli_manager
         self.config_path = config_path
         self.verbose = verbose
 
         # Initialize components
         self.api_client = APIClient(verbose=verbose)
         self.conversation_manager = ConversationManager(max_history=50)
-        self.tool_registry = ToolRegistry(cli_manager)
-        self.tool_executor = ToolExecutor(cli_manager, tool_registry=self.tool_registry)
+        self.tool_registry = ToolRegistry()
+        self.tool_executor = ToolExecutor(tool_registry=self.tool_registry)
 
     def run_interactive_mode(self) -> int:
         """
