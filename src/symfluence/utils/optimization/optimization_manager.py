@@ -14,8 +14,8 @@ from symfluence.utils.optimization.optimizers import (
     DEOptimizer, DDSOptimizer, AsyncDDSOptimizer, PopulationDDSOptimizer,
     PSOOptimizer, NSGA2Optimizer, SCEUAOptimizer
 )
-from symfluence.utils.optimization.objective_registry import ObjectiveRegistry
-from symfluence.utils.optimization.transformers import TransformationManager
+from symfluence.utils.optimization.objectives import ObjectiveRegistry
+from symfluence.utils.optimization.core import TransformationManager
 from symfluence.utils.optimization.registry import OptimizerRegistry
 from symfluence.utils.optimization.optimization_results_manager import OptimizationResultsManager
 

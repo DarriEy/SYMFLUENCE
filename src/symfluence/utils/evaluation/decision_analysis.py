@@ -19,7 +19,7 @@ class DecisionAnalyzer:
         self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.output_folder = self.project_dir / "plots" / "decision_analysis"
+        self.output_folder = self.project_dir / "reporting" / "decision_analysis"
         self.output_folder.mkdir(parents=True, exist_ok=True)
         self.model_decisions_path = self.project_dir / "settings" / "SUMMA" / "modelDecisions.txt"
 

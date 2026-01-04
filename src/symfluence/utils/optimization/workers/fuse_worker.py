@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 
 from .base_worker import BaseWorker, WorkerTask, WorkerResult
 from ..registry import OptimizerRegistry
+from symfluence.utils.common.constants import UnitConversion
 
 
 logger = logging.getLogger(__name__)
@@ -230,7 +231,7 @@ class FUSEWorker(BaseWorker):
 
             # Convert FUSE output from mm/day to cms
             # Q(cms) = Q(mm/day) * Area(km2) / 86.4
-            simulated_streamflow = simulated_streamflow * area_km2 / 86.4
+            simulated_streamflow = simulated_streamflow * area_km2 / UnitConversion.MM_DAY_TO_CMS
 
             # Align time series
             common_index = observed_streamflow.index.intersection(simulated_streamflow.index)

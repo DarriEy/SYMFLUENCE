@@ -19,6 +19,7 @@ import numpy as np  # type: ignore
 import pandas as pd  # type: ignore
 import psutil  # type: ignore
 import xarray as xr  # type: ignore
+from symfluence.utils.common.constants import PhysicalConstants
 
 
 class SummaForcingProcessor:
@@ -562,9 +563,9 @@ class SummaForcingProcessor:
                             else:
                                 # Not enough valid values, use default
                                 if len(var_data.shape) == 2:
-                                    filled_data.values[:, hru_idx] = 273.15  # 0°C
+                                    filled_data.values[:, hru_idx] = PhysicalConstants.KELVIN_OFFSET  # 0°C
                                 else:
-                                    filled_data.values[:] = 273.15
+                                    filled_data.values[:] = PhysicalConstants.KELVIN_OFFSET
 
                         # Clip to reasonable temperature range
                         filled_data = filled_data.clip(min=200.0, max=350.0)
@@ -573,7 +574,7 @@ class SummaForcingProcessor:
                         self.logger.warning(f"File {filename}: scipy not available, using xarray interpolation")
                         filled_data = var_data.interpolate_na(dim='time', method='linear')
                         filled_data = filled_data.fillna(method='ffill').fillna(method='bfill')
-                        filled_data = filled_data.fillna(273.15)
+                        filled_data = filled_data.fillna(PhysicalConstants.KELVIN_OFFSET)
                         filled_data = filled_data.clip(min=200.0, max=350.0)
 
                     self.logger.debug(f"File {filename}: Applied CASR temperature interpolation")
@@ -590,7 +591,7 @@ class SummaForcingProcessor:
                     # If still NaN, use reasonable defaults
                     if np.any(np.isnan(filled_data.values)):
                         if var == 'airtemp':
-                            default_val = 273.15  # 0°C in Kelvin
+                            default_val = PhysicalConstants.KELVIN_OFFSET  # 0°C in Kelvin
                         elif var == 'airpres':
                             default_val = 101325.0  # Standard pressure in Pa
                         elif var == 'spechum':
@@ -628,7 +629,7 @@ class SummaForcingProcessor:
         """
         required_vars = ['airtemp', 'airpres', 'spechum', 'windspd', 'pptrate', 'LWRadAtm', 'SWRadAtm']
         defaults = {
-            'airtemp': 273.15,   # 0°C in Kelvin
+            'airtemp': PhysicalConstants.KELVIN_OFFSET,   # 0°C in Kelvin
             'airpres': 101325.0, # Standard pressure in Pa
             'spechum': 0.005,    # Reasonable specific humidity
             'windspd': 2.0,      # Light wind in m/s

@@ -625,6 +625,9 @@ class DomainDiscretizer(PathResolverMixin):
             # Get CRS information
             with rasterio.open(self.dem_path) as src:
                 dem_crs = src.crs
+                dem_array = src.read(1)
+                dem_transform = src.transform
+                dem_nodata = src.nodata
 
             shapefile_crs = hru_gdf.crs
 
@@ -637,12 +640,13 @@ class DomainDiscretizer(PathResolverMixin):
             else:
                 hru_gdf_projected = hru_gdf.copy()
 
-            # Use rasterstats with the raster file path directly (more efficient and handles CRS properly)
+            # Use rasterstats with the raster array and transform
             zs = rasterstats.zonal_stats(
                 hru_gdf_projected.geometry,
-                str(self.dem_path),  # Use file path instead of array
+                dem_array,
+                affine=dem_transform,
                 stats=["mean"],
-                nodata=-9999,  # Explicit nodata value
+                nodata=dem_nodata if dem_nodata is not None else -9999,
             )
             hru_gdf["elev_mean"] = [
                 item["mean"] if item["mean"] is not None else -9999 for item in zs

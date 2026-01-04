@@ -45,7 +45,7 @@ class OptimizationPlotter(BasePlotter):
 
         try:
             # Setup plot directory
-            plots_dir = output_dir / "plots"
+            plots_dir = output_dir / "reporting"
             plots_dir.mkdir(parents=True, exist_ok=True)
 
             # Extract progress data
@@ -118,7 +118,7 @@ class OptimizationPlotter(BasePlotter):
 
         try:
             # Setup plot directory
-            plots_dir = output_dir / "plots"
+            plots_dir = output_dir / "reporting"
             plots_dir.mkdir(parents=True, exist_ok=True)
 
             # Extract depth parameters

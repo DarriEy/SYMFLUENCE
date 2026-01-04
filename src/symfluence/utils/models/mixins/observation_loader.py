@@ -199,7 +199,7 @@ class ObservationLoaderMixin:
 
         # Convert to cms if needed
         if source_units == 'cfs':
-            series = series * 0.028316846592  # ft³/s -> m³/s
+            series = series * UnitConversion.CFS_TO_CMS  # ft³/s -> m³/s
             self.logger.info("Converted streamflow from cfs to cms")
 
         return series
@@ -305,7 +305,7 @@ class ObservationLoaderMixin:
             elif target_units == 'mm_per_timestep':
                 # Get timestep from config
                 timestep_seconds = getattr(self, 'forcing_time_step_size', 86400)
-                conversion_factor = timestep_seconds / 1000  # seconds to mm conversion
+                conversion_factor = UnitConversion.mm_per_timestep_to_cms_factor(timestep_seconds)
                 return series * conversion_factor / catchment_area_km2
 
         elif source_units == 'mm_per_day' and target_units == 'cms':
@@ -388,7 +388,7 @@ class ObservationLoaderMixin:
         elif output_format == 'xarray':
             # Determine time units based on target units
             if 'hour' in units:
-                time_values = ((series.index - pd.Timestamp('1970-01-01')).total_seconds() / 3600).values
+                time_values = ((series.index - pd.Timestamp('1970-01-01')).total_seconds() / UnitConversion.SECONDS_PER_HOUR).values
                 time_units = 'hours since 1970-01-01'
             else:
                 time_values = (series.index - pd.Timestamp('1970-01-01')).days.values.astype(float)

@@ -353,7 +353,32 @@ class BaseModelPostProcessor(ABC, PathResolverMixin):
         results_df.to_csv(output_file)
         self.logger.info(f"Streamflow saved to: {output_file}")
 
+        # Automatically visualize results if reporting manager is available
+        self.visualize_streamflow_results()
+
         return output_file
+
+    def visualize_streamflow_results(self) -> None:
+        """
+        Create standardized streamflow plots using ReportingManager.
+        
+        This method is called automatically after saving results.
+        It delegates to reporting_manager.visualize_timeseries_results(),
+        which handles:
+        - Loading the consolidated results CSV
+        - Loading observations
+        - Aligning time series
+        - Calculating metrics
+        - Generating comparison and diagnostic plots
+        """
+        if self.reporting_manager and self.reporting_manager.is_visualization_enabled():
+            try:
+                self.logger.info(f"Creating standardized streamflow plots for {self.model_name}...")
+                self.reporting_manager.visualize_timeseries_results()
+            except Exception as e:
+                self.logger.error(f"Error creating streamflow plots: {str(e)}")
+        else:
+            self.logger.debug("Skipping visualization (manager not available or visualization disabled)")
 
     def read_netcdf_streamflow(
         self,

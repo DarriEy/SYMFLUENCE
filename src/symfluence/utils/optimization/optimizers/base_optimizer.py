@@ -19,7 +19,7 @@ from symfluence.utils.optimization.core.parameter_manager import ParameterManage
 from symfluence.utils.optimization.core.model_executor import ModelExecutor
 from symfluence.utils.optimization.core.results_manager import ResultsManager
 from symfluence.utils.optimization.local_scratch_manager import LocalScratchManager
-from symfluence.utils.optimization.transformers import TransformationManager
+from symfluence.utils.optimization.core import TransformationManager
 from symfluence.utils.optimization.calibration_targets import (
     ETTarget, SnowTarget, GroundwaterTarget, SoilMoistureTarget, StreamflowTarget, CalibrationTarget
 )

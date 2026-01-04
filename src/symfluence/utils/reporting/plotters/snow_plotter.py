@@ -65,7 +65,7 @@ class SnowPlotter(BasePlotter):
             unique_hrus = merged_obs['HRU_ID'].unique()
             n_hrus = len(unique_hrus)
 
-            plot_dir = self._ensure_plot_dir('snow')
+            plot_dir = self._ensure_output_dir('snow')
             
             # Create main figure
             fig_all = plt.figure(figsize=(20, 10 * n_hrus + 8))

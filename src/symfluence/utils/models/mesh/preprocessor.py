@@ -9,6 +9,7 @@ import os
 from typing import Dict, Any
 
 from pathlib import Path
+import shutil
 
 
 
@@ -436,6 +437,16 @@ INTERPOLATIONFLAG   0                                   # Interpolation (0=No)
             self.logger.info(f"meshflow version: {getattr(meshflow, '__version__', 'unknown')}")
             self.logger.info(f"meshflow file: {meshflow.__file__}")
 
+            # Ensure a clean slate for meshflow output files
+            output_files_to_clean = [
+                self.forcing_dir / "MESH_forcing.nc",
+                self.forcing_dir / "MESH_drainage_database.nc",
+            ]
+            for f in output_files_to_clean:
+                if f.exists():
+                    self.logger.info(f"Removing existing meshflow output file: {f}")
+                    f.unlink()
+
             # Monkey-patch meshflow to fix bug in v0.1.0.dev1
             try:
                 import meshflow.utility.forcing_prep
@@ -590,11 +601,17 @@ INTERPOLATIONFLAG   0                                   # Interpolation (0=No)
         try:
             import geopandas as gpd
             gdf = gpd.read_file(path)
+            self.logger.debug(f"Shapefile {path.name} columns before sanitization: {gdf.columns.tolist()}")
+
             # 'ID' can cause MergeError in xarray when meshflow combines datasets
             if 'ID' in gdf.columns:
                 self.logger.info(f"Sanitizing shapefile {path.name}: renaming 'ID' to 'ORIG_ID'")
                 gdf = gdf.rename(columns={'ID': 'ORIG_ID'})
-                gdf.to_file(path)
+                # Save to a temporary file, then replace to avoid partial writes
+                temp_path = path.with_suffix('.tmp.shp')
+                gdf.to_file(temp_path)
+                shutil.move(temp_path, path)
+            self.logger.debug(f"Shapefile {path.name} columns after sanitization: {gdf.columns.tolist()}")
         except Exception as e:
             self.logger.warning(f"Failed to sanitize shapefile {path}: {e}")
 

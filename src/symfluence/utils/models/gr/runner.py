@@ -547,8 +547,8 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
                 # Results preview
                 if ({"TRUE" if self.reporting_manager and self.reporting_manager.visualize else "FALSE"}) {{
                     # Create plots directory
-                    dir.create("{str(self.project_dir / 'plots' / 'results')}", recursive = TRUE, showWarnings = FALSE)
-                    png("{str(self.project_dir / 'plots' / 'results' / 'GRhydrology_plot.png')}", height = 900, width = 900)
+                    dir.create("{str(self.project_dir / 'reporting' / 'results')}", recursive = TRUE, showWarnings = FALSE)
+                    png("{str(self.project_dir / 'reporting' / 'results' / 'GRhydrology_plot.png')}", height = 900, width = 900)
                     plot(OutputsModel, Qobs = BasinObs$q_obs[Ind_Run])
                     dev.off()
                 }}

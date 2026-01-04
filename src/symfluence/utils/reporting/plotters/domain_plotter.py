@@ -40,7 +40,7 @@ class DomainPlotter(BasePlotter):
 
         try:
             # Setup plot directory
-            plot_dir = self._ensure_plot_dir('domain')
+            plot_dir = self._ensure_output_dir('domain')
             plot_filename = plot_dir / 'domain_map.png'
 
             # Load shapefiles
@@ -167,7 +167,7 @@ class DomainPlotter(BasePlotter):
 
         try:
             # Setup plot directory
-            plot_dir = self._ensure_plot_dir('discretization')
+            plot_dir = self._ensure_output_dir('discretization')
             plot_filename = plot_dir / f'domain_discretization_{discretization_method}.png'
 
             # Load HRU shapefile

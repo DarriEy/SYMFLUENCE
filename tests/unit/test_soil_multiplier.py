@@ -3,7 +3,7 @@ import numpy as np
 import netCDF4 as nc
 import logging
 from pathlib import Path
-from symfluence.utils.optimization.transformers import SoilDepthTransformer
+from symfluence.utils.optimization.core.transformers import SoilDepthTransformer
 
 def test_soil_depth_transformation(tmp_path):
     """
@@ -52,7 +52,7 @@ def test_transformation_manager(tmp_path):
 
     """Test the TransformationManager orchestrator."""
 
-    from symfluence.utils.optimization.transformers import TransformationManager
+    from symfluence.utils.optimization.core.transformers import TransformationManager
 
     
 

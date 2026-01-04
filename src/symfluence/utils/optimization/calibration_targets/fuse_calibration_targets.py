@@ -19,6 +19,7 @@ from typing import Dict, Any, List, Optional
 import logging
 
 from symfluence.utils.common import metrics
+from symfluence.utils.common.constants import UnitConversion
 from symfluence.utils.evaluation.evaluators import ModelEvaluator, StreamflowEvaluator, SnowEvaluator
 
 
@@ -77,7 +78,7 @@ class FUSEStreamflowTarget(StreamflowEvaluator):
                 
                 # Convert mm/day to cms: Q(cms) = Q(mm/day) * Area(km2) / 86.4
                 area_km2 = self._get_catchment_area()
-                return sim_df * area_km2 / 86.4
+                return sim_df * area_km2 / UnitConversion.MM_DAY_TO_CMS
 
     def _get_catchment_area(self) -> float:
         """FUSE-specific area calculation logic or fallback."""

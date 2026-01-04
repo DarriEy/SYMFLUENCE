@@ -71,27 +71,27 @@ class BasePlotter(ABC):
 
         return self._plt, self._mdates
 
-    def _ensure_plot_dir(self, *subdirs: str) -> Path:
+    def _ensure_output_dir(self, *subdirs: str) -> Path:
         """
-        Ensure plot directory exists and return its path.
+        Ensure output directory exists and return its path.
 
         Args:
-            *subdirs: Subdirectories under the plots folder (e.g., 'results', 'domain')
+            *subdirs: Subdirectories under the reporting folder (e.g., 'results', 'domain')
 
         Returns:
-            Path to the plot directory
+            Path to the output directory
 
         Note:
             Creates directory structure if it doesn't exist.
-            Eliminates ~25 duplicated directory creation patterns.
         """
-        plot_dir = self.project_dir / "plots"
+        # Use 'reporting' as the standard output directory
+        output_dir = self.project_dir / "reporting"
 
         for subdir in subdirs:
-            plot_dir = plot_dir / subdir
+            output_dir = output_dir / subdir
 
-        plot_dir.mkdir(parents=True, exist_ok=True)
-        return plot_dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
 
     def _save_and_close(
         self,

@@ -50,9 +50,11 @@ class SpatialMode(Enum):
         normalized = value.lower().replace('-', '_').replace(' ', '_')
         mapping = {
             'lumped': cls.LUMPED,
+            'point': cls.LUMPED,  # Treat point as lumped for model execution
             'semi_distributed': cls.SEMI_DISTRIBUTED,
             'semidistributed': cls.SEMI_DISTRIBUTED,
             'distributed': cls.DISTRIBUTED,
+            'delineate': cls.DISTRIBUTED,
         }
         if normalized not in mapping:
             raise ValueError(f"Unknown spatial mode: {value}. Valid: {list(mapping.keys())}")

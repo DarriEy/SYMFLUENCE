@@ -12,6 +12,7 @@ All methods automatically detect and handle temperature units (Kelvin or Celsius
 import numpy as np
 import pandas as pd
 import xarray as xr
+from symfluence.utils.common.constants import PhysicalConstants
 
 
 class PETCalculatorMixin:
@@ -72,7 +73,7 @@ class PETCalculatorMixin:
         # Convert to Celsius if needed
         if temp_mean > 100:  # Likely Kelvin
             self.logger.info("Temperature appears to be in Kelvin, converting to Celsius")
-            temp_C = temp_data - 273.15
+            temp_C = temp_data - PhysicalConstants.KELVIN_OFFSET
         elif -100 < temp_mean < 60:  # Likely Celsius
             self.logger.info("Temperature appears to be in Celsius, using as-is")
             temp_C = temp_data
@@ -184,7 +185,7 @@ class PETCalculatorMixin:
         # Auto-detect units
         if temp_mean > 100:  # Kelvin
             self.logger.info("Temperature in Kelvin, converting to Celsius")
-            temp_C = temp_data - 273.15
+            temp_C = temp_data - PhysicalConstants.KELVIN_OFFSET
         elif -100 < temp_mean < 60:  # Celsius
             self.logger.info("Temperature in Celsius, using as-is")
             temp_C = temp_data
@@ -283,7 +284,7 @@ class PETCalculatorMixin:
         # Auto-detect units
         if temp_mean > 100:  # Kelvin
             self.logger.info("Temperature in Kelvin, converting to Celsius")
-            temp_C = temp_data - 273.15
+            temp_C = temp_data - PhysicalConstants.KELVIN_OFFSET
         elif -100 < temp_mean < 60:  # Celsius
             self.logger.info("Temperature in Celsius, using as-is")
             temp_C = temp_data

@@ -54,7 +54,7 @@ class LSTMRunner(BaseModelRunner):
         self.postprocessor = LSTMPostprocessor(
             self.config_dict, 
             self.logger, 
-            self.project_dir
+            reporting_manager=self.reporting_manager
         )
         
         self.model = None
@@ -141,7 +141,6 @@ class LSTMRunner(BaseModelRunner):
             results = self._simulate(X_tensor, common_dates, features_avg)
 
             # 4. Postprocess
-            self.postprocessor.visualize_results(results, streamflow_df, snow_df_input, use_snow)
             self.postprocessor.save_results(results, use_snow)
 
             self.logger.info("LSTM model run completed successfully")

@@ -84,8 +84,6 @@ class DomainManager:
         if result:
             self.logger.info(f"Domain definition completed using method: {domain_method}")
         
-        # Visualize the domain after definition
-        self.visualize_domain()        
         self.logger.info(f"Domain definition workflow finished")
 
         return result, artifacts

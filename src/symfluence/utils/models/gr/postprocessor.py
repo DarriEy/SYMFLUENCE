@@ -101,35 +101,15 @@ class GRPostprocessor(BaseModelPostProcessor):
         sim_df['date'] = pd.to_datetime(sim_df['date'])
         sim_df.set_index('date', inplace=True)
 
-        # Get catchment area
-        basin_dir = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
-        basin_name = self.config_dict.get('RIVER_BASINS_NAME')
-        if basin_name == 'default' or basin_name is None:
-            basin_name = f"{self.domain_name}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
-        basin_path = basin_dir / basin_name
-        basin_gdf = gpd.read_file(basin_path)
+        # Convert units from mm/day to m3/s (cms) using base method
+        # Note: GR4J lumped outputs are in mm/day
+        q_sim_cms = self.convert_mm_per_day_to_cms(sim_df['flow'])
 
-        area_km2 = basin_gdf['GRU_area'].sum() / 1e6
-        self.logger.info(f"Total catchment area: {area_km2:.2f} km2")
-
-        # Convert units from mm/day to m3/s (cms)
-        q_sim_cms = sim_df['flow'] * area_km2 / UnitConversion.MM_DAY_TO_CMS
-
-        # Read existing results or create new
-        output_file = self.results_dir / f"{self.config_dict.get('EXPERIMENT_ID')}_results.csv"
-        if output_file.exists():
-            results_df = pd.read_csv(output_file, index_col=0, parse_dates=True)
-        else:
-            results_df = pd.DataFrame(index=q_sim_cms.index)
-
-        # Add GR results
-        results_df['GR_discharge_cms'] = q_sim_cms
-
-        # Save updated results
-        results_df.to_csv(output_file)
-
-        self.logger.info(f"GR results appended to: {output_file}")
-        return output_file
+        # Save using standard method
+        return self.save_streamflow_to_results(
+            q_sim_cms,
+            model_column_name='GR_discharge_cms'
+        )
 
     def _extract_distributed_streamflow(self) -> Optional[Path]:
         """Extract streamflow from distributed GR4J run (after routing)"""
@@ -198,32 +178,21 @@ class GRPostprocessor(BaseModelPostProcessor):
             # Convert to DataFrame
             q_df = q_total.to_dataframe(name='flow')
 
-        # Convert from mm/day to m3/s
-        basin_dir = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
-        basin_name = self.config_dict.get('RIVER_BASINS_NAME')
-        if basin_name == 'default' or basin_name is None:
-            basin_name = f"{self.domain_name}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD')}.shp"
-        basin_path = basin_dir / basin_name
-        basin_gdf = gpd.read_file(basin_path)
+        # Convert from mm/day to m3/s using base method
+        # Assumes GR output in mm/day. If mizuRoute, it might be in m3/s already depending on config,
+        # but typically routing input is mm/day and output is m3/s?
+        # Looking at original code:
+        # q_cms = q_df['flow'] * area_km2 / UnitConversion.MM_DAY_TO_CMS
+        # This implies the input was mm/day.
+        
+        q_cms = self.convert_mm_per_day_to_cms(q_df['flow'])
 
-        area_km2 = basin_gdf['GRU_area'].sum() / 1e6
-        self.logger.info(f"Total catchment area: {area_km2:.2f} km2")
+        # Save using standard method
+        return self.save_streamflow_to_results(
+            q_cms,
+            model_column_name='GR_discharge_cms'
+        )
 
-        # Convert units
-        q_cms = q_df['flow'] * area_km2 / UnitConversion.MM_DAY_TO_CMS
-
-        # Save to results
-        output_file = self.results_dir / f"{self.config_dict.get('EXPERIMENT_ID')}_results.csv"
-        if output_file.exists():
-            results_df = pd.read_csv(output_file, index_col=0, parse_dates=True)
-        else:
-            results_df = pd.DataFrame(index=q_cms.index)
-
-        results_df['GR_discharge_cms'] = q_cms
-        results_df.to_csv(output_file)
-
-        self.logger.info(f"Distributed GR results appended to: {output_file}")
-        return output_file
 
     @property
     def output_path(self):

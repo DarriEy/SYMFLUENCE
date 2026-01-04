@@ -35,7 +35,7 @@ class FuseDecisionAnalyzer:
         self.data_dir = Path(self.config_dict.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = self.config_dict.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.output_folder = self.project_dir / "plots" / "FUSE_decision_analysis"
+        self.output_folder = self.project_dir / "reporting" / "FUSE_decision_analysis"
         self.output_folder.mkdir(parents=True, exist_ok=True)
         self.model_decisions_path = self.project_dir / "settings" / "FUSE" / f"fuse_zDecisions_{self.config_dict.get('EXPERIMENT_ID')}.txt"
 

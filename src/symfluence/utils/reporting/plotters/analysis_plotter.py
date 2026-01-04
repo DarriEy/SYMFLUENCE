@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import List, Dict, Optional, Any, Tuple
 
 from symfluence.utils.reporting.core.base_plotter import BasePlotter
+from symfluence.utils.common.constants import UnitConversion
 
 
 class AnalysisPlotter(BasePlotter):
@@ -326,8 +327,7 @@ class AnalysisPlotter(BasePlotter):
             )
 
             # Save plot
-            plot_path = project_dir / "plots" / "drop_analysis.png"
-            plot_path.parent.mkdir(parents=True, exist_ok=True)
+            plot_path = self._ensure_output_dir("drop_analysis") / "drop_analysis.png"
             return self._save_and_close(fig, plot_path)
 
         except Exception as e:
@@ -362,7 +362,7 @@ class AnalysisPlotter(BasePlotter):
         spinup_percent = spinup_percent if spinup_percent is not None else self.plot_config.SPINUP_PERCENT_DEFAULT
 
         try:
-            plot_dir = self._ensure_plot_dir('results')
+            plot_dir = self._ensure_output_dir('results')
             plot_filename = plot_dir / 'streamflow_comparison.png'
 
             # Load observations
@@ -514,7 +514,7 @@ class AnalysisPlotter(BasePlotter):
         from symfluence.utils.reporting.core.plot_utils import calculate_metrics
 
         try:
-            plot_dir = self._ensure_plot_dir('results')
+            plot_dir = self._ensure_output_dir('results')
             exp_id = self.config.get('EXPERIMENT_ID', 'FUSE')
             plot_filename = plot_dir / f"{exp_id}_FUSE_streamflow_comparison.png"
 
@@ -546,7 +546,7 @@ class AnalysisPlotter(BasePlotter):
                         if basin_path.exists():
                             basin_gdf = gpd.read_file(basin_path)
                             area_km2 = basin_gdf['GRU_area'].sum() / 1e6
-                            sim_flow = sim_flow * area_km2 / 86.4
+                            sim_flow = sim_flow * area_km2 / UnitConversion.MM_DAY_TO_CMS
                         
                         if obs_dfs:
                             start_date = max(sim_flow.index.min(), obs_dfs[0].index.min())
@@ -587,7 +587,7 @@ class AnalysisPlotter(BasePlotter):
             if not summa_file.exists():
                 return {}
 
-            plot_dir = self._ensure_plot_dir('summa_outputs', experiment_id)
+            plot_dir = self._ensure_output_dir('summa_outputs', experiment_id)
             ds = xr.open_dataset(summa_file)
             
             hru_name = self.config.get('CATCHMENT_SHP_NAME', 'default')
@@ -651,7 +651,7 @@ class AnalysisPlotter(BasePlotter):
                 ax2.semilogy(exc_obs, flows_obs, label='Observed', color=self.plot_config.COLOR_OBSERVED)
             self._apply_standard_styling(ax2, xlabel='Exceedance Probability (%)', ylabel='Streamflow (cms)', title='Flow Duration Curve')
             
-            plot_file = results_dir / f"ngen_streamflow_{experiment_id}.png"
+            plot_file = self._ensure_output_dir('results') / f"ngen_streamflow_{experiment_id}.png"
             return self._save_and_close(fig, plot_file)
         except Exception as e:
             self.logger.error(f"Error in plot_ngen_results: {str(e)}")
@@ -684,7 +684,7 @@ class AnalysisPlotter(BasePlotter):
                 self._apply_standard_styling(ax2, ylabel='SWE (mm)', title='Observed vs Simulated SWE')
                 self._format_date_axis(ax2)
 
-            plot_file = output_dir / f"{experiment_id}_LSTM_results.png"
+            plot_file = self._ensure_output_dir('results') / f"{experiment_id}_LSTM_results.png"
             return self._save_and_close(fig, plot_file)
         except Exception as e:
             self.logger.error(f"Error in plot_lstm_results: {str(e)}")
@@ -699,8 +699,7 @@ class AnalysisPlotter(BasePlotter):
             ax.plot(obs_flow.index, obs_flow['discharge_cms'], label='Observed', color='red')
             self._apply_standard_styling(ax, ylabel='Discharge (m³/s)', title=f'Streamflow Comparison - {domain_name}\nOutlet ID: {outlet_id}')
             self._format_date_axis(ax)
-            plot_file = project_dir / "plots" / "results" / f"{experiment_id}_HYPE_comparison.png"
-            plot_file.parent.mkdir(parents=True, exist_ok=True)
+            plot_file = self._ensure_output_dir("results") / f"{experiment_id}_HYPE_comparison.png"
             return self._save_and_close(fig, plot_file)
         except Exception as e:
             self.logger.error(f"Error in plot_hype_results: {str(e)}")
@@ -712,7 +711,7 @@ class AnalysisPlotter(BasePlotter):
         from symfluence.utils.reporting.core.plot_utils import calculate_metrics
 
         try:
-            plot_dir = self._ensure_plot_dir('results')
+            plot_dir = self._ensure_output_dir('results')
             plot_file = plot_dir / f'{experiment_id}_timeseries_comparison.png'
 
             fig, ax = plt.subplots(figsize=self.plot_config.FIGURE_SIZE_LARGE)
@@ -756,7 +755,7 @@ class AnalysisPlotter(BasePlotter):
         from symfluence.utils.reporting.core.plot_utils import calculate_metrics, calculate_flow_duration_curve
 
         try:
-            plot_dir = self._ensure_plot_dir('results')
+            plot_dir = self._ensure_output_dir('results')
             plot_file = plot_dir / f'{experiment_id}_diagnostic_plots.png'
 
             models = [c.replace('_discharge_cms', '') for c in df.columns if '_discharge_cms' in c]

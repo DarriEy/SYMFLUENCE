@@ -304,7 +304,7 @@ class AnalysisManager:
         }
         
         # Check for analysis outputs
-        if (self.project_dir / "plots" / "sensitivity_analysis").exists():
+        if (self.project_dir / "reporting" / "sensitivity_analysis").exists():
             status['sensitivity_plots_exist'] = True
         
         if (self.project_dir / "optimization").exists():

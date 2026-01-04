@@ -230,7 +230,7 @@ class WorkflowOrchestrator:
                 cli_name="run_sensitivity_analysis",
                 func=self.managers['analysis'].run_sensitivity_analysis,
                 check_func=lambda: ('sensitivity' in analyses and
-                        (self.project_dir / "plots" / "sensitivity_analysis" / 
+                        (self.project_dir / "reporting" / "sensitivity_analysis" / 
                         "all_sensitivity_results.csv").exists()),
                 description="Running parameter sensitivity analysis"
             ),

@@ -19,6 +19,7 @@ import xarray as xr
 
 from symfluence.utils.models.registry import ModelRegistry
 from symfluence.utils.models.base import BaseModelPreProcessor
+from symfluence.utils.common.geospatial_utils import GeospatialUtilsMixin
 
 def _create_easymore_instance():
     """Create an EASYMORE instance handling different module structures."""
@@ -30,7 +31,7 @@ def _create_easymore_instance():
 
 
 @ModelRegistry.register_preprocessor('MIZUROUTE')
-class MizuRoutePreProcessor(BaseModelPreProcessor):
+class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
     def _get_model_name(self) -> str:
         """Return model name for directory structure."""
         return "mizuRoute"
@@ -262,12 +263,8 @@ class MizuRoutePreProcessor(BaseModelPreProcessor):
         
         # Create a simple point geometry at the centroid of the original (if it exists)
         if not shp_river.empty and shp_river.geometry.iloc[0] is not None:
-            # Use the centroid of the first geometry, handling CRS projection
-            first_geom_series = gpd.GeoSeries([shp_river.geometry.iloc[0]], crs=shp_river.crs)
-            if shp_river.crs and shp_river.crs.is_geographic:
-                synthetic_geom = first_geom_series.to_crs(epsg=3857).centroid.to_crs(shp_river.crs).iloc[0]
-            else:
-                synthetic_geom = first_geom_series.centroid.iloc[0]
+            # Use the centroid of the first geometry, handling CRS projection via mixin
+            synthetic_geom = self.calculate_feature_centroids(shp_river.iloc[[0]]).iloc[0]
         else:
             # Create a default point geometry (this won't be used for actual routing)
             from shapely.geometry import Point
@@ -518,7 +515,9 @@ class MizuRoutePreProcessor(BaseModelPreProcessor):
             
             # Calculate distances from pour point to all river segments
             shp_river_proj = shp_river.to_crs(shp_river.estimate_utm_crs())
-            pour_point_proj = gpd.GeoSeries([pour_point_geom], crs=shp_pour_point.crs).to_crs(shp_river_proj.crs)
+            # Use mixin to get pour point centroid safely if needed (though it's a point)
+            pour_point_centroids = self.calculate_feature_centroids(shp_pour_point.iloc[[0]])
+            pour_point_proj = pour_point_centroids.to_crs(shp_river_proj.crs)
             distances = shp_river_proj.geometry.distance(pour_point_proj.iloc[0])
             
             # Find closest segment

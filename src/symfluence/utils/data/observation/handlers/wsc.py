@@ -13,7 +13,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
-from symfluence.utils.common.constants import UnitConversion
+from symfluence.utils.common.constants import UnitConversion, ModelDefaults
 from symfluence.utils.exceptions import DataAcquisitionError
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
@@ -224,7 +224,7 @@ class WSCStreamflowHandler(BaseObservationHandler):
         timestep_size = int(self.config.get('FORCING_TIME_STEP_SIZE', 3600))
         if timestep_size <= 10800:
             return 'h'
-        elif timestep_size == 86400:
+        elif timestep_size == ModelDefaults.DEFAULT_TIMESTEP_DAILY:
             return 'D'
         else:
             return f'{timestep_size}s'
