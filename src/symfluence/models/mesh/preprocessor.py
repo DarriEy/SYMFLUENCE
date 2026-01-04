@@ -452,9 +452,9 @@ INTERPOLATIONFLAG   0                                   # Interpolation (0=No)
                 import meshflow.utility.forcing_prep
                 import meshflow.utility
                 import meshflow.core
-                
+
                 orig_prep = meshflow.utility.forcing_prep.prepare_mesh_forcing
-                
+
                 def patched_prep(*args, **kwargs):
                     self.logger.info("patched_prep called")
                     # Extract variables from args or kwargs
@@ -463,7 +463,7 @@ INTERPOLATIONFLAG   0                                   # Interpolation (0=No)
                         variables = kwargs['variables']
                     elif len(args) > 1:
                         variables = args[1]
-                    
+
                     if variables is not None:
                         if not isinstance(variables, list):
                             # Convert to list if it's dict_values or other iterable
@@ -474,7 +474,7 @@ INTERPOLATIONFLAG   0                                   # Interpolation (0=No)
                                 args = list(args)
                                 args[1] = new_vars
                                 args = tuple(args)
-                    
+
                     # Fix for CDO mergetime: filter out non-nc files from glob
                     from glob import glob
                     if 'path' in kwargs:
@@ -491,9 +491,9 @@ INTERPOLATIONFLAG   0                                   # Interpolation (0=No)
                             args = list(args)
                             args[0] = sorted(files)
                             args = tuple(args)
-                            
+
                     return orig_prep(*args, **kwargs)
-                
+
                 def patched_freq(freq_alias):
                     if freq_alias is None: return 'hours'
                     f = str(freq_alias).upper()
@@ -508,11 +508,71 @@ INTERPOLATIONFLAG   0                                   # Interpolation (0=No)
                 meshflow.utility.forcing_prep.prepare_mesh_forcing = patched_prep
                 meshflow.utility.prepare_mesh_forcing = patched_prep
                 meshflow.core.utility.prepare_mesh_forcing = patched_prep
-                
+
                 meshflow.utility.forcing_prep.freq_long_name = patched_freq
                 meshflow.utility.freq_long_name = patched_freq
                 meshflow.core.utility.forcing_prep.freq_long_name = patched_freq
-                
+
+                # Patch MESHWorkflow.save to fix NC_UNLIMITED dimension issue
+                orig_save = meshflow.core.MESHWorkflow.save
+
+                def patched_save(self, output_dir):
+                    """Patched save method that handles unlimited dimensions correctly."""
+                    forcing_file = 'MESH_forcing.nc'
+                    ddb_file = 'MESH_drainage_database.nc'
+
+                    # Save forcing with only time as unlimited dimension
+                    if hasattr(self, 'forcing') and self.forcing is not None:
+                        forcing_path = os.path.join(output_dir, forcing_file)
+                        # Specify unlimited_dims to avoid "NC_UNLIMITED size already in use" error
+                        self.forcing.to_netcdf(forcing_path, unlimited_dims=['time'])
+
+                    # Save drainage database with no unlimited dimensions
+                    if hasattr(self, 'ddb') and self.ddb is not None:
+                        ddb_path = os.path.join(output_dir, ddb_file)
+                        # DDB typically doesn't need unlimited dimensions
+                        self.ddb.to_netcdf(ddb_path)
+
+                meshflow.core.MESHWorkflow.save = patched_save
+
+                # Patch _prepare_landcover_mesh to handle duplicate MultiIndex issues
+                try:
+                    import meshflow.utility.network as network_module
+                    orig_prepare_landcover = network_module._prepare_landcover_mesh
+
+                    def patched_prepare_landcover(landcover, *args, **kwargs):
+                        """Patched version that handles duplicate rows and index before stacking."""
+                        import pandas as pd
+                        import logging
+
+                        # If landcover is a DataFrame, ensure no duplicates before stacking
+                        if isinstance(landcover, pd.DataFrame):
+                            initial_rows = len(landcover)
+
+                            # Drop duplicate rows (same values across all columns)
+                            landcover = landcover.drop_duplicates()
+                            if len(landcover) < initial_rows:
+                                logging.info(f"Removed {initial_rows - len(landcover)} duplicate rows from landcover")
+
+                            # Ensure index is unique - reset if duplicates found
+                            if landcover.index.has_duplicates:
+                                logging.info("Landcover DataFrame has duplicate index values, resetting index")
+                                landcover = landcover.reset_index(drop=True)
+
+                            # Ensure column names are unique
+                            if len(landcover.columns) != len(set(landcover.columns)):
+                                logging.warning("Landcover DataFrame has duplicate column names")
+                                # Keep only first occurrence of each column name
+                                landcover = landcover.loc[:, ~landcover.columns.duplicated()]
+
+                        # Call original function with deduplicated data
+                        return orig_prepare_landcover(landcover, *args, **kwargs)
+
+                    network_module._prepare_landcover_mesh = patched_prepare_landcover
+                    self.logger.info("Successfully patched _prepare_landcover_mesh")
+                except Exception as e:
+                    self.logger.warning(f"Failed to patch _prepare_landcover_mesh: {e}")
+
                 self.logger.info("Successfully monkey-patched meshflow in multiple locations")
             except Exception as e:
                 self.logger.warning(f"Failed to monkey-patch meshflow: {e}")
@@ -618,50 +678,58 @@ INTERPOLATIONFLAG   0                                   # Interpolation (0=No)
     def _sanitize_landcover_stats(self, csv_path: str) -> str:
         """
         Sanitize landcover stats CSV for meshflow compatibility.
-        Removes IGBP_ prefix from column names.
-        
+        Removes IGBP_ prefix from column names and duplicate rows.
+
         Args:
             csv_path: Path to the landcover stats CSV
-            
+
         Returns:
             Path to the sanitized CSV file
         """
         if not csv_path:
             return csv_path
-            
+
         path = Path(csv_path)
         if not path.exists():
             return csv_path
-            
+
         try:
             import pandas as pd
             df = pd.read_csv(path)
-            
+
             # Remove Unnamed: 0 or similar index columns
             cols_to_drop = [col for col in df.columns if 'Unnamed' in col]
             if cols_to_drop:
                 df = df.drop(columns=cols_to_drop)
-            
+
             # Check if columns have IGBP_ prefix
             has_prefix = any(col.startswith('IGBP_') for col in df.columns)
-            
-            if has_prefix or cols_to_drop:
-                self.logger.info(f"Sanitizing landcover stats {path.name}: removing IGBP_ prefix and/or index")
-                
+
+            # Check for duplicate rows (which cause MultiIndex issues in xarray)
+            initial_rows = len(df)
+            df = df.drop_duplicates()
+            has_duplicates = len(df) < initial_rows
+
+            if has_prefix or cols_to_drop or has_duplicates:
+                if has_duplicates:
+                    self.logger.info(f"Sanitizing landcover stats {path.name}: removed {initial_rows - len(df)} duplicate rows")
+                if has_prefix or cols_to_drop:
+                    self.logger.info(f"Sanitizing landcover stats {path.name}: removing IGBP_ prefix and/or index")
+
                 def rename_col(col):
                     if col.startswith('IGBP_'):
                         return col.replace('IGBP_', '')
                     return col
-                    
+
                 df = df.rename(columns=rename_col)
-                
+
                 # Save to a temp file in forcing directory to avoid modifying source
                 temp_path = self.forcing_dir / f"temp_{path.name}"
                 df.to_csv(temp_path, index=False)
                 return str(temp_path)
-                
+
             return csv_path
-            
+
         except Exception as e:
             self.logger.warning(f"Failed to sanitize landcover stats {path}: {e}")
             return csv_path

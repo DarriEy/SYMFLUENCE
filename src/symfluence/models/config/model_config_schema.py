@@ -511,6 +511,9 @@ def _create_mesh_schema() -> ModelConfigSchema:
     )
 
 
+from symfluence.models.rhessys.config import create_rhessys_schema
+
+
 # =============================================================================
 # Schema Registry
 # =============================================================================
@@ -528,6 +531,7 @@ def _register_schemas():
         'NGEN': _create_ngen_schema(),
         'HYPE': _create_hype_schema(),
         'MESH': _create_mesh_schema(),
+        'RHESSys': create_rhessys_schema(),
     }
 
 
