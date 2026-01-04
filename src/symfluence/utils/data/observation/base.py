@@ -6,18 +6,19 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import pandas as pd
 import geopandas as gpd
-from symfluence.utils.common.coordinate_utils import CoordinateUtilsMixin
+from symfluence.utils.common import ConfigurableMixin, CoordinateUtilsMixin
 
-class BaseObservationHandler(ABC, CoordinateUtilsMixin):
+class BaseObservationHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
     def __init__(self, config: Dict[str, Any], logger):
         self.config = config
         self.logger = logger
-        self.domain_name = config.get('DOMAIN_NAME', 'domain')
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.bbox = self._parse_bbox(config.get('BOUNDING_BOX_COORDS'))
-        self.start_date = pd.to_datetime(config.get('EXPERIMENT_TIME_START'))
-        self.end_date = pd.to_datetime(config.get('EXPERIMENT_TIME_END'))
+        
+        # Standard attributes are now provided as properties by ConfigurableMixin:
+        # self.domain_name, self.data_dir, self.project_dir, self.config_dict, self.logger
+        
+        self.bbox = self._parse_bbox(self.config_dict.get('BOUNDING_BOX_COORDS'))
+        self.start_date = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_START'))
+        self.end_date = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_END'))
 
     @abstractmethod
     def acquire(self) -> Path:

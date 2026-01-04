@@ -146,21 +146,10 @@ def resolve_file_path(
     return file_path
 
 
-try:
-    from .mixins import LoggingMixin, ProjectContextMixin
-except ImportError:
-    # Fallback if being imported from within mixins.py
-    class LoggingMixin:
-        @property
-        def logger(self): return logging.getLogger(self.__class__.__name__)
-    class ProjectContextMixin:
-        @property
-        def config_dict(self): return getattr(self, 'config', {})
-        @property
-        def project_dir(self): return Path('.')
+from .mixins import ConfigurableMixin
 
 
-class PathResolverMixin(LoggingMixin, ProjectContextMixin):
+class PathResolverMixin(ConfigurableMixin):
     """
     Mixin providing path resolution methods for classes with config and project_dir.
 
@@ -218,6 +207,23 @@ class PathResolverMixin(LoggingMixin, ProjectContextMixin):
             logger=self.logger,
             must_exist=must_exist
         )
+
+    def resolve(
+        self,
+        config_key: str,
+        default_subpath: str,
+        filename: Optional[str] = None,
+        must_exist: bool = False
+    ) -> Path:
+        """
+        Resolve a path from config, with optional filename (alias for _get_default_path).
+
+        Matches the PathManager.resolve() API for easier migration and consistency.
+        """
+        path = self._get_default_path(config_key, default_subpath, must_exist=must_exist)
+        if filename:
+            return path / filename
+        return path
 
     def _get_file_path(
         self,

@@ -111,7 +111,7 @@ class BaseModelRunner(ABC, PathResolverMixin):
         # Create output directory if configured to do so
         if self._should_create_output_dir():
             self.output_dir = self._get_output_dir()
-            self.output_dir.mkdir(parents=True, exist_ok=True)
+            self.ensure_dir(self.output_dir)
 
     def _validate_required_config(self) -> None:
         """
@@ -126,8 +126,7 @@ class BaseModelRunner(ABC, PathResolverMixin):
             'SYMFLUENCE_DATA_DIR',
             'DOMAIN_NAME',
         ]
-        validate_config_keys(
-            self.config_dict,
+        self.validate_config(
             required_keys,
             f"{self._get_model_name()} runner initialization"
         )
@@ -238,20 +237,16 @@ class BaseModelRunner(ABC, PathResolverMixin):
             return
 
         backup_path = self.output_dir / backup_subdir
-        backup_path.mkdir(parents=True, exist_ok=True)
+        self.ensure_dir(backup_path)
 
-        try:
-            # Copy all files from source to backup
-            for item in source_dir.iterdir():
-                if item.is_file():
-                    shutil.copy2(item, backup_path / item.name)
-                elif item.is_dir() and not item.name.startswith('.'):
-                    shutil.copytree(item, backup_path / item.name, dirs_exist_ok=True)
+        # Copy all files from source to backup using copy_file and copy_tree
+        for item in source_dir.iterdir():
+            if item.is_file():
+                self.copy_file(item, backup_path / item.name)
+            elif item.is_dir() and not item.name.startswith('.'):
+                self.copy_tree(item, backup_path / item.name)
 
-            self.logger.info(f"Settings backed up to {backup_path}")
-        except Exception as e:
-            self.logger.error(f"Failed to backup settings: {e}")
-            raise
+        self.logger.info(f"Settings backed up to {backup_path}")
 
     def get_log_path(self, log_subdir: str = "logs") -> Path:
         """
@@ -270,8 +265,7 @@ class BaseModelRunner(ABC, PathResolverMixin):
             experiment_id = self.config_dict.get('EXPERIMENT_ID', 'default')
             log_path = self.project_dir / 'simulations' / experiment_id / self.model_name / log_subdir
 
-        log_path.mkdir(parents=True, exist_ok=True)
-        return log_path
+        return self.ensure_dir(log_path)
 
     def get_install_path(
         self,
@@ -452,7 +446,7 @@ class BaseModelRunner(ABC, PathResolverMixin):
                 run_env.update(env)
 
             # Ensure log directory exists
-            log_file.parent.mkdir(parents=True, exist_ok=True)
+            self.ensure_dir(log_file.parent)
 
             # Execute subprocess
             with open(log_file, 'w') as f:

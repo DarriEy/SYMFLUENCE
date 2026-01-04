@@ -39,29 +39,26 @@ class DomainDiscretizer(PathResolverMixin):
 
     def __init__(self, config, logger):
         self.config = config
-        self.config_dict = config  # For PathResolverMixin
         self.logger = logger
-        self.root_path = Path(self.config.get("SYMFLUENCE_DATA_DIR"))
-        self.domain_name = self.config.get("DOMAIN_NAME")
-        self.project_dir = self.root_path / f"domain_{self.domain_name}"
+        
+        # Standard paths from ProjectContextMixin
+        self.catchment_dir = self.ensure_dir(self.project_shapefiles_dir / "catchment")
         
         self.dem_path = self._get_file_path(
             path_key="DEM_PATH",
             name_key="DEM_NAME",
             default_subpath="attributes/elevation/dem",
-            default_name=f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
+            default_name=f"domain_{self.domain_name}_elv.tif"
         )
 
-        self.catchment_dir = self.project_dir / "shapefiles" / "catchment"
-        self.catchment_dir.mkdir(parents=True, exist_ok=True)
-        delineation_method = self.config.get("DOMAIN_DEFINITION_METHOD")
+        delineation_method = self._get_config_value("DOMAIN_DEFINITION_METHOD", "delineate")
 
         if delineation_method == "delineate":
             self.delineation_suffix = "delineate"
         elif delineation_method == "lumped":
             self.delineation_suffix = "lumped"
         elif delineation_method == "subset":
-            self.delineation_suffix = f"subset_{self.config.get('GEOFABRIC_TYPE')}"
+            self.delineation_suffix = f"subset_{self._get_config_value('GEOFABRIC_TYPE')}"
 
     def sort_catchment_shape(self):
         """
@@ -136,68 +133,55 @@ class DomainDiscretizer(PathResolverMixin):
         If CATCHMENT_SHP_NAME is provided and not 'default', it uses the provided shapefile instead.
         Supports both single attributes and comma-separated multiple attributes.
         """
-        start_time = time.time()
+        with self.time_limit("Domain Discretization"):
+            # Check if a custom catchment shapefile is provided
+            catchment_name = self.config.get("CATCHMENT_SHP_NAME")
+            if catchment_name != "default":
+                self.logger.info(f"Using provided catchment shapefile: {catchment_name}")
+                self.logger.info("Skipping discretization steps")
 
-        # Check if a custom catchment shapefile is provided
-        catchment_name = self.config.get("CATCHMENT_SHP_NAME")
-        if catchment_name != "default":
-            self.logger.info(f"Using provided catchment shapefile: {catchment_name}")
-            self.logger.info("Skipping discretization steps")
+                # Just sort the existing shapefile
+                self.logger.info("Sorting provided catchment shape")
+                return self.sort_catchment_shape()
 
-            # Just sort the existing shapefile
-            self.logger.info("Sorting provided catchment shape")
-            shp = self.sort_catchment_shape()
+            # Parse discretization method to check for multiple attributes
+            discretization_config = self.config.get("DOMAIN_DISCRETIZATION")
+            attributes = [attr.strip() for attr in discretization_config.split(",")]
 
-            elapsed_time = time.time() - start_time
-            self.logger.info(
-                f"Catchment processing completed in {elapsed_time:.2f} seconds"
-            )
-            return shp
+            self.logger.info(f"Starting domain discretization using attributes: {attributes}")
 
-        # Parse discretization method to check for multiple attributes
-        discretization_config = self.config.get("DOMAIN_DISCRETIZATION")
-        attributes = [attr.strip() for attr in discretization_config.split(",")]
+            # Handle single vs multiple attributes
+            if len(attributes) == 1:
+                # Single attribute - use existing logic
+                discretization_method = attributes[0].lower()
+                method_map = {
+                    "grus": grus.discretize,
+                    "elevation": elevation.discretize,
+                    "aspect": aspect.discretize,
+                    "soilclass": soilclass.discretize,
+                    "landclass": landclass.discretize,
+                    "radiation": radiation.discretize,
+                }
 
-        self.logger.info(f"Starting domain discretization using attributes: {attributes}")
+                if discretization_method not in method_map:
+                    self.logger.error(
+                        f"Invalid discretization method: {discretization_method}"
+                    )
+                    raise ValueError(
+                        f"Invalid discretization method: {discretization_method}"
+                    )
 
-        # Handle single vs multiple attributes
-        if len(attributes) == 1:
-            # Single attribute - use existing logic
-            discretization_method = attributes[0].lower()
-            method_map = {
-                "grus": grus.discretize,
-                "elevation": elevation.discretize,
-                "aspect": aspect.discretize,
-                "soilclass": soilclass.discretize,
-                "landclass": landclass.discretize,
-                "radiation": radiation.discretize,
-            }
-
-            if discretization_method not in method_map:
-                self.logger.error(
-                    f"Invalid discretization method: {discretization_method}"
+                self.logger.info("Step 1/2: Running single attribute discretization method")
+                method_map[discretization_method](self)
+            else:
+                # Multiple attributes - use combined discretization
+                self.logger.info(
+                    "Step 1/2: Running combined attributes discretization method"
                 )
-                raise ValueError(
-                    f"Invalid discretization method: {discretization_method}"
-                )
+                combined.discretize(self, attributes)
 
-            self.logger.info("Step 1/2: Running single attribute discretization method")
-            method_map[discretization_method](self)
-        else:
-            # Multiple attributes - use combined discretization
-            self.logger.info(
-                "Step 1/2: Running combined attributes discretization method"
-            )
-            combined.discretize(self, attributes)
-
-        self.logger.info("Step 2/2: Sorting catchment shape")
-        shp = self.sort_catchment_shape()
-
-        elapsed_time = time.time() - start_time
-        self.logger.info(
-            f"Domain discretization completed in {elapsed_time:.2f} seconds"
-        )
-        return shp
+            self.logger.info("Step 2/2: Sorting catchment shape")
+            return self.sort_catchment_shape()
 
     def _read_and_prepare_data(self, shapefile_path, raster_path, band_size=None):
         """

@@ -441,7 +441,10 @@ def bbox_to_string(
         raise ValueError(f"Unknown format: {format}")
 
 
-class CoordinateUtilsMixin:
+from .mixins import LoggingMixin
+
+
+class CoordinateUtilsMixin(LoggingMixin):
     """
     Mixin providing coordinate and bounding box utilities to classes.
     """
