@@ -616,15 +616,32 @@ setup_windows_dependencies() {
     fi
 
     # Install essential Windows dependencies via conda
+    # Note: gdal package from conda-forge includes Python bindings
     print_info "Installing Windows build dependencies via ${CONDA_CMD}..."
     $CONDA_CMD install -c conda-forge -y \
         cmake \
         ninja \
         gdal \
-        python-gdal \
+        libgdal \
         netcdf4 \
         hdf5 \
         || print_warning "Some conda packages may have failed to install"
+
+    # Add conda Library paths to environment for Windows
+    if [[ -d "$CONDA/Library" ]]; then
+        export PATH="$CONDA/Library/bin:$PATH"
+        export PATH="$CONDA/Library/mingw-w64/bin:$PATH"
+        export GDAL_DATA="$CONDA/Library/share/gdal"
+        export PROJ_LIB="$CONDA/Library/share/proj"
+
+        # Set compiler flags for pip to find GDAL headers/libs
+        export INCLUDE="$CONDA/Library/include${INCLUDE:+;$INCLUDE}"
+        export LIB="$CONDA/Library/lib${LIB:+;$LIB}"
+        export GDAL_VERSION=$($CONDA/Library/bin/gdal-config --version 2>/dev/null || echo "")
+
+        print_info "Added conda Library paths to environment"
+        print_info "GDAL version from conda: ${GDAL_VERSION:-unknown}"
+    fi
 
     print_success "Windows dependencies setup complete"
 }
