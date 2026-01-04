@@ -41,6 +41,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
+        if: matrix.os != 'windows-latest'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -50,9 +51,11 @@ jobs:
         if: matrix.os == 'windows-latest'
         uses: conda-incubator/setup-miniconda@v3
         with:
+          python-version: ${{ matrix.python-version }}
           auto-activate-base: true
-          activate-environment: ""
+          activate-environment: "test-env"
           miniconda-version: "latest"
+          channels: conda-forge,defaults
 
       - name: Install minimal system dependencies
         shell: bash
@@ -63,9 +66,9 @@ jobs:
           elif [[ "${{ matrix.os }}" == "macos-"* ]]; then
             brew install gdal cdo
           elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            # Windows: Initialize conda for bash and install GDAL
+            # Windows: GDAL from conda-forge
             source "$CONDA/etc/profile.d/conda.sh"
-            conda activate base
+            conda activate test-env
             echo "Installing GDAL via conda on Windows..."
             conda install -c conda-forge gdal -y
           fi
@@ -75,6 +78,10 @@ jobs:
         env:
           RPY2_CFFI_MODE: ABI  # Skip R requirement for rpy2
         run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            source "$CONDA/etc/profile.d/conda.sh"
+            conda activate test-env
+          fi
           python -m pip install --upgrade pip
 
           # Install GDAL Python bindings
@@ -95,6 +102,8 @@ jobs:
             # Windows: Use GDAL from conda (already installed in previous step)
             # Install CPU-only torch to save space on Windows
             pip install torch --index-url https://download.pytorch.org/whl/cpu
+            # Remove GDAL from pyproject.toml to prevent pip from trying to build it from source
+            sed -i '/"gdal",/d' pyproject.toml
           fi
 
           # Install package with dev dependencies
@@ -115,6 +124,10 @@ jobs:
 
       - name: Run unit tests
         run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            source "$CONDA/etc/profile.d/conda.sh"
+            conda activate test-env
+          fi
           # Run tests in parallel with pytest-xdist for 2-3x speedup
           pytest -v --tb=short -m "unit" -n auto tests/unit/ || echo "No unit tests found"
 
@@ -124,32 +137,8 @@ jobs:
   binary-validation-matrix:
     name: Binary Validation (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]  # Linux, macOS, Windows
-        include:
-          - os: ubuntu-latest
-            python-version: '3.11'
-          - os: macos-latest  # ARM Mac (M1/M2)
-            python-version: '3.11'
-          - os: windows-latest
-            python-version: '3.11'
-
-    env:
-      SYMFLUENCE_CODE: ${{ github.workspace }}
-      SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
-      RPY2_CFFI_MODE: ABI  # Skip R requirement for rpy2
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
       - name: Set up Python
+        if: runner.os != 'Windows'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -189,9 +178,11 @@ jobs:
         if: runner.os == 'Windows'
         uses: conda-incubator/setup-miniconda@v3
         with:
+          python-version: ${{ matrix.python-version }}
           auto-activate-base: true
-          activate-environment: ""
+          activate-environment: "test-env"
           miniconda-version: "latest"
+          channels: conda-forge,defaults
 
       - name: Free up disk space (Linux)
         if: runner.os == 'Linux'
@@ -213,11 +204,13 @@ jobs:
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
         shell: bash
+        env:
+          SYMFLUENCE_NO_VENV: "true"
         run: |
           # Initialize conda for bash on Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             source "$CONDA/etc/profile.d/conda.sh"
-            conda activate base
+            conda activate test-env
             export PATH="$CONDA/condabin:$PATH"
           fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
@@ -237,6 +230,10 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
         run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            source "$CONDA/etc/profile.d/conda.sh"
+            conda activate test-env
+          fi
           pytest -v --tb=short -s tests/e2e/test_install_validate.py::test_binary_validation || echo "Binary validation completed with warnings"
 
       # =====================================================================
@@ -359,6 +356,7 @@ jobs:
           submodules: recursive
 
       - name: Set up Python
+        if: matrix.os != 'windows-latest'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -398,9 +396,11 @@ jobs:
         if: runner.os == 'Windows'
         uses: conda-incubator/setup-miniconda@v3
         with:
+          python-version: ${{ matrix.python-version }}
           auto-activate-base: true
-          activate-environment: ""
+          activate-environment: "test-env"
           miniconda-version: "latest"
+          channels: conda-forge,defaults
 
       - name: Free up disk space (Linux)
         if: runner.os == 'Linux'
@@ -430,11 +430,13 @@ jobs:
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
         shell: bash
+        env:
+          SYMFLUENCE_NO_VENV: "true"
         run: |
           # Initialize conda for bash on Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             source "$CONDA/etc/profile.d/conda.sh"
-            conda activate base
+            conda activate test-env
             export PATH="$CONDA/condabin:$PATH"
           fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
@@ -454,6 +456,10 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
         run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            source "$CONDA/etc/profile.d/conda.sh"
+            conda activate test-env
+          fi
           # Install pytest-xdist for parallel execution
           pip install pytest-xdist
 

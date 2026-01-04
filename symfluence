@@ -727,21 +727,29 @@ main() {
             }
         fi
 
-        # Create venv if needed
+        # Create venv if needed, unless in a conda env or explicitly disabled
         local venv_path="${symfluence_dir}/venv"
-        if [[ ! -d "$venv_path" ]]; then
+        if [[ -n "${CONDA_DEFAULT_ENV:-}" && "${CONDA_DEFAULT_ENV}" != "base" ]]; then
+            print_info "Using active Conda environment: ${CONDA_DEFAULT_ENV}"
+            VENV_BIN_PATH=$(dirname "$(which python)")
+        elif [[ "${SYMFLUENCE_NO_VENV:-}" == "true" ]]; then
+            print_info "Virtual environment creation disabled by SYMFLUENCE_NO_VENV"
+            VENV_BIN_PATH=$(dirname "$(which python)")
+        elif [[ ! -d "$venv_path" ]]; then
             print_info "Creating Python virtual environment..."
             if ! $python_cmd -m venv "$venv_path"; then
                 print_error "Failed to create virtual environment"
                 exit 1
             fi
+            source "${venv_path}/${VENV_ACTIVATE}"
+            VENV_BIN_PATH="${venv_path}/${VENV_BIN}"
+        else
+            # Already exists, just activate
+            source "${venv_path}/${VENV_ACTIVATE}"
+            VENV_BIN_PATH="${venv_path}/${VENV_BIN}"
         fi
 
-        # Activate venv
-        export PYTHONPATH="${PYTHONPATH-}"
-        source "${venv_path}/${VENV_ACTIVATE}"
-
-        # Clear PYTHONPATH to isolate venv
+        # Clear PYTHONPATH to isolate environment
         if [[ -n "$PYTHONPATH" ]]; then
             print_warning "Clearing PYTHONPATH to isolate venv"
             export PYTHONPATH=""
