@@ -155,90 +155,21 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 self.logger.error(f"Failed to convert shapefile to CSV: {str(e)}")
                 raise
         elif not intersect_csv.exists() and not intersect_shp.exists():
-            # Fallback: check for remapping weights file which often contains the same info
-            hru_id_field = self.config.get('CATCHMENT_SHP_HRUID')
-            case_name = f"{self.domain_name}_{self.config.get('FORCING_DATASET')}"
-            remap_file = self.intersect_path / f"{case_name}_{hru_id_field}_remapping.csv"
-            
-            if remap_file.exists():
-                self.logger.info(f"Intersected shapefile missing, falling back to remapping weights: {remap_file.name}")
-                intersect_csv = remap_file
-            else:
-                self.logger.error(f"Missing both intersected shapefile and remapping weights in {self.intersect_path}")
-                self.logger.error(f"Expected intersect base: {intersect_base}")
-                self.logger.error(f"Expected remap file: {remap_file.name}")
-                raise FileNotFoundError(f"Neither {intersect_csv} nor {intersect_shp} exist")
+            raise FileNotFoundError(f"Neither {intersect_csv} nor {intersect_shp} exist")
 
         # Load topology data efficiently
         self.logger.info("Loading topology data...")
         try:
-            # First read column names to check for truncation
-            # Shapefiles truncate field names to 10 characters
-            sample_df = pd.read_csv(intersect_csv, nrows=0)
-
-            # Build dtype dict with potentially truncated column names
-            dtype_dict = {}
-
-            # Handle GRU ID (may be truncated)
-            gru_col = f'S_1_{self.gruId}'
-            if gru_col not in sample_df.columns:
-                # Try to find truncated version (10 char limit)
-                gru_col_truncated = f'S_1_{self.gruId}'[:10]
-                if gru_col_truncated in sample_df.columns:
-                    dtype_dict[gru_col_truncated] = 'int32'
-                else:
-                    self.logger.warning(f"Column {gru_col} not found in CSV, will try to load without dtype")
-            else:
-                dtype_dict[gru_col] = 'int32'
-
-            # Handle HRU ID (may be truncated)
-            hru_col = f'S_1_{self.hruId}'
-            if hru_col not in sample_df.columns:
-                # Try to find truncated version (10 char limit)
-                hru_col_truncated = f'S_1_{self.hruId}'[:10]
-                if hru_col_truncated in sample_df.columns:
-                    dtype_dict[hru_col_truncated] = 'int32'
-                    self.logger.info(f"Using truncated column name: {hru_col_truncated} (original: {hru_col})")
-                else:
-                    self.logger.warning(f"Column {hru_col} not found in CSV, will try to load without dtype")
-            else:
-                dtype_dict[hru_col] = 'int32'
-
-            # Add other standard columns
-            dtype_dict.update({
-                'S_2_ID': 'Int32',  # Nullable integer to handle NA values
+            # Use chunked reading for very large CSV files
+            topo_data = pd.read_csv(intersect_csv, dtype={
+                f'S_1_{self.gruId}': 'int32',
+                f'S_1_{self.hruId}': 'int32',
+                'S_2_ID': 'int32',
+                'S_1_elev_m': 'float32',
                 'S_2_elev_m': 'float32',
                 'weight': 'float32'
             })
-
-            # Handle elevation column (may be S_1_elev_m or S_1_elev_mean)
-            if 'S_1_elev_m' in sample_df.columns:
-                dtype_dict['S_1_elev_m'] = 'float32'
-            elif 'S_1_elev_mean' in sample_df.columns:
-                dtype_dict['S_1_elev_mean'] = 'float32'
-
-            # Use chunked reading for very large CSV files
-            topo_data = pd.read_csv(intersect_csv, dtype=dtype_dict)
-
-            # Rename truncated columns back to full names for consistency
-            rename_dict = {}
-            if f'S_1_{self.hruId}' not in topo_data.columns:
-                hru_col_truncated = f'S_1_{self.hruId}'[:10]
-                if hru_col_truncated in topo_data.columns:
-                    rename_dict[hru_col_truncated] = f'S_1_{self.hruId}'
-
-            if f'S_1_{self.gruId}' not in topo_data.columns:
-                gru_col_truncated = f'S_1_{self.gruId}'[:10]
-                if gru_col_truncated in topo_data.columns:
-                    rename_dict[gru_col_truncated] = f'S_1_{self.gruId}'
-
-            if rename_dict:
-                self.logger.info(f"Renaming truncated columns: {rename_dict}")
-                topo_data.rename(columns=rename_dict, inplace=True)
-
             self.logger.info(f"Loaded topology data: {len(topo_data)} rows, {topo_data.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
-            self.logger.info(f"Columns after rename: {topo_data.columns.tolist()[:15]}")
-            self.logger.info(f"Sample HRU IDs: {topo_data[f'S_1_{self.hruId}'].head(5).tolist()}")
         except Exception as e:
             self.logger.error(f"Error loading topology data: {str(e)}")
             raise
@@ -295,7 +226,6 @@ class SummaForcingProcessor(BaseForcingProcessor):
         del topo_data
         gc.collect()
         self.logger.info(f"Prepared lapse corrections for {len(lapse_values)} HRUs")
-        self.logger.info(f"Lapse values HRU IDs: {lapse_values.index.tolist()}")
 
         # Determine batch size based on available memory and file count
         batch_size = self._determine_batch_size(total_files)
@@ -546,11 +476,9 @@ class SummaForcingProcessor(BaseForcingProcessor):
                         f"File {filename}: Expected step: {expected_step}s, Actual median: {actual_median_step:.0f}s"
                     )
                     if actual_median_step > 0 and abs(actual_median_step - expected_step) > expected_step * 0.01:
-                        self.logger.info(
-                            f"File {filename}: Updating data_step from {self.data_step}s to {actual_median_step}s "
-                            f"based on actual forcing timestep"
+                        self.logger.warning(
+                            f"File {filename}: Actual median step {actual_median_step}s differs from expected {expected_step}s"
                         )
-                        self.data_step = actual_median_step
                 else:
                     self.logger.debug(f"File {filename}: Time steps are consistent ({match_percentage:.1f}% match)")
 
@@ -596,7 +524,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 elif var in ['SWRadAtm']:
                     # For solar radiation, interpolate during day, zero at night
                     filled_data = var_data.interpolate_na(dim='time', method='linear')
-                    filled_data = filled_data.ffill(dim='time').bfill(dim='time')
+                    filled_data = filled_data.fillna(method='ffill').fillna(method='bfill')
                     filled_data = filled_data.fillna(0.0)
                     self.logger.debug(f"File {filename}: Interpolated {var} NaN values")
 
@@ -622,7 +550,6 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
                             if len(valid_values) >= 2:
                                 # Use cubic for smooth interpolation if enough points, otherwise linear
-                                # Avoid extrapolation with cubic as it can produce wild values at boundaries
                                 kind = 'cubic' if len(valid_values) >= 4 else 'linear'
 
                                 f = interpolate.interp1d(
@@ -630,7 +557,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                                     valid_values,
                                     kind=kind,
                                     bounds_error=False,
-                                    fill_value=(valid_values[0], valid_values[-1])
+                                    fill_value='extrapolate'
                                 )
 
                                 # Interpolate all time steps
@@ -655,7 +582,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                     except ImportError:
                         self.logger.warning(f"File {filename}: scipy not available, using xarray interpolation")
                         filled_data = var_data.interpolate_na(dim='time', method='linear')
-                        filled_data = filled_data.ffill(dim='time').bfill(dim='time')
+                        filled_data = filled_data.fillna(method='ffill').fillna(method='bfill')
                         filled_data = filled_data.fillna(PhysicalConstants.KELVIN_OFFSET)
                         filled_data = filled_data.clip(min=200.0, max=350.0)
 
@@ -668,7 +595,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 else:
                     # Standard interpolation for other variables
                     filled_data = var_data.interpolate_na(dim='time', method='linear')
-                    filled_data = filled_data.ffill(dim='time').bfill(dim='time')
+                    filled_data = filled_data.fillna(method='ffill').fillna(method='bfill')
 
                     # If still NaN, use reasonable defaults
                     if np.any(np.isnan(filled_data.values)):

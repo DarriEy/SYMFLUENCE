@@ -101,43 +101,6 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         """Create FUSE worker."""
         return FUSEWorker(self.config, self.logger)
 
-    def _check_routing_needed(self) -> bool:
-        """
-        Determine if routing is needed for FUSE calibration.
-
-        Returns:
-            True if mizuRoute routing should be used
-        """
-        # Check FUSE routing integration setting
-        routing_integration = self.config.get('FUSE_ROUTING_INTEGRATION', 'none')
-
-        # If 'default', inherit from ROUTING_MODEL
-        if routing_integration == 'default':
-            routing_model = self.config.get('ROUTING_MODEL', 'none')
-            routing_integration = 'mizuRoute' if routing_model == 'mizuRoute' else routing_integration
-
-        if routing_integration != 'mizuRoute':
-            return False
-
-        # Check calibration variable (only streamflow calibration uses routing)
-        calibration_var = self.config.get('CALIBRATION_VARIABLE', 'streamflow')
-        if calibration_var != 'streamflow':
-            return False
-
-        # Check spatial mode and routing delineation
-        spatial_mode = self.config.get('FUSE_SPATIAL_MODE', 'lumped')
-        routing_delineation = self.config.get('ROUTING_DELINEATION', 'lumped')
-
-        # Distributed or semi-distributed modes need routing
-        if spatial_mode in ['semi_distributed', 'distributed']:
-            return True
-
-        # Lumped with river network routing needs routing
-        if spatial_mode == 'lumped' and routing_delineation == 'river_network':
-            return True
-
-        return False
-
     def _copy_default_initial_params_to_sce(self):
         """Helper to ensure para_sce.nc exists by copying para_def.nc."""
         if self.fuse_sim_dir.exists():
@@ -211,26 +174,6 @@ class FUSEModelOptimizer(BaseModelOptimizer):
                     self.logger.error(f"Failed to copy parameter file to {dest_file}: {e}")
         else:
             self.logger.warning(f"Parameter file not found: {param_file} - Parallel workers will likely fail apply_parameters")
-
-        # If routing needed, also copy and configure mizuRoute settings
-        if self._check_routing_needed():
-            mizu_settings = self.project_dir / 'settings' / 'mizuRoute'
-            if mizu_settings.exists():
-                for proc_id, dirs in self.parallel_dirs.items():
-                    mizu_dest = dirs['root'] / 'settings' / 'mizuRoute'
-                    mizu_dest.mkdir(parents=True, exist_ok=True)
-                    import shutil
-                    for item in mizu_settings.iterdir():
-                        if item.is_file():
-                            shutil.copy2(item, mizu_dest / item.name)
-
-                # Update mizuRoute control files with process-specific paths
-                self.update_mizuroute_controls(
-                    self.parallel_dirs,
-                    'FUSE',
-                    self.experiment_id
-                )
-                self.logger.info("Copied and configured mizuRoute settings for parallel processes")
 
 
 # Backward compatibility alias

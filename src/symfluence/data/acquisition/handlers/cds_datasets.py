@@ -93,41 +93,17 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             if not chunk_files:
                 raise RuntimeError("No data downloaded")
 
-            # Check if aggregation is disabled
-            if not self.config.get("AGGREGATE_FORCING_FILES", False):
-                logging.info("Skipping aggregation of forcing files as per configuration")
-                
-                final_files = []
-                for chunk_file in chunk_files:
-                    # Rename from ..._processed_YYYYMM_temp.nc to ..._YYYYMM.nc
-                    # Example: domain_CARRA_processed_201501_temp.nc -> domain_CARRA_201501.nc
-                    new_name = chunk_file.name.replace("_processed_", "_").replace("_temp.nc", ".nc")
-                    final_path = output_dir / new_name
-                    
-                    if final_path.exists():
-                        final_path.unlink()
-                        
-                    chunk_file.rename(final_path)
-                    final_files.append(final_path)
-                    logging.info(f"Saved monthly file: {final_path.name}")
-                
-                # Return the directory containing the files
-                return output_dir
-
             logging.info(f"Merging {len(chunk_files)} monthly chunks...")
             # open_mfdataset creates a dask-backed dataset, good for memory
             with xr.open_mfdataset(chunk_files, combine='by_coords') as ds_final:
                 # Save final dataset
                 final_f = self._save_final_dataset(ds_final, output_dir)
-
-            # Validate that all required variables are present
-            self._validate_required_variables(final_f)
-
+                
         except Exception as e:
             logging.error(f"Error during merge: {e}")
             raise e
         finally:
-            # Cleanup processed chunks (only if they still exist)
+            # Cleanup processed chunks
             for f in chunk_files:
                 if f.exists():
                     try:
@@ -160,9 +136,6 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             analysis_req = self._build_analysis_request(current_years, current_months, days, hours)
             forecast_req = self._build_forecast_request(current_years, current_months, days, hours)
 
-            # Debug: Log what variables we're requesting
-            logging.info(f"Requesting forecast variables: {forecast_req.get('variable', [])}")
-
             # Download both products
             logging.info(f"Downloading {self._get_dataset_id()} analysis data for {self.domain_name} ({year}-{month:02d})...")
             self._retrieve_with_retry(c, self._get_dataset_name(), analysis_req, str(af))
@@ -170,16 +143,9 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             logging.info(f"Downloading {self._get_dataset_id()} forecast data for {self.domain_name} ({year}-{month:02d})...")
             self._retrieve_with_retry(c, self._get_dataset_name(), forecast_req, str(ff))
 
-            # Debug: Check what variables were actually downloaded
-            with xr.open_dataset(ff) as dsf_debug:
-                logging.info(f"Forecast file variables: {list(dsf_debug.data_vars)}")
-
             # Process and merge this month's data
             ds_chunk = self._process_and_merge_datasets(af, ff)
-
-            # Debug: Check what variables are in the processed chunk
-            logging.info(f"Processed chunk variables: {list(ds_chunk.data_vars)}")
-
+            
             # Save chunk to disk
             chunk_path = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_processed_{year}{month:02d}_temp.nc"
             ds_chunk.to_netcdf(chunk_path)
@@ -189,12 +155,8 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             
         finally:
             # Cleanup raw downloads for this month
-            # Temporarily keep first month's files for debugging
-            if year == 2015 and month == 1:
-                logging.info(f"DEBUG: Keeping raw files for inspection: {af}, {ff}")
-            else:
-                if af.exists(): af.unlink()
-                if ff.exists(): ff.unlink()
+            if af.exists(): af.unlink()
+            if ff.exists(): ff.unlink()
 
     def _download_and_process_year(self, year: int, output_dir: Path) -> Path:
         """Deprecated: Use _download_and_process_month instead."""
@@ -374,7 +336,6 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
                 f"{self._get_dataset_id()} merged time range: "
                 f"{self._format_time_range(dsm)}"
             )
-            logging.info(f"Variables after merge: {list(dsm.data_vars)}")
 
             # Spatial subsetting
             if hasattr(self, "bbox") and self.bbox:
@@ -382,7 +343,6 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
 
             # Rename to SUMMA standards
             dsm = self._rename_variables(dsm)
-            logging.info(f"Variables after rename: {list(dsm.data_vars)}")
 
             # Calculate derived variables
             dsm = self._calculate_derived_variables(dsm)
@@ -539,8 +499,7 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             'ssrd': 'SWRadAtm',
             'strd': 'LWRadAtm',
             # Full variable names (for CARRA/CERRA)
-            'thermal_surface_radiation_downwards': 'LWRadAtm',  # Correct CARRA name
-            'surface_thermal_radiation_downwards': 'LWRadAtm',  # Old incorrect name (kept for backwards compatibility)
+            'surface_thermal_radiation_downwards': 'LWRadAtm',
             'surface_solar_radiation_downwards': 'SWRadAtm',
             'total_precipitation': 'pptrate',
             '2m_temperature': 'airtemp',
@@ -590,19 +549,16 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         resolution_hours = self._get_temporal_resolution()
         resolution_seconds = resolution_hours * 3600
 
-        # Precipitation: kg/m2 per leadtime -> kg m-2 s-1 (equivalent to mm/s)
+        # Precipitation: kg/m2 per leadtime -> m/s
         if 'pptrate' in ds:
-            ds['pptrate'] = ds['pptrate'] / resolution_seconds
-            ds['pptrate'].attrs['units'] = 'kg m-2 s-1'
+            ds['pptrate'] = (ds['pptrate'] * 0.001) / resolution_seconds
 
         # Radiation: J/m2 per leadtime -> W/m2
         if 'SWRadAtm' in ds:
             ds['SWRadAtm'] = ds['SWRadAtm'] / resolution_seconds
-            ds['SWRadAtm'].attrs['units'] = 'W m-2'
 
         if 'LWRadAtm' in ds:
             ds['LWRadAtm'] = ds['LWRadAtm'] / resolution_seconds
-            ds['LWRadAtm'].attrs['units'] = 'W m-2'
 
         return ds
 
@@ -619,34 +575,6 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         ds[available_vars].to_netcdf(final_f)
 
         return final_f
-
-    def _validate_required_variables(self, file_path: Path) -> None:
-        """
-        Validate that all required variables are present in the downloaded file.
-
-        Raises:
-            ValueError: If required variables are missing
-        """
-        required_vars = ['airtemp', 'airpres', 'pptrate', 'SWRadAtm',
-                        'windspd', 'spechum', 'LWRadAtm']
-
-        with xr.open_dataset(file_path) as ds:
-            missing_vars = [v for v in required_vars if v not in ds.variables]
-
-            if missing_vars:
-                logging.warning(
-                    f"{self._get_dataset_id()} download is missing required variables: {missing_vars}. "
-                    f"Available variables: {list(ds.variables)}"
-                )
-                logging.warning(
-                    "This may indicate an issue with the CDS API request. "
-                    "Check that forecast variables are being requested correctly."
-                )
-                raise ValueError(
-                    f"Downloaded {self._get_dataset_id()} file is missing required variables: {missing_vars}"
-                )
-
-            logging.info(f"Validated {self._get_dataset_id()} file has all required variables: {required_vars}")
 
     # Abstract methods to be implemented by subclasses
 
@@ -735,8 +663,7 @@ class CARRAAcquirer(CDSRegionalReanalysisHandler):
         return self.config.get("CARRA_DOMAIN", "west_domain")
 
     def _get_temporal_resolution(self) -> int:
-        # CARRA provides 3-hourly analyses (00, 03, 06, 09, 12, 15, 18, 21 UTC)
-        return 3
+        return 1  # Hourly
 
     def _get_analysis_variables(self) -> List[str]:
         return [
@@ -751,14 +678,11 @@ class CARRAAcquirer(CDSRegionalReanalysisHandler):
         return [
             "total_precipitation",
             "surface_solar_radiation_downwards",
-            "thermal_surface_radiation_downwards"  # Correct name: thermal comes BEFORE surface
+            "surface_thermal_radiation_downwards"
         ]
 
     def _get_leadtime_hour(self) -> str:
-        # CARRA provides 3-hourly forecasts to match the 3-hourly analyses
-        # Use leadtime "3" to get full 3-hour accumulations for precipitation/radiation
-        # Leadtime "1" would only give 0-1hr accumulation, missing 2/3 of precipitation
-        return "3"
+        return "1"
 
     def _get_additional_request_params(self) -> Dict[str, Any]:
         return {"grid": [0.025, 0.025]}  # Force interpolation to allow 'area' cropping
@@ -827,14 +751,11 @@ class CERRAAcquirer(CDSRegionalReanalysisHandler):
         return [
             "total_precipitation",
             "surface_solar_radiation_downwards",
-            "surface_thermal_radiation_downwards"  # Correct name for CERRA
+            "surface_thermal_radiation_downwards"
         ]
 
     def _get_leadtime_hour(self) -> str:
-        # CERRA provides 3-hourly forecasts (00, 03, 06, 09, 12, 15, 18, 21 UTC)
-        # Use leadtime "3" to get full 3-hour accumulations for precipitation/radiation
-        # Leadtime "1" would only give 0-1hr accumulation, missing 2/3 of precipitation
-        return "3"
+        return "1"
 
     def _get_additional_request_params(self) -> Dict[str, Any]:
         return {

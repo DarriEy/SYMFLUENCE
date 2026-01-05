@@ -46,7 +46,7 @@ class AgentCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to start agent: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -85,7 +85,7 @@ class AgentCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to execute prompt: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1

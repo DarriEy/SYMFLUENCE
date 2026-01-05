@@ -28,14 +28,14 @@ class VariableHandler:
             'pptrate': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
         },
         'CARRA': {
-            'airtemp': {'standard_name': 'air_temperature', 'units': 'K'},
-            'airpres': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
-            'spechum': {'standard_name': 'specific_humidity', 'units': '1'},
-            'windspd_u': {'standard_name': 'eastward_wind', 'units': 'm/s'},
-            'windspd_v': {'standard_name': 'northward_wind', 'units': 'm/s'},
-            'LWRadAtm': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
-            'SWRadAtm': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
-            'pptrate': {'standard_name': 'precipitation_flux', 'units': 'kg m-2 s-1'}
+            '2m_temperature': {'standard_name': 'air_temperature', 'units': 'K'},
+            'surface_pressure': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
+            '2m_specific_humidity': {'standard_name': 'specific_humidity', 'units': '1'},
+            '10m_u_component_of_wind': {'standard_name': 'eastward_wind', 'units': 'm/s'},
+            '10m_v_component_of_wind': {'standard_name': 'northward_wind', 'units': 'm/s'},
+            'thermal_surface_radiation_downwards': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
+            'surface_net_solar_radiation': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
+            'total_precipitation': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
         },
         'RDRS': {
             'RDRS_v2.1_P_TT_1.5m': {'standard_name': 'air_temperature', 'units': 'K'},
@@ -142,56 +142,6 @@ class VariableHandler:
             'pr': {'standard_name': 'precipitation_flux', 'units': 'mm/day'},
             'tmax': {'standard_name': 'air_temperature_max', 'units': 'degC'},
             'tmin': {'standard_name': 'air_temperature_min', 'units': 'degC'}
-        },
-        'CERRA': {
-            'airtemp': {'standard_name': 'air_temperature', 'units': 'K'},
-            'airpres': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
-            'relhum': {'standard_name': 'relative_humidity', 'units': '%'},
-            'spechum': {'standard_name': 'specific_humidity', 'units': '1'},
-            'windspd_u': {'standard_name': 'eastward_wind', 'units': 'm/s'},
-            'windspd_v': {'standard_name': 'northward_wind', 'units': 'm/s'},
-            'SWRadAtm': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
-            'LWRadAtm': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
-            'pptrate': {'standard_name': 'precipitation_flux', 'units': 'kg m-2 s-1'}
-        },
-        'AORC': {
-            'APCP_surface': {'standard_name': 'precipitation_flux', 'units': 'kg m-2 s-1'},
-            'TMP_2maboveground': {'standard_name': 'air_temperature', 'units': 'K'},
-            'SPFH_2maboveground': {'standard_name': 'specific_humidity', 'units': '1'},
-            'PRES_surface': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
-            'DLWRF_surface': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
-            'DSWRF_surface': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
-            'UGRD_10maboveground': {'standard_name': 'eastward_wind', 'units': 'm/s'},
-            'VGRD_10maboveground': {'standard_name': 'northward_wind', 'units': 'm/s'}
-        },
-        'CONUS404': {
-            'T2': {'standard_name': 'air_temperature', 'units': 'K'},
-            'Q2': {'standard_name': 'specific_humidity', 'units': '1'},
-            'PSFC': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
-            'U10': {'standard_name': 'eastward_wind', 'units': 'm/s'},
-            'V10': {'standard_name': 'northward_wind', 'units': 'm/s'},
-            'GLW': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
-            'SWDOWN': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
-            'RAINRATE': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
-        },
-        'HRRR': {
-            'TMP': {'standard_name': 'air_temperature', 'units': 'K'},
-            'SPFH': {'standard_name': 'specific_humidity', 'units': '1'},
-            'PRES': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
-            'DLWRF': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
-            'DSWRF': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
-            'UGRD': {'standard_name': 'eastward_wind', 'units': 'm/s'},
-            'VGRD': {'standard_name': 'northward_wind', 'units': 'm/s'},
-            'APCP': {'standard_name': 'precipitation_flux', 'units': 'kg m-2 s-1'}
-        },
-        'NEX-GDDP-CMIP6': {
-            'pr': {'standard_name': 'precipitation_flux', 'units': 'kg m-2 s-1'},
-            'tas': {'standard_name': 'air_temperature', 'units': 'K'},
-            'huss': {'standard_name': 'specific_humidity', 'units': '1'},
-            'ps': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
-            'rlds': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
-            'rsds': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
-            'sfcWind': {'standard_name': 'wind_speed', 'units': 'm/s'}
         }
 
     }
@@ -227,28 +177,6 @@ class VariableHandler:
             'LWRadAtm': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
             'SWRadAtm': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
             'pptrate': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
-        },
-        'NGEN': {
-            'airtemp': {'standard_name': 'air_temperature', 'units': 'K'},
-            'airpres': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
-            'spechum': {'standard_name': 'specific_humidity', 'units': '1'},
-            'windspd': {'standard_name': 'wind_speed', 'units': 'm/s'},
-            'LWRadAtm': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
-            'SWRadAtm': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
-            'pptrate': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
-        },
-        'LSTM': {
-            'airtemp': {'standard_name': 'air_temperature', 'units': 'K'},
-            'airpres': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
-            'spechum': {'standard_name': 'specific_humidity', 'units': '1'},
-            'windspd': {'standard_name': 'wind_speed', 'units': 'm/s'},
-            'LWRadAtm': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
-            'SWRadAtm': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
-            'pptrate': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
-        },
-        'RHESSys': {
-            'airtemp': {'standard_name': 'air_temperature', 'units': 'degC'},
-            'pptrate': {'standard_name': 'precipitation_flux', 'units': 'mm/day'}
         }
     }
 
@@ -386,7 +314,6 @@ class VariableHandler:
         """
         Normalize unit strings to formats that Pint handles reliably.
         Example: 'mm hour-1' -> 'mm / hour'
-        Example: 'kg m-2 s-1' -> 'kg m^-2 s^-1'
         """
         if not unit_str:
             return unit_str
@@ -394,12 +321,11 @@ class VariableHandler:
         import re
         norm = unit_str.strip()
         
-        # Handle 'X-N' format (e.g. m-2, s-1) -> 'X^-N'
-        # This prevents Pint from interpreting '-' as subtraction
-        norm = re.sub(r'([a-zA-Z_]\w*)-(\d+)', r'\1^-\2', norm)
+        # Handle 'X-1' or 'X^-1' or 'X**-1' -> '/ X'
+        norm = re.sub(r'(\w+)(\*\*|-\^|-\^|-|\^)(-1)', r'/ \1', norm)
         
-        # Handle 'X**-1' or 'X^-1' -> '/ X' (legacy support if needed, but ^-N covers it)
-        # We can keep specific cleanups if they help
+        # Handle 'X-2' or 'X^-2' etc -> '/ X^2'
+        norm = re.sub(r'(\w+)(\*\*|-\^|-|\^)(-)(\d+)', r'/ \1^\4', norm)
         
         # Standardize spaces around operators
         norm = norm.replace('/', ' / ')
@@ -433,19 +359,15 @@ class VariableHandler:
         
         try:
             # Special case for precipitation flux conversions (very common source of errors)
-            # Check for various formats including normalized 'kg m^-2 s^-1'
-            # Note: normalized strings have spaces around operators like ' / '
-            is_mass_flux = ('kg/m2/s' in from_units or 
-                           'kilogram / meter ** 2 / second' in from_units or 
-                           'kg m^-2 s^-1' in from_units)
-            
-            is_mm_day = ('mm/day' in to_units or 'mm / day' in to_units)
-            
-            if is_mass_flux and is_mm_day:
+            if ('kg/m2/s' in from_units or 'kilogram / meter ** 2 / second' in from_units) and 'mm/day' in to_units:
                 # 1 kg/m² = 1 mm of water
                 # Convert kg/m²/s to mm/s, then to mm/day
                 converted = data * 86400  # multiply by seconds per day
                 return converted
+            
+            # Additional manual check for common precipitation variants if pint might fail
+            if 'mm' in from_units.lower() and 'hour' in from_units.lower() and 'mm' in to_units.lower() and 'day' in to_units.lower():
+                return data * 24.0
 
             # Regular unit conversion
             try:
@@ -470,9 +392,6 @@ class VariableHandler:
                 # Precipitation: mm/s to mm/day
                 if 'mm' in f_low and 's' in f_low and 'mm' in t_low and 'day' in t_low:
                     return data * 86400.0
-                # Precipitation: kg m-2 s-1 to mm/day (catch-all for mass flux)
-                if ('kg' in f_low and 'm' in f_low and 's' in f_low) and ('mm' in t_low and 'day' in t_low):
-                     return data * 86400.0
                 
                 raise pe
         except Exception as e:

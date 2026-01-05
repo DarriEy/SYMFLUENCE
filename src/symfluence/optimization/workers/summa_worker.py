@@ -15,7 +15,6 @@ from typing import Dict, Any, Optional
 
 from .base_worker import BaseWorker, WorkerTask, WorkerResult
 from ..registry import OptimizerRegistry
-from .utilities.routing_decider import RoutingDecider
 
 
 logger = logging.getLogger(__name__)
@@ -33,8 +32,7 @@ class SUMMAWorker(BaseWorker):
     def __init__(
         self,
         config: Optional[Dict[str, Any]] = None,
-        logger: Optional[logging.Logger] = None,
-        calibration_target: Optional[Any] = None
+        logger: Optional[logging.Logger] = None
     ):
         """
         Initialize SUMMA worker.
@@ -42,29 +40,34 @@ class SUMMAWorker(BaseWorker):
         Args:
             config: Configuration dictionary
             logger: Logger instance
-            calibration_target: Calibration target for metrics calculation
         """
         super().__init__(config, logger)
         self._routing_needed = None
-        self.calibration_target = calibration_target
 
-    # Shared routing decision logic
-    _routing_decider = RoutingDecider()
-
-    def needs_routing(self, config: Dict[str, Any], settings_dir: Optional[Path] = None) -> bool:
+    def needs_routing(self, config: Dict[str, Any]) -> bool:
         """
         Determine if routing (mizuRoute) is needed.
 
-        Delegates to shared RoutingDecider utility.
-
         Args:
             config: Configuration dictionary
-            settings_dir: Optional settings directory (for consistency with other workers)
 
         Returns:
             True if routing is needed
         """
-        return self._routing_decider.needs_routing(config, 'SUMMA', settings_dir)
+        calibration_var = config.get('CALIBRATION_VARIABLE', 'streamflow')
+
+        if calibration_var != 'streamflow':
+            return False
+
+        domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+        routing_delineation = config.get('ROUTING_DELINEATION', 'lumped')
+
+        if domain_method not in ['point', 'lumped']:
+            return True
+        if domain_method == 'lumped' and routing_delineation == 'river_network':
+            return True
+
+        return False
 
     def apply_parameters(
         self,
@@ -183,22 +186,15 @@ class SUMMAWorker(BaseWorker):
             # Import existing functions
             from .summa_parallel_workers import _run_summa_worker, _run_mizuroute_worker
 
-            summa_install_path = config.get('SUMMA_INSTALL_PATH', 'default')
-            summa_exe_name = config.get('SUMMA_EXE', 'summa_sundials.exe')
-            if summa_install_path == 'default':
+            summa_exe = Path(config.get('SUMMA_INSTALL_PATH', 'default'))
+            if str(summa_exe) == 'default':
                 data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+                summa_exe_name = config.get('SUMMA_EXE', 'summa_sundials.exe')
                 summa_exe = data_dir / 'installs' / 'summa' / 'bin' / summa_exe_name
-            else:
-                summa_path = Path(summa_install_path)
-                # If install path is a directory, append exe name
-                summa_exe = summa_path / summa_exe_name if summa_path.is_dir() else summa_path
 
-            summa_fm_name = config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
-            file_manager = settings_dir / summa_fm_name
+            file_manager = settings_dir / 'fileManager.txt'
             if not file_manager.exists():
                 # Try alternate names
-                file_manager = settings_dir / 'fileManager.txt'
-            if not file_manager.exists():
                 experiment_id = config.get('EXPERIMENT_ID', 'default')
                 file_manager = settings_dir / f'{experiment_id}_fileManager.txt'
 
@@ -268,19 +264,13 @@ class SUMMAWorker(BaseWorker):
         try:
             import subprocess
 
-            summa_install_path = config.get('SUMMA_INSTALL_PATH', 'default')
-            summa_exe_name = config.get('SUMMA_EXE', 'summa_sundials.exe')
-            if summa_install_path == 'default':
+            summa_exe = Path(config.get('SUMMA_INSTALL_PATH', 'default'))
+            if str(summa_exe) == 'default':
                 data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+                summa_exe_name = config.get('SUMMA_EXE', 'summa_sundials.exe')
                 summa_exe = data_dir / 'installs' / 'summa' / 'bin' / summa_exe_name
-            else:
-                summa_path = Path(summa_install_path)
-                summa_exe = summa_path / summa_exe_name if summa_path.is_dir() else summa_path
 
-            summa_fm_name = config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
-            file_manager = settings_dir / summa_fm_name
-            if not file_manager.exists():
-                file_manager = settings_dir / 'fileManager.txt'
+            file_manager = settings_dir / 'fileManager.txt'
 
             if not summa_exe.exists() or not file_manager.exists():
                 return False
@@ -318,32 +308,6 @@ class SUMMAWorker(BaseWorker):
             Dictionary of metric names to values
         """
         try:
-            # If we have a calibration target, use it
-            if self.calibration_target is not None:
-                self.logger.debug(f"Using calibration target: {type(self.calibration_target).__name__}")
-
-                # Resolve mizuroute_dir if needed
-                mizuroute_dir = kwargs.get('mizuroute_dir')
-                if not mizuroute_dir and self.needs_routing(config):
-                    sim_dir = kwargs.get('sim_dir', output_dir)
-                    mizuroute_dir = sim_dir / 'mizuRoute'
-
-                # Delegate to calibration target
-                metrics = self.calibration_target.calculate_metrics(
-                    output_dir,
-                    mizuroute_dir=mizuroute_dir,
-                    calibration_only=kwargs.get('calibration_only', True)
-                )
-
-                if metrics:
-                    return metrics
-
-                self.logger.warning("Calibration target returned no metrics, using penalty score")
-                return {'kge': self.penalty_score}
-
-            # Fallback to legacy streamflow-based calculation
-            self.logger.debug("No calibration target, using legacy streamflow calculation")
-
             # Import existing function
             from .summa_parallel_workers import _calculate_metrics_inline_worker
 
@@ -370,8 +334,6 @@ class SUMMAWorker(BaseWorker):
 
         except Exception as e:
             self.logger.error(f"Error calculating SUMMA metrics: {e}")
-            import traceback
-            self.logger.error(traceback.format_exc())
             return {'kge': self.penalty_score}
 
     def _calculate_metrics_direct(
