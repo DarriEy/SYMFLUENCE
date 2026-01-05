@@ -196,8 +196,6 @@ class DataManager(ConfigurableMixin):
         Raises:
             DataAcquisitionError: If preprocessing fails
         """
-        self.logger.info("Starting model-agnostic preprocessing")
-        
         # Use typed config if available
         component_config = self.typed_config if self.typed_config else self.config
 
@@ -214,12 +212,12 @@ class DataManager(ConfigurableMixin):
             error_type=DataAcquisitionError
         ):
             # Run geospatial statistics
-            self.logger.info("Running geospatial statistics")
+            self.logger.debug("Running geospatial statistics")
             gs = GeospatialStatistics(component_config, self.logger)
             gs.run_statistics()
 
             # Run forcing resampling
-            self.logger.info("Running forcing resampling")
+            self.logger.debug("Running forcing resampling")
             fr = ForcingResampler(component_config, self.logger)
             fr.run_resampling()
 
@@ -240,7 +238,7 @@ class DataManager(ConfigurableMixin):
                 False
             )
             if supplement_forcing:
-                self.logger.info("SUPPLEMENT_FORCING enabled - integrating EM-Earth data")
+                self.logger.debug("Integrating EM-Earth data")
                 self.em_earth_integrator.integrate_em_earth_data()
 
             self.logger.info("Model-agnostic preprocessing completed successfully")

@@ -364,6 +364,29 @@ class CONUS404Handler(BaseDatasetHandler):
                     f"Available coords: {list(ds.coords)}; variables: {list(ds.data_vars)}"
                 )
 
+        # Parse bounding box if available to filter grid
+        bbox = None
+        bbox_str = self.config.get("BOUNDING_BOX_COORDS")
+        if isinstance(bbox_str, str) and "/" in bbox_str:
+            try:
+                # Format: lat_max/lon_min/lat_min/lon_max
+                parts = [float(v) for v in bbox_str.split("/")]
+                lat_min, lat_max = sorted([parts[0], parts[2]])
+                lon_min, lon_max = sorted([parts[1], parts[3]])
+                
+                # Add a small buffer (approx 10km) to ensure we cover the domain
+                # CONUS404 is ~4km resolution
+                buffer = 0.1  # degrees
+                lat_min -= buffer
+                lat_max += buffer
+                lon_min -= buffer
+                lon_max += buffer
+                
+                bbox = (lat_min, lat_max, lon_min, lon_max)
+                self.logger.info(f"Filtering CONUS404 grid by bbox (with buffer): {bbox}")
+            except Exception as e:
+                self.logger.warning(f"Failed to parse BOUNDING_BOX_COORDS '{bbox_str}': {e}. Processing entire grid.")
+
         geometries = []
         ids = []
         lats = []
@@ -375,7 +398,15 @@ class CONUS404Handler(BaseDatasetHandler):
             half_dlon = abs(lon[1] - lon[0]) / 2 if len(lon) > 1 else 0.005
 
             for i, center_lon in enumerate(lon):
+                # Optimization: Skip longitudes outside bbox
+                if bbox and not (bbox[2] <= float(center_lon) <= bbox[3]):
+                    continue
+                    
                 for j, center_lat in enumerate(lat):
+                    # Optimization: Skip latitudes outside bbox
+                    if bbox and not (bbox[0] <= float(center_lat) <= bbox[1]):
+                        continue
+                        
                     verts = [
                         [float(center_lon) - half_dlon, float(center_lat) - half_dlat],
                         [float(center_lon) - half_dlon, float(center_lat) + half_dlat],
@@ -394,29 +425,76 @@ class CONUS404Handler(BaseDatasetHandler):
             self.logger.info(f"CONUS404 grid dimensions (2D): ny={ny}, nx={nx}, total={total_cells}")
 
             cell_count = 0
+            filtered_count = 0
+            
+            # Pre-calculate approximate grid spacing to speed up loop
+            # Check center of domain or use a default if small
+            mid_y, mid_x = ny // 2, nx // 2
+            if ny > 1 and nx > 1:
+                default_dlat = abs(lat[mid_y + 1, mid_x] - lat[mid_y, mid_x]) if mid_y + 1 < ny else 0.04
+                default_dlon = abs(lon[mid_y, mid_x + 1] - lon[mid_y, mid_x]) if mid_x + 1 < nx else 0.04
+            else:
+                default_dlat = 0.04
+                default_dlon = 0.04
+
             for i in range(ny):
                 for j in range(nx):
-                    lat_corners = [
-                        lat[i, j],
-                        lat[i, j + 1] if j + 1 < nx else lat[i, j],
-                        lat[i + 1, j + 1] if i + 1 < ny and j + 1 < nx else lat[i, j],
-                        lat[i + 1, j] if i + 1 < ny else lat[i, j],
-                    ]
-                    lon_corners = [
-                        lon[i, j],
-                        lon[i, j + 1] if j + 1 < nx else lon[i, j],
-                        lon[i + 1, j + 1] if i + 1 < ny and j + 1 < nx else lon[i, j],
-                        lon[i + 1, j] if i + 1 < ny else lon[i, j],
+                    center_lat = float(lat[i, j])
+                    center_lon = float(lon[i, j])
+                    
+                    # Optimization: Skip cells outside bbox
+                    if bbox and not (bbox[0] <= center_lat <= bbox[1] and bbox[2] <= center_lon <= bbox[3]):
+                        filtered_count += 1
+                        continue
+                    
+                    # Robust local spacing calculation
+                    # Try to use next neighbor, else previous neighbor, else default
+                    if i < ny - 1:
+                        dlat = abs(lat[i+1, j] - lat[i, j])
+                    elif i > 0:
+                        dlat = abs(lat[i, j] - lat[i-1, j])
+                    else:
+                        dlat = default_dlat
+                    
+                    if j < nx - 1:
+                        dlon = abs(lon[i, j+1] - lon[i, j])
+                    elif j > 0:
+                        dlon = abs(lon[i, j] - lon[i, j-1])
+                    else:
+                        dlon = default_dlon
+
+                    # Ensure we have non-zero dimensions
+                    if dlat < 1e-6: dlat = default_dlat
+                    if dlon < 1e-6: dlon = default_dlon
+
+                    half_dlat = dlat / 2.0
+                    half_dlon = dlon / 2.0
+
+                    # Create a rectangle centered on the point
+                    # This avoids degenerate polygons at edges and is robust for zonal stats
+                    verts = [
+                        [center_lon - half_dlon, center_lat - half_dlat],
+                        [center_lon - half_dlon, center_lat + half_dlat],
+                        [center_lon + half_dlon, center_lat + half_dlat],
+                        [center_lon + half_dlon, center_lat - half_dlat],
+                        [center_lon - half_dlon, center_lat - half_dlat],
                     ]
 
-                    geometries.append(Polygon(zip(lon_corners, lat_corners)))
+                    geometries.append(Polygon(verts))
                     ids.append(i * nx + j)
-                    lats.append(float(lat[i, j]))
-                    lons.append(float(lon[i, j]))
+                    lats.append(center_lat)
+                    lons.append(center_lon)
 
                     cell_count += 1
-                    if cell_count % 5000 == 0 or cell_count == total_cells:
-                        self.logger.info(f"Created {cell_count}/{total_cells} CONUS404 grid cells")
+                    if cell_count % 5000 == 0:
+                        self.logger.info(f"Created {cell_count} geometries (filtered {filtered_count} so far)")
+            
+            self.logger.info(f"Finished grid processing. Created {len(geometries)} cells, skipped {filtered_count} cells.")
+
+        if not geometries:
+            msg = "No grid cells found within the specified bounding box! Check BOUNDING_BOX_COORDS."
+            self.logger.error(msg)
+            raise ValueError(msg)
 
         gdf = gpd.GeoDataFrame(
             {

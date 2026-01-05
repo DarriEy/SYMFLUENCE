@@ -181,7 +181,7 @@ class EMEarthIntegrator:
         """
         Integrate EM-Earth precipitation and temperature data with primary forcing dataset.
         """
-        self.logger.info("Starting EM-Earth data integration")
+        self.logger.debug("Starting EM-Earth data integration")
         
         try:
             # Check if EM-Earth data exists
@@ -214,7 +214,7 @@ class EMEarthIntegrator:
         """
         Remap EM-Earth data to match the basin grid used by the primary forcing dataset.
         """
-        self.logger.info("Remapping EM-Earth data to basin grid")
+        self.logger.debug("Remapping EM-Earth data to basin grid")
         
         try:
             # Get basin shapefile for remapping
@@ -247,20 +247,20 @@ class EMEarthIntegrator:
                     files_to_process.append(em_file)
             
             if not files_to_process:
-                self.logger.info("All EM-Earth files already remapped, skipping")
+                self.logger.debug("All EM-Earth files already remapped, skipping")
                 return
             
-            self.logger.info(f"Found {len(files_to_process)} EM-Earth files to remap")
+            self.logger.debug(f"Found {len(files_to_process)} EM-Earth files to remap")
             
             # Check if we should use parallel processing
             num_processes = self.config.get('MPI_PROCESSES', 1)
             use_parallel = num_processes > 1 and len(files_to_process) > 1
             
             if use_parallel:
-                self.logger.info(f"Using parallel processing with {num_processes} workers")
+                self.logger.debug(f"Using parallel processing with {num_processes} workers")
                 self._remap_em_earth_files_parallel(files_to_process, basin_shapefile, remapped_dir, num_processes)
             else:
-                self.logger.info("Using sequential processing")
+                self.logger.debug("Using sequential processing")
                 self._remap_em_earth_files_sequential(files_to_process, basin_shapefile, remapped_dir)
             
         except Exception as e:
@@ -286,7 +286,7 @@ class EMEarthIntegrator:
         """Remap EM-Earth files in parallel."""
         num_workers = min(num_processes, len(files_to_process))
         
-        self.logger.info(f"Starting parallel EM-Earth remapping with {num_workers} workers")
+        self.logger.debug(f"Starting parallel EM-Earth remapping with {num_workers} workers")
         
         # Create shared arguments for workers
         worker_args = []
@@ -317,7 +317,7 @@ class EMEarthIntegrator:
                     except mp.TimeoutError:
                         if hasattr(result, '_number_left'):
                             completed = len(worker_args) - result._number_left
-                            self.logger.info(f"Parallel remapping progress: {completed}/{len(worker_args)} files completed")
+                            self.logger.debug(f"Parallel remapping progress: {completed}/{len(worker_args)} files completed")
                         continue
                 
             except Exception as e:
@@ -330,8 +330,8 @@ class EMEarthIntegrator:
         failed = len(files_to_process) - successful
         elapsed_time = time.time() - start_time
         
-        self.logger.info(f"Parallel EM-Earth remapping completed in {elapsed_time:.1f} seconds")
-        self.logger.info(f"Success rate: {successful}/{len(files_to_process)} files ({successful/len(files_to_process)*100:.1f}%)")
+        self.logger.debug(f"Parallel EM-Earth remapping completed in {elapsed_time:.1f} seconds")
+        self.logger.debug(f"Success rate: {successful}/{len(files_to_process)} files ({successful/len(files_to_process)*100:.1f}%)")
         
         if failed > 0:
             self.logger.warning(f"{failed} files failed to process")
@@ -341,7 +341,7 @@ class EMEarthIntegrator:
 
     def _replace_forcing_variables_with_em_earth(self):
         """Replace precipitation and temperature variables in basin-averaged data with EM-Earth values."""
-        self.logger.info("Replacing forcing variables with EM-Earth data")
+        self.logger.debug("Replacing forcing variables with EM-Earth data")
         
         try:
             import xarray as xr
@@ -377,7 +377,7 @@ class EMEarthIntegrator:
                     self.logger.warning(f"Failed to update {forcing_file.name}: {str(e)}")
                     continue
             
-            self.logger.info("Successfully replaced forcing variables with EM-Earth data")
+            self.logger.debug("Successfully replaced forcing variables with EM-Earth data")
             
         except Exception as e:
             self.logger.error(f"Error replacing forcing variables: {str(e)}")
@@ -387,11 +387,23 @@ class EMEarthIntegrator:
         """Update a single forcing file with EM-Earth precipitation and temperature data."""
         try:
             import xarray as xr
-            
+
             forcing_ds = xr.open_dataset(forcing_file)
-            
-            start_time = forcing_ds.time.min().values
-            end_time = forcing_ds.time.max().values
+
+            # Check if time dimension/coordinate exists
+            if 'time' not in forcing_ds.dims and 'time' not in forcing_ds.coords:
+                self.logger.warning(f"Skipping {forcing_file.name}: no 'time' dimension or coordinate found")
+                forcing_ds.close()
+                return
+
+            # Access time safely - use bracket notation to work with both coordinates and variables
+            try:
+                start_time = forcing_ds['time'].min().values
+                end_time = forcing_ds['time'].max().values
+            except (KeyError, AttributeError) as e:
+                self.logger.warning(f"Skipping {forcing_file.name}: unable to access time data ({e})")
+                forcing_ds.close()
+                return
             
             start_dt = pd.to_datetime(start_time)
             end_dt = pd.to_datetime(end_time)
@@ -426,9 +438,9 @@ class EMEarthIntegrator:
                 if em_var in em_combined.data_vars:
                     for forcing_var in forcing_vars:
                         if forcing_var in updated_ds.data_vars:
-                            self.logger.info(f"Replacing {forcing_var} with EM-Earth {em_var}")
-                            
-                            em_data_interp = em_combined[em_var].interp(time=forcing_ds.time)
+                            self.logger.debug(f"Replacing {forcing_var} with EM-Earth {em_var}")
+
+                            em_data_interp = em_combined[em_var].interp(time=forcing_ds['time'])
                             
                             if em_var in ['prcp', 'prcp_corrected']:
                                 current_units = str(updated_ds[forcing_var].attrs.get('units', ''))
@@ -436,12 +448,15 @@ class EMEarthIntegrator:
                                 
                                 if 'kg m-2 s-1' in current_units or 'kg m**-2 s**-1' in current_units:
                                     em_data_interp = em_data_interp / UnitConversion.SECONDS_PER_HOUR
+                                    em_data_interp.attrs['units'] = 'kg m-2 s-1'
                                 elif 'm s-1' in current_units:
                                     em_data_interp = em_data_interp / (UnitConversion.SECONDS_PER_HOUR * 1000)
+                                    em_data_interp.attrs['units'] = 'm s-1'
                                 elif 'mm s-1' in current_units or 'mm/s' in current_units:
                                     em_data_interp = em_data_interp / UnitConversion.SECONDS_PER_HOUR
+                                    em_data_interp.attrs['units'] = 'mm/s'
                                 else:
-                                    updated_ds[forcing_var].attrs['units'] = 'mm/h'
+                                    em_data_interp.attrs['units'] = 'mm/h'
                                 
                                 converted_max = float(em_data_interp.max())
                                 if converted_max == 0.0 and original_max > 0.0:
@@ -451,6 +466,11 @@ class EMEarthIntegrator:
                                 current_units = str(updated_ds[forcing_var].attrs.get('units', ''))
                                 if 'K' in current_units and 'Celsius' not in current_units.lower():
                                     em_data_interp = em_data_interp + PhysicalConstants.KELVIN_OFFSET
+                                    # Ensure the interpolated data knows its new units
+                                    em_data_interp.attrs['units'] = 'K'
+                                else:
+                                    # Already Celsius or unknown, ensure attribute matches values
+                                    em_data_interp.attrs['units'] = 'degC'
                             
                             updated_ds[forcing_var] = em_data_interp
                             
@@ -480,7 +500,7 @@ class EMEarthIntegrator:
                     forcing_file.unlink()
                 temp_file.rename(forcing_file)
                 
-                self.logger.info(f"Successfully updated {forcing_file.name} with EM-Earth data")
+                self.logger.debug(f"Successfully updated {forcing_file.name} with EM-Earth data")
                 
             except Exception as write_error:
                 if temp_file.exists():

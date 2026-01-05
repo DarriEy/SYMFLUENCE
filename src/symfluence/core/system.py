@@ -133,69 +133,39 @@ class SYMFLUENCE:
                 execution_time=elapsed_s,
                 status=status,
             )
-        
-        def run_individual_steps(self, step_names: List[str]) -> None:
-        
-            """Execute specific workflow steps (CLI wrapper)."""
-        
-            start = datetime.now()
-        
-            steps_completed = []
-        
-            errors = []
-        
-            warns = []
-        
     
-        
-            status = "completed"
-        
-            try:
-        
-                continue_on_error = self.config_overrides.get("continue_on_error", False)
-        
-                
-        
-                # Execute individual steps via orchestrator
-        
-                results = self.workflow_orchestrator.run_individual_steps(step_names, continue_on_error)
-        
-                
-        
-                # Process results for summary
-        
-                for res in results:
-        
-                    if res['success']:
-        
-                        steps_completed.append({"cli": res['cli'], "fn": res['fn']})
-        
-                    else:
-        
-                        errors.append({"step": res['cli'], "error": res['error']})
-        
-                        status = "partial" if steps_completed else "failed"
-        
-    
-        
-            finally:
-        
-                end = datetime.now()
-        
-                elapsed_s = (end - start).total_seconds()
-        
-                self.logging_manager.create_run_summary(
-        
-                    steps_completed=steps_completed,
-        
-                    errors=errors,
-        
-                    warnings=warns,
-        
-                    execution_time=elapsed_s,
-        
-                    status=status,
-        
-                )
+    def run_individual_steps(self, step_names: List[str]) -> None:
+        """Execute specific workflow steps (CLI wrapper)."""
+        start = datetime.now()
+        steps_completed = []
+        errors = []
+        warns = []
+
+        status = "completed"
+
+        try:
+            continue_on_error = self.config_overrides.get("continue_on_error", False)
+
+            # Execute individual steps via orchestrator
+            results = self.workflow_orchestrator.run_individual_steps(step_names, continue_on_error)
+
+            # Process results for summary
+            for res in results:
+                if res['success']:
+                    steps_completed.append({"cli": res['cli'], "fn": res['fn']})
+                else:
+                    errors.append({"step": res['cli'], "error": res['error']})
+                    status = "partial" if steps_completed else "failed"
+
+        finally:
+            end = datetime.now()
+            elapsed_s = (end - start).total_seconds()
+            self.logging_manager.create_run_summary(
+                steps_completed=steps_completed,
+                errors=errors,
+                warnings=warns,
+                execution_time=elapsed_s,
+                status=status,
+            )
         
     

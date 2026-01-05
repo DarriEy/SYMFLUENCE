@@ -48,14 +48,28 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             optimization_settings_dir: Optional path to optimization settings
             reporting_manager: ReportingManager instance
         """
-        super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
-
-        # FUSE-specific paths
-        self.fuse_exe_path = self._get_fuse_executable_path()
+        # Initialize FUSE-specific paths before super().__init__ 
+        # because parent calls _setup_parallel_dirs()
+        self.experiment_id = config.get('EXPERIMENT_ID')
+        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+        self.domain_name = config.get('DOMAIN_NAME')
+        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
+        
         self.fuse_sim_dir = self.project_dir / 'simulations' / self.experiment_id / 'FUSE'
         self.fuse_setup_dir = self.project_dir / 'settings' / 'FUSE'
+        self.fuse_exe_path = self._get_fuse_executable_path_pre_init(config)
+        self.fuse_id = config.get('FUSE_FILE_ID', self.experiment_id)
+
+        super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
         self.logger.info(f"FUSEModelOptimizer initialized")
+
+    def _get_fuse_executable_path_pre_init(self, config: Dict[str, Any]) -> Path:
+        """Helper to get FUSE executable path before full initialization."""
+        fuse_install = config.get('FUSE_INSTALL_PATH', 'default')
+        if fuse_install == 'default':
+            return self.data_dir / 'installs' / 'fuse' / 'bin' / 'fuse.exe'
+        return Path(fuse_install) / 'fuse.exe'
 
     def _get_model_name(self) -> str:
         """Return model name."""
@@ -67,7 +81,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         return FUSEParameterManager(
             self.config,
             self.logger,
-            self.optimization_settings_dir
+            self.fuse_setup_dir
         )
 
     def _create_calibration_target(self):
@@ -87,16 +101,53 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         """Create FUSE worker."""
         return FUSEWorker(self.config, self.logger)
 
-    def _get_fuse_executable_path(self) -> Path:
-        """Get path to FUSE executable."""
-        fuse_install = self.config.get('FUSE_INSTALL_PATH', 'default')
-        if fuse_install == 'default':
-            return self.data_dir / 'installs' / 'fuse' / 'bin' / 'fuse.exe'
-        return Path(fuse_install) / 'fuse.exe'
+    def _copy_default_initial_params_to_sce(self):
+        """Helper to ensure para_sce.nc exists by copying para_def.nc."""
+        if self.fuse_sim_dir.exists():
+            default_params = self.fuse_sim_dir / f"{self.domain_name}_{self.fuse_id}_para_def.nc"
+            sce_params = self.fuse_sim_dir / f"{self.domain_name}_{self.fuse_id}_para_sce.nc"
+            if default_params.exists() and not sce_params.exists():
+                import shutil
+                shutil.copy2(default_params, sce_params)
+                self.logger.info("Initialized para_sce.nc from default parameters")
+
+    def _apply_best_parameters_for_final(self, best_params: Dict[str, float]) -> bool:
+        """
+        Apply best parameters for final evaluation.
+
+        Overrides base class to use param_manager which knows the correct
+        FUSE parameter file path (in simulations dir, not settings dir).
+        """
+        try:
+            # Use param_manager.update_model_files() which uses the correct path
+            # (self.fuse_sim_dir / domain_name_fuse_id_para_def.nc)
+            return self.param_manager.update_model_files(best_params)
+        except Exception as e:
+            self.logger.error(f"Error applying FUSE parameters for final evaluation: {e}")
+            return False
+
+    def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
+        """Run FUSE for final evaluation."""
+        self._copy_default_initial_params_to_sce()
+        return self.worker.run_model(
+            self.config,
+            self.fuse_setup_dir,
+            output_dir,
+            mode='run_def'
+        )
+
+    def _get_final_file_manager_path(self) -> Path:
+        """Get path to FUSE file manager."""
+        fuse_fm = self.config.get('SETTINGS_FUSE_FILEMANAGER', 'fm_catch.txt')
+        if fuse_fm == 'default':
+            fuse_fm = 'fm_catch.txt'
+        return self.fuse_setup_dir / fuse_fm
 
     def _setup_parallel_dirs(self) -> None:
         """Setup FUSE-specific parallel directories."""
-        base_dir = self.project_dir / 'simulations' / f'run_{self.experiment_id}'
+        # Use algorithm-specific directory (consistent with SUMMA)
+        algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
+        base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
             'FUSE',
@@ -106,6 +157,23 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         # Copy FUSE settings to each parallel directory
         if self.fuse_setup_dir.exists():
             self.copy_base_settings(self.fuse_setup_dir, self.parallel_dirs, 'FUSE')
+
+        # Copy parameter file to each parallel directory
+        # This is critical for parallel workers to modify parameters in isolation
+        fuse_id = self.config.get('FUSE_FILE_ID', self.experiment_id)
+        param_file = self.fuse_sim_dir / f"{self.domain_name}_{fuse_id}_para_def.nc"
+        
+        if param_file.exists():
+            import shutil
+            for proc_id, dirs in self.parallel_dirs.items():
+                dest_file = dirs['settings_dir'] / param_file.name
+                try:
+                    shutil.copy2(param_file, dest_file)
+                    self.logger.debug(f"Copied parameter file to {dest_file}")
+                except Exception as e:
+                    self.logger.error(f"Failed to copy parameter file to {dest_file}: {e}")
+        else:
+            self.logger.warning(f"Parameter file not found: {param_file} - Parallel workers will likely fail apply_parameters")
 
 
 # Backward compatibility alias

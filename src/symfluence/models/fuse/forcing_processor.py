@@ -111,13 +111,13 @@ class FuseForcingProcessor(BaseForcingProcessor):
             ValueError: If unknown spatial mode specified
         """
         try:
-            self.logger.info(f"Using {ts_config['time_label']} timestep (resample freq: {ts_config['resample_freq']})")
+            self.logger.debug(f"Using {ts_config['time_label']} timestep (resample freq: {ts_config['resample_freq']})")
 
             # Get spatial mode configuration
             spatial_mode = self.config.get('FUSE_SPATIAL_MODE', 'lumped')
             subcatchment_dim = self.config.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
 
-            self.logger.info(f"Preparing FUSE forcing data in {spatial_mode} mode")
+            self.logger.debug(f"Preparing FUSE forcing data in {spatial_mode} mode")
 
             # Read and process forcing data
             forcing_files = sorted(self.forcing_basin_path.glob('*.nc'))
@@ -130,7 +130,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
                 dataset=self.config.get('FORCING_DATASET'),
                 model='FUSE'
             )
-            ds = xr.open_mfdataset(forcing_files, data_vars='all')
+            ds = xr.open_mfdataset(forcing_files, data_vars='all', combine='nested', concat_dim='time').sortby('time')
             ds = variable_handler.process_forcing_data(ds)
             ds = self._subset_to_simulation_time(ds, "Forcing")
 
@@ -145,9 +145,9 @@ class FuseForcingProcessor(BaseForcingProcessor):
                 raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")
 
             # Resample to target resolution AFTER spatial organization
-            self.logger.info(f"Resampling data to {ts_config['time_label']} resolution")
-            with xr.set_options(use_flox=False, use_numbagg=False, use_bottleneck=False):
-                ds = ds.resample(time=ts_config['resample_freq']).mean()
+            self.logger.debug(f"Resampling data to {ts_config['time_label']} resolution")
+            # Enable optimized backends for resampling if available
+            ds = ds.resample(time=ts_config['resample_freq']).mean()
 
             # Process temperature and precipitation
             try:
@@ -166,11 +166,8 @@ class FuseForcingProcessor(BaseForcingProcessor):
                 pet = self._calculate_distributed_pet(ds, spatial_mode, pet_method)
 
             # Ensure PET is also at target resolution
-            with xr.set_options(use_flox=False, use_numbagg=False, use_bottleneck=False):
-                pet_resampled = pet.resample(time=ts_config['resample_freq']).mean()
-            if len(pet_resampled.time) != len(pet.time):
-                self.logger.info(f"PET data resampled to {ts_config['time_label']} resolution")
-                pet = pet_resampled
+            pet = pet.resample(time=ts_config['resample_freq']).mean()
+            self.logger.info(f"PET data resampled to {ts_config['time_label']} resolution")
 
             # Save forcing data
             output_file = self.forcing_fuse_path / f"{self.domain_name}_input.nc"
@@ -245,11 +242,8 @@ class FuseForcingProcessor(BaseForcingProcessor):
                 temp_mean = ds['temp'].mean(dim='hru')
                 pet_base = self._calculate_pet(temp_mean, mean_lat, pet_method)
 
-                # Replicate the PET calculation for each HRU
-                n_hrus = ds.sizes['hru']
-                pet_list = [pet_base for _ in range(n_hrus)]
-                pet = xr.concat(pet_list, dim='hru')
-                pet = pet.transpose('time', 'hru')
+                # Broadcast the PET calculation to all HRUs (more efficient than concat)
+                pet = pet_base.broadcast_like(ds['temp'])
 
                 self.logger.info(f"Calculated distributed PET with shape: {pet.shape}")
             else:
@@ -309,27 +303,21 @@ class FuseForcingProcessor(BaseForcingProcessor):
             return self._replicate_to_subcatchments(ds, n_subcatchments)
 
     def _replicate_to_subcatchments(self, ds: xr.Dataset, n_subcatchments: int) -> xr.Dataset:
-        """Replicate lumped data to all subcatchments"""
+        """Replicate lumped data to all subcatchments using broadcasting"""
         self.logger.info(f"Replicating data to {n_subcatchments} subcatchments")
 
-        subcatchment_data = [ds for _ in range(n_subcatchments)]
-        ds_subcat = xr.concat(subcatchment_data, dim='subcatchment')
-        ds_subcat['subcatchment'] = range(1, n_subcatchments + 1)
-
-        return ds_subcat
+        sub_ids = xr.DataArray(range(1, n_subcatchments + 1), dims='subcatchment', name='subcatchment')
+        return ds.broadcast_like(sub_ids).assign_coords(subcatchment=sub_ids)
 
     def _create_distributed_from_catchment(self, ds: xr.Dataset) -> xr.Dataset:
-        """Create HRU-level data from catchment data for distributed mode"""
+        """Create HRU-level data from catchment data for distributed mode using broadcasting"""
         self.logger.info("Creating distributed data from catchment data")
 
         catchment = gpd.read_file(self.catchment_path)
         n_hrus = len(catchment)
 
-        hru_data = [ds for _ in range(n_hrus)]
-        ds_hru = xr.concat(hru_data, dim='hru')
-        ds_hru['hru'] = range(1, n_hrus + 1)
-
-        return ds_hru
+        hru_ids = xr.DataArray(range(1, n_hrus + 1), dims='hru', name='hru')
+        return ds.broadcast_like(hru_ids).assign_coords(hru=hru_ids)
 
     def get_encoding_dict(self, fuse_forcing: xr.Dataset) -> Dict[str, Dict]:
         """
@@ -360,7 +348,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
         for coord in fuse_forcing.coords:
             if coord == 'time':
                 encoding[coord] = {'dtype': 'float64'}
-            elif coord in ['longitude', 'latitude']:
+            elif coord in ['longitude', 'latitude', 'lon', 'lat']:
                 encoding[coord] = {'dtype': 'float64'}
             else:
                 encoding[coord] = {'dtype': 'float32'}

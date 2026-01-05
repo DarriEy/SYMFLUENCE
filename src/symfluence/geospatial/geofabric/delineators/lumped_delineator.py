@@ -55,7 +55,7 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
         Returns:
             Tuple of (river_network_path, river_basins_path)
         """
-        self.logger.info(f"Starting lumped watershed delineation for {self.domain_name}")
+        self.logger.info(f"Delineating lumped watershed: {self.domain_name}")
 
         # Get pour point path
         pour_point_path = self._get_pour_point_path()
@@ -111,7 +111,7 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
 
             # Save river network shapefile
             river_network.to_file(river_network_path)
-            self.logger.info(f"Created river network shapefile at: {river_network_path}")
+            self.logger.debug(f"Created river network shapefile at: {river_network_path}")
 
         except Exception as e:
             self.logger.error(f"Error creating river network: {str(e)}")
@@ -151,7 +151,7 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
 
             # Save updated basin shapefile
             basins_gdf.to_file(river_basins_path)
-            self.logger.info(f"Updated river basins shapefile with required fields at: {river_basins_path}")
+            self.logger.debug(f"Updated river basins shapefile with required fields at: {river_basins_path}")
 
             # Load and check river network if it exists
             if river_network_path.exists():
@@ -173,7 +173,7 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
 
                 # Save updated network shapefile
                 network_gdf.to_file(river_network_path)
-                self.logger.info(f"Updated river network shapefile with required fields at: {river_network_path}")
+                self.logger.debug(f"Updated river network shapefile with required fields at: {river_network_path}")
 
         except Exception as e:
             self.logger.error(f"Error ensuring required fields: {str(e)}")
@@ -207,7 +207,7 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
 
             for step in steps:
                 self.taudem.run_command(step)
-                self.logger.info(f"Completed TauDEM step: {step}")
+                self.logger.debug(f"Completed TauDEM step: {step}")
 
             # Convert the watershed raster to polygon
             method_suffix = self._get_method_suffix()
@@ -238,12 +238,12 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
             # Save updated watershed shapefile
             watershed_gdf.to_file(watershed_shp_path)
 
-            self.logger.info(f"Updated watershed shapefile at: {watershed_shp_path}")
+            self.logger.debug(f"Updated watershed shapefile at: {watershed_shp_path}")
 
             # Clean up temporary files if requested
             if self.config.get('CLEANUP_INTERMEDIATE_FILES', True):
                 shutil.rmtree(self.output_dir, ignore_errors=True)
-                self.logger.info(f"Cleaned up intermediate files: {self.output_dir}")
+                self.logger.debug(f"Cleaned up intermediate files: {self.output_dir}")
 
             return watershed_shp_path
 

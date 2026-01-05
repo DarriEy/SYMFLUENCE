@@ -1099,14 +1099,24 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
             # Run FUSE with default parameters
             success = self._execute_fuse('run_def')
 
-            try:
-                # Run FUSE and calibrate with sce
-                success = self._execute_fuse('calib_sce')
+            # Check if external optimization is enabled
+            opt_methods = self.config_dict.get('OPTIMIZATION_METHODS', [])
+            if isinstance(opt_methods, str):
+                opt_methods = opt_methods.split(',')
+            
+            is_external_calibration = 'iteration' in [m.strip() for m in opt_methods]
 
-                # Run FUSE with best parameters
-                success = self._execute_fuse('run_best')
-            except: 
-                self.logger.warning('FUSE internal calibration failed')
+            if is_external_calibration:
+                self.logger.info("External optimization enabled - skipping FUSE internal calibration (calib_sce)")
+            else:
+                try:
+                    # Run FUSE and calibrate with sce
+                    success = self._execute_fuse('calib_sce')
+
+                    # Run FUSE with best parameters
+                    success = self._execute_fuse('run_best')
+                except: 
+                    self.logger.warning('FUSE internal calibration failed')
 
             if success:
                 # Ensure the expected output file exists

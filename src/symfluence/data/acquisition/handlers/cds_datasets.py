@@ -47,43 +47,53 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         # Setup output files
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Determine years to process
-        years_range = list(range(self.start_date.year, self.end_date.year + 1))
+        # Determine year-month combinations to process
+        dates = pd.date_range(self.start_date, self.end_date, freq='MS')
+        if dates.empty:
+            # Handle case where range is within a single month
+            ym_range = [(self.start_date.year, self.start_date.month)]
+        else:
+            ym_range = [(d.year, d.month) for d in dates]
+            # Ensure the end date's month is included if not already
+            if (self.end_date.year, self.end_date.month) not in ym_range:
+                ym_range.append((self.end_date.year, self.end_date.month))
+        
         chunk_files = []
         
         # Use ThreadPoolExecutor for parallel downloads
-        # Limit max_workers to avoid overwhelming the API or local I/O
-        # CDS often queues requests, so 4 is a reasonable balance
-        max_workers = min(len(years_range), 4)
+        # Monthly chunks are smaller, so we can potentially use more workers,
+        # but CDS still has per-user limits on active requests.
+        max_workers = 2
         
-        logging.info(f"Starting parallel download for {len(years_range)} years with {max_workers} workers...")
+        logging.info(f"Starting parallel download for {len(ym_range)} months with {max_workers} workers...")
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_year = {
-                executor.submit(self._download_and_process_year, year, output_dir): year 
-                for year in years_range
+            future_to_ym = {
+                executor.submit(self._download_and_process_month, year, month, output_dir): (year, month) 
+                for year, month in ym_range
             }
             
-            for future in concurrent.futures.as_completed(future_to_year):
-                year = future_to_year[future]
+            for future in concurrent.futures.as_completed(future_to_ym):
+                year, month = future_to_ym[future]
                 try:
                     chunk_path = future.result()
-                    chunk_files.append(chunk_path)
-                    logging.info(f"Completed processing for year {year}")
+                    if chunk_path:
+                        chunk_files.append(chunk_path)
+                        logging.info(f"Completed processing for {year}-{month:02d}")
                 except Exception as exc:
-                    logging.error(f"Year {year} generated an exception: {exc}")
+                    logging.error(f"Processing for {year}-{month:02d} generated an exception: {exc}")
                     # Cancel remaining and raise
                     executor.shutdown(wait=False, cancel_futures=True)
                     raise exc
 
-        # Merge all yearly chunks
+        # Merge all monthly chunks
         chunk_files.sort()
         
         try:
             if not chunk_files:
                 raise RuntimeError("No data downloaded")
 
-            logging.info(f"Merging {len(chunk_files)} yearly chunks...")
+            logging.info(f"Merging {len(chunk_files)} monthly chunks...")
             # open_mfdataset creates a dask-backed dataset, good for memory
             with xr.open_mfdataset(chunk_files, combine='by_coords') as ds_final:
                 # Save final dataset
@@ -103,31 +113,23 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
 
         return final_f
 
-    def _download_and_process_year(self, year: int, output_dir: Path) -> Path:
-        """Helper to download and process a single year (executed in thread)."""
+    def _download_and_process_month(self, year: int, month: int, output_dir: Path) -> Path:
+        """Helper to download and process a single month (executed in thread)."""
         # Create a thread-local client
         c = cdsapi.Client()
         
-        logging.info(f"Processing {self._get_dataset_id()} for year {year}...")
+        logging.info(f"Processing {self._get_dataset_id()} for {year}-{month:02d}...")
         
-        # Determine months for this specific year
-        start_m = 1
-        end_m = 12
-        if year == self.start_date.year:
-            start_m = self.start_date.month
-        if year == self.end_date.year:
-            end_m = self.end_date.month
-        
-        current_months = [f"{m:02d}" for m in range(start_m, end_m + 1)]
+        current_months = [f"{month:02d}"]
         current_years = [str(year)]
         
-        # Days (all days, API handles invalid dates like Feb 30)
+        # Days (all days, API handles invalid dates like Feb 31)
         days = [f"{d:02d}" for d in range(1, 32)]
         hours = self._get_time_hours()
 
-        # Temp files for this year
-        af = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_analysis_{year}_temp.nc"
-        ff = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_forecast_{year}_temp.nc"
+        # Temp files for this month
+        af = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_analysis_{year}{month:02d}_temp.nc"
+        ff = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_forecast_{year}{month:02d}_temp.nc"
 
         try:
             # Build requests
@@ -135,26 +137,32 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             forecast_req = self._build_forecast_request(current_years, current_months, days, hours)
 
             # Download both products
-            logging.info(f"Downloading {self._get_dataset_id()} analysis data for {self.domain_name} ({year})...")
+            logging.info(f"Downloading {self._get_dataset_id()} analysis data for {self.domain_name} ({year}-{month:02d})...")
             self._retrieve_with_retry(c, self._get_dataset_name(), analysis_req, str(af))
 
-            logging.info(f"Downloading {self._get_dataset_id()} forecast data for {self.domain_name} ({year})...")
+            logging.info(f"Downloading {self._get_dataset_id()} forecast data for {self.domain_name} ({year}-{month:02d})...")
             self._retrieve_with_retry(c, self._get_dataset_name(), forecast_req, str(ff))
 
-            # Process and merge this year's data
+            # Process and merge this month's data
             ds_chunk = self._process_and_merge_datasets(af, ff)
             
             # Save chunk to disk
-            chunk_path = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_processed_{year}_temp.nc"
+            chunk_path = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_processed_{year}{month:02d}_temp.nc"
             ds_chunk.to_netcdf(chunk_path)
             ds_chunk.close()
             
             return chunk_path
             
         finally:
-            # Cleanup raw downloads for this year
+            # Cleanup raw downloads for this month
             if af.exists(): af.unlink()
             if ff.exists(): ff.unlink()
+
+    def _download_and_process_year(self, year: int, output_dir: Path) -> Path:
+        """Deprecated: Use _download_and_process_month instead."""
+        # Kept as a placeholder to avoid breaking potential external calls,
+        # but internally we now use monthly chunks.
+        raise NotImplementedError("Use _download_and_process_month instead")
 
     def _retrieve_with_retry(
         self, client, dataset_name: str, request: Dict[str, Any], target_path: str,
@@ -237,6 +245,15 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         if domain:
             request["domain"] = domain
 
+        # Add area if bbox is available to reduce download size
+        if hasattr(self, 'bbox') and self.bbox:
+            # Use a conservative 0.1 degree buffer to ensure enough coverage for grid points
+            n = min(90, self.bbox['lat_max'] + 0.1)
+            w = self.bbox['lon_min'] - 0.1
+            s = max(-90, self.bbox['lat_min'] - 0.1)
+            e = self.bbox['lon_max'] + 0.1
+            request["area"] = self._get_cds_area(n, w, s, e)
+
         # Add subclass-specific parameters (e.g., CERRA's data_type)
         request.update(self._get_additional_request_params())
 
@@ -262,6 +279,14 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         domain = self._get_domain()
         if domain:
             request["domain"] = domain
+
+        # Add area if bbox is available
+        if hasattr(self, 'bbox') and self.bbox:
+            n = min(90, self.bbox['lat_max'] + 0.1)
+            w = self.bbox['lon_min'] - 0.1
+            s = max(-90, self.bbox['lat_min'] - 0.1)
+            e = self.bbox['lon_max'] + 0.1
+            request["area"] = self._get_cds_area(n, w, s, e)
 
         # Add subclass-specific parameters
         request.update(self._get_additional_request_params())
@@ -405,23 +430,58 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
 
     def _spatial_subset(self, ds: xr.Dataset) -> xr.Dataset:
         """Apply spatial subsetting based on bounding box."""
+        # Handle 1D regular lat/lon coordinates (e.g. from 'grid' interpolation)
+        if 'latitude' in ds.dims and 'longitude' in ds.dims and \
+           ds.latitude.ndim == 1 and ds.longitude.ndim == 1:
+            # Data is already on a regular grid and likely subsetted by 'area' in request
+            # We can use xarray's .sel() for additional precision or just return if satisfied
+            lat = ds.latitude.values
+            lon = ds.longitude.values
+            
+            # Subclasses expect matching shapes for lat/lon in _create_spatial_mask
+            # For 1D coordinates, we create a 2D meshgrid for masking
+            lat_2d, lon_2d = np.meshgrid(lat, lon, indexing='ij')
+            mask = self._create_spatial_mask(lat_2d, lon_2d)
+            
+            y_idx, x_idx = np.where(mask)
+            if len(y_idx) > 0:
+                ds = ds.isel(latitude=slice(y_idx.min(), y_idx.max() + 1),
+                            longitude=slice(x_idx.min(), x_idx.max() + 1))
+                logging.info(f"Spatially subsetted 1D grid to {ds.dims['latitude']}x{ds.dims['longitude']}")
+            return ds
+
+        # Handle native 2D grid (usually with 'x' and 'y' dimensions)
         lat = ds.latitude.values
         lon = ds.longitude.values
 
         # Create spatial mask (subclass-specific longitude handling)
         mask = self._create_spatial_mask(lat, lon)
 
-        y_idx, x_idx = np.where(mask)
+        # np.where returns a tuple of arrays, one for each dimension
+        indices = np.where(mask)
+        if len(indices) < 2:
+             logging.warning("Mask is not 2D, skipping spatial subsetting")
+             return ds
+             
+        y_idx, x_idx = indices
         if len(y_idx) > 0:
             # Add buffer (subclass can override)
             buffer = self._get_spatial_buffer()
-            y_min = max(0, y_idx.min() - buffer)
-            y_max = min(ds.dims['y'] - 1, y_idx.max() + buffer)
-            x_min = max(0, x_idx.min() - buffer)
-            x_max = min(ds.dims['x'] - 1, x_idx.max() + buffer)
+            
+            # Determine dimension names (often 'y'/'x' or 'rlat'/'rlon')
+            y_dim = 'y' if 'y' in ds.dims else ('rlat' if 'rlat' in ds.dims else None)
+            x_dim = 'x' if 'x' in ds.dims else ('rlon' if 'rlon' in ds.dims else None)
+            
+            if y_dim and x_dim:
+                y_min = max(0, y_idx.min() - buffer)
+                y_max = min(ds.dims[y_dim] - 1, y_idx.max() + buffer)
+                x_min = max(0, x_idx.min() - buffer)
+                x_max = min(ds.dims[x_dim] - 1, x_idx.max() + buffer)
 
-            ds = ds.isel(y=slice(y_min, y_max + 1), x=slice(x_min, x_max + 1))
-            logging.info(f"Spatially subsetted to {ds.dims['y']}x{ds.dims['x']} grid")
+                ds = ds.isel({y_dim: slice(y_min, y_max + 1), x_dim: slice(x_min, x_max + 1)})
+                logging.info(f"Spatially subsetted to {ds.dims[y_dim]}x{ds.dims[x_dim]} grid")
+            else:
+                logging.warning(f"Could not find x/y dimensions for subsetting in {list(ds.dims)}")
         else:
             logging.warning(f"No grid points found in bbox {self.bbox}, keeping full domain")
 
@@ -573,6 +633,13 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         """Return number of grid cells to add as buffer (default: 0)."""
         return 0
 
+    def _get_cds_area(self, n: float, w: float, s: float, e: float) -> List[float]:
+        """
+        Return [North, West, South, East] area for CDS request.
+        Subclasses can override this for dataset-specific longitude handling.
+        """
+        return [n, w, s, e]
+
     def _get_magnus_denominator(self, T_celsius: xr.DataArray) -> xr.DataArray:
         """Return Magnus formula denominator (default: standard formula T + 243.5)."""
         return T_celsius + 243.5
@@ -618,7 +685,7 @@ class CARRAAcquirer(CDSRegionalReanalysisHandler):
         return "1"
 
     def _get_additional_request_params(self) -> Dict[str, Any]:
-        return {}  # CARRA doesn't need data_type parameter
+        return {"grid": [0.025, 0.025]}  # Force interpolation to allow 'area' cropping
 
     def _create_spatial_mask(self, lat: np.ndarray, lon: np.ndarray) -> np.ndarray:
         """Create mask with CARRA longitude handling (0-360 degrees)."""
@@ -641,6 +708,12 @@ class CARRAAcquirer(CDSRegionalReanalysisHandler):
 
     def _get_spatial_buffer(self) -> int:
         return 2  # CARRA uses 2-cell buffer
+
+    def _get_cds_area(self, n: float, w: float, s: float, e: float) -> List[float]:
+        """Return normalized area for CARRA (0-360 longitude)."""
+        # CARRA data is natively 0-360. CDS 'area' parameter for CARRA
+        # works best when matching the native convention.
+        return [n, w % 360, s, e % 360]
 
     def _get_magnus_denominator(self, T_celsius: xr.DataArray) -> xr.DataArray:
         return T_celsius - 29.65  # CARRA-specific formula
@@ -685,7 +758,10 @@ class CERRAAcquirer(CDSRegionalReanalysisHandler):
         return "1"
 
     def _get_additional_request_params(self) -> Dict[str, Any]:
-        return {"data_type": "reanalysis"}  # CERRA requires this
+        return {
+            "data_type": "reanalysis",
+            "grid": [0.05, 0.05]  # Force interpolation to allow 'area' cropping
+        }
 
     def _create_spatial_mask(self, lat: np.ndarray, lon: np.ndarray) -> np.ndarray:
         """Create mask with CERRA longitude handling (-180 to 180 degrees)."""

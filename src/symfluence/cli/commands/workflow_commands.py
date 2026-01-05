@@ -60,8 +60,8 @@ class WorkflowCommands(BaseCommand):
             BaseCommand.print_info("🚀 Starting full workflow execution...")
             symfluence = SYMFLUENCE(
                 config_path,
-                debug_mode=args.debug,
-                visualize=args.visualise
+                debug_mode=getattr(args, 'debug', False),
+                visualize=getattr(args, 'visualise', False)
             )
 
             # Execute full workflow
@@ -72,7 +72,7 @@ class WorkflowCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Workflow execution failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -101,8 +101,8 @@ class WorkflowCommands(BaseCommand):
 
             symfluence = SYMFLUENCE(
                 config_path,
-                debug_mode=args.debug,
-                visualize=args.visualise
+                debug_mode=getattr(args, 'debug', False),
+                visualize=getattr(args, 'visualise', False)
             )
 
             # Run single step
@@ -113,7 +113,7 @@ class WorkflowCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Step execution failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -143,8 +143,8 @@ class WorkflowCommands(BaseCommand):
 
             symfluence = SYMFLUENCE(
                 config_path,
-                debug_mode=args.debug,
-                visualize=args.visualise
+                debug_mode=getattr(args, 'debug', False),
+                visualize=getattr(args, 'visualise', False)
             )
 
             # Run multiple steps in order
@@ -155,7 +155,7 @@ class WorkflowCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Step execution failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -181,8 +181,8 @@ class WorkflowCommands(BaseCommand):
 
             symfluence = SYMFLUENCE(
                 config_path,
-                debug_mode=args.debug,
-                visualize=args.visualise
+                debug_mode=getattr(args, 'debug', False),
+                visualize=getattr(args, 'visualise', False)
             )
 
             # Show workflow status
@@ -200,7 +200,7 @@ class WorkflowCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to get workflow status: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -229,7 +229,7 @@ class WorkflowCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Validation failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -288,8 +288,8 @@ class WorkflowCommands(BaseCommand):
 
             symfluence = SYMFLUENCE(
                 config_path,
-                debug_mode=args.debug,
-                visualize=args.visualise
+                debug_mode=getattr(args, 'debug', False),
+                visualize=getattr(args, 'visualise', False)
             )
 
             # Run steps from resume point
@@ -300,7 +300,7 @@ class WorkflowCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Resume failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -323,7 +323,7 @@ class WorkflowCommands(BaseCommand):
                 return 1
 
             level = args.level
-            dry_run = args.dry_run
+            dry_run = getattr(args, 'dry_run', False)
 
             BaseCommand.print_info(f"🧹 Cleaning {level} files...")
             if dry_run:
@@ -332,7 +332,7 @@ class WorkflowCommands(BaseCommand):
             # Import cleaning logic from cli_argument_manager if it exists
             # For now, provide placeholder implementation
             from symfluence.core import SYMFLUENCE
-            symfluence = SYMFLUENCE(config_path, debug_mode=args.debug)
+            symfluence = SYMFLUENCE(config_path, debug_mode=getattr(args, 'debug', False))
 
             if hasattr(symfluence, 'clean_workflow_files'):
                 symfluence.clean_workflow_files(level=level, dry_run=dry_run)
@@ -346,7 +346,7 @@ class WorkflowCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Clean failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1

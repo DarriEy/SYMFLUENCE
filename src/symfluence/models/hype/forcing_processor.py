@@ -129,7 +129,7 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             self.logger.warning(f"CDO merge failed or CDO not available: {e}. Falling back to xarray...")
             try:
                 # Fallback to xarray (more portable but slower for huge files)
-                with xr.open_mfdataset(easymore_nc_files, combine='by_coords') as ds:
+                with xr.open_mfdataset(easymore_nc_files, combine='nested', concat_dim='time') as ds:
                     ds.sortby('time').to_netcdf(merged_forcing_path)
                 self.logger.info("Xarray merge successful")
             except Exception as xe:

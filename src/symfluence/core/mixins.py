@@ -356,7 +356,7 @@ class TimingMixin:
         """
         start_time = time.time()
         logger = getattr(self, 'logger', logging.getLogger(__name__))
-        logger.info(f"Starting task: {task_name}")
+        logger.debug(f"Starting task: {task_name}")
         try:
             yield
         finally:

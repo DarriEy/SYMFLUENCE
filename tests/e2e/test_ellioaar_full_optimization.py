@@ -169,7 +169,7 @@ def test_ellioaar_iceland_full_workflow(ellioaar_config, clear_cache_flag):
 
     # Check if observation data already exists
     streamflow_dir = project_dir / "observations" / "streamflow"
-    wsc_files = list(streamflow_dir.glob("*.csv")) or list(streamflow_dir.glob("*.rdb")) if streamflow_dir.exists() else []
+    wsc_files = list(streamflow_dir.rglob("*.csv")) or list(streamflow_dir.rglob("*.rdb")) if streamflow_dir.exists() else []
 
     if wsc_files and not clear_cache_flag:
         print(f"✓ Using cached WSC streamflow data")
@@ -179,7 +179,7 @@ def test_ellioaar_iceland_full_workflow(ellioaar_config, clear_cache_flag):
 
         # Verify WSC streamflow
         assert streamflow_dir.exists(), "Streamflow directory not created"
-        wsc_files = list(streamflow_dir.glob("*.csv")) or list(streamflow_dir.glob("*.rdb"))
+        wsc_files = list(streamflow_dir.rglob("*.csv")) or list(streamflow_dir.rglob("*.rdb"))
         assert len(wsc_files) > 0, "WSC streamflow data not downloaded"
         print(f"✓ WSC streamflow data acquired")
 

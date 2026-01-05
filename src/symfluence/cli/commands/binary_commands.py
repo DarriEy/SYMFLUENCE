@@ -66,7 +66,7 @@ class BinaryCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Installation failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -101,7 +101,7 @@ class BinaryCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Validation failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -141,7 +141,7 @@ class BinaryCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Diagnostics failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -179,7 +179,7 @@ class BinaryCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to get tools info: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1

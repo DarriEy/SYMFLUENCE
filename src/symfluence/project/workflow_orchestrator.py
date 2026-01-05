@@ -162,7 +162,7 @@ class WorkflowOrchestrator:
             # --- Model-Specific Preprocessing and Execution ---
             WorkflowStep(
                 name="preprocess_models",
-                cli_name="setup_model",
+                cli_name="model_specific_preprocessing",
                 func=self.managers['model'].preprocess_models,
                 check_func=lambda: any((self.project_dir / "settings").glob(f"*_{self.config.get('HYDROLOGICAL_MODEL', 'SUMMA')}*")),
                 description="Preprocessing model-specific input files"
@@ -193,16 +193,6 @@ class WorkflowOrchestrator:
                         (self.project_dir / "optimization" / 
                         f"{self.experiment_id}_parallel_iteration_results.csv").exists()),
                 description="Calibrating model parameters"
-            ),
-            
-            WorkflowStep(
-                name="run_emulation",
-                cli_name="run_emulation",
-                func=self.managers['optimization'].run_emulation,
-                check_func=lambda: ('emulation' in optimizations and
-                        (self.project_dir / "emulation" / self.experiment_id / 
-                        "rf_emulation" / "optimized_parameters.csv").exists()),
-                description="Running parameter emulation analysis"
             ),
             
             # --- Analysis Steps ---

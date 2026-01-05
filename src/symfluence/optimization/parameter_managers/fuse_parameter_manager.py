@@ -31,7 +31,12 @@ class FUSEParameterManager(BaseParameterManager):
         self.experiment_id = config.get('EXPERIMENT_ID')
 
         # Parse FUSE parameters to calibrate
-        fuse_params_str = config.get('SETTINGS_FUSE_PARAMS_TO_CALIBRATE', '')
+        fuse_params_str = config.get('SETTINGS_FUSE_PARAMS_TO_CALIBRATE')
+        if fuse_params_str is None:
+            # Provide sensible defaults if not specified
+            self.logger.warning("SETTINGS_FUSE_PARAMS_TO_CALIBRATE not found in config. Using default FUSE parameters.")
+            fuse_params_str = 'MAXWATR_1,MAXWATR_2,BASERTE,QB_POWR,TIMEDELAY,PERCRTE,FRACTEN,RTFRAC1,MBASE,MFMAX,MFMIN,PXTEMP,LAPSE'
+            
         self.fuse_params = [p.strip() for p in fuse_params_str.split(',') if p.strip()]
 
         # Path to FUSE parameter files
@@ -66,8 +71,83 @@ class FUSEParameterManager(BaseParameterManager):
         return get_fuse_bounds()
 
     def update_model_files(self, params: Dict[str, float]) -> bool:
-        """Update FUSE NetCDF parameter file."""
-        return self.update_parameter_file(params)
+        """
+        Update FUSE constraints file with new parameter values.
+
+        FUSE's run_def mode regenerates para_def.nc from the constraints file,
+        so we must modify the constraints file to change parameter values.
+        """
+        return self._update_constraints_file(params)
+
+    def _update_constraints_file(self, params: Dict[str, float]) -> bool:
+        """Update the fuse_zConstraints_snow.txt file with new default values.
+
+        FUSE uses Fortran fixed-width format: (L1,1X,I1,1X,3(F9.3,1X),...)
+        The default value column starts at position 4 and is exactly 9 characters.
+        """
+        try:
+            constraints_file = self.fuse_setup_dir / 'fuse_zConstraints_snow.txt'
+
+            if not constraints_file.exists():
+                self.logger.error(f"FUSE constraints file not found: {constraints_file}")
+                return False
+
+            # Read the constraints file
+            with open(constraints_file, 'r') as f:
+                lines = f.readlines()
+
+            # Fortran format: (L1,1X,I1,1X,3(F9.3,1X),...)
+            # Default value column: position 4-12 (9 chars, F9.3 format)
+            DEFAULT_VALUE_START = 4
+            DEFAULT_VALUE_WIDTH = 9
+
+            updated_lines = []
+            params_updated = set()
+
+            for line in lines:
+                # Skip header line (starts with '(') and comment lines
+                stripped = line.strip()
+                if stripped.startswith('(') or stripped.startswith('*') or stripped.startswith('!'):
+                    updated_lines.append(line)
+                    continue
+
+                # Check if this line contains any of our parameters
+                updated = False
+                for param_name, value in params.items():
+                    # Match exact parameter name (avoid partial matches)
+                    parts = line.split()
+                    if len(parts) >= 13 and param_name in parts:
+                        # Format value to exactly 9 characters (F9.3 format)
+                        new_value = f"{value:9.3f}"
+
+                        # Replace the fixed-width column in the line
+                        # Position 4-12 is the default value (9 characters)
+                        if len(line) > DEFAULT_VALUE_START + DEFAULT_VALUE_WIDTH:
+                            new_line = (
+                                line[:DEFAULT_VALUE_START] +
+                                new_value +
+                                line[DEFAULT_VALUE_START + DEFAULT_VALUE_WIDTH:]
+                            )
+                            updated_lines.append(new_line)
+                            params_updated.add(param_name)
+                            updated = True
+                            break
+
+                if not updated:
+                    updated_lines.append(line)
+
+            # Write updated constraints file
+            with open(constraints_file, 'w') as f:
+                f.writelines(updated_lines)
+
+            if params_updated:
+                self.logger.debug(f"Updated FUSE constraints: {params_updated}")
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error updating FUSE constraints file: {e}")
+            return False
 
     # Note: get_initial_parameters() is already defined below and matches the signature
     # Note: Parameter bounds are now provided by the central ParameterBoundsRegistry

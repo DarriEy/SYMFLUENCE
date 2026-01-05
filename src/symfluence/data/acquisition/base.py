@@ -5,7 +5,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any
 import pandas as pd
-from symfluence.core import ConfigurableMixin, CoordinateUtilsMixin
+from symfluence.core import ConfigurableMixin
+from symfluence.geospatial.coordinate_utils import CoordinateUtilsMixin
 
 class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
     def __init__(self, config: Dict[str, Any], logger, reporting_manager: Any = None):

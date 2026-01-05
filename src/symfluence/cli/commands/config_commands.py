@@ -45,7 +45,7 @@ class ConfigCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to list templates: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -83,7 +83,7 @@ class ConfigCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Config update failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -112,7 +112,7 @@ class ConfigCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Validation failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -164,7 +164,7 @@ class ConfigCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Environment validation failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1

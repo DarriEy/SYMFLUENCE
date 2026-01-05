@@ -7,6 +7,7 @@ from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 
 @AcquisitionRegistry.register('EM-EARTH')
+@AcquisitionRegistry.register('EM_EARTH')
 class EMEarthAcquirer(BaseAcquisitionHandler):
     def download(self, output_dir: Path) -> Path:
         self.logger.info("Downloading EM-Earth data from AWS S3")

@@ -12,6 +12,13 @@ from .mixins import (
     FileUtilsMixin,
     ValidationMixin
 )
+# CoordinateUtilsMixin is in geospatial/coordinate_utils.py but used in legacy core contexts
+try:
+    from symfluence.geospatial.coordinate_utils import CoordinateUtilsMixin
+except ImportError:
+    # Optional or circular dependency fallback
+    pass
+
 from .system import SYMFLUENCE
 
 __all__ = [
@@ -32,6 +39,7 @@ __all__ = [
     'ConfigMixin',
     'ProjectContextMixin',
     'ConfigurableMixin',
+    'CoordinateUtilsMixin',
     'UnitConversion',
     'PhysicalConstants',
     'ModelDefaults',

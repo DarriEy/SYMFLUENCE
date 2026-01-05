@@ -48,14 +48,15 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
             optimization_settings_dir: Optional path to optimization settings
             reporting_manager: ReportingManager instance
         """
+        # Initialize properties required by _setup_parallel_dirs (called by base init)
+        self.config = config
+        self._routing_needed = self._check_routing_needed()
+
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
         # SUMMA-specific paths
         self.summa_exe_path = self._get_summa_executable_path()
         self.mizuroute_exe_path = self._get_mizuroute_executable_path()
-
-        # Determine if routing is needed
-        self._routing_needed = self._check_routing_needed()
 
         self.logger.info(f"SUMMAModelOptimizer initialized")
         self.logger.info(f"Routing needed: {self._routing_needed}")
@@ -105,9 +106,11 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
     def _get_summa_executable_path(self) -> Path:
         """Get path to SUMMA executable."""
         summa_install = self.config.get('SUMMA_INSTALL_PATH', 'default')
+        summa_exe_name = self.config.get('SUMMA_EXE', 'summa_sundials.exe')
+        
         if summa_install == 'default':
-            return self.data_dir / 'installs' / 'summa' / 'bin' / 'summa.exe'
-        return Path(summa_install)
+            return self.data_dir / 'installs' / 'summa' / 'bin' / summa_exe_name
+        return Path(summa_install) / summa_exe_name if Path(summa_install).is_dir() else Path(summa_install)
 
     def _get_mizuroute_executable_path(self) -> Path:
         """Get path to mizuRoute executable."""
@@ -138,9 +141,28 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
         """Check if routing is needed for this optimization."""
         return self._routing_needed
 
+    def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
+        """Run SUMMA for final evaluation."""
+        return self.worker.run_model(
+            self.config,
+            self.project_dir / 'settings' / 'SUMMA',
+            output_dir,
+            mode='run_def'
+        )
+
+    def _get_final_file_manager_path(self) -> Path:
+        """Get path to SUMMA file manager."""
+        summa_fm = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        if summa_fm == 'default':
+            summa_fm = 'fileManager.txt'
+        return self.project_dir / 'settings' / 'SUMMA' / summa_fm
+
     def _setup_parallel_dirs(self) -> None:
         """Setup SUMMA-specific parallel directories."""
-        base_dir = self.project_dir / 'simulations' / f'run_{self.experiment_id}'
+        # Use algorithm-specific directory
+        algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
+        base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
+        
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
             'SUMMA',

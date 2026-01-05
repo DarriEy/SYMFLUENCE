@@ -113,7 +113,7 @@ class ProjectCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Initialization failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -179,7 +179,7 @@ class ProjectCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Pour point setup failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -222,7 +222,7 @@ class ProjectCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to list presets: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -252,7 +252,7 @@ class ProjectCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to show preset: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1

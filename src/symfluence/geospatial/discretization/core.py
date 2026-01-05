@@ -75,7 +75,7 @@ class DomainDiscretizer(PathResolverMixin):
             FileNotFoundError: If the catchment shapefile is not found.
             ValueError: If the required ID columns are not present in the shapefile.
         """
-        self.logger.info("Sorting catchment shape")
+        self.logger.debug("Sorting catchment shape")
 
         self.catchment_path = self.config.get("CATCHMENT_PATH")
         self.catchment_name = self.config.get("CATCHMENT_SHP_NAME")
@@ -115,7 +115,7 @@ class DomainDiscretizer(PathResolverMixin):
             # Save
             shp.to_file(catchment_file)
 
-            self.logger.info(f"Catchment shape sorted and saved to {catchment_file}")
+            self.logger.debug(f"Catchment shape sorted and saved to {catchment_file}")
             return catchment_file
         except FileNotFoundError:
             self.logger.error(f"Catchment shapefile not found at {catchment_file}")
@@ -137,18 +137,16 @@ class DomainDiscretizer(PathResolverMixin):
             # Check if a custom catchment shapefile is provided
             catchment_name = self.config.get("CATCHMENT_SHP_NAME")
             if catchment_name != "default":
-                self.logger.info(f"Using provided catchment shapefile: {catchment_name}")
-                self.logger.info("Skipping discretization steps")
+                self.logger.debug(f"Using provided catchment shapefile: {catchment_name}")
 
                 # Just sort the existing shapefile
-                self.logger.info("Sorting provided catchment shape")
                 return self.sort_catchment_shape()
 
             # Parse discretization method to check for multiple attributes
             discretization_config = self.config.get("DOMAIN_DISCRETIZATION")
             attributes = [attr.strip() for attr in discretization_config.split(",")]
 
-            self.logger.info(f"Starting domain discretization using attributes: {attributes}")
+            self.logger.debug(f"Discretizing using: {', '.join(attributes)}")
 
             # Handle single vs multiple attributes
             if len(attributes) == 1:
@@ -171,16 +169,11 @@ class DomainDiscretizer(PathResolverMixin):
                         f"Invalid discretization method: {discretization_method}"
                     )
 
-                self.logger.info("Step 1/2: Running single attribute discretization method")
                 method_map[discretization_method](self)
             else:
                 # Multiple attributes - use combined discretization
-                self.logger.info(
-                    "Step 1/2: Running combined attributes discretization method"
-                )
                 combined.discretize(self, attributes)
 
-            self.logger.info("Step 2/2: Sorting catchment shape")
             return self.sort_catchment_shape()
 
     def _read_and_prepare_data(self, shapefile_path, raster_path, band_size=None):

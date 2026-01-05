@@ -73,7 +73,8 @@ class SNOTELHandler(BaseObservationHandler):
         
         try:
             self.logger.info(f"Fetching SNOTEL report: {url}")
-            response = requests.get(url, timeout=60)
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            response = requests.get(url, headers=headers, timeout=60)
             response.raise_for_status()
             
             # Save the raw CSV

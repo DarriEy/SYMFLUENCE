@@ -211,10 +211,10 @@ class ModelManager(ConfigurableMixin):
         Args:
             params: Optional dictionary of parameter values (for calibration)
         """
-        self.logger.info("Starting model-specific preprocessing")
+        self.logger.debug("Starting model-specific preprocessing")
 
         workflow = self._resolve_model_workflow()
-        self.logger.info(f"Preprocessing workflow order: {workflow}")
+        self.logger.debug(f"Preprocessing workflow order: {workflow}")
 
         for model in workflow:
             try:
@@ -228,7 +228,7 @@ class ModelManager(ConfigurableMixin):
                 if preprocessor_class is None:
                     # Models that truly don't need preprocessing (e.g., LSTM)
                     if model in ['LSTM']:
-                        self.logger.info(f"Model {model} doesn't require preprocessing")
+                        self.logger.debug(f"Model {model} doesn't require preprocessing")
                     else:
                         # Only warn if it's a primary model, not a utility like MIZUROUTE which definitely has one
                         self.logger.debug(f"No preprocessor registered for {model} (or not required).")
@@ -238,7 +238,7 @@ class ModelManager(ConfigurableMixin):
 
                 # Run model-specific preprocessing
 
-                self.logger.info(f"Running preprocessor for {model}")
+                self.logger.debug(f"Running preprocessor for {model}")
 
                 
 

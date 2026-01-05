@@ -36,7 +36,7 @@ WORKFLOW_STEPS = [
 DOMAIN_DEFINITION_METHODS = ['lumped', 'point', 'subset', 'delineate']
 
 # Available tools for binary installation
-EXTERNAL_TOOLS = ['summa', 'mizuroute', 'fuse', 'hype', 'mesh', 'taudem', 'gistool', 'datatool', 'rhessys', 'vmfire']
+EXTERNAL_TOOLS = ['summa', 'mizuroute', 'fuse', 'hype', 'mesh', 'taudem', 'gistool', 'datatool', 'rhessys']
 
 # Hydrological models
 MODELS = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'MESH']
@@ -47,7 +47,24 @@ class CLIParser:
 
     def __init__(self):
         """Initialize the CLI parser."""
+        self.common_parser = self._create_common_parser()
         self.parser = self._create_parser()
+
+    def _create_common_parser(self) -> argparse.ArgumentParser:
+        """Create a parent parser with common arguments."""
+        # Use SUPPRESS to avoid overwriting global flags with subcommand defaults
+        parser = argparse.ArgumentParser(add_help=False, argument_default=argparse.SUPPRESS)
+        
+        # Global options available to all commands
+        parser.add_argument('--config', type=str,
+                          help='Path to configuration file (default: ./config.yaml)')
+        parser.add_argument('--debug', action='store_true',
+                          help='Enable debug output')
+        parser.add_argument('--visualise', '--visualize', action='store_true', dest='visualise',
+                          help='Enable visualization during execution')
+        parser.add_argument('--dry-run', action='store_true', dest='dry_run',
+                          help='Show what would be executed without running')
+        return parser
 
     def _create_parser(self) -> argparse.ArgumentParser:
         """Create the main parser with global options and subparsers."""
@@ -55,6 +72,7 @@ class CLIParser:
             prog='symfluence',
             description='SYMFLUENCE - Hydrological Modeling Framework',
             formatter_class=argparse.RawDescriptionHelpFormatter,
+            parents=[self.common_parser],
             epilog="""
 Examples:
   symfluence workflow run --config my_config.yaml
@@ -70,16 +88,6 @@ For more help on a specific command:
 """
         )
 
-        # Global options available to all commands
-        parser.add_argument('--config', type=str,
-                          default='./config.yaml',
-                          help='Path to configuration file (default: ./config.yaml)')
-        parser.add_argument('--debug', action='store_true',
-                          help='Enable debug output')
-        parser.add_argument('--visualise', '--visualize', action='store_true', dest='visualise',
-                          help='Enable visualization during execution')
-        parser.add_argument('--dry-run', action='store_true', dest='dry_run',
-                          help='Show what would be executed without running')
         parser.add_argument('--version', action='version',
                           version=f'SYMFLUENCE {__version__}')
 
@@ -121,7 +129,8 @@ For more help on a specific command:
         # workflow run
         run_parser = workflow_subparsers.add_parser(
             'run',
-            help='Run complete workflow'
+            help='Run complete workflow',
+            parents=[self.common_parser]
         )
         run_parser.add_argument('--force-rerun', action='store_true', dest='force_rerun',
                               help='Force rerun of all steps')
@@ -132,7 +141,8 @@ For more help on a specific command:
         # workflow step
         step_parser = workflow_subparsers.add_parser(
             'step',
-            help='Run a single workflow step'
+            help='Run a single workflow step',
+            parents=[self.common_parser]
         )
         step_parser.add_argument('step_name', choices=WORKFLOW_STEPS, metavar='STEP_NAME',
                                help=f'Step to execute. Choices: {", ".join(WORKFLOW_STEPS)}')
@@ -143,7 +153,8 @@ For more help on a specific command:
         # workflow steps (multiple)
         steps_parser = workflow_subparsers.add_parser(
             'steps',
-            help='Run multiple workflow steps'
+            help='Run multiple workflow steps',
+            parents=[self.common_parser]
         )
         steps_parser.add_argument('step_names', nargs='+', choices=WORKFLOW_STEPS, metavar='STEP_NAME',
                                 help=f'Steps to execute in order. Choices: {", ".join(WORKFLOW_STEPS)}')
@@ -154,14 +165,16 @@ For more help on a specific command:
         # workflow status
         status_parser = workflow_subparsers.add_parser(
             'status',
-            help='Show workflow execution status'
+            help='Show workflow execution status',
+            parents=[self.common_parser]
         )
         status_parser.set_defaults(func=WorkflowCommands.status)
 
         # workflow validate
         validate_parser = workflow_subparsers.add_parser(
             'validate',
-            help='Validate configuration file'
+            help='Validate configuration file',
+            parents=[self.common_parser]
         )
         validate_parser.set_defaults(func=WorkflowCommands.validate)
 
@@ -175,7 +188,8 @@ For more help on a specific command:
         # workflow resume
         resume_parser = workflow_subparsers.add_parser(
             'resume',
-            help='Resume workflow from a specific step'
+            help='Resume workflow from a specific step',
+            parents=[self.common_parser]
         )
         resume_parser.add_argument('step_name', choices=WORKFLOW_STEPS, metavar='STEP_NAME',
                                  help=f'Step to resume from. Choices: {", ".join(WORKFLOW_STEPS)}')
@@ -186,7 +200,8 @@ For more help on a specific command:
         # workflow clean
         clean_parser = workflow_subparsers.add_parser(
             'clean',
-            help='Clean intermediate or output files'
+            help='Clean intermediate or output files',
+            parents=[self.common_parser]
         )
         clean_parser.add_argument('--level', choices=['intermediate', 'outputs', 'all'],
                                 default='intermediate',

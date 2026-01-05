@@ -186,11 +186,11 @@ class SUMMAWorker(BaseWorker):
             # Import existing functions
             from .summa_parallel_workers import _run_summa_worker, _run_mizuroute_worker
 
-            # Resolve paths
             summa_exe = Path(config.get('SUMMA_INSTALL_PATH', 'default'))
             if str(summa_exe) == 'default':
                 data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-                summa_exe = data_dir / 'installs' / 'summa' / 'bin' / 'summa.exe'
+                summa_exe_name = config.get('SUMMA_EXE', 'summa_sundials.exe')
+                summa_exe = data_dir / 'installs' / 'summa' / 'bin' / summa_exe_name
 
             file_manager = settings_dir / 'fileManager.txt'
             if not file_manager.exists():
@@ -209,7 +209,7 @@ class SUMMAWorker(BaseWorker):
 
             # Run SUMMA
             success = _run_summa_worker(
-                summa_exe, file_manager, summa_dir, internal_logger, debug_info
+                summa_exe, file_manager, summa_dir, internal_logger, debug_info, settings_dir
             )
 
             if not success:
@@ -267,7 +267,8 @@ class SUMMAWorker(BaseWorker):
             summa_exe = Path(config.get('SUMMA_INSTALL_PATH', 'default'))
             if str(summa_exe) == 'default':
                 data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-                summa_exe = data_dir / 'installs' / 'summa' / 'bin' / 'summa.exe'
+                summa_exe_name = config.get('SUMMA_EXE', 'summa_sundials.exe')
+                summa_exe = data_dir / 'installs' / 'summa' / 'bin' / summa_exe_name
 
             file_manager = settings_dir / 'fileManager.txt'
 
@@ -317,7 +318,7 @@ class SUMMAWorker(BaseWorker):
                 mizuroute_dir = sim_dir / 'mizuRoute'
 
             metrics = _calculate_metrics_inline_worker(
-                output_dir, mizuroute_dir, config, internal_logger
+                output_dir, mizuroute_dir, config, self.logger
             )
 
             # Ensure return is a dict
@@ -363,15 +364,34 @@ class SUMMAWorker(BaseWorker):
             # Read simulation
             with xr.open_dataset(output_files[0]) as ds:
                 if 'scalarTotalRunoff' in ds:
-                    sim = ds['scalarTotalRunoff'].values.flatten()
+                    sim = ds['scalarTotalRunoff'].values.flatten()  # m/s (runoff depth)
                 elif 'averageRoutedRunoff' in ds:
-                    sim = ds['averageRoutedRunoff'].values.flatten()
+                    sim = ds['averageRoutedRunoff'].values.flatten()  # m/s (runoff depth)
                 else:
                     return {'kge': self.penalty_score, 'error': 'No runoff variable found'}
 
-            # Load observations
+            # Convert runoff depth (m/s) to discharge (m³/s) using catchment area
             domain_name = config.get('DOMAIN_NAME')
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+
+            # Try to get area from SUMMA attributes file first (more reliable)
+            attrs_file = data_dir / f'domain_{domain_name}' / 'settings' / 'SUMMA' / 'attributes.nc'
+            if attrs_file.exists():
+                with xr.open_dataset(attrs_file) as attrs:
+                    if 'HRUarea' in attrs.data_vars:
+                        catchment_area_m2 = float(attrs['HRUarea'].values.sum())  # m²
+                    else:
+                        self.logger.warning("HRUarea not found in attributes, cannot convert units")
+                        return {'kge': self.penalty_score, 'error': 'Cannot get catchment area'}
+            else:
+                self.logger.warning(f"Attributes file not found: {attrs_file}")
+                return {'kge': self.penalty_score, 'error': 'Attributes file not found'}
+
+            # Convert: runoff (m/s) * area (m²) = discharge (m³/s)
+            sim = sim * catchment_area_m2
+            self.logger.debug(f"Converted runoff to discharge using area={catchment_area_m2:.2e} m²")
+
+            # Load observations
             obs_file = (data_dir / f'domain_{domain_name}' / 'observations' /
                        'streamflow' / 'preprocessed' / f'{domain_name}_streamflow_processed.csv')
 
@@ -423,3 +443,17 @@ class SUMMAWorker(BaseWorker):
             task = WorkerTask.from_legacy_dict(task_data)
             result = worker.evaluate(task)
             return result.to_legacy_dict()
+
+
+def _evaluate_summa_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Module-level worker function for MPI/ProcessPool execution.
+    Delegates to the standard evaluate_worker_function.
+
+    Args:
+        task_data: Task dictionary
+
+    Returns:
+        Result dictionary
+    """
+    return SUMMAWorker.evaluate_worker_function(task_data)

@@ -117,7 +117,7 @@ class ERA5Handler(BaseDatasetHandler):
                     self.logger.debug(f"File already processed: {output_file.name}")
                     continue
 
-                self.logger.info(f"Processing {raw_file.name} -> {output_file.name}")
+                self.logger.debug(f"Processing {raw_file.name} -> {output_file.name}")
                 try:
                     # Use load() to read into memory and close file handle immediately
                     with xr.open_dataset(raw_file) as ds:
@@ -140,7 +140,7 @@ class ERA5Handler(BaseDatasetHandler):
                     if not temp_output.exists():
                         raise FileNotFoundError(f"Failed to create temp file: {temp_output}")
                     
-                    self.logger.info(f"Temp file created: {temp_output} ({temp_output.stat().st_size} bytes)")
+                    self.logger.debug(f"Temp file created: {temp_output} ({temp_output.stat().st_size} bytes)")
                     
                     # Move to final filename (copy then delete to be safe)
                     if output_file.exists():
@@ -149,7 +149,7 @@ class ERA5Handler(BaseDatasetHandler):
                     shutil.copy2(str(temp_output), str(output_file))
                     temp_output.unlink()
                     
-                    self.logger.info(f"Successfully saved {output_file.name}")
+                    self.logger.debug(f"Successfully saved {output_file.name}")
                         
                 except Exception as e:
                     self.logger.error(f"Failed to process {raw_file.name}: {e}")

@@ -196,7 +196,20 @@ class MESHWorker(BaseWorker):
         Returns:
             Result dictionary
         """
-        worker = MESHWorker()
-        task = WorkerTask.from_legacy_dict(task_data)
-        result = worker.evaluate(task)
-        return result.to_legacy_dict()
+        return _evaluate_mesh_parameters_worker(task_data)
+
+
+def _evaluate_mesh_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Module-level worker function for MPI/ProcessPool execution.
+
+    Args:
+        task_data: Task dictionary
+
+    Returns:
+        Result dictionary
+    """
+    worker = MESHWorker()
+    task = WorkerTask.from_legacy_dict(task_data)
+    result = worker.evaluate(task)
+    return result.to_legacy_dict()

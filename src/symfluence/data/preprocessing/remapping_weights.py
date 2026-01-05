@@ -21,8 +21,12 @@ from datetime import datetime
 
 import xarray as xr
 import easymore  # type: ignore
+from tqdm import tqdm
 
 from .shapefile_manager import ShapefileManager
+
+# Suppress verbose easymore logging
+logging.getLogger('easymore').setLevel(logging.WARNING)
 
 
 def _create_easymore_instance():
@@ -469,23 +473,20 @@ class BatchProcessor:
         self.logger.info(f"Processing {len(files)} files in serial mode")
 
         success_count = 0
-        total = len(files)
 
-        for idx, file in enumerate(files):
-            self.logger.info(f"Processing file {idx+1}/{total}: {file.name}")
+        with tqdm(total=len(files), desc="Remapping forcing files", unit="file") as pbar:
+            for file in files:
+                try:
+                    if self.applier.apply_weights(file, remap_file):
+                        success_count += 1
+                    else:
+                        self.logger.error(f"Failed to process {file.name}")
+                except Exception as e:
+                    self.logger.error(f"Error processing {file.name}: {str(e)}")
+                
+                pbar.update(1)
 
-            try:
-                if self.applier.apply_weights(file, remap_file):
-                    success_count += 1
-                    self.logger.info(f"Successfully processed {file.name} ({idx+1}/{total})")
-                else:
-                    self.logger.error(f"Failed to process {file.name}")
-            except Exception as e:
-                self.logger.error(f"Error processing {file.name}: {str(e)}")
-
-            if (idx + 1) % 10 == 0:
-                self.logger.info(f"Progress: {idx+1}/{total} ({success_count} successful)")
-
+        self.logger.info(f"Serial processing complete: {success_count}/{len(files)} successful")
         return success_count
 
     def process_parallel(
@@ -514,37 +515,32 @@ class BatchProcessor:
 
         success_count = 0
 
-        for batch_num in range(total_batches):
-            start_idx = batch_num * batch_size
-            end_idx = min(start_idx + batch_size, len(files))
-            batch_files = files[start_idx:end_idx]
+        with tqdm(total=len(files), desc="Remapping forcing files", unit="file") as pbar:
+            for batch_num in range(total_batches):
+                start_idx = batch_num * batch_size
+                end_idx = min(start_idx + batch_size, len(files))
+                batch_files = files[start_idx:end_idx]
 
-            self.logger.info(
-                f"Processing batch {batch_num+1}/{total_batches} with {len(batch_files)} files"
-            )
+                try:
+                    with mp.Pool(processes=num_cpus) as pool:
+                        worker_args = [
+                            (file, remap_file, i % num_cpus)
+                            for i, file in enumerate(batch_files)
+                        ]
+                        results = pool.starmap(self._worker_wrapper, worker_args)
 
-            try:
-                with mp.Pool(processes=num_cpus) as pool:
-                    worker_args = [
-                        (file, remap_file, i % num_cpus)
-                        for i, file in enumerate(batch_files)
-                    ]
-                    results = pool.starmap(self._worker_wrapper, worker_args)
+                    batch_success = sum(1 for r in results if r)
+                    success_count += batch_success
+                    pbar.update(len(batch_files))
 
-                batch_success = sum(1 for r in results if r)
-                success_count += batch_success
+                except Exception as e:
+                    self.logger.error(f"Error processing batch {batch_num+1}: {str(e)}")
+                    pbar.update(len(batch_files))
 
-                self.logger.info(
-                    f"Batch {batch_num+1}/{total_batches}: "
-                    f"{batch_success}/{len(batch_files)} successful"
-                )
+                import gc
+                gc.collect()
 
-            except Exception as e:
-                self.logger.error(f"Error processing batch {batch_num+1}: {str(e)}")
-
-            import gc
-            gc.collect()
-
+        self.logger.info(f"Parallel processing complete: {success_count}/{len(files)} successful")
         return success_count
 
     def _worker_wrapper(self, file: Path, remap_file: Path, worker_id: int) -> bool:

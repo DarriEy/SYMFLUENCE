@@ -230,7 +230,7 @@ class VariableHandler:
     
     def process_forcing_data(self, data: xr.Dataset) -> xr.Dataset:
         """Process forcing data by mapping variable names and converting units."""
-        self.logger.info("Starting forcing data unit processing")
+        self.logger.debug("Starting forcing data unit processing")
         
         processed_data = data.copy()
         
@@ -251,8 +251,36 @@ class VariableHandler:
             if dataset_var in processed_data:
                 self.logger.debug(f"Processing {dataset_var} -> {model_var}")
                 
-                # Get units from our mappings
+                # Get units: prioritize metadata from the DataArray over hardcoded mapping
+                data_units = str(processed_data[dataset_var].attrs.get('units', '')).lower()
                 source_units = dataset_map[dataset_var]['units']
+                
+                # If metadata exists and looks different from our mapping, trust metadata
+                # BUT perform a range check for temperature to handle inconsistent files
+                if data_units and data_units != source_units.lower():
+                    # Handle minor string variations (e.g. 'degc' vs 'degC')
+                    if data_units in ['degc', 'celsius', 'c']:
+                        actual_source_units = 'degC'
+                    elif data_units in ['k', 'kelvin']:
+                        actual_source_units = 'K'
+                    else:
+                        actual_source_units = data_units
+                    
+                    if actual_source_units != source_units:
+                        # Perform range check for temperature
+                        if model_req['standard_name'] == 'air_temperature':
+                            temp_mean = float(processed_data[dataset_var].mean())
+                            if temp_mean > 100 and actual_source_units == 'degC':
+                                self.logger.warning(f"Metadata for {dataset_var} says 'degC' but mean value is {temp_mean:.2f}. Assuming 'K'.")
+                                actual_source_units = 'K'
+                            elif temp_mean < 100 and actual_source_units == 'K':
+                                self.logger.warning(f"Metadata for {dataset_var} says 'K' but mean value is {temp_mean:.2f}. Assuming 'degC'.")
+                                actual_source_units = 'degC'
+                        
+                        if actual_source_units != source_units:
+                            self.logger.info(f"Using metadata units '{actual_source_units}' instead of mapping '{source_units}' for {dataset_var}")
+                            source_units = actual_source_units
+
                 target_units = model_req['units']
                 
                 # Convert units if needed
@@ -271,7 +299,7 @@ class VariableHandler:
                 # Rename after conversion
                 processed_data = processed_data.rename({dataset_var: model_var})
         
-        self.logger.info("Forcing data unit processing completed")
+        self.logger.debug("Forcing data unit processing completed")
         return processed_data
 
     def _find_matching_variable(self, standard_name: str, dataset_map: Dict) -> Optional[str]:
@@ -281,6 +309,36 @@ class VariableHandler:
                 return var
         self.logger.warning(f"No matching variable found for standard_name: {standard_name}")
         return None
+
+    def _normalize_unit_string(self, unit_str: str) -> str:
+        """
+        Normalize unit strings to formats that Pint handles reliably.
+        Example: 'mm hour-1' -> 'mm / hour'
+        """
+        if not unit_str:
+            return unit_str
+            
+        import re
+        norm = unit_str.strip()
+        
+        # Handle 'X-1' or 'X^-1' or 'X**-1' -> '/ X'
+        norm = re.sub(r'(\w+)(\*\*|-\^|-\^|-|\^)(-1)', r'/ \1', norm)
+        
+        # Handle 'X-2' or 'X^-2' etc -> '/ X^2'
+        norm = re.sub(r'(\w+)(\*\*|-\^|-|\^)(-)(\d+)', r'/ \1^\4', norm)
+        
+        # Standardize spaces around operators
+        norm = norm.replace('/', ' / ')
+        norm = norm.replace('*', ' * ')
+        
+        # Final cleanup of any potential double slashes or extra spaces
+        norm = ' '.join(norm.split())
+        norm = norm.replace('/ /', '/')
+        
+        if norm != unit_str:
+            self.logger.debug(f"Normalized units: '{unit_str}' -> '{norm}'")
+            
+        return norm
 
     def _convert_units(self, data: xr.DataArray, from_units: str, to_units: str) -> xr.DataArray:
         """
@@ -294,20 +352,50 @@ class VariableHandler:
         Returns:
             DataArray with converted units
         """
+        # Normalize unit strings for pint
+        orig_from = from_units
+        from_units = self._normalize_unit_string(from_units)
+        to_units = self._normalize_unit_string(to_units)
+        
         try:
-            # Special case for precipitation flux conversions
+            # Special case for precipitation flux conversions (very common source of errors)
             if ('kg/m2/s' in from_units or 'kilogram / meter ** 2 / second' in from_units) and 'mm/day' in to_units:
                 # 1 kg/m² = 1 mm of water
                 # Convert kg/m²/s to mm/s, then to mm/day
                 converted = data * 86400  # multiply by seconds per day
                 return converted
             
+            # Additional manual check for common precipitation variants if pint might fail
+            if 'mm' in from_units.lower() and 'hour' in from_units.lower() and 'mm' in to_units.lower() and 'day' in to_units.lower():
+                return data * 24.0
+
             # Regular unit conversion
-            data = data.pint.quantify(from_units)
-            converted = data.pint.to(to_units)
-            return converted.pint.dequantify()
+            try:
+                data = data.pint.quantify(from_units)
+                converted = data.pint.to(to_units)
+                return converted.pint.dequantify()
+            except Exception as pe:
+                self.logger.warning(f"Pint conversion failed for {orig_from} -> {to_units}: {pe}. Trying manual fallback.")
+                # Manual fallbacks for common meteorological variables
+                f_low = from_units.lower()
+                t_low = to_units.lower()
+                
+                # Temperature: Kelvin to Celsius
+                if 'k' in f_low and 'c' in t_low and 'deg' in t_low:
+                    return data - 273.15
+                # Temperature: Celsius to Kelvin
+                if 'c' in f_low and 'deg' in f_low and 'k' in t_low:
+                    return data + 273.15
+                # Precipitation: mm/h to mm/day
+                if 'mm' in f_low and 'hour' in f_low and 'mm' in t_low and 'day' in t_low:
+                    return data * 24.0
+                # Precipitation: mm/s to mm/day
+                if 'mm' in f_low and 's' in f_low and 'mm' in t_low and 'day' in t_low:
+                    return data * 86400.0
+                
+                raise pe
         except Exception as e:
-            self.logger.error(f"Unit conversion failed: {from_units} -> {to_units}: {str(e)}")
+            self.logger.error(f"Unit conversion failed: {orig_from} -> {to_units}: {str(e)}")
             raise
 
     def save_mappings(self, filepath: Path):

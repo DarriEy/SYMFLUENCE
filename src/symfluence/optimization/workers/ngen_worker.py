@@ -53,19 +53,16 @@ class NgenWorker(BaseWorker):
 
         Args:
             params: Parameter values to apply (MODULE.param format)
-            settings_dir: Ngen settings directory
+            settings_dir: Ngen settings directory (isolated for parallel workers)
             **kwargs: Additional arguments including 'config'
 
         Returns:
             True if successful
         """
         try:
-            config = kwargs.get('config', self.config)
-
-            domain_name = config.get('DOMAIN_NAME')
-            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-
-            ngen_setup_dir = data_dir / f"domain_{domain_name}" / 'settings' / 'NGEN'
+            # Use settings_dir directly - BaseOptimizer ensures this path is correct for the worker
+            # NGEN settings are typically organized by module subdirectories within settings_dir
+            ngen_setup_dir = settings_dir
 
             # Group parameters by module
             module_params: Dict[str, Dict[str, float]] = {}
@@ -135,12 +132,9 @@ class NgenWorker(BaseWorker):
             # Check for parallel mode keys
             parallel_config = config.copy()
 
-            if '_proc_ngen_dir' in config:
-                # Parallel mode
-                proc_id = config.get('_proc_id', 0)
-                self.logger.debug(f"Running ngen in parallel mode (proc {proc_id})")
-                parallel_config['_ngen_output_dir'] = config['_proc_ngen_dir']
-                parallel_config['_ngen_settings_dir'] = config.get('_proc_settings_dir')
+            # Ensure runner uses isolated directories
+            parallel_config['_ngen_output_dir'] = str(output_dir)
+            parallel_config['_ngen_settings_dir'] = str(settings_dir)
 
             # Import NgenRunner
             from symfluence.models.ngen import NgenRunner
@@ -170,7 +164,7 @@ class NgenWorker(BaseWorker):
         Calculate metrics from ngen output.
 
         Args:
-            output_dir: Directory containing model outputs
+            output_dir: Directory containing model outputs (isolated)
             config: Configuration dictionary
             **kwargs: Additional arguments
 
@@ -189,8 +183,9 @@ class NgenWorker(BaseWorker):
             # Create calibration target
             target = NgenStreamflowTarget(config, project_dir, self.logger)
 
-            # Calculate metrics
-            metrics = target.calculate_metrics(experiment_id=experiment_id)
+            # Calculate metrics using isolated output_dir
+            # NgenStreamflowTarget needs to be aware of the isolated directory
+            metrics = target.calculate_metrics(experiment_id=experiment_id, output_dir=output_dir)
 
             # Normalize metric keys to lowercase
             return {k.lower(): float(v) for k, v in metrics.items()}
@@ -212,7 +207,7 @@ class NgenWorker(BaseWorker):
         Calculate metrics directly from ngen output files.
 
         Args:
-            output_dir: Output directory
+            output_dir: Output directory (isolated)
             config: Configuration dictionary
 
         Returns:
@@ -223,18 +218,14 @@ class NgenWorker(BaseWorker):
             from symfluence.evaluation.metrics import kge, nse
 
             domain_name = config.get('DOMAIN_NAME')
-            experiment_id = config.get('EXPERIMENT_ID')
-            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            project_dir = data_dir / f"domain_{domain_name}"
-
-            # Find ngen output
-            sim_dir = project_dir / 'simulations' / experiment_id / 'NGEN'
-            output_files = list(sim_dir.glob('*.csv')) + list(sim_dir.glob('*_output.nc'))
+            
+            # Find ngen output in isolated output_dir
+            output_files = list(output_dir.glob('*.csv')) + list(output_dir.glob('*.nc'))
 
             if not output_files:
                 return {'kge': self.penalty_score, 'error': 'No output files found'}
 
-            # Read simulation (simplified - actual implementation may vary)
+            # Read simulation
             if output_files[0].suffix == '.csv':
                 sim_df = pd.read_csv(output_files[0], index_col=0, parse_dates=True)
                 if 'q_cms' in sim_df.columns:
@@ -244,9 +235,13 @@ class NgenWorker(BaseWorker):
             else:
                 import xarray as xr
                 with xr.open_dataset(output_files[0]) as ds:
-                    sim = ds[list(ds.data_vars)[0]].values.flatten()
+                    # Generic extraction - pick first data variable
+                    var = next(iter(ds.data_vars))
+                    sim = ds[var].values.flatten()
 
             # Load observations
+            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+            project_dir = data_dir / f"domain_{domain_name}"
             obs_file = (project_dir / 'observations' / 'streamflow' / 'preprocessed' /
                        f'{domain_name}_streamflow_processed.csv')
 
@@ -254,20 +249,15 @@ class NgenWorker(BaseWorker):
                 return {'kge': self.penalty_score, 'error': 'Observations not found'}
 
             obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
-            obs = obs_df['discharge_cms'].values
+            
+            # Simple alignment (actual implementation might need more robustness)
+            # This is a fallback so we keep it simple
+            min_len = min(len(sim), len(obs_df)) # <--- Here it uses obs_df
+            sim_vals = sim[:min_len]
+            obs_vals = obs_df['discharge_cms'].values[:min_len]
 
-            # Align lengths
-            min_len = min(len(sim), len(obs))
-            sim = sim[:min_len]
-            obs = obs[:min_len]
-
-            # Calculate metrics
-            dfSim = dfSim.reindex(dfObs.index).dropna()
-            obs = dfObs.values
-            sim = dfSim['q_cms'].values
-
-            kge_val = kge(obs, sim, transfo=1)
-            nse_val = nse(obs, sim, transfo=1)
+            kge_val = kge(obs_vals, sim_vals, transfo=1)
+            nse_val = nse(obs_vals, sim_vals, transfo=1)
 
             return {'kge': float(kge_val), 'nse': float(nse_val)}
 
@@ -286,7 +276,20 @@ class NgenWorker(BaseWorker):
         Returns:
             Result dictionary
         """
-        worker = NgenWorker(config=task_data.get('config'))
-        task = WorkerTask.from_legacy_dict(task_data)
-        result = worker.evaluate(task)
-        return result.to_legacy_dict()
+        return _evaluate_ngen_parameters_worker(task_data)
+
+
+def _evaluate_ngen_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Module-level worker function for MPI/ProcessPool execution.
+
+    Args:
+        task_data: Task dictionary
+
+    Returns:
+        Result dictionary
+    """
+    worker = NgenWorker(config=task_data.get('config'))
+    task = WorkerTask.from_legacy_dict(task_data)
+    result = worker.evaluate(task)
+    return result.to_legacy_dict()

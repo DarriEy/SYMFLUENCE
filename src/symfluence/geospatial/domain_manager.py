@@ -82,7 +82,7 @@ class DomainManager(ConfigurableMixin):
             lambda: self.typed_config.domain.definition_method,
             'DOMAIN_DEFINITION_METHOD'
         )
-        self.logger.info(f"Domain definition workflow starting with: {domain_method}")
+        self.logger.debug(f"Domain definition workflow starting with: {domain_method}")
         
         result, artifacts = self.domain_delineator.define_domain()
         self.delineation_artifacts = artifacts
@@ -90,7 +90,7 @@ class DomainManager(ConfigurableMixin):
         if result:
             self.logger.info(f"Domain definition completed using method: {domain_method}")
         
-        self.logger.info(f"Domain definition workflow finished")
+        self.logger.debug(f"Domain definition workflow finished")
 
         return result, artifacts
     
@@ -109,7 +109,7 @@ class DomainManager(ConfigurableMixin):
                 lambda: self.typed_config.domain.discretization,
                 'DOMAIN_DISCRETIZATION'
             )
-            self.logger.info(f"Discretizing domain using method: {discretization_method}")
+            self.logger.debug(f"Discretizing domain using method: {discretization_method}")
             
             # Initialize discretizer if not already done
             if self.domain_discretizer is None:
