@@ -1272,7 +1272,7 @@ fi
                 "sed -i.bak '1s/^/#include \"rhessys.h\"\\n/' init/assign_base_station_xy.c", # Add rhessys.h include
                                 "sed -i.bak -e '/#include \"rhessys.h\"/a\\' -e '#include <math.h>' init/assign_base_station_xy.c",
                 "                sed -i.bak -e '/#include <math.h>/a\\' -e '#define is_approximately(a, b, epsilon) (fabs((a) - (b)) < (epsilon))' init/assign_base_station_xy.c",
-                r"sed -i.bak 's/^\};/\\tdouble lon;\\n\\tdouble lat;\\n\\};/g' include/rhessys.h",
+                "sed -i.bak -e $'s/^\\};/\\tdouble lon;\\\\n\\tdouble lat;\\\\n\\};/g' include/rhessys.h",
                 '',
                 '# Add grep to verify sort_patch_layers.c line 186 *after* sed',
                 'echo "--- Grepping for \'sort_patch_layers\' call in util/sort_patch_layers.c (after second patch) ---"',

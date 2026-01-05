@@ -431,9 +431,16 @@ class DataProcessor:
             
             # Skip first year (spin-up period) - preserving original logic
             if len(results_df.index) > 0:
-                first_year = results_df.index[0].year
-                start_date = pd.Timestamp(year=first_year + 1, month=1, day=1)
-                results_df = results_df[results_df.index >= start_date]
+                start_time = results_df.index[0]
+                end_time = results_df.index[-1]
+                duration_days = (end_time - start_time).days
+                
+                if duration_days > 365:
+                    first_year = results_df.index[0].year
+                    start_date = pd.Timestamp(year=first_year + 1, month=1, day=1)
+                    results_df = results_df[results_df.index >= start_date]
+                else:
+                    self.logger.warning(f"Simulation duration ({duration_days} days) is short. Skipping first year removal to ensure data availability.")
             
             self.logger.info(f"Data period: {results_df.index[0]} to {results_df.index[-1]}")
             return results_df
