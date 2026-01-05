@@ -54,7 +54,7 @@ class ExampleCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to launch notebook: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1
@@ -101,7 +101,7 @@ class ExampleCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Failed to list examples: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1

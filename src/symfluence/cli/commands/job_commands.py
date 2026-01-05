@@ -75,7 +75,7 @@ class JobCommands(BaseCommand):
 
         except Exception as e:
             BaseCommand.print_error(f"Job submission failed: {e}")
-            if args.debug:
+            if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
             return 1

@@ -94,18 +94,14 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
             return SnowTarget(self.config, self.project_dir, self.logger)
         elif target_type in ['groundwater', 'gw']:
             return GroundwaterTarget(self.config, self.project_dir, self.logger)
-        elif target_type in ['soil_moisture', 'sm', 'sm_point', 'sm_smap', 'sm_esa', 'sm_ismn']:
+        elif target_type in ['soil_moisture', 'sm']:
             return SoilMoistureTarget(self.config, self.project_dir, self.logger)
         else:
             return StreamflowTarget(self.config, self.project_dir, self.logger)
 
     def _create_worker(self) -> SUMMAWorker:
         """Create SUMMA worker."""
-        return SUMMAWorker(
-            self.config,
-            self.logger,
-            calibration_target=self.calibration_target
-        )
+        return SUMMAWorker(self.config, self.logger)
 
     def _get_summa_executable_path(self) -> Path:
         """Get path to SUMMA executable."""
@@ -166,34 +162,19 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
         # Use algorithm-specific directory
         algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
         base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
-
+        
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
             'SUMMA',
             self.experiment_id
         )
 
-        # For non-parallel runs, set a default output directory for fallback
-        # This ensures SUMMA outputs go to the simulation directory, not the optimization results directory
-        if not self.use_parallel and self.parallel_dirs:
-            # Use process_0 directories as the default
-            self.default_sim_dir = self.parallel_dirs[0].get('sim_dir', self.results_dir)
-        else:
-            self.default_sim_dir = self.results_dir
-
         # Copy SUMMA settings to each parallel directory
         source_settings = self.project_dir / 'settings' / 'SUMMA'
         if source_settings.exists():
             self.copy_base_settings(source_settings, self.parallel_dirs, 'SUMMA')
 
-        # Update SUMMA file managers with process-specific paths
-        self.update_file_managers(
-            self.parallel_dirs,
-            'SUMMA',
-            self.experiment_id
-        )
-
-        # If routing needed, also copy and configure mizuRoute settings
+        # If routing needed, also copy mizuRoute settings
         if self._routing_needed:
             mizu_settings = self.project_dir / 'settings' / 'mizuRoute'
             if mizu_settings.exists():
@@ -204,10 +185,3 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
                     for item in mizu_settings.iterdir():
                         if item.is_file():
                             shutil.copy2(item, mizu_dest / item.name)
-
-                # Update mizuRoute control files with process-specific paths
-                self.update_mizuroute_controls(
-                    self.parallel_dirs,
-                    'SUMMA',
-                    self.experiment_id
-                )

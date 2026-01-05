@@ -122,9 +122,7 @@ class BaseModelOptimizer(
 
         # Parallel processing state
         self.parallel_dirs = {}
-        self.default_sim_dir = self.results_dir  # Initialize with results_dir as fallback
-        # Setup directories if MPI_PROCESSES is set, regardless of count (for isolation)
-        if config.get('MPI_PROCESSES', 1) >= 1:
+        if self.use_parallel:
             self._setup_parallel_dirs()
 
     def _visualize_progress(self, algorithm: str) -> None:
@@ -203,150 +201,19 @@ class BaseModelOptimizer(
         random.seed(seed)
         np.random.seed(seed)
 
-    def _adjust_end_time_for_forcing(self, end_time_str: str) -> str:
-        """
-        Adjust end time to align with forcing data timestep.
-        For sub-daily forcing (e.g., 3-hourly CERRA), ensures end time is a valid timestep.
-
-        Args:
-            end_time_str: End time string in format 'YYYY-MM-DD HH:MM'
-
-        Returns:
-            Adjusted end time string
-        """
-        try:
-            forcing_timestep_seconds = self.config.get('FORCING_TIME_STEP_SIZE', 3600)
-
-            if forcing_timestep_seconds >= 3600:  # Hourly or coarser
-                # Parse the end time
-                end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M')
-
-                # Calculate the last valid hour based on timestep
-                forcing_timestep_hours = forcing_timestep_seconds / 3600
-                last_hour = int(24 - (24 % forcing_timestep_hours)) - forcing_timestep_hours
-                if last_hour < 0:
-                    last_hour = 0
-
-                # Adjust if needed
-                if end_time.hour > last_hour or (end_time.hour == 23 and last_hour < 23):
-                    end_time = end_time.replace(hour=int(last_hour), minute=0)
-                    adjusted_str = end_time.strftime('%Y-%m-%d %H:%M')
-                    self.logger.info(f"Adjusted end time from {end_time_str} to {adjusted_str} for {forcing_timestep_hours}h forcing")
-                    return adjusted_str
-
-            return end_time_str
-
-        except Exception as e:
-            self.logger.warning(f"Could not adjust end time: {e}")
-            return end_time_str
-
     def _setup_parallel_dirs(self) -> None:
         """Setup parallel processing directories."""
         # Determine algorithm for directory naming
         algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
-
+        
         # Use algorithm-specific directory
         base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
-
+        
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
             self._get_model_name(),
             self.experiment_id
         )
-
-        # For non-parallel runs, set a default output directory for fallback
-        # This ensures SUMMA outputs go to the simulation directory, not the optimization results directory
-        if not self.use_parallel and self.parallel_dirs:
-            # Use process_0 directories as the default
-            self.default_sim_dir = self.parallel_dirs[0].get('sim_dir', self.results_dir)
-        else:
-            self.default_sim_dir = self.results_dir
-
-    def _create_mpi_worker_script(self, script_path: Path, tasks_file: Path, results_file: Path, worker_module: str, worker_function: str) -> None:
-        """
-        Create the MPI worker script file with model-specific worker function.
-
-        This method is called by ParallelExecutionMixin to create the MPI worker script.
-        The worker_module and worker_function are already determined by the mixin.
-
-        Args:
-            script_path: Path to create the worker script at
-            tasks_file: Path to the tasks pickle file
-            results_file: Path to the results pickle file
-            worker_module: Module containing the worker function
-            worker_function: Name of the worker function to call
-        """
-        # Calculate the correct path to the src directory
-        src_path = Path(__file__).parent.parent.parent.parent
-
-        script_content = f'''#!/usr/bin/env python3
-import sys
-import pickle
-import os
-from pathlib import Path
-from mpi4py import MPI
-import logging
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s')
-logger = logging.getLogger(__name__)
-
-# Silence noisy libraries
-for noisy_logger in ['rasterio', 'fiona', 'boto3', 'botocore', 'matplotlib', 'urllib3', 's3transfer']:
-    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
-
-# Add symphluence src to path to ensure imports work
-sys.path.insert(0, r"{str(src_path)}")
-
-try:
-    from {worker_module} import {worker_function}
-except ImportError as e:
-    logger.error(f"Failed to import {{e}}")
-    sys.exit(1)
-
-def main():
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    size = comm.Get_size()
-
-    tasks_file = Path(sys.argv[1])
-    results_file = Path(sys.argv[2])
-
-    if rank == 0:
-        with open(tasks_file, 'rb') as f:
-            all_tasks = pickle.load(f)
-
-        tasks_per_rank = len(all_tasks) // size
-        extra_tasks = len(all_tasks) % size
-        all_results = []
-
-        for worker_rank in range(size):
-            start_idx = worker_rank * tasks_per_rank + min(worker_rank, extra_tasks)
-            end_idx = start_idx + tasks_per_rank + (1 if worker_rank < extra_tasks else 0)
-
-            if worker_rank == 0:
-                my_tasks = all_tasks[start_idx:end_idx]
-            else:
-                comm.send(all_tasks[start_idx:end_idx], dest=worker_rank, tag=1)
-
-        for task in my_tasks:
-            all_results.append({worker_function}(task))
-
-        for worker_rank in range(1, size):
-            all_results.extend(comm.recv(source=worker_rank, tag=2))
-
-        with open(results_file, 'wb') as f:
-            pickle.dump(all_results, f)
-    else:
-        my_tasks = comm.recv(source=0, tag=1)
-        my_results = [{worker_function}(t) for t in my_tasks]
-        comm.send(my_results, dest=0, tag=2)
-
-if __name__ == "__main__":
-    main()
-'''
-        with open(script_path, 'w') as f:
-            f.write(script_content)
 
     # =========================================================================
     # Evaluation methods
@@ -430,8 +297,8 @@ if __name__ == "__main__":
             proc_id=proc_id,
             config=self.config,
             settings_dir=dirs.get('settings_dir', self.optimization_settings_dir),
-            output_dir=dirs.get('sim_dir', self.default_sim_dir),
-            sim_dir=dirs.get('sim_dir', self.default_sim_dir),
+            output_dir=dirs.get('output_dir', self.results_dir),
+            sim_dir=dirs.get('sim_dir'),
         )
 
         # Evaluate
@@ -479,14 +346,13 @@ if __name__ == "__main__":
                     'domain_name': self.domain_name,
                     'project_dir': str(self.project_dir),
                     'proc_settings_dir': str(settings_dir),
-                    'proc_output_dir': str(dirs.get('sim_dir', self.default_sim_dir)),
-                    'proc_sim_dir': str(dirs.get('sim_dir', self.default_sim_dir)),
+                    'proc_output_dir': str(dirs.get('output_dir', self.results_dir)),
+                    'proc_sim_dir': str(dirs.get('sim_dir', '')),
                     'summa_settings_dir': str(settings_dir),
                     'mizuroute_settings_dir': str(dirs.get('root', self.project_dir) / 'settings' / 'mizuRoute') if dirs else '',
-                    'summa_dir': str(dirs.get('sim_dir', self.default_sim_dir)),
-                    'mizuroute_dir': str(Path(dirs.get('sim_dir', self.default_sim_dir)).parent / 'mizuRoute') if dirs and dirs.get('sim_dir') else str(Path(self.default_sim_dir).parent / 'mizuRoute'),
-                    'mizuroute_settings_dir': str(dirs.get('root', self.project_dir) / 'settings' / 'mizuRoute') if dirs else '',
-                    'file_manager': str(settings_dir / self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')),
+                    'summa_dir': str(dirs.get('sim_dir', '')),
+                    'mizuroute_dir': str(dirs.get('root', self.project_dir) / 'simulations' / 'mizuRoute') if dirs else '',
+                    'file_manager': str(settings_dir / 'fileManager.txt'),
                     'summa_exe': str(self.summa_exe_path) if hasattr(self, 'summa_exe_path') else '',
                     'original_depths': self.param_manager.original_depths.tolist() if hasattr(self.param_manager, 'original_depths') and self.param_manager.original_depths is not None else None,
                 }
@@ -521,23 +387,11 @@ if __name__ == "__main__":
             results = self.execute_batch(tasks, worker_func)
 
             # Extract scores
-            valid_count = 0
             for result in results:
                 idx = result.get('individual_id', 0)
                 score = result.get('score')
-                error = result.get('error')
-                if error:
-                    error_str = str(error)
-                    # Log full error at debug level, truncated at info level
-                    self.logger.debug(f"Task {idx} full error: {error_str}")
-                    self.logger.warning(f"Task {idx} error: {error_str[:500] if len(error_str) > 500 else error_str}")
                 if score is not None and not np.isnan(score):
                     fitness[idx] = score
-                    if score != self.DEFAULT_PENALTY_SCORE:
-                        valid_count += 1
-                else:
-                    self.logger.warning(f"Task {idx} returned score={score}")
-            self.logger.debug(f"Batch results: {len(results)} returned, {valid_count} valid scores")
         else:
             # Sequential evaluation
             for i, params_normalized in enumerate(population):
@@ -811,13 +665,13 @@ if __name__ == "__main__":
                         'domain_name': self.domain_name,
                         'project_dir': str(self.project_dir),
                         'proc_settings_dir': str(settings_dir),
-                        'proc_output_dir': str(dirs.get('sim_dir', self.default_sim_dir)),
-                        'proc_sim_dir': str(dirs.get('sim_dir', self.default_sim_dir)),
+                        'proc_output_dir': str(dirs.get('output_dir', self.results_dir)),
+                        'proc_sim_dir': str(dirs.get('sim_dir', '')) ,
                         'summa_settings_dir': str(settings_dir),
                         'mizuroute_settings_dir': str(dirs.get('root', self.project_dir) / 'settings' / 'mizuRoute') if dirs else '',
-                        'summa_dir': str(dirs.get('sim_dir', self.default_sim_dir)),
-                        'mizuroute_dir': str(Path(dirs.get('sim_dir', self.default_sim_dir)).parent / 'mizuRoute') if dirs and dirs.get('sim_dir') else str(Path(self.default_sim_dir).parent / 'mizuRoute'),
-                        'file_manager': str(settings_dir / self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')),
+                        'summa_dir': str(dirs.get('sim_dir', '')),
+                        'mizuroute_dir': str(dirs.get('root', self.project_dir) / 'simulations' / 'mizuRoute') if dirs else '',
+                        'file_manager': str(settings_dir / 'fileManager.txt'),
                         'summa_exe': str(self.summa_exe_path) if hasattr(self, 'summa_exe_path') else '',
                         'original_depths': self.param_manager.original_depths.tolist() if hasattr(self.param_manager, 'original_depths') and self.param_manager.original_depths is not None else None,
                     }
@@ -852,11 +706,6 @@ if __name__ == "__main__":
                 for result in results:
                     idx = result.get('individual_id', 0)
                     score = result.get('score')
-                    error = result.get('error')
-                    if error:
-                        error_str = str(error)
-                        self.logger.debug(f"Task {idx} full error: {error_str}")
-                        self.logger.warning(f"Task {idx} error: {error_str[:500] if len(error_str) > 500 else error_str}")
                     if score is not None and not np.isnan(score):
                         # Find which trial this corresponds to
                         if idx in trial_indices:
@@ -1047,7 +896,7 @@ if __name__ == "__main__":
         total_evaluations = 0
         stagnation_counter = 0
         last_improvement_batch = 0
-        best_score = float('-inf')  # Start with -inf so any valid score is considered better
+        best_score = self.DEFAULT_PENALTY_SCORE
         best_solution = None
 
         self.logger.info(f"Async DDS configuration:")
@@ -1060,13 +909,6 @@ if __name__ == "__main__":
         self.logger.info(f"Evaluating initial pool ({pool_size} solutions)...")
         initial_population = np.random.uniform(0, 1, (pool_size, n_params))
         initial_fitness = self._evaluate_population(initial_population, iteration=0)
-
-        # Log initial pool scores for debugging
-        valid_initial = [s for s in initial_fitness if s is not None and s != self.DEFAULT_PENALTY_SCORE]
-        if valid_initial:
-            self.logger.info(f"Initial pool scores: min={min(valid_initial):.4f}, max={max(valid_initial):.4f}, all={[f'{s:.4f}' for s in valid_initial]}")
-        else:
-            self.logger.warning("Initial pool: No valid scores!")
 
         for i, (solution, score) in enumerate(zip(initial_population, initial_fitness)):
             if score is not None and score != self.DEFAULT_PENALTY_SCORE:
@@ -1139,17 +981,6 @@ if __name__ == "__main__":
             # Evaluate batch
             trial_population = np.array(trials)
             trial_fitness = self._evaluate_population(trial_population, iteration=batch_num)
-
-            # Debug: Log all returned scores to trace score tracking
-            valid_scores = [s for s in trial_fitness if s is not None and s != self.DEFAULT_PENALTY_SCORE]
-            if valid_scores:
-                max_batch_score = max(valid_scores)
-                min_batch_score = min(valid_scores)
-                self.logger.info(f"Batch {batch_num} scores: min={min_batch_score:.4f}, max={max_batch_score:.4f}, current_best={best_score:.4f}")
-                if max_batch_score > best_score:
-                    self.logger.info(f"NEW BEST FOUND in batch {batch_num}: {max_batch_score:.4f} > {best_score:.4f}")
-            else:
-                self.logger.warning(f"Batch {batch_num}: No valid scores returned!")
 
             # Update pool with batch results
             improvements = 0
@@ -1771,9 +1602,6 @@ if __name__ == "__main__":
                 self.logger.warning("Full experiment period not configured, using current settings")
                 return
 
-            # Adjust end time to align with forcing timestep
-            sim_end = self._adjust_end_time_for_forcing(sim_end)
-
             with open(file_manager_path, 'r') as f:
                 lines = f.readlines()
 
@@ -1985,8 +1813,7 @@ if __name__ == "__main__":
                 # If install path is provided, combine it with executable name
                 summa_exe = Path(summa_install_path) / summa_exe_name
 
-            summa_fm_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
-            file_manager = self.optimization_settings_dir / summa_fm_name
+            file_manager = self.optimization_settings_dir / 'fileManager.txt'
 
             if not summa_exe.exists():
                 self.logger.error(f"SUMMA executable not found: {summa_exe}")
@@ -2067,28 +1894,14 @@ if __name__ == "__main__":
 
             output_file = self.results_dir / f'{self.experiment_id}_{algorithm.lower()}_final_evaluation.json'
 
-            def _convert_to_serializable(obj):
-                """Recursively convert numpy types to Python native types."""
-                if isinstance(obj, (np.integer, int)):
-                    return int(obj)
-                elif isinstance(obj, (np.floating, float)):
-                    return float(obj)
-                elif isinstance(obj, np.ndarray):
-                    return obj.tolist()
-                elif isinstance(obj, dict):
-                    return {k: _convert_to_serializable(v) for k, v in obj.items()}
-                elif isinstance(obj, list):
-                    return [_convert_to_serializable(i) for i in obj]
-                return obj
-
             # Create serializable result
             serializable_result = {
                 'algorithm': algorithm,
                 'experiment_id': self.experiment_id,
                 'domain_name': self.domain_name,
-                'calibration_metrics': _convert_to_serializable(final_result.get('calibration_metrics', {})),
-                'evaluation_metrics': _convert_to_serializable(final_result.get('evaluation_metrics', {})),
-                'best_params': _convert_to_serializable(final_result.get('best_params', {})),
+                'calibration_metrics': final_result.get('calibration_metrics', {}),
+                'evaluation_metrics': final_result.get('evaluation_metrics', {}),
+                'best_params': final_result.get('best_params', {}),
                 'timestamp': datetime.now().isoformat()
             }
 
