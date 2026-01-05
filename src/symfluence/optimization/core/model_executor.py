@@ -77,7 +77,8 @@ class ModelExecutor:
             else:
                 summa_path = Path(summa_path)
             
-            summa_exe = summa_path / self.config.get('SUMMA_EXE')
+            summa_exe_name = self.config.get('SUMMA_EXE', 'summa_sundials.exe')
+            summa_exe = summa_path / summa_exe_name
             file_manager = settings_dir / self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
             
             if not summa_exe.exists():

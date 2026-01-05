@@ -17,10 +17,6 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
     Returns:
         Path: Path to the output HRU shapefile.
     """
-    discretizer.logger.info(
-        f"config domain name {discretizer.config.get('DOMAIN_NAME')}"
-    )
-
     # Determine default name based on method
     default_name = f"{discretizer.domain_name}_riverBasins_{discretizer.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
     if discretizer.config.get("DELINEATE_COASTAL_WATERSHEDS") == True:
@@ -46,25 +42,24 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
     gru_gdf["HRU_ID"] = range(1, len(gru_gdf) + 1)
     gru_gdf["hru_type"] = "GRU"
 
-    # Calculate mean elevation for each HRU with proper CRS handling
-    discretizer.logger.info("Calculating mean elevation for each HRU")
+    discretizer.logger.debug("Calculating elevation and centroid statistics for HRUs")
 
     # Get CRS information
     with rasterio.open(discretizer.dem_path) as src:
         dem_crs = src.crs
-        discretizer.logger.info(f"DEM CRS: {dem_crs}")
+        discretizer.logger.debug(f"DEM CRS: {dem_crs}")
 
     shapefile_crs = gru_gdf.crs
-    discretizer.logger.info(f"Shapefile CRS: {shapefile_crs}")
+    discretizer.logger.debug(f"Shapefile CRS: {shapefile_crs}")
 
     # Check if CRS match
     if dem_crs != shapefile_crs:
-        discretizer.logger.info(
+        discretizer.logger.debug(
             f"CRS mismatch detected. Reprojecting shapefile from {shapefile_crs} to {dem_crs}"
         )
         gru_gdf_projected = gru_gdf.to_crs(dem_crs)
     else:
-        discretizer.logger.info("CRS match - no reprojection needed")
+        discretizer.logger.debug("CRS match - no reprojection needed")
         gru_gdf_projected = gru_gdf.copy()
 
     # Use rasterstats with the raster array and transform
@@ -84,7 +79,7 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         gru_gdf["elev_mean"] = [
             item["mean"] if item["mean"] is not None else -9999 for item in zs
         ]
-        discretizer.logger.info(
+        discretizer.logger.debug(
             f"Successfully calculated elevation statistics for {len(gru_gdf)} HRUs"
         )
 
@@ -113,7 +108,7 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         gru_gdf["center_lon"] = centroids_wgs84.x
         gru_gdf["center_lat"] = centroids_wgs84.y
 
-        discretizer.logger.info(
+        discretizer.logger.debug(
             "Calculated centroids in WGS84: "
             f"lat range {centroids_wgs84.y.min():.6f} to {centroids_wgs84.y.max():.6f}, "
             f"lon range {centroids_wgs84.x.min():.6f} to {centroids_wgs84.x.max():.6f}"
@@ -128,7 +123,7 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
                 gru_gdf["center_lat"].between(-90, 90).all()
                 and gru_gdf["center_lon"].between(-180, 180).all()
             ):
-                discretizer.logger.info("Using existing center_lat/center_lon coordinates")
+                discretizer.logger.debug("Using existing center_lat/center_lon coordinates")
             else:
                 discretizer.logger.warning(
                     "Existing center_lat/center_lon appear to be in projected coordinates, setting to default values"
@@ -148,6 +143,6 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
     gru_gdf["HRU_ID"] = gru_gdf["GRU_ID"]
 
     gru_gdf.to_file(hru_output_shapefile)
-    discretizer.logger.info(f"GRUs saved as HRUs to {hru_output_shapefile}")
+    discretizer.logger.debug(f"GRUs saved as HRUs to {hru_output_shapefile}")
 
     return hru_output_shapefile

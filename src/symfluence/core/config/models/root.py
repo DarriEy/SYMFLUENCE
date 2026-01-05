@@ -396,7 +396,8 @@ class SymfluenceConfig(BaseModel):
 
         # Validate optimization algorithm
         valid_algorithms = [
-            'PSO', 'DE', 'DDS', 'SCE-UA', 'SCEUA', 'NSGA-II', 'NSGA2',
+            'PSO', 'DE', 'DDS', 'ASYNC-DDS', 'ASYNCDDS', 'ASYNC_DDS',
+            'SCE-UA', 'SCEUA', 'NSGA-II', 'NSGA2',
             'ADAM', 'LBFGS', 'GD', 'SGD'
         ]
         if self.optimization.algorithm not in valid_algorithms:

@@ -238,6 +238,7 @@ class MODISLandcoverAcquirer(BaseAcquisitionHandler):
                                 "width": data.shape[1],
                                 "transform": out_transform,
                                 "compress": "lzw",
+                                "nodata": 255,
                             })
 
                         if data.shape == (out_meta["height"], out_meta["width"]):

@@ -533,6 +533,7 @@ class BaseWorker(ABC):
         metrics = self.calculate_metrics(
             task.output_dir,
             task.config,
+            sim_dir=task.sim_dir,
             **task.additional_data
         )
 
@@ -564,20 +565,36 @@ class BaseWorker(ABC):
         """
         # Get configured metric name
         metric_name = config.get('CALIBRATION_METRIC', 'KGE')
-        metric_key = metric_name.lower()
+        
+        # Check for exact match first
+        if metric_name in metrics:
+            return metrics[metric_name]
+            
+        # Check for Calib_ prefix
+        calib_key = f"Calib_{metric_name}"
+        if calib_key in metrics:
+            return metrics[calib_key]
 
-        # Try to find the metric
-        if metric_key in metrics:
-            return metrics[metric_key]
+        # Case-insensitive search
+        metric_lower = metric_name.lower()
+        for k, v in metrics.items():
+            if k.lower() == metric_lower:
+                return v
+            if k.lower() == f"calib_{metric_lower}":
+                return v
 
         # Try common alternatives
         alternatives = ['kge', 'nse', 'score', 'fitness', 'objective']
         for alt in alternatives:
+            # Check exact and lower
             if alt in metrics:
                 return metrics[alt]
+            for k, v in metrics.items():
+                if k.lower() == alt:
+                    return v
 
         # Return penalty if no metric found
-        self.logger.warning(f"Could not find metric '{metric_name}' in results")
+        self.logger.warning(f"Could not find metric '{metric_name}' in results. Available keys: {list(metrics.keys())}")
         return self.penalty_score
 
     def _is_transient_error(self, error: Exception) -> bool:

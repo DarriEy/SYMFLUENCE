@@ -437,7 +437,7 @@ class GeospatialStatistics:
                 affine=soil_transform,
                 stats=['count'], 
                 categorical=True, 
-                nodata=soil_nodata if soil_nodata is not None else -9999
+                nodata=soil_nodata if soil_nodata is not None else 255
             )
             
             result_df = pd.DataFrame(stats).fillna(0)
@@ -554,7 +554,7 @@ class GeospatialStatistics:
             affine=land_transform,
             stats=['count'], 
             categorical=True, 
-            nodata=land_nodata if land_nodata is not None else -9999
+            nodata=land_nodata if land_nodata is not None else 255
         )
         
         result_df = pd.DataFrame(stats).fillna(0)
@@ -610,7 +610,7 @@ class GeospatialStatistics:
                 gdf = gpd.read_file(soil_output_file)
                 usgs_cols = [col for col in gdf.columns if col.startswith('USGS_')]
                 if len(usgs_cols) > 0 and len(gdf) > 0:
-                    self.logger.info(f"Soil statistics already calculated: {soil_output_file}")
+                    self.logger.debug(f"Soil statistics already calculated: {soil_output_file}")
                     skipped += 1
             except Exception:
                 pass
@@ -631,7 +631,7 @@ class GeospatialStatistics:
                 gdf = gpd.read_file(land_output_file)
                 igbp_cols = [col for col in gdf.columns if col.startswith('IGBP_')]
                 if len(igbp_cols) > 0 and len(gdf) > 0:
-                    self.logger.info(f"Land statistics already calculated: {land_output_file}")
+                    self.logger.debug(f"Land statistics already calculated: {land_output_file}")
                     skipped += 1
             except Exception:
                 pass
@@ -651,7 +651,7 @@ class GeospatialStatistics:
             try:
                 gdf = gpd.read_file(dem_output_file)
                 if 'elev_mean' in gdf.columns and len(gdf) > 0:
-                    self.logger.info(f"Elevation statistics already calculated: {dem_output_file}")
+                    self.logger.debug(f"Elevation statistics already calculated: {dem_output_file}")
                     skipped += 1
             except Exception:
                 pass
@@ -659,4 +659,4 @@ class GeospatialStatistics:
         if skipped < 3:
             self.calculate_elevation_stats()
         
-        self.logger.info(f"Geospatial statistics completed: {skipped}/{total} steps skipped, {total-skipped}/{total} steps executed")
+        self.logger.debug(f"Geospatial statistics completed: {skipped}/{total} steps skipped, {total-skipped}/{total} steps executed")

@@ -169,7 +169,8 @@ def test_fyris_uppsala_full_workflow(fyris_config, clear_cache_flag):
 
     # Check if observation data already exists
     streamflow_dir = project_dir / "observations" / "streamflow"
-    wsc_files = list(streamflow_dir.glob("*.csv")) or list(streamflow_dir.glob("*.rdb")) if streamflow_dir.exists() else []
+    raw_streamflow_dir = streamflow_dir / "raw_data"
+    wsc_files = list(raw_streamflow_dir.glob("*.csv")) or list(raw_streamflow_dir.glob("*.rdb")) if raw_streamflow_dir.exists() else []
 
     if wsc_files and not clear_cache_flag:
         print(f"✓ Using cached WSC streamflow data")
@@ -178,8 +179,8 @@ def test_fyris_uppsala_full_workflow(fyris_config, clear_cache_flag):
         sym.managers["data"].acquire_observations()
 
         # Verify WSC streamflow
-        assert streamflow_dir.exists(), "Streamflow directory not created"
-        wsc_files = list(streamflow_dir.glob("*.csv")) or list(streamflow_dir.glob("*.rdb"))
+        assert raw_streamflow_dir.exists(), "Streamflow raw data directory not created"
+        wsc_files = list(raw_streamflow_dir.glob("*.csv")) or list(raw_streamflow_dir.glob("*.rdb"))
         assert len(wsc_files) > 0, "WSC streamflow data not downloaded"
         print(f"✓ WSC streamflow data acquired")
 

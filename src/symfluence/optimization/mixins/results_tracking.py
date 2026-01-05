@@ -207,13 +207,28 @@ class ResultsTrackingMixin:
             self.logger.warning("No best parameters to save")
             return None
 
+        # Convert numpy types to JSON-serializable types
+        def convert_to_serializable(obj):
+            """Convert numpy types to native Python types."""
+            import numpy as np
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, (np.integer, np.floating)):
+                return obj.item()
+            elif isinstance(obj, dict):
+                return {key: convert_to_serializable(val) for key, val in obj.items()}
+            elif isinstance(obj, (list, tuple)):
+                return [convert_to_serializable(item) for item in obj]
+            else:
+                return obj
+
         # Prepare output
         output = {
             'algorithm': algorithm,
             'experiment_id': experiment_id,
-            'best_score': self._best_score,
-            'best_iteration': self._best_iteration,
-            'best_params': self._best_params,
+            'best_score': float(self._best_score) if self._best_score is not None else None,
+            'best_iteration': int(self._best_iteration) if self._best_iteration is not None else None,
+            'best_params': convert_to_serializable(self._best_params),
             'timestamp': datetime.now().isoformat(),
         }
 

@@ -185,14 +185,6 @@ class SummaForcingProcessor(BaseForcingProcessor):
         if total_files == 0:
             raise FileNotFoundError(f"No forcing files found in {self.forcing_basin_path}")
 
-        inferred_step = self._infer_forcing_step_from_filenames(forcing_files)
-        if inferred_step and inferred_step != self.data_step:
-            self.logger.info(
-                f"Updating forcing time step to {inferred_step}s based on forcing file cadence"
-            )
-            self.data_step = inferred_step
-            self.config['FORCING_TIME_STEP_SIZE'] = inferred_step
-
         # Prepare output directory
         self.forcing_summa_path.mkdir(parents=True, exist_ok=True)
         prefix = f"{self.domain_name}_{self.forcing_dataset}".lower()
@@ -320,7 +312,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                     raise ValueError(f"File {file}: No valid HRUs found after filtering")
 
             # 2. FIX NaN VALUES IN FORCING DATA
-            #dat = self._fix_nan_values(dat, file)
+            dat = self._fix_nan_values(dat, file)
 
             # 2b. ENSURE REQUIRED VARIABLES EXIST
             dat = self._ensure_required_forcing_variables(dat, file)
@@ -403,7 +395,12 @@ class SummaForcingProcessor(BaseForcingProcessor):
             Dataset with corrected time coordinate
         """
         try:
-            time_coord = dataset.time
+            # Check if time exists in the dataset
+            if 'time' not in dataset.dims and 'time' not in dataset.coords:
+                raise ValueError(f"Dataset has no 'time' dimension or coordinate")
+
+            # Use bracket notation to access time safely
+            time_coord = dataset['time']
 
             self.logger.debug(f"File {filename}: Original time dtype: {time_coord.dtype}")
 
@@ -442,6 +439,9 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
             # Replace the time coordinate
             dataset = dataset.assign_coords(time=seconds_since_ref)
+            
+            # Ensure time is monotonic
+            dataset = dataset.sortby('time')
 
             # Set proper attributes for SUMMA
             dataset.time.attrs = {
@@ -477,10 +477,8 @@ class SummaForcingProcessor(BaseForcingProcessor):
                     )
                     if actual_median_step > 0 and abs(actual_median_step - expected_step) > expected_step * 0.01:
                         self.logger.warning(
-                            f"File {filename}: Updating forcing time step to {actual_median_step}s to match data"
+                            f"File {filename}: Actual median step {actual_median_step}s differs from expected {expected_step}s"
                         )
-                        self.data_step = actual_median_step
-                        self.config['FORCING_TIME_STEP_SIZE'] = actual_median_step
                 else:
                     self.logger.debug(f"File {filename}: Time steps are consistent ({match_percentage:.1f}% match)")
 
@@ -897,9 +895,50 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 f"No {forcing_dataset} forcing files found in {forcing_path}"
             )
 
-        forcing_files.sort()
+        # Robust chronological sorting by extracting dates from filenames
+        def extract_date(filename):
+            import re
+            # Pattern 1: YYYY-MM-DD-HH-MM-SS
+            match = re.search(r"(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})", filename)
+            if match:
+                try:
+                    return datetime.strptime(match.group(1), "%Y-%m-%d-%H-%M-%S")
+                except ValueError:
+                    pass
+            # Pattern 2: YYYYMM at the end (before .nc)
+            match = re.search(r"(\d{6})\.nc$", filename)
+            if match:
+                try:
+                    return datetime.strptime(match.group(1), "%Y%m")
+                except ValueError:
+                    pass
+            # Pattern 3: YYYYMMDD at the end
+            match = re.search(r"(\d{8})\.nc$", filename)
+            if match:
+                try:
+                    return datetime.strptime(match.group(1), "%Y%m%d")
+                except ValueError:
+                    pass
+            # Fallback to a very old date for non-matching files
+            return datetime(1900, 1, 1)
+
+        # Sort and deduplicate (prefer files with longer names which usually contain full timestamps)
+        forcing_files.sort(key=lambda x: (extract_date(x), -len(x)))
+        
+        unique_files = []
+        seen_dates = set()
+        for f in forcing_files:
+            date = extract_date(f)
+            if date not in seen_dates:
+                unique_files.append(f)
+                seen_dates.add(date)
+            else:
+                self.logger.warning(f"Skipping duplicate forcing file for date {date}: {f}")
+
+        forcing_files = unique_files
+        
         self.logger.info(
-            "Found %d %s forcing files for SUMMA",
+            "Found %d unique %s forcing files for SUMMA",
             len(forcing_files),
             forcing_dataset,
         )

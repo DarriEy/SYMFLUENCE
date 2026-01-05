@@ -443,7 +443,7 @@ def test_quick_workflow_summa_only(
 @pytest.mark.e2e
 @pytest.mark.ci_full
 @pytest.mark.requires_data
-@pytest.mark.parametrize("model", ["SUMMA", "HYPE"])
+@pytest.mark.parametrize("model", ["SUMMA", "HYPE", "RHESSys"])
 def test_full_workflow_1month(
     model,
     tmp_path,

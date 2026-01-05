@@ -18,11 +18,15 @@ import multiprocessing as mp
 import time
 import uuid
 import sys
+import logging
 from datetime import datetime
+from contextlib import redirect_stdout, redirect_stderr
+from io import StringIO
 
 import gc
 from rasterio.windows import from_bounds
 import warnings
+from tqdm import tqdm
 
 from symfluence.core.path_resolver import PathResolverMixin
 
@@ -39,13 +43,76 @@ except ImportError:
             f"Cannot import DatasetRegistry. Please ensure dataset handlers are installed. Error: {e}"
         )
 
+# Suppress verbose easmore logging
+logging.getLogger('easymore').setLevel(logging.WARNING)
+logging.getLogger('easymorepy').setLevel(logging.WARNING)
+
+# Suppress numpy deprecation warnings from EASMORE
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='easymore')
+warnings.filterwarnings('ignore', category=RuntimeWarning, module='easymore')
+
+
+def _run_easmore_with_suppressed_output(esmr, logger):
+    """
+    Run EASMORE's nc_remapper while suppressing its verbose print output.
+    EASMORE prints directly to stdout/stderr, not through logging.
+
+    Returns:
+        tuple: (success: bool, stdout: str, stderr: str)
+    """
+    try:
+        # Suppress all warnings from EASMORE during execution
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', category=DeprecationWarning)
+            warnings.filterwarnings('ignore', category=RuntimeWarning)
+            warnings.filterwarnings('ignore', category=UserWarning)
+
+            # Capture both stdout and stderr
+            captured_output = StringIO()
+            captured_error = StringIO()
+
+            with redirect_stdout(captured_output), redirect_stderr(captured_error):
+                esmr.nc_remapper()
+
+            # Get full captured output
+            stdout_text = captured_output.getvalue().strip()
+            stderr_text = captured_error.getvalue().strip()
+
+            # Check for error indicators in output
+            has_error = any(indicator in stderr_text.lower() for indicator in ['error', 'failed', 'exception', 'traceback'])
+
+            if stdout_text:
+                # Log first 200 chars at debug level for normal output
+                logger.debug(f"EASMORE stdout: {stdout_text[:200]}")
+
+            if stderr_text:
+                if has_error:
+                    # Log FULL stderr if it contains error indicators
+                    logger.warning(f"EASMORE stderr (errors detected):\n{stderr_text}")
+                else:
+                    # Just first 200 chars for normal stderr
+                    logger.debug(f"EASMORE stderr: {stderr_text[:200]}")
+
+            return (True, stdout_text, stderr_text)
+
+    except Exception as e:
+        logger.error(f"Error running EASMORE: {str(e)}")
+        raise
+
 
 def _create_easymore_instance():
-    if hasattr(easymore, "Easymore"):
-        return easymore.Easymore()
-    if hasattr(easymore, "easymore"):
-        return easymore.easymore()
-    raise AttributeError("easymore module does not expose an Easymore class")
+    """Create an Easymore instance while suppressing initialization output."""
+    # EASMORE prints initialization message to stdout when instantiated
+    # Capture and suppress this output
+    captured_output = StringIO()
+    with redirect_stdout(captured_output):
+        if hasattr(easymore, "Easymore"):
+            instance = easymore.Easymore()
+        elif hasattr(easymore, "easymore"):
+            instance = easymore.easymore()
+        else:
+            raise AttributeError("easymore module does not expose an Easymore class")
+    return instance
 
 
 class ForcingResampler(PathResolverMixin):
@@ -77,24 +144,24 @@ class ForcingResampler(PathResolverMixin):
                 self.logger, 
                 self.project_dir
             )
-            self.logger.info(f"Initialized {self.forcing_dataset.upper()} dataset handler")
+            self.logger.debug(f"Initialized {self.forcing_dataset.upper()} dataset handler")
         except ValueError as e:
             self.logger.error(f"Failed to initialize dataset handler: {str(e)}")
             raise
         
         # Merge forcings if required by dataset
         if self.dataset_handler.needs_merging():
-            self.logger.info(f"{self.forcing_dataset.upper()} requires merging of raw files")
+            self.logger.debug(f"{self.forcing_dataset.upper()} requires merging of raw files")
             # Ensure the directory exists before calling merge_forcings
             self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/merged_path')
             self.merged_forcing_path.mkdir(parents=True, exist_ok=True)
             self.merge_forcings()
 
     def run_resampling(self):
-        self.logger.info("Starting forcing data resampling process")
+        self.logger.debug("Starting forcing data resampling process")
         self.create_shapefile()
         self.remap_forcing()
-        self.logger.info("Forcing data resampling process completed")
+        self.logger.debug("Forcing data resampling process completed")
 
     def merge_forcings(self):
         """
@@ -125,7 +192,7 @@ class ForcingResampler(PathResolverMixin):
 
     def create_shapefile(self):
         """Create forcing shapefile using dataset-specific handler with check for existing files"""
-        self.logger.info(f"Creating {self.forcing_dataset.upper()} shapefile")
+        self.logger.debug(f"Creating {self.forcing_dataset.upper()} shapefile")
         
         # Check if shapefile already exists
         self.shapefile_path.mkdir(parents=True, exist_ok=True)
@@ -151,17 +218,17 @@ class ForcingResampler(PathResolverMixin):
                             tol = 1e-6
                             if (lon_min < minx - tol or lon_max > maxx + tol or
                                     lat_min < miny - tol or lat_max > maxy + tol):
-                                self.logger.info("Existing forcing shapefile bounds do not cover current bbox. Recreating.")
+                                self.logger.debug("Existing forcing shapefile bounds do not cover current bbox. Recreating.")
                             else:
-                                self.logger.info(f"Forcing shapefile already exists: {output_shapefile}. Skipping creation.")
+                                self.logger.debug(f"Forcing shapefile already exists. Skipping creation.")
                                 return output_shapefile
                         except Exception as e:
                             self.logger.warning(f"Error checking bbox vs shapefile bounds: {e}. Recreating.")
                     else:
-                        self.logger.info(f"Forcing shapefile already exists: {output_shapefile}. Skipping creation.")
+                        self.logger.debug(f"Forcing shapefile already exists. Skipping creation.")
                         return output_shapefile
                 else:
-                    self.logger.info("Existing forcing shapefile missing expected columns. Recreating.")
+                    self.logger.debug("Existing forcing shapefile missing expected columns. Recreating.")
             except Exception as e:
                 self.logger.warning(f"Error checking existing forcing shapefile: {str(e)}. Recreating.")
         
@@ -176,11 +243,12 @@ class ForcingResampler(PathResolverMixin):
     def _calculate_elevation_stats_safe(self, gdf, dem_path, batch_size=50):
         """
         Safely calculate elevation statistics with CRS alignment and batching.
+        Uses rasterio directly to avoid segmentation faults in rasterstats.
         
         Args:
             gdf: GeoDataFrame containing geometries
             dem_path: Path to DEM raster
-            batch_size: Number of geometries to process per batch
+            batch_size: Number of geometries to process per batch (unused in new implementation but kept for API compatibility)
             
         Returns:
             List of elevation values corresponding to each geometry
@@ -188,83 +256,89 @@ class ForcingResampler(PathResolverMixin):
         self.logger.info(f"Calculating elevation statistics for {len(gdf)} geometries")
         
         # Initialize elevation column with default value
-        elevations = [-9999] * len(gdf)
+        elevations = [-9999.0] * len(gdf)
         
         try:
-            # Get CRS information
+            # Open the raster once
             with rasterio.open(dem_path) as src:
                 dem_crs = src.crs
                 self.logger.info(f"DEM CRS: {dem_crs}")
             
-            shapefile_crs = gdf.crs
-            self.logger.info(f"Shapefile CRS: {shapefile_crs}")
-            
-            # Check if CRS match and reproject if needed
-            if dem_crs != shapefile_crs:
-                self.logger.info(f"CRS mismatch detected. Reprojecting geometries from {shapefile_crs} to {dem_crs}")
-                try:
-                    gdf_projected = gdf.to_crs(dem_crs)
-                    self.logger.info("CRS reprojection successful")
-                except Exception as e:
-                    self.logger.error(f"Failed to reproject CRS: {str(e)}")
-                    self.logger.warning("Using original CRS - elevation calculation may fail")
+                shapefile_crs = gdf.crs
+                self.logger.info(f"Shapefile CRS: {shapefile_crs}")
+                
+                # Check if CRS match and reproject if needed
+                if dem_crs != shapefile_crs:
+                    self.logger.info(f"CRS mismatch detected. Reprojecting geometries from {shapefile_crs} to {dem_crs}")
+                    try:
+                        gdf_projected = gdf.to_crs(dem_crs)
+                        self.logger.info("CRS reprojection successful")
+                    except Exception as e:
+                        self.logger.error(f"Failed to reproject CRS: {str(e)}")
+                        self.logger.warning("Using original CRS - elevation calculation may fail")
+                        gdf_projected = gdf.copy()
+                else:
+                    self.logger.info("CRS match - no reprojection needed")
                     gdf_projected = gdf.copy()
-            else:
-                self.logger.info("CRS match - no reprojection needed")
-                gdf_projected = gdf.copy()
-            
-            # Process in batches to manage memory
-            num_batches = (len(gdf_projected) + batch_size - 1) // batch_size
-            self.logger.info(f"Processing elevation in {num_batches} batches of {batch_size}")
-            
-            for batch_idx in range(num_batches):
-                start_idx = batch_idx * batch_size
-                end_idx = min(start_idx + batch_size, len(gdf_projected))
                 
-                self.logger.info(f"Processing elevation batch {batch_idx+1}/{num_batches} ({start_idx} to {end_idx-1})")
+                self.logger.info(f"Processing elevation for {len(gdf_projected)} geometries using rasterio")
                 
+                # Iterate over geometries
+                # Using tqdm for progress if available, otherwise just iterate
                 try:
-                    # Get batch of geometries
-                    batch_gdf = gdf_projected.iloc[start_idx:end_idx]
-                    
-                    # Use rasterstats with the raster file path directly (more efficient and handles CRS properly)
-                    zs = rasterstats.zonal_stats(
-                        batch_gdf.geometry, 
-                        str(dem_path),  # Use file path instead of array
-                        stats=['mean'],
-                        nodata=-9999  # Explicit nodata value
-                    )
-                    
-                    # Update elevation values
-                    for i, item in enumerate(zs):
-                        idx = start_idx + i
-                        elevations[idx] = item['mean'] if item['mean'] is not None else -9999
+                    iterator = tqdm(gdf_projected.geometry.iloc, total=len(gdf_projected), desc="Calculating Elevation")
+                except ImportError:
+                    iterator = gdf_projected.geometry.iloc
+
+                for idx, geom in enumerate(iterator):
+                    try:
+                        # Skip invalid empty geometries
+                        if geom is None or geom.is_empty:
+                            continue
+
+                        # rasterio.mask.mask expects a list of geometries (GeoJSON-like)
+                        # crop=True creates a smaller array for the masked area
+                        out_image, out_transform = mask(src, [geom], crop=True, nodata=-9999)
                         
-                except Exception as e:
-                    self.logger.warning(f"Error calculating elevations for batch {batch_idx+1}: {str(e)}")
-                    # Continue with next batch - elevations remain -9999 for failed batch
-            
-            valid_elevations = sum(1 for elev in elevations if elev != -9999)
+                        # out_image is (bands, rows, cols)
+                        data = out_image[0]
+                        
+                        # Filter for valid data
+                        valid_data = data[data != -9999]
+                        
+                        if valid_data.size > 0:
+                            elevations[idx] = float(np.mean(valid_data))
+                        
+                    except ValueError:
+                        # Usually means geometry is outside raster bounds
+                        pass
+                    except Exception as e:
+                        # Log specific error but continue
+                        # Only log first few errors to avoid spamming
+                        if idx < 5:
+                            self.logger.debug(f"Error calculating elevation for geometry {idx}: {str(e)}")
+
+            valid_elevations = sum(1 for elev in elevations if elev != -9999.0)
             self.logger.info(f"Successfully calculated elevation for {valid_elevations}/{len(elevations)} geometries")
             
         except Exception as e:
             self.logger.error(f"Error in elevation calculation: {str(e)}")
-            # Return all -9999 values on error
-            elevations = [-9999] * len(gdf)
+            import traceback
+            self.logger.error(traceback.format_exc())
         
         return elevations
 
     def remap_forcing(self):
-        self.logger.info("Starting forcing remapping process")
+        self.logger.debug("Starting forcing remapping process")
         
         # Check for point-scale bypass
         if self.config.get('DOMAIN_DEFINITION_METHOD', '').lower() == 'point':
-            self.logger.info("Point-scale domain detected. Using simplified extraction instead of EASYMORE remapping.")
+            self.logger.debug("Point-scale domain detected. Using simplified extraction instead of EASYMORE remapping.")
             self._process_point_scale_forcing()
         else:
             self._create_parallelized_weighted_forcing()
             
-        self.logger.info("Forcing remapping process completed")
+        self.logger.debug("Forcing remapping process completed")
 
     def _process_point_scale_forcing(self):
         """
@@ -274,8 +348,14 @@ class ForcingResampler(PathResolverMixin):
         self.forcing_basin_path.mkdir(parents=True, exist_ok=True)
         intersect_path = self.project_dir / 'shapefiles' / 'catchment_intersection' / 'with_forcing'
         intersect_path.mkdir(parents=True, exist_ok=True)
-        
-        forcing_files = sorted([f for f in self.merged_forcing_path.glob('*.nc')])
+
+        # Get forcing files, excluding non-temporal files
+        exclude_patterns = ['attributes', 'metadata', 'static', 'constants', 'params']
+        all_nc_files = list(self.merged_forcing_path.glob('*.nc'))
+        forcing_files = sorted([
+            f for f in all_nc_files
+            if not any(pattern in f.name.lower() for pattern in exclude_patterns)
+        ])
         
         if not forcing_files:
             self.logger.warning("No forcing files found to process")
@@ -383,67 +463,79 @@ class ForcingResampler(PathResolverMixin):
         forcing_dataset = self.config.get('FORCING_DATASET')
         input_stem = input_file.stem
         
-        # Handle RDRS and CASR specific naming patterns
-        if forcing_dataset.lower() == 'rdrs':
-            # For files like "RDRS_monthly_198001.nc", output should be "Canada_RDRS_remapped_RDRS_monthly_198001.nc"
-            if input_stem.startswith('RDRS_monthly_'):
-                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
-            else:
-                # General fallback for other RDRS files
-                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
-        elif forcing_dataset.lower() == 'casr':
-            # For files like "CASR_monthly_198001.nc", output should be "Canada_CASR_remapped_CASR_monthly_198001.nc"
-            if input_stem.startswith('CASR_monthly_'):
-                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
-            else:
-                # General fallback for other CASR files
-                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
-        elif forcing_dataset.lower() in ('carra', 'cerra'):
-            start_str = self.config.get('EXPERIMENT_TIME_START')
-            try:
-                dt_start = datetime.strptime(start_str, "%Y-%m-%d %H:%M")
-                time_tag = dt_start.strftime("%Y-%m-%d-%H-%M-%S")
-                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{time_tag}.nc"
-            except Exception:
-                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
-        elif forcing_dataset.lower() == 'era5':
-            # ERA5 merged files often end with YYYYMM or YYYYMMDD (e.g., *_200401)
-            date_match = re.search(r"(\d{8})$", input_stem) or re.search(r"(\d{6})$", input_stem)
-            if date_match:
-                date_str = date_match.group(1)
-                if len(date_str) == 6:
-                    dt = datetime.strptime(date_str, "%Y%m")
-                    time_tag = dt.strftime("%Y-%m-01-00-00-00")
-                else:
-                    dt = datetime.strptime(date_str, "%Y%m%d")
-                    time_tag = dt.strftime("%Y-%m-%d-00-00-00")
-                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{time_tag}.nc"
-            else:
-                output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
+        # Standardize naming by attempting to extract a date first
+        # This prevents duplicates if raw files have different naming schemes for the same date
+        import re
+        date_tag = None
+        
+        # Pattern 1: YYYY-MM-DD-HH-MM-SS
+        match = re.search(r"(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})", input_stem)
+        if match:
+            date_tag = match.group(1)
         else:
-            # General pattern for other datasets (ERA5, etc.)
-            output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
+            # Pattern 2: YYYYMMDD or YYYYMM (look for 6 or 8 digits, potentially preceded by underscore or at start)
+            # We look for digits that are likely a year (starting with 19 or 20)
+            match = re.search(r"(19|20)(\d{4,6})", input_stem)
+            if match:
+                date_str = match.group(0)
+                try:
+                    if len(date_str) == 6:
+                        dt = datetime.strptime(date_str, "%Y%m")
+                        date_tag = dt.strftime("%Y-%m-01-00-00-00")
+                    elif len(date_str) == 8:
+                        dt = datetime.strptime(date_str, "%Y%m%d")
+                        date_tag = dt.strftime("%Y-%m-%d-00-00-00")
+                except ValueError:
+                    pass
+
+        if date_tag:
+            # Clean, standardized filename
+            output_filename = f"{domain_name}_{forcing_dataset}_remapped_{date_tag}.nc"
+        else:
+            # Fallback logic: prevent redundant prefixing
+            # If the input_stem already contains the domain_name, don't prepend it again
+            clean_stem = input_stem
+            if input_stem.startswith(f"domain_{domain_name}"):
+                clean_stem = input_stem.replace(f"domain_{domain_name}_", "")
+            elif input_stem.startswith(domain_name):
+                clean_stem = input_stem.replace(f"{domain_name}_", "")
+            
+            # Remove forcing dataset from stem if it's there
+            clean_stem = clean_stem.replace(f"{forcing_dataset}_", "").replace(f"{forcing_dataset.lower()}_", "")
+            # Remove existing "remapped" or "merged" tags
+            clean_stem = clean_stem.replace("remapped_", "").replace("merged_", "")
+            
+            output_filename = f"{domain_name}_{forcing_dataset}_remapped_{clean_stem}.nc"
         
         return self.forcing_basin_path / output_filename
 
     def _create_parallelized_weighted_forcing(self):
         """Create weighted forcing files with proper serial/parallel handling for HPC environments"""
-        self.logger.info("Creating weighted forcing files")
-        
         # Create output directories if they don't exist
         self.forcing_basin_path.mkdir(parents=True, exist_ok=True)
         intersect_path = self.project_dir / 'shapefiles' / 'catchment_intersection' / 'with_forcing'
         intersect_path.mkdir(parents=True, exist_ok=True)
         
-        # Get list of forcing files
+        # Get list of forcing files (exclude non-temporal files like attributes, metadata, etc.)
         forcing_path = self.merged_forcing_path
-        forcing_files = sorted([f for f in forcing_path.glob('*.nc')])
+        exclude_patterns = ['attributes', 'metadata', 'static', 'constants', 'params']
+
+        all_nc_files = list(forcing_path.glob('*.nc'))
+        forcing_files = sorted([
+            f for f in all_nc_files
+            if not any(pattern in f.name.lower() for pattern in exclude_patterns)
+        ])
+
+        excluded_count = len(all_nc_files) - len(forcing_files)
+        if excluded_count > 0:
+            excluded_files = [f.name for f in all_nc_files if f not in forcing_files]
+            self.logger.debug(f"Excluded {excluded_count} non-forcing files: {excluded_files}")
         
         if not forcing_files:
             self.logger.warning("No forcing files found to process")
             return
         
-        self.logger.info(f"Found {len(forcing_files)} forcing files to process")
+        self.logger.debug(f"Found {len(forcing_files)} forcing files to process")
         
         # STEP 1: Create remapping weights ONCE (not per file)
         remap_file = self._create_remapping_weights_once(forcing_files[0], intersect_path)
@@ -452,7 +544,7 @@ class ForcingResampler(PathResolverMixin):
         remaining_files = self._filter_processed_files(forcing_files)
         
         if not remaining_files:
-            self.logger.info("All files have already been processed")
+            self.logger.debug("All files have already been processed")
             return
         
         # STEP 3: Apply remapping weights to all files
@@ -472,42 +564,50 @@ class ForcingResampler(PathResolverMixin):
             # Don't spawn more workers than files
             num_cpus = min(num_cpus, len(remaining_files))
             
-            self.logger.info(f"Using parallel processing with {num_cpus} CPUs")
+            self.logger.debug(f"Using parallel processing with {num_cpus} CPUs")
             success_count = self._process_files_parallel(remaining_files, num_cpus, remap_file)
         else:
-            self.logger.info("Using serial processing (no multiprocessing)")
+            self.logger.debug("Using serial processing (no multiprocessing)")
             success_count = self._process_files_serial(remaining_files, remap_file)
         
         # Report final results
         already_processed = len(forcing_files) - len(remaining_files)
-        self.logger.info(f"Processing complete: {success_count} files processed successfully out of {len(remaining_files)}")
-        self.logger.info(f"Total files processed or skipped: {success_count + already_processed} out of {len(forcing_files)}")
+        self.logger.debug(f"Processing complete: {success_count} files processed successfully out of {len(remaining_files)}")
+        self.logger.debug(f"Total files processed or skipped: {success_count + already_processed} out of {len(forcing_files)}")
 
     def _filter_processed_files(self, forcing_files):
-        """Filter out already processed files"""
+        """Filter out already processed and valid files"""
         remaining_files = []
         already_processed = 0
-        
+        corrupted_files = 0
+
         for file in forcing_files:
             output_file = self._determine_output_filename(file)
-            
+
             if output_file.exists():
-                try:
-                    file_size = output_file.stat().st_size
-                    if file_size > 1000:
-                        self.logger.debug(f"Skipping already processed file: {file.name}")
-                        already_processed += 1
-                        continue
-                    else:
-                        self.logger.warning(f"Found potentially corrupted output file {output_file}. Will reprocess.")
-                except Exception as e:
-                    self.logger.warning(f"Error checking output file {output_file}: {str(e)}. Will reprocess.")
-            
+                # Validate the existing file
+                is_valid = self._validate_forcing_file(output_file)
+
+                if is_valid:
+                    self.logger.debug(f"Skipping already processed file: {file.name}")
+                    already_processed += 1
+                    continue
+                else:
+                    # File exists but is corrupted - delete and reprocess
+                    self.logger.warning(f"Found corrupted output file {output_file}. Deleting and will reprocess.")
+                    try:
+                        output_file.unlink()
+                        corrupted_files += 1
+                    except Exception as e:
+                        self.logger.warning(f"Error deleting corrupted file {output_file}: {str(e)}")
+
             remaining_files.append(file)
-        
-        self.logger.info(f"Found {already_processed} already processed files")
-        self.logger.info(f"Found {len(remaining_files)} files that need processing")
-        
+
+        self.logger.debug(f"Found {already_processed} already processed files")
+        if corrupted_files > 0:
+            self.logger.info(f"Deleted {corrupted_files} corrupted files that will be reprocessed")
+        self.logger.debug(f"Found {len(remaining_files)} files that need processing")
+
         return remaining_files
 
 
@@ -542,11 +642,11 @@ class ForcingResampler(PathResolverMixin):
             intersect_csv = intersect_path / f"{case_name}_intersected_shapefile.csv"
             intersect_shp = intersect_path / f"{case_name}_intersected_shapefile.shp"
             if intersect_csv.exists() or intersect_shp.exists():
-                self.logger.info(f"Remapping weights file already exists: {remap_file}")
+                self.logger.debug(f"Remapping weights file already exists. Skipping creation.")
                 return remap_file
-            self.logger.info("Remapping weights found but intersected shapefile missing. Recreating.")
+            self.logger.debug("Remapping weights found but intersected shapefile missing. Recreating.")
         
-        self.logger.info("Creating remapping weights (this is done only once)...")
+        self.logger.debug("Creating remapping weights...")
         
         # Create temporary directory for this operation
         temp_dir = self.project_dir / 'forcing' / 'temp_easymore_weights'
@@ -579,7 +679,7 @@ class ForcingResampler(PathResolverMixin):
                             target_gdf.to_file(shifted_path)
                             target_shp_for_easymore = shifted_path
                             disable_lon_correction = True
-                            self.logger.info("Shifted target shapefile longitudes to 0-360 for easymore.")
+                            self.logger.debug("Shifted target shapefile longitudes to 0-360 for easymore.")
             except Exception as e:
                 self.logger.warning(f"Failed to align target longitudes for easymore: {e}")
 
@@ -688,7 +788,7 @@ class ForcingResampler(PathResolverMixin):
             
             # Create the weights
             self.logger.info("Running easymore to create remapping weights...")
-            esmr.nc_remapper()
+            _run_easmore_with_suppressed_output(esmr, self.logger)
             
             # Move the remap file to the final location
             temp_remap = temp_dir / f"{case_name}_remapping.csv"
@@ -740,24 +840,21 @@ class ForcingResampler(PathResolverMixin):
         self.logger.info(f"Processing {len(files)} files in serial mode")
         
         success_count = 0
-        total_files = len(files)
-        
-        for idx, file in enumerate(files):
-            self.logger.info(f"Processing file {idx+1}/{total_files}: {file.name}")
-            
-            try:
-                success = self._apply_remapping_weights(file, remap_file)
-                if success:
-                    success_count += 1
-                    self.logger.info(f"✓ Successfully processed {file.name} ({idx+1}/{total_files})")
-                else:
-                    self.logger.error(f"✗ Failed to process {file.name} ({idx+1}/{total_files})")
-            except Exception as e:
-                self.logger.error(f"✗ Error processing {file.name}: {str(e)}")
-            
-            if (idx + 1) % 10 == 0:
-                self.logger.info(f"Progress: {idx+1}/{total_files} files processed ({success_count} successful)")
-        
+
+        with tqdm(total=len(files), desc="Remapping forcing files", unit="file") as pbar:
+            for file in files:
+                try:
+                    success = self._apply_remapping_weights(file, remap_file)
+                    if success:
+                        success_count += 1
+                    else:
+                        self.logger.error(f"✗ Failed to process {file.name}")
+                except Exception as e:
+                    self.logger.error(f"✗ Error processing {file.name}: {str(e)}")
+                
+                pbar.update(1)
+
+        self.logger.info(f"Serial processing complete: {success_count}/{len(files)} successful")
         return success_count
 
     def _apply_remapping_weights_worker(self, file, remap_file, worker_id):
@@ -826,52 +923,101 @@ class ForcingResampler(PathResolverMixin):
                 
                 # NetCDF file configuration
                 esmr.source_nc = str(file)
-                # Use the same detected variables from weight creation
-                if hasattr(self, 'detected_forcing_vars') and self.detected_forcing_vars:
-                    esmr.var_names = self.detected_forcing_vars
-                else:
-                    # Fallback to detecting variables from this file
-                    import xarray as xr
-                    with xr.open_dataset(file) as ds:
-                        all_summa_vars = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']
-                        esmr.var_names = [v for v in all_summa_vars if v in ds.data_vars]
+
+                # Detect variables in THIS specific file (not just from weight creation)
+                # to ensure we're not trying to remap variables that don't exist
+                import xarray as xr
+                with xr.open_dataset(file) as ds:
+                    all_summa_vars = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']
+                    available_vars = [v for v in all_summa_vars if v in ds.data_vars]
+
+                    if not available_vars:
+                        self.logger.error(
+                            f"{worker_str}No SUMMA variables found in {file.name}. "
+                            f"Available variables: {list(ds.data_vars)}"
+                        )
+                        return False
+
+                    # Check if time dimension exists
+                    if 'time' not in ds.dims:
+                        self.logger.error(f"{worker_str}Input file {file.name} has no time dimension!")
+                        return False
+
+                    esmr.var_names = available_vars
+                    self.logger.debug(f"{worker_str}Detected {len(available_vars)} variables in {file.name}: {available_vars}")
 
                 esmr.var_lat = var_lat
                 esmr.var_lon = var_lon
                 esmr.var_time = 'time'
                 
-                # Directories
+                # Directories - use temp_dir for output to avoid race conditions in parallel processing
                 esmr.temp_dir = str(temp_dir) + '/'
-                esmr.output_dir = str(self.forcing_basin_path) + '/'
-                
+                esmr.output_dir = str(temp_dir) + '/'  # Output to isolated temp directory
+
                 # Output configuration
                 esmr.remapped_dim_id = 'hru'
                 esmr.remapped_var_id = 'hruId'
                 esmr.format_list = ['f4']
                 esmr.fill_value_list = ['-9999']
-                
+
                 # Critical: Point to pre-computed weights file
                 esmr.remap_csv = str(remap_file)
                 esmr.save_csv = False
                 esmr.sort_ID = False
-                
+
                 # Apply the remapping
                 self.logger.debug(f"{worker_str}Applying remapping weights to {file.name}")
-                
-                # Store list of files before remapping to detect the new one
-                files_before = set(self.forcing_basin_path.glob("*.nc"))
-                
-                esmr.nc_remapper()
-                
-                # Detect the new file
-                files_after = set(self.forcing_basin_path.glob("*.nc"))
-                new_files = files_after - files_before
-                
-                if not output_file.exists() and new_files:
-                    # Move/rename the new file to our expected output name
-                    actual_output = list(new_files)[0]
-                    actual_output.rename(output_file)
-                    self.logger.debug(f"{worker_str}Renamed {actual_output.name} to {output_file.name}")
+                self.logger.debug(f"{worker_str}EASYMORE configured to remap variables: {esmr.var_names}")
+
+                success, stdout, stderr = _run_easmore_with_suppressed_output(esmr, self.logger)
+
+                # Log any concerning patterns in output
+                if 'no data' in stdout.lower() or 'no data' in stderr.lower():
+                    self.logger.warning(f"{worker_str}EASYMORE reported 'no data' for {file.name}")
+                if 'empty' in stdout.lower() or 'empty' in stderr.lower():
+                    self.logger.warning(f"{worker_str}EASYMORE reported 'empty' for {file.name}")
+
+                # Find the output file in temp directory (no race condition since each worker has its own temp dir)
+                # Exclude metadata/auxiliary files that EASYMORE creates (not the actual forcing data)
+                exclude_patterns = ['attributes', 'metadata', 'static', 'constants', 'params', 'remapping']
+                all_temp_files = list(temp_dir.glob("*.nc"))
+                temp_output_files = [
+                    f for f in all_temp_files
+                    if not any(pattern in f.name.lower() for pattern in exclude_patterns)
+                ]
+
+                if temp_output_files:
+                    # Move the file from temp to final location with correct name
+                    temp_output = temp_output_files[0]
+
+                    # Validate file before moving to prevent corrupted files
+                    is_valid = self._validate_forcing_file(temp_output, worker_str)
+
+                    if not is_valid:
+                        self.logger.error(
+                            f"{worker_str}EASYMORE created invalid output for input {file.name}. "
+                            f"Output file: {temp_output.name}. Check if EASYMORE is processing correctly."
+                        )
+                        # Log what files EASYMORE actually created in temp_dir
+                        all_created = list(temp_dir.glob("*"))
+                        self.logger.error(f"{worker_str}Files created by EASYMORE: {[f.name for f in all_created]}")
+                        return False
+
+                    # Ensure output directory exists
+                    self.forcing_basin_path.mkdir(parents=True, exist_ok=True)
+
+                    # Move to final location
+                    shutil.move(str(temp_output), str(output_file))
+                    self.logger.debug(f"{worker_str}Moved {temp_output.name} to {output_file.name}")
+                elif output_file.exists():
+                    # File already exists at final location (shouldn't happen, but handle gracefully)
+                    self.logger.debug(f"{worker_str}Output file already exists: {output_file.name}")
+                else:
+                    self.logger.error(
+                        f"{worker_str}EASYMORE created NO valid output files for input {file.name}. "
+                        f"Files in temp dir: {[f.name for f in all_temp_files]}"
+                    )
+                    return False
                 
             finally:
                 # Clean up temp directory
@@ -898,41 +1044,93 @@ class ForcingResampler(PathResolverMixin):
             self.logger.error(traceback.format_exc())
             return False
 
+    def _validate_forcing_file(self, file_path, worker_str=""):
+        """
+        Validate that a forcing file has proper structure (time dimension and forcing variables).
+
+        Args:
+            file_path: Path to the NetCDF file to validate
+            worker_str: Optional worker identifier for logging
+
+        Returns:
+            bool: True if file is valid, False otherwise
+        """
+        try:
+            import xarray as xr
+
+            with xr.open_dataset(file_path) as ds:
+                # Check 1: Must have time dimension
+                if 'time' not in ds.dims:
+                    self.logger.warning(f"{worker_str}File {file_path.name} missing time dimension")
+                    return False
+
+                # Check 2: Time dimension should have reasonable size (at least 1 timestep)
+                time_size = ds.sizes.get('time', 0)  # Use sizes instead of dims
+                if time_size < 1:
+                    self.logger.warning(f"{worker_str}File {file_path.name} has empty time dimension")
+                    return False
+
+                # Check 3: Should have at least one forcing variable
+                expected_vars = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']
+                has_forcing_var = any(var in ds.data_vars for var in expected_vars)
+
+                if not has_forcing_var:
+                    self.logger.warning(
+                        f"{worker_str}File {file_path.name} missing forcing variables. "
+                        f"Has: {list(ds.data_vars)}"
+                    )
+                    return False
+
+                # Check 4: File should be larger than just metadata (>= 100KB for real data)
+                file_size = file_path.stat().st_size
+                if file_size < 100000:  # 100KB
+                    self.logger.warning(
+                        f"{worker_str}File {file_path.name} suspiciously small ({file_size} bytes). "
+                        f"Likely contains only metadata."
+                    )
+                    return False
+
+                self.logger.debug(f"{worker_str}File {file_path.name} validated successfully")
+                return True
+
+        except Exception as e:
+            self.logger.warning(f"{worker_str}Error validating file {file_path.name}: {str(e)}")
+            return False
+
     def _process_files_parallel(self, files, num_cpus, remap_file):
         """Process files in parallel mode applying pre-computed weights"""
-        self.logger.info(f"Processing {len(files)} in parallel with {num_cpus} CPUs")
+        self.logger.debug(f"Processing {len(files)} in parallel with {num_cpus} CPUs")
         
         batch_size = min(10, len(files))
         total_batches = (len(files) + batch_size - 1) // batch_size
         
-        self.logger.info(f"Processing {total_batches} batches of up to {batch_size} files each")
+        self.logger.debug(f"Processing {total_batches} batches of up to {batch_size} files each")
         
         success_count = 0
-        
-        for batch_num in range(total_batches):
-            start_idx = batch_num * batch_size
-            end_idx = min(start_idx + batch_size, len(files))
-            batch_files = files[start_idx:end_idx]
-            
-            self.logger.info(f"Processing batch {batch_num+1}/{total_batches} with {len(batch_files)} files")
-            
-            try:
-                with mp.Pool(processes=num_cpus) as pool:
-                    # Pass remap_file to each worker
-                    worker_args = [(file, remap_file, i % num_cpus) for i, file in enumerate(batch_files)]
-                    results = pool.starmap(self._apply_remapping_weights_worker, worker_args)
+
+        with tqdm(total=len(files), desc="Remapping forcing files", unit="file") as pbar:
+            for batch_num in range(total_batches):
+                start_idx = batch_num * batch_size
+                end_idx = min(start_idx + batch_size, len(files))
+                batch_files = files[start_idx:end_idx]
                 
-                batch_success = sum(1 for r in results if r)
-                success_count += batch_success
+                try:
+                    with mp.Pool(processes=num_cpus) as pool:
+                        worker_args = [(file, remap_file, i % num_cpus) for i, file in enumerate(batch_files)]
+                        results = pool.starmap(self._apply_remapping_weights_worker, worker_args)
+                    
+                    batch_success = sum(1 for r in results if r)
+                    success_count += batch_success
+                    pbar.update(len(batch_files))
+                    
+                except Exception as e:
+                    self.logger.error(f"Error processing batch {batch_num+1}: {str(e)}")
+                    pbar.update(len(batch_files))
                 
-                self.logger.info(f"Batch {batch_num+1}/{total_batches} complete: {batch_success}/{len(batch_files)} successful")
-                
-            except Exception as e:
-                self.logger.error(f"Error processing batch {batch_num+1}: {str(e)}")
-            
-            import gc
-            gc.collect()
-        
+                import gc
+                gc.collect()
+
+        self.logger.debug(f"Parallel processing complete: {success_count}/{len(files)} successful")
         return success_count
 
     def _ensure_unique_hru_ids(self, shapefile_path, hru_id_field):
@@ -949,8 +1147,8 @@ class ForcingResampler(PathResolverMixin):
         try:
             # Read the shapefile
             gdf = gpd.read_file(shapefile_path)
-            self.logger.info(f"Checking HRU ID uniqueness in {shapefile_path.name}")
-            self.logger.info(f"Available fields: {list(gdf.columns)}")
+            self.logger.debug(f"Checking HRU ID uniqueness in {shapefile_path.name}")
+            self.logger.debug(f"Available fields: {list(gdf.columns)}")
             
             # Check if the HRU ID field exists
             if hru_id_field not in gdf.columns:
@@ -961,10 +1159,10 @@ class ForcingResampler(PathResolverMixin):
             original_count = len(gdf)
             unique_count = gdf[hru_id_field].nunique()
             
-            self.logger.info(f"Shapefile has {original_count} rows, {unique_count} unique {hru_id_field} values")
+            self.logger.debug(f"Shapefile has {original_count} rows, {unique_count} unique {hru_id_field} values")
             
             if unique_count == original_count:
-                self.logger.info(f"All {hru_id_field} values are unique")
+                self.logger.debug(f"All {hru_id_field} values are unique")
                 return shapefile_path, hru_id_field
             
             # Handle duplicate IDs
@@ -1047,7 +1245,7 @@ class ForcingResampler(PathResolverMixin):
             gdf = gpd.read_file(shapefile_path)
             current_crs = gdf.crs
             
-            self.logger.info(f"Checking CRS for {shapefile_path.name}: {current_crs}")
+            self.logger.debug(f"Checking CRS for {shapefile_path.name}: {current_crs}")
             
             # For target shapefiles, ensure unique HRU IDs first
             if is_target_shapefile:
@@ -1063,7 +1261,7 @@ class ForcingResampler(PathResolverMixin):
             
             # Check if already in WGS84
             if current_crs is not None and current_crs.to_epsg() == 4326:
-                self.logger.info(f"Shapefile {shapefile_path.name} already in WGS84")
+                self.logger.debug(f"Shapefile {shapefile_path.name} already in WGS84")
                 if is_target_shapefile:
                     return shapefile_path, actual_hru_field
                 else:
@@ -1208,7 +1406,7 @@ class ForcingResampler(PathResolverMixin):
                 
                 if not remap_path.exists():
                     self.logger.info(f"Creating new remap file for {file.name} using field {actual_hru_field}")
-                    esmr.nc_remapper()
+                    _run_easmore_with_suppressed_output(esmr, self.logger)
                     
                     # Move the remap file to the intersection path
                     temp_remap = Path(esmr.temp_dir) / f"{esmr.case_name}_remapping.csv"
@@ -1221,7 +1419,7 @@ class ForcingResampler(PathResolverMixin):
                 else:
                     self.logger.debug(f"Using existing remap file for {file.name}")
                     esmr.remap_csv = str(remap_path)
-                    esmr.nc_remapper()
+                    _run_easmore_with_suppressed_output(esmr, self.logger)
                 
             finally:
                 # Clean up temporary files
@@ -1377,7 +1575,7 @@ class ForcingResampler(PathResolverMixin):
                 if not remap_final_path.exists():
                     try:
                         self.logger.info(f"Worker {worker_id}: Creating new remap file...")
-                        esmr.nc_remapper()
+                        _run_easmore_with_suppressed_output(esmr, self.logger)
                         
                         # Move files from current directory to final locations
                         if Path(remap_file).exists():
@@ -1398,7 +1596,7 @@ class ForcingResampler(PathResolverMixin):
                     # Use existing remap file
                     self.logger.info(f"Worker {worker_id}: Using existing remap file")
                     esmr.remap_csv = str(remap_final_path.resolve())
-                    esmr.nc_remapper()
+                    _run_easmore_with_suppressed_output(esmr, self.logger)
                     
             finally:
                 # Always restore original working directory

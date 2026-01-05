@@ -136,7 +136,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         Raises:
             ModelExecutionError: If any step in the preprocessing pipeline fails.
         """
-        self.logger.info("Starting FUSE preprocessing")
+        self.logger.debug("Starting FUSE preprocessing")
         return self.run_preprocessing_template()
 
     def _prepare_forcing(self) -> None:
@@ -157,7 +157,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         ]
         for dir_path in dirs_to_create:
             dir_path.mkdir(parents=True, exist_ok=True)
-            self.logger.info(f"Created directory: {dir_path}")
+            self.logger.debug(f"Created directory: {dir_path}")
 
     def copy_base_settings(self):
         """
@@ -175,7 +175,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             FileNotFoundError: If the source directory or any source file is not found.
             PermissionError: If there are permission issues when creating directories or copying files.
         """
-        self.logger.info("Copying FUSE base settings")
+        self.logger.debug("Copying FUSE base settings")
 
         from symfluence.resources import get_base_settings_dir
         base_settings_path = get_base_settings_dir('FUSE')
@@ -241,13 +241,13 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         try:
             # Get timestep configuration
             ts_config = self._get_timestep_config()
-            self.logger.info(f"Using {ts_config['time_label']} timestep (resample freq: {ts_config['resample_freq']})")
+            self.logger.debug(f"Using {ts_config['time_label']} timestep (resample freq: {ts_config['resample_freq']})")
             
             # Get spatial mode configuration
             spatial_mode = self.config_dict.get('FUSE_SPATIAL_MODE', 'lumped')
             subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
             
-            self.logger.info(f"Preparing FUSE forcing data in {spatial_mode} mode")
+            self.logger.debug(f"Preparing FUSE forcing data in {spatial_mode} mode")
             
             # Read and process forcing data
             forcing_files = sorted(self.forcing_basin_path.glob('*.nc'))
@@ -261,7 +261,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             if len(forcing_files) == 1:
                 ds = xr.open_dataset(forcing_files[0])
             else:
-                ds = xr.open_mfdataset(forcing_files, data_vars='all')
+                ds = xr.open_mfdataset(forcing_files, data_vars='all', combine='nested', concat_dim='time').sortby('time')
             ds = variable_handler.process_forcing_data(ds)
             ds = self.subset_to_simulation_time(ds, "Forcing")
             
@@ -276,9 +276,8 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")
             
             # Resample to target resolution AFTER spatial organization
-            self.logger.info(f"Resampling data to {ts_config['time_label']} resolution")
-            with xr.set_options(use_flox=False, use_numbagg=False, use_bottleneck=False):
-                ds = ds.resample(time=ts_config['resample_freq']).mean()
+            self.logger.debug(f"Resampling data to {ts_config['time_label']} resolution")
+            ds = ds.resample(time=ts_config['resample_freq']).mean()
             
             # Process temperature and precipitation
             try:
@@ -293,7 +292,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             
             # Get PET method from config (default to 'oudin')
             pet_method = self.config_dict.get('PET_METHOD', 'oudin').lower()
-            self.logger.info(f"Using PET method: {pet_method}")
+            self.logger.debug(f"Using PET method: {pet_method}")
             
             # Calculate PET for the correct spatial configuration
             if spatial_mode == 'lumped':
@@ -304,14 +303,9 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 # For distributed modes, calculate PET after spatial organization and resampling
                 pet = self._calculate_distributed_pet(ds, spatial_mode, pet_method)
             
-            # Ensure PET is also at target resolution by checking if resampling is needed
-            with xr.set_options(use_flox=False, use_numbagg=False, use_bottleneck=False):
-                pet_resampled = pet.resample(time=ts_config['resample_freq']).mean()
-            if len(pet_resampled.time) != len(pet.time):
-                self.logger.info(f"PET data resampled to {ts_config['time_label']} resolution")
-                pet = pet_resampled
-            else:
-                self.logger.info(f"PET data is already at {ts_config['time_label']} resolution")
+            # Ensure PET is also at target resolution
+            pet = pet.resample(time=ts_config['resample_freq']).mean()
+            self.logger.debug(f"PET data resampled to {ts_config['time_label']} resolution")
             
             # Create FUSE forcing dataset
             fuse_forcing = self._create_fuse_forcing_dataset(ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config)
@@ -322,7 +316,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             fuse_forcing.to_netcdf(output_file, unlimited_dims=['time'], 
                                 encoding=encoding, format='NETCDF4')
             
-            self.logger.info(f"FUSE forcing data saved: {output_file}")
+            self.logger.debug(f"FUSE forcing data saved: {output_file}")
             return output_file
             
         except Exception as e:
@@ -355,7 +349,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             return self.calculate_pet_oudin(temp_data, lat)
 
     def _add_forcing_variables(self, fuse_forcing, ds, pet, obs_ds, spatial_dims, n_subcatchments, ts_config=None):
-        """Add forcing variables to the dataset with proper dimension handling"""
+        """Add forcing variables to the dataset using efficient xarray broadcasting"""
         
         if ts_config is None:
             ts_config = self._get_timestep_config()
@@ -363,158 +357,61 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         time_label = ts_config['time_label']
         unit_str = f"mm/{time_label.replace('-', ' ')}"
         
-        # Get the time dimension length from the coordinate system
-        time_length = len(fuse_forcing.time)
+        # Alignment time index (already in fuse_forcing.time but we need it as datetime for reindexing)
+        # FUSE uses numeric time, but we'll use datetime for internal alignment
+        time_index = pd.to_datetime('1970-01-01') + pd.to_timedelta(fuse_forcing.time.values, unit='D')
         
-        # Ensure all input data has the same time dimension
-        self.logger.info(f"Expected time length: {time_length}")
-        self.logger.info(f"ds time length: {len(ds.time)}")
-        self.logger.info(f"pet time length: {len(pet.time)}")
-        if obs_ds is not None:
-            self.logger.info(f"obs_ds time length: {len(obs_ds.time)}")
-        
-        # Align all data to the common time coordinate
-        common_time = fuse_forcing.time
-        
-        # For distributed case, make sure we're working with the right spatial dimension
-        if len(spatial_dims) == 3:  # (time, spatial, 1) or (time, 1, spatial)
-            if spatial_dims[1] in ['latitude', 'longitude'] and fuse_forcing.sizes[spatial_dims[1]] > 1:
-                # Multiple subcatchments in this dimension
-                target_shape = (time_length, n_subcatchments, 1)
-            else:
-                # Multiple subcatchments in the other dimension
-                target_shape = (time_length, 1, n_subcatchments)
-        else:
-            target_shape = (time_length, n_subcatchments)
-        
-        # Core meteorological variables - extract only the time dimension that matches
-        var_mapping = []
-        
-        # Handle precipitation
-        if 'hru' in ds.dims and spatial_dims[1] != 'longitude':
-            # Distributed data with HRU dimension
-            pr_data = ds['pr'].values  # Shape: (time, hru)
-            if pr_data.shape[0] != time_length:
-                self.logger.warning(f"Precipitation time dimension mismatch: {pr_data.shape[0]} vs {time_length}")
-                # Truncate or pad to match expected length
-                if pr_data.shape[0] > time_length:
-                    pr_data = pr_data[:time_length, :]
-                else:
-                    # Pad with the last available value
-                    pad_length = time_length - pr_data.shape[0]
-                    pad_values = np.repeat(pr_data[-1:, :], pad_length, axis=0)
-                    pr_data = np.concatenate([pr_data, pad_values], axis=0)
-        else:
-            # Lumped data or single column
-            pr_data = ds['pr'].values
-            if pr_data.shape[0] != time_length:
-                if pr_data.shape[0] > time_length:
-                    pr_data = pr_data[:time_length]
-                else:
-                    pad_length = time_length - pr_data.shape[0]
-                    pr_data = np.concatenate([pr_data, np.repeat(pr_data[-1], pad_length)])
-        
-        var_mapping.append(('pr', pr_data, 'precipitation', unit_str, f'Mean {time_label} precipitation'))
+        def process_var(da, name):
+            # Ensure data has datetime index for alignment
+            if not pd.api.types.is_datetime64_any_dtype(da.time.dtype):
+                da = da.assign_coords(time=pd.to_datetime('1970-01-01') + pd.to_timedelta(da.time.values, unit='D'))
+            
+            # Align to the expected time index
+            da_aligned = da.reindex(time=time_index, method='nearest', tolerance='1D').fillna(method='ffill')
+            
+            # Switch back to numeric time to match fuse_forcing exactly (avoids DTypePromotionError)
+            # Drop time first to ensure clean replacement of coordinate and index
+            da_aligned = da_aligned.drop_vars('time').assign_coords(time=fuse_forcing.time)
+            
+            # Broadcast to spatial dimensions
+            da_broadcasted = da_aligned.broadcast_like(fuse_forcing)
+            
+            # Cleanup and handle NaNs
+            return da_broadcasted.fillna(-9999.0).astype('float32')
 
+        # Map variables
+        var_map = {
+            'pr': (ds['pr'], 'precipitation', unit_str, f'Mean {time_label} precipitation'),
+            'temp': (ds['temp'], 'temperature', 'degC', f'Mean {time_label} temperature'),
+            'pet': (pet, 'pet', unit_str, f'Mean {time_label} pet')
+        }
         
-        # Handle temperature
-        if 'hru' in ds.dims and spatial_dims[1] != 'longitude':
-            temp_data = ds['temp'].values
-            if temp_data.shape[0] != time_length:
-                if temp_data.shape[0] > time_length:
-                    temp_data = temp_data[:time_length, :]
-                else:
-                    pad_length = time_length - temp_data.shape[0]
-                    pad_values = np.repeat(temp_data[-1:, :], pad_length, axis=0)
-                    temp_data = np.concatenate([temp_data, pad_values], axis=0)
-        else:
-            temp_data = ds['temp'].values
-            if temp_data.shape[0] != time_length:
-                if temp_data.shape[0] > time_length:
-                    temp_data = temp_data[:time_length]
-                else:
-                    pad_length = time_length - temp_data.shape[0]
-                    temp_data = np.concatenate([temp_data, np.repeat(temp_data[-1], pad_length)])
-        
-        var_mapping.append(('temp', temp_data, 'temperature', 'degC', f'Mean {time_label} temperature'))    
-        
-        # Handle PET
-        pet_data = pet.values
-        if pet_data.shape[0] != time_length:
-            if pet_data.shape[0] > time_length:
-                pet_data = pet_data[:time_length]
-            else:
-                pad_length = time_length - pet_data.shape[0]
-                if len(pet_data.shape) > 1:
-                    pad_values = np.repeat(pet_data[-1:, :], pad_length, axis=0)
-                    pet_data = np.concatenate([pet_data, pad_values], axis=0)
-                else:
-                    pet_data = np.concatenate([pet_data, np.repeat(pet_data[-1], pad_length)])
-        
-        var_mapping.append(('pet', pet_data, 'pet', unit_str, f'Mean {time_label} pet'))
-        
-        # Add streamflow observations
         if obs_ds is not None:
-            obs_data = obs_ds['q_obs'].values
-            if obs_data.shape[0] != time_length:
-                if obs_data.shape[0] > time_length:
-                    obs_data = obs_data[:time_length]
-                else:
-                    pad_length = time_length - obs_data.shape[0]
-                    obs_data = np.concatenate([obs_data, np.repeat(obs_data[-1], pad_length)])
-            var_mapping.append(('q_obs', obs_data, 'streamflow', unit_str, f'Mean observed {time_label} discharge'))
+            var_map['q_obs'] = (obs_ds['q_obs'], 'streamflow', unit_str, f'Mean observed {time_label} discharge')
         else:
             # Generate synthetic hydrograph for each subcatchment
-            synthetic_q = self._generate_distributed_synthetic_hydrograph(ds, n_subcatchments, time_length)
-            var_mapping.append(('q_obs', synthetic_q, 'streamflow', unit_str, f'Synthetic discharge for optimization'))
-        
-        # Add variables to dataset
-        encoding = {}
-        for var_name, data, _, units, long_name in var_mapping:
-            # Reshape data to match spatial structure
-            if len(data.shape) == 1:  # Time series only
-                # Replicate for all subcatchments
-                if target_shape[1] > target_shape[2]:  # More subcatchments in second dimension
-                    reshaped_data = np.tile(data[:, np.newaxis, np.newaxis], (1, target_shape[1], 1))
-                else:  # More subcatchments in third dimension
-                    reshaped_data = np.tile(data[:, np.newaxis, np.newaxis], (1, 1, target_shape[2]))
-            elif len(data.shape) == 2 and data.shape[1] == n_subcatchments:  # (time, subcatchments)
-                # Already has subcatchment data
-                if target_shape[1] > target_shape[2]:
-                    reshaped_data = data[:, :, np.newaxis]
-                else:
-                    reshaped_data = data[:, np.newaxis, :]
-            else:
-                # Default case: replicate along subcatchment dimension
-                if target_shape[1] > target_shape[2]:
-                    reshaped_data = np.tile(data.reshape(-1, 1, 1), (1, target_shape[1], 1))
-                else:
-                    reshaped_data = np.tile(data.reshape(-1, 1, 1), (1, 1, target_shape[2]))
-            
-            # Verify final shape matches expected dimensions
-            expected_shape = (time_length, fuse_forcing.sizes[spatial_dims[1]], fuse_forcing.sizes[spatial_dims[2]])
-            if reshaped_data.shape != expected_shape:
-                self.logger.error(f"Shape mismatch for {var_name}: got {reshaped_data.shape}, expected {expected_shape}")
-                raise ValueError(f"Shape mismatch for {var_name}")
-            
-            # Handle NaN values
-            if np.any(np.isnan(reshaped_data)):
-                reshaped_data = np.nan_to_num(reshaped_data, nan=-9999.0)
-            
-            fuse_forcing[var_name] = xr.DataArray(
-                reshaped_data,
-                dims=spatial_dims,
-                coords=fuse_forcing.coords,
-                attrs={
-                    'units': units,
-                    'long_name': long_name
-                }
+            synthetic_q_vals = self._generate_distributed_synthetic_hydrograph(ds, n_subcatchments, len(time_index))
+            # Wrap in DataArray for process_var
+            # (Note: _generate_distributed_synthetic_hydrograph returns numpy array)
+            synthetic_q = xr.DataArray(
+                synthetic_q_vals, 
+                coords={'time': ds.time}, # Use ds.time as reference
+                dims=['time', 'hru'] if len(synthetic_q_vals.shape) > 1 else ['time']
             )
+            var_map['q_obs'] = (synthetic_q, 'streamflow', unit_str, f'Synthetic discharge for optimization')
+
+        # Process and add to dataset
+        encoding = {}
+        for var_name, (da, standard_name, units, long_name) in var_map.items():
+            fuse_forcing[var_name] = process_var(da, var_name)
+            fuse_forcing[var_name].attrs = {'units': units, 'long_name': long_name}
+            encoding[var_name] = {'_FillValue': -9999.0, 'dtype': 'float32', 'zlib': False}
+        
+        # Ensure coordinates also have strict encoding for FUSE compatibility
+        for coord in fuse_forcing.coords:
+            encoding[coord] = {'_FillValue': None, 'dtype': 'float64'}
             
-            encoding[var_name] = {
-                '_FillValue': -9999.0,
-                'dtype': 'float32'
-            }
+        return encoding
         
         return encoding
 
@@ -549,38 +446,35 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             return self._create_distributed_dataset(ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config)
 
     def _create_distributed_dataset(self, ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config=None):
-        """Create distributed/semi-distributed FUSE forcing dataset with configurable timestep"""
+        """Create distributed/semi-distributed FUSE forcing dataset using efficient xarray operations"""
         
         if ts_config is None:
             ts_config = self._get_timestep_config()
         
         # Get spatial information
         subcatchments = self._load_subcatchment_data()
-        n_subcatchments = len(subcatchments)
         
         # Get reference coordinates
         catchment = gpd.read_file(self.catchment_path)
         mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
         
-        # Create time index with correct frequency
-        time_index = pd.date_range(start=ds.time.min().values, end=ds.time.max().values, freq=ts_config['resample_freq'])
+        # Convert to numeric time values for FUSE
+        time_numeric = ((pd.to_datetime(ds.time.values) - pd.Timestamp('1970-01-01')).total_seconds() / 86400).values
         
-        # Convert to numeric time values (FUSE expects days since reference)
-        time_numeric = ((time_index - pd.Timestamp('1970-01-01')).total_seconds() / 86400).values
-        
-        # Create coordinate system based on subcatchment dimension choice
+        # Create coordinate system
+        # CRITICAL: Order must be time, lat, lon for FUSE to read correct dimensions
         if subcatchment_dim == 'latitude':
             coords = {
-                'longitude': ('longitude', [mean_lon]),
-                'latitude': ('latitude', subcatchments.astype(float)),  # Subcatchment IDs as pseudo-lat
-                'time': ('time', time_numeric)
+                'time': ('time', time_numeric),
+                'latitude': ('latitude', subcatchments.astype(float)),
+                'longitude': ('longitude', [float(mean_lon)])
             }
             spatial_dims = ('time', 'latitude', 'longitude')
         else:  # longitude
             coords = {
-                'longitude': ('longitude', subcatchments.astype(float)),  # Subcatchment IDs as pseudo-lon
-                'latitude': ('latitude', [mean_lat]),
-                'time': ('time', time_numeric)
+                'time': ('time', time_numeric),
+                'longitude': ('longitude', subcatchments.astype(float)),
+                'latitude': ('latitude', [float(mean_lat)])
             }
             spatial_dims = ('time', 'longitude', 'latitude')
         
@@ -602,7 +496,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         }
         
         # Add data variables
-        self._add_forcing_variables(fuse_forcing, ds, pet, obs_ds, spatial_dims, n_subcatchments, ts_config)
+        self._add_forcing_variables(fuse_forcing, ds, pet, obs_ds, spatial_dims, len(subcatchments), ts_config)
         
         return fuse_forcing
 
@@ -792,16 +686,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
 
     def _create_lumped_dataset(self, ds, pet, obs_ds, ts_config=None):
         """
-        Create lumped FUSE forcing dataset with configurable timestep.
-        
-        Args:
-            ds: Processed forcing dataset
-            pet: Calculated PET data
-            obs_ds: Observed streamflow dataset (or None)
-            ts_config: Timestep configuration from _get_timestep_config()
-            
-        Returns:
-            xr.Dataset: FUSE forcing dataset for lumped mode
+        Create lumped FUSE forcing dataset with configurable timestep using xarray native alignment.
         """
         if ts_config is None:
             ts_config = self._get_timestep_config()
@@ -810,135 +695,64 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         catchment = gpd.read_file(self.catchment_path)
         mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
         
-        # Convert all time coordinates to pandas datetime for comparison
-        ds_start = pd.to_datetime(ds.time.min().values)
-        ds_end = pd.to_datetime(ds.time.max().values)
-        pet_start = pd.to_datetime(pet.time.min().values)
-        pet_end = pd.to_datetime(pet.time.max().values)
-        
-        # Find overlapping time period
-        start_time = max(ds_start, pet_start)
-        end_time = min(ds_end, pet_end)
-        
+        # Align all datasets to a common time period using xarray.align
+        # First, ensure all have compatible time coordinates
+        to_align = [ds, pet]
         if obs_ds is not None:
-            # Convert obs_ds time to datetime based on time units
-            if obs_ds.time.dtype.kind in ['i', 'u', 'f']:  # numeric types
-                time_units = str(obs_ds.time.attrs.get('units', ''))
-                if 'hour' in time_units:
-                    obs_time_dt = pd.to_datetime('1970-01-01') + pd.to_timedelta(obs_ds.time.values, unit='h')
-                else:
-                    obs_time_dt = pd.to_datetime('1970-01-01') + pd.to_timedelta(obs_ds.time.values, unit='D')
-                obs_start = obs_time_dt.min()
-                obs_end = obs_time_dt.max()
-            else:
-                obs_start = pd.to_datetime(obs_ds.time.min().values)
-                obs_end = pd.to_datetime(obs_ds.time.max().values)
-
-            start_time = max(start_time, obs_start)
-            end_time = min(end_time, obs_end)
+            # Handle obs_ds which might have numeric time
+            if obs_ds.time.dtype.kind in ['i', 'u', 'f']:
+                obs_ds = obs_ds.assign_coords(time=pd.to_datetime('1970-01-01') + pd.to_timedelta(obs_ds.time.values, unit='D'))
+            to_align.append(obs_ds)
+            
+        # Join='inner' finds the overlapping period
+        aligned = xr.align(*to_align, join='inner')
+        ds_a, pet_a = aligned[0], aligned[1]
+        obs_ds_a = aligned[2] if obs_ds is not None else None
         
-        self.logger.info(f"Aligning all data to common time period: {start_time} to {end_time}")
+        self.logger.info(f"Aligned data to overlapping period: {ds_a.time.min().values} to {ds_a.time.max().values}")
         
-        # Create explicit time index for the overlapping period with correct frequency
-        time_index = pd.date_range(start=start_time, end=end_time, freq=ts_config['resample_freq'])
-        
-        # Align all datasets to the common time period
-        ds = ds.sel(time=slice(start_time, end_time)).reindex(time=time_index)
-        pet = pet.sel(time=slice(start_time, end_time)).reindex(time=time_index)
-        
-        if obs_ds is not None:
-            # Handle obs_ds reindexing based on its time format
-            if obs_ds.time.dtype.kind in ['i', 'u', 'f']:  # numeric types
-                time_units = str(obs_ds.time.attrs.get('units', ''))
-                if 'hour' in time_units:
-                    start_numeric = (pd.to_datetime(start_time) - pd.Timestamp('1970-01-01')).total_seconds() / 3600
-                    end_numeric = (pd.to_datetime(end_time) - pd.Timestamp('1970-01-01')).total_seconds() / 3600
-                else:
-                    start_numeric = (pd.to_datetime(start_time) - pd.Timestamp('1970-01-01')).days
-                    end_numeric = (pd.to_datetime(end_time) - pd.Timestamp('1970-01-01')).days
-
-                time_numeric_index = ((time_index - pd.Timestamp('1970-01-01')).total_seconds() / 86400).values
-                obs_ds = obs_ds.sel(time=slice(start_numeric, end_numeric))
-                obs_ds = obs_ds.reindex(time=time_numeric_index)
-            else:
-                obs_ds = obs_ds.sel(time=slice(start_time, end_time)).reindex(time=time_index)
-        
-        # Convert time to numeric values since reference date for final dataset
-        time_numeric = ((time_index - pd.Timestamp('1970-01-01')).total_seconds() / 86400).values
-        
-        # Create coordinates
+        # Create coordinates for FUSE
+        time_numeric = ((pd.to_datetime(ds_a.time.values) - pd.Timestamp('1970-01-01')).total_seconds() / 86400).values
+        # CRITICAL: Order must be time, lat, lon for FUSE to read correct dimensions
         coords = {
-            'longitude': ('longitude', [mean_lon]),
-            'latitude': ('latitude', [mean_lat]),
-            'time': ('time', time_numeric)
+            'time': ('time', time_numeric),
+            'latitude': ('latitude', [float(mean_lat)]),
+            'longitude': ('longitude', [float(mean_lon)])
         }
         
-        # Create dataset
         fuse_forcing = xr.Dataset(coords=coords)
-        
-        # Add coordinate attributes
-        fuse_forcing.longitude.attrs = {
-            'units': 'degreesE',
-            'long_name': 'longitude'
-        }
-        fuse_forcing.latitude.attrs = {
-            'units': 'degreesN',
-            'long_name': 'latitude'
-        }
-        fuse_forcing.time.attrs = {
-            'units': 'days since 1970-01-01',
-            'long_name': 'time'
-        }
-        
-        # Add forcing variables
-        spatial_dims = ('time', 'latitude', 'longitude')
+        fuse_forcing.longitude.attrs = {'units': 'degreesE', 'long_name': 'longitude'}
+        fuse_forcing.latitude.attrs = {'units': 'degreesN', 'long_name': 'latitude'}
+        fuse_forcing.time.attrs = {'units': 'days since 1970-01-01', 'long_name': 'time'}
         
         # Determine unit string for variables
         time_label = ts_config['time_label']
         unit_str = f"mm/{time_label.replace('-', ' ')}"
         
         # Core meteorological variables
-        var_mapping = [
-            ('pr', ds['pr'].values, 'precipitation', unit_str, f'Mean {time_label} precipitation'),
-            ('temp', ds['temp'].values, 'temperature', 'degC', f'Mean {time_label} temperature'),
-            ('pet', pet.values, 'pet', unit_str, f'Mean {time_label} pet')
-        ]
+        var_map = {
+            'pr': (ds_a['pr'], 'precipitation', unit_str, f'Mean {time_label} precipitation'),
+            'temp': (ds_a['temp'], 'temperature', 'degC', f'Mean {time_label} temperature'),
+            'pet': (pet_a, 'pet', unit_str, f'Mean {time_label} pet')
+        }
         
-        # Add streamflow observations
-        if obs_ds is not None:
-            var_mapping.append(('q_obs', obs_ds['q_obs'].values, 'streamflow', unit_str, f'Mean observed {time_label} discharge'))
+        if obs_ds_a is not None:
+            var_map['q_obs'] = (obs_ds_a['q_obs'], 'streamflow', unit_str, f'Mean observed {time_label} discharge')
         else:
-            # Generate synthetic hydrograph
-            synthetic_q = self.generate_synthetic_hydrograph(ds, area_km2=100.0)
-            var_mapping.append(('q_obs', synthetic_q, 'streamflow', unit_str, f'Synthetic discharge for optimization'))
-        
-        # Add variables to dataset
-        for var_name, data, _, units, long_name in var_mapping:
-            # Reshape data to match spatial structure (time, lat, lon)
-            if len(data.shape) == 1:  # Time series only
-                reshaped_data = data[:, np.newaxis, np.newaxis]
-            else:
-                reshaped_data = data.reshape(-1, 1, 1)
+            synthetic_q_vals = self.generate_synthetic_hydrograph(ds_a, area_km2=100.0)
+            synthetic_q = xr.DataArray(synthetic_q_vals, coords={'time': ds_a.time}, dims=['time'])
+            var_map['q_obs'] = (synthetic_q, 'streamflow', unit_str, f'Synthetic discharge for optimization')
             
-            # Handle NaN values
-            if np.any(np.isnan(reshaped_data)):
-                reshaped_data = np.nan_to_num(reshaped_data, nan=-9999.0)
+        # Add variables with broadcasting
+        for var_name, (da, _, units, long_name) in var_map.items():
+            # Ensure da has same time coord type and values as fuse_forcing to avoid DTypePromotionError
+            # Drop time first to ensure clean replacement of coordinate and index
+            da_aligned = da.drop_vars('time').assign_coords(time=fuse_forcing.time)
             
-            # Verify dimensions match
-            if reshaped_data.shape[0] != len(time_numeric):
-                self.logger.error(f"Dimension mismatch for {var_name}: data has {reshaped_data.shape[0]} time points, coordinate has {len(time_numeric)}")
-                raise ValueError(f"Dimension mismatch for {var_name}")
+            # Broadcast to (time, lat, lon) where lat=1, lon=1
+            fuse_forcing[var_name] = da_aligned.broadcast_like(fuse_forcing).fillna(-9999.0).astype('float32')
+            fuse_forcing[var_name].attrs = {'units': units, 'long_name': long_name}
             
-            fuse_forcing[var_name] = xr.DataArray(
-                reshaped_data,
-                dims=spatial_dims,
-                coords=fuse_forcing.coords,
-                attrs={
-                    'units': units,
-                    'long_name': long_name
-                }
-            )
-        
         return fuse_forcing
         
     def _map_hrus_to_subcatchments(self, ds, subcatchments):

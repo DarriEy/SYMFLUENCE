@@ -164,11 +164,11 @@ def test_paradise_snotel_full_workflow(paradise_config, clear_cache_flag):
 
     # Check if observation data already exists
     snotel_dir = project_dir / "observations" / "snow" / "swe"
+    raw_snow_dir = project_dir / "observations" / "snow" / "raw_data"
     snotel_files = list(snotel_dir.glob("*.csv")) if snotel_dir.exists() else []
-    if len(snotel_files) == 0:
-        # Try raw data directory
-        snotel_raw_dir = project_dir / "observations" / "snow"
-        snotel_files = list(snotel_raw_dir.glob("*snotel*.csv")) if snotel_raw_dir.exists() else []
+    
+    if not snotel_files and raw_snow_dir.exists():
+        snotel_files = list(raw_snow_dir.glob("*snotel*.csv"))
 
     if snotel_files and not clear_cache_flag:
         print(f"✓ Using cached SNOTEL and MODIS data")
@@ -177,12 +177,11 @@ def test_paradise_snotel_full_workflow(paradise_config, clear_cache_flag):
         sym.managers["data"].acquire_observations()
 
         # Verify SNOTEL data
-        snotel_dir = project_dir / "observations" / "snow" / "swe"
-        snotel_files = list(snotel_dir.glob("*.csv")) if snotel_dir.exists() else []
-        if len(snotel_files) == 0:
-            # Try raw data directory
-            snotel_raw_dir = project_dir / "observations" / "snow"
-            snotel_files = list(snotel_raw_dir.glob("*snotel*.csv")) if snotel_raw_dir.exists() else []
+        snotel_files = list(snotel_dir.glob("*.csv"))
+        if not snotel_files:
+            assert raw_snow_dir.exists(), "Snow raw data directory not created"
+            snotel_files = list(raw_snow_dir.glob("*snotel*.csv"))
+        
         assert len(snotel_files) > 0, "SNOTEL data not downloaded"
         print(f"✓ SNOTEL SWE data acquired")
 
@@ -225,6 +224,20 @@ def test_paradise_snotel_full_workflow(paradise_config, clear_cache_flag):
     assert len(summa_forcing_files) > 0, "No SUMMA forcing files created"
     print(f"✓ SUMMA preprocessing completed ({len(summa_forcing_files)} files)")
 
+    # 4.5. Verify Model Execution (Run once before optimization)
+    print("\n" + "="*80)
+    print("STEP 4.5: Verify Model Execution")
+    print("="*80)
+    print("Running single model simulation to verify setup...")
+    sym.managers["model"].run_models()
+    
+    # Check if output exists
+    sim_dir = project_dir / "simulations"
+    assert sim_dir.exists(), "Simulation directory not created"
+    sim_files = list(sim_dir.rglob("*.nc"))
+    assert len(sim_files) > 0, "No simulation output files found after test run"
+    print(f"✓ Single model run completed successfully ({len(sim_files)} files)")
+
     # 5. Multivariate Optimization
     print("\n" + "="*80)
     print("STEP 5: DDS Multivariate Optimization (1000 iterations)")
@@ -244,13 +257,19 @@ def test_paradise_snotel_full_workflow(paradise_config, clear_cache_flag):
     print("="*80)
 
     # Check optimization directory
-    optimization_dir = project_dir / "optimisation"
+    optimization_dir = project_dir / "optimization"
     assert optimization_dir.exists(), "Optimization directory not created"
 
     # Check DDS results file
-    dds_results = optimization_dir / "DDS_results.csv"
+    experiment_id = config.get('EXPERIMENT_ID', 'paradise_full_example')
+    dds_results = optimization_dir / f"dds_{experiment_id}" / f"{experiment_id}_parallel_iteration_results.csv"
+    
+    # Fallback to legacy path if not found
+    if not dds_results.exists():
+        dds_results = optimization_dir / "DDS_results.csv"
+        
     assert dds_results.exists(), f"DDS results file not found: {dds_results}"
-    print(f"✓ DDS results file exists")
+    print(f"✓ DDS results file exists: {dds_results.name}")
 
     # Verify 1000 iterations completed
     import pandas as pd

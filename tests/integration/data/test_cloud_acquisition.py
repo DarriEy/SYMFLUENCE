@@ -267,6 +267,12 @@ FORCING_CASES = [
             "POUR_POINT_COORDS": "51.17/-115.57",
         },
     },
+    {
+        "dataset": "EM_EARTH",
+        "start": "2010-01-01 00:00",
+        "end": "2010-01-01 01:00",  # Just 1 hour
+        "expect_glob": "*EM_EARTH_*.nc",
+    },
 ]
 
 def _selected_cases():
@@ -406,6 +412,10 @@ def test_cloud_forcing_acquisition(prepared_project, case):
     # Skip CDS-based tests if CDS credentials are not available
     if case["dataset"] in ["CARRA", "CERRA", "ERA5_CDS"] and not has_cds_credentials():
         pytest.skip(f"Skipping {case['dataset']} test: CDS API credentials not found in ~/.cdsapirc")
+    
+    # Skip EM_EARTH if S3 access is restricted
+    if case["dataset"] == "EM_EARTH":
+        pytest.skip("Skipping EM_EARTH test: S3 bucket access restricted (anonymous access not available)")
 
     cfg_path, project_dir = prepared_project
 

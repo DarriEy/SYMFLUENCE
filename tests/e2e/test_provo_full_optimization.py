@@ -191,7 +191,8 @@ def test_provo_river_full_workflow(provo_config, clear_cache_flag):
 
     # Check if observation data already exists
     streamflow_dir = project_dir / "observations" / "streamflow"
-    usgs_file = list(streamflow_dir.glob("usgs_10163000_*.rdb")) if streamflow_dir.exists() else []
+    raw_streamflow_dir = streamflow_dir / "raw_data"
+    usgs_file = list(raw_streamflow_dir.glob("usgs_10163000_*.rdb")) if raw_streamflow_dir.exists() else []
 
     if usgs_file and not clear_cache_flag:
         print(f"✓ Using cached USGS streamflow and GRACE data")
@@ -200,8 +201,8 @@ def test_provo_river_full_workflow(provo_config, clear_cache_flag):
         sym.managers["data"].acquire_observations()
 
         # Verify USGS streamflow
-        assert streamflow_dir.exists(), "Streamflow directory not created"
-        usgs_file = list(streamflow_dir.glob("usgs_10163000_*.rdb"))
+        assert raw_streamflow_dir.exists(), "Streamflow raw data directory not created"
+        usgs_file = list(raw_streamflow_dir.glob("usgs_10163000_*.rdb"))
         assert len(usgs_file) > 0, "USGS streamflow data not downloaded"
         print(f"✓ USGS streamflow data acquired")
 
@@ -249,9 +250,24 @@ def test_provo_river_full_workflow(provo_config, clear_cache_flag):
     assert results_file.exists(), f"Results file not created: {results_file}"
     print(f"✓ Optimization completed, results at: {results_file}")
 
-    # 6. Validate results
+    # 6. Run Model (Best Parameters)
     print("\n" + "="*80)
-    print("STEP 6: Results Validation")
+    print("STEP 6: Run Model (Best Parameters)")
+    print("="*80)
+    sym.managers["model"].run_models()
+    print("✓ Model execution completed")
+
+    # 7. Postprocess Results
+    print("\n" + "="*80)
+    print("STEP 7: Postprocess Results")
+    print("="*80)
+    sym.managers["model"].postprocess_results()
+    sym.managers["model"].visualize_outputs()
+    print("✓ Results postprocessed and visualized")
+
+    # 8. Validate results
+    print("\n" + "="*80)
+    print("STEP 8: Results Validation")
     print("="*80)
 
     # Check optimization directory

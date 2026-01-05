@@ -47,42 +47,90 @@ class FUSEWorker(BaseWorker):
         **kwargs
     ) -> bool:
         """
-        Apply parameters to FUSE parameter NetCDF file.
+        Apply parameters to FUSE constraints file.
+
+        FUSE's run_def mode regenerates para_def.nc from the constraints file,
+        so we must modify the constraints file to change parameter values.
+
+        FUSE uses Fortran fixed-width format: (L1,1X,I1,1X,3(F9.3,1X),...)
+        The default value column starts at position 4 and is exactly 9 characters.
 
         Args:
             params: Parameter values to apply
-            settings_dir: FUSE settings directory (not used directly, path from config)
+            settings_dir: FUSE settings directory
             **kwargs: Must include 'config' for path resolution
 
         Returns:
             True if successful
         """
         try:
-            import netCDF4 as nc
-
             config = kwargs.get('config', self.config)
 
-            # Construct parameter file path
-            domain_name = config.get('DOMAIN_NAME')
-            experiment_id = config.get('EXPERIMENT_ID')
-            fuse_id = config.get('FUSE_FILE_ID', experiment_id)
-            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+            # Find the constraints file in settings_dir
+            constraints_file = settings_dir / 'fuse_zConstraints_snow.txt'
 
-            param_file_path = (data_dir / f"domain_{domain_name}" / 'simulations' /
-                              experiment_id / 'FUSE' / f"{domain_name}_{fuse_id}_para_def.nc")
-
-            if not param_file_path.exists():
-                self.logger.error(f"FUSE parameter file not found: {param_file_path}")
+            if not constraints_file.exists():
+                self.logger.error(f"FUSE constraints file not found: {constraints_file}")
                 return False
 
-            # Update parameters in NetCDF file
-            with nc.Dataset(param_file_path, 'r+') as ds:
+            # Read the constraints file
+            with open(constraints_file, 'r') as f:
+                lines = f.readlines()
+
+            # Fortran format: (L1,1X,I1,1X,3(F9.3,1X),...)
+            # Default value column: position 4-12 (9 chars, F9.3 format)
+            DEFAULT_VALUE_START = 4
+            DEFAULT_VALUE_WIDTH = 9
+
+            updated_lines = []
+            params_updated = set()
+
+            for line in lines:
+                # Skip header line (starts with '(') and comment lines
+                stripped = line.strip()
+                if stripped.startswith('(') or stripped.startswith('*') or stripped.startswith('!'):
+                    updated_lines.append(line)
+                    continue
+
+                # Check if this line contains any of our parameters
+                updated = False
                 for param_name, value in params.items():
-                    if param_name in ds.variables:
-                        ds.variables[param_name][0] = value
-                    else:
-                        self.logger.warning(f"Parameter {param_name} not found in NetCDF file")
-                        return False
+                    # Match exact parameter name (avoid partial matches)
+                    parts = line.split()
+                    if len(parts) >= 13 and param_name in parts:
+                        # Verify this is the parameter we want (check parameter name column)
+                        param_col_idx = 13  # Parameter name is typically at index 13 in parts
+                        if parts[param_col_idx] == param_name or param_name in parts:
+                            # Format value to exactly 9 characters (F9.3 format)
+                            new_value = f"{value:9.3f}"
+
+                            # Replace the fixed-width column in the line
+                            # Position 4-12 is the default value (9 characters)
+                            if len(line) > DEFAULT_VALUE_START + DEFAULT_VALUE_WIDTH:
+                                new_line = (
+                                    line[:DEFAULT_VALUE_START] +
+                                    new_value +
+                                    line[DEFAULT_VALUE_START + DEFAULT_VALUE_WIDTH:]
+                                )
+                                updated_lines.append(new_line)
+                                params_updated.add(param_name)
+                                updated = True
+                                break
+
+                if not updated:
+                    updated_lines.append(line)
+
+            # Write updated constraints file
+            with open(constraints_file, 'w') as f:
+                f.writelines(updated_lines)
+
+            # Log which parameters were updated
+            if params_updated:
+                self.logger.debug(f"Updated FUSE constraints: {params_updated}")
+
+            missing = set(params.keys()) - params_updated
+            if missing:
+                self.logger.warning(f"Parameters not found in constraints file: {missing}")
 
             return True
 
@@ -112,6 +160,8 @@ class FUSEWorker(BaseWorker):
         try:
             import subprocess
 
+            # Optimization modifies para_def.nc and runs with run_def mode
+            # run_def reads parameters from para_def.nc automatically
             mode = kwargs.get('mode', 'run_def')
 
             # Get FUSE executable path
@@ -122,11 +172,15 @@ class FUSEWorker(BaseWorker):
             else:
                 fuse_exe = Path(fuse_install) / 'fuse.exe'
 
-            # Get file manager path
-            domain_name = config.get('DOMAIN_NAME')
-            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            filemanager_path = (data_dir / f"domain_{domain_name}" / 'settings' /
-                               'FUSE' / 'fm_catch.txt')
+            # Get file manager path using settings_dir
+            # Check for FUSE subdirectory (common in parallel setup)
+            if (settings_dir / 'FUSE').exists():
+                filemanager_path = settings_dir / 'FUSE' / 'fm_catch.txt'
+                # Update settings_dir to point to the FUSE subdir for execution context
+                execution_cwd = settings_dir / 'FUSE'
+            else:
+                filemanager_path = settings_dir / 'fm_catch.txt'
+                execution_cwd = settings_dir
 
             if not fuse_exe.exists():
                 self.logger.error(f"FUSE executable not found: {fuse_exe}")
@@ -136,13 +190,37 @@ class FUSEWorker(BaseWorker):
                 self.logger.error(f"FUSE file manager not found: {filemanager_path}")
                 return False
 
-            # Execute FUSE
-            cmd = [str(fuse_exe), str(filemanager_path), mode]
-            fuse_settings_dir = filemanager_path.parent
+            # Use sim_dir for FUSE output (consistent with SUMMA structure)
+            # sim_dir = process_X/simulations/run_1/FUSE
+            fuse_output_dir = kwargs.get('sim_dir', output_dir)
+            if fuse_output_dir:
+                Path(fuse_output_dir).mkdir(parents=True, exist_ok=True)
 
+            # Update file manager with isolated paths
+            if not self._update_file_manager(filemanager_path, execution_cwd, fuse_output_dir):
+                return False
+
+            # Execute FUSE
+            domain_name = config.get('DOMAIN_NAME')
+            cmd = [str(fuse_exe), str(filemanager_path.name), domain_name, mode]
+
+            # For run_pre mode, we need to pass the parameter file as argument
+            # For run_def mode, FUSE reads parameters from para_def.nc automatically
+            if mode == 'run_pre':
+                experiment_id = config.get('EXPERIMENT_ID')
+                fuse_id = config.get('FUSE_FILE_ID', experiment_id)
+                param_file = execution_cwd / f"{domain_name}_{fuse_id}_para_def.nc"
+                if param_file.exists():
+                    cmd.append(str(param_file.name))
+                else:
+                    self.logger.error(f"Parameter file not found for run_pre: {param_file}")
+                    return False
+
+            # Use execution_cwd as cwd
+            self.logger.debug(f"Executing FUSE: {' '.join(cmd)} in {execution_cwd}")
             result = subprocess.run(
                 cmd,
-                cwd=fuse_settings_dir,
+                cwd=str(execution_cwd),
                 capture_output=True,
                 text=True,
                 timeout=config.get('FUSE_TIMEOUT', 300)
@@ -150,9 +228,11 @@ class FUSEWorker(BaseWorker):
 
             if result.returncode != 0:
                 self.logger.error(f"FUSE failed with return code {result.returncode}")
+                self.logger.error(f"STDOUT: {result.stdout}")
                 self.logger.error(f"STDERR: {result.stderr}")
                 return False
 
+            self.logger.debug(f"FUSE completed successfully")
             return True
 
         except subprocess.TimeoutExpired:
@@ -160,6 +240,50 @@ class FUSEWorker(BaseWorker):
             return False
         except Exception as e:
             self.logger.error(f"Error running FUSE: {e}")
+            return False
+
+    def _update_file_manager(self, filemanager_path: Path, settings_dir: Path, output_dir: Path) -> bool:
+        """
+        Update FUSE file manager with isolated paths for parallel execution.
+
+        Args:
+            filemanager_path: Path to fm_catch.txt
+            settings_dir: Isolated settings directory (where input files are)
+            output_dir: Isolated output directory
+
+        Returns:
+            True if successful
+        """
+        try:
+            with open(filemanager_path, 'r') as f:
+                lines = f.readlines()
+
+            updated_lines = []
+            settings_path_str = str(settings_dir)
+            if not settings_path_str.endswith('/'):
+                settings_path_str += '/'
+            
+            output_path_str = str(output_dir)
+            if not output_path_str.endswith('/'):
+                output_path_str += '/'
+
+            for line in lines:
+                stripped = line.strip()
+                # Only match actual path lines (start with quote), not comment lines
+                if stripped.startswith("'") and 'SETNGS_PATH' in line:
+                    # Replace path inside single quotes
+                    updated_lines.append(f"'{settings_path_str}'     ! SETNGS_PATH\n")
+                elif stripped.startswith("'") and 'OUTPUT_PATH' in line:
+                    updated_lines.append(f"'{output_path_str}'       ! OUTPUT_PATH\n")
+                else:
+                    updated_lines.append(line)
+
+            with open(filemanager_path, 'w') as f:
+                f.writelines(updated_lines)
+            
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to update FUSE file manager: {e}")
             return False
 
     def calculate_metrics(
@@ -206,22 +330,43 @@ class FUSEWorker(BaseWorker):
             df_obs = pd.read_csv(obs_file_path, index_col='datetime', parse_dates=True)
             observed_streamflow = df_obs['discharge_cms'].resample('D').mean()
 
-            # Read FUSE simulation output
-            sim_file_path = (project_dir / 'simulations' / experiment_id / 'FUSE' /
-                            f"{domain_name}_{experiment_id}_runs_def.nc")
+            # Read FUSE simulation output from sim_dir (or fallback to output_dir)
+            # sim_dir = process_X/simulations/run_1/FUSE (consistent with SUMMA structure)
+            fuse_id = config.get('FUSE_FILE_ID', experiment_id)
+            fuse_output_dir = kwargs.get('sim_dir', output_dir)
+            if fuse_output_dir:
+                fuse_output_dir = Path(fuse_output_dir)
+            else:
+                fuse_output_dir = output_dir
 
-            if not sim_file_path.exists():
-                self.logger.error(f"Simulation file not found: {sim_file_path}")
+            # FUSE runs in 'run_def' mode which reads from para_def.nc and produces runs_def.nc
+            # Try runs_def first, then other possible output files
+            sim_file_path = None
+            candidates = [
+                fuse_output_dir / f"{domain_name}_{fuse_id}_runs_def.nc",   # run_def mode (default)
+                fuse_output_dir / f"{domain_name}_{fuse_id}_runs_best.nc",  # run_best mode
+                fuse_output_dir / f"{domain_name}_{fuse_id}_runs_pre.nc",   # run_pre mode (legacy)
+                fuse_output_dir.parent / f"{domain_name}_{fuse_id}_runs_def.nc",
+                output_dir.parent / f"{domain_name}_{fuse_id}_runs_pre.nc",
+            ]
+            for cand in candidates:
+                if cand.exists():
+                    sim_file_path = cand
+                    break
+
+            if sim_file_path is None or not sim_file_path.exists():
+                self.logger.error(f"Simulation file not found. Searched: {[str(c) for c in candidates]}")
                 return {'kge': self.penalty_score}
 
             # Read simulations
             with xr.open_dataset(sim_file_path) as ds:
+                # FUSE dimensions: (time, param_set, latitude, longitude)
                 if 'q_routed' in ds.variables:
                     simulated = ds['q_routed'].isel(param_set=0, latitude=0, longitude=0)
                 elif 'q_instnt' in ds.variables:
                     simulated = ds['q_instnt'].isel(param_set=0, latitude=0, longitude=0)
                 else:
-                    self.logger.error("No runoff variable found in FUSE output")
+                    self.logger.error(f"No runoff variable found in FUSE output. Variables: {list(ds.variables.keys())}")
                     return {'kge': self.penalty_score}
 
                 simulated_streamflow = simulated.to_pandas()
@@ -329,7 +474,20 @@ class FUSEWorker(BaseWorker):
         Returns:
             Result dictionary
         """
-        worker = FUSEWorker(config=task_data.get('config'))
-        task = WorkerTask.from_legacy_dict(task_data)
-        result = worker.evaluate(task)
-        return result.to_legacy_dict()
+        return _evaluate_fuse_parameters_worker(task_data)
+
+
+def _evaluate_fuse_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Module-level worker function for MPI/ProcessPool execution.
+
+    Args:
+        task_data: Task dictionary
+
+    Returns:
+        Result dictionary
+    """
+    worker = FUSEWorker(config=task_data.get('config'))
+    task = WorkerTask.from_legacy_dict(task_data)
+    result = worker.evaluate(task)
+    return result.to_legacy_dict()

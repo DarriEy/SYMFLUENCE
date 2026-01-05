@@ -382,7 +382,7 @@ class SummaRunner(UnifiedModelRunner):
 
         # Create output directory
         experiment_id = self.config_dict.get('EXPERIMENT_ID')
-        output_path = self.project_dir / 'simulations' / experiment_id / 'SUMMA_point'
+        output_path = self.project_dir / 'simulations' / experiment_id / 'SUMMA'
         output_path.mkdir(parents=True, exist_ok=True)
 
         # Process each site

@@ -25,14 +25,14 @@ try:
             ddb_local_attrs_default = {}
 except ImportError as e:
     import logging
-    logging.warning(f"meshflow import failed: {e}. MESH preprocessing will be limited.")
+    logging.debug(f"meshflow import failed: {e}. MESH preprocessing will be limited.")
     MESHFLOW_AVAILABLE = False
     ddb_local_attrs_default = {}
 
     # Fallback placeholder
     class MESHWorkflow:
         def __init__(self, **kwargs):
-            logging.warning("MESHWorkflow placeholder - meshflow not available")
+            logging.debug("MESHWorkflow placeholder - meshflow not available")
             pass
         def run(self, save_path=None):
             pass

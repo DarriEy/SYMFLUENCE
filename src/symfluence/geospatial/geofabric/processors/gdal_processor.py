@@ -153,6 +153,6 @@ class GDALProcessor:
         temp_files = glob.glob(str(temp_shp_path.with_suffix(".*")))
         for temp_file in temp_files:
             Path(temp_file).unlink()
-            self.logger.info(f"Removed temporary file: {temp_file}")
+            self.logger.debug(f"Removed temporary file: {temp_file}")
 
-        self.logger.info(f"Filtered watershed shapefile created at: {output_shp_path}")
+        self.logger.debug(f"Filtered watershed shapefile created at: {output_shp_path}")

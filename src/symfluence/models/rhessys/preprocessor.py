@@ -3,14 +3,14 @@ RHESSys Model Preprocessor
 """
 import logging
 from pathlib import Path
-from symfluence.models.base.preprocessor import BaseModelPreprocessor
+from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
 @ModelRegistry.register_preprocessor("RHESSys")
-class RHESSysPreprocessor(BaseModelPreprocessor):
+class RHESSysPreprocessor(BaseModelPreProcessor):
     """
     Prepares inputs for a RHESSys model run.
     """

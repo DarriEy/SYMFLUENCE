@@ -254,7 +254,7 @@ def _create_summa_schema() -> ModelConfigSchema:
             install_path_key='SUMMA_INSTALL_PATH',
             default_install_subpath='installs/summa/bin',
             exe_name_key='SUMMA_EXE',
-            default_exe_name='summa.exe'
+            default_exe_name='summa_sundials.exe'
         ),
         execution=ExecutionConfig(
             method='subprocess',

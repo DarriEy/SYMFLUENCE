@@ -321,7 +321,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
         debug_info['stage'] = 'summa_execution'
         logger.info("Running SUMMA")
         summa_start = time.time()
-        if not _run_summa_worker(summa_exe, file_manager, summa_dir, logger, debug_info):
+        if not _run_summa_worker(summa_exe, file_manager, summa_dir, logger, debug_info, summa_settings_dir):
             error_msg = 'SUMMA simulation failed'
             logger.error(error_msg)
             eval_runtime = time.time() - eval_start_time
@@ -521,7 +521,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                             break
                 
                 if score is None:
-                    logger.error(f"Could not extract {target_metric} from metrics: {list(metrics.keys())}")
+                    logger.error(f"Could not extract {target_metric} from metrics. Available metrics: {list(metrics.keys())}")
                     eval_runtime = time.time() - eval_start_time
                     return {
                         'individual_id': individual_id,
@@ -959,29 +959,47 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
     try:
         domain_name = config.get('DOMAIN_NAME')
         project_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{domain_name}"
-        
-        # Try basin shapefile first
+
+        # Priority 1: Try SUMMA attributes file first (most reliable)
+        attrs_file = project_dir / 'settings' / 'SUMMA' / 'attributes.nc'
+        if attrs_file.exists():
+            try:
+                import xarray as xr
+                with xr.open_dataset(attrs_file) as attrs:
+                    if 'HRUarea' in attrs.data_vars:
+                        catchment_area_m2 = float(attrs['HRUarea'].values.sum())
+                        if 0 < catchment_area_m2 < 1e12:  # Reasonable area check
+                            logger.warning(f"WORKER DEBUG: Using catchment area from SUMMA attributes: {catchment_area_m2:.0f} m²")
+                            return catchment_area_m2
+                    else:
+                        logger.debug("HRUarea not found in SUMMA attributes file")
+            except Exception as e:
+                logger.debug(f"Error reading SUMMA attributes file: {str(e)}")
+        else:
+            logger.debug(f"SUMMA attributes file not found: {attrs_file}")
+
+        # Priority 2: Try basin shapefile
         basin_path = project_dir / "shapefiles" / "river_basins"
         basin_files = list(basin_path.glob("*.shp"))
-        
+
         if basin_files:
             try:
                 import geopandas as gpd
                 gdf = gpd.read_file(basin_files[0])
                 area_col = config.get('RIVER_BASIN_SHP_AREA', 'GRU_area')
-                
+
                 logger.debug(f"Found basin shapefile: {basin_files[0]}")
                 logger.debug(f"Looking for area column: {area_col}")
                 logger.debug(f"Available columns: {list(gdf.columns)}")
-                
+
                 if area_col in gdf.columns:
                     total_area = gdf[area_col].sum()
                     logger.debug(f"Total area from column: {total_area}")
-                    
+
                     if 0 < total_area < 1e12:  # Reasonable area check
                         logger.info(f"Using catchment area from shapefile: {total_area:.0f} m²")
                         return total_area
-                
+
                 # Fallback: calculate from geometry
                 if gdf.crs and gdf.crs.is_geographic:
                     # Reproject to UTM for area calculation
@@ -989,38 +1007,38 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
                     utm_zone = int(((centroid.x + 180) / 6) % 60) + 1
                     utm_crs = f"+proj=utm +zone={utm_zone} +north +datum=WGS84 +units=m +no_defs"
                     gdf = gdf.to_crs(utm_crs)
-                
+
                 geom_area = gdf.geometry.area.sum()
                 logger.info(f"Using catchment area from geometry: {geom_area:.0f} m²")
                 return geom_area
-                
+
             except ImportError:
                 logger.warning("geopandas not available for area calculation")
             except Exception as e:
                 logger.warning(f"Error reading basin shapefile: {str(e)}")
-        
-        # Alternative: try catchment shapefile
+
+        # Priority 3: Try catchment shapefile
         catchment_path = project_dir / "shapefiles" / "catchment"
         catchment_files = list(catchment_path.glob("*.shp"))
-        
+
         if catchment_files:
             try:
                 import geopandas as gpd
                 gdf = gpd.read_file(catchment_files[0])
                 area_col = config.get('CATCHMENT_SHP_AREA', 'HRU_area')
-                
+
                 if area_col in gdf.columns:
                     total_area = gdf[area_col].sum()
                     if 0 < total_area < 1e12:
                         logger.info(f"Using catchment area from catchment shapefile: {total_area:.0f} m²")
                         return total_area
-                        
+
             except Exception as e:
                 logger.warning(f"Error reading catchment shapefile: {str(e)}")
-        
+
     except Exception as e:
         logger.warning(f"Could not calculate catchment area: {str(e)}")
-    
+
     # Fallback
     logger.warning("Using default catchment area: 1,000,000 m²")
     return 1e6
@@ -1032,7 +1050,8 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
         import xarray as xr
         import pandas as pd
         import numpy as np
-        
+
+        logger.warning("WORKER DEBUG: Starting inline metrics calculation")
         logger.debug("Starting inline metrics calculation")
         logger.debug(f"SUMMA dir: {summa_dir}")
         logger.debug(f"mizuRoute dir: {mizuroute_dir}")
@@ -1070,6 +1089,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                 # Get the ACTUAL catchment area for unit conversion
                 try:
                     catchment_area = _get_catchment_area_worker(config, logger)
+                    logger.warning(f"WORKER DEBUG: Got catchment area = {catchment_area:.2e} m²")
                     logger.debug(f"Catchment area for conversion: {catchment_area:.0f} m²")
                 except Exception as e:
                     logger.debug(f"Error getting catchment area: {str(e)}")
@@ -1162,25 +1182,68 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                             logger.debug(f"Variable shape: {var.shape}")
                             
                             try:
+                                # Attempt area-weighted aggregation first
+                                aggregated = False
                                 if len(var.shape) > 1:
-                                    if 'hru' in var.dims:
-                                        sim_data = var.isel(hru=0).to_pandas()
-                                    elif 'gru' in var.dims:
-                                        sim_data = var.isel(gru=0).to_pandas()
-                                    else:
-                                        # Take first spatial index
-                                        non_time_dims = [dim for dim in var.dims if dim != 'time']
-                                        if non_time_dims:
-                                            sim_data = var.isel({non_time_dims[0]: 0}).to_pandas()
+                                    try:
+                                        # Try to find attributes file relative to summa_dir or project_dir
+                                        # summa_dir is usually simulations/EXP_ID/SUMMA
+                                        # settings are in project_dir/settings/SUMMA
+                                        
+                                        # Look for attributes.nc in common locations
+                                        possible_attr_paths = [
+                                            summa_dir.parent.parent.parent / 'settings' / 'SUMMA' / 'attributes.nc', # From sim dir
+                                            Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{config.get('DOMAIN_NAME')}" / 'settings' / 'SUMMA' / 'attributes.nc'
+                                        ]
+                                        
+                                        attrs_file = None
+                                        for p in possible_attr_paths:
+                                            if p.exists():
+                                                attrs_file = p
+                                                break
+                                        
+                                        if attrs_file:
+                                            with xr.open_dataset(attrs_file) as attrs:
+                                                # Handle HRU dimension
+                                                if 'hru' in var.dims and 'HRUarea' in attrs:
+                                                    areas = attrs['HRUarea']
+                                                    if areas.sizes['hru'] == var.sizes['hru']:
+                                                        sim_data = (var * areas).sum(dim='hru').to_pandas()
+                                                        aggregated = True
+                                                        logger.debug("Performed area-weighted aggregation (HRU)")
+                                                
+                                                # Handle GRU dimension
+                                                elif 'gru' in var.dims and 'GRUarea' in attrs:
+                                                    areas = attrs['GRUarea']
+                                                    if areas.sizes['gru'] == var.sizes['gru']:
+                                                        sim_data = (var * areas).sum(dim='gru').to_pandas()
+                                                        aggregated = True
+                                                        logger.debug("Performed area-weighted aggregation (GRU)")
+                                    except Exception as e:
+                                        logger.debug(f"Aggregation failed, falling back: {e}")
+
+                                if not aggregated:
+                                    if len(var.shape) > 1:
+                                        if 'hru' in var.dims:
+                                            sim_data = var.isel(hru=0).to_pandas()
+                                        elif 'gru' in var.dims:
+                                            sim_data = var.isel(gru=0).to_pandas()
                                         else:
-                                            sim_data = var.to_pandas()
-                                else:
-                                    sim_data = var.to_pandas()
+                                            # Take first spatial index
+                                            non_time_dims = [dim for dim in var.dims if dim != 'time']
+                                            if non_time_dims:
+                                                sim_data = var.isel({non_time_dims[0]: 0}).to_pandas()
+                                            else:
+                                                sim_data = var.to_pandas()
+                                    else:
+                                        sim_data = var.to_pandas()
+                                    
+                                    # Convert units for SUMMA (m/s to m³/s) using ACTUAL catchment area
+                                    logger.warning(f"WORKER DEBUG: Converting {var_name} using catchment area = {catchment_area:.2e} m²")
+                                    logger.warning(f"WORKER DEBUG: Pre-conversion mean = {sim_data.mean():.2e}")
+                                    sim_data = sim_data * catchment_area
+                                    logger.warning(f"WORKER DEBUG: Post-conversion mean = {sim_data.mean():.2f} m³/s")
                                 
-                                # Convert units for SUMMA (m/s to m³/s) using ACTUAL catchment area
-                                logger.debug(f"Converting SUMMA units: {var_name} * {catchment_area:.0f} m²")
-                                logger.debug(f"Pre-scaling range: {sim_data.min():.6f} to {sim_data.max():.6f} m/s")
-                                sim_data = sim_data * catchment_area
                                 logger.debug(f"Post-scaling range: {sim_data.min():.3f} to {sim_data.max():.3f} m³/s")
                                 
                                 logger.debug(f"Extracted {var_name} with {len(sim_data)} timesteps, applied area scaling")
@@ -1435,16 +1498,20 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
             sim_common = pd.to_numeric(sim_period.loc[common_idx], errors='coerce')
             logger.debug(f"Successfully aligned {len(common_idx)} time points")
         
-        # Remove invalid data
+        # Remove invalid data - only filter NaN values to match centralized metrics module
+        # NOTE: Previously also filtered obs <= 0 and sim <= 0, but this caused inconsistency
+        # with final evaluation which uses metrics.py that only filters NaN values.
+        # Zero/negative values can be physically meaningful (e.g., low flow periods).
         logger.debug("Cleaning data...")
-        
+
         logger.debug(f"Before cleaning - obs: {len(obs_common)}, sim: {len(sim_common)}")
         logger.debug(f"Obs NaN count: {obs_common.isna().sum()}")
         logger.debug(f"Sim NaN count: {sim_common.isna().sum()}")
         logger.debug(f"Obs <= 0 count: {(obs_common <= 0).sum()}")
         logger.debug(f"Sim <= 0 count: {(sim_common <= 0).sum()}")
-        
-        valid = ~(obs_common.isna() | sim_common.isna() | (obs_common <= 0) | (sim_common <= 0))
+
+        # Only filter NaN values - consistent with metrics.py _clean_data()
+        valid = ~(obs_common.isna() | sim_common.isna())
         obs_valid = obs_common[valid]
         sim_valid = sim_common[valid]
         
@@ -1478,7 +1545,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
             mae = (obs_valid - sim_valid).abs().mean()
             pbias = 100 * (sim_valid.sum() - obs_valid.sum()) / obs_valid.sum() if obs_valid.sum() != 0 else np.nan
             
-            logger.debug(f"Calculated metrics - NSE: {nse:.6f}, KGE: {kge:.6f}, RMSE: {rmse:.6f}")
+            logger.warning(f"WORKER DEBUG: Final KGE = {kge:.4f} (obs_mean={mean_obs:.2f}, sim_mean={sim_valid.mean():.2f})")
             logger.debug(f"Additional metrics - r: {r:.6f}, alpha: {alpha:.6f}, beta: {beta:.6f}")
             
             result = {
@@ -1704,7 +1771,7 @@ def _update_soil_depths_worker(params: Dict, task_data: Dict, settings_dir: Path
     try:
         original_depths_list = task_data.get('original_depths')
         if not original_depths_list:
-            logger.warning("No original depths provided, skipping soil depth update")
+            logger.debug("No original depths provided, skipping soil depth update")
             return True
         
         original_depths = np.array(original_depths_list)
@@ -1947,7 +2014,7 @@ def _generate_trial_params_worker(params: Dict, settings_dir: Path, logger, debu
         return False
 
 
-def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logger, debug_info: Dict) -> bool:
+def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logger, debug_info: Dict, summa_settings_dir: Path = None) -> bool:
     """SUMMA execution without log files to save disk space"""
     try:
         # Create log directory
@@ -1967,6 +2034,73 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
         summa_exe_str = str(summa_exe)
         file_manager_str = str(file_manager)
         
+        # Verify executable permissions
+        if not os.access(summa_exe, os.X_OK):
+            error_msg = f"SUMMA executable is not executable: {summa_exe}"
+            logger.error(error_msg)
+            debug_info['errors'].append(error_msg)
+            return False
+
+        # Update file manager with correct output path and settings path
+        try:
+            with open(file_manager, 'r') as f:
+                lines = f.readlines()
+
+            updated_lines = []
+            output_path_updated = False
+            settings_path_updated = False
+
+            # Ensure paths end with slash for SUMMA
+            output_path_str = str(summa_dir)
+            if not output_path_str.endswith(os.sep):
+                output_path_str += os.sep
+
+            # Prepare settings path if provided
+            settings_path_str = None
+            if summa_settings_dir is not None:
+                settings_path_str = str(summa_settings_dir)
+                if not settings_path_str.endswith(os.sep):
+                    settings_path_str += os.sep
+
+            for line in lines:
+                if 'outputPath' in line and not line.strip().startswith('!'):
+                    # Preserve comment if present
+                    parts = line.split('!')
+                    comment = '!' + parts[1] if len(parts) > 1 else ''
+
+                    # Update path - SUMMA requires quoted strings
+                    updated_lines.append(f"outputPath '{output_path_str}' {comment}\n")
+                    output_path_updated = True
+                elif 'settingsPath' in line and not line.strip().startswith('!') and settings_path_str is not None:
+                    # Preserve comment if present
+                    parts = line.split('!')
+                    comment = '!' + parts[1] if len(parts) > 1 else ''
+
+                    # Update settings path - SUMMA requires quoted strings
+                    updated_lines.append(f"settingsPath '{settings_path_str}' {comment}\n")
+                    settings_path_updated = True
+                else:
+                    updated_lines.append(line)
+
+            if not output_path_updated:
+                # If outputPath not found, append it (though uncommon for valid file manager)
+                updated_lines.append(f"outputPath '{output_path_str}'\n")
+
+            if settings_path_str is not None and not settings_path_updated:
+                # If settingsPath not found, append it
+                updated_lines.append(f"settingsPath '{settings_path_str}'\n")
+
+            with open(file_manager, 'w') as f:
+                f.writelines(updated_lines)
+
+            logger.debug(f"Updated file manager output path to: {output_path_str}")
+            if settings_path_str is not None:
+                logger.debug(f"Updated file manager settings path to: {settings_path_str}")
+
+        except Exception as e:
+            logger.warning(f"Failed to update file manager paths: {e}")
+            # Continue anyway, hoping it works or fails later
+        
         # Build command
         cmd = f"{summa_exe_str} -m {file_manager_str}"
         
@@ -1974,13 +2108,6 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
         logger.debug(f"Working directory: {summa_dir}")
         
         debug_info['commands_run'].append(f"SUMMA: {cmd}")
-        
-        # Verify executable permissions
-        if not os.access(summa_exe, os.X_OK):
-            error_msg = f"SUMMA executable is not executable: {summa_exe}"
-            logger.error(error_msg)
-            debug_info['errors'].append(error_msg)
-            return False
         
         # Run SUMMA 
         with open(log_file, 'w') as f:
@@ -2007,7 +2134,8 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
             # Look for any .nc files
             nc_files = list(summa_dir.glob("*.nc"))
             if not nc_files:
-                error_msg = f"No SUMMA output files found in {summa_dir}"
+                dir_contents = list(summa_dir.glob("*"))
+                error_msg = f"No SUMMA output files found in {summa_dir}. Contents: {[f.name for f in dir_contents]}"
                 logger.error(error_msg)
                 debug_info['errors'].append(error_msg)
                 return False

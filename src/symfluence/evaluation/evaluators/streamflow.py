@@ -87,7 +87,43 @@ class StreamflowEvaluator(ModelEvaluator):
             for var_name in streamflow_vars:
                 if var_name in ds.variables:
                     var = ds[var_name]
+                    
+                    # Check if we need spatial aggregation
+                    if len(var.shape) > 1 and any(d in var.dims for d in ['hru', 'gru']):
+                        try:
+                            # Try area-weighted aggregation first
+                            attrs_file = self.project_dir / 'settings' / 'SUMMA' / 'attributes.nc'
+                            if attrs_file.exists():
+                                with xr.open_dataset(attrs_file) as attrs:
+                                    # Handle HRU dimension
+                                    if 'hru' in var.dims and 'HRUarea' in attrs:
+                                        areas = attrs['HRUarea']
+                                        if areas.sizes['hru'] == var.sizes['hru']:
+                                            # Calculate total discharge in m³/s: sum(runoff_i * area_i)
+                                            weighted_runoff = (var * areas).sum(dim='hru')
+                                            return weighted_runoff.to_pandas()
+                                    
+                                    # Handle GRU dimension
+                                    elif 'gru' in var.dims and 'GRUarea' in attrs:
+                                        areas = attrs['GRUarea']
+                                        if areas.sizes['gru'] == var.sizes['gru']:
+                                            weighted_runoff = (var * areas).sum(dim='gru')
+                                            return weighted_runoff.to_pandas()
+                                            
+                                    # Fallback if specific area variable missing but HRUarea available for GRU dim (common in lumped)
+                                    elif 'gru' in var.dims and 'HRUarea' in attrs:
+                                         # If 1:1 mapping or if we can infer
+                                         if attrs.sizes['hru'] == var.sizes['gru']:
+                                             areas = attrs['HRUarea'] # Assuming 1:1 mapping for lumped
+                                             weighted_runoff = (var * areas).sum(dim='hru' if 'hru' in areas.dims else 'gru')
+                                             return weighted_runoff.to_pandas()
+
+                        except Exception as e:
+                            self.logger.warning(f"Failed to perform area-weighted aggregation: {e}")
+
+                    # Fallback to selection (original logic)
                     if len(var.shape) > 1:
+                        self.logger.warning(f"Using first spatial unit for {var_name} (potential error for multi-unit basins)")
                         if 'hru' in var.dims:
                             sim_data = var.isel(hru=0).to_pandas()
                         elif 'gru' in var.dims:
@@ -107,6 +143,21 @@ class StreamflowEvaluator(ModelEvaluator):
     
     def _get_catchment_area(self) -> float:
         """Get catchment area for unit conversion"""
+
+        # Priority 1: Try SUMMA attributes file first (most reliable)
+        try:
+            attrs_file = self.project_dir / 'settings' / 'SUMMA' / 'attributes.nc'
+            if attrs_file.exists():
+                with xr.open_dataset(attrs_file) as attrs:
+                    if 'HRUarea' in attrs.data_vars:
+                        catchment_area_m2 = float(attrs['HRUarea'].values.sum())
+                        if 0 < catchment_area_m2 < 1e12:  # Reasonable area check
+                            self.logger.info(f"Using catchment area from SUMMA attributes: {catchment_area_m2:.0f} m²")
+                            return catchment_area_m2
+        except Exception as e:
+            self.logger.debug(f"Error reading SUMMA attributes file: {str(e)}")
+
+        # Priority 2: Try basin shapefile
         try:
             import geopandas as gpd
             basin_path = self.project_dir / "shapefiles" / "river_basins"
@@ -117,6 +168,7 @@ class StreamflowEvaluator(ModelEvaluator):
                 if area_col in gdf.columns:
                     total_area = gdf[area_col].sum()
                     if 0 < total_area < 1e12:
+                        self.logger.info(f"Using catchment area from shapefile: {total_area:.0f} m²")
                         return total_area
                 # Fallback: calculate from geometry
                 if gdf.crs and gdf.crs.is_geographic:
@@ -124,9 +176,14 @@ class StreamflowEvaluator(ModelEvaluator):
                     utm_zone = int(((centroid.x + 180) / 6) % 60) + 1
                     utm_crs = f"+proj=utm +zone={utm_zone} +north +datum=WGS84 +units=m +no_defs"
                     gdf = gdf.to_crs(utm_crs)
-                return gdf.geometry.area.sum()
+                geom_area = gdf.geometry.area.sum()
+                self.logger.info(f"Using catchment area from geometry: {geom_area:.0f} m²")
+                return geom_area
         except Exception as e:
-            self.logger.warning(f"Could not calculate catchment area: {str(e)}")
+            self.logger.warning(f"Could not calculate catchment area from shapefile: {str(e)}")
+
+        # Fallback
+        self.logger.warning("Using default catchment area: 1,000,000 m²")
         return 1e6  # 1 km² fallback
     
     def get_observed_data_path(self) -> Path:

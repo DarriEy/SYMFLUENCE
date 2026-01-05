@@ -144,8 +144,8 @@ class FuseElevationBandManager:
                 mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
                 spatial_dims = ['latitude', 'longitude']
                 spatial_coords = {
-                    'latitude': np.array([mean_lat]),
-                    'longitude': np.array([mean_lon])
+                    'latitude': np.array([float(mean_lat)]),
+                    'longitude': np.array([float(mean_lon)])
                 }
 
             # Create simple elevation bands (e.g., 5 bands)
@@ -166,9 +166,14 @@ class FuseElevationBandManager:
                 'n_bands': n_bands
             })
 
-            band_shape = tuple(len(spatial_coords[dim]) for dim in spatial_dims) + (n_bands,)
-            band_dims = spatial_dims + ['elevation_band']
-            broadcast_shape = (1,) * len(spatial_dims) + (n_bands,)
+            # Use xarray broadcasting for cleaner and more efficient array creation
+            area_da = xr.DataArray(area_fractions, dims=['elevation_band'])
+            elev_da = xr.DataArray(elevations, dims=['elevation_band'])
+
+            band_shape = (n_bands,) + tuple(len(spatial_coords[dim]) for dim in spatial_dims)
+            band_dims = ['elevation_band'] + spatial_dims
+            broadcast_shape = (n_bands,) + (1,) * len(spatial_dims)
+
             ds['area_frac'] = xr.DataArray(
                 np.broadcast_to(area_fractions.reshape(broadcast_shape), band_shape),
                 dims=band_dims,
@@ -176,7 +181,8 @@ class FuseElevationBandManager:
                     'long_name': 'Fraction of catchment area in each elevation band',
                     'units': '-'
                 }
-            )
+            ).astype('float32')
+            
             ds['mean_elev'] = xr.DataArray(
                 np.broadcast_to(elevations.reshape(broadcast_shape), band_shape),
                 dims=band_dims,
@@ -185,7 +191,8 @@ class FuseElevationBandManager:
                     'units': 'm',
                     'standard_name': 'height_above_reference_ellipsoid'
                 }
-            )
+            ).astype('float32')
+            
             ds['prec_frac'] = xr.DataArray(
                 np.broadcast_to(area_fractions.reshape(broadcast_shape), band_shape),
                 dims=band_dims,
@@ -193,11 +200,22 @@ class FuseElevationBandManager:
                     'long_name': 'Fraction of catchment precipitation that falls on each elevation band',
                     'units': '-'
                 }
-            )
+            ).astype('float32')
 
             # Save to file
             output_file = self.forcing_fuse_path / f"{self.domain_name}_elev_bands.nc"
-            ds.to_netcdf(output_file)
+            
+            # Use strict encoding for FUSE compatibility
+            encoding = {
+                'area_frac': {'dtype': 'float32', '_FillValue': -9999.0, 'zlib': False},
+                'mean_elev': {'dtype': 'float32', '_FillValue': -9999.0, 'zlib': False},
+                'prec_frac': {'dtype': 'float32', '_FillValue': -9999.0, 'zlib': False},
+                'elevation_band': {'dtype': 'float64', '_FillValue': None}
+            }
+            for dim in spatial_dims:
+                encoding[dim] = {'dtype': 'float64', '_FillValue': None}
+            
+            ds.to_netcdf(output_file, encoding=encoding)
 
             self.logger.info(f"Created lumped elevation bands file with {n_bands} bands: {output_file}")
             return output_file
@@ -288,9 +306,10 @@ class FuseElevationBandManager:
                 'n_bands': n_bands
             })
 
-            band_shape = tuple(len(spatial_coords[dim]) for dim in spatial_dims) + (n_bands,)
-            band_dims = spatial_dims + ['elevation_band']
-            broadcast_shape = (1,) * len(spatial_dims) + (n_bands,)
+            band_shape = (n_bands,) + tuple(len(spatial_coords[dim]) for dim in spatial_dims)
+            band_dims = ['elevation_band'] + spatial_dims
+            broadcast_shape = (n_bands,) + (1,) * len(spatial_dims)
+
             ds['area_frac'] = xr.DataArray(
                 np.broadcast_to(area_fractions.reshape(broadcast_shape), band_shape),
                 dims=band_dims,
@@ -298,7 +317,8 @@ class FuseElevationBandManager:
                     'long_name': 'Fraction of catchment area in each elevation band',
                     'units': '-'
                 }
-            )
+            ).astype('float32')
+            
             ds['mean_elev'] = xr.DataArray(
                 np.broadcast_to(elevations.reshape(broadcast_shape), band_shape),
                 dims=band_dims,
@@ -307,7 +327,8 @@ class FuseElevationBandManager:
                     'units': 'm',
                     'standard_name': 'height_above_reference_ellipsoid'
                 }
-            )
+            ).astype('float32')
+            
             ds['prec_frac'] = xr.DataArray(
                 np.broadcast_to(area_fractions.reshape(broadcast_shape), band_shape),
                 dims=band_dims,
@@ -315,11 +336,22 @@ class FuseElevationBandManager:
                     'long_name': 'Fraction of catchment precipitation that falls on each elevation band',
                     'units': '-'
                 }
-            )
+            ).astype('float32')
 
             # Save to file
             output_file = self.forcing_fuse_path / f"{self.domain_name}_elev_bands.nc"
-            ds.to_netcdf(output_file)
+            
+            # Use strict encoding for FUSE compatibility
+            encoding = {
+                'area_frac': {'dtype': 'float32', '_FillValue': -9999.0, 'zlib': False},
+                'mean_elev': {'dtype': 'float32', '_FillValue': -9999.0, 'zlib': False},
+                'prec_frac': {'dtype': 'float32', '_FillValue': -9999.0, 'zlib': False},
+                'elevation_band': {'dtype': 'float64', '_FillValue': None}
+            }
+            for dim in spatial_dims:
+                encoding[dim] = {'dtype': 'float64', '_FillValue': None}
+            
+            ds.to_netcdf(output_file, encoding=encoding)
 
             self.logger.info(f"Created distributed elevation bands file with {n_hrus} HRUs: {output_file}")
             return output_file

@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import pandas as pd
 import geopandas as gpd
-from symfluence.core import ConfigurableMixin, CoordinateUtilsMixin
+from symfluence.core import ConfigurableMixin
+from symfluence.geospatial.coordinate_utils import CoordinateUtilsMixin
 
 class BaseObservationHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
     def __init__(self, config: Dict[str, Any], logger):

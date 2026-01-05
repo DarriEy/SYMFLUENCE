@@ -100,6 +100,7 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
 
         if n_workers <= 1:
             for i, (chunk_start, chunk_end) in enumerate(chunks, start=1):
+                self.logger.info(f"Processing ERA5 chunk {i}/{len(chunks)}: {chunk_start.strftime('%Y-%m')} to {chunk_end.strftime('%Y-%m')}")
                 time_start = chunk_start if i == 1 else chunk_start - pd.Timedelta(hours=step)
                 ds_t = ds.sel(time=slice(time_start, chunk_end))
                 if "time" not in ds_t.dims or ds_t.sizes["time"] < 2: continue
@@ -122,6 +123,7 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
                 chunk_file = output_dir / f"domain_{domain_name}_ERA5_merged_{file_year}{file_month:02d}.nc"
                 encoding = {var: {"zlib": True, "complevel": 1, "chunksizes": (min(168, ds_chunk.sizes["time"]), ds_chunk.sizes["latitude"], ds_chunk.sizes["longitude"])} for var in ds_chunk.data_vars}
                 ds_chunk.to_netcdf(chunk_file, encoding=encoding, compute=True)
+                self.logger.info(f"✓ Successfully saved ERA5 chunk {i}/{len(chunks)} to {chunk_file.name}")
                 chunk_files.append(chunk_file)
         else:
             from concurrent.futures import ThreadPoolExecutor

@@ -3,7 +3,7 @@ RHESSys Model Runner
 """
 import logging
 from pathlib import Path
-from symfluence.models.base.runner import BaseModelRunner
+from symfluence.models.base.base_runner import BaseModelRunner
 from symfluence.models.registry import ModelRegistry
 
 logger = logging.getLogger(__name__)

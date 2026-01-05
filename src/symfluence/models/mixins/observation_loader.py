@@ -82,7 +82,7 @@ class ObservationLoaderMixin:
                     return None
                 raise FileNotFoundError("Streamflow observation file not found")
 
-            self.logger.info(f"Loading streamflow observations from: {obs_file}")
+            self.logger.debug(f"Loading streamflow observations from: {obs_file}")
 
             # Read and parse file
             df = self._read_observation_file(obs_file)
@@ -344,7 +344,7 @@ class ObservationLoaderMixin:
                 basin_gdf = gpd.read_file(basin_path)
                 if 'GRU_area' in basin_gdf.columns:
                     area_km2 = basin_gdf['GRU_area'].sum() / 1e6  # m2 to km2
-                    self.logger.info(f"Using catchment area from river basins: {area_km2:.2f} km2")
+                    self.logger.debug(f"Using catchment area from river basins: {area_km2:.2f} km2")
                     return area_km2
 
             # Fallback to catchment shapefile using shared geospatial utility

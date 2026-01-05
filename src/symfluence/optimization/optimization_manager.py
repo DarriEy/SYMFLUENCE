@@ -252,21 +252,24 @@ class OptimizationManager(ConfigurableMixin):
         opt_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Initialize optimizer
+            # Initialize model-specific optimizer
             self.logger.info(f"Using {algorithm} optimization for {model_name} (registry-based)")
-            optimizer = optimizer_cls(self.config, self.logger, opt_dir, reporting_manager=self.reporting_manager)
+            optimizer = optimizer_cls(self.config, self.logger, None, reporting_manager=self.reporting_manager)
 
             # Map algorithm name to method
             algorithm_methods = {
                 'DDS': optimizer.run_dds,
+                'ASYNC-DDS': optimizer.run_async_dds,
+                'ASYNCDDS': optimizer.run_async_dds,
+                'ASYNC_DDS': optimizer.run_async_dds,
                 'PSO': optimizer.run_pso,
                 'SCE-UA': optimizer.run_sce,
                 'DE': optimizer.run_de,
-                'NSGA-II': getattr(optimizer, 'run_nsga2', None),
+                'NSGA-II': optimizer.run_nsga2,
                 'ADAM': lambda: optimizer.run_adam(
                     steps=self._resolve_config_value(
                         lambda: self.typed_config.optimization.adam_steps,
-                        'ADAM_STEPS', 
+                        'ADAM_STEPS',
                         100
                     ),
                     lr=self._resolve_config_value(
@@ -368,7 +371,7 @@ class OptimizationManager(ConfigurableMixin):
             'ITERATIVE_OPTIMIZATION_ALGORITHM',
             ''
         )
-        supported_algorithms = ['DDS', 'PSO', 'SCE-UA', 'DE', 'ADAM', 'LBFGS', 'NSGA-II']
+        supported_algorithms = ['DDS', 'ASYNC-DDS', 'ASYNCDDS', 'ASYNC_DDS', 'PSO', 'SCE-UA', 'DE', 'ADAM', 'LBFGS', 'NSGA-II']
         validation['algorithm_valid'] = algorithm in supported_algorithms
         
         # Check model support

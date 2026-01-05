@@ -216,13 +216,13 @@ def kge(
 
     if return_components:
         return {
-            'KGE': kge_value,
-            'r': r,
-            'alpha': alpha,
-            'beta': beta
+            'KGE': float(kge_value),
+            'r': float(r),
+            'alpha': float(alpha),
+            'beta': float(beta)
         }
 
-    return kge_value
+    return float(kge_value)
 
 
 def kge_prime(
@@ -301,13 +301,13 @@ def kge_prime(
 
     if return_components:
         return {
-            'KGEp': kgep_value,
-            'r': r,
-            'gamma': gamma,
-            'beta': beta
+            'KGEp': float(kgep_value),
+            'r': float(r),
+            'gamma': float(gamma),
+            'beta': float(beta)
         }
 
-    return kgep_value
+    return float(kgep_value)
 
 
 def kge_np(
@@ -365,7 +365,7 @@ def kge_np(
     if np.isnan(r_np) or np.isnan(alpha_np) or np.isnan(beta):
         return np.nan
 
-    return 1.0 - np.sqrt((r_np - 1)**2 + (alpha_np - 1)**2 + (beta - 1)**2)
+    return float(1.0 - np.sqrt((r_np - 1)**2 + (alpha_np - 1)**2 + (beta - 1)**2))
 
 
 def rmse(
@@ -401,7 +401,7 @@ def rmse(
 
     obs, sim = _apply_transformation(obs, sim, transfo)
 
-    return np.sqrt(np.mean((obs - sim) ** 2))
+    return float(np.sqrt(np.mean((obs - sim) ** 2)))
 
 
 def nrmse(
@@ -444,7 +444,7 @@ def nrmse(
     if std_obs == 0:
         return np.nan
 
-    return rmse_value / std_obs
+    return float(rmse_value / std_obs)
 
 
 def mae(
@@ -480,7 +480,7 @@ def mae(
 
     obs, sim = _apply_transformation(obs, sim, transfo)
 
-    return np.mean(np.abs(obs - sim))
+    return float(np.mean(np.abs(obs - sim)))
 
 
 def bias(
@@ -517,7 +517,7 @@ def bias(
 
     obs, sim = _apply_transformation(obs, sim, transfo)
 
-    return np.mean(sim) - np.mean(obs)
+    return float(np.mean(sim) - np.mean(obs))
 
 
 def pbias(
@@ -558,7 +558,7 @@ def pbias(
     if sum_obs == 0:
         return np.nan
 
-    return 100.0 * (np.sum(sim) - sum_obs) / sum_obs
+    return float(100.0 * (np.sum(sim) - sum_obs) / sum_obs)
 
 
 def correlation(
@@ -591,9 +591,9 @@ def correlation(
     if method == 'pearson':
         if np.std(obs) == 0 or np.std(sim) == 0:
             return np.nan
-        return np.corrcoef(obs, sim)[0, 1]
+        return float(np.corrcoef(obs, sim)[0, 1])
     elif method == 'spearman':
-        return stats.spearmanr(obs, sim)[0]
+        return float(stats.spearmanr(obs, sim)[0])
     else:
         raise ValueError(f"Unknown correlation method: {method}")
 
