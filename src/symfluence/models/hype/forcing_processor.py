@@ -109,7 +109,7 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             files_split = np.array_split(easymore_nc_files, batch_size)
             intermediate_files = []
 
-            for i in tqdm(range(batch_size), desc="Merging forcing batches"):
+            for i in range(batch_size):
                 batch_files = [str(f) for f in files_split[i].tolist()]
                 batch_output = self.cache_path / f"forcing_batch_{i}.nc"
                 cdo_obj.mergetime(input=batch_files, output=str(batch_output))

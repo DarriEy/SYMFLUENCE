@@ -78,9 +78,6 @@ class HYPERunner(BaseModelRunner, ModelExecutor):
             current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
             log_file = log_dir / f'hype_run_{current_time}.log'
 
-            # Execute HYPE
-            self.logger.info(f"Executing command: {' '.join(map(str, cmd))}")
-
             result = self.execute_model_subprocess(
                 cmd,
                 log_file,
