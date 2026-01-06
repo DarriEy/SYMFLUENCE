@@ -5,6 +5,7 @@ This module handles:
 - Ensuring shapefiles are in WGS84 (EPSG:4326) for EASYMORE compatibility
 - Ensuring HRU IDs are unique for proper weight calculation
 - Longitude frame alignment (0-360 vs -180/180)
+- Geometry validation and repair
 
 Extracted from ForcingResampler to improve testability and reduce coupling.
 """
@@ -15,6 +16,7 @@ import logging
 
 import geopandas as gpd
 from shapely.affinity import translate
+from shapely.validation import make_valid
 
 
 class ShapefileManager:

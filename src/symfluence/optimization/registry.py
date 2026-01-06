@@ -56,7 +56,7 @@ class OptimizerRegistry:
         def decorator(optimizer_cls):
             key = model_name.upper()
             cls._optimizers[key] = optimizer_cls
-            logger.debug(f"Registered optimizer for model: {key}")
+            # logger.debug(f"Registered optimizer for model: {key}")
             return optimizer_cls
         return decorator
 
@@ -79,7 +79,7 @@ class OptimizerRegistry:
         def decorator(worker_cls):
             key = model_name.upper()
             cls._workers[key] = worker_cls
-            logger.debug(f"Registered worker for model: {key}")
+            # logger.debug(f"Registered worker for model: {key}")
             return worker_cls
         return decorator
 
@@ -97,7 +97,7 @@ class OptimizerRegistry:
         def decorator(manager_cls):
             key = model_name.upper()
             cls._parameter_managers[key] = manager_cls
-            logger.debug(f"Registered parameter manager for model: {key}")
+            # logger.debug(f"Registered parameter manager for model: {key}")
             return manager_cls
         return decorator
 
@@ -121,7 +121,7 @@ class OptimizerRegistry:
         def decorator(target_cls):
             key = f"{model_name.upper()}_{target_type.upper()}"
             cls._calibration_targets[key] = target_cls
-            logger.debug(f"Registered calibration target: {key}")
+            # logger.debug(f"Registered calibration target: {key}")
             return target_cls
         return decorator
 

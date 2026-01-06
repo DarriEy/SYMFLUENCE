@@ -47,10 +47,11 @@ CARRA_DOMAIN: west_domain
 FORCING_TIME_STEP_SIZE: 10800  # 3-hour timestep for CARRA
 FORCING_MEASUREMENT_HEIGHT: 2
 
-# Observations - WSC streamflow (Iceland)
-STATION_ID: '05BB001'  # Using WSC station for consistency
-STREAMFLOW_DATA_PROVIDER: WSC
-DOWNLOAD_WSC_DATA: true
+# Observations - LamaH-ICE streamflow (Iceland)
+STATION_ID: '13'  # Elliðaár at Reykjavik
+STREAMFLOW_DATA_PROVIDER: LAMAH_ICE
+LAMAH_ICE_PATH: /Users/darrieythorsson/compHydro/data/lamah_ice
+DOWNLOAD_LAMAH_ICE_DATA: true
 
 # Disable other observation sources
 DOWNLOAD_USGS_DATA: false

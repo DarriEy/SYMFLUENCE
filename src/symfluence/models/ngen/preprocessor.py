@@ -84,7 +84,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         else:
             install_path = self.config_dict.get('NGEN_INSTALL_PATH', 'default')
         if install_path == 'default':
-            ngen_root = self.data_dir.parent / 'installs' / 'ngen' / 'build'
+            ngen_root = self.data_dir.parent / 'installs' / 'ngen' / 'cmake_build'
         else:
             ngen_root = Path(install_path)
 

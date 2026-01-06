@@ -47,7 +47,13 @@ class ModelEvaluator(ABC):
         
         if self.eval_timestep != 'native':
             self.logger.info(f"Evaluation will use {self.eval_timestep} timestep")
-    
+
+    def evaluate(self, sim: Any, obs: Optional[pd.Series] = None, 
+                 mizuroute_dir: Optional[Path] = None, 
+                 calibration_only: bool = True) -> Optional[Dict[str, float]]:
+        """Alias for calculate_metrics for consistency with other parts of the system"""
+        return self.calculate_metrics(sim, obs, mizuroute_dir, calibration_only)
+
     def calculate_metrics(self, sim: Any, obs: Optional[pd.Series] = None, 
                          mizuroute_dir: Optional[Path] = None, 
                          calibration_only: bool = True) -> Optional[Dict[str, float]]:
@@ -78,24 +84,12 @@ class ModelEvaluator(ABC):
                 
                 # Extract simulated data
                 sim_data = self.extract_simulated_data(sim_files)
+                self.logger.info(f"Extracted {len(sim_data)} simulated data points from {len(sim_files)} file(s)")
             else:
                 sim_data = sim
                 
             if sim_data is None:
                 self.logger.error("Failed to extract simulated data")
-                return None
-            if isinstance(sim_data, os.PathLike):
-                sim_path = Path(sim_data)
-                if sim_path.is_dir():
-                    sim_files = self.get_simulation_files(sim_path)
-                else:
-                    sim_files = [sim_path]
-                if not sim_files:
-                    self.logger.error(f"No simulation files found in {sim_path}")
-                    return None
-                sim_data = self.extract_simulated_data(sim_files)
-            if len(sim_data) == 0:
-                self.logger.error("Simulated data is empty")
                 return None
             
             # 2. Prepare observed data
@@ -104,12 +98,11 @@ class ModelEvaluator(ABC):
             else:
                 obs_data = obs
 
-            if isinstance(obs_data, os.PathLike):
-                obs_data = self._load_observed_data_from_path(Path(obs_data))
-                
             if obs_data is None or len(obs_data) == 0:
-                self.logger.error("Failed to load observed data")
+                self.logger.error("Failed to load observed data (check path and column names)")
                 return None
+            
+            self.logger.info(f"Loaded {len(obs_data)} observed data points")
             
             # 3. Align time series and calculate metrics
             metrics_dict = {}
@@ -120,6 +113,13 @@ class ModelEvaluator(ABC):
                     obs_data, sim_data, self.calibration_period, "Calib"
                 )
                 metrics_dict.update(calib_metrics)
+                
+                # Also add unprefixed versions for the primary (calibration) period
+                # to support model runners/loggers expecting simple names
+                for k, v in calib_metrics.items():
+                    unprefixed_key = k.replace("Calib_", "")
+                    if unprefixed_key not in metrics_dict:
+                        metrics_dict[unprefixed_key] = v
             
             # Only calculate evaluation period metrics if requested (final evaluation)
             if not calibration_only and self.evaluation_period[0] and self.evaluation_period[1]:
@@ -206,21 +206,29 @@ class ModelEvaluator(ABC):
             if period[0] and period[1]:
                 # Filter observed data to period
                 period_mask = (obs_data.index >= period[0]) & (obs_data.index <= period[1])
-                obs_period = obs_data[period_mask]
+                obs_period = obs_data[period_mask].copy()
                 
                 # Explicitly filter simulated data to same period (like parallel worker)
-                sim_data.index = sim_data.index.round('h')  # Round first for consistency
-                sim_period_mask = (sim_data.index >= period[0]) & (sim_data.index <= period[1])
-                sim_period = sim_data[sim_period_mask]
+                sim_data_rounded = sim_data.copy()
+                sim_data_rounded.index = sim_data_rounded.index.round('h')
+                sim_period_mask = (sim_data_rounded.index >= period[0]) & (sim_data_rounded.index <= period[1])
+                sim_period = sim_data_rounded[sim_period_mask].copy()
                 
                 # Log filtering results for debugging
                 self.logger.debug(f"{prefix} period filtering: {period[0]} to {period[1]}")
                 self.logger.debug(f"{prefix} observed points: {len(obs_period)}")
                 self.logger.debug(f"{prefix} simulated points: {len(sim_period)}")
             else:
-                obs_period = obs_data
-                sim_period = sim_data
+                obs_period = obs_data.copy()
+                sim_period = sim_data.copy()
                 sim_period.index = sim_period.index.round('h')
+
+            # ENHANCED: Normalize timezones before intersection to ensure match
+            # Some datasets come from NetCDF (UTC) while others from CSV (naive)
+            if obs_period.index.tz is not None:
+                obs_period.index = obs_period.index.tz_localize(None)
+            if sim_period.index.tz is not None:
+                sim_period.index = sim_period.index.tz_localize(None)
             
             # Resample to evaluation timestep if specified in config
             if self.eval_timestep != 'native':
@@ -256,6 +264,8 @@ class ModelEvaluator(ABC):
                 
         except Exception as e:
             self.logger.error(f"Error calculating period metrics: {str(e)}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
             return {}
     
     def _resample_to_timestep(self, data: pd.Series, target_timestep: str) -> pd.Series:

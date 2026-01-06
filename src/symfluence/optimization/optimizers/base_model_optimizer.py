@@ -297,7 +297,7 @@ class BaseModelOptimizer(
             proc_id=proc_id,
             config=self.config,
             settings_dir=dirs.get('settings_dir', self.optimization_settings_dir),
-            output_dir=dirs.get('output_dir', self.results_dir),
+            output_dir=dirs.get('sim_dir', self.results_dir),
             sim_dir=dirs.get('sim_dir'),
         )
 
@@ -346,13 +346,13 @@ class BaseModelOptimizer(
                     'domain_name': self.domain_name,
                     'project_dir': str(self.project_dir),
                     'proc_settings_dir': str(settings_dir),
-                    'proc_output_dir': str(dirs.get('output_dir', self.results_dir)),
+                    'proc_output_dir': str(dirs.get('sim_dir', self.results_dir)),
                     'proc_sim_dir': str(dirs.get('sim_dir', '')),
                     'summa_settings_dir': str(settings_dir),
                     'mizuroute_settings_dir': str(dirs.get('root', self.project_dir) / 'settings' / 'mizuRoute') if dirs else '',
                     'summa_dir': str(dirs.get('sim_dir', '')),
-                    # mizuroute_dir should be sibling to summa_dir: .../simulations/run_1/mizuRoute
                     'mizuroute_dir': str(Path(dirs.get('sim_dir', '')).parent / 'mizuRoute') if dirs and dirs.get('sim_dir') else '',
+                    'mizuroute_settings_dir': str(dirs.get('root', self.project_dir) / 'settings' / 'mizuRoute') if dirs else '',
                     'file_manager': str(settings_dir / 'fileManager.txt'),
                     'summa_exe': str(self.summa_exe_path) if hasattr(self, 'summa_exe_path') else '',
                     'original_depths': self.param_manager.original_depths.tolist() if hasattr(self.param_manager, 'original_depths') and self.param_manager.original_depths is not None else None,
@@ -675,12 +675,12 @@ class BaseModelOptimizer(
                         'domain_name': self.domain_name,
                         'project_dir': str(self.project_dir),
                         'proc_settings_dir': str(settings_dir),
-                        'proc_output_dir': str(dirs.get('output_dir', self.results_dir)),
+                        'proc_output_dir': str(dirs.get('sim_dir', self.results_dir)),
                         'proc_sim_dir': str(dirs.get('sim_dir', '')) ,
                         'summa_settings_dir': str(settings_dir),
                         'mizuroute_settings_dir': str(dirs.get('root', self.project_dir) / 'settings' / 'mizuRoute') if dirs else '',
                         'summa_dir': str(dirs.get('sim_dir', '')),
-                        'mizuroute_dir': str(dirs.get('root', self.project_dir) / 'simulations' / 'mizuRoute') if dirs else '',
+                        'mizuroute_dir': str(Path(dirs.get('sim_dir', '')).parent / 'mizuRoute') if dirs and dirs.get('sim_dir') else '',
                         'file_manager': str(settings_dir / 'fileManager.txt'),
                         'summa_exe': str(self.summa_exe_path) if hasattr(self, 'summa_exe_path') else '',
                         'original_depths': self.param_manager.original_depths.tolist() if hasattr(self.param_manager, 'original_depths') and self.param_manager.original_depths is not None else None,
@@ -716,6 +716,9 @@ class BaseModelOptimizer(
                 for result in results:
                     idx = result.get('individual_id', 0)
                     score = result.get('score')
+                    error = result.get('error')
+                    if error:
+                        self.logger.warning(f"Task {idx} error: {error[:200] if len(str(error)) > 200 else error}")
                     if score is not None and not np.isnan(score):
                         # Find which trial this corresponds to
                         if idx in trial_indices:
@@ -920,6 +923,13 @@ class BaseModelOptimizer(
         initial_population = np.random.uniform(0, 1, (pool_size, n_params))
         initial_fitness = self._evaluate_population(initial_population, iteration=0)
 
+        # Log initial pool scores for debugging
+        valid_initial = [s for s in initial_fitness if s is not None and s != self.DEFAULT_PENALTY_SCORE]
+        if valid_initial:
+            self.logger.info(f"Initial pool scores: min={min(valid_initial):.4f}, max={max(valid_initial):.4f}, all={[f'{s:.4f}' for s in valid_initial]}")
+        else:
+            self.logger.warning("Initial pool: No valid scores!")
+
         for i, (solution, score) in enumerate(zip(initial_population, initial_fitness)):
             if score is not None and score != self.DEFAULT_PENALTY_SCORE:
                 solution_pool.append((solution.copy(), score, 0))
@@ -991,6 +1001,17 @@ class BaseModelOptimizer(
             # Evaluate batch
             trial_population = np.array(trials)
             trial_fitness = self._evaluate_population(trial_population, iteration=batch_num)
+
+            # Debug: Log all returned scores to trace score tracking
+            valid_scores = [s for s in trial_fitness if s is not None and s != self.DEFAULT_PENALTY_SCORE]
+            if valid_scores:
+                max_batch_score = max(valid_scores)
+                min_batch_score = min(valid_scores)
+                self.logger.info(f"Batch {batch_num} scores: min={min_batch_score:.4f}, max={max_batch_score:.4f}, current_best={best_score:.4f}")
+                if max_batch_score > best_score:
+                    self.logger.info(f"NEW BEST FOUND in batch {batch_num}: {max_batch_score:.4f} > {best_score:.4f}")
+            else:
+                self.logger.warning(f"Batch {batch_num}: No valid scores returned!")
 
             # Update pool with batch results
             improvements = 0

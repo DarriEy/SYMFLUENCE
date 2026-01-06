@@ -1081,33 +1081,34 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                 logger.debug("Using mizuRoute files (already in m³/s)")
         
         # Priority 2: If no mizuRoute files, look for SUMMA files (need m/s to m³/s conversion)
+        # Only allow fallback to SUMMA if BOTH domain and routing are lumped
         if not sim_files:
-            summa_files = list(summa_dir.glob("*timestep.nc"))
-            logger.debug(f"Found {len(summa_files)} SUMMA timestep files")
-            for f in summa_files[:3]:  # Show first 3
-                logger.debug(f"SUMMA file: {f.name}")
+            domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+            routing_delineation = config.get('ROUTING_DELINEATION', 'lumped')
             
-            if summa_files:
-                sim_files = summa_files
-                use_mizuroute = False
-                logger.debug("Using SUMMA files (need m/s to m³/s conversion)")
+            if domain_method == 'lumped' and routing_delineation == 'lumped':
+                summa_files = list(summa_dir.glob("*timestep.nc"))
+                logger.debug(f"Found {len(summa_files)} SUMMA timestep files")
                 
-                # Get the ACTUAL catchment area for unit conversion
-                try:
-                    catchment_area = _get_catchment_area_worker(config, logger)
-                    logger.warning(f"WORKER DEBUG: Got catchment area = {catchment_area:.2e} m²")
-                    logger.debug(f"Catchment area for conversion: {catchment_area:.0f} m²")
-                except Exception as e:
-                    logger.debug(f"Error getting catchment area: {str(e)}")
-                    catchment_area = 1e6  # Default fallback
-                    logger.debug(f"Using fallback catchment area: {catchment_area:.0f} m²")
+                if summa_files:
+                    sim_files = summa_files
+                    use_mizuroute = False
+                    logger.debug("Using SUMMA files (lumped domain and routing, need m/s to m³/s conversion)")
+                    
+                    # Get the ACTUAL catchment area for unit conversion
+                    try:
+                        catchment_area = _get_catchment_area_worker(config, logger)
+                        logger.warning(f"WORKER DEBUG: Got catchment area = {catchment_area:.2e} m²")
+                    except Exception as e:
+                        logger.debug(f"Error getting catchment area: {str(e)}")
+                        catchment_area = 1e6  # Default fallback
+            else:
+                logger.error(f"No mizuRoute output found and domain/routing not both lumped (Domain: {domain_method}, Routing: {routing_delineation}). Cannot fall back to SUMMA runoff.")
+                return None
         
         # Check if we found any simulation files
         if not sim_files:
             logger.debug("No simulation files found")
-            logger.debug(f"SUMMA dir contents: {list(summa_dir.glob('*')) if summa_dir.exists() else 'DIR_NOT_EXISTS'}")
-            if mizuroute_dir and mizuroute_dir.exists():
-                logger.debug(f"mizuRoute dir contents: {list(mizuroute_dir.glob('*'))}")
             return None
         
         sim_file = sim_files[0]
@@ -1118,13 +1119,8 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
         
         try:
             with xr.open_dataset(sim_file) as ds:
-                logger.debug(f"Dataset variables: {list(ds.variables.keys())}")
-                logger.debug(f"Dataset dimensions: {dict(ds.sizes)}")
-                
                 if use_mizuroute:
                     # mizuRoute output - select segment with highest average runoff (outlet)
-                    logger.debug("Selecting segment with highest average runoff (outlet)")
-                    
                     # Find routing variable to use for selection
                     routing_vars = ['IRFroutedRunoff', 'KWTroutedRunoff', 'averageRoutedRunoff']
                     routing_var = None
@@ -1132,17 +1128,12 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                     for var_name in routing_vars:
                         if var_name in ds.variables:
                             routing_var = var_name
-                            logger.debug(f"Found routing variable: {routing_var}")
                             break
                     
                     if routing_var is None:
-                        logger.debug("No routing variable found in mizuRoute output")
-                        logger.debug(f"Available variables: {list(ds.variables.keys())}")
                         return None
                     
                     var = ds[routing_var]
-                    logger.debug(f"Variable dimensions: {var.dims}")
-                    logger.debug(f"Variable shape: {var.shape}")
                     
                     try:
                         # Calculate average runoff for each segment to find outlet
@@ -1150,26 +1141,18 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                             # Calculate mean runoff across time for each segment
                             segment_means = var.mean(dim='time').values
                             outlet_seg_idx = np.argmax(segment_means)
-                            logger.debug(f"Found outlet at segment index {outlet_seg_idx} with mean runoff {segment_means[outlet_seg_idx]:.3f} m³/s")
-                            
                             # Extract time series for outlet segment
                             sim_data = var.isel(seg=outlet_seg_idx).to_pandas()
-                            
                         elif 'reachID' in var.dims:
                             # Calculate mean runoff across time for each reach
                             reach_means = var.mean(dim='time').values
                             outlet_reach_idx = np.argmax(reach_means)
-                            logger.debug(f"Found outlet at reach index {outlet_reach_idx} with mean runoff {reach_means[outlet_reach_idx]:.3f} m³/s")
-                            
                             # Extract time series for outlet reach
                             sim_data = var.isel(reachID=outlet_reach_idx).to_pandas()
-                            
                         else:
-                            logger.debug(f"Unexpected dimensions for {routing_var}: {var.dims}")
                             return None
                         
-                        logger.debug(f"Extracted {routing_var} from outlet segment with {len(sim_data)} timesteps (mizuRoute - no unit conversion)")
-                        logger.debug(f"Sim data range: {sim_data.min():.3f} to {sim_data.max():.3f} m³/s")
+                        logger.warning(f"WORKER DEBUG: Extracted {routing_var} (mizuRoute), mean = {sim_data.mean():.2f} m³/s")
                         
                     except Exception as e:
                         logger.debug(f"Error extracting outlet segment from {routing_var}: {str(e)}")
@@ -1182,23 +1165,16 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                     
                     for var_name in summa_vars:
                         if var_name in ds.variables:
-                            logger.debug(f"Found SUMMA variable: {var_name}")
                             var = ds[var_name]
-                            logger.debug(f"Variable dimensions: {var.dims}")
-                            logger.debug(f"Variable shape: {var.shape}")
                             
                             try:
                                 # Attempt area-weighted aggregation first
                                 aggregated = False
                                 if len(var.shape) > 1:
                                     try:
-                                        # Try to find attributes file relative to summa_dir or project_dir
-                                        # summa_dir is usually simulations/EXP_ID/SUMMA
-                                        # settings are in project_dir/settings/SUMMA
-                                        
                                         # Look for attributes.nc in common locations
                                         possible_attr_paths = [
-                                            summa_dir.parent.parent.parent / 'settings' / 'SUMMA' / 'attributes.nc', # From sim dir
+                                            summa_dir.parent.parent.parent / 'settings' / 'SUMMA' / 'attributes.nc',
                                             Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{config.get('DOMAIN_NAME')}" / 'settings' / 'SUMMA' / 'attributes.nc'
                                         ]
                                         
@@ -1216,7 +1192,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                                                     if areas.sizes['hru'] == var.sizes['hru']:
                                                         sim_data = (var * areas).sum(dim='hru').to_pandas()
                                                         aggregated = True
-                                                        logger.debug("Performed area-weighted aggregation (HRU)")
+                                                        logger.warning(f"WORKER DEBUG: Performed area-weighted aggregation (HRU), mean = {sim_data.mean():.2f} m³/s")
                                                 
                                                 # Handle GRU dimension
                                                 elif 'gru' in var.dims and 'GRUarea' in attrs:
@@ -1224,7 +1200,16 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                                                     if areas.sizes['gru'] == var.sizes['gru']:
                                                         sim_data = (var * areas).sum(dim='gru').to_pandas()
                                                         aggregated = True
-                                                        logger.debug("Performed area-weighted aggregation (GRU)")
+                                                        logger.warning(f"WORKER DEBUG: Performed area-weighted aggregation (GRU), mean = {sim_data.mean():.2f} m³/s")
+
+                                                # Handle GRU dimension with HRUarea fallback
+                                                elif 'gru' in var.dims and 'HRUarea' in attrs:
+                                                    if attrs.sizes['hru'] == var.sizes['gru']:
+                                                        areas = attrs['HRUarea']
+                                                        dim_name = 'hru' if 'hru' in areas.dims else 'gru'
+                                                        sim_data = (var * areas).sum(dim=dim_name).to_pandas()
+                                                        aggregated = True
+                                                        logger.warning(f"WORKER DEBUG: Performed area-weighted aggregation (GRU fallback), mean = {sim_data.mean():.2f} m³/s")
                                     except Exception as e:
                                         logger.debug(f"Aggregation failed, falling back: {e}")
 
@@ -1235,7 +1220,6 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                                         elif 'gru' in var.dims:
                                             sim_data = var.isel(gru=0).to_pandas()
                                         else:
-                                            # Take first spatial index
                                             non_time_dims = [dim for dim in var.dims if dim != 'time']
                                             if non_time_dims:
                                                 sim_data = var.isel({non_time_dims[0]: 0}).to_pandas()
@@ -1250,96 +1234,39 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                                     sim_data = sim_data * catchment_area
                                     logger.warning(f"WORKER DEBUG: Post-conversion mean = {sim_data.mean():.2f} m³/s")
                                 
-                                logger.debug(f"Post-scaling range: {sim_data.min():.3f} to {sim_data.max():.3f} m³/s")
-                                
-                                logger.debug(f"Extracted {var_name} with {len(sim_data)} timesteps, applied area scaling")
                                 break
                             except Exception as e:
-                                logger.debug(f"Error extracting {var_name}: {str(e)}")
                                 continue
                     
                     if sim_data is None:
-                        logger.debug(f"No SUMMA variable found or extracted successfully")
                         return None
         
         except Exception as e:
-            logger.debug(f"Error reading simulation file {sim_file}: {str(e)}")
             return None
         
         # Load observed data
-        logger.debug("Loading observed data...")
-        
         try:
             domain_name = config.get('DOMAIN_NAME')
             project_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{domain_name}"
             obs_path = project_dir / "observations" / "streamflow" / "preprocessed" / f"{domain_name}_streamflow_processed.csv"
             
-            logger.debug(f"Domain name: {domain_name}")
-            logger.debug(f"Project dir: {project_dir}")
-            logger.debug(f"Observed data path: {obs_path}")
-            logger.debug(f"Project dir exists: {project_dir.exists()}")
-            logger.debug(f"Observed data exists: {obs_path.exists()}")
-            
             if not obs_path.exists():
-                logger.debug(f"Observed data not found: {obs_path}")
-                if project_dir.exists():
-                    logger.debug(f"Project dir contents: {list(project_dir.glob('*'))}")
-                    obs_dir = project_dir / "observations"
-                    if obs_dir.exists():
-                        logger.debug(f"Observations dir contents: {list(obs_dir.glob('*'))}")
-                        streamflow_dir = obs_dir / "streamflow"
-                        if streamflow_dir.exists():
-                            logger.debug(f"Streamflow dir contents: {list(streamflow_dir.glob('*'))}")
-                            preproc_dir = streamflow_dir / "preprocessed"
-                            if preproc_dir.exists():
-                                logger.debug(f"Preprocessed dir contents: {list(preproc_dir.glob('*'))}")
                 return None
             
             obs_df = pd.read_csv(obs_path)
-            logger.debug(f"Loaded observed data with {len(obs_df)} rows and columns: {list(obs_df.columns)}")
-            
-            # Find date and flow columns
-            date_col = None
-            for col in obs_df.columns:
-                if any(term in col.lower() for term in ['date', 'time', 'datetime']):
-                    date_col = col
-                    break
-            
-            flow_col = None
-            for col in obs_df.columns:
-                if any(term in col.lower() for term in ['flow', 'discharge', 'q_', 'streamflow']):
-                    flow_col = col
-                    break
-            
-            logger.debug(f"Date column: {date_col}")
-            logger.debug(f"Flow column: {flow_col}")
+            date_col = next((col for col in obs_df.columns if any(term in col.lower() for term in ['date', 'time', 'datetime'])), None)
+            flow_col = next((col for col in obs_df.columns if any(term in col.lower() for term in ['flow', 'discharge', 'q_', 'streamflow'])), None)
             
             if not date_col or not flow_col:
-                logger.debug(f"Could not identify date/flow columns. Date: {date_col}, Flow: {flow_col}")
                 return None
             
             obs_df['DateTime'] = pd.to_datetime(obs_df[date_col])
             obs_df.set_index('DateTime', inplace=True)
             obs_data = obs_df[flow_col]
-            
-            logger.debug(f"Observed data period: {obs_data.index.min()} to {obs_data.index.max()}")
-            logger.debug(f"Observed data range: {obs_data.min():.3f} to {obs_data.max():.3f}")
-            
         except Exception as e:
-            logger.debug(f"Error loading observed data: {str(e)}")
-            import traceback
-            logger.debug(f"Traceback: {traceback.format_exc()}")
             return None
         
-        logger.debug(f"Simulated data period: {sim_data.index.min()} to {sim_data.index.max()}")
-        logger.debug(f"Simulated data range: {sim_data.min():.3f} to {sim_data.max():.3f}")
-        logger.debug(f"Simulated data frequency: {sim_data.index.freq}")
-        logger.debug(f"Simulated data timezone: {sim_data.index.tz}")
-        logger.debug(f"First 5 sim timestamps: {sim_data.index[:5].tolist()}")
-        
         # Filter to calibration period
-        logger.debug("Filtering to calibration period...")
-        
         cal_period = config.get('CALIBRATION_PERIOD', '')
         if cal_period:
             try:
@@ -1348,220 +1275,82 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                     start_date = pd.Timestamp(dates[0])
                     end_date = pd.Timestamp(dates[1])
                     
-                    logger.debug(f"Filtering to calibration period: {start_date} to {end_date}")
-                    
                     obs_mask = (obs_data.index >= start_date) & (obs_data.index <= end_date)
                     obs_period = obs_data[obs_mask]
                     
-                    # ENHANCED: Check simulation time format before rounding
-                    logger.debug(f"Sim data before rounding - first 5: {sim_data.index[:5].tolist()}")
-                    logger.debug(f"Sim data sample times: {sim_data.index[::100][:5].tolist()}")  # Every 100th
-                    
-                    # More careful time rounding - check if we need it
+                    # Round sim times if needed
                     sim_time_diff = sim_data.index[1] - sim_data.index[0] if len(sim_data) > 1 else pd.Timedelta(hours=1)
-                    logger.debug(f"Simulation time step: {sim_time_diff}")
-                    
-                    # Only round if time step is roughly hourly
                     if pd.Timedelta(minutes=45) <= sim_time_diff <= pd.Timedelta(minutes=75):
                         sim_data.index = sim_data.index.round('h')
-                        logger.debug("Rounded simulation times to nearest hour")
-                    else:
-                        logger.debug(f"Not rounding - time step is {sim_time_diff}")
                     
                     sim_mask = (sim_data.index >= start_date) & (sim_data.index <= end_date)
                     sim_period = sim_data[sim_mask]
-                    
-                    logger.debug(f"Filtered obs points: {len(obs_period)}")
-                    logger.debug(f"Filtered sim points: {len(sim_period)}")
-                    
-                    # ENHANCED: Check time alignment before intersection
-                    logger.debug(f"Obs period: {obs_period.index.min()} to {obs_period.index.max()}")
-                    logger.debug(f"Sim period: {sim_period.index.min()} to {sim_period.index.max()}")
-                    logger.debug(f"Obs timezone: {obs_period.index.tz}")
-                    logger.debug(f"Sim timezone: {sim_period.index.tz}")
-                    
+                    logger.warning(f"WORKER DEBUG: After period filtering, sim_period mean = {sim_period.mean():.2f}")
                 else:
-                    logger.debug("Invalid calibration period format, using full data")
                     obs_period = obs_data
                     sim_period = sim_data
-                    
-                    # Same careful rounding for full data
-                    sim_time_diff = sim_data.index[1] - sim_data.index[0] if len(sim_data) > 1 else pd.Timedelta(hours=1)
-                    if pd.Timedelta(minutes=45) <= sim_time_diff <= pd.Timedelta(minutes=75):
-                        sim_period.index = sim_period.index.round('h')
-                        
             except Exception as e:
-                logger.debug(f"Error parsing calibration period: {str(e)}")
                 obs_period = obs_data
                 sim_period = sim_data
-                
-                # Same careful rounding for error case
-                sim_time_diff = sim_data.index[1] - sim_data.index[0] if len(sim_data) > 1 else pd.Timedelta(hours=1)
-                if pd.Timedelta(minutes=45) <= sim_time_diff <= pd.Timedelta(minutes=75):
-                    sim_period.index = sim_period.index.round('h')
         else:
-            logger.debug("No calibration period specified, using full data")
             obs_period = obs_data
             sim_period = sim_data
-            
-            # Same careful rounding
-            sim_time_diff = sim_data.index[1] - sim_data.index[0] if len(sim_data) > 1 else pd.Timedelta(hours=1)
-            if pd.Timedelta(minutes=45) <= sim_time_diff <= pd.Timedelta(minutes=75):
-                sim_period.index = sim_period.index.round('h')
-
         
-        # Check for timezone mismatches and try to fix
+        # Timezone alignment
         if obs_period.index.tz is not None and sim_period.index.tz is None:
-            logger.debug("Converting sim times to observed timezone")
             sim_period.index = sim_period.index.tz_localize(obs_period.index.tz)
         elif obs_period.index.tz is None and sim_period.index.tz is not None:
-            logger.debug("Converting obs times to simulation timezone")
             obs_period.index = obs_period.index.tz_localize(sim_period.index.tz)
-        elif obs_period.index.tz != sim_period.index.tz:
-            logger.debug(f"Converting timezones - obs: {obs_period.index.tz}, sim: {sim_period.index.tz}")
-            sim_period.index = sim_period.index.tz_convert(obs_period.index.tz)
         
-        # Sample timestamps for alignment checking
-        logger.debug(f"Obs sample times: {obs_period.index[::max(1,len(obs_period)//5)][:5].tolist()}")
-        logger.debug(f"Sim sample times: {sim_period.index[::max(1,len(sim_period)//5)][:5].tolist()}")
-        
+        # Resampling
         calibration_timestep = config.get('CALIBRATION_TIMESTEP', 'native').lower()
-        
-
-        # Apply timestep resampling if specified in config
         if calibration_timestep != 'native':
-            logger.debug(f"Resampling to {calibration_timestep} timestep for calibration")
             obs_period = resample_to_timestep(obs_period, calibration_timestep, logger)
             sim_period = resample_to_timestep(sim_period, calibration_timestep, logger)
-            
-            logger.debug(f"After resampling - obs points: {len(obs_period)}, sim points: {len(sim_period)}")
-            
-            # Log sample of resampled times
-            if len(obs_period) > 0:
-                logger.debug(f"Resampled obs sample times: {obs_period.index[::max(1,len(obs_period)//5)][:5].tolist()}")
-            if len(sim_period) > 0:
-                logger.debug(f"Resampled sim sample times: {sim_period.index[::max(1,len(sim_period)//5)][:5].tolist()}")
+            logger.warning(f"WORKER DEBUG: After resampling, sim_period mean = {sim_period.mean():.2f}")
 
-        # Find intersection
+        # Alignment
         common_idx = obs_period.index.intersection(sim_period.index)
-        logger.debug(f"Common time indices: {len(common_idx)}")
-        
         if len(common_idx) == 0:
-            logger.debug("No common time indices - checking for near matches")
-            
-            # Try to find near matches (within 1 hour)
-            obs_times = obs_period.index
-            sim_times = sim_period.index
-            
-            # Find closest matches
-            if len(obs_times) > 0 and len(sim_times) > 0:
-                time_diffs = []
-                for obs_time in obs_times[:10]:  # Check first 10
-                    closest_sim = sim_times[np.argmin(np.abs(sim_times - obs_time))]
-                    diff = abs(closest_sim - obs_time)
-                    time_diffs.append(diff)
-                    logger.debug(f"Obs {obs_time} closest to Sim {closest_sim} (diff: {diff})")
-                
-                min_diff = min(time_diffs) if time_diffs else pd.Timedelta(days=1)
-                logger.debug(f"Minimum time difference: {min_diff}")
-                
-                # If differences are small, try approximate matching
-                if min_diff <= pd.Timedelta(hours=1):
-                    logger.debug("Attempting approximate time matching (±30 min)")
-                    
-                    # Create aligned series by finding nearest neighbors
-                    aligned_obs = []
-                    aligned_sim = []
-                    aligned_times = []
-                    
-                    for obs_time in obs_times:
-                        # Find closest sim time within 30 minutes
-                        time_diffs = np.abs(sim_times - obs_time)
-                        min_diff_idx = np.argmin(time_diffs)
-                        min_diff = time_diffs[min_diff_idx]
-                        
-                        if min_diff <= pd.Timedelta(minutes=30):
-                            aligned_obs.append(obs_period.loc[obs_time])
-                            aligned_sim.append(sim_period.iloc[min_diff_idx])
-                            aligned_times.append(obs_time)
-                    
-                    if len(aligned_obs) > 0:
-                        obs_common = pd.Series(aligned_obs, index=aligned_times)
-                        sim_common = pd.Series(aligned_sim, index=aligned_times)
-                        logger.debug(f"Approximate matching found {len(aligned_obs)} pairs")
-                    else:
-                        logger.debug("No approximate matches found")
-                        return None
-                else:
-                    logger.debug("Time differences too large for alignment")
-                    return None
-            else:
-                logger.debug("Empty time series")
-                return None
-        else:
-            # Normal intersection worked
-            obs_common = pd.to_numeric(obs_period.loc[common_idx], errors='coerce')
-            sim_common = pd.to_numeric(sim_period.loc[common_idx], errors='coerce')
-            logger.debug(f"Successfully aligned {len(common_idx)} time points")
+            return None
         
-        # Remove invalid data - filter NaN and common missing data values (like -9999)
-        logger.debug("Cleaning data...")
-
-        logger.debug(f"Before cleaning - obs: {len(obs_common)}, sim: {len(sim_common)}")
+        obs_common = pd.to_numeric(obs_period.loc[common_idx], errors='coerce')
+        sim_common = pd.to_numeric(sim_period.loc[common_idx], errors='coerce')
+        logger.warning(f"WORKER DEBUG: After intersection, sim_common mean = {sim_common.mean():.2f}")
         
-        # Filter NaNs and large negative values often used as missing data flags
+        # Final cleaning
         valid = ~(obs_common.isna() | sim_common.isna() | (obs_common < -900) | (sim_common < -900))
         obs_valid = obs_common[valid]
         sim_valid = sim_common[valid]
         
-        logger.debug(f"Valid data points after cleaning: {len(obs_valid)}")
-        
         if len(obs_valid) < 10:
-            logger.debug(f"Insufficient valid data points: {len(obs_valid)}")
             return None
         
-        logger.debug(f"Final obs range: {obs_valid.min():.3f} to {obs_valid.max():.3f}")
-        logger.debug(f"Final sim range: {sim_valid.min():.3f} to {sim_valid.max():.3f}")
-        
         # Calculate metrics
-        logger.debug("Calculating metrics...")
-        
         try:
-            # Calculate NSE
             mean_obs = obs_valid.mean()
             nse_num = ((obs_valid - sim_valid) ** 2).sum()
             nse_den = ((obs_valid - mean_obs) ** 2).sum()
             nse = 1 - (nse_num / nse_den) if nse_den > 0 else np.nan
             
-            # Calculate KGE
             r = obs_valid.corr(sim_valid)
             alpha = sim_valid.std() / obs_valid.std() if obs_valid.std() != 0 else np.nan
             beta = sim_valid.mean() / mean_obs if mean_obs != 0 else np.nan
             kge = 1 - np.sqrt((r - 1)**2 + (alpha - 1)**2 + (beta - 1)**2)
             
-            # Calculate additional metrics
             rmse = np.sqrt(((obs_valid - sim_valid) ** 2).mean())
             mae = (obs_valid - sim_valid).abs().mean()
             pbias = 100 * (sim_valid.sum() - obs_valid.sum()) / obs_valid.sum() if obs_valid.sum() != 0 else np.nan
             
             logger.warning(f"WORKER DEBUG: Final KGE = {kge:.4f} (obs_mean={mean_obs:.2f}, sim_mean={sim_valid.mean():.2f})")
-            logger.debug(f"Additional metrics - r: {r:.6f}, alpha: {alpha:.6f}, beta: {beta:.6f}")
             
-            result = {
-                'Calib_NSE': nse,
-                'Calib_KGE': kge,
-                'Calib_RMSE': rmse,
-                'Calib_MAE': mae,
-                'Calib_PBIAS': pbias,
-                'Calib_r': r,
-                'Calib_alpha': alpha,
-                'Calib_beta': beta,
-                'NSE': nse,
-                'KGE': kge,
-                'RMSE': rmse,
-                'MAE': mae,
-                'PBIAS': pbias
+            return {
+                'Calib_NSE': nse, 'Calib_KGE': kge, 'Calib_RMSE': rmse, 'Calib_MAE': mae, 'Calib_PBIAS': pbias,
+                'Calib_r': r, 'Calib_alpha': alpha, 'Calib_beta': beta,
+                'NSE': nse, 'KGE': kge, 'RMSE': rmse, 'MAE': mae, 'PBIAS': pbias
             }
+        except Exception as e:
+            return None
             
             logger.debug("Metrics calculation completed successfully")
             return result

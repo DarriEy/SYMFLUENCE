@@ -39,6 +39,14 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
     def __init__(self, config: Dict[str, Any], logger: Any):
         # Initialize base class (handles standard paths and directories)
         super().__init__(config, logger)
+        
+        self.logger.debug(f"MizuRoutePreProcessor initialized. Default setup_dir: {self.setup_dir}")
+        
+        # Override setup_dir if SETTINGS_MIZU_PATH is provided (for isolated parallel runs)
+        mizu_settings_path = self.config_dict.get('SETTINGS_MIZU_PATH')
+        if mizu_settings_path and mizu_settings_path != 'default':
+            self.setup_dir = Path(mizu_settings_path)
+            self.logger.debug(f"MizuRoutePreProcessor using custom setup_dir from SETTINGS_MIZU_PATH: {self.setup_dir}")
 
 
     def run_preprocessing(self):
@@ -198,16 +206,21 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         if routing_var in ('default', None, ''):
             routing_var = 'q_routed'
 
-        routing_units = self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'mm/d')
+        routing_units = self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s')
         if routing_units in ('default', None, ''):
-            routing_units = 'mm/d'
+            routing_units = 'm/s'
 
-        routing_dt = self.config_dict.get('SETTINGS_MIZU_ROUTING_DT', '86400')
-        if routing_dt in ('default', None, ''):
-            routing_dt = '86400'
+        # GR output from airGR is currently daily (86400s)
+        # We force this here to ensure mizuRoute time matching works correctly
+        routing_dt = '86400'
+
+        # GR saves output as {domain_name}_{experiment_id}_runs_def.nc
+        domain_name = self.config_dict.get('DOMAIN_NAME')
+        experiment_id = self.config_dict.get('EXPERIMENT_ID')
+        gr_output_file = f"{domain_name}_{experiment_id}_runs_def.nc"
 
         cf.write("!\n! --- DEFINE RUNOFF FILE \n")
-        cf.write(f"<fname_qsim>            {self.config_dict.get('EXPERIMENT_ID')}_timestep.nc    ! netCDF name for GR4J runoff \n")
+        cf.write(f"<fname_qsim>            {gr_output_file}    ! netCDF name for GR4J runoff \n")
         cf.write(f"<vname_qsim>            {routing_var}    ! Variable name for GR4J runoff \n")
         cf.write(f"<units_qsim>            {routing_units}    ! Units of input runoff \n")
         cf.write(f"<dt_qsim>               {routing_dt}    ! Time interval of input runoff in seconds \n")

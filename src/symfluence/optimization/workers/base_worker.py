@@ -75,15 +75,17 @@ class WorkerTask:
             task_data.get('proc_settings_dir') or
             task_data.get('settings_dir') or
             task_data.get('optimization_settings_dir') or
-            Path('.')
+            '.'
         )
+        settings_dir = Path(settings_dir) if isinstance(settings_dir, str) else settings_dir
 
         # Output directory
         output_dir = (
             task_data.get('proc_output_dir') or
             task_data.get('output_dir') or
-            Path('.')
+            '.'
         )
+        output_dir = Path(output_dir) if isinstance(output_dir, str) else output_dir
 
         # Simulation directory
         sim_dir = (
@@ -91,6 +93,8 @@ class WorkerTask:
             task_data.get('sim_dir') or
             None
         )
+        if sim_dir and isinstance(sim_dir, str):
+            sim_dir = Path(sim_dir) if sim_dir else None
 
         # Config - could be nested or at top level
         config = task_data.get('config', {})
@@ -524,10 +528,14 @@ class BaseWorker(ABC):
             params=task.params,
             **task.additional_data
         ):
+            error_msg = "Model execution failed"
+            # Check if the worker stored error details
+            if hasattr(self, '_last_error'):
+                error_msg = f"Model execution failed: {self._last_error[:500]}"
             return WorkerResult.failure(
                 individual_id=task.individual_id,
                 params=task.params,
-                error="Model execution failed",
+                error=error_msg,
                 penalty_score=self.penalty_score
             )
 

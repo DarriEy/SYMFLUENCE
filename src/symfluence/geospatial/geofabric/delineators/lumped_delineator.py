@@ -222,6 +222,16 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
             # Add required attributes if they don't exist
             watershed_gdf = gpd.read_file(watershed_shp_path)
 
+            # For lumped basins, dissolve all polygons into a single feature
+            # This handles artifacts from raster-to-polygon conversion
+            if len(watershed_gdf) > 1:
+                self.logger.info(f"Dissolving {len(watershed_gdf)} polygons into single lumped basin")
+                # Dissolve all features into one
+                watershed_gdf['dissolve_key'] = 1
+                watershed_gdf = watershed_gdf.dissolve(by='dissolve_key').reset_index(drop=True)
+                watershed_gdf = watershed_gdf.drop(columns=['dissolve_key'], errors='ignore')
+                self.logger.info(f"Dissolved to {len(watershed_gdf)} feature(s)")
+
             if 'GRU_ID' not in watershed_gdf.columns:
                 watershed_gdf['GRU_ID'] = 1
 

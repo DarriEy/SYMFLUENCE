@@ -76,6 +76,8 @@ class HYPEParameterManager(BaseParameterManager):
                     bounds = self.param_bounds.get(param_name, {'min': 0.1, 'max': 10.0})
                     params[param_name] = (bounds['min'] + bounds['max']) / 2
 
+            # Validate and fix any problematic initial values
+            params = self._validate_and_fix_initial_parameters(params)
             return params
 
         except Exception as e:
@@ -135,3 +137,25 @@ class HYPEParameterManager(BaseParameterManager):
             bounds = self.param_bounds[param_name]
             params[param_name] = (bounds['min'] + bounds['max']) / 2
         return params
+
+    def _validate_and_fix_initial_parameters(self, params: Dict[str, float]) -> Dict[str, float]:
+        """
+        Validate initial parameters and fix common issues.
+
+        Addresses problems where initial par.txt may have problematic values
+        that prevent the optimizer from finding good solutions.
+        """
+        fixed_params = params.copy()
+
+        # Critical fix: cevp=0.0 disables evapotranspiration entirely
+        # This breaks lumped models by preventing water from leaving the system
+        if 'cevp' in fixed_params and fixed_params['cevp'] <= 0.01:
+            bounds = self.param_bounds.get('cevp', {'min': 0.0, 'max': 1.0})
+            # Set to a reasonable initial value (60% of PET)
+            fixed_params['cevp'] = 0.6
+            self.logger.warning(
+                f"Initial cevp value was {params.get('cevp', 'unknown'):.4f} (disables ET). "
+                f"Reset to {fixed_params['cevp']:.4f} to enable evapotranspiration."
+            )
+
+        return fixed_params

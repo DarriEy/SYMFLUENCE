@@ -155,7 +155,19 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 self.logger.error(f"Failed to convert shapefile to CSV: {str(e)}")
                 raise
         elif not intersect_csv.exists() and not intersect_shp.exists():
-            raise FileNotFoundError(f"Neither {intersect_csv} nor {intersect_shp} exist")
+            # Fallback: check for remapping weights file which often contains the same info
+            hru_id_field = self.config.get('CATCHMENT_SHP_HRUID')
+            case_name = f"{self.domain_name}_{self.config.get('FORCING_DATASET')}"
+            remap_file = self.intersect_path / f"{case_name}_{hru_id_field}_remapping.csv"
+            
+            if remap_file.exists():
+                self.logger.info(f"Intersected shapefile missing, falling back to remapping weights: {remap_file.name}")
+                intersect_csv = remap_file
+            else:
+                self.logger.error(f"Missing both intersected shapefile and remapping weights in {self.intersect_path}")
+                self.logger.error(f"Expected intersect base: {intersect_base}")
+                self.logger.error(f"Expected remap file: {remap_file.name}")
+                raise FileNotFoundError(f"Neither {intersect_csv} nor {intersect_shp} exist")
 
         # Load topology data efficiently
         self.logger.info("Loading topology data...")
@@ -534,9 +546,11 @@ class SummaForcingProcessor(BaseForcingProcessor):
                         f"File {filename}: Expected step: {expected_step}s, Actual median: {actual_median_step:.0f}s"
                     )
                     if actual_median_step > 0 and abs(actual_median_step - expected_step) > expected_step * 0.01:
-                        self.logger.warning(
-                            f"File {filename}: Actual median step {actual_median_step}s differs from expected {expected_step}s"
+                        self.logger.info(
+                            f"File {filename}: Updating data_step from {self.data_step}s to {actual_median_step}s "
+                            f"based on actual forcing timestep"
                         )
+                        self.data_step = actual_median_step
                 else:
                     self.logger.debug(f"File {filename}: Time steps are consistent ({match_percentage:.1f}% match)")
 

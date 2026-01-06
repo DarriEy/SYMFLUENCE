@@ -820,7 +820,7 @@ class CERRAAcquirer(CDSRegionalReanalysisHandler):
         return [
             "total_precipitation",
             "surface_solar_radiation_downwards",
-            "thermal_surface_radiation_downwards"  # Correct name: thermal comes BEFORE surface
+            "surface_thermal_radiation_downwards"  # Correct name for CERRA
         ]
 
     def _get_leadtime_hour(self) -> str:

@@ -129,8 +129,11 @@ class NgenWorker(BaseWorker):
             True if model ran successfully
         """
         try:
-            # Check for parallel mode keys
-            parallel_config = config.copy()
+            # Use a dictionary for local modifications to avoid SymfluenceConfig immutability/subscriptability issues
+            if hasattr(config, 'to_dict'):
+                parallel_config = config.to_dict(flatten=True)
+            else:
+                parallel_config = config.copy()
 
             # Ensure runner uses isolated directories
             parallel_config['_ngen_output_dir'] = str(output_dir)
@@ -148,10 +151,15 @@ class NgenWorker(BaseWorker):
             return success
 
         except FileNotFoundError as e:
-            self.logger.error(f"Required ngen input file not found: {e}")
+            error_msg = f"Required ngen input file not found: {e}"
+            self.logger.error(error_msg)
+            self._last_error = error_msg
             return False
         except Exception as e:
-            self.logger.error(f"Error running ngen: {e}")
+            error_msg = f"Error running ngen: {e}"
+            self.logger.error(error_msg)
+            import traceback
+            self._last_error = error_msg + "\n" + traceback.format_exc()
             return False
 
     def calculate_metrics(

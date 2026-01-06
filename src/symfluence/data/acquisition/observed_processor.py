@@ -45,6 +45,10 @@ class ObservedDataProcessor:
                 self.logger.info("USGS streamflow data handled by formalized observation handler")
             elif self.data_provider == 'WSC':
                 self.logger.info("WSC streamflow data handled by formalized observation handler")
+            elif self.data_provider == 'SMHI':
+                self.logger.info("SMHI streamflow data handled by formalized observation handler")
+            elif self.data_provider == 'LAMAH_ICE':
+                self.logger.info("LAMAH_ICE streamflow data handled by formalized observation handler")
             elif self.data_provider == 'VI':
                 self._process_vi_data()
             else:

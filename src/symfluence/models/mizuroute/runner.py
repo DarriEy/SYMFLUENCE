@@ -58,28 +58,68 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
         Now supports both SUMMA and FUSE outputs with proper time format detection.
         """
         # Determine which model's output to process
-        models = self.config_dict.get('HYDROLOGICAL_MODEL', '').split(',')
-        active_models = [m.strip() for m in models]
+        models_raw = self.config_dict.get('HYDROLOGICAL_MODEL', '')
+        mizu_from = self.config_dict.get('MIZU_FROM_MODEL', '')
+        
+        # Combine models and filter out 'DEFAULT' or empty strings
+        all_models = f"{models_raw},{mizu_from}".split(',')
+        active_models = sorted(list(set([
+            m.strip().upper() for m in all_models 
+            if m.strip() and m.strip().upper() != 'DEFAULT'
+        ])))
+        
+        self.logger.debug(f"Detected active models for time precision fix: {active_models}")
         
         # For FUSE, check if it has already converted its output
         if 'FUSE' in active_models:
-            self.logger.debug("Fixing FUSE time precision for mizuRoute compatibility")
-            experiment_output_dir = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'FUSE'
+            self.logger.info("Fixing FUSE time precision for mizuRoute compatibility")
+            experiment_output_fuse = self.config_dict.get('EXPERIMENT_OUTPUT_FUSE', 'default')
+            if experiment_output_fuse == 'default' or not experiment_output_fuse:
+                experiment_output_dir = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'FUSE'
+            else:
+                experiment_output_dir = Path(experiment_output_fuse)
             runoff_filename = f"{self.config_dict.get('DOMAIN_NAME')}_{self.config_dict.get('EXPERIMENT_ID')}_runs_def.nc"
+        elif 'GR' in active_models:
+            self.logger.info("Fixing GR time precision for mizuRoute compatibility")
+            experiment_output_gr = self.config_dict.get('EXPERIMENT_OUTPUT_GR', 'default')
+            if experiment_output_gr == 'default' or not experiment_output_gr:
+                experiment_output_dir = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'GR'
+            else:
+                experiment_output_dir = Path(experiment_output_gr)
+            runoff_filename = f"{self.config_dict.get('DOMAIN_NAME')}_{self.config_dict.get('EXPERIMENT_ID')}_runs_def.nc"
+        elif 'HYPE' in active_models:
+            self.logger.info("Fixing HYPE time precision for mizuRoute compatibility")
+            experiment_output_hype = self.config_dict.get('EXPERIMENT_OUTPUT_HYPE', 'default')
+            if experiment_output_hype == 'default' or not experiment_output_hype:
+                experiment_output_dir = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'HYPE'
+            else:
+                experiment_output_dir = Path(experiment_output_hype)
+            runoff_filename = f"{self.config_dict.get('EXPERIMENT_ID')}_timestep.nc"
         else:
-            self.logger.info("Fixing SUMMA time precision for mizuRoute compatibility")
-            experiment_output_summa = self.config_dict.get('EXPERIMENT_OUTPUT_SUMMA')
-            if experiment_output_summa == 'default':
+            self.logger.info(f"Fixing SUMMA time precision for mizuRoute compatibility (Active models: {active_models})")
+            experiment_output_summa = self.config_dict.get('EXPERIMENT_OUTPUT_SUMMA', 'default')
+            if experiment_output_summa == 'default' or not experiment_output_summa:
                 experiment_output_dir = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'SUMMA'
             else:
                 experiment_output_dir = Path(experiment_output_summa)
             runoff_filename = f"{self.config_dict.get('EXPERIMENT_ID')}_timestep.nc"
         
         runoff_filepath = experiment_output_dir / runoff_filename
+        self.logger.info(f"Resolved runoff filepath: {runoff_filepath} (Exists: {runoff_filepath.exists()})")
         
         if not runoff_filepath.exists():
-            self.logger.error(f"Model output file not found: {runoff_filepath}")
-            return
+            self.logger.warning(f"Model output file not found: {runoff_filepath}. Checking if any other output files exist in {experiment_output_dir}...")
+            if experiment_output_dir.exists():
+                nc_files = list(experiment_output_dir.glob("*.nc"))
+                if nc_files:
+                    runoff_filepath = nc_files[0]
+                    self.logger.info(f"Using fallback output file: {runoff_filepath}")
+                else:
+                    self.logger.error(f"No NetCDF output files found in {experiment_output_dir}")
+                    return
+            else:
+                self.logger.error(f"Output directory does not exist: {experiment_output_dir}")
+                return
         
         try:
             import xarray as xr
@@ -255,6 +295,17 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
         )
         settings_path = self.get_config_path('SETTINGS_MIZU_PATH', 'settings/mizuRoute/')
         control_file = self.config_dict.get('SETTINGS_MIZU_CONTROL_FILE')
+        
+        # Sane defaults for control file if not specified
+        if not control_file or control_file == 'default':
+            mizu_from = self.config_dict.get('MIZU_FROM_MODEL', '').upper()
+            if mizu_from == 'GR':
+                control_file = 'mizuRoute_control_GR.txt'
+            elif mizu_from == 'FUSE':
+                control_file = 'mizuRoute_control_FUSE.txt'
+            else:
+                control_file = 'mizuroute.control'
+            self.logger.debug(f"Using default mizuRoute control file: {control_file}")
 
         experiment_id = self.config_dict.get('EXPERIMENT_ID')
         mizu_log_path = self.get_config_path('EXPERIMENT_LOG_MIZUROUTE', f"simulations/{experiment_id}/mizuRoute/mizuRoute_logs/")

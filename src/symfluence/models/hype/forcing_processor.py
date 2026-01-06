@@ -15,9 +15,12 @@ import cdo
 import numpy as np
 import pandas as pd
 import xarray as xr
+import pint
 from tqdm import tqdm
 
 from ..utilities import BaseForcingProcessor
+
+ureg = pint.UnitRegistry()
 
 
 class HYPEForcingProcessor(BaseForcingProcessor):
@@ -155,14 +158,20 @@ class HYPEForcingProcessor(BaseForcingProcessor):
         """Convert hourly merged data to HYPE daily observation files."""
         def get_in_var(key):
             return self.forcing_units[key]['in_varname']
+        
+        def get_units(key):
+            return self.forcing_units[key].get('in_units'), self.forcing_units[key].get('out_units')
 
         # TMAX
+        in_u, out_u = get_units('temperature')
         self._convert_hourly_to_daily(
             merged_forcing_path,
             get_in_var('temperature'),
             'TMAXobs',
             stat='max',
-            output_file_name_txt=self.output_path / 'TMAXobs.txt'
+            output_file_name_txt=self.output_path / 'TMAXobs.txt',
+            in_units=in_u,
+            out_units=out_u
         )
 
         # TMIN
@@ -171,7 +180,9 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             get_in_var('temperature'),
             'TMINobs',
             stat='min',
-            output_file_name_txt=self.output_path / 'TMINobs.txt'
+            output_file_name_txt=self.output_path / 'TMINobs.txt',
+            in_units=in_u,
+            out_units=out_u
         )
 
         # Tobs (Mean)
@@ -180,16 +191,21 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             get_in_var('temperature'),
             'Tobs',
             stat='mean',
-            output_file_name_txt=self.output_path / 'Tobs.txt'
+            output_file_name_txt=self.output_path / 'Tobs.txt',
+            in_units=in_u,
+            out_units=out_u
         )
 
-        # Pobs (Sum)
+        # Pobs (Sum -> Mean, because we convert to mm/day rate first)
+        in_u_p, out_u_p = get_units('precipitation')
         self._convert_hourly_to_daily(
             merged_forcing_path,
             get_in_var('precipitation'),
             'Pobs',
-            stat='sum',
-            output_file_name_txt=self.output_path / 'Pobs.txt'
+            stat='mean', # Changed from sum to mean because we convert to rate (mm/day) first
+            output_file_name_txt=self.output_path / 'Pobs.txt',
+            in_units=in_u_p,
+            out_units=out_u_p
         )
 
     def _convert_hourly_to_daily(
@@ -200,11 +216,18 @@ class HYPEForcingProcessor(BaseForcingProcessor):
         var_time: str = 'time',
         var_id: str = 'hruId',
         stat: str = 'max',
-        output_file_name_txt: Optional[Path] = None
+        output_file_name_txt: Optional[Path] = None,
+        in_units: Optional[str] = None,
+        out_units: Optional[str] = None
     ) -> xr.Dataset:
         """Helper to resample hourly NetCDF to daily text file."""
         with xr.open_dataset(input_file_name) as ds:
             ds = ds.copy()
+            
+            # Robustly handle hruId: ensure it's a coordinate of the data variables
+            actual_id_level = var_id
+            if var_id in ds.data_vars and var_id not in ds.coords:
+                ds = ds.set_coords(var_id)
             
             # Cast ID to integer
             if var_id in ds.coords:
@@ -212,11 +235,35 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             elif var_id in ds.data_vars:
                 ds[var_id] = ds[var_id].astype(int)
 
+            # If hruId exists as a coordinate but not a dimension, and 'hru' is the dimension,
+            # we need to make sure it's used for unstacking later.
+            if 'hruId' in ds.coords and 'hru' in ds.dims:
+                actual_id_level = 'hruId'
+
             # Keep only required variables
             variables_to_keep = [variable_in, var_time]
             if var_id is not None:
                 variables_to_keep.append(var_id)
             
+            # Apply Unit Conversion
+            if in_units and out_units and in_units != out_units:
+                try:
+                    # Deduce linear coefficients y = ax + b
+                    val0 = 0.0
+                    q0 = ureg.Quantity(val0, in_units)
+                    res0 = q0.to(out_units).magnitude
+                    b = res0
+                    
+                    val1 = 100.0
+                    q1 = ureg.Quantity(val1, in_units)
+                    res1 = q1.to(out_units).magnitude
+                    a = (res1 - res0) / val1
+                    
+                    ds[variable_in] = ds[variable_in] * a + b
+                    # self.logger.debug(f"Converted {variable_in} from {in_units} to {out_units} (a={a}, b={b})")
+                except Exception as e:
+                    self.logger.warning(f"Unit conversion failed for {variable_in} ({in_units}->{out_units}): {e}")
+
             # Ensure time index is sorted
             ds = ds.sortby('time')
 
@@ -232,24 +279,46 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             else:
                 raise ValueError(f"Unsupported stat: {stat}")
 
-            # Extract variable and convert to dataframe
-            # Use to_series().unstack() to get time as index and IDs as columns
-            series = ds_daily[variable_in].to_series()
+            # Extract variable
+            da = ds_daily[variable_in]
+            
+            # Use actual HRU IDs for the dimension coordinates to ensure headers match GeoData
+            if 'hruId' in ds.coords and 'hru' in da.dims:
+                da = da.assign_coords(hru=ds.coords['hruId'].values.astype(int))
+                actual_id_level = 'hru'
+            elif 'hru' in da.dims:
+                actual_id_level = 'hru'
+            else:
+                actual_id_level = var_id
+
+            # Ensure no singleton spatial dimensions
+            if 'longitude' in da.dims and da.sizes['longitude'] == 1:
+                da = da.squeeze('longitude')
+            if 'latitude' in da.dims and da.sizes['latitude'] == 1:
+                da = da.squeeze('latitude')
+                
+            # Convert to dataframe and unstack
+            series = da.to_series()
             
             # Dynamically determine the ID level name
-            actual_id_level = var_id
-            if var_id not in series.index.names:
-                for fallback in ['id', 'hru', 'subid']:
+            if actual_id_level not in series.index.names:
+                for fallback in ['hruId', 'hru', 'id', 'subid']:
                     if fallback in series.index.names:
                         actual_id_level = fallback
                         break
             
             df = series.unstack(level=actual_id_level)
             
-            # Ensure columns (subids) are integers and start from 1 if they are 0
-            df.columns = df.columns.astype(int)
-            if 0 in df.columns:
-                df.columns = [c + 1 if c == 0 else c for c in df.columns]
+            # Ensure columns (subids) are integers
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(-1)
+                
+            df.columns = [int(float(c)) for c in df.columns]
+            
+            # HYPE subbasin IDs must start from 1. If 0 is present, shift ALL IDs.
+            # Only do this if it's strictly necessary (min ID is 0)
+            if min(df.columns) == 0:
+                df.columns = [c + 1 for c in df.columns]
             
             df.columns.name = None
             df.index.name = 'time'

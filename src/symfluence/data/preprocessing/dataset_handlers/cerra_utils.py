@@ -47,6 +47,7 @@ class CERRAHandler(BaseDatasetHandler):
             '10m_v_component_of_wind': 'windspd_v',
             'surface_solar_radiation_downwards': 'SWRadAtm',
             'surface_thermal_radiation_downwards': 'LWRadAtm',
+            'thermal_surface_radiation_downwards': 'LWRadAtm',
         }
 
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
@@ -61,6 +62,10 @@ class CERRAHandler(BaseDatasetHandler):
         Returns:
             Processed dataset with standardized variables
         """
+        # Handle time coordinate (CERRA sometimes uses valid_time)
+        if 'time' not in ds and 'valid_time' in ds:
+            ds = ds.rename({'valid_time': 'time'})
+
         # Rename variables
         variable_mapping = self.get_variable_mapping()
         existing_vars = {old: new for old, new in variable_mapping.items() if old in ds.variables}
@@ -170,6 +175,11 @@ class CERRAHandler(BaseDatasetHandler):
             raise FileNotFoundError(msg)
 
         for f in files:
+            # Skip intermediate analysis/forecast files that are not full forcing
+            if '_analysis_' in f.name or '_forecast_' in f.name:
+                self.logger.debug(f"Skipping intermediate file: {f.name}")
+                continue
+
             self.logger.info(f"Processing CERRA file: {f}")
             try:
                 ds = xr.open_dataset(f)
@@ -294,42 +304,93 @@ class CERRAHandler(BaseDatasetHandler):
 
             # Handle 1D grid (regular lat/lon)
             if lats.ndim == 1 and lons.ndim == 1:
-                # Regular grid - create cell boundaries
-                half_dlat = abs(lats[1] - lats[0]) / 2 if len(lats) > 1 else 0.025
-                half_dlon = abs(lons[1] - lons[0]) / 2 if len(lons) > 1 else 0.025
-
-                cell_id = 0
-                total_cells = len(lats) * len(lons)
-                cells_created = 0
-
-                for i, center_lon in enumerate(lons):
-                    for j, center_lat in enumerate(lats):
-                        # Apply spatial filter if available
-                        if bbox_filter is not None:
-                            if (center_lon < bbox_filter['lon_min'] or center_lon > bbox_filter['lon_max'] or
-                                center_lat < bbox_filter['lat_min'] or center_lat > bbox_filter['lat_max']):
-                                continue
-
+                # SPECIAL CASE: Single point forcing (1x1 grid)
+                if len(lats) == 1 and len(lons) == 1:
+                    self.logger.info("Detected 1x1 CERRA grid. Creating catchment-covering polygon.")
+                    
+                    # If we have the HRU shapefile, use it to ensure full coverage
+                    poly_created = False
+                    if hru_shapefile.exists():
+                        try:
+                            # Re-read or use existing if efficient (safest to re-read to be sure)
+                            if 'hru_gdf' not in locals():
+                                hru_gdf = gpd.read_file(hru_shapefile)
+                            
+                            minx, miny, maxx, maxy = hru_gdf.total_bounds
+                            
+                            # Add a generous buffer (0.1 deg ~ 10km) to ensure full coverage
+                            # This forces the single forcing point to map to ALL HRUs
+                            buffer = 0.1 
+                            verts = [
+                                [minx - buffer, miny - buffer],
+                                [minx - buffer, maxy + buffer],
+                                [maxx + buffer, maxy + buffer],
+                                [maxx + buffer, miny - buffer],
+                                [minx - buffer, miny - buffer],
+                            ]
+                            geometries.append(Polygon(verts))
+                            self.logger.info(f"Created polygon matching HRU extent for 1x1 forcing.")
+                            poly_created = True
+                        except Exception as e:
+                            self.logger.warning(f"Failed to use HRU bounds for 1x1 forcing: {e}")
+                    
+                    if not poly_created:
+                        # Fallback to small box around point if HRU shapefile fails
+                        self.logger.warning("Using default small box for 1x1 grid (may not intersect catchment)")
+                        center_lat, center_lon = float(lats[0]), float(lons[0])
+                        d = 0.025
                         verts = [
-                            [float(center_lon) - half_dlon, float(center_lat) - half_dlat],
-                            [float(center_lon) - half_dlon, float(center_lat) + half_dlat],
-                            [float(center_lon) + half_dlon, float(center_lat) + half_dlat],
-                            [float(center_lon) + half_dlon, float(center_lat) - half_dlat],
-                            [float(center_lon) - half_dlon, float(center_lat) - half_dlat],
+                            [center_lon - d, center_lat - d],
+                            [center_lon - d, center_lat + d],
+                            [center_lon + d, center_lat + d],
+                            [center_lon + d, center_lat - d],
+                            [center_lon - d, center_lat - d],
                         ]
                         geometries.append(Polygon(verts))
-                        ids.append(cell_id)
-                        center_lats.append(float(center_lat))
-                        center_lons.append(float(center_lon))
-                        cells_created += 1
 
-                        if cells_created % 1000 == 0:
-                            self.logger.info(f"Created {cells_created} CERRA grid cells (filtered from {cell_id}/{total_cells})")
+                    ids.append(0)
+                    center_lats.append(float(lats[0]))
+                    center_lons.append(float(lons[0]))
+                    cells_created = 1
 
-                        cell_id += 1
+                # Regular grid (more than 1x1)
+                else:
+                    # Regular grid - create cell boundaries
+                    half_dlat = abs(lats[1] - lats[0]) / 2 if len(lats) > 1 else 0.025
+                    half_dlon = abs(lons[1] - lons[0]) / 2 if len(lons) > 1 else 0.025
 
-                if bbox_filter is not None:
-                    self.logger.info(f"Spatial filtering: created {cells_created} cells (from {total_cells} total)")
+                    cell_id = 0
+                    total_cells = len(lats) * len(lons)
+                    cells_created = 0
+
+                    for i, center_lon in enumerate(lons):
+                        for j, center_lat in enumerate(lats):
+                            # Apply spatial filter if available
+                            if bbox_filter is not None:
+                                if (center_lon < bbox_filter['lon_min'] or center_lon > bbox_filter['lon_max'] or
+                                    center_lat < bbox_filter['lat_min'] or center_lat > bbox_filter['lat_max']):
+                                    continue
+
+                            verts = [
+                                [float(center_lon) - half_dlon, float(center_lat) - half_dlat],
+                                [float(center_lon) - half_dlon, float(center_lat) + half_dlat],
+                                [float(center_lon) + half_dlon, float(center_lat) + half_dlat],
+                                [float(center_lon) + half_dlon, float(center_lat) - half_dlat],
+                                [float(center_lon) - half_dlon, float(center_lat) - half_dlat],
+                            ]
+                            geometries.append(Polygon(verts))
+                            ids.append(cell_id)
+                            center_lats.append(float(center_lat))
+                            center_lons.append(float(center_lon))
+                            cells_created += 1
+
+                            if cells_created % 1000 == 0:
+                                self.logger.info(f"Created {cells_created} CERRA grid cells (filtered from {cell_id}/{total_cells})")
+
+                            cell_id += 1
+
+                    if bbox_filter is not None:
+                        self.logger.info(f"Spatial filtering: created {cells_created} cells (from {total_cells} total)")
             else:
                 # 2D grid (Lambert Conformal - CERRA uses this)
                 ny, nx = lats.shape

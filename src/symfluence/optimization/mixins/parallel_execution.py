@@ -173,7 +173,11 @@ class ParallelExecutionMixin:
                 # Update relevant paths
                 updated_lines = []
                 for line in lines:
-                    if 'settingsPath' in line:
+                    if model_name.upper() == 'HYPE' and line.startswith('resultdir'):
+                        # Update HYPE results directory
+                        output_path = str(dirs['output_dir']).replace('\\', '/').rstrip('/') + '/'
+                        updated_lines.append(f"resultdir\t{output_path}\n")
+                    elif 'settingsPath' in line:
                         # Update to process-specific settings directory
                         settings_path = str(dirs['settings_dir']).replace('\\', '/')
                         updated_lines.append(f"settingsPath         '{settings_path}/'\n")
@@ -258,15 +262,22 @@ class ParallelExecutionMixin:
                 output_dir = normalize_path(proc_mizu_dir)
                 ancil_dir = normalize_path(proc_ancil_dir)
                 case_name = f'proc_{proc_id:02d}_{experiment_id}'
-                fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
-
-                # Set model-specific variable name for mizuRoute input
-                # SUMMA outputs averageRoutedRunoff, FUSE outputs q_routed
+                
+                # Set model-specific filename and variable name for mizuRoute input
                 if model_name.upper() == 'SUMMA':
+                    fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
                     vname_qsim = 'averageRoutedRunoff'
                 elif model_name.upper() == 'FUSE':
+                    fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
                     vname_qsim = 'q_routed'
+                elif model_name.upper() == 'GR':
+                    domain_name = self.config.get('DOMAIN_NAME')
+                    fname_qsim = f"{domain_name}_{experiment_id}_runs_def.nc"
+                    vname_qsim = self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+                    if vname_qsim in ('default', None, ''):
+                        vname_qsim = 'q_routed'
                 else:
+                    fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
                     vname_qsim = 'q_routed'  # Default for other models
 
                 # Update relevant lines
@@ -493,10 +504,15 @@ from mpi4py import MPI
 import logging
 
 # Configure logging
-logging.basicConfig(level=logging.WARNING, format='[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s')
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Silence noisy libraries
+for noisy_logger in ['rasterio', 'fiona', 'boto3', 'botocore', 'matplotlib', 'urllib3', 's3transfer']:
+    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
+
 # Add symphluence src to path to ensure imports work
+
 sys.path.insert(0, r"{str(src_path)}")
 
 try:
@@ -526,20 +542,26 @@ def main():
 
         logger.info(f"Rank 0: Loaded {{len(all_tasks)}} tasks")
 
-        # Distribute tasks evenly across ranks (v0.5.0 approach)
-        tasks_per_rank = len(all_tasks) // size
-        extra_tasks = len(all_tasks) % size
+        # Distribute tasks by proc_id to avoid race conditions
+        # Tasks with the same proc_id share directories, so they must run on the same rank
+        from collections import defaultdict
+        tasks_by_proc = defaultdict(list)
+        for task in all_tasks:
+            proc_id = task.get('proc_id', 0)
+            # Assign to rank based on proc_id modulo size
+            assigned_rank = proc_id % size
+            tasks_by_proc[assigned_rank].append(task)
+
+        logger.info(f"Rank 0: Distributed tasks by proc_id - {{{{r: len(tasks_by_proc[r]) for r in range(size)}}}}")
         all_results = []
 
         for worker_rank in range(size):
-            start_idx = worker_rank * tasks_per_rank + min(worker_rank, extra_tasks)
-            end_idx = start_idx + tasks_per_rank + (1 if worker_rank < extra_tasks else 0)
+            worker_tasks = tasks_by_proc[worker_rank]
 
             if worker_rank == 0:
-                my_tasks = all_tasks[start_idx:end_idx]
+                my_tasks = worker_tasks
                 logger.info(f"Rank 0: Processing {{len(my_tasks)}} tasks locally")
             else:
-                worker_tasks = all_tasks[start_idx:end_idx]
                 logger.info(f"Rank 0: Sending {{len(worker_tasks)}} tasks to rank {{worker_rank}}")
                 comm.send(worker_tasks, dest=worker_rank, tag=1)
 
@@ -691,18 +713,19 @@ if __name__ == "__main__":
             if 'OMPI_MCA_' not in mpi_env:
                 mpi_env['OMPI_MCA_pls_rsh_agent'] = 'ssh'
 
-            self.logger.info(f"MPI environment - PYTHONPATH: {mpi_env.get('PYTHONPATH')}")
-            self.logger.info(f"MPI command: {' '.join(mpi_cmd)}")
+            self.logger.debug(f"MPI environment - PYTHONPATH: {mpi_env.get('PYTHONPATH')}")
+            self.logger.debug(f"MPI command: {' '.join(mpi_cmd)}")
 
             # Run MPI command
             result = subprocess.run(mpi_cmd, capture_output=True, text=True, env=mpi_env)
 
             # Always log MPI output for debugging
-            self.logger.info(f"MPI returncode: {result.returncode}")
+            self.logger.debug(f"MPI returncode: {result.returncode}")
             if result.stdout:
-                self.logger.info(f"MPI stdout: {result.stdout[:1000]}")
+                self.logger.debug(f"MPI stdout: {result.stdout[:1000]}")
             if result.stderr:
-                self.logger.warning(f"MPI stderr: {result.stderr[:1000]}")
+                # Still log stderr if there's significant output, but maybe keep it at debug if it's just expected warnings
+                self.logger.debug(f"MPI stderr: {result.stderr[:1000]}")
 
             if result.returncode != 0:
                 self.logger.error(f"MPI execution failed (returncode={result.returncode})")

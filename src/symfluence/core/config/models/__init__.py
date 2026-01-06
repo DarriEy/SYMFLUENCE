@@ -22,6 +22,9 @@ from .system import SystemConfig
 # Domain configs
 from .domain import DomainConfig, DelineationConfig
 
+# Data configs
+from .data import DataConfig
+
 # Forcing configs
 from .forcing import ForcingConfig, NexConfig, EMEarthConfig
 
@@ -76,6 +79,8 @@ __all__ = [
     # Domain
     "DomainConfig",
     "DelineationConfig",
+    # Data
+    "DataConfig",
     # Forcing
     "ForcingConfig",
     "NexConfig",

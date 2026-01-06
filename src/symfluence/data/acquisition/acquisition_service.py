@@ -422,6 +422,10 @@ class AcquisitionService:
             additional_obs.append('USGS_STREAMFLOW')
         elif streamflow_provider == 'WSC' and 'WSC_STREAMFLOW' not in additional_obs:
             additional_obs.append('WSC_STREAMFLOW')
+        elif streamflow_provider == 'SMHI' and 'SMHI_STREAMFLOW' not in additional_obs:
+            additional_obs.append('SMHI_STREAMFLOW')
+        elif streamflow_provider == 'LAMAH_ICE' and 'LAMAH_ICE_STREAMFLOW' not in additional_obs:
+            additional_obs.append('LAMAH_ICE_STREAMFLOW')
 
         # Check for USGS Groundwater download
         download_usgs_gw = self.config.get('DOWNLOAD_USGS_GW', False)
