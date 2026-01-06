@@ -850,8 +850,6 @@ def write_hype_info_filedir_files(path_to_save, spinup_days, hype_results_dir,
     # Ensure results directory has trailing slash for HYPE
     hype_results_dir = str(hype_results_dir).rstrip('/') + '/'
 
-    print(f"DEBUG HYPE dates: start={start_date}, end={end_date}, spinup_days={spinup_days}, spinup_date={spinup_date}")
-
     info_content = f"""!! ----------------------------------------------------------------------------
 !!
 !! HYPE - Model Agnostic Framework

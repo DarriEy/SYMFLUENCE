@@ -431,6 +431,7 @@ class BaseModelRunner(ABC, PathResolverMixin):
             self.ensure_dir(log_file.parent)
 
             # Execute subprocess
+            self.logger.debug(f"Executing command: {' '.join(command)}")
             with open(log_file, 'w') as f:
                 result = subprocess.run(
                     command,

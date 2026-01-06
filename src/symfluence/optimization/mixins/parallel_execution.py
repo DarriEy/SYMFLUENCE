@@ -664,8 +664,9 @@ if __name__ == "__main__":
             if not Path(python_exe).exists():
                 self.logger.warning(f"Python executable not found: {python_exe}, using sys.executable")
 
-            # Use -x flag to explicitly export PYTHONPATH and other variables to all spawned processes
-            mpi_cmd = ['mpirun', '-x', 'PYTHONPATH', '-x', 'OMP_NUM_THREADS', '-x', 'HDF5_USE_FILE_LOCKING',
+            # Don't use -x for PYTHONPATH since venv Python already includes src in sys.path
+            # Use -x for worker environment variables that control threading and HDF5
+            mpi_cmd = ['mpirun', '-x', 'OMP_NUM_THREADS', '-x', 'HDF5_USE_FILE_LOCKING', '-x', 'MKL_NUM_THREADS',
                        '-n', str(num_processes), python_exe, str(worker_script), str(tasks_file), str(results_file)]
 
             self.logger.debug(f"MPI command: {' '.join(mpi_cmd)}")
@@ -695,6 +696,13 @@ if __name__ == "__main__":
 
             # Run MPI command
             result = subprocess.run(mpi_cmd, capture_output=True, text=True, env=mpi_env)
+
+            # Always log MPI output for debugging
+            self.logger.info(f"MPI returncode: {result.returncode}")
+            if result.stdout:
+                self.logger.info(f"MPI stdout: {result.stdout[:1000]}")
+            if result.stderr:
+                self.logger.warning(f"MPI stderr: {result.stderr[:1000]}")
 
             if result.returncode != 0:
                 self.logger.error(f"MPI execution failed (returncode={result.returncode})")
