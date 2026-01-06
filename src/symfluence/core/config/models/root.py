@@ -358,22 +358,12 @@ class SymfluenceConfig(BaseModel):
         models = self._parse_models()
         issues = []
 
-        # Auto-align FUSE spatial mode with domain definition
+        # Check FUSE spatial mode
         if 'FUSE' in models and self.model.fuse:
-            # Map domain definition to appropriate FUSE spatial mode
-            domain_to_fuse_mode = {
-                'lumped': 'lumped',
-                'semi_distributed': 'semi_distributed',
-                'distributed': 'distributed',
-                'discretized': 'distributed',  # Treat discretized as distributed
-            }
-            expected_fuse_mode = domain_to_fuse_mode.get(self.domain.definition_method)
-
-            if expected_fuse_mode and self.model.fuse.spatial_mode != expected_fuse_mode:
-                # Auto-align FUSE spatial mode to match domain definition
-                self.model.fuse = self.model.fuse.model_copy(update={'spatial_mode': expected_fuse_mode})
+            if self.domain.definition_method == 'lumped' and self.model.fuse.spatial_mode != 'lumped':
                 issues.append(
-                    f"Auto-aligned FUSE_SPATIAL_MODE to '{expected_fuse_mode}' (DOMAIN_DEFINITION_METHOD is '{self.domain.definition_method}')"
+                    f"FUSE_SPATIAL_MODE is '{self.model.fuse.spatial_mode}' but DOMAIN_DEFINITION_METHOD is 'lumped'. "
+                    f"Consider setting FUSE_SPATIAL_MODE to 'lumped'."
                 )
 
         # Check GR spatial mode

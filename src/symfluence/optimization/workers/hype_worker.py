@@ -59,19 +59,11 @@ class HYPEWorker(BaseWorker):
             config = kwargs.get('config', self.config)
             
             # Use HYPEPreProcessor to regenerate configs with new params
-            # We only need to regenerate the par.txt file, but calling 
-            # preprocess_models with params is the cleanest way.
             preprocessor = HYPEPreProcessor(config, self.logger, params=params)
             
             # Set model-specific paths to point to the worker's settings dir
             preprocessor.output_path = settings_dir
             preprocessor.hype_setup_dir = settings_dir
-            
-            # Use isolated output directory for the worker
-            output_dir = kwargs.get('proc_output_dir') or kwargs.get('output_dir')
-            if output_dir:
-                preprocessor.hype_results_dir = Path(output_dir)
-                preprocessor.hype_results_dir_str = str(Path(output_dir)).rstrip('/') + '/'
             
             # Only regenerate the model configs (GeoData, par.txt, info.txt)
             # Forcing doesn't change during calibration
@@ -103,6 +95,25 @@ class HYPEWorker(BaseWorker):
             True if model ran successfully
         """
         try:
+            # Ensure the info.txt file points to the correct isolated output directory
+            # This is critical because apply_parameters might not have the correct output_dir
+            from symfluence.models.hype.hypeFlow import write_hype_info_filedir_files
+            
+            spinup_days = config.get('HYPE_SPINUP_DAYS', 0)
+            experiment_start = config.get('EXPERIMENT_TIME_START')
+            experiment_end = config.get('EXPERIMENT_TIME_END')
+            
+            # HYPE results dir MUST have a trailing slash
+            results_dir_str = str(output_dir).rstrip('/') + '/'
+            
+            write_hype_info_filedir_files(
+                settings_dir,
+                spinup_days,
+                results_dir_str,
+                experiment_start=experiment_start,
+                experiment_end=experiment_end
+            )
+
             # Initialize HYPE runner
             runner = HYPERunner(config, self.logger)
             
