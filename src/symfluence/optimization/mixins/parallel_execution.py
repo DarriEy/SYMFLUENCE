@@ -664,7 +664,9 @@ if __name__ == "__main__":
             if not Path(python_exe).exists():
                 self.logger.warning(f"Python executable not found: {python_exe}, using sys.executable")
 
-            mpi_cmd = ['mpirun', '-n', str(num_processes), python_exe, str(worker_script), str(tasks_file), str(results_file)]
+            # Use -x flag to explicitly export PYTHONPATH and other variables to all spawned processes
+            mpi_cmd = ['mpirun', '-x', 'PYTHONPATH', '-x', 'OMP_NUM_THREADS', '-x', 'HDF5_USE_FILE_LOCKING',
+                       '-n', str(num_processes), python_exe, str(worker_script), str(tasks_file), str(results_file)]
 
             self.logger.debug(f"MPI command: {' '.join(mpi_cmd)}")
 
@@ -683,7 +685,13 @@ if __name__ == "__main__":
             worker_env = self.setup_worker_environment()
             mpi_env.update(worker_env)
 
-            self.logger.debug(f"MPI environment - PYTHONPATH: {mpi_env.get('PYTHONPATH')}")
+            # Ensure OpenMPI passes environment variables to spawned processes
+            # This is important for PYTHONPATH and other settings
+            if 'OMPI_MCA_' not in mpi_env:
+                mpi_env['OMPI_MCA_pls_rsh_agent'] = 'ssh'
+
+            self.logger.info(f"MPI environment - PYTHONPATH: {mpi_env.get('PYTHONPATH')}")
+            self.logger.info(f"MPI command: {' '.join(mpi_cmd)}")
 
             # Run MPI command
             result = subprocess.run(mpi_cmd, capture_output=True, text=True, env=mpi_env)
