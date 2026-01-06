@@ -140,23 +140,36 @@ class RDRSHandler(BaseDatasetHandler):
         merged_forcing_path.mkdir(parents=True, exist_ok=True)
         
         for year in years:
-            self.logger.info(f"Processing RDRS year {year}")
+            self.logger.debug(f"Processing RDRS year {year}")
             year_folder = raw_forcing_path / str(year)
             
             if not year_folder.exists():
-                self.logger.warning(f"Year folder not found: {year_folder}")
+                self.logger.debug(f"Year folder not found: {year_folder}")
                 continue
             
             for month in range(1, 13):
-                self.logger.info(f"Processing RDRS {year}-{month:02d}")
+                self.logger.debug(f"Processing RDRS {year}-{month:02d}")
                 
                 # Find daily files for this month
-                daily_files = sorted(year_folder.glob(
+                daily_files = list(year_folder.glob(
                     file_name_pattern.replace('*', f'{year}{month:02d}*')
                 ))
                 
+                # Also look for the last file of the previous month to cover the start of this month
+                # (RDRS files starting with YYYYMMDD12 contain data for the first 12 hours of the next day)
+                prev_month_date = pd.Timestamp(year, month, 1) - pd.Timedelta(days=1)
+                prev_year = prev_month_date.year
+                prev_year_folder = raw_forcing_path / str(prev_year)
+                
+                if prev_year_folder.exists():
+                    prev_pattern = file_name_pattern.replace('*', f"{prev_month_date.strftime('%Y%m%d')}*")
+                    prev_files = list(prev_year_folder.glob(prev_pattern))
+                    daily_files.extend(prev_files)
+                
+                daily_files = sorted(list(set(daily_files)))
+                
                 if not daily_files:
-                    self.logger.warning(f"No RDRS files found for {year}-{month:02d}")
+                    self.logger.debug(f"No RDRS files found for {year}-{month:02d}")
                     continue
                 
                 # Load datasets
@@ -186,8 +199,9 @@ class RDRSHandler(BaseDatasetHandler):
                     continue
                 
                 # Concatenate into monthly data
-                monthly_data = xr.concat(processed_datasets, dim="time")
+                monthly_data = xr.concat(processed_datasets, dim="time", data_vars='all')
                 monthly_data = monthly_data.sortby("time")
+                monthly_data = monthly_data.drop_duplicates(dim='time')
                 
                 # Set up time range
                 start_time = pd.Timestamp(year, month, 1)
@@ -196,11 +210,11 @@ class RDRSHandler(BaseDatasetHandler):
                 else:
                     end_time = pd.Timestamp(year, month + 1, 1) - pd.Timedelta(hours=1)
                 
-                monthly_data = monthly_data.sel(time=slice(start_time, end_time))
-                
-                # Ensure complete hourly time series
+                # Ensure complete hourly time series and fill gaps
                 expected_times = pd.date_range(start=start_time, end=end_time, freq='h')
-                monthly_data = monthly_data.reindex(time=expected_times, method='nearest')
+                monthly_data = monthly_data.reindex(time=expected_times)
+                monthly_data = monthly_data.interpolate_na(dim='time', method='linear')
+                monthly_data = monthly_data.ffill(dim='time').bfill(dim='time')
                 
                 # Set time encoding and metadata
                 monthly_data = self.setup_time_encoding(monthly_data)

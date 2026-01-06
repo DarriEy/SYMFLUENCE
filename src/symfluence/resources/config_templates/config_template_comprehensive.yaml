@@ -1,695 +1,2528 @@
-### ============================================= CONFLUENCE Configuration Template v2.0 =============================================
-# This comprehensive configuration template includes all available CONFLUENCE settings for advanced hydrological modeling workflows.
-# The configuration is organized into logical sections that mirror the workflow progression from conceptualization to evaluation.
-# 
-# Key Features Covered:
-# - Traditional and neural network-based optimization
-# - Multi-model workflows with advanced settings
-# - HPC and parallel processing capabilities  
-# - Comprehensive attribute processing
-# - Advanced evaluation and benchmarking
-# - Large-scale and large-sample applications
+################################################################################
 #
-# Configuration Hierarchy:
-# 1. Global settings - foundational paths and identifiers
-# 2. Experiment settings - domain and temporal configuration
-# 3. Geospatial settings - spatial domain definition and discretization
-# 4. Model-agnostic settings - data preprocessing and forcing preparation
-# 5. Model-specific settings - individual model configuration
-# 6. Evaluation settings - performance assessment and benchmarking
-# 7. Optimization settings - both traditional and advanced gradient-based approaches
-# 8. Advanced features - HPC, binary management, and specialized workflows
-
-## ================================================= 0. Global Settings =================================================================
-
-# Core directory paths - customize these for your system
-CONFLUENCE_DATA_DIR: "/path/to/confluence/data"              # Root directory for all CONFLUENCE data
-CONFLUENCE_CODE_DIR: "/path/to/confluence/code"              # Root directory for CONFLUENCE code and executables
-
-# System configuration
-CONFIG_FORMAT: yaml                                           # Configuration file format: yaml, json
-DEBUG_MODE: false                                            # Enable detailed debug logging
-LOG_LEVEL: INFO                                              # Logging level: DEBUG, INFO, WARNING, ERROR
-FORCE_RUN_ALL_STEPS: false                                   # Force rerun of all workflow steps
-
-## ================================================= 1. Experiment Settings =============================================================
-
-# Basic experiment configuration
-DOMAIN_NAME: "Example_Watershed"                             # Unique identifier for the modeling domain
-EXPERIMENT_ID: "run_001"                                     # Unique identifier for this experiment
-DESCRIPTION: "Example CONFLUENCE configuration template"      # Description of this configuration
-
-# Temporal settings
-EXPERIMENT_TIME_START: "2010-01-01 00:00"                   # Simulation start time (YYYY-MM-DD HH:MM)
-EXPERIMENT_TIME_END: "2020-12-31 23:00"                     # Simulation end time (YYYY-MM-DD HH:MM)
-EXPERIMENT_TIME_STEP: 3600                                   # Simulation time step in seconds
-CALIBRATION_PERIOD: "2010-01-01, 2015-12-31"               # Calibration period (comma-separated start, end)
-VALIDATION_PERIOD: "2016-01-01, 2020-12-31"                # Validation period (comma-separated start, end)
-
-# Spin-up configuration
-SPINUP_YEARS: 2                                              # Number of years for model spin-up
-SPINUP_START: "2008-01-01 00:00"                            # Spin-up start time (auto-calculated if not specified)
-
-## ================================================= 2. Geospatial Settings =============================================================
-
-# Domain definition method
-DOMAIN_DEFINITION_METHOD: delineate                         # Options: delineate, existing_shape, lumped, point
-
-# Pour point configuration
-POUR_POINT_COORDS: default                                  # Pour point coordinates as lat/lon (e.g., "51.1722/-115.5717") or 'default'
-POUR_POINT_SHP_PATH: default                               # Path to pour point shapefile
-POUR_POINT_SHP_NAME: default                               # Name of pour point shapefile
-
-# Existing domain configuration (if using existing_shape)
-CATCHMENT_PATH: default                                     # Path to existing catchment shapefile directory
-CATCHMENT_SHP_NAME: default                                 # Name of existing catchment shapefile
-RIVER_NETWORK_SHP_PATH: default                            # Path to river network shapefile directory  
-RIVER_NETWORK_SHP_NAME: default                            # Name of river network shapefile
-RIVER_BASINS_SHP_PATH: default                             # Path to river basins shapefile directory
-RIVER_BASINS_SHP_NAME: default                             # Name of river basins shapefile
-
-# Spatial discretization
-DOMAIN_DISCRETIZATION: elevation                           # Options: grus, elevation, aspect, soilclass, landclass, radiation, or combined (e.g., "elevation,landclass")
-DISCRETIZATION_ELEVATION_BANDS: 5                          # Number of elevation bands (for elevation discretization)
-DISCRETIZATION_ELEVATION_METHOD: quantile                   # Elevation banding method: quantile, equal_interval
-DISCRETIZATION_MIN_HRU_SIZE: 1.0                           # Minimum HRU size in km²
-DISCRETIZATION_MERGE_THRESHOLD: 0.5                        # Threshold for merging small HRUs
-
-# Coordinate system
-TARGET_CRS: EPSG:4326                                       # Target coordinate reference system
-REPROJECT_INPUTS: true                                      # Reproject input data to target CRS
-
-# DEM processing
-DEM_BUFFER: 5000                                            # Buffer around domain for DEM processing (meters)
-DEM_RESOLUTION: 90                                          # Target DEM resolution (meters)
-FILL_DEM_SINKS: true                                        # Fill sinks in DEM for flow routing
-
-## ================================================= 3. Model-Agnostic Settings =========================================================
-
-# Forcing data configuration
-FORCING_DATASET: ERA5                                       # Primary forcing dataset: ERA5, RDRS, NLDAS, custom
-FORCING_TIME_STEP: 3600                                     # Forcing data time step (seconds)
-FORCING_START_DATE: "2008-01-01"                           # Forcing data start date (includes spin-up)
-FORCING_END_DATE: "2020-12-31"                             # Forcing data end date
-FORCING_VARIABLES: [temp, pres, wind, spfh, dlwr, dswr, prate] # Required forcing variables
-
-# Secondary/backup forcing datasets
-FORCING_DATASETS_SECONDARY: [RDRS, NLDAS]                  # Backup forcing datasets if primary fails
-FORCING_PRIORITY: [ERA5, RDRS, NLDAS]                      # Priority order for forcing datasets
-
-# Data processing options
-USE_PARALLELIZED_FORCING: true                              # Use parallel processing for forcing data
-MPI_PROCESSES: 4                                            # Number of MPI processes for parallel operations
-FORCING_QUALITY_CONTROL: true                              # Enable quality control for forcing data
-FORCING_GAP_FILL: true                                      # Fill gaps in forcing data
-FORCING_BIAS_CORRECTION: false                             # Apply bias correction to forcing data
-
-# Basin averaging
-BASIN_AVERAGING_METHOD: weights                             # Options: weights, simple_average, distance_weighted
-BASIN_ELEVATION_CORRECTION: true                           # Apply elevation-based temperature correction
-TEMPERATURE_LAPSE_RATE: -0.0065                            # Temperature lapse rate (°C/m)
-
-# Data paths
-RAW_FORCING_PATH: default                                   # Path to raw forcing data
-PROCESSED_FORCING_PATH: default                            # Path for processed forcing data
-MERGED_FORCING_PATH: default                                # Path for merged forcing data
-BASIN_AVERAGED_FORCING_PATH: default                       # Path for basin-averaged forcing data
-
-## ================================================= 4. Model-Specific Settings =========================================================
-
-# Model selection
-HYDROLOGICAL_MODEL: SUMMA                                   # Primary model: SUMMA, FUSE, GR, HYPE, LSTM, MESH
-HYDROLOGICAL_MODELS_ENSEMBLE: [SUMMA, FUSE]               # Multiple models for ensemble runs
-ROUTING_MODEL: mizuRoute                                    # Routing model: mizuRoute, none
-MODEL_COUPLING: loose                                       # Coupling type: tight, loose, none
-
-### 4.1 SUMMA Configuration ================================================================================================
-
-# SUMMA execution settings
-SUMMA_EXE: summa_sundials.exe                              # SUMMA executable name
-SUMMA_INSTALL_PATH: default                                 # Path to SUMMA installation
-SETTINGS_SUMMA_PATH: default                               # Path to SUMMA settings directory
-SETTINGS_SUMMA_USE_PARALLEL_SUMMA: false                    # Use parallel SUMMA execution
-SETTINGS_SUMMA_PARALLEL_EXE: summa_actors.exe              # Parallel SUMMA executable
-
-# SUMMA spatial configuration
-SETTINGS_SUMMA_CONNECT_HRUS: yes                           # Connect HRUs: yes, no
-SETTINGS_SUMMA_SPATIAL_MODE: distributed                   # Spatial mode: lumped, distributed
-
-# SUMMA file management
-SETTINGS_SUMMA_FILEMANAGER: fileManager.txt                # File manager name
-SETTINGS_SUMMA_FORCING_LIST: forcingFileList.txt          # Forcing file list name
-SETTINGS_SUMMA_COLDSTATE: coldState.nc                     # Initial conditions file
-SETTINGS_SUMMA_TRIALPARAMS: trialParams.nc                 # Trial parameters file
-SETTINGS_SUMMA_ATTRIBUTES: attributes.nc                   # Attributes file
-SETTINGS_SUMMA_OUTPUT: outputControl.txt                   # Output control file
-SETTINGS_SUMMA_BASIN_PARAMS_FILE: basinParamInfo.txt       # Basin parameters file
-SETTINGS_SUMMA_LOCAL_PARAMS_FILE: localParamInfo.txt       # Local parameters file
-
-# SUMMA trial parameters
-SETTINGS_SUMMA_TRIALPARAM_N: 0                             # Number of trial parameters
-SETTINGS_SUMMA_TRIALPARAM_1: ""                            # Trial parameter specification
-
-# SUMMA output configuration
-EXPERIMENT_OUTPUT_SUMMA: default                           # SUMMA output directory
-EXPERIMENT_LOG_SUMMA: default                              # SUMMA log directory
-SUMMA_OUTPUT_FREQUENCY: daily                              # Output frequency: hourly, daily, monthly
-SUMMA_OUTPUT_VARIABLES: [scalarTotalSoilWat, scalarSWE, scalarTotalET, averageRoutedRunoff] # Output variables
-
-# SUMMA model decisions (comprehensive set)
-SUMMA_DECISION_OPTIONS:
-  # Snow processes
-  snowIncept: [lightSnow, stickySnow]                      # Snow interception options
-  windPrfile: [exponential, logarithmic]                   # Wind profile options  
-  astability: [standard, louisinv, mahrtexp]              # Atmospheric stability options
-  canopyEmis: [simplExp, difTwoStream]                     # Canopy emissivity options
-  snowLayers: [CLM_2010, jrdn1991]                        # Snow layering options
-  thCondSnow: [tyen1965, melr1977, jrdn1991, smnv2000]    # Snow thermal conductivity
-  thCondSoil: [funcSoilWet, mixConstit, hanssonVZJ]       # Soil thermal conductivity
-  spatial_gw: [localColumn, singleBasin]                   # Groundwater representation
-  subRouting: [timeDlay, qInstant]                         # Sub-basin routing
-  
-  # Radiation processes  
-  canopySrad: [noah_mp, CLM_2stream, NL_scatter, BeersLaw] # Canopy shortwave radiation
-  albedoLand: [varDecay, conDecay, constAlb]              # Land surface albedo
-  compaction: [consettl, anderson]                         # Snow compaction
-  snowLayers: [CLM_2010, jrdn1991]                        # Snow layer dynamics
-  alb_method: [conDecay, varDecay]                         # Albedo evolution
-  
-  # Soil and vegetation processes
-  num_method: [itertive, non_iter, itersurf]              # Numerical method
-  fDerivMeth: [numerical, analytic]                        # Derivative method
-  LAI_method: [monTable, specified]                        # LAI specification
-  cIntercept: [storageFunc, notPopulated]                  # Canopy interception
-  f_Richards: [moisture, mixdform]                         # Richards equation form
-  groundwatr: [qTopmodl, bigBuckt, noXplict]              # Groundwater parameterization
-  hc_profile: [constant, pow_prof, parabolic]             # Hydraulic conductivity profile
-  bcUpprTdyn: [presTemp, nrg_flux]                        # Upper boundary dynamics
-  bcLowrTdyn: [presTemp, zeroFlux]                         # Lower boundary dynamics
-  bcUpprSoiH: [liq_flux, presHead]                        # Upper soil hydrology BC
-  bcLowrSoiH: [drainage, presHead, botmPres]              # Lower soil hydrology BC
-  veg_traits: [CM_QJRMS1988, vegTypeTable]                # Vegetation traits
-  rootProfil: [powerLaw, doubleExp]                        # Root profile
-  canopyHyd: [bucket, rootWeight]                          # Canopy hydrology
-  snowResis: [vegTypeTable, Seller1992]                   # Snow resistance
-
-### 4.2 mizuRoute Configuration ============================================================================================
-
-# mizuRoute execution
-ROUTING_EXE: mizuroute.exe                                  # mizuRoute executable
-MIZUROUTE_INSTALL_PATH: default                            # mizuRoute installation path
-SETTINGS_MIZUROUTE_PATH: default                           # mizuRoute settings path
-EXPERIMENT_OUTPUT_MIZUROUTE: default                       # mizuRoute output directory
-EXPERIMENT_LOG_MIZUROUTE: default                          # mizuRoute log directory
-
-# mizuRoute parameters
-SETTINGS_MIZU_CONTROL_FILE: control.txt                    # mizuRoute control file
-SETTINGS_MIZU_PARAMETERS: param.nml                        # mizuRoute parameters file
-SETTINGS_MIZU_TOPOLOGY: topology.nc                        # Stream network topology
-SETTINGS_MIZU_REMAP: remap.nc                             # HRU-segment mapping
-SETTINGS_MIZU_GAGE: gage.txt                              # Gauge information
-
-# mizuRoute routing configuration  
-SETTINGS_MIZU_ROUTING_METHOD: 1                            # Routing method: 0=both, 1=IRF, 2=KWT
-SETTINGS_MIZU_ROUTING_DT: 3600                             # Routing time step (seconds)
-SETTINGS_MIZU_ROUTING_UNITS: "m/s"                         # Routing variable units
-SETTINGS_MIZU_ROUTING_VAR: averageRoutedRunoff             # Routing variable name
-SETTINGS_MIZU_OUTPUT_FREQ: single                          # Output frequency
-SETTINGS_MIZU_OUTPUT_VARS: 1                               # Output variables selection
-SETTINGS_MIZU_MAKE_OUTLET: "n/a"                          # Outlet specification
-SETTINGS_MIZU_NEEDS_REMAP: no                             # Remapping requirement
-SETTINGS_MIZU_BASIN_ROUTING: 0                            # Basin routing flag
-
-### 4.3 FUSE Configuration =================================================================================================
-
-# FUSE execution
-FUSE_EXE: fuse.exe                                         # FUSE executable name
-FUSE_INSTALL_PATH: default                                 # FUSE installation path
-SETTINGS_FUSE_PATH: default                                # FUSE settings directory
-SETTINGS_FUSE_FILEMANAGER: fm_catch.txt                   # FUSE file manager
-EXPERIMENT_OUTPUT_FUSE: default                            # FUSE output directory
-
-# FUSE spatial configuration
-FUSE_SPATIAL_MODE: lumped                                  # Spatial mode: lumped, distributed
-FUSE_ELEVATION_BANDS: 5                                    # Number of elevation bands
-FUSE_ROUTING_MODE: none                                    # Routing mode: none, simple, complex
-
-# FUSE model structure decisions
-FUSE_DECISION_OPTIONS:
-  RFERR: [additive_e, multiplc_e]                         # Rainfall error model
-  ARCH1: [onestate_1, tension1_1, tension2_1]            # Upper soil architecture  
-  ARCH2: [fixedsiz_2, tens2pll_2, unlimfrc_2, unlimpow_2] # Lower soil architecture
-  QSURF: [arno_x_vic, prms_varnt, tmdl_param]            # Surface runoff
-  QPERC: [perc_f2sat, perc_w2sat, perc_lower]            # Percolation
-  ESOIL: [sequential, rootweight]                          # Soil evaporation
-  QINTF: [intflwnone, intflwsome]                         # Interflow  
-  Q_TDH: [rout_gamma, no_routing]                         # Routing
-  SNOWM: [temp_index, no_snowmod]                         # Snow module
-
-# FUSE parameters (example - full list would be extensive)
-FUSE_PARAMETERS:
-  rferr_add: [0.0, 2.0]                                   # Additive rainfall error [min, max]
-  rferr_mlt: [0.5, 1.5]                                   # Multiplicative rainfall error [min, max]
-  maxwatr_1: [25, 500]                                    # Maximum storage in upper layer [min, max]
-  maxwatr_2: [50, 5000]                                   # Maximum storage in lower layer [min, max]
-  fracten: [0.05, 0.95]                                   # Fraction of tension storage [min, max]
-  frchzne: [0.05, 0.95]                                   # Fraction of rootzone layer [min, max]
-
-### 4.4 GR Model Configuration =============================================================================================
-
-# GR execution
-GR_MODEL_TYPE: GR4J                                        # GR model variant: GR4J, GR5J, GR6J
-GR_INSTALL_PATH: default                                   # GR installation path (R environment)
-SETTINGS_GR_PATH: default                                  # GR settings directory
-SETTINGS_GR_CONTROL: control_gr.txt                       # GR control file
-EXPERIMENT_OUTPUT_GR: default                              # GR output directory
-
-# GR spatial configuration
-GR_SPATIAL_MODE: lumped                                    # Spatial mode: lumped, semi_distributed
-GR_CALIBRATION_MODE: manual                               # Calibration mode: manual, automatic
-GR_SNOW_MODULE: CemaNeige                                  # Snow module: none, CemaNeige
-
-# GR parameters (for GR4J)
-GR_PARAMETERS:
-  X1: [100, 1200]                                         # Production store capacity [min, max] mm
-  X2: [-5, 3]                                             # Intercatchment exchange [min, max] mm/day  
-  X3: [20, 300]                                           # Routing store capacity [min, max] mm
-  X4: [1.1, 2.9]                                          # Unit hydrograph time constant [min, max] days
-
-### 4.5 HYPE Configuration =================================================================================================
-
-# HYPE execution
-HYPE_EXE: hype.exe                                         # HYPE executable
-HYPE_INSTALL_PATH: default                                 # HYPE installation path
-SETTINGS_HYPE_PATH: default                                # HYPE settings directory
-EXPERIMENT_OUTPUT_HYPE: default                            # HYPE output directory
-
-# HYPE configuration files
-HYPE_INFO_FILE: info.txt                                   # HYPE info file
-HYPE_PAR_FILE: par.txt                                     # HYPE parameter file
-HYPE_GEODATA_FILE: geodata.txt                             # HYPE geodata file
-HYPE_SUBMODEL_FILE: submodel.txt                           # HYPE submodel file
-
-### 4.6 LSTM Configuration ================================================================================================
-
-# LSTM execution
-LSTM_EXE: lstm.exe                                       # LSTM executable
-LSTM_INSTALL_PATH: default                                # LSTM installation path
-SETTINGS_LSTM_PATH: default                               # LSTM settings directory
-EXPERIMENT_OUTPUT_LSTM: default                           # LSTM output directory
-
-# LSTM configuration
-LSTM_TIME_STEP: 300                                       # LSTM time step (seconds)
-LSTM_ROUTING_METHOD: kinematic                            # Routing method: kinematic, diffusive
-### 4.7 MESH Configuration =================================================================================================
-
-# MESH execution
-MESH_EXE: mesh.exe                                         # MESH executable  
-MESH_INSTALL_PATH: default                                 # MESH installation path
-SETTINGS_MESH_PATH: default                                # MESH settings directory
-EXPERIMENT_OUTPUT_MESH: default                            # MESH output directory
-MESH_FORCING_PATH: default                                 # Forcing input directory for meshflow
-MESH_FORCING_VARS: default                                 # List of forcing variables for MESH
-MESH_FORCING_UNITS: default                                # Mapping of forcing vars to source units
-MESH_FORCING_TO_UNITS: default                             # Mapping of forcing vars to target units
-MESH_LANDCOVER_STATS_PATH: default                         # Full path to landcover stats CSV
-MESH_LANDCOVER_STATS_DIR: default                          # Directory containing landcover stats CSV
-MESH_LANDCOVER_STATS_FILE: default                         # Landcover stats CSV filename
-MESH_MAIN_ID: default                                      # Main river segment ID column
-MESH_DS_MAIN_ID: default                                   # Downstream segment ID column
-MESH_LANDCOVER_CLASSES: default                            # Landcover class mapping
-MESH_DDB_VARS: default                                     # Drainage database variable mapping
-MESH_DDB_UNITS: default                                    # Drainage database units
-MESH_DDB_TO_UNITS: default                                 # Drainage database target units
-MESH_DDB_MIN_VALUES: default                               # Drainage database minimum values
-MESH_GRU_DIM: default                                      # GRU dimension name
-MESH_HRU_DIM: default                                      # HRU dimension name
-MESH_OUTLET_VALUE: default                                 # Outlet value for routing
-
-## ================================================= 5. Evaluation Settings =============================================================
-
-# Evaluation data sources
-EVALUATION_DATA: [streamflow, snow, evapotranspiration, soil_moisture, groundwater] # Data types for evaluation
-OBSERVED_DATA_PROVIDERS: [WSC, USGS, NRCS, FLUXNET, ISMN] # Data providers
-
-# Streamflow evaluation
-STREAMFLOW_GAUGE_ID: "05BB001"                            # Gauge identifier
-STREAMFLOW_DATA_SOURCE: WSC                                # Data source: WSC, USGS, VI, NIWA, custom
-STREAMFLOW_DOWNLOAD: true                                  # Auto-download streamflow data
-STREAMFLOW_QUALITY_CONTROL: true                          # Apply quality control
-STREAMFLOW_UNITS: cms                                      # Units: cms, cfs, mm/day
-
-# Snow evaluation  
-SNOW_DATA_SOURCE: SNOTEL                                  # Snow data source: SNOTEL, manual
-SNOW_STATIONS: [1234, 5678]                               # Snow station IDs
-SNOW_VARIABLES: [SWE, snow_depth, temperature]            # Snow variables to evaluate
-
-# Flux tower evaluation
-FLUXNET_SITE_ID: "US-Ha1"                                 # FLUXNET site identifier  
-FLUXNET_VARIABLES: [LE, H, NEE, GPP]                      # Flux variables
-FLUXNET_QC_LEVEL: 2                                       # Quality control level
-
-# Soil moisture evaluation
-ISMN_NETWORK: SCAN                                         # ISMN network name
-ISMN_STATIONS: [2053, 2055]                               # ISMN station IDs
-SOIL_MOISTURE_DEPTHS: [0.05, 0.10, 0.20, 0.50]          # Measurement depths (m)
-
-# Performance metrics
-EVALUATION_METRICS: [KGE, NSE, RMSE, MAE, BIAS, R2]       # Performance metrics
-PRIMARY_METRIC: KGE                                        # Primary optimization metric
-OPTIMIZATION_METRIC: KGE                                   # Optimization target metric
-CALIBRATION_VARIABLE: streamflow                          # Variable for calibration
-
-# Evaluation periods
-EVALUATION_PERIODS:
-  calibration: ["2010-01-01", "2015-12-31"]              # Calibration period
-  validation: ["2016-01-01", "2020-12-31"]               # Validation period
-  full_period: ["2010-01-01", "2020-12-31"]              # Full evaluation period
-
-# Statistical analysis
-RUN_SENSITIVITY_ANALYSIS: true                            # Enable sensitivity analysis
-RUN_DECISION_ANALYSIS: true                               # Enable decision analysis  
-RUN_UNCERTAINTY_ANALYSIS: false                           # Enable uncertainty analysis
-BENCHMARK_ANALYSIS: true                                  # Enable benchmark analysis
-BENCHMARK_TYPES: [schaefli_gupta, mean_annual, climatology] # Benchmark types
-
-# Visualization settings
-CREATE_EVALUATION_PLOTS: true                             # Generate evaluation plots
-PLOT_TIME_SERIES: true                                    # Plot time series comparisons
-PLOT_SCATTER: true                                        # Plot scatter plots
-PLOT_FLOW_DURATION: true                                  # Plot flow duration curves
-PLOT_SEASONAL: true                                       # Plot seasonal analysis
-PLOT_FORMAT: png                                          # Plot format: png, pdf, svg
-
-## ================================================= 6. Optimization Settings ===========================================================
-
-### 6.1 General Optimization Settings ==================================================================================
-
-# Optimization algorithm selection
-OPTIMIZATION_ALGORITHM: DE                                 # Traditional: DE, PSO, SCEUA, NSGA2
-OPTIMIZATION_STRATEGY: traditional                         # Options: traditional, neural_network, hybrid
-
-# Common optimization parameters
-NUMBER_OF_ITERATIONS: 1000                                 # Maximum number of iterations/generations
-POPULATION_SIZE: 50                                        # Population size for evolutionary algorithms
-CONVERGENCE_TOLERANCE: 1e-6                               # Convergence tolerance
-MAX_FUNCTION_EVALUATIONS: 50000                           # Maximum function evaluations
-RANDOM_SEED: 42                                           # Random seed for reproducibility
-
-# Parameter selection
-PARAMS_TO_CALIBRATE: "tempCritRain,k_soil,vGn_n,theta_sat,theta_res,rootingDepth" # Local parameters
-BASIN_PARAMS_TO_CALIBRATE: "routingGammaScale"            # Basin parameters
-CALIBRATION_BOUNDS:                                        # Parameter bounds [min, max]
-  tempCritRain: [272.16, 274.16]                         # Critical rain temperature (K)
-  k_soil: [1e-7, 1e-3]                                    # Soil hydraulic conductivity (m/s)
-  vGn_n: [1.2, 3.0]                                       # van Genuchten n parameter (-)
-  theta_sat: [0.3, 0.6]                                   # Saturated water content (-)
-  theta_res: [0.001, 0.1]                                 # Residual water content (-)
-  rootingDepth: [0.1, 10.0]                               # Rooting depth (m)
-
-### 6.2 Traditional Optimization Algorithms =============================================================================
-
-# Differential Evolution (DE)
-DE_STRATEGY: best1bin                                      # DE strategy: best1bin, rand1bin, currenttobest1bin
-DE_MUTATION_FACTOR: 0.5                                   # Mutation factor (F)
-DE_CROSSOVER_PROBABILITY: 0.7                             # Crossover probability (CR)
-DE_POLISH: false                                          # Apply local search polish
-
-# Particle Swarm Optimization (PSO)  
-PSO_INERTIA: 0.9                                          # Inertia weight
-PSO_COGNITIVE: 2.0                                        # Cognitive parameter (c1)
-PSO_SOCIAL: 2.0                                           # Social parameter (c2)
-PSO_VELOCITY_CLAMP: 0.5                                   # Velocity clamping factor
-
-# SCE-UA parameters
-SCEUA_COMPLEXES: 5                                        # Number of complexes
-SCEUA_POINTS_PER_COMPLEX: 10                             # Points per complex
-SCEUA_ALPHA: 1.0                                          # Reflection parameter
-SCEUA_BETA: 0.5                                           # Contraction parameter
-
-# Multi-objective optimization (NSGA-II)
-NSGA2_CROSSOVER_PROBABILITY: 0.9                         # Crossover probability
-NSGA2_MUTATION_PROBABILITY: 0.1                          # Mutation probability
-NSGA2_CROWDING_DISTANCE: 2                               # Crowding distance parameter
-
-### 6.3 Neural Network-Based Optimization ===============================================================================
-
-# Differentiable Parameter Emulation (DPE)
-EMULATOR_SETTING: EMULATOR                                # Options: EMULATOR, FD, SUMMA_AUTODIFF, SUMMA_AUTODIFF_FD
-USE_NEURAL_NETWORK_OPTIMIZATION: false                    # Enable neural network optimization
-
-# Neural network architecture  
-DPE_HIDDEN_DIMS: [256, 128, 64, 32]                      # Hidden layer dimensions
-DPE_ACTIVATION: swish                                      # Activation function: relu, swish, tanh
-DPE_DROPOUT: 0.1                                          # Dropout rate
-DPE_BATCH_NORM: true                                      # Use batch normalization
-
-# Training data generation
-DPE_TRAINING_SAMPLES: 500                                 # Number of training samples
-DPE_VALIDATION_SAMPLES: 100                               # Number of validation samples
-DPE_BATCH_SIZE: 32                                        # Batch size for training
-DPE_TRAINING_CACHE: default                               # Training data cache directory
-DPE_FORCE_RETRAIN: false                                  # Force regeneration of training data
-
-# Neural network training
-DPE_EPOCHS: 300                                           # Training epochs
-DPE_LEARNING_RATE: 1e-3                                   # Learning rate
-DPE_OPTIMIZER: Adam                                        # Optimizer: Adam, SGD, RMSprop
-DPE_WEIGHT_DECAY: 1e-5                                    # Weight decay (L2 regularization)
-DPE_EARLY_STOPPING_PATIENCE: 50                          # Early stopping patience
-
-# Gradient-based optimization
-DPE_OPTIMIZATION_LR: 1e-2                                 # Optimization learning rate
-DPE_OPTIMIZATION_STEPS: 200                               # Optimization steps
-DPE_OPTIMIZATION_MOMENTUM: 0.9                           # Momentum for optimization
-
-# Advanced emulation settings
-DPE_USE_NN_HEAD: true                                     # Use neural network head
-DPE_USE_SUNDIALS: true                                    # Use SUNDIALS for autodiff
-DPE_AUTODIFF_STEPS: 200                                   # Autodiff optimization steps
-DPE_AUTODIFF_LR: 1e-2                                    # Autodiff learning rate
-
-# Finite difference settings (for FD mode)
-DPE_FD_STEP: 1e-3                                        # Finite difference step size
-DPE_GD_STEP_SIZE: 1e-1                                   # Gradient descent step size
-
-# Iterative refinement
-DPE_ITERATE_MAX_ITERATIONS: 10                           # Maximum iterative refinement cycles
-DPE_ITERATE_SAMPLES_PER_CYCLE: 50                        # Samples per refinement cycle
-DPE_ITERATE_SAMPLING_RADIUS: 0.1                         # Sampling radius around optimum
-DPE_ITERATE_CONVERGENCE_TOL: 1e-4                        # Convergence tolerance for iterative optimization
-DPE_ITERATE_MIN_IMPROVEMENT: 1e-6                        # Minimum improvement threshold
-
-# Objective weighting (for multi-objective)
-DPE_OBJECTIVE_WEIGHTS:                                    # Objective function weights
-  KGE: 1.0                                                # KGE weight (positive to maximize)
-  NSE: 0.5                                                # NSE weight (if using multiple objectives)
-  RMSE: -0.3                                              # RMSE weight (negative to minimize)
-
-### 6.4 Parallel and HPC Optimization ==================================================================================
-
-# Parallel processing
-USE_PARALLEL_OPTIMIZATION: true                           # Enable parallel optimization
-PARALLEL_PROCESSES: 4                                     # Number of parallel processes
-PARALLEL_METHOD: multiprocessing                          # Options: multiprocessing, mpi, joblib
-CLEANUP_PARALLEL_DIRS: true                               # Clean up parallel directories
-
-# HPC settings  
-HPC_SCHEDULER: SLURM                                      # HPC scheduler: SLURM, PBS, SGE, none
-HPC_PARTITION: compute                                     # HPC partition name
-HPC_WALLTIME: "24:00:00"                                  # Wall time limit
-HPC_MEMORY: "64GB"                                        # Memory requirement
-HPC_NODES: 1                                              # Number of nodes
-HPC_TASKS_PER_NODE: 16                                    # Tasks per node
-HPC_MODULE_LOADS: ["python/3.9", "netcdf/4.7.4"]        # Modules to load
-
-# Checkpointing and restart
-ENABLE_CHECKPOINTING: true                                # Enable optimization checkpointing
-CHECKPOINT_FREQUENCY: 100                                 # Checkpoint every N iterations
-RESTART_FROM_CHECKPOINT: false                           # Restart from checkpoint
-CHECKPOINT_DIR: default                                   # Checkpoint directory
-
-## ================================================= 7. Attribute Processing ============================================================
-
-# Enable/disable attribute processing
-PROCESS_CHARACTERISTIC_ATTRIBUTES: true                   # Process catchment characteristics
-ATTRIBUTES_PROCESS_LUMPED: true                           # Process lumped attributes for distributed domains
-ATTRIBUTES_OVERWRITE_EXISTING: false                      # Overwrite existing attribute files
-CLEANUP_INTERMEDIATE_FILES: true                          # Clean up temporary processing files
-
-# Attribute data directories
-ATTRIBUTES_DATA_DIR: default                              # Base directory for attribute data
-ATTRIBUTES_OUTPUT_DIR: default                            # Output directory for processed attributes
-
-# Topographic attributes
-ATTRIBUTES_MERIT_PATH: default                            # MERIT DEM data path
-ELEVATION_STATS: [mean, median, std, min, max, range]     # Elevation statistics to compute
-SLOPE_STATS: [mean, median, std, min, max]                # Slope statistics
-ASPECT_STATS: [mean_circular, std_circular]               # Aspect statistics (circular)
-
-# Soil attributes
-ATTRIBUTES_SOILGRIDS_PATH: default                        # SoilGrids data path
-ATTRIBUTES_PELLETIER_PATH: default                        # Pelletier soil data path  
-SOIL_VARIABLES: [clay, sand, silt, organic_carbon, bulk_density, ph] # Soil variables
-SOIL_DEPTHS: [0, 5, 15, 30, 60, 100, 200]                # Soil depth layers (cm)
-
-# Land cover attributes
-ATTRIBUTES_MODIS_PATH: default                            # MODIS land cover path
-ATTRIBUTES_GLCLU_PATH: default                            # GLCLU land cover path
-LANDCOVER_YEAR: 2019                                      # Land cover data year
-LANDCOVER_AGGREGATION: dominant                           # Aggregation method: dominant, fractional, area_weighted
-
-# Climate attributes
-ATTRIBUTES_WORLDCLIM_PATH: default                        # WorldClim data path
-ATTRIBUTES_FOREST_HEIGHT_PATH: default                    # Forest height data path
-CLIMATE_VARIABLES: [temp_mean, temp_min, temp_max, precip, humidity] # Climate variables
-CLIMATE_PERIODS: [annual, seasonal, monthly]              # Temporal aggregation periods
-
-# Geological attributes
-ATTRIBUTES_GLIM_PATH: default                             # GLiM geological data path
-ATTRIBUTES_GROUNDWATER_PATH: default                      # Groundwater data path
-GEOLOGY_VARIABLES: [rock_type, permeability, porosity]    # Geological variables
-
-# Hydrological attributes
-ATTRIBUTES_STREAMFLOW_PATH: default                       # Streamflow data path for signatures
-HRU_GAUGE_MAPPING: {}                                     # HRU to gauge ID mapping
-HYDROLOGICAL_SIGNATURES: [q_mean, q95, q05, baseflow_index, recession_constant] # Signatures to compute
-
-# Open water attributes  
-ATTRIBUTES_GLWD_PATH: default                             # Global Lakes and Wetlands Database path
-ATTRIBUTES_HYDROLAKES_PATH: default                       # HydroLAKES data path
-WATER_BODY_THRESHOLD: 0.01                               # Minimum water body fraction threshold
-
-## ================================================= 8. Advanced Features ===============================================================
-
-### 8.1 Binary and Dependency Management ===============================================================================
-
-# Executable validation
-VALIDATE_BINARIES: true                                   # Validate model executables on startup
-AUTO_INSTALL_DEPENDENCIES: false                         # Auto-install missing dependencies
-BINARY_CHECK_TIMEOUT: 30                                 # Timeout for binary checks (seconds)
-
-# Installation paths for external tools
-TAUDEM_INSTALL_PATH: default                              # TauDEM installation path
-GISTOOL_INSTALL_PATH: default                            # GIS tool installation path  
-DATATOOL_INSTALL_PATH: default                           # Data processing tool installation path
-
-### 8.2 Large-Scale and HPC Features ===================================================================================
-
-# Large domain processing
-LARGE_DOMAIN_MODE: false                                 # Enable large domain optimizations
-MEMORY_EFFICIENT_PROCESSING: true                        # Use memory-efficient algorithms
-CHUNK_SIZE: 1000                                         # Processing chunk size for large datasets
-PARALLEL_IO: true                                        # Use parallel I/O operations
-
-# Domain decomposition (for very large domains)
-DOMAIN_DECOMPOSITION: false                              # Enable domain decomposition
-DECOMPOSITION_METHOD: spatial                            # Method: spatial, hydrological, hybrid
-NUM_SUBDOMAINS: 4                                        # Number of subdomains
-SUBDOMAIN_OVERLAP: 2                                     # Overlap between subdomains (grid cells)
-
-# Memory management
-MAX_MEMORY_USAGE: "32GB"                                 # Maximum memory usage limit
-MEMORY_MONITORING: true                                  # Monitor memory usage
-SWAP_TO_DISK: false                                      # Allow swapping to disk for large datasets
-
-### 8.3 Workflow Management ========================================================================================== 
-
-# Resume and restart capabilities  
-RESUME_FROM_STEP: null                                    # Resume from specific step (step name or null)
-SKIP_COMPLETED_STEPS: true                               # Skip already completed steps
-FORCE_RERUN_STEPS: []                                    # Force rerun specific steps (list of step names)
-
-# Workflow validation
-VALIDATE_INPUTS: true                                     # Validate inputs before processing
-VALIDATE_OUTPUTS: true                                   # Validate outputs after each step
-DRY_RUN_MODE: false                                       # Run workflow validation without execution
-
-# Error handling
-STOP_ON_ERROR: true                                       # Stop workflow on first error
-CONTINUE_ON_WARNING: true                                 # Continue workflow on warnings
-ERROR_RETRY_COUNT: 3                                     # Number of retries for failed operations
-ERROR_RETRY_DELAY: 60                                    # Delay between retries (seconds)
-
-# Logging and monitoring
-DETAILED_LOGGING: false                                   # Enable detailed step-by-step logging
-PERFORMANCE_MONITORING: true                             # Monitor performance metrics
-LOG_RETENTION_DAYS: 30                                   # Number of days to retain logs
-CREATE_RUN_SUMMARY: true                                 # Create execution summary
-
-### 8.4 Integration and Interoperability ==============================================================================
-
-# External model coupling
-EXTERNAL_MODEL_COUPLING: false                           # Enable coupling with external models
-COUPLING_TIME_STEP: 3600                                 # Coupling time step (seconds)
-COUPLING_VARIABLES: [discharge, temperature, precipitation] # Variables to exchange
-
-# Data format support
-NETCDF_COMPRESSION: 4                                    # NetCDF compression level (0-9)
-NETCDF_CHUNKING: true                                    # Enable NetCDF chunking
-OUTPUT_FORMATS: [netcdf, csv, geotiff]                   # Supported output formats
-METADATA_STANDARDS: [CF, ACDD]                           # Metadata standards compliance
-
-# API and web service integration
-ENABLE_API_SERVER: false                                 # Enable REST API server
-API_PORT: 8080                                           # API server port
-WEB_INTERFACE: false                                     # Enable web interface
-DATABASE_CONNECTION: null                                # Database connection string for results storage
-
-### 8.5 Quality Assurance and Testing =================================================================================
-
-# Model verification
-RUN_MODEL_TESTS: false                                   # Run model verification tests
-TEST_SUITE: basic                                        # Test suite: basic, comprehensive, custom
-BENCHMARK_REFERENCE_RUNS: false                          # Compare against reference runs
-MASS_BALANCE_CHECK: true                                 # Check mass balance closure
-ENERGY_BALANCE_CHECK: false                              # Check energy balance closure
-
-# Reproducibility
-ENSURE_REPRODUCIBILITY: true                            # Enable strict reproducibility mode
-RECORD_ENVIRONMENT: true                                # Record computational environment
-VERSION_CONTROL_INTEGRATION: false                       # Integrate with version control systems
-PROVENANCE_TRACKING: true                               # Track data and processing provenance
-
-# Documentation generation
-AUTO_GENERATE_DOCS: false                               # Auto-generate run documentation
-INCLUDE_PLOTS_IN_DOCS: true                             # Include plots in documentation
-DOC_FORMAT: html                                        # Documentation format: html, pdf, markdown
-
-### 8.6 Experimental and Development Features =======================================================================
-
-# Feature flags (for experimental features)
-ENABLE_EXPERIMENTAL_FEATURES: false                     # Enable experimental features
-FEATURE_FLAGS:                                          # Individual feature flags
-  new_routing_algorithm: false                          # New routing algorithm
-  advanced_snow_physics: false                         # Enhanced snow physics
-  machine_learning_bias_correction: false              # ML bias correction
-  real_time_data_assimilation: false                   # Real-time data assimilation
-
-# Development and debugging
-DEVELOPMENT_MODE: false                                  # Enable development mode
-DEBUG_MEMORY_USAGE: false                               # Debug memory usage
-PROFILE_PERFORMANCE: false                              # Enable performance profiling
-SAVE_INTERMEDIATE_RESULTS: false                        # Save intermediate processing results
-VERBOSE_ERROR_MESSAGES: true                            # Provide verbose error messages
-
-# Custom extensions
-CUSTOM_EXTENSIONS_PATH: null                            # Path to custom extensions
-PLUGIN_DIRECTORIES: []                                  # Directories containing plugins
-USER_DEFINED_METRICS: {}                               # User-defined performance metrics
-CUSTOM_PREPROCESSING_STEPS: []                          # Custom preprocessing steps
-
-## ================================================= End Configuration ==================================================================
-
-# Configuration validation
-CONFIG_VERSION: "2.0"                                   # Configuration template version
-LAST_UPDATED: "2025-01-13"                             # Last update date
-VALIDATION_SCHEMA: "confluence_v2"                      # Validation schema identifier
-
-# Notes:
-# - All 'default' paths will be automatically resolved by CONFLUENCE
-# - Customize paths only if deviating from standard directory structure  
-# - Enable only the features and models you need for your specific application
-# - Many advanced features require additional setup and dependencies
-# - Refer to CONFLUENCE documentation for detailed parameter descriptions
-# - Test configurations with --dry_run before full execution
+#  SYMFLUENCE Configuration Template (Comprehensive)
+#
+#  Authoritative configuration template containing all 365+ configuration
+#  options supported by SYMFLUENCE. All options are organized by logical
+#  sections with full documentation and source code references.
+#
+#  Configuration Hierarchy:
+#    Level 1: Top-level sections (system, domain, forcing, model, etc.)
+#    Level 2: Logical grouping (e.g., SUMMA-specific, optimization methods)
+#    Level 3: Individual parameters with type hints and ranges
+#
+#  Usage:
+#    1. Copy this template to your own config file
+#    2. Uncomment the sections you need
+#    3. Update values according to your setup
+#    4. Refer to docstrings for parameter descriptions
+#
+################################################################################
+
+
+# 1. System & Directories
+# ================================================================================
+
+# DEBUG_MODE
+#   Type:        bool
+#   Default:     False
+#   Source:      SystemConfig (system.py)
+DEBUG_MODE: false
+
+# FORCE_DOWNLOAD
+#   Type:        bool
+#   Default:     False
+#   Source:      SystemConfig (system.py)
+FORCE_DOWNLOAD: false
+
+# FORCE_RUN_ALL_STEPS
+#   Type:        bool
+#   Default:     False
+#   Source:      SystemConfig (system.py)
+FORCE_RUN_ALL_STEPS: false
+
+# LOG_FORMAT
+#   Type:        str
+#   Default:     detailed
+#   Source:      SystemConfig (system.py)
+LOG_FORMAT: "detailed"
+
+# LOG_LEVEL
+#   Type:        Literal['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
+#   Default:     INFO
+#   Source:      SystemConfig (system.py)
+LOG_LEVEL: "INFO"
+
+# LOG_TO_FILE
+#   Type:        bool
+#   Default:     True
+#   Source:      SystemConfig (system.py)
+LOG_TO_FILE: true
+
+# MPI_PROCESSES
+#   Type:        int
+#   Default:     1
+#   Source:      SystemConfig (system.py)
+MPI_PROCESSES: 1
+
+# RANDOM_SEED
+#   Type:        int
+#   Default:     None
+#   Source:      SystemConfig (system.py)
+RANDOM_SEED: null
+
+# STOP_ON_ERROR
+#   Type:        bool
+#   Default:     True
+#   Source:      SystemConfig (system.py)
+STOP_ON_ERROR: true
+
+# SYMFLUENCE_CODE_DIR
+#   Type:        Path
+#   Default:     None
+#   Source:      SystemConfig (system.py)
+SYMFLUENCE_CODE_DIR: null
+
+# SYMFLUENCE_DATA_DIR
+#   Type:        Path
+#   Default:     None
+#   Source:      SystemConfig (system.py)
+SYMFLUENCE_DATA_DIR: null
+
+# USE_LOCAL_SCRATCH
+#   Type:        bool
+#   Default:     False
+#   Source:      SystemConfig (system.py)
+USE_LOCAL_SCRATCH: false
+
+
+# 10. HYPE Model Configuration
+# ================================================================================
+
+# HYPE_EXE
+#   Type:        str
+#   Default:     hype
+#   Source:      HYPEConfig (model_configs.py)
+HYPE_EXE: "hype"
+
+# HYPE_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      HYPEConfig (model_configs.py)
+HYPE_INSTALL_PATH: default
+
+# SETTINGS_HYPE_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      HYPEConfig (model_configs.py)
+SETTINGS_HYPE_PATH: default
+
+
+# 11. NGEN Model Configuration
+# ================================================================================
+
+# NGEN_ACTIVE_CATCHMENT_ID
+#   Type:        str
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+NGEN_ACTIVE_CATCHMENT_ID: null
+
+# NGEN_CFE_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+NGEN_CFE_PARAMS_TO_CALIBRATE: null
+
+# NGEN_EXE
+#   Type:        str
+#   Default:     ngen
+#   Source:      NGENConfig (model_configs.py)
+NGEN_EXE: "ngen"
+
+# NGEN_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      NGENConfig (model_configs.py)
+NGEN_INSTALL_PATH: default
+
+# NGEN_MODULES_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+NGEN_MODULES_TO_CALIBRATE: null
+
+# NGEN_NOAH_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+NGEN_NOAH_PARAMS_TO_CALIBRATE: null
+
+# NGEN_PET_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      NGENConfig (model_configs.py)
+NGEN_PET_PARAMS_TO_CALIBRATE: null
+
+
+# 12. MESH Model Configuration
+# ================================================================================
+
+# EXPERIMENT_OUTPUT_MESH
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+EXPERIMENT_OUTPUT_MESH: default
+
+# MESH_DDB_MIN_VALUES
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_DDB_MIN_VALUES: default
+
+# MESH_DDB_TO_UNITS
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_DDB_TO_UNITS: default
+
+# MESH_DDB_UNITS
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_DDB_UNITS: default
+
+# MESH_DDB_VARS
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_DDB_VARS: default
+
+# MESH_DS_MAIN_ID
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_DS_MAIN_ID: default
+
+# MESH_EXE
+#   Type:        str
+#   Default:     mesh.exe
+#   Source:      MESHConfig (model_configs.py)
+MESH_EXE: "mesh.exe"
+
+# MESH_FORCING_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_FORCING_PATH: default
+
+# MESH_FORCING_TO_UNITS
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_FORCING_TO_UNITS: default
+
+# MESH_FORCING_UNITS
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_FORCING_UNITS: default
+
+# MESH_FORCING_VARS
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_FORCING_VARS: default
+
+# MESH_GRU_DIM
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_GRU_DIM: default
+
+# MESH_HRU_DIM
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_HRU_DIM: default
+
+# MESH_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_INSTALL_PATH: default
+
+# MESH_LANDCOVER_CLASSES
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_LANDCOVER_CLASSES: default
+
+# MESH_LANDCOVER_STATS_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_LANDCOVER_STATS_DIR: default
+
+# MESH_LANDCOVER_STATS_FILE
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_LANDCOVER_STATS_FILE: default
+
+# MESH_LANDCOVER_STATS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_LANDCOVER_STATS_PATH: default
+
+# MESH_MAIN_ID
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_MAIN_ID: default
+
+# MESH_OUTLET_VALUE
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+MESH_OUTLET_VALUE: default
+
+
+# 13. Routing Model (mizuRoute)
+# ================================================================================
+
+# EXE_NAME_MIZUROUTE
+#   Type:        str
+#   Default:     mizuRoute.exe
+#   Source:      MizuRouteConfig (model_configs.py)
+EXE_NAME_MIZUROUTE: "mizuRoute.exe"
+
+# EXPERIMENT_LOG_MIZUROUTE
+#   Type:        str
+#   Default:     default
+#   Source:      MizuRouteConfig (model_configs.py)
+EXPERIMENT_LOG_MIZUROUTE: default
+
+# EXPERIMENT_OUTPUT_MIZUROUTE
+#   Type:        str
+#   Default:     default
+#   Source:      MizuRouteConfig (model_configs.py)
+EXPERIMENT_OUTPUT_MIZUROUTE: default
+
+# INSTALL_PATH_MIZUROUTE
+#   Type:        str
+#   Default:     default
+#   Source:      MizuRouteConfig (model_configs.py)
+INSTALL_PATH_MIZUROUTE: default
+
+# MIZU_FROM_MODEL
+#   Type:        str
+#   Default:     default
+#   Source:      MizuRouteConfig (model_configs.py)
+MIZU_FROM_MODEL: default
+
+# SETTINGS_MIZU_CONTROL_FILE
+#   Type:        str
+#   Default:     mizuroute.control
+#   Source:      MizuRouteConfig (model_configs.py)
+SETTINGS_MIZU_CONTROL_FILE: "mizuroute.control"
+
+# SETTINGS_MIZU_MAKE_OUTLET
+#   Type:        str
+#   Default:     n/a
+#   Source:      MizuRouteConfig (model_configs.py)
+SETTINGS_MIZU_MAKE_OUTLET: "n/a"
+
+# SETTINGS_MIZU_NEEDS_REMAP
+#   Type:        bool
+#   Default:     False
+#   Source:      MizuRouteConfig (model_configs.py)
+SETTINGS_MIZU_NEEDS_REMAP: false
+
+# SETTINGS_MIZU_OUTPUT_FREQ
+#   Type:        str
+#   Default:     single
+#   Source:      MizuRouteConfig (model_configs.py)
+SETTINGS_MIZU_OUTPUT_FREQ: "single"
+
+# SETTINGS_MIZU_OUTPUT_VARS
+#   Type:        int
+#   Default:     1
+#   Source:      MizuRouteConfig (model_configs.py)
+SETTINGS_MIZU_OUTPUT_VARS: 1
+
+# SETTINGS_MIZU_PARAMETERS
+#   Type:        str
+#   Default:     param.nml.default
+#   Source:      MizuRouteConfig (model_configs.py)
+SETTINGS_MIZU_PARAMETERS: "param.nml.default"
+
+# SETTINGS_MIZU_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MizuRouteConfig (model_configs.py)
+SETTINGS_MIZU_PATH: default
+
+# SETTINGS_MIZU_REMAP
+#   Type:        str
+#   Default:     routing_remap.nc
+#   Source:      MizuRouteConfig (model_configs.py)
+SETTINGS_MIZU_REMAP: "routing_remap.nc"
+
+# SETTINGS_MIZU_ROUTING_DT
+#   Type:        int
+#   Default:     86400
+#   Source:      MizuRouteConfig (model_configs.py)
+SETTINGS_MIZU_ROUTING_DT: 86400
+
+# SETTINGS_MIZU_ROUTING_UNITS
+#   Type:        str
+#   Default:     m/s
+#   Source:      MizuRouteConfig (model_configs.py)
+SETTINGS_MIZU_ROUTING_UNITS: "m/s"
+
+# SETTINGS_MIZU_ROUTING_VAR
+#   Type:        str
+#   Default:     q_routed
+#   Source:      MizuRouteConfig (model_configs.py)
+SETTINGS_MIZU_ROUTING_VAR: "q_routed"
+
+# SETTINGS_MIZU_TOPOLOGY
+#   Type:        str
+#   Default:     topology.nc
+#   Source:      MizuRouteConfig (model_configs.py)
+SETTINGS_MIZU_TOPOLOGY: "topology.nc"
+
+# SETTINGS_MIZU_WITHIN_BASIN
+#   Type:        int
+#   Default:     0
+#   Source:      MizuRouteConfig (model_configs.py)
+SETTINGS_MIZU_WITHIN_BASIN: 0
+
+
+# 14. LSTM Emulator Configuration
+# ================================================================================
+
+# LSTM_BATCH_SIZE
+#   Type:        int
+#   Default:     64
+#   Source:      LSTMConfig (model_configs.py)
+LSTM_BATCH_SIZE: 64
+
+# FLASH_BATCH_SIZE
+#   Type:        int
+#   Default:     64
+#   Source:      LSTMConfig (model_configs.py)
+FLASH_BATCH_SIZE: 64
+
+# LSTM_DROPOUT
+#   Type:        float
+#   Default:     0.2
+#   Source:      LSTMConfig (model_configs.py)
+LSTM_DROPOUT: 0.2
+
+# FLASH_DROPOUT
+#   Type:        float
+#   Default:     0.2
+#   Source:      LSTMConfig (model_configs.py)
+FLASH_DROPOUT: 0.2
+
+# LSTM_EPOCHS
+#   Type:        int
+#   Default:     300
+#   Source:      LSTMConfig (model_configs.py)
+LSTM_EPOCHS: 300
+
+# FLASH_EPOCHS
+#   Type:        int
+#   Default:     300
+#   Source:      LSTMConfig (model_configs.py)
+FLASH_EPOCHS: 300
+
+# LSTM_HIDDEN_SIZE
+#   Type:        int
+#   Default:     128
+#   Source:      LSTMConfig (model_configs.py)
+LSTM_HIDDEN_SIZE: 128
+
+# FLASH_HIDDEN_SIZE
+#   Type:        int
+#   Default:     128
+#   Source:      LSTMConfig (model_configs.py)
+FLASH_HIDDEN_SIZE: 128
+
+# LSTM_L2_REGULARIZATION
+#   Type:        float
+#   Default:     1e-6
+#   Source:      LSTMConfig (model_configs.py)
+LSTM_L2_REGULARIZATION: "1e-6"
+
+# FLASH_L2_REGULARIZATION
+#   Type:        float
+#   Default:     1e-6
+#   Source:      LSTMConfig (model_configs.py)
+FLASH_L2_REGULARIZATION: "1e-6"
+
+# LSTM_LEARNING_PATIENCE
+#   Type:        int
+#   Default:     30
+#   Source:      LSTMConfig (model_configs.py)
+LSTM_LEARNING_PATIENCE: 30
+
+# FLASH_LEARNING_PATIENCE
+#   Type:        int
+#   Default:     30
+#   Source:      LSTMConfig (model_configs.py)
+FLASH_LEARNING_PATIENCE: 30
+
+# LSTM_LEARNING_RATE
+#   Type:        float
+#   Default:     0.001
+#   Source:      LSTMConfig (model_configs.py)
+LSTM_LEARNING_RATE: 0.001
+
+# FLASH_LEARNING_RATE
+#   Type:        float
+#   Default:     0.001
+#   Source:      LSTMConfig (model_configs.py)
+FLASH_LEARNING_RATE: 0.001
+
+# LSTM_LOAD
+#   Type:        bool
+#   Default:     False
+#   Source:      LSTMConfig (model_configs.py)
+LSTM_LOAD: false
+
+# FLASH_LOAD
+#   Type:        bool
+#   Default:     False
+#   Source:      LSTMConfig (model_configs.py)
+FLASH_LOAD: false
+
+# LSTM_LOOKBACK
+#   Type:        int
+#   Default:     700
+#   Source:      LSTMConfig (model_configs.py)
+LSTM_LOOKBACK: 700
+
+# FLASH_LOOKBACK
+#   Type:        int
+#   Default:     700
+#   Source:      LSTMConfig (model_configs.py)
+FLASH_LOOKBACK: 700
+
+# LSTM_NUM_LAYERS
+#   Type:        int
+#   Default:     3
+#   Source:      LSTMConfig (model_configs.py)
+LSTM_NUM_LAYERS: 3
+
+# FLASH_NUM_LAYERS
+#   Type:        int
+#   Default:     3
+#   Source:      LSTMConfig (model_configs.py)
+FLASH_NUM_LAYERS: 3
+
+# LSTM_USE_ATTENTION
+#   Type:        bool
+#   Default:     True
+#   Source:      LSTMConfig (model_configs.py)
+LSTM_USE_ATTENTION: true
+
+# FLASH_USE_ATTENTION
+#   Type:        bool
+#   Default:     True
+#   Source:      LSTMConfig (model_configs.py)
+FLASH_USE_ATTENTION: true
+
+# LSTM_USE_SNOW
+#   Type:        bool
+#   Default:     False
+#   Source:      LSTMConfig (model_configs.py)
+LSTM_USE_SNOW: false
+
+# FLASH_USE_SNOW
+#   Type:        bool
+#   Default:     False
+#   Source:      LSTMConfig (model_configs.py)
+FLASH_USE_SNOW: false
+
+
+# 15. Optimization & Calibration
+# ================================================================================
+
+# ASYNC_DDS_BATCH_SIZE
+#   Type:        int
+#   Default:     10
+#   Source:      DDSConfig (optimization.py)
+ASYNC_DDS_BATCH_SIZE: 10
+
+# ASYNC_DDS_POOL_SIZE
+#   Type:        int
+#   Default:     10
+#   Source:      DDSConfig (optimization.py)
+ASYNC_DDS_POOL_SIZE: 10
+
+# CALIBRATION_TIMESTEP
+#   Type:        str
+#   Default:     daily
+#   Source:      OptimizationConfig (optimization.py)
+CALIBRATION_TIMESTEP: "daily"
+
+# OPTIMIZATION_METHODS
+#   Type:        Union[str, List[str]]
+#   Default:     []
+#   Source:      OptimizationConfig (optimization.py)
+OPTIMIZATION_METHODS: []
+
+# DDS_R
+#   Type:        float
+#   Default:     0.2
+#   Source:      DDSConfig (optimization.py)
+DDS_R: 0.2
+
+# DE_CROSSOVER_RATE
+#   Type:        float
+#   Default:     0.9
+#   Source:      DEConfig (optimization.py)
+DE_CROSSOVER_RATE: 0.9
+
+# DE_SCALING_FACTOR
+#   Type:        float
+#   Default:     0.5
+#   Source:      DEConfig (optimization.py)
+DE_SCALING_FACTOR: 0.5
+
+# DPE_AUTODIFF_LR
+#   Type:        float
+#   Default:     0.001
+#   Source:      DPEConfig (optimization.py)
+DPE_AUTODIFF_LR: 0.001
+
+# DPE_AUTODIFF_STEPS
+#   Type:        int
+#   Default:     100
+#   Source:      DPEConfig (optimization.py)
+DPE_AUTODIFF_STEPS: 100
+
+# DPE_HIDDEN_DIMS
+#   Type:        List[int]
+#   Default:     [128, 128]
+#   Source:      DPEConfig (optimization.py)
+DPE_HIDDEN_DIMS: [128, 128]
+
+# DPE_OBJECTIVE_WEIGHTS
+#   Type:        Dict[str, float]
+#   Default:     {}
+#   Source:      DPEConfig (optimization.py)
+DPE_OBJECTIVE_WEIGHTS: {}
+
+# DPE_EMULATOR_ITERATE
+#   Type:        bool
+#   Default:     True
+#   Source:      DPEConfig (optimization.py)
+DPE_EMULATOR_ITERATE: true
+
+# DPE_EPOCHS
+#   Type:        int
+#   Default:     300
+#   Source:      DPEConfig (optimization.py)
+DPE_EPOCHS: 300
+
+# DPE_FD_STEP
+#   Type:        float
+#   Default:     0.005
+#   Source:      DPEConfig (optimization.py)
+DPE_FD_STEP: 0.005
+
+# DPE_GD_STEP_SIZE
+#   Type:        float
+#   Default:     0.1
+#   Source:      DPEConfig (optimization.py)
+DPE_GD_STEP_SIZE: 0.1
+
+# DPE_ITERATE_CONVERGENCE_TOL
+#   Type:        float
+#   Default:     1e-4
+#   Source:      DPEConfig (optimization.py)
+DPE_ITERATE_CONVERGENCE_TOL: "1e-4"
+
+# DPE_ITERATE_MAX_ITERATIONS
+#   Type:        int
+#   Default:     5
+#   Source:      DPEConfig (optimization.py)
+DPE_ITERATE_MAX_ITERATIONS: 5
+
+# DPE_ITERATE_MIN_IMPROVEMENT
+#   Type:        float
+#   Default:     1e-6
+#   Source:      DPEConfig (optimization.py)
+DPE_ITERATE_MIN_IMPROVEMENT: "1e-6"
+
+# DPE_ITERATE_SAMPLES_PER_CYCLE
+#   Type:        int
+#   Default:     100
+#   Source:      DPEConfig (optimization.py)
+DPE_ITERATE_SAMPLES_PER_CYCLE: 100
+
+# DPE_ITERATE_SAMPLING_METHOD
+#   Type:        str
+#   Default:     gaussian
+#   Source:      DPEConfig (optimization.py)
+DPE_ITERATE_SAMPLING_METHOD: "gaussian"
+
+# DPE_ITERATE_SAMPLING_RADIUS
+#   Type:        float
+#   Default:     0.1
+#   Source:      DPEConfig (optimization.py)
+DPE_ITERATE_SAMPLING_RADIUS: 0.1
+
+# DPE_LEARNING_RATE
+#   Type:        float
+#   Default:     1e-3
+#   Source:      DPEConfig (optimization.py)
+DPE_LEARNING_RATE: "1e-3"
+
+# DPE_OPTIMIZATION_LR
+#   Type:        float
+#   Default:     1e-2
+#   Source:      DPEConfig (optimization.py)
+DPE_OPTIMIZATION_LR: "1e-2"
+
+# DPE_OPTIMIZATION_STEPS
+#   Type:        int
+#   Default:     200
+#   Source:      DPEConfig (optimization.py)
+DPE_OPTIMIZATION_STEPS: 200
+
+# DPE_OPTIMIZER
+#   Type:        str
+#   Default:     ADAM
+#   Source:      DPEConfig (optimization.py)
+DPE_OPTIMIZER: "ADAM"
+
+# DPE_PRETRAIN_NN_HEAD
+#   Type:        bool
+#   Default:     False
+#   Source:      DPEConfig (optimization.py)
+DPE_PRETRAIN_NN_HEAD: false
+
+# DPE_TRAINING_CACHE
+#   Type:        str
+#   Default:     default
+#   Source:      DPEConfig (optimization.py)
+DPE_TRAINING_CACHE: default
+
+# DPE_TRAINING_SAMPLES
+#   Type:        int
+#   Default:     500
+#   Source:      DPEConfig (optimization.py)
+DPE_TRAINING_SAMPLES: 500
+
+# DPE_USE_NN_HEAD
+#   Type:        bool
+#   Default:     True
+#   Source:      DPEConfig (optimization.py)
+DPE_USE_NN_HEAD: true
+
+# DPE_USE_SUNDIALS
+#   Type:        bool
+#   Default:     True
+#   Source:      DPEConfig (optimization.py)
+DPE_USE_SUNDIALS: true
+
+# DPE_VALIDATION_SAMPLES
+#   Type:        int
+#   Default:     100
+#   Source:      DPEConfig (optimization.py)
+DPE_VALIDATION_SAMPLES: 100
+
+# EMULATION_MAX_ITERATIONS
+#   Type:        int
+#   Default:     3
+#   Source:      EmulationConfig (optimization.py)
+EMULATION_MAX_ITERATIONS: 3
+
+# EMULATION_MAX_PARALLEL_JOBS
+#   Type:        int
+#   Default:     100
+#   Source:      EmulationConfig (optimization.py)
+EMULATION_MAX_PARALLEL_JOBS: 100
+
+# EMULATION_NUM_SAMPLES
+#   Type:        int
+#   Default:     100
+#   Source:      EmulationConfig (optimization.py)
+EMULATION_NUM_SAMPLES: 100
+
+# EMULATION_PARALLEL_ENSEMBLE
+#   Type:        bool
+#   Default:     False
+#   Source:      EmulationConfig (optimization.py)
+EMULATION_PARALLEL_ENSEMBLE: false
+
+# EMULATION_SAMPLING_METHOD
+#   Type:        str
+#   Default:     lhs
+#   Source:      EmulationConfig (optimization.py)
+EMULATION_SAMPLING_METHOD: "lhs"
+
+# EMULATION_SEED
+#   Type:        int
+#   Default:     22
+#   Source:      EmulationConfig (optimization.py)
+EMULATION_SEED: 22
+
+# EMULATION_SKIP_MIZUROUTE
+#   Type:        bool
+#   Default:     False
+#   Source:      EmulationConfig (optimization.py)
+EMULATION_SKIP_MIZUROUTE: false
+
+# EMULATION_USE_ATTRIBUTES
+#   Type:        bool
+#   Default:     False
+#   Source:      EmulationConfig (optimization.py)
+EMULATION_USE_ATTRIBUTES: false
+
+# EVOLUTION_STAGNATION
+#   Type:        int
+#   Default:     5
+#   Source:      SCEUAConfig (optimization.py)
+EVOLUTION_STAGNATION: 5
+
+# INERTIA_SCHEDULE
+#   Type:        str
+#   Default:     LINEAR
+#   Source:      PSOConfig (optimization.py)
+INERTIA_SCHEDULE: "LINEAR"
+
+# ITERATIVE_OPTIMIZATION_ALGORITHM
+#   Type:        str
+#   Default:     PSO
+#   Source:      OptimizationConfig (optimization.py)
+ITERATIVE_OPTIMIZATION_ALGORITHM: "PSO"
+
+# LARGE_DOMAIN_BATCH_SIZE
+#   Type:        int
+#   Default:     32
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_BATCH_SIZE: 32
+
+# LARGE_DOMAIN_EMULATION_ENABLED
+#   Type:        bool
+#   Default:     True
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_EMULATION_ENABLED: true
+
+# LARGE_DOMAIN_EMULATOR_AUTODIFF_STEPS
+#   Type:        int
+#   Default:     100
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_EMULATOR_AUTODIFF_STEPS: 100
+
+# LARGE_DOMAIN_EMULATOR_EPOCHS
+#   Type:        int
+#   Default:     50
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_EMULATOR_EPOCHS: 50
+
+# LARGE_DOMAIN_EMULATOR_GRACE_WEIGHT
+#   Type:        float
+#   Default:     0.15
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_EMULATOR_GRACE_WEIGHT: 0.15
+
+# LARGE_DOMAIN_EMULATOR_MODE
+#   Type:        str
+#   Default:     SUMMA_AUTODIFF
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_EMULATOR_MODE: "SUMMA_AUTODIFF"
+
+# LARGE_DOMAIN_EMULATOR_MODIS_WEIGHT
+#   Type:        float
+#   Default:     0.15
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_EMULATOR_MODIS_WEIGHT: 0.15
+
+# LARGE_DOMAIN_EMULATOR_OPTIMIZER
+#   Type:        str
+#   Default:     Adam
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_EMULATOR_OPTIMIZER: "Adam"
+
+# LARGE_DOMAIN_EMULATOR_PRETRAIN_NN_HEAD
+#   Type:        bool
+#   Default:     True
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_EMULATOR_PRETRAIN_NN_HEAD: true
+
+# LARGE_DOMAIN_EMULATOR_SMAP_WEIGHT
+#   Type:        float
+#   Default:     0.2
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_EMULATOR_SMAP_WEIGHT: 0.2
+
+# LARGE_DOMAIN_EMULATOR_STREAMFLOW_WEIGHT
+#   Type:        float
+#   Default:     0.5
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_EMULATOR_STREAMFLOW_WEIGHT: 0.5
+
+# LARGE_DOMAIN_EMULATOR_TRAINING_SAMPLES
+#   Type:        int
+#   Default:     500
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_EMULATOR_TRAINING_SAMPLES: 500
+
+# LARGE_DOMAIN_EMULATOR_USE_NN_HEAD
+#   Type:        bool
+#   Default:     True
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_EMULATOR_USE_NN_HEAD: true
+
+# LARGE_DOMAIN_PARAMETER_ENSEMBLE_SIZE
+#   Type:        int
+#   Default:     1000
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_PARAMETER_ENSEMBLE_SIZE: 1000
+
+# LARGE_DOMAIN_TRAINING_EPOCHS
+#   Type:        int
+#   Default:     100
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_TRAINING_EPOCHS: 100
+
+# LARGE_DOMAIN_VALIDATION_SPLIT
+#   Type:        float
+#   Default:     None
+#   Source:      LargeDomainConfig (optimization.py)
+LARGE_DOMAIN_VALIDATION_SPLIT: null
+
+# NSGA2_CROSSOVER_RATE
+#   Type:        float
+#   Default:     0.9
+#   Source:      NSGA2Config (optimization.py)
+NSGA2_CROSSOVER_RATE: 0.9
+
+# NSGA2_ETA_C
+#   Type:        int
+#   Default:     20
+#   Source:      NSGA2Config (optimization.py)
+NSGA2_ETA_C: 20
+
+# NSGA2_ETA_M
+#   Type:        int
+#   Default:     20
+#   Source:      NSGA2Config (optimization.py)
+NSGA2_ETA_M: 20
+
+# NSGA2_MULTI_TARGET
+#   Type:        bool
+#   Default:     False
+#   Source:      NSGA2Config (optimization.py)
+NSGA2_MULTI_TARGET: false
+
+# NSGA2_MUTATION_RATE
+#   Type:        float
+#   Default:     0.1
+#   Source:      NSGA2Config (optimization.py)
+NSGA2_MUTATION_RATE: 0.1
+
+# NSGA2_PRIMARY_METRIC
+#   Type:        str
+#   Default:     KGE
+#   Source:      NSGA2Config (optimization.py)
+NSGA2_PRIMARY_METRIC: "KGE"
+
+# NSGA2_PRIMARY_TARGET
+#   Type:        str
+#   Default:     streamflow
+#   Source:      NSGA2Config (optimization.py)
+NSGA2_PRIMARY_TARGET: "streamflow"
+
+# NSGA2_SECONDARY_METRIC
+#   Type:        str
+#   Default:     KGE
+#   Source:      NSGA2Config (optimization.py)
+NSGA2_SECONDARY_METRIC: "KGE"
+
+# NSGA2_SECONDARY_TARGET
+#   Type:        str
+#   Default:     gw_depth
+#   Source:      NSGA2Config (optimization.py)
+NSGA2_SECONDARY_TARGET: "gw_depth"
+
+# NUMBER_OF_ITERATIONS
+#   Type:        int
+#   Default:     1000
+#   Source:      OptimizationConfig (optimization.py)
+NUMBER_OF_ITERATIONS: 1000
+
+# OPTIMIZATION_METRIC
+#   Type:        str
+#   Default:     KGE
+#   Source:      OptimizationConfig (optimization.py)
+OPTIMIZATION_METRIC: "KGE"
+
+# OPTIMIZATION_TARGET
+#   Type:        str
+#   Default:     streamflow
+#   Source:      OptimizationConfig (optimization.py)
+OPTIMIZATION_TARGET: "streamflow"
+
+# PERCENT_CHANGE_THRESHOLD
+#   Type:        float
+#   Default:     0.01
+#   Source:      SCEUAConfig (optimization.py)
+PERCENT_CHANGE_THRESHOLD: 0.01
+
+# POINTS_PER_SUBCOMPLEX
+#   Type:        int
+#   Default:     5
+#   Source:      SCEUAConfig (optimization.py)
+POINTS_PER_SUBCOMPLEX: 5
+
+# POPULATION_SIZE
+#   Type:        int
+#   Default:     50
+#   Source:      OptimizationConfig (optimization.py)
+POPULATION_SIZE: 50
+
+# PSO_COGNITIVE_PARAM
+#   Type:        float
+#   Default:     1.5
+#   Source:      PSOConfig (optimization.py)
+PSO_COGNITIVE_PARAM: 1.5
+
+# PSO_INERTIA_REDUCTION_RATE
+#   Type:        float
+#   Default:     0.99
+#   Source:      PSOConfig (optimization.py)
+PSO_INERTIA_REDUCTION_RATE: 0.99
+
+# PSO_INERTIA_WEIGHT
+#   Type:        float
+#   Default:     0.7
+#   Source:      PSOConfig (optimization.py)
+PSO_INERTIA_WEIGHT: 0.7
+
+# PSO_SOCIAL_PARAM
+#   Type:        float
+#   Default:     1.5
+#   Source:      PSOConfig (optimization.py)
+PSO_SOCIAL_PARAM: 1.5
+
+# SWRMSIZE
+#   Type:        int
+#   Default:     20
+#   Source:      PSOConfig (optimization.py)
+SWRMSIZE: 20
+
+
+# 16. Evaluation & Observation Data
+# ================================================================================
+
+# ATTRIBUTES_DATA_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+ATTRIBUTES_DATA_DIR: default
+
+# ATTRIBUTES_FOREST_HEIGHT_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+ATTRIBUTES_FOREST_HEIGHT_PATH: default
+
+# ATTRIBUTES_GLCLU_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+ATTRIBUTES_GLCLU_PATH: default
+
+# ATTRIBUTES_GLIM_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+ATTRIBUTES_GLIM_PATH: default
+
+# ATTRIBUTES_GLWD_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+ATTRIBUTES_GLWD_PATH: default
+
+# ATTRIBUTES_GROUNDWATER_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+ATTRIBUTES_GROUNDWATER_PATH: default
+
+# ATTRIBUTES_HYDROLAKES_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+ATTRIBUTES_HYDROLAKES_PATH: default
+
+# ATTRIBUTES_MERIT_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+ATTRIBUTES_MERIT_PATH: default
+
+# ATTRIBUTES_MODIS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+ATTRIBUTES_MODIS_PATH: default
+
+# ATTRIBUTES_OUTPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+ATTRIBUTES_OUTPUT_DIR: default
+
+# ATTRIBUTES_PELLETIER_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+ATTRIBUTES_PELLETIER_PATH: default
+
+# ATTRIBUTES_SOILGRIDS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+ATTRIBUTES_SOILGRIDS_PATH: default
+
+# ATTRIBUTES_STREAMFLOW_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+ATTRIBUTES_STREAMFLOW_PATH: default
+
+# ATTRIBUTES_WORLDCLIM_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      AttributesConfig (evaluation.py)
+ATTRIBUTES_WORLDCLIM_PATH: default
+
+# FLUXNET_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      FluxNetConfig (evaluation.py)
+FLUXNET_PATH: null
+
+# FLUXNET_STATION
+#   Type:        str
+#   Default:     None
+#   Source:      FluxNetConfig (evaluation.py)
+FLUXNET_STATION: null
+
+# GRACE_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      GRACEConfig (evaluation.py)
+GRACE_PATH: default
+
+# GRACE_PRODUCT
+#   Type:        str
+#   Default:     RL06
+#   Source:      GRACEConfig (evaluation.py)
+GRACE_PRODUCT: "RL06"
+
+# HYDAT_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      StreamflowConfig (evaluation.py)
+HYDAT_PATH: default
+
+# MODIS_SNOW
+#   Type:        MODISSnowConfig
+#   Default:     MODISSnowConfig
+#   Source:      EvaluationConfig (evaluation.py)
+MODIS_SNOW: "MODISSnowConfig"
+
+# MODIS_SNOW_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MODISSnowConfig (evaluation.py)
+MODIS_SNOW_PATH: default
+
+# MODIS_SNOW_PRODUCT
+#   Type:        str
+#   Default:     MOD10A1.006
+#   Source:      MODISSnowConfig (evaluation.py)
+MODIS_SNOW_PRODUCT: "MOD10A1.006"
+
+# SIM_REACH_ID
+#   Type:        int
+#   Default:     None
+#   Source:      EvaluationConfig (evaluation.py)
+SIM_REACH_ID: null
+
+# SMAP_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      SMAPConfig (evaluation.py)
+SMAP_PATH: default
+
+# SMAP_PRODUCT
+#   Type:        str
+#   Default:     SPL4SMGP
+#   Source:      SMAPConfig (evaluation.py)
+SMAP_PRODUCT: "SPL4SMGP"
+
+# SNOTEL_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      SNOTELConfig (evaluation.py)
+SNOTEL_PATH: null
+
+# SNOTEL_STATION
+#   Type:        str
+#   Default:     None
+#   Source:      SNOTELConfig (evaluation.py)
+SNOTEL_STATION: null
+
+# STATION_ID
+#   Type:        str
+#   Default:     None
+#   Source:      StreamflowConfig (evaluation.py)
+STATION_ID: null
+
+# STREAMFLOW_DATA_PROVIDER
+#   Type:        str
+#   Default:     None
+#   Source:      StreamflowConfig (evaluation.py)
+STREAMFLOW_DATA_PROVIDER: null
+
+# STREAMFLOW_PROCESSED_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      StreamflowConfig (evaluation.py)
+STREAMFLOW_PROCESSED_PATH: default
+
+# STREAMFLOW_RAW_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      StreamflowConfig (evaluation.py)
+STREAMFLOW_RAW_NAME: default
+
+# STREAMFLOW_RAW_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      StreamflowConfig (evaluation.py)
+STREAMFLOW_RAW_PATH: default
+
+# USGS_GW
+#   Type:        USGSGWConfig
+#   Default:     USGSGWConfig
+#   Source:      EvaluationConfig (evaluation.py)
+USGS_GW: "USGSGWConfig"
+
+# USGS_STATION
+#   Type:        str
+#   Default:     None
+#   Source:      USGSGWConfig (evaluation.py)
+USGS_STATION: null
+
+# ANALYSES
+#   Type:        List[str]
+#   Default:     []
+#   Source:      EvaluationConfig (evaluation.py)
+ANALYSES: []
+
+# EVALUATION_DATA
+#   Type:        List[str]
+#   Default:     []
+#   Source:      EvaluationConfig (evaluation.py)
+EVALUATION_DATA: []
+
+# HRU_GAUGE_MAPPING
+#   Type:        str
+#   Default:     None
+#   Source:      EvaluationConfig (evaluation.py)
+HRU_GAUGE_MAPPING: null
+
+
+# 17. Paths & Data Locations
+# ================================================================================
+
+# CATCHMENT_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+CATCHMENT_PATH: default
+
+# CATCHMENT_PLOT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+CATCHMENT_PLOT_DIR: default
+
+# CATCHMENT_SHP_AREA
+#   Type:        str
+#   Default:     HRU_area
+#   Source:      PathsConfig (paths.py)
+CATCHMENT_SHP_AREA: "HRU_area"
+
+# CATCHMENT_SHP_GRUID
+#   Type:        str
+#   Default:     GRU_ID
+#   Source:      PathsConfig (paths.py)
+CATCHMENT_SHP_GRUID: "GRU_ID"
+
+# CATCHMENT_SHP_HRUID
+#   Type:        str
+#   Default:     HRU_ID
+#   Source:      PathsConfig (paths.py)
+CATCHMENT_SHP_HRUID: "HRU_ID"
+
+# CATCHMENT_SHP_LAT
+#   Type:        str
+#   Default:     center_lat
+#   Source:      PathsConfig (paths.py)
+CATCHMENT_SHP_LAT: "center_lat"
+
+# CATCHMENT_SHP_LON
+#   Type:        str
+#   Default:     center_lon
+#   Source:      PathsConfig (paths.py)
+CATCHMENT_SHP_LON: "center_lon"
+
+# CATCHMENT_SHP_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+CATCHMENT_SHP_NAME: default
+
+# CLUSTER_JSON
+#   Type:        str
+#   Default:     /path/to/cluster.json
+#   Source:      PathsConfig (paths.py)
+CLUSTER_JSON: "/path/to/cluster.json"
+
+# DATATOOL_DATASET_ROOT
+#   Type:        str
+#   Default:     /path/to/meteorological-data/
+#   Source:      PathsConfig (paths.py)
+DATATOOL_DATASET_ROOT: "/path/to/meteorological-data/"
+
+# DATATOOL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+DATATOOL_PATH: default
+
+# EASYMORE_CACHE
+#   Type:        str
+#   Default:     /path/to/cache/dir
+#   Source:      PathsConfig (paths.py)
+EASYMORE_CACHE: "/path/to/cache/dir"
+
+# EASYMORE_CLIENT
+#   Type:        str
+#   Default:     easymore cli
+#   Source:      PathsConfig (paths.py)
+EASYMORE_CLIENT: "easymore cli"
+
+# EASYMORE_JOB_CONF
+#   Type:        str
+#   Default:     /path/to/esmr/job_config
+#   Source:      PathsConfig (paths.py)
+EASYMORE_JOB_CONF: "/path/to/esmr/job_config"
+
+# GISTOOL_DATASET_ROOT
+#   Type:        str
+#   Default:     /path/to/geospatial-data/
+#   Source:      PathsConfig (paths.py)
+GISTOOL_DATASET_ROOT: "/path/to/geospatial-data/"
+
+# GISTOOL_LIB_PATH
+#   Type:        str
+#   Default:     /path/to/r-env/
+#   Source:      PathsConfig (paths.py)
+GISTOOL_LIB_PATH: "/path/to/r-env/"
+
+# GISTOOL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+GISTOOL_PATH: default
+
+# INTERSECT_DEM_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+INTERSECT_DEM_NAME: default
+
+# INTERSECT_DEM_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+INTERSECT_DEM_PATH: default
+
+# INTERSECT_LAND_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+INTERSECT_LAND_NAME: default
+
+# INTERSECT_LAND_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+INTERSECT_LAND_PATH: default
+
+# INTERSECT_ROUTING_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+INTERSECT_ROUTING_NAME: default
+
+# INTERSECT_ROUTING_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+INTERSECT_ROUTING_PATH: default
+
+# INTERSECT_SOIL_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+INTERSECT_SOIL_NAME: default
+
+# INTERSECT_SOIL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+INTERSECT_SOIL_PATH: default
+
+# OUTPUT_BASINS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+OUTPUT_BASINS_PATH: default
+
+# OUTPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+OUTPUT_DIR: default
+
+# OUTPUT_RIVERS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+OUTPUT_RIVERS_PATH: default
+
+# POUR_POINT_COORDS
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+POUR_POINT_COORDS: null
+
+# POUR_POINT_SHP_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+POUR_POINT_SHP_NAME: default
+
+# POUR_POINT_SHP_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+POUR_POINT_SHP_PATH: default
+
+# RIVER_BASINS_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+RIVER_BASINS_NAME: default
+
+# RIVER_BASINS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+RIVER_BASINS_PATH: default
+
+# RIVER_BASIN_SHP_AREA
+#   Type:        str
+#   Default:     GRU_area
+#   Source:      PathsConfig (paths.py)
+RIVER_BASIN_SHP_AREA: "GRU_area"
+
+# RIVER_BASIN_SHP_HRU_TO_SEG
+#   Type:        str
+#   Default:     gru_to_seg
+#   Source:      PathsConfig (paths.py)
+RIVER_BASIN_SHP_HRU_TO_SEG: "gru_to_seg"
+
+# RIVER_BASIN_SHP_RM_GRUID
+#   Type:        str
+#   Default:     GRU_ID
+#   Source:      PathsConfig (paths.py)
+RIVER_BASIN_SHP_RM_GRUID: "GRU_ID"
+
+# RIVER_NETWORK_SHP_DOWNSEGID
+#   Type:        str
+#   Default:     DSLINKNO
+#   Source:      PathsConfig (paths.py)
+RIVER_NETWORK_SHP_DOWNSEGID: "DSLINKNO"
+
+# RIVER_NETWORK_SHP_LENGTH
+#   Type:        str
+#   Default:     Length
+#   Source:      PathsConfig (paths.py)
+RIVER_NETWORK_SHP_LENGTH: "Length"
+
+# RIVER_NETWORK_SHP_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+RIVER_NETWORK_SHP_NAME: default
+
+# RIVER_NETWORK_SHP_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+RIVER_NETWORK_SHP_PATH: default
+
+# RIVER_NETWORK_SHP_SEGID
+#   Type:        str
+#   Default:     LINKNO
+#   Source:      PathsConfig (paths.py)
+RIVER_NETWORK_SHP_SEGID: "LINKNO"
+
+# RIVER_NETWORK_SHP_SLOPE
+#   Type:        str
+#   Default:     Slope
+#   Source:      PathsConfig (paths.py)
+RIVER_NETWORK_SHP_SLOPE: "Slope"
+
+# SOILGRIDS_LAYER
+#   Type:        str
+#   Default:     wrb_0-5cm_mode
+#   Source:      DomainConfig (domain.py)
+SOILGRIDS_LAYER: "wrb_0-5cm_mode"
+
+# SOIL_CLASS_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+SOIL_CLASS_NAME: default
+
+# SOIL_CLASS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+SOIL_CLASS_PATH: default
+
+# SOURCE_GEOFABRIC_BASINS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+SOURCE_GEOFABRIC_BASINS_PATH: default
+
+# SOURCE_GEOFABRIC_RIVERS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+SOURCE_GEOFABRIC_RIVERS_PATH: default
+
+# TAUDEM_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+TAUDEM_DIR: default
+
+# TOOL_CACHE
+#   Type:        str
+#   Default:     /path/to/cache/dir
+#   Source:      PathsConfig (paths.py)
+TOOL_CACHE: "/path/to/cache/dir"
+
+
+# 18. Other Configuration
+# ================================================================================
+
+# ATTRIBUTES
+#   Type:        AttributesConfig
+#   Default:     AttributesConfig
+#   Source:      EvaluationConfig (evaluation.py)
+ATTRIBUTES: "AttributesConfig"
+
+# BOUNDING_BOX_COORDS
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+BOUNDING_BOX_COORDS: null
+
+# DDS
+#   Type:        DDSConfig
+#   Default:     DDSConfig
+#   Source:      OptimizationConfig (optimization.py)
+DDS: "DDSConfig"
+
+# DE
+#   Type:        DEConfig
+#   Default:     DEConfig
+#   Source:      OptimizationConfig (optimization.py)
+DE: "DEConfig"
+
+# DELINEATION
+#   Type:        DelineationConfig
+#   Default:     DelineationConfig
+#   Source:      DomainConfig (domain.py)
+DELINEATION: "DelineationConfig"
+
+# DPE
+#   Type:        DPEConfig
+#   Default:     DPEConfig
+#   Source:      OptimizationConfig (optimization.py)
+DPE: "DPEConfig"
+
+# EMULATION
+#   Type:        EmulationConfig
+#   Default:     EmulationConfig
+#   Source:      OptimizationConfig (optimization.py)
+EMULATION: "EmulationConfig"
+
+# EMULATOR_SETTING
+#   Type:        str
+#   Default:     SUMMA_AUTODIFF_FD
+#   Source:      LargeDomainConfig (optimization.py)
+EMULATOR_SETTING: "SUMMA_AUTODIFF_FD"
+
+# EM_PRCP
+#   Type:        str
+#   Default:     prcp
+#   Source:      EMEarthConfig (forcing.py)
+EM_PRCP: "prcp"
+
+# FLUXNET
+#   Type:        FluxNetConfig
+#   Default:     FluxNetConfig
+#   Source:      EvaluationConfig (evaluation.py)
+FLUXNET: "FluxNetConfig"
+
+# FUSE
+#   Type:        FUSEConfig
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+FUSE: null
+
+# GR
+#   Type:        GRConfig
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+GR: null
+
+# GRACE
+#   Type:        GRACEConfig
+#   Default:     GRACEConfig
+#   Source:      EvaluationConfig (evaluation.py)
+GRACE: "GRACEConfig"
+
+# HYPE
+#   Type:        HYPEConfig
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+HYPE: null
+
+# LARGE_DOMAIN
+#   Type:        LargeDomainConfig
+#   Default:     LargeDomainConfig
+#   Source:      OptimizationConfig (optimization.py)
+LARGE_DOMAIN: "LargeDomainConfig"
+
+# MESH
+#   Type:        MESHConfig
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+MESH: null
+
+# MIZUROUTE
+#   Type:        MizuRouteConfig
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+MIZUROUTE: null
+
+# NAME
+#   Type:        str
+#   Default:     default
+#   Source:      ShapefilePathConfig (paths.py)
+NAME: default
+
+# NEX
+#   Type:        NexConfig
+#   Default:     None
+#   Source:      ForcingConfig (forcing.py)
+NEX: null
+
+# NGEN
+#   Type:        NGENConfig
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+NGEN: null
+
+# NSGA2
+#   Type:        NSGA2Config
+#   Default:     NSGA2Config
+#   Source:      OptimizationConfig (optimization.py)
+NSGA2: "NSGA2Config"
+
+# NUMBER_OF_COMPLEXES
+#   Type:        int
+#   Default:     2
+#   Source:      SCEUAConfig (optimization.py)
+NUMBER_OF_COMPLEXES: 2
+
+# NUMBER_OF_EVOLUTION_STEPS
+#   Type:        int
+#   Default:     20
+#   Source:      SCEUAConfig (optimization.py)
+NUMBER_OF_EVOLUTION_STEPS: 20
+
+# OBSERVATIONS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+OBSERVATIONS_PATH: default
+
+# PATH
+#   Type:        str
+#   Default:     default
+#   Source:      ShapefilePathConfig (paths.py)
+PATH: default
+
+# PSO
+#   Type:        PSOConfig
+#   Default:     PSOConfig
+#   Source:      OptimizationConfig (optimization.py)
+PSO: "PSOConfig"
+
+# SCE_UA
+#   Type:        SCEUAConfig
+#   Default:     SCEUAConfig
+#   Source:      OptimizationConfig (optimization.py)
+SCE_UA: "SCEUAConfig"
+
+# SETTINGS_MESH_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      MESHConfig (model_configs.py)
+SETTINGS_MESH_PATH: default
+
+# SIMULATIONS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+SIMULATIONS_PATH: default
+
+# SMAP
+#   Type:        SMAPConfig
+#   Default:     SMAPConfig
+#   Source:      EvaluationConfig (evaluation.py)
+SMAP: "SMAPConfig"
+
+# SNOTEL
+#   Type:        SNOTELConfig
+#   Default:     SNOTELConfig
+#   Source:      EvaluationConfig (evaluation.py)
+SNOTEL: "SNOTELConfig"
+
+# STREAMFLOW
+#   Type:        StreamflowConfig
+#   Default:     StreamflowConfig
+#   Source:      EvaluationConfig (evaluation.py)
+STREAMFLOW: "StreamflowConfig"
+
+# SUMMA
+#   Type:        SUMMAConfig
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+SUMMA: null
+
+# USE_DROP_ANALYSIS
+#   Type:        bool
+#   Default:     False
+#   Source:      DelineationConfig (domain.py)
+USE_DROP_ANALYSIS: false
+
+# lstm
+#   Type:        LSTMConfig
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+lstm: null
+
+# flash
+#   Type:        LSTMConfig
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+flash: null
+
+
+# 2. Domain Configuration
+# ================================================================================
+
+# CALIBRATION_PERIOD
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+CALIBRATION_PERIOD: null
+
+# DOMAIN_DEFINITION_METHOD
+#   Type:        Literal['lumped', 'discretized', 'distributed', 'subset', 'point', 'delineate'
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+DOMAIN_DEFINITION_METHOD: null
+
+# DOMAIN_DISCRETIZATION
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+DOMAIN_DISCRETIZATION: null
+
+# DOMAIN_NAME
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+DOMAIN_NAME: null
+
+# EVALUATION_PERIOD
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+EVALUATION_PERIOD: null
+
+# EXPERIMENT_ID
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+EXPERIMENT_ID: null
+
+# EXPERIMENT_TIME_END
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+EXPERIMENT_TIME_END: null
+
+# EXPERIMENT_TIME_START
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+EXPERIMENT_TIME_START: null
+
+# SPINUP_PERIOD
+#   Type:        str
+#   Default:     None
+#   Source:      DomainConfig (domain.py)
+SPINUP_PERIOD: null
+
+
+# 3. Delineation & Discretization
+# ================================================================================
+
+# AREA_EXPONENT
+#   Type:        float
+#   Default:     1.0
+#   Source:      DelineationConfig (domain.py)
+AREA_EXPONENT: 1.0
+
+# CLEANUP_INTERMEDIATE_FILES
+#   Type:        bool
+#   Default:     False
+#   Source:      DelineationConfig (domain.py)
+CLEANUP_INTERMEDIATE_FILES: false
+
+# CURVATURE_THRESHOLD
+#   Type:        float
+#   Default:     0.0
+#   Source:      DelineationConfig (domain.py)
+CURVATURE_THRESHOLD: 0.0
+
+# DELINEATE_BY_POURPOINT
+#   Type:        bool
+#   Default:     True
+#   Source:      DelineationConfig (domain.py)
+DELINEATE_BY_POURPOINT: true
+
+# DELINEATE_COASTAL_WATERSHEDS
+#   Type:        bool
+#   Default:     False
+#   Source:      DelineationConfig (domain.py)
+DELINEATE_COASTAL_WATERSHEDS: false
+
+# DELINEATION_METHOD
+#   Type:        str
+#   Default:     stream_threshold
+#   Source:      DelineationConfig (domain.py)
+DELINEATION_METHOD: "stream_threshold"
+
+# DROP_ANALYSIS_LOG_SPACING
+#   Type:        bool
+#   Default:     True
+#   Source:      DelineationConfig (domain.py)
+DROP_ANALYSIS_LOG_SPACING: true
+
+# DROP_ANALYSIS_MAX_THRESHOLD
+#   Type:        int
+#   Default:     10000
+#   Source:      DelineationConfig (domain.py)
+DROP_ANALYSIS_MAX_THRESHOLD: 10000
+
+# DROP_ANALYSIS_MIN_THRESHOLD
+#   Type:        int
+#   Default:     100
+#   Source:      DelineationConfig (domain.py)
+DROP_ANALYSIS_MIN_THRESHOLD: 100
+
+# DROP_ANALYSIS_NUM_THRESHOLDS
+#   Type:        int
+#   Default:     10
+#   Source:      DelineationConfig (domain.py)
+DROP_ANALYSIS_NUM_THRESHOLDS: 10
+
+# GEOFABRIC_TYPE
+#   Type:        str
+#   Default:     na
+#   Source:      DelineationConfig (domain.py)
+GEOFABRIC_TYPE: "na"
+
+# LUMPED_WATERSHED_METHOD
+#   Type:        str
+#   Default:     TauDEM
+#   Source:      DelineationConfig (domain.py)
+LUMPED_WATERSHED_METHOD: "TauDEM"
+
+# MIN_SOURCE_THRESHOLD
+#   Type:        int
+#   Default:     100
+#   Source:      DelineationConfig (domain.py)
+MIN_SOURCE_THRESHOLD: 100
+
+# MOVE_OUTLETS_MAX_DISTANCE
+#   Type:        float
+#   Default:     200.0
+#   Source:      DelineationConfig (domain.py)
+MOVE_OUTLETS_MAX_DISTANCE: 200.0
+
+# MULTI_SCALE_THRESHOLDS
+#   Type:        str
+#   Default:     None
+#   Source:      DelineationConfig (domain.py)
+MULTI_SCALE_THRESHOLDS: null
+
+# ROUTING_DELINEATION
+#   Type:        str
+#   Default:     lumped
+#   Source:      DelineationConfig (domain.py)
+ROUTING_DELINEATION: "lumped"
+
+# SLOPE_AREA_EXPONENT
+#   Type:        float
+#   Default:     2.0
+#   Source:      DelineationConfig (domain.py)
+SLOPE_AREA_EXPONENT: 2.0
+
+# SLOPE_AREA_THRESHOLD
+#   Type:        float
+#   Default:     100.0
+#   Source:      DelineationConfig (domain.py)
+SLOPE_AREA_THRESHOLD: 100.0
+
+# STREAM_THRESHOLD
+#   Type:        float
+#   Default:     5000.0
+#   Source:      DelineationConfig (domain.py)
+STREAM_THRESHOLD: 5000.0
+
+
+# 4. Geospatial Data Sources
+# ================================================================================
+
+# ASPECT_CLASS_NUMBER
+#   Type:        int
+#   Default:     1
+#   Source:      DomainConfig (domain.py)
+ASPECT_CLASS_NUMBER: 1
+
+# ASPECT_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      DomainConfig (domain.py)
+ASPECT_PATH: default
+
+# DATA_ACCESS
+#   Type:        str
+#   Default:     cloud
+#   Source:      DomainConfig (domain.py)
+DATA_ACCESS: "cloud"
+
+# DEM_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+DEM_NAME: default
+
+# DEM_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+DEM_PATH: default
+
+# DEM_SOURCE
+#   Type:        str
+#   Default:     fabdem
+#   Source:      DomainConfig (domain.py)
+DEM_SOURCE: "fabdem"
+
+# DOWNLOAD_DEM
+#   Type:        bool
+#   Default:     True
+#   Source:      DomainConfig (domain.py)
+DOWNLOAD_DEM: true
+
+# DOWNLOAD_FLUXNET
+#   Type:        bool
+#   Default:     False
+#   Source:      FluxNetConfig (evaluation.py)
+DOWNLOAD_FLUXNET: false
+
+# DOWNLOAD_GRACE
+#   Type:        bool
+#   Default:     False
+#   Source:      GRACEConfig (evaluation.py)
+DOWNLOAD_GRACE: false
+
+# DOWNLOAD_LAND_COVER
+#   Type:        bool
+#   Default:     True
+#   Source:      DomainConfig (domain.py)
+DOWNLOAD_LAND_COVER: true
+
+# DOWNLOAD_MODIS_SNOW
+#   Type:        bool
+#   Default:     False
+#   Source:      MODISSnowConfig (evaluation.py)
+DOWNLOAD_MODIS_SNOW: false
+
+# DOWNLOAD_SMAP
+#   Type:        bool
+#   Default:     False
+#   Source:      SMAPConfig (evaluation.py)
+DOWNLOAD_SMAP: false
+
+# DOWNLOAD_SNOTEL
+#   Type:        bool
+#   Default:     False
+#   Source:      SNOTELConfig (evaluation.py)
+DOWNLOAD_SNOTEL: false
+
+# DOWNLOAD_SOIL
+#   Type:        bool
+#   Default:     True
+#   Source:      DomainConfig (domain.py)
+DOWNLOAD_SOIL: true
+
+# DOWNLOAD_USGS_DATA
+#   Type:        bool
+#   Default:     False
+#   Source:      StreamflowConfig (evaluation.py)
+DOWNLOAD_USGS_DATA: false
+
+# DOWNLOAD_USGS_GW
+#   Type:        bool
+#   Default:     False
+#   Source:      USGSGWConfig (evaluation.py)
+DOWNLOAD_USGS_GW: false
+
+# DOWNLOAD_WSC_DATA
+#   Type:        bool
+#   Default:     False
+#   Source:      StreamflowConfig (evaluation.py)
+DOWNLOAD_WSC_DATA: false
+
+# ELEVATION_BAND_SIZE
+#   Type:        float
+#   Default:     200.0
+#   Source:      DomainConfig (domain.py)
+ELEVATION_BAND_SIZE: 200.0
+
+# LAND_CLASS_NAME
+#   Type:        str
+#   Default:     default
+#   Source:      DomainConfig (domain.py)
+LAND_CLASS_NAME: default
+
+# LAND_CLASS_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+LAND_CLASS_PATH: default
+
+# LAND_CLASS_SOURCE
+#   Type:        str
+#   Default:     modis
+#   Source:      DomainConfig (domain.py)
+LAND_CLASS_SOURCE: "modis"
+
+# MAX_STAGNATION_BATCHES
+#   Type:        int
+#   Default:     10
+#   Source:      DDSConfig (optimization.py)
+MAX_STAGNATION_BATCHES: 10
+
+# MIN_GRU_SIZE
+#   Type:        float
+#   Default:     0.0
+#   Source:      DomainConfig (domain.py)
+MIN_GRU_SIZE: 0.0
+
+# MIN_HRU_SIZE
+#   Type:        float
+#   Default:     0.0
+#   Source:      DomainConfig (domain.py)
+MIN_HRU_SIZE: 0.0
+
+# RADIATION_CLASS_NUMBER
+#   Type:        int
+#   Default:     1
+#   Source:      DomainConfig (domain.py)
+RADIATION_CLASS_NUMBER: 1
+
+# RADIATION_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+RADIATION_PATH: default
+
+
+# 5. Forcing Data Configuration
+# ================================================================================
+
+# APPLY_LAPSE_RATE
+#   Type:        bool
+#   Default:     True
+#   Source:      ForcingConfig (forcing.py)
+APPLY_LAPSE_RATE: true
+
+# EM_EARTH
+#   Type:        EMEarthConfig
+#   Default:     None
+#   Source:      ForcingConfig (forcing.py)
+EM_EARTH: null
+
+# EM_EARTH_DATA_TYPE
+#   Type:        str
+#   Default:     deterministic
+#   Source:      EMEarthConfig (forcing.py)
+EM_EARTH_DATA_TYPE: "deterministic"
+
+# EM_EARTH_MAX_EXPANSION
+#   Type:        float
+#   Default:     0.2
+#   Source:      EMEarthConfig (forcing.py)
+EM_EARTH_MAX_EXPANSION: 0.2
+
+# EM_EARTH_MIN_BBOX_SIZE
+#   Type:        float
+#   Default:     0.1
+#   Source:      EMEarthConfig (forcing.py)
+EM_EARTH_MIN_BBOX_SIZE: 0.1
+
+# EM_EARTH_PRCP_DIR
+#   Type:        str
+#   Default:     None
+#   Source:      EMEarthConfig (forcing.py)
+EM_EARTH_PRCP_DIR: null
+
+# EM_EARTH_TMEAN_DIR
+#   Type:        str
+#   Default:     None
+#   Source:      EMEarthConfig (forcing.py)
+EM_EARTH_TMEAN_DIR: null
+
+# ERA5_USE_CDS
+#   Type:        bool
+#   Default:     None
+#   Source:      ForcingConfig (forcing.py)
+ERA5_USE_CDS: null
+
+# FORCING_DATASET
+#   Type:        str
+#   Default:     None
+#   Source:      ForcingConfig (forcing.py)
+FORCING_DATASET: null
+
+# FORCING_MEASUREMENT_HEIGHT
+#   Type:        int
+#   Default:     2
+#   Source:      ForcingConfig (forcing.py)
+FORCING_MEASUREMENT_HEIGHT: 2
+
+# FORCING_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      PathsConfig (paths.py)
+FORCING_PATH: default
+
+# FORCING_SHAPE_LAT_NAME
+#   Type:        str
+#   Default:     lat
+#   Source:      ForcingConfig (forcing.py)
+FORCING_SHAPE_LAT_NAME: "lat"
+
+# FORCING_SHAPE_LON_NAME
+#   Type:        str
+#   Default:     lon
+#   Source:      ForcingConfig (forcing.py)
+FORCING_SHAPE_LON_NAME: "lon"
+
+# FORCING_TIME_STEP_SIZE
+#   Type:        int
+#   Default:     3600
+#   Source:      ForcingConfig (forcing.py)
+FORCING_TIME_STEP_SIZE: 3600
+
+# FORCING_VARIABLES
+#   Type:        str
+#   Default:     default
+#   Source:      ForcingConfig (forcing.py)
+FORCING_VARIABLES: default
+
+# LAPSE_RATE
+#   Type:        float
+#   Default:     0.0065
+#   Source:      ForcingConfig (forcing.py)
+LAPSE_RATE: 0.0065
+
+# NEX_ENSEMBLES
+#   Type:        List[str]
+#   Default:     None
+#   Source:      NexConfig (forcing.py)
+NEX_ENSEMBLES: null
+
+# NEX_MODELS
+#   Type:        List[str]
+#   Default:     None
+#   Source:      NexConfig (forcing.py)
+NEX_MODELS: null
+
+# NEX_SCENARIOS
+#   Type:        List[str]
+#   Default:     None
+#   Source:      NexConfig (forcing.py)
+NEX_SCENARIOS: null
+
+# NEX_VARIABLES
+#   Type:        List[str]
+#   Default:     None
+#   Source:      NexConfig (forcing.py)
+NEX_VARIABLES: null
+
+# PET_METHOD
+#   Type:        str
+#   Default:     oudin
+#   Source:      ForcingConfig (forcing.py)
+PET_METHOD: "oudin"
+
+# SUPPLEMENT_FORCING
+#   Type:        bool
+#   Default:     False
+#   Source:      ForcingConfig (forcing.py)
+SUPPLEMENT_FORCING: false
+
+
+# 6. Model Selection
+# ================================================================================
+
+# HYDROLOGICAL_MODEL
+#   Type:        Union[str, List[str]]
+#   Default:     SUMMA
+#   Source:      ModelConfig (model_configs.py)
+HYDROLOGICAL_MODEL: "SUMMA"
+
+# ROUTING_MODEL
+#   Type:        str
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+ROUTING_MODEL: null
+
+
+# 7. SUMMA Model Configuration
+# ================================================================================
+
+# BASIN_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      SUMMAConfig (model_configs.py)
+BASIN_PARAMS_TO_CALIBRATE: null
+
+# CALIBRATE_DEPTH
+#   Type:        bool
+#   Default:     False
+#   Source:      SUMMAConfig (model_configs.py)
+CALIBRATE_DEPTH: false
+
+# DEPTH_SHAPE_FACTOR_BOUNDS
+#   Type:        List[float]
+#   Default:     None
+#   Source:      SUMMAConfig (model_configs.py)
+DEPTH_SHAPE_FACTOR_BOUNDS: null
+
+# DEPTH_TOTAL_MULT_BOUNDS
+#   Type:        List[float]
+#   Default:     None
+#   Source:      SUMMAConfig (model_configs.py)
+DEPTH_TOTAL_MULT_BOUNDS: null
+
+# EXPERIMENT_LOG_SUMMA
+#   Type:        str
+#   Default:     default
+#   Source:      SUMMAConfig (model_configs.py)
+EXPERIMENT_LOG_SUMMA: default
+
+# EXPERIMENT_OUTPUT_SUMMA
+#   Type:        str
+#   Default:     default
+#   Source:      SUMMAConfig (model_configs.py)
+EXPERIMENT_OUTPUT_SUMMA: default
+
+# PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      SUMMAConfig (model_configs.py)
+PARAMS_TO_CALIBRATE: null
+
+# SUMMA_DECISION_OPTIONS
+#   Type:        Dict[str, List[str]]
+#   Default:     {}
+#   Source:      SUMMAConfig (model_configs.py)
+SUMMA_DECISION_OPTIONS: {}
+
+# SETTINGS_SUMMA_ATTRIBUTES
+#   Type:        str
+#   Default:     attributes.nc
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_ATTRIBUTES: "attributes.nc"
+
+# SETTINGS_SUMMA_BASIN_PARAMS_FILE
+#   Type:        str
+#   Default:     basinParamInfo.txt
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_BASIN_PARAMS_FILE: "basinParamInfo.txt"
+
+# SETTINGS_SUMMA_COLDSTATE
+#   Type:        str
+#   Default:     coldState.nc
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_COLDSTATE: "coldState.nc"
+
+# SETTINGS_SUMMA_CONNECT_HRUS
+#   Type:        bool
+#   Default:     True
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_CONNECT_HRUS: true
+
+# SETTINGS_SUMMA_CPUS_PER_TASK
+#   Type:        int
+#   Default:     32
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_CPUS_PER_TASK: 32
+
+# SETTINGS_SUMMA_FILEMANAGER
+#   Type:        str
+#   Default:     fileManager.txt
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_FILEMANAGER: "fileManager.txt"
+
+# SETTINGS_SUMMA_FORCING_LIST
+#   Type:        str
+#   Default:     forcingFileList.txt
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_FORCING_LIST: "forcingFileList.txt"
+
+# SETTINGS_SUMMA_GRU_COUNT
+#   Type:        int
+#   Default:     85
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_GRU_COUNT: 85
+
+# SETTINGS_SUMMA_GRU_PER_JOB
+#   Type:        int
+#   Default:     5
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_GRU_PER_JOB: 5
+
+# SETTINGS_SUMMA_LOCAL_PARAMS_FILE
+#   Type:        str
+#   Default:     localParamInfo.txt
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_LOCAL_PARAMS_FILE: "localParamInfo.txt"
+
+# SETTINGS_SUMMA_MEM
+#   Type:        int
+#   Default:     5
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_MEM: 5
+
+# SETTINGS_SUMMA_OUTPUT
+#   Type:        str
+#   Default:     outputControl.txt
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_OUTPUT: "outputControl.txt"
+
+# SETTINGS_SUMMA_PARALLEL_EXE
+#   Type:        str
+#   Default:     summa_actors.exe
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_PARALLEL_EXE: "summa_actors.exe"
+
+# SETTINGS_SUMMA_PARALLEL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_PARALLEL_PATH: default
+
+# SETTINGS_SUMMA_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_PATH: default
+
+# SETTINGS_SUMMA_TIME_LIMIT
+#   Type:        str
+#   Default:     01:00:00
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_TIME_LIMIT: "01:00:00"
+
+# SETTINGS_SUMMA_TRIALPARAMS
+#   Type:        str
+#   Default:     trialParams.nc
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_TRIALPARAMS: "trialParams.nc"
+
+# SETTINGS_SUMMA_TRIALPARAM_1
+#   Type:        str
+#   Default:     None
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_TRIALPARAM_1: null
+
+# SETTINGS_SUMMA_TRIALPARAM_N
+#   Type:        int
+#   Default:     0
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_TRIALPARAM_N: 0
+
+# SETTINGS_SUMMA_USE_PARALLEL_SUMMA
+#   Type:        bool
+#   Default:     False
+#   Source:      SUMMAConfig (model_configs.py)
+SETTINGS_SUMMA_USE_PARALLEL_SUMMA: false
+
+# SUMMA_EXE
+#   Type:        str
+#   Default:     summa_sundials.exe
+#   Source:      SUMMAConfig (model_configs.py)
+SUMMA_EXE: "summa_sundials.exe"
+
+# SUMMA_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      SUMMAConfig (model_configs.py)
+SUMMA_INSTALL_PATH: default
+
+
+# 8. FUSE Model Configuration
+# ================================================================================
+
+# EXPERIMENT_OUTPUT_FUSE
+#   Type:        str
+#   Default:     default
+#   Source:      FUSEConfig (model_configs.py)
+EXPERIMENT_OUTPUT_FUSE: default
+
+# FUSE_DECISION_OPTIONS
+#   Type:        Dict[str, List[str]]
+#   Default:     {}
+#   Source:      FUSEConfig (model_configs.py)
+FUSE_DECISION_OPTIONS: {}
+
+# FUSE_EXE
+#   Type:        str
+#   Default:     fuse.exe
+#   Source:      FUSEConfig (model_configs.py)
+FUSE_EXE: "fuse.exe"
+
+# FUSE_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      FUSEConfig (model_configs.py)
+FUSE_INSTALL_PATH: default
+
+# FUSE_ROUTING_INTEGRATION
+#   Type:        str
+#   Default:     default
+#   Source:      FUSEConfig (model_configs.py)
+FUSE_ROUTING_INTEGRATION: default
+
+# FUSE_SPATIAL_MODE
+#   Type:        str
+#   Default:     distributed
+#   Source:      FUSEConfig (model_configs.py)
+FUSE_SPATIAL_MODE: "distributed"
+
+# SETTINGS_FUSE_FILEMANAGER
+#   Type:        str
+#   Default:     default
+#   Source:      FUSEConfig (model_configs.py)
+SETTINGS_FUSE_FILEMANAGER: default
+
+# SETTINGS_FUSE_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     None
+#   Source:      FUSEConfig (model_configs.py)
+SETTINGS_FUSE_PARAMS_TO_CALIBRATE: null
+
+# SETTINGS_FUSE_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      FUSEConfig (model_configs.py)
+SETTINGS_FUSE_PATH: default
+
+
+# 9. GR Model Configuration
+# ================================================================================
+
+# GR_EXE
+#   Type:        str
+#   Default:     GR.r
+#   Source:      GRConfig (model_configs.py)
+GR_EXE: "GR.r"
+
+# GR_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      GRConfig (model_configs.py)
+GR_INSTALL_PATH: default
+
+# GR_SPATIAL_MODE
+#   Type:        str
+#   Default:     lumped
+#   Source:      GRConfig (model_configs.py)
+GR_SPATIAL_MODE: "lumped"
+
+# SETTINGS_GR_CONTROL
+#   Type:        str
+#   Default:     default
+#   Source:      GRConfig (model_configs.py)
+SETTINGS_GR_CONTROL: default
+
+# SETTINGS_GR_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      GRConfig (model_configs.py)
+SETTINGS_GR_PATH: default

@@ -199,20 +199,28 @@ class CASRHandler(BaseDatasetHandler):
         self.logger.info(f"Found {len(all_casr_files)} CASR files in {raw_forcing_path}")
         
         for year in years:
-            self.logger.info(f"Processing CASR year {year}")
+            self.logger.debug(f"Processing CASR year {year}")
             
             for month in range(1, 13):
-                self.logger.info(f"Processing CASR {year}-{month:02d}")
+                self.logger.debug(f"Processing CASR {year}-{month:02d}")
                 
                 # Look for daily CASR files for this month
                 month_pattern = f"domain_{self.domain_name}_{year}{month:02d}"
-                daily_files = sorted([f for f in all_casr_files if month_pattern in f.name])
+                daily_files = [f for f in all_casr_files if month_pattern in f.name]
+                
+                # Also look for the last file of the previous month to cover the start of this month
+                # (CASR files starting with YYYYMMDD12 contain data for the first 12 hours of the next day)
+                prev_month_date = pd.Timestamp(year, month, 1) - pd.Timedelta(days=1)
+                prev_pattern = f"domain_{self.domain_name}_{prev_month_date.strftime('%Y%m%d')}"
+                prev_files = [f for f in all_casr_files if prev_pattern in f.name]
+                
+                daily_files = sorted(list(set(daily_files + prev_files)))
                 
                 if not daily_files:
-                    self.logger.warning(f"No CASR files found for {year}-{month:02d}")
+                    self.logger.debug(f"No CASR files found for {year}-{month:02d}")
                     continue
                 
-                self.logger.info(f"Found {len(daily_files)} CASR files for {year}-{month:02d}")
+                self.logger.debug(f"Found {len(daily_files)} CASR files for {year}-{month:02d}")
                 
                 # Load datasets
                 datasets = []
@@ -242,8 +250,9 @@ class CASRHandler(BaseDatasetHandler):
                     continue
                 
                 # Concatenate into monthly data
-                monthly_data = xr.concat(processed_datasets, dim="time")
+                monthly_data = xr.concat(processed_datasets, dim="time", data_vars='all')
                 monthly_data = monthly_data.sortby("time")
+                monthly_data = monthly_data.drop_duplicates(dim='time')
                 
                 # Set up time range
                 start_time = pd.Timestamp(year, month, 1)
@@ -252,11 +261,11 @@ class CASRHandler(BaseDatasetHandler):
                 else:
                     end_time = pd.Timestamp(year, month + 1, 1) - pd.Timedelta(hours=1)
                 
-                monthly_data = monthly_data.sel(time=slice(start_time, end_time))
-                
-                # Ensure complete hourly time series
+                # Ensure complete hourly time series and fill gaps (CASR is 3-hourly)
                 expected_times = pd.date_range(start=start_time, end=end_time, freq='h')
-                monthly_data = monthly_data.reindex(time=expected_times, method='nearest')
+                monthly_data = monthly_data.reindex(time=expected_times)
+                monthly_data = monthly_data.interpolate_na(dim='time', method='linear')
+                monthly_data = monthly_data.ffill(dim='time').bfill(dim='time')
                 
                 # Set time encoding
                 monthly_data = self.setup_time_encoding(monthly_data)

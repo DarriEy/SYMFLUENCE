@@ -211,10 +211,15 @@ class SpatialOrchestrator(ABC):
         routing_str = self.config_dict.get(routing_key, 'none')
         routing_model = RoutingModel.from_string(routing_str)
 
-        # Build routing config
+        # Build routing config - handle 'default' config value
+        routing_var_config = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
+        if routing_var_config in ('default', None, ''):
+            routing_var = 'averageRoutedRunoff'  # Default for SUMMA
+        else:
+            routing_var = routing_var_config
         routing_config = RoutingConfig(
             model=routing_model,
-            routing_var=self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff'),
+            routing_var=routing_var,
             routing_units=self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s'),
         )
 

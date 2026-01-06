@@ -46,9 +46,9 @@ class DataManager(ConfigurableMixin):
 
         self.logger = logger
         self.reporting_manager = reporting_manager
-        
-        # Use typed config if available for delegates
-        component_config = self.typed_config if self.typed_config else self.config
+
+        # Always use dict config for delegates (they expect Dict, not typed config objects)
+        component_config = self.config
 
         # Initialize delegates
         self.acquisition_service = AcquisitionService(component_config, logger, reporting_manager)

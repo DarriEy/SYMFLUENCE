@@ -12,17 +12,6 @@ from symfluence.core.config.models import SymfluenceConfig
 
 
 @pytest.fixture
-def mock_logger():
-    """Create a mock logger for testing."""
-    logger = Mock()
-    logger.info = Mock()
-    logger.warning = Mock()
-    logger.error = Mock()
-    logger.debug = Mock()
-    return logger
-
-
-@pytest.fixture
 def temp_dir():
     """Create a temporary directory for testing."""
     temp_path = Path(tempfile.mkdtemp())

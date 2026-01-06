@@ -73,6 +73,34 @@ class DomainDelineator(PathResolverMixin):
 
         return basins_path, rivers_path
 
+    def _delineate_lumped_domain(self) -> Tuple[Optional[Path], Optional[Path]]:
+        """
+        Delineate the lumped domain into subcatchments using geofabric delineation.
+
+        This creates delineated catchments that map to the river network for
+        lumped-to-distributed routing scenarios.
+
+        Returns:
+            Tuple of (delineated_river_network_path, delineated_river_basins_path)
+        """
+        try:
+            self.logger.info("Delineating lumped domain into subcatchments")
+            # Use GeofabricDelineator to delineate the lumped domain
+            delineated_network, delineated_basins = self.delineator.delineate_geofabric()
+
+            if delineated_network and delineated_basins:
+                self.logger.info(f"Created delineated river network: {delineated_network}")
+                self.logger.info(f"Created delineated river basins: {delineated_basins}")
+            else:
+                self.logger.warning("Geofabric delineation did not produce expected outputs")
+
+            return delineated_network, delineated_basins
+        except Exception as e:
+            self.logger.error(f"Error delineating lumped domain: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return None, None
+
     def define_domain(self) -> Tuple[Optional[object], DelineationArtifacts]:
         with self.time_limit("Domain Definition"):
             domain_method = self._get_config_value("DOMAIN_DEFINITION_METHOD")
@@ -103,6 +131,21 @@ class DomainDelineator(PathResolverMixin):
                 artifacts.river_network_path = river_network_path
                 artifacts.river_basins_path = river_basins_path
                 artifacts.pour_point_path = self._get_pour_point_path()
+
+                # Check if we need delineated catchments for distributed routing
+                routing_delineation = self._get_config_value("ROUTING_DELINEATION", "lumped")
+                if routing_delineation == "river_network":
+                    self.logger.info("Creating delineated catchments for lumped-to-distributed routing")
+                    delineated_river_network, delineated_river_basins = self._delineate_lumped_domain()
+                    if delineated_river_network and delineated_river_basins:
+                        # Store delineated paths as separate artifacts
+                        artifacts.metadata['delineated_river_network_path'] = str(delineated_river_network)
+                        artifacts.metadata['delineated_river_basins_path'] = str(delineated_river_basins)
+                        self.logger.info("Delineated catchments created successfully")
+                    else:
+                        self.logger.error("Failed to create delineated catchments for lumped domain")
+                        raise RuntimeError("Delineation of lumped domain failed")
+
                 return (river_network_path, river_basins_path), artifacts
 
             if domain_method == "delineate":

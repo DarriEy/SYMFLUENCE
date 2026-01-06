@@ -30,6 +30,14 @@ class MockStructureAnalyzer(BaseStructureEnsembleAnalyzer):
     def calculate_performance_metrics(self):
         return {'kge': 0.8, 'nse': 0.7, 'mae': 1.0, 'rmse': 1.2, 'kgep': 0.75}
 
+def test_generate_combinations(mock_config, mock_logger):
+    analyzer = MockStructureAnalyzer(mock_config, mock_logger)
+    combinations = analyzer.generate_combinations()
+    
+    assert len(combinations) == 4
+    assert ('val1', 'a') in combinations
+
+
 @pytest.fixture
 def mock_config():
     return {
@@ -37,17 +45,6 @@ def mock_config():
         'DOMAIN_NAME': 'test_domain',
         'EXPERIMENT_ID': 'test_exp'
     }
-
-@pytest.fixture
-def mock_logger():
-    return MagicMock()
-
-def test_generate_combinations(mock_config, mock_logger):
-    analyzer = MockStructureAnalyzer(mock_config, mock_logger)
-    combinations = analyzer.generate_combinations()
-    
-    assert len(combinations) == 4
-    assert ('val1', 'a') in combinations
     assert ('val1', 'b') in combinations
     assert ('val2', 'a') in combinations
     assert ('val2', 'b') in combinations

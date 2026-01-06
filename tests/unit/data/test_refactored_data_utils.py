@@ -18,10 +18,6 @@ def mock_config(tmp_path):
         'ADDITIONAL_OBSERVATIONS': []
     }
 
-@pytest.fixture
-def mock_logger():
-    return MagicMock()
-
 def test_data_manager_initialization(mock_config, mock_logger):
     """Test that DataManager can be initialized with the new structure."""
     dm = DataManager(mock_config, mock_logger)

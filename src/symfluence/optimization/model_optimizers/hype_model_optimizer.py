@@ -80,6 +80,22 @@ class HYPEModelOptimizer(BaseModelOptimizer):
         """Create HYPE worker."""
         return HYPEWorker(self.config, self.logger)
 
+    def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
+        """Run HYPE for final evaluation."""
+        return self.worker.run_model(
+            self.config,
+            self.project_dir / 'settings' / 'HYPE',
+            output_dir,
+            mode='run_def'
+        )
+
+    def _get_final_file_manager_path(self) -> Path:
+        """Get path to HYPE info file (similar to file manager)."""
+        hype_info = self.config.get('SETTINGS_HYPE_INFO', 'info.txt')
+        if hype_info == 'default':
+            hype_info = 'info.txt'
+        return self.project_dir / 'settings' / 'HYPE' / hype_info
+
     def _setup_parallel_dirs(self) -> None:
         """Setup HYPE-specific parallel directories."""
         base_dir = self.project_dir / 'simulations' / f'run_{self.experiment_id}'

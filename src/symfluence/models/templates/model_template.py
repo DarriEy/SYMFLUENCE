@@ -176,7 +176,8 @@ class UnifiedModelRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
                 install_path_key=self.schema.installation.install_path_key,
                 default_install_subpath=self.schema.installation.default_install_subpath,
                 exe_name_key=self.schema.installation.exe_name_key,
-                default_exe_name=self.schema.installation.default_exe_name
+                default_exe_name=self.schema.installation.default_exe_name,
+                must_exist=True
             )
         return None
 

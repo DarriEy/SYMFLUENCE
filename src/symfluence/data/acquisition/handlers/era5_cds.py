@@ -173,30 +173,54 @@ class ERA5CDSAcquirer(BaseAcquisitionHandler):
             else:
                 self.logger.warning("Could not find precipitation variable in CDS output")
 
-            # Shortwave radiation
+            # Shortwave radiation - ERA5 accumulated, needs time-differencing
             v_ssrd = next((v for v in ds.variables if any(x in v.lower() for x in ['solar_radiation_down', 'ssrd'])), None)
             if v_ssrd:
                 self.logger.info(f"Processing shortwave from {v_ssrd}")
                 val = ds[v_ssrd]
-                if val.max() > 10000:
-                    sw_rad = (val / UnitConversion.SECONDS_PER_HOUR).astype('float32')
-                else:
-                    sw_rad = val.astype('float32')
-                sw_rad.attrs = {'units': 'W m-2', 'long_name': 'shortwave radiation'}
+
+                # De-accumulate: take time difference then divide by timestep
+                # ERA5 provides cumulative radiation that needs differencing
+                dt = (ds['time'].diff('time') / np.timedelta64(1, 's')).astype('float32')
+                sw_diff = val.diff('time').where(val.diff('time') >= 0, 0)  # Handle resets
+                sw_rad = (sw_diff / dt).clip(min=0).astype('float32')
+
+                # Pad the first timestep (lost in diff) with the first valid value
+                sw_rad = xr.concat([sw_rad.isel(time=0), sw_rad], dim='time')
+
+                self.logger.debug(f"De-accumulated SW radiation: max={sw_rad.max().values:.1f} W/m²")
+                sw_rad.attrs = {'units': 'W m-2', 'long_name': 'shortwave radiation',
+                               'standard_name': 'surface_downwelling_shortwave_flux_in_air'}
                 processed_vars['SWRadAtm'] = sw_rad
             else:
                 self.logger.warning("Could not find shortwave radiation variable in CDS output")
             
-            # Longwave radiation
+            # Longwave radiation - ERA5 accumulated, needs time-differencing
             v_strd = next((v for v in ds.variables if any(x in v.lower() for x in ['thermal_radiation_down', 'strd'])), None)
             if v_strd:
                 self.logger.info(f"Processing longwave from {v_strd}")
                 val = ds[v_strd]
-                if val.max() > 10000:
-                    lw_rad = (val / UnitConversion.SECONDS_PER_HOUR).astype('float32')
+
+                # De-accumulate: take time difference then divide by timestep
+                # ERA5 provides cumulative radiation that needs differencing
+                if 'dt' not in locals():
+                    dt = (ds['time'].diff('time') / np.timedelta64(1, 's')).astype('float32')
+                lw_diff = val.diff('time').where(val.diff('time') >= 0, 0)  # Handle resets
+                lw_rad = (lw_diff / dt).clip(min=0).astype('float32')
+
+                # Pad the first timestep (lost in diff) with the first valid value
+                lw_rad = xr.concat([lw_rad.isel(time=0), lw_rad], dim='time')
+
+                self.logger.debug(f"De-accumulated LW radiation: max={lw_rad.max().values:.1f} W/m²,  mean={lw_rad.mean().values:.1f} W/m²")
+
+                # Validate reasonable range (typical LW: 150-450 W/m²)
+                if lw_rad.max() < 100 or lw_rad.mean() < 50:
+                    self.logger.warning(f"LW radiation values seem too low! Max={lw_rad.max().values:.1f}, Mean={lw_rad.mean().values:.1f} W/m². Expected 200-400 W/m².")
                 else:
-                    lw_rad = val.astype('float32')
-                lw_rad.attrs = {'units': 'W m-2', 'long_name': 'longwave radiation'}
+                    self.logger.info(f"✓ LW radiation looks good: mean={lw_rad.mean().values:.1f} W/m²")
+
+                lw_rad.attrs = {'units': 'W m-2', 'long_name': 'longwave radiation',
+                               'standard_name': 'surface_downwelling_longwave_flux_in_air'}
                 processed_vars['LWRadAtm'] = lw_rad
             else:
                 self.logger.warning("Could not find longwave radiation variable in CDS output")

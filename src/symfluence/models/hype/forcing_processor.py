@@ -217,7 +217,7 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             if var_id is not None:
                 variables_to_keep.append(var_id)
             
-            # Ensure monotonic time for resampling
+            # Ensure time index is sorted
             ds = ds.sortby('time')
 
             # Resample to daily
@@ -232,26 +232,34 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             else:
                 raise ValueError(f"Unsupported stat: {stat}")
 
-            # Rename variable
-            if variable_in in ds_daily:
-                ds_daily = ds_daily.rename({variable_in: variable_out})
-
-            # Transpose if needed
-            if var_time in ds_daily[variable_out].dims and var_id in ds_daily[variable_out].dims:
-                ds_daily[variable_out] = ds_daily[variable_out].transpose(var_id, var_time)
-
-            # Convert to dataframe and unstack
-            df = ds_daily[variable_out].to_dataframe()
-            if var_id in df.index.names:
-                df = df.unstack(level=var_id)
+            # Extract variable and convert to dataframe
+            # Use to_series().unstack() to get time as index and IDs as columns
+            series = ds_daily[variable_in].to_series()
             
-            if isinstance(df.columns, pd.MultiIndex):
-                df.columns = df.columns.get_level_values(1)
-                
+            # Dynamically determine the ID level name
+            actual_id_level = var_id
+            if var_id not in series.index.names:
+                for fallback in ['id', 'hru', 'subid']:
+                    if fallback in series.index.names:
+                        actual_id_level = fallback
+                        break
+            
+            df = series.unstack(level=actual_id_level)
+            
+            # Ensure columns (subids) are integers and start from 1 if they are 0
+            df.columns = df.columns.astype(int)
+            if 0 in df.columns:
+                df.columns = [c + 1 if c == 0 else c for c in df.columns]
+            
             df.columns.name = None
-            df.index.name = var_time
+            df.index.name = 'time'
+            
+            # Ensure time index is formatted as YYYY-MM-DD for HYPE
+            df.index = pd.to_datetime(df.index).strftime('%Y-%m-%d')
             
             if output_file_name_txt:
-                df.to_csv(output_file_name_txt, sep='\t', na_rep='', index_label='time', float_format='%.3f')
+                # HYPE observation files: header is 'time' then subids
+                # Separated by tabs
+                df.to_csv(output_file_name_txt, sep='\t', na_rep='-9999.0', index=True, float_format='%.3f')
             
             return ds_daily

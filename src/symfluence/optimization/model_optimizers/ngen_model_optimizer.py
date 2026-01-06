@@ -87,6 +87,22 @@ class NgenModelOptimizer(BaseModelOptimizer):
         """Create NGEN worker."""
         return NgenWorker(self.config, self.logger)
 
+    def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
+        """Run NGEN for final evaluation."""
+        return self.worker.run_model(
+            self.config,
+            self.ngen_setup_dir,
+            output_dir,
+            mode='run_def'
+        )
+
+    def _get_final_file_manager_path(self) -> Path:
+        """Get path to NGEN realization file (similar to file manager)."""
+        ngen_realization = self.config.get('SETTINGS_NGEN_REALIZATION', 'realization.json')
+        if ngen_realization == 'default':
+            ngen_realization = 'realization.json'
+        return self.ngen_setup_dir / ngen_realization
+
     def _setup_parallel_dirs(self) -> None:
         """Setup NGEN-specific parallel directories."""
         base_dir = self.project_dir / 'simulations' / f'run_{self.experiment_id}'

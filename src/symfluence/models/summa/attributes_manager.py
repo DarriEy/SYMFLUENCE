@@ -224,6 +224,19 @@ class SummaAttributesManager:
             cell_size_x = transform[0]
             cell_size_y = -transform[4]  # Negative because Y increases downward in pixel space
 
+            # Convert cell sizes from degrees to meters if CRS is geographic
+            if src.crs.is_geographic:
+                # Get center latitude for conversion
+                bounds = src.bounds
+                center_lat = (bounds.bottom + bounds.top) / 2
+
+                # Convert degrees to meters
+                meters_per_degree_lat = 111000.0
+                meters_per_degree_lon = 111000.0 * np.cos(np.radians(center_lat))
+
+                cell_size_x = cell_size_x * meters_per_degree_lon
+                cell_size_y = cell_size_y * meters_per_degree_lat
+
             # Calculate gradients for entire DEM once
             dy, dx = np.gradient(dem, cell_size_y, cell_size_x)
             slope = np.arctan(np.sqrt(dx*dx + dy*dy))
@@ -412,6 +425,19 @@ class SummaAttributesManager:
                 cell_size_x = abs(transform[0])  # dx
                 cell_size_y = abs(transform[4])  # dy
 
+                # Convert cell sizes from degrees to meters if CRS is geographic
+                if src.crs.is_geographic:
+                    # Get center latitude for conversion
+                    bounds = src.bounds
+                    center_lat = (bounds.bottom + bounds.top) / 2
+
+                    # Convert degrees to meters
+                    meters_per_degree_lat = 111000.0
+                    meters_per_degree_lon = 111000.0 * np.cos(np.radians(center_lat))
+
+                    cell_size_x = cell_size_x * meters_per_degree_lon
+                    cell_size_y = cell_size_y * meters_per_degree_lat
+
                 # Calculate gradients
                 dy, dx = np.gradient(dem.astype(np.float64), cell_size_y, cell_size_x)
 
@@ -493,6 +519,21 @@ class SummaAttributesManager:
                 # Get cell sizes
                 cell_size_x = abs(transform[0])  # dx
                 cell_size_y = abs(transform[4])  # dy
+
+                # Convert cell sizes from degrees to meters if CRS is geographic
+                if src.crs.is_geographic:
+                    # Get center latitude for conversion
+                    bounds = src.bounds
+                    center_lat = (bounds.bottom + bounds.top) / 2
+
+                    # Convert degrees to meters
+                    meters_per_degree_lat = 111000.0
+                    meters_per_degree_lon = 111000.0 * np.cos(np.radians(center_lat))
+
+                    cell_size_x = cell_size_x * meters_per_degree_lon
+                    cell_size_y = cell_size_y * meters_per_degree_lat
+
+                    self.logger.debug(f"DEM in geographic coordinates - converted cell sizes to meters: dx={cell_size_x:.2f}m, dy={cell_size_y:.2f}m")
 
                 # Calculate gradients
                 dy, dx = np.gradient(dem.astype(np.float64), cell_size_y, cell_size_x)

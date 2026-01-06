@@ -81,12 +81,59 @@ def base_optimization_config(tmp_path):
     }
 
 
+# ============================================================================
+# Algorithm Configuration Fixtures (DDS, DE, PSO, SCE-UA)
+# ============================================================================
+
+# Algorithm-specific configuration overrides
+_ALGORITHM_OVERRIDES = {
+    'DDS': {
+        'ITERATIVE_OPTIMIZATION_ALGORITHM': 'DDS',
+        'NUMBER_OF_ITERATIONS': 5,
+    },
+    'DE': {
+        'ITERATIVE_OPTIMIZATION_ALGORITHM': 'DE',
+        'NUMBER_OF_ITERATIONS': 3,
+        'DE_POPULATION_SIZE': 5,
+    },
+    'PSO': {
+        'ITERATIVE_OPTIMIZATION_ALGORITHM': 'PSO',
+        'NUMBER_OF_ITERATIONS': 3,
+        'PSO_SWARM_SIZE': 5,
+    },
+    'SCE-UA': {
+        'ITERATIVE_OPTIMIZATION_ALGORITHM': 'SCE-UA',
+        'NUMBER_OF_ITERATIONS': 3,
+        'SCEUA_COMPLEXES': 2,
+    },
+}
+
+
+@pytest.fixture(params=['DDS', 'DE', 'PSO', 'SCE-UA'])
+def algorithm_specific_config(request, base_optimization_config):
+    """Parametrized fixture providing configurations for all optimization algorithms.
+    
+    Use this fixture to test all algorithm variants with a single test.
+    Provides: dds_config, de_config, pso_config, sceua_config combinations.
+    
+    Example:
+        def test_algorithm_initialization(algorithm_specific_config):
+            # This test runs for DDS, DE, PSO, and SCE-UA
+            config = algorithm_specific_config
+            assert config['ITERATIVE_OPTIMIZATION_ALGORITHM'] in _ALGORITHM_OVERRIDES
+    """
+    algorithm = request.param
+    config = base_optimization_config.copy()
+    config.update(_ALGORITHM_OVERRIDES[algorithm])
+    return config
+
+
+# Convenience fixtures for individual algorithms (backward compatibility)
 @pytest.fixture
 def dds_config(base_optimization_config):
     """Configuration for DDS algorithm."""
     config = base_optimization_config.copy()
-    config['ITERATIVE_OPTIMIZATION_ALGORITHM'] = 'DDS'
-    config['NUMBER_OF_ITERATIONS'] = 5
+    config.update(_ALGORITHM_OVERRIDES['DDS'])
     return config
 
 
@@ -94,9 +141,7 @@ def dds_config(base_optimization_config):
 def de_config(base_optimization_config):
     """Configuration for Differential Evolution algorithm."""
     config = base_optimization_config.copy()
-    config['ITERATIVE_OPTIMIZATION_ALGORITHM'] = 'DE'
-    config['NUMBER_OF_ITERATIONS'] = 3  # Generations
-    config['DE_POPULATION_SIZE'] = 5
+    config.update(_ALGORITHM_OVERRIDES['DE'])
     return config
 
 
@@ -104,9 +149,7 @@ def de_config(base_optimization_config):
 def pso_config(base_optimization_config):
     """Configuration for PSO algorithm."""
     config = base_optimization_config.copy()
-    config['ITERATIVE_OPTIMIZATION_ALGORITHM'] = 'PSO'
-    config['NUMBER_OF_ITERATIONS'] = 3
-    config['PSO_SWARM_SIZE'] = 5
+    config.update(_ALGORITHM_OVERRIDES['PSO'])
     return config
 
 
@@ -114,17 +157,54 @@ def pso_config(base_optimization_config):
 def sceua_config(base_optimization_config):
     """Configuration for SCE-UA algorithm."""
     config = base_optimization_config.copy()
-    config['ITERATIVE_OPTIMIZATION_ALGORITHM'] = 'SCE-UA'
-    config['NUMBER_OF_ITERATIONS'] = 3
-    config['SCEUA_COMPLEXES'] = 2
+    config.update(_ALGORITHM_OVERRIDES['SCE-UA'])
     return config
 
 
+# ============================================================================
+# Model Configuration Fixtures (SUMMA, FUSE, NGEN)
+# ============================================================================
+
+# Model-specific configuration overrides
+_MODEL_OVERRIDES = {
+    'SUMMA': {
+        'HYDROLOGICAL_MODEL': 'SUMMA',
+    },
+    'FUSE': {
+        'HYDROLOGICAL_MODEL': 'FUSE',
+        'FUSE_STRUCTURE': '902',
+    },
+    'NGEN': {
+        'HYDROLOGICAL_MODEL': 'NGEN',
+    },
+}
+
+
+@pytest.fixture(params=['SUMMA', 'FUSE', 'NGEN'])
+def model_specific_config(request, base_optimization_config):
+    """Parametrized fixture providing configurations for all hydrological models.
+    
+    Use this fixture to test all model variants with a single test.
+    Provides: summa_config, fuse_config, ngen_config combinations.
+    
+    Example:
+        def test_model_initialization(model_specific_config):
+            # This test runs for SUMMA, FUSE, and NGEN
+            config = model_specific_config
+            assert config['HYDROLOGICAL_MODEL'] in _MODEL_OVERRIDES
+    """
+    model = request.param
+    config = base_optimization_config.copy()
+    config.update(_MODEL_OVERRIDES[model])
+    return config
+
+
+# Convenience fixtures for individual models (backward compatibility)
 @pytest.fixture
 def summa_config(base_optimization_config):
     """Configuration for SUMMA calibration."""
     config = base_optimization_config.copy()
-    config['HYDROLOGICAL_MODEL'] = 'SUMMA'
+    config.update(_MODEL_OVERRIDES['SUMMA'])
     return config
 
 
@@ -132,8 +212,7 @@ def summa_config(base_optimization_config):
 def fuse_config(base_optimization_config):
     """Configuration for FUSE calibration."""
     config = base_optimization_config.copy()
-    config['HYDROLOGICAL_MODEL'] = 'FUSE'
-    config['FUSE_STRUCTURE'] = '902'  # Example FUSE structure ID
+    config.update(_MODEL_OVERRIDES['FUSE'])
     return config
 
 
@@ -141,7 +220,7 @@ def fuse_config(base_optimization_config):
 def ngen_config(base_optimization_config):
     """Configuration for NGEN calibration."""
     config = base_optimization_config.copy()
-    config['HYDROLOGICAL_MODEL'] = 'NGEN'
+    config.update(_MODEL_OVERRIDES['NGEN'])
     return config
 
 
@@ -289,49 +368,45 @@ def mock_evaluate_function():
     return evaluate
 
 
+def _create_mock_worker(model_name):
+    """Factory function to create mock worker functions for any model.
+    
+    Args:
+        model_name: Name of the model (SUMMA, FUSE, NGEN, etc.)
+    
+    Returns:
+        A worker function that simulates model evaluation.
+    """
+    def worker_factory(mock_evaluate_function):
+        def worker(params, config, trial_num=0):
+            """Simulate model run."""
+            metrics = mock_evaluate_function(params)
+            return {
+                'trial': trial_num,
+                'params': params,
+                'metrics': metrics,
+                'success': True
+            }
+        return worker
+    return worker_factory
+
+
 @pytest.fixture
 def mock_summa_worker(mock_evaluate_function):
     """Mock SUMMA worker function."""
-    def worker(params, config, trial_num=0):
-        """Simulate SUMMA model run."""
-        metrics = mock_evaluate_function(params)
-        return {
-            'trial': trial_num,
-            'params': params,
-            'metrics': metrics,
-            'success': True
-        }
-    return worker
+    return _create_mock_worker('SUMMA')(mock_evaluate_function)
 
 
 @pytest.fixture
 def mock_fuse_worker(mock_evaluate_function):
     """Mock FUSE worker function."""
-    def worker(params, config, trial_num=0):
-        """Simulate FUSE model run."""
-        metrics = mock_evaluate_function(params)
-        return {
-            'trial': trial_num,
-            'params': params,
-            'metrics': metrics,
-            'success': True
-        }
-    return worker
+    return _create_mock_worker('FUSE')(mock_evaluate_function)
 
 
 @pytest.fixture
 def mock_ngen_worker(mock_evaluate_function):
     """Mock NGEN worker function."""
-    def worker(params, config, trial_num=0):
-        """Simulate NGEN model run."""
-        metrics = mock_evaluate_function(params)
-        return {
-            'trial': trial_num,
-            'params': params,
-            'metrics': metrics,
-            'success': True
-        }
-    return worker
+    return _create_mock_worker('NGEN')(mock_evaluate_function)
 
 
 # ============================================================================

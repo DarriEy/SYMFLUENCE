@@ -80,6 +80,22 @@ class MESHModelOptimizer(BaseModelOptimizer):
         """Create MESH worker."""
         return MESHWorker(self.config, self.logger)
 
+    def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
+        """Run MESH for final evaluation."""
+        return self.worker.run_model(
+            self.config,
+            self.project_dir / 'settings' / 'MESH',
+            output_dir,
+            mode='run_def'
+        )
+
+    def _get_final_file_manager_path(self) -> Path:
+        """Get path to MESH input file (similar to file manager)."""
+        mesh_input = self.config.get('SETTINGS_MESH_INPUT', 'MESH_input_run_options.ini')
+        if mesh_input == 'default':
+            mesh_input = 'MESH_input_run_options.ini'
+        return self.project_dir / 'settings' / 'MESH' / mesh_input
+
     def _setup_parallel_dirs(self) -> None:
         """Setup MESH-specific parallel directories."""
         base_dir = self.project_dir / 'simulations' / f'run_{self.experiment_id}'

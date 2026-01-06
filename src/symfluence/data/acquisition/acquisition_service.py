@@ -316,25 +316,38 @@ class AcquisitionService:
                     output_file = downloader.download_forcing_data(raw_data_dir)
                     self.logger.info(f"✓ Cloud forcing data acquisition completed: {output_file}")
                     
-                    if self.reporting_manager and output_file and output_file.exists():
-                        self.reporting_manager.visualize_spatial_coverage(output_file, 'forcing_sample', 'acquisition')
+                    # Handle case where output is a directory (e.g. non-aggregated files)
+                    if output_file.is_dir():
+                        self.logger.info("Output is a directory - skipping single-file caching and visualization")
+                        
+                        # Find a sample file for visualization
+                        sample_files = list(output_file.glob("*.nc"))
+                        if sample_files:
+                            sample_file = sample_files[0]
+                            if self.reporting_manager:
+                                self.reporting_manager.visualize_spatial_coverage(sample_file, 'forcing_sample', 'acquisition')
+                        
+                        self.logger.warning("Caching is not currently supported for non-aggregated forcing files. Skipping cache.")
+                    else:
+                        if self.reporting_manager and output_file and output_file.exists():
+                            self.reporting_manager.visualize_spatial_coverage(output_file, 'forcing_sample', 'acquisition')
 
-                    # Store in cache
-                    try:
-                        cache.put(
-                            cache_key=cache_key,
-                            file_path=output_file,
-                            metadata={
-                                'dataset': forcing_dataset,
-                                'bbox': bbox,
-                                'time_range': f"{time_start} to {time_end}",
-                                'variables': variables if isinstance(variables, list) else str(variables),
-                                'domain_name': self.domain_name
-                            }
-                        )
-                    except Exception as cache_error:
-                        self.logger.warning(f"Failed to cache downloaded file: {cache_error}")
-                        # Don't fail the acquisition if caching fails
+                        # Store in cache
+                        try:
+                            cache.put(
+                                cache_key=cache_key,
+                                file_path=output_file,
+                                metadata={
+                                    'dataset': forcing_dataset,
+                                    'bbox': bbox,
+                                    'time_range': f"{time_start} to {time_end}",
+                                    'variables': variables if isinstance(variables, list) else str(variables),
+                                    'domain_name': self.domain_name
+                                }
+                            )
+                        except Exception as cache_error:
+                            self.logger.warning(f"Failed to cache downloaded file: {cache_error}")
+                            # Don't fail the acquisition if caching fails
 
                 except Exception as e:
                     self.logger.error(f"Error during cloud data acquisition: {str(e)}")

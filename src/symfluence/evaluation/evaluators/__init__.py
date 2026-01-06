@@ -12,6 +12,7 @@ This package contains evaluators for different hydrological variables including:
 from .base import ModelEvaluator
 from .et import ETEvaluator
 from .streamflow import StreamflowEvaluator
+from .gr_streamflow import GRStreamflowEvaluator
 from .soil_moisture import SoilMoistureEvaluator
 from .snow import SnowEvaluator
 from .groundwater import GroundwaterEvaluator
@@ -21,6 +22,7 @@ __all__ = [
     "ModelEvaluator",
     "ETEvaluator",
     "StreamflowEvaluator",
+    "GRStreamflowEvaluator",
     "SoilMoistureEvaluator",
     "SnowEvaluator",
     "GroundwaterEvaluator",

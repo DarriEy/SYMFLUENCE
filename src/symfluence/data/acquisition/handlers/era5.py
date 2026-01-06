@@ -20,8 +20,14 @@ class ERA5Acquirer(BaseAcquisitionHandler):
     """
     def download(self, output_dir: Path) -> Path:
         # Default to ARCO if libraries available, falling back to CDS
+
+        # Debug logging - show all ERA5-related config keys
+        era5_keys = {k: v for k, v in self.config.items() if 'ERA5' in k.upper()}
+        self.logger.info(f"All ERA5-related config keys: {era5_keys}")
+
         use_cds = self.config.get('ERA5_USE_CDS')
-        
+        self.logger.info(f"ERA5_USE_CDS config value: {use_cds} (type: {type(use_cds)})")
+
         if use_cds is None:
             # Auto-detect preference: ARCO > CDS (faster, no queue)
             try:
@@ -30,6 +36,12 @@ class ERA5Acquirer(BaseAcquisitionHandler):
                 use_cds = False
             except ImportError:
                 use_cds = has_cds_credentials()
+        else:
+            # Handle string values like "true", "True", "yes", etc.
+            if isinstance(use_cds, str):
+                use_cds = use_cds.lower() in ('true', 'yes', '1', 'on')
+
+        self.logger.info(f"Using CDS pathway: {use_cds}")
 
         if use_cds:
             self.logger.info("Using CDS pathway for ERA5")

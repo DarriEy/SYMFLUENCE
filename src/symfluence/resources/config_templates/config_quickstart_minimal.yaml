@@ -1,0 +1,203 @@
+################################################################################
+#
+#  SYMFLUENCE Quick-Start Configuration (Minimal - Legacy Flat Style)
+#
+#  This is a minimal configuration template containing ONLY the required
+#  settings that cannot have defaults. All other settings will use
+#  SYMFLUENCE's built-in defaults.
+#
+#  ⚠️  REQUIRED: You must set ALL options in this file.
+#      OPTIONAL: Leave sections commented if not needed.
+#
+#  Format: Flat key-value pairs with UPPERCASE_WITH_UNDERSCORES naming
+#
+#  Usage:
+#    1. Copy this file and rename: cp config_quickstart_minimal.yaml my_config.yaml
+#    2. Fill in ALL required values below
+#    3. Optionally uncomment sections for additional customization
+#    4. Run: python run_symfluence.py my_config.yaml
+#
+################################################################################
+
+## ============================================================================
+## REQUIRED SYSTEM CONFIGURATION
+## ============================================================================
+## You MUST set these paths for your system
+
+# Root directory for all SYMFLUENCE data files
+SYMFLUENCE_DATA_DIR: "/path/to/your/data/directory"
+
+# Root directory for SYMFLUENCE code and executables
+SYMFLUENCE_CODE_DIR: "/path/to/your/code/directory"
+
+
+## ============================================================================
+## REQUIRED DOMAIN CONFIGURATION
+## ============================================================================
+## You MUST set these to define your modeling domain
+
+# Unique identifier for your watershed/domain
+DOMAIN_NAME: "MyBasin"
+
+# Unique identifier for this modeling experiment/run
+EXPERIMENT_ID: "run_001"
+
+# Simulation start time (format: YYYY-MM-DD HH:MM)
+# Include spin-up period if needed
+EXPERIMENT_TIME_START: "2010-01-01 00:00"
+
+# Simulation end time (format: YYYY-MM-DD HH:MM)
+EXPERIMENT_TIME_END: "2020-12-31 23:00"
+
+# Domain definition method:
+#   - lumped        (single catchment, no discretization)
+#   - discretized   (divide into smaller units)
+#   - distributed   (grid-based representation)
+#   - subset        (subset of larger domain)
+#   - point         (single point/pixel)
+#   - delineate     (delineate from DEM at pour point)
+DOMAIN_DEFINITION_METHOD: "lumped"
+
+# Domain discretization strategy:
+#   - elevation     (discretize by elevation bands)
+#   - aspect        (discretize by aspect)
+#   - soilclass     (discretize by soil type)
+#   - landclass     (discretize by land cover)
+#   - radiation     (discretize by radiation zones)
+#   - grus          (pre-defined geographic response units)
+#   - combined      (e.g., "elevation,landclass" - comma-separated)
+DOMAIN_DISCRETIZATION: "elevation"
+
+
+## ============================================================================
+## REQUIRED FORCING DATA CONFIGURATION
+## ============================================================================
+## You MUST specify meteorological forcing dataset
+
+# Primary forcing dataset:
+#   - ERA5         (ECMWF Reanalysis 5)
+#   - RDRS         (Canadian Regional Data Assimilation System)
+#   - NLDAS        (NOAA North American Land Data Assimilation System)
+#   - CONUS404     (Dynamically downscaled climate)
+#   - custom       (your own forcing data)
+FORCING_DATASET: "ERA5"
+
+
+## ============================================================================
+## REQUIRED HYDROLOGICAL MODEL CONFIGURATION
+## ============================================================================
+## You MUST select at least one hydrological model
+
+# Hydrological model(s) to use:
+#   - SUMMA        (Structure for Unifying Multiple Modeling Alternatives)
+#   - FUSE         (Framework for Understanding Structural Errors)
+#   - GR           (GR4J, GR5J - French models)
+#   - HYPE         (HYdrological Predictions for the Environment)
+#   - NGEN         (Next Generation Water Resources Framework)
+#   - MESH         (Modélisation Environnementale-Surface Hydrology)
+#   - LSTM         (Long Short-Term Memory neural network)
+#
+# For multiple models, use comma-separated: "SUMMA, FUSE"
+HYDROLOGICAL_MODEL: "SUMMA"
+
+
+## ============================================================================
+## OPTIONAL: ADDITIONAL RECOMMENDED SETTINGS
+## ============================================================================
+## Uncomment and customize these for better control
+
+# Experiment identifier (optional, but recommended for tracking)
+# DESCRIPTION: "My first SYMFLUENCE run with SUMMA"
+
+# Calibration period (optional, but recommended if doing optimization)
+# CALIBRATION_PERIOD: "2010-01-01, 2015-12-31"
+
+# Evaluation/validation period (optional, but recommended for testing)
+# EVALUATION_PERIOD: "2016-01-01, 2020-12-31"
+
+# Number of MPI processes for parallel execution
+# MPI_PROCESSES: 4
+
+# Enable debug mode (verbose output)
+# DEBUG_MODE: false
+
+# Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+# LOG_LEVEL: "INFO"
+
+
+## ============================================================================
+## OPTIONAL: SPATIAL CONFIGURATION
+## ============================================================================
+## Uncomment if using point location or delineation method
+
+# Pour point coordinates (for point-based or delineate methods)
+# Format: "latitude/longitude" (e.g., "51.1722/-115.5717")
+# POUR_POINT_COORDS: "51.1722/-115.5717"
+
+# Bounding box (for regional domains)
+# Format: "north/west/south/east" (e.g., "60.0/-120.0/50.0/-110.0")
+# BOUNDING_BOX_COORDS: "60.0/-120.0/50.0/-110.0"
+
+
+## ============================================================================
+## OPTIONAL: MODEL-SPECIFIC PATHS
+## ============================================================================
+## Uncomment only if using that model and have custom paths
+
+# SUMMA-specific (if HYDROLOGICAL_MODEL includes SUMMA)
+# SUMMA_INSTALL_PATH: "/path/to/summa"
+# SUMMA_EXE: "summa_sundials.exe"
+# SETTINGS_SUMMA_PATH: "/path/to/summa/settings"
+
+# FUSE-specific (if HYDROLOGICAL_MODEL includes FUSE)
+# FUSE_INSTALL_PATH: "/path/to/fuse"
+# FUSE_EXE: "fuse.exe"
+# SETTINGS_FUSE_PATH: "/path/to/fuse/settings"
+
+# Routing model (optional, recommended for spatial models)
+# ROUTING_MODEL: "mizuRoute"
+# INSTALL_PATH_MIZUROUTE: "/path/to/mizuroute"
+
+
+## ============================================================================
+## OPTIONAL: EVALUATION DATA
+## ============================================================================
+## Uncomment to enable specific observation data sources
+
+# DOWNLOAD_USGS_DATA: false
+# STATION_ID: "your_usgs_station_id"
+
+# DOWNLOAD_SNOTEL: false
+# SNOTEL_STATION: "your_snotel_id"
+
+# DOWNLOAD_SMAP: false
+# DOWNLOAD_GRACE: false
+# DOWNLOAD_MODIS_SNOW: false
+
+
+## ============================================================================
+## OPTIONAL: OPTIMIZATION SETTINGS
+## ============================================================================
+## Uncomment if you want to calibrate/optimize the model
+
+# OPTIMIZATION_METHODS: "PSO"
+# ITERATIVE_OPTIMIZATION_ALGORITHM: "PSO"
+# OPTIMIZATION_METRIC: "KGE"
+# NUMBER_OF_ITERATIONS: 1000
+# POPULATION_SIZE: 50
+
+
+################################################################################
+#
+#  That's it! These 10 required settings are all you need to get started.
+#
+#  Next steps:
+#    1. Update all REQUIRED settings with your actual values
+#    2. Optionally customize OPTIONAL settings
+#    3. Run: python run_symfluence.py my_config.yaml
+#
+#  For more options, see:
+#    - config_template_comprehensive.yaml (all 364 options)
+#    - CONFIG_AUDIT_REPORT.md (detailed documentation)
+#
+################################################################################

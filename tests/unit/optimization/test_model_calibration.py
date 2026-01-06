@@ -202,6 +202,7 @@ class TestFUSEWorkerFunctions:
     def test_fuse_parameter_application(self, fuse_config, test_logger, temp_project_dir):
         """Test applying parameters to FUSE input files via worker class."""
         from symfluence.optimization.workers.fuse_worker import FUSEWorker
+        from unittest.mock import mock_open
 
         params = {
             'MAXWATR_1': 500.0,
@@ -210,13 +211,14 @@ class TestFUSEWorkerFunctions:
 
         worker = FUSEWorker(fuse_config, test_logger)
 
-        # Mock NetCDF writing (nc is imported locally in the method)
-        with patch('netCDF4.Dataset') as mock_ds:
-            mock_ds_instance = mock_ds.return_value.__enter__.return_value
-            mock_ds_instance.variables = {'MAXWATR_1': MagicMock(), 'PERCRTE': MagicMock()}
-
-            with patch('pathlib.Path.exists', return_value=True):
+        # Mock file operations instead of trying to create real files
+        mock_constraint_file = "L 1 100.000      0     10.000 MAXWATR_1\nL 1  20.000      0      5.000 PERCRTE\n"
+        
+        with patch('pathlib.Path.exists', return_value=True):
+            with patch('builtins.open', mock_open(read_data=mock_constraint_file)) as mock_file:
                 result = worker.apply_parameters(params, temp_project_dir, config=fuse_config)
+                # Check that the file was attempted to be opened
+                assert mock_file.called
                 assert result is True
 
     def test_fuse_worker_evaluation(self, fuse_config, test_logger, mock_fuse_worker):
