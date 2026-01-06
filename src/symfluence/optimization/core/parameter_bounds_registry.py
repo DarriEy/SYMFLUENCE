@@ -50,12 +50,12 @@ class ParameterBoundsRegistry:
     # SNOW PARAMETERS
     # ========================================================================
     SNOW_PARAMS: Dict[str, ParameterInfo] = {
-        # FUSE snow parameters (bounds aligned with FUSE constraints file)
-        'MBASE': ParameterInfo(0.0, 3.0, '°C', 'Base melt temperature', 'snow'),
-        'MFMAX': ParameterInfo(2.0, 8.0, 'mm/(°C·day)', 'Maximum melt factor', 'snow'),
-        'MFMIN': ParameterInfo(0.4, 2.0, 'mm/(°C·day)', 'Minimum melt factor (kept <= MFMAX min)', 'snow'),
-        'PXTEMP': ParameterInfo(-1.0, 5.0, '°C', 'Rain-snow partition temperature', 'snow'),
-        'LAPSE': ParameterInfo(-7.0, -4.0, '°C/km', 'Temperature lapse rate (negative)', 'snow'),
+        # FUSE snow parameters
+        'MBASE': ParameterInfo(-5.0, 5.0, '°C', 'Base melt temperature', 'snow'),
+        'MFMAX': ParameterInfo(1.0, 10.0, 'mm/(°C·day)', 'Maximum melt factor', 'snow'),
+        'MFMIN': ParameterInfo(0.5, 5.0, 'mm/(°C·day)', 'Minimum melt factor', 'snow'),
+        'PXTEMP': ParameterInfo(-2.0, 2.0, '°C', 'Rain-snow partition temperature', 'snow'),
+        'LAPSE': ParameterInfo(3.0, 10.0, '°C/km', 'Temperature lapse rate', 'snow'),
 
         # NGEN snow parameters
         'rain_snow_thresh': ParameterInfo(-2.0, 2.0, '°C', 'Rain-snow temperature threshold', 'snow'),
@@ -145,21 +145,14 @@ class ParameterBoundsRegistry:
         'RTFRAC1': ParameterInfo(0.1, 0.9, '-', 'Fraction roots upper layer', 'et'),
         'RTFRAC2': ParameterInfo(0.1, 0.9, '-', 'Fraction roots lower layer', 'et'),
 
-        # NGEN PET parameters (using actual config file names)
+        # NGEN PET parameters
         'wind_speed_measurement_height_m': ParameterInfo(2.0, 10.0, 'm', 'Wind measurement height', 'et'),
         'humidity_measurement_height_m': ParameterInfo(2.0, 10.0, 'm', 'Humidity measurement height', 'et'),
-        'vegetation_height_m': ParameterInfo(0.1, 30.0, 'm', 'Vegetation height', 'et'),
-        'zero_plane_displacement_height_m': ParameterInfo(0.0, 20.0, 'm', 'Zero plane displacement height', 'et'),
-        'momentum_transfer_roughness_length': ParameterInfo(0.001, 2.0, 'm', 'Momentum transfer roughness length', 'et'),
-        'heat_transfer_roughness_length_m': ParameterInfo(0.0001, 0.1, 'm', 'Heat transfer roughness length', 'et'),
-        'surface_shortwave_albedo': ParameterInfo(0.05, 0.5, '-', 'Surface shortwave albedo', 'et'),
-        'surface_longwave_emissivity': ParameterInfo(0.85, 1.0, '-', 'Surface longwave emissivity', 'et'),
-        # Legacy parameter names (for backwards compatibility)
-        'pet_albedo': ParameterInfo(0.05, 0.5, '-', 'PET albedo (legacy)', 'et'),
-        'pet_z0_mom': ParameterInfo(0.001, 1.0, 'm', 'PET momentum roughness (legacy)', 'et'),
-        'pet_z0_heat': ParameterInfo(0.0001, 0.1, 'm', 'PET heat roughness (legacy)', 'et'),
-        'pet_veg_h': ParameterInfo(0.1, 30.0, 'm', 'PET vegetation height (legacy)', 'et'),
-        'pet_d0': ParameterInfo(0.0, 20.0, 'm', 'PET zero plane displacement (legacy)', 'et'),
+        'pet_albedo': ParameterInfo(0.05, 0.5, '-', 'PET albedo', 'et'),
+        'pet_z0_mom': ParameterInfo(0.001, 1.0, 'm', 'PET momentum roughness', 'et'),
+        'pet_z0_heat': ParameterInfo(0.0001, 0.1, 'm', 'PET heat roughness', 'et'),
+        'pet_veg_h': ParameterInfo(0.1, 30.0, 'm', 'PET vegetation height', 'et'),
+        'pet_d0': ParameterInfo(0.0, 20.0, 'm', 'PET zero plane displacement', 'et'),
 
         # NGEN NOAH reference height
         'ZREF': ParameterInfo(2.0, 10.0, 'm', 'Reference height for measurements', 'et'),
@@ -185,7 +178,7 @@ class ParameterBoundsRegistry:
         'cmrefr': ParameterInfo(0.0, 0.5, '-', 'Snow refreeze capacity', 'snow'),
 
         # Evapotranspiration parameters
-        'cevp': ParameterInfo(0.1, 1.0, '-', 'Evaporation coefficient', 'et'),
+        'cevp': ParameterInfo(0.0, 1.0, '-', 'Evaporation coefficient', 'et'),
         'lp': ParameterInfo(0.3, 1.0, '-', 'Threshold for ET reduction', 'et'),
         'epotdist': ParameterInfo(1.0, 10.0, '-', 'PET depth dependency coefficient', 'et'),
 
@@ -197,11 +190,6 @@ class ParameterBoundsRegistry:
         'wcfc': ParameterInfo(0.1, 0.5, '-', 'Field capacity', 'soil'),
         'wcep': ParameterInfo(0.1, 0.6, '-', 'Effective porosity', 'soil'),
         'srrcs': ParameterInfo(0.0, 0.5, '1/day', 'Surface runoff coefficient', 'soil'),
-
-        # Groundwater/baseflow parameters
-        'rcgrw': ParameterInfo(0.0, 0.5, '1/day', 'Regional groundwater outflow recession coefficient', 'baseflow'),
-        'aqretcorr': ParameterInfo(0.5, 2.0, '-', 'Aquifer return flow correction factor', 'baseflow'),
-        'aqdelcorr': ParameterInfo(0.5, 2.0, '-', 'Aquifer delay correction factor', 'baseflow'),
 
         # Routing parameters
         'rivvel': ParameterInfo(0.5, 20.0, 'm/s', 'River flow velocity', 'routing'),
@@ -234,62 +222,20 @@ class ParameterBoundsRegistry:
     }
 
     # ========================================================================
-    # RHESSYS PARAMETERS
-    # ========================================================================
-    RHESSYS_PARAMS: Dict[str, ParameterInfo] = {
-        # Groundwater/baseflow parameters (basin.def and soil.def)
-        # Note: gw_loss_coeff constrained to prevent excessive groundwater loss
-        'sat_to_gw_coeff': ParameterInfo(0.000001, 0.0001, '1/day', 'Saturation to groundwater coefficient', 'baseflow'),
-        'gw_loss_coeff': ParameterInfo(0.0, 10.0, '-', 'Groundwater loss coefficient (tightened to prevent NaN)', 'baseflow'),
-
-        # Soil hydraulic parameters (soil.def)
-        # Note: m constrained to prevent extreme Ksat decay; soil_depth min increased for storage
-        'psi_air_entry': ParameterInfo(-10.0, -1.0, 'kPa', 'Air entry pressure (negative)', 'soil'),
-        'pore_size_index': ParameterInfo(0.05, 0.4, '-', 'Pore size distribution index', 'soil'),
-        'porosity_0': ParameterInfo(0.3, 0.6, 'm³/m³', 'Surface porosity', 'soil'),
-        'porosity_decay': ParameterInfo(0.1, 1.0, 'm³/m³', 'Porosity decay with depth', 'soil'),
-        'Ksat_0': ParameterInfo(0.000001, 0.001, 'm/s', 'Surface saturated conductivity', 'soil'),
-        'Ksat_0_v': ParameterInfo(10.0, 1000.0, 'm/day', 'Vertical saturated conductivity', 'soil'),
-        'm': ParameterInfo(0.1, 5.0, '-', 'Lateral decay of Ksat with depth (constrained)', 'soil'),
-        'm_z': ParameterInfo(0.1, 5.0, '-', 'Vertical decay of Ksat with depth (constrained)', 'soil'),
-        'soil_depth': ParameterInfo(1.0, 5.0, 'm', 'Total soil depth (min increased for storage)', 'soil'),
-        'active_zone_z': ParameterInfo(0.1, 1.0, 'm', 'Active zone depth', 'soil'),
-
-        # Snow parameters (zone.def)
-        'max_snow_temp': ParameterInfo(-2.0, 4.0, '°C', 'Max temp for snow (rain/snow threshold)', 'snow'),
-        'min_rain_temp': ParameterInfo(-6.0, 0.0, '°C', 'Min temp for rain (all snow below this)', 'snow'),
-        'snow_melt_Tcoef': ParameterInfo(0.1, 2.0, 'mm/°C/day', 'Snow melt temperature coefficient', 'snow'),
-        'maximum_snow_energy_deficit': ParameterInfo(500.0, 3000.0, 'kJ/m²', 'Maximum snow energy deficit', 'snow'),
-
-        # Vegetation parameters (stratum.def)
-        'epc.max_lai': ParameterInfo(0.5, 8.0, 'm²/m²', 'Maximum LAI', 'et'),
-        'epc.gl_smax': ParameterInfo(0.001, 0.2, 'm/s', 'Maximum stomatal conductance', 'et'),
-        'epc.gl_c': ParameterInfo(0.00001, 0.001, 'm/s', 'Cuticular conductance', 'et'),
-        'epc.vpd_open': ParameterInfo(0.1, 2.0, 'kPa', 'VPD at stomatal opening', 'et'),
-        'epc.vpd_close': ParameterInfo(2.0, 6.0, 'kPa', 'VPD at stomatal closure', 'et'),
-
-        # Routing parameters (basin.def)
-        'n_routing_power': ParameterInfo(0.1, 1.0, '-', 'Routing power exponent', 'routing'),
-    }
-
-    # ========================================================================
     # GR PARAMETERS
     # ========================================================================
-    # Bounds tightened based on airGR documentation and hydrological literature.
-    # Previous bounds were too wide (e.g., X1: 1-2000), causing inefficient search.
-    # Tighter bounds improve DDS convergence while covering realistic parameter space.
     GR_PARAMS: Dict[str, ParameterInfo] = {
-        # GR4J parameters - bounds based on Perrin et al. (2003) and airGR defaults
-        'X1': ParameterInfo(50.0, 1200.0, 'mm', 'Production store capacity', 'soil'),
-        'X2': ParameterInfo(-5.0, 5.0, 'mm/day', 'Groundwater exchange coefficient', 'baseflow'),
-        'X3': ParameterInfo(10.0, 500.0, 'mm', 'Routing store capacity', 'soil'),
-        'X4': ParameterInfo(0.5, 5.0, 'days', 'Unit hydrograph time constant', 'routing'),
+        # GR4J parameters
+        'X1': ParameterInfo(1.0, 2000.0, 'mm', 'Production store capacity', 'soil'),
+        'X2': ParameterInfo(-10.0, 10.0, 'mm/day', 'Groundwater exchange coefficient', 'baseflow'),
+        'X3': ParameterInfo(1.0, 300.0, 'mm', 'Routing store capacity', 'soil'),
+        'X4': ParameterInfo(0.5, 4.0, 'days', 'Unit hydrograph time constant', 'routing'),
 
-        # CemaNeige parameters - bounds from Valéry et al. (2014)
+        # CemaNeige parameters
         'CTG': ParameterInfo(0.0, 1.0, '-', 'Snow process parameter', 'snow'),
-        'Kf': ParameterInfo(1.0, 8.0, 'mm/°C/day', 'Melt factor', 'snow'),
+        'Kf': ParameterInfo(0.0, 10.0, 'mm/°C/day', 'Melt factor', 'snow'),
         'Gratio': ParameterInfo(0.01, 0.5, '-', 'Thermal coefficient of snow pack', 'snow'),
-        'Albedo_diff': ParameterInfo(0.1, 0.9, '-', 'Albedo diffusion coefficient', 'snow'),
+        'Albedo_diff': ParameterInfo(0.1, 1.0, '-', 'Albedo diffusion coefficient', 'snow'),
     }
 
     def __init__(self):
@@ -304,7 +250,6 @@ class ParameterBoundsRegistry:
         self._all_params.update(self.HYPE_PARAMS)
         self._all_params.update(self.MESH_PARAMS)
         self._all_params.update(self.GR_PARAMS)
-        self._all_params.update(self.RHESSYS_PARAMS)
 
     def get_bounds(self, param_name: str) -> Optional[Dict[str, float]]:
         """
@@ -448,12 +393,7 @@ def get_ngen_pet_bounds() -> Dict[str, Dict[str, float]]:
         Dictionary mapping PET param_name -> {'min': float, 'max': float}
     """
     pet_params = [
-        # Actual config file parameter names
         'wind_speed_measurement_height_m', 'humidity_measurement_height_m',
-        'vegetation_height_m', 'zero_plane_displacement_height_m',
-        'momentum_transfer_roughness_length', 'heat_transfer_roughness_length_m',
-        'surface_shortwave_albedo', 'surface_longwave_emissivity',
-        # Legacy parameter names (for backwards compatibility)
         'pet_albedo', 'pet_z0_mom', 'pet_z0_heat', 'pet_veg_h', 'pet_d0',
     ]
     return get_registry().get_bounds_for_params(pet_params)
@@ -499,9 +439,6 @@ def get_hype_bounds() -> Dict[str, Dict[str, float]]:
     """
     Get all HYPE parameter bounds.
 
-    Note: This returns bounds for all known HYPE parameters. Not all parameters
-    are available in all HYPE versions (e.g., aqretcorr/aqdelcorr are newer).
-
     Returns:
         Dictionary mapping HYPE param_name -> {'min': float, 'max': float}
     """
@@ -509,7 +446,6 @@ def get_hype_bounds() -> Dict[str, Dict[str, float]]:
         'ttmp', 'cmlt', 'ttpi', 'cmrefr',  # Snow
         'cevp', 'lp', 'epotdist',  # ET
         'rrcs1', 'rrcs2', 'rrcs3', 'wcwp', 'wcfc', 'wcep', 'srrcs',  # Soil
-        'rcgrw',  # Groundwater/Baseflow (aqretcorr, aqdelcorr available but not in all versions)
         'rivvel', 'damp', 'qmean',  # Routing
         'ilratk', 'ilratp',  # Lakes
     ]
@@ -540,26 +476,3 @@ def get_gr_bounds() -> Dict[str, Dict[str, float]]:
     """
     gr_params = ['X1', 'X2', 'X3', 'X4', 'CTG', 'Kf', 'Gratio', 'Albedo_diff']
     return get_registry().get_bounds_for_params(gr_params)
-
-
-def get_rhessys_bounds() -> Dict[str, Dict[str, float]]:
-    """
-    Get all RHESSys parameter bounds.
-
-    Returns:
-        Dictionary mapping RHESSys param_name -> {'min': float, 'max': float}
-    """
-    rhessys_params = [
-        # Groundwater/baseflow
-        'sat_to_gw_coeff', 'gw_loss_coeff',
-        # Soil
-        'psi_air_entry', 'pore_size_index', 'porosity_0', 'porosity_decay',
-        'Ksat_0', 'Ksat_0_v', 'm', 'm_z', 'soil_depth', 'active_zone_z',
-        # Snow
-        'max_snow_temp', 'min_rain_temp', 'snow_melt_Tcoef', 'maximum_snow_energy_deficit',
-        # Vegetation/ET
-        'epc.max_lai', 'epc.gl_smax', 'epc.gl_c', 'epc.vpd_open', 'epc.vpd_close',
-        # Routing
-        'n_routing_power',
-    ]
-    return get_registry().get_bounds_for_params(rhessys_params)

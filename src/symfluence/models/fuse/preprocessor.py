@@ -245,7 +245,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             
             # Get spatial mode configuration
             spatial_mode = self.config_dict.get('FUSE_SPATIAL_MODE', 'lumped')
-            subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
+            subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'longitude')
             
             self.logger.debug(f"Preparing FUSE forcing data in {spatial_mode} mode")
             
@@ -350,34 +350,87 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
 
     def _add_forcing_variables(self, fuse_forcing, ds, pet, obs_ds, spatial_dims, n_subcatchments, ts_config=None):
         """Add forcing variables to the dataset using efficient xarray broadcasting"""
-        
+
         if ts_config is None:
             ts_config = self._get_timestep_config()
-        
+
         time_label = ts_config['time_label']
         unit_str = f"mm/{time_label.replace('-', ' ')}"
-        
+
+        # Determine target spatial dimension (latitude or longitude based on config)
+        subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'longitude')
+
         # Alignment time index (already in fuse_forcing.time but we need it as datetime for reindexing)
         # FUSE uses numeric time, but we'll use datetime for internal alignment
         time_index = pd.to_datetime('1970-01-01') + pd.to_timedelta(fuse_forcing.time.values, unit='D')
-        
+
         def process_var(da, name):
             # Ensure data has datetime index for alignment
             if not pd.api.types.is_datetime64_any_dtype(da.time.dtype):
                 da = da.assign_coords(time=pd.to_datetime('1970-01-01') + pd.to_timedelta(da.time.values, unit='D'))
-            
+
             # Align to the expected time index
-            da_aligned = da.reindex(time=time_index, method='nearest', tolerance='1D').fillna(method='ffill')
-            
+            da_aligned = da.reindex(time=time_index, method='nearest', tolerance='1D').ffill(dim='time')
+
             # Switch back to numeric time to match fuse_forcing exactly (avoids DTypePromotionError)
             # Drop time first to ensure clean replacement of coordinate and index
             da_aligned = da_aligned.drop_vars('time').assign_coords(time=fuse_forcing.time)
-            
-            # Broadcast to spatial dimensions
+
+            # CRITICAL FIX: Map 'hru' dimension to the target spatial dimension (latitude/longitude)
+            # This ensures FUSE gets 3D (time, lat, lon) not 4D (time, lat, lon, hru)
+            if 'hru' in da_aligned.dims:
+                # Remove target dimension if it exists as a coordinate to avoid conflict
+                if subcatchment_dim in da_aligned.coords:
+                    da_aligned = da_aligned.drop_vars(subcatchment_dim)
+
+                # Rename hru to the target spatial dimension
+                da_aligned = da_aligned.rename({'hru': subcatchment_dim})
+                # Assign the correct coordinate values from fuse_forcing
+                da_aligned = da_aligned.assign_coords({subcatchment_dim: fuse_forcing[subcatchment_dim].values})
+
+            # Broadcast to spatial dimensions (now should only add the singleton dimension)
             da_broadcasted = da_aligned.broadcast_like(fuse_forcing)
-            
-            # Cleanup and handle NaNs
-            return da_broadcasted.fillna(-9999.0).astype('float32')
+
+            # CRITICAL: Handle NaN values properly for FUSE
+            # FUSE interprets -9999 as actual negative values, not as missing data
+            # We need to fill NaN values with interpolated/mean data
+            da_values = da_broadcasted.values.copy()
+            nan_mask = np.isnan(da_values)
+
+            if np.any(nan_mask):
+                # Find subcatchments with all-NaN data
+                spatial_idx = 1 if subcatchment_dim == 'latitude' else 2  # Index in (time, lat, lon)
+                all_nan_mask = np.all(nan_mask, axis=0)  # Shape: (lat, lon) or similar
+
+                if np.any(all_nan_mask):
+                    self.logger.warning(f"Variable '{name}' has {np.sum(all_nan_mask)} subcatchments with all NaN values - filling with spatial mean")
+
+                    # Compute mean across valid subcatchments for each timestep
+                    valid_data = np.where(nan_mask, np.nan, da_values)
+                    spatial_mean = np.nanmean(valid_data, axis=(1, 2), keepdims=True)
+
+                    # Fill NaN values with spatial mean
+                    da_values = np.where(nan_mask, spatial_mean, da_values)
+
+                    # If still NaN (all data missing for a timestep), use temporal mean
+                    still_nan = np.isnan(da_values)
+                    if np.any(still_nan):
+                        temporal_mean = np.nanmean(da_values)
+                        da_values = np.where(still_nan, temporal_mean, da_values)
+                else:
+                    # Scattered NaN values - fill with forward fill then backward fill
+                    self.logger.debug(f"Variable '{name}' has {np.sum(nan_mask)} scattered NaN values - filling with interpolation")
+                    da_values = np.where(nan_mask, np.nan, da_values)
+                    # Use xarray for interpolation
+                    da_temp = xr.DataArray(da_values, dims=da_broadcasted.dims, coords=da_broadcasted.coords)
+                    da_temp = da_temp.ffill(dim='time').bfill(dim='time')
+                    da_values = da_temp.values
+
+            # Ensure non-negative for precipitation (floating-point precision can cause tiny negative values)
+            if name == 'pr':
+                da_values = np.maximum(da_values, 0.0)
+
+            return xr.DataArray(da_values, dims=da_broadcasted.dims, coords=da_broadcasted.coords).astype('float32')
 
         # Map variables
         var_map = {

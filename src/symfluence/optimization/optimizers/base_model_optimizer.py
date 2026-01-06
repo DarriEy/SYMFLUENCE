@@ -351,7 +351,8 @@ class BaseModelOptimizer(
                     'summa_settings_dir': str(settings_dir),
                     'mizuroute_settings_dir': str(dirs.get('root', self.project_dir) / 'settings' / 'mizuRoute') if dirs else '',
                     'summa_dir': str(dirs.get('sim_dir', '')),
-                    'mizuroute_dir': str(dirs.get('root', self.project_dir) / 'simulations' / 'mizuRoute') if dirs else '',
+                    # mizuroute_dir should be sibling to summa_dir: .../simulations/run_1/mizuRoute
+                    'mizuroute_dir': str(Path(dirs.get('sim_dir', '')).parent / 'mizuRoute') if dirs and dirs.get('sim_dir') else '',
                     'file_manager': str(settings_dir / 'fileManager.txt'),
                     'summa_exe': str(self.summa_exe_path) if hasattr(self, 'summa_exe_path') else '',
                     'original_depths': self.param_manager.original_depths.tolist() if hasattr(self.param_manager, 'original_depths') and self.param_manager.original_depths is not None else None,
@@ -387,11 +388,20 @@ class BaseModelOptimizer(
             results = self.execute_batch(tasks, worker_func)
 
             # Extract scores
+            valid_count = 0
             for result in results:
                 idx = result.get('individual_id', 0)
                 score = result.get('score')
+                error = result.get('error')
+                if error:
+                    self.logger.warning(f"Task {idx} error: {error[:200] if len(str(error)) > 200 else error}")
                 if score is not None and not np.isnan(score):
                     fitness[idx] = score
+                    if score != self.DEFAULT_PENALTY_SCORE:
+                        valid_count += 1
+                else:
+                    self.logger.warning(f"Task {idx} returned score={score}")
+            self.logger.debug(f"Batch results: {len(results)} returned, {valid_count} valid scores")
         else:
             # Sequential evaluation
             for i, params_normalized in enumerate(population):
@@ -896,7 +906,7 @@ class BaseModelOptimizer(
         total_evaluations = 0
         stagnation_counter = 0
         last_improvement_batch = 0
-        best_score = self.DEFAULT_PENALTY_SCORE
+        best_score = float('-inf')  # Start with -inf so any valid score is considered better
         best_solution = None
 
         self.logger.info(f"Async DDS configuration:")

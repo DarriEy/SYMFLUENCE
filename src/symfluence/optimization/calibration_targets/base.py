@@ -32,11 +32,9 @@ from symfluence.evaluation.evaluators import (
 
         GRStreamflowEvaluator as GRStreamflowTarget,
 
-        HYPEStreamflowEvaluator as HYPEStreamflowTarget,
-
         SoilMoistureEvaluator as SoilMoistureTarget,
 
-
+    
 
     SnowEvaluator as SnowTarget,
 

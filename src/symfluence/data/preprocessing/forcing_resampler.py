@@ -1135,12 +1135,13 @@ class ForcingResampler(PathResolverMixin):
 
     def _ensure_unique_hru_ids(self, shapefile_path, hru_id_field):
         """
-        Ensure HRU IDs are unique in the shapefile. Create new unique IDs if needed.
-        
+        Ensure HRU IDs are unique in the shapefile. For lumped catchments with duplicate HRU_IDs,
+        dissolve features by HRU_ID to create a single polygon per HRU. Otherwise, create new unique IDs.
+
         Args:
             shapefile_path: Path to the shapefile
             hru_id_field: Name of the HRU ID field
-            
+
         Returns:
             tuple: (updated_shapefile_path, actual_hru_id_field_used)
         """
@@ -1149,75 +1150,124 @@ class ForcingResampler(PathResolverMixin):
             gdf = gpd.read_file(shapefile_path)
             self.logger.debug(f"Checking HRU ID uniqueness in {shapefile_path.name}")
             self.logger.debug(f"Available fields: {list(gdf.columns)}")
-            
+
             # Check if the HRU ID field exists
             if hru_id_field not in gdf.columns:
                 self.logger.error(f"HRU ID field '{hru_id_field}' not found in shapefile.")
                 raise ValueError(f"HRU ID field '{hru_id_field}' not found in shapefile")
-            
+
             # Check for uniqueness
             original_count = len(gdf)
             unique_count = gdf[hru_id_field].nunique()
-            
+
             self.logger.debug(f"Shapefile has {original_count} rows, {unique_count} unique {hru_id_field} values")
-            
+
             if unique_count == original_count:
                 self.logger.debug(f"All {hru_id_field} values are unique")
                 return shapefile_path, hru_id_field
-            
+
             # Handle duplicate IDs
-            self.logger.warning(f"Found {original_count - unique_count} duplicate {hru_id_field} values")
-            
-            # Create new unique ID field with shorter name (shapefile 10-char limit)
-            new_hru_field = "hru_id_new"  # 10 characters max for shapefile compatibility
-            
-            # Check if we already have a unique field
-            if new_hru_field in gdf.columns:
-                if gdf[new_hru_field].nunique() == len(gdf):
-                    self.logger.info(f"Using existing unique field: {new_hru_field}")
-                    gdf_updated = gdf.copy()
-                    actual_field = new_hru_field
+            self.logger.info(f"Found {original_count - unique_count} duplicate {hru_id_field} values")
+
+            # For lumped catchments (small number of unique HRUs), dissolve features by HRU_ID
+            # This aggregates multiple spatial features with the same HRU_ID into a single polygon
+            if unique_count <= 10:  # Threshold for lumped/semi-distributed models
+                self.logger.info(f"Detected lumped/semi-distributed catchment ({unique_count} unique HRUs)")
+                self.logger.info(f"Dissolving {original_count} features into {unique_count} HRUs by {hru_id_field}")
+
+                # Aggregate numeric fields (mean), preserve first value for others
+                # Note: Don't include the grouping field (hru_id_field) in agg_dict
+                # as it will become the index and reset_index() will handle it
+                agg_dict = {}
+                for col in gdf.columns:
+                    if col == 'geometry':
+                        continue
+                    elif col == hru_id_field:
+                        continue  # Skip the grouping field - it becomes the index
+                    elif col in ['GRU_ID', 'gru_to_seg']:
+                        agg_dict[col] = 'first'  # Keep first value for ID fields
+                    elif gdf[col].dtype in ['float64', 'float32', 'int64', 'int32']:
+                        agg_dict[col] = 'mean'  # Average numeric fields
+                    else:
+                        agg_dict[col] = 'first'  # Keep first value for text fields
+
+                # Dissolve features by HRU_ID
+                gdf_dissolved = gdf.dissolve(by=hru_id_field, aggfunc=agg_dict)
+                gdf_dissolved = gdf_dissolved.reset_index()
+
+                self.logger.info(f"Dissolved into {len(gdf_dissolved)} features")
+
+                # Create output path for the dissolved shapefile
+                output_path = shapefile_path.parent / f"{shapefile_path.stem}_dissolved.shp"
+
+                # Save the dissolved shapefile
+                gdf_dissolved.to_file(output_path)
+                self.logger.info(f"Dissolved shapefile saved to: {output_path}")
+
+                # Verify the result
+                verify_gdf = gpd.read_file(output_path)
+                if verify_gdf[hru_id_field].nunique() == len(verify_gdf):
+                    self.logger.info(f"Verification successful: {len(verify_gdf)} unique HRUs")
+                    return output_path, hru_id_field
+                else:
+                    self.logger.error("Verification failed: Dissolve did not create unique HRU IDs")
+                    raise ValueError("Could not dissolve features by HRU_ID")
+
+            # For distributed models with many HRUs, create unique sequential IDs
+            else:
+                self.logger.info(f"Detected distributed model ({unique_count} unique HRUs, {original_count} features)")
+                self.logger.info("Creating new unique sequential IDs for each feature")
+
+                # Create new unique ID field with shorter name (shapefile 10-char limit)
+                new_hru_field = "hru_id_new"
+
+                # Check if we already have a unique field
+                if new_hru_field in gdf.columns:
+                    if gdf[new_hru_field].nunique() == len(gdf):
+                        self.logger.info(f"Using existing unique field: {new_hru_field}")
+                        gdf_updated = gdf.copy()
+                        actual_field = new_hru_field
+                    else:
+                        # Create new unique IDs
+                        self.logger.info(f"Creating new unique IDs in field: {new_hru_field}")
+                        gdf_updated = gdf.copy()
+                        gdf_updated[new_hru_field] = range(1, len(gdf_updated) + 1)
+                        actual_field = new_hru_field
                 else:
                     # Create new unique IDs
                     self.logger.info(f"Creating new unique IDs in field: {new_hru_field}")
                     gdf_updated = gdf.copy()
                     gdf_updated[new_hru_field] = range(1, len(gdf_updated) + 1)
                     actual_field = new_hru_field
-            else:
-                # Create new unique IDs
-                self.logger.info(f"Creating new unique IDs in field: {new_hru_field}")
-                gdf_updated = gdf.copy()
-                gdf_updated[new_hru_field] = range(1, len(gdf_updated) + 1)
-                actual_field = new_hru_field
-            
-            # Create output path for the fixed shapefile
-            output_path = shapefile_path.parent / f"{shapefile_path.stem}_unique_ids.shp"
-            
-            # Save the updated shapefile
-            gdf_updated.to_file(output_path)
-            self.logger.info(f"Updated shapefile with unique IDs saved to: {output_path}")
-            
-            # Verify the fix worked - check what fields actually exist
-            verify_gdf = gpd.read_file(output_path)
-            self.logger.info(f"Fields in saved shapefile: {list(verify_gdf.columns)}")
-            
-            # Find the actual field name (may be truncated by shapefile format)
-            possible_fields = [col for col in verify_gdf.columns if col.startswith('hru_id')]
-            if not possible_fields:
-                self.logger.error(f"No hru_id fields found in saved shapefile. Available: {list(verify_gdf.columns)}")
-                raise ValueError("Could not find unique HRU ID field in saved shapefile")
-            
-            # Use the first matching field (should be our new unique field)
-            actual_saved_field = possible_fields[0]
-            self.logger.info(f"Using field '{actual_saved_field}' from saved shapefile")
-            
-            if verify_gdf[actual_saved_field].nunique() == len(verify_gdf):
-                self.logger.info(f"Verification successful: All {actual_saved_field} values are unique")
-                return output_path, actual_saved_field
-            else:
-                self.logger.error("Verification failed: Still have duplicate IDs after fix")
-                raise ValueError("Could not create unique HRU IDs")
-                
+
+                # Create output path for the fixed shapefile
+                output_path = shapefile_path.parent / f"{shapefile_path.stem}_unique_ids.shp"
+
+                # Save the updated shapefile
+                gdf_updated.to_file(output_path)
+                self.logger.info(f"Updated shapefile with unique IDs saved to: {output_path}")
+
+                # Verify the fix worked - check what fields actually exist
+                verify_gdf = gpd.read_file(output_path)
+                self.logger.info(f"Fields in saved shapefile: {list(verify_gdf.columns)}")
+
+                # Find the actual field name (may be truncated by shapefile format)
+                possible_fields = [col for col in verify_gdf.columns if col.startswith('hru_id')]
+                if not possible_fields:
+                    self.logger.error(f"No hru_id fields found in saved shapefile. Available: {list(verify_gdf.columns)}")
+                    raise ValueError("Could not find unique HRU ID field in saved shapefile")
+
+                # Use the first matching field (should be our new unique field)
+                actual_saved_field = possible_fields[0]
+                self.logger.info(f"Using field '{actual_saved_field}' from saved shapefile")
+
+                if verify_gdf[actual_saved_field].nunique() == len(verify_gdf):
+                    self.logger.info(f"Verification successful: All {actual_saved_field} values are unique")
+                    return output_path, actual_saved_field
+                else:
+                    self.logger.error("Verification failed: Still have duplicate IDs after fix")
+                    raise ValueError("Could not create unique HRU IDs")
+
         except Exception as e:
             self.logger.error(f"Error ensuring unique HRU IDs: {str(e)}")
             import traceback

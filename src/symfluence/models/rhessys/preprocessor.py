@@ -15,10 +15,48 @@ class RHESSysPreprocessor(BaseModelPreProcessor):
     Prepares inputs for a RHESSys model run.
     """
 
-    def __init__(self, config, project_dir):
-        super().__init__(config, project_dir)
-        self.model_name = "RHESSys"
-        self.vmfire_enabled = self.config.model.rhessys.use_vmfire
+    def __init__(self, config, logger_instance):
+        super().__init__(config, logger_instance)
+        try:
+            self.vmfire_enabled = self.config.model.rhessys.use_vmfire
+        except AttributeError:
+            self.vmfire_enabled = False
+
+    def _get_model_name(self) -> str:
+        """Return model name for directory structure."""
+        return "RHESSys"
+
+    def run_preprocessing(self) -> bool:
+        """
+        Run the complete RHESSys preprocessing workflow.
+
+        Returns:
+            bool: True if preprocessing succeeded, False otherwise
+        """
+        try:
+            logger.info("Starting RHESSys preprocessing...")
+
+            # Get the paths - use default if config not available
+            try:
+                forcing_dir = self.config.model.rhessys.input.forcing_dir
+            except AttributeError:
+                forcing_dir = "SUMMA_input"  # Default fallback
+            
+            self.input_dir = self.project_dir / forcing_dir
+            self.input_dir.mkdir(parents=True, exist_ok=True)
+
+            if self.vmfire_enabled:
+                self._run_vmfire()
+
+            self._generate_climate_files()
+            self._generate_worldfile()
+            self._generate_flow_table()
+
+            logger.info("RHESSys preprocessing complete.")
+            return True
+        except Exception as e:
+            logger.error(f"RHESSys preprocessing failed: {e}")
+            return False
 
     def preprocess(self, **kwargs):
         """

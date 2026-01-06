@@ -12,6 +12,8 @@ from typing import Dict, Any, Optional
 from .base_worker import BaseWorker, WorkerTask, WorkerResult
 from ..registry import OptimizerRegistry
 from symfluence.evaluation.metrics import kge, nse
+from symfluence.models.hype.preprocessor import HYPEPreProcessor
+from symfluence.models.hype.runner import HYPERunner
 
 
 @OptimizerRegistry.register_worker('HYPE')
@@ -62,8 +64,14 @@ class HYPEWorker(BaseWorker):
             preprocessor = HYPEPreProcessor(config, self.logger, params=params)
             
             # Set model-specific paths to point to the worker's settings dir
-            preprocessor.output_path = str(settings_dir) + '/'
-            preprocessor.hype_setup_dir = str(settings_dir) + '/'
+            preprocessor.output_path = settings_dir
+            preprocessor.hype_setup_dir = settings_dir
+            
+            # Use isolated output directory for the worker
+            output_dir = kwargs.get('proc_output_dir') or kwargs.get('output_dir')
+            if output_dir:
+                preprocessor.hype_results_dir = Path(output_dir)
+                preprocessor.hype_results_dir_str = str(Path(output_dir)).rstrip('/') + '/'
             
             # Only regenerate the model configs (GeoData, par.txt, info.txt)
             # Forcing doesn't change during calibration
@@ -101,6 +109,7 @@ class HYPEWorker(BaseWorker):
             # Override paths for the worker
             runner.setup_dir = settings_dir
             runner.output_dir = output_dir
+            runner.output_path = output_dir
             
             # Run HYPE
             result_path = runner.run_hype()
@@ -166,11 +175,17 @@ class HYPEWorker(BaseWorker):
             if len(common_idx) == 0:
                 return {'kge': self.penalty_score, 'error': 'No common dates between sim and obs'}
                 
-            obs_aligned = df_obs.loc[common_index].values
-            sim_aligned = df_sim.loc[common_index].values
+            obs_aligned = obs_df.loc[common_idx].values.flatten()
+            sim_aligned = sim_series.loc[common_idx].values.flatten()
 
             kge_val = kge(obs_aligned, sim_aligned, transfo=1)
             nse_val = nse(obs_aligned, sim_aligned, transfo=1)
+
+            # Handle NaN values
+            if pd.isna(kge_val):
+                kge_val = self.penalty_score
+            if pd.isna(nse_val):
+                nse_val = self.penalty_score
 
             return {'kge': float(kge_val), 'nse': float(nse_val)}
 

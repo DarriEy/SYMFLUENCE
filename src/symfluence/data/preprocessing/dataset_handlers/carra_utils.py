@@ -64,9 +64,9 @@ class CARRAHandler(BaseDatasetHandler):
             ds = ds.rename(existing_vars)
 
         # Apply standard CF-compliant attributes (uses centralized definitions)
-        # CARRA precipitation is in kg m-2 s-1 (equiv to mm/s), override the default
+        # CARRA precipitation is in m/s, override the default
         ds = self.apply_standard_attributes(ds, overrides={
-            'pptrate': {'units': 'kg m-2 s-1', 'standard_name': 'precipitation_rate'}
+            'pptrate': {'units': 'm s-1', 'standard_name': 'precipitation_rate'}
         })
 
         return ds
@@ -124,16 +124,10 @@ class CARRAHandler(BaseDatasetHandler):
             
             self.logger.info(f"Using CARRA file: {carra_file}")
             
-            import netCDF4 as nc4
-            import gc
-            
-            # Read CARRA coordinates using netCDF4 directly for stability
-            with nc4.Dataset(carra_file, 'r') as ncid:
-                lats = ncid.variables['latitude'][:]
-                lons = ncid.variables['longitude'][:]
-            
-            # Force garbage collection to ensure file handle is closed
-            gc.collect()
+            # Read CARRA data
+            with xr.open_dataset(carra_file) as ds:
+                lats = ds.latitude.values
+                lons = ds.longitude.values
 
             self.logger.info(f"CARRA dimensions: {lats.shape}")
 
@@ -194,39 +188,37 @@ class CARRAHandler(BaseDatasetHandler):
 
                 for lat_idx, center_lat in enumerate(lats):
                     for lon_idx, center_lon_raw in enumerate(lons):
-                        # Convert longitude from 0-360 to -180/180 range for filtering and vertices
+                        # Convert longitude from 0-360 to -180/180 range
                         if center_lon_raw > 180:
-                            center_lon_normalized = float(center_lon_raw - 360)
+                            center_lon = float(center_lon_raw - 360)
                         else:
-                            center_lon_normalized = float(center_lon_raw)
+                            center_lon = float(center_lon_raw)
 
                         center_lat = float(center_lat)
 
-                        # Apply spatial filter if available (using normalized longitude)
+                        # Apply spatial filter if available
                         if bbox_filter is not None:
-                            if (center_lon_normalized < bbox_filter['lon_min'] or center_lon_normalized > bbox_filter['lon_max'] or
+                            if (center_lon < bbox_filter['lon_min'] or center_lon > bbox_filter['lon_max'] or
                                 center_lat < bbox_filter['lat_min'] or center_lat > bbox_filter['lat_max']):
                                 cell_id += 1
                                 continue
 
-                        # Create rectangular cell (Counter-Clockwise for valid Polygon)
-                        # Use normalized coordinates for geometry
+                        # Create rectangular cell
                         half_dlat = lat_spacing / 2.0
                         half_dlon = lon_spacing / 2.0
 
                         vertices = [
-                            (center_lon_normalized - half_dlon, center_lat - half_dlat), # Bottom-Left
-                            (center_lon_normalized + half_dlon, center_lat - half_dlat), # Bottom-Right
-                            (center_lon_normalized + half_dlon, center_lat + half_dlat), # Top-Right
-                            (center_lon_normalized - half_dlon, center_lat + half_dlat), # Top-Left
-                            (center_lon_normalized - half_dlon, center_lat - half_dlat)  # Bottom-Left
+                            (center_lon - half_dlon, center_lat - half_dlat),
+                            (center_lon - half_dlon, center_lat + half_dlat),
+                            (center_lon + half_dlon, center_lat + half_dlat),
+                            (center_lon + half_dlon, center_lat - half_dlat),
+                            (center_lon - half_dlon, center_lat - half_dlat)
                         ]
 
                         geometries.append(Polygon(vertices))
                         ids.append(cell_id)
                         center_lats.append(center_lat)
-                        # Use raw longitude (0-360) for attribute column to match NetCDF
-                        center_lons.append(float(center_lon_raw))
+                        center_lons.append(center_lon)
                         cells_created += 1
                         cell_id += 1
 
@@ -264,7 +256,7 @@ class CARRAHandler(BaseDatasetHandler):
                         center_lat_raw = float(lats_flat[i])
                         center_lon_raw = float(lons_flat[i])
 
-                        # Convert longitude from 0-360 to -180/180 range for consistency/filtering
+                        # Convert longitude from 0-360 to -180/180 range for consistency
                         if center_lon_raw > 180:
                             center_lon_normalized = center_lon_raw - 360
                         else:
@@ -284,13 +276,12 @@ class CARRAHandler(BaseDatasetHandler):
                         half_dx = 1250  # meters
                         half_dy = 1250  # meters
 
-                        # Create grid cell (Counter-Clockwise for valid Polygon)
                         vertices = [
-                            (x - half_dx, y - half_dy), # Bottom-Left
-                            (x + half_dx, y - half_dy), # Bottom-Right
-                            (x + half_dx, y + half_dy), # Top-Right
-                            (x - half_dx, y + half_dy), # Top-Left
-                            (x - half_dx, y - half_dy)  # Bottom-Left
+                            (x - half_dx, y - half_dy),
+                            (x - half_dx, y + half_dy),
+                            (x + half_dx, y + half_dy),
+                            (x + half_dx, y - half_dy),
+                            (x - half_dx, y - half_dy)
                         ]
 
                         # Convert vertices back to lat/lon
@@ -308,9 +299,14 @@ class CARRAHandler(BaseDatasetHandler):
                         geometries.append(Polygon(lat_lon_vertices))
                         ids.append(i)
 
-                        center_lats.append(center_lat_raw)
-                        # Use raw longitude (0-360) for attribute column to match NetCDF
-                        center_lons.append(center_lon_raw)
+                        center_lon, center_lat = transformer.transform(x, y)
+                        # Extract scalar values if they're arrays
+                        if hasattr(center_lon, 'item'):
+                            center_lon = center_lon.item()
+                        if hasattr(center_lat, 'item'):
+                            center_lat = center_lat.item()
+                        center_lats.append(float(center_lat))
+                        center_lons.append(float(center_lon))
                         cells_created += 1
 
                 if bbox_filter is not None:
@@ -318,14 +314,11 @@ class CARRAHandler(BaseDatasetHandler):
 
             # Create GeoDataFrame
             self.logger.info(f"Creating GeoDataFrame with {cells_created} grid cells")
-            lat_col = self.config.get('FORCING_SHAPE_LAT_NAME', 'lat')
-            lon_col = self.config.get('FORCING_SHAPE_LON_NAME', 'lon')
-            
             gdf = gpd.GeoDataFrame({
                 'geometry': geometries,
                 'ID': ids,
-                lat_col: center_lats,
-                lon_col: center_lons,
+                self.config.get('FORCING_SHAPE_LAT_NAME'): center_lats,
+                self.config.get('FORCING_SHAPE_LON_NAME'): center_lons,
             }, crs='EPSG:4326')
             
             # Calculate elevation using the safe method
