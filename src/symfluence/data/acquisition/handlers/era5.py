@@ -25,37 +25,17 @@ class ERA5Acquirer(BaseAcquisitionHandler):
         era5_keys = {k: v for k, v in self.config.items() if 'ERA5' in k.upper()}
         self.logger.info(f"All ERA5-related config keys: {era5_keys}")
 
-        # Try to get ERA5_USE_CDS from multiple sources (raw dict, config_dict, typed config, env var)
         use_cds = self.config.get('ERA5_USE_CDS')
-        if use_cds is None and hasattr(self, 'config_dict'):
-            use_cds = self.config_dict.get('ERA5_USE_CDS')
-
-        # Check environment variable as fallback
-        if use_cds is None:
-            import os
-            env_use_cds = os.environ.get('ERA5_USE_CDS')
-            if env_use_cds:
-                use_cds = env_use_cds.lower() in ('true', 'yes', '1', 'on')
-                self.logger.info(f"Using ERA5_USE_CDS from environment: {use_cds}")
-
         self.logger.info(f"ERA5_USE_CDS config value: {use_cds} (type: {type(use_cds)})")
 
         if use_cds is None:
-            # Auto-detect preference: ARCO (faster) > CDS
-            # Both pathways now have the longwave radiation fix, so prefer ARCO for speed
+            # Auto-detect preference: ARCO > CDS (faster, no queue)
             try:
                 import gcsfs
                 import xarray
-                self.logger.info("Auto-detecting ERA5 pathway: ARCO (Google Cloud) - faster, no queue")
-                self.logger.info("  To use CDS instead, set ERA5_USE_CDS=true in config or environment")
                 use_cds = False
             except ImportError:
-                if has_cds_credentials():
-                    self.logger.info("gcsfs not available, falling back to CDS pathway")
-                    use_cds = True
-                else:
-                    self.logger.error("Neither gcsfs nor CDS credentials available for ERA5 download")
-                    raise ImportError("Install gcsfs (pip install gcsfs) or configure CDS credentials (~/.cdsapirc)")
+                use_cds = has_cds_credentials()
         else:
             # Handle string values like "true", "True", "yes", etc.
             if isinstance(use_cds, str):
@@ -160,7 +140,7 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
         else:
             from concurrent.futures import ThreadPoolExecutor
             def process_chunk(i, chunk_start, chunk_end):
-                return _process_era5_chunk_threadsafe(i, (chunk_start, chunk_end), ds, available_vars, step, lat_min_raw, lat_max_raw, lon_min, lon_max, output_dir, domain_name, len(chunks), self.logger)
+                return _process_era5_chunk_threadsafe(i, chunk_start, chunk_end, ds, available_vars, step, lat_min_raw, lat_max_raw, lon_min, lon_max, output_dir, domain_name, len(chunks), self.logger)
             with ThreadPoolExecutor(max_workers=n_workers) as ex:
                 futures = [ex.submit(process_chunk, i, *chunks[i-1]) for i in range(1, len(chunks)+1)]
                 for future in futures:
@@ -182,52 +162,15 @@ def _era5_to_summa_schema_standalone(ds_chunk):
         out["windspd"] = np.sqrt(ds_base["10m_u_component_of_wind"]**2 + ds_base["10m_v_component_of_wind"]**2).astype("float32").assign_attrs(units="m s-1", long_name="wind speed", standard_name="wind_speed")
     if "2m_dewpoint_temperature" in ds_base and "surface_pressure" in ds_base:
         Td_C, p = ds_base["2m_dewpoint_temperature"] - 273.15, ds_base["surface_pressure"]
-        # Saturation vapor pressure in Pa (no extra scaling).
-        es = 611.2 * np.exp((17.67 * Td_C) / (Td_C + 243.5))
+        es = 611.2 * np.exp((17.67 * Td_C) / (Td_C + 243.5)) * 100.0
         r = 0.622 * es / xr.where((p - es) <= 1.0, 1.0, p - es)
         out["spechum"] = (r / (1.0 + r)).astype("float32").assign_attrs(units="kg kg-1", long_name="specific humidity", standard_name="specific_humidity")
     dt = (ds_chunk["time"].diff("time") / np.timedelta64(1, "s")).astype("float32")
-    def _accum_to_rate(vn, on, u, ln, sn, sf=1.0, negate_first=False):
-        if vn in ds_chunk:
-            val = ds_chunk[vn]
-            if negate_first:
-                # Some ERA5 feeds encode downward flux as negative; only flip if needed.
-                if float(val.min()) < 0.0:
-                    val = -val
-
-            # De-accumulate: take time difference
-            diff = val.diff("time")
-            # Handle accumulation resets (when diff is negative, indicating new accumulation period)
-            # For resets, use the current value as the increment
-            diff = xr.where(diff >= 0, diff, val.isel(time=slice(1, None)))
-            # Handle NaN/inf
-            diff = xr.where(np.isfinite(diff), diff, 0.0)
-            # Convert to rate and scale
-            rate = (diff / dt) * sf
-            # Final cleanup: remove any remaining invalid values and clip to valid range
-            # Max precip: 1 mm/s = 3.6 mm/hr is already extreme; ERA5 should never exceed this
-            if vn == "total_precipitation":
-                max_rate = 1.0
-                min_rate = 0.0
-            elif on == "LWRadAtm":
-                # Longwave radiation: typical range 150-450 W/m², extremes 50-600
-                max_rate = 600.0
-                min_rate = 50.0
-            elif on == "SWRadAtm":
-                # Shortwave radiation: 0-1500 W/m²
-                max_rate = 1500.0
-                min_rate = 0.0
-            else:
-                max_rate = None
-                min_rate = 0.0
-
-            rate = xr.where(np.isfinite(rate), rate, min_rate).clip(min=min_rate, max=max_rate)
-            out[on] = rate.astype("float32").assign_attrs(units=u, long_name=ln, standard_name=sn)
-
-    _accum_to_rate("total_precipitation", "pptrate", "mm/s", "precipitation rate", "precipitation_rate", 1000.0, negate_first=False)
-    _accum_to_rate("surface_solar_radiation_downwards", "SWRadAtm", "W m-2", "shortwave radiation", "surface_downwelling_shortwave_flux_in_air", 1.0, negate_first=False)
-    # CRITICAL: ERA5 thermal radiation is NEGATIVE for downward flux - must negate before de-accumulating
-    _accum_to_rate("surface_thermal_radiation_downwards", "LWRadAtm", "W m-2", "longwave radiation", "surface_downwelling_longwave_flux_in_air", 1.0, negate_first=True)
+    def _accum_to_rate(vn, on, u, ln, sn, sf=1.0):
+        if vn in ds_chunk: out[on] = ((ds_chunk[vn].diff("time").where(ds_chunk[vn].diff("time") >= 0, 0) / dt) * sf).clip(min=0).astype("float32").assign_attrs(units=u, long_name=ln, standard_name=sn)
+    _accum_to_rate("total_precipitation", "pptrate", "mm/s", "precipitation rate", "precipitation_rate", 1000.0)
+    _accum_to_rate("surface_solar_radiation_downwards", "SWRadAtm", "W m-2", "shortwave radiation", "surface_downwelling_shortwave_flux_in_air")
+    _accum_to_rate("surface_thermal_radiation_downwards", "LWRadAtm", "W m-2", "longwave radiation", "surface_downwelling_longwave_flux_in_air")
     return out
 
 def _process_era5_chunk_threadsafe(idx, times, ds, vars, step, lat_min, lat_max, lon_min, lon_max, out_dir, dom, total, logger=None):

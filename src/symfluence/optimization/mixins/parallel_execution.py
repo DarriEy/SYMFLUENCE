@@ -201,6 +201,126 @@ class ParallelExecutionMixin:
                     f"Failed to update file manager for process {proc_id}: {e}"
                 )
 
+    def update_mizuroute_controls(
+        self,
+        parallel_dirs: Dict[int, Dict[str, Path]],
+        model_name: str,
+        experiment_id: str,
+        control_file_name: str = 'mizuroute.control'
+    ) -> None:
+        """
+        Update mizuRoute control file paths in process-specific directories.
+
+        Updates <input_dir>, <output_dir>, <ancil_dir>, <case_name>, and <fname_qsim>
+        to point to process-specific directories instead of global directories.
+
+        Args:
+            parallel_dirs: Dictionary of parallel directory paths per process
+            model_name: Name of the model (e.g., 'SUMMA', 'FUSE')
+            experiment_id: Experiment identifier
+            control_file_name: Name of the control file (default: 'mizuroute.control')
+        """
+        for proc_id, dirs in parallel_dirs.items():
+            # mizuRoute settings are typically in a subdirectory
+            mizu_settings_dir = dirs['settings_dir'].parent / 'mizuRoute'
+            control_file_path = mizu_settings_dir / control_file_name
+
+            if not control_file_path.exists():
+                self.logger.debug(
+                    f"mizuRoute control file not found for process {proc_id}: {control_file_path}"
+                )
+                continue
+
+            try:
+                # Read existing control file
+                with open(control_file_path, 'r') as f:
+                    lines = f.readlines()
+
+                # Construct process-specific paths
+                # dirs['sim_dir'] is .../process_N/simulations/run_1/SUMMA (or other model)
+                # Input dir should point to this process's SUMMA output (same as sim_dir)
+                proc_summa_dir = dirs['sim_dir']
+
+                # Output dir should be sibling to SUMMA dir: .../process_N/simulations/run_1/mizuRoute
+                proc_mizu_dir = proc_summa_dir.parent / 'mizuRoute'
+
+                # Ancil dir should point to process-specific mizuRoute settings (topology, etc.)
+                proc_ancil_dir = mizu_settings_dir
+
+                # Ensure mizuRoute simulation directory exists
+                proc_mizu_dir.mkdir(parents=True, exist_ok=True)
+
+                # Normalize paths (forward slashes, trailing slash)
+                def normalize_path(path):
+                    return str(path).replace('\\', '/').rstrip('/') + '/'
+
+                input_dir = normalize_path(proc_summa_dir)
+                output_dir = normalize_path(proc_mizu_dir)
+                ancil_dir = normalize_path(proc_ancil_dir)
+                case_name = f'proc_{proc_id:02d}_{experiment_id}'
+                fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
+
+                # Set model-specific variable name for mizuRoute input
+                # SUMMA outputs averageRoutedRunoff, FUSE outputs q_routed
+                if model_name.upper() == 'SUMMA':
+                    vname_qsim = 'averageRoutedRunoff'
+                elif model_name.upper() == 'FUSE':
+                    vname_qsim = 'q_routed'
+                else:
+                    vname_qsim = 'q_routed'  # Default for other models
+
+                # Update relevant lines
+                updated_lines = []
+                for line in lines:
+                    if '<ancil_dir>' in line:
+                        if '!' in line:
+                            comment = '!' + '!'.join(line.split('!')[1:])
+                            updated_lines.append(f"<ancil_dir>             {ancil_dir}    {comment}")
+                        else:
+                            updated_lines.append(f"<ancil_dir>             {ancil_dir}    ! Folder that contains ancillary data\n")
+                    elif '<input_dir>' in line:
+                        if '!' in line:
+                            comment = '!' + '!'.join(line.split('!')[1:])
+                            updated_lines.append(f"<input_dir>             {input_dir}    {comment}")
+                        else:
+                            updated_lines.append(f"<input_dir>             {input_dir}    ! Folder that contains runoff data from SUMMA\n")
+                    elif '<output_dir>' in line:
+                        if '!' in line:
+                            comment = '!' + '!'.join(line.split('!')[1:])
+                            updated_lines.append(f"<output_dir>            {output_dir}    {comment}")
+                        else:
+                            updated_lines.append(f"<output_dir>            {output_dir}    ! Folder that will contain mizuRoute simulations\n")
+                    elif '<case_name>' in line:
+                        if '!' in line:
+                            comment = '!' + '!'.join(line.split('!')[1:])
+                            updated_lines.append(f"<case_name>             {case_name}    {comment}")
+                        else:
+                            updated_lines.append(f"<case_name>             {case_name}    ! Simulation case name\n")
+                    elif '<fname_qsim>' in line:
+                        if '!' in line:
+                            comment = '!' + '!'.join(line.split('!')[1:])
+                            updated_lines.append(f"<fname_qsim>            {fname_qsim}    {comment}")
+                        else:
+                            updated_lines.append(f"<fname_qsim>            {fname_qsim}    ! netCDF name for {model_name} runoff\n")
+                    elif '<vname_qsim>' in line:
+                        # Set model-specific variable name
+                        updated_lines.append(f"<vname_qsim>            {vname_qsim}    ! Variable name for {model_name} runoff\n")
+                    else:
+                        updated_lines.append(line)
+
+                # Write updated control file
+                with open(control_file_path, 'w') as f:
+                    f.writelines(updated_lines)
+
+                self.logger.debug(
+                    f"Updated mizuRoute control file for process {proc_id}: {control_file_path}"
+                )
+
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to update mizuRoute control file for process {proc_id}: {e}"
+                )
+
     def cleanup_parallel_processing(
         self,
         parallel_dirs: Dict[int, Dict[str, Path]]
@@ -279,7 +399,15 @@ class ParallelExecutionMixin:
 
         if self.use_parallel and len(tasks) > 1:
             # Parallel execution via MPI
-            return self._execute_batch_mpi(tasks, worker_func, max_workers)
+            try:
+                return self._execute_batch_mpi(tasks, worker_func, max_workers)
+            except Exception as e:
+                self.logger.error(f"MPI batch execution failed: {e}")
+                import traceback
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
+                # Return empty results with errors for all tasks
+                return [{'individual_id': task.get('individual_id', i), 'score': None, 'error': str(e)}
+                        for i, task in enumerate(tasks)]
         else:
             # Sequential execution for a single process or single task
             results = []
@@ -350,6 +478,12 @@ class ParallelExecutionMixin:
 
     def _create_mpi_worker_script(self, script_path: Path, tasks_file: Path, results_file: Path, worker_module: str, worker_function: str) -> None:
         """Create the MPI worker script file."""
+        # Calculate the correct path to the src directory (absolute, not relative)
+        # This file is in: src/symfluence/optimization/mixins/parallel_execution.py
+        # Path(__file__).parent = src/symfluence/optimization/mixins
+        # .parent.parent.parent.parent = src/ (the directory we want for PYTHONPATH)
+        src_path = Path(__file__).parent.parent.parent.parent
+
         script_content = f'''#!/usr/bin/env python3
 import sys
 import pickle
@@ -359,16 +493,17 @@ from mpi4py import MPI
 import logging
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s')
+logging.basicConfig(level=logging.WARNING, format='[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Add symfluence src to path to ensure imports work
-sys.path.append(r"{Path(__file__).parent.parent.parent.parent}") 
+# Add symphluence src to path to ensure imports work
+sys.path.insert(0, r"{str(src_path)}")
 
 try:
     from {worker_module} import {worker_function}
 except ImportError as e:
     logger.error(f"Failed to import worker function: {{e}}")
+    logger.error(f"sys.path = {{sys.path}}")
     sys.exit(1)
 
 def main():
@@ -480,15 +615,15 @@ if __name__ == "__main__":
         """Execute a batch of tasks using mpirun."""
         import uuid
         import sys
-        
+
         work_dir = self.project_dir / "temp_mpi"
         work_dir.mkdir(exist_ok=True)
-        
+
         unique_id = uuid.uuid4().hex[:8]
         tasks_file = work_dir / f'mpi_tasks_{unique_id}.pkl'
         results_file = work_dir / f'mpi_results_{unique_id}.pkl'
         worker_script = work_dir / f'mpi_worker_{unique_id}.py'
-        
+
         # Get worker module and function name from the callable
         if hasattr(worker_func, '__module__'):
             worker_module = worker_func.__module__
@@ -498,34 +633,86 @@ if __name__ == "__main__":
             worker_module = "symfluence.optimization.workers.summa_parallel_workers"
             worker_function = "_evaluate_parameters_worker_safe"
 
+        cleanup_files = True  # Track whether to clean up files
         try:
+            self.logger.debug(f"MPI batch: {len(tasks)} tasks, worker={worker_module}.{worker_function}")
+
             with open(tasks_file, 'wb') as f:
                 pickle.dump(tasks, f)
-            
+
             self._create_mpi_worker_script(worker_script, tasks_file, results_file, worker_module, worker_function)
             worker_script.chmod(0o755)
-            
+
             num_processes = min(max_workers, self.num_processes, len(tasks))
-            mpi_cmd = ['mpirun', '-n', str(num_processes), sys.executable, str(worker_script), str(tasks_file), str(results_file)]
-            
+
+            # Use the Python executable from sys.executable (should be the venv Python)
+            # If sys.executable is not found or doesn't have mpi4py, try to detect the venv
+            python_exe = sys.executable
+            self.logger.debug(f"sys.executable: {python_exe}, exists: {Path(python_exe).exists()}")
+
+            # Always prefer the venv Python if it exists
+            venv_paths = [
+                Path(__file__).parent.parent.parent.parent.parent / "venv" / "bin" / "python",
+                Path.home() / "venv" / "bin" / "python",
+            ]
+            for venv_path in venv_paths:
+                if venv_path.exists():
+                    python_exe = str(venv_path)
+                    self.logger.info(f"Using venv Python: {python_exe}")
+                    break
+
+            if not Path(python_exe).exists():
+                self.logger.warning(f"Python executable not found: {python_exe}, using sys.executable")
+
+            mpi_cmd = ['mpirun', '-n', str(num_processes), python_exe, str(worker_script), str(tasks_file), str(results_file)]
+
+            self.logger.debug(f"MPI command: {' '.join(mpi_cmd)}")
+
+            # Setup environment for MPI workers
+            mpi_env = os.environ.copy()
+
+            # Ensure PYTHONPATH includes the src directory (same path as in script)
+            src_path = str(Path(__file__).parent.parent.parent.parent)
+            current_pythonpath = mpi_env.get('PYTHONPATH', '')
+            if current_pythonpath:
+                mpi_env['PYTHONPATH'] = f"{src_path}:{current_pythonpath}"
+            else:
+                mpi_env['PYTHONPATH'] = src_path
+
+            # Add worker environment variables for thread control and HDF5 locking
+            worker_env = self.setup_worker_environment()
+            mpi_env.update(worker_env)
+
+            self.logger.debug(f"MPI environment - PYTHONPATH: {mpi_env.get('PYTHONPATH')}")
+
             # Run MPI command
-            result = subprocess.run(mpi_cmd, capture_output=True, text=True, env=os.environ.copy())
+            result = subprocess.run(mpi_cmd, capture_output=True, text=True, env=mpi_env)
 
             if result.returncode != 0:
-                self.logger.error(f"MPI execution failed. Stderr: {result.stderr}")
-                raise RuntimeError("MPI execution failed")
+                self.logger.error(f"MPI execution failed (returncode={result.returncode})")
+                self.logger.error(f"MPI stdout: {result.stdout[:2000] if result.stdout else 'empty'}")
+                self.logger.error(f"MPI stderr: {result.stderr[:2000] if result.stderr else 'empty'}")
+                cleanup_files = False  # Keep files for debugging
+                raise RuntimeError(f"MPI execution failed with returncode {result.returncode}")
 
             if results_file.exists():
                 with open(results_file, 'rb') as f:
-                    return pickle.load(f)
+                    results = pickle.load(f)
+                self.logger.debug(f"MPI completed: {len(results)} results")
+                return results
             else:
+                self.logger.error(f"MPI results file not created: {results_file}")
+                self.logger.error(f"MPI stdout: {result.stdout[:2000] if result.stdout else 'empty'}")
+                self.logger.error(f"MPI stderr: {result.stderr[:2000] if result.stderr else 'empty'}")
+                cleanup_files = False  # Keep files for debugging
                 raise RuntimeError("MPI results file not created")
 
         finally:
-            # Cleanup
-            for file_path in [tasks_file, results_file, worker_script]:
-                if file_path.exists():
-                    try:
-                        file_path.unlink()
-                    except OSError:
-                        pass
+            # Cleanup only if successful
+            if cleanup_files:
+                for file_path in [tasks_file, results_file, worker_script]:
+                    if file_path.exists():
+                        try:
+                            file_path.unlink()
+                        except OSError:
+                            pass

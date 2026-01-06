@@ -12,7 +12,6 @@ this manager simply prepares the parameters for the GRRunner.
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import logging
-import numpy as np
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_gr_bounds
@@ -56,114 +55,18 @@ class GRParameterManager(BaseParameterManager):
         """Get initial parameter values from defaults."""
         return self._get_default_initial_values()
 
-    # airGR calibrated defaults - well-tuned starting points from literature
-    AIRGR_CALIBRATED_DEFAULTS = {
-        'X1': 257.24,       # Production store capacity (mm)
-        'X2': 1.012,        # Groundwater exchange coefficient (mm/day)
-        'X3': 88.23,        # Routing store capacity (mm)
-        'X4': 2.208,        # Unit hydrograph time constant (days)
-        'CTG': 0.0,         # Snow process parameter
-        'Kf': 3.69,         # Melt factor (mm/°C/day)
-        'Gratio': 0.1,      # Thermal coefficient of snow pack
-        'Albedo_diff': 0.1, # Albedo diffusion coefficient
-    }
-
-    # Parameters that benefit from log-scale transformation during optimization
-    LOG_SCALE_PARAMS = {'X1', 'X3'}
-
     def _get_default_initial_values(self) -> Dict[str, float]:
-        """
-        Get default initial parameter values using airGR calibrated defaults.
-
-        Uses well-tuned defaults from the airGR package rather than midpoint
-        of bounds, which provides a much better starting point for optimization.
-        """
+        """Get default initial parameter values (midpoint of bounds)."""
         params = {}
         for param_name in self.gr_params:
-            # Prefer airGR calibrated defaults over midpoint
-            if param_name in self.AIRGR_CALIBRATED_DEFAULTS:
-                params[param_name] = self.AIRGR_CALIBRATED_DEFAULTS[param_name]
-            elif param_name in self.param_bounds:
-                # Fallback to midpoint for unknown parameters
-                bounds = self.param_bounds[param_name]
+            bounds = self.param_bounds.get(param_name)
+            if bounds:
                 params[param_name] = (bounds['min'] + bounds['max']) / 2
             else:
-                params[param_name] = 1.0
-        return params
-
-    # ========================================================================
-    # LOG-SCALE TRANSFORMATION FOR IMPROVED OPTIMIZATION
-    # ========================================================================
-    # X1 and X3 have wide positive ranges where log-scale sampling is more
-    # effective. This ensures uniform exploration across orders of magnitude.
-
-    def normalize_parameters(self, params: Dict[str, Any]) -> np.ndarray:
-        """
-        Normalize parameters to [0, 1] range with log-scale for X1 and X3.
-
-        Log-scale transformation for X1 and X3 ensures DDS perturbations
-        explore the parameter space more uniformly across orders of magnitude.
-        """
-        normalized = np.zeros(len(self.all_param_names))
-
-        for i, param_name in enumerate(self.all_param_names):
-            if param_name not in params or param_name not in self.param_bounds:
-                self.logger.warning(f"Parameter {param_name} missing, using 0.5")
-                normalized[i] = 0.5
-                continue
-
-            bounds = self.param_bounds[param_name]
-            value = self._extract_scalar_value(params[param_name])
-
-            if param_name in self.LOG_SCALE_PARAMS:
-                # Log-scale normalization: normalize in log space
-                # Ensures uniform exploration across orders of magnitude
-                log_min = np.log(max(bounds['min'], 1e-10))
-                log_max = np.log(max(bounds['max'], 1e-10))
-                log_value = np.log(max(value, 1e-10))
-                if log_max > log_min:
-                    normalized[i] = (log_value - log_min) / (log_max - log_min)
-                else:
-                    normalized[i] = 0.5
-            else:
-                # Standard linear normalization
-                range_size = bounds['max'] - bounds['min']
-                if range_size == 0:
-                    normalized[i] = 0.5
-                else:
-                    normalized[i] = (value - bounds['min']) / range_size
-
-        return np.clip(normalized, 0.0, 1.0)
-
-    def denormalize_parameters(self, normalized_array: np.ndarray) -> Dict[str, Any]:
-        """
-        Denormalize parameters from [0, 1] range with log-scale for X1 and X3.
-
-        Log-scale transformation ensures perturbations in normalized space
-        translate to proportional changes in the original space.
-        """
-        params = {}
-
-        for i, param_name in enumerate(self.all_param_names):
-            if param_name not in self.param_bounds:
-                self.logger.warning(f"No bounds for {param_name}, skipping")
-                continue
-
-            bounds = self.param_bounds[param_name]
-            norm_val = normalized_array[i]
-
-            if param_name in self.LOG_SCALE_PARAMS:
-                # Log-scale denormalization
-                log_min = np.log(max(bounds['min'], 1e-10))
-                log_max = np.log(max(bounds['max'], 1e-10))
-                log_value = log_min + norm_val * (log_max - log_min)
-                denorm_value = np.exp(log_value)
-            else:
-                # Standard linear denormalization
-                denorm_value = bounds['min'] + norm_val * (bounds['max'] - bounds['min'])
-
-            # Clip to bounds for safety
-            denorm_value = np.clip(denorm_value, bounds['min'], bounds['max'])
-            params[param_name] = float(denorm_value)
-
+                # Default values for GR parameters if not in bounds registry
+                defaults = {
+                    'X1': 350.0, 'X2': 0.0, 'X3': 100.0, 'X4': 1.7,
+                    'CTG': 0.0, 'Kf': 3.69
+                }
+                params[param_name] = defaults.get(param_name, 1.0)
         return params

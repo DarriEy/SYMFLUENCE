@@ -16,7 +16,6 @@ Available workers:
 - NgenWorker: Worker for NextGen model calibration
 - HYPEWorker: Worker for HYPE model calibration
 - GRWorker: Worker for GR model calibration
-- RHESSysWorker: Worker for RHESSys model calibration
 """
 
 from .base_worker import BaseWorker, WorkerTask, WorkerResult
@@ -25,7 +24,6 @@ from .fuse_worker import FUSEWorker
 from .ngen_worker import NgenWorker
 from .hype_worker import HYPEWorker
 from .gr_worker import GRWorker
-from .rhessys_worker import RHESSysWorker
 
 __all__ = [
     'BaseWorker',
@@ -36,5 +34,4 @@ __all__ = [
     'NgenWorker',
     'HYPEWorker',
     'GRWorker',
-    'RHESSysWorker',
 ]

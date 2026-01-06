@@ -162,7 +162,7 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
         # Use algorithm-specific directory
         algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
         base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
-        
+
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
             'SUMMA',
@@ -174,7 +174,14 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
         if source_settings.exists():
             self.copy_base_settings(source_settings, self.parallel_dirs, 'SUMMA')
 
-        # If routing needed, also copy mizuRoute settings
+        # Update SUMMA file managers with process-specific paths
+        self.update_file_managers(
+            self.parallel_dirs,
+            'SUMMA',
+            self.experiment_id
+        )
+
+        # If routing needed, also copy and configure mizuRoute settings
         if self._routing_needed:
             mizu_settings = self.project_dir / 'settings' / 'mizuRoute'
             if mizu_settings.exists():
@@ -185,3 +192,10 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
                     for item in mizu_settings.iterdir():
                         if item.is_file():
                             shutil.copy2(item, mizu_dest / item.name)
+
+                # Update mizuRoute control files with process-specific paths
+                self.update_mizuroute_controls(
+                    self.parallel_dirs,
+                    'SUMMA',
+                    self.experiment_id
+                )

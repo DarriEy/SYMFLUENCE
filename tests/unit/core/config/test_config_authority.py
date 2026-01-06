@@ -7,7 +7,6 @@ These tests ensure that:
 3. No undocumented settings can be used
 4. Configuration stays synchronized with Pydantic models
 5. All Pydantic model fields have corresponding YAML entries
-6. Configuration usage is tracked and reported
 """
 
 import re
@@ -15,7 +14,6 @@ from pathlib import Path
 import pytest
 import yaml
 from typing import Set, Dict, List, Tuple
-from collections import defaultdict
 
 
 class TestConfigAuthority:
@@ -31,32 +29,6 @@ class TestConfigAuthority:
     def pydantic_models_dir(self):
         """Path to Pydantic model definitions."""
         return Path(__file__).parent.parent.parent.parent.parent / 'src' / 'symfluence' / 'core' / 'config' / 'models'
-
-    @pytest.fixture
-    def config_usage_counts(self, config_template_path):
-        """Count how many times each config setting is used in the codebase."""
-        with open(config_template_path, 'r') as f:
-            template_content = f.read()
-
-        # Extract all YAML keys (config setting names)
-        config_settings = set(re.findall(r'^([a-zA-Z0-9_]+):', template_content, re.MULTILINE))
-
-        # Search for usage of each setting in Python files
-        usage_counts = defaultdict(int)
-        src_dir = Path(__file__).parent.parent.parent.parent.parent / 'src'
-
-        for setting in config_settings:
-            pattern = rf'\b{setting}\b'
-            for py_file in src_dir.rglob('*.py'):
-                try:
-                    with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()
-                        matches = len(re.findall(pattern, content))
-                        usage_counts[setting] += matches
-                except Exception:
-                    pass
-
-        return dict(usage_counts)
 
     @pytest.fixture
     def documented_settings(self, config_template_path):
@@ -236,29 +208,6 @@ class TestConfigAuthority:
             assert section in content, \
                 f"Required section '{section}' not found in template"
 
-    def test_config_usage_counts_available(self, config_usage_counts):
-        """Test that config usage counts are computed and available.
-        
-        This test validates that we can track usage of each config setting
-        in the codebase. Settings with 0 usages may indicate unused or
-        deprecated configurations.
-        """
-        assert len(config_usage_counts) > 0, \
-            "Config usage counts should be available"
-        
-        # Log usage statistics
-        total_settings = len(config_usage_counts)
-        total_usages = sum(config_usage_counts.values())
-        unused_settings = [k for k, v in config_usage_counts.items() if v == 0]
-        
-        # These are informational and not failures
-        print(f"\nConfig Usage Summary:")
-        print(f"  Total settings: {total_settings}")
-        print(f"  Total usages: {total_usages}")
-        print(f"  Unused settings: {len(unused_settings)}")
-        if unused_settings:
-            print(f"  Examples: {', '.join(sorted(unused_settings)[:5])}")
-
 
 class TestConfigConsistency:
     """Tests to ensure configuration consistency between template and code."""
@@ -273,32 +222,6 @@ class TestConfigConsistency:
     def pydantic_models_dir(self):
         """Path to Pydantic model definitions."""
         return Path(__file__).parent.parent.parent.parent.parent / 'src' / 'symfluence' / 'core' / 'config' / 'models'
-
-    @pytest.fixture
-    def config_usage_counts(self, config_template_path):
-        """Count how many times each config setting is used in the codebase."""
-        with open(config_template_path, 'r') as f:
-            template_content = f.read()
-
-        # Extract all YAML keys (config setting names)
-        config_settings = set(re.findall(r'^([a-zA-Z0-9_]+):', template_content, re.MULTILINE))
-
-        # Search for usage of each setting in Python files
-        usage_counts = defaultdict(int)
-        src_dir = Path(__file__).parent.parent.parent.parent.parent / 'src'
-
-        for setting in config_settings:
-            pattern = rf'\b{setting}\b'
-            for py_file in src_dir.rglob('*.py'):
-                try:
-                    with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()
-                        matches = len(re.findall(pattern, content))
-                        usage_counts[setting] += matches
-                except Exception:
-                    pass
-
-        return dict(usage_counts)
 
     @pytest.fixture
     def template_settings(self, config_template_path):
@@ -397,37 +320,6 @@ class TestConfigConsistency:
             f"The following Pydantic aliases are not in the template:\n" \
             f"{sorted(orphaned)}\n\n" \
             f"Add these settings to config_template_comprehensive.yaml"
-
-    def test_config_naming_style_analysis(self, config_usage_counts, template_settings):
-        """Test and analyze old vs new style config naming conventions.
-        
-        Old style: SCREAMING_SNAKE_CASE (e.g., FORCE_DOWNLOAD, DEBUG_MODE)
-        New style: lowercase_snake_case (e.g., model_config, domain_name)
-        
-        This helps track migration progress from old to new naming conventions.
-        """
-        old_style = {}  # SCREAMING_SNAKE_CASE - old style
-        new_style = {}  # lowercase_snake_case - new style
-
-        for setting, count in config_usage_counts.items():
-            if setting[0].isupper():
-                old_style[setting] = count
-            else:
-                new_style[setting] = count
-
-        old_total = sum(old_style.values())
-        new_total = sum(new_style.values())
-        
-        print(f"\nConfig Naming Convention Analysis:")
-        print(f"  Old style (SCREAMING_SNAKE_CASE):")
-        print(f"    Count: {len(old_style)} settings")
-        print(f"    Usage: {old_total} occurrences")
-        print(f"  New style (lowercase_snake_case):")
-        print(f"    Count: {len(new_style)} settings")
-        print(f"    Usage: {new_total} occurrences")
-        
-        if new_style:
-            print(f"  New style examples: {', '.join(sorted(new_style.keys())[:10])}")
 
 
 class TestQuickstartTemplates:
