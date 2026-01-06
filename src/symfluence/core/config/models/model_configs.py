@@ -69,7 +69,8 @@ class GRConfig(BaseModel):
 
     install_path: str = Field(default='default', alias='GR_INSTALL_PATH')
     exe: str = Field(default='GR.r', alias='GR_EXE')
-    spatial_mode: str = Field(default='lumped', alias='GR_SPATIAL_MODE')
+    spatial_mode: str = Field(default='auto', alias='GR_SPATIAL_MODE')
+    routing_integration: str = Field(default='none', alias='GR_ROUTING_INTEGRATION')
     settings_path: str = Field(default='default', alias='SETTINGS_GR_PATH')
     control: str = Field(default='default', alias='SETTINGS_GR_CONTROL')
 
@@ -151,18 +152,18 @@ class LSTMConfig(BaseModel):
     """LSTM neural network emulator configuration"""
     model_config = FROZEN_CONFIG
 
-    load: bool = Field(default=False, alias='LSTM_LOAD', validation_alias='FLASH_LOAD')
-    hidden_size: int = Field(default=128, alias='LSTM_HIDDEN_SIZE', validation_alias='FLASH_HIDDEN_SIZE')
-    num_layers: int = Field(default=3, alias='LSTM_NUM_LAYERS', validation_alias='FLASH_NUM_LAYERS')
-    epochs: int = Field(default=300, alias='LSTM_EPOCHS', validation_alias='FLASH_EPOCHS')
-    batch_size: int = Field(default=64, alias='LSTM_BATCH_SIZE', validation_alias='FLASH_BATCH_SIZE')
-    learning_rate: float = Field(default=0.001, alias='LSTM_LEARNING_RATE', validation_alias='FLASH_LEARNING_RATE')
-    learning_patience: int = Field(default=30, alias='LSTM_LEARNING_PATIENCE', validation_alias='FLASH_LEARNING_PATIENCE')
-    lookback: int = Field(default=700, alias='LSTM_LOOKBACK', validation_alias='FLASH_LOOKBACK')
-    dropout: float = Field(default=0.2, alias='LSTM_DROPOUT', validation_alias='FLASH_DROPOUT')
-    l2_regularization: float = Field(default=1e-6, alias='LSTM_L2_REGULARIZATION', validation_alias='FLASH_L2_REGULARIZATION')
-    use_attention: bool = Field(default=True, alias='LSTM_USE_ATTENTION', validation_alias='FLASH_USE_ATTENTION')
-    use_snow: bool = Field(default=False, alias='LSTM_USE_SNOW', validation_alias='FLASH_USE_SNOW')
+    load: bool = Field(default=False, alias='LSTM_LOAD')
+    hidden_size: int = Field(default=128, alias='LSTM_HIDDEN_SIZE')
+    num_layers: int = Field(default=3, alias='LSTM_NUM_LAYERS')
+    epochs: int = Field(default=300, alias='LSTM_EPOCHS')
+    batch_size: int = Field(default=64, alias='LSTM_BATCH_SIZE')
+    learning_rate: float = Field(default=0.001, alias='LSTM_LEARNING_RATE')
+    learning_patience: int = Field(default=30, alias='LSTM_LEARNING_PATIENCE')
+    lookback: int = Field(default=700, alias='LSTM_LOOKBACK')
+    dropout: float = Field(default=0.2, alias='LSTM_DROPOUT')
+    l2_regularization: float = Field(default=1e-6, alias='LSTM_L2_REGULARIZATION')
+    use_attention: bool = Field(default=True, alias='LSTM_USE_ATTENTION')
+    use_snow: bool = Field(default=False, alias='LSTM_USE_SNOW')
 
 
 class ModelConfig(BaseModel):
@@ -181,7 +182,7 @@ class ModelConfig(BaseModel):
     ngen: Optional[NGENConfig] = Field(default=None)
     mesh: Optional[MESHConfig] = Field(default=None)
     mizuroute: Optional[MizuRouteConfig] = Field(default=None)
-    lstm: Optional[LSTMConfig] = Field(default=None, alias='lstm', validation_alias='flash')
+    lstm: Optional[LSTMConfig] = Field(default=None, alias='lstm')
 
     @field_validator('hydrological_model')
     @classmethod

@@ -24,6 +24,7 @@ from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 
 import gc
+import netCDF4 as nc4
 from rasterio.windows import from_bounds
 import warnings
 from tqdm import tqdm
@@ -156,6 +157,11 @@ class ForcingResampler(PathResolverMixin):
             self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/merged_path')
             self.merged_forcing_path.mkdir(parents=True, exist_ok=True)
             self.merge_forcings()
+
+        # Cache for processed shapefile path and HRU field - populated during weight creation
+        # and reused during weight application to avoid re-processing (which can cause segfaults)
+        self._cached_target_shp_wgs84 = None
+        self._cached_hru_field = None
 
     def run_resampling(self):
         self.logger.debug("Starting forcing data resampling process")
@@ -330,15 +336,136 @@ class ForcingResampler(PathResolverMixin):
 
     def remap_forcing(self):
         self.logger.debug("Starting forcing remapping process")
-        
+
         # Check for point-scale bypass
         if self.config.get('DOMAIN_DEFINITION_METHOD', '').lower() == 'point':
             self.logger.debug("Point-scale domain detected. Using simplified extraction instead of EASYMORE remapping.")
             self._process_point_scale_forcing()
+        elif self._should_use_point_scale_extraction():
+            # Bypass EASYMORE for tiny grids (1x1) to avoid intersection errors
+            self.logger.info("Tiny forcing grid detected (1x1). Using simplified extraction instead of EASYMORE remapping.")
+            self._process_point_scale_forcing()
         else:
             self._create_parallelized_weighted_forcing()
-            
+
         self.logger.debug("Forcing remapping process completed")
+
+    def _should_use_point_scale_extraction(self) -> bool:
+        """
+        Check if the forcing grid is too small for EASYMORE remapping.
+
+        For 1x1 grids (single forcing cell), EASYMORE intersection often fails
+        with 'max() arg is an empty sequence' because there's no meaningful
+        spatial intersection to compute. In these cases, point-scale extraction
+        is more appropriate and reliable.
+
+        Returns:
+            True if point-scale extraction should be used instead of EASYMORE
+        """
+        try:
+            # Find a sample forcing file
+            forcing_path = self.merged_forcing_path
+            exclude_patterns = ['attributes', 'metadata', 'static', 'constants', 'params']
+            all_nc_files = list(forcing_path.glob('*.nc'))
+            forcing_files = [
+                f for f in all_nc_files
+                if not any(pattern in f.name.lower() for pattern in exclude_patterns)
+            ]
+
+            if not forcing_files:
+                return False
+
+            sample_file = forcing_files[0]
+            var_lat, var_lon = self.dataset_handler.get_coordinate_names()
+
+            with xr.open_dataset(sample_file) as ds:
+                lat_vals = ds[var_lat].values
+                lon_vals = ds[var_lon].values
+
+                # Determine grid size
+                if lat_vals.ndim == 1:
+                    lat_size = len(lat_vals)
+                    lon_size = len(lon_vals)
+                elif lat_vals.ndim == 2:
+                    lat_size, lon_size = lat_vals.shape
+                else:
+                    lat_size = lon_size = 1
+
+                # Check if grid is tiny (1x1 or 1xN or Nx1)
+                is_tiny = (lat_size <= 1 and lon_size <= 1) or (lat_size * lon_size <= 1)
+
+                if is_tiny:
+                    self.logger.info(f"Detected tiny forcing grid: {lat_size}x{lon_size}")
+                    return True
+
+                return False
+
+        except Exception as e:
+            self.logger.warning(f"Could not check forcing grid size: {e}")
+            return False
+
+    def _validate_and_repair_geometries(self, gdf):
+        """
+        Validate and repair geometries in a GeoDataFrame.
+
+        Dissolve operations can create invalid geometries (self-intersections,
+        invalid rings, etc.) that cause bus errors or crashes when processed
+        by EASYMORE or other GIS operations.
+
+        Args:
+            gdf: GeoDataFrame with potentially invalid geometries
+
+        Returns:
+            GeoDataFrame with validated and repaired geometries
+        """
+        from shapely.validation import make_valid
+
+        invalid_count = 0
+        repaired_count = 0
+
+        def repair_geometry(geom):
+            nonlocal invalid_count, repaired_count
+
+            if geom is None or geom.is_empty:
+                return geom
+
+            if not geom.is_valid:
+                invalid_count += 1
+                try:
+                    # Try buffer(0) first - simple and effective for most cases
+                    repaired = geom.buffer(0)
+                    if repaired.is_valid and not repaired.is_empty:
+                        repaired_count += 1
+                        return repaired
+
+                    # Fall back to make_valid for more complex issues
+                    repaired = make_valid(geom)
+                    if repaired.is_valid and not repaired.is_empty:
+                        repaired_count += 1
+                        return repaired
+
+                    # If still invalid, log warning but return original
+                    self.logger.warning(f"Could not repair geometry: {geom.geom_type}")
+                    return geom
+
+                except Exception as e:
+                    self.logger.warning(f"Error repairing geometry: {e}")
+                    return geom
+
+            return geom
+
+        # Apply repair to all geometries
+        gdf = gdf.copy()
+        gdf['geometry'] = gdf['geometry'].apply(repair_geometry)
+
+        if invalid_count > 0:
+            self.logger.info(
+                f"Found {invalid_count} invalid geometries, repaired {repaired_count}"
+            )
+        else:
+            self.logger.debug("All geometries are valid")
+
+        return gdf
 
     def _process_point_scale_forcing(self):
         """
@@ -632,21 +759,31 @@ class ForcingResampler(PathResolverMixin):
         else:
             target_shp_wgs84 = target_result
             actual_hru_field = self.config.get('CATCHMENT_SHP_HRUID')
-        
+
+        # Cache the processed shapefile path and HRU field for reuse during weight application
+        # This avoids re-calling _ensure_shapefile_wgs84 which can cause segfaults with dissolved geometries
+        self._cached_target_shp_wgs84 = target_shp_wgs84
+        self._cached_hru_field = actual_hru_field
+        self.logger.debug(f"Cached target shapefile: {target_shp_wgs84}, HRU field: {actual_hru_field}")
+
         # Define remap file path
         case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
         remap_file = intersect_path / f"{case_name}_{actual_hru_field}_remapping.csv"
+        remap_nc = remap_file.with_suffix('.nc')
         
-        # Check if remap file already exists
-        if remap_file.exists():
+        # Check if remap files already exist
+        if remap_file.exists() and remap_nc.exists():
             intersect_csv = intersect_path / f"{case_name}_intersected_shapefile.csv"
             intersect_shp = intersect_path / f"{case_name}_intersected_shapefile.shp"
             if intersect_csv.exists() or intersect_shp.exists():
-                self.logger.debug(f"Remapping weights file already exists. Skipping creation.")
+                self.logger.debug(f"Remapping weights files (.csv and .nc) already exist. Skipping creation.")
                 return remap_file
             self.logger.debug("Remapping weights found but intersected shapefile missing. Recreating.")
+        elif remap_file.exists():
+            self.logger.debug("Remapping CSV found but NetCDF weights missing (required for EASYMORE 2.0). Recreating.")
         
         self.logger.debug("Creating remapping weights...")
+
         
         # Create temporary directory for this operation
         temp_dir = self.project_dir / 'forcing' / 'temp_easymore_weights'
@@ -710,56 +847,75 @@ class ForcingResampler(PathResolverMixin):
             # Get coordinate names from dataset handler
             var_lat, var_lon = self.dataset_handler.get_coordinate_names()
 
+            # Set HDF5 file locking to FALSE to avoid potential crashes on some filesystems
+            os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
+
             # Detect which SUMMA variables actually exist in the forcing file
-            import xarray as xr
-            with xr.open_dataset(sample_forcing_file) as ds:
-                all_summa_vars = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']
-                available_vars = [v for v in all_summa_vars if v in ds.data_vars]
+            # Use netCDF4 directly for lightweight variable detection
+            available_vars = []
+            source_nc_resolution = None
+            try:
+                with nc4.Dataset(sample_forcing_file, 'r') as ncid:
+                    all_summa_vars = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']
+                    available_vars = [v for v in all_summa_vars if v in ncid.variables]
 
-                if not available_vars:
-                    raise ValueError(f"No SUMMA forcing variables found in {sample_forcing_file}. "
-                                   f"Available variables: {list(ds.data_vars)}")
+                    if not available_vars:
+                        raise ValueError(f"No SUMMA forcing variables found in {sample_forcing_file}. "
+                                       f"Available variables: {list(ncid.variables.keys())}")
 
-                self.logger.info(f"Detected {len(available_vars)}/{len(all_summa_vars)} SUMMA variables in forcing file: {available_vars}")
+                    self.logger.info(f"Detected {len(available_vars)}/{len(all_summa_vars)} SUMMA variables in forcing file: {available_vars}")
 
-                # Store detected variables for use in weight application
-                self.detected_forcing_vars = available_vars
+                    # Store detected variables for use in weight application
+                    self.detected_forcing_vars = available_vars
 
-                # Calculate grid resolution for small grids (needed by EASYMORE)
-                lat_vals = ds[var_lat].values
-                lon_vals = ds[var_lon].values
+                    # Calculate grid resolution for small grids (needed by EASYMORE)
+                    if var_lat not in ncid.variables:
+                        raise KeyError(f"Latitude variable '{var_lat}' not found in {sample_forcing_file}")
+                    if var_lon not in ncid.variables:
+                        raise KeyError(f"Longitude variable '{var_lon}' not found in {sample_forcing_file}")
+                        
+                    lat_var = ncid.variables[var_lat]
+                    lon_var = ncid.variables[var_lon]
+                    
+                    lat_vals = lat_var[:]
+                    lon_vals = lon_var[:]
 
-                # Handle 1D or 2D coordinate arrays
-                if lat_vals.ndim == 1:
-                    lat_size = len(lat_vals)
-                    lon_size = len(lon_vals)
-                elif lat_vals.ndim == 2:
-                    lat_size = lat_vals.shape[0]
-                    lon_size = lat_vals.shape[1]
-                else:
-                    lat_size = 1
-                    lon_size = 1
-
-                # Calculate resolution if grid is small
-                source_nc_resolution = None
-                if lat_size == 1 or lon_size == 1:
-                    # For small grids, estimate resolution from the data or use default
+                    # Handle 1D or 2D coordinate arrays
                     if lat_vals.ndim == 1:
-                        if len(lat_vals) > 1:
-                            res_lat = abs(float(lat_vals[1] - lat_vals[0]))
-                        else:
-                            res_lat = 0.25  # Default for ERA5
-                        if len(lon_vals) > 1:
-                            res_lon = abs(float(lon_vals[1] - lon_vals[0]))
-                        else:
-                            res_lon = 0.25  # Default for ERA5
+                        lat_size = len(lat_vals)
+                        lon_size = len(lon_vals)
+                    elif lat_vals.ndim == 2:
+                        lat_size = lat_vals.shape[0]
+                        lon_size = lat_vals.shape[1]
                     else:
-                        # 2D arrays - estimate from first row/column
-                        res_lat = 0.25
-                        res_lon = 0.25
+                        lat_size = 1
+                        lon_size = 1
 
-                    source_nc_resolution = max(res_lat, res_lon)
-                    self.logger.info(f"Small grid detected ({lat_size}x{lon_size}), setting source_nc_resolution={source_nc_resolution}")
+                    # Calculate resolution if grid is small
+                    if lat_size == 1 or lon_size == 1:
+                        # For small grids, estimate resolution from the data or use default
+                        if lat_vals.ndim == 1:
+                            if len(lat_vals) > 1:
+                                res_lat = abs(float(lat_vals[1] - lat_vals[0]))
+                            else:
+                                res_lat = 0.25  # Default for ERA5
+                            if len(lon_vals) > 1:
+                                res_lon = abs(float(lon_vals[1] - lon_vals[0]))
+                            else:
+                                res_lon = 0.25  # Default for ERA5
+                        else:
+                            # 2D arrays - estimate from first row/column
+                            res_lat = 0.25
+                            res_lon = 0.25
+
+                        source_nc_resolution = max(res_lat, res_lon)
+                        self.logger.info(f"Small grid detected ({lat_size}x{lon_size}), setting source_nc_resolution={source_nc_resolution}")
+            except Exception as e:
+                self.logger.error(f"Error detecting variables in {sample_forcing_file}: {e}")
+                raise
+            finally:
+                # Force garbage collection to ensure file handles are closed
+                gc.collect()
 
             esmr.source_nc = str(sample_forcing_file)
             esmr.var_names = available_vars
@@ -771,9 +927,11 @@ class ForcingResampler(PathResolverMixin):
             if source_nc_resolution is not None:
                 esmr.source_nc_resolution = source_nc_resolution
             
-            # Directories
+            # Directories - use temp_dir for BOTH to avoid polluting basin_averaged_data
+            # during weight creation (even with only_create_remap_csv=True, EASYMORE 2.0
+            # may still create output files)
             esmr.temp_dir = str(temp_dir) + '/'
-            esmr.output_dir = str(self.forcing_basin_path) + '/'
+            esmr.output_dir = str(temp_dir) + '/'
             
             # Output configuration
             esmr.remapped_dim_id = 'hru'
@@ -782,30 +940,53 @@ class ForcingResampler(PathResolverMixin):
             esmr.fill_value_list = ['-9999']
             
             # Critical: Tell easymore to ONLY create the remapping weights
+            # Use attributes supported by both older and newer EASYMORE versions
             esmr.only_create_remap_csv = True
+            if hasattr(esmr, 'only_create_remap_nc'):
+                esmr.only_create_remap_nc = True
+            
             esmr.save_csv = True
             esmr.sort_ID = False
+            
+            # Enable saving temporary shapefiles so SUMMA can find the intersected geometries/elevations
+            esmr.save_temp_shp = True
+            
+            # Set numcpu to 1 to avoid internal multiprocessing in EASYMORE 2.0+
+
+            # which can cause bus errors on macOS
+            esmr.numcpu = 1
             
             # Create the weights
             self.logger.info("Running easymore to create remapping weights...")
             _run_easmore_with_suppressed_output(esmr, self.logger)
             
             # Move the remap file to the final location
-            temp_remap = temp_dir / f"{case_name}_remapping.csv"
-            candidate_paths = [
-                temp_remap,
-                self.forcing_basin_path / f"{case_name}_remapping.csv",
-            ]
+            # With output_dir=temp_dir, EASYMORE should create files there
+            case_remap_csv = temp_dir / f"{case_name}_remapping.csv"
+            case_remap_nc = temp_dir / f"{case_name}_remapping.nc"
+            case_attr_nc = temp_dir / f"{case_name}_attributes.nc"
             
+            # If CSV is missing but NC exists (EASYMORE 2.0 with only_create_remap_nc=True),
+            # convert NC to CSV as SYMFLUENCE expects the CSV as the primary weight file
+            if not case_remap_csv.exists() and case_remap_nc.exists():
+                self.logger.debug("EASYMORE 2.0: Converting NetCDF weights to CSV...")
+                try:
+                    with xr.open_dataset(case_remap_nc) as ds:
+                        ds.to_dataframe().to_csv(case_remap_csv)
+                except Exception as e:
+                    self.logger.warning(f"Failed to convert NetCDF weights to CSV: {e}")
+
+            candidate_paths = [case_remap_csv]
+
             if not any(path.exists() for path in candidate_paths):
                 # Search for any CSV file that looks like a mapping file
                 # EASYMORE 2.0.0 often creates files named 'Mapping_*.csv' for each variable
-                mapping_patterns = ["*remapping*.csv", "Mapping_*.csv"]
+                # or with a hash in the name
+                mapping_patterns = ["*remapping*.csv", "*_remapping.csv", "Mapping_*.csv"]
                 fallback = []
                 for pattern in mapping_patterns:
                     fallback.extend(list(temp_dir.glob(pattern)))
-                    fallback.extend(list(self.forcing_basin_path.glob(pattern)))
-                
+
                 if fallback:
                     self.logger.info(f"Using fallback mapping file: {fallback[0].name}")
                     candidate_paths.extend(fallback)
@@ -814,15 +995,27 @@ class ForcingResampler(PathResolverMixin):
             if remap_source is not None:
                 remap_source.replace(remap_file)
                 self.logger.info(f"Remapping weights created: {remap_file}")
+                
+                # Also move the NetCDF versions if they exist (EASYMORE 2.0+)
+                # These are required by EASYMORE 2.0 to skip re-calculating weights
+                remap_nc = remap_file.with_suffix('.nc')
+                attr_nc = remap_file.parent / f"{case_name}_attributes.nc"
+                
+                if case_remap_nc.exists():
+                    shutil.move(str(case_remap_nc), str(remap_nc))
+                    self.logger.debug(f"Moved NetCDF remapping file to {remap_nc}")
+                
+                if case_attr_nc.exists():
+                    shutil.move(str(case_attr_nc), str(attr_nc))
+                    self.logger.debug(f"Moved NetCDF attributes file to {attr_nc}")
             else:
                 self.logger.error(f"Remapping file not found. Checked: {candidate_paths}")
+
                 self.logger.error(f"Contents of {temp_dir}:")
                 for p in temp_dir.glob("*"):
                     self.logger.error(f"  {p.name}")
-                self.logger.error(f"Contents of {self.forcing_basin_path}:")
-                for p in self.forcing_basin_path.glob("*"):
-                    self.logger.error(f"  {p.name}")
-                raise FileNotFoundError(f"Expected remapping file not created: {temp_remap}")
+                raise FileNotFoundError(f"Expected remapping file not created: {case_remap_csv}")
+
             
             # Move shapefile files
             for shp_file in temp_dir.glob(f"{case_name}_intersected_shapefile.*"):
@@ -838,7 +1031,7 @@ class ForcingResampler(PathResolverMixin):
     def _process_files_serial(self, files, remap_file):
         """Process files in serial mode applying pre-computed weights"""
         self.logger.info(f"Processing {len(files)} files in serial mode")
-        
+
         success_count = 0
 
         with tqdm(total=len(files), desc="Remapping forcing files", unit="file") as pbar:
@@ -851,7 +1044,7 @@ class ForcingResampler(PathResolverMixin):
                         self.logger.error(f"✗ Failed to process {file.name}")
                 except Exception as e:
                     self.logger.error(f"✗ Error processing {file.name}: {str(e)}")
-                
+
                 pbar.update(1)
 
         self.logger.info(f"Serial processing complete: {success_count}/{len(files)} successful")
@@ -899,19 +1092,29 @@ class ForcingResampler(PathResolverMixin):
             try:
                 # Setup easymore to APPLY weights only
                 esmr = _create_easymore_instance()
-                
+
                 esmr.author_name = 'SUMMA public workflow scripts'
                 esmr.case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
                 esmr.correction_shp_lon = False
-                
-                target_shp_path = self.catchment_path / self.catchment_name
-                target_result = self._ensure_shapefile_wgs84(target_shp_path, "_wgs84")
-                if isinstance(target_result, tuple):
-                    target_shp_wgs84, actual_hru_field = target_result
+
+                # Use cached shapefile path and HRU field from weight creation phase
+                # This avoids re-calling _ensure_shapefile_wgs84 which triggers dissolve
+                # operations that can cause segfaults with certain geometries
+                if self._cached_target_shp_wgs84 is not None and self._cached_hru_field is not None:
+                    target_shp_wgs84 = self._cached_target_shp_wgs84
+                    actual_hru_field = self._cached_hru_field
+                    self.logger.debug(f"{worker_str}Using cached shapefile: {target_shp_wgs84}")
                 else:
-                    target_shp_wgs84 = target_result
-                    actual_hru_field = self.config.get('CATCHMENT_SHP_HRUID')
-                
+                    # Fallback to processing if cache not available (shouldn't happen in normal flow)
+                    self.logger.warning(f"{worker_str}Shapefile cache not available, re-processing")
+                    target_shp_path = self.catchment_path / self.catchment_name
+                    target_result = self._ensure_shapefile_wgs84(target_shp_path, "_wgs84")
+                    if isinstance(target_result, tuple):
+                        target_shp_wgs84, actual_hru_field = target_result
+                    else:
+                        target_shp_wgs84 = target_result
+                        actual_hru_field = self.config.get('CATCHMENT_SHP_HRUID')
+
                 esmr.target_shp = str(target_shp_wgs84)
                 esmr.target_shp_ID = actual_hru_field
                 esmr.target_shp_lat = self.config.get('CATCHMENT_SHP_LAT')
@@ -926,25 +1129,31 @@ class ForcingResampler(PathResolverMixin):
 
                 # Detect variables in THIS specific file (not just from weight creation)
                 # to ensure we're not trying to remap variables that don't exist
-                import xarray as xr
-                with xr.open_dataset(file) as ds:
-                    all_summa_vars = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']
-                    available_vars = [v for v in all_summa_vars if v in ds.data_vars]
+                available_vars = []
+                try:
+                    with nc4.Dataset(file, 'r') as ncid:
+                        all_summa_vars = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']
+                        available_vars = [v for v in all_summa_vars if v in ncid.variables]
 
-                    if not available_vars:
-                        self.logger.error(
-                            f"{worker_str}No SUMMA variables found in {file.name}. "
-                            f"Available variables: {list(ds.data_vars)}"
-                        )
-                        return False
+                        if not available_vars:
+                            self.logger.error(
+                                f"{worker_str}No SUMMA variables found in {file.name}. "
+                                f"Available variables: {list(ncid.variables.keys())}"
+                            )
+                            return False
 
-                    # Check if time dimension exists
-                    if 'time' not in ds.dims:
-                        self.logger.error(f"{worker_str}Input file {file.name} has no time dimension!")
-                        return False
+                        # Check if time dimension exists
+                        if 'time' not in ncid.dimensions:
+                            self.logger.error(f"{worker_str}Input file {file.name} has no time dimension!")
+                            return False
 
-                    esmr.var_names = available_vars
-                    self.logger.debug(f"{worker_str}Detected {len(available_vars)} variables in {file.name}: {available_vars}")
+                        esmr.var_names = available_vars
+                        self.logger.debug(f"{worker_str}Detected {len(available_vars)} variables in {file.name}: {available_vars}")
+                except Exception as e:
+                    self.logger.error(f"{worker_str}Error opening {file.name} for variable detection: {e}")
+                    return False
+                finally:
+                    gc.collect()
 
                 esmr.var_lat = var_lat
                 esmr.var_lon = var_lon
@@ -962,8 +1171,30 @@ class ForcingResampler(PathResolverMixin):
 
                 # Critical: Point to pre-computed weights file
                 esmr.remap_csv = str(remap_file)
+                
+                # EASYMORE 2.0 Support: Provide NetCDF version of weights if available
+                # This is CRITICAL to avoid re-calculating weights which can cause bus errors
+                remap_nc = remap_file.with_suffix('.nc')
+                case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
+                attr_nc = remap_file.parent / f"{case_name}_attributes.nc"
+                
+                if remap_nc.exists():
+                    esmr.remap_nc = str(remap_nc)
+                    self.logger.debug(f"{worker_str}Using NetCDF remapping file: {remap_nc}")
+                
+                if attr_nc.exists():
+                    esmr.attr_nc = str(attr_nc)
+                    self.logger.debug(f"{worker_str}Using NetCDF attributes file: {attr_nc}")
+
                 esmr.save_csv = False
                 esmr.sort_ID = False
+                
+                # Disable saving temporary shapefiles
+                esmr.save_temp_shp = False
+                
+                # Set numcpu to 1 to avoid internal multiprocessing in EASYMORE 2.0+
+
+                esmr.numcpu = 1
 
                 # Apply the remapping
                 self.logger.debug(f"{worker_str}Applying remapping weights to {file.name}")
@@ -1056,8 +1287,6 @@ class ForcingResampler(PathResolverMixin):
             bool: True if file is valid, False otherwise
         """
         try:
-            import xarray as xr
-
             with xr.open_dataset(file_path) as ds:
                 # Check 1: Must have time dimension
                 if 'time' not in ds.dims:
@@ -1146,6 +1375,25 @@ class ForcingResampler(PathResolverMixin):
             tuple: (updated_shapefile_path, actual_hru_id_field_used)
         """
         try:
+            shapefile_path = Path(shapefile_path)
+
+            # Check if a dissolved or unique_ids version already exists and is valid
+            dissolved_path = shapefile_path.parent / f"{shapefile_path.stem}_dissolved.shp"
+            unique_ids_path = shapefile_path.parent / f"{shapefile_path.stem}_unique_ids.shp"
+
+            for existing_path in [dissolved_path, unique_ids_path]:
+                if existing_path.exists():
+                    try:
+                        existing_gdf = gpd.read_file(existing_path)
+                        if hru_id_field in existing_gdf.columns:
+                            if existing_gdf[hru_id_field].nunique() == len(existing_gdf):
+                                self.logger.debug(
+                                    f"Using existing processed shapefile: {existing_path.name}"
+                                )
+                                return existing_path, hru_id_field
+                    except Exception as e:
+                        self.logger.debug(f"Could not use existing {existing_path.name}: {e}")
+
             # Read the shapefile
             gdf = gpd.read_file(shapefile_path)
             self.logger.debug(f"Checking HRU ID uniqueness in {shapefile_path.name}")
@@ -1196,6 +1444,10 @@ class ForcingResampler(PathResolverMixin):
                 gdf_dissolved = gdf_dissolved.reset_index()
 
                 self.logger.info(f"Dissolved into {len(gdf_dissolved)} features")
+
+                # Validate and repair geometries after dissolve to prevent bus errors
+                # Dissolve operations can sometimes create invalid geometries
+                gdf_dissolved = self._validate_and_repair_geometries(gdf_dissolved)
 
                 # Create output path for the dissolved shapefile
                 output_path = shapefile_path.parent / f"{shapefile_path.stem}_dissolved.shp"

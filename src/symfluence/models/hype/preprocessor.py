@@ -80,8 +80,7 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             )
             self.spinup_days = self._resolve_config_value(
                 lambda: self.typed_config.model.hype.spinup_days,
-                'HYPE_SPINUP_DAYS',
-                0
+                'HYPE_SPINUP_DAYS'
             )
             self.frac_threshold = self._resolve_config_value(
                 lambda: self.typed_config.model.hype.frac_threshold,
@@ -90,10 +89,24 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             )
         else:
             self.timeshift = self.config_dict.get('HYPE_TIMESHIFT', 0)
-            # Use 0 as default spinup (was 365, but 0 is more sensible for most cases)
-            spinup_val = self.config_dict.get('HYPE_SPINUP_DAYS')
-            self.spinup_days = spinup_val if spinup_val is not None else 0
+            self.spinup_days = self.config_dict.get('HYPE_SPINUP_DAYS')
             self.frac_threshold = self.config_dict.get('HYPE_FRAC_THRESHOLD', 0.1)
+
+        # If spinup_days not provided, calculate from SPINUP_PERIOD
+        if self.spinup_days is None:
+            spinup_period = self.config_dict.get('SPINUP_PERIOD')
+            if spinup_period:
+                try:
+                    start_date, end_date = [pd.to_datetime(s.strip()) for s in spinup_period.split(',')]
+                    self.spinup_days = (end_date - start_date).days
+                    self.logger.info(f"Calculated HYPE spinup days from SPINUP_PERIOD: {self.spinup_days}")
+                except Exception as e:
+                    self.logger.warning(f"Could not calculate HYPE spinup from {spinup_period}: {e}")
+                    self.spinup_days = 0
+            else:
+                self.spinup_days = 0
+        
+        self.spinup_days = int(self.spinup_days)
 
         # inputs
         self.output_path = self.hype_setup_dir

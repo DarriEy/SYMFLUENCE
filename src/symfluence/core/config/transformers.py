@@ -65,6 +65,18 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'LAND_CLASS_NAME': ('domain', 'land_class_name'),
     'SOILGRIDS_LAYER': ('domain', 'soilgrids_layer'),
 
+    # ========== DATA CONFIGURATION ==========
+    'ADDITIONAL_OBSERVATIONS': ('data', 'additional_observations'),
+    'SUPPLEMENT_FORCING': ('data', 'supplement_forcing'),
+    'FORCE_DOWNLOAD': ('data', 'force_download'),
+    'STREAMFLOW_DATA_PROVIDER': ('data', 'streamflow_data_provider'),
+    'DOWNLOAD_USGS_GW': ('data', 'download_usgs_gw'),
+    'DOWNLOAD_MODIS_SNOW': ('data', 'download_modis_snow'),
+    'DOWNLOAD_SNOTEL': ('data', 'download_snotel'),
+    'DOWNLOAD_SMHI_DATA': ('data', 'download_smhi_data'),
+    'DOWNLOAD_LAMAH_ICE_DATA': ('data', 'download_lamah_ice_data'),
+    'LAMAH_ICE_PATH': ('data', 'lamah_ice_path'),
+
     # Domain > Delineation
     'ROUTING_DELINEATION': ('domain', 'delineation', 'routing'),
     'GEOFABRIC_TYPE': ('domain', 'delineation', 'geofabric_type'),
@@ -589,6 +601,7 @@ def flatten_nested_config(config: 'SymfluenceConfig') -> Dict[str, Any]:
     # Flatten each section
     _flatten_section('system', config.system, ('system',))
     _flatten_section('domain', config.domain, ('domain',))
+    _flatten_section('data', config.data, ('data',))
     _flatten_section('forcing', config.forcing, ('forcing',))
     _flatten_section('model', config.model, ('model',))
     _flatten_section('optimization', config.optimization, ('optimization',))

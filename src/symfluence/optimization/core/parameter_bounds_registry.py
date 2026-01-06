@@ -50,12 +50,12 @@ class ParameterBoundsRegistry:
     # SNOW PARAMETERS
     # ========================================================================
     SNOW_PARAMS: Dict[str, ParameterInfo] = {
-        # FUSE snow parameters
-        'MBASE': ParameterInfo(-5.0, 5.0, '°C', 'Base melt temperature', 'snow'),
-        'MFMAX': ParameterInfo(1.0, 10.0, 'mm/(°C·day)', 'Maximum melt factor', 'snow'),
-        'MFMIN': ParameterInfo(0.5, 5.0, 'mm/(°C·day)', 'Minimum melt factor', 'snow'),
-        'PXTEMP': ParameterInfo(-2.0, 2.0, '°C', 'Rain-snow partition temperature', 'snow'),
-        'LAPSE': ParameterInfo(3.0, 10.0, '°C/km', 'Temperature lapse rate', 'snow'),
+        # FUSE snow parameters (bounds aligned with FUSE constraints file)
+        'MBASE': ParameterInfo(0.0, 3.0, '°C', 'Base melt temperature', 'snow'),
+        'MFMAX': ParameterInfo(2.0, 8.0, 'mm/(°C·day)', 'Maximum melt factor', 'snow'),
+        'MFMIN': ParameterInfo(0.4, 2.0, 'mm/(°C·day)', 'Minimum melt factor (kept <= MFMAX min)', 'snow'),
+        'PXTEMP': ParameterInfo(-1.0, 5.0, '°C', 'Rain-snow partition temperature', 'snow'),
+        'LAPSE': ParameterInfo(-7.0, -4.0, '°C/km', 'Temperature lapse rate (negative)', 'snow'),
 
         # NGEN snow parameters
         'rain_snow_thresh': ParameterInfo(-2.0, 2.0, '°C', 'Rain-snow temperature threshold', 'snow'),
@@ -178,7 +178,7 @@ class ParameterBoundsRegistry:
         'cmrefr': ParameterInfo(0.0, 0.5, '-', 'Snow refreeze capacity', 'snow'),
 
         # Evapotranspiration parameters
-        'cevp': ParameterInfo(0.0, 1.0, '-', 'Evaporation coefficient', 'et'),
+        'cevp': ParameterInfo(0.1, 1.0, '-', 'Evaporation coefficient', 'et'),
         'lp': ParameterInfo(0.3, 1.0, '-', 'Threshold for ET reduction', 'et'),
         'epotdist': ParameterInfo(1.0, 10.0, '-', 'PET depth dependency coefficient', 'et'),
 

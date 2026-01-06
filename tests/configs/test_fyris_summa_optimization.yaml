@@ -46,10 +46,10 @@ FORCING_DATASET: CERRA
 FORCING_TIME_STEP_SIZE: 3600  # Hourly timestep for CERRA
 FORCING_MEASUREMENT_HEIGHT: 2
 
-# Observations - WSC streamflow (Sweden/Europe)
-STATION_ID: '05BB001'  # Using WSC station for consistency
-STREAMFLOW_DATA_PROVIDER: WSC
-DOWNLOAD_WSC_DATA: true
+# Observations - SMHI streamflow (Sweden)
+STATION_ID: '2609'  # Fyrisån at Uppsala Bärbyleden
+STREAMFLOW_DATA_PROVIDER: SMHI
+DOWNLOAD_SMHI_DATA: true
 
 # Disable other observation sources
 DOWNLOAD_USGS_DATA: false

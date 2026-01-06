@@ -53,32 +53,86 @@ class GRWorker(BaseWorker):
         Run GR model via GRRunner.
         """
         try:
-            # Get parameters from kwargs (passed by _evaluate_once)
-            # WorkerTask passes params as a direct argument to run_model in newer BaseWorker
-            # but let's be safe and check both kwargs and params if it were passed explicitly
-            params = kwargs.get('params')
+            import os
             
-            # If not in kwargs, it might be in task (if we're calling it from evaluate)
-            # Actually, BaseWorker._evaluate_once calls run_model(task.config, task.settings_dir, task.output_dir, **task.additional_data)
-            # So params is NOT passed by default in BaseWorker unless it's in additional_data.
-            # We need to ensure params are passed.
+            # Get parameters from kwargs (passed by _evaluate_once)
+            params = kwargs.get('params')
+            self.logger.debug(f"GRWorker.run_model called with params: {params}")
+            self.logger.debug(f"Current working directory: {os.getcwd()}")
+            
+            # Validate inputs
+            if not config:
+                self.logger.error("Config is None or empty")
+                return False
+
+            # Use a dictionary for local modifications to avoid SymfluenceConfig immutability/subscriptability issues
+            if hasattr(config, 'to_dict'):
+                local_config = config.to_dict(flatten=True)
+            else:
+                local_config = config.copy()
+
+            # Update config with isolated paths for MizuRoute if provided (from ParallelExecutionMixin)
+            mizu_dir = kwargs.get('mizuroute_dir')
+            if mizu_dir:
+                local_config['EXPERIMENT_OUTPUT_MIZUROUTE'] = mizu_dir
+                self.logger.debug(f"Updated EXPERIMENT_OUTPUT_MIZUROUTE to {mizu_dir}")
+                
+            mizu_settings_dir = kwargs.get('mizuroute_settings_dir')
+            if mizu_settings_dir:
+                local_config['SETTINGS_MIZU_PATH'] = mizu_settings_dir
+                self.logger.debug(f"Updated SETTINGS_MIZU_PATH to {mizu_settings_dir}")
+            
+            # Ensure output directory exists and is writable
+            output_path = Path(output_dir)
+
+            # Also update GR output path for mizuRoute control file creation
+            local_config['EXPERIMENT_OUTPUT_GR'] = str(output_path)
+            self.logger.debug(f"Updated EXPERIMENT_OUTPUT_GR to {output_path}")
+            
+            try:
+                output_path.mkdir(parents=True, exist_ok=True)
+                self.logger.debug(f"Ensured output_dir exists: {output_path} (abs: {output_path.resolve()})")
+                # Test writeability
+                test_file = output_path / '.test_write'
+                test_file.write_text('test')
+                test_file.unlink()
+            except Exception as e:
+                self.logger.error(f"Cannot write to output_dir {output_path}: {e}")
+                return False
+            
+            # Ensure settings directory exists
+            settings_path = Path(settings_dir)
+            try:
+                settings_path.mkdir(parents=True, exist_ok=True)
+                self.logger.debug(f"Ensured settings_dir exists: {settings_path} (abs: {settings_path.resolve()})")
+            except Exception as e:
+                self.logger.error(f"Cannot create settings_dir {settings_path}: {e}")
+                return False
             
             # Create a runner instance
-            # We use the config provided in the task and pass settings_dir for isolation
-            runner = GRRunner(config, self.logger, settings_dir=settings_dir)
+            self.logger.debug(f"Creating GRRunner with settings_dir={settings_path}, output_dir={output_path}")
+            runner = GRRunner(local_config, self.logger, settings_dir=settings_path)
             
             # Override output directory to the one provided for this worker
-            runner.output_dir = output_dir
-            runner.output_path = output_dir
+            runner.output_dir = output_path
+            runner.output_path = output_path
+            self.logger.debug(f"GRRunner created, output_path={runner.output_path}")
             
             # Execute GR
+            self.logger.debug(f"Calling runner.run_gr with params={params}")
             success_path = runner.run_gr(params=params)
+            self.logger.debug(f"runner.run_gr returned: {success_path}")
             
+            if success_path is None:
+                self.logger.error("runner.run_gr returned None")
             return success_path is not None
         except Exception as e:
-            self.logger.error(f"Error running GR model in worker: {e}")
+            self.logger.error(f"Error running GR model in worker: {type(e).__name__}: {e}")
             import traceback
-            self.logger.error(traceback.format_exc())
+            tb_str = traceback.format_exc()
+            self.logger.error(tb_str)
+            # Store the error message on the instance for potential retrieval
+            self._last_error = tb_str
             return False
 
     def calculate_metrics(
@@ -91,12 +145,26 @@ class GRWorker(BaseWorker):
         Calculate metrics from GR output.
         """
         try:
+            output_dir = Path(output_dir)
             domain_name = config.get('DOMAIN_NAME')
             spatial_mode = config.get('GR_SPATIAL_MODE', 'lumped')
+            
+            # Handle 'auto' spatial mode
+            if spatial_mode in (None, 'auto', 'default'):
+                domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+                spatial_mode = 'distributed' if domain_method == 'delineate' else 'lumped'
+
+            self.logger.debug(f"calculate_metrics: output_dir={output_dir}, spatial_mode={spatial_mode}, domain={domain_name}")
+            
+            # Validate output directory
+            if not output_dir.exists():
+                self.logger.error(f"Output directory does not exist: {output_dir}")
+                return {'kge': self.penalty_score}
             
             # Read observed streamflow
             obs_values, common_index = self._get_observed_streamflow(config)
             if obs_values is None:
+                self.logger.error("Could not get observed streamflow")
                 return {'kge': self.penalty_score}
 
             # Read simulated streamflow based on spatial mode
@@ -113,24 +181,92 @@ class GRWorker(BaseWorker):
             else:
                 # Distributed mode produces NetCDF
                 experiment_id = config.get('EXPERIMENT_ID')
+                
+                # Check for routed output first if routing was enabled
+                mizuroute_dir_path = kwargs.get('mizuroute_dir')
+                if mizuroute_dir_path:
+                    mizuroute_dir = Path(mizuroute_dir_path)
+                    if mizuroute_dir.exists():
+                        # Find any .nc file in mizuRoute directory
+                        mizu_files = list(mizuroute_dir.glob("*.nc"))
+                        if mizu_files:
+                            sim_file_routed = mizu_files[0]
+                            self.logger.debug(f"Using routed output: {sim_file_routed}")
+                            with xr.open_dataset(sim_file_routed) as ds:
+                                # mizuRoute output usually has 'IRFroutedRunoff' or 'averageRoutedRunoff'
+                                routing_var = None
+                                for v in ['IRFroutedRunoff', 'averageRoutedRunoff', 'q_routed']:
+                                    if v in ds.variables:
+                                        routing_var = v
+                                        break
+                                
+                                if not routing_var:
+                                    self.logger.error(f"No discharge variable in routed output. Vars: {list(ds.variables)}")
+                                    return {'kge': self.penalty_score}
+                                    
+                                # mizuRoute output uses 'seg' dimension for reach segments
+                                if 'seg' in ds[routing_var].dims:
+                                    simulated_streamflow = ds[routing_var].isel(seg=-1).to_pandas()
+                                elif 'gru' in ds[routing_var].dims:
+                                    simulated_streamflow = ds[routing_var].isel(gru=-1).to_pandas()
+                                else:
+                                    self.logger.error(f"Unknown spatial dimension in routed output: {ds[routing_var].dims}")
+                                    return {'kge': self.penalty_score}
+                                
+                                # Check units and convert if needed
+                                units = ds[routing_var].attrs.get('units', '').lower()
+                                if 'm3' in units or 'cms' in units:
+                                    pass # already in cms
+                                elif 'm/s' in units or 'm s-1' in units:
+                                    # Convert m/s to m3/s: m/s * area_m2
+                                    area_km2 = self._get_catchment_area(config)
+                                    simulated_streamflow = simulated_streamflow * area_km2 * 1e6
+                                else:
+                                    area_km2 = self._get_catchment_area(config)
+                                    simulated_streamflow = simulated_streamflow * area_km2 / UnitConversion.MM_DAY_TO_CMS
+                            
+                            # Aligner
+                            sim_aligned = simulated_streamflow.reindex(common_index).dropna()
+                            obs_aligned = pd.Series(obs_values, index=common_index).reindex(sim_aligned.index)
+                            
+                            if len(sim_aligned) > 0:
+                                metrics = {
+                                    'kge': float(kge(obs_aligned.values, sim_aligned.values)),
+                                    'nse': float(nse(obs_aligned.values, sim_aligned.values)),
+                                    'rmse': float(rmse(obs_aligned.values, sim_aligned.values)),
+                                    'mae': float(mae(obs_aligned.values, sim_aligned.values)),
+                                }
+                                return metrics
+
+                # Fallback to GR output if routing not used or not found
                 sim_file = output_dir / f"{domain_name}_{experiment_id}_runs_def.nc"
                 if not sim_file.exists():
                     self.logger.error(f"GR distributed output not found: {sim_file}")
                     return {'kge': self.penalty_score}
                 
                 with xr.open_dataset(sim_file) as ds:
-                    # q_routed is in mm/day, aggregated across HRUs in the runner for lumped-equivalent
-                    # or needs aggregation here if distributed. 
-                    # GRRunner currently saves mizuRoute-compatible format.
-                    if 'q_routed' in ds.variables:
-                        sim_data = ds['q_routed'].sum(dim='gru').to_pandas()
+                    # Determine which variable to use (respect config)
+                    routing_var = config.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+                    if routing_var in ('default', None, ''):
+                        routing_var = 'q_routed'
+                        
+                    if routing_var in ds.variables:
+                        var = ds[routing_var]
+                        outlet_runoff = var.isel(gru=-1)
+                        sim_data = outlet_runoff.to_pandas()
+                        
+                        units = var.attrs.get('units', '').lower()
                         area_km2 = self._get_catchment_area(config)
-                        simulated_streamflow = sim_data * area_km2 / UnitConversion.MM_DAY_TO_CMS
+                        
+                        if 'm/s' in units or 'm s-1' in units:
+                            simulated_streamflow = sim_data * area_km2 * 1e6
+                        else:
+                            simulated_streamflow = sim_data * area_km2 / UnitConversion.MM_DAY_TO_CMS
                     else:
-                        self.logger.error(f"No q_routed in GR output. Vars: {list(ds.variables)}")
+                        self.logger.error(f"Variable '{routing_var}' not found in GR output. Vars: {list(ds.variables)}")
                         return {'kge': self.penalty_score}
 
-            # Align and calculate
+            # Align and calculate for non-routed cases
             sim_aligned = simulated_streamflow.reindex(common_index).dropna()
             obs_aligned = pd.Series(obs_values, index=common_index).reindex(sim_aligned.index)
             

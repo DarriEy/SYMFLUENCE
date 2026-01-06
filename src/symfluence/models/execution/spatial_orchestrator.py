@@ -197,10 +197,19 @@ class SpatialOrchestrator(ABC):
             spatial_mode_key = f"{model_name.upper()}_SPATIAL_MODE"
 
         # Get spatial mode with fallback to domain method
-        mode_str = self.config_dict.get(
-            spatial_mode_key,
-            self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-        )
+        mode_str = self.config_dict.get(spatial_mode_key)
+
+        # Handle 'auto' mode - resolve from DOMAIN_DEFINITION_METHOD
+        if mode_str in (None, 'auto', 'default'):
+            domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+            # Map domain definition method to spatial mode
+            if domain_method == 'delineate':
+                mode_str = 'distributed'
+            elif domain_method in ('lumped', 'point'):
+                mode_str = domain_method
+            else:
+                mode_str = 'lumped'
+
         mode = SpatialMode.from_string(mode_str)
 
         # Auto-detect routing key
@@ -540,7 +549,7 @@ class SpatialOrchestrator(ABC):
                 self._create_mizuroute_control_file(model_name)
 
             runner = MizuRouteRunner(
-                self.config if hasattr(self, 'config') and self.config else self.config_dict,
+                self.config_dict,
                 self.logger
             )
             result = runner.run_mizuroute()
@@ -610,7 +619,7 @@ class SpatialOrchestrator(ABC):
             from symfluence.models.troute import TrouteRunner
 
             runner = TrouteRunner(
-                self.config if hasattr(self, 'config') and self.config else self.config_dict,
+                self.config_dict,
                 self.logger
             )
             result = runner.run_troute()

@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 from .base import FROZEN_CONFIG
 from .system import SystemConfig
 from .domain import DomainConfig, DelineationConfig
+from .data import DataConfig
 from .forcing import ForcingConfig, NexConfig, EMEarthConfig
 from .model_configs import (
     ModelConfig, SUMMAConfig, FUSEConfig, GRConfig, HYPEConfig,
@@ -79,6 +80,7 @@ class SymfluenceConfig(BaseModel):
         DOMAIN_DEFINITION_METHOD='lumped',
         DOMAIN_DISCRETIZATION='lumped'
     ))
+    data: DataConfig = Field(default_factory=DataConfig)
     forcing: ForcingConfig = Field(default_factory=lambda: ForcingConfig(FORCING_DATASET='ERA5'))
     model: ModelConfig = Field(default_factory=lambda: ModelConfig(HYDROLOGICAL_MODEL='SUMMA'))
     optimization: OptimizationConfig = Field(default_factory=OptimizationConfig)
@@ -156,7 +158,7 @@ class SymfluenceConfig(BaseModel):
 
         nested = transform_flat_to_nested({key: values[key] for key in flat_keys})
 
-        sections = ('system', 'domain', 'forcing', 'model', 'optimization', 'evaluation', 'paths')
+        sections = ('system', 'domain', 'data', 'forcing', 'model', 'optimization', 'evaluation', 'paths')
         for section in sections:
             if section in values and isinstance(values[section], dict):
                 nested.setdefault(section, {}).update(values[section])

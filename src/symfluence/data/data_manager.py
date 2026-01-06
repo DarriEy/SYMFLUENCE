@@ -94,7 +94,9 @@ class DataManager(ConfigurableMixin):
                 'ADDITIONAL_OBSERVATIONS',
                 []
             )
-            if isinstance(additional_obs, str):
+            if additional_obs is None:
+                additional_obs = []
+            elif isinstance(additional_obs, str):
                 additional_obs = [o.strip() for o in additional_obs.split(',')]
             
             # 2. Check for primary streamflow provider and handle USGS/WSC migration
@@ -108,6 +110,10 @@ class DataManager(ConfigurableMixin):
                 additional_obs.append('USGS_STREAMFLOW')
             elif streamflow_provider == 'WSC' and 'WSC_STREAMFLOW' not in additional_obs:
                 additional_obs.append('WSC_STREAMFLOW')
+            elif streamflow_provider == 'SMHI' and 'SMHI_STREAMFLOW' not in additional_obs:
+                additional_obs.append('SMHI_STREAMFLOW')
+            elif streamflow_provider == 'LAMAH_ICE' and 'LAMAH_ICE_STREAMFLOW' not in additional_obs:
+                additional_obs.append('LAMAH_ICE_STREAMFLOW')
             
             # Check for USGS Groundwater download and ensure it's in additional_obs
             download_usgs_gw = self._resolve_config_value(
@@ -146,9 +152,10 @@ class DataManager(ConfigurableMixin):
             observed_data_processor = ObservedDataProcessor(component_config, self.logger)
             
             # Only run traditional if NOT using the formalized handlers
-            if streamflow_provider not in ['USGS', 'WSC'] or (
-                'USGS_STREAMFLOW' not in additional_obs and 'WSC_STREAMFLOW' not in additional_obs
-            ):
+            formalized_providers = ['USGS_STREAMFLOW', 'WSC_STREAMFLOW', 'SMHI_STREAMFLOW', 'LAMAH_ICE_STREAMFLOW']
+            is_formalized = any(obs in additional_obs for obs in formalized_providers)
+            
+            if not is_formalized:
                 observed_data_processor.process_streamflow_data()
             
             observed_data_processor.process_fluxnet_data()

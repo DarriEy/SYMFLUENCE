@@ -98,9 +98,10 @@ class HYPEModelOptimizer(BaseModelOptimizer):
 
     def _setup_parallel_dirs(self) -> None:
         """Setup HYPE-specific parallel directories."""
-        base_dir = self.project_dir / 'simulations' / f'run_{self.experiment_id}'
+        algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
+        base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
         self.parallel_dirs = self.setup_parallel_processing(
-            base_dir,
+            base_dir.absolute(),
             'HYPE',
             self.experiment_id
         )
@@ -108,4 +109,32 @@ class HYPEModelOptimizer(BaseModelOptimizer):
         # Copy HYPE settings to each parallel directory
         source_settings = self.project_dir / 'settings' / 'HYPE'
         if source_settings.exists():
-            self.copy_base_settings(source_settings, self.parallel_dirs, 'HYPE')
+            self.copy_base_settings(source_settings.absolute(), self.parallel_dirs, 'HYPE')
+
+        # Update HYPE info files with process-specific paths
+        self.update_file_managers(
+            self.parallel_dirs,
+            'HYPE',
+            self.experiment_id,
+            file_manager_name='info.txt'
+        )
+
+        # If routing needed, also copy and configure mizuRoute settings
+        routing_model = self.config.get('ROUTING_MODEL', 'none')
+        if routing_model == 'mizuRoute':
+            mizu_settings = self.project_dir / 'settings' / 'mizuRoute'
+            if mizu_settings.exists():
+                import shutil
+                for proc_id, dirs in self.parallel_dirs.items():
+                    mizu_dest = dirs['root'] / 'settings' / 'mizuRoute'
+                    mizu_dest.mkdir(parents=True, exist_ok=True)
+                    for item in mizu_settings.iterdir():
+                        if item.is_file():
+                            shutil.copy2(item, mizu_dest / item.name)
+
+                # Update mizuRoute control files with process-specific paths
+                self.update_mizuroute_controls(
+                    self.parallel_dirs,
+                    'HYPE',
+                    self.experiment_id
+                )

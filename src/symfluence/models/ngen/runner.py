@@ -34,10 +34,10 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
         self.ngen_setup_dir = self.project_dir / "settings" / "NGEN"
 
         # Use standardized executable resolution from BaseModelRunner
-        # Note: NGEN install path is relative to parent of data_dir (../installs/ngen/build)
+        # Note: NGEN install path is relative to parent of data_dir (../installs/ngen/cmake_build)
         self.ngen_exe = self.get_model_executable(
             install_path_key='NGEN_INSTALL_PATH',
-            default_install_subpath='installs/ngen/build',
+            default_install_subpath='installs/ngen/cmake_build',
             exe_name_key=None,  # NGEN exe name is just 'ngen'
             default_exe_name='ngen',
             relative_to='code_dir'
@@ -111,8 +111,13 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
             # Run ngen
             log_file = output_dir / "ngen_log.txt"
             try:
-                # Setup environment with library paths
+                # Setup environment for NGEN execution
                 env = os.environ.copy()
+                
+                # Remove PYTHONPATH to avoid version mismatches
+                # NGEN is linked to the Homebrew Python, not the venv
+                env.pop('PYTHONPATH', None)
+                env.pop('PYTHONHOME', None)
 
                 self.execute_model_subprocess(
                     ngen_cmd,

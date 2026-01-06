@@ -184,6 +184,86 @@ class ModelManager(ConfigurableMixin):
 
         
 
+            elif model == 'HYPE':
+
+                domain_method = self._resolve_config_value(
+
+                    lambda: self.typed_config.domain.definition_method,
+
+                    'DOMAIN_DEFINITION_METHOD',
+
+                    'lumped'
+
+                )
+
+                routing_delineation = self._resolve_config_value(
+
+                    lambda: self.typed_config.routing.delineation,
+
+                    'ROUTING_DELINEATION',
+
+                    'lumped'
+
+                )
+
+                
+
+                hype_spatial = self._resolve_config_value(
+
+                    lambda: self.typed_config.model.hype.spatial_mode if (self.typed_config and self.typed_config.model.hype) else None,
+
+                    'HYPE_SPATIAL_MODE',
+
+                    'lumped'
+
+                )
+
+                
+
+                routing_model = self._resolve_config_value(
+
+                    lambda: self.typed_config.routing.model,
+
+                    'ROUTING_MODEL',
+
+                    'none'
+
+                )
+
+                
+
+                if routing_model == 'default':
+
+                    routing_model = 'mizuRoute'
+
+                
+
+                needs_mizuroute = False
+
+                if routing_model == 'mizuRoute':
+
+                    needs_mizuroute = True
+
+                elif hype_spatial in ['semi_distributed', 'distributed']:
+
+                    needs_mizuroute = True
+
+                elif domain_method not in ['point', 'lumped']:
+
+                    needs_mizuroute = True
+
+                elif domain_method == 'lumped' and routing_delineation == 'river_network':
+
+                    needs_mizuroute = True
+
+                
+
+                if needs_mizuroute:
+
+                    self._ensure_mizuroute_in_workflow(execution_list, source_model='HYPE')
+
+        
+
         return execution_list
 
         
@@ -353,9 +433,102 @@ class ModelManager(ConfigurableMixin):
                 import traceback
                 self.logger.error(traceback.format_exc())
 
-        
-
         # Note: visualize_timeseries_results is now triggered automatically by extract_streamflow/save_streamflow_to_results
+
+        # Log baseline performance metrics after postprocessing
+        self.log_baseline_performance()
+
+    def log_baseline_performance(self):
+        """
+        Log baseline model performance metrics (KGE, NSE) after model runs.
+
+        This diagnostic helps users understand initial model performance before
+        calibration and identify potential issues with model setup.
+        """
+        try:
+            import numpy as np
+            from symfluence.evaluation.metrics import kge, nse, kge_prime
+
+            # Get results file path
+            results_file = self.project_dir / "results" / f"{self.experiment_id}_results.csv"
+
+            if not results_file.exists():
+                self.logger.debug("Results file not found - skipping baseline performance logging")
+                return
+
+            # Load results
+            results_df = pd.read_csv(results_file, index_col=0, parse_dates=True)
+
+            # Find observation column
+            obs_col = None
+            for col in results_df.columns:
+                if 'obs' in col.lower() or 'observed' in col.lower():
+                    obs_col = col
+                    break
+
+            if obs_col is None:
+                self.logger.debug("No observation column found in results - skipping baseline metrics")
+                return
+
+            # Find simulation columns (model outputs)
+            sim_cols = [c for c in results_df.columns if c != obs_col and 'discharge' in c.lower()]
+
+            if not sim_cols:
+                self.logger.debug("No simulation columns found in results")
+                return
+
+            # Log header
+            self.logger.info("=" * 60)
+            self.logger.info("BASELINE MODEL PERFORMANCE (before calibration)")
+            self.logger.info("=" * 60)
+
+            obs = results_df[obs_col].values
+
+            for sim_col in sim_cols:
+                sim = results_df[sim_col].values
+
+                # Remove NaN pairs
+                valid_mask = ~(np.isnan(obs) | np.isnan(sim))
+                obs_clean = obs[valid_mask]
+                sim_clean = sim[valid_mask]
+
+                if len(obs_clean) < 10:
+                    self.logger.warning(f"  {sim_col}: Insufficient valid data ({len(obs_clean)} points)")
+                    continue
+
+                # Calculate metrics
+                kge_val = kge(obs_clean, sim_clean, transfo=1)
+                kgep_val = kge_prime(obs_clean, sim_clean, transfo=1)
+                nse_val = nse(obs_clean, sim_clean, transfo=1)
+
+                # Calculate bias
+                mean_obs = np.mean(obs_clean)
+                mean_sim = np.mean(sim_clean)
+                bias_pct = ((mean_sim - mean_obs) / mean_obs) * 100 if mean_obs != 0 else np.nan
+
+                # Determine model name from column
+                model_name = sim_col.replace('_discharge_cms', '').replace('_discharge', '')
+
+                # Log metrics
+                self.logger.info(f"  {model_name}:")
+                self.logger.info(f"    KGE  = {kge_val:.4f}")
+                self.logger.info(f"    KGE' = {kgep_val:.4f}")
+                self.logger.info(f"    NSE  = {nse_val:.4f}")
+                self.logger.info(f"    Bias = {bias_pct:+.1f}%")
+                self.logger.info(f"    Valid data points: {len(obs_clean)}")
+
+                # Provide interpretation
+                if kge_val < 0:
+                    self.logger.warning(f"    Note: KGE < 0 indicates model performs worse than mean observed flow")
+                elif kge_val < 0.5:
+                    self.logger.info(f"    Note: KGE < 0.5 suggests calibration may significantly improve results")
+                elif kge_val >= 0.7:
+                    self.logger.info(f"    Note: KGE >= 0.7 indicates reasonable baseline performance")
+
+            self.logger.info("=" * 60)
+
+        except Exception as e:
+            self.logger.debug(f"Could not calculate baseline metrics: {e}")
 
         
 

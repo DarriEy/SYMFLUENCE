@@ -84,11 +84,27 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
                 'DOMAIN_DISCRETIZATION'
             )
             self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
-        self.spatial_mode = self._resolve_config_value(
-            lambda: self.config.model.gr.spatial_mode if self.config.model.gr else 'lumped',
-            'GR_SPATIAL_MODE',
-            'lumped'
+        
+        # Resolve spatial mode
+        # 1. Check for explicit configuration (typed or dict)
+        configured_mode = self._resolve_config_value(
+            lambda: self.config.model.gr.spatial_mode if hasattr(self.config, 'model') and self.config.model and self.config.model.gr else None,
+            'GR_SPATIAL_MODE'
         )
+
+        # 2. If 'auto' or not set, infer from domain definition method
+        if configured_mode in (None, 'auto', 'default'):
+            # Infer from domain definition method
+            if self.domain_definition_method == 'delineate':
+                self.spatial_mode = 'distributed'
+                self.logger.info(f"GR spatial mode auto-detected as 'distributed' (DOMAIN_DEFINITION_METHOD: {self.domain_definition_method})")
+            else:
+                self.spatial_mode = 'lumped'
+                self.logger.info(f"GR spatial mode auto-detected as 'lumped' (DOMAIN_DEFINITION_METHOD: {self.domain_definition_method})")
+        else:
+            # 3. Use explicit config
+            self.spatial_mode = configured_mode
+            self.logger.info(f"GR spatial mode set to '{self.spatial_mode}' from configuration")
 
     def run_preprocessing(self):
         """

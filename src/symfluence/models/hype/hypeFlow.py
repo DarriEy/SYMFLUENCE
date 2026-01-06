@@ -176,9 +176,15 @@ def write_hype_forcing(easymore_output, timeshift, forcing_units, geofabric_mapp
         else:
             sys.exit('input stat should be max, min, mean or sum')
 
-        # Extract variable and convert to dataframe
-        # Use to_series().unstack() to get time as index and IDs as columns
-        series = ds_daily[variable_in].to_series()
+        # Extract variable and ensure no singleton spatial dimensions
+        da = ds_daily[variable_in]
+        if 'longitude' in da.dims and da.sizes['longitude'] == 1:
+            da = da.squeeze('longitude')
+        if 'latitude' in da.dims and da.sizes['latitude'] == 1:
+            da = da.squeeze('latitude')
+
+        # Convert to dataframe and unstack
+        series = da.to_series()
         
         # Dynamically determine the ID level name
         actual_id_level = var_id
@@ -191,7 +197,10 @@ def write_hype_forcing(easymore_output, timeshift, forcing_units, geofabric_mapp
         df = series.unstack(level=actual_id_level)
         
         # Ensure columns (subids) are integers and start from 1 if they are 0
-        df.columns = df.columns.astype(int)
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(-1)
+            
+        df.columns = [int(float(c)) for c in df.columns]
         if 0 in df.columns:
             df.columns = [c + 1 if c == 0 else c for c in df.columns]
         
@@ -495,6 +504,14 @@ def write_hype_geo_files(gistool_output, subbasins_shapefile, rivers_shapefile, 
     sorted_df = sort_geodata(base_df)
     sorted_df.to_csv(path_to_save+'GeoData.txt', sep='\t', index=False)
     
+    # 11. Write ForcKey.txt (required for readobsid=y)
+    # Maps subid to the station id in forcing files (which we set to subid)
+    forckey_df = pd.DataFrame({
+        'subid': sorted_df['subid'],
+        'stationid': sorted_df['subid']
+    })
+    forckey_df.to_csv(path_to_save+'ForcKey.txt', sep='\t', index=False)
+
     # Write GeoClass file
     write_geoclass(slc_df, path_to_save)
 
@@ -622,6 +639,10 @@ def write_hype_par_file(path_to_save, params=None, template_file=None, land_uses
             geoclass_df = pd.read_csv(geoclass_file, sep='\t', skiprows=1, header=None)
             num_lu = int(geoclass_df.iloc[:, 1].max()) # Max LULC ID
             num_soil = int(geoclass_df.iloc[:, 2].max()) # Max Soil ID
+            
+            # Extract land use IDs for parameter generation if not provided
+            if land_uses is None:
+                land_uses = geoclass_df.iloc[:, 1].unique()
         except Exception as e:
             print(f"Warning: Could not read GeoClass.txt for class counts: {e}")
 
@@ -785,12 +806,28 @@ qmean 	200	!! initial value for calculation of mean flow (mm/yr)"""
             # Simple substitution for list/array values
             par_content = re.sub(fr'^({key}\s+)([^\! \n]*)', fr'\g<1>{val_str}  ', par_content, flags=re.MULTILINE)
 
-    with open(output_file, 'w') as file:
-            file.write(par_content)
+        # Safety check for critical parameters
+        # cevp (Evaporation coefficient) should not be too close to zero
+        if 'cevp' in params:
+            cevp_val = params['cevp']
+            if isinstance(cevp_val, (int, float)) and cevp_val < 0.1:
+                 print(f"Warning: cevp value {cevp_val} is too low. Clamping to 0.1 to ensure evapotranspiration.")
+                 # We need to re-apply the clamped value
+                 clamped_val = 0.1
+                 
+                 def replicate_clamped(match):
+                     prefix = match.group(1)
+                     content = match.group(0)[len(prefix):]
+                     comment_parts = content.split('!!', 1)
+                     existing_vals = comment_parts[0].strip()
+                     comment = "!!" + comment_parts[1] if len(comment_parts) > 1 else ""
+                     val_count = len(existing_vals.split())
+                     return f"{prefix}{' '.join([str(clamped_val)] * val_count)}  {comment}"
+
+                 par_content = re.sub(r'^(cevp\s+)([^\n]*)', replicate_clamped, par_content, flags=re.MULTILINE)
 
     with open(output_file, 'w') as file:
             file.write(par_content)
-
 # write info and filedir files
 def write_hype_info_filedir_files(path_to_save, spinup_days, hype_results_dir,
                                    experiment_start=None, experiment_end=None):
@@ -815,35 +852,42 @@ def write_hype_info_filedir_files(path_to_save, spinup_days, hype_results_dir,
         os.remove(output_file)
 
     # Use experiment dates if provided, otherwise read from Pobs.txt
-    if experiment_start is None or experiment_end is None:
-        Pobs_path = os.path.join(path_to_save, 'Pobs.txt')
-        Pobs = pd.read_csv(Pobs_path, sep='\t', parse_dates=['time'])
-        Pobs['time'] = pd.to_datetime(Pobs['time']).dt.date
-        if experiment_start is None:
-            start_date = Pobs['time'].iloc[0]
-        else:
-            start_date = pd.to_datetime(experiment_start).date()
-        if experiment_end is None:
-            end_date = Pobs['time'].iloc[-1]
-        else:
-            # For HYPE's daily timestep, if end time is not midnight, include the full day
-            end_dt = pd.to_datetime(experiment_end)
-            end_date = end_dt.date()
-            if end_dt.hour > 0 or end_dt.minute > 0 or end_dt.second > 0:
-                # If there's a time component beyond midnight, include the full day
-                end_date = end_date + pd.Timedelta(days=0)
+    Pobs_path = os.path.join(path_to_save, 'Pobs.txt')
+    if os.path.exists(Pobs_path):
+        Pobs_meta = pd.read_csv(Pobs_path, sep='\t', parse_dates=['time'], nrows=2)
+        forcing_start = pd.to_datetime(Pobs_meta['time'].iloc[0]).date()
+        forcing_end = pd.to_datetime(pd.read_csv(Pobs_path, sep='\t', usecols=['time']).iloc[-1, 0]).date()
     else:
+        forcing_start = None
+        forcing_end = None
+
+    if experiment_start:
         start_date = pd.to_datetime(experiment_start).date()
-        # For HYPE's daily timestep, if end time is not midnight, include the full day
-        end_dt = pd.to_datetime(experiment_end)
-        end_date = end_dt.date()
-        if end_dt.hour > 0 or end_dt.minute > 0 or end_dt.second > 0:
-            # If there's a time component beyond midnight, include the full day
-            end_date = end_date + pd.Timedelta(days=0)
+    else:
+        start_date = forcing_start
+
+    if experiment_end:
+        end_date = pd.to_datetime(experiment_end).date()
+    else:
+        end_date = forcing_end
+
+    # Ensure start_date is not before forcing starts
+    if forcing_start and start_date < forcing_start:
+        start_date = forcing_start
+    
+    # Ensure end_date is not after forcing ends
+    # HYPE sometimes tries to read the next day if edate is the last day
+    if forcing_end and end_date >= forcing_end:
+        end_date = forcing_end - pd.Timedelta(days=1)
 
     spinup_date = start_date + pd.Timedelta(days=spinup_days)
 
     # HYPE requires at least one day of simulation: if start==end, increment end by 1 day
+    # Or if spinup consumes everything
+    if spinup_date >= end_date:
+        spinup_date = start_date
+        print(f"Warning: Spinup days ({spinup_days}) exceeds simulation period. Setting spinup to 0.")
+
     if start_date == end_date:
         end_date = end_date + pd.Timedelta(days=1)
 
@@ -872,7 +916,7 @@ warning\ty
 readdaily\ty
 submodel\tn
 calibration\tn
-readobsid\tn
+readobsid\ty
 soilstretch\tn
 !! Soilstretch enable the use of soilcorr parameters (strech soildepths in layer 2 and 3)
 steplength\t1d
@@ -881,14 +925,14 @@ steplength\t1d
 !! Enable/disable optional input files
 !!
 !! -----------------
-readsfobs\tn\t!! For observed snowfall fractions in SFobs.txt
-readswobs\tn\t!! For observed shortwave radiation in SWobs.txt
-readuobs\tn\t!! For observed wind speeds in Uobs.txt
-readrhobs\tn\t!! For observed relative humidity in RHobs.txt
-readtminobs\ty\t!! For observed min air temperature in TMINobs.txt
-readtmaxobs\ty\t!! For observed max air temperature in TMAXobs.txt
-soiliniwet\tn\t!! initiates soil water to porosity instead of field capacity which is default (N). Set Y to use porosity.
-usestop84\tn\t!! flag to use the old return code 84 for a successful run
+readsfobs\tn
+readswobs\tn
+readuobs\tn
+readrhobs\tn
+readtminobs\ty
+readtmaxobs\ty
+soiliniwet\tn
+usestop84\tn
 !! -----------------------------------------------------------------------------
 !!
 !! Define model options (optional)
@@ -916,7 +960,7 @@ modeloption connectivity\t0
 !! Define outputs
 !!
 !! -----------------
-timeoutput variable cout\tevap\tsnow
+timeoutput variable COUT\tEVAP\tSNOW
 timeoutput meanperiod\t1
 timeoutput decimals\t3
 !! ------------------------------------------------------------------------------------

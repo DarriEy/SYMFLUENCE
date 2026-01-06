@@ -48,11 +48,17 @@ class NgenModelOptimizer(BaseModelOptimizer):
             optimization_settings_dir: Optional path to optimization settings
             reporting_manager: ReportingManager instance
         """
-        super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
+        # Initialize NGEN-specific paths BEFORE super().__init__() so they're available in _setup_parallel_dirs
+        # Compute paths using config directly (same logic as BaseModelOptimizer)
+        data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+        domain_name = config.get('DOMAIN_NAME', 'default')
+        experiment_id = config.get('EXPERIMENT_ID', 'optimization')
 
-        # NGEN-specific paths
-        self.ngen_sim_dir = self.project_dir / 'simulations' / self.experiment_id / 'NGEN'
-        self.ngen_setup_dir = self.project_dir / 'settings' / 'NGEN'
+        project_dir = data_dir / f"domain_{domain_name}"
+        self.ngen_sim_dir = project_dir / 'simulations' / experiment_id / 'NGEN'
+        self.ngen_setup_dir = project_dir / 'settings' / 'NGEN'
+
+        super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
         self.logger.info(f"NgenModelOptimizer initialized")
 
@@ -105,7 +111,10 @@ class NgenModelOptimizer(BaseModelOptimizer):
 
     def _setup_parallel_dirs(self) -> None:
         """Setup NGEN-specific parallel directories."""
-        base_dir = self.project_dir / 'simulations' / f'run_{self.experiment_id}'
+        # Use algorithm-specific directory (matching base_model_optimizer pattern)
+        algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
+        base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
+        
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
             'NGEN',
@@ -113,7 +122,8 @@ class NgenModelOptimizer(BaseModelOptimizer):
         )
 
         # Copy NGEN settings to each parallel directory
-        if self.ngen_setup_dir.exists():
+        # ngen_setup_dir is set to a placeholder initially, so only proceed if it's a valid Path
+        if self.ngen_setup_dir is not None and self.ngen_setup_dir.exists():
             self.copy_base_settings(self.ngen_setup_dir, self.parallel_dirs, 'NGEN')
 
 

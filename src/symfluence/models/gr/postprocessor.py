@@ -171,17 +171,28 @@ class GRPostprocessor(BaseModelPostProcessor):
 
             ds = xr.open_dataset(gr_output)
 
-            # Sum across all GRUs
+            # Extract routed discharge from outlet GRU
             # Handle 'default' config value - use model-specific default
-            routing_var_config = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+            routing_var_config = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
             if routing_var_config in ('default', None, ''):
-                routing_var = 'q_routed'  # GR4J default for routing
+                routing_var = 'averageRoutedRunoff'  # GR4J mizuRoute output variable
             else:
                 routing_var = routing_var_config
-            q_total = ds[routing_var].sum(dim='gru')
-
-            # Convert to DataFrame
-            q_df = q_total.to_dataframe(name='flow')
+            
+            # Check if variable exists, with fallback
+            if routing_var not in ds.variables:
+                if 'averageRoutedRunoff' in ds.variables:
+                    routing_var = 'averageRoutedRunoff'
+                elif 'q_routed' in ds.variables:
+                    routing_var = 'q_routed'
+                else:
+                    self.logger.error(f"Neither {routing_var} nor averageRoutedRunoff/q_routed found in GR output")
+                    return None
+            
+            # Use outlet GRU (last one), not sum across all GRUs
+            # The outlet discharge includes all upstream contributions after routing
+            q_outlet = ds[routing_var].isel(gru=-1)
+            q_df = q_outlet.to_dataframe(name='flow')
 
         # Convert from mm/day to m3/s using base method
         # Assumes GR output in mm/day. If mizuRoute, it might be in m3/s already depending on config,

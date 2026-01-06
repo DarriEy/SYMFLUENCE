@@ -17,9 +17,11 @@ import uuid
 import time
 import multiprocessing as mp
 import re
+import gc
 from datetime import datetime
 
 import xarray as xr
+import netCDF4 as nc4
 import easymore  # type: ignore
 from tqdm import tqdm
 
@@ -154,7 +156,7 @@ class RemappingWeightGenerator:
 
             # Output config
             esmr.temp_dir = str(temp_dir) + '/'
-            esmr.output_dir = str(self.project_dir / 'forcing' / 'basin_averaged_data') + '/'
+            esmr.output_dir = str(temp_dir) + '/'  # Use temp_dir for both to avoid mess
             esmr.remapped_dim_id = 'hru'
             esmr.remapped_var_id = 'hruId'
             esmr.format_list = ['f4']
@@ -162,19 +164,64 @@ class RemappingWeightGenerator:
 
             # Only create weights, don't apply
             esmr.only_create_remap_csv = True
-            esmr.save_csv = False
+            if hasattr(esmr, 'only_create_remap_nc'):
+                esmr.only_create_remap_nc = True
+                
+            esmr.save_csv = True
             esmr.sort_ID = False
+            
+            # Set numcpu=1 to avoid bus errors on macOS
+            esmr.numcpu = 1
+            
+            # Enable temp shp saving
+            esmr.save_temp_shp = True
 
             self.logger.info("Running EASYMORE to create remapping weights...")
-            esmr.nc_remapper()
+            # Use same suppressed output runner as forcing_resampler if available
+            # otherwise just run it
+            try:
+                from .forcing_resampler import _run_easmore_with_suppressed_output
+                _run_easmore_with_suppressed_output(esmr, self.logger)
+            except (ImportError, AttributeError):
+                esmr.nc_remapper()
 
             # Move output files
-            temp_remap = temp_dir / f"{case_name}_remapping.csv"
-            if temp_remap.exists():
-                shutil.move(str(temp_remap), str(remap_file))
+            case_remap_csv = temp_dir / f"{case_name}_remapping.csv"
+            case_remap_nc = temp_dir / f"{case_name}_remapping.nc"
+            case_attr_nc = temp_dir / f"{case_name}_attributes.nc"
+
+            # Support EASYMORE 2.0 conversion if needed
+            if not case_remap_csv.exists() and case_remap_nc.exists():
+                try:
+                    import xarray as xr
+                    with xr.open_dataset(case_remap_nc) as ds:
+                        ds.to_dataframe().to_csv(case_remap_csv)
+                except Exception as e:
+                    self.logger.warning(f"Could not convert NetCDF weights to CSV: {e}")
+
+            if case_remap_csv.exists():
+                shutil.move(str(case_remap_csv), str(remap_file))
                 self.logger.info(f"Remapping weights created: {remap_file}")
+                
+                # Also move NC versions
+                remap_nc_final = remap_file.with_suffix('.nc')
+                if case_remap_nc.exists():
+                    shutil.move(str(case_remap_nc), str(remap_nc_final))
+                if case_attr_nc.exists():
+                    attr_nc_final = remap_file.parent / f"{case_name}_attributes.nc"
+                    shutil.move(str(case_attr_nc), str(attr_nc_final))
             else:
-                raise FileNotFoundError(f"Expected remapping file not created: {temp_remap}")
+                # Fallback to searching for CSV
+                mapping_patterns = ["*remapping*.csv", "*_remapping.csv", "Mapping_*.csv"]
+                fallback = []
+                for pattern in mapping_patterns:
+                    fallback.extend(list(temp_dir.glob(pattern)))
+                
+                if fallback:
+                    shutil.move(str(fallback[0]), str(remap_file))
+                    self.logger.info(f"Remapping weights created (fallback): {remap_file}")
+                else:
+                    raise FileNotFoundError(f"Expected remapping file not created in {temp_dir}")
 
             for shp_file in temp_dir.glob(f"{case_name}_intersected_shapefile.*"):
                 shutil.move(str(shp_file), str(output_dir / shp_file.name))
@@ -189,8 +236,12 @@ class RemappingWeightGenerator:
         """Detect available SUMMA forcing variables in a NetCDF file."""
         all_summa_vars = ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate', 'airtemp', 'spechum', 'windspd']
 
-        with xr.open_dataset(forcing_file) as ds:
-            available = [v for v in all_summa_vars if v in ds.data_vars]
+        available = []
+        try:
+            with nc4.Dataset(forcing_file, 'r') as ncid:
+                available = [v for v in all_summa_vars if v in ncid.variables]
+        finally:
+            gc.collect()
 
         if not available:
             raise ValueError(f"No SUMMA forcing variables found in {forcing_file}")
@@ -210,36 +261,42 @@ class RemappingWeightGenerator:
         Returns:
             Tuple of (detected_variables, source_resolution_or_None)
         """
-        with xr.open_dataset(forcing_file) as ds:
-            detected_vars = self._detect_forcing_variables(forcing_file)
+        detected_vars = self._detect_forcing_variables(forcing_file)
+        
+        source_resolution = None
+        try:
+            with nc4.Dataset(forcing_file, 'r') as ncid:
+                if var_lat not in ncid.variables or var_lon not in ncid.variables:
+                    return detected_vars, None
+                    
+                lat_vals = ncid.variables[var_lat][:]
+                lon_vals = ncid.variables[var_lon][:]
 
-            lat_vals = ds[var_lat].values
-            lon_vals = ds[var_lon].values
-
-            # Determine grid size
-            if lat_vals.ndim == 1:
-                lat_size, lon_size = len(lat_vals), len(lon_vals)
-            elif lat_vals.ndim == 2:
-                lat_size, lon_size = lat_vals.shape
-            else:
-                lat_size, lon_size = 1, 1
-
-            # Calculate resolution for small grids
-            source_resolution = None
-            if lat_size == 1 or lon_size == 1:
+                # Determine grid size
                 if lat_vals.ndim == 1:
-                    res_lat = abs(float(lat_vals[1] - lat_vals[0])) if len(lat_vals) > 1 else 0.25
-                    res_lon = abs(float(lon_vals[1] - lon_vals[0])) if len(lon_vals) > 1 else 0.25
+                    lat_size, lon_size = len(lat_vals), len(lon_vals)
+                elif lat_vals.ndim == 2:
+                    lat_size, lon_size = lat_vals.shape
                 else:
-                    res_lat, res_lon = 0.25, 0.25
+                    lat_size, lon_size = 1, 1
 
-                source_resolution = max(res_lat, res_lon)
-                self.logger.info(
-                    f"Small grid detected ({lat_size}x{lon_size}), "
-                    f"setting source_nc_resolution={source_resolution}"
-                )
+                # Calculate resolution for small grids
+                if lat_size == 1 or lon_size == 1:
+                    if lat_vals.ndim == 1:
+                        res_lat = abs(float(lat_vals[1] - lat_vals[0])) if len(lat_vals) > 1 else 0.25
+                        res_lon = abs(float(lon_vals[1] - lon_vals[0])) if len(lon_vals) > 1 else 0.25
+                    else:
+                        res_lat, res_lon = 0.25, 0.25
 
-            return detected_vars, source_resolution
+                    source_resolution = max(res_lat, res_lon)
+                    self.logger.info(
+                        f"Small grid detected ({lat_size}x{lon_size}), "
+                        f"setting source_nc_resolution={source_resolution}"
+                    )
+        finally:
+            gc.collect()
+
+        return detected_vars, source_resolution
 
 
 class RemappingWeightApplier:

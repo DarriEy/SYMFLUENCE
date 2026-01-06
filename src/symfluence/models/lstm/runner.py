@@ -75,12 +75,12 @@ class LSTMRunner(BaseModelRunner):
             forcing_df, streamflow_df, snow_df = self.preprocessor.load_data()
             
             # Check if snow data should be used based on config
-            use_snow = self.config_dict.get('LSTM_USE_SNOW', self.config_dict.get('FLASH_USE_SNOW', False))
+            use_snow = self.config_dict.get('LSTM_USE_SNOW', False)
             snow_df_input = snow_df if use_snow else pd.DataFrame() # Use empty DF if not using snow
 
             # 2. Preprocess Data
             # Decide if we are training (fit scalers) or just simulating (load scalers)
-            load_existing_model = self.config_dict.get('LSTM_LOAD', self.config_dict.get('FLASH_LOAD', False))
+            load_existing_model = self.config_dict.get('LSTM_LOAD', False)
             model_save_path = self.project_dir / 'models' / 'lstm_model.pt'
             
             if load_existing_model:
@@ -106,8 +106,8 @@ class LSTMRunner(BaseModelRunner):
                 self._create_model_instance(
                     input_size, 
                     checkpoint['output_size'],
-                    hidden_size=self.config_dict.get('LSTM_HIDDEN_SIZE', self.config_dict.get('FLASH_HIDDEN_SIZE', 64)),
-                    num_layers=self.config_dict.get('LSTM_NUM_LAYERS', self.config_dict.get('FLASH_NUM_LAYERS', 2))
+                    hidden_size=self.config_dict.get('LSTM_HIDDEN_SIZE', 64),
+                    num_layers=self.config_dict.get('LSTM_NUM_LAYERS', 2)
                 )
                 self.model.load_state_dict(checkpoint['model_state_dict'])
                 
@@ -118,8 +118,8 @@ class LSTMRunner(BaseModelRunner):
                 )
                 
                 input_size = X_tensor.shape[2]
-                hidden_size = self.config_dict.get('LSTM_HIDDEN_SIZE', self.config_dict.get('FLASH_HIDDEN_SIZE', 64))
-                num_layers = self.config_dict.get('LSTM_NUM_LAYERS', self.config_dict.get('FLASH_NUM_LAYERS', 2))
+                hidden_size = self.config_dict.get('LSTM_HIDDEN_SIZE', 64)
+                num_layers = self.config_dict.get('LSTM_NUM_LAYERS', 2)
                 output_size = self.preprocessor.output_size
                 
                 # Create and Train
@@ -128,9 +128,9 @@ class LSTMRunner(BaseModelRunner):
                 self._train_model(
                     X_tensor, 
                     y_tensor,
-                    epochs=self.config_dict.get('LSTM_EPOCHS', self.config_dict.get('FLASH_EPOCHS', 100)),
-                    batch_size=self.config_dict.get('LSTM_BATCH_SIZE', self.config_dict.get('FLASH_BATCH_SIZE', 32)),
-                    learning_rate=self.config_dict.get('LSTM_LEARNING_RATE', self.config_dict.get('FLASH_LEARNING_RATE', 0.001))
+                    epochs=self.config_dict.get('LSTM_EPOCHS', 100),
+                    batch_size=self.config_dict.get('LSTM_BATCH_SIZE', 32),
+                    learning_rate=self.config_dict.get('LSTM_LEARNING_RATE', 0.001)
                 )
                 
                 # Save model
@@ -147,7 +147,7 @@ class LSTMRunner(BaseModelRunner):
 
     def _create_model_instance(self, input_size: int, output_size: int, hidden_size: int, num_layers: int):
         """Create the LSTM model instance."""
-        dropout_rate = float(self.config_dict.get('LSTM_DROPOUT', self.config_dict.get('FLASH_DROPOUT', 0.2)))
+        dropout_rate = float(self.config_dict.get('LSTM_DROPOUT', 0.2))
         self.logger.info(
             f"Creating LSTM model with input_size: {input_size}, hidden_size: {hidden_size}, "
             f"num_layers: {num_layers}, output_size: {output_size}"
@@ -168,12 +168,12 @@ class LSTMRunner(BaseModelRunner):
         optimizer = optim.AdamW(
             self.model.parameters(),
             lr=learning_rate,
-            weight_decay=float(self.config_dict.get('LSTM_L2_REGULARIZATION', self.config_dict.get('FLASH_L2_REGULARIZATION', 1e-6)))
+            weight_decay=float(self.config_dict.get('LSTM_L2_REGULARIZATION', 1e-6))
         )
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
 
         best_val_loss = float('inf')
-        patience = self.config_dict.get('LSTM_LEARNING_PATIENCE', self.config_dict.get('FLASH_LEARNING_PATIENCE', 20))
+        patience = self.config_dict.get('LSTM_LEARNING_PATIENCE', 20)
         patience_counter = 0
 
         for epoch in range(epochs):
