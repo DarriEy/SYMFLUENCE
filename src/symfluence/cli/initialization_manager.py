@@ -416,7 +416,8 @@ class InitializationManager:
             start = config['EXPERIMENT_TIME_START']
             end = config['EXPERIMENT_TIME_END']
             # Basic check that end comes after start (string comparison works for ISO format)
-            if start >= end:
+            # Only validate if both are non-None
+            if start is not None and end is not None and start >= end:
                 errors.append(f"End date must be after start date: {start} >= {end}")
 
         # Validate model

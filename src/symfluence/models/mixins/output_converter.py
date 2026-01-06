@@ -64,41 +64,45 @@ class OutputConverterMixin:
                     self.logger.info(f"Created backup: {backup_path}")
 
         # Load and transform
-        with xr.open_dataset(input_path) as ds:
+        with xr.open_dataset(input_path) as ds_in:
             if hasattr(self, 'logger'):
-                self.logger.debug(f"Original dimensions: {dict(ds.sizes)}")
+                self.logger.debug(f"Original dimensions: {dict(ds_in.sizes)}")
 
-            # Squeeze singleton dimensions
-            if squeeze_dims:
-                for dim in squeeze_dims:
-                    if dim in ds.sizes and ds.sizes[dim] == 1:
-                        ds = ds.squeeze(dim, drop=True)
-                        if hasattr(self, 'logger'):
-                            self.logger.debug(f"Squeezed {dim} dimension")
+            # Load into memory to avoid file lock issues when overwriting
+            ds = ds_in.load()
 
-            # Rename dimensions
-            if rename_dims:
-                rename_map = {old: new for old, new in rename_dims.items()
-                             if old in ds.sizes}
-                if rename_map:
-                    ds = ds.rename(rename_map)
+        # Now we can safely modify and write without file locks
+        # Squeeze singleton dimensions
+        if squeeze_dims:
+            for dim in squeeze_dims:
+                if dim in ds.sizes and ds.sizes[dim] == 1:
+                    ds = ds.squeeze(dim, drop=True)
                     if hasattr(self, 'logger'):
-                        self.logger.debug(f"Renamed dimensions: {rename_map}")
+                        self.logger.debug(f"Squeezed {dim} dimension")
 
-            # Add ID variable
-            if add_id_var and id_source_dim and id_source_dim in ds.sizes:
-                if add_id_var not in ds:
-                    id_values = np.arange(1, ds.sizes[id_source_dim] + 1)
-                    ds[add_id_var] = xr.DataArray(
-                        id_values,
-                        dims=[id_source_dim],
-                        attrs={'long_name': f'{id_source_dim} identifier'}
-                    )
-                    if hasattr(self, 'logger'):
-                        self.logger.debug(f"Added {add_id_var} variable")
+        # Rename dimensions
+        if rename_dims:
+            rename_map = {old: new for old, new in rename_dims.items()
+                         if old in ds.sizes}
+            if rename_map:
+                ds = ds.rename(rename_map)
+                if hasattr(self, 'logger'):
+                    self.logger.debug(f"Renamed dimensions: {rename_map}")
 
-            # Write output
-            ds.to_netcdf(output_path)
+        # Add ID variable
+        if add_id_var and id_source_dim and id_source_dim in ds.sizes:
+            if add_id_var not in ds:
+                id_values = np.arange(1, ds.sizes[id_source_dim] + 1)
+                ds[add_id_var] = xr.DataArray(
+                    id_values,
+                    dims=[id_source_dim],
+                    attrs={'long_name': f'{id_source_dim} identifier'}
+                )
+                if hasattr(self, 'logger'):
+                    self.logger.debug(f"Added {add_id_var} variable")
+
+        # Write output (file is now closed, safe to overwrite)
+        ds.to_netcdf(output_path)
 
         if hasattr(self, 'logger'):
             self.logger.info(f"Converted output saved to: {output_path}")

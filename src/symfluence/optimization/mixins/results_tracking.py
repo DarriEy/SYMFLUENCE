@@ -104,7 +104,7 @@ class ResultsTrackingMixin:
             self._best_params = params.copy()
             self._best_iteration = iteration
 
-            self.logger.info(
+            self.logger.debug(
                 f"New best at iteration {iteration}: score={score:.4f}"
             )
             return True

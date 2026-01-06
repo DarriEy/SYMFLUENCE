@@ -1,0 +1,20 @@
+{
+    "timestamp": "2026-01-05T16:48:45.807218",
+    "domain": "Bow_at_Banff_lumped_casr",
+    "experiment_id": "run_1",
+    "execution_time_seconds": 2.427448,
+    "steps_completed": [],
+    "total_steps_completed": 0,
+    "errors": [],
+    "total_errors": 0,
+    "warnings": [],
+    "total_warnings": 0,
+    "debug_mode": false,
+    "status": "completed",
+    "configuration": {
+        "hydrological_model": "FUSE",
+        "domain_definition_method": "lumped",
+        "optimization_algorithm": "DE",
+        "force_run_all": false
+    }
+}

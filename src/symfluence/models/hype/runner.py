@@ -44,7 +44,8 @@ class HYPERunner(BaseModelRunner, ModelExecutor):
             default_install_subpath='installs/hype/bin',
             exe_name_key='HYPE_EXE',
             default_exe_name='hype',
-            typed_exe_accessor=lambda: self.typed_config.model.hype.exe if (self.typed_config and self.typed_config.model.hype) else None
+            typed_exe_accessor=lambda: self.typed_config.model.hype.exe if (self.typed_config and self.typed_config.model.hype) else None,
+            must_exist=True
         )
 
     def _get_model_name(self) -> str:
@@ -104,12 +105,10 @@ class HYPERunner(BaseModelRunner, ModelExecutor):
 
     def _create_run_command(self) -> List[str]:
         """Create HYPE execution command."""
-        cmd = [
+        return [
             str(self.hype_exe),
-            str(self.setup_dir) + '/'  # HYPE requires trailing slash
+            str(self.setup_dir).rstrip('/') + '/'
         ]
-        print(cmd)
-        return cmd
 
     def _verify_outputs(self) -> bool:
         """Verify HYPE output files exist."""

@@ -115,7 +115,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
 
             # Get spatial mode configuration
             spatial_mode = self.config.get('FUSE_SPATIAL_MODE', 'lumped')
-            subcatchment_dim = self.config.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
+            subcatchment_dim = self.config.get('FUSE_SUBCATCHMENT_DIM', 'longitude')
 
             self.logger.debug(f"Preparing FUSE forcing data in {spatial_mode} mode")
 
@@ -205,10 +205,44 @@ class FuseForcingProcessor(BaseForcingProcessor):
     def _prepare_distributed_forcing(self, ds: xr.Dataset) -> xr.Dataset:
         """Prepare fully distributed forcing data"""
         self.logger.info("Preparing distributed forcing data")
+        
+        # Check target size from available catchment data to ensure alignment
+        target_ids = self._load_subcatchment_data()
+        n_target = len(target_ids)
 
         # Use HRU data directly if available
         if 'hru' in ds.dims:
-            return ds
+            if ds.sizes['hru'] == n_target:
+                return ds
+            elif ds.sizes['hru'] == 1:
+                self.logger.info(f"Broadcasting single HRU to {n_target} distributed units")
+                # Replicate single HRU data to n_target HRUs
+                # First squeeze out the singleton hru dimension, then expand to target size
+                import numpy as np
+                new_ds = xr.Dataset()
+                new_ds['time'] = ds['time'].copy()
+                new_ds['hru'] = xr.DataArray(range(1, n_target + 1), dims='hru')
+
+                for var in ds.data_vars:
+                    if 'hru' in ds[var].dims:
+                        # Squeeze the singleton hru dimension and tile to n_target
+                        data = ds[var].values
+                        if data.ndim == 2 and data.shape[1] == 1:  # (time, hru=1)
+                            tiled_data = np.tile(data, (1, n_target))
+                            new_ds[var] = xr.DataArray(
+                                tiled_data,
+                                dims=('time', 'hru'),
+                                attrs=ds[var].attrs
+                            )
+                        else:
+                            new_ds[var] = ds[var].copy()
+                    else:
+                        new_ds[var] = ds[var].copy()
+
+                return new_ds
+            else:
+                self.logger.warning(f"Mismatch in HRU count: Data has {ds.sizes['hru']}, Target has {n_target}. Proceeding with data as-is.")
+                return ds
         else:
             return self._create_distributed_from_catchment(ds)
 

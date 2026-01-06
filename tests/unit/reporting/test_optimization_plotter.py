@@ -13,21 +13,6 @@ from symfluence.reporting.config.plot_config import PlotConfig
 
 
 @pytest.fixture
-def mock_config():
-    """Create a mock configuration."""
-    return {
-        'SYMFLUENCE_DATA_DIR': '/tmp/test',
-        'DOMAIN_NAME': 'test_domain'
-    }
-
-
-@pytest.fixture
-def mock_logger():
-    """Create a mock logger."""
-    return MagicMock()
-
-
-@pytest.fixture
 def optimization_plotter(mock_config, mock_logger):
     """Create an OptimizationPlotter instance."""
     return OptimizationPlotter(mock_config, mock_logger)

@@ -39,6 +39,9 @@ class CARRAHandler(BaseDatasetHandler):
             'ws10': 'windspd',
             'ssrd': 'SWRadAtm',
             'strd': 'LWRadAtm',
+            # CDS API uses full names
+            'thermal_surface_radiation_downwards': 'LWRadAtm',
+            'surface_solar_radiation_downwards': 'SWRadAtm',
         }
     
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
@@ -125,8 +128,13 @@ class CARRAHandler(BaseDatasetHandler):
             with xr.open_dataset(carra_file) as ds:
                 lats = ds.latitude.values
                 lons = ds.longitude.values
-            
+
             self.logger.info(f"CARRA dimensions: {lats.shape}")
+
+            # Check if this is a regular lat/lon grid (1D) or curvilinear (2D)
+            is_regular_grid = (lats.ndim == 1)
+            if is_regular_grid:
+                self.logger.info("Detected regular lat/lon grid (1D coordinates)")
 
             # Get HRU bounding box for spatial filtering
             # Read the HRU shapefile to get its extent
@@ -156,13 +164,6 @@ class CARRAHandler(BaseDatasetHandler):
                     self.logger.warning(f"Could not read HRU shapefile for spatial filtering: {e}")
                     self.logger.warning("Will create shapefile for full domain (may be slow)")
 
-            # Define CARRA projection (polar stereographic)
-            carra_proj = CRS('+proj=stere +lat_0=90 +lat_ts=90 +lon_0=-45 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6356752.3142 +units=m +no_defs')
-            wgs84 = CRS('EPSG:4326')
-
-            transformer = Transformer.from_crs(carra_proj, wgs84, always_xy=True)
-            transformer_to_carra = Transformer.from_crs(wgs84, carra_proj, always_xy=True)
-
             # Create geometries
             self.logger.info("Creating CARRA grid cell geometries")
 
@@ -171,83 +172,145 @@ class CARRAHandler(BaseDatasetHandler):
             center_lats = []
             center_lons = []
 
-            # Flatten 2D lat/lon arrays to 1D for iteration
-            lats_flat = lats.flatten()
-            lons_flat = lons.flatten()
+            if is_regular_grid:
+                # Regular lat/lon grid - create rectangular cells directly
+                import numpy as np
 
-            # Process in batches
-            batch_size = 100
-            total_cells = len(lats_flat)
-            num_batches = (total_cells + batch_size - 1) // batch_size
-            cells_created = 0
+                # Calculate grid spacing
+                lat_spacing = abs(float(lats[1] - lats[0])) if len(lats) > 1 else 0.025
+                lon_spacing = abs(float(lons[1] - lons[0])) if len(lons) > 1 else 0.025
 
-            self.logger.info(f"Processing {total_cells} CARRA grid cells in {num_batches} batches")
+                self.logger.info(f"Grid spacing: lat={lat_spacing:.4f}°, lon={lon_spacing:.4f}°")
 
-            for batch_idx in range(num_batches):
-                start_idx = batch_idx * batch_size
-                end_idx = min(start_idx + batch_size, total_cells)
+                # Create meshgrid for all combinations
+                cell_id = 0
+                cells_created = 0
 
-                self.logger.info(f"Processing grid cell batch {batch_idx+1}/{num_batches} ({start_idx} to {end_idx-1})")
+                for lat_idx, center_lat in enumerate(lats):
+                    for lon_idx, center_lon_raw in enumerate(lons):
+                        # Convert longitude from 0-360 to -180/180 range
+                        if center_lon_raw > 180:
+                            center_lon = float(center_lon_raw - 360)
+                        else:
+                            center_lon = float(center_lon_raw)
 
-                for i in range(start_idx, end_idx):
-                    # Get cell center coordinates
-                    center_lat_raw = float(lats_flat[i])
-                    center_lon_raw = float(lons_flat[i])
+                        center_lat = float(center_lat)
 
-                    # Convert longitude from 0-360 to -180/180 range for consistency
-                    if center_lon_raw > 180:
-                        center_lon_normalized = center_lon_raw - 360
-                    else:
-                        center_lon_normalized = center_lon_raw
+                        # Apply spatial filter if available
+                        if bbox_filter is not None:
+                            if (center_lon < bbox_filter['lon_min'] or center_lon > bbox_filter['lon_max'] or
+                                center_lat < bbox_filter['lat_min'] or center_lat > bbox_filter['lat_max']):
+                                cell_id += 1
+                                continue
 
-                    # Apply spatial filter if available (using normalized longitude)
-                    if bbox_filter is not None:
-                        if (center_lon_normalized < bbox_filter['lon_min'] or center_lon_normalized > bbox_filter['lon_max'] or
-                            center_lat_raw < bbox_filter['lat_min'] or center_lat_raw > bbox_filter['lat_max']):
-                            continue
+                        # Create rectangular cell
+                        half_dlat = lat_spacing / 2.0
+                        half_dlon = lon_spacing / 2.0
 
-                    # Convert lat/lon to CARRA coordinates (scalars now)
-                    x, y = transformer_to_carra.transform(center_lon_raw, center_lat_raw)
-                    
-                    # Define grid cell (assuming 2.5 km resolution)
-                    half_dx = 1250  # meters
-                    half_dy = 1250  # meters
-                    
-                    vertices = [
-                        (x - half_dx, y - half_dy),
-                        (x - half_dx, y + half_dy),
-                        (x + half_dx, y + half_dy),
-                        (x + half_dx, y - half_dy),
-                        (x - half_dx, y - half_dy)
-                    ]
-                    
-                    # Convert vertices back to lat/lon
-                    # Ensure values are scalars, not arrays
-                    lat_lon_vertices = []
-                    for vx, vy in vertices:
-                        lon, lat = transformer.transform(vx, vy)
+                        vertices = [
+                            (center_lon - half_dlon, center_lat - half_dlat),
+                            (center_lon - half_dlon, center_lat + half_dlat),
+                            (center_lon + half_dlon, center_lat + half_dlat),
+                            (center_lon + half_dlon, center_lat - half_dlat),
+                            (center_lon - half_dlon, center_lat - half_dlat)
+                        ]
+
+                        geometries.append(Polygon(vertices))
+                        ids.append(cell_id)
+                        center_lats.append(center_lat)
+                        center_lons.append(center_lon)
+                        cells_created += 1
+                        cell_id += 1
+
+                self.logger.info(f"Created {cells_created} grid cells")
+
+            else:
+                # Curvilinear grid - use stereographic projection
+                # Define CARRA projection (polar stereographic)
+                carra_proj = CRS('+proj=stere +lat_0=90 +lat_ts=90 +lon_0=-45 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6356752.3142 +units=m +no_defs')
+                wgs84 = CRS('EPSG:4326')
+
+                transformer = Transformer.from_crs(carra_proj, wgs84, always_xy=True)
+                transformer_to_carra = Transformer.from_crs(wgs84, carra_proj, always_xy=True)
+
+                # Flatten 2D lat/lon arrays to 1D for iteration
+                lats_flat = lats.flatten()
+                lons_flat = lons.flatten()
+
+                # Process in batches
+                batch_size = 100
+                total_cells = len(lats_flat)
+                num_batches = (total_cells + batch_size - 1) // batch_size
+                cells_created = 0
+
+                self.logger.info(f"Processing {total_cells} CARRA grid cells in {num_batches} batches")
+
+                for batch_idx in range(num_batches):
+                    start_idx = batch_idx * batch_size
+                    end_idx = min(start_idx + batch_size, total_cells)
+
+                    self.logger.info(f"Processing grid cell batch {batch_idx+1}/{num_batches} ({start_idx} to {end_idx-1})")
+
+                    for i in range(start_idx, end_idx):
+                        # Get cell center coordinates
+                        center_lat_raw = float(lats_flat[i])
+                        center_lon_raw = float(lons_flat[i])
+
+                        # Convert longitude from 0-360 to -180/180 range for consistency
+                        if center_lon_raw > 180:
+                            center_lon_normalized = center_lon_raw - 360
+                        else:
+                            center_lon_normalized = center_lon_raw
+
+                        # Apply spatial filter if available (using normalized longitude)
+                        if bbox_filter is not None:
+                            if (center_lon_normalized < bbox_filter['lon_min'] or center_lon_normalized > bbox_filter['lon_max'] or
+                                center_lat_raw < bbox_filter['lat_min'] or center_lat_raw > bbox_filter['lat_max']):
+                                continue
+
+                        # Convert lat/lon to CARRA coordinates (scalars now)
+                        # Use normalized longitude (-180/180) instead of raw (0-360)
+                        x, y = transformer_to_carra.transform(center_lon_normalized, center_lat_raw)
+
+                        # Define grid cell (assuming 2.5 km resolution)
+                        half_dx = 1250  # meters
+                        half_dy = 1250  # meters
+
+                        vertices = [
+                            (x - half_dx, y - half_dy),
+                            (x - half_dx, y + half_dy),
+                            (x + half_dx, y + half_dy),
+                            (x + half_dx, y - half_dy),
+                            (x - half_dx, y - half_dy)
+                        ]
+
+                        # Convert vertices back to lat/lon
+                        # Ensure values are scalars, not arrays
+                        lat_lon_vertices = []
+                        for vx, vy in vertices:
+                            lon, lat = transformer.transform(vx, vy)
+                            # Extract scalar values if they're arrays
+                            if hasattr(lon, 'item'):
+                                lon = lon.item()
+                            if hasattr(lat, 'item'):
+                                lat = lat.item()
+                            lat_lon_vertices.append((float(lon), float(lat)))
+
+                        geometries.append(Polygon(lat_lon_vertices))
+                        ids.append(i)
+
+                        center_lon, center_lat = transformer.transform(x, y)
                         # Extract scalar values if they're arrays
-                        if hasattr(lon, 'item'):
-                            lon = lon.item()
-                        if hasattr(lat, 'item'):
-                            lat = lat.item()
-                        lat_lon_vertices.append((float(lon), float(lat)))
+                        if hasattr(center_lon, 'item'):
+                            center_lon = center_lon.item()
+                        if hasattr(center_lat, 'item'):
+                            center_lat = center_lat.item()
+                        center_lats.append(float(center_lat))
+                        center_lons.append(float(center_lon))
+                        cells_created += 1
 
-                    geometries.append(Polygon(lat_lon_vertices))
-                    ids.append(i)
-
-                    center_lon, center_lat = transformer.transform(x, y)
-                    # Extract scalar values if they're arrays
-                    if hasattr(center_lon, 'item'):
-                        center_lon = center_lon.item()
-                    if hasattr(center_lat, 'item'):
-                        center_lat = center_lat.item()
-                    center_lats.append(float(center_lat))
-                    center_lons.append(float(center_lon))
-                    cells_created += 1
-
-            if bbox_filter is not None:
-                self.logger.info(f"Spatial filtering: created {cells_created} cells (from {total_cells} total)")
+                if bbox_filter is not None:
+                    self.logger.info(f"Spatial filtering: created {cells_created} cells (from {total_cells} total)")
 
             # Create GeoDataFrame
             self.logger.info(f"Creating GeoDataFrame with {cells_created} grid cells")

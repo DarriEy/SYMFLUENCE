@@ -57,7 +57,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         domain_name (str): Name of the domain being processed
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None, settings_dir: Optional[Path] = None):
         # GR-specific: Check rpy2 dependency BEFORE calling super()
         if not HAS_RPY2:
             raise ImportError(
@@ -68,6 +68,8 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
 
         # Call base class
         super().__init__(config, logger, reporting_manager=reporting_manager)
+
+        self.settings_dir = Path(settings_dir) if settings_dir else None
 
         # Keep legacy attribute name for downstream GR code.
         self.output_path = self.output_dir
@@ -91,7 +93,11 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
 
         # GR setup and forcing paths
-        self.gr_setup_dir = self.project_dir / "settings" / "GR"
+        if hasattr(self, 'settings_dir') and self.settings_dir:
+            self.gr_setup_dir = self.settings_dir
+        else:
+            self.gr_setup_dir = self.project_dir / "settings" / "GR"
+            
         self.forcing_gr_path = self.project_dir / 'forcing' / 'GR_input'
 
     def _get_model_name(self) -> str:
@@ -102,14 +108,23 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         """GR uses output_path naming."""
         return self.get_experiment_output_dir()
 
-    def run_gr(self) -> Optional[Path]:
+    def run_gr(self, params: Optional[Dict[str, float]] = None) -> Optional[Path]:
         """
         Run the GR model.
+
+        Args:
+            params: Optional dictionary of parameters to use (skips internal calibration)
 
         Returns:
             Optional[Path]: Path to the output directory if successful, None otherwise
         """
-        self.logger.info(f"Starting GR model run in {self.spatial_mode} mode")
+        self.logger.debug(f"Starting GR model run in {self.spatial_mode} mode")
+
+        # Update config with provided parameters if any
+        if params:
+            self.logger.debug(f"Using external parameters: {params}")
+            self.config_dict['GR_EXTERNAL_PARAMS'] = params
+            self.config_dict['GR_SKIP_CALIBRATION'] = True
 
         with symfluence_error_handler(
             "GR model execution",
@@ -166,7 +181,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             ds = xr.open_dataset(forcing_file)
 
             n_hrus = len(ds.hru)
-            self.logger.info(f"Running GR4J for {n_hrus} HRUs")
+            self.logger.debug(f"Running GR4J for {n_hrus} HRUs")
 
             # Load DEM for hypsometric curve (use catchment-wide for now)
             dem_path = self.project_dir / 'attributes' / 'elevation' / 'dem' / f"domain_{self.domain_name}_elv.tif"
@@ -190,6 +205,22 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             # Store results for each HRU
             hru_results = []
 
+            # Determine parameters
+            external_params = self.config_dict.get('GR_EXTERNAL_PARAMS')
+            if external_params:
+                # Use provided parameters, falling back to defaults for missing ones
+                x1 = external_params.get('X1', 257.24)
+                x2 = external_params.get('X2', 1.012)
+                x3 = external_params.get('X3', 88.23)
+                x4 = external_params.get('X4', 2.208)
+                ctg = external_params.get('CTG', 0.0)
+                kf = external_params.get('Kf', 3.69)
+                gratio = external_params.get('Gratio', 0.1)
+                albedo_diff = external_params.get('Albedo_diff', 0.1)
+                param_str = f"c(X1={x1}, X2={x2}, X3={x3}, X4={x4}, CTG={ctg}, Kf={kf}, Gratio={gratio}, Albedo_diff={albedo_diff})"
+            else:
+                param_str = "c(X1=257.24, X2=1.012, X3=88.23, X4=2.208, CTG=0.0, Kf=3.69, Gratio=0.1, Albedo_diff=0.1)"
+
             # Loop through each HRU
             for hru_idx in range(n_hrus):
                 hru_id = int(ds.hru_id.values[hru_idx]) if 'hru_id' in ds else hru_idx + 1
@@ -206,8 +237,8 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
                     'pet': hru_data['pet'].values
                 })
 
-                # Save temporary CSV for R
-                temp_csv = self.forcing_gr_path / f"hru_{hru_id}_temp.csv"
+                # Save temporary CSV for R in isolated output directory
+                temp_csv = self.output_path / f"hru_{hru_id}_temp.csv"
                 hru_df.to_csv(temp_csv, index=False)
 
                 # Run GR4J for this HRU
@@ -235,10 +266,8 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
                     Ind_Warm <- which(date_vector >= "{spinup_start}" & date_vector <= "{spinup_end}")
                     Ind_Run <- which(date_vector >= "{run_start}" & date_vector <= "{run_end}")
 
-                    # Use default parameters (no calibration yet)
-                    # GR4J parameters: X1, X2, X3, X4
-                    # CemaNeige parameters: CTG, Kf
-                    Param <- c(257.24, 1.012, 88.23, 2.208, 0.0, 3.69)  # Default parameter set
+                    # Use parameters
+                    Param <- {param_str}
 
                     # Preparation of RunOptions
                     RunOptions <- CreateRunOptions(
@@ -331,7 +360,12 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         )
 
         # Add streamflow data (in mm/day as GR4J outputs)
-        routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+        # Handle 'default' config value - use model-specific default
+        routing_var_config = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+        if routing_var_config in ('default', None, ''):
+            routing_var = 'q_routed'  # GR4J default for routing
+        else:
+            routing_var = routing_var_config
         ds_out[routing_var] = xr.DataArray(
             results_df.values,
             dims=('time', 'gru'),
@@ -433,9 +467,9 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             run_start = time_start.strftime('%Y-%m-%d')
             run_end = time_end.strftime('%Y-%m-%d')
 
-            self.logger.info(f"Spinup period: {spinup_start} to {spinup_end}")
-            self.logger.info(f"Calibration period: {calib_start} to {calib_end}")
-            self.logger.info(f"Run period: {run_start} to {run_end}")
+            self.logger.debug(f"Spinup period: {spinup_start} to {spinup_end}")
+            self.logger.debug(f"Calibration period: {calib_start} to {calib_end}")
+            self.logger.debug(f"Run period: {run_start} to {run_end}")
 
             # Install airGR if not already installed
             robjects.r('''
@@ -443,6 +477,21 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
                     install.packages("airGR", repos="https://cloud.r-project.org")
                 }
             ''')
+
+            # Determine parameters for R script
+            external_params = self.config_dict.get('GR_EXTERNAL_PARAMS')
+            if external_params:
+                x1 = external_params.get('X1', default_params[0])
+                x2 = external_params.get('X2', default_params[1])
+                x3 = external_params.get('X3', default_params[2])
+                x4 = external_params.get('X4', default_params[3])
+                ctg = external_params.get('CTG', 0.0)
+                kf = external_params.get('Kf', 3.69)
+                gratio = external_params.get('Gratio', 0.1)
+                albedo_diff = external_params.get('Albedo_diff', 0.1)
+                external_param_str = f"Param <- c(X1={x1}, X2={x2}, X3={x3}, X4={x4}, CTG={ctg}, Kf={kf}, Gratio={gratio}, Albedo_diff={albedo_diff})"
+            else:
+                external_param_str = f"Param <- c(X1={default_params[0]}, X2={default_params[1]}, X3={default_params[2]}, X4={default_params[3]}, CTG=0.0, Kf=3.69, Gratio=0.1, Albedo_diff=0.1)"
 
             # R script as a string with improved date handling
             r_script = f'''
@@ -526,8 +575,8 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
                     save(OutputsCalib, file = "{str(self.output_path / 'GR_calib.Rdata')}")
                     Param <- OutputsCalib$ParamFinalR
                 }} else {{
-                    # Add default CemaNeige parameters (CTG=0.0, Kf=3.69) to the 4 GR4J parameters
-                    Param <- c(X1={default_params[0]}, X2={default_params[1]}, X3={default_params[2]}, X4={default_params[3]}, CTG=0.0, Kf=3.69)
+                    # Use provided parameters or defaults
+                    {external_param_str}
                 }}
 
                 # Preparation of RunOptions for full simulation
@@ -555,6 +604,13 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
 
                 # Save results
                 save(OutputsModel, file = "{str(self.output_path / 'GR_results.Rdata')}")
+
+                # Export to CSV for post-processing and metrics
+                results_df <- data.frame(
+                    datetime = format(OutputsModel$DatesR, "%Y-%m-%d %H:%M:%S"),
+                    q_sim = OutputsModel$Qsim
+                )
+                write.csv(results_df, "{str(self.output_path / 'GR_results.csv')}", row.names = FALSE)
 
                 "GR model execution completed successfully"
             '''

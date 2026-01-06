@@ -221,6 +221,23 @@ class ParameterBoundsRegistry:
         'DTMINUSR': ParameterInfo(60.0, 600.0, 's', 'Routing time-step', 'routing'),
     }
 
+    # ========================================================================
+    # GR PARAMETERS
+    # ========================================================================
+    GR_PARAMS: Dict[str, ParameterInfo] = {
+        # GR4J parameters
+        'X1': ParameterInfo(1.0, 2000.0, 'mm', 'Production store capacity', 'soil'),
+        'X2': ParameterInfo(-10.0, 10.0, 'mm/day', 'Groundwater exchange coefficient', 'baseflow'),
+        'X3': ParameterInfo(1.0, 300.0, 'mm', 'Routing store capacity', 'soil'),
+        'X4': ParameterInfo(0.5, 4.0, 'days', 'Unit hydrograph time constant', 'routing'),
+
+        # CemaNeige parameters
+        'CTG': ParameterInfo(0.0, 1.0, '-', 'Snow process parameter', 'snow'),
+        'Kf': ParameterInfo(0.0, 10.0, 'mm/°C/day', 'Melt factor', 'snow'),
+        'Gratio': ParameterInfo(0.01, 0.5, '-', 'Thermal coefficient of snow pack', 'snow'),
+        'Albedo_diff': ParameterInfo(0.1, 1.0, '-', 'Albedo diffusion coefficient', 'snow'),
+    }
+
     def __init__(self):
         """Initialize registry with all parameter categories combined."""
         self._all_params: Dict[str, ParameterInfo] = {}
@@ -232,6 +249,7 @@ class ParameterBoundsRegistry:
         self._all_params.update(self.DEPTH_PARAMS)
         self._all_params.update(self.HYPE_PARAMS)
         self._all_params.update(self.MESH_PARAMS)
+        self._all_params.update(self.GR_PARAMS)
 
     def get_bounds(self, param_name: str) -> Optional[Dict[str, float]]:
         """
@@ -447,3 +465,14 @@ def get_mesh_bounds() -> Dict[str, Dict[str, float]]:
         'DTMINUSR',  # Routing
     ]
     return get_registry().get_bounds_for_params(mesh_params)
+
+
+def get_gr_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get all GR parameter bounds.
+
+    Returns:
+        Dictionary mapping GR param_name -> {'min': float, 'max': float}
+    """
+    gr_params = ['X1', 'X2', 'X3', 'X4', 'CTG', 'Kf', 'Gratio', 'Albedo_diff']
+    return get_registry().get_bounds_for_params(gr_params)

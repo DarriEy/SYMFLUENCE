@@ -269,13 +269,27 @@ class BaseModelRunner(ABC, PathResolverMixin):
 
         if install_path == 'default' or install_path is None:
             if relative_to == 'data_dir':
-                base = self.data_dir
+                path = self.data_dir / default_subpath
+                # Fallback search if not found in current data_dir
+                if not path.exists():
+                    # 1. Try code_dir
+                    if self.code_dir:
+                        fallback_path = self.code_dir / default_subpath
+                        if fallback_path.exists():
+                            self.logger.debug(f"Default path not found in data_dir, using fallback from code_dir: {fallback_path}")
+                            path = fallback_path
+                        else:
+                            # 2. Try default sibling data directory (SYMFLUENCE_data)
+                            sibling_data = self.code_dir.parent / 'SYMFLUENCE_data'
+                            fallback_path = sibling_data / default_subpath
+                            if fallback_path.exists():
+                                self.logger.debug(f"Default path not found in data_dir or code_dir, using fallback from sibling data dir: {fallback_path}")
+                                path = fallback_path
             elif relative_to == 'code_dir':
-                base = self.code_dir
+                path = self.code_dir / default_subpath
             else:
-                base = self.project_dir
-            path = base / default_subpath
-            self.logger.debug(f"Resolved default install path: {path} (from base: {base})")
+                path = self.project_dir / default_subpath
+            self.logger.debug(f"Resolved default install path: {path}")
         else:
             path = Path(install_path)
             self.logger.debug(f"Using custom install path: {path}")

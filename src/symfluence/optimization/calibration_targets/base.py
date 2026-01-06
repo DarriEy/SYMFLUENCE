@@ -28,9 +28,13 @@ from symfluence.evaluation.evaluators import (
 
     ETEvaluator as ETTarget,
 
-    StreamflowEvaluator as StreamflowTarget,
+        StreamflowEvaluator as StreamflowTarget,
 
-    SoilMoistureEvaluator as SoilMoistureTarget,
+        GRStreamflowEvaluator as GRStreamflowTarget,
+
+        SoilMoistureEvaluator as SoilMoistureTarget,
+
+    
 
     SnowEvaluator as SnowTarget,
 
@@ -238,11 +242,15 @@ __all__ = [
 
     'CalibrationTarget',
 
-    'ETTarget',
+        'ETTarget',
 
-    'StreamflowTarget',
+        'StreamflowTarget',
 
-    'SoilMoistureTarget',
+        'GRStreamflowTarget',
+
+        'SoilMoistureTarget',
+
+    
 
     'SnowTarget',
 

@@ -54,10 +54,6 @@ def temp_dir(tmp_path):
     return tmp_path
 
 
-@pytest.fixture
-def mock_logger():
-    """Create a mock logger."""
-    return Mock()
 
 
 @pytest.fixture

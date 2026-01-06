@@ -176,31 +176,35 @@ def write_hype_forcing(easymore_output, timeshift, forcing_units, geofabric_mapp
         else:
             sys.exit('input stat should be max, min, mean or sum')
 
-        # rename the variable in
-        if variable_in in ds_daily:
-            ds_daily = ds_daily.rename({variable_in: variable_out})
-
-        # add long name
-        if not variable_out_long_name is None:
-            ds_daily[variable_out].attrs['long_name'] = variable_out_long_name
-
-        # transpose the variable
-        if 'time' in ds_daily[variable_out].dims and var_id in ds_daily[variable_out].dims:
-            ds_daily[variable_out] = ds_daily[variable_out].transpose(var_id, 'time')
-
-        # this section is written to avoid issues with netcdf and HYPE!
-        df = ds_daily[variable_out].to_dataframe()
-        df = df.unstack(level=var_id if var_id in df.index.names else -1)
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(1)
-        # Use the hruId values saved before resampling (not the 0-based index from unstacking)
-        if hru_id_values is not None:
-            df.columns = hru_id_values.astype(int)
+        # Extract variable and convert to dataframe
+        # Use to_series().unstack() to get time as index and IDs as columns
+        series = ds_daily[variable_in].to_series()
+        
+        # Dynamically determine the ID level name
+        actual_id_level = var_id
+        if var_id not in series.index.names:
+            for fallback in ['hruId', 'hru', 'subid']:
+                if fallback in series.index.names:
+                    actual_id_level = fallback
+                    break
+        
+        df = series.unstack(level=actual_id_level)
+        
+        # Ensure columns (subids) are integers and start from 1 if they are 0
+        df.columns = df.columns.astype(int)
+        if 0 in df.columns:
+            df.columns = [c + 1 if c == 0 else c for c in df.columns]
+        
         df.columns.name = None
-        df.index.name = var_time
+        df.index.name = 'time'
+        
+        # Ensure time index is formatted as YYYY-MM-DD for HYPE
+        df.index = pd.to_datetime(df.index).strftime('%Y-%m-%d')
+        
         if not output_file_name_txt is None:
-            df.to_csv(output_file_name_txt,\
-                      sep='\t', na_rep='', index_label='time', float_format='%.3f')
+            # HYPE observation files: header is 'time' then subids
+            # Separated by tabs
+            df.to_csv(output_file_name_txt, sep='\t', na_rep='-9999.0', index=True, float_format='%.3f')
         
         # return
         return ds_daily
@@ -608,44 +612,57 @@ def write_hype_par_file(path_to_save, params=None, template_file=None, land_uses
     if os.path.isfile(output_file):
         os.remove(output_file)
     
-    # If land uses not provided, try to read from GeoClass.txt
-    if land_uses is None:
-        geoclass_file = os.path.join(path_to_save, 'GeoClass.txt')
-        if os.path.exists(geoclass_file):
-            try:
-                geoclass_df = pd.read_csv(geoclass_file, sep='\t', skiprows=1, header=None)
-                land_uses = geoclass_df.iloc[:, 1].unique()  # Second column is LULC
-            except Exception as e:
-                print(f"Warning: Could not read GeoClass.txt for land uses: {e}")
-                land_uses = None
+    # Try to read classes from GeoClass.txt to be accurate
+    geoclass_file = os.path.join(path_to_save, 'GeoClass.txt')
+    num_lu = 5 # Default
+    num_soil = 2 # Default
+    if os.path.exists(geoclass_file):
+        try:
+            # Skip the first row (header starting with !)
+            geoclass_df = pd.read_csv(geoclass_file, sep='\t', skiprows=1, header=None)
+            num_lu = int(geoclass_df.iloc[:, 1].max()) # Max LULC ID
+            num_soil = int(geoclass_df.iloc[:, 2].max()) # Max Soil ID
+        except Exception as e:
+            print(f"Warning: Could not read GeoClass.txt for class counts: {e}")
 
     # Generate dynamic land use parameters
     if land_uses is not None and len(land_uses) > 0:
-        lu_params, max_lu = _generate_landuse_params(land_uses)
-        lu_header = '\t'.join([f'LU{i}' for i in range(1, max_lu + 1)])
+        lu_params, max_lu_id = _generate_landuse_params(land_uses)
+        max_lu = max(max_lu_id, num_lu)
     else:
-        # Fallback to default 5 land uses if we can't determine them
         lu_params = None
-        max_lu = 5
-        lu_header = 'LU1\tLU2\tLU3\tLU4\tLU5'
+        max_lu = num_lu
+    
+    lu_header = '\t'.join([f'LU{i}' for i in range(1, max_lu + 1)])
+    soil_header = '\t'.join([f'S{i}' for i in range(1, num_soil + 1)])
 
     if template_file and os.path.exists(template_file):
         with open(template_file, 'r') as f:
             par_content = f.read()
     else:
-        # Build parameter file content with dynamic land use parameters
-        # Use default values if no land use params provided
-        ttmp_val = lu_params['ttmp'] if lu_params else ' -0.9253  -1.5960  -0.9620  -2.7121   2.6945'
-        cmlt_val = lu_params['cmlt'] if lu_params else '  9.6497   9.2928   9.8897   5.5393   2.5333'
-        cevp_val = lu_params['cevp'] if lu_params else ' 0.4689  0.7925  0.6317  0.1699  0.4506'
-        ttrig_val = lu_params['ttrig'] if lu_params else '0\t0\t0\t0\t0'
-        treda_val = lu_params['treda'] if lu_params else '0.84\t0.84\t0.84\t0.84\t0.95'
-        tredb_val = lu_params['tredb'] if lu_params else '0.4\t0.4\t0.4\t0.4\t0.4'
-        fepotsnow_val = lu_params['fepotsnow'] if lu_params else '0.8\t0.8\t0.8\t0.8\t0.8'
-        srrcs_val = lu_params['srrcs'] if lu_params else ' 0.0673  0.1012  0.1984  0.0202  0.0202'
-        surfmem_val = lu_params['surfmem'] if lu_params else '17.8\t17.8\t17.8\t17.8\t5.15'
-        depthrel_val = lu_params['depthrel'] if lu_params else '1.1152\t1.1152\t1.1152\t1.1152\t2.47'
-        frost_val = lu_params['frost'] if lu_params else '2\t2\t2\t2\t2'
+        # Build parameter file content with dynamic land use and soil parameters
+        ttmp_val = lu_params['ttmp'] if lu_params else '\t'.join(['-0.9253']*max_lu)
+        cmlt_val = lu_params['cmlt'] if lu_params else '\t'.join(['9.6497']*max_lu)
+        cevp_val = lu_params['cevp'] if lu_params else '\t'.join(['0.4689']*max_lu)
+        ttrig_val = lu_params['ttrig'] if lu_params else '\t'.join(['0']*max_lu)
+        treda_val = lu_params['treda'] if lu_params else '\t'.join(['0.84']*max_lu)
+        tredb_val = lu_params['tredb'] if lu_params else '\t'.join(['0.4']*max_lu)
+        fepotsnow_val = lu_params['fepotsnow'] if lu_params else '\t'.join(['0.8']*max_lu)
+        srrcs_val = lu_params['srrcs'] if lu_params else '\t'.join(['0.0673']*max_lu)
+        surfmem_val = lu_params['surfmem'] if lu_params else '\t'.join(['17.8']*max_lu)
+        depthrel_val = lu_params['depthrel'] if lu_params else '\t'.join(['1.1152']*max_lu)
+        frost_val = lu_params['frost'] if lu_params else '\t'.join(['2']*max_lu)
+        
+        # Soil-dependent defaults
+        bfrozn_val = '\t'.join(['3.7518']*num_soil)
+        logsatmp_val = '\t'.join(['1.15']*num_soil)
+        bcosby_val = '\t'.join(['11.2208']*num_soil)
+        rrcs1_val = '\t'.join(['0.4345']*num_soil)
+        rrcs2_val = '\t'.join(['0.1201']*num_soil)
+        sfrost_val = '\t'.join(['1']*num_soil)
+        wcwp_val = '\t'.join(['0.1171']*num_soil)
+        wcfc_val = '\t'.join(['0.3771']*num_soil)
+        wcep_val = '\t'.join(['0.4047']*num_soil)
 
         par_content = f"""!!	=======================================================================================================
 !! Parameter file for:
@@ -678,29 +695,29 @@ epotdist	   4.7088	!! Coefficient in exponential function for PET depth dependen
 !!	-----
 !!
 !!LUSE:	{lu_header}
-cevp	{cevp_val}
+cevp	{cevp_val}	!! Evapotranspiration coefficient
 ttrig	{ttrig_val}	!! Soil temperature threshold to allow transpiration
 treda	{treda_val}	!! Coefficient in soil temperature response function
 tredb	{tredb_val}	!! Coefficient in soil temperature response fuction
 fepotsnow	{fepotsnow_val}	!! Fraction of PET used for snow sublimation
 !!
 !! Frozen soil infiltration parameters
-!! SOIL:	S1	S2
-bfroznsoil  3.7518  3.2838  !! frozen soil infiltration parameter
-logsatmp	1.15	!! saturated matric potential
-bcosby	    11.2208	    19.6669	!! Cosby B parameter
+!! SOIL:	{soil_header}
+bfroznsoil  {bfrozn_val}  !! frozen soil infiltration parameter
+logsatmp	{logsatmp_val}	!! saturated matric potential
+bcosby	    {bcosby_val}	!! Cosby B parameter
 !!	=======================================================================================================
 !!	SOIL/LAND HYDRAULIC RESPONSE PARAMETERS
 !!	-----
 !!	Soil-class parameters
-!!	S1	S2
-rrcs1   0.4345  0.5985	!! recession coefficients uppermost layer
-rrcs2   0.1201  0.1853	!! recession coefficients bottom layer
+!!	SOIL:	{soil_header}
+rrcs1   {rrcs1_val}	!! recession coefficients uppermost layer
+rrcs2   {rrcs2_val}	!! recession coefficients bottom layer
 rrcs3	    0.0939	!! Recession coefficient slope dependance
-sfrost  1   1	!! frost depth parameter (cm/degree Celsius)
-wcwp    0.1171  0.0280	!! Soil water content at wilting point
-wcfc    0.3771  0.2009	!! Field capacity
-wcep    0.4047  0.4165	!! Effective porosity
+sfrost  {sfrost_val}	!! frost depth parameter (cm/degree Celsius)
+wcwp    {wcwp_val}	!! Soil water content at wilting point
+wcfc    {wcfc_val}	!! Field capacity
+wcep    {wcep_val}	!! Effective porosity
 !!	-----
 !!	Landuse-class parameters
 !!LUSE:	{lu_header}
@@ -739,17 +756,37 @@ qmean 	200	!! initial value for calculation of mean flow (mm/yr)"""
 
     # Substitution logic for calibration parameters
     if params:
+        import re
         for key, value in params.items():
-            # Handle list/array values (often for landuse/soil specific params)
+            # Handle list/array values
             if isinstance(value, (list, np.ndarray)):
                 val_str = "  ".join(map(str, value))
             else:
                 val_str = str(value)
+                
+                def replicate_value(match):
+                    prefix = match.group(1)
+                    # Match until end of line or start of comment
+                    content = match.group(0)[len(prefix):]
+                    comment_parts = content.split('!!', 1)
+                    existing_vals = comment_parts[0].strip()
+                    comment = "!!" + comment_parts[1] if len(comment_parts) > 1 else ""
+                    
+                    val_count = len(existing_vals.split())
+                    if val_count > 1:
+                        return f"{prefix}{' '.join([val_str] * val_count)}  {comment}"
+                    return f"{prefix}{val_str}  {comment}"
+
+                # Use a more precise regex: match start of line, key, then whitespace
+                # and capture everything until the end of that line
+                par_content = re.sub(fr'^({key}\s+)([^\n]*)', replicate_value, par_content, flags=re.MULTILINE)
+                continue
             
-            # Simple substitution for now: look for key followed by whitespace or tab
-            # This is a bit naive for HYPE par files but works for basic cases
-            import re
-            par_content = re.sub(fr'^({key}\s+)[^\!]*', fr'\g<1>{val_str}  ', par_content, flags=re.MULTILINE)
+            # Simple substitution for list/array values
+            par_content = re.sub(fr'^({key}\s+)([^\! \n]*)', fr'\g<1>{val_str}  ', par_content, flags=re.MULTILINE)
+
+    with open(output_file, 'w') as file:
+            file.write(par_content)
 
     with open(output_file, 'w') as file:
             file.write(par_content)
@@ -771,7 +808,7 @@ def write_hype_info_filedir_files(path_to_save, spinup_days, hype_results_dir,
     if os.path.isfile(output_file):
         os.remove(output_file)
     with open(output_file, 'w') as file:
-            file.write('./')
+            file.write('./\n')
 
     output_file = os.path.join(path_to_save, 'info.txt')
     if os.path.isfile(output_file):
@@ -810,127 +847,93 @@ def write_hype_info_filedir_files(path_to_save, spinup_days, hype_results_dir,
     if start_date == end_date:
         end_date = end_date + pd.Timedelta(days=1)
 
+    # Ensure results directory has trailing slash for HYPE
+    hype_results_dir = str(hype_results_dir).rstrip('/') + '/'
+
     print(f"DEBUG HYPE dates: start={start_date}, end={end_date}, spinup_days={spinup_days}, spinup_date={spinup_date}")
 
-    s1 = """!! ----------------------------------------------------------------------------
+    info_content = f"""!! ----------------------------------------------------------------------------
 !!
 !! HYPE - Model Agnostic Framework
-!!							
-!! -----------------------------------------------------------------------------							
-!! Check Indata during first runs (deactivate after first runs) 
-indatacheckonoff 	2						
-indatachecklevel	2		
-!! -----------------------------------------------------------------------------							
 !!
-!! -----------------------------------------------------------------------------							
-!!						
-!! Simulation settings:							
-!!							
-!! -----------------	 """
-    
-    df2_row = ['bdate', 'cdate', 'edate', 'resultdir', 'instate', 'warning']
-    df2_val = [start_date, spinup_date, end_date, hype_results_dir, 'n', 'y']
-    df2 = pd.DataFrame(df2_val, index=df2_row, columns=None)
-
-    s3 = """readdaily 	y						
-submodel 	n						
-calibration	n						
-readobsid   n							
-soilstretch	n						
+!! -----------------------------------------------------------------------------
+!! Check Indata during first runs (deactivate after first runs) 
+indatacheckonoff\t0
+indatachecklevel\t0
+!! -----------------------------------------------------------------------------
+!!
+!! Simulation settings:
+!!
+!! -----------------     
+bdate\t{start_date}
+cdate\t{spinup_date}
+edate\t{end_date}
+resultdir\t{hype_results_dir}
+instate\tn
+warning\ty
+readdaily\ty
+submodel\tn
+calibration\tn
+readobsid\tn
+soilstretch\tn
 !! Soilstretch enable the use of soilcorr parameters (strech soildepths in layer 2 and 3)
-steplength	1d							
-!! -----------------------------------------------------------------------------							
-!!							
+steplength\t1d
+!! -----------------------------------------------------------------------------
+!!
 !! Enable/disable optional input files
-!!							
-!! -----------------							
-readsfobs	n	!! For observed snowfall fractions in SFobs.txt							
-readswobs	n	!! For observed shortwave radiation in SWobs.txt
-readuobs	n	!! For observed wind speeds in Uobs.txt
-readrhobs	n	!! For observed relative humidity in RHobs.txt					
-readtminobs	y	!! For observed min air temperature in TMINobs.txt				
-readtmaxobs	y	!! For observed max air temperature in TMAXobs.txt
-soiliniwet	n	!! initiates soil water to porosity instead of field capacity which is default (N). Set Y to use porosity.
-usestop84	n	!! flag to use the old return code 84 for a successful run					
-!! -----------------------------------------------------------------------------							
-!!							
+!!
+!! -----------------
+readsfobs\tn\t!! For observed snowfall fractions in SFobs.txt
+readswobs\tn\t!! For observed shortwave radiation in SWobs.txt
+readuobs\tn\t!! For observed wind speeds in Uobs.txt
+readrhobs\tn\t!! For observed relative humidity in RHobs.txt
+readtminobs\ty\t!! For observed min air temperature in TMINobs.txt
+readtmaxobs\ty\t!! For observed max air temperature in TMAXobs.txt
+soiliniwet\tn\t!! initiates soil water to porosity instead of field capacity which is default (N). Set Y to use porosity.
+usestop84\tn\t!! flag to use the old return code 84 for a successful run
+!! -----------------------------------------------------------------------------
+!!
 !! Define model options (optional)
-!!							
-!! -----------------							
-!!snowfallmodel:								
-!!                  0 threshold temperature model							
-!!                  1 inputdata (SFobs.txt)							
-!!snowmeltmodel:							
-!!                  0,1 temperature index             (with/without snowcover scaling)							
-!!                  2   temperature + radiation index (with/without snowcover scaling)							
-!!							
-!!  snowevapmodel   0 off							
-!!                  1 on							
-!!                   							
-!!  petmodel:  (potential evapotranspiration) (is shown in geodata for WWH)							
-!!                  0 original HYPE temperature model (with Xobs epot replacement)							
-!!                  1 original HYPE temperature model (without Xobs epot replacement)							
-!!                  2 Modified Jensen-Haise 							
-!!                  3 Modified Hargreaves-Samani							
-!!                  4 Priestly-Taylor							
-!!                  5 FAo Penman-Monteith							
-!!							
-!! lakeriverice:							
-!!                  0 off							
-!!                  1 on, old (simple) air-water heat exchange              (requires T2 water temperature model)							
-!!                  2 on, new heatbalance model for air-water heat exchange (requires T2 water temperature model)							
-!!							
-!! substance T2     switching on the new water temperature trace model							
-!!							
-!! deepground       0   off    Deep groundwater (Aquifer) model options							
-!!                  1,2 on
-!! Glacierini	0 off 1 on	(1 used for statefile preparation)	
-!! Floodplain		0, 1, 2, 3 (3 used for WWH)					
-!! -----------------							
-modeloption snowfallmodel	0						
-modeloption snowdensity	0
-modeloption snowfalldist	2
-modeloption snowheat	0
-modeloption snowmeltmodel	0	
-modeloption	snowevapmodel	1				
-modeloption snowevaporation	1					
-modeloption lakeriverice	0									
-modeloption deepground	0 	
-modeloption glacierini	1
-modeloption floodmodel 0
-modeloption frozensoil 2
-modeloption infiltration 3
-modeloption surfacerunoff 0
-modeloption petmodel	1
-modeloption wetlandmodel 2		
-modeloption connectivity 0					
-!! ------------------------------------------------------------------------------------							
-!!							
+!!
+!! -----------------
+modeloption snowfallmodel\t0
+modeloption snowdensity\t0
+modeloption snowfalldist\t2
+modeloption snowheat\t0
+modeloption snowmeltmodel\t0
+modeloption\tsnowevapmodel\t1
+modeloption snowevaporation\t1
+modeloption lakeriverice\t0
+modeloption deepground\t0 
+modeloption glacierini\t1
+modeloption floodmodel\t0
+modeloption frozensoil\t2
+modeloption infiltration\t3
+modeloption surfacerunoff\t0
+modeloption petmodel\t1
+modeloption wetlandmodel\t2
+modeloption connectivity\t0
+!! ------------------------------------------------------------------------------------
+!!
 !! Define outputs
-!!							
-!! -----------------							
-!! meanperiod 1=daymean, 2=weekmean, 3=monthmean, 4=yearmean, 5=total period mean							
-!! output variables: see http://www.smhi.net/hype/wiki/doku.php?id=start:hype_file_reference:info.txt:variables 
-!! -----------------							
-!! TIME outputs 
-!! -----------------	
-timeoutput variable cout	evap	snow
-timeoutput meanperiod	1
-timeoutput decimals	3					
-!! ------------------------------------------------------------------------------------							
-!!							
+!!
+!! -----------------
+timeoutput variable cout\tevap\tsnow
+timeoutput meanperiod\t1
+timeoutput decimals\t3
+!! ------------------------------------------------------------------------------------
+!!
 !! Select criteria for model evaluation and automatic calibration
-!!							
-!! -----------------							
-!! crit 1 criterion	MKG
-!! crit 1 cvariable	cout
-!! crit 1 rvariable	rout
-!! crit 1 weight	1"""
+!!
+!! -----------------
+!! crit 1 criterion\tMKG
+!! crit 1 cvariable\tcout
+!! crit 1 rvariable\trout
+!! crit 1 weight\t1
+"""
 
     with open(output_file, 'w') as file:
-        file.write(s1 + '\n')
-        df2.to_csv(file, sep='\t', index=True, header=False)
-        file.write(s3 + '\n')
+        file.write(info_content)
 
 def write_geoclass(slc_df, path_to_save):
     """Write GeoClass.txt file for HYPE model with full metadata and specific formatting."""

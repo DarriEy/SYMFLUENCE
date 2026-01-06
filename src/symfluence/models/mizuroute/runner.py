@@ -246,8 +246,13 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
         self.fix_time_precision()
 
         # Set up paths and filenames
-        mizu_path = self.get_install_path('INSTALL_PATH_MIZUROUTE', 'installs/mizuRoute/route/bin/')
-        mizu_exe = self.config_dict.get('EXE_NAME_MIZUROUTE')
+        self.mizu_exe = self.get_model_executable(
+            install_path_key='INSTALL_PATH_MIZUROUTE',
+            default_install_subpath='installs/mizuRoute/route/bin',
+            exe_name_key='EXE_NAME_MIZUROUTE',
+            default_exe_name='mizuroute.exe',
+            must_exist=True
+        )
         settings_path = self.get_config_path('SETTINGS_MIZU_PATH', 'settings/mizuRoute/')
         control_file = self.config_dict.get('SETTINGS_MIZU_CONTROL_FILE')
 
@@ -263,7 +268,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
 
         # Run mizuRoute
         mizu_log_path.mkdir(parents=True, exist_ok=True)
-        mizu_command = f"{mizu_path / mizu_exe} {settings_path / control_file}"
+        mizu_command = f"{self.mizu_exe} {settings_path / control_file}"
         self.logger.debug(f'Running mizuRoute with command: {mizu_command}')
 
         self.execute_model_subprocess(

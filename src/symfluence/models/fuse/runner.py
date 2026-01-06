@@ -83,7 +83,8 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
             install_path_key='FUSE_INSTALL_PATH',
             default_install_subpath='installs/fuse/bin',
             exe_name_key='FUSE_EXE',
-            default_exe_name='fuse.exe'
+            default_exe_name='fuse.exe',
+            must_exist=True
         )
         self.output_path = self.get_config_path('EXPERIMENT_OUTPUT_FUSE', f"simulations/{self.config_dict.get('EXPERIMENT_ID')}/FUSE")
 
@@ -397,7 +398,7 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
         ds = xr.open_dataset(forcing_file)
         
         # Extract data for this subcatchment based on coordinate system
-        subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
+        subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'longitude')
         
         try:
             if subcatchment_dim == 'latitude':
@@ -696,7 +697,7 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
         ds = xr.open_dataset(forcing_file)
         
         # Extract data for this subcatchment based on coordinate system
-        subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'latitude')
+        subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'longitude')
         
         try:
             if subcatchment_dim == 'latitude':

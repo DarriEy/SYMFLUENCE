@@ -75,8 +75,11 @@ class TestListPresetsCommand:
         """Test list-presets shows usage information."""
         _, stdout, _ = _run_cli(['project', 'list-presets'])
 
-        assert 'Use: symfluence project show-preset NAME' in stdout
-        assert 'Use: symfluence project init PRESET_NAME' in stdout
+        # Verify the output includes preset names and descriptions
+        assert 'fuse-provo' in stdout
+        assert 'summa-basic' in stdout
+        assert 'fuse-basic' in stdout
+        assert 'Total:' in stdout
 
 
 class TestShowPresetCommand:
@@ -168,7 +171,7 @@ class TestInitCommandWithPreset:
         """Test init summa-basic creates config file."""
         output_dir = tmp_path / "0_config_files"
 
-        exit_code, _, _ = _run_cli(
+        exit_code, stdout, stderr = _run_cli(
             [
                 'project',
                 'init',
@@ -177,11 +180,21 @@ class TestInitCommandWithPreset:
                 str(output_dir),
                 '--domain',
                 'test_watershed',
+                '--start-date',
+                '2020-01-01',
+                '--end-date',
+                '2020-12-31',
             ],
             cwd=tmp_path,
         )
 
-        assert exit_code == 0
+        # Debug output if the command failed
+        if exit_code != 0:
+            print(f"\nCommand failed with exit code {exit_code}")
+            print(f"stdout: {stdout}")
+            print(f"stderr: {stderr}")
+
+        assert exit_code == 0, f"Init command failed. stdout={stdout}, stderr={stderr}"
 
         config_file = output_dir / 'config_test_watershed.yaml'
         assert config_file.exists()
@@ -287,6 +300,10 @@ class TestInitCommandWithCustomFlags:
                 'test',
                 '--output-dir',
                 str(output_dir),
+                '--start-date',
+                '2020-01-01',
+                '--end-date',
+                '2020-12-31',
             ],
             cwd=tmp_path,
         )

@@ -346,7 +346,8 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
             domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
             routing_delineation = config.get('ROUTING_DELINEATION', 'river_network')
             
-            if config.get('ROUTING_DELINEATION', 'river_network') == 'river_network':
+            # ONLY convert if domain is lumped but routing expects a network
+            if domain_method in ['lumped', 'point'] and routing_delineation == 'river_network':
                 logger.info("Converting lumped SUMMA output to distributed format")
                 if not _convert_lumped_to_distributed_worker(task_data, summa_dir, logger, debug_info):
                     error_msg = 'Lumped-to-distributed conversion failed'
@@ -834,7 +835,12 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
             # Open without decoding times to avoid conversion issues
             summa_ds = xr.open_dataset(summa_file, decode_times=False)
             
-            routing_var = task_data['config'].get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
+            # Handle the case where config has 'default' as value - use model-specific default
+            routing_var_config = task_data['config'].get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
+            if routing_var_config in ('default', None, ''):
+                routing_var = 'averageRoutedRunoff'  # SUMMA default for routing
+            else:
+                routing_var = routing_var_config
             available_vars = list(summa_ds.variables.keys())
             
             # Find the best variable to use
@@ -1498,20 +1504,13 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
             sim_common = pd.to_numeric(sim_period.loc[common_idx], errors='coerce')
             logger.debug(f"Successfully aligned {len(common_idx)} time points")
         
-        # Remove invalid data - only filter NaN values to match centralized metrics module
-        # NOTE: Previously also filtered obs <= 0 and sim <= 0, but this caused inconsistency
-        # with final evaluation which uses metrics.py that only filters NaN values.
-        # Zero/negative values can be physically meaningful (e.g., low flow periods).
+        # Remove invalid data - filter NaN and common missing data values (like -9999)
         logger.debug("Cleaning data...")
 
         logger.debug(f"Before cleaning - obs: {len(obs_common)}, sim: {len(sim_common)}")
-        logger.debug(f"Obs NaN count: {obs_common.isna().sum()}")
-        logger.debug(f"Sim NaN count: {sim_common.isna().sum()}")
-        logger.debug(f"Obs <= 0 count: {(obs_common <= 0).sum()}")
-        logger.debug(f"Sim <= 0 count: {(sim_common <= 0).sum()}")
-
-        # Only filter NaN values - consistent with metrics.py _clean_data()
-        valid = ~(obs_common.isna() | sim_common.isna())
+        
+        # Filter NaNs and large negative values often used as missing data flags
+        valid = ~(obs_common.isna() | sim_common.isna() | (obs_common < -900) | (sim_common < -900))
         obs_valid = obs_common[valid]
         sim_valid = sim_common[valid]
         

@@ -686,4 +686,77 @@ class DomainDiscretizationRunner:
         method = self.config.get("DOMAIN_DISCRETIZATION")
         hru_paths = self.discretizer.discretize_domain()
         artifacts = DiscretizationArtifacts(method=method, hru_paths=hru_paths)
+
+        # Check if we need to discretize delineated catchments for lumped+river_network case
+        domain_method = self.config.get("DOMAIN_DEFINITION_METHOD", "lumped")
+        routing_delineation = self.config.get("ROUTING_DELINEATION", "lumped")
+
+        if domain_method == "lumped" and routing_delineation == "river_network":
+            self.logger.info("Discretizing delineated catchments for lumped-to-distributed routing")
+            delineated_hru_path = self._discretize_delineated_domain(method)
+            if delineated_hru_path:
+                artifacts.metadata['delineated_hru_path'] = str(delineated_hru_path)
+                self.logger.info(f"Delineated catchments discretized: {delineated_hru_path}")
+            else:
+                self.logger.warning("Failed to discretize delineated domain")
+
         return hru_paths, artifacts
+
+    def _discretize_delineated_domain(self, method: str) -> Optional[Path]:
+        """
+        Discretize the delineated river basins and create catchment_delineated shapefile.
+
+        Args:
+            method: Discretization method (e.g., 'elevation', 'grus')
+
+        Returns:
+            Path to the discretized catchment_delineated shapefile, or None if failed
+        """
+        try:
+            import geopandas as gpd
+
+            # Get paths using the discretizer's path utilities
+            domain_name = self.discretizer.domain_name
+            project_dir = self.discretizer.project_dir
+
+            # Find delineated river basins file from delineation step
+            delineated_basins_path = project_dir / "shapefiles" / "river_basins" / f"{domain_name}_riverBasins_delineate.shp"
+
+            if not delineated_basins_path.exists():
+                self.logger.warning(f"Delineated river basins not found at {delineated_basins_path}")
+                return None
+
+            # Create output path for delineated catchments
+            catchment_delineated_path = project_dir / "shapefiles" / "catchment" / f"{domain_name}_catchment_delineated.shp"
+            catchment_delineated_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Read the delineated river basins
+            delineated_gdf = gpd.read_file(delineated_basins_path)
+
+            self.logger.info(f"Read {len(delineated_gdf)} delineated subcatchments from {delineated_basins_path}")
+
+            # For now, treat delineated subcatchments as HRUs
+            # Add HRU_ID and other required fields
+            delineated_gdf['HRU_ID'] = range(1, len(delineated_gdf) + 1)
+            delineated_gdf['GRU_ID'] = range(1, len(delineated_gdf) + 1)  # Each subcatchment gets its own ID
+
+            # Calculate fractional areas (avg_subbas) - sum to 1.0
+            utm_crs = delineated_gdf.estimate_utm_crs()
+            delineated_utm = delineated_gdf.to_crs(utm_crs)
+            areas_utm = delineated_utm.geometry.area
+            total_area = areas_utm.sum()
+
+            delineated_gdf['avg_subbas'] = (areas_utm / total_area).values
+
+            # Save the delineated catchments
+            delineated_gdf.to_file(catchment_delineated_path)
+            self.logger.info(f"Saved delineated catchments to {catchment_delineated_path}")
+            self.logger.info(f"Fractional areas (avg_subbas): min={delineated_gdf['avg_subbas'].min():.4f}, max={delineated_gdf['avg_subbas'].max():.4f}, sum={delineated_gdf['avg_subbas'].sum():.4f}")
+
+            return catchment_delineated_path
+
+        except Exception as e:
+            self.logger.error(f"Error discretizing delineated domain: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return None

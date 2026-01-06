@@ -86,7 +86,12 @@ class TRouteRunner(BaseModelRunner, ModelExecutor):
         self.verify_required_files(runoff_filepath, context="t-route runoff preparation")
 
         # Fetch the original runoff variable name from config
-        original_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
+        # Handle 'default' config value - use model-specific default
+        original_var_config = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
+        if original_var_config in ('default', None, ''):
+            original_var = 'averageRoutedRunoff'  # SUMMA default for routing
+        else:
+            original_var = original_var_config
         
         self.logger.debug(f"Checking for variable '{original_var}' in {runoff_filepath}")
 

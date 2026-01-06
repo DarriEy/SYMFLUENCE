@@ -64,8 +64,14 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
             fuse_routing = self.config_dict.get('FUSE_ROUTING_INTEGRATION')
             gr_routing = self.config_dict.get('GR_ROUTING_INTEGRATION')
 
+        # Check if lumped-to-distributed remapping is needed (set during topology creation)
+        if getattr(self, 'needs_remap_lumped_distributed', False):
+            self.logger.info("Creating area-weighted remap file for lumped-to-distributed routing")
+            self.create_area_weighted_remap_file()
+            needs_remap = True  # Override to enable remapping in control file
+
         self.logger.info(f"Should we remap?: {needs_remap}")
-        if needs_remap:
+        if needs_remap and not getattr(self, 'needs_remap_lumped_distributed', False):
             self.remap_summa_catchments_to_routing()
 
         # Choose control writer based on source model
@@ -187,11 +193,24 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def _write_gr_control_file_runoff(self, cf):
         """Write GR-specific runoff file settings"""
+        # Handle 'default' values - use actual defaults for mizuRoute compatibility
+        routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+        if routing_var in ('default', None, ''):
+            routing_var = 'q_routed'
+
+        routing_units = self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'mm/d')
+        if routing_units in ('default', None, ''):
+            routing_units = 'mm/d'
+
+        routing_dt = self.config_dict.get('SETTINGS_MIZU_ROUTING_DT', '86400')
+        if routing_dt in ('default', None, ''):
+            routing_dt = '86400'
+
         cf.write("!\n! --- DEFINE RUNOFF FILE \n")
         cf.write(f"<fname_qsim>            {self.config_dict.get('EXPERIMENT_ID')}_timestep.nc    ! netCDF name for GR4J runoff \n")
-        cf.write(f"<vname_qsim>            {self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')}    ! Variable name for GR4J runoff \n")
-        cf.write(f"<units_qsim>            {self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'mm/d')}    ! Units of input runoff \n")
-        cf.write(f"<dt_qsim>               {self.config_dict.get('SETTINGS_MIZU_ROUTING_DT', '86400')}    ! Time interval of input runoff in seconds \n")
+        cf.write(f"<vname_qsim>            {routing_var}    ! Variable name for GR4J runoff \n")
+        cf.write(f"<units_qsim>            {routing_units}    ! Units of input runoff \n")
+        cf.write(f"<dt_qsim>               {routing_dt}    ! Time interval of input runoff in seconds \n")
         cf.write("<dname_time>            time    ! Dimension name for time \n")
         cf.write("<vname_time>            time    ! Variable name for time \n")
         cf.write("<dname_hruid>           gru     ! Dimension name for HM_HRU ID \n")
@@ -281,14 +300,24 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def create_network_topology_file(self):
         self.logger.info("Creating network topology file")
-        
+
         river_network_path = self.config_dict.get('RIVER_NETWORK_SHP_PATH')
         river_network_name = self.config_dict.get('RIVER_NETWORK_SHP_NAME')
         method_suffix = self._get_method_suffix()
 
+        # Check if this is lumped domain with distributed routing
+        # If so, use the delineated river network (from distributed delineation)
+        is_lumped_to_distributed = (
+            self.config_dict.get('DOMAIN_DEFINITION_METHOD') == 'lumped' and
+            self.config_dict.get('ROUTING_DELINEATION', 'river_network') == 'river_network'
+        )
+
+        # For lumped-to-distributed, use delineated river network and catchments
+        routing_suffix = 'delineate' if is_lumped_to_distributed else method_suffix
+
         if river_network_name == 'default':
-            river_network_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverNetwork_{method_suffix}.shp"
-        
+            river_network_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverNetwork_{routing_suffix}.shp"
+
         if river_network_path == 'default':
             river_network_path = self.project_dir / 'shapefiles/river_network'
         else:
@@ -298,7 +327,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         river_basin_name = self.config_dict.get('RIVER_BASINS_NAME')
 
         if river_basin_name == 'default':
-            river_basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{method_suffix}.shp"
+            river_basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{routing_suffix}.shp"
 
         if river_basin_path == 'default':
             river_basin_path = self.project_dir / 'shapefiles/river_basins'
@@ -310,21 +339,22 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         # Load shapefiles
         shp_river = gpd.read_file(river_network_path / river_network_name)
         shp_basin = gpd.read_file(river_basin_path / river_basin_name)
-        
-        # Check if this is lumped domain with distributed routing
-        is_lumped_to_distributed = (
-            self.config_dict.get('DOMAIN_DEFINITION_METHOD') == 'lumped' and 
-            self.config_dict.get('ROUTING_DELINEATION', 'river_network') == 'river_network'
-        )
-        
+
         if is_lumped_to_distributed:
             self.logger.info("Using delineated catchments for lumped-to-distributed routing")
-            
+
+            # For lumped-to-distributed, SUMMA output is converted to gru/gruId format
+            # by the spatial_orchestrator, so mizuRoute control file should use gru/gruId
+            self.summa_uses_gru_runoff = True
+
+            # Enable remapping: map single lumped SUMMA GRU to 25 routing HRUs with area weights
+            self.needs_remap_lumped_distributed = True
+
             # Load the delineated catchments shapefile
             catchment_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.config_dict.get('DOMAIN_NAME')}_catchment_delineated.shp"
             if not catchment_path.exists():
                 raise FileNotFoundError(f"Delineated catchment shapefile not found: {catchment_path}")
-            
+
             shp_catchments = gpd.read_file(catchment_path)
             self.logger.info(f"Loaded {len(shp_catchments)} delineated subcatchments")
             
@@ -667,12 +697,25 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         """Write SUMMA-specific runoff file settings"""
         # Check if we should use GRU-level or HRU-level data
         uses_gru = getattr(self, 'summa_uses_gru_runoff', False)
-        
+
+        # Handle 'default' values - use actual defaults for mizuRoute compatibility
+        routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
+        if routing_var in ('default', None, ''):
+            routing_var = 'averageRoutedRunoff'
+
+        routing_units = self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s')
+        if routing_units in ('default', None, ''):
+            routing_units = 'm/s'
+
+        routing_dt = self.config_dict.get('SETTINGS_MIZU_ROUTING_DT', '3600')
+        if routing_dt in ('default', None, ''):
+            routing_dt = '3600'
+
         cf.write("!\n! --- DEFINE RUNOFF FILE \n")
         cf.write(f"<fname_qsim>            {self.config_dict.get('EXPERIMENT_ID')}_timestep.nc    ! netCDF name for SUMMA runoff \n")
-        cf.write(f"<vname_qsim>            {self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')}    ! Variable name for SUMMA runoff \n")
-        cf.write(f"<units_qsim>            {self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s')}    ! Units of input runoff \n")
-        cf.write(f"<dt_qsim>               {self.config_dict.get('SETTINGS_MIZU_ROUTING_DT', '3600')}    ! Time interval of input runoff in seconds \n")
+        cf.write(f"<vname_qsim>            {routing_var}    ! Variable name for SUMMA runoff \n")
+        cf.write(f"<units_qsim>            {routing_units}    ! Units of input runoff \n")
+        cf.write(f"<dt_qsim>               {routing_dt}    ! Time interval of input runoff in seconds \n")
         cf.write("<dname_time>            time    ! Dimension name for time \n")
         cf.write("<vname_time>            time    ! Variable name for time \n")
         
@@ -736,11 +779,24 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def _write_fuse_control_file_runoff(self, cf):
         """Write FUSE-specific runoff file settings"""
+        # Handle 'default' values - use actual defaults for mizuRoute compatibility
+        routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+        if routing_var in ('default', None, ''):
+            routing_var = 'q_routed'
+
+        routing_units = self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s')
+        if routing_units in ('default', None, ''):
+            routing_units = 'm/s'
+
+        routing_dt = self.config_dict.get('SETTINGS_MIZU_ROUTING_DT', '3600')
+        if routing_dt in ('default', None, ''):
+            routing_dt = '3600'
+
         cf.write("!\n! --- DEFINE RUNOFF FILE \n")
         cf.write(f"<fname_qsim>            {self.config_dict.get('EXPERIMENT_ID')}_timestep.nc    ! netCDF name for FUSE runoff \n")
-        cf.write(f"<vname_qsim>            {self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR')}    ! Variable name for FUSE runoff \n")
-        cf.write(f"<units_qsim>            {self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS')}    ! Units of input runoff \n")
-        cf.write(f"<dt_qsim>               {self.config_dict.get('SETTINGS_MIZU_ROUTING_DT')}    ! Time interval of input runoff in seconds \n")
+        cf.write(f"<vname_qsim>            {routing_var}    ! Variable name for FUSE runoff \n")
+        cf.write(f"<units_qsim>            {routing_units}    ! Units of input runoff \n")
+        cf.write(f"<dt_qsim>               {routing_dt}    ! Time interval of input runoff in seconds \n")
         cf.write("<dname_time>            time    ! Dimension name for time \n")
         cf.write("<vname_time>            time    ! Variable name for time \n")
         cf.write("<dname_hruid>           gru     ! Dimension name for HM_HRU ID \n")
@@ -867,9 +923,13 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def _write_control_file_remapping(self, cf):
         cf.write("!\n! --- DEFINE RUNOFF MAPPING FILE \n")
-        remap_flag = self.config_dict.get('SETTINGS_MIZU_NEEDS_REMAP', '') == True
+        # Check both config flag and lumped-to-distributed flag
+        remap_flag = (
+            self.config_dict.get('SETTINGS_MIZU_NEEDS_REMAP', '') == True or
+            getattr(self, 'needs_remap_lumped_distributed', False)
+        )
         cf.write(f"<is_remap>              {'T' if remap_flag else 'F'}    ! Logical to indicate runoff needs to be remapped to RN_HRU. T or F \n")
-        
+
         if remap_flag:
             cf.write(f"<fname_remap>           {self.config_dict.get('SETTINGS_MIZU_REMAP')}    ! netCDF name of runoff remapping \n")
             cf.write("<vname_hruid_in_remap>  RN_hruId    ! Variable name for RN_HRUs \n")

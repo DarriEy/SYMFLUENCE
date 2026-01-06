@@ -53,7 +53,7 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.gistool_output = f"{str(self.project_dir / 'attributes' / 'gistool-outputs')}/"
         # HYPE needs the remapped forcing data and geospatial statistics
         self.forcing_input_dir = self.forcing_basin_path
-        self.hype_setup_dir = f"{str(self.project_dir / 'settings' / 'HYPE')}/"
+        self.hype_setup_dir = self.project_dir / 'settings' / 'HYPE'
         # Phase 3: Use typed config when available
         forcing_dataset = self._resolve_config_value(
             lambda: self.config.forcing.dataset,
@@ -66,7 +66,8 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         )
         self.hype_results_dir = self.project_dir / "simulations" / experiment_id / "HYPE"
         self.hype_results_dir.mkdir(parents=True, exist_ok=True)
-        self.hype_results_dir = f"{str(self.hype_results_dir)}/"
+        # HYPE results dir MUST have a trailing slash for the info.txt file
+        self.hype_results_dir_str = str(self.hype_results_dir).rstrip('/') + '/'
         self.cache_path = self.project_dir / "cache"
         self.cache_path.mkdir(parents=True, exist_ok=True)
 
@@ -207,7 +208,7 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         write_hype_info_filedir_files(
             self.output_path,
             self.spinup_days,
-            self.hype_results_dir,
+            self.hype_results_dir_str,
             experiment_start=experiment_start,
             experiment_end=experiment_end
         )

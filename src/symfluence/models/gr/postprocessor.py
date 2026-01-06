@@ -172,7 +172,12 @@ class GRPostprocessor(BaseModelPostProcessor):
             ds = xr.open_dataset(gr_output)
 
             # Sum across all GRUs
-            routing_var = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+            # Handle 'default' config value - use model-specific default
+            routing_var_config = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+            if routing_var_config in ('default', None, ''):
+                routing_var = 'q_routed'  # GR4J default for routing
+            else:
+                routing_var = routing_var_config
             q_total = ds[routing_var].sum(dim='gru')
 
             # Convert to DataFrame

@@ -214,8 +214,12 @@ class ModelExecutor:
             
             # Load and convert SUMMA output
             with xr.open_dataset(summa_file, decode_times=False) as summa_ds:
-                # Find routing variable
-                routing_var = self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
+                # Find routing variable - handle 'default' config value
+                routing_var_config = self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
+                if routing_var_config in ('default', None, ''):
+                    routing_var = 'averageRoutedRunoff'  # SUMMA default for routing
+                else:
+                    routing_var = routing_var_config
                 if routing_var not in summa_ds:
                     routing_var = 'basin__TotalRunoff'
                 

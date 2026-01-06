@@ -4,17 +4,6 @@ from pathlib import Path
 from symfluence.reporting.reporting_manager import ReportingManager
 
 @pytest.fixture
-def mock_config():
-    return {
-        'SYMFLUENCE_DATA_DIR': '/tmp/symfluence_data',
-        'DOMAIN_NAME': 'test_domain'
-    }
-
-@pytest.fixture
-def mock_logger():
-    return MagicMock()
-
-@pytest.fixture
 def mock_data_processor():
     with patch('symfluence.reporting.processors.data_processor.DataProcessor') as mock:
         yield mock
@@ -23,6 +12,13 @@ def mock_data_processor():
 def mock_spatial_processor():
     with patch('symfluence.reporting.processors.spatial_processor.SpatialProcessor') as mock:
         yield mock
+
+@pytest.fixture
+def mock_config():
+    return {
+        'SYMFLUENCE_DATA_DIR': '/tmp/symfluence_data',
+        'DOMAIN_NAME': 'test_domain'
+    }
 
 @pytest.fixture
 def mock_domain_plotter():

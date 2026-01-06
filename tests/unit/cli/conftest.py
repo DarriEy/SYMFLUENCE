@@ -290,19 +290,6 @@ def mock_yaml_load():
     return _mock_load
 
 
-@pytest.fixture
-def mock_logger():
-    """Mock logger for testing log output.
-
-    Provides a MagicMock logger that captures all logging calls
-    for verification in tests.
-    """
-    logger = MagicMock()
-    logger.info = MagicMock()
-    logger.warning = MagicMock()
-    logger.error = MagicMock()
-    logger.debug = MagicMock()
-    return logger
 
 
 @pytest.fixture(autouse=True)

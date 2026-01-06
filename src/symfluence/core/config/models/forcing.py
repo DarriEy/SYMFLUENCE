@@ -60,6 +60,9 @@ class ForcingConfig(BaseModel):
     pet_method: str = Field(default='oudin', alias='PET_METHOD')
     supplement: bool = Field(default=False, alias='SUPPLEMENT_FORCING')
 
+    # ERA5-specific settings
+    era5_use_cds: Optional[bool] = Field(default=None, alias='ERA5_USE_CDS')
+
     # Dataset-specific settings
     nex: Optional[NexConfig] = Field(default=None)
     em_earth: Optional[EMEarthConfig] = Field(default=None)

@@ -520,6 +520,8 @@ class BaseWorker(ABC):
             task.settings_dir,
             task.output_dir,
             sim_dir=task.sim_dir,
+            proc_id=task.proc_id,
+            params=task.params,
             **task.additional_data
         ):
             return WorkerResult.failure(
@@ -534,6 +536,7 @@ class BaseWorker(ABC):
             task.output_dir,
             task.config,
             sim_dir=task.sim_dir,
+            proc_id=task.proc_id,
             **task.additional_data
         )
 
