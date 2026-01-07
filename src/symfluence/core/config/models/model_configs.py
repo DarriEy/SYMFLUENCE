@@ -103,6 +103,7 @@ class MESHConfig(BaseModel):
 
     install_path: str = Field(default='default', alias='MESH_INSTALL_PATH')
     exe: str = Field(default='mesh.exe', alias='MESH_EXE')
+    spatial_mode: str = Field(default='auto', alias='MESH_SPATIAL_MODE')  # 'auto', 'lumped', or 'distributed'
     settings_path: str = Field(default='default', alias='SETTINGS_MESH_PATH')
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_MESH')
     forcing_path: str = Field(default='default', alias='MESH_FORCING_PATH')
@@ -136,7 +137,7 @@ class MizuRouteConfig(BaseModel):
     routing_units: str = Field(default='m/s', alias='SETTINGS_MIZU_ROUTING_UNITS')
     routing_var: str = Field(default='q_routed', alias='SETTINGS_MIZU_ROUTING_VAR')
     output_freq: str = Field(default='single', alias='SETTINGS_MIZU_OUTPUT_FREQ')
-    output_vars: int = Field(default=1, alias='SETTINGS_MIZU_OUTPUT_VARS')
+    output_vars: str = Field(default='1', alias='SETTINGS_MIZU_OUTPUT_VARS')
     make_outlet: str = Field(default='n/a', alias='SETTINGS_MIZU_MAKE_OUTLET')
     needs_remap: bool = Field(default=False, alias='SETTINGS_MIZU_NEEDS_REMAP')
     topology: str = Field(default='topology.nc', alias='SETTINGS_MIZU_TOPOLOGY')
@@ -146,6 +147,14 @@ class MizuRouteConfig(BaseModel):
     from_model: str = Field(default='default', alias='MIZU_FROM_MODEL')
     experiment_log: str = Field(default='default', alias='EXPERIMENT_LOG_MIZUROUTE')
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_MIZUROUTE')
+
+    @field_validator('output_vars', mode='before')
+    @classmethod
+    def normalize_output_vars(cls, v):
+        """Convert list or other types to string for output_vars"""
+        if isinstance(v, list):
+            return ' '.join(str(item).strip() for item in v)
+        return str(v)
 
 
 class LSTMConfig(BaseModel):
