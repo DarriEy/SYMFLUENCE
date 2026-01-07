@@ -66,3 +66,11 @@ class ForcingConfig(BaseModel):
     # Dataset-specific settings
     nex: Optional[NexConfig] = Field(default=None)
     em_earth: Optional[EMEarthConfig] = Field(default=None)
+
+    @field_validator('variables', mode='before')
+    @classmethod
+    def normalize_variables(cls, v):
+        """Convert list or other types to comma-separated string for variables"""
+        if isinstance(v, list):
+            return ','.join(str(item).strip() for item in v)
+        return str(v) if v is not None else 'default'
