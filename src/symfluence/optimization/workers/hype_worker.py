@@ -169,45 +169,38 @@ class HYPEWorker(BaseWorker):
                 experiment_end=experiment_end
             )
 
-            # Initialize HYPE runner
-            runner = HYPERunner(config, self.logger)
-            
+            # Create a modified config for the runner that disables routing
+            # The worker will handle routing with process-specific filenames
+            # IMPORTANT: Read original value BEFORE copying/modifying
+            original_routing_model = config.get('ROUTING_MODEL', 'none')
+            runner_config = config.copy()
+            runner_config['ROUTING_MODEL'] = 'none'  # Disable routing in runner
+
+            # Initialize HYPE runner with modified config
+            runner = HYPERunner(runner_config, self.logger)
+
             # Override paths for the worker
             runner.setup_dir = settings_dir.absolute()
             runner.output_dir = hype_output_dir
             runner.output_path = hype_output_dir
-            
-            # Run HYPE
+
+            # Run HYPE (without routing - we'll handle routing separately with correct filenames)
             result_path = runner.run_hype()
+
+            # Restore original routing model for needs_routing check
+            config['ROUTING_MODEL'] = original_routing_model
             
             if result_path is None:
                 return False
 
-            # Run routing if needed
-            if self.needs_routing(config, settings_dir=settings_dir):
-                self.logger.info("Running mizuRoute for HYPE output")
-                
-                # Get proc_id for parallel calibration
-                proc_id = kwargs.get('proc_id', 0)
-                experiment_id = config.get('EXPERIMENT_ID', 'run_1')
-
-                # mizuroute_dir should be sibling to HYPE dir: .../simulations/run_1/mizuRoute
-                mizuroute_dir = hype_output_dir.parent / 'mizuRoute'
-                mizuroute_dir.mkdir(parents=True, exist_ok=True)
-
-                # Convert HYPE output to mizuRoute format
-                if not self._convert_hype_to_mizuroute_format(
-                    hype_output_dir, config, settings_dir, proc_id=proc_id
-                ):
-                    self.logger.error("Failed to convert HYPE output to mizuRoute format")
-                    return False
-
-                # Run mizuRoute
-                if not self._run_mizuroute_for_hype(
-                    config, hype_output_dir, mizuroute_dir,
-                    settings_dir=settings_dir, proc_id=proc_id
-                ):
-                    self.logger.warning("Routing failed, but HYPE succeeded")
+            # NOTE: For HYPE calibration, we use direct HYPE output (timeCOUT.txt) rather
+            # than routing through mizuRoute. This is because HYPE's timeCOUT.txt contains
+            # accumulated discharge at each subbasin outlet, not local runoff. Converting
+            # this to mizuRoute input would give incorrect results.
+            #
+            # mizuRoute routing is only appropriate when we have local runoff per HRU
+            # (e.g., from SUMMA or FUSE). For HYPE, the outlet discharge is already
+            # correctly routed internally by HYPE itself.
 
             return True
 
@@ -236,29 +229,9 @@ class HYPEWorker(BaseWorker):
         try:
             import xarray as xr
             
-            # Check if routing was used
-            proc_id = kwargs.get('proc_id', 0)
-            experiment_id = config.get('EXPERIMENT_ID', 'run_1')
-            sim_dir = kwargs.get('sim_dir')
-            
-            mizuroute_dir = None
-            if sim_dir:
-                mizuroute_dir = Path(sim_dir).parent / 'mizuRoute'
-            else:
-                mizuroute_dir = output_dir.parent / 'mizuRoute'
-                
+            # For HYPE, we use direct output (timeCOUT.txt) rather than mizuRoute
+            # because HYPE's output is already accumulated/routed discharge, not local runoff.
             use_routed_output = False
-            sim_file_path = None
-
-            if mizuroute_dir and mizuroute_dir.exists():
-                # Look for mizuRoute output
-                case_name = f"proc_{proc_id:02d}_{experiment_id}"
-                mizu_output_files = list(mizuroute_dir.glob(f"{case_name}.h.*.nc"))
-
-                if mizu_output_files:
-                    sim_file_path = mizu_output_files[0]
-                    use_routed_output = True
-                    self.logger.debug(f"Using mizuRoute output for HYPE metrics: {sim_file_path}")
 
             if use_routed_output:
                 # Read from mizuRoute NetCDF
@@ -307,8 +280,21 @@ class HYPEWorker(BaseWorker):
                     sim_df = sim_df.set_index('DATE')
                 elif 'time' in sim_df.columns:
                     sim_df = sim_df.set_index('time')
-                
-                sim = pd.to_numeric(sim_df.iloc[:, 0], errors='coerce').values
+
+                # Select outlet subbasin (highest mean flow) instead of blindly using first column
+                # This ensures we evaluate against the actual watershed outlet
+                subbasin_cols = [col for col in sim_df.columns if col not in ['DATE', 'time']]
+                if len(subbasin_cols) > 1:
+                    # Calculate mean flow for each subbasin and select the outlet (highest flow)
+                    subbasin_means = sim_df[subbasin_cols].mean()
+                    outlet_col = subbasin_means.idxmax()
+                    self.logger.info(f"Auto-selected outlet subbasin {outlet_col} with mean flow {subbasin_means[outlet_col]:.2f} m3/s")
+                    self.logger.info(f"All subbasin means: {subbasin_means.to_dict()}")
+                    sim = pd.to_numeric(sim_df[outlet_col], errors='coerce').values
+                else:
+                    # Single subbasin case - use first (and only) column
+                    sim = pd.to_numeric(sim_df.iloc[:, 0], errors='coerce').values
+
                 sim_dates = pd.to_datetime(sim_df.index, format='%Y-%m-%d', errors='coerce')
 
             # Load observations
@@ -450,15 +436,15 @@ class HYPEWorker(BaseWorker):
                 else:
                     v_values[:, i] = 0.0
 
-            # Create NetCDF
+            # Create NetCDF with hru dimension (matches mizuRoute control file expectations)
             ds_routing = xr.Dataset({
-                routing_var: (('time', 'gru'), v_values)
+                routing_var: (('time', 'hru'), v_values)
             }, coords={
                 'time': times.values,
-                'gru': np.arange(n_gru)
+                'hru': np.arange(n_gru)
             })
 
-            ds_routing['gruId'] = ('gru', np.array(subids, dtype=int))
+            ds_routing['hruId'] = ('hru', np.array(subids, dtype=int))
             ds_routing[routing_var].attrs['units'] = 'm/s'
             
             # Save to expected file
@@ -493,19 +479,35 @@ class HYPEWorker(BaseWorker):
             mizuroute_install = config.get('MIZUROUTE_INSTALL_PATH', 'default')
             if mizuroute_install == 'default':
                 data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-                mizuroute_exe = data_dir / 'installs' / 'mizuroute' / 'bin' / 'mizuroute.exe'
+                # Standard SYMFLUENCE install location: installs/mizuRoute/route/bin/mizuRoute.exe
+                mizuroute_exe = data_dir / 'installs' / 'mizuRoute' / 'route' / 'bin' / 'mizuRoute.exe'
+                # Fallback to alternate locations if not found
+                if not mizuroute_exe.exists():
+                    alt_paths = [
+                        data_dir / 'installs' / 'mizuroute' / 'bin' / 'mizuroute.exe',
+                        data_dir / 'installs' / 'mizuRoute' / 'bin' / 'mizuRoute.exe',
+                    ]
+                    for alt_path in alt_paths:
+                        if alt_path.exists():
+                            mizuroute_exe = alt_path
+                            break
             else:
-                mizuroute_exe = Path(mizuroute_install) / 'mizuroute.exe'
+                mizuroute_exe = Path(mizuroute_install)
+                if mizuroute_exe.is_dir():
+                    mizuroute_exe = mizuroute_exe / 'mizuRoute.exe'
 
             if not mizuroute_exe.exists():
                 self.logger.error(f"mizuRoute executable not found: {mizuroute_exe}")
                 return False
 
+            # settings_dir is HYPE settings (.../settings/HYPE/)
+            # mizuRoute settings are in sibling directory (.../settings/mizuRoute/)
             settings_dir_path = Path(kwargs.get('settings_dir', Path('.')))
-            control_file = settings_dir_path / 'mizuRoute' / 'mizuroute.control'
+            control_file = settings_dir_path.parent / 'mizuRoute' / 'mizuroute.control'
 
             if not control_file.exists():
                 self.logger.error(f"mizuRoute control file not found: {control_file}")
+                self.logger.debug(f"  settings_dir_path={settings_dir_path}, parent={settings_dir_path.parent}")
                 return False
 
             # Execute mizuRoute

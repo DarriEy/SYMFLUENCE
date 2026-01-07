@@ -191,6 +191,11 @@ class ParameterBoundsRegistry:
         'wcep': ParameterInfo(0.1, 0.6, '-', 'Effective porosity', 'soil'),
         'srrcs': ParameterInfo(0.0, 0.5, '1/day', 'Surface runoff coefficient', 'soil'),
 
+        # Groundwater/baseflow parameters
+        'rcgrw': ParameterInfo(0.0, 0.5, '1/day', 'Regional groundwater outflow recession coefficient', 'baseflow'),
+        'aqretcorr': ParameterInfo(0.5, 2.0, '-', 'Aquifer return flow correction factor', 'baseflow'),
+        'aqdelcorr': ParameterInfo(0.5, 2.0, '-', 'Aquifer delay correction factor', 'baseflow'),
+
         # Routing parameters
         'rivvel': ParameterInfo(0.5, 20.0, 'm/s', 'River flow velocity', 'routing'),
         'damp': ParameterInfo(0.0, 1.0, '-', 'River damping fraction', 'routing'),
@@ -439,6 +444,9 @@ def get_hype_bounds() -> Dict[str, Dict[str, float]]:
     """
     Get all HYPE parameter bounds.
 
+    Note: This returns bounds for all known HYPE parameters. Not all parameters
+    are available in all HYPE versions (e.g., aqretcorr/aqdelcorr are newer).
+
     Returns:
         Dictionary mapping HYPE param_name -> {'min': float, 'max': float}
     """
@@ -446,6 +454,7 @@ def get_hype_bounds() -> Dict[str, Dict[str, float]]:
         'ttmp', 'cmlt', 'ttpi', 'cmrefr',  # Snow
         'cevp', 'lp', 'epotdist',  # ET
         'rrcs1', 'rrcs2', 'rrcs3', 'wcwp', 'wcfc', 'wcep', 'srrcs',  # Soil
+        'rcgrw',  # Groundwater/Baseflow (aqretcorr, aqdelcorr available but not in all versions)
         'rivvel', 'damp', 'qmean',  # Routing
         'ilratk', 'ilratp',  # Lakes
     ]
