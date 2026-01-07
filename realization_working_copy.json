@@ -1,0 +1,51 @@
+{
+  "global": {
+    "formulations": [
+      {
+        "name": "bmi_multi",
+        "params": {
+          "model_type_name": "bmi_multi_noahowp_cfe",
+          "init_config": "",
+          "allow_exceed_end_time": true,
+          "main_output_variable": "Q_OUT",
+          "modules": [
+            {
+              "name": "bmi_c",
+              "params": {
+                "model_type_name": "bmi_c_cfe",
+                "library_file": "/Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/installs/ngen/cmake_build/extern/cfe/cmake_build/libcfebmi.1.0.0.dylib",
+                "forcing_file": "",
+                "init_config": "/Users/darrieythorsson/compHydro/data/CONFLUENCE_data/domain_Bow_at_Banff_lumped_em_earth/settings/NGEN/CFE/{{id}}_bmi_config_cfe_pass.txt",
+                "allow_exceed_end_time": true,
+                "main_output_variable": "Q_OUT",
+                "registration_function": "register_bmi_cfe",
+                "variables_names_map": {
+                  "atmosphere_air_water~vapor__relative_saturation": "SPFH_2maboveground",
+                  "land_surface_air__pressure": "PRES_surface",
+                  "land_surface_air__temperature": "TMP_2maboveground",
+                  "land_surface_radiation~incoming~longwave__energy_flux": "DLWRF_surface",
+                  "land_surface_radiation~incoming~shortwave__energy_flux": "DSWRF_surface",
+                  "land_surface_wind__x_component_of_velocity": "UGRD_10maboveground",
+                  "land_surface_wind__y_component_of_velocity": "VGRD_10maboveground"
+                },
+                "uses_forcing_file": false
+              }
+            }
+          ],
+          "uses_forcing_file": false
+        }
+      }
+    ],
+    "forcing": {
+      "path": "/Users/darrieythorsson/compHydro/data/CONFLUENCE_data/domain_Bow_at_Banff_lumped_em_earth/forcing/NGEN_input/csv",
+      "provider": "CsvPerFeature",
+      "file_pattern": ".*{{id}}.*\\.csv"
+    }
+  },
+  "time": {
+    "start_time": "2002-01-01 01:00:00",
+    "end_time": "2009-12-31 23:00:00",
+    "output_interval": 3600
+  },
+  "output_root": "/Users/darrieythorsson/compHydro/data/CONFLUENCE_data/domain_Bow_at_Banff_lumped_em_earth/simulations/run_1/NGEN"
+}

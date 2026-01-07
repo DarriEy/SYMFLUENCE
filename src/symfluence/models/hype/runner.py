@@ -109,18 +109,15 @@ class HYPERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
 
             # Check execution success
             if result.returncode == 0 and self._verify_outputs():
-                # Handle routing if needed
-                routing_model = self.config_dict.get('ROUTING_MODEL', 'none')
-                if routing_model == 'mizuRoute':
-                    self.logger.info("Starting mizuRoute routing for HYPE")
-                    if self._convert_hype_to_mizuroute_format():
-                        success = self._run_distributed_routing()
-                        if not success:
-                            self.logger.error("HYPE routing failed")
-                            raise ModelExecutionError("HYPE routing failed")
-                    else:
-                        self.logger.error("Failed to convert HYPE output to mizuRoute format")
-                        raise ModelExecutionError("Failed to convert HYPE output to mizuRoute format")
+                # NOTE: HYPE's timeCOUT.txt already contains correctly routed/accumulated
+                # discharge at each subbasin outlet. We do NOT run mizuRoute for HYPE
+                # because mizuRoute expects local runoff per HRU, not accumulated discharge.
+                # Using mizuRoute with HYPE's output would give incorrect results.
+                #
+                # If you need distributed routing with HYPE, you would need to:
+                # 1. Output local runoff from HYPE (not accumulated discharge)
+                # 2. Configure mizuRoute appropriately
+                # For standard HYPE usage, the direct output is correct.
 
                 return self.output_dir
             else:
@@ -195,15 +192,15 @@ class HYPERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
                 else:
                     v_values[:, i] = 0.0
 
-            # Create NetCDF
+            # Create NetCDF with hru dimension (matches mizuRoute control file expectations)
             ds_routing = xr.Dataset({
-                routing_var: (('time', 'gru'), v_values)
+                routing_var: (('time', 'hru'), v_values)
             }, coords={
                 'time': times.values,
-                'gru': np.arange(n_gru)
+                'hru': np.arange(n_gru)
             })
 
-            ds_routing['gruId'] = ('gru', np.array(subids, dtype=int))
+            ds_routing['hruId'] = ('hru', np.array(subids, dtype=int))
             ds_routing[routing_var].attrs['units'] = 'm/s'
             
             # Save to the filename mizuRoute expects for standard runs

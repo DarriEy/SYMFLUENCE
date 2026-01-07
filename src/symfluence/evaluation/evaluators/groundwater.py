@@ -52,20 +52,22 @@ class GroundwaterEvaluator(ModelEvaluator):
     def _extract_groundwater_depth(self, ds: xr.Dataset) -> pd.Series:
         if 'scalarAquiferStorage' in ds.variables:
             gw_var = ds['scalarAquiferStorage']
-            if len(gw_var.shape) > 1:
-                if 'hru' in gw_var.dims:
-                    if gw_var.shape[gw_var.dims.index('hru')] == 1:
-                        sim_data = gw_var.isel(hru=0).to_pandas()
+            
+            # Collapse spatial dimensions
+            sim_xr = gw_var
+            for dim in ['hru', 'gru']:
+                if dim in sim_xr.dims:
+                    if sim_xr.sizes[dim] == 1:
+                        sim_xr = sim_xr.isel({dim: 0})
                     else:
-                        sim_data = gw_var.mean(dim='hru').to_pandas()
-                else:
-                    non_time_dims = [dim for dim in gw_var.dims if dim != 'time']
-                    if non_time_dims:
-                        sim_data = gw_var.isel({non_time_dims[0]: 0}).to_pandas()
-                    else:
-                        sim_data = gw_var.to_pandas()
-            else:
-                sim_data = gw_var.to_pandas()
+                        sim_xr = sim_xr.mean(dim=dim)
+            
+            # Handle any remaining non-time dimensions
+            non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
+            if non_time_dims:
+                sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
+                
+            sim_data = sim_xr.to_pandas()
             return sim_data.abs()
         else:
             # Simplified derivation
@@ -87,26 +89,25 @@ class GroundwaterEvaluator(ModelEvaluator):
                 raise ValueError("No water storage components found")
             
             total_storage = None
-            for component_data in storage_components.values():
-                if len(component_data.shape) > 1:
-                    if 'hru' in component_data.dims:
-                        if component_data.shape[component_data.dims.index('hru')] == 1:
-                            component_series = component_data.isel(hru=0)
+            for component_name, component_data in storage_components.items():
+                # Collapse spatial dimensions for this component
+                sim_xr = component_data
+                for dim in ['hru', 'gru']:
+                    if dim in sim_xr.dims:
+                        if sim_xr.sizes[dim] == 1:
+                            sim_xr = sim_xr.isel({dim: 0})
                         else:
-                            component_series = component_data.mean(dim='hru')
-                    else:
-                        non_time_dims = [dim for dim in component_data.dims if dim != 'time']
-                        if non_time_dims:
-                            component_series = component_data.isel({non_time_dims[0]: 0})
-                        else:
-                            component_series = component_data
-                else:
-                    component_series = component_data
+                            sim_xr = sim_xr.mean(dim=dim)
+                
+                # Handle any remaining non-time dimensions
+                non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
+                if non_time_dims:
+                    sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
                 
                 if total_storage is None:
-                    total_storage = component_series
+                    total_storage = sim_xr
                 else:
-                    total_storage = total_storage + component_series
+                    total_storage = total_storage + sim_xr
             
             sim_data = total_storage.to_pandas()
             return self._convert_tws_units(sim_data)

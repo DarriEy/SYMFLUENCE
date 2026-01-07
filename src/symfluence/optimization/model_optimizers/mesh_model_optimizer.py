@@ -97,22 +97,127 @@ class MESHModelOptimizer(BaseModelOptimizer):
         return self.project_dir / 'settings' / 'MESH' / mesh_input
 
     def _setup_parallel_dirs(self) -> None:
-        """Setup MESH-specific parallel directories."""
+        """
+        Setup MESH-specific parallel directories following SUMMA pattern.
+
+        Creates:
+        - simulations/run_{experiment_id}/process_N/
+          - settings/MESH/
+          - simulations/{experiment_id}/MESH/
+          - forcing/MESH_input/  (MESH-specific)
+          - output/
+        """
         base_dir = self.project_dir / 'simulations' / f'run_{self.experiment_id}'
+
+        # Create process directories using base class method
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
             'MESH',
             self.experiment_id
         )
 
-        # Copy MESH forcing directory to each parallel directory
+        # Copy MESH settings to each process directory
+        source_settings = self.project_dir / 'settings' / 'MESH'
+        if source_settings.exists():
+            self.copy_base_settings(source_settings, self.parallel_dirs, 'MESH')
+
+        # MESH-SPECIFIC: Copy forcing directory to each process
+        # MESH reads from forcing/MESH_input, not settings
         source_forcing = self.project_dir / 'forcing' / 'MESH_input'
         if source_forcing.exists():
             import shutil
-            for parallel_dir in self.parallel_dirs:
-                dest_forcing = parallel_dir / 'forcing' / 'MESH_input'
+            for proc_id, dirs in self.parallel_dirs.items():
+                # Create forcing directory structure: process_N/forcing/MESH_input/
+                dest_forcing = dirs['root'] / 'forcing' / 'MESH_input'
                 dest_forcing.parent.mkdir(parents=True, exist_ok=True)
+
                 if dest_forcing.exists():
                     shutil.rmtree(dest_forcing)
+
                 shutil.copytree(source_forcing, dest_forcing)
                 self.logger.debug(f"Copied MESH forcing to {dest_forcing}")
+
+                # Update parallel_dirs to include forcing path
+                dirs['forcing_dir'] = dest_forcing
+
+        # Update MESH_input_run_options.ini with process-specific paths
+        self._update_mesh_run_options(self.parallel_dirs)
+
+    def _update_mesh_run_options(
+        self,
+        parallel_dirs: Dict[int, Dict[str, Path]]
+    ) -> None:
+        """
+        Update MESH_input_run_options.ini with process-specific output directories.
+
+        Similar to update_file_managers() but for MESH's .ini format.
+
+        Args:
+            parallel_dirs: Dictionary of parallel directory paths per process
+        """
+        for proc_id, dirs in parallel_dirs.items():
+            forcing_dir = dirs.get('forcing_dir')
+            if not forcing_dir:
+                self.logger.warning(f"No forcing directory for process {proc_id}")
+                continue
+
+            run_options_path = forcing_dir / 'MESH_input_run_options.ini'
+
+            if not run_options_path.exists():
+                self.logger.warning(f"MESH run options not found: {run_options_path}")
+                continue
+
+            try:
+                with open(run_options_path, 'r') as f:
+                    lines = f.readlines()
+
+                # Update output directory to process-specific output dir
+                output_path = str(dirs['output_dir']).replace('\\', '/').rstrip('/') + '/'
+
+                updated_lines = []
+                for i, line in enumerate(lines):
+                    # Line 24 (0-indexed line 23) is the output directory
+                    # Format: "./                                                      #24 Output Directory"
+                    if i == 23:  # 0-indexed, line 24
+                        # Keep comment if exists
+                        comment = line.split('#', 1)[1] if '#' in line else '24 Output Directory\n'
+                        updated_lines.append(f"{output_path:<60} #{comment}")
+                    else:
+                        updated_lines.append(line)
+
+                with open(run_options_path, 'w') as f:
+                    f.writelines(updated_lines)
+
+                self.logger.debug(f"Updated MESH run options for process {proc_id}: {run_options_path}")
+
+            except Exception as e:
+                self.logger.error(f"Failed to update MESH run options for process {proc_id}: {e}")
+
+    def _create_calibration_tasks(
+        self,
+        parameter_sets: list
+    ) -> list:
+        """
+        Create calibration tasks with MESH-specific paths.
+
+        Overrides base class to add proc_forcing_dir for MESH workers.
+
+        Args:
+            parameter_sets: List of parameter dictionaries to evaluate
+
+        Returns:
+            List of task dictionaries
+        """
+        # Call parent method to create base tasks
+        tasks = super()._create_calibration_tasks(parameter_sets)
+
+        # Add MESH-specific forcing directory paths
+        if self.parallel_dirs:
+            for task in tasks:
+                proc_id = task.get('proc_id', 0)
+                if proc_id in self.parallel_dirs:
+                    forcing_dir = self.parallel_dirs[proc_id].get('forcing_dir')
+                    if forcing_dir:
+                        task['proc_forcing_dir'] = str(forcing_dir)
+
+        return tasks

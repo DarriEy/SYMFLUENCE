@@ -61,78 +61,38 @@ class HYPEPostProcessor(BaseModelPostProcessor):
         try:
             self.logger.info("Processing HYPE streamflow results")
 
-            # Check if routing was used (mizuRoute)
-            experiment_id = self.config_dict.get('EXPERIMENT_ID', 'run_1')
-            mizuroute_dir = self.project_dir / "simulations" / experiment_id / "mizuRoute"
-            use_routed_output = False
-            sim_file_path = None
+            # NOTE: For HYPE, we always use direct output (timeCOUT.txt) rather than
+            # mizuRoute. This is because HYPE's timeCOUT.txt already contains correctly
+            # routed/accumulated discharge at each subbasin outlet. mizuRoute expects
+            # local runoff per HRU (not accumulated discharge), so using it with HYPE
+            # output gives incorrect results.
+            #
+            # Read directly from HYPE output (timeCOUT.txt)
+            cout_path = self.sim_dir / "timeCOUT.txt"
+            if not cout_path.exists():
+                self.logger.error(f"HYPE output file not found: {cout_path}")
+                return None
 
-            if mizuroute_dir.exists():
-                # Look for mizuRoute output - usually experiment_id.h.*.nc or similar
-                experiment_id = self.config_dict.get('EXPERIMENT_ID', 'run_1')
-                mizu_files = list(mizuroute_dir.glob(f"{experiment_id}.h.*.nc"))
-                if not mizu_files:
-                    mizu_files = list(mizuroute_dir.glob("*.h.*.nc"))
-                
-                if mizu_files:
-                    sim_file_path = mizu_files[0]
-                    use_routed_output = True
-                    self.logger.info(f"Using mizuRoute output for streamflow extraction: {sim_file_path}")
+            self.logger.info(f"Reading HYPE output from: {cout_path}")
+            cout = pd.read_csv(cout_path, sep='\t', skiprows=lambda x: x == 0, parse_dates=['DATE'])
+            cout.set_index('DATE', inplace=True)
 
-            if use_routed_output:
-                import xarray as xr
+            # Extract outlet discharge
+            outlet_id = str(self.config_dict.get('SIM_REACH_ID'))
+            self.logger.info(f"Processing outlet ID: {outlet_id}")
+
+            if outlet_id not in cout.columns:
+                # Auto-select outlet: column with highest mean flow (downstream outlet)
                 import numpy as np
-                with xr.open_dataset(sim_file_path) as ds:
-                    # Find routing variable
-                    routing_vars = ['IRFroutedRunoff', 'KWTroutedRunoff', 'averageRoutedRunoff']
-                    routing_var = None
-                    for v in routing_vars:
-                        if v in ds.variables:
-                            routing_var = v
-                            break
-                    
-                    if routing_var is None:
-                        self.logger.error(f"No routing variable found in {sim_file_path}")
-                        return None
-                    
-                    var = ds[routing_var]
-                    
-                    # Select outlet (highest mean runoff)
-                    if 'seg' in var.dims:
-                        seg_means = var.mean(dim='time').values
-                        outlet_idx = np.argmax(seg_means)
-                        simulated = var.isel(seg=outlet_idx)
-                    elif 'reachID' in var.dims:
-                        reach_means = var.mean(dim='time').values
-                        outlet_idx = np.argmax(reach_means)
-                        simulated = var.isel(reachID=outlet_idx)
-                    else:
-                        simulated = var.isel({var.dims[1]: 0})
-                    
-                    q_sim = simulated.to_series()
-                    # Resample to daily if needed
-                    q_sim = q_sim.resample('D').mean()
+                col_means = cout.mean()
+                outlet_col = col_means.idxmax()
+                self.logger.warning(
+                    f"Outlet ID '{outlet_id}' not found in columns. "
+                    f"Auto-selecting outlet column '{outlet_col}' (highest mean flow: {col_means.max():.2f} cms)"
+                )
+                q_sim = cout[outlet_col]
             else:
-                # Fallback to direct HYPE output (timeCOUT.txt)
-                cout_path = self.sim_dir / "timeCOUT.txt"
-                if not cout_path.exists():
-                    self.logger.error(f"HYPE output file not found: {cout_path}")
-                    return None
-
-                self.logger.info(f"Reading HYPE output from: {cout_path}")
-                cout = pd.read_csv(cout_path, sep='\t', skiprows=lambda x: x == 0, parse_dates=['DATE'])
-                cout.set_index('DATE', inplace=True)
-
-                # Extract outlet discharge
-                outlet_id = str(self.config_dict.get('SIM_REACH_ID'))
-                self.logger.info(f"Processing outlet ID: {outlet_id}")
-
-                if outlet_id not in cout.columns:
-                    # Fallback to first column after index
-                    self.logger.warning(f"Outlet ID {outlet_id} not found in columns. Using first column.")
-                    q_sim = cout.iloc[:, 0]
-                else:
-                    q_sim = cout[outlet_id]
+                q_sim = cout[outlet_id]
 
             # Use inherited save method
             return self.save_streamflow_to_results(

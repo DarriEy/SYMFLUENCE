@@ -59,6 +59,8 @@ class DomainDiscretizer(PathResolverMixin):
             self.delineation_suffix = "lumped"
         elif delineation_method == "subset":
             self.delineation_suffix = f"subset_{self._get_config_value('GEOFABRIC_TYPE')}"
+        elif delineation_method == "distribute":
+            self.delineation_suffix = "distribute"
 
     def sort_catchment_shape(self):
         """
@@ -684,11 +686,19 @@ class DomainDiscretizationRunner:
         self,
     ) -> Tuple[Optional[Union[object, Dict[str, object]]], DiscretizationArtifacts]:
         method = self.config.get("DOMAIN_DISCRETIZATION")
+        domain_method = self.config.get("DOMAIN_DEFINITION_METHOD", "lumped")
+
+        # Handle grid-based distribute mode specially
+        if domain_method == "distribute":
+            hru_paths = self._create_catchment_from_grid()
+            artifacts = DiscretizationArtifacts(method=method, hru_paths=hru_paths)
+            artifacts.metadata['grid_mode'] = 'true'
+            return hru_paths, artifacts
+
         hru_paths = self.discretizer.discretize_domain()
         artifacts = DiscretizationArtifacts(method=method, hru_paths=hru_paths)
 
         # Check if we need to discretize delineated catchments for lumped+river_network case
-        domain_method = self.config.get("DOMAIN_DEFINITION_METHOD", "lumped")
         routing_delineation = self.config.get("ROUTING_DELINEATION", "lumped")
 
         if domain_method == "lumped" and routing_delineation == "river_network":
@@ -757,6 +767,79 @@ class DomainDiscretizationRunner:
 
         except Exception as e:
             self.logger.error(f"Error discretizing delineated domain: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return None
+
+    def _create_catchment_from_grid(self) -> Optional[Path]:
+        """
+        Create catchment shapefile from grid basins for distribute mode.
+
+        In distribute mode, grid cells are already defined as GRUs.
+        This method copies the grid basins to the catchment directory
+        with HRU_ID = GRU_ID (each cell is both a GRU and HRU).
+
+        Returns:
+            Path to the created catchment shapefile, or None if failed
+        """
+        try:
+            import geopandas as gpd
+
+            # Get paths using the discretizer's path utilities
+            domain_name = self.discretizer.domain_name
+            project_dir = self.discretizer.project_dir
+
+            # Find grid river basins file from delineation step
+            grid_basins_path = project_dir / "shapefiles" / "river_basins" / f"{domain_name}_riverBasins_distribute.shp"
+
+            if not grid_basins_path.exists():
+                self.logger.error(f"Grid basins not found at {grid_basins_path}")
+                return None
+
+            # Create output path for catchment
+            method = self.config.get("DOMAIN_DISCRETIZATION", "GRUs")
+            if "," in method:
+                method_suffix = method.replace(",", "_")
+            else:
+                method_suffix = method
+            catchment_path = project_dir / "shapefiles" / "catchment" / f"{domain_name}_HRUs_{method_suffix}.shp"
+            catchment_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Read the grid basins
+            grid_gdf = gpd.read_file(grid_basins_path)
+
+            self.logger.info(f"Read {len(grid_gdf)} grid cells from {grid_basins_path}")
+
+            # For distribute mode, each grid cell is both a GRU and HRU
+            grid_gdf['HRU_ID'] = grid_gdf['GRU_ID']
+
+            # Ensure HRU_area is set (copy from GRU_area if needed)
+            if 'HRU_area' not in grid_gdf.columns and 'GRU_area' in grid_gdf.columns:
+                grid_gdf['HRU_area'] = grid_gdf['GRU_area']
+
+            # Ensure required columns exist
+            required_columns = ['GRU_ID', 'HRU_ID', 'center_lat', 'center_lon', 'GRU_area', 'HRU_area']
+            for col in required_columns:
+                if col not in grid_gdf.columns:
+                    if col in ['center_lat', 'center_lon']:
+                        # Calculate centroids
+                        centroids = grid_gdf.geometry.centroid
+                        grid_gdf['center_lon'] = centroids.x
+                        grid_gdf['center_lat'] = centroids.y
+                    elif col == 'HRU_area':
+                        grid_gdf['HRU_area'] = grid_gdf.get('GRU_area', 0)
+                    else:
+                        self.logger.warning(f"Column {col} not found in grid basins")
+
+            # Save the catchment shapefile
+            grid_gdf.to_file(catchment_path)
+            self.logger.info(f"Saved grid catchment to {catchment_path}")
+            self.logger.info(f"Grid cells: {len(grid_gdf)} GRUs/HRUs")
+
+            return catchment_path
+
+        except Exception as e:
+            self.logger.error(f"Error creating catchment from grid: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
             return None

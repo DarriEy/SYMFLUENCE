@@ -20,7 +20,8 @@ from .spatial_orchestrator import (
     SpatialOrchestrator, 
     SpatialMode, 
     RoutingConfig,
-    SpatialConfig
+    SpatialConfig,
+    RoutingModel
 )
 
 __all__ = [
@@ -32,4 +33,5 @@ __all__ = [
     'SpatialMode',
     'RoutingConfig',
     'SpatialConfig',
+    'RoutingModel',
 ]

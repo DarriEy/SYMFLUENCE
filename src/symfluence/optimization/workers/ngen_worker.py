@@ -7,6 +7,7 @@ Delegates to existing worker functions while providing BaseWorker interface.
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -47,7 +48,7 @@ class NgenWorker(BaseWorker):
         **kwargs
     ) -> bool:
         """
-        Apply parameters to ngen JSON configuration files.
+        Apply parameters to ngen BMI text or JSON configuration files.
 
         Parameters use MODULE.param naming convention (e.g., CFE.Kn).
 
@@ -60,9 +61,9 @@ class NgenWorker(BaseWorker):
             True if successful
         """
         try:
-            # Use settings_dir directly - BaseOptimizer ensures this path is correct for the worker
-            # NGEN settings are typically organized by module subdirectories within settings_dir
-            ngen_setup_dir = settings_dir
+            ngen_setup_dir = Path(settings_dir) if not isinstance(settings_dir, Path) else settings_dir
+
+            self.logger.debug(f"Applying parameters to {ngen_setup_dir}")
 
             # Group parameters by module
             module_params: Dict[str, Dict[str, float]] = {}
@@ -77,34 +78,245 @@ class NgenWorker(BaseWorker):
 
             # Update each module's config file
             for module, module_param_dict in module_params.items():
-                config_file = ngen_setup_dir / module / f"{module.lower()}_config.json"
+                module_upper = module.upper()
+                module_dir = ngen_setup_dir / module_upper
 
-                if not config_file.exists():
-                    self.logger.warning(f"Config file not found: {config_file}")
-                    continue
-
-                # Read existing config
-                with open(config_file, 'r') as f:
-                    cfg = json.load(f)
-
-                # Update parameters
-                updated = False
-                for param, value in module_param_dict.items():
-                    if param in cfg:
-                        cfg[param] = value
-                        updated = True
-                    else:
-                        self.logger.warning(f"Parameter {param} not found in {module} config")
-
-                if updated:
-                    # Write updated config
-                    with open(config_file, 'w') as f:
-                        json.dump(cfg, f, indent=2)
+                if module_upper == 'CFE':
+                    self._update_cfe_config(module_dir, module_param_dict)
+                elif module_upper == 'NOAH':
+                    self._update_noah_config(module_dir, module_param_dict)
+                elif module_upper == 'PET':
+                    self._update_pet_config(module_dir, module_param_dict)
+                else:
+                    self.logger.warning(f"Unknown module {module_upper}")
 
             return True
 
         except Exception as e:
-            self.logger.error(f"Error applying ngen parameters: {e}")
+            error_msg = f"Error applying ngen parameters: {e}"
+            self.logger.error(error_msg)
+            import traceback
+            self._last_error = error_msg + "\n" + traceback.format_exc()
+            return False
+
+    def _update_cfe_config(self, cfe_dir: Path, params: Dict[str, float]) -> bool:
+        """Update CFE configuration from BMI text files."""
+        try:
+            # Find BMI text config files matching pattern cat-*_bmi_config_cfe_*.txt
+            candidates = list(cfe_dir.glob("cat-*_bmi_config_cfe_*.txt"))
+
+            if not candidates:
+                # Try any .txt file as fallback
+                candidates = list(cfe_dir.glob("*.txt"))
+
+            if not candidates:
+                error_msg = f"CFE BMI config not found in {cfe_dir}"
+                self.logger.error(error_msg)
+                self._last_error = error_msg
+                return False
+
+            if len(candidates) > 1:
+                self.logger.warning(f"Multiple CFE BMI files found in {cfe_dir}, using first: {candidates[0]}")
+
+            config_file = candidates[0]
+            self.logger.debug(f"Updating CFE config: {config_file}")
+
+            # Read BMI text config
+            lines = config_file.read_text().splitlines()
+
+            # Parameter key mapping for BMI text format
+            keymap = {
+                # Soil parameters
+                "bb": "soil_params.b",
+                "satdk": "soil_params.satdk",
+                "slop": "soil_params.slop",
+                "maxsmc": "soil_params.smcmax",
+                "smcmax": "soil_params.smcmax",
+                "wltsmc": "soil_params.wltsmc",
+                "satpsi": "soil_params.satpsi",
+                "expon": "soil_params.expon",
+                # Groundwater parameters
+                "Cgw": "Cgw",
+                "max_gw_storage": "max_gw_storage",
+                # Routing parameters
+                "K_nash": "K_nash",
+                "K_lf": "K_lf",
+                "Kn": "K_nash",
+                "Klf": "K_lf",
+                # Other CFE parameters
+                "alpha_fc": "alpha_fc",
+                "refkdt": "refkdt",
+            }
+
+            # Determine num_timesteps from config
+            import pandas as pd
+            start_time = self.config.get('EXPERIMENT_TIME_START')
+            end_time = self.config.get('EXPERIMENT_TIME_END')
+            if start_time and end_time:
+                try:
+                    duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
+                    num_steps = int(duration.total_seconds() / 3600)
+                except:
+                    num_steps = 1
+            else:
+                num_steps = 1
+
+            updated_count = 0
+            for i, line in enumerate(lines):
+                if "=" not in line:
+                    continue
+                k, rhs = line.split("=", 1)
+                k = k.strip()
+                rhs_keep = rhs.strip()
+                
+                # Standardize current line to have spaces
+                lines[i] = f"{k} = {rhs_keep}"
+
+                # Enforce working settings
+                if k == "num_timesteps":
+                    lines[i] = f"num_timesteps = {num_steps}"
+                    updated_count += 1
+                    continue
+                if k == "surface_partitioning_scheme":
+                    lines[i] = "surface_partitioning_scheme = Xinanjiang"
+                    updated_count += 1
+                    continue
+                if k == "giuh_ordinates":
+                    lines[i] = "giuh_ordinates = 0.65,0.35"
+                    updated_count += 1
+                    continue
+                if k == "nash_storage":
+                    lines[i] = "nash_storage = 0.0,0.0"
+                    updated_count += 1
+                    continue
+
+                for param_name, config_key in keymap.items():
+                    if param_name in params and k == config_key:
+                        # Extract units if present
+                        parts = rhs.split('[')
+                        units = f" [{parts[1]}" if len(parts) > 1 else ""
+                        lines[i] = f"{config_key} = {params[param_name]}{units}"
+                        updated_count += 1
+                        self.logger.debug(f"Updated CFE.{param_name} = {params[param_name]}")
+
+            # Write updated config
+            if updated_count > 0:
+                config_file.write_text('\n'.join(lines) + '\n')
+                self.logger.debug(f"Updated {updated_count} CFE parameters")
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error updating CFE config: {e}")
+            return False
+
+    def _update_noah_config(self, noah_dir: Path, params: Dict[str, float]) -> bool:
+        """Update NOAH configuration."""
+        try:
+            # NOAH config files: cat-*_*.input or noah_config.json
+            json_config = noah_dir / 'noah_config.json'
+
+            if json_config.exists():
+                with open(json_config, 'r') as f:
+                    cfg = json.load(f)
+                for k, v in params.items():
+                    if k in cfg:
+                        cfg[k] = v
+                        self.logger.debug(f"Updated NOAH.{k} = {v}")
+                with open(json_config, 'w') as f:
+                    json.dump(cfg, f, indent=2)
+                return True
+
+            # Fallback: update BMI text files
+            candidates = list(noah_dir.glob("cat-*.input"))
+            if candidates:
+                config_file = candidates[0]
+                lines = config_file.read_text().splitlines()
+
+                for i, line in enumerate(lines):
+                    for param_name, value in params.items():
+                        pattern = rf"^{re.escape(param_name)}\s*="
+                        if re.match(pattern, line.strip()):
+                            parts = line.split('[')
+                            units = f" [{parts[1]}" if len(parts) > 1 else ""
+                            lines[i] = f"{param_name} = {value}{units}"
+                            self.logger.debug(f"Updated NOAH.{param_name} = {value}")
+
+                config_file.write_text('\n'.join(lines) + '\n')
+                return True
+
+            self.logger.warning(f"No NOAH config found in {noah_dir}")
+            return True  # Don't fail if NOAH not being used
+
+        except Exception as e:
+            self.logger.error(f"Error updating NOAH config: {e}")
+            return False
+
+    def _update_pet_config(self, pet_dir: Path, params: Dict[str, float]) -> bool:
+        """Update PET configuration."""
+        try:
+            json_config = pet_dir / 'pet_config.json'
+
+            if json_config.exists():
+                with open(json_config, 'r') as f:
+                    cfg = json.load(f)
+                for k, v in params.items():
+                    if k in cfg:
+                        cfg[k] = v
+                        self.logger.debug(f"Updated PET.{k} = {v}")
+                with open(json_config, 'w') as f:
+                    json.dump(cfg, f, indent=2)
+                return True
+
+            # Fallback: update BMI text files
+            candidates = list(pet_dir.glob("cat-*_pet_config.txt"))
+            if candidates:
+                config_file = candidates[0]
+                lines = config_file.read_text().splitlines()
+
+                # Determine num_timesteps from config
+                import pandas as pd
+                start_time = self.config.get('EXPERIMENT_TIME_START')
+                end_time = self.config.get('EXPERIMENT_TIME_END')
+                if start_time and end_time:
+                    try:
+                        duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
+                        num_steps = int(duration.total_seconds() / 3600)
+                    except:
+                        num_steps = 1
+                else:
+                    num_steps = 1
+
+                for i, line in enumerate(lines):
+                    if "=" not in line:
+                        continue
+                    k, rhs = line.split("=", 1)
+                    k = k.strip()
+                    rhs_keep = rhs.strip()
+                    
+                    # Standardize
+                    lines[i] = f"{k} = {rhs_keep}"
+                    
+                    if k == "num_timesteps":
+                        lines[i] = f"num_timesteps = {num_steps}"
+                        continue
+
+                    for param_name, value in params.items():
+                        pattern = rf"^{re.escape(param_name)}\s*="
+                        if re.match(pattern, line.strip()):
+                            parts = rhs_keep.split('[')
+                            units = f" [{parts[1]}" if len(parts) > 1 else ""
+                            lines[i] = f"{param_name} = {value}{units}"
+                            self.logger.debug(f"Updated PET.{param_name} = {value}")
+
+                config_file.write_text('\n'.join(lines) + '\n')
+                return True
+
+            self.logger.warning(f"No PET config found in {pet_dir}")
+            return True  # Don't fail if PET not being used
+
+        except Exception as e:
+            self.logger.error(f"Error updating PET config: {e}")
             return False
 
     def run_model(
@@ -138,6 +350,10 @@ class NgenWorker(BaseWorker):
             # Ensure runner uses isolated directories
             parallel_config['_ngen_output_dir'] = str(output_dir)
             parallel_config['_ngen_settings_dir'] = str(settings_dir)
+            
+            # Ensure NGEN_INSTALL_PATH is present
+            if 'NGEN_INSTALL_PATH' not in parallel_config:
+                parallel_config['NGEN_INSTALL_PATH'] = "/Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/installs/ngen/cmake_build"
 
             # Import NgenRunner
             from symfluence.models.ngen import NgenRunner
@@ -146,6 +362,11 @@ class NgenWorker(BaseWorker):
 
             # Initialize and run
             runner = NgenRunner(parallel_config, self.logger)
+            
+            # Pass GeoJSON fallback preference if detected
+            if hasattr(self, '_use_geojson_catchments'):
+                runner._use_geojson_catchments = self._use_geojson_catchments
+                
             success = runner.run_ngen(experiment_id)
 
             return success
@@ -161,6 +382,12 @@ class NgenWorker(BaseWorker):
             import traceback
             self._last_error = error_msg + "\n" + traceback.format_exc()
             return False
+
+    def _patch_realization_config(self, settings_dir: Path, output_dir: Path) -> bool:
+        """
+        DEPRECATED: Now handled by NgenRunner.
+        """
+        return True
 
     def calculate_metrics(
         self,
@@ -188,6 +415,9 @@ class NgenWorker(BaseWorker):
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             project_dir = data_dir / f"domain_{domain_name}"
 
+            self.logger.debug(f"Calculating metrics from {output_dir}")
+            self.logger.debug(f"Project dir: {project_dir}, Domain: {domain_name}")
+
             # Create calibration target
             target = NgenStreamflowTarget(config, project_dir, self.logger)
 
@@ -195,15 +425,27 @@ class NgenWorker(BaseWorker):
             # NgenStreamflowTarget needs to be aware of the isolated directory
             metrics = target.calculate_metrics(experiment_id=experiment_id, output_dir=output_dir)
 
-            # Normalize metric keys to lowercase
-            return {k.lower(): float(v) for k, v in metrics.items()}
+            if metrics is None:
+                self.logger.warning(f"Metrics calculation returned None for {output_dir}")
+                return {'kge': self.penalty_score}
 
-        except ImportError:
+            self.logger.debug(f"Calculated metrics: {metrics}")
+
+            # Normalize metric keys to lowercase
+            result = {k.lower(): float(v) for k, v in metrics.items()}
+            self.logger.debug(f"Normalized metrics: {result}")
+            return result
+
+        except ImportError as e:
             # Fallback: Calculate metrics directly
+            self.logger.debug(f"Calibration target import failed, falling back to direct calculation: {e}")
             return self._calculate_metrics_direct(output_dir, config)
 
         except Exception as e:
-            self.logger.error(f"Error calculating ngen metrics: {e}")
+            error_msg = f"Error calculating ngen metrics: {e}"
+            self.logger.error(error_msg)
+            import traceback
+            self._last_error = error_msg + "\n" + traceback.format_exc()
             return {'kge': self.penalty_score}
 
     def _calculate_metrics_direct(

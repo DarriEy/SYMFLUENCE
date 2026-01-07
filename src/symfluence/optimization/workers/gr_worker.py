@@ -76,6 +76,8 @@ class GRWorker(BaseWorker):
             if mizu_dir:
                 local_config['EXPERIMENT_OUTPUT_MIZUROUTE'] = mizu_dir
                 self.logger.debug(f"Updated EXPERIMENT_OUTPUT_MIZUROUTE to {mizu_dir}")
+                # Ensure mizuRoute directory exists
+                Path(mizu_dir).mkdir(parents=True, exist_ok=True)
                 
             mizu_settings_dir = kwargs.get('mizuroute_settings_dir')
             if mizu_settings_dir:

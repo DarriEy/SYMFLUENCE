@@ -122,7 +122,8 @@ class BaseModelOptimizer(
 
         # Parallel processing state
         self.parallel_dirs = {}
-        if self.use_parallel:
+        # Setup directories if MPI_PROCESSES is set, regardless of count (for isolation)
+        if config.get('MPI_PROCESSES', 1) >= 1:
             self._setup_parallel_dirs()
 
     def _visualize_progress(self, algorithm: str) -> None:
@@ -214,6 +215,92 @@ class BaseModelOptimizer(
             self._get_model_name(),
             self.experiment_id
         )
+
+    def _create_mpi_worker_script(self, script_path: Path, tasks_file: Path, results_file: Path, worker_module: str, worker_function: str) -> None:
+        """
+        Create the MPI worker script file with model-specific worker function.
+
+        This method is called by ParallelExecutionMixin to create the MPI worker script.
+        The worker_module and worker_function are already determined by the mixin.
+
+        Args:
+            script_path: Path to create the worker script at
+            tasks_file: Path to the tasks pickle file
+            results_file: Path to the results pickle file
+            worker_module: Module containing the worker function
+            worker_function: Name of the worker function to call
+        """
+        # Calculate the correct path to the src directory
+        src_path = Path(__file__).parent.parent.parent.parent
+
+        script_content = f'''#!/usr/bin/env python3
+import sys
+import pickle
+import os
+from pathlib import Path
+from mpi4py import MPI
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] [%(levelname)s] [%(name)s] - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Silence noisy libraries
+for noisy_logger in ['rasterio', 'fiona', 'boto3', 'botocore', 'matplotlib', 'urllib3', 's3transfer']:
+    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
+
+# Add symphluence src to path to ensure imports work
+sys.path.insert(0, r"{str(src_path)}")
+
+try:
+    from {worker_module} import {worker_function}
+except ImportError as e:
+    logger.error(f"Failed to import {{e}}")
+    sys.exit(1)
+
+def main():
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+
+    tasks_file = Path(sys.argv[1])
+    results_file = Path(sys.argv[2])
+
+    if rank == 0:
+        with open(tasks_file, 'rb') as f:
+            all_tasks = pickle.load(f)
+
+        tasks_per_rank = len(all_tasks) // size
+        extra_tasks = len(all_tasks) % size
+        all_results = []
+
+        for worker_rank in range(size):
+            start_idx = worker_rank * tasks_per_rank + min(worker_rank, extra_tasks)
+            end_idx = start_idx + tasks_per_rank + (1 if worker_rank < extra_tasks else 0)
+
+            if worker_rank == 0:
+                my_tasks = all_tasks[start_idx:end_idx]
+            else:
+                comm.send(all_tasks[start_idx:end_idx], dest=worker_rank, tag=1)
+
+        for task in my_tasks:
+            all_results.append({worker_function}(task))
+
+        for worker_rank in range(1, size):
+            all_results.extend(comm.recv(source=worker_rank, tag=2))
+
+        with open(results_file, 'wb') as f:
+            pickle.dump(all_results, f)
+    else:
+        my_tasks = comm.recv(source=0, tag=1)
+        my_results = [{worker_function}(t) for t in my_tasks]
+        comm.send(my_results, dest=0, tag=2)
+
+if __name__ == "__main__":
+    main()
+'''
+        with open(script_path, 'w') as f:
+            f.write(script_content)
 
     # =========================================================================
     # Evaluation methods
@@ -394,7 +481,10 @@ class BaseModelOptimizer(
                 score = result.get('score')
                 error = result.get('error')
                 if error:
-                    self.logger.warning(f"Task {idx} error: {error[:200] if len(str(error)) > 200 else error}")
+                    error_str = str(error)
+                    # Log full error at debug level, truncated at info level
+                    self.logger.debug(f"Task {idx} full error: {error_str}")
+                    self.logger.warning(f"Task {idx} error: {error_str[:500] if len(error_str) > 500 else error_str}")
                 if score is not None and not np.isnan(score):
                     fitness[idx] = score
                     if score != self.DEFAULT_PENALTY_SCORE:
@@ -718,7 +808,9 @@ class BaseModelOptimizer(
                     score = result.get('score')
                     error = result.get('error')
                     if error:
-                        self.logger.warning(f"Task {idx} error: {error[:200] if len(str(error)) > 200 else error}")
+                        error_str = str(error)
+                        self.logger.debug(f"Task {idx} full error: {error_str}")
+                        self.logger.warning(f"Task {idx} error: {error_str[:500] if len(error_str) > 500 else error_str}")
                     if score is not None and not np.isnan(score):
                         # Find which trial this corresponds to
                         if idx in trial_indices:

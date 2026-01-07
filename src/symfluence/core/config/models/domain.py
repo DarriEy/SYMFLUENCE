@@ -62,8 +62,12 @@ class DomainConfig(BaseModel):
     spinup_period: Optional[str] = Field(default=None, alias='SPINUP_PERIOD')
 
     # Required spatial definition
-    definition_method: Literal['lumped', 'discretized', 'distributed', 'subset', 'point', 'delineate'] = Field(alias='DOMAIN_DEFINITION_METHOD')
+    definition_method: Literal['lumped', 'discretized', 'distributed', 'distribute', 'subset', 'point', 'delineate'] = Field(alias='DOMAIN_DEFINITION_METHOD')
     discretization: str = Field(alias='DOMAIN_DISCRETIZATION')
+
+    # Grid-based distribute mode settings
+    grid_cell_size: float = Field(default=1000.0, alias='GRID_CELL_SIZE')  # meters
+    clip_grid_to_watershed: bool = Field(default=True, alias='CLIP_GRID_TO_WATERSHED')
 
     # Optional spatial coordinates
     pour_point_coords: Optional[str] = Field(default=None, alias='POUR_POINT_COORDS')

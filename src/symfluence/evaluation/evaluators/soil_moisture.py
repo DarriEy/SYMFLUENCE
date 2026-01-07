@@ -69,20 +69,32 @@ class SoilMoistureEvaluator(ModelEvaluator):
         soil_moisture_var = ds['mLayerVolFracLiq']
         layer_depths = ds['mLayerDepth']
         
-        if 'hru' in soil_moisture_var.dims:
-            if soil_moisture_var.shape[soil_moisture_var.dims.index('hru')] == 1:
-                soil_moisture_data = soil_moisture_var.isel(hru=0)
-                layer_depths_data = layer_depths.isel(hru=0)
-            else:
-                soil_moisture_data = soil_moisture_var.mean(dim='hru')
-                layer_depths_data = layer_depths.mean(dim='hru')
-        else:
-            soil_moisture_data = soil_moisture_var
-            layer_depths_data = layer_depths
+        # Collapse spatial dimensions but preserve layer dimension
+        sim_xr = soil_moisture_var
+        depths_xr = layer_depths
         
-        target_layer_idx = self._find_target_layer(layer_depths_data)
-        layer_dim = [dim for dim in soil_moisture_data.dims if 'mid' in dim.lower() or 'layer' in dim.lower()][0]
-        sim_data = soil_moisture_data.isel({layer_dim: target_layer_idx}).to_pandas()
+        for dim in ['hru', 'gru']:
+            if dim in sim_xr.dims:
+                if sim_xr.sizes[dim] == 1:
+                    sim_xr = sim_xr.isel({dim: 0})
+                else:
+                    sim_xr = sim_xr.mean(dim=dim)
+            if dim in depths_xr.dims:
+                if depths_xr.sizes[dim] == 1:
+                    depths_xr = depths_xr.isel({dim: 0})
+                else:
+                    depths_xr = depths_xr.mean(dim=dim)
+        
+        target_layer_idx = self._find_target_layer(depths_xr)
+        layer_dim = [dim for dim in sim_xr.dims if 'mid' in dim.lower() or 'layer' in dim.lower()][0]
+        
+        # Select target layer and ensure no other spatial dims remain
+        sim_xr = sim_xr.isel({layer_dim: target_layer_idx})
+        non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
+        if non_time_dims:
+            sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
+            
+        sim_data = sim_xr.to_pandas()
         return sim_data
     
     def _find_target_layer(self, layer_depths: xr.DataArray) -> int:
@@ -94,7 +106,7 @@ class SoilMoistureEvaluator(ModelEvaluator):
             except (ValueError, TypeError):
                 return 0
             
-            if len(layer_depths.shape) >= 2:
+            if 'time' in layer_depths.dims:
                 depths_sample = layer_depths.isel(time=0).values
             else:
                 depths_sample = layer_depths.values
@@ -108,37 +120,54 @@ class SoilMoistureEvaluator(ModelEvaluator):
     
     def _extract_smap_soil_moisture(self, ds: xr.Dataset) -> pd.Series:
         soil_moisture_var = ds['mLayerVolFracLiq']
-        if 'hru' in soil_moisture_var.dims:
-            if soil_moisture_var.shape[soil_moisture_var.dims.index('hru')] == 1:
-                soil_moisture_data = soil_moisture_var.isel(hru=0)
-            else:
-                soil_moisture_data = soil_moisture_var.mean(dim='hru')
-        else:
-            soil_moisture_data = soil_moisture_var
+        
+        # Collapse spatial dimensions
+        sim_xr = soil_moisture_var
+        for dim in ['hru', 'gru']:
+            if dim in sim_xr.dims:
+                if sim_xr.sizes[dim] == 1:
+                    sim_xr = sim_xr.isel({dim: 0})
+                else:
+                    sim_xr = sim_xr.mean(dim=dim)
         
         if self.smap_layer == 'surface_sm':
-            layer_dim = [dim for dim in soil_moisture_data.dims if 'mid' in dim.lower() or 'layer' in dim.lower()][0]
-            sim_data = soil_moisture_data.isel({layer_dim: 0}).to_pandas()
+            layer_dim = [dim for dim in sim_xr.dims if 'mid' in dim.lower() or 'layer' in dim.lower()][0]
+            sim_xr = sim_xr.isel({layer_dim: 0})
         elif self.smap_layer == 'rootzone_sm':
-            layer_dim = [dim for dim in soil_moisture_data.dims if 'mid' in dim.lower() or 'layer' in dim.lower()][0]
-            top_layers = soil_moisture_data.isel({layer_dim: slice(0, 3)}).mean(dim=layer_dim)
-            sim_data = top_layers.to_pandas()
+            layer_dim = [dim for dim in sim_xr.dims if 'mid' in dim.lower() or 'layer' in dim.lower()][0]
+            sim_xr = sim_xr.isel({layer_dim: slice(0, 3)}).mean(dim=layer_dim)
         else:
             raise ValueError(f"Unknown SMAP layer: {self.smap_layer}")
+            
+        # Ensure no other spatial dims remain
+        non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
+        if non_time_dims:
+            sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
+            
+        sim_data = sim_xr.to_pandas()
         return sim_data
     
     def _extract_esa_soil_moisture(self, ds: xr.Dataset) -> pd.Series:
         soil_moisture_var = ds['mLayerVolFracLiq']
-        if 'hru' in soil_moisture_var.dims:
-            if soil_moisture_var.shape[soil_moisture_var.dims.index('hru')] == 1:
-                soil_moisture_data = soil_moisture_var.isel(hru=0)
-            else:
-                soil_moisture_data = soil_moisture_var.mean(dim='hru')
-        else:
-            soil_moisture_data = soil_moisture_var
         
-        layer_dim = [dim for dim in soil_moisture_data.dims if 'mid' in dim.lower() or 'layer' in dim.lower()][0]
-        sim_data = soil_moisture_data.isel({layer_dim: 0}).to_pandas()
+        # Collapse spatial dimensions
+        sim_xr = soil_moisture_var
+        for dim in ['hru', 'gru']:
+            if dim in sim_xr.dims:
+                if sim_xr.sizes[dim] == 1:
+                    sim_xr = sim_xr.isel({dim: 0})
+                else:
+                    sim_xr = sim_xr.mean(dim=dim)
+        
+        layer_dim = [dim for dim in sim_xr.dims if 'mid' in dim.lower() or 'layer' in dim.lower()][0]
+        sim_xr = sim_xr.isel({layer_dim: 0})
+        
+        # Ensure no other spatial dims remain
+        non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
+        if non_time_dims:
+            sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
+            
+        sim_data = sim_xr.to_pandas()
         return sim_data
     
     def get_observed_data_path(self) -> Path:

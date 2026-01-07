@@ -751,13 +751,86 @@ class SummaAttributesManager:
                 self._set_downHRUindex(att, gru_data)
 
     def _set_downHRUindex(self, att, gru_data):
-        """Set the downHRUindex based on elevation data."""
-        for gru_id, hru_list in gru_data.items():
-            sorted_hrus = sorted(hru_list, key=lambda x: x[1], reverse=True)
-            for i, (hru_id, _) in enumerate(sorted_hrus):
-                idx = np.where(att['hruId'][:] == hru_id)[0][0]
-                if i == len(sorted_hrus) - 1:
-                    att['downHRUindex'][idx] = 0  # outlet
+        """Set the downHRUindex based on elevation data or D8 flow direction."""
+        # Check if this is grid-based distribute mode
+        is_grid_distribute = self.config.get('DOMAIN_DEFINITION_METHOD') == 'distribute'
+
+        if is_grid_distribute:
+            self._set_downHRUindex_from_d8(att)
+        else:
+            # Existing elevation-based logic
+            for gru_id, hru_list in gru_data.items():
+                sorted_hrus = sorted(hru_list, key=lambda x: x[1], reverse=True)
+                for i, (hru_id, _) in enumerate(sorted_hrus):
+                    idx = np.where(att['hruId'][:] == hru_id)[0][0]
+                    if i == len(sorted_hrus) - 1:
+                        att['downHRUindex'][idx] = 0  # outlet
+                    else:
+                        att['downHRUindex'][idx] = sorted_hrus[i+1][0]
+                    self.logger.info(f"Set downHRUindex for HRU {hru_id} to {att['downHRUindex'][idx]}")
+
+    def _set_downHRUindex_from_d8(self, att):
+        """
+        Set downHRUindex from D8 flow direction topology for grid-based modeling.
+
+        Reads D8 connectivity from the grid shapefile and maps to SUMMA HRU indices.
+
+        Args:
+            att: NetCDF attributes file handle
+        """
+        self.logger.info("Setting downHRUindex from D8 flow direction")
+
+        # Load grid shapefile with D8 topology
+        domain_name = self.config.get('DOMAIN_NAME')
+        grid_path = self.project_dir / 'shapefiles' / 'river_basins' / f"{domain_name}_riverBasins_distribute.shp"
+
+        if not grid_path.exists():
+            self.logger.warning(f"Grid basins not found at {grid_path}, using default connectivity")
+            return
+
+        grid_gdf = gpd.read_file(grid_path)
+
+        # Create mapping from GRU_ID to downstream_id
+        # Note: shapefile truncates column names to 10 chars, so downstream_id becomes downstream
+        if 'downstream_id' in grid_gdf.columns:
+            d8_downstream = dict(zip(grid_gdf['GRU_ID'].astype(int), grid_gdf['downstream_id'].astype(int)))
+        elif 'downstream' in grid_gdf.columns:
+            d8_downstream = dict(zip(grid_gdf['GRU_ID'].astype(int), grid_gdf['downstream'].astype(int)))
+        elif 'DSLINKNO' in grid_gdf.columns:
+            d8_downstream = dict(zip(grid_gdf['GRU_ID'].astype(int), grid_gdf['DSLINKNO'].astype(int)))
+        else:
+            self.logger.warning("No D8 topology found in grid shapefile")
+            return
+
+        # Get HRU IDs from attributes file
+        hru_ids = att['hruId'][:]
+
+        n_set = 0
+        n_outlets = 0
+
+        for idx, hru_id_raw in enumerate(hru_ids):
+            # Handle potential MaskedArray
+            if hasattr(hru_id_raw, 'item'):
+                hru_id = int(hru_id_raw.item())
+            else:
+                hru_id = int(hru_id_raw)
+
+            # Get downstream HRU from D8 topology
+            downstream_hru = d8_downstream.get(hru_id, 0)
+
+            if downstream_hru == 0:
+                att['downHRUindex'][idx] = 0  # Outlet
+                n_outlets += 1
+            else:
+                # Verify downstream HRU exists in attributes file
+                downstream_indices = np.where(att['hruId'][:] == downstream_hru)[0]
+                if len(downstream_indices) > 0:
+                    att['downHRUindex'][idx] = int(downstream_hru)  # Use HRU ID, not array index
                 else:
-                    att['downHRUindex'][idx] = sorted_hrus[i+1][0]
-                self.logger.info(f"Set downHRUindex for HRU {hru_id} to {att['downHRUindex'][idx]}")
+                    self.logger.warning(f"Downstream HRU {downstream_hru} not found for HRU {hru_id}")
+                    att['downHRUindex'][idx] = 0  # Mark as outlet
+
+            n_set += 1
+
+        self.logger.info(f"Set downHRUindex for {n_set} HRUs using D8 flow direction")
+        self.logger.info(f"Grid outlets: {n_outlets}")

@@ -459,19 +459,46 @@ class ModelManager(ConfigurableMixin):
             # Load results
             results_df = pd.read_csv(results_file, index_col=0, parse_dates=True)
 
-            # Find observation column
+            # Find observation column in results, or load from observations directory
             obs_col = None
+            obs_series = None
             for col in results_df.columns:
                 if 'obs' in col.lower() or 'observed' in col.lower():
                     obs_col = col
                     break
 
             if obs_col is None:
-                self.logger.debug("No observation column found in results - skipping baseline metrics")
-                return
+                # Try to load observations from standard location
+                obs_dir = self.project_dir / "observations" / "streamflow" / "preprocessed"
+                domain_name = self.config.get('DOMAIN_NAME') if isinstance(self.config, dict) else self.typed_config.domain.name
+                obs_files = list(obs_dir.glob(f"{domain_name}*_streamflow*.csv")) if obs_dir.exists() else []
+
+                if obs_files:
+                    try:
+                        obs_df = pd.read_csv(obs_files[0])
+                        # Find datetime and discharge columns
+                        datetime_col = None
+                        discharge_col = None
+                        for col in obs_df.columns:
+                            if 'datetime' in col.lower() or 'date' in col.lower() or 'time' in col.lower():
+                                datetime_col = col
+                            if 'discharge' in col.lower() or 'flow' in col.lower() or col.lower() == 'q':
+                                discharge_col = col
+
+                        if datetime_col and discharge_col:
+                            obs_df[datetime_col] = pd.to_datetime(obs_df[datetime_col])
+                            obs_series = obs_df.set_index(datetime_col)[discharge_col]
+                            obs_series = obs_series.resample('D').mean()  # Resample to daily
+                            self.logger.debug(f"Loaded observations from {obs_files[0].name}")
+                    except Exception as e:
+                        self.logger.debug(f"Could not load observations: {e}")
+
+                if obs_series is None:
+                    self.logger.debug("No observation data found - skipping baseline metrics")
+                    return
 
             # Find simulation columns (model outputs)
-            sim_cols = [c for c in results_df.columns if c != obs_col and 'discharge' in c.lower()]
+            sim_cols = [c for c in results_df.columns if 'discharge' in c.lower()]
 
             if not sim_cols:
                 self.logger.debug("No simulation columns found in results")
@@ -482,10 +509,26 @@ class ModelManager(ConfigurableMixin):
             self.logger.info("BASELINE MODEL PERFORMANCE (before calibration)")
             self.logger.info("=" * 60)
 
-            obs = results_df[obs_col].values
-
             for sim_col in sim_cols:
-                sim = results_df[sim_col].values
+                sim_series = results_df[sim_col]
+
+                # Get observations - either from results file column or externally loaded
+                if obs_col is not None:
+                    obs_aligned = results_df[obs_col]
+                    sim_aligned = sim_series
+                elif obs_series is not None:
+                    # Align observations with simulation by index (datetime)
+                    common_idx = sim_series.index.intersection(obs_series.index)
+                    if len(common_idx) == 0:
+                        self.logger.warning(f"  {sim_col}: No overlapping dates with observations")
+                        continue
+                    obs_aligned = obs_series.loc[common_idx]
+                    sim_aligned = sim_series.loc[common_idx]
+                else:
+                    continue
+
+                obs = obs_aligned.values
+                sim = sim_aligned.values
 
                 # Remove NaN pairs
                 valid_mask = ~(np.isnan(obs) | np.isnan(sim))

@@ -29,8 +29,12 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         self.station_id = config.get('STATION_ID', None)
 
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
-        """Find ngen nexus output files."""
-        return list(sim_dir.glob('nex-*_output.csv'))
+        """Find ngen nexus output files (recursive search)."""
+        files = list(sim_dir.glob('nex-*_output.csv'))
+        if not files:
+            # Try recursive search if not found in top level
+            files = list(sim_dir.glob('**/nex-*_output.csv'))
+        return files
 
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
         """Extract streamflow from multiple ngen nexus output files."""
@@ -73,11 +77,11 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             output_dir: Optional output directory (for parallel mode)
         """
         if sim is None:
-            exp_id = experiment_id or self.config.get('EXPERIMENT_ID')
             # Determine simulation directory
             if output_dir is not None:
-                sim = output_dir
+                sim = Path(output_dir)
             else:
+                exp_id = experiment_id or self.config.get('EXPERIMENT_ID')
                 sim = self.project_dir / 'simulations' / exp_id / 'NGEN'
             
         # Use base class method with our specialized data extraction

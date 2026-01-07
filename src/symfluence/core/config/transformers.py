@@ -56,6 +56,8 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'RADIATION_CLASS_NUMBER': ('domain', 'radiation_class_number'),
     'ASPECT_CLASS_NUMBER': ('domain', 'aspect_class_number'),
     'ASPECT_PATH': ('domain', 'aspect_path'),
+    'GRID_CELL_SIZE': ('domain', 'grid_cell_size'),
+    'CLIP_GRID_TO_WATERSHED': ('domain', 'clip_grid_to_watershed'),
     'DATA_ACCESS': ('domain', 'data_access'),
     'DOWNLOAD_DEM': ('domain', 'download_dem'),
     'DOWNLOAD_SOIL': ('domain', 'download_soil'),
@@ -195,6 +197,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # Model > MESH
     'MESH_INSTALL_PATH': ('model', 'mesh', 'install_path'),
     'MESH_EXE': ('model', 'mesh', 'exe'),
+    'MESH_SPATIAL_MODE': ('model', 'mesh', 'spatial_mode'),
     'SETTINGS_MESH_PATH': ('model', 'mesh', 'settings_path'),
     'EXPERIMENT_OUTPUT_MESH': ('model', 'mesh', 'experiment_output'),
     'MESH_FORCING_PATH': ('model', 'mesh', 'forcing_path'),

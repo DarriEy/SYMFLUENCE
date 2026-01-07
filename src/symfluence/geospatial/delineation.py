@@ -9,6 +9,7 @@ from symfluence.geospatial.geofabric import (
     GeofabricSubsetter,
     LumpedWatershedDelineator,
     PointDelineator,
+    GridDelineator,
 )
 from symfluence.core.path_resolver import PathResolverMixin
 
@@ -49,6 +50,7 @@ class DomainDelineator(PathResolverMixin):
         self.lumped_delineator = LumpedWatershedDelineator(self.config, self.logger)
         self.subsetter = GeofabricSubsetter(self.config, self.logger)
         self.point_delineator = PointDelineator(self.config, self.logger)
+        self.grid_delineator = GridDelineator(self.config, self.logger)
 
     def _get_pour_point_path(self) -> Optional[Path]:
         return self._get_file_path(
@@ -159,6 +161,15 @@ class DomainDelineator(PathResolverMixin):
                 artifacts.river_network_path = river_network_path
                 artifacts.river_basins_path = river_basins_path
                 artifacts.pour_point_path = self._get_pour_point_path()
+                return (river_network_path, river_basins_path), artifacts
+
+            if domain_method == "distribute":
+                river_network_path, river_basins_path = self.grid_delineator.create_grid_domain()
+                artifacts.river_network_path = river_network_path
+                artifacts.river_basins_path = river_basins_path
+                artifacts.pour_point_path = self._get_pour_point_path()
+                artifacts.metadata['grid_cell_size'] = str(self.config.get('GRID_CELL_SIZE', 1000.0))
+                artifacts.metadata['clip_to_watershed'] = str(self.config.get('CLIP_GRID_TO_WATERSHED', True))
                 return (river_network_path, river_basins_path), artifacts
 
             self.logger.error(f"Unknown domain definition method: {domain_method}")
