@@ -66,6 +66,18 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
         """MESH output directory."""
         return self.get_experiment_output_dir()
 
+    def set_process_directories(self, forcing_dir: Path, output_dir: Path) -> None:
+        """
+        Set process-specific directories for parallel execution.
+
+        Args:
+            forcing_dir: Process-specific forcing directory
+            output_dir: Process-specific output directory
+        """
+        self.forcing_mesh_path = forcing_dir
+        self.output_dir = output_dir
+        self.logger.debug(f"Set MESH paths: forcing={forcing_dir}, output={output_dir}")
+
     def run_mesh(self) -> Optional[Path]:
         """
         Run the MESH model.
@@ -115,7 +127,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
                 self.logger.error(f"MESH simulation failed with code {result.returncode}")
                 # Log the end of the log file for easier debugging
                 if log_file.exists():
-                     with open(log_file, 'r') as f:
+                     with open(log_file, 'r', errors='replace') as f:  # Handle non-UTF-8 characters
                          lines = f.readlines()
                          last_lines = lines[-20:]
                          self.logger.error("Last 20 lines of model log:")
@@ -149,10 +161,19 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
             'MESH_output_streamflow.csv',
         ]
 
-        # Check in forcing directory where MESH runs
+        # Check in output directory (may be process-specific during parallel calibration)
+        # or fall back to forcing directory (default MESH behavior)
+        check_dirs = [self.output_dir, self.forcing_mesh_path]
+
         for output_file in required_outputs:
-            output_path = self.forcing_mesh_path / output_file
-            if not output_path.exists():
+            found = False
+            for check_dir in check_dirs:
+                output_path = check_dir / output_file
+                if output_path.exists():
+                    found = True
+                    break
+
+            if not found:
                 self.logger.warning(f"Required output file not found: {output_file}")
                 return False
 

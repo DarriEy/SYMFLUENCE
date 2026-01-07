@@ -778,6 +778,10 @@ qmean 	200	!! initial value for calculation of mean flow (mm/yr)"""
     # Substitution logic for calibration parameters
     if params:
         import re
+        # Debug: log what parameters are being applied
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"write_hype_par_file received params: {list(params.keys())}")
         for key, value in params.items():
             # Handle list/array values
             if isinstance(value, (list, np.ndarray)):

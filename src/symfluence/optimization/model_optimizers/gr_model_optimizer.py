@@ -143,12 +143,26 @@ class GRModelOptimizer(BaseModelOptimizer):
             self.logger.warning("No best parameters found for final evaluation")
             return False
             
+        # Ensure mizuRoute paths are provided for isolation (matching worker behavior)
+        mizuroute_dir = output_dir / 'mizuRoute'
+        mizuroute_settings_dir = output_dir / 'settings' / 'mizuRoute'
+        
         return self.worker.run_model(
             self.config,
             self.gr_setup_dir,
             output_dir,
-            params=best_params
+            params=best_params,
+            mizuroute_dir=str(mizuroute_dir),
+            mizuroute_settings_dir=str(mizuroute_settings_dir)
         )
+        
+    def _update_file_manager_for_final_run(self) -> None:
+        """GR doesn't use a file manager."""
+        pass
+
+    def _restore_file_manager_for_optimization(self) -> None:
+        """GR doesn't use a file manager."""
+        pass
 
 # Backward compatibility alias
 GROptimizer = GRModelOptimizer

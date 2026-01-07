@@ -65,20 +65,21 @@ class SnowEvaluator(ModelEvaluator):
             raise ValueError("scalarSWE variable not found")
         swe_var = ds['scalarSWE']
         
-        if len(swe_var.shape) > 1:
-            if 'hru' in swe_var.dims:
-                if swe_var.shape[swe_var.dims.index('hru')] == 1:
-                    sim_data = swe_var.isel(hru=0).to_pandas()
+        # Collapse spatial dimensions
+        sim_xr = swe_var
+        for dim in ['hru', 'gru']:
+            if dim in sim_xr.dims:
+                if sim_xr.sizes[dim] == 1:
+                    sim_xr = sim_xr.isel({dim: 0})
                 else:
-                    sim_data = swe_var.mean(dim='hru').to_pandas()
-            else:
-                non_time_dims = [dim for dim in swe_var.dims if dim != 'time']
-                if non_time_dims:
-                    sim_data = swe_var.isel({non_time_dims[0]: 0}).to_pandas()
-                else:
-                    sim_data = swe_var.to_pandas()
-        else:
-            sim_data = swe_var.to_pandas()
+                    sim_xr = sim_xr.mean(dim=dim)
+        
+        # Handle any remaining non-time dimensions
+        non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
+        if non_time_dims:
+            sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
+            
+        sim_data = sim_xr.to_pandas()
         return sim_data
     
     def _extract_sca_data(self, ds: xr.Dataset) -> pd.Series:
@@ -86,20 +87,22 @@ class SnowEvaluator(ModelEvaluator):
         for var_name in sca_vars:
             if var_name in ds.variables:
                 sca_var = ds[var_name]
-                if len(sca_var.shape) > 1:
-                    if 'hru' in sca_var.dims:
-                        if sca_var.shape[sca_var.dims.index('hru')] == 1:
-                            sim_data = sca_var.isel(hru=0).to_pandas()
+                
+                # Collapse spatial dimensions
+                sim_xr = sca_var
+                for dim in ['hru', 'gru']:
+                    if dim in sim_xr.dims:
+                        if sim_xr.sizes[dim] == 1:
+                            sim_xr = sim_xr.isel({dim: 0})
                         else:
-                            sim_data = sca_var.mean(dim='hru').to_pandas()
-                    else:
-                        non_time_dims = [dim for dim in sca_var.dims if dim != 'time']
-                        if non_time_dims:
-                            sim_data = sca_var.isel({non_time_dims[0]: 0}).to_pandas()
-                        else:
-                            sim_data = sca_var.to_pandas()
-                else:
-                    sim_data = sca_var.to_pandas()
+                            sim_xr = sim_xr.mean(dim=dim)
+                
+                # Handle any remaining non-time dimensions
+                non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
+                if non_time_dims:
+                    sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
+                    
+                sim_data = sim_xr.to_pandas()
                 
                 if var_name == 'scalarSWE':
                     swe_threshold = 1.0

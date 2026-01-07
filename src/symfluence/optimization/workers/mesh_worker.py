@@ -41,8 +41,8 @@ class MESHWorker(BaseWorker):
 
         Args:
             params: Parameter values to apply
-            settings_dir: MESH settings directory
-            **kwargs: Additional arguments
+            settings_dir: MESH settings directory (unused - params in forcing)
+            **kwargs: Additional arguments (may include proc_forcing_dir)
 
         Returns:
             True if successful
@@ -50,10 +50,24 @@ class MESHWorker(BaseWorker):
         try:
             config = kwargs.get('config', self.config)
 
+            # MESH parameters are in forcing directory, not settings
+            # Check if process-specific forcing directory is provided
+            proc_forcing_dir = kwargs.get('proc_forcing_dir')
+
             # Use MESHParameterManager to update parameter files
             from ..parameter_managers import MESHParameterManager
 
-            param_manager = MESHParameterManager(config, self.logger, settings_dir)
+            # If we have process-specific forcing, we need to adjust the manager's paths
+            if proc_forcing_dir:
+                param_manager = MESHParameterManager(config, self.logger, settings_dir)
+                # Override forcing directory to process-specific location
+                param_manager.mesh_forcing_dir = Path(proc_forcing_dir)
+                param_manager.class_params_file = param_manager.mesh_forcing_dir / 'MESH_parameters_CLASS.ini'
+                param_manager.hydro_params_file = param_manager.mesh_forcing_dir / 'MESH_parameters_hydrology.ini'
+                param_manager.routing_params_file = param_manager.mesh_forcing_dir / 'MESH_parameters.txt'
+            else:
+                param_manager = MESHParameterManager(config, self.logger, settings_dir)
+
             success = param_manager.update_model_files(params)
 
             return success
@@ -74,25 +88,33 @@ class MESHWorker(BaseWorker):
 
         Args:
             config: Configuration dictionary
-            settings_dir: MESH settings directory
-            output_dir: Output directory
-            **kwargs: Additional arguments
+            settings_dir: MESH settings directory (may be process-specific)
+            output_dir: Output directory (process-specific during parallel)
+            **kwargs: Additional arguments (may include proc_forcing_dir)
 
         Returns:
             True if model ran successfully
         """
         try:
             # Initialize MESH runner
+            from symfluence.models.mesh.runner import MESHRunner
             runner = MESHRunner(config, self.logger)
 
-            # Override paths for the worker
-            # MESH reads from forcing directory, not settings
-            domain_name = config.get('DOMAIN_NAME')
-            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
-            project_dir = data_dir / f"domain_{domain_name}"
+            # Check if process-specific directories are provided
+            proc_forcing_dir = kwargs.get('proc_forcing_dir')
 
-            runner.mesh_forcing_dir = project_dir / 'forcing' / 'MESH_input'
-            runner.output_dir = output_dir
+            if proc_forcing_dir:
+                # Parallel execution: use process-specific forcing directory
+                forcing_dir = Path(proc_forcing_dir)
+                runner.set_process_directories(forcing_dir, output_dir)
+                self.logger.debug(f"Using process-specific forcing: {forcing_dir}")
+            else:
+                # Single process: use default project forcing directory
+                domain_name = config.get('DOMAIN_NAME')
+                data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+                project_dir = data_dir / f"domain_{domain_name}"
+                runner.forcing_mesh_path = project_dir / 'forcing' / 'MESH_input'
+                runner.output_dir = output_dir
 
             # Run MESH
             result_path = runner.run_mesh()
@@ -204,12 +226,24 @@ def _evaluate_mesh_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any
     Module-level worker function for MPI/ProcessPool execution.
 
     Args:
-        task_data: Task dictionary
+        task_data: Task dictionary with params, config, and process-specific paths
 
     Returns:
         Result dictionary
     """
     worker = MESHWorker()
+
+    # Extract process-specific forcing directory if present
+    proc_forcing_dir = task_data.get('proc_forcing_dir')
+
+    # Create task with additional kwargs
     task = WorkerTask.from_legacy_dict(task_data)
+
+    # Add proc_forcing_dir to kwargs if present
+    if proc_forcing_dir:
+        if not hasattr(task, 'kwargs') or task.kwargs is None:
+            task.kwargs = {}
+        task.kwargs['proc_forcing_dir'] = proc_forcing_dir
+
     result = worker.evaluate(task)
     return result.to_legacy_dict()

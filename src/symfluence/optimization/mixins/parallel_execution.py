@@ -263,7 +263,15 @@ class ParallelExecutionMixin:
                 ancil_dir = normalize_path(proc_ancil_dir)
                 case_name = f'proc_{proc_id:02d}_{experiment_id}'
                 
-                # Set model-specific filename and variable name for mizuRoute input
+                # Set model-specific filename, variable name, and timestep for mizuRoute input
+                # Default timestep is 3600s (hourly), HYPE uses 86400s (daily)
+                dt_qsim = self.config.get('SETTINGS_MIZU_ROUTING_DT', '3600')
+                if dt_qsim in ('default', None, ''):
+                    dt_qsim = '3600'
+                # Default sim times use 01:00 for hourly models; HYPE overrides to 00:00 for daily
+                sim_start_time = '01:00'
+                sim_end_time = '23:00'
+
                 if model_name.upper() == 'SUMMA':
                     fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
                     vname_qsim = 'averageRoutedRunoff'
@@ -276,6 +284,16 @@ class ParallelExecutionMixin:
                     vname_qsim = self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
                     if vname_qsim in ('default', None, ''):
                         vname_qsim = 'q_routed'
+                elif model_name.upper() == 'HYPE':
+                    fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
+                    vname_qsim = self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+                    if vname_qsim in ('default', None, ''):
+                        vname_qsim = 'q_routed'
+                    # HYPE outputs daily data - override dt_qsim to 86400 (daily)
+                    # Also use 00:00 for sim_start/sim_end (HYPE timestamps are at midnight)
+                    dt_qsim = '86400'
+                    sim_start_time = '00:00'
+                    sim_end_time = '00:00'
                 else:
                     fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
                     vname_qsim = 'q_routed'  # Default for other models
@@ -316,6 +334,28 @@ class ParallelExecutionMixin:
                     elif '<vname_qsim>' in line:
                         # Set model-specific variable name
                         updated_lines.append(f"<vname_qsim>            {vname_qsim}    ! Variable name for {model_name} runoff\n")
+                    elif '<dt_qsim>' in line:
+                        # Set model-specific timestep (HYPE=daily, others=hourly)
+                        updated_lines.append(f"<dt_qsim>               {dt_qsim}    ! Time interval of input runoff in seconds\n")
+                    elif '<sim_start>' in line:
+                        # Extract date part and update time for model compatibility
+                        # Parse existing line to get the date
+                        import re
+                        match = re.search(r'(\d{4}-\d{2}-\d{2})', line)
+                        if match:
+                            sim_date = match.group(1)
+                            updated_lines.append(f"<sim_start>             {sim_date} {sim_start_time}    ! Time of simulation start\n")
+                        else:
+                            updated_lines.append(line)
+                    elif '<sim_end>' in line:
+                        # Extract date part and update time for model compatibility
+                        import re
+                        match = re.search(r'(\d{4}-\d{2}-\d{2})', line)
+                        if match:
+                            sim_date = match.group(1)
+                            updated_lines.append(f"<sim_end>               {sim_date} {sim_end_time}    ! Time of simulation end\n")
+                        else:
+                            updated_lines.append(line)
                     else:
                         updated_lines.append(line)
 

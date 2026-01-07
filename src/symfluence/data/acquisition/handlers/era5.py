@@ -167,7 +167,18 @@ def _era5_to_summa_schema_standalone(ds_chunk):
         out["spechum"] = (r / (1.0 + r)).astype("float32").assign_attrs(units="kg kg-1", long_name="specific humidity", standard_name="specific_humidity")
     dt = (ds_chunk["time"].diff("time") / np.timedelta64(1, "s")).astype("float32")
     def _accum_to_rate(vn, on, u, ln, sn, sf=1.0):
-        if vn in ds_chunk: out[on] = ((ds_chunk[vn].diff("time").where(ds_chunk[vn].diff("time") >= 0, 0) / dt) * sf).clip(min=0).astype("float32").assign_attrs(units=u, long_name=ln, standard_name=sn)
+        if vn in ds_chunk:
+            # De-accumulate: take time difference
+            diff = ds_chunk[vn].diff("time")
+            # Handle negative values (accumulation resets) and NaN/inf
+            diff = xr.where(np.isfinite(diff) & (diff >= 0), diff, 0.0)
+            # Convert to rate and scale
+            rate = (diff / dt) * sf
+            # Final cleanup: remove any remaining invalid values and clip to valid range
+            # Max precip: 1 mm/s = 3.6 mm/hr is already extreme; ERA5 should never exceed this
+            max_rate = 1.0 if vn == "total_precipitation" else None
+            rate = xr.where(np.isfinite(rate), rate, 0.0).clip(min=0.0, max=max_rate)
+            out[on] = rate.astype("float32").assign_attrs(units=u, long_name=ln, standard_name=sn)
     _accum_to_rate("total_precipitation", "pptrate", "mm/s", "precipitation rate", "precipitation_rate", 1000.0)
     _accum_to_rate("surface_solar_radiation_downwards", "SWRadAtm", "W m-2", "shortwave radiation", "surface_downwelling_shortwave_flux_in_air")
     _accum_to_rate("surface_thermal_radiation_downwards", "LWRadAtm", "W m-2", "longwave radiation", "surface_downwelling_longwave_flux_in_air")

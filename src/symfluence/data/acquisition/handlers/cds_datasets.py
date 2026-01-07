@@ -590,16 +590,19 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         resolution_hours = self._get_temporal_resolution()
         resolution_seconds = resolution_hours * 3600
 
-        # Precipitation: kg/m2 per leadtime -> m/s
+        # Precipitation: kg/m2 per leadtime -> kg m-2 s-1 (equivalent to mm/s)
         if 'pptrate' in ds:
-            ds['pptrate'] = (ds['pptrate'] * 0.001) / resolution_seconds
+            ds['pptrate'] = ds['pptrate'] / resolution_seconds
+            ds['pptrate'].attrs['units'] = 'kg m-2 s-1'
 
         # Radiation: J/m2 per leadtime -> W/m2
         if 'SWRadAtm' in ds:
             ds['SWRadAtm'] = ds['SWRadAtm'] / resolution_seconds
+            ds['SWRadAtm'].attrs['units'] = 'W m-2'
 
         if 'LWRadAtm' in ds:
             ds['LWRadAtm'] = ds['LWRadAtm'] / resolution_seconds
+            ds['LWRadAtm'].attrs['units'] = 'W m-2'
 
         return ds
 
@@ -732,7 +735,8 @@ class CARRAAcquirer(CDSRegionalReanalysisHandler):
         return self.config.get("CARRA_DOMAIN", "west_domain")
 
     def _get_temporal_resolution(self) -> int:
-        return 1  # Hourly
+        # CARRA provides 3-hourly analyses (00, 03, 06, 09, 12, 15, 18, 21 UTC)
+        return 3
 
     def _get_analysis_variables(self) -> List[str]:
         return [
@@ -751,7 +755,10 @@ class CARRAAcquirer(CDSRegionalReanalysisHandler):
         ]
 
     def _get_leadtime_hour(self) -> str:
-        return "1"
+        # CARRA provides 3-hourly forecasts to match the 3-hourly analyses
+        # Use leadtime "3" to get full 3-hour accumulations for precipitation/radiation
+        # Leadtime "1" would only give 0-1hr accumulation, missing 2/3 of precipitation
+        return "3"
 
     def _get_additional_request_params(self) -> Dict[str, Any]:
         return {"grid": [0.025, 0.025]}  # Force interpolation to allow 'area' cropping
@@ -824,7 +831,10 @@ class CERRAAcquirer(CDSRegionalReanalysisHandler):
         ]
 
     def _get_leadtime_hour(self) -> str:
-        return "1"
+        # CERRA provides 3-hourly forecasts (00, 03, 06, 09, 12, 15, 18, 21 UTC)
+        # Use leadtime "3" to get full 3-hour accumulations for precipitation/radiation
+        # Leadtime "1" would only give 0-1hr accumulation, missing 2/3 of precipitation
+        return "3"
 
     def _get_additional_request_params(self) -> Dict[str, Any]:
         return {

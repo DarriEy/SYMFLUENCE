@@ -73,6 +73,11 @@ except ImportError as e:
     logger.warning(f"Could not import troute: {e}")
 
 try:
+    from . import droute
+except ImportError as e:
+    logger.warning(f"Could not import droute: {e}")
+
+try:
     from . import hype
 except ImportError as e:
     logger.warning(f"Could not import hype: {e}")

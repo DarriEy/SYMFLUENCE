@@ -13,6 +13,7 @@ Date: 2025
 
 import json
 import numpy as np
+import pandas as pd
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import logging
@@ -20,8 +21,10 @@ import re
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_ngen_bounds
+from symfluence.optimization.registry import OptimizerRegistry
 
 
+@OptimizerRegistry.register_parameter_manager('NGEN')
 class NgenParameterManager(BaseParameterManager):
     """Manages ngen calibration parameters across CFE, NOAH-OWP, and PET modules"""
     
@@ -48,31 +51,59 @@ class NgenParameterManager(BaseParameterManager):
         self.params_to_calibrate = self._parse_parameters_to_calibrate()
 
         # Path to ngen configuration files
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.ngen_sim_dir = self.project_dir / 'simulations' / self.experiment_id / 'NGEN'
-        self.ngen_setup_dir = self.project_dir / 'settings' / 'NGEN'
+        self.ngen_setup_dir = Path(ngen_settings_dir)
 
         # Configuration file paths
         self.realization_config = self.ngen_setup_dir / 'realization_config.json'
-        self.cfe_config = self.ngen_setup_dir / 'CFE' / 'cfe_config.json'
         self.cfe_txt_dir = self.ngen_setup_dir / 'CFE'
-        self.pet_config = self.ngen_setup_dir / 'PET' / 'pet_config.json'
-        self.noah_config = self.ngen_setup_dir / 'NOAH' / 'noah_config.json'
         self.noah_dir = self.ngen_setup_dir / 'NOAH'
         self.pet_dir  = self.ngen_setup_dir / 'PET'
 
         # expected JSONs (may not exist; that's fine)
         self.noah_config = self.noah_dir / 'noah_config.json'
         self.pet_config  = self.pet_dir  / 'pet_config.json'
+        self.cfe_config = self.cfe_txt_dir / 'cfe_config.json'
 
         # BMI text dirs
-        self.cfe_txt_dir  = self.ngen_setup_dir / 'CFE'
         self.pet_txt_dir  = self.pet_dir
+
+        # Determine hydro_id for configuration file matching
+        # For lumped catchments, we can find the ID from the files themselves
+        self.hydro_id = self._resolve_hydro_id()
 
         self.logger.info(f"NgenParameterManager initialized")
         self.logger.info(f"Calibrating modules: {self.modules_to_calibrate}")
         self.logger.info(f"Total parameters to calibrate: {len(self.all_param_names)}")
+
+    def _resolve_hydro_id(self) -> Optional[str]:
+        """Resolve the active catchment ID (hydro_id) from available configuration files."""
+        # Try to find a cat-*.txt file in CFE directory
+        if self.cfe_txt_dir.exists():
+            candidates = list(self.cfe_txt_dir.glob("cat-*_bmi_config_cfe_*.txt"))
+            if candidates:
+                # Extract '1' from 'cat-1_bmi_config_cfe_pass.txt'
+                filename = candidates[0].name
+                match = re.search(r'cat-([a-zA-Z0-9_-]+)', filename)
+                if match:
+                    res = match.group(1)
+                    # Strip any trailing suffixes if needed, e.g. _bmi_config...
+                    if '_' in res:
+                        res = res.split('_')[0]
+                    return res
+        
+        # Fallback to NOAH directory
+        if self.noah_dir.exists():
+            candidates = list(self.noah_dir.glob("cat-*.input"))
+            if candidates:
+                filename = candidates[0].name
+                match = re.search(r'cat-([a-zA-Z0-9_-]+)', filename)
+                if match:
+                    res = match.group(1)
+                    if '.' in res:
+                        res = res.split('.')[0]
+                    return res
+                    
+        return None
 
     # ========================================================================
     # IMPLEMENT ABSTRACT METHODS FROM BASE CLASS
@@ -119,6 +150,8 @@ class NgenParameterManager(BaseParameterManager):
     def _parse_modules_to_calibrate(self) -> List[str]:
         """Parse which ngen modules to calibrate from config"""
         modules_str = self.config.get('NGEN_MODULES_TO_CALIBRATE', 'CFE')
+        if modules_str is None:
+            modules_str = 'CFE'
         modules = [m.strip().upper() for m in modules_str.split(',') if m.strip()]
         
         # Validate modules
@@ -138,18 +171,24 @@ class NgenParameterManager(BaseParameterManager):
         if 'CFE' in self.modules_to_calibrate:
             cfe_params_str = self.config.get('NGEN_CFE_PARAMS_TO_CALIBRATE', 
                                             'maxsmc,satdk,bb,slop')
+            if cfe_params_str is None:
+                cfe_params_str = 'maxsmc,satdk,bb,slop'
             params['CFE'] = [p.strip() for p in cfe_params_str.split(',') if p.strip()]
         
         # NOAH-OWP parameters
         if 'NOAH' in self.modules_to_calibrate:
             noah_params_str = self.config.get('NGEN_NOAH_PARAMS_TO_CALIBRATE', 
                                              'refkdt,slope,smcmax,dksat')
+            if noah_params_str is None:
+                noah_params_str = 'refkdt,slope,smcmax,dksat'
             params['NOAH'] = [p.strip() for p in noah_params_str.split(',') if p.strip()]
         
         # PET parameters
         if 'PET' in self.modules_to_calibrate:
             pet_params_str = self.config.get('NGEN_PET_PARAMS_TO_CALIBRATE', 
                                             'wind_speed_measurement_height_m')
+            if pet_params_str is None:
+                pet_params_str = 'wind_speed_measurement_height_m'
             params['PET'] = [p.strip() for p in pet_params_str.split(',') if p.strip()]
         
         return params
@@ -269,7 +308,7 @@ class NgenParameterManager(BaseParameterManager):
             # --- Fallback: BMI text file ---
             candidates = []
             if getattr(self, "hydro_id", None):
-                pattern = f"{self.hydro_id}_bmi_config_cfe_*.txt"
+                pattern = f"cat-{self.hydro_id}_bmi_config_cfe_*.txt"
                 candidates = list(self.cfe_txt_dir.glob(pattern))
 
             if not candidates:
@@ -326,6 +365,20 @@ class NgenParameterManager(BaseParameterManager):
                     return f"{new_val:.8g}{tail}"
                 return f"{new_val:.8g}"
 
+            # Determine num_timesteps from config
+            start_time = self.config.get('EXPERIMENT_TIME_START')
+            end_time = self.config.get('EXPERIMENT_TIME_END')
+            if start_time and end_time:
+                try:
+                    duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
+                    # ngen usually runs at hourly timestep unless configured otherwise
+                    # We add 1 because ngen intervals are inclusive of start/end bounds
+                    num_steps = int(duration.total_seconds() / 3600)
+                except:
+                    num_steps = 1
+            else:
+                num_steps = 1
+
             updated = set()
             for i, line in enumerate(lines):
                 if "=" not in line or line.strip().startswith("#"):
@@ -334,6 +387,16 @@ class NgenParameterManager(BaseParameterManager):
                 k = k.strip()
                 rhs_keep = rhs.rstrip("\n")
                 
+                # Update num_timesteps
+                if k == "num_timesteps":
+                    lines[i] = f"num_timesteps={num_steps}"
+                    continue
+                
+                # Update partitioning scheme to known working one
+                if k == "surface_water_partitioning_scheme":
+                    lines[i] = "surface_water_partitioning_scheme=Xinanjiang"
+                    continue
+
                 # Match parameters by mapped BMI key
                 for p, bmi_k in keymap.items():
                     if p in params and k == bmi_k:
@@ -389,7 +452,7 @@ class NgenParameterManager(BaseParameterManager):
 
             input_candidates = []
             if getattr(self, "hydro_id", None):
-                input_candidates = list(self.noah_dir.glob(f"{self.hydro_id}.input"))
+                input_candidates = list(self.noah_dir.glob(f"cat-{self.hydro_id}.input"))
             if not input_candidates:
                 input_candidates = list(self.noah_dir.glob("*.input"))
 
@@ -562,7 +625,7 @@ class NgenParameterManager(BaseParameterManager):
 
             candidates = []
             if getattr(self, "hydro_id", None):
-                candidates = list(self.pet_txt_dir.glob(f"{self.hydro_id}_pet_config.txt"))
+                candidates = list(self.pet_txt_dir.glob(f"cat-{self.hydro_id}_pet_config.txt"))
             if not candidates:
                 candidates = list(self.pet_txt_dir.glob("*.txt"))
 
@@ -575,6 +638,20 @@ class NgenParameterManager(BaseParameterManager):
 
             path = candidates[0]
             lines = path.read_text().splitlines()
+
+            # Determine num_timesteps from config
+            start_time = self.config.get('EXPERIMENT_TIME_START')
+            end_time = self.config.get('EXPERIMENT_TIME_END')
+            if start_time and end_time:
+                try:
+                    duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
+                    # ngen usually runs at hourly timestep unless configured otherwise
+                    # We add 1 because ngen intervals are inclusive of start/end bounds
+                    num_steps = int(duration.total_seconds() / 3600)
+                except:
+                    num_steps = 1
+            else:
+                num_steps = 1
 
             import re
             num_units_re = re.compile(r"""
@@ -605,6 +682,13 @@ class NgenParameterManager(BaseParameterManager):
                 key = k.strip()
                 if not key:
                     continue
+                
+                # Update num_timesteps
+                if key == "num_timesteps":
+                    lines[i] = f"num_timesteps={num_steps}"
+                    updated.add("num_timesteps")
+                    continue
+
                 for p, txt_key in keymap.items():
                     if p in params and key == txt_key:
                         lines[i] = f"{key}={render_value(rhs, params[p])}"

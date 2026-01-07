@@ -202,6 +202,12 @@ class ModelEvaluator(ABC):
                                 period: Tuple, prefix: str) -> Dict[str, float]:
         """Calculate metrics for a specific time period with explicit filtering"""
         try:
+            # Ensure indices are DatetimeIndex
+            if not isinstance(obs_data.index, pd.DatetimeIndex):
+                obs_data.index = pd.to_datetime(obs_data.index)
+            if not isinstance(sim_data.index, pd.DatetimeIndex):
+                sim_data.index = pd.to_datetime(sim_data.index)
+
             # EXPLICIT filtering for both datasets (consistent with parallel worker)
             if period[0] and period[1]:
                 # Filter observed data to period
@@ -216,8 +222,8 @@ class ModelEvaluator(ABC):
                 
                 # Log filtering results for debugging
                 self.logger.debug(f"{prefix} period filtering: {period[0]} to {period[1]}")
-                self.logger.debug(f"{prefix} observed points: {len(obs_period)}")
-                self.logger.debug(f"{prefix} simulated points: {len(sim_period)}")
+                self.logger.debug(f"{prefix} observed points in period: {len(obs_period)}")
+                self.logger.debug(f"{prefix} simulated points in period: {len(sim_period)}")
             else:
                 obs_period = obs_data.copy()
                 sim_period = sim_data.copy()
@@ -238,11 +244,19 @@ class ModelEvaluator(ABC):
                 
                 self.logger.debug(f"After resampling - obs points: {len(obs_period)}, sim points: {len(sim_period)}")
             
+            # Final check: ensure both are midnight-aligned if daily
+            if self.eval_timestep == 'daily':
+                obs_period.index = obs_period.index.normalize()
+                sim_period.index = sim_period.index.normalize()
+
             # Find common time indices
             common_idx = obs_period.index.intersection(sim_period.index)
             
             if len(common_idx) == 0:
                 self.logger.warning(f"No common time indices for {prefix} period")
+                if len(obs_period) > 0 and len(sim_period) > 0:
+                    self.logger.debug(f"Obs index sample: {obs_period.index[0]} to {obs_period.index[-1]} (type: {obs_period.index.dtype})")
+                    self.logger.debug(f"Sim index sample: {sim_period.index[0]} to {sim_period.index[-1]} (type: {sim_period.index.dtype})")
                 return {}
             
             obs_common = obs_period.loc[common_idx]

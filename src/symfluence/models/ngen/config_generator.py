@@ -143,8 +143,19 @@ class NgenConfigGenerator:
         # Apply overrides
         params.update(overrides)
 
+        # Calculate num_timesteps
+        start_time = self.config.get('EXPERIMENT_TIME_START', '2000-01-01 00:00:00')
+        end_time = self.config.get('EXPERIMENT_TIME_END', '2000-12-31 23:00:00')
+        if start_time == 'default': start_time = '2000-01-01 00:00:00'
+        if end_time == 'default': end_time = '2000-12-31 23:00:00'
+        
+        try:
+            duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
+            num_steps = int(duration.total_seconds() / 3600)
+        except:
+            num_steps = 1
+
         config_text = f"""forcing_file=BMI
-surface_partitioning_scheme=Schaake
 soil_params.depth={params['depth']}[m]
 soil_params.b={params['soil_b']}[]
 soil_params.satdk={params['satdk']:.2e}[m s-1]
@@ -154,17 +165,22 @@ soil_params.smcmax={params['smcmax']}[m/m]
 soil_params.wltsmc={params['wltsmc']}[m/m]
 soil_params.expon={params['expon']}[]
 soil_params.expon_secondary={params['expon_secondary']}[]
-refkdt={params['refkdt']}
 max_gw_storage={params['max_gw_storage']}[m]
 Cgw={params['cgw']:.2e}[m h-1]
 expon={params['gw_expon']}[]
 gw_storage={params['gw_storage']}[m/m]
-alpha_fc={params['alpha_fc']}
+alpha_fc={params['alpha_fc']}[]
 soil_storage={params['soil_storage']}[m/m]
-K_nash={params['k_nash']}[]
+surface_runoff_scheme=NASH_CASCADE
+N_nash_surface=2
+K_nash_surface=0.83089
+nsubsteps_nash_surface=10
+nash_storage_surface=0.0,0.0
+K_nash_subsurface={params['k_nash']}[]
 K_lf={params['k_lf']}[]
-nash_storage=0.0,0.0
-num_timesteps=1
+nash_storage_subsurface=0.0,0.0
+surface_water_partitioning_scheme=Xinanjiang
+num_timesteps={num_steps}
 verbosity=1
 DEBUG=0
 giuh_ordinates=0.65,0.35
@@ -212,6 +228,18 @@ giuh_ordinates=0.65,0.35
         }
         params.update(overrides)
 
+        # Calculate num_timesteps
+        start_time = self.config.get('EXPERIMENT_TIME_START', '2000-01-01 00:00:00')
+        end_time = self.config.get('EXPERIMENT_TIME_END', '2000-12-31 23:00:00')
+        if start_time == 'default': start_time = '2000-01-01 00:00:00'
+        if end_time == 'default': end_time = '2000-12-31 23:00:00'
+        
+        try:
+            duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
+            num_steps = int(duration.total_seconds() / 3600)
+        except:
+            num_steps = 1
+
         config_text = f"""forcing_file=BMI
 wind_speed_measurement_height_m={params['wind_height']}
 humidity_measurement_height_m={params['humidity_height']}
@@ -225,7 +253,7 @@ latitude_degrees={centroid.y}
 longitude_degrees={centroid.x}
 site_elevation_m={params['elevation']}
 time_step_size_s={params['timestep']}
-num_timesteps=1
+num_timesteps={num_steps}
 """
 
         config_file = self.setup_dir / "PET" / f"cat-{catchment_id}_pet_config.txt"
@@ -409,7 +437,7 @@ num_timesteps=1
             forcing_config = {
                 "path": str((forcing_file.parent / "csv").resolve()),
                 "provider": "CsvPerFeature",
-                "file_pattern": ".*{{id}}.*\\.csv"
+                "file_pattern": ".*{{id}}_forcing.*\\.csv"
             }
         else:
             forcing_config = {
@@ -419,7 +447,8 @@ num_timesteps=1
 
         # Build module configurations
         modules = self._build_module_configs(
-            cfe_config_base, pet_config_base, noah_config_base, lib_ext
+            cfe_config_base, pet_config_base, noah_config_base, lib_ext,
+            lib_paths=lib_paths
         )
 
         experiment_id = self.config.get('EXPERIMENT_ID', 'default_run')
@@ -435,7 +464,6 @@ num_timesteps=1
                         "allow_exceed_end_time": True,
                         "main_output_variable": "Q_OUT",
                         "modules": modules,
-                        "uses_forcing_file": False
                     }
                 }],
                 "forcing": forcing_config
@@ -460,17 +488,20 @@ num_timesteps=1
         cfe_base: str,
         pet_base: str,
         noah_base: str,
-        lib_ext: str
+        lib_ext: str,
+        lib_paths: Optional[Dict[str, Path]] = None
     ) -> list:
         """Build the list of module configurations for realization."""
         modules = []
+        lib_paths = lib_paths or {}
 
         if self._include_sloth:
+            lib_file = str(lib_paths.get("SLOTH", f"./extern/sloth/cmake_build/libslothmodel{lib_ext}"))
             modules.append({
                 "name": "bmi_c++",
                 "params": {
                     "model_type_name": "bmi_c++_sloth",
-                    "library_file": f"./extern/sloth/cmake_build/libslothmodel{lib_ext}",
+                    "library_file": lib_file,
                     "init_config": "/dev/null",
                     "allow_exceed_end_time": True,
                     "main_output_variable": "z",
@@ -484,11 +515,12 @@ num_timesteps=1
             })
 
         if self._include_pet:
+            lib_file = str(lib_paths.get("PET", f"./extern/evapotranspiration/evapotranspiration/cmake_build/libpetbmi{lib_ext}"))
             modules.append({
                 "name": "bmi_c",
                 "params": {
                     "model_type_name": "PET",
-                    "library_file": f"./extern/evapotranspiration/evapotranspiration/cmake_build/libpetbmi{lib_ext}",
+                    "library_file": lib_file,
                     "forcing_file": "",
                     "init_config": f"{pet_base}/{{{{id}}}}_pet_config.txt",
                     "allow_exceed_end_time": True,
@@ -499,16 +531,16 @@ num_timesteps=1
             })
 
         if self._include_noah:
+            lib_file = str(lib_paths.get("NOAH", f"./extern/noah-owp-modular/cmake_build/libsurfacebmi{lib_ext}"))
             modules.append({
                 "name": "bmi_fortran",
                 "params": {
                     "model_type_name": "bmi_fortran_noahowp",
-                    "library_file": f"./extern/noah-owp-modular/cmake_build/libsurfacebmi{lib_ext}",
+                    "library_file": lib_file,
                     "forcing_file": "",
                     "init_config": f"{noah_base}/{{{{id}}}}.input",
                     "allow_exceed_end_time": True,
                     "main_output_variable": "QINSUR",
-                    "uses_forcing_file": False,
                     "variables_names_map": {
                         "PRCPNONC": "atmosphere_water__liquid_equivalent_precipitation_rate",
                         "Q2": "atmosphere_air_water~vapor__relative_saturation",
@@ -523,30 +555,35 @@ num_timesteps=1
             })
 
         if self._include_cfe:
-            evap_source = "water_potential_evaporation_flux" if self._include_pet else "ETRAN"
+            lib_file = str(lib_paths.get("CFE", f"./extern/cfe/cmake_build/libcfebmi{lib_ext}"))
+
+            # Build variables_names_map for CFE
+            # CFE gets forcing variables from the forcing provider and SLOTH/PET outputs from other modules
+            variables_map = {
+                "atmosphere_water__liquid_equivalent_precipitation_rate": "precip_rate",
+            }
+
+            # Add SLOTH variables if SLOTH is enabled
+            if self._include_sloth:
+                variables_map["ice_fraction_schaake"] = "sloth_ice_fraction_schaake"
+                variables_map["ice_fraction_xinanjiang"] = "sloth_ice_fraction_xinanjiang"
+                variables_map["soil_moisture_profile"] = "sloth_smp"
+
+            # Add PET variable if PET is enabled
+            if self._include_pet:
+                variables_map["water_potential_evaporation_flux"] = "water_potential_evaporation_flux"
+
             modules.append({
                 "name": "bmi_c",
                 "params": {
                     "model_type_name": "bmi_c_cfe",
-                    "library_file": f"./extern/cfe/cmake_build/libcfebmi{lib_ext}",
+                    "library_file": lib_file,
                     "forcing_file": "",
                     "init_config": f"{cfe_base}/{{{{id}}}}_bmi_config_cfe_pass.txt",
                     "allow_exceed_end_time": True,
                     "main_output_variable": "Q_OUT",
                     "registration_function": "register_bmi_cfe",
-                    "variables_names_map": {
-                        "water_potential_evaporation_flux": evap_source,
-                        "atmosphere_air_water~vapor__relative_saturation": "SPFH_2maboveground",
-                        "land_surface_air__temperature": "TMP_2maboveground",
-                        "land_surface_wind__x_component_of_velocity": "UGRD_10maboveground",
-                        "land_surface_wind__y_component_of_velocity": "VGRD_10maboveground",
-                        "land_surface_radiation~incoming~longwave__energy_flux": "DLWRF_surface",
-                        "land_surface_radiation~incoming~shortwave__energy_flux": "DSWRF_surface",
-                        "land_surface_air__pressure": "PRES_surface",
-                        "ice_fraction_schaake": "sloth_ice_fraction_schaake",
-                        "ice_fraction_xinanjiang": "sloth_ice_fraction_xinanjiang",
-                        "soil_moisture_profile": "sloth_smp"
-                    },
+                    "variables_names_map": variables_map,
                     "uses_forcing_file": False
                 }
             })

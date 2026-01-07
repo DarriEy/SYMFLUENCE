@@ -66,6 +66,7 @@ class RoutingModel(Enum):
     NONE = "none"
     MIZUROUTE = "mizuRoute"
     TROUTE = "troute"
+    DROUTE = "dRoute"
 
     @classmethod
     def from_string(cls, value: str) -> 'RoutingModel':
@@ -79,6 +80,8 @@ class RoutingModel(Enum):
             'mizu': cls.MIZUROUTE,
             'troute': cls.TROUTE,
             't_route': cls.TROUTE,
+            'droute': cls.DROUTE,
+            'd_route': cls.DROUTE,
         }
         return mapping.get(normalized, cls.NONE)
 
@@ -217,7 +220,7 @@ class SpatialOrchestrator(ABC):
             routing_key = f"{model_name.upper()}_ROUTING_INTEGRATION"
 
         # Get routing configuration
-        routing_str = self.config_dict.get(routing_key, 'none')
+        routing_str = self.config_dict.get(routing_key, self.config_dict.get('ROUTING_MODEL', 'none'))
         routing_model = RoutingModel.from_string(routing_str)
 
         # Build routing config - handle 'default' config value
@@ -235,8 +238,19 @@ class SpatialOrchestrator(ABC):
         # Add topology file if routing is configured
         if routing_model != RoutingModel.NONE:
             topology_file = self.config_dict.get('SETTINGS_MIZU_TOPOLOGY', 'topology.nc')
+            
+            # Determine settings dir based on model
+            if routing_model == RoutingModel.MIZUROUTE:
+                settings_subdir = 'mizuRoute'
+            elif routing_model == RoutingModel.DROUTE:
+                settings_subdir = 'dRoute'
+            elif routing_model == RoutingModel.TROUTE:
+                settings_subdir = 'troute'
+            else:
+                settings_subdir = routing_model.value
+
             routing_config.topology_file = (
-                self.project_dir / 'settings' / 'mizuRoute' / topology_file
+                self.project_dir / 'settings' / settings_subdir / topology_file
             )
 
         return SpatialConfig(
@@ -511,6 +525,8 @@ class SpatialOrchestrator(ABC):
                 return self._run_mizuroute(spatial_config, routing_control_file)
             elif routing.model == RoutingModel.TROUTE:
                 return self._run_troute(spatial_config, routing_control_file)
+            elif routing.model == RoutingModel.DROUTE:
+                return self._run_droute(spatial_config, routing_control_file)
             else:
                 self.logger.warning(f"Unknown routing model: {routing.model}")
                 return model_output
@@ -580,8 +596,9 @@ class SpatialOrchestrator(ABC):
         try:
             from symfluence.models.mizuroute import MizuRoutePreProcessor
 
+            # Prefer config_dict as it likely contains runtime overrides (isolated paths)
             preprocessor = MizuRoutePreProcessor(
-                self.config if hasattr(self, 'config') and self.config else self.config_dict,
+                self.config_dict if hasattr(self, 'config_dict') and self.config_dict else self.config,
                 self.logger
             )
 
@@ -636,6 +653,37 @@ class SpatialOrchestrator(ABC):
             return None
         except Exception as e:
             self.logger.error(f"t-route execution failed: {e}")
+            return None
+
+    def _run_droute(
+        self,
+        spatial_config: SpatialConfig,
+        control_file: Optional[Path] = None
+    ) -> Optional[Path]:
+        """
+        Run dRoute for the model output.
+        """
+        try:
+            from symfluence.models.droute import DRouteRunner
+
+            runner = DRouteRunner(
+                self.config_dict,
+                self.logger
+            )
+            result = runner.run_droute()
+
+            if result:
+                self.logger.info("dRoute completed successfully")
+                return result
+            else:
+                self.logger.error("dRoute failed")
+                return None
+
+        except ImportError:
+            self.logger.error("dRoute runner not available")
+            return None
+        except Exception as e:
+            self.logger.error(f"dRoute execution failed: {e}")
             return None
 
     # =========================================================================

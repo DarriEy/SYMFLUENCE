@@ -37,6 +37,13 @@ class LSTMPreprocessor:
         self.device = device
         self.lookback = config.get('LSTM_LOOKBACK', config.get('FLASH_LOOKBACK', 30))
         
+        # Determine spatial mode
+        domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+        if domain_method == 'delineate':
+            self.spatial_mode = 'distributed'
+        else:
+            self.spatial_mode = 'lumped'
+        
         self.feature_scaler = StandardScaler()
         self.target_scaler = StandardScaler()
         self.output_size = 1
@@ -151,7 +158,7 @@ class LSTMPreprocessor:
         streamflow_df: pd.DataFrame,
         snow_df: Optional[pd.DataFrame] = None,
         fit_scalers: bool = True
-    ) -> Tuple[torch.Tensor, torch.Tensor, pd.DatetimeIndex, pd.DataFrame]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, pd.DatetimeIndex, pd.DataFrame, List[int]]:
         """
         Preprocess data for LSTM model (clean, scale, sequence).
         
@@ -167,11 +174,12 @@ class LSTMPreprocessor:
                 - y (torch.Tensor): Target values.
                 - common_dates (pd.DatetimeIndex): Dates corresponding to the data.
                 - features_avg (pd.DataFrame): Averaged features dataframe.
+                - hru_ids (List[int]): List of HRU IDs.
         """
-        self.logger.info(f"Preprocessing data (fit_scalers={fit_scalers})")
+        self.logger.info(f"Preprocessing data (fit_scalers={fit_scalers}, mode={self.spatial_mode})")
 
         # Align the data
-        common_dates = forcing_df.index.get_level_values('time').intersection(streamflow_df.index)
+        common_dates = forcing_df.index.get_level_values('time').unique().intersection(streamflow_df.index)
         if snow_df is not None and not snow_df.empty:
             common_dates = common_dates.intersection(snow_df.index)
 
@@ -180,6 +188,10 @@ class LSTMPreprocessor:
         if snow_df is not None and not snow_df.empty:
             snow_df = snow_df.loc[common_dates]
 
+        # Get HRU IDs
+        hru_ids = forcing_df.index.get_level_values('hruId').unique().tolist()
+        n_hrus = len(hru_ids)
+
         # Prepare features (forcing data)
         features = forcing_df.reset_index()
         feature_columns = features.columns.drop(
@@ -187,50 +199,82 @@ class LSTMPreprocessor:
             if 'time' in features.columns and 'hruId' in features.columns else []
         )
 
-        # Average features across all HRUs for each timestep
-        features_avg = forcing_df.groupby('time')[feature_columns].mean()
+        if self.spatial_mode == 'lumped':
+            # Average features across all HRUs for each timestep
+            features_to_scale = forcing_df.groupby('time')[feature_columns].mean()
+            features_avg = features_to_scale.copy()
+        else:
+            # Distributed mode: scale features for all HRUs together
+            # We treat all HRUs as samples for the same scaler
+            features_to_scale = forcing_df[feature_columns]
+            features_avg = forcing_df[feature_columns] # Keep indexed by [time, hruId]
 
         # Scale features
         if fit_scalers:
-            scaled_features = self.feature_scaler.fit_transform(features_avg)
+            scaled_features = self.feature_scaler.fit_transform(features_to_scale)
         else:
-            scaled_features = self.feature_scaler.transform(features_avg)
+            scaled_features = self.feature_scaler.transform(features_to_scale)
             
         scaled_features = np.clip(scaled_features, -10, 10)
 
         # Prepare targets (streamflow and optionally snow)
         if snow_df is not None and not snow_df.empty:
-            targets = pd.concat([streamflow_df['streamflow'], snow_df['snw']], axis=1)
-            targets.columns = ['streamflow', 'SWE']
+            targets_raw = pd.concat([streamflow_df['streamflow'], snow_df['snw']], axis=1)
+            targets_raw.columns = ['streamflow', 'SWE']
             if fit_scalers:
                 self.output_size = 2
                 self.target_names = ['streamflow', 'SWE']
         else:
-            targets = pd.DataFrame(streamflow_df['streamflow'], columns=['streamflow'])
+            targets_raw = pd.DataFrame(streamflow_df['streamflow'], columns=['streamflow'])
             if fit_scalers:
                 self.output_size = 1
                 self.target_names = ['streamflow']
 
+        if self.spatial_mode == 'distributed':
+            # Repeat targets for each HRU if they are basin-wide
+            # (In training through routing, we might want per-HRU targets if available,
+            # but usually streamflow is only at outlet. If so, we can use 0 or dummy for internal HRUs
+            # OR broadcast the outlet streamflow as a hint - but usually we route.)
+            # For now, we broadcast to allow sequence creation, but training logic will handle routing.
+            targets_to_scale = np.repeat(targets_raw.values, n_hrus, axis=0)
+        else:
+            targets_to_scale = targets_raw.values
+
         # Scale targets
         if fit_scalers:
-            scaled_targets = self.target_scaler.fit_transform(targets)
+            scaled_targets = self.target_scaler.fit_transform(targets_to_scale)
         else:
-            scaled_targets = self.target_scaler.transform(targets)
+            scaled_targets = self.target_scaler.transform(targets_to_scale)
             
         scaled_targets = np.clip(scaled_targets, -10, 10)
 
         # Create sequences
         X, y = [], []
-        for i in range(len(scaled_features) - self.lookback):
-            X.append(scaled_features[i:(i + self.lookback)])
-            y.append(scaled_targets[i + self.lookback])
-
-        # Convert to PyTorch tensors
-        X_tensor = torch.FloatTensor(np.array(X)).to(self.device)
-        y_tensor = torch.FloatTensor(np.array(y)).to(self.device)
+        
+        if self.spatial_mode == 'lumped':
+            for i in range(len(scaled_features) - self.lookback):
+                X.append(scaled_features[i:(i + self.lookback)])
+                y.append(scaled_targets[i + self.lookback])
+            
+            X_tensor = torch.FloatTensor(np.array(X)).to(self.device)
+            y_tensor = torch.FloatTensor(np.array(y)).to(self.device)
+        else:
+            # Distributed mode: Sequences are (timesteps, hrus, features)
+            # Reshape scaled_features to (timesteps, hrus, n_features)
+            n_timesteps = len(common_dates)
+            n_features = len(feature_columns)
+            feat_reshaped = scaled_features.reshape(n_timesteps, n_hrus, n_features)
+            targ_reshaped = scaled_targets.reshape(n_timesteps, n_hrus, self.output_size)
+            
+            for i in range(n_timesteps - self.lookback):
+                X.append(feat_reshaped[i:(i + self.lookback)]) # (lookback, hrus, features)
+                y.append(targ_reshaped[i + self.lookback])     # (hrus, output_size)
+            
+            X_tensor = torch.FloatTensor(np.array(X)).to(self.device) # (B, T, N, F)
+            y_tensor = torch.FloatTensor(np.array(y)).to(self.device) # (B, N, O)
 
         self.logger.info(f"Preprocessed data shape: X: {X_tensor.shape}, y: {y_tensor.shape}")
-        return X_tensor, y_tensor, pd.DatetimeIndex(common_dates), features_avg
+        return X_tensor, y_tensor, pd.DatetimeIndex(common_dates), features_avg, hru_ids
 
     def set_scalers(self, feature_scaler, target_scaler, output_size, target_names):
         """Set scalers and metadata from a checkpoint."""

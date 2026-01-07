@@ -75,7 +75,9 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
             self.logger.info("Fixing FUSE time precision for mizuRoute compatibility")
             experiment_output_fuse = self.config_dict.get('EXPERIMENT_OUTPUT_FUSE', 'default')
             if experiment_output_fuse == 'default' or not experiment_output_fuse:
-                experiment_output_dir = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'FUSE'
+                # Try relative to current experiment first
+                experiment_id = self.config_dict.get('EXPERIMENT_ID')
+                experiment_output_dir = self.project_dir / f"simulations/{experiment_id}" / 'FUSE'
             else:
                 experiment_output_dir = Path(experiment_output_fuse)
             runoff_filename = f"{self.config_dict.get('DOMAIN_NAME')}_{self.config_dict.get('EXPERIMENT_ID')}_runs_def.nc"
@@ -83,7 +85,9 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
             self.logger.info("Fixing GR time precision for mizuRoute compatibility")
             experiment_output_gr = self.config_dict.get('EXPERIMENT_OUTPUT_GR', 'default')
             if experiment_output_gr == 'default' or not experiment_output_gr:
-                experiment_output_dir = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'GR'
+                # Try relative to current experiment first
+                experiment_id = self.config_dict.get('EXPERIMENT_ID')
+                experiment_output_dir = self.project_dir / f"simulations/{experiment_id}" / 'GR'
             else:
                 experiment_output_dir = Path(experiment_output_gr)
             runoff_filename = f"{self.config_dict.get('DOMAIN_NAME')}_{self.config_dict.get('EXPERIMENT_ID')}_runs_def.nc"
@@ -91,7 +95,9 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
             self.logger.info("Fixing HYPE time precision for mizuRoute compatibility")
             experiment_output_hype = self.config_dict.get('EXPERIMENT_OUTPUT_HYPE', 'default')
             if experiment_output_hype == 'default' or not experiment_output_hype:
-                experiment_output_dir = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'HYPE'
+                # Try relative to current experiment first
+                experiment_id = self.config_dict.get('EXPERIMENT_ID')
+                experiment_output_dir = self.project_dir / f"simulations/{experiment_id}" / 'HYPE'
             else:
                 experiment_output_dir = Path(experiment_output_hype)
             runoff_filename = f"{self.config_dict.get('EXPERIMENT_ID')}_timestep.nc"
@@ -99,7 +105,9 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
             self.logger.info(f"Fixing SUMMA time precision for mizuRoute compatibility (Active models: {active_models})")
             experiment_output_summa = self.config_dict.get('EXPERIMENT_OUTPUT_SUMMA', 'default')
             if experiment_output_summa == 'default' or not experiment_output_summa:
-                experiment_output_dir = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'SUMMA'
+                # Try relative to current experiment first
+                experiment_id = self.config_dict.get('EXPERIMENT_ID')
+                experiment_output_dir = self.project_dir / f"simulations/{experiment_id}" / 'SUMMA'
             else:
                 experiment_output_dir = Path(experiment_output_summa)
             runoff_filename = f"{self.config_dict.get('EXPERIMENT_ID')}_timestep.nc"
@@ -264,10 +272,10 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
             
             # Save the corrected file
             ds.load()
-            ds.close()
             
             os.chmod(runoff_filepath, 0o664)
             ds.to_netcdf(runoff_filepath, format='NETCDF4')
+            ds.close()
             self.logger.info("Time precision fixed successfully")
             
         except Exception as e:

@@ -86,32 +86,18 @@ class CERRAHandler(BaseDatasetHandler):
             p = ds['pptrate']
             if 'units' in p.attrs:
                 units = p.attrs['units'].lower()
-                if 'm' in units and 'hour' not in units and 's-1' not in units:
-                    # Accumulated meters - convert to rate
+                # Check if it's an accumulation (kg m-2 or m) and not already a rate (s-1 or rate)
+                if ('m' in units or 'kg' in units) and 's-1' not in units and 'rate' not in units and 'hour' not in units:
+                    # Accumulated meters or kg/m2 - convert to rate
                     time_diff = ds.time.diff('time').median()
                     if time_diff:
                         seconds = time_diff.values / np.timedelta64(1, 's')
                         ds['pptrate'] = p / float(seconds)
 
-        # Calculate specific humidity from relative humidity if needed
-        if 'spechum' not in ds and 'relhum' in ds and 'airtemp' in ds and 'airpres' in ds:
-            T = ds['airtemp']
-            RH = ds['relhum']
-            P = ds['airpres']
-
-            # Saturation vapor pressure (Pa)
-            e_sat = 611.2 * np.exp(17.67 * (T - 273.15) / (T - 29.65))
-            # Actual vapor pressure (Pa)
-            e = (RH / 100.0) * e_sat
-            # Specific humidity (kg/kg)
-            q = 0.622 * e / (P - 0.378 * e)
-            q.name = 'spechum'
-            ds['spechum'] = q
-
         # Apply standard CF-compliant attributes (uses centralized definitions)
-        # CERRA precipitation is in m/s after conversion
+        # CERRA precipitation is in kg m-2 s-1 (equiv to mm/s) after conversion
         ds = self.apply_standard_attributes(ds, overrides={
-            'pptrate': {'units': 'm s-1', 'standard_name': 'precipitation_rate'}
+            'pptrate': {'units': 'kg m-2 s-1', 'standard_name': 'precipitation_rate'}
         })
 
         # Add metadata via base helpers

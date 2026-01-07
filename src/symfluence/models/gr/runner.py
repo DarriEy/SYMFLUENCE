@@ -183,15 +183,28 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             # Determine simulation directory
             # If routing was used, metrics should come from mizuRoute output
             if self.needs_routing:
-                experiment_id = self.config_dict.get('EXPERIMENT_ID')
-                mizuroute_dir = self.project_dir / f"simulations/{experiment_id}/mizuRoute"
-                sim_dir = mizuroute_dir
+                # Priority 1: Check config for specific mizuRoute output path
+                mizu_output = self.config_dict.get('EXPERIMENT_OUTPUT_MIZUROUTE', 'default')
+                if mizu_output and mizu_output != 'default':
+                    sim_dir = Path(mizu_output)
+                else:
+                    # Priority 2: Check for mizuRoute subdirectory in current output
+                    sim_dir = self.output_path / 'mizuRoute'
+                    if not sim_dir.exists():
+                        # Priority 3: Use sibling to output_path (standard project structure)
+                        sim_dir = self.output_path.parent / 'mizuRoute'
+                    
+                if not sim_dir.exists():
+                    self.logger.warning(f"MizuRoute simulation directory not found: {sim_dir}")
+                    return
             else:
                 sim_dir = self.output_path
                 
             if not sim_dir.exists():
                 self.logger.warning(f"Simulation directory not found for metrics: {sim_dir}")
                 return
+
+            self.logger.debug(f"Using simulation directory for metrics: {sim_dir}")
 
             # Evaluate
             metrics = evaluator.evaluate(sim_dir)

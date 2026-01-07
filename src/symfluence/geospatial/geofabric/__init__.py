@@ -25,10 +25,12 @@ from .delineators.distributed_delineator import GeofabricDelineator
 from .delineators.subsetter import GeofabricSubsetter
 from .delineators.lumped_delineator import LumpedWatershedDelineator
 from .delineators.point_delineator import PointDelineator
+from .delineators.grid_delineator import GridDelineator
 
 __all__ = [
     'GeofabricDelineator',
     'GeofabricSubsetter',
     'LumpedWatershedDelineator',
     'PointDelineator',
+    'GridDelineator',
 ]

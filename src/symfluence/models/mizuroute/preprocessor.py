@@ -47,6 +47,13 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         if mizu_settings_path and mizu_settings_path != 'default':
             self.setup_dir = Path(mizu_settings_path)
             self.logger.debug(f"MizuRoutePreProcessor using custom setup_dir from SETTINGS_MIZU_PATH: {self.setup_dir}")
+        
+        # Ensure setup directory exists
+        if not self.setup_dir.exists():
+            self.logger.info(f"Creating mizuRoute setup directory: {self.setup_dir}")
+            self.setup_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            self.logger.debug(f"mizuRoute setup directory already exists: {self.setup_dir}")
 
 
     def run_preprocessing(self):
@@ -189,10 +196,13 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         else:
             experiment_output_gr = Path(experiment_output_gr)
 
-        if experiment_output_mizuroute == 'default':
+        if experiment_output_mizuroute == 'default' or not experiment_output_mizuroute:
             experiment_output_mizuroute = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'mizuRoute'
         else:
             experiment_output_mizuroute = Path(experiment_output_mizuroute)
+            
+        # Ensure output directory exists
+        experiment_output_mizuroute.mkdir(parents=True, exist_ok=True)
 
         cf.write("!\n! --- DEFINE DIRECTORIES \n")
         cf.write(f"<ancil_dir>             {self.setup_dir}/    ! Folder that contains ancillary data (river network, remapping netCDF) \n")
@@ -313,6 +323,12 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def create_network_topology_file(self):
         self.logger.info("Creating network topology file")
+
+        # Check for grid-based distribute mode
+        is_grid_distribute = self.config_dict.get('DOMAIN_DEFINITION_METHOD') == 'distribute'
+        if is_grid_distribute:
+            self._create_grid_topology_file()
+            return
 
         river_network_path = self.config_dict.get('RIVER_NETWORK_SHP_PATH')
         river_network_name = self.config_dict.get('RIVER_NETWORK_SHP_NAME')
@@ -753,6 +769,99 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         ncid.createDimension('seg', num_seg)
         ncid.createDimension('hru', num_hru)
 
+    def _create_grid_topology_file(self):
+        """
+        Create mizuRoute topology for grid-based distributed modeling.
+
+        Each grid cell becomes both an HRU and a segment. D8 flow direction
+        determines segment connectivity.
+        """
+        self.logger.info("Creating grid-based network topology for distributed mode")
+
+        # Load grid shapefile with D8 topology
+        grid_path = self.project_dir / 'shapefiles' / 'river_basins' / f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_distribute.shp"
+
+        if not grid_path.exists():
+            self.logger.error(f"Grid basins shapefile not found: {grid_path}")
+            raise FileNotFoundError(f"Grid basins not found: {grid_path}")
+
+        grid_gdf = gpd.read_file(grid_path)
+        num_cells = len(grid_gdf)
+
+        self.logger.info(f"Loaded {num_cells} grid cells from {grid_path}")
+
+        topology_name = self.config_dict.get('SETTINGS_MIZU_TOPOLOGY')
+
+        # Extract topology data from grid shapefile
+        seg_ids = grid_gdf['GRU_ID'].values.astype(int)
+
+        # Get downstream IDs from D8 topology
+        # Note: shapefile truncates column names to 10 chars, so downstream_id becomes downstream
+        if 'downstream_id' in grid_gdf.columns:
+            down_seg_ids = grid_gdf['downstream_id'].values.astype(int)
+        elif 'downstream' in grid_gdf.columns:
+            down_seg_ids = grid_gdf['downstream'].values.astype(int)
+        elif 'DSLINKNO' in grid_gdf.columns:
+            down_seg_ids = grid_gdf['DSLINKNO'].values.astype(int)
+        else:
+            self.logger.warning("No D8 topology found, setting all cells as outlets")
+            down_seg_ids = np.zeros(num_cells, dtype=int)
+
+        # Get slopes from grid
+        if 'slope' in grid_gdf.columns:
+            slopes = grid_gdf['slope'].values.astype(float)
+            # Ensure minimum slope
+            slopes = np.maximum(slopes, 0.001)
+        else:
+            self.logger.warning("No slope data found, using default 0.01")
+            slopes = np.full(num_cells, 0.01)
+
+        # Get cell size for segment length
+        grid_cell_size = self.config_dict.get('GRID_CELL_SIZE', 1000.0)
+        lengths = np.full(num_cells, float(grid_cell_size))
+
+        # HRU variables (each cell is also an HRU)
+        hru_ids = seg_ids.copy()
+        hru_to_seg_ids = seg_ids.copy()  # Each HRU drains to its own segment
+
+        # Get HRU areas
+        if 'GRU_area' in grid_gdf.columns:
+            hru_areas = grid_gdf['GRU_area'].values.astype(float)
+        else:
+            self.logger.warning("No area data found, using cell size squared")
+            hru_areas = np.full(num_cells, grid_cell_size ** 2)
+
+        # Create the netCDF topology file
+        with nc4.Dataset(self.setup_dir / topology_name, 'w', format='NETCDF4') as ncid:
+            self._set_topology_attributes(ncid)
+            self._create_topology_dimensions(ncid, num_cells, num_cells)
+
+            # Create segment variables
+            self._create_and_fill_nc_var(ncid, 'segId', 'int', 'seg', seg_ids,
+                                         'Unique ID of each grid cell segment', '-')
+            self._create_and_fill_nc_var(ncid, 'downSegId', 'int', 'seg', down_seg_ids,
+                                         'ID of downstream grid cell (0=outlet)', '-')
+            self._create_and_fill_nc_var(ncid, 'slope', 'f8', 'seg', slopes,
+                                         'Grid cell slope', '-')
+            self._create_and_fill_nc_var(ncid, 'length', 'f8', 'seg', lengths,
+                                         'Grid cell length (cell size)', 'm')
+
+            # Create HRU variables
+            self._create_and_fill_nc_var(ncid, 'hruId', 'int', 'hru', hru_ids,
+                                         'Unique HRU ID (=grid cell ID)', '-')
+            self._create_and_fill_nc_var(ncid, 'hruToSegId', 'int', 'hru', hru_to_seg_ids,
+                                         'Segment to which HRU drains (=cell ID)', '-')
+            self._create_and_fill_nc_var(ncid, 'area', 'f8', 'hru', hru_areas,
+                                         'HRU area', 'm^2')
+
+        # Count outlets for logging
+        n_outlets = np.sum(down_seg_ids == 0)
+        self.logger.info(f"Grid topology created: {num_cells} cells, {n_outlets} outlets")
+        self.logger.info(f"Topology file: {self.setup_dir / topology_name}")
+
+        # Set flag for control file - grid cells use GRU-level runoff
+        self.summa_uses_gru_runoff = True
+
     def create_fuse_control_file(self):
         """Create mizuRoute control file specifically for FUSE input"""
         self.logger.debug("Creating mizuRoute control file for FUSE")
@@ -779,10 +888,13 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         else:
             experiment_output_fuse = Path(experiment_output_fuse)
 
-        if experiment_output_mizuroute == 'default':
+        if experiment_output_mizuroute == 'default' or not experiment_output_mizuroute:
             experiment_output_mizuroute = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'mizuRoute'
         else:
             experiment_output_mizuroute = Path(experiment_output_mizuroute)
+            
+        # Ensure output directory exists
+        experiment_output_mizuroute.mkdir(parents=True, exist_ok=True)
 
         cf.write("!\n! --- DEFINE DIRECTORIES \n")
         cf.write(f"<ancil_dir>             {self.setup_dir}/    ! Folder that contains ancillary data (river network, remapping netCDF) \n")
@@ -822,6 +934,20 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         # Get simulation dates from config
         sim_start = self.config_dict.get('EXPERIMENT_TIME_START')
         sim_end = self.config_dict.get('EXPERIMENT_TIME_END')
+        
+        # Determine source model
+        from_model = self.config_dict.get('MIZU_FROM_MODEL', '').upper()
+        gr_routing = self.config_dict.get('GR_ROUTING_INTEGRATION', 'none').lower() == 'mizuroute'
+        
+        # Special handling for GR: force midnight alignment for daily data
+        if from_model == 'GR' or gr_routing:
+            if isinstance(sim_start, str):
+                # Replace any time part with 00:00
+                sim_start = sim_start.split(' ')[0] + " 00:00"
+            if isinstance(sim_end, str):
+                # Replace any time part with 00:00 (or keep as is if daily)
+                sim_end = sim_end.split(' ')[0] + " 00:00"
+            self.logger.debug(f"Forced GR simulation period to midnight: {sim_start} to {sim_end}")
         
         # Ensure dates are in proper format
         from datetime import datetime
@@ -898,17 +1024,20 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
 
     def _write_control_file_directories(self, cf):
         experiment_output_summa = self.config_dict.get('EXPERIMENT_OUTPUT_SUMMA')
-        experiment_output_mizuroute = self.config_dict.get('EXPERIMENT_OUTPUT_SUMMA')
+        experiment_output_mizuroute = self.config_dict.get('EXPERIMENT_OUTPUT_MIZUROUTE')
 
         if experiment_output_summa == 'default':
             experiment_output_summa = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'SUMMA'
         else:
             experiment_output_summa = Path(experiment_output_summa)
 
-        if experiment_output_mizuroute == 'default':
+        if experiment_output_mizuroute == 'default' or not experiment_output_mizuroute:
             experiment_output_mizuroute = self.project_dir / f"simulations/{self.config_dict.get('EXPERIMENT_ID')}" / 'mizuRoute'
         else:
             experiment_output_mizuroute = Path(experiment_output_mizuroute)
+            
+        # Ensure output directory exists
+        experiment_output_mizuroute.mkdir(parents=True, exist_ok=True)
 
         cf.write("!\n! --- DEFINE DIRECTORIES \n")
         cf.write(f"<ancil_dir>             {self.setup_dir}/    ! Folder that contains ancillary data (river network, remapping netCDF) \n")

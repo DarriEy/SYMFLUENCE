@@ -1063,6 +1063,33 @@ PATCHEOF
     echo "✅ getenvc.c patched successfully"
 fi
 
+# Patch Makefile to fix NetCDF C library linking
+# The issue: nf-config --flibs returns -L${NETCDF_FORTRAN}/lib -lnetcdff -lnetcdf
+# but libnetcdf.dylib is in /opt/homebrew/lib (NetCDF C library), not in NETCDF_FORTRAN/lib
+echo "Patching Makefile for NetCDF C library linking..."
+if [ -f "Makefile" ]; then
+    # Backup original Makefile
+    cp Makefile Makefile.backup
+
+    # Find NetCDF C library location
+    NETCDF_C_LIB=""
+    for try_lib in /opt/homebrew/lib /usr/local/lib /usr/lib; do
+        if [ -f "$try_lib/libnetcdf.dylib" ] || [ -f "$try_lib/libnetcdf.so" ] || [ -f "$try_lib/libnetcdf.a" ]; then
+            NETCDF_C_LIB="$try_lib"
+            echo "Found NetCDF C library at: $NETCDF_C_LIB"
+            break
+        fi
+    done
+
+    # Patch the Makefile to prepend NetCDF C library path
+    if [ -n "$NETCDF_C_LIB" ]; then
+        sed -i.bak "s|LIBNCL=\$(shell nf-config --flibs)|LIBNCL=-L${NETCDF_C_LIB} \$(shell nf-config --flibs)|" Makefile
+        echo "✅ Makefile patched to include NetCDF C library path: ${NETCDF_C_LIB}"
+    else
+        echo "⚠️  NetCDF C library not found, proceeding without patch"
+    fi
+fi
+
 # Determine if we should try MPI build
 BUILD_MPI=false
 if command -v mpifort >/dev/null 2>&1 || command -v mpif90 >/dev/null 2>&1; then

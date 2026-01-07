@@ -66,20 +66,22 @@ class ETEvaluator(ModelEvaluator):
         """Extract total ET from SUMMA output"""
         if 'scalarTotalET' in ds.variables:
             et_var = ds['scalarTotalET']
-            if len(et_var.shape) > 1:
-                if 'hru' in et_var.dims:
-                    if et_var.shape[et_var.dims.index('hru')] == 1:
-                        sim_data = et_var.isel(hru=0).to_pandas()
+            
+            # Collapse spatial dimensions
+            sim_xr = et_var
+            for dim in ['hru', 'gru']:
+                if dim in sim_xr.dims:
+                    if sim_xr.sizes[dim] == 1:
+                        sim_xr = sim_xr.isel({dim: 0})
                     else:
-                        sim_data = et_var.mean(dim='hru').to_pandas()
-                else:
-                    non_time_dims = [dim for dim in et_var.dims if dim != 'time']
-                    if non_time_dims:
-                        sim_data = et_var.isel({non_time_dims[0]: 0}).to_pandas()
-                    else:
-                        sim_data = et_var.to_pandas()
-            else:
-                sim_data = et_var.to_pandas()
+                        sim_xr = sim_xr.mean(dim=dim)
+            
+            # Handle any remaining non-time dimensions
+            non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
+            if non_time_dims:
+                sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
+            
+            sim_data = sim_xr.to_pandas()
             
             # Convert units: SUMMA outputs kg m-2 s-1, convert to mm/day
             sim_data = self._convert_et_units(sim_data, from_unit='kg_m2_s', to_unit='mm_day')
@@ -136,20 +138,22 @@ class ETEvaluator(ModelEvaluator):
         """Extract latent heat flux from SUMMA output"""
         if 'scalarLatHeatTotal' in ds.variables:
             lh_var = ds['scalarLatHeatTotal']
-            if len(lh_var.shape) > 1:
-                if 'hru' in lh_var.dims:
-                    if lh_var.shape[lh_var.dims.index('hru')] == 1:
-                        sim_data = lh_var.isel(hru=0).to_pandas()
+            
+            # Collapse spatial dimensions
+            sim_xr = lh_var
+            for dim in ['hru', 'gru']:
+                if dim in sim_xr.dims:
+                    if sim_xr.sizes[dim] == 1:
+                        sim_xr = sim_xr.isel({dim: 0})
                     else:
-                        sim_data = lh_var.mean(dim='hru').to_pandas()
-                else:
-                    non_time_dims = [dim for dim in lh_var.dims if dim != 'time']
-                    if non_time_dims:
-                        sim_data = lh_var.isel({non_time_dims[0]: 0}).to_pandas()
-                    else:
-                        sim_data = lh_var.to_pandas()
-            else:
-                sim_data = lh_var.to_pandas()
+                        sim_xr = sim_xr.mean(dim=dim)
+            
+            # Handle any remaining non-time dimensions
+            non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
+            if non_time_dims:
+                sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
+                
+            sim_data = sim_xr.to_pandas()
             return sim_data
         else:
             raise ValueError("scalarLatHeatTotal not found in SUMMA output")

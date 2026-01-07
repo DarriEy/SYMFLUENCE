@@ -22,23 +22,37 @@ class GRStreamflowEvaluator(StreamflowEvaluator):
     
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
         """Get GR output files (CSV for lumped, NetCDF for distributed)"""
-        # Lumped mode output
+        # PRIORITY 1: Check for mizuRoute output in sim_dir or its subdirectories
+        # (Needed when evaluating final optimization results)
+        mizu_files = list(sim_dir.glob("mizuRoute/*.nc"))
+        if not mizu_files:
+            mizu_files = list(sim_dir.glob("*.h.*.nc")) # Typical mizuRoute pattern
+        if not mizu_files:
+            mizu_files = list(sim_dir.glob("mizuRoute/**/*.nc")) # Recursive check
+        
+        if mizu_files:
+            self.logger.debug(f"Found {len(mizu_files)} mizuRoute files in {sim_dir}")
+            return mizu_files
+
+        # PRIORITY 2: Lumped mode output
         lumped_file = sim_dir / 'GR_results.csv'
         if lumped_file.exists():
             return [lumped_file]
             
-        # Distributed mode output
+        # PRIORITY 3: Distributed mode output (fallback if routing not used/found)
         experiment_id = self.config.get('EXPERIMENT_ID')
         dist_file = sim_dir / f"{self.domain_name}_{experiment_id}_runs_def.nc"
         if dist_file.exists():
+            self.logger.warning(f"No routed output found. Falling back to raw GR output: {dist_file}")
             return [dist_file]
             
-        # Fallback to generic NetCDF search if routing was used
+        # Fallback to generic NetCDF search
         return super().get_simulation_files(sim_dir)
     
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
         """Extract streamflow data from GR output files"""
         sim_file = sim_files[0]
+        self.logger.info(f"Extracting simulated streamflow from: {sim_file}")
         
         if sim_file.suffix == '.csv':
             return self._extract_lumped_gr_streamflow(sim_file)
@@ -129,7 +143,10 @@ class GRStreamflowEvaluator(StreamflowEvaluator):
             
             catchment_path = project_dir / 'shapefiles' / 'catchment'
             discretization = self.config.get('DOMAIN_DISCRETIZATION', 'elevation')
-            catchment_name = self.config.get('CATCHMENT_SHP_NAME', f"{domain_name}_HRUs_{discretization}.shp")
+            
+            catchment_name = self.config.get('CATCHMENT_SHP_NAME')
+            if not catchment_name or catchment_name == 'default':
+                catchment_name = f"{domain_name}_HRUs_{discretization}.shp"
             
             catchment_file = catchment_path / catchment_name
             if catchment_file.exists():
