@@ -66,7 +66,7 @@ class HYPEModelOptimizer(BaseModelOptimizer):
     def _create_calibration_target(self):
         """Create HYPE calibration target based on configuration."""
         from ..calibration_targets import (
-            StreamflowTarget, MultivariateTarget
+            HYPEStreamflowTarget, MultivariateTarget
         )
 
         target_type = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
@@ -74,7 +74,7 @@ class HYPEModelOptimizer(BaseModelOptimizer):
         if target_type == 'multivariate':
             return MultivariateTarget(self.config, self.project_dir, self.logger)
         else:
-            return StreamflowTarget(self.config, self.project_dir, self.logger)
+            return HYPEStreamflowTarget(self.config, self.project_dir, self.logger)
 
     def _create_worker(self) -> HYPEWorker:
         """Create HYPE worker."""
