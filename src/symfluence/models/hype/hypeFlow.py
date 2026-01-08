@@ -500,6 +500,23 @@ def write_hype_geo_files(gistool_output, subbasins_shapefile, rivers_shapefile, 
     if slc_cols:
         base_df[slc_cols] = base_df[slc_cols].div(base_df[slc_cols].sum(axis=1), axis=0).fillna(0)
     
+    # Shift IDs if they start from 0 (HYPE requires > 0 and HYPEForcingProcessor shifts forcing IDs)
+    if base_df['subid'].min() == 0:
+        print("Shifting subids +1 for HYPE compatibility (0-based to 1-based)")
+        # Get original IDs for checking connectivity
+        original_ids = set(base_df['subid'])
+        
+        # Shift subids
+        base_df['subid'] = base_df['subid'] + 1
+        
+        # Update maindown: map valid connections to shifted ID, set others (outlets) to 0
+        def update_downstream(val):
+            if val in original_ids:
+                return val + 1
+            return 0 # Outlet
+            
+        base_df['maindown'] = base_df['maindown'].apply(update_downstream)
+    
     # 10. Sort and save
     sorted_df = sort_geodata(base_df)
     sorted_df.to_csv(path_to_save+'GeoData.txt', sep='\t', index=False)
