@@ -177,8 +177,9 @@ class GRWorker(BaseWorker):
                     return {'kge': self.penalty_score}
                 
                 df_sim = pd.read_csv(sim_file, index_col='datetime', parse_dates=True)
-                # GR4J output is in mm/day. Convert to cms.
+                # GR4J output is in mm/day. Convert to cms (matching observation units).
                 area_km2 = self._get_catchment_area(config)
+                # Conversion: Q(cms) = Q(mm/day) * Area(km²) * 1000 / 86400 = Area(km²) / 86.4
                 simulated_streamflow = df_sim['q_sim'] * area_km2 / UnitConversion.MM_DAY_TO_CMS
             else:
                 # Distributed mode produces NetCDF
@@ -254,8 +255,9 @@ class GRWorker(BaseWorker):
                         
                     if routing_var in ds.variables:
                         var = ds[routing_var]
-                        outlet_runoff = var.isel(gru=-1)
-                        sim_data = outlet_runoff.to_pandas()
+                        # Consistent with evaluator: use mean across GRUs for depth-based runoff
+                        # instead of just the last GRU
+                        sim_data = var.mean(dim='gru').to_pandas()
                         
                         units = var.attrs.get('units', '').lower()
                         area_km2 = self._get_catchment_area(config)
@@ -296,7 +298,7 @@ class GRWorker(BaseWorker):
             project_dir = data_dir / f"domain_{domain_name}"
             
             obs_file = config.get('OBSERVATIONS_PATH', 'default')
-            if obs_file == 'default':
+            if obs_file == 'default' or not obs_file:
                 obs_file = project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{domain_name}_streamflow_processed.csv"
             else:
                 obs_file = Path(obs_file)
@@ -320,24 +322,41 @@ class GRWorker(BaseWorker):
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             project_dir = data_dir / f"domain_{domain_name}"
             
-            catchment_path = Path(config.get('CATCHMENT_PATH', project_dir / 'shapefiles' / 'catchment'))
+            # Robust path resolution handling 'default' values
+            c_path = config.get('CATCHMENT_PATH', 'default')
+            if c_path == 'default' or not c_path:
+                catchment_path = project_dir / 'shapefiles' / 'catchment'
+            else:
+                catchment_path = Path(c_path)
+                
             discretization = config.get('DOMAIN_DISCRETIZATION', 'elevation')
-            catchment_name = config.get('CATCHMENT_SHP_NAME', f"{domain_name}_HRUs_{discretization}.shp")
+            c_name = config.get('CATCHMENT_SHP_NAME', 'default')
+            if c_name == 'default' or not c_name:
+                catchment_name = f"{domain_name}_HRUs_{discretization}.shp"
+            else:
+                catchment_name = c_name
             
             catchment_file = catchment_path / catchment_name
             if not catchment_file.exists():
+                self.logger.warning(f"Catchment file not found: {catchment_file}. Using default area 1000 km2.")
                 return 1000.0 # Default fallback
                 
             gdf = gpd.read_file(catchment_file)
             if 'GRU_area' in gdf.columns:
-                return gdf['GRU_area'].sum() / 1e6
+                area_km2 = gdf['GRU_area'].sum() / 1e6
+                self.logger.debug(f"Catchment area from GRU_area: {area_km2:.2f} km2")
+                return area_km2
             
             if gdf.crs and not gdf.crs.is_geographic:
                 area = gdf.geometry.area.sum()
             else:
                 area = gdf.to_crs(gdf.estimate_utm_crs()).geometry.area.sum()
-            return area / 1e6
-        except Exception:
+            
+            area_km2 = area / 1e6
+            self.logger.debug(f"Catchment area calculated from geometry: {area_km2:.2f} km2")
+            return area_km2
+        except Exception as e:
+            self.logger.warning(f"Error calculating area: {e}. Using default 1000 km2.")
             return 1000.0
 
     @staticmethod
