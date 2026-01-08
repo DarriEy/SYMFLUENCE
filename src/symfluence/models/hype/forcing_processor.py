@@ -208,6 +208,19 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             out_units=out_u_p
         )
 
+    def _normalize_units(self, unit_str: str) -> str:
+        """Normalize unit strings for Pint compatibility."""
+        if not unit_str:
+            return unit_str
+        import re
+        norm = unit_str.strip()
+        # Handle 'X-N' -> 'X^-N' (e.g. m-2 -> m^-2)
+        norm = re.sub(r'([a-zA-Z_]\w*)-(\d+)', r'\1^-\2', norm)
+        # Standardize operators
+        norm = norm.replace('/', ' / ').replace('*', ' * ')
+        norm = ' '.join(norm.split())
+        return norm.replace('/ /', '/')
+
     def _convert_hourly_to_daily(
         self,
         input_file_name: Path,
@@ -248,15 +261,19 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             # Apply Unit Conversion
             if in_units and out_units and in_units != out_units:
                 try:
+                    # Normalize units first
+                    norm_in = self._normalize_units(in_units)
+                    norm_out = self._normalize_units(out_units)
+                    
                     # Deduce linear coefficients y = ax + b
                     val0 = 0.0
-                    q0 = ureg.Quantity(val0, in_units)
-                    res0 = q0.to(out_units).magnitude
+                    q0 = ureg.Quantity(val0, norm_in)
+                    res0 = q0.to(norm_out).magnitude
                     b = res0
                     
                     val1 = 100.0
-                    q1 = ureg.Quantity(val1, in_units)
-                    res1 = q1.to(out_units).magnitude
+                    q1 = ureg.Quantity(val1, norm_in)
+                    res1 = q1.to(norm_out).magnitude
                     a = (res1 - res0) / val1
                     
                     ds[variable_in] = ds[variable_in] * a + b

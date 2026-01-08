@@ -382,6 +382,7 @@ class VariableHandler:
         """
         Normalize unit strings to formats that Pint handles reliably.
         Example: 'mm hour-1' -> 'mm / hour'
+        Example: 'kg m-2 s-1' -> 'kg m^-2 s^-1'
         """
         if not unit_str:
             return unit_str
@@ -389,11 +390,12 @@ class VariableHandler:
         import re
         norm = unit_str.strip()
         
-        # Handle 'X-1' or 'X^-1' or 'X**-1' -> '/ X'
-        norm = re.sub(r'(\w+)(\*\*|-\^|-\^|-|\^)(-1)', r'/ \1', norm)
+        # Handle 'X-N' format (e.g. m-2, s-1) -> 'X^-N'
+        # This prevents Pint from interpreting '-' as subtraction
+        norm = re.sub(r'([a-zA-Z_]\w*)-(\d+)', r'\1^-\2', norm)
         
-        # Handle 'X-2' or 'X^-2' etc -> '/ X^2'
-        norm = re.sub(r'(\w+)(\*\*|-\^|-|\^)(-)(\d+)', r'/ \1^\4', norm)
+        # Handle 'X**-1' or 'X^-1' -> '/ X' (legacy support if needed, but ^-N covers it)
+        # We can keep specific cleanups if they help
         
         # Standardize spaces around operators
         norm = norm.replace('/', ' / ')
