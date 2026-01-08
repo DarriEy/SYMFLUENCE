@@ -130,9 +130,10 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
             catchment_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.config_dict.get('DOMAIN_NAME')}_catchment_delineated.shp"
             shp_catchments = gpd.read_file(catchment_path)
             weights = shp_catchments['avg_subbas'].values
-            gru_ids = shp_catchments['GRU_ID'].values.astype(int)
-        
         remap_name = self.config_dict.get('SETTINGS_MIZU_REMAP')
+        if not remap_name:
+            remap_name = "remap_file.nc"
+            self.logger.warning(f"SETTINGS_MIZU_REMAP not found in config, using default: {remap_name}")
         
         with nc4.Dataset(self.setup_dir / remap_name, 'w', format='NETCDF4') as ncid:
             # Set attributes
@@ -364,6 +365,9 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
             river_basin_path = Path(river_basin_path)        
 
         topology_name = self.config_dict.get('SETTINGS_MIZU_TOPOLOGY')
+        if not topology_name:
+            topology_name = "mizuRoute_topology.nc"
+            self.logger.warning(f"SETTINGS_MIZU_TOPOLOGY not found in config, using default: {topology_name}")
         
         # Load shapefiles
         shp_river = gpd.read_file(river_network_path / river_network_name)
@@ -616,6 +620,9 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         equal_weight = 1.0 / n_hrus  # Equal weight for each HRU
         
         remap_name = self.config_dict.get('SETTINGS_MIZU_REMAP')
+        if not remap_name:
+            remap_name = "remap_file.nc"
+            self.logger.warning(f"SETTINGS_MIZU_REMAP not found in config, using default: {remap_name}")
         
         with nc4.Dataset(self.setup_dir / remap_name, 'w', format='NETCDF4') as ncid:
             # Set attributes
@@ -675,6 +682,9 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
             intersect_path = Path(intersect_path)
 
         remap_name = self.config_dict.get('SETTINGS_MIZU_REMAP')
+        if not remap_name:
+            remap_name = "remap_file.nc"
+            self.logger.warning(f"SETTINGS_MIZU_REMAP not found in config, using default: {remap_name}")
         
         if hm_catchment_path == 'default':
             hm_catchment_path = self.project_dir / 'shapefiles/catchment' 
