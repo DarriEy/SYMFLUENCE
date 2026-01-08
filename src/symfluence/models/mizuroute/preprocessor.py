@@ -498,8 +498,9 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
             shp_river.loc[shp_river[slope_col] == 0, slope_col] = 0.001
         
         # Enforce outlets if specified
-        if self.config_dict.get('SETTINGS_MIZU_MAKE_OUTLET') != 'n/a':
-            river_outlet_ids = [int(id) for id in self.config_dict.get('SETTINGS_MIZU_MAKE_OUTLET').split(',')]
+        make_outlet = self.config_dict.get('SETTINGS_MIZU_MAKE_OUTLET')
+        if make_outlet and make_outlet != 'n/a':
+            river_outlet_ids = [int(id) for id in make_outlet.split(',')]
             seg_id_col = self.config_dict.get('RIVER_NETWORK_SHP_SEGID')
             downseg_id_col = self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID')
             
