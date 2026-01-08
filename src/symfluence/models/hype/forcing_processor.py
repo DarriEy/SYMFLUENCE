@@ -265,16 +265,27 @@ class HYPEForcingProcessor(BaseForcingProcessor):
                     norm_in = self._normalize_units(in_units)
                     norm_out = self._normalize_units(out_units)
                     
-                    # Deduce linear coefficients y = ax + b
-                    val0 = 0.0
-                    q0 = ureg.Quantity(val0, norm_in)
-                    res0 = q0.to(norm_out).magnitude
-                    b = res0
+                    # Special case for precipitation (mass flux -> depth rate)
+                    # 1 kg/m2/s = 86400 mm/day (assuming water density = 1000 kg/m3)
+                    is_precip_mass_to_depth = (
+                        ('kg' in norm_in and 'm^-2' in norm_in and 's^-1' in norm_in) and
+                        ('mm' in norm_out and 'day' in norm_out)
+                    )
                     
-                    val1 = 100.0
-                    q1 = ureg.Quantity(val1, norm_in)
-                    res1 = q1.to(norm_out).magnitude
-                    a = (res1 - res0) / val1
+                    if is_precip_mass_to_depth:
+                        a = 86400.0
+                        b = 0.0
+                    else:
+                        # Deduce linear coefficients y = ax + b using Pint
+                        val0 = 0.0
+                        q0 = ureg.Quantity(val0, norm_in)
+                        res0 = q0.to(norm_out).magnitude
+                        b = res0
+                        
+                        val1 = 100.0
+                        q1 = ureg.Quantity(val1, norm_in)
+                        res1 = q1.to(norm_out).magnitude
+                        a = (res1 - res0) / val1
                     
                     ds[variable_in] = ds[variable_in] * a + b
                     # self.logger.debug(f"Converted {variable_in} from {in_units} to {out_units} (a={a}, b={b})")
