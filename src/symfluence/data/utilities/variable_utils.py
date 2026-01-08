@@ -28,14 +28,14 @@ class VariableHandler:
             'pptrate': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
         },
         'CARRA': {
-            '2m_temperature': {'standard_name': 'air_temperature', 'units': 'K'},
-            'surface_pressure': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
-            '2m_specific_humidity': {'standard_name': 'specific_humidity', 'units': '1'},
-            '10m_u_component_of_wind': {'standard_name': 'eastward_wind', 'units': 'm/s'},
-            '10m_v_component_of_wind': {'standard_name': 'northward_wind', 'units': 'm/s'},
-            'thermal_surface_radiation_downwards': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
-            'surface_net_solar_radiation': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
-            'total_precipitation': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
+            'airtemp': {'standard_name': 'air_temperature', 'units': 'K'},
+            'airpres': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
+            'spechum': {'standard_name': 'specific_humidity', 'units': '1'},
+            'windspd_u': {'standard_name': 'eastward_wind', 'units': 'm/s'},
+            'windspd_v': {'standard_name': 'northward_wind', 'units': 'm/s'},
+            'LWRadAtm': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
+            'SWRadAtm': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
+            'pptrate': {'standard_name': 'precipitation_flux', 'units': 'kg m-2 s-1'}
         },
         'RDRS': {
             'RDRS_v2.1_P_TT_1.5m': {'standard_name': 'air_temperature', 'units': 'K'},
@@ -142,6 +142,56 @@ class VariableHandler:
             'pr': {'standard_name': 'precipitation_flux', 'units': 'mm/day'},
             'tmax': {'standard_name': 'air_temperature_max', 'units': 'degC'},
             'tmin': {'standard_name': 'air_temperature_min', 'units': 'degC'}
+        },
+        'CERRA': {
+            'airtemp': {'standard_name': 'air_temperature', 'units': 'K'},
+            'airpres': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
+            'relhum': {'standard_name': 'relative_humidity', 'units': '%'},
+            'spechum': {'standard_name': 'specific_humidity', 'units': '1'},
+            'windspd_u': {'standard_name': 'eastward_wind', 'units': 'm/s'},
+            'windspd_v': {'standard_name': 'northward_wind', 'units': 'm/s'},
+            'SWRadAtm': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
+            'LWRadAtm': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
+            'pptrate': {'standard_name': 'precipitation_flux', 'units': 'kg m-2 s-1'}
+        },
+        'AORC': {
+            'APCP_surface': {'standard_name': 'precipitation_flux', 'units': 'kg m-2 s-1'},
+            'TMP_2maboveground': {'standard_name': 'air_temperature', 'units': 'K'},
+            'SPFH_2maboveground': {'standard_name': 'specific_humidity', 'units': '1'},
+            'PRES_surface': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
+            'DLWRF_surface': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
+            'DSWRF_surface': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
+            'UGRD_10maboveground': {'standard_name': 'eastward_wind', 'units': 'm/s'},
+            'VGRD_10maboveground': {'standard_name': 'northward_wind', 'units': 'm/s'}
+        },
+        'CONUS404': {
+            'T2': {'standard_name': 'air_temperature', 'units': 'K'},
+            'Q2': {'standard_name': 'specific_humidity', 'units': '1'},
+            'PSFC': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
+            'U10': {'standard_name': 'eastward_wind', 'units': 'm/s'},
+            'V10': {'standard_name': 'northward_wind', 'units': 'm/s'},
+            'GLW': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
+            'SWDOWN': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
+            'RAINRATE': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
+        },
+        'HRRR': {
+            'TMP': {'standard_name': 'air_temperature', 'units': 'K'},
+            'SPFH': {'standard_name': 'specific_humidity', 'units': '1'},
+            'PRES': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
+            'DLWRF': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
+            'DSWRF': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
+            'UGRD': {'standard_name': 'eastward_wind', 'units': 'm/s'},
+            'VGRD': {'standard_name': 'northward_wind', 'units': 'm/s'},
+            'APCP': {'standard_name': 'precipitation_flux', 'units': 'kg m-2 s-1'}
+        },
+        'NEX-GDDP-CMIP6': {
+            'pr': {'standard_name': 'precipitation_flux', 'units': 'kg m-2 s-1'},
+            'tas': {'standard_name': 'air_temperature', 'units': 'K'},
+            'huss': {'standard_name': 'specific_humidity', 'units': '1'},
+            'ps': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
+            'rlds': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
+            'rsds': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
+            'sfcWind': {'standard_name': 'wind_speed', 'units': 'm/s'}
         }
 
     }
@@ -170,6 +220,24 @@ class VariableHandler:
             'pr': {'standard_name': 'precipitation_flux', 'units': 'mm/day'}
         },
         'MESH': {
+            'airtemp': {'standard_name': 'air_temperature', 'units': 'K'},
+            'airpres': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
+            'spechum': {'standard_name': 'specific_humidity', 'units': '1'},
+            'windspd': {'standard_name': 'wind_speed', 'units': 'm/s'},
+            'LWRadAtm': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
+            'SWRadAtm': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
+            'pptrate': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
+        },
+        'NGEN': {
+            'airtemp': {'standard_name': 'air_temperature', 'units': 'K'},
+            'airpres': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
+            'spechum': {'standard_name': 'specific_humidity', 'units': '1'},
+            'windspd': {'standard_name': 'wind_speed', 'units': 'm/s'},
+            'LWRadAtm': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
+            'SWRadAtm': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
+            'pptrate': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
+        },
+        'LSTM': {
             'airtemp': {'standard_name': 'air_temperature', 'units': 'K'},
             'airpres': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
             'spechum': {'standard_name': 'specific_humidity', 'units': '1'},
