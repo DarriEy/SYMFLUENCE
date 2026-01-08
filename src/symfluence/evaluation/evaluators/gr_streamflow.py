@@ -19,7 +19,29 @@ from symfluence.core.constants import UnitConversion
 @EvaluationRegistry.register('GR_STREAMFLOW')
 class GRStreamflowEvaluator(StreamflowEvaluator):
     """Streamflow evaluator for GR models"""
-    
+
+    def _load_observed_data(self) -> Optional[pd.Series]:
+        """
+        Load observed data and resample to daily frequency (matching GR output).
+        GR outputs daily values, so observations must be aggregated to daily for proper comparison.
+        """
+        try:
+            obs_path = self.get_observed_data_path()
+            obs_series = self._load_observed_data_from_path(obs_path)
+
+            if obs_series is not None:
+                # Resample to daily frequency (mean) to match GR output frequency
+                # This matches the behavior in gr_worker._get_observed_streamflow() line 310
+                obs_daily = obs_series.resample('D').mean()
+                self.logger.info(f"Resampled observations from {len(obs_series)} to {len(obs_daily)} daily values")
+                return obs_daily
+
+            return obs_series
+
+        except Exception as e:
+            self.logger.error(f"Error loading observed data: {str(e)}")
+            return None
+
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
         """Get GR output files (CSV for lumped, NetCDF for distributed)"""
         # PRIORITY 1: Check for mizuRoute output in sim_dir or its subdirectories
@@ -141,12 +163,20 @@ class GRStreamflowEvaluator(StreamflowEvaluator):
             domain_name = self.config.get('DOMAIN_NAME')
             project_dir = self.project_dir
             
-            catchment_path = project_dir / 'shapefiles' / 'catchment'
+            # Robust path resolution handling 'default' values
+            c_path = self.config.get('CATCHMENT_PATH', 'default')
+            if c_path == 'default' or not c_path:
+                catchment_path = project_dir / 'shapefiles' / 'catchment'
+            else:
+                catchment_path = Path(c_path)
+                
             discretization = self.config.get('DOMAIN_DISCRETIZATION', 'elevation')
             
-            catchment_name = self.config.get('CATCHMENT_SHP_NAME')
-            if not catchment_name or catchment_name == 'default':
+            c_name = self.config.get('CATCHMENT_SHP_NAME', 'default')
+            if not c_name or c_name == 'default':
                 catchment_name = f"{domain_name}_HRUs_{discretization}.shp"
+            else:
+                catchment_name = c_name
             
             catchment_file = catchment_path / catchment_name
             if catchment_file.exists():
@@ -154,6 +184,7 @@ class GRStreamflowEvaluator(StreamflowEvaluator):
                 if 'GRU_area' in gdf.columns:
                     area_m2 = gdf['GRU_area'].sum()
                     if 0 < area_m2 < 1e12:
+                        self.logger.debug(f"Catchment area from GRU_area: {area_m2:.2f} m2")
                         return float(area_m2)
                 
                 # Fallback: calculate from geometry
@@ -162,9 +193,15 @@ class GRStreamflowEvaluator(StreamflowEvaluator):
                 else:
                     gdf_utm = gdf.to_crs(gdf.estimate_utm_crs())
                     area_m2 = gdf_utm.geometry.area.sum()
+                
+                self.logger.debug(f"Catchment area calculated from geometry: {area_m2:.2f} m2")
                 return float(area_m2)
+            else:
+                self.logger.warning(f"Catchment file not found: {catchment_file}")
         except Exception as e:
             self.logger.debug(f"Error calculating area from shapefile: {e}")
 
         # Fallback to base logic
-        return super()._get_catchment_area()
+        area_m2 = super()._get_catchment_area()
+        self.logger.debug(f"Catchment area from base fallback: {area_m2:.2f} m2")
+        return area_m2
