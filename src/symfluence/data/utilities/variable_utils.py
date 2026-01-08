@@ -430,19 +430,18 @@ class VariableHandler:
         try:
             # Special case for precipitation flux conversions (very common source of errors)
             # Check for various formats including normalized 'kg m^-2 s^-1'
+            # Note: normalized strings have spaces around operators like ' / '
             is_mass_flux = ('kg/m2/s' in from_units or 
                            'kilogram / meter ** 2 / second' in from_units or 
                            'kg m^-2 s^-1' in from_units)
             
-            if is_mass_flux and 'mm/day' in to_units:
+            is_mm_day = ('mm/day' in to_units or 'mm / day' in to_units)
+            
+            if is_mass_flux and is_mm_day:
                 # 1 kg/m² = 1 mm of water
                 # Convert kg/m²/s to mm/s, then to mm/day
                 converted = data * 86400  # multiply by seconds per day
                 return converted
-            
-            # Additional manual check for common precipitation variants if pint might fail
-            if 'mm' in from_units.lower() and 'hour' in from_units.lower() and 'mm' in to_units.lower() and 'day' in to_units.lower():
-                return data * 24.0
 
             # Regular unit conversion
             try:
@@ -467,6 +466,9 @@ class VariableHandler:
                 # Precipitation: mm/s to mm/day
                 if 'mm' in f_low and 's' in f_low and 'mm' in t_low and 'day' in t_low:
                     return data * 86400.0
+                # Precipitation: kg m-2 s-1 to mm/day (catch-all for mass flux)
+                if ('kg' in f_low and 'm' in f_low and 's' in f_low) and ('mm' in t_low and 'day' in t_low):
+                     return data * 86400.0
                 
                 raise pe
         except Exception as e:
