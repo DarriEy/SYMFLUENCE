@@ -232,35 +232,75 @@ class ModelManager(ConfigurableMixin):
 
                 
 
-                if routing_model == 'default':
-
-                    routing_model = 'mizuRoute'
+                                if routing_model == 'default':
 
                 
 
-                needs_mizuroute = False
-
-                if routing_model == 'mizuRoute':
-
-                    needs_mizuroute = True
-
-                elif hype_spatial in ['semi_distributed', 'distributed']:
-
-                    needs_mizuroute = True
-
-                elif domain_method not in ['point', 'lumped']:
-
-                    needs_mizuroute = True
-
-                elif domain_method == 'lumped' and routing_delineation == 'river_network':
-
-                    needs_mizuroute = True
+                                    routing_model = 'mizuRoute'
 
                 
 
-                if needs_mizuroute:
+                                
 
-                    self._ensure_mizuroute_in_workflow(execution_list, source_model='HYPE')
+                
+
+                                needs_mizuroute = False
+
+                
+
+                                
+
+                
+
+                                # Only enable mizuRoute if explicitly requested OR if implied by spatial mode AND not explicitly disabled
+
+                
+
+                                if routing_model == 'mizuRoute':
+
+                
+
+                                    needs_mizuroute = True
+
+                
+
+                                elif routing_model != 'none': # If routing is not disabled, check other conditions
+
+                
+
+                                    if hype_spatial in ['semi_distributed', 'distributed']:
+
+                
+
+                                        needs_mizuroute = True
+
+                
+
+                                    elif domain_method not in ['point', 'lumped']:
+
+                
+
+                                        needs_mizuroute = True
+
+                
+
+                                    elif domain_method == 'lumped' and routing_delineation == 'river_network':
+
+                
+
+                                        needs_mizuroute = True
+
+                
+
+                                
+
+                
+
+                                if needs_mizuroute:
+
+                
+
+                                    self._ensure_mizuroute_in_workflow(execution_list, source_model='HYPE')
 
         
 
