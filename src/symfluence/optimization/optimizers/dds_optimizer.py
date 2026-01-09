@@ -136,15 +136,20 @@ class DDSOptimizer(BaseOptimizer):
     def _prepare_dds_worker_data(self, task: Dict) -> Dict:
         """Prepare data for DDS instance worker"""
         proc_dirs = self.parallel_dirs[task['proc_id']] if hasattr(self, 'parallel_dirs') and task['proc_id'] < len(self.parallel_dirs) else {}
+        # When parallel_dirs is empty (MPI_PROCESSES=1), use output_dir as the SUMMA output location
+        # This ensures the metrics calculation looks for files where SUMMA actually writes them
+        fallback_summa_dir = self.output_dir
+        fallback_mizuroute_dir = self.output_dir / "mizuRoute"
+        summa_fm_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
         return {
             'dds_task': task, 'config': self.config, 'target_metric': self.target_metric,
             'param_bounds': self.parameter_manager.param_bounds, 'all_param_names': self.parameter_manager.all_param_names,
             'summa_exe': str(self._get_summa_exe_path()),
-            'summa_dir': str(proc_dirs.get('summa_dir', self.summa_sim_dir)),
-            'mizuroute_dir': str(proc_dirs.get('mizuroute_dir', self.mizuroute_sim_dir)),
+            'summa_dir': str(proc_dirs.get('summa_dir', fallback_summa_dir)),
+            'mizuroute_dir': str(proc_dirs.get('mizuroute_dir', fallback_mizuroute_dir)),
             'summa_settings_dir': str(proc_dirs.get('summa_settings_dir', self.optimization_settings_dir)),
             'mizuroute_settings_dir': str(proc_dirs.get('mizuroute_settings_dir', self.optimization_dir / "settings" / "mizuRoute")),
-            'file_manager': str(proc_dirs.get('summa_settings_dir', self.optimization_settings_dir) / 'fileManager.txt')
+            'file_manager': str(proc_dirs.get('summa_settings_dir', self.optimization_settings_dir) / summa_fm_name)
         }
 
     def _record_generation(self, generation: int) -> None:
