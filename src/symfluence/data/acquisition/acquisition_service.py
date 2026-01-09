@@ -114,7 +114,17 @@ class AcquisitionService:
                         raise
                 else:
                     self.logger.info("Skipping land cover acquisition (DOWNLOAD_LAND_COVER is False)")
-                
+
+                # Glacier data acquisition (optional)
+                if self.config.get('DOWNLOAD_GLACIER_DATA', False):
+                    self.logger.info("Acquiring glacier data from RGI")
+                    try:
+                        glacier_file = downloader.download_glacier_data()
+                        self.logger.info(f"✓ Glacier data acquired: {glacier_file}")
+                    except Exception as e_glacier:
+                        self.logger.warning(f"Glacier data acquisition failed: {e_glacier}")
+                        # Don't raise - glacier data is optional
+
             except Exception as e:
                 self.logger.error(f"Error during cloud attribute acquisition: {str(e)}")
                 import traceback
