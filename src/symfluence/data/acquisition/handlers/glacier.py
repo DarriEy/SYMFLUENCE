@@ -68,8 +68,13 @@ RGI_REGIONS = {
     20: {"name": "Subantarctic and Antarctic Islands", "bbox": (-60.0, -180.0, -45.0, 180.0)},
 }
 
-# NSIDC RGI 7.0 download URLs (GeoPackage format)
+# NSIDC RGI 7.0 download URLs (requires EarthData authentication)
+# Note: NSIDC requires authentication, so we primarily use GLIMS WFS as fallback
 RGI_BASE_URL = "https://daacdata.apps.nsidc.org/pub/DATASETS/nsidc0770_rgi_v7/regional_files/RGI2000-v7.0-G/"
+
+# GLIMS WFS configuration
+GLIMS_WFS_URL = "https://www.glims.org/geoserver/GLIMS/wfs"
+GLIMS_WFS_TIMEOUT = 300  # Increased timeout for slow server
 
 
 @AcquisitionRegistry.register('GLACIER')
@@ -135,6 +140,13 @@ class GlacierAcquirer(BaseAcquisitionHandler):
         rgi_gdf = self._download_rgi_regions(regions, glacier_dir)
         if rgi_gdf is None or len(rgi_gdf) == 0:
             self.logger.warning("No glaciers found in domain bounding box")
+            self.logger.info(
+                "To manually add glacier data:\n"
+                "  1. Download RGI 7.0 from https://nsidc.org/data/nsidc-0770 (requires EarthData login)\n"
+                "  2. Or use GLIMS data from https://www.glims.org/maps/glims\n"
+                f"  3. Place glacier shapefiles in: {glacier_dir}\n"
+                "  4. Run the preprocessing step again"
+            )
             return glacier_dir
 
         self.logger.info(f"Found {len(rgi_gdf)} glaciers in domain")
@@ -203,37 +215,53 @@ class GlacierAcquirer(BaseAcquisitionHandler):
         """Download RGI data for a single region."""
         import pandas as pd
 
-        # RGI 7.0 file naming: RGI2000-v7.0-G-01_alaska.gpkg
-        region_name = RGI_REGIONS[region_id]['name'].lower().replace(' ', '_').replace('and_', '')
-        filename = f"RGI2000-v7.0-G-{region_id:02d}_{region_name}.gpkg"
+        # RGI 7.0 file naming: RGI2000-v7.0-G-01_alaska.zip (shapefile format)
+        region_name = RGI_REGIONS[region_id]['name'].lower().replace(' ', '_').replace(' and ', '_')
+        # Clean up region names to match actual file names
+        region_name = region_name.replace('western_canada_usa', 'western_canada_and_usa')
+        region_name = region_name.replace('arctic_canada_north', 'arctic_canada_north')
+        region_name = region_name.replace('arctic_canada_south', 'arctic_canada_south')
 
-        cached_file = cache_dir / filename
+        filename = f"RGI2000-v7.0-G-{region_id:02d}_{region_name}.zip"
+
+        cached_file = cache_dir / filename.replace('.zip', '.shp')
 
         if cached_file.exists() and not self.config.get('FORCE_DOWNLOAD', False):
             self.logger.debug(f"Using cached RGI data: {cached_file}")
             return gpd.read_file(cached_file)
 
-        # Try to download from NSIDC
+        # Try to download from NSIDC (requires EarthData auth)
         url = f"{RGI_BASE_URL}{filename}"
         self.logger.info(f"Downloading RGI region {region_id} from {url}")
 
         try:
             response = self.session.get(url, timeout=300, stream=True)
 
-            if response.status_code == 401:
+            if response.status_code in [401, 302]:
                 # NSIDC requires authentication - try alternative sources
                 self.logger.warning("NSIDC requires authentication, trying alternative source")
                 return self._download_from_alternative(region_id, cache_dir)
 
             response.raise_for_status()
 
-            # Write to cache
-            with open(cached_file, 'wb') as f:
+            # Download zip file
+            zip_path = cache_dir / filename
+            with open(zip_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=65536):
                     if chunk:
                         f.write(chunk)
 
-            return gpd.read_file(cached_file)
+            # Extract shapefile from zip
+            import zipfile
+            with zipfile.ZipFile(zip_path, 'r') as zf:
+                zf.extractall(cache_dir)
+
+            # Find the extracted shapefile
+            for shp_file in cache_dir.glob(f"RGI2000-v7.0-G-{region_id:02d}*.shp"):
+                return gpd.read_file(shp_file)
+
+            self.logger.warning(f"No shapefile found in {zip_path}")
+            return self._download_from_alternative(region_id, cache_dir)
 
         except Exception as e:
             self.logger.warning(f"Failed to download from NSIDC: {e}")
@@ -245,15 +273,23 @@ class GlacierAcquirer(BaseAcquisitionHandler):
 
         Falls back to GLIMS WFS service or pre-downloaded local files.
         """
-        # Check for local RGI data
+        # Check for local RGI data in cache dir first
+        for pattern in [f"*{region_id:02d}*.shp", f"*{region_id:02d}*.gpkg"]:
+            for local_file in cache_dir.glob(pattern):
+                self.logger.info(f"Using cached RGI file: {local_file}")
+                return gpd.read_file(local_file)
+
+        # Check for local RGI data in config-specified directory
         local_rgi_dir = Path(self.config.get('RGI_LOCAL_DIR', ''))
         if local_rgi_dir.exists():
-            for gpkg_file in local_rgi_dir.glob(f"*{region_id:02d}*.gpkg"):
-                self.logger.info(f"Using local RGI file: {gpkg_file}")
-                return gpd.read_file(gpkg_file)
+            for pattern in [f"*{region_id:02d}*.shp", f"*{region_id:02d}*.gpkg"]:
+                for local_file in local_rgi_dir.glob(pattern):
+                    self.logger.info(f"Using local RGI file: {local_file}")
+                    return gpd.read_file(local_file)
 
         # Try GLIMS WFS service (limited but public)
         try:
+            self.logger.info("Attempting GLIMS WFS download (may take several minutes)...")
             return self._download_from_glims_wfs()
         except Exception as e:
             self.logger.warning(f"GLIMS WFS failed: {e}")
@@ -262,9 +298,6 @@ class GlacierAcquirer(BaseAcquisitionHandler):
 
     def _download_from_glims_wfs(self) -> Optional[gpd.GeoDataFrame]:
         """Download glacier outlines from GLIMS WFS service."""
-        # GLIMS WFS endpoint
-        wfs_url = "https://www.glims.org/geoserver/GLIMS/wfs"
-
         params = {
             'service': 'WFS',
             'version': '2.0.0',
@@ -275,16 +308,29 @@ class GlacierAcquirer(BaseAcquisitionHandler):
         }
 
         self.logger.info("Downloading glacier data from GLIMS WFS")
-        response = self.session.get(wfs_url, params=params, timeout=120)
-        response.raise_for_status()
+        self.logger.info(f"GLIMS WFS bbox: {params['bbox']}")
 
-        import json
-        geojson_data = response.json()
+        try:
+            response = self.session.get(
+                GLIMS_WFS_URL,
+                params=params,
+                timeout=GLIMS_WFS_TIMEOUT
+            )
+            response.raise_for_status()
 
-        if not geojson_data.get('features'):
+            import json
+            geojson_data = response.json()
+
+            if not geojson_data.get('features'):
+                self.logger.warning("No glaciers found in GLIMS WFS response")
+                return None
+
+            self.logger.info(f"Found {len(geojson_data['features'])} glaciers from GLIMS")
+            return gpd.GeoDataFrame.from_features(geojson_data['features'], crs='EPSG:4326')
+
+        except Exception as e:
+            self.logger.warning(f"GLIMS WFS request failed: {e}")
             return None
-
-        return gpd.GeoDataFrame.from_features(geojson_data['features'], crs='EPSG:4326')
 
     def _create_glacier_rasters(self, rgi_gdf: gpd.GeoDataFrame, glacier_dir: Path):
         """Create glacier rasters from RGI data."""
