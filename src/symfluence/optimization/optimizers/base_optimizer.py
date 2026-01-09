@@ -21,7 +21,7 @@ from symfluence.optimization.core.results_manager import ResultsManager
 from symfluence.optimization.local_scratch_manager import LocalScratchManager
 from symfluence.optimization.core import TransformationManager
 from symfluence.optimization.calibration_targets import (
-    ETTarget, SnowTarget, GroundwaterTarget, SoilMoistureTarget, StreamflowTarget, CalibrationTarget
+    ETTarget, SnowTarget, GroundwaterTarget, SoilMoistureTarget, StreamflowTarget, CalibrationTarget, TWSTarget
 )
 from symfluence.optimization.workers.summa_parallel_workers import _evaluate_parameters_worker_safe, _run_dds_instance_worker
 
@@ -156,39 +156,81 @@ class BaseOptimizer(ABC):
     def _copy_settings_files(self) -> None:
         """Copy necessary settings files to optimization directory"""
         source_settings_dir = self.project_dir / "settings" / "SUMMA"
-        
+
         if not source_settings_dir.exists():
             raise FileNotFoundError(f"Source settings directory not found: {source_settings_dir}")
-        
+
+        # Determine if glacier mode is enabled based on file manager name
+        summa_fm = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        glacier_mode = 'glac' in summa_fm.lower()
+
         required_files = [
-            'fileManager.txt', 'modelDecisions.txt', 'outputControl.txt',
+            'modelDecisions.txt', 'outputControl.txt',
             'localParamInfo.txt', 'basinParamInfo.txt',
-            'attributes.nc','coldState.nc'
         ]
-        
+
+        # Add appropriate file manager
+        if summa_fm and summa_fm != 'default':
+            required_files.append(summa_fm)
+        else:
+            required_files.append('fileManager.txt')
+
+        # Add attributes and coldState files based on glacier mode
+        if glacier_mode:
+            # Glacier mode: prefer glacier-specific files, fallback to standard
+            attr_files = ['attributes_glac.nc', 'attributes.nc']
+            cold_files = ['coldState_glac.nc', 'coldState.nc']
+        else:
+            attr_files = ['attributes.nc']
+            cold_files = ['coldState.nc']
+
         optional_files = [
             'TBL_GENPARM.TBL', 'TBL_MPTABLE.TBL', 'TBL_SOILPARM.TBL', 'TBL_VEGPARM.TBL',
-            'trialParams.nc', 'forcingFileList.txt'
+            'trialParams.nc', 'forcingFileList.txt',
+            # Glacier-specific optional files
+            'attributes_glacBedTopo.nc', 'coldState_glacSurfTopo.nc',
         ]
-        
+
         for file_name in required_files:
             source_path = source_settings_dir / file_name
             dest_path = self.optimization_settings_dir / file_name
-            
+
             if source_path.exists():
                 shutil.copy2(source_path, dest_path)
                 self.logger.debug(f"Copied required file: {file_name}")
             else:
-                # If coldState.nc is missing, it might be okay depending on config
-                if file_name == 'coldState.nc':
-                    self.logger.warning(f"coldState.nc not found, depth calibration may fail if enabled.")
-                    continue
                 raise FileNotFoundError(f"Required SUMMA settings file not found: {source_path}")
-        
+
+        # Copy attributes files (glacier mode tries glacier files first)
+        attr_copied = False
+        for attr_file in attr_files:
+            source_path = source_settings_dir / attr_file
+            if source_path.exists():
+                dest_path = self.optimization_settings_dir / attr_file
+                shutil.copy2(source_path, dest_path)
+                self.logger.debug(f"Copied attributes file: {attr_file}")
+                attr_copied = True
+                break
+        if not attr_copied:
+            raise FileNotFoundError(f"No attributes file found in {source_settings_dir}")
+
+        # Copy coldState files (glacier mode tries glacier files first)
+        cold_copied = False
+        for cold_file in cold_files:
+            source_path = source_settings_dir / cold_file
+            if source_path.exists():
+                dest_path = self.optimization_settings_dir / cold_file
+                shutil.copy2(source_path, dest_path)
+                self.logger.debug(f"Copied coldState file: {cold_file}")
+                cold_copied = True
+                break
+        if not cold_copied:
+            self.logger.warning("coldState.nc not found, depth calibration may fail if enabled.")
+
         for file_name in optional_files:
             source_path = source_settings_dir / file_name
             dest_path = self.optimization_settings_dir / file_name
-            
+
             if source_path.exists():
                 shutil.copy2(source_path, dest_path)
                 self.logger.debug(f"Copied optional file: {file_name}")
@@ -207,8 +249,12 @@ class BaseOptimizer(ABC):
 
     def _update_optimization_file_managers(self) -> None:
         """Update file managers for optimization runs"""
-        # Update SUMMA file manager
-        file_manager_path = self.optimization_settings_dir / 'fileManager.txt'
+        # Update SUMMA file manager - use config name if specified
+        summa_fm_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        file_manager_path = self.optimization_settings_dir / summa_fm_name
+        if not file_manager_path.exists():
+            # Fallback to default
+            file_manager_path = self.optimization_settings_dir / 'fileManager.txt'
         if file_manager_path.exists():
             self._update_summa_file_manager(file_manager_path)
         
@@ -216,7 +262,44 @@ class BaseOptimizer(ABC):
         mizu_control_path = self.optimization_dir / "settings" / "mizuRoute" / "mizuroute.control"
         if mizu_control_path.exists():
             self._update_mizuroute_control_file(mizu_control_path)
-    
+
+    def _adjust_end_time_for_forcing(self, end_time_str: str) -> str:
+        """
+        Adjust end time to align with forcing data timestep.
+        For sub-daily forcing (e.g., 3-hourly CERRA), ensures end time is a valid timestep.
+
+        Args:
+            end_time_str: End time string (e.g., '2019-12-31 23:00')
+
+        Returns:
+            Adjusted end time string aligned with forcing timestep
+        """
+        try:
+            forcing_timestep_seconds = self.config.get('FORCING_TIME_STEP_SIZE', 3600)
+
+            if forcing_timestep_seconds >= 3600:  # Hourly or coarser
+                # Parse the end time
+                end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M')
+
+                # Calculate the last valid hour based on timestep
+                forcing_timestep_hours = forcing_timestep_seconds / 3600
+                last_hour = int(24 - (24 % forcing_timestep_hours)) - forcing_timestep_hours
+                if last_hour < 0:
+                    last_hour = 0
+
+                # Adjust if needed
+                if end_time.hour > last_hour or (end_time.hour == 23 and last_hour < 23):
+                    end_time = end_time.replace(hour=int(last_hour), minute=0)
+                    adjusted_str = end_time.strftime('%Y-%m-%d %H:%M')
+                    self.logger.info(f"Adjusted end time from {end_time_str} to {adjusted_str} for {forcing_timestep_hours}h forcing")
+                    return adjusted_str
+
+            return end_time_str
+
+        except Exception as e:
+            self.logger.warning(f"Could not adjust end time: {e}")
+            return end_time_str
+
     def _update_summa_file_manager(self, file_manager_path: Path, use_calibration_period: bool = True) -> None:
         """Update SUMMA file manager with spinup + calibration period"""
         with open(file_manager_path, 'r') as f:
@@ -233,11 +316,23 @@ class BaseOptimizer(ABC):
                     
                     if len(spinup_dates) >= 2 and len(cal_dates) >= 2:
                         spinup_start = datetime.strptime(spinup_dates[0], '%Y-%m-%d').replace(hour=1, minute=0)
-                        cal_end = datetime.strptime(cal_dates[1], '%Y-%m-%d').replace(hour=23, minute=0)
-                        
+
+                        # Adjust end time based on forcing timestep
+                        # For sub-daily forcing, we need to align with available timesteps
+                        forcing_timestep_seconds = self.config.get('FORCING_TIME_STEP_SIZE', 3600)
+                        if forcing_timestep_seconds >= 3600:  # Hourly or coarser
+                            # Calculate the last valid hour of the day
+                            forcing_timestep_hours = forcing_timestep_seconds / 3600
+                            last_hour = int(24 - (24 % forcing_timestep_hours)) - forcing_timestep_hours
+                            if last_hour < 0:
+                                last_hour = 0
+                            cal_end = datetime.strptime(cal_dates[1], '%Y-%m-%d').replace(hour=int(last_hour), minute=0)
+                        else:
+                            cal_end = datetime.strptime(cal_dates[1], '%Y-%m-%d').replace(hour=23, minute=0)
+
                         sim_start = spinup_start.strftime('%Y-%m-%d %H:%M')
                         sim_end = cal_end.strftime('%Y-%m-%d %H:%M')
-                        
+
                         self.logger.info(f"Using spinup + calibration period: {sim_start} to {sim_end}")
                     else:
                         raise ValueError("Invalid period format")
@@ -245,13 +340,13 @@ class BaseOptimizer(ABC):
                 except Exception as e:
                     self.logger.warning(f"Could not parse spinup+calibration periods: {str(e)}")
                     sim_start = self.config.get('EXPERIMENT_TIME_START', '1980-01-01 01:00')
-                    sim_end = self.config.get('EXPERIMENT_TIME_END', '2018-12-31 23:00')
+                    sim_end = self._adjust_end_time_for_forcing(self.config.get('EXPERIMENT_TIME_END', '2018-12-31 23:00'))
             else:
                 sim_start = self.config.get('EXPERIMENT_TIME_START', '1980-01-01 01:00')
-                sim_end = self.config.get('EXPERIMENT_TIME_END', '2018-12-31 23:00')
+                sim_end = self._adjust_end_time_for_forcing(self.config.get('EXPERIMENT_TIME_END', '2018-12-31 23:00'))
         else:
             sim_start = self.config.get('EXPERIMENT_TIME_START', '1980-01-01 01:00')
-            sim_end = self.config.get('EXPERIMENT_TIME_END', '2018-12-31 23:00')
+            sim_end = self._adjust_end_time_for_forcing(self.config.get('EXPERIMENT_TIME_END', '2018-12-31 23:00'))
         
         updated_lines = []
         for line in lines:
@@ -260,6 +355,7 @@ class BaseOptimizer(ABC):
             elif 'simEndTime' in line:
                 updated_lines.append(f"simEndTime           '{sim_end}'\n")
             elif 'outputPath' in line:
+                # Always use summa_sim_dir for SUMMA output - evaluators look there
                 output_path = str(self.summa_sim_dir).replace('\\', '/')
                 updated_lines.append(f"outputPath           '{output_path}/'\n")
             elif 'settingsPath' in line:
@@ -282,16 +378,24 @@ class BaseOptimizer(ABC):
         
         for i, line in enumerate(lines):
             if line.strip().startswith('<input_dir>') :
-                new_path = _normalize_path(self.summa_sim_dir)
+                # For non-parallel runs, mizuRoute reads from output_dir where SUMMA writes
+                if hasattr(self, 'use_parallel') and not self.use_parallel:
+                    new_path = _normalize_path(self.output_dir)
+                else:
+                    new_path = _normalize_path(self.summa_sim_dir)
                 if '!' in line:
                     pre_comment = line.split('!')[0].strip()
                     comment = '!' + '!'.join(line.split('!')[1:])
                     lines[i] = f"<input_dir>             {new_path}    {comment}"
                 else:
                     lines[i] = f"<input_dir>             {new_path}    ! Folder that contains runoff data from SUMMA\n"
-            
+
             elif line.strip().startswith('<output_dir>') :
-                new_path = _normalize_path(self.mizuroute_sim_dir)
+                # For non-parallel runs, mizuRoute writes to output_dir/mizuRoute
+                if hasattr(self, 'use_parallel') and not self.use_parallel:
+                    new_path = _normalize_path(self.output_dir / "mizuRoute")
+                else:
+                    new_path = _normalize_path(self.mizuroute_sim_dir)
                 if '!' in line:
                     pre_comment = line.split('!')[0].strip()
                     comment = '!' + '!'.join(line.split('!')[1:])
@@ -304,19 +408,21 @@ class BaseOptimizer(ABC):
 
     def _create_calibration_target(self) -> CalibrationTarget:
         """Factory method to create appropriate calibration target"""
-        optimization_target = self.config.get('OPTIMIZATION_TARGET', 'streamflow')
+        optimization_target = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
         calibration_variable = self.config.get('CALIBRATION_VARIABLE', 'streamflow').lower()
-        
+
         if optimization_target in ['et', 'latent_heat']:
             return ETTarget(self.config, self.project_dir, self.logger)
         elif (
-            optimization_target in ['swe', 'sca', 'snow_depth'] or 
+            optimization_target in ['swe', 'sca', 'snow_depth'] or
             'swe' in calibration_variable or 'snow' in calibration_variable):
             return SnowTarget(self.config, self.project_dir, self.logger)
         elif optimization_target in ['gw_depth', 'gw_grace']:
             return GroundwaterTarget(self.config, self.project_dir, self.logger)
-        elif optimization_target in ['sm_point', 'sm_smap', 'sm_esa']:
+        elif optimization_target in ['sm_point', 'sm_smap', 'sm_esa', 'sm_ismn']:
             return SoilMoistureTarget(self.config, self.project_dir, self.logger)
+        elif optimization_target in ['tws', 'grace', 'grace_tws', 'total_storage', 'stor_grace']:
+            return TWSTarget(self.config, self.project_dir, self.logger)
         elif optimization_target == 'streamflow' or 'flow' in calibration_variable:
             return StreamflowTarget(self.config, self.project_dir, self.logger)
         else:
@@ -374,7 +480,10 @@ class BaseOptimizer(ABC):
     def _update_process_file_managers(self, proc_id: int, summa_dir: Path, mizuroute_dir: Path,
                                     summa_settings_dir: Path, mizu_settings_dir: Path) -> None:
         """Update file managers for a specific process"""
-        file_manager = summa_settings_dir / 'fileManager.txt'
+        summa_fm_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        file_manager = summa_settings_dir / summa_fm_name
+        if not file_manager.exists():
+            file_manager = summa_settings_dir / 'fileManager.txt'
         if file_manager.exists():
             with open(file_manager, 'r') as f:
                 lines = f.readlines()
@@ -525,7 +634,7 @@ class BaseOptimizer(ABC):
                 'multiobjective': task.get('multiobjective', False),
                 'objective_names': task.get('objective_names'),
                 'summa_exe': str(self._get_summa_exe_path()),
-                'file_manager': str(proc_dirs['summa_settings_dir'] / 'fileManager.txt'),
+                'file_manager': str(proc_dirs['summa_settings_dir'] / self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')),
                 'summa_dir': str(proc_dirs['summa_dir']),
                 'mizuroute_dir': str(proc_dirs['mizuroute_dir']),
                 'summa_settings_dir': str(proc_dirs['summa_settings_dir']),
@@ -715,7 +824,12 @@ if __name__ == "__main__":
             return None
         finally:
             self._restore_model_decisions_for_optimization()
-            self._update_summa_file_manager(self.optimization_settings_dir / 'fileManager.txt')
+            summa_fm_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+            fm_path = self.optimization_settings_dir / summa_fm_name
+            if not fm_path.exists():
+                fm_path = self.optimization_settings_dir / 'fileManager.txt'
+            if fm_path.exists():
+                self._update_summa_file_manager(fm_path)
 
     def _extract_period_metrics(self, all_metrics: Dict, period_prefix: str) -> Dict:
         """Extract metrics for a specific period (Calib or Eval)"""
@@ -815,7 +929,10 @@ if __name__ == "__main__":
 
     def _update_file_manager_for_final_run(self) -> None:
         """Update file manager to use full experiment period"""
-        file_manager_path = self.optimization_settings_dir / 'fileManager.txt'
+        summa_fm_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        file_manager_path = self.optimization_settings_dir / summa_fm_name
+        if not file_manager_path.exists():
+            file_manager_path = self.optimization_settings_dir / 'fileManager.txt'
         if not file_manager_path.exists(): return
         with open(file_manager_path, 'r') as f:
             lines = f.readlines()

@@ -122,6 +122,7 @@ class BaseModelOptimizer(
 
         # Parallel processing state
         self.parallel_dirs = {}
+        self.default_sim_dir = self.results_dir  # Initialize with results_dir as fallback
         # Setup directories if MPI_PROCESSES is set, regardless of count (for isolation)
         if config.get('MPI_PROCESSES', 1) >= 1:
             self._setup_parallel_dirs()
@@ -202,19 +203,64 @@ class BaseModelOptimizer(
         random.seed(seed)
         np.random.seed(seed)
 
+    def _adjust_end_time_for_forcing(self, end_time_str: str) -> str:
+        """
+        Adjust end time to align with forcing data timestep.
+        For sub-daily forcing (e.g., 3-hourly CERRA), ensures end time is a valid timestep.
+
+        Args:
+            end_time_str: End time string in format 'YYYY-MM-DD HH:MM'
+
+        Returns:
+            Adjusted end time string
+        """
+        try:
+            forcing_timestep_seconds = self.config.get('FORCING_TIME_STEP_SIZE', 3600)
+
+            if forcing_timestep_seconds >= 3600:  # Hourly or coarser
+                # Parse the end time
+                end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M')
+
+                # Calculate the last valid hour based on timestep
+                forcing_timestep_hours = forcing_timestep_seconds / 3600
+                last_hour = int(24 - (24 % forcing_timestep_hours)) - forcing_timestep_hours
+                if last_hour < 0:
+                    last_hour = 0
+
+                # Adjust if needed
+                if end_time.hour > last_hour or (end_time.hour == 23 and last_hour < 23):
+                    end_time = end_time.replace(hour=int(last_hour), minute=0)
+                    adjusted_str = end_time.strftime('%Y-%m-%d %H:%M')
+                    self.logger.info(f"Adjusted end time from {end_time_str} to {adjusted_str} for {forcing_timestep_hours}h forcing")
+                    return adjusted_str
+
+            return end_time_str
+
+        except Exception as e:
+            self.logger.warning(f"Could not adjust end time: {e}")
+            return end_time_str
+
     def _setup_parallel_dirs(self) -> None:
         """Setup parallel processing directories."""
         # Determine algorithm for directory naming
         algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
-        
+
         # Use algorithm-specific directory
         base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
-        
+
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
             self._get_model_name(),
             self.experiment_id
         )
+
+        # For non-parallel runs, set a default output directory for fallback
+        # This ensures SUMMA outputs go to the simulation directory, not the optimization results directory
+        if not self.use_parallel and self.parallel_dirs:
+            # Use process_0 directories as the default
+            self.default_sim_dir = self.parallel_dirs[0].get('sim_dir', self.results_dir)
+        else:
+            self.default_sim_dir = self.results_dir
 
     def _create_mpi_worker_script(self, script_path: Path, tasks_file: Path, results_file: Path, worker_module: str, worker_function: str) -> None:
         """
@@ -384,8 +430,8 @@ if __name__ == "__main__":
             proc_id=proc_id,
             config=self.config,
             settings_dir=dirs.get('settings_dir', self.optimization_settings_dir),
-            output_dir=dirs.get('sim_dir', self.results_dir),
-            sim_dir=dirs.get('sim_dir'),
+            output_dir=dirs.get('sim_dir', self.default_sim_dir),
+            sim_dir=dirs.get('sim_dir', self.default_sim_dir),
         )
 
         # Evaluate
@@ -433,14 +479,14 @@ if __name__ == "__main__":
                     'domain_name': self.domain_name,
                     'project_dir': str(self.project_dir),
                     'proc_settings_dir': str(settings_dir),
-                    'proc_output_dir': str(dirs.get('sim_dir', self.results_dir)),
-                    'proc_sim_dir': str(dirs.get('sim_dir', '')),
+                    'proc_output_dir': str(dirs.get('sim_dir', self.default_sim_dir)),
+                    'proc_sim_dir': str(dirs.get('sim_dir', self.default_sim_dir)),
                     'summa_settings_dir': str(settings_dir),
                     'mizuroute_settings_dir': str(dirs.get('root', self.project_dir) / 'settings' / 'mizuRoute') if dirs else '',
-                    'summa_dir': str(dirs.get('sim_dir', '')),
-                    'mizuroute_dir': str(Path(dirs.get('sim_dir', '')).parent / 'mizuRoute') if dirs and dirs.get('sim_dir') else '',
+                    'summa_dir': str(dirs.get('sim_dir', self.default_sim_dir)),
+                    'mizuroute_dir': str(Path(dirs.get('sim_dir', self.default_sim_dir)).parent / 'mizuRoute') if dirs and dirs.get('sim_dir') else str(Path(self.default_sim_dir).parent / 'mizuRoute'),
                     'mizuroute_settings_dir': str(dirs.get('root', self.project_dir) / 'settings' / 'mizuRoute') if dirs else '',
-                    'file_manager': str(settings_dir / 'fileManager.txt'),
+                    'file_manager': str(settings_dir / self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')),
                     'summa_exe': str(self.summa_exe_path) if hasattr(self, 'summa_exe_path') else '',
                     'original_depths': self.param_manager.original_depths.tolist() if hasattr(self.param_manager, 'original_depths') and self.param_manager.original_depths is not None else None,
                 }
@@ -765,13 +811,13 @@ if __name__ == "__main__":
                         'domain_name': self.domain_name,
                         'project_dir': str(self.project_dir),
                         'proc_settings_dir': str(settings_dir),
-                        'proc_output_dir': str(dirs.get('sim_dir', self.results_dir)),
-                        'proc_sim_dir': str(dirs.get('sim_dir', '')) ,
+                        'proc_output_dir': str(dirs.get('sim_dir', self.default_sim_dir)),
+                        'proc_sim_dir': str(dirs.get('sim_dir', self.default_sim_dir)),
                         'summa_settings_dir': str(settings_dir),
                         'mizuroute_settings_dir': str(dirs.get('root', self.project_dir) / 'settings' / 'mizuRoute') if dirs else '',
-                        'summa_dir': str(dirs.get('sim_dir', '')),
-                        'mizuroute_dir': str(Path(dirs.get('sim_dir', '')).parent / 'mizuRoute') if dirs and dirs.get('sim_dir') else '',
-                        'file_manager': str(settings_dir / 'fileManager.txt'),
+                        'summa_dir': str(dirs.get('sim_dir', self.default_sim_dir)),
+                        'mizuroute_dir': str(Path(dirs.get('sim_dir', self.default_sim_dir)).parent / 'mizuRoute') if dirs and dirs.get('sim_dir') else str(Path(self.default_sim_dir).parent / 'mizuRoute'),
+                        'file_manager': str(settings_dir / self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')),
                         'summa_exe': str(self.summa_exe_path) if hasattr(self, 'summa_exe_path') else '',
                         'original_depths': self.param_manager.original_depths.tolist() if hasattr(self.param_manager, 'original_depths') and self.param_manager.original_depths is not None else None,
                     }
@@ -1725,6 +1771,9 @@ if __name__ == "__main__":
                 self.logger.warning("Full experiment period not configured, using current settings")
                 return
 
+            # Adjust end time to align with forcing timestep
+            sim_end = self._adjust_end_time_for_forcing(sim_end)
+
             with open(file_manager_path, 'r') as f:
                 lines = f.readlines()
 
@@ -1936,7 +1985,8 @@ if __name__ == "__main__":
                 # If install path is provided, combine it with executable name
                 summa_exe = Path(summa_install_path) / summa_exe_name
 
-            file_manager = self.optimization_settings_dir / 'fileManager.txt'
+            summa_fm_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+            file_manager = self.optimization_settings_dir / summa_fm_name
 
             if not summa_exe.exists():
                 self.logger.error(f"SUMMA executable not found: {summa_exe}")
@@ -2017,14 +2067,28 @@ if __name__ == "__main__":
 
             output_file = self.results_dir / f'{self.experiment_id}_{algorithm.lower()}_final_evaluation.json'
 
+            def _convert_to_serializable(obj):
+                """Recursively convert numpy types to Python native types."""
+                if isinstance(obj, (np.integer, int)):
+                    return int(obj)
+                elif isinstance(obj, (np.floating, float)):
+                    return float(obj)
+                elif isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                elif isinstance(obj, dict):
+                    return {k: _convert_to_serializable(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [_convert_to_serializable(i) for i in obj]
+                return obj
+
             # Create serializable result
             serializable_result = {
                 'algorithm': algorithm,
                 'experiment_id': self.experiment_id,
                 'domain_name': self.domain_name,
-                'calibration_metrics': final_result.get('calibration_metrics', {}),
-                'evaluation_metrics': final_result.get('evaluation_metrics', {}),
-                'best_params': final_result.get('best_params', {}),
+                'calibration_metrics': _convert_to_serializable(final_result.get('calibration_metrics', {})),
+                'evaluation_metrics': _convert_to_serializable(final_result.get('evaluation_metrics', {})),
+                'best_params': _convert_to_serializable(final_result.get('best_params', {})),
                 'timestamp': datetime.now().isoformat()
             }
 
