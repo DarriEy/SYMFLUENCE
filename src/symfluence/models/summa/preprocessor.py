@@ -21,6 +21,7 @@ from symfluence.models.mixins import ObservationLoaderMixin
 from .forcing_processor import SummaForcingProcessor
 from .config_manager import SummaConfigManager
 from .attributes_manager import SummaAttributesManager
+from .glacier_manager import GlacierAttributesManager
 from symfluence.core.exceptions import (
     ModelExecutionError,
     symfluence_error_handler
@@ -157,6 +158,15 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             get_default_path_callback=self._get_default_path
         )
 
+        # Initialize glacier attributes manager
+        self.glacier_manager = GlacierAttributesManager(
+            config=self.config_dict,
+            logger=self.logger,
+            domain_name=self.domain_name,
+            dem_path=self.dem_path,
+            project_dir=self.project_dir
+        )
+
     def run_preprocessing(self):
         """
         Run the complete SUMMA spatial preprocessing workflow.
@@ -191,13 +201,23 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             self.run_glacier_preprocessing()
 
     def _is_glacier_mode_enabled(self) -> bool:
-        """Check if glacier mode is enabled based on config or file manager name."""
+        """Check if glacier mode is enabled based on config, file manager name, or data presence."""
+        # Check explicit config flag
         glacier_mode = self.config_dict.get('SETTINGS_SUMMA_GLACIER_MODE', False)
         if glacier_mode:
             return True
+
+        # Check file manager name
         filemanager_name = self.config_dict.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
         if 'glac' in filemanager_name.lower():
             return True
+
+        # Check for glacier raster data
+        glacier_dir = self.project_dir / 'attributes' / 'glaciers'
+        if self.glacier_manager.has_glacier_data(glacier_dir):
+            self.logger.info("Glacier raster data detected, enabling glacier mode")
+            return True
+
         return False
 
     def run_glacier_preprocessing(self) -> None:
@@ -231,14 +251,32 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
     def _create_glacier_files(self) -> None:
         """
-        Create glacier-specific SUMMA files from base files.
+        Create glacier-specific SUMMA files from raster data or base files.
 
-        This creates copies of attributes.nc and coldState.nc with glacier-specific
-        modifications if the glacier files don't already exist.
+        If glacier raster data exists in attributes/glaciers/, processes the
+        rasters into proper glacier NetCDF files. Otherwise, falls back to
+        copying base attributes and coldState files.
         """
         import shutil
 
+        glacier_dir = self.project_dir / 'attributes' / 'glaciers'
         base_attr = self.setup_dir / self.attribute_name
+
+        # Check if we can process raster data
+        if self.glacier_manager.has_glacier_data(glacier_dir) and base_attr.exists():
+            self.logger.info("Processing glacier attributes from raster data")
+            success = self.glacier_manager.process_glacier_attributes(
+                glacier_dir=glacier_dir,
+                settings_dir=self.setup_dir,
+                base_attributes_file=base_attr
+            )
+            if success:
+                self._log_glacier_files_status()
+                return
+            else:
+                self.logger.warning("Glacier raster processing failed, falling back to base files")
+
+        # Fallback: Copy base files to glacier files
         base_cold = self.setup_dir / self.coldstate_name
 
         glacier_attr_name = self.config_dict.get('SETTINGS_SUMMA_GLACIER_ATTRIBUTES', 'attributes_glac.nc')
