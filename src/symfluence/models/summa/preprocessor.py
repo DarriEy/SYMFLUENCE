@@ -158,14 +158,25 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             get_default_path_callback=self._get_default_path
         )
 
-        # Initialize glacier attributes manager
-        self.glacier_manager = GlacierAttributesManager(
-            config=self.config_dict,
-            logger=self.logger,
-            domain_name=self.domain_name,
-            dem_path=self.dem_path,
-            project_dir=self.project_dir
-        )
+        # Lazy-initialize glacier attributes manager (only when needed)
+        self._glacier_manager = None
+
+    @property
+    def glacier_manager(self) -> Optional[GlacierAttributesManager]:
+        """Get glacier manager, initializing lazily if needed."""
+        if self._glacier_manager is None:
+            try:
+                self._glacier_manager = GlacierAttributesManager(
+                    config=self.config_dict,
+                    logger=self.logger,
+                    domain_name=self.domain_name,
+                    dem_path=self.dem_path,
+                    project_dir=self.project_dir
+                )
+            except Exception as e:
+                self.logger.debug(f"Glacier manager initialization skipped: {e}")
+                return None
+        return self._glacier_manager
 
     def run_preprocessing(self):
         """
@@ -205,16 +216,18 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         # Check explicit config flag
         glacier_mode = self.config_dict.get('SETTINGS_SUMMA_GLACIER_MODE', False)
         if glacier_mode:
+            self.logger.debug("Glacier mode enabled via SETTINGS_SUMMA_GLACIER_MODE")
             return True
 
         # Check file manager name
         filemanager_name = self.config_dict.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
         if 'glac' in filemanager_name.lower():
+            self.logger.debug("Glacier mode enabled via fileManager name")
             return True
 
-        # Check for glacier raster data
+        # Check for glacier raster data (only if glacier manager can be initialized)
         glacier_dir = self.project_dir / 'attributes' / 'glaciers'
-        if self.glacier_manager.has_glacier_data(glacier_dir):
+        if self.glacier_manager is not None and self.glacier_manager.has_glacier_data(glacier_dir):
             self.logger.info("Glacier raster data detected, enabling glacier mode")
             return True
 
@@ -235,19 +248,23 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         """
         self.logger.info("Running glacier preprocessing for SUMMA")
 
-        # Check if glacier files already exist (user-provided)
-        glacier_attr_path = self.setup_dir / 'attributes_glac.nc'
-        glacier_cold_path = self.setup_dir / 'coldState_glac.nc'
-        glacier_topo_attr = self.setup_dir / 'attributes_glacBedTopo.nc'
-        glacier_topo_cold = self.setup_dir / 'coldState_glacSurfTopo.nc'
+        try:
+            # Check if glacier files already exist (user-provided)
+            glacier_attr_path = self.setup_dir / 'attributes_glac.nc'
+            glacier_cold_path = self.setup_dir / 'coldState_glac.nc'
 
-        if glacier_attr_path.exists() and glacier_cold_path.exists():
-            self.logger.info("Glacier files already exist, skipping generation")
-            self._log_glacier_files_status()
-            return
+            if glacier_attr_path.exists() and glacier_cold_path.exists():
+                self.logger.info("Glacier files already exist, skipping generation")
+                self._log_glacier_files_status()
+                return
 
-        # Create glacier files from base files if they don't exist
-        self._create_glacier_files()
+            # Create glacier files from base files if they don't exist
+            self._create_glacier_files()
+
+        except Exception as e:
+            self.logger.warning(f"Glacier preprocessing failed: {e}")
+            self.logger.info("Continuing without glacier-specific files - using base SUMMA configuration")
+            # Don't raise - allow the workflow to continue without glacier files
 
     def _create_glacier_files(self) -> None:
         """
@@ -262,8 +279,14 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         glacier_dir = self.project_dir / 'attributes' / 'glaciers'
         base_attr = self.setup_dir / self.attribute_name
 
-        # Check if we can process raster data
-        if self.glacier_manager.has_glacier_data(glacier_dir) and base_attr.exists():
+        # Check if we can process raster data (glacier manager must be available)
+        can_process_raster = (
+            self.glacier_manager is not None and
+            self.glacier_manager.has_glacier_data(glacier_dir) and
+            base_attr.exists()
+        )
+
+        if can_process_raster:
             self.logger.info("Processing glacier attributes from raster data")
             success = self.glacier_manager.process_glacier_attributes(
                 glacier_dir=glacier_dir,

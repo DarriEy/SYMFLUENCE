@@ -1,0 +1,87 @@
+### ============================================= SYMFLUENCE configuration file ============================================================
+# Gulkana Glacier Domain - Full Pipeline Test with Glacier Data Acquisition
+# Tests the complete glacier preprocessing pipeline from data acquisition to calibration
+
+# Global and Logging Settings
+SYMFLUENCE_DATA_DIR: "/Users/darrieythorsson/compHydro/code/SYMFLUENCE_data"
+SYMFLUENCE_CODE_DIR: "/Users/darrieythorsson/compHydro/code/SYMFLUENCE"
+DOMAIN_NAME: "Gulkana"
+EXPERIMENT_ID: glacier_pipeline_test
+EXPERIMENT_TIME_START: 2015-01-01 00:00
+EXPERIMENT_TIME_END: 2016-12-31 23:00
+MPI_PROCESSES: 1
+LOG_LEVEL: INFO
+LOG_TO_FILE: True
+LOG_FORMAT: detailed
+
+# Geospatial Definition
+# Gulkana Glacier: USGS gauge 15478040 (Phelan Creek near Paxson)
+# Glacier terminus approx: 63.2408N, 145.4675W
+POUR_POINT_COORDS: 63.2408/-145.4675
+# Bounding box covering Gulkana Glacier basin
+BOUNDING_BOX_COORDS: 63.35/-145.60/63.15/-145.35
+DOMAIN_DEFINITION_METHOD: lumped
+GEOFABRIC_TYPE: MERIT
+DOMAIN_DISCRETIZATION: elevation
+ELEVATION_BAND_SIZE: 400
+
+# Data Access and Forcings
+DATA_ACCESS: CLOUD
+FORCING_DATASET: ERA5
+FORCING_VARIABLES:
+  - airtemp
+  - windspd
+  - pptrate
+  - spechum
+  - SWRadAtm
+  - LWRadAtm
+  - airpres
+FORCING_TIME_STEP_SIZE: 3600
+APPLY_LAPSE_RATE: True
+LAPSE_RATE: -6.5
+
+# Attribute Acquisition
+DEM_SOURCE: copernicus
+DOWNLOAD_DEM: True
+DOWNLOAD_SOIL: True
+DOWNLOAD_LAND_COVER: True
+DOWNLOAD_GLACIER_DATA: True
+
+# Streamflow Data
+STREAMFLOW_DATA_PROVIDER: USGS
+USGS_SITE_CODE: "15478040"
+
+# Model Configuration
+HYDROLOGICAL_MODEL: SUMMA
+ROUTING_MODEL: none
+SETTINGS_SUMMA_FILEMANAGER: fileManager.txt
+SETTINGS_SUMMA_COLDSTATE: coldState.nc
+SETTINGS_SUMMA_ATTRIBUTES: attributes.nc
+SETTINGS_SUMMA_TRIALPARAMS: trialParams.nc
+SETTINGS_SUMMA_FORCING_LIST: forcingFileList.txt
+
+# Note: Glacier mode will be auto-detected based on acquired glacier data
+# SETTINGS_SUMMA_GLACIER_MODE: True  # Uncomment if you want to force glacier mode
+
+# Calibration Settings
+SPINUP_PERIOD: "2015-01-01,2015-09-30"
+CALIBRATION_PERIOD: "2015-10-01,2016-09-30"
+EVALUATION_PERIOD: "2016-10-01,2016-12-31"
+
+# Simple calibration for testing
+OPTIMIZATION_METHODS:
+  - iteration
+
+OPTIMIZATION_ALGORITHM: DDS
+OPTIMIZATION_TARGET: streamflow
+OPTIMIZATION_METRIC: KGE
+
+# Basic parameters to calibrate
+PARAMS_TO_CALIBRATE: newSnowDenMin,Fcapil,k_soil,tempCritRain
+
+# Reduced iterations for testing
+NUMBER_OF_ITERATIONS: 5
+
+# SUMMA Installation
+SUMMA_INSTALL_PATH: default
+SUMMA_EXE: summa_sundials.exe
