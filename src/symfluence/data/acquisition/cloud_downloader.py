@@ -69,6 +69,12 @@ class CloudForcingDownloader:
         handler = AcquisitionRegistry.get_handler('NASADEM_LOCAL', self.config, self.logger)
         return handler.download(Path(self.config.get('SYMFLUENCE_DATA_DIR')))
 
+    def download_glacier_data(self) -> Path:
+        """Download glacier data from RGI (Randolph Glacier Inventory)."""
+        handler = AcquisitionRegistry.get_handler('GLACIER', self.config, self.logger)
+        return handler.download(Path(self.config.get('SYMFLUENCE_DATA_DIR')))
+
+
 def check_cloud_access_availability(dataset_name: str, logger) -> bool:
     """Check if a dataset is available for cloud access."""
     if AcquisitionRegistry.is_registered(dataset_name):

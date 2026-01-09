@@ -79,4 +79,10 @@ try:
 except ImportError:
     pass
 
+try:
+    from . import glacier
+    _imported.append('glacier')
+except ImportError:
+    pass
+
 __all__ = _imported
