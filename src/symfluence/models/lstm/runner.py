@@ -57,6 +57,10 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
         domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
         if domain_method == 'delineate':
             self.spatial_mode = 'distributed'
+            self.logger.warning(
+                "⚠️  LSTM model requested in 'distributed' mode. While supported, consider using 'GNN' "
+                "which explicitly models the river network topology (DAG) and flow routing."
+            )
         else:
             self.spatial_mode = 'lumped'
         

@@ -1,60 +1,128 @@
 """
 Forcing data processing utilities for HYPE model.
 
-Handles merging of forcing data from multiple NetCDF files and conversion
-to HYPE-compatible daily observation formats.
+This module provides the HYPEForcingProcessor class for converting basin-averaged
+forcing data (typically hourly NetCDF files from EASYMORE remapping) into HYPE's
+daily observation file format.
+
+HYPE requires forcing data as tab-separated text files with specific naming:
+- **Pobs.txt**: Daily precipitation (mm/day)
+- **Tobs.txt**: Daily mean temperature (°C)
+- **TMAXobs.txt**: Daily maximum temperature (°C)
+- **TMINobs.txt**: Daily minimum temperature (°C)
+
+The processor handles:
+- Merging multiple NetCDF files (using CDO or xarray fallback)
+- Time zone correction via hour offset
+- Unit conversion (e.g., K→°C, kg/m²/s→mm/day)
+- Resampling from hourly to daily resolution
+
+Example usage:
+    >>> from symfluence.models.hype import HYPEForcingProcessor
+    >>> processor = HYPEForcingProcessor(
+    ...     config=config_dict,
+    ...     logger=logger,
+    ...     forcing_input_dir=Path('/project/forcing/basin_avg'),
+    ...     output_path=Path('/project/settings/HYPE'),
+    ...     cache_path=Path('/project/cache'),
+    ...     timeshift=-6,  # UTC to local time
+    ...     forcing_units=forcing_units_dict
+    ... )
+    >>> processor.process_forcing()
 """
 
-# Standard library imports
-import os
-from pathlib import Path
-from typing import Dict, Any, Optional
+from __future__ import annotations
 
-# Third-party imports
+import logging
+import os
+import re
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable
+
 import cdo
 import numpy as np
 import pandas as pd
-import xarray as xr
 import pint
-from tqdm import tqdm
+import xarray as xr
 
 from ..utilities import BaseForcingProcessor
 
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
+
+# Module-level unit registry for conversions
 ureg = pint.UnitRegistry()
 
 
 class HYPEForcingProcessor(BaseForcingProcessor):
     """
-    Processor for HYPE forcing data.
+    Processor for converting forcing data to HYPE observation format.
 
-    Handles:
-    - Merging hourly NetCDF forcing files
-    - Rolling time for time zone offsets
-    - Resampling hourly data to daily HYPE format (Pobs, Tobs, TMAXobs, TMINobs)
-    - Unit conversions and HYPE-specific file formatting
+    This class handles the complete workflow of converting hourly, gridded or
+    basin-averaged forcing data into HYPE's daily observation file format.
+    It inherits from BaseForcingProcessor and implements HYPE-specific logic.
+
+    The processing workflow:
+        1. Merge individual NetCDF files (one per timestep) into a single file
+        2. Apply time zone correction if needed
+        3. Resample from hourly to daily (using appropriate statistics)
+        4. Convert units to HYPE requirements
+        5. Write tab-separated observation files
+
+    Attributes:
+        config: Configuration dictionary.
+        logger: Logger instance.
+        forcing_input_dir: Path to input NetCDF files.
+        output_path: Path for output observation files.
+        cache_path: Path for temporary files during processing.
+        timeshift: Hours to shift timestamps (for time zone correction).
+        forcing_units: Dictionary mapping variable names to unit specifications.
+
+    Note:
+        The processor attempts to use CDO for merging (faster for large datasets)
+        but falls back to xarray if CDO is not available or fails.
     """
 
     def __init__(
         self,
-        config: Dict[str, Any],
-        logger: Any,
-        forcing_input_dir: Path,
-        output_path: Path,
-        cache_path: Path,
+        config: dict[str, Any],
+        logger: logging.Logger | Any,
+        forcing_input_dir: Path | str,
+        output_path: Path | str,
+        cache_path: Path | str,
         timeshift: int = 0,
-        forcing_units: Optional[Dict[str, Any]] = None
-    ):
+        forcing_units: dict[str, dict[str, str]] | None = None
+    ) -> None:
         """
         Initialize the HYPE forcing processor.
 
         Args:
-            config: Configuration dictionary
-            logger: Logger instance
-            forcing_input_dir: Path to input basin-averaged NetCDF files
-            output_path: Path to output HYPE settings directory
-            cache_path: Path for temporary processing files
-            timeshift: Hour offset for time zone correction
-            forcing_units: Mapping of variables to units and names
+            config: Configuration dictionary containing experiment settings.
+            logger: Logger instance for status and warning messages.
+            forcing_input_dir: Path to directory containing input basin-averaged
+                NetCDF files (typically output from EASYMORE remapping).
+            output_path: Path to HYPE settings directory where observation
+                files (Pobs.txt, Tobs.txt, etc.) will be written.
+            cache_path: Path for temporary files during merge operations.
+                Intermediate files are cleaned up after processing.
+            timeshift: Hours to add to timestamps for time zone correction.
+                Positive values shift forward, negative values shift backward.
+                Example: -6 converts UTC to Mountain Standard Time.
+            forcing_units: Dictionary mapping forcing variables to their unit
+                specifications. Expected structure::
+
+                    {
+                        'temperature': {
+                            'in_varname': 'airtemp',
+                            'in_units': 'K',
+                            'out_units': 'degC'
+                        },
+                        'precipitation': {
+                            'in_varname': 'pptrate',
+                            'in_units': 'kg m^-2 s^-1',
+                            'out_units': 'mm/day'
+                        }
+                    }
         """
         super().__init__(
             config=config,

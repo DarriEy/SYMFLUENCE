@@ -638,40 +638,58 @@ class BinaryManager:
         if npm_bin_dir:
             print(f"   ℹ️  Detected npm-installed binaries: {npm_bin_dir}")
 
-        binary_paths = {
-            'summa': 'installs/summa/bin/summa.exe',
-            'mizuroute': 'installs/mizuRoute/route/bin/mizuRoute.exe',
-            'fuse': 'installs/fuse/bin/fuse.exe',
-            'hype': 'installs/hype/bin/hype',
-            'ngen': 'installs/ngen/cmake_build/ngen',
-            'taudem': 'installs/TauDEM/bin',  # Directory with multiple tools
-        }
-
         found_binaries = 0
-        total_binaries = len(binary_paths)
+        total_binaries = 0
 
-        for name, rel_path in binary_paths.items():
-            # Check in SYMFLUENCE_DATA first
+        # Use external_tools definitions for more accurate checking
+        for name, tool_info in self.external_tools.items():
+            if name == 'sundials': continue # Skip library-only tool
+            total_binaries += 1
+            
             found = False
             location = None
-
+            
+            # 1. Check in SYMFLUENCE_DATA (installed from source)
             if symfluence_data:
-                full_path = Path(symfluence_data) / rel_path
-                if name == 'taudem':
+                rel_path_suffix = tool_info.get('default_path_suffix', '')
+                exe_name = tool_info.get('default_exe', '')
+                
+                # Check for folder (e.g. TauDEM) or specific file
+                full_path = Path(symfluence_data) / rel_path_suffix
+                if name in ('taudem', 'wmfire'):
                     if full_path.exists() and full_path.is_dir():
                         found = True
                         location = full_path
-                else:
-                    if full_path.exists():
+                elif exe_name:
+                    exe_path = full_path / exe_name
+                    if exe_path.exists():
                         found = True
-                        location = full_path
+                        location = exe_path
+                    else:
+                        # Try without extension
+                        exe_path_no_ext = full_path / exe_name.replace('.exe', '')
+                        if exe_path_no_ext.exists():
+                            found = True
+                            location = exe_path_no_ext
 
-            # Check npm installation as fallback
+            # 2. Check npm installation as fallback
             if not found and npm_bin_dir:
+                # Check for the tool name directly (e.g., 'summa')
                 npm_path = npm_bin_dir / name
                 if npm_path.exists():
                     found = True
                     location = npm_path
+                else:
+                    # Check for the default executable name (e.g., 'pitremove' for TauDEM)
+                    exe_name = tool_info.get('default_exe', '')
+                    if exe_name:
+                        # Try both with and without .exe
+                        for candidate in [exe_name, exe_name.replace('.exe', '')]:
+                            npm_exe_path = npm_bin_dir / candidate
+                            if npm_exe_path.exists():
+                                found = True
+                                location = npm_exe_path
+                                break
 
             if found:
                 print(f"   ✅ {name:<12} {location}")

@@ -17,6 +17,11 @@ class AsyncDDSOptimizer(BaseOptimizer):
         self.batch_size = config.get('ASYNC_DDS_BATCH_SIZE', self.num_processes)
         self.total_target_evaluations = self.max_iterations * self.num_processes
         self.target_batches = self.total_target_evaluations // self.batch_size
+        # Stagnation limit: stop if no improvement for this many consecutive batches
+        # Default 25 is more appropriate for 4-8 parameter problems
+        self.stagnation_limit = config.get('DDS_STAGNATION_LIMIT', 25)
+        # Convergence threshold: consider converged if improvement < this
+        self.convergence_threshold = config.get('DDS_CONVERGENCE_THRESHOLD', 1e-4)
         self.solution_pool = []; self.pool_scores = []; self.batch_history = []
         self.total_evaluations = 0; self.stagnation_counter = 0
     
@@ -25,9 +30,10 @@ class AsyncDDSOptimizer(BaseOptimizer):
     
     def _run_algorithm(self) -> Tuple[Dict, float, List]:
         self.logger.info("Starting Asynchronous Parallel DDS")
+        self.logger.info(f"  Stagnation limit: {self.stagnation_limit} batches")
         self._initialize_solution_pool()
         batch_num = 0; start_time = time.time()
-        while batch_num < self.target_batches and self.stagnation_counter < 10:
+        while batch_num < self.target_batches and self.stagnation_counter < self.stagnation_limit:
             tasks = self._generate_batch_from_pool(batch_num)
             if not tasks: break
             results = self._run_parallel_evaluations(tasks) if self.use_parallel else self._run_sequential_batch(tasks)
@@ -101,9 +107,18 @@ class AsyncDDSOptimizer(BaseOptimizer):
         self._sort_pool()
         if len(self.solution_pool) > self.pool_size:
             self.solution_pool = self.solution_pool[:self.pool_size]; self.pool_scores = self.pool_scores[:self.pool_size]
-        if self.pool_scores and self.pool_scores[0] > self.best_score:
-            self.best_score = self.pool_scores[0]; self.best_params = self.parameter_manager.denormalize_parameters(self.solution_pool[0][0]); self.stagnation_counter = 0
-        else: self.stagnation_counter += 1
+        if self.pool_scores and self.pool_scores[0] > self.best_score + self.convergence_threshold:
+            # Significant improvement found - reset stagnation counter
+            self.best_score = self.pool_scores[0]
+            self.best_params = self.parameter_manager.denormalize_parameters(self.solution_pool[0][0])
+            self.stagnation_counter = 0
+        elif self.pool_scores and self.pool_scores[0] > self.best_score:
+            # Minor improvement - update best but count toward stagnation
+            self.best_score = self.pool_scores[0]
+            self.best_params = self.parameter_manager.denormalize_parameters(self.solution_pool[0][0])
+            self.stagnation_counter += 1
+        else:
+            self.stagnation_counter += 1
         return improvements
 
     def _sort_pool(self):

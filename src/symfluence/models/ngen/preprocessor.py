@@ -74,13 +74,29 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             if not exists:
                 self.logger.warning(f"NGEN module library missing for {name}: {path}")
 
-        # SLOTH is required for CFE (provides ice fraction and soil moisture variables)
-        self._include_sloth = self._available_modules.get("SLOTH", True)
-        # PET is required for CFE (provides water_potential_evaporation_flux)
+        # Determine which modules to include based on config and available libraries
+        # Allow user to override which modules are enabled via config
+        ngen_config = self.config_dict.get('NGEN', {})
+
+        # SLOTH provides ice fraction and soil moisture variables for CFE
+        self._include_sloth = ngen_config.get('ENABLE_SLOTH', self._available_modules.get("SLOTH", True))
+
+        # PET provides evapotranspiration (but has known issues - can be disabled)
         # Note: PET requires wind speed variables (UGRD, VGRD) in forcing
-        self._include_pet = self._available_modules.get("PET", True)
-        self._include_noah = False  # Disable NOAH by default; not configured
-        self._include_cfe = self._available_modules.get("CFE", True)
+        self._include_pet = ngen_config.get('ENABLE_PET', self._available_modules.get("PET", True))
+
+        # NOAH-OWP provides alternative ET physics (more robust than PET)
+        self._include_noah = ngen_config.get('ENABLE_NOAH', self._available_modules.get("NOAH", False))
+
+        # CFE is the core runoff generation module
+        self._include_cfe = ngen_config.get('ENABLE_CFE', self._available_modules.get("CFE", True))
+
+        # Log module configuration
+        self.logger.info(f"NGEN module configuration:")
+        self.logger.info(f"  SLOTH: {'ENABLED' if self._include_sloth else 'DISABLED'}")
+        self.logger.info(f"  PET: {'ENABLED' if self._include_pet else 'DISABLED'}")
+        self.logger.info(f"  NOAH-OWP: {'ENABLED' if self._include_noah else 'DISABLED'}")
+        self.logger.info(f"  CFE: {'ENABLED' if self._include_cfe else 'DISABLED'}")
 
     def _resolve_ngen_lib_paths(self) -> Dict[str, Path]:
         lib_ext = ".dylib" if sys.platform == "darwin" else ".so"
@@ -264,8 +280,9 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         gpkg_gdf = divides_gdf.copy()
         if gpkg_gdf.crs != "EPSG:5070":
             gpkg_gdf = gpkg_gdf.to_crs("EPSG:5070")
-        gpkg_gdf.index = gpkg_gdf['divide_id']
-        gpkg_gdf.index.name = 'id'
+        # Reset index to avoid duplicate 'id' column error when writing
+        # The 'id' column is already present in the data for NGEN compatibility
+        gpkg_gdf = gpkg_gdf.reset_index(drop=True)
 
         gpkg_file = self.setup_dir / f"{self.domain_name}_catchments.gpkg"
         gpkg_gdf.to_file(gpkg_file, layer='divides', driver='GPKG')
@@ -311,6 +328,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         catchment_ids = [f"cat-{x}" for x in catchment_gdf[self.hru_id_col].astype(str).tolist()]
         fdp = ForcingDataProcessor(self.config, self.logger)
         forcing_data = fdp.load_forcing_data(self.forcing_basin_path)
+        forcing_data = forcing_data.sortby('time')
         twm = TimeWindowManager(self.config, self.logger)
         try:
             start_time, end_time = twm.get_simulation_times(forcing_path=self.forcing_basin_path)
@@ -318,7 +336,53 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             start_time = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_START'))
             end_time = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_END'))
 
-        forcing_data = fdp.subset_to_time_window(forcing_data, start_time, end_time)
+        time_values = pd.to_datetime(forcing_data.time.values)
+        inferred_step_seconds = None
+        if len(time_values) > 1:
+            time_deltas = np.diff(time_values).astype('timedelta64[s]').astype(int)
+            inferred_step_seconds = int(np.median(time_deltas))
+
+        if inferred_step_seconds and inferred_step_seconds != 3600:
+            self.logger.info(
+                f"Resampling forcing data from {inferred_step_seconds} seconds to hourly for NGEN"
+            )
+            forcing_data = forcing_data.resample(time='1h').interpolate('linear')
+            self.config_dict['FORCING_TIME_STEP_SIZE'] = 3600
+
+        # NGEN requires forcing data beyond the configured end_time to complete the simulation
+        # Extend end_time by 4 forcing timesteps to provide necessary lookahead data
+        # (empirically determined - NGEN can access up to 3 timesteps beyond configured end_time)
+        if inferred_step_seconds and inferred_step_seconds != 3600:
+            forcing_timestep_seconds = 3600
+        else:
+            forcing_timestep_seconds = self.config_dict.get('FORCING_TIME_STEP_SIZE', 3600)
+        buffer_timesteps = 4  # Add extra buffer to be safe
+        extended_end_time = end_time + pd.Timedelta(seconds=forcing_timestep_seconds * buffer_timesteps)
+        self.logger.info(f"Extending forcing data from {end_time} to {extended_end_time} (NGEN requires {buffer_timesteps} timestep buffer)")
+
+        forcing_data = fdp.subset_to_time_window(forcing_data, start_time, extended_end_time)
+
+        # Pad forcing data if source doesn't extend to full buffer
+        actual_end = pd.to_datetime(forcing_data.time.values[-1])
+        if actual_end < extended_end_time:
+            self.logger.warning(f"Source forcing only available to {actual_end}, padding to {extended_end_time}")
+            # Create additional timesteps by repeating last timestep values
+            last_slice = forcing_data.isel(time=-1)
+            padding_times = pd.date_range(
+                start=actual_end + pd.Timedelta(seconds=forcing_timestep_seconds),
+                end=extended_end_time,
+                freq=f'{forcing_timestep_seconds}s'
+            )
+            padding_data = []
+            for t in padding_times:
+                padded = last_slice.copy()
+                padded['time'] = t
+                padding_data.append(padded)
+            if padding_data:
+                padding_ds = xr.concat(padding_data, dim='time')
+                forcing_data = xr.concat([forcing_data, padding_ds], dim='time')
+                self.logger.info(f"Added {len(padding_times)} padding timesteps to forcing data")
+
         ngen_ds = self._create_ngen_forcing_dataset(forcing_data, catchment_ids)
         output_file = self.forcing_dir / "forcing.nc"
         ngen_ds.to_netcdf(output_file, format='NETCDF4')
@@ -330,7 +394,8 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         csv_dir.mkdir(parents=True, exist_ok=True)
         time_values = pd.to_datetime(forcing_data.time.values)
 
-        # Variable mapping from ERA5/internal names to NGEN names
+        # Variable mapping from ERA5/internal names to AORC/GRIB standard names
+        # Use AORC standard naming (DLWRF_surface, DSWRF_surface) that NGEN recognizes
         var_mapping = {
             'pptrate': 'precip_rate',
             'airtemp': 'TMP_2maboveground',
@@ -352,7 +417,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             df = pd.DataFrame(cols)
             df['APCP_surface'] = df['precip_rate'] if 'precip_rate' in df else 0
 
-            # Add wind speed variables with default values if not present (required for PET)
+            # Add wind speed variables with default values if not present (required for PET and NOAH)
             if 'UGRD_10maboveground' not in df.columns:
                 df['UGRD_10maboveground'] = 1.0  # Default 1 m/s
             if 'VGRD_10maboveground' not in df.columns:

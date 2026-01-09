@@ -260,7 +260,7 @@ def _create_summa_schema() -> ModelConfigSchema:
             method='subprocess',
             supports_parallel=True,
             parallel_key='SETTINGS_SUMMA_USE_PARALLEL_SUMMA',
-            default_timeout=7200,
+            default_timeout=14400,  # 4 hours
             default_memory='4G'
         ),
         input=InputConfig(
@@ -511,6 +511,47 @@ def _create_mesh_schema() -> ModelConfigSchema:
     )
 
 
+def _create_gnn_schema() -> ModelConfigSchema:
+    """Create configuration schema for GNN model."""
+    return ModelConfigSchema(
+        model_name='GNN',
+        description='Spatio-Temporal Graph Neural Network for Hydrology',
+        installation=InstallationConfig(
+            install_path_key='GNN_INSTALL_PATH', # Not really used, but required by schema
+            default_install_subpath='models',
+            exe_name_key=None,
+            default_exe_name=None
+        ),
+        execution=ExecutionConfig(
+            method='python',
+            supports_parallel=True, # GPU support
+            default_timeout=3600
+        ),
+        input=InputConfig(
+            forcing_dir_key='FORCING_GNN_PATH',
+            default_forcing_subpath='forcing/basin_averaged_data',
+            forcing_file_pattern='*.nc',
+            required_variables=['time', 'pptrate', 'airtemp']
+        ),
+        output=OutputConfig(
+            output_dir_key='EXPERIMENT_OUTPUT_GNN',
+            default_output_subpath='simulations/{experiment_id}/GNN',
+            output_file_pattern='gnn_output.csv',
+            primary_output_var='streamflow'
+        ),
+        config_keys=[
+            ConfigKey('GNN_HIDDEN_SIZE', ConfigKeyType.INTEGER, False, default=64),
+            ConfigKey('GNN_OUTPUT_SIZE', ConfigKeyType.INTEGER, False, default=32),
+            ConfigKey('GNN_EPOCHS', ConfigKeyType.INTEGER, False, default=100),
+            ConfigKey('GNN_BATCH_SIZE', ConfigKeyType.INTEGER, False, default=16),
+            ConfigKey('GNN_LEARNING_RATE', ConfigKeyType.FLOAT, False, default=0.005),
+            ConfigKey('GNN_DROPOUT', ConfigKeyType.FLOAT, False, default=0.2),
+            ConfigKey('GNN_USE_SNOW', ConfigKeyType.BOOLEAN, False, default=False),
+            ConfigKey('GNN_LOAD', ConfigKeyType.BOOLEAN, False, default=False),
+        ]
+    )
+
+
 from symfluence.models.rhessys.config import create_rhessys_schema
 
 
@@ -532,6 +573,7 @@ def _register_schemas():
         'HYPE': _create_hype_schema(),
         'MESH': _create_mesh_schema(),
         'RHESSys': create_rhessys_schema(),
+        'GNN': _create_gnn_schema(),
     }
 
 

@@ -52,14 +52,20 @@ def create_rhessys_schema() -> ModelConfigSchema:
                       description='Template for the RHESSys flow table'),
             ConfigKey('RHESSYS_SKIP_CALIBRATION', ConfigKeyType.BOOLEAN, False,
                       default=True, description='Skip calibration for RHESSys'),
-            # VMFire Integration
+            # WMFire Integration (Wildfire spread module)
+            ConfigKey('RHESSYS_USE_WMFIRE', ConfigKeyType.BOOLEAN, False,
+                      default=False, description='Enable WMFire fire spread support'),
+            ConfigKey('WMFIRE_INSTALL_PATH', ConfigKeyType.PATH, False,
+                      default='installs/wmfire/lib',
+                      description='Path to WMFire library installation'),
+            ConfigKey('WMFIRE_LIB', ConfigKeyType.STRING, False,
+                      default='libwmfire.so',
+                      description='WMFire shared library name'),
+            # Legacy VMFire aliases (for backwards compatibility)
             ConfigKey('RHESSYS_USE_VMFIRE', ConfigKeyType.BOOLEAN, False,
-                      default=False, description='Enable VMFire pre-processing'),
+                      default=False, description='Alias for RHESSYS_USE_WMFIRE'),
             ConfigKey('VMFIRE_INSTALL_PATH', ConfigKeyType.PATH, False,
-                      default='installs/vmfire/bin',
-                      description='Path to VMFire installation'),
-            ConfigKey('VMFIRE_EXE', ConfigKeyType.STRING, False,
-                      default='vmfire',
-                      description='VMFire executable name'),
+                      default='installs/wmfire/lib',
+                      description='Alias for WMFIRE_INSTALL_PATH'),
         ]
     )

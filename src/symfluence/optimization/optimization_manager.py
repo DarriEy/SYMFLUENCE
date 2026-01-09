@@ -207,13 +207,21 @@ class OptimizationManager(ConfigurableMixin):
                 'HYDROLOGICAL_MODEL',
                 ''
             )
-            hydrological_models = str(models_str).split(',')
+            hydrological_models = [m.strip().upper() for m in str(models_str).split(',') if m.strip()]
+            results = []
 
             for model in hydrological_models:
-                model = model.strip().upper()
-                return self._calibrate_with_registry(model, opt_algorithm)
+                result = self._calibrate_with_registry(model, opt_algorithm)
+                if result:
+                    results.append(result)
 
-            return None
+            if not results:
+                return None
+
+            if len(results) > 1:
+                self.logger.info(f"Completed calibration for {len(results)} model(s)")
+
+            return results[-1]
             
         except Exception as e:
             self.logger.error(f"Error during model calibration: {str(e)}")

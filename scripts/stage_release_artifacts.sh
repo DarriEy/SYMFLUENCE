@@ -226,6 +226,50 @@ else
 fi
 
 # ============================================================================
+# Stage MESH
+# ============================================================================
+print_info "Staging MESH..."
+
+MESH_DIR="$INSTALLS_DIR/mesh"
+if [ -d "$MESH_DIR" ]; then
+    stage_binary "$MESH_DIR/bin/mesh.exe" "mesh" "MESH" || stage_binary "$MESH_DIR/bin/mesh" "mesh" "MESH"
+    stage_license "$MESH_DIR" "MESH"
+else
+    print_warning "MESH not installed"
+fi
+
+# ============================================================================
+# Stage WMFire
+# ============================================================================
+print_info "Staging WMFire..."
+
+WMFIRE_DIR="$INSTALLS_DIR/wmfire"
+if [ -d "$WMFIRE_DIR" ]; then
+    # WMFire is a shared library, but we'll stage it for completeness
+    if [ "$(uname)" = "Darwin" ]; then
+        stage_binary "$WMFIRE_DIR/lib/libwmfire.dylib" "libwmfire.dylib" "WMFire"
+    else
+        stage_binary "$WMFIRE_DIR/lib/libwmfire.so" "libwmfire.so" "WMFire"
+    fi
+    stage_license "$WMFIRE_DIR" "WMFire"
+else
+    print_warning "WMFire not installed"
+fi
+
+# ============================================================================
+# Stage RHESSys
+# ============================================================================
+print_info "Staging RHESSys..."
+
+RHESSYS_DIR="$INSTALLS_DIR/rhessys"
+if [ -d "$RHESSYS_DIR" ]; then
+    stage_binary "$RHESSYS_DIR/bin/rhessys" "rhessys" "RHESSys"
+    stage_license "$RHESSYS_DIR" "RHESSys"
+else
+    print_warning "RHESSys not installed"
+fi
+
+# ============================================================================
 # Stage additional tools (if needed in future)
 # ============================================================================
 

@@ -42,7 +42,6 @@ LAND_CLASS_SOURCE: modis
 FORCING_DATASET: ERA5
 FORCING_TIME_STEP_SIZE: 3600
 FORCING_MEASUREMENT_HEIGHT: 2
-ERA5_USE_CDS: true
 # Observations - SNOTEL + MODIS Snow
 SNOTEL_STATION: '679'  # Paradise SNOTEL station ID
 SNOTEL_STATE: WA
@@ -75,23 +74,14 @@ SETTINGS_SUMMA_FORCING_LIST: forcingFileList.txt
 # Routing - None for point scale
 ROUTING_MODEL: none
 
-# Optimization configuration - Multivariate (SWE + SCA)
+# Optimization configuration - SWE calibration
 OPTIMIZATION_METHODS: ['iteration']
-ITERATIVE_OPTIMIZATION_ALGORITHM: DDS
-OPTIMIZATION_TARGET: multivariate
-OPTIMIZATION_METRIC: KGE  # Overall metric for optimization
+ITERATIVE_OPTIMIZATION_ALGORITHM: ASYNC-DDS
+OPTIMIZATION_TARGET: swe
+OPTIMIZATION_METRIC: KGE  # Metric for SWE optimization
 
-# Multivariate objectives
-OBJECTIVE_WEIGHTS:
-  SWE: 0.5    # Snow Water Equivalent weight
-  SCA: 0.5    # Snow Covered Area weight
-
-OBJECTIVE_METRICS:
-  SWE: KGE    # Kling-Gupta Efficiency for SWE
-  SCA: corr   # Correlation for SCA
-
-EVALUATION_DATA: ['SWE', 'SCA']
-NUMBER_OF_ITERATIONS: 1000
+EVALUATION_DATA: ['SWE']
+NUMBER_OF_ITERATIONS: 1000  # Reduced for testing
 
 # DDS algorithm settings
 DDS_R: 0.2

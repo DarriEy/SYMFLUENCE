@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional
 
 from .base_worker import BaseWorker, WorkerTask, WorkerResult
 from ..registry import OptimizerRegistry
+from .utilities.streamflow_metrics import StreamflowMetrics
 
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,9 @@ class NgenWorker(BaseWorker):
     Handles parameter application to JSON config files, ngen execution,
     and metric calculation for streamflow calibration.
     """
+
+    # Shared streamflow metrics utility
+    _streamflow_metrics = StreamflowMetrics()
 
     def __init__(
         self,
@@ -163,39 +167,40 @@ class NgenWorker(BaseWorker):
 
             updated_count = 0
             for i, line in enumerate(lines):
-                if "=" not in line:
+                if "=" not in line or line.strip().startswith("#"):
                     continue
                 k, rhs = line.split("=", 1)
                 k = k.strip()
                 rhs_keep = rhs.strip()
-                
-                # Standardize current line to have spaces
-                lines[i] = f"{k} = {rhs_keep}"
 
-                # Enforce working settings
+                # Enforce working settings (no spaces around = for CFE)
                 if k == "num_timesteps":
-                    lines[i] = f"num_timesteps = {num_steps}"
+                    lines[i] = f"num_timesteps={num_steps}"
                     updated_count += 1
                     continue
-                if k == "surface_partitioning_scheme":
-                    lines[i] = "surface_partitioning_scheme = Xinanjiang"
+                if k == "surface_water_partitioning_scheme":
+                    lines[i] = "surface_water_partitioning_scheme=Schaake"
+                    updated_count += 1
+                    continue
+                if k == "surface_runoff_scheme":
+                    lines[i] = "surface_runoff_scheme=GIUH"
                     updated_count += 1
                     continue
                 if k == "giuh_ordinates":
-                    lines[i] = "giuh_ordinates = 0.65,0.35"
+                    lines[i] = "giuh_ordinates=0.06,0.51,0.28,0.12,0.03"
                     updated_count += 1
                     continue
                 if k == "nash_storage":
-                    lines[i] = "nash_storage = 0.0,0.0"
+                    lines[i] = "nash_storage=0.0,0.0"
                     updated_count += 1
                     continue
 
                 for param_name, config_key in keymap.items():
                     if param_name in params and k == config_key:
-                        # Extract units if present
-                        parts = rhs.split('[')
-                        units = f" [{parts[1]}" if len(parts) > 1 else ""
-                        lines[i] = f"{config_key} = {params[param_name]}{units}"
+                        # Extract units if present (format: value[unit])
+                        parts = rhs_keep.split('[')
+                        units = f"[{parts[1]}" if len(parts) > 1 else ""
+                        lines[i] = f"{config_key}={params[param_name]}{units}"
                         updated_count += 1
                         self.logger.debug(f"Updated CFE.{param_name} = {params[param_name]}")
 
@@ -288,25 +293,20 @@ class NgenWorker(BaseWorker):
                     num_steps = 1
 
                 for i, line in enumerate(lines):
-                    if "=" not in line:
+                    if "=" not in line or line.strip().startswith("#"):
                         continue
                     k, rhs = line.split("=", 1)
                     k = k.strip()
                     rhs_keep = rhs.strip()
-                    
-                    # Standardize
-                    lines[i] = f"{k} = {rhs_keep}"
-                    
+
+                    # PET configs also should not have spaces around =
                     if k == "num_timesteps":
-                        lines[i] = f"num_timesteps = {num_steps}"
+                        lines[i] = f"num_timesteps={num_steps}"
                         continue
 
                     for param_name, value in params.items():
-                        pattern = rf"^{re.escape(param_name)}\s*="
-                        if re.match(pattern, line.strip()):
-                            parts = rhs_keep.split('[')
-                            units = f" [{parts[1]}" if len(parts) > 1 else ""
-                            lines[i] = f"{param_name} = {value}{units}"
+                        if k == param_name:
+                            lines[i] = f"{param_name}={value}"
                             self.logger.debug(f"Updated PET.{param_name} = {value}")
 
                 config_file.write_text('\n'.join(lines) + '\n')
@@ -489,27 +489,30 @@ class NgenWorker(BaseWorker):
                     var = next(iter(ds.data_vars))
                     sim = ds[var].values.flatten()
 
-            # Load observations
+            # Load observations using shared utility
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             project_dir = data_dir / f"domain_{domain_name}"
-            obs_file = (project_dir / 'observations' / 'streamflow' / 'preprocessed' /
-                       f'{domain_name}_streamflow_processed.csv')
 
-            if not obs_file.exists():
+            obs_values, obs_index = self._streamflow_metrics.load_observations(
+                config, project_dir, domain_name, resample_freq=None
+            )
+            if obs_values is None:
                 return {'kge': self.penalty_score, 'error': 'Observations not found'}
 
-            obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
-            
-            # Simple alignment (actual implementation might need more robustness)
-            # This is a fallback so we keep it simple
-            min_len = min(len(sim), len(obs_df)) # <--- Here it uses obs_df
-            sim_vals = sim[:min_len]
-            obs_vals = obs_df['discharge_cms'].values[:min_len]
+            # Simple alignment using shared utility
+            obs_series = pd.Series(obs_values, index=obs_index)
+            # Create simulation series (use same index length as simple fallback)
+            sim_series = pd.Series(sim, index=obs_index[:len(sim)] if len(sim) <= len(obs_index) else obs_index)
 
-            kge_val = kge(obs_vals, sim_vals, transfo=1)
-            nse_val = nse(obs_vals, sim_vals, transfo=1)
-
-            return {'kge': float(kge_val), 'nse': float(nse_val)}
+            try:
+                obs_aligned, sim_aligned = self._streamflow_metrics.align_timeseries(sim_series, obs_series)
+                return self._streamflow_metrics.calculate_metrics(obs_aligned, sim_aligned, metrics=['kge', 'nse'])
+            except ValueError as e:
+                # Fallback to simple length-based alignment
+                min_len = min(len(sim), len(obs_values))
+                return self._streamflow_metrics.calculate_metrics(
+                    obs_values[:min_len], sim[:min_len], metrics=['kge', 'nse']
+                )
 
         except Exception as e:
             self.logger.error(f"Error in direct ngen metrics calculation: {e}")

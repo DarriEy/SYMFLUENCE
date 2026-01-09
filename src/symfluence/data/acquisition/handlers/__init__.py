@@ -73,4 +73,10 @@ try:
 except ImportError:
     pass
 
+try:
+    from . import grace
+    _imported.append('grace')
+except ImportError:
+    pass
+
 __all__ = _imported

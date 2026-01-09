@@ -134,8 +134,8 @@ class MESHModelOptimizer(BaseModelOptimizer):
                 if dest_forcing.exists():
                     shutil.rmtree(dest_forcing)
 
-                shutil.copytree(source_forcing, dest_forcing)
-                self.logger.debug(f"Copied MESH forcing to {dest_forcing}")
+                shutil.copytree(source_forcing, dest_forcing, symlinks=True)
+                self.logger.debug(f"Copied MESH forcing to {dest_forcing} (preserving symlinks)")
 
                 # Update parallel_dirs to include forcing path
                 dirs['forcing_dir'] = dest_forcing
@@ -150,37 +150,26 @@ class MESHModelOptimizer(BaseModelOptimizer):
         """
         Update MESH_input_run_options.ini with process-specific output directories.
 
-        Similar to update_file_managers() but for MESH's .ini format.
-
         Args:
             parallel_dirs: Dictionary of parallel directory paths per process
         """
         for proc_id, dirs in parallel_dirs.items():
             forcing_dir = dirs.get('forcing_dir')
-            if not forcing_dir:
-                self.logger.warning(f"No forcing directory for process {proc_id}")
-                continue
+            if not forcing_dir: continue
 
             run_options_path = forcing_dir / 'MESH_input_run_options.ini'
-
-            if not run_options_path.exists():
-                self.logger.warning(f"MESH run options not found: {run_options_path}")
-                continue
+            if not run_options_path.exists(): continue
 
             try:
                 with open(run_options_path, 'r') as f:
                     lines = f.readlines()
 
-                # Update output directory to process-specific output dir
                 output_path = str(dirs['output_dir']).replace('\\', '/').rstrip('/') + '/'
-
                 updated_lines = []
-                for i, line in enumerate(lines):
-                    # Line 24 (0-indexed line 23) is the output directory
-                    # Format: "./                                                      #24 Output Directory"
-                    if i == 23:  # 0-indexed, line 24
-                        # Keep comment if exists
-                        comment = line.split('#', 1)[1] if '#' in line else '24 Output Directory\n'
+                for line in lines:
+                    # Look for the output directory line by comment
+                    if 'Output Directory' in line:
+                        comment = line.split('#', 1)[1] if '#' in line else 'Output Directory\n'
                         updated_lines.append(f"{output_path:<60} #{comment}")
                     else:
                         updated_lines.append(line)
@@ -188,8 +177,7 @@ class MESHModelOptimizer(BaseModelOptimizer):
                 with open(run_options_path, 'w') as f:
                     f.writelines(updated_lines)
 
-                self.logger.debug(f"Updated MESH run options for process {proc_id}: {run_options_path}")
-
+                self.logger.debug(f"Updated MESH run options for process {proc_id}")
             except Exception as e:
                 self.logger.error(f"Failed to update MESH run options for process {proc_id}: {e}")
 

@@ -317,6 +317,18 @@ class UnifiedModelRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
             # Execute
             log_file = self.get_log_path() / f"{self.model_name.lower()}_run.log"
 
+            # Determine timeout
+            timeout = self.schema.execution.default_timeout if self.schema else 3600
+            
+            # Check for override in config
+            timeout_key = f"{self.model_name}_TIMEOUT"
+            if timeout_key in self.config_dict:
+                try:
+                    timeout = int(self.config_dict[timeout_key])
+                    self.logger.debug(f"Using overridden timeout: {timeout}s")
+                except (ValueError, TypeError):
+                    self.logger.warning(f"Invalid timeout value for {timeout_key}, using default: {timeout}s")
+
             result = self.execute_in_mode(
                 mode=mode,
                 command=command,
@@ -324,7 +336,7 @@ class UnifiedModelRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
                 slurm_config=slurm_config,
                 env=self._get_environment(),
                 cwd=getattr(self, 'setup_dir', None),
-                timeout=self.schema.execution.default_timeout if self.schema else 3600,
+                timeout=timeout,
             )
 
             # Post-execution processing

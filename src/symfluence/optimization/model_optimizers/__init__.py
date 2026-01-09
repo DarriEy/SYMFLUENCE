@@ -14,6 +14,7 @@ Available optimizers:
 - MizuRouteModelOptimizer: MizuRoute routing model optimization
 - TRouteModelOptimizer: T-Route routing model optimization
 - LSTMModelOptimizer: LSTM model optimization
+- RHESSysModelOptimizer: RHESSys model optimization
 """
 
 from .summa_optimizer import SUMMAModelOptimizer
@@ -25,6 +26,7 @@ from .mesh_model_optimizer import MESHModelOptimizer
 from .mizuroute_model_optimizer import MizuRouteModelOptimizer
 from .troute_model_optimizer import TRouteModelOptimizer
 from .lstm_model_optimizer import LSTMModelOptimizer
+from .rhessys_model_optimizer import RHESSysModelOptimizer
 
 __all__ = [
     'SUMMAModelOptimizer',
@@ -36,4 +38,5 @@ __all__ = [
     'MizuRouteModelOptimizer',
     'TRouteModelOptimizer',
     'LSTMModelOptimizer',
+    'RHESSysModelOptimizer',
 ]

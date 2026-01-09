@@ -178,6 +178,40 @@ class SummaConfigManager(PathResolverMixin):
                 copyfile(source_file, dest_file)
                 self.logger.debug(f"Copied {source_file} to {dest_file}")
 
+            # Ensure TWS variables are in outputControl if doing TWS optimization
+            target = self.config_dict.get('OPTIMIZATION_TARGET', '').lower()
+            if target in ['tws', 'grace', 'grace_tws']:
+                output_control_path = settings_path / 'outputControl.txt'
+                if output_control_path.exists():
+                    with open(output_control_path, 'r') as f:
+                        lines = f.readlines()
+                    
+                    required_vars = ['scalarSWE', 'scalarCanopyWat', 'scalarTotalSoilWat', 'scalarAquiferStorage']
+                    # Get from config if specified
+                    storage_str = self.config_dict.get('TWS_STORAGE_COMPONENTS', '')
+                    if storage_str:
+                        required_vars = [v.strip() for v in storage_str.split(',') if v.strip()]
+                    
+                    # Filter out existing entries for these variables to avoid duplicates
+                    new_lines = []
+                    for line in lines:
+                        is_required = False
+                        for var in required_vars:
+                            if line.strip().startswith(var):
+                                is_required = True
+                                break
+                        if not is_required:
+                            new_lines.append(line)
+                    
+                    # Append them cleanly at the end with frequency 1
+                    new_lines.append("\n! TWS Optimization required variables (every timestep)\n")
+                    for v in required_vars:
+                        new_lines.append(f"{v} | 1\n")
+                        
+                    with open(output_control_path, 'w') as f:
+                        f.writelines(new_lines)
+                    self.logger.info(f"Updated outputControl.txt with TWS variables: {required_vars}")
+
             self.logger.info(f"SUMMA base settings copied to {settings_path}")
         except FileNotFoundError as e:
             self.logger.error(f"Source file or directory not found: {e}")
@@ -242,6 +276,18 @@ class SummaConfigManager(PathResolverMixin):
                 fm.write(f"soilTableFile        'TBL_SOILPARM.TBL'\n")
                 fm.write(f"generalTableFile     'TBL_GENPARM.TBL'\n")
                 fm.write(f"noahmpTableFile      'TBL_MPTABLE.TBL'\n")
+
+                # Add glacier-specific entries if enabled
+                glacier_mode = self.config_dict.get('SETTINGS_SUMMA_GLACIER_MODE', False)
+                if not glacier_mode and 'glac' in filemanager_name.lower():
+                    glacier_mode = True  # Auto-detect from filename
+
+                if glacier_mode:
+                    init_grid_file = self.config_dict.get('SETTINGS_SUMMA_INIT_GRID_FILE', 'coldState_glacSurfTopo.nc')
+                    attrib_grid_file = self.config_dict.get('SETTINGS_SUMMA_ATTRIB_GRID_FILE', 'attributes_glacBedTopo.nc')
+                    fm.write(f"initGridFile         '{init_grid_file}'\n")
+                    fm.write(f"attribGridFile       '{attrib_grid_file}'\n")
+                    self.logger.info("Glacier mode enabled - added initGridFile and attribGridFile")
 
             self.logger.info(f"SUMMA file manager created at {filemanager_path}")
 

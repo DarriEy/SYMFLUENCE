@@ -29,5 +29,8 @@ scalarSnowSublimation | 24
 mLayerDepth | 24
 mLayerVolFracLiq | 24
 scalarTotalET | 24
+scalarCanopyWat | 24
+scalarTotalSoilWat | 24
+scalarAquiferStorage | 24
 
 

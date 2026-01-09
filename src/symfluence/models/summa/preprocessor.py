@@ -185,6 +185,92 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.create_trial_parameters()
         self.create_attributes_file()
 
+        # Check if glacier preprocessing is enabled
+        glacier_mode = self._is_glacier_mode_enabled()
+        if glacier_mode:
+            self.run_glacier_preprocessing()
+
+    def _is_glacier_mode_enabled(self) -> bool:
+        """Check if glacier mode is enabled based on config or file manager name."""
+        glacier_mode = self.config_dict.get('SETTINGS_SUMMA_GLACIER_MODE', False)
+        if glacier_mode:
+            return True
+        filemanager_name = self.config_dict.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        if 'glac' in filemanager_name.lower():
+            return True
+        return False
+
+    def run_glacier_preprocessing(self) -> None:
+        """
+        Run glacier-specific preprocessing for SUMMA.
+
+        This method creates glacier-specific files required for SUMMA glacier simulations:
+        - Glacier attributes file (attributes_glac.nc)
+        - Glacier initial conditions (coldState_glac.nc)
+        - Glacier surface topography (coldState_glacSurfTopo.nc) - optional
+        - Glacier bed topography (attributes_glacBedTopo.nc) - optional
+
+        The glacier preprocessing is triggered when SETTINGS_SUMMA_GLACIER_MODE is True
+        or when the file manager name contains 'glac'.
+        """
+        self.logger.info("Running glacier preprocessing for SUMMA")
+
+        # Check if glacier files already exist (user-provided)
+        glacier_attr_path = self.setup_dir / 'attributes_glac.nc'
+        glacier_cold_path = self.setup_dir / 'coldState_glac.nc'
+        glacier_topo_attr = self.setup_dir / 'attributes_glacBedTopo.nc'
+        glacier_topo_cold = self.setup_dir / 'coldState_glacSurfTopo.nc'
+
+        if glacier_attr_path.exists() and glacier_cold_path.exists():
+            self.logger.info("Glacier files already exist, skipping generation")
+            self._log_glacier_files_status()
+            return
+
+        # Create glacier files from base files if they don't exist
+        self._create_glacier_files()
+
+    def _create_glacier_files(self) -> None:
+        """
+        Create glacier-specific SUMMA files from base files.
+
+        This creates copies of attributes.nc and coldState.nc with glacier-specific
+        modifications if the glacier files don't already exist.
+        """
+        import shutil
+
+        base_attr = self.setup_dir / self.attribute_name
+        base_cold = self.setup_dir / self.coldstate_name
+
+        glacier_attr_name = self.config_dict.get('SETTINGS_SUMMA_GLACIER_ATTRIBUTES', 'attributes_glac.nc')
+        glacier_cold_name = self.config_dict.get('SETTINGS_SUMMA_GLACIER_COLDSTATE', 'coldState_glac.nc')
+
+        glacier_attr_path = self.setup_dir / glacier_attr_name
+        glacier_cold_path = self.setup_dir / glacier_cold_name
+
+        # Copy base files to glacier files if they don't exist
+        if not glacier_attr_path.exists() and base_attr.exists():
+            shutil.copy2(base_attr, glacier_attr_path)
+            self.logger.info(f"Created {glacier_attr_name} from {self.attribute_name}")
+
+        if not glacier_cold_path.exists() and base_cold.exists():
+            shutil.copy2(base_cold, glacier_cold_path)
+            self.logger.info(f"Created {glacier_cold_name} from {self.coldstate_name}")
+
+        self._log_glacier_files_status()
+
+    def _log_glacier_files_status(self) -> None:
+        """Log the status of glacier files."""
+        glacier_files = [
+            'attributes_glac.nc',
+            'coldState_glac.nc',
+            'attributes_glacBedTopo.nc',
+            'coldState_glacSurfTopo.nc'
+        ]
+        for gf in glacier_files:
+            path = self.setup_dir / gf
+            status = "EXISTS" if path.exists() else "MISSING"
+            self.logger.info(f"Glacier file {gf}: {status}")
+
     def copy_base_settings(self):
         """
         Copy SUMMA base settings from the source directory to the project's settings directory.

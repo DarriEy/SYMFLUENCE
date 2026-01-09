@@ -28,6 +28,7 @@ class DataConfig(BaseModel):
     download_snotel: bool = Field(default=False, alias='DOWNLOAD_SNOTEL')
     download_smhi_data: bool = Field(default=False, alias='DOWNLOAD_SMHI_DATA')
     download_lamah_ice_data: bool = Field(default=False, alias='DOWNLOAD_LAMAH_ICE_DATA')
+    download_ismn: bool = Field(default=False, alias='DOWNLOAD_ISMN')
     
     # Dataset-specific paths
     lamah_ice_path: Optional[str] = Field(default=None, alias='LAMAH_ICE_PATH')

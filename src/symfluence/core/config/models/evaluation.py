@@ -59,6 +59,25 @@ class SMAPConfig(BaseModel):
     download: bool = Field(default=False, alias='DOWNLOAD_SMAP')
     product: str = Field(default='SPL4SMGP', alias='SMAP_PRODUCT')
     path: str = Field(default='default', alias='SMAP_PATH')
+    max_granules: Optional[int] = Field(default=None, alias='SMAP_MAX_GRANULES')
+    use_opendap: bool = Field(default=False, alias='SMAP_USE_OPENDAP')
+    surface_depth_m: float = Field(default=0.05, alias='SMAP_SURFACE_DEPTH_M')
+    rootzone_depth_m: float = Field(default=1.0, alias='SMAP_ROOTZONE_DEPTH_M')
+
+
+class ISMNConfig(BaseModel):
+    """ISMN soil moisture observation data settings"""
+    model_config = FROZEN_CONFIG
+
+    download: bool = Field(default=False, alias='DOWNLOAD_ISMN')
+    path: str = Field(default='default', alias='ISMN_PATH')
+    api_base: str = Field(default='https://ismn.geo.tuwien.ac.at/api/v1', alias='ISMN_API_BASE')
+    metadata_url: Optional[str] = Field(default=None, alias='ISMN_METADATA_URL')
+    data_url_template: Optional[str] = Field(default=None, alias='ISMN_DATA_URL_TEMPLATE')
+    max_stations: int = Field(default=3, alias='ISMN_MAX_STATIONS')
+    search_radius_km: Optional[float] = Field(default=None, alias='ISMN_SEARCH_RADIUS_KM')
+    target_depth_m: float = Field(default=0.05, alias='ISMN_TARGET_DEPTH_M')
+    temporal_aggregation: str = Field(default='daily_mean', alias='ISMN_TEMPORAL_AGGREGATION')
 
 
 class GRACEConfig(BaseModel):
@@ -113,6 +132,7 @@ class EvaluationConfig(BaseModel):
     fluxnet: Optional[FluxNetConfig] = Field(default_factory=FluxNetConfig)
     usgs_gw: Optional[USGSGWConfig] = Field(default_factory=USGSGWConfig)
     smap: Optional[SMAPConfig] = Field(default_factory=SMAPConfig)
+    ismn: Optional[ISMNConfig] = Field(default_factory=ISMNConfig)
     grace: Optional[GRACEConfig] = Field(default_factory=GRACEConfig)
     modis_snow: Optional[MODISSnowConfig] = Field(default_factory=MODISSnowConfig)
     attributes: Optional[AttributesConfig] = Field(default_factory=AttributesConfig)

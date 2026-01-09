@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 
 from .base_worker import BaseWorker, WorkerTask, WorkerResult
 from ..registry import OptimizerRegistry
-from symfluence.evaluation.metrics import kge, nse
+from .utilities.streamflow_metrics import StreamflowMetrics
 
 
 @OptimizerRegistry.register_worker('MESH')
@@ -21,6 +21,9 @@ class MESHWorker(BaseWorker):
 
     Handles parameter application, MESH execution, and metric calculation.
     """
+
+    # Shared streamflow metrics utility
+    _streamflow_metrics = StreamflowMetrics()
 
     def __init__(
         self,
@@ -177,31 +180,28 @@ class MESHWorker(BaseWorker):
 
             sim = sim_df[flow_col].values
 
-            # Load observations
+            # Load observations using shared utility
             domain_name = config.get('DOMAIN_NAME')
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            obs_file = (data_dir / f'domain_{domain_name}' / 'observations' /
-                       'streamflow' / 'preprocessed' / f'{domain_name}_streamflow_processed.csv')
+            project_dir = data_dir / f'domain_{domain_name}'
 
-            if not obs_file.exists():
-                self.logger.error(f"Observations not found: {obs_file}")
+            obs_values, obs_index = self._streamflow_metrics.load_observations(
+                config, project_dir, domain_name, resample_freq=None
+            )
+            if obs_values is None:
+                self.logger.error("Observations not found")
                 return {'kge': self.penalty_score, 'error': 'Observations not found'}
 
-            obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
+            obs_series = pd.Series(obs_values, index=obs_index)
+            sim_series = sim_df[flow_col]
 
-            # Align simulation and observations
-            common_idx = sim_df.index.intersection(obs_df.index)
-            if len(common_idx) == 0:
-                self.logger.error("No common dates between simulation and observations")
+            # Align and calculate using shared utility
+            try:
+                obs_aligned, sim_aligned = self._streamflow_metrics.align_timeseries(sim_series, obs_series)
+                return self._streamflow_metrics.calculate_metrics(obs_aligned, sim_aligned, metrics=['kge', 'nse'])
+            except ValueError as e:
+                self.logger.error(f"No common dates: {e}")
                 return {'kge': self.penalty_score, 'error': 'No common dates'}
-
-            obs_aligned = df_obs.loc[common_index].values
-            sim_aligned = df_sim.loc[common_index].values
-
-            kge_val = kge(obs_aligned, sim_aligned, transfo=1)
-            nse_val = nse(obs_aligned, sim_aligned, transfo=1)
-
-            return {'kge': float(kge_val), 'nse': float(nse_val)}
 
         except Exception as e:
             self.logger.error(f"Error calculating MESH metrics: {e}")

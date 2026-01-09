@@ -14,9 +14,22 @@ class FLUXCOMETHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Locate FLUXCOM ET data."""
-        et_dir = Path(self.config.get('FLUXCOM_ET_PATH', self.project_dir / "observations" / "et" / "fluxcom"))
-        if not et_dir.exists():
+        et_path_cfg = self.config.get('FLUXCOM_ET_PATH')
+        if et_path_cfg and str(et_path_cfg).lower() != 'default':
+            et_dir = Path(et_path_cfg)
             et_dir.mkdir(parents=True, exist_ok=True)
+            return et_dir
+
+        et_dir = self.project_dir / "observations" / "et" / "fluxcom"
+        et_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            from symfluence.data.acquisition.handlers.observation_acquirers import FLUXCOMETAcquirer
+            acquirer = FLUXCOMETAcquirer(self.config, self.logger)
+            acquirer.download(self.project_dir / "observations")
+        except Exception as exc:
+            self.logger.warning(f"FLUXCOM ET acquisition failed: {exc}")
+
         return et_dir
 
     def process(self, input_path: Path) -> Path:

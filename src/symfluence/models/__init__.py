@@ -97,6 +97,11 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import gr: {e}")
 
+try:
+    from . import gnn
+except ImportError as e:
+    logger.warning(f"Could not import gnn: {e}")
+
 
 __all__ = [
     # Core

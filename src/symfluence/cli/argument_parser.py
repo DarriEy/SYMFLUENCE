@@ -36,10 +36,14 @@ WORKFLOW_STEPS = [
 DOMAIN_DEFINITION_METHODS = ['lumped', 'point', 'subset', 'delineate']
 
 # Available tools for binary installation
-EXTERNAL_TOOLS = ['summa', 'mizuroute', 'fuse', 'hype', 'mesh', 'taudem', 'gistool', 'datatool', 'rhessys']
+try:
+    from .external_tools_config import get_external_tools_definitions
+    EXTERNAL_TOOLS = list(get_external_tools_definitions().keys())
+except ImportError:
+    EXTERNAL_TOOLS = ['summa', 'mizuroute', 'fuse', 'hype', 'mesh', 'taudem', 'gistool', 'datatool', 'rhessys', 'ngen', 'troute']
 
 # Hydrological models
-MODELS = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'MESH']
+MODELS = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'MESH', 'RHESSys']
 
 
 class CLIParser:

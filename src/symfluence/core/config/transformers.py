@@ -77,6 +77,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'DOWNLOAD_SNOTEL': ('data', 'download_snotel'),
     'DOWNLOAD_SMHI_DATA': ('data', 'download_smhi_data'),
     'DOWNLOAD_LAMAH_ICE_DATA': ('data', 'download_lamah_ice_data'),
+    'DOWNLOAD_ISMN': ('data', 'download_ismn'),
     'LAMAH_ICE_PATH': ('data', 'lamah_ice_path'),
 
     # Domain > Delineation
@@ -386,6 +387,18 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'DOWNLOAD_SMAP': ('evaluation', 'smap', 'download'),
     'SMAP_PRODUCT': ('evaluation', 'smap', 'product'),
     'SMAP_PATH': ('evaluation', 'smap', 'path'),
+    'SMAP_MAX_GRANULES': ('evaluation', 'smap', 'max_granules'),
+    'SMAP_USE_OPENDAP': ('evaluation', 'smap', 'use_opendap'),
+    'SMAP_SURFACE_DEPTH_M': ('evaluation', 'smap', 'surface_depth_m'),
+    'SMAP_ROOTZONE_DEPTH_M': ('evaluation', 'smap', 'rootzone_depth_m'),
+    'ISMN_PATH': ('evaluation', 'ismn', 'path'),
+    'ISMN_API_BASE': ('evaluation', 'ismn', 'api_base'),
+    'ISMN_METADATA_URL': ('evaluation', 'ismn', 'metadata_url'),
+    'ISMN_DATA_URL_TEMPLATE': ('evaluation', 'ismn', 'data_url_template'),
+    'ISMN_MAX_STATIONS': ('evaluation', 'ismn', 'max_stations'),
+    'ISMN_SEARCH_RADIUS_KM': ('evaluation', 'ismn', 'search_radius_km'),
+    'ISMN_TARGET_DEPTH_M': ('evaluation', 'ismn', 'target_depth_m'),
+    'ISMN_TEMPORAL_AGGREGATION': ('evaluation', 'ismn', 'temporal_aggregation'),
 
     # Evaluation > GRACE
     'DOWNLOAD_GRACE': ('evaluation', 'grace', 'download'),
