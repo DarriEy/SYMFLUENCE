@@ -14,6 +14,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing as mp
 import pickle
 import subprocess # Added to fix NameError
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -147,8 +148,8 @@ class ParallelExecutionMixin:
         """
         Update file manager paths in process-specific directories.
 
-        Updates settingsPath, outputPath, and outFilePrefix to point to
-        process-specific directories instead of global directories.
+        Updates settingsPath, outputPath, outFilePrefix, and simulation times
+        to point to process-specific directories and use calibration period.
 
         Args:
             parallel_dirs: Dictionary of parallel directory paths per process
@@ -156,6 +157,40 @@ class ParallelExecutionMixin:
             experiment_id: Experiment identifier
             file_manager_name: Name of the file manager file (default: 'fileManager.txt')
         """
+        # Get calibration period from config (use spinup start to calibration end)
+        cal_period = self.config.get('CALIBRATION_PERIOD', '')
+        spinup_period = self.config.get('SPINUP_PERIOD', '')
+
+        cal_start = None
+        cal_end = None
+
+        if spinup_period:
+            # Use spinup start as simulation start
+            spinup_parts = [p.strip() for p in spinup_period.split(',')]
+            if len(spinup_parts) >= 1:
+                cal_start = spinup_parts[0]
+
+        if cal_period:
+            # Use calibration end as simulation end
+            cal_parts = [p.strip() for p in cal_period.split(',')]
+            if len(cal_parts) >= 2:
+                cal_end = cal_parts[1]
+
+        # Adjust end time to align with forcing timestep (3-hourly CERRA ends at 21:00, not 23:00)
+        if cal_end:
+            try:
+                forcing_timestep = self.config.get('FORCING_TIME_STEP_SIZE', 3600)
+                if forcing_timestep >= 3600:  # Hourly or coarser
+                    end_dt = datetime.strptime(cal_end, '%Y-%m-%d')
+                    forcing_hours = forcing_timestep / 3600
+                    last_hour = int(24 - (24 % forcing_hours)) - forcing_hours
+                    if last_hour < 0:
+                        last_hour = 0
+                    # Adjust to last valid timestep
+                    cal_end = end_dt.strftime('%Y-%m-%d') + f' {int(last_hour):02d}:00'
+            except Exception:
+                pass  # Keep original if adjustment fails
+
         for proc_id, dirs in parallel_dirs.items():
             file_manager_path = dirs['settings_dir'] / file_manager_name
 
@@ -170,7 +205,7 @@ class ParallelExecutionMixin:
                 with open(file_manager_path, 'r') as f:
                     lines = f.readlines()
 
-                # Update relevant paths
+                # Update relevant paths and times
                 updated_lines = []
                 for line in lines:
                     if model_name.upper() == 'HYPE' and line.startswith('resultdir'):
@@ -189,6 +224,12 @@ class ParallelExecutionMixin:
                         # Update with process-specific prefix
                         prefix = f'proc_{proc_id:02d}_{experiment_id}'
                         updated_lines.append(f"outFilePrefix        '{prefix}'\n")
+                    elif 'simStartTime' in line and cal_start:
+                        # Update to calibration start time (including spinup)
+                        updated_lines.append(f"simStartTime         '{cal_start}'\n")
+                    elif 'simEndTime' in line and cal_end:
+                        # Update to calibration end time (adjusted for forcing)
+                        updated_lines.append(f"simEndTime           '{cal_end}'\n")
                     else:
                         updated_lines.append(line)
 
@@ -196,9 +237,14 @@ class ParallelExecutionMixin:
                 with open(file_manager_path, 'w') as f:
                     f.writelines(updated_lines)
 
-                self.logger.debug(
-                    f"Updated file manager for process {proc_id}: {file_manager_path}"
-                )
+                if cal_start and cal_end:
+                    self.logger.info(
+                        f"Updated file manager for process {proc_id} with calibration period: {cal_start} to {cal_end}"
+                    )
+                else:
+                    self.logger.debug(
+                        f"Updated file manager for process {proc_id}: {file_manager_path}"
+                    )
 
             except Exception as e:
                 self.logger.error(
@@ -715,7 +761,11 @@ if __name__ == "__main__":
             # Always prefer the venv Python if it exists
             venv_paths = [
                 Path(__file__).parent.parent.parent.parent.parent / "venv" / "bin" / "python",
+                Path(__file__).parent.parent.parent.parent.parent / "venv" / "bin" / "python3",
+                Path(__file__).parent.parent.parent.parent.parent / "venv" / "bin" / "python3.11",
                 Path.home() / "venv" / "bin" / "python",
+                Path.home() / "venv" / "bin" / "python3",
+                Path.home() / "venv" / "bin" / "python3.11",
             ]
             for venv_path in venv_paths:
                 if venv_path.exists():
@@ -761,6 +811,16 @@ if __name__ == "__main__":
 
             # Always log MPI output for debugging
             self.logger.debug(f"MPI returncode: {result.returncode}")
+            
+            # Check for diagnostic markers in stdout/stderr and force print if found
+            for output in [result.stdout, result.stderr]:
+                if output:
+                    if "[TWS]" in output or "[WORKER DIAG]" in output:
+                        # Extract and log lines with markers
+                        for line in output.split('\n'):
+                            if "[TWS]" in line or "[WORKER DIAG]" in line:
+                                print(f"  > {line}", flush=True)
+
             if result.stdout:
                 self.logger.debug(f"MPI stdout: {result.stdout[:1000]}")
             if result.stderr:

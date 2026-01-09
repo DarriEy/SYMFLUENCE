@@ -111,6 +111,21 @@ class ResultsTrackingMixin:
 
         return False
 
+    @property
+    def best_score(self) -> float:
+        """Get the best score found so far."""
+        return self._best_score
+
+    @property
+    def best_params(self) -> Optional[Dict[str, float]]:
+        """Get the best parameters found so far."""
+        return self._best_params
+
+    @property
+    def best_iteration(self) -> int:
+        """Get the iteration where best was found."""
+        return self._best_iteration
+
     def get_best_result(self) -> Dict[str, Any]:
         """
         Get the best result found so far.

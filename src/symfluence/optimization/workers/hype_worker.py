@@ -12,9 +12,10 @@ from typing import Dict, Any, Optional
 
 from .base_worker import BaseWorker, WorkerTask, WorkerResult
 from ..registry import OptimizerRegistry
-from symfluence.evaluation.metrics import kge, nse
 from symfluence.models.hype.preprocessor import HYPEPreProcessor
 from symfluence.models.hype.runner import HYPERunner
+from .utilities.routing_decider import RoutingDecider
+from .utilities.streamflow_metrics import StreamflowMetrics
 
 
 @OptimizerRegistry.register_worker('HYPE')
@@ -39,9 +40,15 @@ class HYPEWorker(BaseWorker):
         """
         super().__init__(config, logger)
 
+    # Shared utilities
+    _routing_decider = RoutingDecider()
+    _streamflow_metrics = StreamflowMetrics()
+
     def needs_routing(self, config: Dict[str, Any], settings_dir: Optional[Path] = None) -> bool:
         """
         Determine if routing (mizuRoute) is needed for HYPE.
+
+        Delegates to shared RoutingDecider utility.
 
         Args:
             config: Configuration dictionary
@@ -50,39 +57,7 @@ class HYPEWorker(BaseWorker):
         Returns:
             True if routing is needed
         """
-        calibration_var = config.get('CALIBRATION_VARIABLE', 'streamflow')
-
-        if calibration_var != 'streamflow':
-            return False
-
-        # Check routing model
-        routing_model = config.get('ROUTING_MODEL', 'none')
-        if routing_model in ['mizuRoute', 'default']:
-            return True
-
-        # Check spatial mode and routing delineation
-        spatial_mode = config.get('HYPE_SPATIAL_MODE', 'lumped')
-        routing_delineation = config.get('ROUTING_DELINEATION', 'lumped')
-        domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-
-        # Distributed modes or non-lumped domains need routing
-        if spatial_mode in ['semi_distributed', 'distributed']:
-            return True
-        
-        if domain_method not in ['point', 'lumped']:
-            return True
-
-        # Lumped with river network routing needs routing
-        if routing_delineation == 'river_network':
-            return True
-
-        # Also check if mizuRoute control files exist in settings_dir
-        if settings_dir:
-            mizu_control = settings_dir / 'mizuRoute' / 'mizuroute.control'
-            if mizu_control.exists():
-                return True
-
-        return False
+        return self._routing_decider.needs_routing(config, 'HYPE', settings_dir)
 
     def apply_parameters(
         self,
@@ -102,16 +77,21 @@ class HYPEWorker(BaseWorker):
             True if successful
         """
         try:
-            from symfluence.models.hype.hypeFlow import write_hype_par_file
-            
+            from symfluence.models.hype import HYPEConfigManager
+
             # Ensure settings directory exists
             settings_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Update par.txt in the isolated settings directory
-            # write_hype_par_file will read GeoClass.txt from settings_dir 
+            # HYPEConfigManager will read GeoClass.txt from settings_dir
             # to determine class counts and land uses
-            write_hype_par_file(settings_dir, params=params)
-            
+            config_manager = HYPEConfigManager(
+                config=self.config or {},
+                logger=self.logger,
+                output_path=settings_dir
+            )
+            config_manager.write_par_file(params=params)
+
             return True
 
         except Exception as e:
@@ -151,20 +131,24 @@ class HYPEWorker(BaseWorker):
             hype_output_dir.mkdir(parents=True, exist_ok=True)
 
             # Ensure the info.txt file points to the correct isolated output directory
-            from symfluence.models.hype.hypeFlow import write_hype_info_filedir_files
-            
+            from symfluence.models.hype import HYPEConfigManager
+
             spinup_days = config.get('HYPE_SPINUP_DAYS', 0)
             experiment_start = config.get('EXPERIMENT_TIME_START')
             experiment_end = config.get('EXPERIMENT_TIME_END')
-            
+
             # HYPE results dir MUST have a trailing slash
             results_dir_str = str(hype_output_dir).rstrip('/') + '/'
-            
+
             # Update info.txt in settings_dir to point to this worker's output dir
-            write_hype_info_filedir_files(
-                settings_dir.absolute(),
-                spinup_days,
-                results_dir_str,
+            config_manager = HYPEConfigManager(
+                config=config,
+                logger=self.logger,
+                output_path=settings_dir.absolute()
+            )
+            config_manager.write_info_filedir(
+                spinup_days=spinup_days,
+                results_dir=results_dir_str,
                 experiment_start=experiment_start,
                 experiment_end=experiment_end
             )
@@ -297,55 +281,26 @@ class HYPEWorker(BaseWorker):
 
                 sim_dates = pd.to_datetime(sim_df.index, format='%Y-%m-%d', errors='coerce')
 
-            # Load observations
+            # Load observations using shared utility
             domain_name = config.get('DOMAIN_NAME')
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            obs_file = (data_dir / f'domain_{domain_name}' / 'observations' /
-                       'streamflow' / 'preprocessed' / f'{domain_name}_streamflow_processed.csv')
+            project_dir = data_dir / f'domain_{domain_name}'
 
-            if not obs_file.exists():
+            obs_values, obs_index = self._streamflow_metrics.load_observations(
+                config, project_dir, domain_name, resample_freq='D'
+            )
+            if obs_values is None:
                 return {'kge': self.penalty_score, 'error': 'Observations not found'}
 
-            obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
-            
-            # Resample observations to daily means to match HYPE's daily output
-            obs_daily = obs_df.resample('D').mean()
-            
-            # Align simulation and observations
+            obs_series = pd.Series(obs_values, index=obs_index)
             sim_series = pd.Series(sim, index=sim_dates).dropna()
-            
-            # Align by index
-            common_idx = sim_series.index.intersection(obs_daily.index)
-            if len(common_idx) == 0:
-                return {'kge': self.penalty_score, 'error': 'No common dates between sim and obs'}
-                
-            obs_aligned = obs_daily.loc[common_idx].iloc[:, 0].values
-            sim_aligned = sim_series.loc[common_idx].values
 
-            # Remove any remaining NaNs in aligned data
-            mask = ~np.isnan(obs_aligned) & ~np.isnan(sim_aligned)
-            if np.sum(mask) < 2:
-                return {'kge': self.penalty_score, 'error': 'Too few valid data points after alignment'}
-                
-            obs_aligned = obs_aligned[mask]
-            sim_aligned = sim_aligned[mask]
-
-            # Calculate metrics
-            # If all sim values are the same (e.g. all 0 during spinup), KGE/NSE will be NaN
-            if np.std(sim_aligned) == 0:
-                kge_val = -1.0 # Poor but not penalty
-                nse_val = -1.0
-            else:
-                kge_val = kge(obs_aligned, sim_aligned, transfo=1)
-                nse_val = nse(obs_aligned, sim_aligned, transfo=1)
-
-            # Handle NaN values from metric functions
-            if pd.isna(kge_val) or np.isinf(kge_val):
-                kge_val = self.penalty_score
-            if pd.isna(nse_val) or np.isinf(nse_val):
-                nse_val = self.penalty_score
-
-            return {'kge': float(kge_val), 'nse': float(nse_val)}
+            # Align and calculate metrics using shared utility
+            try:
+                obs_aligned, sim_aligned = self._streamflow_metrics.align_timeseries(sim_series, obs_series)
+                return self._streamflow_metrics.calculate_metrics(obs_aligned, sim_aligned, metrics=['kge', 'nse'])
+            except ValueError as e:
+                return {'kge': self.penalty_score, 'error': str(e)}
 
         except Exception as e:
             self.logger.error(f"Error calculating HYPE metrics: {e}")

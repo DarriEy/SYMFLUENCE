@@ -22,8 +22,10 @@ class ParameterManager(BaseParameterManager):
 
         # SUMMA-specific setup
         # Parse parameter lists
-        self.local_params = [p.strip() for p in config.get('PARAMS_TO_CALIBRATE', '').split(',') if p.strip()]
-        self.basin_params = [p.strip() for p in (config.get('BASIN_PARAMS_TO_CALIBRATE') or '').split(',') if p.strip()]
+        local_params_raw = config.get('PARAMS_TO_CALIBRATE') or ''
+        basin_params_raw = config.get('BASIN_PARAMS_TO_CALIBRATE') or ''
+        self.local_params = [p.strip() for p in str(local_params_raw).split(',') if p.strip()]
+        self.basin_params = [p.strip() for p in str(basin_params_raw).split(',') if p.strip()]
 
         # Identify depth parameters
         self.depth_params = []
@@ -115,7 +117,7 @@ class ParameterManager(BaseParameterManager):
 
 
     def _parse_all_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Parse parameter bounds from all parameter info files"""
+        """Parse parameter bounds from all parameter info files and allow config overrides"""
         bounds = {}
         
         # Parse local parameter bounds
@@ -145,6 +147,15 @@ class ParameterManager(BaseParameterManager):
                     bounds[param] = mizuroute_bounds[param]
                 else:
                     self.logger.warning(f"Unknown mizuRoute parameter: {param}")
+
+        # Config-level overrides (highest priority)
+        config_bounds = self.config.get('PARAMETER_BOUNDS', {})
+        if config_bounds:
+            self.logger.info(f"Applying {len(config_bounds)} parameter bound overrides from configuration")
+            for param_name, limit_list in config_bounds.items():
+                if len(limit_list) >= 2:
+                    bounds[param_name] = {'min': float(limit_list[0]), 'max': float(limit_list[1])}
+                    self.logger.debug(f"Overrode bounds for {param_name}: {bounds[param_name]}")
 
         return bounds
     

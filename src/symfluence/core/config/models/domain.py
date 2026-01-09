@@ -35,6 +35,14 @@ class DelineationConfig(BaseModel):
     delineate_by_pourpoint: bool = Field(default=True, alias='DELINEATE_BY_POURPOINT')
     move_outlets_max_distance: float = Field(default=200.0, alias='MOVE_OUTLETS_MAX_DISTANCE')
 
+    @field_validator('multi_scale_thresholds', mode='before')
+    @classmethod
+    def normalize_multi_scale_thresholds(cls, v):
+        """Convert list to comma-separated string"""
+        if isinstance(v, list):
+            return ','.join(str(x) for x in v)
+        return v
+
     @field_validator('stream_threshold', 'slope_area_threshold')
     @classmethod
     def validate_positive_thresholds(cls, v, info):

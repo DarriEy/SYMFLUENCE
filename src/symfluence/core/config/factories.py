@@ -20,6 +20,52 @@ if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 
+def _is_nested_config(config: Dict[str, Any]) -> bool:
+    """
+    Detect if a configuration dictionary is in nested format.
+
+    Nested format has lowercase section keys like 'system', 'domain', 'forcing', 'model'.
+    Flat format has uppercase keys like 'DOMAIN_NAME', 'FORCING_DATASET'.
+
+    Args:
+        config: Configuration dictionary loaded from YAML
+
+    Returns:
+        True if config appears to be in nested format
+    """
+    nested_section_keys = {'system', 'domain', 'forcing', 'model', 'optimization', 'evaluation', 'paths', 'data'}
+    config_keys_lower = {k.lower() for k in config.keys()}
+    # If any nested section keys are present, treat as nested config
+    return bool(nested_section_keys & config_keys_lower)
+
+
+def _normalize_nested_config(nested_config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Normalize a nested configuration to ensure section keys are lowercase.
+
+    This handles cases where section keys might be uppercase (SYSTEM vs system).
+
+    Args:
+        nested_config: Nested configuration dictionary
+
+    Returns:
+        Normalized nested configuration with lowercase section keys
+    """
+    section_keys = {'system', 'domain', 'forcing', 'model', 'optimization', 'evaluation', 'paths', 'data'}
+    normalized = {}
+
+    for key, value in nested_config.items():
+        key_lower = key.lower()
+        if key_lower in section_keys:
+            # Ensure section key is lowercase
+            normalized[key_lower] = value
+        else:
+            # Keep other keys as-is
+            normalized[key] = value
+
+    return normalized
+
+
 def from_file_factory(
     cls: type,
     path: Path,
@@ -36,6 +82,9 @@ def from_file_factory(
     2. Environment variables (SYMFLUENCE_*)
     3. Config file (YAML)
     4. Defaults from nested Pydantic models
+
+    Supports both flat format (uppercase keys like DOMAIN_NAME) and
+    nested format (hierarchical structure like domain.name).
 
     Args:
         cls: SymfluenceConfig class
@@ -61,16 +110,7 @@ def from_file_factory(
     from symfluence.core.exceptions import ConfigurationError
     from pydantic import ValidationError
 
-    # 1. Start with defaults
-    config_dict = ConfigDefaults.get_defaults().copy()
-
-    # Add sensible defaults for required system paths if not in env
-    if 'SYMFLUENCE_DATA_DIR' not in config_dict:
-        config_dict['SYMFLUENCE_DATA_DIR'] = os.getenv('SYMFLUENCE_DATA_DIR', str(Path.cwd() / 'data'))
-    if 'SYMFLUENCE_CODE_DIR' not in config_dict:
-        config_dict['SYMFLUENCE_CODE_DIR'] = os.getenv('SYMFLUENCE_CODE_DIR', str(Path.cwd()))
-
-    # 2. Load from file
+    # 1. Load from file first to detect format
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Configuration file not found: {path}")
@@ -78,24 +118,59 @@ def from_file_factory(
     with open(path, "r") as f:
         file_config = yaml.safe_load(f) or {}
 
-    # Normalize keys
-    file_config = {_normalize_key(k): v for k, v in file_config.items()}
-    config_dict.update(file_config)
+    # 2. Detect if config is in nested or flat format
+    is_nested = _is_nested_config(file_config)
 
-    # 3. Override with environment variables
-    if use_env:
-        env_overrides = _load_env_overrides()
-        config_dict.update(env_overrides)
+    if is_nested:
+        # Handle nested config format - don't transform, just normalize section keys
+        nested_config = _normalize_nested_config(file_config)
 
-    # 4. Apply CLI overrides (highest priority)
-    if overrides:
-        normalized_overrides = {_normalize_key(k): v for k, v in overrides.items()}
-        config_dict.update(normalized_overrides)
+        # Apply environment variable overrides (converted to nested format)
+        if use_env:
+            env_overrides = _load_env_overrides()
+            if env_overrides:
+                # Transform env overrides to nested and merge
+                env_nested = transform_flat_to_nested(env_overrides)
+                nested_config = _deep_merge(nested_config, env_nested)
 
-    # 5. Transform flat dict to nested structure
-    nested_config = transform_flat_to_nested(config_dict)
+        # Apply CLI overrides (can be flat or nested)
+        if overrides:
+            if _is_nested_config(overrides):
+                nested_config = _deep_merge(nested_config, _normalize_nested_config(overrides))
+            else:
+                # Flat overrides - transform and merge
+                normalized_overrides = {_normalize_key(k): v for k, v in overrides.items()}
+                override_nested = transform_flat_to_nested(normalized_overrides)
+                nested_config = _deep_merge(nested_config, override_nested)
+    else:
+        # Handle flat config format (original behavior)
+        # Start with defaults
+        config_dict = ConfigDefaults.get_defaults().copy()
 
-    # 6. Validate and create
+        # Add sensible defaults for required system paths if not in env
+        if 'SYMFLUENCE_DATA_DIR' not in config_dict:
+            config_dict['SYMFLUENCE_DATA_DIR'] = os.getenv('SYMFLUENCE_DATA_DIR', str(Path.cwd() / 'data'))
+        if 'SYMFLUENCE_CODE_DIR' not in config_dict:
+            config_dict['SYMFLUENCE_CODE_DIR'] = os.getenv('SYMFLUENCE_CODE_DIR', str(Path.cwd()))
+
+        # Normalize keys from file config
+        file_config = {_normalize_key(k): v for k, v in file_config.items()}
+        config_dict.update(file_config)
+
+        # Override with environment variables
+        if use_env:
+            env_overrides = _load_env_overrides()
+            config_dict.update(env_overrides)
+
+        # Apply CLI overrides (highest priority)
+        if overrides:
+            normalized_overrides = {_normalize_key(k): v for k, v in overrides.items()}
+            config_dict.update(normalized_overrides)
+
+        # Transform flat dict to nested structure
+        nested_config = transform_flat_to_nested(config_dict)
+
+    # Validate and create
     if validate:
         try:
             instance = cls(**nested_config)
@@ -103,12 +178,34 @@ def from_file_factory(
             object.__setattr__(instance, '_source_file', path)
             return instance
         except ValidationError as e:
-            error_msg = _format_validation_error(e, config_dict)
+            error_msg = _format_validation_error(e, file_config if is_nested else config_dict)
             raise ConfigurationError(error_msg) from e
     else:
         instance = cls.model_construct(**nested_config)
         object.__setattr__(instance, '_source_file', path)
         return instance
+
+
+def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Deep merge two dictionaries, with override taking precedence.
+
+    For nested dictionaries, recursively merge. For other values, override wins.
+
+    Args:
+        base: Base dictionary
+        override: Override dictionary (values take precedence)
+
+    Returns:
+        Merged dictionary
+    """
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
 
 
 def from_preset_factory(

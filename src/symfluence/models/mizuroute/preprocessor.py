@@ -719,7 +719,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
     def create_control_file(self):
         self.logger.debug("Creating mizuRoute control file")
         
-        control_name = self.config_dict.get('SETTINGS_MIZU_CONTROL_FILE')
+        control_name = self.config_dict.get('SETTINGS_MIZU_CONTROL_FILE', 'mizuroute.control')
         
         with open(self.setup_dir / control_name, 'w') as cf:
             self._write_control_file_header(cf)
@@ -877,7 +877,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         """Create mizuRoute control file specifically for FUSE input"""
         self.logger.debug("Creating mizuRoute control file for FUSE")
         
-        control_name = self.config_dict.get('SETTINGS_MIZU_CONTROL_FILE')
+        control_name = self.config_dict.get('SETTINGS_MIZU_CONTROL_FILE', 'mizuroute.control')
         
         with open(self.setup_dir / control_name, 'w') as cf:
             self._write_control_file_header(cf)

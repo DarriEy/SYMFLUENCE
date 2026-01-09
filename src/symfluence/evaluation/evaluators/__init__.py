@@ -14,6 +14,7 @@ from .et import ETEvaluator
 from .streamflow import StreamflowEvaluator
 from .gr_streamflow import GRStreamflowEvaluator
 from .hype_streamflow import HYPEStreamflowEvaluator
+from .rhessys_streamflow import RHESSysStreamflowEvaluator
 from .soil_moisture import SoilMoistureEvaluator
 from .snow import SnowEvaluator
 from .groundwater import GroundwaterEvaluator
@@ -25,6 +26,7 @@ __all__ = [
     "StreamflowEvaluator",
     "GRStreamflowEvaluator",
     "HYPEStreamflowEvaluator",
+    "RHESSysStreamflowEvaluator",
     "SoilMoistureEvaluator",
     "SnowEvaluator",
     "GroundwaterEvaluator",

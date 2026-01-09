@@ -64,7 +64,7 @@ class SnowEvaluator(ModelEvaluator):
         if 'scalarSWE' not in ds.variables:
             raise ValueError("scalarSWE variable not found")
         swe_var = ds['scalarSWE']
-        
+
         # Collapse spatial dimensions
         sim_xr = swe_var
         for dim in ['hru', 'gru']:
@@ -73,13 +73,20 @@ class SnowEvaluator(ModelEvaluator):
                     sim_xr = sim_xr.isel({dim: 0})
                 else:
                     sim_xr = sim_xr.mean(dim=dim)
-        
+
         # Handle any remaining non-time dimensions
         non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
         if non_time_dims:
             sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-            
+
         sim_data = sim_xr.to_pandas()
+
+        # DEBUG: Log extraction stats
+        if len(sim_data) > 0:
+            self.logger.debug(f"SWE extraction: min={sim_data.min():.3f}, max={sim_data.max():.3f}, mean={sim_data.mean():.3f} kg/m² (n={len(sim_data)})")
+            # Also print to stdout/stderr for MPI worker capture
+            print(f"[SNOW EVAL] Extracted SWE: min={sim_data.min():.3f}, max={sim_data.max():.3f} kg/m²", flush=True)
+
         return sim_data
     
     def _extract_sca_data(self, ds: xr.Dataset) -> pd.Series:
@@ -114,11 +121,11 @@ class SnowEvaluator(ModelEvaluator):
     def calculate_metrics(self, simulated_data: pd.Series, calibration_only: bool = True, **kwargs) -> Dict[str, float]:
         """
         Calculate performance metrics for simulated snow data.
-        
+
         Args:
             simulated_data: Simulated snow series
             calibration_only: If True, only use calibration period
-            
+
         Returns:
             Dictionary of metrics
         """
@@ -127,7 +134,13 @@ class SnowEvaluator(ModelEvaluator):
             self.optimization_target = kwargs['target'].lower()
             self.variable_name = self.optimization_target
 
-        return super().calculate_metrics(simulated_data, calibration_only, **kwargs)
+        # Call base class with proper signature: sim, obs=None, mizuroute_dir=None, calibration_only=True
+        return super().calculate_metrics(
+            sim=simulated_data,
+            obs=None,  # Let base class load observations
+            mizuroute_dir=kwargs.get('mizuroute_dir'),
+            calibration_only=calibration_only
+        )
 
     def get_observed_data_path(self) -> Path:
         """Get path to preprocessed observed snow data."""

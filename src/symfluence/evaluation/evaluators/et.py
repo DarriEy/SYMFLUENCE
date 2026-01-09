@@ -169,8 +169,27 @@ class ETEvaluator(ModelEvaluator):
             return et_data
     
     def get_observed_data_path(self) -> Path:
-        """Get path to observed FluxNet data"""
-        return self.project_dir / "observations" / "energy_fluxes" / "processed" / f"{self.domain_name}_fluxnet_processed.csv"
+        """Get path to observed ET data (FluxNet or FLUXCOM)."""
+        if 'ET_OBS_PATH' in self.config:
+            return Path(self.config.get('ET_OBS_PATH'))
+
+        obs_source = str(self.config.get('ET_OBS_SOURCE', '')).lower()
+        if obs_source in {'fluxcom', 'fluxcom_et'}:
+            return (
+                self.project_dir
+                / "observations"
+                / "et"
+                / "preprocessed"
+                / f"{self.domain_name}_fluxcom_et_processed.csv"
+            )
+
+        return (
+            self.project_dir
+            / "observations"
+            / "energy_fluxes"
+            / "processed"
+            / f"{self.domain_name}_fluxnet_processed.csv"
+        )
     
     def _get_observed_data_column(self, columns: List[str]) -> Optional[str]:
         """Identify the ET data column in FluxNet file"""

@@ -170,13 +170,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             fdp = ForcingDataProcessor(self.config, self.logger)
             ds = fdp.resample_to_frequency(ds, target_freq='D', method='mean')
 
-        # Apply GR-specific unit conversions (Kelvin to Celsius, rate to mm/day)
-        try:
-            fdp = ForcingDataProcessor(self.config, self.logger)
-            ds = fdp.apply_unit_conversion(ds, 'airtemp', 'temp_k_to_c', 'temp')
-            ds = fdp.apply_unit_conversion(ds, 'pptrate', 'precip_rate_to_mm_day', 'pr')
-        except Exception:
-            pass
+        # Unit conversions already handled by VariableHandler.process_forcing_data()
 
         # Load streamflow observations
         obs_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"
@@ -211,7 +205,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
 
         self.logger.info(f"Total catchment area from GRU_area: {area_km2:.2f} km2")
 
-        # Convert units from cms to mm/day
+        # Convert units from cms to mm/day for GR input
         obs_daily['discharge_mmday'] = obs_daily['discharge_cms'] / area_km2 * UnitConversion.MM_DAY_TO_CMS
 
         # Create observation dataset
@@ -277,12 +271,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         fdp = ForcingDataProcessor(self.config, self.logger)
         ds = fdp.resample_to_frequency(ds, target_freq='D', method='mean')
 
-        # Apply GR-specific unit conversions
-        try:
-            ds = fdp.apply_unit_conversion(ds, 'airtemp', 'temp_k_to_c', 'temp')
-            ds = fdp.apply_unit_conversion(ds, 'pptrate', 'precip_rate_to_mm_day', 'pr')
-        except Exception:
-            pass
+        # Unit conversions already handled by VariableHandler.process_forcing_data()
 
         # Load streamflow observations (at outlet)
         obs_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self.domain_name}_streamflow_processed.csv"

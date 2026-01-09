@@ -79,6 +79,7 @@ class DataManager(ConfigurableMixin):
             DataAcquisitionError: If data processing fails
         """
         self.logger.info("Processing observed data")
+        self.acquire_observations()
         
         # Use typed config if available
         component_config = self.typed_config if self.typed_config else self.config
@@ -147,6 +148,18 @@ class DataManager(ConfigurableMixin):
             
             if download_snotel and 'SNOTEL' not in additional_obs:
                 additional_obs.append('SNOTEL')
+
+            # Check for ISMN download and ensure it's in additional_obs
+            download_ismn = self._resolve_config_value(
+                lambda: self.typed_config.data.download_ismn,
+                'DOWNLOAD_ISMN',
+                False
+            )
+            if isinstance(download_ismn, str):
+                download_ismn = download_ismn.lower() == 'true'
+
+            if download_ismn and 'ISMN' not in additional_obs:
+                additional_obs.append('ISMN')
 
             # 3. Traditional streamflow processing (for providers not yet migrated)
             observed_data_processor = ObservedDataProcessor(component_config, self.logger)

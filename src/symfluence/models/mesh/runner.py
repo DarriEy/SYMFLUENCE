@@ -56,7 +56,10 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
 
         # MESH-specific paths
         self.mesh_setup_dir = self.project_dir / "settings" / "MESH"
-        self.forcing_mesh_path = self.project_dir / 'forcing' / 'MESH_input'
+        self.forcing_dir = self.project_dir / 'forcing' / 'MESH_input'
+
+        # Initialize forcing_mesh_path to forcing_dir (can be overridden for parallel execution)
+        self.forcing_mesh_path = self.forcing_dir
 
     def _get_model_name(self) -> str:
         """Return model name for MESH."""
@@ -110,7 +113,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
             result = self.execute_model_subprocess(
                 cmd,
                 log_file,
-                cwd=self.forcing_mesh_path,
+                cwd=self.forcing_dir,
                 env=run_env,
                 check=False,  # Don't raise on non-zero exit, we'll handle it
                 success_message="MESH simulation completed successfully"
@@ -119,7 +122,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
             # Check execution success
             if result.returncode == 0 and self._verify_outputs():
                 # Clean up copied executable only on success
-                mesh_exe_in_forcing = self.forcing_mesh_path / self.mesh_exe.name
+                mesh_exe_in_forcing = self.forcing_dir / self.mesh_exe.name
                 if mesh_exe_in_forcing.exists() and mesh_exe_in_forcing.is_file():
                     mesh_exe_in_forcing.unlink()
                 return self.output_dir
@@ -145,13 +148,13 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
     def _create_run_command(self) -> List[str]:
         """Create MESH execution command."""
         # Copy mesh executable to forcing path
-        mesh_exe_dest = self.forcing_mesh_path / self.mesh_exe.name
+        mesh_exe_dest = self.forcing_dir / self.mesh_exe.name
         shutil.copy2(self.mesh_exe, mesh_exe_dest)
         # Make sure it's executable
         mesh_exe_dest.chmod(0o755)
 
         cmd = [
-            f'./{self.mesh_exe.name}'  # Use relative path since we run in that directory
+            f'./{self.mesh_exe.name}'
         ]
         return cmd
 

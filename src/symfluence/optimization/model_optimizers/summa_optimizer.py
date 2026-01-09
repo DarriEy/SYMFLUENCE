@@ -94,14 +94,18 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
             return SnowTarget(self.config, self.project_dir, self.logger)
         elif target_type in ['groundwater', 'gw']:
             return GroundwaterTarget(self.config, self.project_dir, self.logger)
-        elif target_type in ['soil_moisture', 'sm']:
+        elif target_type in ['soil_moisture', 'sm', 'sm_point', 'sm_smap', 'sm_esa', 'sm_ismn']:
             return SoilMoistureTarget(self.config, self.project_dir, self.logger)
         else:
             return StreamflowTarget(self.config, self.project_dir, self.logger)
 
     def _create_worker(self) -> SUMMAWorker:
         """Create SUMMA worker."""
-        return SUMMAWorker(self.config, self.logger)
+        return SUMMAWorker(
+            self.config,
+            self.logger,
+            calibration_target=self.calibration_target
+        )
 
     def _get_summa_executable_path(self) -> Path:
         """Get path to SUMMA executable."""
@@ -168,6 +172,14 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
             'SUMMA',
             self.experiment_id
         )
+
+        # For non-parallel runs, set a default output directory for fallback
+        # This ensures SUMMA outputs go to the simulation directory, not the optimization results directory
+        if not self.use_parallel and self.parallel_dirs:
+            # Use process_0 directories as the default
+            self.default_sim_dir = self.parallel_dirs[0].get('sim_dir', self.results_dir)
+        else:
+            self.default_sim_dir = self.results_dir
 
         # Copy SUMMA settings to each parallel directory
         source_settings = self.project_dir / 'settings' / 'SUMMA'

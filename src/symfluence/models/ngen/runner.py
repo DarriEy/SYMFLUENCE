@@ -364,6 +364,14 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                                 forcing['file_pattern'] = pattern
                                 changed = True
                                 self.logger.debug(f"Patched forcing file pattern to {pattern}")
+
+            # 4. Patch output_root for isolated calibration directories
+            if '_ngen_output_dir' in self.config_dict:
+                isolated_output_dir = str(Path(self.config_dict['_ngen_output_dir']).resolve())
+                if data.get('output_root') != isolated_output_dir:
+                    data['output_root'] = isolated_output_dir
+                    changed = True
+                    self.logger.debug(f"Patched output_root to {isolated_output_dir}")
             
             if changed:
                 with open(realization_file, 'w') as f:

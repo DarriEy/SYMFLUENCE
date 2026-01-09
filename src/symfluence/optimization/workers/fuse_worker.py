@@ -14,6 +14,8 @@ from typing import Dict, Any, Optional
 from .base_worker import BaseWorker, WorkerTask, WorkerResult
 from ..registry import OptimizerRegistry
 from symfluence.core.constants import UnitConversion
+from .utilities.routing_decider import RoutingDecider
+from .utilities.streamflow_metrics import StreamflowMetrics
 
 
 logger = logging.getLogger(__name__)
@@ -42,9 +44,15 @@ class FUSEWorker(BaseWorker):
         """
         super().__init__(config, logger)
 
+    # Shared utilities
+    _routing_decider = RoutingDecider()
+    _streamflow_metrics = StreamflowMetrics()
+
     def needs_routing(self, config: Dict[str, Any], settings_dir: Optional[Path] = None) -> bool:
         """
         Determine if routing (mizuRoute) is needed for FUSE.
+
+        Delegates to shared RoutingDecider utility.
 
         Args:
             config: Configuration dictionary
@@ -53,50 +61,7 @@ class FUSEWorker(BaseWorker):
         Returns:
             True if routing is needed
         """
-        calibration_var = config.get('CALIBRATION_VARIABLE', 'streamflow')
-
-        if calibration_var != 'streamflow':
-            return False
-
-        # Check if FUSE routing integration is enabled
-        routing_integration = config.get('FUSE_ROUTING_INTEGRATION', 'none')
-
-        # If 'default', inherit from ROUTING_MODEL
-        if routing_integration == 'default':
-            routing_model = config.get('ROUTING_MODEL', 'none')
-            if routing_model == 'mizuRoute':
-                routing_integration = 'mizuRoute'
-
-        if routing_integration != 'mizuRoute':
-            return False
-
-        # Check spatial mode and routing delineation
-        spatial_mode = config.get('FUSE_SPATIAL_MODE', 'lumped')
-        routing_delineation = config.get('ROUTING_DELINEATION', 'lumped')
-
-        # Distributed modes need routing
-        if spatial_mode in ['semi_distributed', 'distributed']:
-            return True
-
-        # Lumped with river network routing needs routing
-        if spatial_mode == 'lumped' and routing_delineation == 'river_network':
-            return True
-
-        # Also check if mizuRoute control files exist in settings_dir
-        # This handles cases where routing was set up by the optimizer
-        # but config flags don't explicitly indicate it
-        if settings_dir:
-            settings_dir = Path(settings_dir)
-            # Check both in settings_dir and settings_dir.parent to handle FUSE subdirectory
-            mizu_control = settings_dir / 'mizuRoute' / 'mizuroute.control'
-            if not mizu_control.exists() and settings_dir.name == 'FUSE':
-                mizu_control = settings_dir.parent / 'mizuRoute' / 'mizuroute.control'
-            
-            if mizu_control.exists():
-                self.logger.debug(f"Found mizuRoute control file at {mizu_control}, enabling routing")
-                return True
-
-        return False
+        return self._routing_decider.needs_routing(config, 'FUSE', settings_dir)
 
     def apply_parameters(
         self,
@@ -877,13 +842,10 @@ class FUSEWorker(BaseWorker):
                 self.logger.error("No valid data points")
                 return {'kge': self.penalty_score}
 
-            # Calculate metrics
-            metrics = {
-                'kge': float(kge(obs_values, sim_values, transfo=1)),
-                'nse': float(nse(obs_values, sim_values, transfo=1)),
-                'rmse': float(rmse(obs_values, sim_values, transfo=1)),
-                'mae': float(mae(obs_values, sim_values, transfo=1)),
-            }
+            # Calculate metrics using shared utility
+            metrics = self._streamflow_metrics.calculate_metrics(
+                obs_values, sim_values, metrics=['kge', 'nse', 'rmse', 'mae']
+            )
 
             # Debug: Log computed metrics to trace score flow
             self.logger.info(f"FUSE metrics computed: KGE={metrics['kge']:.4f}, NSE={metrics['nse']:.4f}, n_points={len(obs_values)}")
@@ -896,7 +858,7 @@ class FUSEWorker(BaseWorker):
 
     def _get_catchment_area(self, config: Dict[str, Any], project_dir: Path) -> float:
         """
-        Get catchment area for FUSE unit conversion.
+        Get catchment area for FUSE unit conversion. Delegates to shared utility.
 
         Args:
             config: Configuration dictionary
@@ -905,48 +867,8 @@ class FUSEWorker(BaseWorker):
         Returns:
             Catchment area in km2
         """
-        try:
-            import geopandas as gpd
-
-            # Get catchment shapefile path
-            catchment_path = config.get('CATCHMENT_PATH', 'default')
-            catchment_name = config.get('CATCHMENT_SHP_NAME', 'default')
-
-            if catchment_path == 'default':
-                catchment_path = project_dir / 'shapefiles' / 'catchment'
-            else:
-                catchment_path = Path(catchment_path)
-
-            if catchment_name == 'default':
-                domain_name = config.get('DOMAIN_NAME')
-                discretization = config.get('DOMAIN_DISCRETIZATION', 'elevation')
-                catchment_name = f"{domain_name}_HRUs_{discretization}.shp"
-
-            catchment_file = catchment_path / catchment_name
-
-            if not catchment_file.exists():
-                self.logger.warning(f"Catchment file not found: {catchment_file}")
-                return 1000.0  # Default value
-
-            # Read catchment and calculate area
-            gdf = gpd.read_file(catchment_file)
-
-            if 'GRU_area' in gdf.columns:
-                total_area_m2 = gdf['GRU_area'].sum()
-                return total_area_m2 / 1e6
-
-            # Calculate from geometry
-            if gdf.crs and not gdf.crs.is_geographic:
-                total_area_m2 = gdf.geometry.area.sum()
-            else:
-                gdf_utm = gdf.to_crs(gdf.estimate_utm_crs())
-                total_area_m2 = gdf_utm.geometry.area.sum()
-
-            return total_area_m2 / 1e6
-
-        except Exception as e:
-            self.logger.warning(f"Error calculating catchment area: {e}")
-            return 1000.0
+        domain_name = config.get('DOMAIN_NAME')
+        return self._streamflow_metrics.get_catchment_area(config, project_dir, domain_name)
 
     def _convert_fuse_to_mizuroute_format(
         self,

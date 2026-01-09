@@ -115,7 +115,8 @@ class StreamflowEvaluator(ModelEvaluator):
                                          # If 1:1 mapping or if we can infer
                                          if attrs.sizes['hru'] == var.sizes['gru']:
                                              areas = attrs['HRUarea'] # Assuming 1:1 mapping for lumped
-                                             weighted_runoff = (var * areas).sum(dim='hru' if 'hru' in areas.dims else 'gru')
+                                             # Use values to avoid dimension mismatch and ensure reduction over 'gru'
+                                             weighted_runoff = (var * areas.values).sum(dim='gru')
                                              return weighted_runoff.to_pandas()
 
                         except Exception as e:

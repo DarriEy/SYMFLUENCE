@@ -239,10 +239,17 @@ class ModelEvaluator(ABC):
             # Resample to evaluation timestep if specified in config
             if self.eval_timestep != 'native':
                 self.logger.info(f"Resampling data to {self.eval_timestep} timestep")
+                # DEBUG: Log before resampling
+                if len(obs_period) > 0 and len(sim_period) > 0:
+                    self.logger.debug(f"BEFORE resample - obs: {obs_period.min():.3f} to {obs_period.max():.3f}, sim: {sim_period.min():.3f} to {sim_period.max():.3f}")
+
                 obs_period = self._resample_to_timestep(obs_period, self.eval_timestep)
                 sim_period = self._resample_to_timestep(sim_period, self.eval_timestep)
-                
+
                 self.logger.debug(f"After resampling - obs points: {len(obs_period)}, sim points: {len(sim_period)}")
+                # DEBUG: Log after resampling
+                if len(obs_period) > 0 and len(sim_period) > 0:
+                    self.logger.debug(f"AFTER resample - obs: {obs_period.min():.3f} to {obs_period.max():.3f}, sim: {sim_period.min():.3f} to {sim_period.max():.3f}")
             
             # Final check: ensure both are midnight-aligned if daily
             if self.eval_timestep == 'daily':

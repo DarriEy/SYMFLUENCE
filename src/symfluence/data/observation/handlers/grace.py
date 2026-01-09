@@ -22,13 +22,29 @@ class GRACEHandler(BaseObservationHandler):
     }
 
     def acquire(self) -> Path:
-        """Locate GRACE data or download if possible (cloud path placeholder)."""
+        """Locate GRACE data or download if possible."""
         grace_dir = Path(self.config.get('GRACE_DATA_DIR', self.project_dir / "observations" / "grace"))
-        if not grace_dir.exists():
-            grace_dir.mkdir(parents=True, exist_ok=True)
-            self.logger.warning(f"GRACE data directory not found: {grace_dir}")
         
-        # In a future update, this would trigger a cloud download
+        # Check if we need to download
+        force_download = self.config.get('FORCE_DOWNLOAD', False)
+        has_files = grace_dir.exists() and any(grace_dir.iterdir())
+        
+        if not has_files or force_download:
+            self.logger.info("Acquiring GRACE data...")
+            # Use the Acquisition handler
+            try:
+                from symfluence.data.acquisition.handlers.grace import GRACEAcquirer
+                acquirer = GRACEAcquirer(self.config, self.logger)
+                acquirer.download(grace_dir)
+            except ImportError as e:
+                self.logger.error(f"Could not import GRACEAcquirer: {e}")
+                raise
+            except Exception as e:
+                self.logger.error(f"GRACE acquisition failed: {e}")
+                raise
+        else:
+            self.logger.info(f"Using existing GRACE data in {grace_dir}")
+            
         return grace_dir
 
     def process(self, input_path: Path) -> Path:
@@ -85,11 +101,37 @@ class GRACEHandler(BaseObservationHandler):
 
     def _find_grace_files(self, grace_dir: Path) -> Dict[str, Path]:
         files = {}
-        # Simple patterns based on common naming
-        patterns = {'jpl': '*JPL*.nc', 'csr': '*CSR*.nc', 'gsfc': '*gsfc*.nc'}
-        for name, pattern in patterns.items():
+        # Exact filenames matching GRACEAcquirer
+        filenames = {
+            'jpl': 'GRCTellus.JPL.200204_202211.GLO.RL06M.MSCNv02CRI.nc',
+            'csr': 'CSR_GRACE_GRACE-FO_RL0603_Mascons_all-corrections.nc',
+            'gsfc': 'gsfc.glb_.200204_202505_rl06v2.0_obp-ice6gd_halfdegree.nc'
+        }
+
+        subset_patterns = {
+            'jpl': '*JPL*subset*.nc',
+            'csr': '*CSR*subset*.nc',
+            'gsfc': '*gsfc*subset*.nc'
+        }
+
+        for name, pattern in subset_patterns.items():
             found = list(grace_dir.rglob(pattern))
-            if found: files[name] = found[0]
+            if found:
+                files[name] = found[0]
+        
+        patterns = {'jpl': '*JPL*.nc', 'csr': '*CSR*.nc', 'gsfc': '*gsfc*.nc'}
+
+        for name, filename in filenames.items():
+            if name in files:
+                continue
+            file_path = grace_dir / filename
+            if file_path.exists():
+                files[name] = file_path
+                continue
+            found = list(grace_dir.rglob(patterns[name]))
+            if found:
+                files[name] = found[0]
+                
         return files
 
     def _extract_for_basin(self, ds: xr.Dataset, gdf: gpd.GeoDataFrame, name: str, area: float) -> Optional[pd.Series]:
@@ -118,9 +160,28 @@ class GRACEHandler(BaseObservationHandler):
         return pd.Series(data.values, index=time_idx).resample('MS').mean()
 
     def _get_time_index(self, ds: xr.Dataset, name: str) -> pd.DatetimeIndex:
-        # Handle CSR/GSFC relative time if needed
-        if 'units' in ds.time.attrs and 'days since' in ds.time.attrs['units']:
-             return pd.to_datetime(ds.time.values, unit='D', origin=ds.time.attrs['units'].split('since ')[1])
+        """Robustly get time index, handling decoding issues."""
+        # Check if already decoded (datetime64)
+        if np.issubdtype(ds.time.dtype, np.datetime64):
+            return pd.to_datetime(ds.time.values)
+            
+        # Look for units attribute (case-insensitive)
+        units_attr = None
+        for key in ds.time.attrs:
+            if key.lower() == 'units':
+                units_attr = ds.time.attrs[key]
+                break
+        
+        if units_attr and 'days since' in units_attr:
+            origin_str = units_attr.split('since')[1].strip()
+            # Clean origin string to remove time and timezone for robustness
+            # e.g. "2002-01-01T00:00:00Z" -> "2002-01-01"
+            if 'T' in origin_str:
+                origin_str = origin_str.split('T')[0]
+            
+            return pd.to_datetime(ds.time.values, unit='D', origin=origin_str)
+            
+        # Fallback: assume standard decoding or let pandas handle it
         return pd.to_datetime(ds.time.values)
 
     def _calculate_anomalies(self, ts: pd.Series) -> pd.Series:

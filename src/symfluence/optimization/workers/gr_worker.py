@@ -18,8 +18,8 @@ import numpy as np
 from .base_worker import BaseWorker, WorkerTask, WorkerResult
 from ..registry import OptimizerRegistry
 from symfluence.models.gr.runner import GRRunner
-from symfluence.evaluation.metrics import kge, nse, rmse, mae
 from symfluence.core.constants import UnitConversion
+from .utilities.streamflow_metrics import StreamflowMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,9 @@ class GRWorker(BaseWorker):
     """
     Worker for GR model calibration.
     """
+
+    # Shared streamflow metrics utility
+    _streamflow_metrics = StreamflowMetrics()
 
     def apply_parameters(
         self,
@@ -228,18 +231,16 @@ class GRWorker(BaseWorker):
                                     area_km2 = self._get_catchment_area(config)
                                     simulated_streamflow = simulated_streamflow * area_km2 / UnitConversion.MM_DAY_TO_CMS
                             
-                            # Aligner
-                            sim_aligned = simulated_streamflow.reindex(common_index).dropna()
-                            obs_aligned = pd.Series(obs_values, index=common_index).reindex(sim_aligned.index)
-                            
-                            if len(sim_aligned) > 0:
-                                metrics = {
-                                    'kge': float(kge(obs_aligned.values, sim_aligned.values)),
-                                    'nse': float(nse(obs_aligned.values, sim_aligned.values)),
-                                    'rmse': float(rmse(obs_aligned.values, sim_aligned.values)),
-                                    'mae': float(mae(obs_aligned.values, sim_aligned.values)),
-                                }
-                                return metrics
+                            # Align and calculate using shared utility
+                            sim_series = pd.Series(simulated_streamflow, index=simulated_streamflow.index)
+                            obs_series = pd.Series(obs_values, index=common_index)
+                            try:
+                                obs_aligned, sim_aligned = self._streamflow_metrics.align_timeseries(sim_series, obs_series)
+                                return self._streamflow_metrics.calculate_metrics(
+                                    obs_aligned, sim_aligned, metrics=['kge', 'nse', 'rmse', 'mae']
+                                )
+                            except ValueError:
+                                pass  # Fall through to non-routed case
 
                 # Fallback to GR output if routing not used or not found
                 sim_file = output_dir / f"{domain_name}_{experiment_id}_runs_def.nc"
@@ -270,94 +271,35 @@ class GRWorker(BaseWorker):
                         self.logger.error(f"Variable '{routing_var}' not found in GR output. Vars: {list(ds.variables)}")
                         return {'kge': self.penalty_score}
 
-            # Align and calculate for non-routed cases
-            sim_aligned = simulated_streamflow.reindex(common_index).dropna()
-            obs_aligned = pd.Series(obs_values, index=common_index).reindex(sim_aligned.index)
-            
-            if len(sim_aligned) == 0:
-                self.logger.error("No overlapping data for GR metrics")
+            # Align and calculate for non-routed cases using shared utility
+            sim_series = pd.Series(simulated_streamflow.values, index=simulated_streamflow.index)
+            obs_series = pd.Series(obs_values, index=common_index)
+            try:
+                obs_aligned, sim_aligned = self._streamflow_metrics.align_timeseries(sim_series, obs_series)
+                return self._streamflow_metrics.calculate_metrics(
+                    obs_aligned, sim_aligned, metrics=['kge', 'nse', 'rmse', 'mae']
+                )
+            except ValueError as e:
+                self.logger.error(f"No overlapping data for GR metrics: {e}")
                 return {'kge': self.penalty_score}
-
-            metrics = {
-                'kge': float(kge(obs_aligned.values, sim_aligned.values)),
-                'nse': float(nse(obs_aligned.values, sim_aligned.values)),
-                'rmse': float(rmse(obs_aligned.values, sim_aligned.values)),
-                'mae': float(mae(obs_aligned.values, sim_aligned.values)),
-            }
-            return metrics
 
         except Exception as e:
             self.logger.error(f"Error calculating GR metrics: {e}")
             return {'kge': self.penalty_score}
 
     def _get_observed_streamflow(self, config: Dict[str, Any]):
-        """Helper to get aligned observed streamflow."""
-        try:
-            domain_name = config.get('DOMAIN_NAME')
-            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            project_dir = data_dir / f"domain_{domain_name}"
-            
-            obs_file = config.get('OBSERVATIONS_PATH', 'default')
-            if obs_file == 'default' or not obs_file:
-                obs_file = project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{domain_name}_streamflow_processed.csv"
-            else:
-                obs_file = Path(obs_file)
-
-            if not obs_file.exists():
-                self.logger.error(f"Obs file not found: {obs_file}")
-                return None, None
-
-            df_obs = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
-            observed = df_obs['discharge_cms'].resample('D').mean()
-            return observed.values, observed.index
-        except Exception as e:
-            self.logger.error(f"Error reading observations: {e}")
-            return None, None
+        """Helper to get aligned observed streamflow. Delegates to shared utility."""
+        domain_name = config.get('DOMAIN_NAME')
+        data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+        project_dir = data_dir / f"domain_{domain_name}"
+        return self._streamflow_metrics.load_observations(config, project_dir, domain_name)
 
     def _get_catchment_area(self, config: Dict[str, Any]) -> float:
-        """Get catchment area in km2."""
-        try:
-            import geopandas as gpd
-            domain_name = config.get('DOMAIN_NAME')
-            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            project_dir = data_dir / f"domain_{domain_name}"
-            
-            # Robust path resolution handling 'default' values
-            c_path = config.get('CATCHMENT_PATH', 'default')
-            if c_path == 'default' or not c_path:
-                catchment_path = project_dir / 'shapefiles' / 'catchment'
-            else:
-                catchment_path = Path(c_path)
-                
-            discretization = config.get('DOMAIN_DISCRETIZATION', 'elevation')
-            c_name = config.get('CATCHMENT_SHP_NAME', 'default')
-            if c_name == 'default' or not c_name:
-                catchment_name = f"{domain_name}_HRUs_{discretization}.shp"
-            else:
-                catchment_name = c_name
-            
-            catchment_file = catchment_path / catchment_name
-            if not catchment_file.exists():
-                self.logger.warning(f"Catchment file not found: {catchment_file}. Using default area 1000 km2.")
-                return 1000.0 # Default fallback
-                
-            gdf = gpd.read_file(catchment_file)
-            if 'GRU_area' in gdf.columns:
-                area_km2 = gdf['GRU_area'].sum() / 1e6
-                self.logger.debug(f"Catchment area from GRU_area: {area_km2:.2f} km2")
-                return area_km2
-            
-            if gdf.crs and not gdf.crs.is_geographic:
-                area = gdf.geometry.area.sum()
-            else:
-                area = gdf.to_crs(gdf.estimate_utm_crs()).geometry.area.sum()
-            
-            area_km2 = area / 1e6
-            self.logger.debug(f"Catchment area calculated from geometry: {area_km2:.2f} km2")
-            return area_km2
-        except Exception as e:
-            self.logger.warning(f"Error calculating area: {e}. Using default 1000 km2.")
-            return 1000.0
+        """Get catchment area in km2. Delegates to shared utility."""
+        domain_name = config.get('DOMAIN_NAME')
+        data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+        project_dir = data_dir / f"domain_{domain_name}"
+        return self._streamflow_metrics.get_catchment_area(config, project_dir, domain_name)
 
     @staticmethod
     def evaluate_worker_function(task_data: Dict[str, Any]) -> Dict[str, Any]:

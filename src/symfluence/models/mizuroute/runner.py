@@ -51,11 +51,12 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
         """MizuRoute creates directories on-demand."""
         return False
 
-    def fix_time_precision(self):
+    def fix_time_precision(self) -> Optional[Path]:
         """
         Fix model output time precision by rounding to nearest hour.
         This fixes compatibility issues with mizuRoute time matching.
         Now supports both SUMMA and FUSE outputs with proper time format detection.
+        Returns the path to the runoff file if resolved, None otherwise.
         """
         # Determine which model's output to process
         models_raw = self.config_dict.get('HYDROLOGICAL_MODEL', '')
@@ -124,10 +125,10 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                     self.logger.info(f"Using fallback output file: {runoff_filepath}")
                 else:
                     self.logger.error(f"No NetCDF output files found in {experiment_output_dir}")
-                    return
+                    return None
             else:
                 self.logger.error(f"Output directory does not exist: {experiment_output_dir}")
-                return
+                return None
         
         try:
             import xarray as xr
@@ -136,7 +137,14 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
             self.logger.debug(f"Processing {runoff_filepath}")
             
             # Open dataset and examine time format
-            ds = xr.open_dataset(runoff_filepath, decode_times=False)
+            try:
+                ds = xr.open_dataset(runoff_filepath, decode_times=False)
+            except (OSError, RuntimeError, ValueError) as nc_err:
+                self.logger.error(f"Failed to open model output file: {runoff_filepath}")
+                self.logger.error("The file appears to be corrupt or incomplete.")
+                self.logger.error("This usually happens when the upstream hydrological model (e.g., SUMMA) fails or times out before finishing.")
+                self.logger.error(f"Underlying error: {nc_err}")
+                raise
             
             # Detect the time format by examining attributes and values
             time_attrs = ds.time.attrs
@@ -199,7 +207,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                     except:
                         self.logger.warning("Could not determine time format - skipping time precision fix")
                         ds.close()
-                        return
+                        return runoff_filepath
             else:
                 # No units attribute - try to decode directly
                 try:
@@ -212,7 +220,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                 except:
                     self.logger.warning("No time units and cannot decode times - skipping time precision fix")
                     ds.close()
-                    return
+                    return runoff_filepath
             
             self.logger.debug(f"Detected time format: {time_format_detected}")
             self.logger.debug(f"Needs time precision fix: {needs_fix}")
@@ -220,7 +228,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
             if not needs_fix:
                 self.logger.debug("Time precision is already correct")
                 ds.close()
-                return
+                return runoff_filepath
             
             # Apply the appropriate fix based on detected format
             if time_format_detected == 'summa_seconds_1990':
@@ -270,18 +278,105 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                 ds = ds_decoded.assign_coords(time=rounded_stamps)
                 ds_decoded.close()
             
-            # Save the corrected file
+            # Save the corrected file safely using a temp file
             ds.load()
+            temp_filepath = runoff_filepath.with_suffix('.tmp.nc')
             
-            os.chmod(runoff_filepath, 0o664)
-            ds.to_netcdf(runoff_filepath, format='NETCDF4')
+            # Ensure permissions are set on temp file after creation
+            ds.to_netcdf(temp_filepath, format='NETCDF4')
             ds.close()
+            
+            os.chmod(temp_filepath, 0o664)
+            temp_filepath.rename(runoff_filepath)
+            
             self.logger.info("Time precision fixed successfully")
+            return runoff_filepath
             
         except Exception as e:
             self.logger.error(f"Error fixing time precision: {e}")
             self.logger.error(f"Traceback: {traceback.format_exc()}")
             raise
+
+    def sync_control_file_dimensions(self, control_path: Path, netcdf_path: Path):
+        """
+        Ensure mizuRoute control file dimension/variable names match the NetCDF input.
+        This prevents hangs/crashes when preprocessor assumes 'gru' but SUMMA outputs 'hru'.
+        """
+        try:
+            import xarray as xr
+            self.logger.debug(f"Syncing control file dimensions for {netcdf_path}")
+            
+            with xr.open_dataset(netcdf_path, decode_times=False) as ds:
+                dname = None
+                # Detect dimension name
+                if 'gru' in ds.dims:
+                    dname = 'gru'
+                elif 'hru' in ds.dims:
+                    dname = 'hru'
+                else:
+                    self.logger.warning(f"Could not find 'gru' or 'hru' dimension in {netcdf_path}. Available: {list(ds.dims)}")
+
+                # Detect ID variable
+                vname = None
+                if 'gruId' in ds.variables:
+                    vname = 'gruId'
+                elif 'hruId' in ds.variables:
+                    vname = 'hruId'
+                # fallback checks
+                elif 'gru_id' in ds.variables:
+                    vname = 'gru_id'
+                elif 'hru_id' in ds.variables:
+                    vname = 'hru_id'
+                
+                if dname and not vname:
+                     self.logger.warning(f"Could not find ID variable in {netcdf_path}")
+                     # Try to find integer variable with same name as dim?
+                     if dname in ds.variables:
+                         vname = dname
+            
+            if dname and vname:
+                self.logger.debug(f"Detected in NetCDF: dimension='{dname}', variable='{vname}'")
+                
+                # Read control file
+                with open(control_path, 'r') as f:
+                    lines = f.readlines()
+                
+                new_lines = []
+                modified = False
+                for line in lines:
+                    if '<dname_hruid>' in line:
+                        # Check if update is needed
+                        if dname not in line:
+                            parts = line.split('!')
+                            comment = '!' + parts[1] if len(parts) > 1 else ''
+                            new_lines.append(f"<dname_hruid>           {dname}    {comment}")
+                            modified = True
+                        else:
+                            new_lines.append(line)
+                    elif '<vname_hruid>' in line:
+                         # Check if update is needed
+                        if vname not in line:
+                            parts = line.split('!')
+                            comment = '!' + parts[1] if len(parts) > 1 else ''
+                            new_lines.append(f"<vname_hruid>           {vname}    {comment}")
+                            modified = True
+                        else:
+                            new_lines.append(line)
+                    else:
+                        new_lines.append(line)
+                
+                # Write back if modified
+                if modified:
+                    self.logger.info(f"Updating control file to use dimension '{dname}' and variable '{vname}'")
+                    with open(control_path, 'w') as f:
+                        f.writelines(new_lines)
+                else:
+                    self.logger.debug("Control file already matches NetCDF dimensions.")
+            else:
+                self.logger.warning("Could not determine dimensions to sync.")
+                    
+        except Exception as e:
+            self.logger.error(f"Error syncing control file dimensions: {e}")
 
     def run_mizuroute(self):
         """
@@ -291,7 +386,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
         and handles any errors that occur during the run.
         """
         self.logger.debug("Starting mizuRoute run")
-        self.fix_time_precision()
+        runoff_path = self.fix_time_precision()
 
         # Set up paths and filenames
         self.mizu_exe = self.get_model_executable(
@@ -314,6 +409,14 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
             else:
                 control_file = 'mizuroute.control'
             self.logger.debug(f"Using default mizuRoute control file: {control_file}")
+
+        # Sync control file dimensions with actual runoff file
+        if runoff_path and runoff_path.exists():
+            control_path = settings_path / control_file
+            if control_path.exists():
+                self.sync_control_file_dimensions(control_path, runoff_path)
+            else:
+                self.logger.warning(f"Control file not found at {control_path}, skipping dimension sync")
 
         experiment_id = self.config_dict.get('EXPERIMENT_ID')
         mizu_log_path = self.get_config_path('EXPERIMENT_LOG_MIZUROUTE', f"simulations/{experiment_id}/mizuRoute/mizuRoute_logs/")

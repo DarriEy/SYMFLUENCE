@@ -12,6 +12,7 @@ from symfluence.models.registry import ModelRegistry
 from symfluence.data.utilities.archive_utils import tar_directory # type: ignore
 
 from symfluence.core.mixins import ConfigurableMixin
+from symfluence.optimization.workers.utilities.routing_decider import RoutingDecider
 
 # Import for type checking only (avoid circular imports)
 try:
@@ -45,7 +46,10 @@ class ModelManager(ConfigurableMixin):
         self.logger = logger
         self.reporting_manager = reporting_manager
         self.experiment_id = self.config.get('EXPERIMENT_ID')
-        
+
+    # Shared routing decision logic
+    _routing_decider = RoutingDecider()
+
     def _resolve_model_workflow(self) -> List[str]:
 
         """
@@ -59,197 +63,27 @@ class ModelManager(ConfigurableMixin):
             List of model names to execute in order.
 
         """
-
         models_str = self._resolve_config_value(
-
             lambda: self.typed_config.model.hydrological_model,
-
             'HYDROLOGICAL_MODEL',
-
             ''
-
         )
-
         configured_models = [m.strip() for m in str(models_str).split(',') if m.strip()]
-
         execution_list = []
 
-        
+        # Models that support routing via mizuRoute
+        routable_models = {'SUMMA', 'FUSE', 'HYPE', 'GR', 'MESH', 'NGEN'}
 
         for model in configured_models:
-
             if model not in execution_list:
-
                 execution_list.append(model)
 
-        
-
-            # check implicit dependencies (e.g. mizuRoute)
-
-            if model == 'SUMMA':
-
-                domain_method = self._resolve_config_value(
-
-                    lambda: self.typed_config.domain.definition_method,
-
-                    'DOMAIN_DEFINITION_METHOD',
-
-                    'lumped'
-
-                )
-
-                routing_delineation = self._resolve_config_value(
-
-                    lambda: self.typed_config.routing.delineation,
-
-                    'ROUTING_DELINEATION',
-
-                    'lumped'
-
-                )
-
-                
-
-                needs_mizuroute = False
-
-                if domain_method not in ['point', 'lumped']:
-
-                    needs_mizuroute = True
-
-                elif domain_method == 'lumped' and routing_delineation == 'river_network':
-
-                    needs_mizuroute = True
-
-                
-
-                if needs_mizuroute:
-
-                    self._ensure_mizuroute_in_workflow(execution_list, source_model='SUMMA')
-
-        
-
-            elif model == 'FUSE':
-
-                fuse_routing = self._resolve_config_value(
-
-                    lambda: self.typed_config.model.fuse.routing_integration if self.typed_config.model.fuse else None,
-
-                    'FUSE_ROUTING_INTEGRATION',
-
-                    'none'
-
-                )
-
-                fuse_spatial = self._resolve_config_value(
-
-                    lambda: self.typed_config.model.fuse.spatial_mode if self.typed_config.model.fuse else None,
-
-                    'FUSE_SPATIAL_MODE',
-
-                    'lumped'
-
-                )
-
-                routing_delineation = self._resolve_config_value(
-
-                    lambda: self.typed_config.routing.delineation,
-
-                    'ROUTING_DELINEATION',
-
-                    'lumped'
-
-                )
-
-        
-
-                needs_mizuroute = False
-
-                if fuse_routing == 'mizuRoute':
-
-                    needs_mizuroute = True
-
-                elif fuse_spatial in ['semi_distributed', 'distributed']:
-
-                    needs_mizuroute = True # Often implies routing needed
-
-                elif fuse_spatial == 'lumped' and routing_delineation == 'river_network':
-
-                    needs_mizuroute = True
-
-        
-
-                if needs_mizuroute:
-
-                    self._ensure_mizuroute_in_workflow(execution_list, source_model='FUSE')
-
-        
-
-            elif model == 'HYPE':
-
-                domain_method = self._resolve_config_value(
-
-                    lambda: self.typed_config.domain.definition_method,
-
-                    'DOMAIN_DEFINITION_METHOD',
-
-                    'lumped'
-
-                )
-
-                routing_delineation = self._resolve_config_value(
-
-                    lambda: self.typed_config.routing.delineation,
-
-                    'ROUTING_DELINEATION',
-
-                    'lumped'
-
-                )
-
-                
-
-                hype_spatial = self._resolve_config_value(
-
-                    lambda: self.typed_config.model.hype.spatial_mode if (self.typed_config and self.typed_config.model.hype) else None,
-
-                    'HYPE_SPATIAL_MODE',
-
-                    'lumped'
-
-                )
-
-                
-
-                routing_model = self._resolve_config_value(
-                    lambda: self.typed_config.routing.model,
-                    'ROUTING_MODEL',
-                    'none'
-                )
-                
-                if routing_model == 'default':
-                    routing_model = 'mizuRoute'
-                
-                needs_mizuroute = False
-                
-                # Only enable mizuRoute if explicitly requested OR if implied by spatial mode AND not explicitly disabled
-                if routing_model == 'mizuRoute':
-                    needs_mizuroute = True
-                elif routing_model != 'none': # If routing is not disabled, check other conditions
-                    if hype_spatial in ['semi_distributed', 'distributed']:
-                        needs_mizuroute = True
-                    elif domain_method not in ['point', 'lumped']:
-                        needs_mizuroute = True
-                    elif domain_method == 'lumped' and routing_delineation == 'river_network':
-                        needs_mizuroute = True
-                
-                if needs_mizuroute:
-                    self._ensure_mizuroute_in_workflow(execution_list, source_model='HYPE')
-
-        
+            # Check implicit dependencies (e.g. mizuRoute) using shared routing decider
+            if model in routable_models:
+                if self._routing_decider.needs_routing(self.config, model):
+                    self._ensure_mizuroute_in_workflow(execution_list, source_model=model)
 
         return execution_list
-
-        
 
     def _ensure_mizuroute_in_workflow(self, execution_list: List[str], source_model: str):
         """Helper to add mizuRoute to workflow and set context."""

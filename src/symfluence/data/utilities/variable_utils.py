@@ -245,6 +245,10 @@ class VariableHandler:
             'LWRadAtm': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
             'SWRadAtm': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
             'pptrate': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
+        },
+        'RHESSys': {
+            'airtemp': {'standard_name': 'air_temperature', 'units': 'degC'},
+            'pptrate': {'standard_name': 'precipitation_flux', 'units': 'mm/day'}
         }
     }
 

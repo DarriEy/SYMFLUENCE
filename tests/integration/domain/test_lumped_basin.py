@@ -212,10 +212,9 @@ def test_lumped_basin_workflow(config_path, model):
         # Point to RHESSys install in data directory
         config_dict['RHESSYS_INSTALL_PATH'] = str(Path(config_dict['SYMFLUENCE_DATA_DIR']) / 'installs' / 'rhessys' / 'bin')
         config_dict['RHESSYS_EXE'] = 'rhessys'
-        # VMFire settings
-        config_dict['RHESSYS_USE_VMFIRE'] = True
-        config_dict['VMFIRE_INSTALL_PATH'] = str(Path(config_dict['SYMFLUENCE_DATA_DIR']) / 'installs' / 'vmfire' / 'bin')
-        config_dict['VMFIRE_EXE'] = 'vmfire'
+        # WMFire settings (wildfire spread module)
+        config_dict['RHESSYS_USE_WMFIRE'] = True
+        config_dict['WMFIRE_INSTALL_PATH'] = str(Path(config_dict['SYMFLUENCE_DATA_DIR']) / 'installs' / 'wmfire' / 'lib')
 
     # Create new validated typed config with model-specific overrides
     config = SymfluenceConfig(**config_dict)
@@ -310,10 +309,13 @@ def test_lumped_basin_workflow(config_path, model):
         rhessys_exe = Path(config.system.data_dir) / 'installs' / 'rhessys' / 'bin' / 'rhessys'
         if not rhessys_exe.exists():
             pytest.skip(f"RHESSys binary not found at {rhessys_exe}, skipping run and calibration")
-        if config_dict.get('RHESSYS_USE_VMFIRE'):
-            vmfire_exe = Path(config_dict['SYMFLUENCE_DATA_DIR']) / 'installs' / 'vmfire' / 'bin' / 'vmfire'
-            if not vmfire_exe.exists():
-                pytest.skip(f"VMFire binary not found at {vmfire_exe}, skipping run and calibration")
+        # Check for WMFire library if fire spread is enabled
+        if config_dict.get('RHESSYS_USE_WMFIRE') or config_dict.get('RHESSYS_USE_VMFIRE'):
+            wmfire_lib_dir = Path(config_dict['SYMFLUENCE_DATA_DIR']) / 'installs' / 'wmfire' / 'lib'
+            wmfire_so = wmfire_lib_dir / 'libwmfire.so'
+            wmfire_dylib = wmfire_lib_dir / 'libwmfire.dylib'
+            if not (wmfire_so.exists() or wmfire_dylib.exists()):
+                pytest.skip(f"WMFire library not found at {wmfire_lib_dir}, skipping run with fire support")
 
     symfluence.managers['model'].run_models()
 

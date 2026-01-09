@@ -15,6 +15,7 @@ Available parameter managers:
 - HYPEParameterManager: Parameter manager for HYPE model
 - MESHParameterManager: Parameter manager for MESH model
 - GRParameterManager: Parameter manager for GR model
+- RHESSysParameterManager: Parameter manager for RHESSys model
 """
 
 from .ngen_parameter_manager import NgenParameterManager
@@ -22,6 +23,7 @@ from .fuse_parameter_manager import FUSEParameterManager
 from .hype_parameter_manager import HYPEParameterManager
 from .mesh_parameter_manager import MESHParameterManager
 from .gr_parameter_manager import GRParameterManager
+from .rhessys_parameter_manager import RHESSysParameterManager
 
 __all__ = [
     'NgenParameterManager',
@@ -29,4 +31,5 @@ __all__ = [
     'HYPEParameterManager',
     'MESHParameterManager',
     'GRParameterManager',
+    'RHESSysParameterManager',
 ]

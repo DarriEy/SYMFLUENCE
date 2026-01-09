@@ -33,7 +33,7 @@ class SUMMAConfig(BaseModel):
     use_parallel: bool = Field(default=False, alias='SETTINGS_SUMMA_USE_PARALLEL_SUMMA')
     cpus_per_task: int = Field(default=32, alias='SETTINGS_SUMMA_CPUS_PER_TASK')
     time_limit: str = Field(default='01:00:00', alias='SETTINGS_SUMMA_TIME_LIMIT')
-    mem: int = Field(default=5, alias='SETTINGS_SUMMA_MEM')
+    mem: Union[int, str] = Field(default='5G', alias='SETTINGS_SUMMA_MEM')  # SLURM-style memory spec like "12G"
     gru_count: int = Field(default=85, alias='SETTINGS_SUMMA_GRU_COUNT')
     gru_per_job: int = Field(default=5, alias='SETTINGS_SUMMA_GRU_PER_JOB')
     parallel_path: str = Field(default='default', alias='SETTINGS_SUMMA_PARALLEL_PATH')

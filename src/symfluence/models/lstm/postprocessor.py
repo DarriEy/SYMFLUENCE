@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 import pandas as pd
 import xarray as xr
+import numpy as np
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelPostProcessor

@@ -39,6 +39,7 @@ from .base import (
 )
 from .ngen_calibration_targets import NgenStreamflowTarget
 from .fuse_calibration_targets import FUSEStreamflowTarget, FUSESnowTarget
+from .rhessys_calibration_targets import RHESSysStreamflowTarget
 
 __all__ = [
     # Base targets
@@ -56,4 +57,5 @@ __all__ = [
     'NgenStreamflowTarget',
     'FUSEStreamflowTarget',
     'FUSESnowTarget',
+    'RHESSysStreamflowTarget',
 ]

@@ -391,10 +391,13 @@ class NgenParameterManager(BaseParameterManager):
                 if k == "num_timesteps":
                     lines[i] = f"num_timesteps={num_steps}"
                     continue
-                
-                # Update partitioning scheme to known working one
+
+                # Enforce working surface runoff settings
                 if k == "surface_water_partitioning_scheme":
-                    lines[i] = "surface_water_partitioning_scheme=Xinanjiang"
+                    lines[i] = "surface_water_partitioning_scheme=Schaake"
+                    continue
+                if k == "surface_runoff_scheme":
+                    lines[i] = "surface_runoff_scheme=GIUH"
                     continue
 
                 # Match parameters by mapped BMI key
@@ -667,11 +670,17 @@ class NgenParameterManager(BaseParameterManager):
                     return f"{new_val:.8g}{tail}"
                 return f"{new_val:.8g}"
 
-            # Map DE param names -> keys in PET text (adjust to your file)
+            # Map calibration param names -> keys in PET text config file
+            # Parameter names match the actual keys in cat-X_pet_config.txt
             keymap = {
-                # "albedo": "albedo",
-                # "z0m"   : "surface_roughness",
-                # add the keys that actually exist in your PET file
+                "vegetation_height_m": "vegetation_height_m",
+                "zero_plane_displacement_height_m": "zero_plane_displacement_height_m",
+                "momentum_transfer_roughness_length": "momentum_transfer_roughness_length",
+                "heat_transfer_roughness_length_m": "heat_transfer_roughness_length_m",
+                "surface_shortwave_albedo": "surface_shortwave_albedo",
+                "surface_longwave_emissivity": "surface_longwave_emissivity",
+                "wind_speed_measurement_height_m": "wind_speed_measurement_height_m",
+                "humidity_measurement_height_m": "humidity_measurement_height_m",
             }
 
             updated = set()
