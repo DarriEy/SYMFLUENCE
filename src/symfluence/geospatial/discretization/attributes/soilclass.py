@@ -1,3 +1,10 @@
+"""
+Soil class-based domain discretization for pedological classification.
+
+Creates HRUs based on soil type classifications, enabling soil-specific
+parameterization of infiltration, water holding capacity, and conductivity.
+"""
+
 from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING

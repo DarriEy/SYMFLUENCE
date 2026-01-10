@@ -1,3 +1,10 @@
+"""
+Model-Agnostic Framework (MAF) pipeline runners for external data tools.
+
+Provides wrapper classes for gistool and datatool command-line utilities
+used for geospatial data extraction and forcing data acquisition from HPC systems.
+"""
+
 import os
 import sys
 import json

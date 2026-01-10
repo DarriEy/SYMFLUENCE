@@ -1,4 +1,9 @@
-# In utils/project/project_manager.py
+"""
+Project management for SYMFLUENCE hydrological modeling setups.
+
+Handles project directory structure creation, pour point generation,
+and project metadata management for hydrological model domains.
+"""
 
 from pathlib import Path
 import logging

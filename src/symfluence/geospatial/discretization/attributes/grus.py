@@ -1,3 +1,10 @@
+"""
+GRU-based domain discretization using whole watershed units.
+
+Uses Grouped Response Units directly as Hydrologic Response Units without
+further subdivision, suitable for lumped or semi-distributed modeling.
+"""
+
 from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING

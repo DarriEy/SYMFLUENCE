@@ -1,3 +1,10 @@
+"""
+Aspect-based domain discretization for slope direction classification.
+
+Creates HRUs by classifying terrain aspect (slope direction) into
+directional classes (N, NE, E, SE, S, SW, W, NW or custom divisions).
+"""
+
 from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING

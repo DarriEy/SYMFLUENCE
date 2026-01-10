@@ -1,3 +1,10 @@
+"""
+FUSE model preprocessor for data preparation and configuration.
+
+Prepares forcing data, calculates PET, generates FUSE input files,
+and handles synthetic data generation for the FUSE hydrological model.
+"""
+
 import csv
 import itertools
 import os

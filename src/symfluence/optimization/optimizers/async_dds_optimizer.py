@@ -1,3 +1,10 @@
+"""
+Asynchronous parallel DDS optimizer using MPI batch framework.
+
+Extends DDS for parallel execution across multiple processors,
+enabling efficient calibration on HPC systems.
+"""
+
 import numpy as np
 import logging
 import time

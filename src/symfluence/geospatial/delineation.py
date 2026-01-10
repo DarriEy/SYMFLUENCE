@@ -1,3 +1,10 @@
+"""
+Domain delineation module for watershed boundary extraction.
+
+Provides delineation workflows using geofabric subsetting, lumped watershed
+creation, point-based domains, and full geofabric delineation with TauDEM.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

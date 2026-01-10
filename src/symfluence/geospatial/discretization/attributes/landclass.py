@@ -1,3 +1,10 @@
+"""
+Land cover-based domain discretization for vegetation classification.
+
+Creates HRUs based on land cover categories from classification rasters,
+enabling land-use-aware parameterization of hydrological processes.
+"""
+
 from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING

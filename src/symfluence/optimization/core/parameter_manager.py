@@ -1,3 +1,10 @@
+"""
+Parameter management for model calibration.
+
+Handles parameter bounds, normalization, file generation, and soil depth
+calculations for SUMMA local and basin parameters.
+"""
+
 import numpy as np
 import pandas as pd
 import netCDF4 as nc

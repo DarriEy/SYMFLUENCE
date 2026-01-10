@@ -1,4 +1,9 @@
-# conus404_utils.py
+"""
+CONUS404 WRF reanalysis dataset handler.
+
+Processes CONUS404 high-resolution atmospheric reanalysis data from
+the HyTEST catalog with spatial subsetting and variable mapping.
+"""
 
 from pathlib import Path
 from typing import Dict, Tuple, List

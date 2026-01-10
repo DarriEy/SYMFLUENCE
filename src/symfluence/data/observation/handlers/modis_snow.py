@@ -1,3 +1,10 @@
+"""
+MODIS snow cover observation handler.
+
+Provides acquisition and preprocessing of MODIS Snow Cover Area data
+(MOD10A1/MYD10A1) for snowmelt model calibration and validation.
+"""
+
 import numpy as np
 import pandas as pd
 import xarray as xr

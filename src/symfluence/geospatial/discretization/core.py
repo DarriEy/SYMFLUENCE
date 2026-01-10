@@ -1,3 +1,10 @@
+"""
+Domain discretization core module for Hydrologic Response Unit (HRU) creation.
+
+Provides the DomainDiscretizer class for subdividing catchments into HRUs
+based on elevation bands, soil classes, land cover, aspect, or radiation.
+"""
+
 from __future__ import annotations
 
 import time

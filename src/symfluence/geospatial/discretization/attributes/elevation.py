@@ -1,3 +1,10 @@
+"""
+Elevation-based domain discretization for altitude band classification.
+
+Creates HRUs by dividing catchments into elevation bands with configurable
+band sizes, supporting temperature lapse rate and snowmelt modeling.
+"""
+
 from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING

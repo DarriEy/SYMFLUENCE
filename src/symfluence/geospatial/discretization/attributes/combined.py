@@ -1,3 +1,10 @@
+"""
+Combined multi-attribute discretization for HRU creation.
+
+Enables domain discretization using combinations of attributes such as
+elevation, soil class, land cover, aspect, and radiation simultaneously.
+"""
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING

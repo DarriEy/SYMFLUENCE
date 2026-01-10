@@ -1,4 +1,9 @@
-# src/symfluence/optimization/optimization_manager.py
+"""
+Optimization manager coordinating model calibration workflows.
+
+Provides a unified interface for different optimization algorithms,
+manages parameter transformations, and tracks optimization results.
+"""
 
 from pathlib import Path
 import logging

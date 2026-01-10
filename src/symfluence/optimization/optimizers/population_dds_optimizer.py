@@ -1,3 +1,10 @@
+"""
+Population-based parallel DDS optimizer.
+
+Extends DDS with population-based parallelism for improved exploration
+and faster convergence on multi-core systems.
+"""
+
 import numpy as np
 import logging
 import time

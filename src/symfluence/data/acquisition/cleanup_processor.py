@@ -1,3 +1,10 @@
+"""
+Data cleanup processor for Model-Agnostic Framework output validation.
+
+Validates and normalizes soil class, land cover, and elevation statistics
+ensuring consistency across all catchment attributes.
+"""
+
 from pathlib import Path
 from typing import Dict, Any
 import pandas as pd # type: ignore

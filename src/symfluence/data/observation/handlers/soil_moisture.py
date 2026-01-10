@@ -1,3 +1,10 @@
+"""
+SMAP soil moisture observation handler.
+
+Provides acquisition and preprocessing of NASA SMAP satellite soil moisture
+data for multivariate hydrological model calibration and validation.
+"""
+
 import pandas as pd
 import numpy as np
 import xarray as xr

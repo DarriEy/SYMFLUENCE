@@ -1,4 +1,9 @@
-# In utils/geospatial/domain_manager.py
+"""
+Domain management facade for SYMFLUENCE geospatial operations.
+
+Coordinates domain definition, delineation, and discretization workflows
+with integrated visualization and artifact tracking.
+"""
 
 from pathlib import Path
 import logging

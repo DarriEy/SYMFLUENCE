@@ -1,3 +1,10 @@
+"""
+GLEAM evapotranspiration observation handler.
+
+Provides acquisition and preprocessing of GLEAM ET products for
+evapotranspiration model validation and multivariate calibration.
+"""
+
 import tarfile
 import zipfile
 from pathlib import Path

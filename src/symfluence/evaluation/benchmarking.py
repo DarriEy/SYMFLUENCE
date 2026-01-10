@@ -1,3 +1,10 @@
+"""
+Hydrological model benchmarking using HydroBM library.
+
+Provides benchmark calculation against simple models (mean flow, rainfall-runoff
+ratios, etc.) with configurable calibration/validation period splitting.
+"""
+
 import pandas as pd # type: ignore
 from hydrobm.calculate import calc_bm # type: ignore
 from pathlib import Path 

@@ -1,4 +1,9 @@
-# nex_gddp_utils.py
+"""
+NEX-GDDP-CMIP6 dataset handler for climate projections.
+
+Processes downscaled climate model outputs with variable standardization,
+coordinate transformation, and multi-model ensemble support.
+"""
 
 from pathlib import Path
 from typing import Dict, Tuple, List

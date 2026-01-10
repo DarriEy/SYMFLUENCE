@@ -1,3 +1,10 @@
+"""
+Geospatial statistics calculator for catchment attributes.
+
+Computes zonal statistics (elevation, soil class, land cover) from raster
+datasets within catchment boundaries for model parameterization.
+"""
+
 from pathlib import Path
 from typing import Dict, Any, Union, TYPE_CHECKING
 import numpy as np # type: ignore
