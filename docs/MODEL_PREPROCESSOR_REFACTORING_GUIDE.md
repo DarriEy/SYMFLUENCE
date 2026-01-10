@@ -12,8 +12,8 @@ This guide documents how to refactor model preprocessors to use the `BaseModelPr
 - ✅ **GR**: 1222 → 1117 lines (-105 lines, -8.6%)
 
 **Infrastructure Created:**
-- ✅ `BaseModelPreProcessor` (250 lines) - `/src/symfluence/utils/models/base/base_preprocessor.py`
-- ✅ `PETCalculatorMixin` (358 lines) - `/src/symfluence/utils/models/mixins/pet_calculator.py`
+- ✅ `BaseModelPreProcessor` (250 lines) - `/src/symfluence/models/base/base_preprocessor.py`
+- ✅ `PETCalculatorMixin` (358 lines) - `/src/symfluence/models/mixins/pet_calculator.py`
 
 **Test Coverage:**
 - ✅ 21 unit tests for `BaseModelPreProcessor` (all passing)
@@ -36,9 +36,9 @@ This guide documents how to refactor model preprocessors to use the `BaseModelPr
 
 **Add to imports:**
 ```python
-from src.symfluence.utils.models.base import BaseModelPreProcessor
+from symfluence.models.base import BaseModelPreProcessor
 # If model uses PET calculations:
-from src.symfluence.utils.models.mixins import PETCalculatorMixin
+from symfluence.models.mixins import PETCalculatorMixin
 ```
 
 ### Step 2: Update Class Definition
@@ -205,8 +205,8 @@ class FUSEPreProcessor:
 ### After (Refactored FUSE)
 
 ```python
-from src.symfluence.utils.models.base import BaseModelPreProcessor
-from src.symfluence.utils.models.mixins import PETCalculatorMixin
+from symfluence.models.base import BaseModelPreProcessor
+from symfluence.models.mixins import PETCalculatorMixin
 
 class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
     def _get_model_name(self) -> str:
@@ -262,7 +262,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin):
 - May benefit from custom mixin for SUMMA-specific utilities
 
 **Key Files:**
-- `/src/symfluence/utils/models/summa_utils.py` (~2,521 lines)
+- `/src/symfluence/models/summa_utils.py` (~2,521 lines)
 
 **Recommended Approach:**
 ```python
@@ -294,7 +294,7 @@ class SummaPreProcessor(BaseModelPreProcessor):
 - Multiple spatial modes (lumped/semi-distributed/distributed)
 
 **Key Files:**
-- `/src/symfluence/utils/models/fuse_utils.py` (~3,421 lines)
+- `/src/symfluence/models/fuse_utils.py` (~3,421 lines)
 
 **Recommended Approach:**
 ```python
@@ -334,7 +334,7 @@ pet = self.calculate_pet_hargreaves(temp_data, lat)
 - Good candidate for early refactoring
 
 **Key Files:**
-- `/src/symfluence/utils/models/ngen_utils.py` (~1,272 lines)
+- `/src/symfluence/models/ngen_utils.py` (~1,272 lines)
 
 **Recommended Approach:**
 ```python
@@ -363,7 +363,7 @@ class NGenPreProcessor(BaseModelPreProcessor):
 - Quick win for refactoring
 
 **Key Files:**
-- `/src/symfluence/utils/models/troute_utils.py` (~231 lines)
+- `/src/symfluence/models/troute_utils.py` (~231 lines)
 
 **Recommended Approach:**
 ```python
@@ -391,7 +391,7 @@ class TRoutePreProcessor(BaseModelPreProcessor):
 - Good second priority after NGen
 
 **Key Files:**
-- `/src/symfluence/utils/models/mizuroute_utils.py` (~1,121 lines)
+- `/src/symfluence/models/mizuroute_utils.py` (~1,121 lines)
 
 **Recommended Approach:**
 ```python
@@ -569,7 +569,7 @@ When refactoring a model preprocessor:
 
 If you encounter issues during refactoring:
 1. Check if similar issue was solved in MESH/HYPE/GR refactoring
-2. Review base class documentation in `/src/symfluence/utils/models/base/base_preprocessor.py`
+2. Review base class documentation in `/src/symfluence/models/base/base_preprocessor.py`
 3. Look at test examples in `/tests/unit/models/test_base_preprocessor.py`
 4. Consult PET mixin examples in `/tests/unit/models/test_pet_calculator.py`
 

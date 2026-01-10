@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from unittest.mock import Mock
-from src.symfluence.utils.models.mixins import PETCalculatorMixin
+from symfluence.models.mixins.pet_calculator import PETCalculatorMixin
 
 
 class MockPreProcessor(PETCalculatorMixin):

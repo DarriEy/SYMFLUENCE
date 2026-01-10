@@ -14,15 +14,15 @@ from typing import Dict, Any, List
 import sys
 
 # Import SYMFLUENCE components
-from symfluence.utils.project.project_manager import ProjectManager
-from symfluence.utils.project.workflow_orchestrator import WorkflowOrchestrator
-from symfluence.utils.project.logging_manager import LoggingManager
-from symfluence.utils.data.data_manager import DataManager
-from symfluence.utils.geospatial.domain_manager import DomainManager
-from symfluence.utils.models.model_manager import ModelManager
-from symfluence.utils.evaluation.analysis_manager import AnalysisManager
-from symfluence.utils.optimization.optimization_manager import OptimizationManager
-from symfluence.utils.config.config_loader import load_config
+from symfluence.project.project_manager import ProjectManager
+from symfluence.project.workflow_orchestrator import WorkflowOrchestrator
+from symfluence.project.logging_manager import LoggingManager
+from symfluence.data.data_manager import DataManager
+from symfluence.geospatial.domain_manager import DomainManager
+from symfluence.models.model_manager import ModelManager
+from symfluence.evaluation.analysis_manager import AnalysisManager
+from symfluence.optimization.optimization_manager import OptimizationManager
+from symfluence.core.config.config_loader import load_config
 
 
 class SYMFLUENCE:

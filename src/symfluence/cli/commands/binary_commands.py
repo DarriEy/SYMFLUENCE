@@ -26,7 +26,7 @@ class BinaryCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.utils.cli.binary_manager import BinaryManager
+            from symfluence.cli.binary_manager import BinaryManager
 
             binary_manager = BinaryManager()
 
@@ -74,7 +74,7 @@ class BinaryCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.utils.cli.binary_manager import BinaryManager
+            from symfluence.cli.binary_manager import BinaryManager
 
             binary_manager = BinaryManager()
 
@@ -113,7 +113,7 @@ class BinaryCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.utils.cli.binary_manager import BinaryManager
+            from symfluence.cli.binary_manager import BinaryManager
 
             binary_manager = BinaryManager()
 
@@ -153,7 +153,7 @@ class BinaryCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.utils.cli.binary_manager import BinaryManager
+            from symfluence.cli.binary_manager import BinaryManager
 
             binary_manager = BinaryManager()
 

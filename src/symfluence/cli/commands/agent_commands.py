@@ -27,7 +27,7 @@ class AgentCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.utils.cli.agent.agent_manager import AgentManager
+            from symfluence.agent.agent_manager import AgentManager
 
             verbose = getattr(args, 'verbose', False)
             config_path = BaseCommand.get_config_path(args)
@@ -65,7 +65,7 @@ class AgentCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.utils.cli.agent.agent_manager import AgentManager
+            from symfluence.agent.agent_manager import AgentManager
 
             verbose = getattr(args, 'verbose', False)
             config_path = BaseCommand.get_config_path(args)
