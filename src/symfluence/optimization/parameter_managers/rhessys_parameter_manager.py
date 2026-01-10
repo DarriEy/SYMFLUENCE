@@ -60,11 +60,11 @@ class RHESSysParameterManager(BaseParameterManager):
         self.experiment_id = config.get('EXPERIMENT_ID')
 
         # Parse RHESSys parameters to calibrate from config
-        rhessys_params_str = config.get(
-            'RHESSYS_PARAMS_TO_CALIBRATE',
-            'sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,soil_depth,snow_melt_Tcoef'
-        )
-        self.rhessys_params = [p.strip() for p in rhessys_params_str.split(',') if p.strip()]
+        rhessys_params_str = config.get('RHESSYS_PARAMS_TO_CALIBRATE')
+        if rhessys_params_str is None:
+            rhessys_params_str = 'sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,soil_depth,snow_melt_Tcoef'
+            
+        self.rhessys_params = [p.strip() for p in str(rhessys_params_str).split(',') if p.strip()]
 
         # Path to definition files
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))

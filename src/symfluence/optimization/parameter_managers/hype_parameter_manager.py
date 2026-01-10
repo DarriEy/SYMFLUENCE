@@ -29,9 +29,11 @@ class HYPEParameterManager(BaseParameterManager):
         # Parse HYPE parameters to calibrate from config
         # Default includes critical baseflow/groundwater parameter (rcgrw)
         # This is essential for snow-dominated and cold-region basins to generate winter baseflow
-        hype_params_str = config.get('HYPE_PARAMS_TO_CALIBRATE',
-                                     'ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp')
-        self.hype_params = [p.strip() for p in hype_params_str.split(',') if p.strip()]
+        hype_params_str = config.get('HYPE_PARAMS_TO_CALIBRATE')
+        if hype_params_str is None:
+            hype_params_str = 'ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp'
+            
+        self.hype_params = [p.strip() for p in str(hype_params_str).split(',') if p.strip()]
 
         # Path to par.txt file
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))

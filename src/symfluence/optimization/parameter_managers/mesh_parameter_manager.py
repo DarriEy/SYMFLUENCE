@@ -27,9 +27,11 @@ class MESHParameterManager(BaseParameterManager):
         self.experiment_id = config.get('EXPERIMENT_ID')
 
         # Parse MESH parameters to calibrate from config
-        mesh_params_str = config.get('MESH_PARAMS_TO_CALIBRATE',
-                                     'ZSNL,MANN,RCHARG,BASEFLW,DTMINUSR')
-        self.mesh_params = [p.strip() for p in mesh_params_str.split(',') if p.strip()]
+        mesh_params_str = config.get('MESH_PARAMS_TO_CALIBRATE')
+        if mesh_params_str is None:
+            mesh_params_str = 'ZSNL,MANN,RCHARG,BASEFLW,DTMINUSR'
+            
+        self.mesh_params = [p.strip() for p in str(mesh_params_str).split(',') if p.strip()]
 
         # Paths to parameter files
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))

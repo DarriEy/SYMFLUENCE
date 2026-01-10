@@ -49,17 +49,18 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             optimization_settings_dir: Optional path to optimization settings
             reporting_manager: ReportingManager instance
         """
-        # Initialize FUSE-specific paths before super().__init__ 
+        # Initialize FUSE-specific paths before super().__init__
         # because parent calls _setup_parallel_dirs()
-        self.experiment_id = config.get('EXPERIMENT_ID')
+        # Note: experiment_id is a read-only property from ConfigMixin, so we use a local var
+        exp_id = config.get('EXPERIMENT_ID')
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        
-        self.fuse_sim_dir = self.project_dir / 'simulations' / self.experiment_id / 'FUSE'
+
+        self.fuse_sim_dir = self.project_dir / 'simulations' / exp_id / 'FUSE'
         self.fuse_setup_dir = self.project_dir / 'settings' / 'FUSE'
         self.fuse_exe_path = self._get_fuse_executable_path_pre_init(config)
-        self.fuse_id = config.get('FUSE_FILE_ID', self.experiment_id)
+        self.fuse_id = config.get('FUSE_FILE_ID', exp_id)
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 

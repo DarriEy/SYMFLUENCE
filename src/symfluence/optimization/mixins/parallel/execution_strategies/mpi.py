@@ -216,14 +216,6 @@ class MPIExecutionStrategy(ExecutionStrategy):
         """Log MPI execution output."""
         self.logger.debug(f"MPI returncode: {result.returncode}")
 
-        # Check for diagnostic markers
-        for output in [result.stdout, result.stderr]:
-            if output:
-                if "[TWS]" in output or "[WORKER DIAG]" in output:
-                    for line in output.split('\n'):
-                        if "[TWS]" in line or "[WORKER DIAG]" in line:
-                            print(f"  > {line}", flush=True)
-
         if result.stdout:
             self.logger.debug(f"MPI stdout: {result.stdout[:1000]}")
         if result.stderr:

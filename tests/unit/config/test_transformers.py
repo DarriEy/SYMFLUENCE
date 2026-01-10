@@ -263,12 +263,25 @@ class TestFlatteningMapping:
         for field in required_fields:
             assert field in FLAT_TO_NESTED_MAP, f"Required field {field} missing from mapping"
 
-    def test_mapping_has_no_duplicates(self):
-        """Test that mapping has no duplicate target paths"""
-        paths = list(FLAT_TO_NESTED_MAP.values())
-        unique_paths = set(paths)
+    def test_mapping_has_only_intentional_aliases(self):
+        """Test that any duplicate target paths are intentional aliases"""
+        from collections import Counter
 
-        assert len(paths) == len(unique_paths), "Duplicate target paths found in mapping"
+        paths = list(FLAT_TO_NESTED_MAP.values())
+        path_counts = Counter(paths)
+
+        # These are known intentional aliases for backward compatibility
+        # Multiple flat keys can map to the same nested path for legacy support
+        known_aliases = {
+            ('optimization', 'nsga2', 'secondary_target'),  # NSGA2_SECONDARY_TARGET, OPTIMIZATION_TARGET2
+            ('optimization', 'nsga2', 'secondary_metric'),  # NSGA2_SECONDARY_METRIC, OPTIMIZATION_METRIC2
+        }
+
+        # Check that any duplicates are in the known_aliases set
+        for path, count in path_counts.items():
+            if count > 1:
+                assert path in known_aliases, \
+                    f"Unexpected duplicate target path: {path} appears {count} times"
 
     def test_all_paths_are_tuples(self):
         """Test that all mapping values are tuples"""

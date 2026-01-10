@@ -54,7 +54,8 @@ class TWSEvaluator(ModelEvaluator):
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
         output_file = sim_files[0]
 
-        # Try to find a file with storage variables - prefer daily files for TWS
+        # Try to find a file with storage variables
+        # For glacier mode, glacMass4AreaChange is often only in timestep files
         output_dir = output_file.parent
         potential_files = [
             output_file,  # Original file
@@ -63,17 +64,32 @@ class TWSEvaluator(ModelEvaluator):
         for f in output_dir.glob('*_day.nc'):
             if f not in potential_files:
                 potential_files.insert(0, f)  # Prefer daily files
+        # Also check timestep files for glacier variables like glacMass4AreaChange
+        for f in output_dir.glob('*timestep.nc'):
+            if f not in potential_files:
+                potential_files.append(f)
 
-        # Find a file that has at least one storage variable
+        # Find a file that has ALL requested storage variables (if possible)
+        # or at least the most critical ones including glacier mass
+        best_file = None
+        best_var_count = 0
         for candidate_file in potential_files:
             try:
                 with xr.open_dataset(candidate_file) as test_ds:
-                    if any(var in test_ds.data_vars for var in self.storage_vars):
-                        output_file = candidate_file
-                        self.logger.info(f"Using {output_file.name} for TWS extraction")
+                    matching_vars = [v for v in self.storage_vars if v in test_ds.data_vars]
+                    if len(matching_vars) > best_var_count:
+                        best_var_count = len(matching_vars)
+                        best_file = candidate_file
+                        self.logger.debug(f"Found {len(matching_vars)}/{len(self.storage_vars)} vars in {candidate_file.name}")
+                    # If we find all variables, use this file
+                    if len(matching_vars) == len(self.storage_vars):
                         break
             except:
                 continue
+
+        if best_file:
+            output_file = best_file
+            self.logger.debug(f"Using {output_file.name} for TWS extraction ({best_var_count} storage vars)")
 
         try:
             ds = xr.open_dataset(output_file)
@@ -166,51 +182,41 @@ class TWSEvaluator(ModelEvaluator):
     def needs_routing(self) -> bool:
         return False
         
-    def calculate_metrics(self, sim_dir: Path, mizuroute_dir: Optional[Path] = None, 
+    def calculate_metrics(self, sim_dir: Path, mizuroute_dir: Optional[Path] = None,
                          calibration_only: bool = True) -> Optional[Dict[str, float]]:
         """Override to handle anomaly calculation which is specific to TWS"""
-        import sys
         try:
             sim_dir = Path(sim_dir)
-            sys.stderr.write(f"[TWS] Starting metrics calculation for {sim_dir}\n")
-            sys.stderr.flush()
+            self.logger.debug(f"[TWS] Starting metrics calculation for {sim_dir}")
+
             # Load simulated data (absolute storage)
             sim_files = self.get_simulation_files(sim_dir)
             if not sim_files:
-                sys.stderr.write(f"[TWS] No simulation files found in {sim_dir}\n")
-                sys.stderr.flush()
                 self.logger.error(f"[TWS] No simulation files found in {sim_dir}")
                 return None
-            
+
             sim_tws = self.extract_simulated_data(sim_files)
-            sys.stderr.write(f"[TWS] Extracted simulated TWS: {len(sim_tws)} points\n")
-            sys.stderr.flush()
-            
+            self.logger.debug(f"[TWS] Extracted simulated TWS: {len(sim_tws)} points")
+
             # Load observed data (anomalies)
             obs_path = self.get_observed_data_path()
             if not obs_path.exists():
-                sys.stderr.write(f"[TWS] Observed data path does not exist: {obs_path}\n")
-                sys.stderr.flush()
                 self.logger.error(f"[TWS] Observed data path does not exist: {obs_path}")
                 return None
-            
+
             obs_df = pd.read_csv(obs_path, index_col=0, parse_dates=True)
             col = self._get_observed_data_column(obs_df.columns)
             if not col:
-                sys.stderr.write(f"[TWS] Could not find GRACE column in {obs_path}. Available: {list(obs_df.columns)}\n")
-                sys.stderr.flush()
                 self.logger.error(f"[TWS] Could not find GRACE column in {obs_path}. Available: {list(obs_df.columns)}")
                 return None
-            
+
             obs_tws = obs_df[col].dropna()
-            
+
             # Aggregate simulated to monthly means to match GRACE
             sim_monthly = sim_tws.resample('MS').mean()
 
             # Check if we have any simulated data
             if len(sim_monthly) == 0:
-                sys.stderr.write(f"[TWS] No simulated data after resampling to monthly (original: {len(sim_tws)} points)\n")
-                sys.stderr.flush()
                 self.logger.error(f"[TWS] No simulated TWS data available for metrics calculation")
                 return None
 
@@ -219,32 +225,26 @@ class TWSEvaluator(ModelEvaluator):
             if len(common_idx) == 0:
                 sim_start, sim_end = sim_monthly.index[0], sim_monthly.index[-1]
                 obs_start, obs_end = obs_tws.index[0], obs_tws.index[-1]
-                sys.stderr.write(f"[TWS] No overlapping period between simulation ({sim_start} to {sim_end}) and observations ({obs_start} to {obs_end})\n")
-                sys.stderr.flush()
                 self.logger.error(f"[TWS] No overlapping period between simulation ({sim_start} to {sim_end}) and observations ({obs_start} to {obs_end})")
                 return None
-            
-            sys.stderr.write(f"[TWS] Found common period with {len(common_idx)} points\n")
-            sys.stderr.flush()
+
+            self.logger.debug(f"[TWS] Found common period with {len(common_idx)} points")
             sim_matched = sim_monthly.loc[common_idx]
             obs_matched = obs_tws.loc[common_idx]
-            
+
             # Calculate anomaly for simulated data
             baseline_mean = sim_matched.mean()
             sim_anomaly = sim_matched - baseline_mean
-            
+
             # Calculate metrics
             metrics = self._calculate_performance_metrics(obs_matched, sim_anomaly)
-            sys.stderr.write(f"[TWS] Calculated metrics: {metrics}\n")
-            sys.stderr.flush()
+            self.logger.debug(f"[TWS] Calculated metrics: {metrics}")
             return metrics
-            
+
         except Exception as e:
-            sys.stderr.write(f"[TWS] FATAL EXCEPTION: {str(e)}\n")
-            import traceback
-            sys.stderr.write(traceback.format_exc() + "\n")
-            sys.stderr.flush()
             self.logger.error(f"[TWS] Error calculating TWS metrics: {str(e)}")
+            import traceback
+            self.logger.debug(f"[TWS] Traceback: {traceback.format_exc()}")
             return None
 
     def get_diagnostic_data(self, sim_dir: Path) -> Dict[str, Any]:

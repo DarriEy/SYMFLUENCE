@@ -3348,6 +3348,13 @@ RHESSYS_WORLD_TEMPLATE: "world.template"
 #   Usage:      3
 RHESSYS_FLOW_TEMPLATE: "flow.template"
 
+# RHESSYS_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,soil_depth,snow_melt_Tcoef
+#   Source:      RHESSysConfig (model_configs.py)
+#   Usage:      3
+RHESSYS_PARAMS_TO_CALIBRATE: "sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,soil_depth,snow_melt_Tcoef"
+
 # RHESSYS_SKIP_CALIBRATION
 #   Type:        bool
 #   Default:     True

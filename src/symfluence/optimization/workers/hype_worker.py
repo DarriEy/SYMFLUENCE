@@ -143,16 +143,33 @@ class HYPEWorker(BaseWorker):
             if not sim_file.exists():
                 return {'kge': self.penalty_score, 'error': 'timeCOUT.txt not found'}
 
-            # Read simulation (HYPE output is tab-separated with 'time' column)
-            sim_df = pd.read_csv(sim_file, sep='\t', index_label='time')
-            
-            # For lumped, it's the first column after time
-            # HYPE usually has a header like 'time' and then subids
-            if 'time' in sim_df.columns:
+            # Read simulation (HYPE output is tab-separated, first row is comment)
+            sim_df = pd.read_csv(sim_file, sep='\t', skiprows=1)
+
+            # Parse DATE column
+            if 'DATE' in sim_df.columns:
+                sim_df['DATE'] = pd.to_datetime(sim_df['DATE'])
+                sim_df = sim_df.set_index('DATE')
+            elif 'time' in sim_df.columns:
+                sim_df['time'] = pd.to_datetime(sim_df['time'])
                 sim_df = sim_df.set_index('time')
-            
-            # Get the first subid column (usually only one for lumped)
-            sim = sim_df.iloc[:, 0].values
+
+            # Get subbasin columns (exclude date columns)
+            subbasin_cols = [col for col in sim_df.columns if col not in ['DATE', 'time']]
+            if len(subbasin_cols) == 0:
+                return {'kge': self.penalty_score, 'error': 'No subbasin columns in output'}
+
+            # For lumped domains or auto-select outlet (highest mean flow)
+            if len(subbasin_cols) > 1:
+                # Convert to numeric first
+                for col in subbasin_cols:
+                    sim_df[col] = pd.to_numeric(sim_df[col], errors='coerce')
+                subbasin_means = sim_df[subbasin_cols].mean()
+                outlet_col = subbasin_means.idxmax()
+                sim_series = sim_df[outlet_col]
+            else:
+                outlet_col = subbasin_cols[0]
+                sim_series = pd.to_numeric(sim_df[outlet_col], errors='coerce')
 
             # Load observations
             domain_name = config.get('DOMAIN_NAME')
@@ -164,19 +181,46 @@ class HYPEWorker(BaseWorker):
                 return {'kge': self.penalty_score, 'error': 'Observations not found'}
 
             obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
-            
-            # Align simulation and observations
-            # HYPE dates are daily, observations are usually daily but might need resampling
-            sim_dates = pd.to_datetime(sim_df.index)
-            sim_series = pd.Series(sim, index=sim_dates)
-            
-            # Align by index
-            common_idx = sim_series.index.intersection(obs_df.index)
+
+            # HYPE outputs daily data, observations may be hourly
+            # Resample observations to daily mean if they are sub-daily
+            obs_freq = pd.infer_freq(obs_df.index[:10])
+            if obs_freq and obs_freq in ['H', 'h', 'T', 'min', 'S', 's']:
+                # Hourly or sub-hourly observations - resample to daily mean
+                obs_daily = obs_df.resample('D').mean()
+            else:
+                obs_daily = obs_df
+
+            # Normalize both indices to date-only for alignment
+            sim_series.index = sim_series.index.normalize()
+            obs_daily.index = obs_daily.index.normalize()
+
+            # Apply calibration period if configured
+            calib_period = config.get('CALIBRATION_PERIOD')
+            if calib_period:
+                try:
+                    start_str, end_str = [s.strip() for s in calib_period.split(',')]
+                    calib_start = pd.to_datetime(start_str)
+                    calib_end = pd.to_datetime(end_str)
+                    sim_series = sim_series[(sim_series.index >= calib_start) & (sim_series.index <= calib_end)]
+                    obs_daily = obs_daily[(obs_daily.index >= calib_start) & (obs_daily.index <= calib_end)]
+                except Exception as e:
+                    self.logger.warning(f"Could not apply calibration period: {e}")
+
+            # Find common dates
+            common_idx = sim_series.index.intersection(obs_daily.index)
             if len(common_idx) == 0:
                 return {'kge': self.penalty_score, 'error': 'No common dates between sim and obs'}
-                
-            obs_aligned = obs_df.loc[common_idx].values.flatten()
+
+            # Get the discharge column from observations
+            obs_col = obs_daily.columns[0] if len(obs_daily.columns) > 0 else 'discharge_cms'
+            obs_aligned = obs_daily.loc[common_idx, obs_col].values.flatten() if obs_col in obs_daily.columns else obs_daily.loc[common_idx].values.flatten()
             sim_aligned = sim_series.loc[common_idx].values.flatten()
+
+            # Check for all-zero simulations (model didn't produce discharge)
+            if sim_aligned.sum() == 0:
+                self.logger.warning("HYPE simulation produced zero discharge")
+                return {'kge': self.penalty_score, 'error': 'Zero discharge from model'}
 
             kge_val = kge(obs_aligned, sim_aligned, transfo=1)
             nse_val = nse(obs_aligned, sim_aligned, transfo=1)
@@ -191,6 +235,8 @@ class HYPEWorker(BaseWorker):
 
         except Exception as e:
             self.logger.error(f"Error calculating HYPE metrics: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
             return {'kge': self.penalty_score}
 
     @staticmethod

@@ -23,25 +23,16 @@ from typing import Dict, List, Optional, Any
 
 
 from symfluence.evaluation.evaluators import (
-
     ModelEvaluator as CalibrationTarget,
-
     ETEvaluator as ETTarget,
-
-        StreamflowEvaluator as StreamflowTarget,
-
-        GRStreamflowEvaluator as GRStreamflowTarget,
-
-        SoilMoistureEvaluator as SoilMoistureTarget,
-
-    
-
+    StreamflowEvaluator as StreamflowTarget,
+    GRStreamflowEvaluator as GRStreamflowTarget,
+    HYPEStreamflowEvaluator as HYPEStreamflowTarget,
+    RHESSysStreamflowEvaluator as RHESSysStreamflowTarget,
+    SoilMoistureEvaluator as SoilMoistureTarget,
     SnowEvaluator as SnowTarget,
-
     GroundwaterEvaluator as GroundwaterTarget,
-
     TWSEvaluator as TWSTarget
-
 )
 
 

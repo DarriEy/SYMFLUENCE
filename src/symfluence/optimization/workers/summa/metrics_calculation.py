@@ -246,12 +246,9 @@ def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config:
 
         if metrics:
             logger.debug(f"Metrics calculated successfully: {list(metrics.keys())}")
-            # Print metrics to stderr for MPI capture
-            print(f"[WORKER DIAG] Metrics: KGE={metrics.get('KGE', 'N/A'):.4f}", flush=True)
             return metrics
         else:
             logger.warning("Calibration target returned empty metrics")
-            print(f"[WORKER DIAG] WARNING: Empty metrics returned!", flush=True)
             return None
 
     except Exception as e:
@@ -715,16 +712,16 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
             secondary_target = create_target(secondary_target_type)
 
             # Debug: Log target types being used
-            logger.info(f"[MULTI-TARGET DEBUG] Primary target: {primary_target_type} -> {type(primary_target).__name__}")
-            logger.info(f"[MULTI-TARGET DEBUG] Secondary target: {secondary_target_type} -> {type(secondary_target).__name__}")
-            logger.info(f"[MULTI-TARGET DEBUG] Secondary has calculate_metrics: {hasattr(secondary_target, 'calculate_metrics')}")
+            logger.debug(f"[MULTI-TARGET DEBUG] Primary target: {primary_target_type} -> {type(primary_target).__name__}")
+            logger.debug(f"[MULTI-TARGET DEBUG] Secondary target: {secondary_target_type} -> {type(secondary_target).__name__}")
+            logger.debug(f"[MULTI-TARGET DEBUG] Secondary has calculate_metrics: {hasattr(secondary_target, 'calculate_metrics')}")
 
             # Check if TWSEvaluator's calculate_metrics is being used
             if 'tws' in secondary_target_type.lower() or 'grace' in secondary_target_type.lower() or 'stor_grace' in secondary_target_type.lower():
                 from symfluence.evaluation.evaluators.tws import TWSEvaluator
                 is_tws = isinstance(secondary_target, TWSEvaluator)
-                logger.info(f"[MULTI-TARGET DEBUG] Secondary is TWSEvaluator instance: {is_tws}")
-                logger.info(f"[MULTI-TARGET DEBUG] Secondary MRO: {[c.__name__ for c in type(secondary_target).__mro__]}")
+                logger.debug(f"[MULTI-TARGET DEBUG] Secondary is TWSEvaluator instance: {is_tws}")
+                logger.debug(f"[MULTI-TARGET DEBUG] Secondary MRO: {[c.__name__ for c in type(secondary_target).__mro__]}")
 
             # Calculate metrics
             primary_metrics = primary_target.calculate_metrics(

@@ -108,6 +108,9 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         # inputs
         self.output_path = self.hype_setup_dir
+        # Store original forcing data directory for calibration workers
+        # During calibration, output_path may change but forcing data stays in original location
+        self.forcing_data_dir = self.hype_setup_dir
 
         # Initialize variable handler to get correct input names
         var_handler = VariableHandler(self.config_dict, self.logger, forcing_dataset, 'HYPE')
@@ -181,6 +184,17 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             geofabric_mapping=self.geofabric_mapping
         )
 
+    def copy_base_settings(self, source_dir=None, file_patterns=None):
+        """
+        Override base class method - HYPE generates all configs dynamically.
+
+        HYPE does not require base settings files to be copied from a template.
+        All configuration files (par.txt, info.txt, filedir.txt, GeoData.txt,
+        GeoClass.txt, ForcKey.txt) are generated programmatically by the
+        HYPEConfigManager and HYPEGeoDataManager classes.
+        """
+        self.logger.debug("HYPE does not require base settings - all configs generated dynamically")
+
     def run_preprocessing(self):
         """
         Execute complete HYPE preprocessing workflow.
@@ -241,9 +255,12 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         experiment_end = self.config_dict.get('EXPERIMENT_TIME_END')
 
         # Write info and file directory files using manager
+        # Pass forcing_data_dir so filedir.txt points to correct location
+        # (important for calibration workers using isolated directories)
         self.config_manager.write_info_filedir(
             spinup_days=self.spinup_days,
             results_dir=self.hype_results_dir_str,
             experiment_start=experiment_start,
-            experiment_end=experiment_end
+            experiment_end=experiment_end,
+            forcing_data_dir=self.forcing_data_dir
         )

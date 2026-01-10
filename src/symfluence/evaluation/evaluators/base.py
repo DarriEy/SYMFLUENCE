@@ -190,6 +190,34 @@ class ModelEvaluator(ConfigurableMixin, ABC):
             self.logger.error(f"Observed data file not found: {obs_path}")
             return None
 
+        # Try to read with index_col=0 first (handles GRACE/TWS files where date is first column)
+        try:
+            obs_df = pd.read_csv(obs_path, index_col=0, parse_dates=True)
+
+            # Check if index looks like dates
+            if isinstance(obs_df.index, pd.DatetimeIndex):
+                # Index is already a datetime, use it directly
+                data_col = self._get_observed_data_column(obs_df.columns)
+                if data_col:
+                    self.logger.debug(f"Loaded {obs_path} with date index, data column: {data_col}")
+                    return obs_df[data_col]
+
+            # Check for "Unnamed: 0" or numeric index that might be dates
+            if obs_df.index.name == 'Unnamed: 0' or obs_df.index.name is None:
+                try:
+                    obs_df.index = pd.to_datetime(obs_df.index)
+                    if isinstance(obs_df.index, pd.DatetimeIndex):
+                        data_col = self._get_observed_data_column(obs_df.columns)
+                        if data_col:
+                            self.logger.debug(f"Loaded {obs_path} with parsed date index, data column: {data_col}")
+                            return obs_df[data_col]
+                except (ValueError, TypeError):
+                    pass  # Index is not a date, fall through to standard parsing
+
+        except Exception as e:
+            self.logger.debug(f"Could not parse {obs_path} with index_col=0: {e}")
+
+        # Fallback: Standard CSV read with explicit date column search
         obs_df = pd.read_csv(obs_path)
 
         # Find date and data columns
@@ -199,7 +227,8 @@ class ModelEvaluator(ConfigurableMixin, ABC):
         data_col = self._get_observed_data_column(obs_df.columns)
 
         if not date_col or not data_col:
-            self.logger.error(f"Could not identify date/data columns in {obs_path}")
+            self.logger.error(f"Could not identify date/data columns in {obs_path}. "
+                            f"Columns: {list(obs_df.columns)}")
             return None
 
         # Process data

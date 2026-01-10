@@ -40,8 +40,10 @@ class ParameterManager(BaseParameterManager):
         self.mizuroute_params = []
 
         if config.get('CALIBRATE_MIZUROUTE', False):
-            mizuroute_params_str = config.get('MIZUROUTE_PARAMS_TO_CALIBRATE', 'velo,diff')
-            self.mizuroute_params = [p.strip() for p in mizuroute_params_str.split(',') if p.strip()]
+            mizuroute_params_str = config.get('MIZUROUTE_PARAMS_TO_CALIBRATE')
+            if mizuroute_params_str is None:
+                mizuroute_params_str = 'velo,diff'
+            self.mizuroute_params = [p.strip() for p in str(mizuroute_params_str).split(',') if p.strip()]
 
         # Load original soil depths if depth calibration enabled
         self.original_depths = None

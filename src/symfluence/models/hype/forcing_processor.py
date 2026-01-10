@@ -205,18 +205,21 @@ class HYPEForcingProcessor(BaseForcingProcessor):
         """Helper to resample hourly NetCDF to daily text file."""
         with xr.open_dataset(input_file_name) as ds:
             ds = ds.copy()
-            
-            # Cast ID to integer
-            if var_id in ds.coords:
-                ds.coords[var_id] = ds.coords[var_id].astype(int)
-            elif var_id in ds.data_vars:
-                ds[var_id] = ds[var_id].astype(int)
 
-            # Keep only required variables
-            variables_to_keep = [variable_in, var_time]
-            if var_id is not None:
-                variables_to_keep.append(var_id)
-            
+            # Get the mapping from hru dimension index to actual hruId values
+            # This is needed because hruId is often a data variable, not a coordinate
+            hru_id_mapping = None
+            if var_id in ds.data_vars and var_id not in ds.coords:
+                # hruId is a data variable - get the mapping from hru index to actual IDs
+                hru_id_values = ds[var_id].values.astype(int)
+                # Find the dimension name for hruId (typically 'hru')
+                hru_dim = ds[var_id].dims[0] if ds[var_id].dims else None
+                if hru_dim:
+                    hru_id_mapping = {i: int(hru_id_values[i]) for i in range(len(hru_id_values))}
+            elif var_id in ds.coords:
+                # hruId is already a coordinate - cast to int
+                ds.coords[var_id] = ds.coords[var_id].astype(int)
+
             # Ensure time index is sorted
             ds = ds.sortby('time')
 
@@ -235,7 +238,7 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             # Extract variable and convert to dataframe
             # Use to_series().unstack() to get time as index and IDs as columns
             series = ds_daily[variable_in].to_series()
-            
+
             # Dynamically determine the ID level name
             actual_id_level = var_id
             if var_id not in series.index.names:
@@ -243,23 +246,30 @@ class HYPEForcingProcessor(BaseForcingProcessor):
                     if fallback in series.index.names:
                         actual_id_level = fallback
                         break
-            
+
             df = series.unstack(level=actual_id_level)
-            
-            # Ensure columns (subids) are integers and start from 1 if they are 0
-            df.columns = df.columns.astype(int)
-            if 0 in df.columns:
-                df.columns = [c + 1 if c == 0 else c for c in df.columns]
-            
+
+            # Map column indices to actual hruId values if we have the mapping
+            if hru_id_mapping is not None:
+                # Columns are currently hru dimension indices (0, 1, 2, ...)
+                # Map them to actual hruId values
+                df.columns = [hru_id_mapping.get(int(c), int(c)) for c in df.columns]
+            else:
+                # Ensure columns (subids) are integers
+                df.columns = df.columns.astype(int)
+                # Shift 0-based IDs if needed (legacy behavior for backwards compatibility)
+                if 0 in df.columns:
+                    df.columns = [c + 1 if c == 0 else c for c in df.columns]
+
             df.columns.name = None
             df.index.name = 'time'
-            
+
             # Ensure time index is formatted as YYYY-MM-DD for HYPE
             df.index = pd.to_datetime(df.index).strftime('%Y-%m-%d')
-            
+
             if output_file_name_txt:
                 # HYPE observation files: header is 'time' then subids
                 # Separated by tabs
                 df.to_csv(output_file_name_txt, sep='\t', na_rep='-9999.0', index=True, float_format='%.3f')
-            
+
             return ds_daily

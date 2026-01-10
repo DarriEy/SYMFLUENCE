@@ -252,11 +252,53 @@ class NSGA2Optimizer(BaseOptimizer):
             if obj_range > 0: distances[order[1:-1]] += (sorted_vals[2:] - sorted_vals[:-2]) / obj_range
         return distances
 
+    def _normalize_objectives_for_selection(self, objectives: np.ndarray) -> np.ndarray:
+        """
+        Normalize objectives to [0, 1] range for proper multi-objective selection.
+
+        This is critical for multi-target optimization where objectives may have
+        different scales (e.g., streamflow KGE [-inf, 1] vs TWS KGE [-inf, 1] but
+        with different typical ranges).
+
+        Uses robust normalization that handles extreme values and ensures both
+        objectives contribute meaningfully to selection pressure.
+        """
+        if objectives is None or len(objectives) == 0:
+            return objectives
+
+        normalized = np.zeros_like(objectives, dtype=float)
+
+        for j in range(objectives.shape[1]):
+            col = objectives[:, j].copy()
+
+            # Replace NaN with column minimum
+            valid_mask = ~np.isnan(col)
+            if not valid_mask.any():
+                normalized[:, j] = 0.5
+                continue
+
+            # Clip extreme negative values (KGE/NSE can go to -inf)
+            # Use -1 as practical minimum for skill metrics
+            col = np.clip(col, -1.0, 1.0)
+
+            min_val = np.nanmin(col)
+            max_val = np.nanmax(col)
+
+            if max_val > min_val:
+                normalized[:, j] = (col - min_val) / (max_val - min_val)
+            else:
+                normalized[:, j] = 0.5
+
+        return normalized
+
     def _update_representative_solution(self) -> None:
         front_1_indices = np.where(self.population_ranks == 0)[0]
         if len(front_1_indices) > 0:
             objs = self.population_objectives[front_1_indices]
-            composite_scores = np.sum((objs + 1) / 2, axis=1)
+            # Use proper normalization for multi-objective selection
+            # This ensures both objectives contribute equally regardless of scale
+            normalized_objs = self._normalize_objectives_for_selection(objs)
+            composite_scores = np.sum(normalized_objs, axis=1)
             best_idx = front_1_indices[np.argmax(composite_scores)]
             self.best_params = self.parameter_manager.denormalize_parameters(self.population[best_idx])
             self.best_score = np.max(composite_scores)

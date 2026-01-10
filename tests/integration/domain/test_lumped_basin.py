@@ -67,7 +67,7 @@ def config_path(bow_domain, tmp_path, symfluence_code_dir):
             shps = list(river_network_dir.glob("*.shp"))
             if shps:
                 river_network_name = shps[0].name
-    config_dict['RIVER_NETWORK_NAME'] = river_network_name
+    config_dict['RIVER_NETWORK_SHP_NAME'] = river_network_name
 
     # Catchment/HRUs
     catchment_name = f'{domain_name}_HRUs_GRUs.shp'
@@ -201,11 +201,9 @@ def test_lumped_basin_workflow(config_path, model):
         # HYPE calibration not yet fully implemented in this test
         config_dict['HYPE_SKIP_CALIBRATION'] = True
     elif model == 'MESH':
-        # MESH configuration
-        config_dict['MESH_SKIP_CALIBRATION'] = True
-        # Point to MESH install in data directory
-        config_dict['MESH_INSTALL_PATH'] = str(Path(config_dict['SYMFLUENCE_DATA_DIR']) / 'installs' / 'mesh' / 'bin')
-        config_dict['MESH_EXE'] = 'mesh.exe'
+        # MESH is designed for distributed/semi-distributed modeling and doesn't
+        # support single-GRU (lumped) basins due to meshflow library limitations
+        pytest.skip("MESH does not support lumped (single-GRU) basins - use semi-distributed mode")
     elif model == 'RHESSys':
         # RHESSys configuration
         config_dict['RHESSYS_SKIP_CALIBRATION'] = True

@@ -84,14 +84,15 @@ class HYPEConfigManager:
         spinup_days: int,
         results_dir: str,
         experiment_start: str | None = None,
-        experiment_end: str | None = None
+        experiment_end: str | None = None,
+        forcing_data_dir: str | Path | None = None
     ) -> None:
         """
         Write info.txt and filedir.txt configuration files.
 
         This method creates the two primary HYPE control files:
 
-        - **filedir.txt**: Contains the relative path for HYPE I/O (always './')
+        - **filedir.txt**: Contains the path for HYPE I/O (absolute path to forcing data)
         - **info.txt**: Contains simulation settings including:
           - Simulation period (bdate, cdate, edate)
           - Model options (snow, evaporation, routing, etc.)
@@ -113,6 +114,10 @@ class HYPEConfigManager:
                 If not provided, uses forcing file start date or config default.
             experiment_end: Optional end date override (YYYY-MM-DD format).
                 If not provided, uses forcing file end date or config default.
+            forcing_data_dir: Optional path to forcing data directory. If not
+                provided, uses the output_path (where config files are written).
+                For calibration workers, this should point to the original
+                HYPE settings directory containing Pobs.txt, Tobs.txt, etc.
 
         Raises:
             OSError: If the output directory cannot be written to.
@@ -121,10 +126,17 @@ class HYPEConfigManager:
             HYPE requires the results_dir to have a trailing slash. This method
             ensures one is present.
         """
-        # 1. Write filedir.txt
+        # 1. Write filedir.txt - use absolute path to forcing data
+        # For calibration workers, forcing_data_dir points to original HYPE settings
+        # where Pobs.txt, Tobs.txt, etc. are located
+        if forcing_data_dir is not None:
+            forcing_path = str(Path(forcing_data_dir).resolve()).rstrip('/') + '/'
+        else:
+            forcing_path = str(self.output_path.resolve()).rstrip('/') + '/'
+
         filedir_path = self.output_path / 'filedir.txt'
         with open(filedir_path, 'w') as f:
-            f.write('./\n')
+            f.write(f'{forcing_path}\n')
 
         # 2. Determine simulation period from Pobs.txt or config
         pobs_path = self.output_path / 'Pobs.txt'
@@ -615,7 +627,7 @@ wcep    {wcep_val}	!! Effective porosity
 srrcs	{srrcs_val}	!! Runoff coefficient for surface runoff
 !!	-----
 !!	Regional groundwater outflow
-rcgrw	0	!! recession coefficient for regional groundwater outflow
+rcgrw	0.1	!! recession coefficient for regional groundwater outflow (must be >0 for baseflow)
 !!	=======================================================================================================
 !!	SOIL TEMPERATURE AND SOIL FROST DEPT
 !!	-----
