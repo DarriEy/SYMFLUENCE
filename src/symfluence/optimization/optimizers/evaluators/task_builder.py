@@ -7,8 +7,32 @@ Eliminates duplicated task dict construction across evaluation methods.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 import numpy as np
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
+
+def _ensure_flat_config(config: Any) -> Dict[str, Any]:
+    """
+    Ensure config is a flat dictionary for worker compatibility.
+
+    Workers expect flat dictionaries with uppercase keys and .get() method.
+    SymfluenceConfig objects need to be flattened for multiprocessing serialization.
+
+    Args:
+        config: Either a SymfluenceConfig instance or a flat dict
+
+    Returns:
+        Flat dictionary with uppercase keys
+    """
+    # Check if it's a SymfluenceConfig by checking for model_dump (Pydantic method)
+    if hasattr(config, 'model_dump'):
+        from symfluence.core.config.transformers import flatten_nested_config
+        return flatten_nested_config(config)
+    # Already a dict
+    return config
 
 
 class TaskBuilder:
@@ -51,7 +75,8 @@ class TaskBuilder:
             param_manager: Parameter manager instance
             logger: Optional logger instance
         """
-        self.config = config
+        # Flatten config if it's a SymfluenceConfig to ensure workers get a plain dict
+        self.config = _ensure_flat_config(config)
         self.project_dir = project_dir
         self.domain_name = domain_name
         self.optimization_settings_dir = optimization_settings_dir

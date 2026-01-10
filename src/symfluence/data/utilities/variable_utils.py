@@ -393,7 +393,17 @@ class VariableHandler:
             '10m_v_component_of_wind': {'standard_name': 'northward_wind', 'units': 'm/s'},
             'thermal_surface_radiation_downwards': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
             'surface_net_solar_radiation': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
-            'total_precipitation': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
+            'total_precipitation': {'standard_name': 'precipitation_flux', 'units': 'mm/s'},
+            # Standardized variable names (after VariableStandardizer processing)
+            'airtemp': {'standard_name': 'air_temperature', 'units': 'K'},
+            'airpres': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
+            'spechum': {'standard_name': 'specific_humidity', 'units': '1'},
+            'windspd': {'standard_name': 'wind_speed', 'units': 'm/s'},
+            'windspd_u': {'standard_name': 'eastward_wind', 'units': 'm/s'},
+            'windspd_v': {'standard_name': 'northward_wind', 'units': 'm/s'},
+            'LWRadAtm': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
+            'SWRadAtm': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
+            'pptrate': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
         },
         'RDRS': {
             'RDRS_v2.1_P_TT_1.5m': {'standard_name': 'air_temperature', 'units': 'K'},
@@ -527,6 +537,10 @@ class VariableHandler:
             'temp': {'standard_name': 'air_temperature', 'units': 'degC'},
             'pr': {'standard_name': 'precipitation_flux', 'units': 'mm/day'}
         },
+        'RHESSys': {
+            'temp': {'standard_name': 'air_temperature', 'units': 'degC'},
+            'pr': {'standard_name': 'precipitation_flux', 'units': 'mm/day'}
+        },
         'MESH': {
             'airtemp': {'standard_name': 'air_temperature', 'units': 'K'},
             'airpres': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
@@ -589,22 +603,25 @@ class VariableHandler:
     def process_forcing_data(self, data: xr.Dataset) -> xr.Dataset:
         """Process forcing data by mapping variable names and converting units."""
         self.logger.debug("Starting forcing data unit processing")
-        
+
         processed_data = data.copy()
-        
+
         # Get dataset and model mappings
         dataset_map = self.DATASET_MAPPINGS[self.dataset]
         model_map = self.MODEL_REQUIREMENTS[self.model]
-        
+
+        # Get available variables in the data for matching
+        available_vars = set(processed_data.data_vars)
+
         # Process each required model variable
         for model_var, model_req in model_map.items():
-            # Find corresponding dataset variable
-            dataset_var = self._find_matching_variable(model_req['standard_name'], dataset_map)
-            
+            # Find corresponding dataset variable that exists in the data
+            dataset_var = self._find_matching_variable(model_req['standard_name'], dataset_map, available_vars)
+
             if dataset_var is None:
                 self.logger.error(f"Required variable {model_var} not found in dataset {self.dataset}")
                 raise ValueError(f"Required variable {model_var} not found in dataset {self.dataset}")
-            
+
             # Rename variable
             if dataset_var in processed_data:
                 self.logger.debug(f"Processing {dataset_var} -> {model_var}")
@@ -660,10 +677,23 @@ class VariableHandler:
         self.logger.debug("Forcing data unit processing completed")
         return processed_data
 
-    def _find_matching_variable(self, standard_name: str, dataset_map: Dict) -> Optional[str]:
-        """Find dataset variable matching the required standard_name."""
+    def _find_matching_variable(self, standard_name: str, dataset_map: Dict, available_vars: Optional[set] = None) -> Optional[str]:
+        """Find dataset variable matching the required standard_name.
+
+        Args:
+            standard_name: The CF standard name to match
+            dataset_map: Mapping of variable names to their attributes
+            available_vars: Optional set of variable names actually present in the data.
+                           If provided, only returns variables that exist in this set.
+        """
         for var, attrs in dataset_map.items():
             if attrs['standard_name'] == standard_name:
+                # If available_vars provided, check if variable exists in data
+                if available_vars is not None:
+                    if var in available_vars:
+                        return var
+                    # Continue searching for another match that exists
+                    continue
                 return var
         self.logger.warning(f"No matching variable found for standard_name: {standard_name}")
         return None
@@ -717,12 +747,18 @@ class VariableHandler:
         
         try:
             # Special case for precipitation flux conversions (very common source of errors)
-            if ('kg/m2/s' in from_units or 'kilogram / meter ** 2 / second' in from_units) and 'mm/day' in to_units:
+            # Handle various kg/m²/s formats: 'kg/m2/s', 'kg m-2 s-1', 'kilogram / meter ** 2 / second'
+            f_lower = from_units.lower().replace(' ', '')
+            is_kg_m2_s = any(pattern in f_lower for pattern in ['kg/m2/s', 'kgm-2s-1', 'kg/m^2/s', 'kgm^-2s^-1'])
+            if not is_kg_m2_s:
+                is_kg_m2_s = 'kilogram' in from_units.lower() and 'meter' in from_units.lower() and 'second' in from_units.lower()
+
+            if is_kg_m2_s and 'mm' in to_units.lower() and 'day' in to_units.lower():
                 # 1 kg/m² = 1 mm of water
                 # Convert kg/m²/s to mm/s, then to mm/day
                 converted = data * 86400  # multiply by seconds per day
                 return converted
-            
+
             # Additional manual check for common precipitation variants if pint might fail
             if 'mm' in from_units.lower() and 'hour' in from_units.lower() and 'mm' in to_units.lower() and 'day' in to_units.lower():
                 return data * 24.0
