@@ -14,12 +14,8 @@ from .mixins import (
     ValidationMixin,
     ShapefileAccessMixin
 )
-# CoordinateUtilsMixin is in geospatial/coordinate_utils.py but used in legacy core contexts
-try:
-    from symfluence.geospatial.coordinate_utils import CoordinateUtilsMixin
-except ImportError:
-    # Optional or circular dependency fallback
-    pass
+# CoordinateUtilsMixin is in geospatial module but re-exported here for convenience
+from symfluence.geospatial.coordinate_utils import CoordinateUtilsMixin
 
 from .system import SYMFLUENCE
 
