@@ -1,3 +1,10 @@
+"""
+Multi-criteria objective function for multi-variable model calibration.
+
+Combines multiple variables and metrics into a single weighted scalar
+objective for multi-criteria optimization.
+"""
+
 from typing import Dict, Any
 from .base import BaseObjective
 from .registry import ObjectiveRegistry

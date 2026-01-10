@@ -1,3 +1,10 @@
+"""
+Optimization results tracking, history management, and visualization.
+
+Handles storage, retrieval, and plotting of optimization trial history
+for calibration experiments.
+"""
+
 import numpy as np
 import pandas as pd
 import logging

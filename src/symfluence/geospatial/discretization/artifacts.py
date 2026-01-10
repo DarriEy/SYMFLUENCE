@@ -1,3 +1,10 @@
+"""
+Data structures for discretization artifacts and results.
+
+Defines dataclasses for storing geospatial discretization outputs
+including HRU paths and processing metadata.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

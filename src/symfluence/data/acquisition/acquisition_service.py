@@ -1,3 +1,9 @@
+"""
+Unified data acquisition service for geospatial attributes and forcing data.
+
+High-level service coordinating attribute acquisition, forcing data download,
+and observation data retrieval across multiple data sources.
+"""
 
 import logging
 from pathlib import Path

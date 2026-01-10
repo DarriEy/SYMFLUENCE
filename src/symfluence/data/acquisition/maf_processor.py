@@ -1,3 +1,10 @@
+"""
+Model Agnostic Framework (MAF) data processor for external tool integration.
+
+Prepares JSON configuration and executes MAF tools (datatool, gistool) for
+automated data acquisition workflows.
+"""
+
 import json
 import subprocess
 from pathlib import Path

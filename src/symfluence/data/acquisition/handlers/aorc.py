@@ -1,3 +1,10 @@
+"""
+NOAA AORC atmospheric data acquisition from cloud storage.
+
+Provides automated download and processing of Analysis of Record for Calibration
+(AORC) forcing data with bounding box subsetting and multi-year support.
+"""
+
 import xarray as xr
 import pandas as pd
 import s3fs

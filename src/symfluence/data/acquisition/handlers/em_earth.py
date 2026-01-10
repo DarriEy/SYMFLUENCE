@@ -1,3 +1,10 @@
+"""
+EM-Earth climate forcing data acquisition from AWS S3.
+
+Provides automated download of EM-Earth reanalysis data with support for
+deterministic and probabilistic variants, multi-year coverage, and spatial subsetting.
+"""
+
 import pandas as pd
 import xarray as xr
 import s3fs
