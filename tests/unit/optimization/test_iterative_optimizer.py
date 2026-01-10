@@ -543,10 +543,10 @@ class TestEdgeCases:
 
     def test_zero_iterations(self, dds_config, test_logger, mock_optimizer_base):
         """Test that zero iterations is rejected by config validation."""
-        from symfluence.core.exceptions import ConfigurationError
+        from pydantic import ValidationError
 
         # SymfluenceConfig validates that NUMBER_OF_ITERATIONS >= 1
-        with pytest.raises(ConfigurationError):
+        with pytest.raises(ValidationError):
             config = create_config_with_overrides(
                 dds_config,
                 NUMBER_OF_ITERATIONS=0

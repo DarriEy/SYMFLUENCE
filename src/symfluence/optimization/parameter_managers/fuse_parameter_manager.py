@@ -8,7 +8,6 @@ This version fixes the "Index exceeds dimension bound" error by ensuring
 proper parameter file structure and indexing.
 """
 
-import numpy as np
 import xarray as xr
 import netCDF4 as nc
 from pathlib import Path

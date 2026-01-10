@@ -110,30 +110,23 @@ class ProjectCommands(BaseCommand):
             BaseCommand.print_info(f"   Domain name: {args.domain_name}")
             BaseCommand.print_info(f"   Definition method: {args.domain_def}")
 
-            # TODO: Refactor pour point setup to not depend on old CLIArgumentManager
-            # For now, import from the archived version
-            import sys
-            import importlib.util
-            from pathlib import Path
+            from symfluence.project.pour_point_workflow import setup_pour_point_workflow
 
-            old_cli_path = Path(__file__).parent.parent / "cli_argument_manager.py.old"
-            spec = importlib.util.spec_from_file_location("cli_argument_manager_old", old_cli_path)
-            cli_module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(cli_module)
+            # Get output directory from args or use default
+            output_dir = Path(getattr(args, 'output_dir', '.'))
 
-            cli_manager = cli_module.CLIArgumentManager()
-
-            # Call the pour point setup
-            cli_manager.setup_pour_point_workflow(
+            result = setup_pour_point_workflow(
                 coordinates=args.coordinates,
                 domain_def_method=args.domain_def,
                 domain_name=args.domain_name,
                 bounding_box_coords=getattr(args, 'bounding_box_coords', None),
-                symfluence_code_dir=None,
-                experiment_id=getattr(args, 'experiment_id', None)
+                output_dir=output_dir,
             )
 
             BaseCommand.print_success("Pour point workflow setup completed")
+            BaseCommand.print_info(f"   Config file: {result.config_file}")
+            if result.used_auto_bounding_box:
+                BaseCommand.print_info(f"   Auto-generated bounding box: {result.bounding_box_coords}")
             return 0
 
         except Exception as e:

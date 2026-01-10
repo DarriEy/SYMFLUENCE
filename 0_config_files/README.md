@@ -10,7 +10,7 @@ This directory is your personal workspace for SYMFLUENCE configuration files.
 
 ## Configuration Templates
 
-As of SYMFLUENCE v0.6.0, configuration templates have been moved into the package for better distribution.
+As of SYMFLUENCE v0.5.11, configuration templates are included in the package for better distribution.
 
 ### Accessing Templates
 
@@ -51,15 +51,14 @@ python -c "from symfluence.resources import get_config_template; \
            shutil.copy(get_config_template(), './0_config_files/my_config.yaml')"
 ```
 
-## Directory Structure Changes (v0.8.0)
+## Directory Structure
 
-Prior to v0.8.0, this directory contained:
-- ✅ **Templates** → Now in `src/symfluence/data/config_templates/` (distributed with package)
-- ✅ **Tutorial configs** → Now in `examples/configs/` (for documentation)
-- ✅ **User configs** → Remain here (your personal workspace)
+This directory is for user configurations. Package resources are located elsewhere:
+- **Templates** → `src/symfluence/resources/config_templates/` (distributed with package)
+- **Tutorial configs** → `src/symfluence/resources/config_templates/examples/`
+- **User configs** → Remain here (your personal workspace)
 
 ## See Also
 
-- **Base model settings**: `src/symfluence/data/base_settings/` (FUSE, SUMMA, etc.)
-- **Tutorial examples**: `examples/configs/` (iceland_tutorial.yaml, etc.)
-- **Migration guide**: `docs/source/migration_guide_v0.8.md`
+- **Base model settings**: `src/symfluence/resources/base_settings/` (FUSE, SUMMA, etc.)
+- **Example configs**: `src/symfluence/resources/config_templates/examples/`
