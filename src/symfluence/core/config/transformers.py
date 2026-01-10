@@ -718,8 +718,9 @@ def flatten_nested_config(config: 'SymfluenceConfig') -> Dict[str, Any]:
             return
 
         # Get the dict representation
+        # Use exclude_none=True so that .get() falls back to defaults for unset values
         if hasattr(section_obj, 'model_dump'):
-            section_dict = section_obj.model_dump(by_alias=False, exclude_none=False)
+            section_dict = section_obj.model_dump(by_alias=False, exclude_none=True)
         else:
             section_dict = section_obj if isinstance(section_obj, dict) else {}
 

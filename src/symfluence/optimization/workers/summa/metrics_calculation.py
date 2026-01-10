@@ -361,7 +361,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                         else:
                             return None
 
-                        logger.warning(f"WORKER DEBUG: Extracted {routing_var} (mizuRoute), mean = {float(sim_data.mean()):.2f} m³/s")
+                        logger.warning(f"WORKER DEBUG: Extracted {routing_var} (mizuRoute), mean = {float(sim_data.mean().item()):.2f} m³/s")
 
                     except Exception as e:
                         logger.debug(f"Error extracting outlet segment from {routing_var}: {str(e)}")
@@ -383,8 +383,8 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                             is_mass_flux = False
                             if 'units' in var.attrs and 'kg' in var.attrs['units'] and 's-1' in var.attrs['units']:
                                 is_mass_flux = True
-                            elif float(var.mean()) > 1e-6:
-                                logger.debug(f"Worker: Variable {var_name} mean ({float(var.mean()):.2e}) is unreasonably high. Assuming mislabeled mass flux.")
+                            elif float(var.mean().item()) > 1e-6:
+                                logger.debug(f"Worker: Variable {var_name} mean ({float(var.mean().item()):.2e}) is unreasonably high. Assuming mislabeled mass flux.")
                                 is_mass_flux = True
 
                             if is_mass_flux:
@@ -459,7 +459,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                                     logger.warning(f"WORKER DEBUG: Converting {var_name} using catchment area = {catchment_area:.2e} m²")
                                     logger.warning(f"WORKER DEBUG: Pre-conversion mean = {sim_data.mean():.2e}")
                                     sim_data = sim_data * catchment_area
-                                    logger.warning(f"WORKER DEBUG: Post-conversion mean = {float(sim_data.mean()):.2f} m³/s")
+                                    logger.warning(f"WORKER DEBUG: Post-conversion mean = {float(sim_data.mean().item()):.2f} m³/s")
 
                                 break
                             except Exception as e:
@@ -522,7 +522,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
 
                     sim_mask = (sim_data.index >= start_date) & (sim_data.index <= end_date)
                     sim_period = sim_data[sim_mask]
-                    logger.warning(f"WORKER DEBUG: After period filtering, sim_period mean = {float(sim_period.mean()):.2f}")
+                    logger.warning(f"WORKER DEBUG: After period filtering, sim_period mean = {float(sim_period.mean().item()):.2f}")
                 else:
                     obs_period = obs_data
                     sim_period = sim_data
@@ -544,7 +544,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
         if calibration_timestep != 'native':
             obs_period = resample_to_timestep(obs_period, calibration_timestep, logger)
             sim_period = resample_to_timestep(sim_period, calibration_timestep, logger)
-            logger.warning(f"WORKER DEBUG: After resampling, sim_period mean = {float(sim_period.mean()):.2f}")
+            logger.warning(f"WORKER DEBUG: After resampling, sim_period mean = {float(sim_period.mean().item()):.2f}")
 
         # Alignment
         common_idx = obs_period.index.intersection(sim_period.index)
@@ -563,7 +563,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
 
         obs_common = pd.to_numeric(obs_period.loc[common_idx], errors='coerce')
         sim_common = pd.to_numeric(sim_period.loc[common_idx], errors='coerce')
-        logger.warning(f"WORKER DEBUG: After intersection, sim_common mean = {float(sim_common.mean()):.2f}")
+        logger.warning(f"WORKER DEBUG: After intersection, sim_common mean = {float(sim_common.mean().item()):.2f}")
 
         # Final cleaning
         valid = ~(obs_common.isna() | sim_common.isna() | (obs_common < -900) | (sim_common < -900))
@@ -589,7 +589,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
             mae = (obs_valid - sim_valid).abs().mean()
             pbias = 100 * (sim_valid.sum() - obs_valid.sum()) / obs_valid.sum() if obs_valid.sum() != 0 else np.nan
 
-            logger.warning(f"WORKER DEBUG: Final KGE = {kge:.4f} (obs_mean={mean_obs:.2f}, sim_mean={float(sim_valid.mean()):.2f})")
+            logger.warning(f"WORKER DEBUG: Final KGE = {kge:.4f} (obs_mean={mean_obs:.2f}, sim_mean={float(sim_valid.mean().item()):.2f})")
 
             return {
                 'Calib_NSE': nse, 'Calib_KGE': kge, 'Calib_RMSE': rmse, 'Calib_MAE': mae, 'Calib_PBIAS': pbias,
