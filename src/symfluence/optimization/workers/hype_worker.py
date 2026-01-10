@@ -59,20 +59,23 @@ class HYPEWorker(BaseWorker):
             config = kwargs.get('config', self.config)
             
             # Use HYPEPreProcessor to regenerate configs with new params
-            # We only need to regenerate the par.txt file, but calling 
+            # We only need to regenerate the par.txt file, but calling
             # preprocess_models with params is the cleanest way.
             preprocessor = HYPEPreProcessor(config, self.logger, params=params)
-            
+
             # Set model-specific paths to point to the worker's settings dir
             preprocessor.output_path = settings_dir
             preprocessor.hype_setup_dir = settings_dir
-            
+            # IMPORTANT: forcing_data_dir must point to where forcing files are located
+            # Forcing files are copied to worker's settings dir by copy_base_settings
+            preprocessor.forcing_data_dir = settings_dir
+
             # Use isolated output directory for the worker
             output_dir = kwargs.get('proc_output_dir') or kwargs.get('output_dir')
             if output_dir:
                 preprocessor.hype_results_dir = Path(output_dir)
                 preprocessor.hype_results_dir_str = str(Path(output_dir)).rstrip('/') + '/'
-            
+
             # Only regenerate the model configs (GeoData, par.txt, info.txt)
             # Forcing doesn't change during calibration
             preprocessor._create_model_configs()
