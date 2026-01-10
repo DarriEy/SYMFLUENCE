@@ -568,10 +568,37 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         # Specific humidity
         return (0.622 * e) / (P - 0.378 * e)
 
+    def _detect_temporal_resolution_seconds(self, ds: xr.Dataset) -> Optional[float]:
+        """
+        Detect temporal resolution from dataset by analyzing time coordinate.
+
+        Returns:
+            Resolution in seconds, or None if detection fails.
+        """
+        if 'time' not in ds.dims or ds.sizes['time'] < 2:
+            return None
+
+        try:
+            times = pd.to_datetime(ds['time'].values)
+            diffs = np.diff(times)
+            median_seconds = float(np.median(diffs) / np.timedelta64(1, 's'))
+            logging.debug(f"Detected temporal resolution: {median_seconds} seconds ({median_seconds/3600:.1f} hours)")
+            return median_seconds
+        except Exception as e:
+            logging.warning(f"Failed to detect temporal resolution: {e}")
+            return None
+
     def _convert_units(self, ds: xr.Dataset) -> xr.Dataset:
         """Convert units to SUMMA standards."""
-        resolution_hours = self._get_temporal_resolution()
-        resolution_seconds = resolution_hours * 3600
+        # Try to detect resolution from data first, fall back to hardcoded value
+        detected_seconds = self._detect_temporal_resolution_seconds(ds)
+        if detected_seconds is not None:
+            resolution_seconds = detected_seconds
+            logging.info(f"Using detected temporal resolution: {resolution_seconds/3600:.1f} hours")
+        else:
+            resolution_hours = self._get_temporal_resolution()
+            resolution_seconds = resolution_hours * 3600
+            logging.info(f"Using default temporal resolution: {resolution_hours} hours")
 
         # Precipitation: kg/m2 per leadtime -> m/s
         if 'pptrate' in ds:
@@ -715,7 +742,7 @@ class CARRAAcquirer(CDSRegionalReanalysisHandler):
         return self.config.get("CARRA_DOMAIN", "west_domain")
 
     def _get_temporal_resolution(self) -> int:
-        return 1  # Hourly
+        return 3  # 3-hourly (CARRA native resolution)
 
     def _get_analysis_variables(self) -> List[str]:
         return [
