@@ -71,6 +71,11 @@ Icon
 temp/
 logs/
 
+# Development artifacts (root directory)
+*_log_tail.txt
+*_job_log.txt
+test_*.R
+
 # Distribution
 *.manifest
 *.spec

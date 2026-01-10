@@ -189,20 +189,6 @@ def mock_symfluence_instance():
 
 
 @pytest.fixture
-def cli_manager(monkeypatch, mock_symfluence_instance):
-    """DEPRECATED: CLIArgumentManager fixture - kept for backward compatibility.
-
-    The CLI has been refactored to use subcommands. This fixture now returns
-    None and should be removed from tests that use it.
-
-    For new tests, use individual component fixtures (binary_manager,
-    job_scheduler, etc.) directly.
-    """
-    # Return None - tests using this fixture should be updated
-    return None
-
-
-@pytest.fixture
 def binary_manager(mock_external_tools, tmp_path):
     """BinaryManager fixture with mocked external tools.
 

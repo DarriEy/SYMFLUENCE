@@ -1,5 +1,5 @@
-CONFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/data/CONFLUENCE_data
-CONFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/CONFLUENCE
+SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/data/CONFLUENCE_data
+SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/CONFLUENCE
 DOMAIN_NAME: fluxnet
 EXPERIMENT_ID: run_1
 EXPERIMENT_TIME_START: 2018-01-01 01:00

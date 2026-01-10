@@ -17,7 +17,7 @@ Available optimizers:
 - RHESSysModelOptimizer: RHESSys model optimization
 """
 
-from .summa_optimizer import SUMMAModelOptimizer
+from .summa_model_optimizer import SUMMAModelOptimizer
 from .fuse_model_optimizer import FUSEModelOptimizer
 from .ngen_model_optimizer import NgenModelOptimizer
 from .hype_model_optimizer import HYPEModelOptimizer

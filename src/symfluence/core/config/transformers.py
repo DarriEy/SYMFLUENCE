@@ -75,7 +75,6 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'DEM_SOURCE': ('domain', 'dem_source'),
     'LAND_CLASS_SOURCE': ('domain', 'land_class_source'),
     'LAND_CLASS_NAME': ('domain', 'land_class_name'),
-    'SOILGRIDS_LAYER': ('domain', 'soilgrids_layer'),
 
     # ========== DATA CONFIGURATION ==========
     'ADDITIONAL_OBSERVATIONS': ('data', 'additional_observations'),

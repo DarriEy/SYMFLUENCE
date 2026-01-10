@@ -117,7 +117,6 @@ CLI-specific fixtures are defined in `conftest.py`:
 
 ### Component Fixtures
 
-- **`cli_manager`** - CLIArgumentManager with mocked submanagers
 - **`binary_manager`** - BinaryManager with mock tools
 - **`job_scheduler`** - JobScheduler instance
 - **`notebook_service`** - NotebookService instance

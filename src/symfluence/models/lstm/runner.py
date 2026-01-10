@@ -403,8 +403,10 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
             
             # Extract gradients dL/dq_hru where q_hru is lateral inflow
             # We need dL/dq_hru(t, i)
-            # TODO: Ensure droute supports returning gradients for inputs at each timestep
-            # For now, we'll approximate or use numerical gradients if not available
+            # KNOWN LIMITATION: dRoute timestep-specific gradient support is partial.
+            # Current workaround extracts gradients per reach/timestep key if available,
+            # falling back to zero when keys are missing. Full gradient support requires
+            # dRoute API extension for complete reverse-mode AD through routing.
             
             # Assuming droute_grads contains 'lateral_inflow_reach_R_step_T'
             grad_runoff = torch.zeros((B, N)).to(self.device)

@@ -88,3 +88,52 @@ class LSTMWorker(BaseWorker):
         """Apply parameters to model configuration."""
         # For LSTM, we typically just pass parameters through config
         return True
+
+    def calculate_metrics(
+        self,
+        output_dir: Path,
+        config: Dict[str, Any],
+        **kwargs
+    ) -> Dict[str, float]:
+        """
+        Calculate objective metrics from LSTM model outputs.
+
+        Args:
+            output_dir: Path to model outputs
+            config: Configuration dictionary
+            **kwargs: Additional arguments (sim_dir, proc_id, etc.)
+
+        Returns:
+            Dictionary of metric names to values
+        """
+        try:
+            from symfluence.optimization.calibration_targets import StreamflowTarget
+
+            # Determine the correct simulation directory
+            sim_dir = output_dir
+            routing_model = config.get('ROUTING_MODEL', 'none').lower()
+            if routing_model and routing_model != 'none':
+                if 'droute' in routing_model:
+                    potential_dir = output_dir.parent / 'dRoute'
+                    if potential_dir.exists():
+                        sim_dir = potential_dir
+                else:
+                    potential_dir = output_dir.parent / 'mizuRoute'
+                    if potential_dir.exists():
+                        sim_dir = potential_dir
+
+            # Use StreamflowTarget for metrics calculation
+            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+            domain_name = config.get('DOMAIN_NAME', '')
+            project_dir = data_dir / f"domain_{domain_name}"
+
+            target = StreamflowTarget(config, project_dir, self.logger)
+            metrics = target.calculate_metrics(sim_dir)
+
+            return metrics
+
+        except Exception as e:
+            self.logger.error(f"Error calculating LSTM metrics: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return {'KGE': self.penalty_score}
