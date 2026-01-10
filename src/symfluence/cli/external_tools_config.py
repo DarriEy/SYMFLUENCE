@@ -25,7 +25,7 @@ from typing import Dict, Any
 def get_common_build_environment() -> str:
     """
     Get common build environment setup used across multiple tools.
-    
+
     Returns:
         Shell script snippet for environment configuration.
     """
@@ -49,10 +49,235 @@ export HDF5_ROOT="${HDF5_ROOT:-$(h5cc -showconfig 2>/dev/null | awk -F': ' "/Ins
 export NCORES="${NCORES:-4}"
     '''.strip()
 
+
+def get_netcdf_detection() -> str:
+    """
+    Get reusable NetCDF detection shell snippet.
+
+    Sets NETCDF_FORTRAN and NETCDF_C environment variables.
+    Works on Linux (apt), macOS (Homebrew), and HPC systems.
+
+    Returns:
+        Shell script snippet for NetCDF detection.
+    """
+    return r'''
+# === NetCDF Detection (reusable snippet) ===
+detect_netcdf() {
+    # Try nf-config first (NetCDF Fortran config tool)
+    if command -v nf-config >/dev/null 2>&1; then
+        NETCDF_FORTRAN="$(nf-config --prefix)"
+        echo "Found nf-config, NetCDF-Fortran at: ${NETCDF_FORTRAN}"
+    elif [ -n "${NETCDF_FORTRAN}" ] && [ -d "${NETCDF_FORTRAN}/include" ]; then
+        echo "Using NETCDF_FORTRAN env var: ${NETCDF_FORTRAN}"
+    elif [ -n "${NETCDF}" ] && [ -d "${NETCDF}/include" ]; then
+        NETCDF_FORTRAN="${NETCDF}"
+        echo "Using NETCDF env var: ${NETCDF_FORTRAN}"
+    else
+        # Try common locations (Homebrew, system paths)
+        for try_path in /opt/homebrew/opt/netcdf-fortran /opt/homebrew/opt/netcdf \
+                        /usr/local/opt/netcdf-fortran /usr/local/opt/netcdf /usr/local /usr; do
+            if [ -d "$try_path/include" ]; then
+                NETCDF_FORTRAN="$try_path"
+                echo "Found NetCDF at: $try_path"
+                break
+            fi
+        done
+    fi
+
+    # Find NetCDF C library (may be separate from Fortran on macOS)
+    if command -v nc-config >/dev/null 2>&1; then
+        NETCDF_C="$(nc-config --prefix)"
+    elif [ -d "/opt/homebrew/opt/netcdf" ]; then
+        NETCDF_C="/opt/homebrew/opt/netcdf"
+    else
+        NETCDF_C="${NETCDF_FORTRAN}"
+    fi
+
+    export NETCDF_FORTRAN NETCDF_C
+}
+detect_netcdf
+    '''.strip()
+
+
+def get_hdf5_detection() -> str:
+    """
+    Get reusable HDF5 detection shell snippet.
+
+    Sets HDF5_ROOT, HDF5_LIB_DIR, and HDF5_INC_DIR environment variables.
+    Handles Ubuntu's hdf5/serial subdirectory structure.
+
+    Returns:
+        Shell script snippet for HDF5 detection.
+    """
+    return r'''
+# === HDF5 Detection (reusable snippet) ===
+detect_hdf5() {
+    # Try h5cc config tool first
+    if command -v h5cc >/dev/null 2>&1; then
+        HDF5_ROOT="$(h5cc -showconfig 2>/dev/null | grep -i "Installation point" | sed 's/.*: *//' | head -n1)"
+    fi
+
+    # Fallback detection
+    if [ -z "$HDF5_ROOT" ] || [ ! -d "$HDF5_ROOT" ]; then
+        if [ -n "$HDF5_ROOT" ] && [ -d "$HDF5_ROOT" ]; then
+            : # Use existing env var
+        elif command -v brew >/dev/null 2>&1 && brew --prefix hdf5 >/dev/null 2>&1; then
+            HDF5_ROOT="$(brew --prefix hdf5)"
+        else
+            for path in /usr $HOME/.local /opt/hdf5; do
+                if [ -d "$path/include" ] && [ -d "$path/lib" ]; then
+                    HDF5_ROOT="$path"
+                    break
+                fi
+            done
+        fi
+    fi
+    HDF5_ROOT="${HDF5_ROOT:-/usr}"
+
+    # Find lib directory (Ubuntu stores in hdf5/serial, others in lib64 or lib)
+    if [ -d "${HDF5_ROOT}/lib/x86_64-linux-gnu/hdf5/serial" ]; then
+        HDF5_LIB_DIR="${HDF5_ROOT}/lib/x86_64-linux-gnu/hdf5/serial"
+    elif [ -d "${HDF5_ROOT}/lib/x86_64-linux-gnu" ]; then
+        HDF5_LIB_DIR="${HDF5_ROOT}/lib/x86_64-linux-gnu"
+    elif [ -d "${HDF5_ROOT}/lib64" ]; then
+        HDF5_LIB_DIR="${HDF5_ROOT}/lib64"
+    else
+        HDF5_LIB_DIR="${HDF5_ROOT}/lib"
+    fi
+
+    # Find include directory
+    if [ -d "${HDF5_ROOT}/include/hdf5/serial" ]; then
+        HDF5_INC_DIR="${HDF5_ROOT}/include/hdf5/serial"
+    else
+        HDF5_INC_DIR="${HDF5_ROOT}/include"
+    fi
+
+    export HDF5_ROOT HDF5_LIB_DIR HDF5_INC_DIR
+}
+detect_hdf5
+    '''.strip()
+
+
+def get_netcdf_lib_detection() -> str:
+    """
+    Get reusable NetCDF library path detection snippet.
+
+    Sets NETCDF_LIB_DIR and NETCDF_C_LIB_DIR for linking.
+    Handles Debian/Ubuntu x86_64-linux-gnu paths and lib64 paths.
+
+    Returns:
+        Shell script snippet for NetCDF library path detection.
+    """
+    return r'''
+# === NetCDF Library Path Detection ===
+detect_netcdf_lib_paths() {
+    # Find NetCDF-Fortran lib directory
+    if [ -d "${NETCDF_FORTRAN}/lib/x86_64-linux-gnu" ] && \
+       ls "${NETCDF_FORTRAN}/lib/x86_64-linux-gnu"/libnetcdff.* >/dev/null 2>&1; then
+        NETCDF_LIB_DIR="${NETCDF_FORTRAN}/lib/x86_64-linux-gnu"
+    elif [ -d "${NETCDF_FORTRAN}/lib64" ] && \
+         ls "${NETCDF_FORTRAN}/lib64"/libnetcdff.* >/dev/null 2>&1; then
+        NETCDF_LIB_DIR="${NETCDF_FORTRAN}/lib64"
+    else
+        NETCDF_LIB_DIR="${NETCDF_FORTRAN}/lib"
+    fi
+
+    # Find NetCDF-C lib directory (may differ from Fortran)
+    if [ -d "${NETCDF_C}/lib/x86_64-linux-gnu" ] && \
+       ls "${NETCDF_C}/lib/x86_64-linux-gnu"/libnetcdf.* >/dev/null 2>&1; then
+        NETCDF_C_LIB_DIR="${NETCDF_C}/lib/x86_64-linux-gnu"
+    elif [ -d "${NETCDF_C}/lib64" ] && \
+         ls "${NETCDF_C}/lib64"/libnetcdf.* >/dev/null 2>&1; then
+        NETCDF_C_LIB_DIR="${NETCDF_C}/lib64"
+    else
+        NETCDF_C_LIB_DIR="${NETCDF_C}/lib"
+    fi
+
+    export NETCDF_LIB_DIR NETCDF_C_LIB_DIR
+}
+detect_netcdf_lib_paths
+    '''.strip()
+
+
+def get_geos_proj_detection() -> str:
+    """
+    Get reusable GEOS and PROJ detection shell snippet.
+
+    Sets GEOS_CFLAGS, GEOS_LDFLAGS, PROJ_CFLAGS, PROJ_LDFLAGS.
+
+    Returns:
+        Shell script snippet for GEOS/PROJ detection.
+    """
+    return r'''
+# === GEOS and PROJ Detection ===
+detect_geos_proj() {
+    GEOS_CFLAGS="" GEOS_LDFLAGS="" PROJ_CFLAGS="" PROJ_LDFLAGS=""
+
+    # Try pkg-config first
+    if command -v pkg-config >/dev/null 2>&1; then
+        if pkg-config --exists geos 2>/dev/null; then
+            GEOS_CFLAGS="$(pkg-config --cflags geos)"
+            GEOS_LDFLAGS="$(pkg-config --libs geos)"
+            echo "GEOS found via pkg-config"
+        fi
+        if pkg-config --exists proj 2>/dev/null; then
+            PROJ_CFLAGS="$(pkg-config --cflags proj)"
+            PROJ_LDFLAGS="$(pkg-config --libs proj)"
+            echo "PROJ found via pkg-config"
+        fi
+    fi
+
+    # macOS Homebrew fallback
+    if [ "$(uname)" = "Darwin" ]; then
+        if [ -z "$GEOS_CFLAGS" ] && command -v brew >/dev/null 2>&1; then
+            GEOS_PREFIX="$(brew --prefix geos 2>/dev/null || true)"
+            if [ -n "$GEOS_PREFIX" ] && [ -d "$GEOS_PREFIX" ]; then
+                GEOS_CFLAGS="-I${GEOS_PREFIX}/include"
+                GEOS_LDFLAGS="-L${GEOS_PREFIX}/lib -lgeos_c"
+                echo "GEOS found via Homebrew"
+            fi
+        fi
+        if [ -z "$PROJ_CFLAGS" ] && command -v brew >/dev/null 2>&1; then
+            PROJ_PREFIX="$(brew --prefix proj 2>/dev/null || true)"
+            if [ -n "$PROJ_PREFIX" ] && [ -d "$PROJ_PREFIX" ]; then
+                PROJ_CFLAGS="-I${PROJ_PREFIX}/include"
+                PROJ_LDFLAGS="-L${PROJ_PREFIX}/lib -lproj"
+                echo "PROJ found via Homebrew"
+            fi
+        fi
+    fi
+
+    # Common path fallback
+    if [ -z "$GEOS_CFLAGS" ]; then
+        for path in /usr/local /usr; do
+            if [ -f "$path/lib/libgeos_c.so" ] || [ -f "$path/lib/libgeos_c.dylib" ]; then
+                GEOS_CFLAGS="-I$path/include"
+                GEOS_LDFLAGS="-L$path/lib -lgeos_c"
+                echo "GEOS found in $path"
+                break
+            fi
+        done
+    fi
+    if [ -z "$PROJ_CFLAGS" ]; then
+        for path in /usr/local /usr; do
+            if [ -f "$path/lib/libproj.so" ] || [ -f "$path/lib/libproj.dylib" ]; then
+                PROJ_CFLAGS="-I$path/include"
+                PROJ_LDFLAGS="-L$path/lib -lproj"
+                echo "PROJ found in $path"
+                break
+            fi
+        done
+    fi
+
+    export GEOS_CFLAGS GEOS_LDFLAGS PROJ_CFLAGS PROJ_LDFLAGS
+}
+detect_geos_proj
+    '''.strip()
+
 def get_external_tools_definitions() -> Dict[str, Dict[str, Any]]:
     """
     Define all external tools required by SYMFLUENCE.
-    
+
     Returns:
         Dictionary mapping tool names to their complete configuration including:
         - description: Human-readable description
@@ -70,7 +295,12 @@ def get_external_tools_definitions() -> Dict[str, Dict[str, Any]]:
         - verify_install: Installation verification criteria
         - order: Installation order (lower numbers first)
     """
+    # Get reusable shell snippets
     common_env = get_common_build_environment()
+    netcdf_detect = get_netcdf_detection()
+    hdf5_detect = get_hdf5_detection()
+    netcdf_lib_detect = get_netcdf_lib_detection()
+    geos_proj_detect = get_geos_proj_detection()
     
     return {
         # ================================================================
@@ -247,91 +477,43 @@ fi
             'install_dir': 'mizuRoute',
             'build_commands': [
                 common_env,
+                netcdf_detect,
                 r'''
 # Build mizuRoute - edit Makefile directly (it doesn't use env vars)
 cd route/build
-
-# Create bin directory if it doesn't exist
 mkdir -p ../bin
 
-# F_MASTER should point to the route directory (one level up from build)
 F_MASTER_PATH="$(cd .. && pwd)"
-echo "F_MASTER will be set to: $F_MASTER_PATH/"
+echo "F_MASTER: $F_MASTER_PATH/"
 
-# Detect NetCDF Fortran - this is critical for compiling
-echo "=== NetCDF Detection ==="
-echo "NETCDF from common_env: ${NETCDF}"
-echo "NETCDF_FORTRAN from common_env: ${NETCDF_FORTRAN}"
-
-# Try nf-config first (NetCDF Fortran config tool)
-if command -v nf-config >/dev/null 2>&1; then
-    NETCDF_TO_USE="$(nf-config --prefix)"
-    echo "Found nf-config, using: ${NETCDF_TO_USE}"
-elif [ -n "${NETCDF_FORTRAN}" ] && [ -d "${NETCDF_FORTRAN}/include" ]; then
-    NETCDF_TO_USE="${NETCDF_FORTRAN}"
-    echo "Using NETCDF_FORTRAN: ${NETCDF_TO_USE}"
-elif [ -n "${NETCDF}" ] && [ -d "${NETCDF}/include" ]; then
-    NETCDF_TO_USE="${NETCDF}"
-    echo "Using NETCDF: ${NETCDF_TO_USE}"
-else
-    echo "WARNING: NetCDF not found via environment variables"
-    # Try common Mac/Linux locations
-    for try_path in /opt/homebrew/opt/netcdf-fortran /opt/homebrew/opt/netcdf /usr/local/opt/netcdf-fortran /usr/local/opt/netcdf /usr/local /usr; do
-        if [ -d "$try_path/include" ]; then
-            NETCDF_TO_USE="$try_path"
-            echo "Found NetCDF at: $try_path"
-            break
-        fi
-    done
-fi
-
-# Final check
-if [ -z "${NETCDF_TO_USE}" ]; then
+# Validate NetCDF was detected
+if [ -z "${NETCDF_FORTRAN}" ]; then
     echo "ERROR: Could not find NetCDF installation"
     exit 1
 fi
 
-echo "Final NETCDF_TO_USE: ${NETCDF_TO_USE}"
-echo "Checking include directory:"
-ls -la "${NETCDF_TO_USE}/include/" 2>/dev/null | grep -E "netcdf|NETCDF" | head -5 || echo "Could not list includes"
-
-# Also find the NetCDF C library (different from Fortran on Mac)
-echo "=== Finding NetCDF C library ==="
-if command -v nc-config >/dev/null 2>&1; then
-    NETCDF_C_PATH="$(nc-config --prefix)"
-    echo "Found nc-config, NetCDF C at: ${NETCDF_C_PATH}"
-elif [ -d "/opt/homebrew/opt/netcdf" ]; then
-    NETCDF_C_PATH="/opt/homebrew/opt/netcdf"
-    echo "Found NetCDF C at: ${NETCDF_C_PATH}"
-else
-    NETCDF_C_PATH="${NETCDF_TO_USE}"
-    echo "Using same path for NetCDF C: ${NETCDF_C_PATH}"
-fi
-
 # Edit the Makefile in-place
-echo "=== Editing Makefile ==="
+echo "=== Configuring Makefile ==="
 perl -i -pe "s|^FC\s*=.*$|FC = gnu|" Makefile
 perl -i -pe "s|^FC_EXE\s*=.*$|FC_EXE = ${FC:-gfortran}|" Makefile
 perl -i -pe "s|^EXE\s*=.*$|EXE = mizuRoute.exe|" Makefile
 perl -i -pe "s|^F_MASTER\s*=.*$|F_MASTER = $F_MASTER_PATH/|" Makefile
-perl -i -pe "s|^\s*NCDF_PATH\s*=.*$| NCDF_PATH = ${NETCDF_TO_USE}|" Makefile
+perl -i -pe "s|^\s*NCDF_PATH\s*=.*$| NCDF_PATH = ${NETCDF_FORTRAN}|" Makefile
 perl -i -pe "s|^isOpenMP\s*=.*$|isOpenMP = no|" Makefile
 
-# Fix LIBNETCDF to include both netcdf-fortran and netcdf C library
-if [ "${NETCDF_C_PATH}" != "${NETCDF_TO_USE}" ]; then
-    echo "Fixing LIBNETCDF to include both netcdf-fortran and netcdf C paths"
-    perl -i -pe "s|^LIBNETCDF\s*=.*$|LIBNETCDF = -L${NETCDF_TO_USE}/lib -lnetcdff -L${NETCDF_C_PATH}/lib -lnetcdf|" Makefile
+# Fix LIBNETCDF for separate C/Fortran libs (e.g., macOS Homebrew)
+if [ "${NETCDF_C}" != "${NETCDF_FORTRAN}" ]; then
+    echo "Fixing LIBNETCDF for separate C/Fortran paths"
+    perl -i -pe "s|^LIBNETCDF\s*=.*$|LIBNETCDF = -L${NETCDF_FORTRAN}/lib -lnetcdff -L${NETCDF_C}/lib -lnetcdf|" Makefile
 fi
 
-# Clean and build
+# Build
 make clean || true
 echo "Building mizuRoute..."
 make 2>&1 | tee build.log || true
 
-# Check if executable exists in final location (Makefile moves it to ../bin)
 if [ -f "../bin/mizuRoute.exe" ]; then
     echo "Build successful - executable at ../bin/mizuRoute.exe"
-    ls -la ../bin/
 else
     echo "ERROR: Executable not found at ../bin/mizuRoute.exe"
     exit 1
@@ -424,215 +606,60 @@ exit 0
             'install_dir': "fuse",
             'build_commands': [
                 common_env,
+                netcdf_detect,
+                hdf5_detect,
+                netcdf_lib_detect,
                 r'''
-# --- Compiler configuration ---
-export FC="${FC:-gfortran}"
-export FC_EXE="${FC_EXE:-gfortran}"
-
-# --- NetCDF detection with multiple fallback strategies ---
-# Try nf-config first, then nc-config, then environment variables, then Homebrew, then common paths
-if command -v nf-config >/dev/null 2>&1; then
-  export NETCDF_FORTRAN="$(nf-config --prefix 2>/dev/null)"
-elif command -v nc-config >/dev/null 2>&1; then
-  export NETCDF_FORTRAN="$(nc-config --prefix 2>/dev/null)"
-elif [ -n "$NETCDF_FORTRAN" ]; then
-  : # Use existing environment variable
-elif command -v brew >/dev/null 2>&1 && brew --prefix netcdf-fortran >/dev/null 2>&1; then
-  export NETCDF_FORTRAN="$(brew --prefix netcdf-fortran)"
-else
-      # Common HPC module paths
-      for path in /usr $HOME/.local /opt/netcdf-fortran /opt/netcdf; do
-        if [ -d "$path/include" ] && [ -d "$path/lib" ]; then
-          export NETCDF_FORTRAN="$path"
-          break
-        fi
-      done
-    fi
-    export NETCDF_FORTRAN="${NETCDF_FORTRAN:-/usr}"
-
-    # NetCDF C library (often same as Fortran, but not always)
-    if command -v nc-config >/dev/null 2>&1; then
-      export NETCDF="$(nc-config --prefix 2>/dev/null)"
-    elif [ -n "$NETCDF" ]; then
-      : # Use existing environment variable
-    elif command -v brew >/dev/null 2>&1 && brew --prefix netcdf >/dev/null 2>&1; then
-      export NETCDF="$(brew --prefix netcdf)"
-    else
-      export NETCDF="$NETCDF_FORTRAN"
-    fi
-
-    # --- HDF5 detection with robust fallbacks ---
-    if command -v h5cc >/dev/null 2>&1; then
-      export HDF5_ROOT="$(h5cc -showconfig 2>/dev/null | grep -i "Installation point" | sed 's/.*: *//' | head -n1)"
-    fi
-    if [ -z "$HDF5_ROOT" ] || [ ! -d "$HDF5_ROOT" ]; then
-      if [ -n "$HDF5_ROOT" ] && [ -d "$HDF5_ROOT" ]; then
-        : # Use existing environment variable
-      elif command -v brew >/dev/null 2>&1 && brew --prefix hdf5 >/dev/null 2>&1; then
-        export HDF5_ROOT="$(brew --prefix hdf5)"
-      else
-        # Try common paths
-        for path in /usr $HOME/.local /opt/hdf5; do
-          if [ -d "$path/include" ] && [ -d "$path/lib" ]; then
-            export HDF5_ROOT="$path"
-            break
-          fi
-        done
-      fi
-    fi
-    export HDF5_ROOT="${HDF5_ROOT:-/usr}"
-
 # Map to FUSE Makefile variable names
 export NCDF_PATH="$NETCDF_FORTRAN"
 export HDF_PATH="$HDF5_ROOT"
 
-# --- Platform-specific linker flags ---
+# Platform-specific linker flags for Homebrew
 if command -v brew >/dev/null 2>&1; then
-  # macOS with Homebrew
   export CPPFLAGS="${CPPFLAGS:+$CPPFLAGS }-I$(brew --prefix netcdf)/include -I$(brew --prefix netcdf-fortran)/include"
   export LDFLAGS="${LDFLAGS:+$LDFLAGS }-L$(brew --prefix netcdf)/lib -L$(brew --prefix netcdf-fortran)/lib"
-  if [ -d "$HDF_PATH/include" ]; then
-    export CPPFLAGS="${CPPFLAGS} -I${HDF_PATH}/include"
-    export LDFLAGS="${LDFLAGS} -L${HDF_PATH}/lib"
-  fi
+  [ -d "$HDF_PATH/include" ] && export CPPFLAGS="${CPPFLAGS} -I${HDF_PATH}/include"
+  [ -d "$HDF_PATH/lib" ] && export LDFLAGS="${LDFLAGS} -L${HDF_PATH}/lib"
 fi
 
-# --- Warning for toolchain mismatches (non-fatal) ---
-FC_VER=$("${FC}" -dumpfullversion 2>/dev/null || "${FC}" --version 2>/dev/null | head -n1 || echo "unknown")
-echo "ℹ️  Compiler: ${FC} (${FC_VER})"
-echo "ℹ️  NetCDF-Fortran: ${NETCDF_FORTRAN}"
-# Check for major version mismatch but only warn
-case "$NETCDF_FORTRAN" in 
-  *gcc-[0-9]*) 
-    NETCDF_GCC_VER=$(echo "$NETCDF_FORTRAN" | grep -o 'gcc-[0-9][0-9]*' | cut -d- -f2)
-    FC_MAJOR=$(echo "$FC_VER" | grep -o '^[0-9][0-9]*' || echo "0")
-    if [ -n "$NETCDF_GCC_VER" ] && [ -n "$FC_MAJOR" ] && [ "$NETCDF_GCC_VER" != "$FC_MAJOR" ]; then
-      echo "⚠️  Warning: NetCDF built with GCC ${NETCDF_GCC_VER} but using compiler version ${FC_MAJOR}"
-      echo "   This may cause issues. Consider loading matching modules if available."
-    fi
-  ;;
-esac
+echo "Build environment: FC=${FC}, NCDF_PATH=${NCDF_PATH}, HDF_PATH=${HDF_PATH}"
 
-# --- Build ---
+# Build FUSE
 cd build
 make clean 2>/dev/null || true
 export F_MASTER="$(cd .. && pwd)/"
 
-echo ""
-echo "🔨 Build environment:"
-echo "   FC: ${FC}"
-echo "   F_MASTER: ${F_MASTER}"
-echo "   NCDF_PATH: ${NCDF_PATH}"
-echo "   HDF_PATH: ${HDF_PATH}"
-echo ""
+# Construct library and include paths
+LIBS="-L${HDF5_LIB_DIR} -lhdf5 -lhdf5_hl -L${NETCDF_LIB_DIR} -lnetcdff -L${NETCDF_C_LIB_DIR} -lnetcdf"
+INCLUDES="-I${HDF5_INC_DIR} -I${NCDF_PATH}/include -I${NETCDF_C}/include"
 
-# Construct library and include paths to override Makefile's hardcoded values
-# Find the actual lib directory by checking for actual library files
-# Prioritize architecture-specific dirs on Debian/Ubuntu systems
-if [ -d "${NCDF_PATH}/lib/x86_64-linux-gnu" ] && ls "${NCDF_PATH}/lib/x86_64-linux-gnu"/libnetcdff.* >/dev/null 2>&1; then
-  NCDF_LIB_DIR="${NCDF_PATH}/lib/x86_64-linux-gnu"
-elif [ -d "${NCDF_PATH}/lib64" ] && ls "${NCDF_PATH}/lib64"/libnetcdff.* >/dev/null 2>&1; then
-  NCDF_LIB_DIR="${NCDF_PATH}/lib64"
-else
-  NCDF_LIB_DIR="${NCDF_PATH}/lib"
-fi
-
-# NetCDF C can be separate from NetCDF-Fortran (e.g., Homebrew)
-if [ -d "${NETCDF}/lib/x86_64-linux-gnu" ] && ls "${NETCDF}/lib/x86_64-linux-gnu"/libnetcdf.* >/dev/null 2>&1; then
-  NCDF_C_LIB_DIR="${NETCDF}/lib/x86_64-linux-gnu"
-elif [ -d "${NETCDF}/lib64" ] && ls "${NETCDF}/lib64"/libnetcdf.* >/dev/null 2>&1; then
-  NCDF_C_LIB_DIR="${NETCDF}/lib64"
-else
-  NCDF_C_LIB_DIR="${NETCDF}/lib"
-fi
-
-# HDF5 detection - Ubuntu stores serial libs in hdf5/serial subdirectory
-# Priority: hdf5/serial (Ubuntu), x86_64-linux-gnu (Debian), lib64 (RHEL), lib (default)
-if [ -d "${HDF_PATH}/lib/x86_64-linux-gnu/hdf5/serial" ] && (ls "${HDF_PATH}/lib/x86_64-linux-gnu/hdf5/serial"/libhdf5*.so* >/dev/null 2>&1 || ls "${HDF_PATH}/lib/x86_64-linux-gnu/hdf5/serial"/libhdf5*.a >/dev/null 2>&1); then
-  HDF_LIB_DIR="${HDF_PATH}/lib/x86_64-linux-gnu/hdf5/serial"
-elif [ -d "${HDF_PATH}/lib/x86_64-linux-gnu" ] && (ls "${HDF_PATH}/lib/x86_64-linux-gnu"/libhdf5*.so* >/dev/null 2>&1 || ls "${HDF_PATH}/lib/x86_64-linux-gnu"/libhdf5*.a >/dev/null 2>&1); then
-  HDF_LIB_DIR="${HDF_PATH}/lib/x86_64-linux-gnu"
-elif [ -d "${HDF_PATH}/lib64" ] && (ls "${HDF_PATH}/lib64"/libhdf5*.so* >/dev/null 2>&1 || ls "${HDF_PATH}/lib64"/libhdf5*.a >/dev/null 2>&1); then
-  HDF_LIB_DIR="${HDF_PATH}/lib64"
-else
-  HDF_LIB_DIR="${HDF_PATH}/lib"
-fi
-
-if [ -d "${HDF_PATH}/include/hdf5/serial" ]; then
-  HDF_INC_DIR="${HDF_PATH}/include/hdf5/serial"
-else
-  HDF_INC_DIR="${HDF_PATH}/include"
-fi
-
-# Override the Makefile's LIBS and INCLUDES variables (avoid empty -I/-L tokens)
-LIBS="-L${HDF_LIB_DIR} -lhdf5 -lhdf5_hl -L${NCDF_LIB_DIR} -lnetcdff -L${NCDF_C_LIB_DIR} -lnetcdf"
-INCLUDES="-I${HDF_INC_DIR} -I${NCDF_PATH}/include -I${NETCDF}/include"
-
-# Add legacy compiler flags for compatibility with old Fortran code
-# -fallow-argument-mismatch: allows rank/type mismatches (needed for NetCDF calls)
-# -std=legacy: allows old Fortran features like PAUSE
+# Legacy compiler flags for old Fortran code
 EXTRA_FLAGS="-fallow-argument-mismatch -std=legacy"
 FFLAGS_NORMA="-O3 -ffree-line-length-none -fmax-errors=0 -cpp ${EXTRA_FLAGS}"
 FFLAGS_FIXED="-O2 -c -ffixed-form ${EXTRA_FLAGS}"
 
-echo "🔧 Library flags:"
-echo "   LIBS: ${LIBS}"
-echo "   INCLUDES: ${INCLUDES}"
-echo "   FFLAGS_NORMA: ${FFLAGS_NORMA}"
-echo ""
+# Pre-compile sce_16plus.f to avoid broken Makefile rule
+echo "Pre-compiling sce_16plus.f..."
+${FC} ${FFLAGS_FIXED} -o sce_16plus.o "FUSE_SRC/FUSE_SCE/sce_16plus.f" || { echo "Failed to compile sce_16plus.f"; exit 1; }
 
-# Build sce_16plus.o first separately to avoid the broken Makefile rule
-echo "🔨 Pre-compiling sce_16plus.f..."
-${FC} ${FFLAGS_FIXED} -o sce_16plus.o "FUSE_SRC/FUSE_SCE/sce_16plus.f" || {
-  echo "❌ Failed to compile sce_16plus.f"
-  exit 1
-}
-echo "✅ sce_16plus.o compiled"
-
-# Now run make with overrides (without -j to avoid race conditions)
-echo "🔨 Building FUSE..."
-if make \
-  FC="${FC}" \
-  F_MASTER="${F_MASTER}" \
-  LIBS="${LIBS}" \
-  INCLUDES="${INCLUDES}" \
-  FFLAGS_NORMA="${FFLAGS_NORMA}" \
-  FFLAGS_FIXED="${FFLAGS_FIXED}"; then
-  echo "✅ Build completed"
+# Build FUSE
+echo "Building FUSE..."
+if make FC="${FC}" F_MASTER="${F_MASTER}" LIBS="${LIBS}" INCLUDES="${INCLUDES}" \
+       FFLAGS_NORMA="${FFLAGS_NORMA}" FFLAGS_FIXED="${FFLAGS_FIXED}"; then
+  echo "Build completed"
 else
-  echo "❌ Build failed"
-  echo ""
-  echo "Diagnostics:"
-  echo "   NetCDF lib: ${NCDF_LIB_DIR}"
-  echo "   HDF5 lib: ${HDF_LIB_DIR}"
-  echo "   NetCDF includes: $(ls ${NCDF_PATH}/include/netcdf*.mod 2>/dev/null | head -3 || echo 'not found')"
-  echo "   NetCDF libs: $(ls ${NCDF_LIB_DIR}/libnetcdff.* 2>/dev/null | head -3 || echo 'not found')"
+  echo "Build failed - NetCDF lib: ${NETCDF_LIB_DIR}, HDF5 lib: ${HDF5_LIB_DIR}"
   exit 1
 fi
 
-# Check if binary was created (we're in build dir, so bin is ../bin)
+# Stage binary
 if [ -f "../bin/fuse.exe" ]; then
-  echo "✅ Binary in ../bin/fuse.exe"
+  echo "Binary at ../bin/fuse.exe"
 elif [ -f "fuse.exe" ]; then
-  echo "✅ Binary built in build dir, staging to ../bin/"
-  mkdir -p ../bin
-  cp fuse.exe ../bin/
-  echo "✅ Binary staged to ../bin/fuse.exe"
+  mkdir -p ../bin && cp fuse.exe ../bin/
+  echo "Binary staged to ../bin/fuse.exe"
 else
-  echo "❌ fuse.exe not found after build"
-  echo "Checking build directory contents:"
-  ls -la . 2>/dev/null | grep -E "\.(exe|out|o)$" || echo "No executables found"
-  exit 1
-fi
-
-# Verify the binary (we're in build dir)
-if [ -f "../bin/fuse.exe" ]; then
-  echo ""
-  echo "🧪 Testing binary..."
-  ../bin/fuse.exe 2>&1 | head -5 || true
-  echo "✅ FUSE build successful"
-else
-  echo "❌ Verification failed: ../bin/fuse.exe not found"
+  echo "fuse.exe not found after build"
   exit 1
 fi
                 '''.strip()
@@ -849,79 +876,34 @@ cmake --build cmake_build --target ngen -j ${NCORES:-4}
             'install_dir': 'hype',
             'build_commands': [
                 common_env,
+                netcdf_detect,
                 r'''
 # Build HYPE from SourceForge git repository
 set -e
-
-echo "Building HYPE with NetCDF support..."
-
-# Create bin directory
 mkdir -p bin
 
-# Detect NetCDF Fortran library
-echo "=== NetCDF Detection ==="
-if command -v nf-config >/dev/null 2>&1; then
-    NETCDF_FORTRAN="$(nf-config --prefix)"
-    echo "Found nf-config, using: ${NETCDF_FORTRAN}"
-elif [ -n "${NETCDF_FORTRAN}" ] && [ -d "${NETCDF_FORTRAN}/include" ]; then
-    echo "Using NETCDF_FORTRAN: ${NETCDF_FORTRAN}"
-elif [ -n "${NETCDF}" ] && [ -d "${NETCDF}/include" ]; then
-    NETCDF_FORTRAN="${NETCDF}"
-    echo "Using NETCDF: ${NETCDF_TO_USE}"
-else
-    # Try common locations
-    for try_path in /opt/homebrew/opt/netcdf-fortran /usr/local/opt/netcdf-fortran /usr; do
-        if [ -d "$try_path/include" ]; then
-            NETCDF_FORTRAN="$try_path"
-            echo "Found NetCDF at: $try_path"
-            break
-        fi
-    done
-fi
-
 if [ -z "${NETCDF_FORTRAN}" ]; then
-    echo "WARNING: NetCDF not found, building without NetCDF support"
-    echo "Building HYPE (basic version)..."
-    make hype FC="${FC:-gfortran}" || {
-        echo "❌ HYPE compilation failed"
-        exit 1
-    }
+    echo "NetCDF not found, building basic version..."
+    make hype FC="${FC:-gfortran}" || { echo "HYPE compilation failed"; exit 1; }
 else
     echo "Building HYPE with NetCDF support..."
-    # Set NetCDF flags for makefile
     export NCDF_PATH="${NETCDF_FORTRAN}"
-
-    # Build with NetCDF support
     make hype libs=netcdff FC="${FC:-gfortran}" || {
-        echo "⚠️  NetCDF build failed, trying basic build..."
+        echo "NetCDF build failed, trying basic build..."
         make clean || true
-        make hype FC="${FC:-gfortran}" || {
-            echo "❌ HYPE compilation failed"
-            exit 1
-        }
+        make hype FC="${FC:-gfortran}" || { echo "HYPE compilation failed"; exit 1; }
     }
 fi
 
-# Check if binary was created
+# Stage binary
 if [ -f "hype" ]; then
     mv hype bin/
-    echo "✅ HYPE binary moved to bin/"
-elif [ -f "bin/hype" ]; then
-    echo "✅ HYPE binary already in bin/"
-else
-    echo "❌ HYPE binary not found after build"
+elif [ ! -f "bin/hype" ]; then
+    echo "HYPE binary not found after build"
     exit 1
 fi
-
 chmod +x bin/hype
-
-# Test the binary
-echo "Testing HYPE binary..."
-if bin/hype 2>&1 | head -5 | grep -qi "hype\|version\|usage" || [ $? -eq 1 ]; then
-    echo "✅ HYPE build successful"
-else
-    echo "⚠️  HYPE binary exists but test output unexpected"
-fi
+echo "HYPE build successful"
                 '''.strip()
             ],
             'dependencies': [],
@@ -1202,68 +1184,15 @@ fi
             'install_dir': 'rhessys',
             'build_commands': [
                 common_env,
+                geos_proj_detect,
                 r'''
 set -e
 echo "Building RHESSys..."
 cd rhessys
 
-# Detect GEOS and PROJ
-echo "--- Detecting GEOS and PROJ ---"
-GEOS_CFLAGS=""
-GEOS_LDFLAGS=""
-PROJ_CFLAGS=""
-PROJ_LDFLAGS=""
+echo "GEOS_CFLAGS: $GEOS_CFLAGS, PROJ_CFLAGS: $PROJ_CFLAGS"
 
-if command -v pkg-config >/dev/null 2>&1; then
-    if pkg-config --exists geos; then
-        GEOS_CFLAGS="$(pkg-config --cflags geos)"
-        GEOS_LDFLAGS="$(pkg-config --libs geos)"
-        echo "✅ GEOS found via pkg-config"
-    fi
-    if pkg-config --exists proj; then
-        PROJ_CFLAGS="$(pkg-config --cflags proj)"
-        PROJ_LDFLAGS="$(pkg-config --libs proj)"
-        echo "✅ PROJ found via pkg-config"
-    fi
-fi
-
-if [ "$(uname)" == "Darwin" ]; then
-    if [ -z "$GEOS_CFLAGS" ] && command -v brew >/dev/null 2>&1 && brew --prefix geos >/dev/null 2>&1; then
-        GEOS_CFLAGS="-I$(brew --prefix geos)/include"
-        GEOS_LDFLAGS="-L$(brew --prefix geos)/lib -lgeos_c"
-        echo "✅ GEOS found via Homebrew"
-    fi
-    if [ -z "$PROJ_CFLAGS" ] && command -v brew >/dev/null 2>&1 && brew --prefix proj >/dev/null 2>&1; then
-        PROJ_CFLAGS="-I$(brew --prefix proj)/include"
-        PROJ_LDFLAGS="-L$(brew --prefix proj)/lib -lproj"
-        echo "✅ PROJ found via Homebrew"
-    fi
-fi
-
-# Fallback for GEOS if pkg-config/brew failed, look in common places like /usr/local
-if [ -z "$GEOS_CFLAGS" ]; then
-    if [ -d "/usr/local/include" ] && [ -f "/usr/local/lib/libgeos_c.dylib" -o -f "/usr/local/lib/libgeos_c.so" ]; then
-        GEOS_CFLAGS="-I/usr/local/include"
-        GEOS_LDFLAGS="-L/usr/local/lib -lgeos_c"
-        echo "✅ GEOS found in /usr/local"
-    fi
-fi
-
-# Fallback for PROJ if pkg-config/brew failed, look in common places like /usr/local
-if [ -z "$PROJ_CFLAGS" ]; then
-    if [ -d "/usr/local/include" ] && [ -f "/usr/local/lib/libproj.dylib" -o -f "/usr/local/lib/libproj.so" ]; then
-        PROJ_CFLAGS="-I/usr/local/include"
-        PROJ_LDFLAGS="-L/usr/local/lib -lproj"
-        echo "✅ PROJ found in /usr/local"
-    fi
-fi
-
-echo "GEOS_CFLAGS: $GEOS_CFLAGS"
-echo "GEOS_LDFLAGS: $GEOS_LDFLAGS"
-echo "PROJ_CFLAGS: $PROJ_CFLAGS"
-echo "PROJ_LDFLAGS: $PROJ_LDFLAGS"
-
-# Apply patches for compiler compatibility using perl for robustness
+# Apply patches for compiler compatibility
 perl -i.bak -pe 's/int\s+key_compare\s*\(\s*void\s*\*\s*e1\s*,\s*void\s*\*\s*e2\s*\)/int key_compare(const void *e1, const void *e2)/' util/key_compare.c
 perl -i.bak -pe 's/int\s+key_compare\s*\(\s*void\s*\*\s*,\s*void\s*\*\s*\)\s*;/int key_compare(const void *, const void *);/' util/sort_patch_layers.c
 perl -i.bak -pe 's/(\s*)sort_patch_layers\(patch, \*rec\);/sort_patch_layers(patch, rec);/' util/sort_patch_layers.c
@@ -1271,16 +1200,13 @@ perl -i.bak -pe 's/^\s*#define MAXSTR 200/\/\/#define MAXSTR 200/' include/rhess
 perl -i.bak -pe 's/(^)/#include \"rhessys.h\"\n#include <math.h>\n$1/' init/assign_base_station_xy.c
 perl -i.bak -pe 's/(#include <math.h>)/$1\n#define is_approximately(a, b, epsilon) (fabs((a) - (b)) < (epsilon))/' init/assign_base_station_xy.c
 
-# Verification step: check if the patch was applied before compiling
-echo "--- Verifying key_compare patch ---"
-grep "const void \*e1" util/key_compare.c || (echo "Patching key_compare.c failed" && exit 1)
-grep "const void \*" util/sort_patch_layers.c || (echo "Patching sort_patch_layers.c failed" && exit 1)
-echo "✅ Patches verified successfully."
+# Verify patches
+grep "const void \*e1" util/key_compare.c || { echo "Patching key_compare.c failed"; exit 1; }
+grep "const void \*" util/sort_patch_layers.c || { echo "Patching sort_patch_layers.c failed"; exit 1; }
+echo "Patches verified."
 
-# Run make with detected flags
-# Use CMD_OPTS to avoid overriding internal DEFINES in Makefile
+# Build with detected flags
 make V=1 netcdf=T CMD_OPTS="-DCLIM_GRID_XY $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS"
-ls -la .
 
 mkdir -p ../bin
 mv rhessys* ../bin/rhessys || true
