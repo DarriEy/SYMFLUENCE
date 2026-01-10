@@ -423,19 +423,8 @@ jobs:
             pytest*.log
             .pytest_cache/
           if-no-files-found: ignore
-      - name: Validate workflow status API
-        if: success()
-        run: |
-          set -e
-          . ./venv/bin/activate || . ./.venv/bin/activate || true
-          python - << 'PY'
-          from pathlib import Path
-          from symfluence import SYMFLUENCE
-          c = SYMFLUENCE(Path('./0_config_files/config_template.yaml'))
-          s = c.get_workflow_status()
-          assert isinstance(s, dict) and {'total_steps','step_details'}.issubset(s), s
-          print("API status OK:", s['total_steps'], "steps")
-          PY
+      # Note: Workflow status API validation is performed in step_tests job
+      # which creates a proper test config file first
 
   step_tests:
     needs: install-validate

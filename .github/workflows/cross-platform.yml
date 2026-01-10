@@ -225,7 +225,7 @@ jobs:
         shell: bash
         env:
           SYMFLUENCE_NO_VENV: "true"
-          SYMFLUENCE_PYTHON: python3
+          SYMFLUENCE_PYTHON: python
         run: |
           # Initialize conda for bash on Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then
@@ -452,7 +452,7 @@ jobs:
         shell: bash
         env:
           SYMFLUENCE_NO_VENV: "true"
-          SYMFLUENCE_PYTHON: python3
+          SYMFLUENCE_PYTHON: python
         run: |
           # Initialize conda for bash on Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then

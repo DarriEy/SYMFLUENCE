@@ -146,7 +146,14 @@ print_info "Staging mizuRoute..."
 
 MIZU_DIR="$INSTALLS_DIR/mizuRoute"
 if [ -d "$MIZU_DIR" ]; then
-    stage_binary "$MIZU_DIR/route/bin/mizuRoute.exe" "mizuroute" "mizuRoute"
+    # Try mizuRoute.exe first (Windows), then mizuRoute (Unix)
+    if [ -f "$MIZU_DIR/route/bin/mizuRoute.exe" ]; then
+        stage_binary "$MIZU_DIR/route/bin/mizuRoute.exe" "mizuroute" "mizuRoute"
+    elif [ -f "$MIZU_DIR/route/bin/mizuRoute" ]; then
+        stage_binary "$MIZU_DIR/route/bin/mizuRoute" "mizuroute" "mizuRoute"
+    else
+        print_warning "mizuRoute binary not found in $MIZU_DIR/route/bin"
+    fi
     stage_license "$MIZU_DIR" "mizuRoute"
 else
     print_warning "mizuRoute not installed"
