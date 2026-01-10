@@ -549,6 +549,19 @@ class VariableHandler:
             'LWRadAtm': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
             'SWRadAtm': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
             'pptrate': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
+        },
+        'NGEN': {
+            'airtemp': {'standard_name': 'air_temperature', 'units': 'K'},
+            'airpres': {'standard_name': 'surface_air_pressure', 'units': 'Pa'},
+            'spechum': {'standard_name': 'specific_humidity', 'units': '1'},
+            'windspd': {'standard_name': 'wind_speed', 'units': 'm/s'},
+            'LWRadAtm': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'},
+            'SWRadAtm': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
+            'pptrate': {'standard_name': 'precipitation_flux', 'units': 'mm/s'}
+        },
+        'LSTM': {
+            'temp': {'standard_name': 'air_temperature', 'units': 'degC'},
+            'pr': {'standard_name': 'precipitation_flux', 'units': 'mm/day'}
         }
     }
 

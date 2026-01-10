@@ -730,7 +730,8 @@ class BaseOptimizer(ABC, ConfigMixin):
                 'mizuroute_dir': str(proc_dirs['mizuroute_dir']),
                 'summa_settings_dir': str(proc_dirs['summa_settings_dir']),
                 'mizuroute_settings_dir': str(proc_dirs['mizuroute_settings_dir']),
-                'config': self.config,
+                # Use flattened config dict for worker compatibility (workers expect dict.get())
+                'config': self.config_dict,
                 'target_metric': self.target_metric,
                 'calibration_variable': self._cfg('CALIBRATION_VARIABLE', default='streamflow', typed=lambda: self._typed_config.optimization.calibration_variable),
                 'domain_name': self.domain_name,

@@ -60,7 +60,8 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         self.fuse_sim_dir = self.project_dir / 'simulations' / exp_id / 'FUSE'
         self.fuse_setup_dir = self.project_dir / 'settings' / 'FUSE'
         self.fuse_exe_path = self._get_fuse_executable_path_pre_init(config)
-        self.fuse_id = config.get('FUSE_FILE_ID', exp_id)
+        # Use 'or' to treat None as "not set" and fallback to exp_id
+        self.fuse_id = config.get('FUSE_FILE_ID') or exp_id
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
@@ -198,7 +199,8 @@ class FUSEModelOptimizer(BaseModelOptimizer):
 
         # Copy parameter file to each parallel directory
         # This is critical for parallel workers to modify parameters in isolation
-        fuse_id = self.config.get('FUSE_FILE_ID', self.experiment_id)
+        # Use 'or' to treat None as "not set" and fallback to experiment_id
+        fuse_id = self.config.get('FUSE_FILE_ID') or self.experiment_id
         param_file = self.fuse_sim_dir / f"{self.domain_name}_{fuse_id}_para_def.nc"
         
         if param_file.exists():

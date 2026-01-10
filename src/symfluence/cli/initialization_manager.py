@@ -421,7 +421,7 @@ class InitializationManager:
                 errors.append(f"End date must be after start date: {start} >= {end}")
 
         # Validate model
-        valid_models = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'LSTM', 'MESH', 'RHESSys']
+        valid_models = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'LSTM', 'MESH', 'RHESSys', 'NGEN', 'TEST']
         model = config.get('HYDROLOGICAL_MODEL')
         if model and model not in valid_models:
             errors.append(f"Invalid model: {model}. Must be one of {valid_models}")

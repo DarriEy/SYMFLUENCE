@@ -102,6 +102,11 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import gnn: {e}")
 
+try:
+    from . import rhessys
+except ImportError as e:
+    logger.warning(f"Could not import rhessys: {e}")
+
 
 __all__ = [
     # Core

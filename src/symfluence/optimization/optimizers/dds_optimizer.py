@@ -142,7 +142,8 @@ class DDSOptimizer(BaseOptimizer):
         fallback_mizuroute_dir = self.output_dir / "mizuRoute"
         summa_fm_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
         return {
-            'dds_task': task, 'config': self.config, 'target_metric': self.target_metric,
+            # Use config_dict for worker compatibility (workers expect dict.get())
+            'dds_task': task, 'config': self.config_dict, 'target_metric': self.target_metric,
             'param_bounds': self.parameter_manager.param_bounds, 'all_param_names': self.parameter_manager.all_param_names,
             'summa_exe': str(self._get_summa_exe_path()),
             'summa_dir': str(proc_dirs.get('summa_dir', fallback_summa_dir)),
