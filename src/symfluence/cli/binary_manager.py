@@ -89,10 +89,10 @@ class BinaryManager:
         for tool_name in tools_to_install:
             tool_info = self.external_tools[tool_name]
             print(f"\n🔧 {'Planning' if dry_run else 'Installing'} {tool_name.upper()}:")
-            print(f"   📝 {tool_info['description']}")
+            print(f"   📝 {tool_info.get('description', '')}")
             
-            tool_install_dir = install_base_dir / tool_info['install_dir']
-            repository_url = tool_info['repository']
+            tool_install_dir = install_base_dir / tool_info.get('install_dir', tool_name)
+            repository_url = tool_info.get('repository')
             branch = tool_info.get('branch')
             
             try:
@@ -109,7 +109,7 @@ class BinaryManager:
                         print(f"   🌿 Would checkout branch: {branch}")
                     print(f"   📂 Target directory: {tool_install_dir}")
                     print(f"   🔨 Would run build commands:")
-                    for cmd in tool_info['build_commands']:
+                    for cmd in tool_info.get('build_commands', []):
                         print(f"      {cmd[:100]}...")
                     installation_results['successful'].append(f"{tool_name} (dry run)")
                     continue
@@ -145,11 +145,11 @@ class BinaryManager:
                     print(f"   💡 These may be available as modules - check with 'module avail'")
                     installation_results['errors'].append(f"{tool_name}: missing system dependencies {missing_deps}")
                 
-                # Check if tool dependencies (requires) are satisfied
-                if 'requires' in tool_info:
-                    required_tools = tool_info['requires']
+                if tool_info.get('requires'):
+                    required_tools = tool_info.get('requires', [])
                     for req_tool in required_tools:
-                        req_tool_dir = install_base_dir / self.external_tools[req_tool]['install_dir']
+                        req_tool_info = self.external_tools.get(req_tool, {})
+                        req_tool_dir = install_base_dir / req_tool_info.get('install_dir', req_tool)
                         if not req_tool_dir.exists():
                             error_msg = f"{tool_name} requires {req_tool} but it's not installed"
                             print(f"   ❌ {error_msg}")
@@ -166,7 +166,7 @@ class BinaryManager:
                     
                     try:
                         # Combine all commands into a single script to preserve env vars
-                        combined_script = "\n".join(tool_info['build_commands'])
+                        combined_script = "\n".join(tool_info.get('build_commands', []))
                         
                         build_result = subprocess.run(
                             combined_script,
@@ -274,7 +274,7 @@ class BinaryManager:
             print(f"\n🔍 Checking {tool_name.upper()}:")
             tool_result = {
                 'name': tool_name,
-                'description': tool_info['description'],
+                'description': tool_info.get('description', ''),
                 'status': 'unknown',
                 'path': None,
                 'executable': None,
@@ -284,11 +284,11 @@ class BinaryManager:
 
             try:
                 # Determine tool path (config override or default)
-                config_path_key = tool_info['config_path_key']
-                tool_path = config.get(config_path_key, 'default')
+                config_path_key = tool_info.get('config_path_key')
+                tool_path = config.get(config_path_key, 'default') if config_path_key else 'default'
                 if tool_path == 'default':
                     data_dir = config.get('SYMFLUENCE_DATA_DIR', '.')
-                    tool_path = Path(data_dir) / tool_info['default_path_suffix']
+                    tool_path = Path(data_dir) / tool_info.get('default_path_suffix', '')
                 else:
                     tool_path = Path(tool_path)
                 tool_result['path'] = str(tool_path)
@@ -329,7 +329,7 @@ class BinaryManager:
                 if config_exe_key and config_exe_key in config:
                     exe_name = config[config_exe_key]
                 else:
-                    exe_name = tool_info['default_exe']
+                    exe_name = tool_info.get('default_exe', '')
                 
                 # Handle shared library extension on macOS
                 if exe_name.endswith('.so') and sys.platform == 'darwin':
@@ -505,8 +505,8 @@ class BinaryManager:
         """Resolve dependencies between tools and return sorted list."""
         tools_with_deps = set(tools)
         for tool in tools:
-            if tool in self.external_tools and 'requires' in self.external_tools[tool]:
-                required = self.external_tools[tool]['requires']
+            if tool in self.external_tools and self.external_tools.get(tool, {}).get('requires'):
+                required = self.external_tools.get(tool, {}).get('requires', [])
                 tools_with_deps.update(required)
         
         return sorted(
@@ -869,12 +869,12 @@ class BinaryManager:
                 for tool_name, tool_info in toolchain['tools'].items():
                     print(f"\n   {tool_name.upper()}:")
                     if 'commit' in tool_info:
-                        commit_short = tool_info['commit'][:8] if len(tool_info['commit']) > 8 else tool_info['commit']
+                        commit_short = tool_info.get('commit', '')[:8] if len(tool_info.get('commit', '')) > 8 else tool_info.get('commit', '')
                         print(f"      Commit: {commit_short}")
                     if 'branch' in tool_info:
-                        print(f"      Branch: {tool_info['branch']}")
+                        print(f"      Branch: {tool_info.get('branch', '')}")
                     if 'executable' in tool_info:
-                        print(f"      Executable: {tool_info['executable']}")
+                        print(f"      Executable: {tool_info.get('executable', '')}")
 
             print("\n" + "=" * 60 + "\n")
             return True
