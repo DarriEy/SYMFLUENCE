@@ -124,6 +124,7 @@ class SymfluenceConfig(BaseModel):
                 'lumped',
                 'discretized',
                 'distributed',
+                'distribute',
                 'subset',
                 'point',
                 'delineate',

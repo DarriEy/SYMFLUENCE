@@ -28,8 +28,11 @@ class GRParameterManager(BaseParameterManager):
         self.experiment_id = config.get('EXPERIMENT_ID')
 
         # Parse GR parameters to calibrate from config
-        gr_params_str = config.get('GR_PARAMS_TO_CALIBRATE', 'X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff')
-        self.gr_params = [p.strip() for p in gr_params_str.split(',') if p.strip()]
+        gr_params_str = config.get('GR_PARAMS_TO_CALIBRATE')
+        if gr_params_str is None:
+            gr_params_str = 'X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff'
+            
+        self.gr_params = [p.strip() for p in str(gr_params_str).split(',') if p.strip()]
 
     # ========================================================================
     # IMPLEMENT ABSTRACT METHODS

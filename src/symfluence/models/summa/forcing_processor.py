@@ -922,7 +922,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
         self.logger.info("Creating forcing file list")
 
         forcing_dataset = self._get_config_value(lambda: self.config.forcing.dataset)
-        domain_name = self._get_config_value(lambda: self.config.domain.domain_name)
+        domain_name = self._get_config_value(lambda: self.config.domain.name)
         forcing_path = self.project_dir / "forcing" / "SUMMA_input"
         file_list_path = (
             self.setup_dir / self._get_config_value(lambda: self.config.model.summa.forcing_list)

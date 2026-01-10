@@ -736,6 +736,12 @@ class BaseOptimizer(ABC, ConfigMixin):
                 'domain_name': self.domain_name,
                 'project_dir': str(self.project_dir),
                 'original_depths': self.parameter_manager.original_depths.tolist() if self.parameter_manager.original_depths is not None else None,
+                # Multi-target optimization settings (NSGA-II with different targets for each objective)
+                'multi_target_mode': self.config_dict.get('NSGA2_MULTI_TARGET', False),
+                'primary_target_type': self.config_dict.get('NSGA2_PRIMARY_TARGET', self.config_dict.get('OPTIMIZATION_TARGET', 'streamflow')),
+                'secondary_target_type': self.config_dict.get('NSGA2_SECONDARY_TARGET', self.config_dict.get('OPTIMIZATION_TARGET2', 'gw_depth')),
+                'primary_metric': self.config_dict.get('NSGA2_PRIMARY_METRIC', self.config_dict.get('OPTIMIZATION_METRIC', 'KGE')),
+                'secondary_metric': self.config_dict.get('NSGA2_SECONDARY_METRIC', self.config_dict.get('OPTIMIZATION_METRIC2', 'KGE')),
             }
             if self.random_seed is not None and self.random_seed != 'None':
                 task_data['random_seed'] = int(self.random_seed) + task['individual_id'] + 1000

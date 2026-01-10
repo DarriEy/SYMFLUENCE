@@ -110,14 +110,14 @@ class ConfigValidator:
         """Extract documented settings from YAML template."""
         with open(self.config_template_path, 'r') as f:
             content = f.read()
-        return set(re.findall(r'^([A-Z_]+):', content, re.MULTILINE))
+        return set(re.findall(r'^([a-zA-Z0-9_]+):', content, re.MULTILINE))
 
     def _check_duplicate_keys(self) -> Set[str]:
         """Check for duplicate configuration keys."""
         with open(self.config_template_path, 'r') as f:
             content = f.read()
         
-        keys = re.findall(r'^([A-Z_]+):', content, re.MULTILINE)
+        keys = re.findall(r'^([a-zA-Z0-9_]+):', content, re.MULTILINE)
         seen = set()
         duplicates = set()
         
@@ -156,7 +156,7 @@ class ConfigValidator:
         missing_source = []
         
         for i, line in enumerate(lines, 1):
-            if re.match(r'^[A-Z_]+:', line):
+            if re.match(r'^[a-zA-Z0-9_]+:', line):
                 key = line.split(':')[0].strip()
                 
                 # Check backwards for metadata

@@ -400,6 +400,9 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'NSGA2_MUTATION_RATE': ('optimization', 'nsga2', 'mutation_rate'),
     'NSGA2_ETA_C': ('optimization', 'nsga2', 'eta_c'),
     'NSGA2_ETA_M': ('optimization', 'nsga2', 'eta_m'),
+    # Legacy aliases for NSGA2 multi-target settings
+    'OPTIMIZATION_TARGET2': ('optimization', 'nsga2', 'secondary_target'),
+    'OPTIMIZATION_METRIC2': ('optimization', 'nsga2', 'secondary_metric'),
 
     # Optimization > DPE
     'DPE_TRAINING_CACHE': ('optimization', 'dpe', 'training_cache'),

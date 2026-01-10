@@ -191,6 +191,9 @@ class ParameterBoundsRegistry:
         'wcep': ParameterInfo(0.1, 0.6, '-', 'Effective porosity', 'soil'),
         'srrcs': ParameterInfo(0.0, 0.5, '1/day', 'Surface runoff coefficient', 'soil'),
 
+        # Groundwater parameters
+        'rcgrw': ParameterInfo(0.0001, 0.5, '1/day', 'Regional groundwater recession coefficient', 'baseflow'),
+
         # Routing parameters
         'rivvel': ParameterInfo(0.5, 20.0, 'm/s', 'River flow velocity', 'routing'),
         'damp': ParameterInfo(0.0, 1.0, '-', 'River damping fraction', 'routing'),
@@ -222,6 +225,45 @@ class ParameterBoundsRegistry:
     }
 
     # ========================================================================
+    # RHESSYS PARAMETERS
+    # ========================================================================
+    RHESSYS_PARAMS: Dict[str, ParameterInfo] = {
+        # Groundwater/baseflow parameters (basin.def and soil.def)
+        # Note: gw_loss_coeff constrained to prevent excessive groundwater loss
+        'sat_to_gw_coeff': ParameterInfo(0.000001, 0.0001, '1/day', 'Saturation to groundwater coefficient', 'baseflow'),
+        'gw_loss_coeff': ParameterInfo(0.0, 10.0, '-', 'Groundwater loss coefficient (tightened to prevent NaN)', 'baseflow'),
+
+        # Soil hydraulic parameters (soil.def)
+        # Note: m constrained to prevent extreme Ksat decay; soil_depth min increased for storage
+        'psi_air_entry': ParameterInfo(-10.0, -1.0, 'kPa', 'Air entry pressure (negative)', 'soil'),
+        'pore_size_index': ParameterInfo(0.05, 0.4, '-', 'Pore size distribution index', 'soil'),
+        'porosity_0': ParameterInfo(0.3, 0.6, 'm³/m³', 'Surface porosity', 'soil'),
+        'porosity_decay': ParameterInfo(0.1, 1.0, 'm³/m³', 'Porosity decay with depth', 'soil'),
+        'Ksat_0': ParameterInfo(0.000001, 0.001, 'm/s', 'Surface saturated conductivity', 'soil'),
+        'Ksat_0_v': ParameterInfo(10.0, 1000.0, 'm/day', 'Vertical saturated conductivity', 'soil'),
+        'm': ParameterInfo(0.1, 5.0, '-', 'Lateral decay of Ksat with depth (constrained)', 'soil'),
+        'm_z': ParameterInfo(0.1, 5.0, '-', 'Vertical decay of Ksat with depth (constrained)', 'soil'),
+        'soil_depth': ParameterInfo(1.0, 5.0, 'm', 'Total soil depth (min increased for storage)', 'soil'),
+        'active_zone_z': ParameterInfo(0.1, 1.0, 'm', 'Active zone depth', 'soil'),
+
+        # Snow parameters (zone.def)
+        'max_snow_temp': ParameterInfo(-2.0, 4.0, '°C', 'Max temp for snow (rain/snow threshold)', 'snow'),
+        'min_rain_temp': ParameterInfo(-6.0, 0.0, '°C', 'Min temp for rain (all snow below this)', 'snow'),
+        'snow_melt_Tcoef': ParameterInfo(0.1, 2.0, 'mm/°C/day', 'Snow melt temperature coefficient', 'snow'),
+        'maximum_snow_energy_deficit': ParameterInfo(500.0, 3000.0, 'kJ/m²', 'Maximum snow energy deficit', 'snow'),
+
+        # Vegetation parameters (stratum.def)
+        'epc.max_lai': ParameterInfo(0.5, 8.0, 'm²/m²', 'Maximum LAI', 'et'),
+        'epc.gl_smax': ParameterInfo(0.001, 0.2, 'm/s', 'Maximum stomatal conductance', 'et'),
+        'epc.gl_c': ParameterInfo(0.00001, 0.001, 'm/s', 'Cuticular conductance', 'et'),
+        'epc.vpd_open': ParameterInfo(0.1, 2.0, 'kPa', 'VPD at stomatal opening', 'et'),
+        'epc.vpd_close': ParameterInfo(2.0, 6.0, 'kPa', 'VPD at stomatal closure', 'et'),
+
+        # Routing parameters (basin.def)
+        'n_routing_power': ParameterInfo(0.1, 1.0, '-', 'Routing power exponent', 'routing'),
+    }
+
+    # ========================================================================
     # GR PARAMETERS
     # ========================================================================
     GR_PARAMS: Dict[str, ParameterInfo] = {
@@ -249,6 +291,7 @@ class ParameterBoundsRegistry:
         self._all_params.update(self.DEPTH_PARAMS)
         self._all_params.update(self.HYPE_PARAMS)
         self._all_params.update(self.MESH_PARAMS)
+        self._all_params.update(self.RHESSYS_PARAMS)
         self._all_params.update(self.GR_PARAMS)
 
     def get_bounds(self, param_name: str) -> Optional[Dict[str, float]]:
@@ -446,6 +489,7 @@ def get_hype_bounds() -> Dict[str, Dict[str, float]]:
         'ttmp', 'cmlt', 'ttpi', 'cmrefr',  # Snow
         'cevp', 'lp', 'epotdist',  # ET
         'rrcs1', 'rrcs2', 'rrcs3', 'wcwp', 'wcfc', 'wcep', 'srrcs',  # Soil
+        'rcgrw',  # Groundwater
         'rivvel', 'damp', 'qmean',  # Routing
         'ilratk', 'ilratp',  # Lakes
     ]
@@ -476,3 +520,26 @@ def get_gr_bounds() -> Dict[str, Dict[str, float]]:
     """
     gr_params = ['X1', 'X2', 'X3', 'X4', 'CTG', 'Kf', 'Gratio', 'Albedo_diff']
     return get_registry().get_bounds_for_params(gr_params)
+
+
+def get_rhessys_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get all RHESSys parameter bounds.
+
+    Returns:
+        Dictionary mapping RHESSys param_name -> {'min': float, 'max': float}
+    """
+    rhessys_params = [
+        # Groundwater/baseflow
+        'sat_to_gw_coeff', 'gw_loss_coeff',
+        # Soil
+        'psi_air_entry', 'pore_size_index', 'porosity_0', 'porosity_decay',
+        'Ksat_0', 'Ksat_0_v', 'm', 'm_z', 'soil_depth', 'active_zone_z',
+        # Snow
+        'max_snow_temp', 'min_rain_temp', 'snow_melt_Tcoef', 'maximum_snow_energy_deficit',
+        # Vegetation/ET
+        'epc.max_lai', 'epc.gl_smax', 'epc.gl_c', 'epc.vpd_open', 'epc.vpd_close',
+        # Routing
+        'n_routing_power',
+    ]
+    return get_registry().get_bounds_for_params(rhessys_params)

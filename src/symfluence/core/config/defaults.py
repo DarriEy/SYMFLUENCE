@@ -126,6 +126,7 @@ class ModelDefaults:
         'SETTINGS_FUSE_FILEMANAGER': 'fm_catch.txt',
         'FUSE_EXE': 'fuse.exe',
         'EXPERIMENT_OUTPUT_FUSE': 'default',
+        'SETTINGS_FUSE_PARAMS_TO_CALIBRATE': 'MAXWATR_1,MAXWATR_2,BASERTE,QB_POWR,TIMEDELAY,PERCRTE,FRACTEN,RTFRAC1,MBASE,MFMAX,MFMIN,PXTEMP,LAPSE',
     }
 
     SUMMA = {
@@ -141,12 +142,15 @@ class ModelDefaults:
         'EXE_NAME_MIZUROUTE': 'mizuroute.exe',
         'SETTINGS_MIZU_PATH': 'default',
         'EXPERIMENT_OUTPUT_MIZUROUTE': 'default',
+        'PARAMS_TO_CALIBRATE': 'albedo_max,albedo_min,canopy_capacity,slow_drainage',
+        'BASIN_PARAMS_TO_CALIBRATE': 'routingGammaShape,routingGammaScale',
     }
 
     GR = {
         'GR_MODEL_TYPE': 'GR4J',
         'GR_SPATIAL_MODE': 'lumped',
         'GR_EXE': 'GR.r',
+        'GR_PARAMS_TO_CALIBRATE': 'X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff',
     }
 
     HYPE = {
@@ -154,6 +158,30 @@ class ModelDefaults:
         'HYPE_INSTALL_PATH': 'default',
         'HYPE_EXE': 'hype',
         'SETTINGS_HYPE_CONTROL_FILE': 'info.txt',
+        'HYPE_PARAMS_TO_CALIBRATE': 'ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp',
+    }
+
+    NGEN = {
+        'NGEN_MODULES_TO_CALIBRATE': 'CFE',
+        'NGEN_CFE_PARAMS_TO_CALIBRATE': 'maxsmc,satdk,bb,slop',
+        'NGEN_NOAH_PARAMS_TO_CALIBRATE': 'refkdt,slope,smcmax,dksat',
+        'NGEN_PET_PARAMS_TO_CALIBRATE': 'wind_speed_measurement_height_m',
+    }
+
+    MESH = {
+        'MESH_PARAMS_TO_CALIBRATE': 'ZSNL,MANN,RCHARG,BASEFLW,DTMINUSR',
+    }
+
+    MIZUROUTE = {
+        'MIZUROUTE_PARAMS_TO_CALIBRATE': 'velo,diff',
+    }
+
+    RHESSYS = {
+        'RHESSYS_PARAMS_TO_CALIBRATE': 'sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,soil_depth,snow_melt_Tcoef',
+    }
+
+    GNN = {
+        'GNN_PARAMS_TO_CALIBRATE': 'precip_mult,temp_offset,routing_velocity',
     }
 
     @classmethod

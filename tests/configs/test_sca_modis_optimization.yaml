@@ -19,12 +19,12 @@ LUMPED_WATERSHED_METHOD: TauDEM
 GEOFABRIC_TYPE: na
 ROUTING_DELINEATION: lumped
 
-# Time periods (5 years for extended testing)
-EXPERIMENT_TIME_START: '2015-01-01 00:00'
-EXPERIMENT_TIME_END: '2019-12-31 23:00'
-SPINUP_PERIOD: '2015-01-01, 2015-12-31'           # 1 year spinup
-CALIBRATION_PERIOD: '2016-01-01, 2018-12-31'       # 3 year calibration
-EVALUATION_PERIOD: '2019-01-01, 2019-12-31'        # 1 year evaluation
+# Time periods (10 months using available data)
+EXPERIMENT_TIME_START: '2015-02-01 00:00'
+EXPERIMENT_TIME_END: '2015-11-30 23:00'
+SPINUP_PERIOD: '2015-02-01, 2015-04-30'           # 3 month spinup
+CALIBRATION_PERIOD: '2015-05-01, 2015-09-30'       # 5 month calibration (snow melt season)
+EVALUATION_PERIOD: '2015-10-01, 2015-11-30'        # 2 month evaluation
 CALIBRATION_TIMESTEP: daily
 
 # Cloud data access

@@ -40,8 +40,14 @@ class SUMMAConfig(BaseModel):
     parallel_exe: str = Field(default='summa_actors.exe', alias='SETTINGS_SUMMA_PARALLEL_EXE')
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_SUMMA')
     experiment_log: str = Field(default='default', alias='EXPERIMENT_LOG_SUMMA')
-    params_to_calibrate: Optional[str] = Field(default=None, alias='PARAMS_TO_CALIBRATE')
-    basin_params_to_calibrate: Optional[str] = Field(default=None, alias='BASIN_PARAMS_TO_CALIBRATE')
+    params_to_calibrate: str = Field(
+        default='albedo_max,albedo_min,canopy_capacity,slow_drainage',
+        alias='PARAMS_TO_CALIBRATE'
+    )
+    basin_params_to_calibrate: str = Field(
+        default='routingGammaShape,routingGammaScale',
+        alias='BASIN_PARAMS_TO_CALIBRATE'
+    )
     decision_options: Optional[Dict[str, List[str]]] = Field(default_factory=dict, alias='SUMMA_DECISION_OPTIONS')
     calibrate_depth: bool = Field(default=False, alias='CALIBRATE_DEPTH')
     depth_total_mult_bounds: Optional[List[float]] = Field(default=None, alias='DEPTH_TOTAL_MULT_BOUNDS')
@@ -66,7 +72,10 @@ class FUSEConfig(BaseModel):
     spatial_mode: str = Field(default='lumped', alias='FUSE_SPATIAL_MODE')
     subcatchment_dim: str = Field(default='longitude', alias='FUSE_SUBCATCHMENT_DIM')
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_FUSE')
-    params_to_calibrate: Optional[str] = Field(default=None, alias='SETTINGS_FUSE_PARAMS_TO_CALIBRATE')
+    params_to_calibrate: str = Field(
+        default='MAXWATR_1,MAXWATR_2,BASERTE,QB_POWR,TIMEDELAY,PERCRTE,FRACTEN,RTFRAC1,MBASE,MFMAX,MFMIN,PXTEMP,LAPSE',
+        alias='SETTINGS_FUSE_PARAMS_TO_CALIBRATE'
+    )
     decision_options: Optional[Dict[str, List[str]]] = Field(default_factory=dict, alias='FUSE_DECISION_OPTIONS')
     # Additional FUSE settings
     file_id: Optional[str] = Field(default=None, alias='FUSE_FILE_ID')
@@ -84,7 +93,10 @@ class GRConfig(BaseModel):
     routing_integration: str = Field(default='none', alias='GR_ROUTING_INTEGRATION')
     settings_path: str = Field(default='default', alias='SETTINGS_GR_PATH')
     control: str = Field(default='default', alias='SETTINGS_GR_CONTROL')
-    params_to_calibrate: Optional[str] = Field(default=None, alias='GR_PARAMS_TO_CALIBRATE')
+    params_to_calibrate: str = Field(
+        default='X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff',
+        alias='GR_PARAMS_TO_CALIBRATE'
+    )
 
 
 class HYPEConfig(BaseModel):
@@ -95,7 +107,10 @@ class HYPEConfig(BaseModel):
     exe: str = Field(default='hype', alias='HYPE_EXE')
     settings_path: str = Field(default='default', alias='SETTINGS_HYPE_PATH')
     info_file: str = Field(default='info.txt', alias='SETTINGS_HYPE_INFO')
-    params_to_calibrate: Optional[str] = Field(default=None, alias='HYPE_PARAMS_TO_CALIBRATE')
+    params_to_calibrate: str = Field(
+        default='ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp',
+        alias='HYPE_PARAMS_TO_CALIBRATE'
+    )
     spinup_days: int = Field(default=365, alias='HYPE_SPINUP_DAYS')
 
 
@@ -105,10 +120,19 @@ class NGENConfig(BaseModel):
 
     install_path: str = Field(default='default', alias='NGEN_INSTALL_PATH')
     exe: str = Field(default='ngen', alias='NGEN_EXE')
-    modules_to_calibrate: Optional[str] = Field(default=None, alias='NGEN_MODULES_TO_CALIBRATE')
-    cfe_params_to_calibrate: Optional[str] = Field(default=None, alias='NGEN_CFE_PARAMS_TO_CALIBRATE')
-    noah_params_to_calibrate: Optional[str] = Field(default=None, alias='NGEN_NOAH_PARAMS_TO_CALIBRATE')
-    pet_params_to_calibrate: Optional[str] = Field(default=None, alias='NGEN_PET_PARAMS_TO_CALIBRATE')
+    modules_to_calibrate: str = Field(default='CFE', alias='NGEN_MODULES_TO_CALIBRATE')
+    cfe_params_to_calibrate: str = Field(
+        default='maxsmc,satdk,bb,slop',
+        alias='NGEN_CFE_PARAMS_TO_CALIBRATE'
+    )
+    noah_params_to_calibrate: str = Field(
+        default='refkdt,slope,smcmax,dksat',
+        alias='NGEN_NOAH_PARAMS_TO_CALIBRATE'
+    )
+    pet_params_to_calibrate: str = Field(
+        default='wind_speed_measurement_height_m',
+        alias='NGEN_PET_PARAMS_TO_CALIBRATE'
+    )
     active_catchment_id: Optional[str] = Field(default=None, alias='NGEN_ACTIVE_CATCHMENT_ID')
 
 
@@ -140,7 +164,10 @@ class MESHConfig(BaseModel):
     outlet_value: str = Field(default='default', alias='MESH_OUTLET_VALUE')
     # Additional MESH settings
     input_file: str = Field(default='default', alias='SETTINGS_MESH_INPUT')
-    params_to_calibrate: Optional[str] = Field(default=None, alias='MESH_PARAMS_TO_CALIBRATE')
+    params_to_calibrate: str = Field(
+        default='ZSNL,MANN,RCHARG,BASEFLW,DTMINUSR',
+        alias='MESH_PARAMS_TO_CALIBRATE'
+    )
     spinup_days: int = Field(default=365, alias='MESH_SPINUP_DAYS')
     gru_min_total: float = Field(default=0.0, alias='MESH_GRU_MIN_TOTAL')
 
@@ -172,7 +199,10 @@ class MizuRouteConfig(BaseModel):
     parameter_file: str = Field(default='param.nml.default', alias='SETTINGS_MIZU_PARAMETER_FILE')
     remap_file: str = Field(default='routing_remap.nc', alias='SETTINGS_MIZU_REMAP_FILE')
     topology_file: str = Field(default='topology.nc', alias='SETTINGS_MIZU_TOPOLOGY_FILE')
-    params_to_calibrate: Optional[str] = Field(default=None, alias='MIZUROUTE_PARAMS_TO_CALIBRATE')
+    params_to_calibrate: str = Field(
+        default='velo,diff',
+        alias='MIZUROUTE_PARAMS_TO_CALIBRATE'
+    )
     calibrate: bool = Field(default=False, alias='CALIBRATE_MIZUROUTE')
     timeout: int = Field(default=3600, alias='MIZUROUTE_TIMEOUT')  # seconds
 
@@ -215,6 +245,10 @@ class RHESSysConfig(BaseModel):
     forcing_path: str = Field(default='default', alias='FORCING_RHESSYS_PATH')
     world_template: str = Field(default='world.template', alias='RHESSYS_WORLD_TEMPLATE')
     flow_template: str = Field(default='flow.template', alias='RHESSYS_FLOW_TEMPLATE')
+    params_to_calibrate: str = Field(
+        default='sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,soil_depth,snow_melt_Tcoef',
+        alias='RHESSYS_PARAMS_TO_CALIBRATE'
+    )
     skip_calibration: bool = Field(default=True, alias='RHESSYS_SKIP_CALIBRATION')
     # WMFire integration (wildfire spread module)
     use_wmfire: bool = Field(default=False, alias='RHESSYS_USE_WMFIRE')
@@ -240,7 +274,10 @@ class GNNConfig(BaseModel):
     learning_patience: int = Field(default=30, alias='GNN_LEARNING_PATIENCE')
     dropout: float = Field(default=0.2, alias='GNN_DROPOUT')
     l2_regularization: float = Field(default=1e-6, alias='GNN_L2_REGULARIZATION')
-    params_to_calibrate: Optional[str] = Field(default=None, alias='GNN_PARAMS_TO_CALIBRATE')
+    params_to_calibrate: str = Field(
+        default='precip_mult,temp_offset,routing_velocity',
+        alias='GNN_PARAMS_TO_CALIBRATE'
+    )
     parameter_bounds: Optional[Dict[str, List[float]]] = Field(default=None, alias='GNN_PARAMETER_BOUNDS')
 
 

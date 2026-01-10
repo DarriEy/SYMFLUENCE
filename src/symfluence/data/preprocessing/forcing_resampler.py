@@ -69,7 +69,7 @@ class ForcingResampler(PathResolverMixin):
         self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
         self.catchment_name = self._get_config_value(lambda: self.config.paths.catchment_shp_name)
-        if self.catchment_name == 'default':
+        if self.catchment_name == 'default' or self.catchment_name is None:
             self.catchment_name = f"{self._get_config_value(lambda: self.config.domain.name)}_HRUs_{str(self._get_config_value(lambda: self.config.domain.discretization)).replace(',','_')}.shp"
         self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/raw_data')
 
