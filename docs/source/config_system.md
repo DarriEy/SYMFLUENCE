@@ -179,7 +179,7 @@ def from_preset_factory(
     """
 ```
 
-Available presets in `src/symfluence/utils/cli/init_presets.py`:
+Available presets in `src/symfluence/cli/init_presets.py`:
 - `summa-basic` - Basic SUMMA setup
 - `fuse-basic` - Basic FUSE setup
 - `summa-carra` - SUMMA with CARRA forcing

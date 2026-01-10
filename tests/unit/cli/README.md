@@ -157,7 +157,7 @@ pytest tests/unit/cli/test_cli_argument_manager.py::TestCoordinateValidation::te
 ### Run with Coverage
 
 ```bash
-pytest tests/unit/cli/ --cov=src/symfluence/utils/cli --cov-report=term-missing
+pytest tests/unit/cli/ --cov=src/symfluence/cli --cov-report=term-missing
 ```
 
 ### Run with Markers
@@ -231,7 +231,7 @@ def test_file_existence(mock_exists):
 
 import pytest
 from unittest.mock import patch, MagicMock
-from symfluence.utils.cli.new_component import NewComponent
+from symfluence.cli.new_component import NewComponent
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]
 
