@@ -97,14 +97,14 @@ jobs:
             # Install CPU-only torch to save space on Windows
             pip install torch --index-url https://download.pytorch.org/whl/cpu
             # Remove GDAL from pyproject.toml to prevent pip from trying to build it from source
-            sed -i '/"gdal",/d' pyproject.toml
+            sed -i -E 's/"[Gg][Dd][Aa][Ll]",?//g' pyproject.toml
           fi
 
           # Install package with dev dependencies
           if [ -f requirements.txt ]; then
             if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
               # Skip GDAL on Windows (already installed via conda)
-              grep -v "^gdal" requirements.txt > requirements_temp.txt || true
+              grep -vi "^gdal" requirements.txt > requirements_temp.txt || true
               pip install -r requirements_temp.txt || pip install -r requirements.txt
               rm -f requirements_temp.txt
             else
@@ -225,6 +225,7 @@ jobs:
         shell: bash
         env:
           SYMFLUENCE_NO_VENV: "true"
+          SYMFLUENCE_PYTHON: python
         run: |
           # Initialize conda for bash on Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then
@@ -451,6 +452,7 @@ jobs:
         shell: bash
         env:
           SYMFLUENCE_NO_VENV: "true"
+          SYMFLUENCE_PYTHON: python
         run: |
           # Initialize conda for bash on Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then

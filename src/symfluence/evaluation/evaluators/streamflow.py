@@ -87,8 +87,8 @@ class StreamflowEvaluator(ModelEvaluator):
                     is_mass_flux = False
                     if 'units' in var.attrs and 'kg' in var.attrs['units'] and 's-1' in var.attrs['units']:
                         is_mass_flux = True
-                    elif float(var.mean()) > 1e-6:
-                        self.logger.debug(f"Variable {var_name} mean ({float(var.mean()):.2e}) is unreasonably high for m/s. Assuming mislabeled mass flux.")
+                    elif float(var.mean().item()) > 1e-6:
+                        self.logger.debug(f"Variable {var_name} mean ({float(var.mean().item()):.2e}) is unreasonably high for m/s. Assuming mislabeled mass flux.")
                         is_mass_flux = True
                     
                     if is_mass_flux:
