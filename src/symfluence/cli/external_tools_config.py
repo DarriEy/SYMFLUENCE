@@ -1272,7 +1272,6 @@ perl -i.bak -pe 's/(\s*)sort_patch_layers\(patch, \*rec\);/sort_patch_layers(pat
 perl -i.bak -pe 's/^\s*#define MAXSTR 200/\/\/#define MAXSTR 200/' include/rhessys_fire.h
 perl -i.bak -pe 's/(^)/#include \"rhessys.h\"\n#include <math.h>\n$1/' init/assign_base_station_xy.c
 perl -i.bak -pe 's/(#include <math.h>)/$1\n#define is_approximately(a, b, epsilon) (fabs((a) - (b)) < (epsilon))/' init/assign_base_station_xy.c
-perl -i.bak -pe 's/(}[ \t]*base_station_object;)/    double lon;\n    double lat;\n$1/' include/rhessys.h
 
 # Verification step: check if the patch was applied before compiling
 echo "--- Verifying key_compare patch ---"

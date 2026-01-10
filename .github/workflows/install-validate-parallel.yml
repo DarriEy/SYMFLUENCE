@@ -333,7 +333,7 @@ jobs:
   binary-validation:
     name: Binary Validation
     needs: [setup, install]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 10
 
     steps:
@@ -355,7 +355,7 @@ jobs:
       - name: Download installation
         uses: actions/download-artifact@v4
         with:
-          name: symfluence-installation-ubuntu-latest-py3.11
+          name: symfluence-installation-ubuntu-22.04-py3.11
 
       - name: Restore installation
         env:
@@ -392,7 +392,7 @@ jobs:
   integration-tests:
     name: Integration Tests
     needs: [setup, install]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 15
     if: needs.setup.outputs.test_level != 'smoke'
 
@@ -413,7 +413,7 @@ jobs:
       - name: Download installation
         uses: actions/download-artifact@v4
         with:
-          name: symfluence-installation-ubuntu-latest-py3.11
+          name: symfluence-installation-ubuntu-22.04-py3.11
 
       - name: Restore installation
         env:
@@ -446,7 +446,7 @@ jobs:
   e2e-quick:
     name: E2E Quick (3-hour SUMMA)
     needs: [setup, install]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     if: needs.setup.outputs.test_level != 'smoke'
 
@@ -470,7 +470,7 @@ jobs:
       - name: Download installation
         uses: actions/download-artifact@v4
         with:
-          name: symfluence-installation-ubuntu-latest-py3.11
+          name: symfluence-installation-ubuntu-22.04-py3.11
 
       - name: Restore installation
         env:
@@ -531,7 +531,7 @@ jobs:
   e2e-full:
     name: E2E Full (1-month + Calibration)
     needs: [setup, install]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 60
     if: needs.setup.outputs.test_level == 'full'
 
@@ -555,7 +555,7 @@ jobs:
       - name: Download installation
         uses: actions/download-artifact@v4
         with:
-          name: symfluence-installation-ubuntu-latest-py3.11
+          name: symfluence-installation-ubuntu-22.04-py3.11
 
       - name: Restore installation
         env:
