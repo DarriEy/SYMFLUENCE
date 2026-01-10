@@ -1,0 +1,132 @@
+"""
+Project context mixin for SYMFLUENCE modules.
+
+Provides standard project context attributes like paths and directories.
+"""
+
+from pathlib import Path
+from typing import Union
+
+from .config import ConfigMixin
+
+
+class ProjectContextMixin(ConfigMixin):
+    """
+    Mixin providing standard project context attributes.
+
+    Extracts core project parameters (data_dir, domain_name, project_dir)
+    from the typed SymfluenceConfig, providing a consistent interface across modules.
+    """
+
+    @property
+    def data_dir(self) -> Path:
+        """Root data directory from configuration."""
+        _data_dir = getattr(self, '_data_dir', None)
+        if _data_dir is not None:
+            return Path(_data_dir)
+
+        # Get from typed config
+        cfg = self.config
+        if cfg is not None:
+            if isinstance(cfg, dict):
+                return Path(cfg.get('SYMFLUENCE_DATA_DIR', '.'))
+            return cfg.system.data_dir
+
+        return Path('.')
+
+    @data_dir.setter
+    def data_dir(self, value: Union[str, Path]) -> None:
+        """Set the data directory."""
+        self._data_dir = Path(value)
+
+    @data_dir.deleter
+    def data_dir(self) -> None:
+        """Delete the data directory override."""
+        if hasattr(self, '_data_dir'):
+            del self._data_dir
+
+    @property
+    def domain_name(self) -> str:
+        """Domain name from configuration."""
+        _domain_name = getattr(self, '_domain_name', None)
+        if _domain_name is not None:
+            return _domain_name
+
+        # Get from typed config
+        cfg = self.config
+        if cfg is not None:
+            if isinstance(cfg, dict):
+                return cfg.get('DOMAIN_NAME', 'domain')
+            return cfg.domain.name
+
+        return 'domain'
+
+    @domain_name.setter
+    def domain_name(self, value: str) -> None:
+        """Set the domain name."""
+        self._domain_name = value
+
+    @domain_name.deleter
+    def domain_name(self) -> None:
+        """Delete the domain name override."""
+        if hasattr(self, '_domain_name'):
+            del self._domain_name
+
+    @property
+    def project_dir(self) -> Path:
+        """
+        Resolved project directory: {data_dir}/domain_{domain_name}.
+        """
+        _project_dir = getattr(self, '_project_dir', None)
+        if _project_dir is not None:
+            return Path(_project_dir)
+
+        return self.data_dir / f"domain_{self.domain_name}"
+
+    @project_dir.setter
+    def project_dir(self, value: Union[str, Path]) -> None:
+        """Set the project directory."""
+        self._project_dir = Path(value)
+
+    @project_dir.deleter
+    def project_dir(self) -> None:
+        """Delete the project directory override."""
+        if hasattr(self, '_project_dir'):
+            del self._project_dir
+
+    # Standard subdirectories (based on project convention)
+
+    @property
+    def project_shapefiles_dir(self) -> Path:
+        """Directory for shapefiles: {project_dir}/shapefiles"""
+        return self.project_dir / 'shapefiles'
+
+    @property
+    def project_attributes_dir(self) -> Path:
+        """Directory for catchment attributes: {project_dir}/attributes"""
+        return self.project_dir / 'attributes'
+
+    @property
+    def project_forcing_dir(self) -> Path:
+        """Directory for forcing data: {project_dir}/forcing"""
+        return self.project_dir / 'forcing'
+
+    @property
+    def project_observations_dir(self) -> Path:
+        """Directory for observation data: {project_dir}/observations"""
+        return self.project_dir / 'observations'
+
+    @property
+    def project_simulations_dir(self) -> Path:
+        """Directory for model simulations: {project_dir}/simulations"""
+        return self.project_dir / 'simulations'
+
+    @property
+    def project_settings_dir(self) -> Path:
+        """Directory for model settings: {project_dir}/settings"""
+        return self.project_dir / 'settings'
+
+    @property
+    def project_cache_dir(self) -> Path:
+        """Directory for cached data: {project_dir}/cache"""
+        return self.project_dir / 'cache'
