@@ -61,7 +61,7 @@ DOWNLOAD_GRACE: false
 DOWNLOAD_USGS_GW: false
 
 # Model configuration - SUMMA lumped
-HYDROLOGICAL_MODEL: SUMMA
+HYDROLOGICAL_MODEL: GR
 SUMMA_EXE: summa_sundials.exe
 SUMMA_INSTALL_PATH: default
 SETTINGS_SUMMA_PATH: default
@@ -90,15 +90,18 @@ ASYNC_DDS_POOL_SIZE: 10
 ASYNC_DDS_BATCH_SIZE: 10
 MAX_STAGNATION_BATCHES: 10
 
-# Parameters to calibrate (13 total) - Optimized for CARRA forcing and Arctic basin
-# CRITICAL: frozenPrecipMultip scales precipitation to address CARRA underestimation
-# Precipitation: frozenPrecipMultip, tempCritRain, tempRangeTimestep
-# Snow: z0Snow, Fcapil, albedoMax, albedoMinWinter
-# Soil: k_soil, theta_sat (lower bound fixed: 0.40)
-# Baseflow: aquiferBaseflowRate, basin__aquiferBaseflowExp, basin__aquiferScaleFactor
-# Routing: routingGammaScale
-PARAMS_TO_CALIBRATE: k_soil,theta_sat,aquiferBaseflowRate,z0Snow,Fcapil,frozenPrecipMultip,tempCritRain,tempRangeTimestep,albedoMax,albedoMinWinter
-BASIN_PARAMS_TO_CALIBRATE: routingGammaScale,basin__aquiferBaseflowExp,basin__aquiferScaleFactor
+# GR4J + CemaNeige parameters to calibrate (8 total)
+# GR4J core parameters:
+#   X1: Production store capacity (1-2000 mm)
+#   X2: Groundwater exchange coefficient (-10 to 10 mm/day)
+#   X3: Routing store capacity (1-300 mm)
+#   X4: Unit hydrograph time constant (0.5-4 days)
+# CemaNeige snow module parameters:
+#   CTG: Snow process parameter (0-1)
+#   Kf: Melt factor (0-10 mm/°C/day)
+#   Gratio: Thermal coefficient of snow pack (0.01-0.5)
+#   Albedo_diff: Albedo diffusion coefficient (0.1-1)
+GR_PARAMS_TO_CALIBRATE: X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff
 
 # Project paths
 SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE

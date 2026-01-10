@@ -1204,91 +1204,91 @@ fi
             'install_dir': 'rhessys',
             'build_commands': [
                 common_env,
-                'set -e',
-                'echo "Building RHESSys..."',
-                'cd rhessys',
-                '',
-                '# Detect GEOS and PROJ',
-                'echo "--- Detecting GEOS and PROJ ---"',
-                'GEOS_CFLAGS=""',
-                'GEOS_LDFLAGS=""',
-                'PROJ_CFLAGS=""',
-                'PROJ_LDFLAGS=""',
-                '',
-                'if command -v pkg-config >/dev/null 2>&1; then',
-                '    if pkg-config --exists geos; then',
-                '        GEOS_CFLAGS="$(pkg-config --cflags geos)"',
-                '        GEOS_LDFLAGS="$(pkg-config --libs geos)"',
-                '        echo "✅ GEOS found via pkg-config"',
-                '    fi',
-                '    if pkg-config --exists proj; then',
-                '        PROJ_CFLAGS="$(pkg-config --cflags proj)"',
-                '        PROJ_LDFLAGS="$(pkg-config --libs proj)"',
-                '        echo "✅ PROJ found via pkg-config"',
-                '    fi',
-                'fi',
-                '',
-                'if [ "$(uname)" == "Darwin" ]; then',
-                '    if [ -z "$GEOS_CFLAGS" ] && command -v brew >/dev/null 2>&1 && brew --prefix geos >/dev/null 2>&1; then',
-                '        GEOS_CFLAGS="-I$(brew --prefix geos)/include"',
-                '        GEOS_LDFLAGS="-L$(brew --prefix geos)/lib -lgeos_c"',
-                '        echo "✅ GEOS found via Homebrew"',
-                '    fi',
-                '    if [ -z "$PROJ_CFLAGS" ] && command -v brew >/dev/null 2>&1 && brew --prefix proj >/dev/null 2>&1; then',
-                '        PROJ_CFLAGS="-I$(brew --prefix proj)/include"',
-                '        PROJ_LDFLAGS="-L$(brew --prefix proj)/lib -lproj"',
-                '        echo "✅ PROJ found via Homebrew"',
-                '    fi',
-                'fi',
-                '',
-                '# Fallback for GEOS if pkg-config/brew failed, look in common places like /usr/local',
-                'if [ -z "$GEOS_CFLAGS" ]; then',
-                '    if [ -d "/usr/local/include" ] && [ -f "/usr/local/lib/libgeos_c.dylib" -o -f "/usr/local/lib/libgeos_c.so" ]; then',
-                '        GEOS_CFLAGS="-I/usr/local/include"',
-                '        GEOS_LDFLAGS="-L/usr/local/lib -lgeos_c"',
-                '        echo "✅ GEOS found in /usr/local"',
-                '    fi',
-                'fi',
-                '',
-                '# Fallback for PROJ if pkg-config/brew failed, look in common places like /usr/local',
-                'if [ -z "$PROJ_CFLAGS" ]; then',
-                '    if [ -d "/usr/local/include" ] && [ -f "/usr/local/lib/libproj.dylib" -o -f "/usr/local/lib/libproj.so" ]; then',
-                '        PROJ_CFLAGS="-I/usr/local/include"',
-                '        PROJ_LDFLAGS="-L/usr/local/lib -lproj"',
-                '        echo "✅ PROJ found in /usr/local"',
-                '    fi',
-                'fi',
-                '',
-                'echo "GEOS_CFLAGS: $GEOS_CFLAGS"',
-                'echo "GEOS_LDFLAGS: $GEOS_LDFLAGS"',
-                'echo "PROJ_CFLAGS: $PROJ_CFLAGS"',
-                'echo "PROJ_LDFLAGS: $PROJ_LDFLAGS"',
-                '',
-                '',
-                '# Apply patches for compiler compatibility using perl for robustness',
-                "perl -i.bak -pe 's/int\\s+key_compare\\s*\\(\\s*void\\s*\\*\\s*e1\\s*,\\s*void\\s*\\*\\s*e2\\s*\\)/int key_compare(const void *e1, const void *e2)/' util/key_compare.c",
-                "perl -i.bak -pe 's/int\\s+key_compare\\s*\\(\\s*void\\s*\\*\\s*,\\s*void\\s*\\*\\s*\\)\\s*;/int key_compare(const void *, const void *);/' util/sort_patch_layers.c",
-                "perl -i.bak -pe 's/(\\s*)sort_patch_layers\\(patch, \\*rec\\);/sort_patch_layers(patch, rec);/' util/sort_patch_layers.c",
-                "perl -i.bak -pe 's/^\\s*#define MAXSTR 200/\\/\\/#define MAXSTR 200/' include/rhessys_fire.h",
-                "perl -i.bak -pe 's/(^)/#include \"rhessys.h\"\\n#include <math.h>\\n$1/' init/assign_base_station_xy.c",
-                "perl -i.bak -pe 's/(#include <math.h>)/$1\\n#define is_approximately(a, b, epsilon) (fabs((a) - (b)) < (epsilon))/' init/assign_base_station_xy.c",
-                "perl -i.bak -pe 's/(}[ \\t]*base_station_object;)/    double lon;\\n    double lat;\\n$1/' include/rhessys.h",
+                r'''
+set -e
+echo "Building RHESSys..."
+cd rhessys
 
-                '',
-                '# Verification step: check if the patch was applied before compiling',
-                'echo "--- Verifying key_compare patch ---"',
-                'grep "const void \\*e1" util/key_compare.c || (echo "Patching key_compare.c failed" && exit 1)',
-                'grep "const void \\*" util/sort_patch_layers.c || (echo "Patching sort_patch_layers.c failed" && exit 1)',
-                'echo "✅ Patches verified successfully."',
+# Detect GEOS and PROJ
+echo "--- Detecting GEOS and PROJ ---"
+GEOS_CFLAGS=""
+GEOS_LDFLAGS=""
+PROJ_CFLAGS=""
+PROJ_LDFLAGS=""
 
-                # Run make with detected flags
-                '# Use CMD_OPTS to avoid overriding internal DEFINES in Makefile',
-                'make V=1 netcdf=T CMD_OPTS="-DCLIM_GRID_XY $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS"',
-                'ls -la .',
-                '',
-                'mkdir -p ../bin',
-                'mv rhessys* ../bin/rhessys || true',
-                'chmod +x ../bin/rhessys'
+if command -v pkg-config >/dev/null 2>&1; then
+    if pkg-config --exists geos; then
+        GEOS_CFLAGS="$(pkg-config --cflags geos)"
+        GEOS_LDFLAGS="$(pkg-config --libs geos)"
+        echo "✅ GEOS found via pkg-config"
+    fi
+    if pkg-config --exists proj; then
+        PROJ_CFLAGS="$(pkg-config --cflags proj)"
+        PROJ_LDFLAGS="$(pkg-config --libs proj)"
+        echo "✅ PROJ found via pkg-config"
+    fi
+fi
+
+if [ "$(uname)" == "Darwin" ]; then
+    if [ -z "$GEOS_CFLAGS" ] && command -v brew >/dev/null 2>&1 && brew --prefix geos >/dev/null 2>&1; then
+        GEOS_CFLAGS="-I$(brew --prefix geos)/include"
+        GEOS_LDFLAGS="-L$(brew --prefix geos)/lib -lgeos_c"
+        echo "✅ GEOS found via Homebrew"
+    fi
+    if [ -z "$PROJ_CFLAGS" ] && command -v brew >/dev/null 2>&1 && brew --prefix proj >/dev/null 2>&1; then
+        PROJ_CFLAGS="-I$(brew --prefix proj)/include"
+        PROJ_LDFLAGS="-L$(brew --prefix proj)/lib -lproj"
+        echo "✅ PROJ found via Homebrew"
+    fi
+fi
+
+# Fallback for GEOS if pkg-config/brew failed, look in common places like /usr/local
+if [ -z "$GEOS_CFLAGS" ]; then
+    if [ -d "/usr/local/include" ] && [ -f "/usr/local/lib/libgeos_c.dylib" -o -f "/usr/local/lib/libgeos_c.so" ]; then
+        GEOS_CFLAGS="-I/usr/local/include"
+        GEOS_LDFLAGS="-L/usr/local/lib -lgeos_c"
+        echo "✅ GEOS found in /usr/local"
+    fi
+fi
+
+# Fallback for PROJ if pkg-config/brew failed, look in common places like /usr/local
+if [ -z "$PROJ_CFLAGS" ]; then
+    if [ -d "/usr/local/include" ] && [ -f "/usr/local/lib/libproj.dylib" -o -f "/usr/local/lib/libproj.so" ]; then
+        PROJ_CFLAGS="-I/usr/local/include"
+        PROJ_LDFLAGS="-L/usr/local/lib -lproj"
+        echo "✅ PROJ found in /usr/local"
+    fi
+fi
+
+echo "GEOS_CFLAGS: $GEOS_CFLAGS"
+echo "GEOS_LDFLAGS: $GEOS_LDFLAGS"
+echo "PROJ_CFLAGS: $PROJ_CFLAGS"
+echo "PROJ_LDFLAGS: $PROJ_LDFLAGS"
+
+# Apply patches for compiler compatibility using perl for robustness
+perl -i.bak -pe 's/int\s+key_compare\s*\(\s*void\s*\*\s*e1\s*,\s*void\s*\*\s*e2\s*\)/int key_compare(const void *e1, const void *e2)/' util/key_compare.c
+perl -i.bak -pe 's/int\s+key_compare\s*\(\s*void\s*\*\s*,\s*void\s*\*\s*\)\s*;/int key_compare(const void *, const void *);/' util/sort_patch_layers.c
+perl -i.bak -pe 's/(\s*)sort_patch_layers\(patch, \*rec\);/sort_patch_layers(patch, rec);/' util/sort_patch_layers.c
+perl -i.bak -pe 's/^\s*#define MAXSTR 200/\/\/#define MAXSTR 200/' include/rhessys_fire.h
+perl -i.bak -pe 's/(^)/#include \"rhessys.h\"\n#include <math.h>\n$1/' init/assign_base_station_xy.c
+perl -i.bak -pe 's/(#include <math.h>)/$1\n#define is_approximately(a, b, epsilon) (fabs((a) - (b)) < (epsilon))/' init/assign_base_station_xy.c
+perl -i.bak -pe 's/(}[ \t]*base_station_object;)/    double lon;\n    double lat;\n$1/' include/rhessys.h
+
+# Verification step: check if the patch was applied before compiling
+echo "--- Verifying key_compare patch ---"
+grep "const void \*e1" util/key_compare.c || (echo "Patching key_compare.c failed" && exit 1)
+grep "const void \*" util/sort_patch_layers.c || (echo "Patching sort_patch_layers.c failed" && exit 1)
+echo "✅ Patches verified successfully."
+
+# Run make with detected flags
+# Use CMD_OPTS to avoid overriding internal DEFINES in Makefile
+make V=1 netcdf=T CMD_OPTS="-DCLIM_GRID_XY $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS"
+ls -la .
+
+mkdir -p ../bin
+mv rhessys* ../bin/rhessys || true
+chmod +x ../bin/rhessys
+                '''.strip()
             ],'dependencies': ['gdal-config', 'proj', 'geos-config'],
             'test_command': '-h',
             'verify_install': {

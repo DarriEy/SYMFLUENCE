@@ -125,10 +125,18 @@ class ConfigMixin:
     @property
     def experiment_id(self) -> str:
         """Experiment identifier from config.domain.experiment_id."""
+        _experiment_id = getattr(self, '_experiment_id', None)
+        if _experiment_id is not None:
+            return _experiment_id
         return self._get_config_value(
             lambda: self.config.domain.experiment_id,
             default='run_1'
         )
+
+    @experiment_id.setter
+    def experiment_id(self, value: str) -> None:
+        """Set the experiment identifier."""
+        self._experiment_id = value
 
     @property
     def domain_definition_method(self) -> str:

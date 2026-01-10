@@ -749,9 +749,17 @@ def flatten_nested_config(config: 'SymfluenceConfig') -> Dict[str, Any]:
     _flatten_section('paths', config.paths, ('paths',))
 
     # Include extra fields from root config (e.g. CUSTOM_PATH in tests)
+    # Extra fields can be at top-level or nested inside '_extra' dict
     if hasattr(config, 'model_extra') and config.model_extra:
         for key, value in config.model_extra.items():
-            if isinstance(value, Path):
+            if key == '_extra' and isinstance(value, dict):
+                # Handle nested _extra dict (from transform_flat_to_nested)
+                for extra_key, extra_value in value.items():
+                    if isinstance(extra_value, Path):
+                        flat[extra_key] = str(extra_value)
+                    else:
+                        flat[extra_key] = extra_value
+            elif isinstance(value, Path):
                 flat[key] = str(value)
             else:
                 flat[key] = value
