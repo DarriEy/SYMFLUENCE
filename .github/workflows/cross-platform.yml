@@ -100,34 +100,8 @@ jobs:
             sed -i -E 's/"[Gg][Dd][Aa][Ll]",?//g' pyproject.toml
           fi
 
-          # Generate requirements.txt from pyproject.toml (source of truth)
-          python3 -c "
-import sys
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
-with open('pyproject.toml', 'rb') as f:
-    data = tomllib.load(f)
-deps = data.get('project', {}).get('dependencies', [])
-if deps:
-    with open('requirements.txt', 'w') as out:
-        out.write('# Auto-generated from pyproject.toml\n\n')
-        out.write('\n'.join(deps) + '\n')
-    print(f'Generated {len(deps)} dependencies')
-" || echo "Could not generate requirements.txt"
-
-          # Install package with dev dependencies
-          if [ -f requirements.txt ]; then
-            if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-              # Skip GDAL on Windows (already installed via conda)
-              grep -vi "^gdal" requirements.txt > requirements_temp.txt || true
-              pip install -r requirements_temp.txt || pip install -r requirements.txt
-              rm -f requirements_temp.txt
-            else
-              pip install -r requirements.txt
-            fi
-          fi
+          # Install package from pyproject.toml (source of truth for dependencies)
+          # pip install -e . reads dependencies from pyproject.toml directly
           pip install -e ".[dev]" || pip install -e .
 
           # Install pytest-xdist for parallel test execution
