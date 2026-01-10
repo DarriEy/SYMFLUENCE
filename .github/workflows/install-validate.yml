@@ -476,7 +476,7 @@ jobs:
       - name: Step 1 — setup_project (creates domain scaffolding)
         run: |
           set -e
-          ./symfluence --config 0_config_files/config_ci_bow.yaml --setup_project
+          ./symfluence workflow step setup_project --config 0_config_files/config_ci_bow.yaml
 
       - name: Step 2 — copy repo data into created domain folder
         run: |
@@ -492,7 +492,7 @@ jobs:
       - name: Step 3 — run define_domain using CLI
         run: |
           set -e
-          ./symfluence --config 0_config_files/config_ci_bow.yaml --define_domain
+          ./symfluence workflow step define_domain --config 0_config_files/config_ci_bow.yaml
 
       - name: Assertions — river basins shapefile exists; logs exist
         run: |
