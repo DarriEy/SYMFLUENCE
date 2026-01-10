@@ -1,4 +1,6 @@
-# Core scientific and data processing libraries
+# This file is generated from pyproject.toml; do not edit by hand.
+# Run: python scripts/sync_requirements_from_pyproject.py
+
 numpy
 pandas
 scipy
@@ -6,14 +8,8 @@ xarray
 pint_xarray
 distributed
 pyviscous
-ipykernel
-jupyterlab
-
-# Machine learning and data science libraries
 torch
 scikit-learn
-
-# Geospatial libraries
 gdal
 geopandas
 rasterio
@@ -29,37 +25,25 @@ plotly
 rpy2
 gcsfs
 intake-xarray
-
-# Hydrological modeling libraries
 netCDF4
 hydrobm
-baseflow 
+baseflow
 h5netcdf
-
-# Visualization
 matplotlib
-
-# Optimization and analysis
 SALib
-
-# Utility libraries
 psutil
 tqdm
 contextily
-
-# Configuration management
 pyyaml
-
-# Web APIs (if used for data acquisition)
 requests
+openai>=1.0.0
 cdsapi
 s3fs
-
-# Testing
-pytest
-
-# Documentation
-sphinx
-
 numexpr
+bottleneck
+networkx
 cftime
+pytest
+sphinx
+jupyterlab
+ipykernel

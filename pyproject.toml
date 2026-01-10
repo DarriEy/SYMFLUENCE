@@ -7,12 +7,12 @@ packages = ["src/symfluence"]
 
 [project]
 name = "symfluence"
-version = "0.7.0"        # <- static to avoid plugin issues
 description = "SYnergistic Modelling Framework for Linking and Unifying Earth-system Nexii for Computational Exploration"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 authors = [{ name = "SYMFLUENCE Team", email = "dev@symfluence.org" }]
+dynamic = ["version"]
 
 # Start with an empty list to unblock; we’ll fill runtime deps later.
 dependencies = [
@@ -34,12 +34,16 @@ dependencies = [
   "easymore",
   "rasterstats",
   "pvlib",
-  "cdo",
+  "cdo>=1.6.0",
   "seaborn",
   "plotly",
+  "rpy2",
+  "gcsfs",
+  "intake-xarray",
   "netCDF4",
   "hydrobm",
   "baseflow",
+  "h5netcdf",
   "matplotlib",
   "SALib",
   "psutil",
@@ -51,6 +55,8 @@ dependencies = [
   "cdsapi",
   "s3fs",
   "numexpr",
+  "bottleneck",
+  "networkx",
   "cftime",
   "pytest", 
   "sphinx", 
@@ -84,3 +90,6 @@ include = [
 
 # NOTE: pytest configuration is in pytest.ini (authoritative source)
 # This avoids duplication and ensures consistent test configuration
+
+[tool.hatch.version]
+path = "src/symfluence/symfluence_version.py"
