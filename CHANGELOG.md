@@ -53,7 +53,7 @@ All notable changes to SYMFLUENCE are documented here.
   ```
 
 ### Added
-- New modular command structure in `src/symfluence/utils/cli/`:
+- New modular command structure in `src/symfluence/cli/`:
   - `argument_parser.py` - Main parser with subcommand structure
   - `validators.py` - Validation utilities (coordinates, bounding boxes, config files)
   - `commands/` directory with command handlers:

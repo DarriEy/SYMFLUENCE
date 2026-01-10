@@ -15,7 +15,7 @@ Added
 Changed
 -------
 - **Project Restructuring:** Migrated to a standard ``src``-layout (``src/symfluence/``).
-- **Namespace Unification:** All utility modules moved under the ``symfluence.utils`` namespace.
+- **Namespace Unification:** All utility modules moved under the top-level ``symfluence`` namespace (e.g., ``symfluence.core``, ``symfluence.data``).
 - **ModelManager Refactoring:** ``ModelManager`` now dynamically loads models via the registry, reducing coupling and boilerplate.
 - **CLI improvements:** Enhanced dev-wrapper (``symfluence.py``) that delegates to the proper package entry point.
 
