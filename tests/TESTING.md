@@ -141,20 +141,31 @@ Tests are organized using pytest markers defined in `pytest.ini`:
 
 ```
 tests/
-├── unit/                      # Fast, isolated unit tests
-│   ├── test_config_loader.py
-│   ├── test_multivariate_system.py
-│   └── test_soil_multiplier.py
+├── configs/                   # Test configuration YAML files
+├── e2e/                       # End-to-end workflow tests
+├── fixtures/                  # Shared test fixtures
 ├── integration/               # Module interaction tests
 │   ├── calibration/
+│   ├── cli/
 │   ├── data/
 │   ├── domain/
-│   └── models/
-├── e2e/                       # End-to-end workflow tests
-│   └── test_install_validate.py
-├── fixtures/                  # Shared test fixtures
-└── utils/                     # Test utilities
-
+│   └── preprocessing/
+├── performance/               # Performance benchmarks
+├── unit/                      # Fast, isolated unit tests
+│   ├── cli/                   # CLI component tests
+│   ├── common/                # Common utilities tests
+│   ├── config/                # Configuration tests
+│   ├── data/                  # Data processing tests
+│   ├── evaluation/            # Evaluation & metrics tests
+│   ├── geospatial/            # Geospatial utilities tests
+│   ├── models/                # Model preprocessor tests
+│   │   └── base/              # Base model class tests
+│   ├── optimization/          # Optimization & calibration tests
+│   ├── preprocessing/         # Preprocessing tests
+│   │   └── attribute_processing/
+│   ├── project/               # Project workflow tests
+│   └── reporting/             # Reporting & plotting tests
+└── utils/                     # Test utilities & helpers
 ```
 
 ## Writing Tests
