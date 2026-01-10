@@ -56,7 +56,7 @@ detect_platform
 # Configuration
 # ----------------------------------------------------------------------
 SCRIPT_NAME="symfluence"
-SYMFLUENCE_SCRIPT="run_symfluence.py"
+PROJECT_MARKER="pyproject.toml"  # Used to detect SYMFLUENCE project directory
 MIN_PYTHON_VERSION="3.11"
 REQUIRED_PYTHON_VERSION="3.11"
 
@@ -437,27 +437,28 @@ update_config_paths_in_yaml() {
 }
 
 # ----------------------------------------------------------------------
-# Locate symfluence.py (with legacy env var compat)
+# Locate SYMFLUENCE project directory (looks for pyproject.toml)
 # ----------------------------------------------------------------------
-find_symfluence_script() {
+find_project_dir() {
     local script_dir
     script_dir=$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")
 
     local search_paths=(
-        "${script_dir}/${SYMFLUENCE_SCRIPT}"
-        "${script_dir}/../${SYMFLUENCE_SCRIPT}"
-        "./${SYMFLUENCE_SCRIPT}"
-        "${PWD}/${SYMFLUENCE_SCRIPT}"
+        "${script_dir}"
+        "${script_dir}/.."
+        "."
+        "${PWD}"
     )
 
     if [[ -n "${SYMFLUENCE_CODE_DIR}" ]]; then
-        search_paths=("${SYMFLUENCE_CODE_DIR}/${SYMFLUENCE_SCRIPT}" "${search_paths[@]}")
+        search_paths=("${SYMFLUENCE_CODE_DIR}" "${search_paths[@]}")
     fi
 
-    local path
-    for path in "${search_paths[@]}"; do
-        if [[ -f "$path" ]]; then
-            echo "$path"
+    local dir
+    for dir in "${search_paths[@]}"; do
+        if [[ -f "$dir/${PROJECT_MARKER}" ]]; then
+            # Resolve to absolute path
+            echo "$(cd "$dir" && pwd)"
             return 0
         fi
     done
@@ -501,13 +502,12 @@ find_python() {
 # Virtual env activator (clears PYTHONPATH)
 # ----------------------------------------------------------------------
 check_virtual_env() {
-    local symfluence_dir
-    symfluence_dir=$(dirname "$1")
+    local project_dir="$1"
     local venv_paths=(
-        "${symfluence_dir}/venv"
-        "${symfluence_dir}/.venv"
-        "${symfluence_dir}/env"
-        "${symfluence_dir}/.env"
+        "${project_dir}/venv"
+        "${project_dir}/.venv"
+        "${project_dir}/env"
+        "${project_dir}/.env"
     )
 
     if [[ -n "${VIRTUAL_ENV}" ]]; then
@@ -536,9 +536,9 @@ check_virtual_env() {
 # ----------------------------------------------------------------------
 show_symfluence_help() {
     cat << EOF
-${SCRIPT_NAME}: SYMFLUENCE Python script not found
+${SCRIPT_NAME}: SYMFLUENCE project directory not found
 
-This wrapper looks for ${SYMFLUENCE_SCRIPT} in:
+This wrapper looks for ${PROJECT_MARKER} in:
   - Current directory and parent directories
   - \$SYMFLUENCE_CODE_DIR
 
@@ -562,20 +562,20 @@ Wrapper-only options:
   --wrapper-debug    Run wrapper in debug mode
   --install          Set up Python environment and install external tools
 
-All other options are passed to ${SYMFLUENCE_SCRIPT} (see 'symfluence --help').
+All other options are passed to the symfluence CLI (see 'symfluence --help').
 EOF
             exit 0
             ;;
         --wrapper-info)
-            local symfluence_script
-            symfluence_script=$(find_symfluence_script || true)
+            local project_dir
+            project_dir=$(find_project_dir || true)
             local python_cmd
             python_cmd=$(find_python || true)
 
             echo "SYMFLUENCE Wrapper Information"
             echo "=============================="
             echo "Wrapper script: $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
-            echo "${SYMFLUENCE_SCRIPT}: ${symfluence_script:-'Not found'}"
+            echo "Project directory: ${project_dir:-'Not found'}"
             echo "Python command: ${python_cmd:-'Not found'}"
             echo "Python version: $(${python_cmd} --version 2>/dev/null || echo 'Unknown')"
             echo "Virtual env: ${VIRTUAL_ENV:-'None active'}"
@@ -697,10 +697,10 @@ main() {
         }
     fi
 
-    # Find SYMFLUENCE CLI entry script
-    local symfluence_script
-    if ! symfluence_script=$(find_symfluence_script); then
-        print_error "${SYMFLUENCE_SCRIPT} not found"
+    # Find SYMFLUENCE project directory
+    local symfluence_dir
+    if ! symfluence_dir=$(find_project_dir); then
+        print_error "SYMFLUENCE project directory not found"
         echo
         show_symfluence_help
         exit 1
@@ -713,9 +713,6 @@ main() {
         print_info  "Please install or load Python ${MIN_PYTHON_VERSION} or later"
         exit 1
     fi
-
-    local symfluence_dir
-    symfluence_dir=$(dirname "$symfluence_script")
 
     # ---------------- Installation mode (enhanced) ----------------
     if [[ "$run_install" == "true" ]]; then
@@ -833,31 +830,30 @@ EOF
     fi
 
     # ---------------- Normal execution ----------------
-    # Prefer venv interpreter; fall back to system python
-    local symfluence_dir
-    symfluence_dir=$(dirname "$symfluence_script")
-    
-    if [[ -x "${symfluence_dir}/venv/bin/python" ]]; then
-        python_cmd="${symfluence_dir}/venv/bin/python"
-        print_info "Using venv Python: ${python_cmd}"
-    elif [[ -x "${symfluence_dir}/.venv/bin/python" ]]; then
-        python_cmd="${symfluence_dir}/.venv/bin/python"
-        print_info "Using .venv Python: ${python_cmd}"
-    else
-        if ! python_cmd=$(find_python); then
-            print_error "Python ${MIN_PYTHON_VERSION}+ not found"
-            print_info "Please install Python ${MIN_PYTHON_VERSION}+ or run: ./symfluence --install"
-            exit 1
-        fi
-        print_warning "No venv found, using system Python: ${python_cmd}"
+    # Look for installed symfluence CLI in venv
+    local symfluence_cli=""
+
+    if [[ -x "${symfluence_dir}/venv/${VENV_BIN}/symfluence" ]]; then
+        symfluence_cli="${symfluence_dir}/venv/${VENV_BIN}/symfluence"
+        print_info "Using venv CLI: ${symfluence_cli}"
+    elif [[ -x "${symfluence_dir}/.venv/${VENV_BIN}/symfluence" ]]; then
+        symfluence_cli="${symfluence_dir}/.venv/${VENV_BIN}/symfluence"
+        print_info "Using .venv CLI: ${symfluence_cli}"
+    elif command -v symfluence >/dev/null 2>&1; then
+        symfluence_cli="$(command -v symfluence)"
+        print_info "Using system CLI: ${symfluence_cli}"
+    fi
+
+    if [[ -z "$symfluence_cli" ]]; then
+        print_error "SYMFLUENCE CLI not found"
+        print_info "Run: ./symfluence --install"
+        exit 1
     fi
 
     # Change to SYMFLUENCE directory
-    local target_dir
-    target_dir=$(dirname "$symfluence_script")
-    if [[ "$target_dir" != "." && -d "$target_dir" ]]; then
-        cd "$target_dir" || {
-            print_error "Failed to change to directory: $target_dir"
+    if [[ "$symfluence_dir" != "." && -d "$symfluence_dir" ]]; then
+        cd "$symfluence_dir" || {
+            print_error "Failed to change to directory: $symfluence_dir"
             exit 1
         }
         print_info "Changed directory to: $(pwd)"
@@ -865,13 +861,12 @@ EOF
 
     # Debug output
     print_info "Launching SYMFLUENCE..."
-    print_info "  Interpreter: ${python_cmd}"
-    print_info "  Script: ${SYMFLUENCE_SCRIPT}"
+    print_info "  CLI: ${symfluence_cli}"
     print_info "  Args: $*"
     print_info "  Working dir: $(pwd)"
 
-    # Execute (replace current process with Python)
-    exec "$python_cmd" "$SYMFLUENCE_SCRIPT" "$@"
+    # Execute (replace current process with CLI)
+    exec "$symfluence_cli" "$@"
 }
 
 # Trap signals and run
