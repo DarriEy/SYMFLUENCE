@@ -60,6 +60,14 @@ class OutputFileLocator:
             'streamflow': ['GR_results.csv'],
             'patterns': ['*_runs_def.nc'],
         },
+        'TROUTE': {
+            'streamflow': ['nex-troute-out.nc'],
+            'patterns': ['**/nex-troute-out.nc', '**/troute_*.nc'],
+        },
+        'NGEN': {
+            'streamflow': ['nexus_data.nc', 'catchment_data.nc'],
+            'patterns': ['**/nexus_data.nc', '**/catchment_data.nc'],
+        },
         'mizuRoute': {
             'patterns': ['mizuRoute/*.nc', '*.h.*.nc', 'mizuRoute/**/*.nc'],
         },

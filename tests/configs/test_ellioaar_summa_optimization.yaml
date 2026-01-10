@@ -90,6 +90,9 @@ ASYNC_DDS_POOL_SIZE: 10
 ASYNC_DDS_BATCH_SIZE: 10
 MAX_STAGNATION_BATCHES: 10
 
+# GR seeding - 'default' attempts to load from previous internal calibration
+GR_INITIAL_PARAMS: default
+
 # GR4J + CemaNeige parameters to calibrate (8 total)
 # GR4J core parameters:
 #   X1: Production store capacity (1-2000 mm)

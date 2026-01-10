@@ -625,6 +625,16 @@ class BaseModelOptimizer(
             'num_processes': self.num_processes if hasattr(self, 'num_processes') else 1,
         }
 
+        # Handle initial guess
+        try:
+            initial_params_dict = self.param_manager.get_initial_parameters()
+            if initial_params_dict:
+                initial_guess = self.param_manager.normalize_parameters(initial_params_dict)
+                kwargs['initial_guess'] = initial_guess
+                self.logger.info("Using initial parameter guess for optimization seeding")
+        except Exception as e:
+            self.logger.warning(f"Failed to prepare initial parameter guess: {e}")
+
         # For NSGA-II, add multi-objective support
         if algorithm_name.lower() in ['nsga2', 'nsga-ii']:
             kwargs['evaluate_population_objectives'] = self._evaluate_population_objectives

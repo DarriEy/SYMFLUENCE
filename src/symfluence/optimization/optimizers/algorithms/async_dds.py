@@ -82,6 +82,16 @@ class AsyncDDSAlgorithm(OptimizationAlgorithm):
         # Initialize solution pool
         self.logger.info(f"Evaluating initial pool ({pool_size} solutions)...")
         initial_population = np.random.uniform(0, 1, (pool_size, n_params))
+        
+        # Inject initial guess if provided
+        initial_guess = kwargs.get('initial_guess')
+        if initial_guess is not None:
+            if isinstance(initial_guess, (list, np.ndarray)) and len(initial_guess) == n_params:
+                self.logger.info("Injecting initial guess into population")
+                initial_population[0] = np.array(initial_guess)
+            else:
+                self.logger.warning(f"Initial guess provided but shape mismatch: expected {n_params}, got {len(initial_guess) if hasattr(initial_guess, '__len__') else 'unknown'}")
+
         initial_fitness = evaluate_population(initial_population, 0)
 
         # Log initial pool scores for debugging

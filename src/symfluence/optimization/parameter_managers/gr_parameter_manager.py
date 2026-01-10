@@ -55,8 +55,62 @@ class GRParameterManager(BaseParameterManager):
         return True
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
-        """Get initial parameter values from defaults."""
+        """Get initial parameter values from config or defaults."""
+        # Check for explicit initial params in config
+        initial_params = self.config.get('GR_INITIAL_PARAMS', 'default')
+        
+        if initial_params == 'default':
+            # Try to load from previous internal calibration if it exists
+            params = self._load_params_from_rdata()
+            if params:
+                self.logger.info(f"Loaded {len(params)} initial parameters from previous GR calibration")
+                return {k: v for k, v in params.items() if k in self.gr_params}
+            
+            # Fallback to standard airGR defaults (instead of bounds midpoints)
+            self.logger.debug("Using standard airGR defaults for initial parameters")
+            defaults = {
+                'X1': 350.0, 'X2': 0.0, 'X3': 100.0, 'X4': 1.7,
+                'CTG': 0.5, 'Kf': 4.0, 'Gratio': 0.1, 'Albedo_diff': 0.1
+            }
+            return {k: v for k, v in defaults.items() if k in self.gr_params}
+
+        if initial_params and isinstance(initial_params, dict):
+            # Filter to only include parameters we are calibrating
+            return {k: float(v) for k, v in initial_params.items() if k in self.gr_params}
+            
         return self._get_default_initial_values()
+
+    def _load_params_from_rdata(self) -> Optional[Dict[str, float]]:
+        """Attempt to load parameters from GR_calib.Rdata in the simulation directory."""
+        try:
+            data_dir = self.config.get('SYMFLUENCE_DATA_DIR')
+            domain = self.config.get('DOMAIN_NAME')
+            exp_id = self.config.get('EXPERIMENT_ID')
+            
+            if not all([data_dir, domain, exp_id]):
+                return None
+                
+            rdata_path = Path(data_dir) / f"domain_{domain}" / "simulations" / exp_id / "GR" / "GR_calib.Rdata"
+            
+            if not rdata_path.exists():
+                return None
+                
+            import rpy2.robjects as robjects
+            robjects.r['load'](str(rdata_path))
+            
+            if 'OutputsCalib' not in robjects.globalenv:
+                return None
+                
+            outputs_calib = robjects.globalenv['OutputsCalib']
+            param_final = list(outputs_calib.rx2('ParamFinalR'))
+            
+            # Map to standard GR4J + CemaNeige parameter names
+            param_names = ['X1', 'X2', 'X3', 'X4', 'CTG', 'Kf', 'Gratio', 'Albedo_diff']
+            return {name: val for name, val in zip(param_names, param_final)}
+            
+        except Exception as e:
+            self.logger.debug(f"Could not load initial parameters from Rdata: {e}")
+            return None
 
     def _get_default_initial_values(self) -> Dict[str, float]:
         """Get default initial parameter values (midpoint of bounds)."""

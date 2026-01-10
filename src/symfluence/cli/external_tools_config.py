@@ -320,7 +320,7 @@ perl -i -pe "s|^isOpenMP\s*=.*$|isOpenMP = no|" Makefile
 # Fix LIBNETCDF to include both netcdf-fortran and netcdf C library
 if [ "${NETCDF_C_PATH}" != "${NETCDF_TO_USE}" ]; then
     echo "Fixing LIBNETCDF to include both netcdf-fortran and netcdf C paths"
-    perl -i -0777 -pe "s|LIBNETCDF = -Wl,-rpath,${NETCDF_TO_USE}/lib -Wl,-rpath,${NETCDF_C_PATH}/lib -lnetcdff -lnetcdf|Makefile
+    perl -i -pe "s|^LIBNETCDF\s*=.*$|LIBNETCDF = -L${NETCDF_TO_USE}/lib -lnetcdff -L${NETCDF_C_PATH}/lib -lnetcdf|" Makefile
 fi
 
 # Clean and build
@@ -440,49 +440,47 @@ elif [ -n "$NETCDF_FORTRAN" ]; then
 elif command -v brew >/dev/null 2>&1 && brew --prefix netcdf-fortran >/dev/null 2>&1; then
   export NETCDF_FORTRAN="$(brew --prefix netcdf-fortran)"
 else
-  # Common HPC module paths
-  for path in /usr $HOME/.local /opt/netcdf-fortran /opt/netcdf; do
-    if [ -d "$path/include" ] && [ -d "$path/lib" ]; then
-      export NETCDF_FORTRAN="$path"
-      break
+      # Common HPC module paths
+      for path in /usr $HOME/.local /opt/netcdf-fortran /opt/netcdf; do
+        if [ -d "$path/include" ] && [ -d "$path/lib" ]; then
+          export NETCDF_FORTRAN="$path"
+          break
+        fi
+      done
     fi
-  
-  done
-fi
-export NETCDF_FORTRAN="${NETCDF_FORTRAN:-/usr}"
+    export NETCDF_FORTRAN="${NETCDF_FORTRAN:-/usr}"
 
-# NetCDF C library (often same as Fortran, but not always)
-if command -v nc-config >/dev/null 2>&1; then
-  export NETCDF="$(nc-config --prefix 2>/dev/null)"
-elif [ -n "$NETCDF" ]; then
-  : # Use existing environment variable
-elif command -v brew >/dev/null 2>&1 && brew --prefix netcdf >/dev/null 2>&1; then
-  export NETCDF="$(brew --prefix netcdf)"
-else
-  export NETCDF="$NETCDF_FORTRAN"
-fi
+    # NetCDF C library (often same as Fortran, but not always)
+    if command -v nc-config >/dev/null 2>&1; then
+      export NETCDF="$(nc-config --prefix 2>/dev/null)"
+    elif [ -n "$NETCDF" ]; then
+      : # Use existing environment variable
+    elif command -v brew >/dev/null 2>&1 && brew --prefix netcdf >/dev/null 2>&1; then
+      export NETCDF="$(brew --prefix netcdf)"
+    else
+      export NETCDF="$NETCDF_FORTRAN"
+    fi
 
-# --- HDF5 detection with robust fallbacks ---
-if command -v h5cc >/dev/null 2>&1; then
-  export HDF5_ROOT="$(h5cc -showconfig 2>/dev/null | grep -i "Installation point" | sed 's/.*: *//' | head -n1)"
-fi
-if [ -z "$HDF5_ROOT" ] || [ ! -d "$HDF5_ROOT" ]; then
-  if [ -n "$HDF5_ROOT" ]; then
-    : # Use existing environment variable
-  elif command -v brew >/dev/null 2>&1 && brew --prefix hdf5 >/dev/null 2>&1; then
-    export HDF5_ROOT="$(brew --prefix hdf5)"
-  else
-    # Try common paths
-    for path in /usr $HOME/.local /opt/hdf5; do
-      if [ -d "$path/include" ] && [ -d "$path/lib" ]; then
-        export HDF5_ROOT="$path"
-        break
+    # --- HDF5 detection with robust fallbacks ---
+    if command -v h5cc >/dev/null 2>&1; then
+      export HDF5_ROOT="$(h5cc -showconfig 2>/dev/null | grep -i "Installation point" | sed 's/.*: *//' | head -n1)"
+    fi
+    if [ -z "$HDF5_ROOT" ] || [ ! -d "$HDF5_ROOT" ]; then
+      if [ -n "$HDF5_ROOT" ] && [ -d "$HDF5_ROOT" ]; then
+        : # Use existing environment variable
+      elif command -v brew >/dev/null 2>&1 && brew --prefix hdf5 >/dev/null 2>&1; then
+        export HDF5_ROOT="$(brew --prefix hdf5)"
+      else
+        # Try common paths
+        for path in /usr $HOME/.local /opt/hdf5; do
+          if [ -d "$path/include" ] && [ -d "$path/lib" ]; then
+            export HDF5_ROOT="$path"
+            break
+          fi
+        done
       fi
-    
-  
-  done
-fi
-export HDF5_ROOT="${HDF5_ROOT:-/usr}"
+    fi
+    export HDF5_ROOT="${HDF5_ROOT:-/usr}"
 
 # Map to FUSE Makefile variable names
 export NCDF_PATH="$NETCDF_FORTRAN"
