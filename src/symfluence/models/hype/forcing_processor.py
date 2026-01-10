@@ -156,13 +156,17 @@ class HYPEForcingProcessor(BaseForcingProcessor):
         def get_in_var(key):
             return self.forcing_units[key]['in_varname']
 
+        # Get temperature units for conversion (HYPE expects Celsius)
+        temp_units = self.forcing_units.get('temperature', {}).get('in_units', 'K')
+
         # TMAX
         self._convert_hourly_to_daily(
             merged_forcing_path,
             get_in_var('temperature'),
             'TMAXobs',
             stat='max',
-            output_file_name_txt=self.output_path / 'TMAXobs.txt'
+            output_file_name_txt=self.output_path / 'TMAXobs.txt',
+            unit_conversion=temp_units  # Convert K to C if needed
         )
 
         # TMIN
@@ -171,7 +175,8 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             get_in_var('temperature'),
             'TMINobs',
             stat='min',
-            output_file_name_txt=self.output_path / 'TMINobs.txt'
+            output_file_name_txt=self.output_path / 'TMINobs.txt',
+            unit_conversion=temp_units  # Convert K to C if needed
         )
 
         # Tobs (Mean)
@@ -180,16 +185,20 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             get_in_var('temperature'),
             'Tobs',
             stat='mean',
-            output_file_name_txt=self.output_path / 'Tobs.txt'
+            output_file_name_txt=self.output_path / 'Tobs.txt',
+            unit_conversion=temp_units  # Convert K to C if needed
         )
 
         # Pobs (Sum)
+        # Get precipitation units for conversion
+        precip_units = self.forcing_units.get('precipitation', {}).get('in_units', 'mm/s')
         self._convert_hourly_to_daily(
             merged_forcing_path,
             get_in_var('precipitation'),
             'Pobs',
             stat='sum',
-            output_file_name_txt=self.output_path / 'Pobs.txt'
+            output_file_name_txt=self.output_path / 'Pobs.txt',
+            unit_conversion=precip_units  # Pass units for conversion
         )
 
     def _convert_hourly_to_daily(
@@ -200,11 +209,39 @@ class HYPEForcingProcessor(BaseForcingProcessor):
         var_time: str = 'time',
         var_id: str = 'hruId',
         stat: str = 'max',
-        output_file_name_txt: Optional[Path] = None
+        output_file_name_txt: Optional[Path] = None,
+        unit_conversion: Optional[str] = None
     ) -> xr.Dataset:
-        """Helper to resample hourly NetCDF to daily text file."""
+        """Helper to resample hourly NetCDF to daily text file.
+
+        Args:
+            input_file_name: Path to merged forcing NetCDF
+            variable_in: Input variable name
+            variable_out: Output variable name (for logging)
+            var_time: Time dimension name
+            var_id: HRU/subbasin ID variable name
+            stat: Aggregation statistic ('max', 'min', 'mean', 'sum')
+            output_file_name_txt: Output text file path
+            unit_conversion: Input units for conversion. If 'mm/s' or 'kg/m²/s' or 'kg m-2 s-1',
+                applies conversion factor of 3600 (seconds per hour) for hourly data.
+        """
         with xr.open_dataset(input_file_name) as ds:
             ds = ds.copy()
+
+            # Apply unit conversion
+            if unit_conversion:
+                unit_lower = unit_conversion.lower()
+
+                # Precipitation: convert from rate (per second) to amount (per hour)
+                if unit_lower in ['mm/s', 'mm s-1', 'kg/m²/s', 'kg m-2 s-1', 'kg/m2/s']:
+                    # Multiply by 3600 seconds/hour to convert rate to hourly amount
+                    self.logger.info(f"Converting {variable_in} from {unit_conversion} to mm/hour (multiplying by 3600)")
+                    ds[variable_in] = ds[variable_in] * 3600.0
+
+                # Temperature: convert from Kelvin to Celsius
+                elif unit_lower in ['k', 'kelvin']:
+                    self.logger.info(f"Converting {variable_in} from Kelvin to Celsius (subtracting 273.15)")
+                    ds[variable_in] = ds[variable_in] - 273.15
 
             # Get the mapping from hru dimension index to actual hruId values
             # This is needed because hruId is often a data variable, not a coordinate

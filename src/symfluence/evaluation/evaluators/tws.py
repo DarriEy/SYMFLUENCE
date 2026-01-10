@@ -94,23 +94,30 @@ class TWSEvaluator(ModelEvaluator):
         try:
             ds = xr.open_dataset(output_file)
             total_tws = None
-            
+
             for var in self.storage_vars:
                 if var in ds.data_vars:
-                    data = ds[var].values
+                    data = ds[var].values.astype(float)
+
+                    # Replace fill values (-9999) with NaN
+                    # SUMMA uses -9999 for missing/invalid data in some domains
+                    data = np.where(data < -999, np.nan, data)
+
                     # Unit conversion: aquifer storage is in meters, others usually in mm
                     if 'aquifer' in var.lower():
                         self.logger.debug(f"Converting {var} from meters to mm")
                         data = data * 1000.0
-                    
+
                     if data.ndim > 1:
                         axes_to_sum = tuple(range(1, data.ndim))
                         data = np.nanmean(data, axis=axes_to_sum)
-                    
+
                     if total_tws is None:
                         total_tws = data.copy()
                     else:
-                        total_tws = total_tws + data
+                        # Use nansum behavior: NaN + value = value
+                        total_tws = np.where(np.isnan(total_tws), data,
+                                            np.where(np.isnan(data), total_tws, total_tws + data))
                 else:
                     self.logger.warning(f"Storage variable {var} not found in {output_file}")
             

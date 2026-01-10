@@ -232,7 +232,13 @@ print_info "Staging MESH..."
 
 MESH_DIR="$INSTALLS_DIR/mesh"
 if [ -d "$MESH_DIR" ]; then
-    stage_binary "$MESH_DIR/bin/mesh.exe" "mesh" "MESH" || stage_binary "$MESH_DIR/bin/mesh" "mesh" "MESH"
+    if [ -f "$MESH_DIR/bin/mesh.exe" ]; then
+        stage_binary "$MESH_DIR/bin/mesh.exe" "mesh" "MESH"
+    elif [ -f "$MESH_DIR/bin/mesh" ]; then
+        stage_binary "$MESH_DIR/bin/mesh" "mesh" "MESH"
+    else
+        print_warning "MESH binary not found (may not be built yet)"
+    fi
     stage_license "$MESH_DIR" "MESH"
 else
     print_warning "MESH not installed"
@@ -246,10 +252,12 @@ print_info "Staging WMFire..."
 WMFIRE_DIR="$INSTALLS_DIR/wmfire"
 if [ -d "$WMFIRE_DIR" ]; then
     # WMFire is a shared library, but we'll stage it for completeness
-    if [ "$(uname)" = "Darwin" ]; then
+    if [ "$(uname)" = "Darwin" ] && [ -f "$WMFIRE_DIR/lib/libwmfire.dylib" ]; then
         stage_binary "$WMFIRE_DIR/lib/libwmfire.dylib" "libwmfire.dylib" "WMFire"
-    else
+    elif [ -f "$WMFIRE_DIR/lib/libwmfire.so" ]; then
         stage_binary "$WMFIRE_DIR/lib/libwmfire.so" "libwmfire.so" "WMFire"
+    else
+        print_warning "WMFire binary not found (may not be built yet)"
     fi
     stage_license "$WMFIRE_DIR" "WMFire"
 else
@@ -263,7 +271,11 @@ print_info "Staging RHESSys..."
 
 RHESSYS_DIR="$INSTALLS_DIR/rhessys"
 if [ -d "$RHESSYS_DIR" ]; then
-    stage_binary "$RHESSYS_DIR/bin/rhessys" "rhessys" "RHESSys"
+    if [ -f "$RHESSYS_DIR/bin/rhessys" ]; then
+        stage_binary "$RHESSYS_DIR/bin/rhessys" "rhessys" "RHESSys"
+    else
+        print_warning "RHESSys binary not found (may not be built yet)"
+    fi
     stage_license "$RHESSYS_DIR" "RHESSys"
 else
     print_warning "RHESSys not installed"

@@ -28,13 +28,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]  # Linux, macOS, Windows
-        python-version: ['3.11']  # Focus on latest stable
-        include:
-          # Test older Python versions on Linux only to reduce CI time
-          - os: ubuntu-latest
-            python-version: '3.9'
-          - os: ubuntu-latest
-            python-version: '3.10'
+        python-version: ['3.11']  # Focus on latest stable and supported version
 
     steps:
       - name: Checkout

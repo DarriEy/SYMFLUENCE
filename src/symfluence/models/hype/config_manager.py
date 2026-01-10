@@ -627,7 +627,7 @@ wcep    {wcep_val}	!! Effective porosity
 srrcs	{srrcs_val}	!! Runoff coefficient for surface runoff
 !!	-----
 !!	Regional groundwater outflow
-rcgrw	0.1	!! recession coefficient for regional groundwater outflow (must be >0 for baseflow)
+rcgrw	0.1	!! recession coefficient for regional groundwater outflow
 !!	=======================================================================================================
 !!	SOIL TEMPERATURE AND SOIL FROST DEPT
 !!	-----
