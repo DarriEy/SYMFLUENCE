@@ -50,11 +50,17 @@ def test_logger():
 @pytest.fixture
 def base_optimization_config(tmp_path):
     """Base configuration for optimization tests."""
-    return {
+    from symfluence.core.config.models import SymfluenceConfig
+
+    config_dict = {
         'SYMFLUENCE_DATA_DIR': str(tmp_path),
+        'SYMFLUENCE_CODE_DIR': str(tmp_path / 'code'),
         'DOMAIN_NAME': 'test_catchment',
+        'DOMAIN_DEFINITION_METHOD': 'subset',
+        'DOMAIN_DISCRETIZATION': 'GRU',
         'EXPERIMENT_ID': 'test_optimization',
         'HYDROLOGICAL_MODEL': 'SUMMA',
+        'FORCING_DATASET': 'ERA5',
 
         # Optimization settings
         'OPTIMIZATION_METHODS': ['iteration'],
@@ -79,6 +85,7 @@ def base_optimization_config(tmp_path):
         'PARALLEL_WORKERS': 2,
         'USE_MPI': False,
     }
+    return SymfluenceConfig(**config_dict)
 
 
 # ============================================================================
@@ -109,13 +116,21 @@ _ALGORITHM_OVERRIDES = {
 }
 
 
+def _create_config_with_overrides(base_config, **overrides):
+    """Helper to create SymfluenceConfig with overrides."""
+    from symfluence.core.config.models import SymfluenceConfig
+    config_dict = base_config.to_dict(flatten=True)
+    config_dict.update(overrides)
+    return SymfluenceConfig(**config_dict)
+
+
 @pytest.fixture(params=['DDS', 'DE', 'PSO', 'SCE-UA'])
 def algorithm_specific_config(request, base_optimization_config):
     """Parametrized fixture providing configurations for all optimization algorithms.
-    
+
     Use this fixture to test all algorithm variants with a single test.
     Provides: dds_config, de_config, pso_config, sceua_config combinations.
-    
+
     Example:
         def test_algorithm_initialization(algorithm_specific_config):
             # This test runs for DDS, DE, PSO, and SCE-UA
@@ -123,42 +138,32 @@ def algorithm_specific_config(request, base_optimization_config):
             assert config['ITERATIVE_OPTIMIZATION_ALGORITHM'] in _ALGORITHM_OVERRIDES
     """
     algorithm = request.param
-    config = base_optimization_config.copy()
-    config.update(_ALGORITHM_OVERRIDES[algorithm])
-    return config
+    return _create_config_with_overrides(base_optimization_config, **_ALGORITHM_OVERRIDES[algorithm])
 
 
 # Convenience fixtures for individual algorithms (backward compatibility)
 @pytest.fixture
 def dds_config(base_optimization_config):
     """Configuration for DDS algorithm."""
-    config = base_optimization_config.copy()
-    config.update(_ALGORITHM_OVERRIDES['DDS'])
-    return config
+    return _create_config_with_overrides(base_optimization_config, **_ALGORITHM_OVERRIDES['DDS'])
 
 
 @pytest.fixture
 def de_config(base_optimization_config):
     """Configuration for Differential Evolution algorithm."""
-    config = base_optimization_config.copy()
-    config.update(_ALGORITHM_OVERRIDES['DE'])
-    return config
+    return _create_config_with_overrides(base_optimization_config, **_ALGORITHM_OVERRIDES['DE'])
 
 
 @pytest.fixture
 def pso_config(base_optimization_config):
     """Configuration for PSO algorithm."""
-    config = base_optimization_config.copy()
-    config.update(_ALGORITHM_OVERRIDES['PSO'])
-    return config
+    return _create_config_with_overrides(base_optimization_config, **_ALGORITHM_OVERRIDES['PSO'])
 
 
 @pytest.fixture
 def sceua_config(base_optimization_config):
     """Configuration for SCE-UA algorithm."""
-    config = base_optimization_config.copy()
-    config.update(_ALGORITHM_OVERRIDES['SCE-UA'])
-    return config
+    return _create_config_with_overrides(base_optimization_config, **_ALGORITHM_OVERRIDES['SCE-UA'])
 
 
 # ============================================================================
@@ -183,10 +188,10 @@ _MODEL_OVERRIDES = {
 @pytest.fixture(params=['SUMMA', 'FUSE', 'NGEN'])
 def model_specific_config(request, base_optimization_config):
     """Parametrized fixture providing configurations for all hydrological models.
-    
+
     Use this fixture to test all model variants with a single test.
     Provides: summa_config, fuse_config, ngen_config combinations.
-    
+
     Example:
         def test_model_initialization(model_specific_config):
             # This test runs for SUMMA, FUSE, and NGEN
@@ -194,34 +199,26 @@ def model_specific_config(request, base_optimization_config):
             assert config['HYDROLOGICAL_MODEL'] in _MODEL_OVERRIDES
     """
     model = request.param
-    config = base_optimization_config.copy()
-    config.update(_MODEL_OVERRIDES[model])
-    return config
+    return _create_config_with_overrides(base_optimization_config, **_MODEL_OVERRIDES[model])
 
 
 # Convenience fixtures for individual models (backward compatibility)
 @pytest.fixture
 def summa_config(base_optimization_config):
     """Configuration for SUMMA calibration."""
-    config = base_optimization_config.copy()
-    config.update(_MODEL_OVERRIDES['SUMMA'])
-    return config
+    return _create_config_with_overrides(base_optimization_config, **_MODEL_OVERRIDES['SUMMA'])
 
 
 @pytest.fixture
 def fuse_config(base_optimization_config):
     """Configuration for FUSE calibration."""
-    config = base_optimization_config.copy()
-    config.update(_MODEL_OVERRIDES['FUSE'])
-    return config
+    return _create_config_with_overrides(base_optimization_config, **_MODEL_OVERRIDES['FUSE'])
 
 
 @pytest.fixture
 def ngen_config(base_optimization_config):
     """Configuration for NGEN calibration."""
-    config = base_optimization_config.copy()
-    config.update(_MODEL_OVERRIDES['NGEN'])
-    return config
+    return _create_config_with_overrides(base_optimization_config, **_MODEL_OVERRIDES['NGEN'])
 
 
 # ============================================================================

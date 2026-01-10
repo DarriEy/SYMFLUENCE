@@ -69,10 +69,13 @@ class ISMNConfig(BaseModel):
     """ISMN soil moisture observation data settings"""
     model_config = FROZEN_CONFIG
 
-    download: bool = Field(default=False, alias='DOWNLOAD_ISMN')
+    # Note: download flag uses DataConfig.download_ismn (alias='DOWNLOAD_ISMN')
+    # This field is for internal use only, no alias to avoid conflict
+    download: bool = Field(default=False)
     path: str = Field(default='default', alias='ISMN_PATH')
-    api_base: str = Field(default='https://ismn.geo.tuwien.ac.at/api/v1', alias='ISMN_API_BASE')
-    metadata_url: Optional[str] = Field(default=None, alias='ISMN_METADATA_URL')
+    api_base: str = Field(default='https://ismn.earth/dataviewer', alias='ISMN_API_BASE')
+    metadata_url: Optional[str] = Field(default='https://ismn.earth/static/dataviewer/network_station_details.json', alias='ISMN_METADATA_URL')
+    variable_list_url: Optional[str] = Field(default=None, alias='ISMN_VARIABLE_LIST_URL')
     data_url_template: Optional[str] = Field(default=None, alias='ISMN_DATA_URL_TEMPLATE')
     max_stations: int = Field(default=3, alias='ISMN_MAX_STATIONS')
     search_radius_km: Optional[float] = Field(default=None, alias='ISMN_SEARCH_RADIUS_KM')
@@ -87,6 +90,7 @@ class GRACEConfig(BaseModel):
     download: bool = Field(default=False, alias='DOWNLOAD_GRACE')
     product: str = Field(default='RL06', alias='GRACE_PRODUCT')
     path: str = Field(default='default', alias='GRACE_PATH')
+    data_dir: str = Field(default='default', alias='GRACE_DATA_DIR')
 
 
 class MODISSnowConfig(BaseModel):
@@ -94,8 +98,29 @@ class MODISSnowConfig(BaseModel):
     model_config = FROZEN_CONFIG
 
     download: bool = Field(default=False, alias='DOWNLOAD_MODIS_SNOW')
-    product: str = Field(default='MOD10A1.006', alias='MODIS_SNOW_PRODUCT')
+    product: str = Field(default='MOD10A1.061', alias='MODIS_SNOW_PRODUCT')
     path: str = Field(default='default', alias='MODIS_SNOW_PATH')
+    data_dir: str = Field(default='default', alias='MODIS_SNOW_DIR')
+    min_pixels: int = Field(default=100, alias='MODIS_MIN_PIXELS')
+
+    # Merged SCA settings (MOD10A1 + MYD10A1)
+    merge: bool = Field(default=True, alias='MODIS_SCA_MERGE')
+    products: list = Field(default=['MOD10A1.061', 'MYD10A1.061'], alias='MODIS_SCA_PRODUCTS')
+    merge_strategy: str = Field(default='max', alias='MODIS_SCA_MERGE_STRATEGY')
+    cloud_filter: bool = Field(default=True, alias='MODIS_SCA_CLOUD_FILTER')
+    min_valid_ratio: float = Field(default=0.1, alias='MODIS_SCA_MIN_VALID_RATIO')
+    normalize: bool = Field(default=True, alias='MODIS_SCA_NORMALIZE')
+    use_catchment_mask: bool = Field(default=False, alias='MODIS_SCA_USE_CATCHMENT_MASK')
+
+
+class MODISETConfig(BaseModel):
+    """MODIS evapotranspiration (MOD16) observation data settings"""
+    model_config = FROZEN_CONFIG
+
+    download: bool = Field(default=False, alias='DOWNLOAD_MODIS_ET')
+    product: str = Field(default='MOD16A2.061', alias='MODIS_ET_PRODUCT')
+    path: str = Field(default='default', alias='MODIS_ET_PATH')
+    data_dir: str = Field(default='default', alias='MOD16_ET_DIR')
 
 
 class AttributesConfig(BaseModel):
@@ -135,6 +160,7 @@ class EvaluationConfig(BaseModel):
     ismn: Optional[ISMNConfig] = Field(default_factory=ISMNConfig)
     grace: Optional[GRACEConfig] = Field(default_factory=GRACEConfig)
     modis_snow: Optional[MODISSnowConfig] = Field(default_factory=MODISSnowConfig)
+    modis_et: Optional[MODISETConfig] = Field(default_factory=MODISETConfig)
     attributes: Optional[AttributesConfig] = Field(default_factory=AttributesConfig)
     hru_gauge_mapping: Optional[Dict[str, Any]] = Field(default_factory=dict, alias='HRU_GAUGE_MAPPING')
 

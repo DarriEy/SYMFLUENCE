@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from symfluence.core.file_utils import copy_file
 from ..optimizers.base_model_optimizer import BaseModelOptimizer
 from ..workers.fuse_worker import FUSEWorker
 from ..registry import OptimizerRegistry
@@ -62,7 +63,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
-        self.logger.info(f"FUSEModelOptimizer initialized")
+        self.logger.debug(f"FUSEModelOptimizer initialized")
 
     def _get_fuse_executable_path_pre_init(self, config: Dict[str, Any]) -> Path:
         """Helper to get FUSE executable path before full initialization."""
@@ -144,8 +145,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             default_params = self.fuse_sim_dir / f"{self.domain_name}_{self.fuse_id}_para_def.nc"
             sce_params = self.fuse_sim_dir / f"{self.domain_name}_{self.fuse_id}_para_sce.nc"
             if default_params.exists() and not sce_params.exists():
-                import shutil
-                shutil.copy2(default_params, sce_params)
+                copy_file(default_params, sce_params)
                 self.logger.info("Initialized para_sce.nc from default parameters")
 
     def _apply_best_parameters_for_final(self, best_params: Dict[str, float]) -> bool:
@@ -201,11 +201,10 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         param_file = self.fuse_sim_dir / f"{self.domain_name}_{fuse_id}_para_def.nc"
         
         if param_file.exists():
-            import shutil
             for proc_id, dirs in self.parallel_dirs.items():
                 dest_file = dirs['settings_dir'] / param_file.name
                 try:
-                    shutil.copy2(param_file, dest_file)
+                    copy_file(param_file, dest_file)
                     self.logger.debug(f"Copied parameter file to {dest_file}")
                 except Exception as e:
                     self.logger.error(f"Failed to copy parameter file to {dest_file}: {e}")
@@ -219,10 +218,9 @@ class FUSEModelOptimizer(BaseModelOptimizer):
                 for proc_id, dirs in self.parallel_dirs.items():
                     mizu_dest = dirs['root'] / 'settings' / 'mizuRoute'
                     mizu_dest.mkdir(parents=True, exist_ok=True)
-                    import shutil
                     for item in mizu_settings.iterdir():
                         if item.is_file():
-                            shutil.copy2(item, mizu_dest / item.name)
+                            copy_file(item, mizu_dest / item.name)
 
                 # Update mizuRoute control files with process-specific paths
                 self.update_mizuroute_controls(

@@ -17,6 +17,7 @@ from shapely.geometry import Polygon
 from symfluence.core.constants import PhysicalConstants, UnitConversion
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
+from symfluence.data.utilities import VariableStandardizer
 
 
 @DatasetRegistry.register('rdrs')
@@ -26,34 +27,14 @@ class RDRSHandler(BaseDatasetHandler):
     def get_variable_mapping(self) -> Dict[str, str]:
         """
         RDRS variable name mapping to standard names.
-        
+
+        Uses centralized VariableStandardizer for consistency across the codebase.
+
         Returns:
             Dictionary mapping RDRS variable names to standard names
         """
-        return {
-            'RDRS_v2.1_P_FI_SFC': 'LWRadAtm',
-            'RDRS_v2.1_P_FB_SFC': 'SWRadAtm',
-            'RDRS_v2.1_A_PR0_SFC': 'pptrate',
-            'RDRS_v2.1_P_P0_SFC': 'airpres',
-            'RDRS_v2.1_P_TT_09944': 'airtemp',
-            'RDRS_v2.1_P_HU_09944': 'spechum',
-            'RDRS_v2.1_P_UVC_09944': 'windspd',
-            'RDRS_v2.1_P_TT_1.5m': 'airtemp',
-            'RDRS_v2.1_P_HU_1.5m': 'spechum',
-            'RDRS_v2.1_P_UVC_10m': 'windspd',
-            'RDRS_v2.1_P_UUC_10m': 'windspd_u',
-            'RDRS_v2.1_P_VVC_10m': 'windspd_v',
-            # RDRS v3.1 short names
-            'FI': 'LWRadAtm',
-            'FB': 'SWRadAtm',
-            'PR0': 'pptrate',
-            'P0': 'airpres',
-            'TT': 'airtemp',
-            'HU': 'spechum',
-            'UVC': 'windspd',
-            'UUC': 'windspd_u',
-            'VVC': 'windspd_v',
-        }
+        standardizer = VariableStandardizer(self.logger)
+        return standardizer.get_rename_map('RDRS')
     
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """

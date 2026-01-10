@@ -1,0 +1,779 @@
+"""
+MESH Parameter Fixer
+
+Fixes parameter files for MESH compatibility and stability.
+"""
+
+import logging
+import os
+import re
+from pathlib import Path
+from typing import Dict, Any, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+import xarray as xr
+
+
+class MESHParameterFixer:
+    """
+    Fixes MESH parameter files for compatibility and stability.
+
+    Handles:
+    - Run options variable name fixes
+    - Snow/ice parameter fixes for multi-year stability
+    - GRU count mismatches between CLASS and DDB
+    - CLASS initial conditions for snow simulation
+    - Hydrology WF_R2 parameter
+    - Safe forcing file creation
+    """
+
+    def __init__(
+        self,
+        forcing_dir: Path,
+        setup_dir: Path,
+        config: Dict[str, Any],
+        logger: logging.Logger = None,
+        time_window_func=None
+    ):
+        """
+        Initialize parameter fixer.
+
+        Args:
+            forcing_dir: Directory containing MESH files
+            setup_dir: Directory containing settings files
+            config: Configuration dictionary
+            logger: Optional logger instance
+            time_window_func: Function to get simulation time window
+        """
+        self.forcing_dir = forcing_dir
+        self.setup_dir = setup_dir
+        self.config = config
+        self.logger = logger or logging.getLogger(__name__)
+        self.get_simulation_time_window = time_window_func
+        self._actual_spinup_days = None
+
+    @property
+    def run_options_path(self) -> Path:
+        return self.forcing_dir / "MESH_input_run_options.ini"
+
+    @property
+    def class_file_path(self) -> Path:
+        return self.forcing_dir / "MESH_parameters_CLASS.ini"
+
+    @property
+    def hydro_path(self) -> Path:
+        return self.forcing_dir / "MESH_parameters_hydrology.ini"
+
+    @property
+    def ddb_path(self) -> Path:
+        return self.forcing_dir / "MESH_drainage_database.nc"
+
+    def fix_run_options_var_names(self) -> None:
+        """Fix variable names in run options to match forcing file."""
+        if not self.run_options_path.exists():
+            return
+
+        try:
+            with open(self.run_options_path, 'r') as f:
+                content = f.read()
+
+            var_replacements = {
+                'name_var=SWRadAtm': 'name_var=FSIN',
+                'name_var=spechum': 'name_var=QA',
+                'name_var=airtemp': 'name_var=TA',
+                'name_var=windspd': 'name_var=UV',
+                'name_var=pptrate': 'name_var=PRE',
+                'name_var=airpres': 'name_var=PRES',
+                'name_var=LWRadAtm': 'name_var=FLIN',
+            }
+
+            modified = False
+            for old_name, new_name in var_replacements.items():
+                if old_name in content:
+                    content = content.replace(old_name, new_name)
+                    modified = True
+
+            if modified:
+                with open(self.run_options_path, 'w') as f:
+                    f.write(content)
+                self.logger.info("Fixed run options variable names")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to fix run options variable names: {e}")
+
+    def fix_run_options_snow_params(self) -> None:
+        """Fix run options snow/ice parameters for stable multi-year simulations."""
+        if not self.run_options_path.exists():
+            return
+
+        try:
+            with open(self.run_options_path, 'r') as f:
+                content = f.read()
+
+            modified = False
+            replacements = [
+                (r'FREZTH\s+[-\d.]+', 'FREZTH                -2.0'),
+                (r'SWELIM\s+[-\d.]+', 'SWELIM                1500.0'),
+                (r'SNDENLIM\s+[-\d.]+', 'SNDENLIM              600.0'),
+                (r'PBSMFLAG\s+\w+', 'PBSMFLAG              off'),
+                (r'FROZENSOILINFILFLAG\s+\d+', 'FROZENSOILINFILFLAG   0'),
+                (r'RUNMODE\s+\w+', 'RUNMODE               noroute'),
+                (r'METRICSSPINUP\s+\d+', 'METRICSSPINUP         730'),
+                (r'DIAGNOSEMODE\s+\w+', 'DIAGNOSEMODE          off'),
+            ]
+
+            for pattern, replacement in replacements:
+                if re.search(pattern, content):
+                    content_new = re.sub(pattern, replacement, content)
+                    if content_new != content:
+                        content = content_new
+                        modified = True
+
+            if modified:
+                with open(self.run_options_path, 'w') as f:
+                    f.write(content)
+                self.logger.info("Fixed run options snow/ice parameters")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to fix run options snow parameters: {e}")
+
+    def fix_gru_count_mismatch(self) -> None:
+        """Ensure CLASS NM matches parameter block count and trim empty GRU columns."""
+        # First, determine which GRUs MESH will actually recognize
+        mesh_active_grus = self._get_mesh_active_gru_count()
+        
+        # Then get the current DDB GRU count
+        current_ddb_gru_count = self._get_ddb_gru_count()
+        
+        if mesh_active_grus is not None and current_ddb_gru_count is not None:
+            if mesh_active_grus != current_ddb_gru_count:
+                self.logger.warning(
+                    f"DDB has {current_ddb_gru_count} GRU columns but MESH will only see {mesh_active_grus} active"
+                )
+                # Trim DDB to match MESH's expectations
+                self._trim_ddb_to_active_grus(mesh_active_grus)
+            
+            # Now trim CLASS to match (which should equal mesh_active_grus)
+            class_block_count = self._get_class_block_count()
+            if class_block_count is not None and mesh_active_grus != class_block_count:
+                self.logger.warning(
+                    f"CLASS blocks ({class_block_count}) don't match MESH active GRUs ({mesh_active_grus})"
+                )
+                # Trim CLASS to match MESH's expectations
+                self._trim_class_to_count(mesh_active_grus)
+                # Update NM to reflect the trimmed count
+                self._update_class_nm(mesh_active_grus)
+            
+            return
+        
+        # Fall back to original logic only if we couldn't determine mesh_active_grus
+        keep_mask = self._trim_empty_gru_columns()
+        self._fix_class_nm(keep_mask)
+    
+    def _get_ddb_gru_count(self) -> Optional[int]:
+        """Get the number of GRU columns in the DDB."""
+        if not self.ddb_path.exists():
+            return None
+        
+        try:
+            with xr.open_dataset(self.ddb_path) as ds:
+                if 'NGRU' not in ds.dims:
+                    return None
+                return int(ds.dims['NGRU'])
+        except Exception:
+            return None
+    
+    def _trim_ddb_to_active_grus(self, target_count: int) -> None:
+        """Trim DDB GRU columns to only keep the active ones (sum > 0.1)."""
+        if not self.ddb_path.exists():
+            return
+        
+        try:
+            with xr.open_dataset(self.ddb_path) as ds:
+                if 'GRU' not in ds or 'NGRU' not in ds.dims:
+                    return
+                
+                if ds.dims['NGRU'] <= target_count:
+                    return
+                
+                # Determine which GRU columns are actually active (sum > 0.1)
+                gru = ds['GRU']
+                sum_dim = 'N' if 'N' in gru.dims else 'subbasin' if 'subbasin' in gru.dims else None
+                if not sum_dim:
+                    return
+                
+                sums = gru.sum(sum_dim)
+                # Only keep GRU columns with sum > 0.15 (conservative threshold)
+                keep_mask = sums > 0.15
+                active_indices = [i for i, keep in enumerate(keep_mask.values) if keep]
+                
+                if len(active_indices) == 0:
+                    self.logger.warning("No GRU columns have sum > 0.15")
+                    return
+                
+                # Trim to only the active GRUs
+                ds_trim = ds.isel(NGRU=active_indices)
+                
+                # Renormalize GRU fractions
+                if 'GRU' in ds_trim:
+                    sum_per = ds_trim['GRU'].sum('NGRU')
+                    sum_safe = xr.where(sum_per == 0, 1.0, sum_per)
+                    ds_trim['GRU'] = ds_trim['GRU'] / sum_safe
+                
+                temp_path = self.ddb_path.with_suffix('.tmp.nc')
+                ds_trim.to_netcdf(temp_path)
+                os.replace(temp_path, self.ddb_path)
+                self.logger.info(f"Trimmed DDB to {len(active_indices)} active GRU column(s) (all with sum > 0.15)")
+        except Exception as e:
+            self.logger.warning(f"Failed to trim DDB to active GRUs: {e}")
+    
+    def _get_mesh_active_gru_count(self) -> Optional[int]:
+        """Determine the number of GRUs that MESH will recognize as active."""
+        if not self.ddb_path.exists():
+            return None
+        
+        try:
+            with xr.open_dataset(self.ddb_path) as ds:
+                if 'GRU' not in ds or 'NGRU' not in ds.dims:
+                    return None
+                
+                gru = ds['GRU']
+                sum_dim = 'N' if 'N' in gru.dims else 'subbasin' if 'subbasin' in gru.dims else None
+                if not sum_dim:
+                    return None
+                
+                sums = gru.sum(sum_dim)
+                # MESH uses a threshold to determine active GRUs
+                # Use conservative threshold to ensure only clearly active GRUs are kept
+                min_gru_sum = 0.15
+                active_count = int((sums > min_gru_sum).sum())
+                
+                if active_count > 0:
+                    self.logger.debug(f"MESH will recognize {active_count} active GRU(s) (threshold={min_gru_sum})")
+                    return active_count
+                
+                return None
+        except Exception as e:
+            self.logger.debug(f"Could not determine MESH active GRU count: {e}")
+            return None
+    
+    def _get_class_block_count(self) -> Optional[int]:
+        """Get the number of CLASS parameter blocks."""
+        if not self.class_file_path.exists():
+            return None
+        
+        try:
+            with open(self.class_file_path, 'r') as f:
+                content = f.read()
+                lines = content.split('\n')
+            
+            block_count = sum(1 for line in lines if 'XSLP/XDRAINH/MANN/KSAT/MID' in line)
+            return block_count if block_count > 0 else None
+        except Exception:
+            return None
+    
+    def _trim_class_to_count(self, target_count: int) -> None:
+        """Trim CLASS parameter blocks to a specific count."""
+        if not self.class_file_path.exists():
+            return
+        
+        try:
+            with open(self.class_file_path, 'r') as f:
+                content = f.read()
+                lines = content.split('\n')
+            
+            block_starts = [i for i, line in enumerate(lines) if '05 5xFCAN/4xLAMX' in line]
+            if not block_starts:
+                return
+            
+            header = lines[:block_starts[0]]
+            block_starts.append(len(lines))
+            blocks = [lines[block_starts[i]:block_starts[i + 1]] for i in range(len(block_starts) - 1)]
+            
+            # Keep only the first target_count blocks
+            kept_blocks = blocks[:target_count]
+            
+            if len(kept_blocks) != len(blocks):
+                new_lines = header + [line for block in kept_blocks for line in block]
+                content = '\n'.join(new_lines)
+                with open(self.class_file_path, 'w') as f:
+                    f.write(content)
+                self.logger.info(f"Trimmed CLASS parameters to {len(kept_blocks)} GRU block(s)")
+        except Exception as e:
+            self.logger.warning(f"Failed to trim CLASS to count {target_count}: {e}")
+
+    def _trim_empty_gru_columns(self) -> Optional[list]:
+        """Trim empty GRU columns from drainage database."""
+        if not self.ddb_path.exists():
+            return None
+
+        try:
+            with xr.open_dataset(self.ddb_path) as ds:
+                if 'GRU' not in ds or 'NGRU' not in ds.dims:
+                    return None
+
+                gru = ds['GRU']
+                sum_dim = 'N' if 'N' in gru.dims else 'subbasin' if 'subbasin' in gru.dims else None
+                if not sum_dim:
+                    return None
+
+                sums = gru.sum(sum_dim)
+                min_total = float(self.config.get('MESH_GRU_MIN_TOTAL', 0.02))
+                keep = sums > min_total
+                keep_mask = keep.values.tolist()
+
+                if int(keep.sum()) < int(gru.sizes['NGRU']):
+                    removed = int(gru.sizes['NGRU'] - keep.sum())
+                    ds_trim = ds.isel(NGRU=keep)
+
+                    try:
+                        sum_per = ds_trim['GRU'].sum('NGRU')
+                        sum_safe = xr.where(sum_per == 0, 1.0, sum_per)
+                        ds_trim['GRU'] = ds_trim['GRU'] / sum_safe
+                    except Exception:
+                        pass
+
+                    temp_path = self.ddb_path.with_suffix('.tmp.nc')
+                    ds_trim.to_netcdf(temp_path)
+                    os.replace(temp_path, self.ddb_path)
+                    self.logger.info(f"Removed {removed} empty GRU column(s)")
+
+                return keep_mask
+
+        except Exception as e:
+            self.logger.warning(f"Failed to trim empty GRU columns: {e}")
+            return None
+
+    def _fix_class_nm(self, keep_mask: Optional[list]) -> None:
+        """Fix CLASS NM parameter to match block count."""
+        if not self.class_file_path.exists():
+            return
+
+        try:
+            with open(self.class_file_path, 'r') as f:
+                content = f.read()
+                lines = content.split('\n')
+
+            block_count = sum(1 for line in lines if 'XSLP/XDRAINH/MANN/KSAT/MID' in line)
+
+            # Read current NM
+            nm_from_class = None
+            for line in lines:
+                if '04 DEGLAT' in line or 'NL/NM' in line:
+                    parts = line.split()
+                    if len(parts) >= 9:
+                        try:
+                            nm_from_class = int(parts[8])
+                        except (ValueError, IndexError):
+                            pass
+                    break
+
+            trimmed_class = False
+            if keep_mask is not None:
+                trimmed_class = self._trim_class_blocks(lines, keep_mask)
+                if trimmed_class:
+                    with open(self.class_file_path, 'r') as f:
+                        content = f.read()
+                        lines = content.split('\n')
+                    block_count = sum(1 for line in lines if 'XSLP/XDRAINH/MANN/KSAT/MID' in line)
+                    nm_from_class = self._read_nm_from_lines(lines)
+
+            if nm_from_class != block_count:
+                self.logger.warning(f"CLASS NM ({nm_from_class}) != block count ({block_count})")
+                self._update_class_nm(block_count)
+            else:
+                self.logger.debug(f"CLASS NM={nm_from_class} matches {block_count} blocks")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to fix GRU count mismatch: {e}")
+
+    def _trim_class_blocks(self, lines: list, keep_mask: list) -> bool:
+        """Trim CLASS parameter blocks to match DDB GRU columns."""
+        block_starts = [i for i, line in enumerate(lines) if '05 5xFCAN/4xLAMX' in line]
+        if not block_starts:
+            return False
+
+        header = lines[:block_starts[0]]
+        block_starts.append(len(lines))
+        blocks = [lines[block_starts[i]:block_starts[i + 1]] for i in range(len(block_starts) - 1)]
+        max_blocks = min(len(blocks), len(keep_mask))
+        kept_blocks = [blocks[i] for i in range(max_blocks) if keep_mask[i]]
+
+        if len(kept_blocks) != len(blocks):
+            new_lines = header + [line for block in kept_blocks for line in block]
+            content = '\n'.join(new_lines)
+            with open(self.class_file_path, 'w') as f:
+                f.write(content)
+            self.logger.info(f"Trimmed CLASS parameters to {len(kept_blocks)} GRU block(s)")
+            return True
+
+        return False
+
+    def _read_nm_from_lines(self, lines: list) -> Optional[int]:
+        """Read NM value from CLASS file lines."""
+        for line in lines:
+            if '04 DEGLAT' in line or 'NL/NM' in line:
+                parts = line.split()
+                if len(parts) >= 9:
+                    try:
+                        return int(parts[8])
+                    except (ValueError, IndexError):
+                        pass
+                break
+        return None
+
+    def _update_class_nm(self, new_nm: int) -> None:
+        """Update NM in CLASS parameters file."""
+        try:
+            with open(self.class_file_path, 'r') as f:
+                lines = f.readlines()
+
+            modified = False
+            for i, line in enumerate(lines):
+                if '04 DEGLAT' in line or 'NL/NM' in line:
+                    parts = line.split()
+                    if len(parts) >= 9:
+                        old_nm = parts[8]
+                        tokens = re.split(r'(\s+)', line)
+                        value_count = 0
+                        for j, tok in enumerate(tokens):
+                            if tok.strip():
+                                value_count += 1
+                                if value_count == 9:
+                                    tokens[j] = str(new_nm)
+                                    break
+                        lines[i] = ''.join(tokens)
+                        modified = True
+                        self.logger.info(f"Updated CLASS NM from {old_nm} to {new_nm}")
+                    break
+
+            if modified:
+                with open(self.class_file_path, 'w') as f:
+                    f.writelines(lines)
+
+        except Exception as e:
+            self.logger.warning(f"Failed to update CLASS NM: {e}")
+
+    def fix_hydrology_wf_r2(self) -> None:
+        """Ensure WF_R2 is in the hydrology file."""
+        settings_hydro = self.setup_dir / "MESH_parameters_hydrology.ini"
+
+        # Copy from settings if missing or empty
+        if not self.hydro_path.exists() or self.hydro_path.stat().st_size == 0:
+            if settings_hydro.exists() and settings_hydro.stat().st_size > 0:
+                import shutil
+                shutil.copy2(settings_hydro, self.hydro_path)
+                self.logger.info("Copied hydrology file from settings")
+            else:
+                self.logger.warning("No valid hydrology file found")
+                return
+
+        try:
+            with open(self.hydro_path, 'r') as f:
+                content = f.read()
+                lines = content.split('\n')
+
+            if not content.strip() and settings_hydro.exists():
+                with open(settings_hydro, 'r') as f:
+                    content = f.read()
+                    lines = content.split('\n')
+                if content.strip():
+                    with open(self.hydro_path, 'w') as f:
+                        f.write(content)
+                    self.logger.info("Restored hydrology file from settings")
+
+            if 'WF_R2' in content:
+                self.logger.debug("WF_R2 already present")
+                return
+
+            # Add WF_R2 before R2N
+            new_lines = []
+            r2n_found = False
+            for line in lines:
+                if line.startswith('R2N') and not r2n_found:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        r2n_values = parts[1:]
+                        wf_r2_line = "WF_R2  " + "    ".join(r2n_values) + "  # channel roughness"
+                        new_lines.append(wf_r2_line)
+                        r2n_found = True
+
+                        # Update parameter count
+                        for j in range(len(new_lines) - 1, -1, -1):
+                            if "Number of channel routing parameters" in new_lines[j]:
+                                match = re.match(r'\s*(\d+)', new_lines[j])
+                                if match:
+                                    old_count = int(match.group(1))
+                                    new_count = old_count + 1
+                                    new_lines[j] = new_lines[j].replace(
+                                        str(old_count), str(new_count), 1
+                                    )
+                                break
+
+                new_lines.append(line)
+
+            if r2n_found:
+                with open(self.hydro_path, 'w') as f:
+                    f.write('\n'.join(new_lines))
+                self.logger.info("Added WF_R2 to hydrology file")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to add WF_R2: {e}")
+
+    def fix_class_initial_conditions(self) -> None:
+        """Fix CLASS initial conditions for proper snow simulation."""
+        if not self.class_file_path.exists():
+            return
+
+        try:
+            with open(self.class_file_path, 'r') as f:
+                lines = f.readlines()
+
+            # Determine initial conditions based on season
+            time_window = self.get_simulation_time_window() if self.get_simulation_time_window else None
+            if time_window:
+                start_month = time_window[0].month
+            else:
+                start_month = 1
+
+            if start_month in [11, 12, 1, 2, 3, 4]:
+                initial_sno = 100.0
+                initial_albs = 0.75
+                initial_rhos = 250.0
+                initial_tsno = -10.0
+                initial_tcan = -5.0
+            else:
+                initial_sno = 10.0
+                initial_albs = 0.60
+                initial_rhos = 350.0
+                initial_tsno = -1.0
+                initial_tcan = 0.0
+
+            modified = False
+            new_lines = []
+
+            for line in lines:
+                # Fix line 17: TBAR/TCAN/TSNO/TPND
+                if '17 3xTBAR' in line or ('17' in line and 'TBAR' in line):
+                    parts = line.split()
+                    if len(parts) >= 8:
+                        try:
+                            tbar1 = float(parts[0])
+                            tbar2 = float(parts[1])
+                            tbar3 = float(parts[2])
+                            tpnd = float(parts[5])
+                            new_line = (
+                                f"  {tbar1:.3f}  {tbar2:.3f}  {tbar3:.3f}  "
+                                f"{initial_tcan:.3f}  {initial_tsno:.3f}   {tpnd:.3f}  "
+                                f"17 3xTBAR (or more)/TCAN/TSNO/TPND\n"
+                            )
+                            new_lines.append(new_line)
+                            modified = True
+                            continue
+                        except (ValueError, IndexError):
+                            pass
+
+                # Fix line 19: RCAN/SCAN/SNO/ALBS/RHOS/GRO
+                if '19 RCAN/SCAN/SNO/ALBS/RHOS/GRO' in line:
+                    parts = line.split()
+                    if len(parts) >= 8:
+                        try:
+                            rcan = float(parts[0])
+                            scan = float(parts[1])
+                            gro = float(parts[5])
+                            new_line = (
+                                f"   {rcan:.3f}   {scan:.3f}   {initial_sno:.1f}   "
+                                f"{initial_albs:.2f}   {initial_rhos:.1f}   {gro:.3f}  "
+                                f"19 RCAN/SCAN/SNO/ALBS/RHOS/GRO\n"
+                            )
+                            new_lines.append(new_line)
+                            modified = True
+                            continue
+                        except (ValueError, IndexError):
+                            pass
+
+                new_lines.append(line)
+
+            if modified:
+                with open(self.class_file_path, 'w') as f:
+                    f.writelines(new_lines)
+                self.logger.info(
+                    f"Fixed CLASS initial conditions: SNO={initial_sno}mm, "
+                    f"ALBS={initial_albs}, RHOS={initial_rhos}kg/m³"
+                )
+
+        except Exception as e:
+            self.logger.warning(f"Failed to fix CLASS initial conditions: {e}")
+
+    def create_safe_forcing(self) -> None:
+        """Create a trimmed forcing file for the simulation period."""
+        forcing_nc = self.forcing_dir / "MESH_forcing.nc"
+        safe_forcing_nc = self.forcing_dir / "MESH_forcing_safe.nc"
+
+        if not forcing_nc.exists():
+            self.logger.warning("No MESH_forcing.nc found")
+            return
+
+        try:
+            time_window = self._get_time_window()
+            if not time_window:
+                self.logger.warning("No simulation time window configured")
+                return
+
+            analysis_start, end_time = time_window
+
+            # Get forcing data range
+            with xr.open_dataset(forcing_nc) as ds_check:
+                forcing_times = pd.to_datetime(ds_check['time'].values)
+                forcing_start = forcing_times[0]
+                forcing_end = forcing_times[-1]
+
+            # Calculate spinup
+            spinup_days = int(self.config.get('MESH_SPINUP_DAYS', 730))
+            from datetime import timedelta
+            requested_start = pd.Timestamp(analysis_start - timedelta(days=spinup_days))
+
+            if requested_start < forcing_start:
+                actual_spinup_days = (analysis_start - forcing_start).days
+                start_time = pd.Timestamp(forcing_start)
+                self.logger.warning(
+                    f"Limiting spinup to {actual_spinup_days} days"
+                )
+                self._actual_spinup_days = actual_spinup_days
+            else:
+                start_time = requested_start
+                self._actual_spinup_days = spinup_days
+
+            end_time = pd.Timestamp(end_time)
+            if end_time > forcing_end:
+                end_time = forcing_end
+
+            end_time_padded = min(end_time + timedelta(days=2), forcing_end)
+
+            # Subset and save
+            with xr.open_dataset(forcing_nc) as ds:
+                if 'time' not in ds.dims:
+                    return
+
+                times = pd.to_datetime(ds['time'].values)
+                start_idx, end_idx = 0, len(times)
+
+                for i, t in enumerate(times):
+                    if t >= start_time:
+                        start_idx = max(0, i - 1)
+                        break
+
+                for i, t in enumerate(times):
+                    if t > end_time_padded:
+                        end_idx = i
+                        break
+
+                ds_safe = ds.isel(time=slice(start_idx, end_idx))
+                n_timesteps = end_idx - start_idx
+
+                self.logger.info(f"Creating MESH_forcing_safe.nc with {n_timesteps} timesteps")
+                ds_safe.to_netcdf(safe_forcing_nc)
+
+            # Update run options
+            self._update_run_options_for_safe_forcing(start_time, end_time)
+
+        except Exception as e:
+            self.logger.warning(f"Failed to create safe forcing: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+
+    def _get_time_window(self) -> Optional[Tuple]:
+        """Get simulation time window from config or callback."""
+        if self.get_simulation_time_window:
+            time_window = self.get_simulation_time_window()
+            if time_window:
+                return time_window
+
+        # Fallback to calibration/evaluation periods
+        cal_period = self.config.get('CALIBRATION_PERIOD')
+        eval_period = self.config.get('EVALUATION_PERIOD')
+
+        if cal_period:
+            cal_parts = [p.strip() for p in str(cal_period).split(',')]
+            if len(cal_parts) >= 2:
+                analysis_start = pd.Timestamp(cal_parts[0])
+                if eval_period:
+                    eval_parts = [p.strip() for p in str(eval_period).split(',')]
+                    end_time = pd.Timestamp(eval_parts[1] if len(eval_parts) >= 2 else eval_parts[0])
+                else:
+                    end_time = pd.Timestamp(cal_parts[1])
+                return (analysis_start, end_time)
+
+        return None
+
+    def _update_run_options_for_safe_forcing(
+        self,
+        start_time: pd.Timestamp,
+        end_time: pd.Timestamp
+    ) -> None:
+        """Update run options for safe forcing file."""
+        if not self.run_options_path.exists():
+            return
+
+        with open(self.run_options_path, 'r') as f:
+            content = f.read()
+            lines = content.split('\n')
+
+        modified = False
+        new_lines = []
+
+        for line in lines:
+            if 'fname=MESH_forcing' in line and 'fname=MESH_forcing_safe' not in line:
+                line = line.replace('fname=MESH_forcing', 'fname=MESH_forcing_safe')
+                modified = True
+
+            if 'start_date=' in line:
+                new_start_date = start_time.strftime('%Y%m%d')
+                line = re.sub(r'start_date=\d+', f'start_date={new_start_date}', line)
+                modified = True
+
+            if 'METRICSSPINUP' in line and self._actual_spinup_days:
+                line = re.sub(
+                    r'METRICSSPINUP\s+\d+',
+                    f'METRICSSPINUP         {self._actual_spinup_days}',
+                    line
+                )
+                modified = True
+
+            new_lines.append(line)
+
+        # Update simulation date lines
+        date_line_indices = self._find_date_lines(new_lines)
+        if len(date_line_indices) >= 2:
+            start_idx = date_line_indices[-2]
+            end_idx = date_line_indices[-1]
+            new_lines[start_idx] = f"{start_time.year:04d} {start_time.dayofyear:03d}   1   0"
+            new_lines[end_idx] = f"{end_time.year:04d} {end_time.dayofyear:03d}  23   0"
+            modified = True
+            self.logger.info(
+                f"Updated simulation dates: {start_time.year:04d}/{start_time.dayofyear:03d} "
+                f"to {end_time.year:04d}/{end_time.dayofyear:03d}"
+            )
+
+        if modified:
+            with open(self.run_options_path, 'w') as f:
+                f.write('\n'.join(new_lines))
+
+    def _find_date_lines(self, lines: list) -> list:
+        """Find lines that look like date specifications."""
+        date_line_indices = []
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped and not stripped.startswith('#') and not stripped.startswith('-'):
+                parts = stripped.split()
+                if len(parts) >= 4 and parts[0].isdigit() and len(parts[0]) == 4:
+                    try:
+                        int(parts[0])
+                        int(parts[1])
+                        int(parts[2])
+                        int(parts[3])
+                        date_line_indices.append(i)
+                    except ValueError:
+                        pass
+        return date_line_indices

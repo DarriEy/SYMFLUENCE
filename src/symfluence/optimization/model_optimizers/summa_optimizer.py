@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from symfluence.core.file_utils import copy_file
 from ..optimizers.base_model_optimizer import BaseModelOptimizer
 from ..workers.summa_worker import SUMMAWorker
 from ..registry import OptimizerRegistry
@@ -58,8 +59,8 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
         self.summa_exe_path = self._get_summa_executable_path()
         self.mizuroute_exe_path = self._get_mizuroute_executable_path()
 
-        self.logger.info(f"SUMMAModelOptimizer initialized")
-        self.logger.info(f"Routing needed: {self._routing_needed}")
+        self.logger.debug(f"SUMMAModelOptimizer initialized")
+        self.logger.debug(f"Routing needed: {self._routing_needed}")
 
     def _get_model_name(self) -> str:
         """Return model name."""
@@ -188,10 +189,9 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
                 for proc_id, dirs in self.parallel_dirs.items():
                     mizu_dest = dirs['root'] / 'settings' / 'mizuRoute'
                     mizu_dest.mkdir(parents=True, exist_ok=True)
-                    import shutil
                     for item in mizu_settings.iterdir():
                         if item.is_file():
-                            shutil.copy2(item, mizu_dest / item.name)
+                            copy_file(item, mizu_dest / item.name)
 
                 # Update mizuRoute control files with process-specific paths
                 self.update_mizuroute_controls(

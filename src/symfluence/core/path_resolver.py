@@ -266,19 +266,27 @@ class PathResolverMixin(ConfigurableMixin):
     def _get_method_suffix(self) -> str:
         """
         Standardized method for getting the delineation suffix for filenames.
-        Prioritizes DOMAIN_DEFINITION_METHOD but handles 'subset' specially.
+        Uses typed config for DOMAIN_DEFINITION_METHOD with special handling for 'subset'.
         """
         # Prioritize pre-resolved attribute if available (in BaseModelPreProcessor)
         method = getattr(self, 'domain_definition_method', None)
-        
+
         if method is None:
-            # Fallback to config lookup
-            method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'delineate')
-        
+            # Get from typed config
+            cfg = self.config
+            if cfg is not None:
+                method = cfg.domain.definition_method or 'delineate'
+            else:
+                method = 'delineate'
+
         if method == 'subset':
-            geofabric_type = self.config_dict.get('GEOFABRIC_TYPE', 'na')
+            # Get geofabric_type from typed config
+            cfg = self.config
+            geofabric_type = 'na'
+            if cfg is not None:
+                geofabric_type = cfg.domain.delineation.geofabric_type or 'na'
             if geofabric_type != 'na':
                 return f"subset_{geofabric_type}"
             return "subset"
-            
+
         return method

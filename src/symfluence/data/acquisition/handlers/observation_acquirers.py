@@ -5,15 +5,17 @@ Provides cloud acquisition for various observational datasets:
 - SMAP Soil Moisture (NSIDC THREDDS/NCSS)
 - ESA CCI Soil Moisture (CDS API)
 - FLUXCOM Evapotranspiration
+
+Uses mixins for:
+- RetryMixin: Exponential backoff retry for CDS API calls
+- ChunkedDownloadMixin: Monthly temporal chunking for ESA CCI SM
 """
-import logging
 import re
 import requests
 import pandas as pd
 import numpy as np
 import netCDF4 as nc
 from pathlib import Path
-from datetime import datetime
 from typing import Dict, Any, Optional, List
 import xarray as xr
 import os
@@ -26,6 +28,7 @@ except ImportError:
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+from ..mixins import RetryMixin, ChunkedDownloadMixin
 
 @AcquisitionRegistry.register('SMAP')
 class SMAPAcquirer(BaseAcquisitionHandler):
@@ -51,8 +54,8 @@ class SMAPAcquirer(BaseAcquisitionHandler):
         
         output_dir.mkdir(parents=True, exist_ok=True)
         out_nc = output_dir / f"{self.domain_name}_SMAP_raw.nc"
-        
-        if out_nc.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+
+        if self._skip_if_exists(out_nc):
             return out_nc
 
         params = {
@@ -82,16 +85,11 @@ class SMAPAcquirer(BaseAcquisitionHandler):
                 candidate_products.append('SMAP_L4_SM_gph_v4')
             candidate_urls = [f"{thredds_base}/{p}/aggregated.ncml" for p in candidate_products]
 
-        # Setup session with Earthdata Auth
+        # Setup session with Earthdata Auth (check .netrc first, then env vars)
         session = requests.Session()
-        user = os.environ.get("EARTHDATA_USERNAME")
-        password = os.environ.get("EARTHDATA_PASSWORD")
-        
+        user, password = self._get_earthdata_credentials()
         if user and password:
             session.auth = (user, password)
-        else:
-            # Check for .netrc
-            pass # requests handles .netrc automatically
             
         last_error = None
         for url in candidate_urls:
@@ -151,8 +149,7 @@ class SMAPAcquirer(BaseAcquisitionHandler):
         )
 
         session = requests.Session()
-        user = os.environ.get("EARTHDATA_USERNAME")
-        password = os.environ.get("EARTHDATA_PASSWORD")
+        user, password = self._get_earthdata_credentials()
         if user and password:
             session.auth = (user, password)
 
@@ -352,11 +349,18 @@ class ISMNAcquirer(BaseAcquisitionHandler):
         if any(output_dir.glob("*.csv")) and not force_download:
             return output_dir
 
-        api_base = self.config.get('ISMN_API_BASE', 'https://ismn.geo.tuwien.ac.at/api/v1').rstrip("/")
-        metadata_url = self.config.get('ISMN_METADATA_URL') or f"{api_base}/stations"
+        api_base = self.config.get('ISMN_API_BASE', 'https://ismn.earth/dataviewer').rstrip("/")
+        metadata_url = self.config.get('ISMN_METADATA_URL') or "https://ismn.earth/static/dataviewer/network_station_details.json"
+        variable_list_url = self.config.get('ISMN_VARIABLE_LIST_URL')
+        if not variable_list_url:
+            variable_list_url = f"{api_base}/dataviewer_get_variable_list/"
         data_template = self.config.get('ISMN_DATA_URL_TEMPLATE')
         if not data_template:
-            data_template = f"{api_base}/stations/{{station_id}}/download?format=csv&start_date={{start_date}}&end_date={{end_date}}"
+            data_template = (
+                f"{api_base}/dataviewer_load_variable/"
+                "?station_id={station_id}&start={start_date}&end={end_date}"
+                "&depth_id={depth_id}&sensor_id={sensor_id}&variable_id={variable_id}"
+            )
 
         session = requests.Session()
         auth = self._resolve_auth(metadata_url)
@@ -374,35 +378,67 @@ class ISMNAcquirer(BaseAcquisitionHandler):
         selection_file = output_dir / "ismn_station_selection.csv"
         stations.to_csv(selection_file, index=False)
 
-        start_date = self.start_date.strftime("%Y-%m-%d")
-        end_date = self.end_date.strftime("%Y-%m-%d")
+        start_date = self.start_date.strftime("%Y/%m/%d")
+        end_date = self.end_date.strftime("%Y/%m/%d")
 
         downloaded = 0
         for _, row in stations.iterrows():
             station_id = str(row["station_id"])
             station_slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", station_id).strip("_")
-            out_file = output_dir / f"{station_slug}.csv"
-            if out_file.exists() and not force_download:
-                downloaded += 1
+            variables = self._fetch_variable_list(session, variable_list_url, station_id, start_date, end_date)
+            if not variables:
+                continue
+            sm_vars = self._select_soil_moisture_variables(variables)
+            if not sm_vars:
                 continue
 
-            data_url = data_template.format(
-                station_id=station_id,
-                start_date=start_date,
-                end_date=end_date,
-            )
-            auth = self._resolve_auth(data_url)
-            if auth:
-                session.auth = auth
+            for var in sm_vars:
+                depth_id = var.get("depthId")
+                sensor_id = var.get("sensorId")
+                variable_id = var.get("variableId")
+                if depth_id is None or sensor_id is None or variable_id is None:
+                    continue
 
-            self.logger.info(f"Downloading ISMN station data: {station_id}")
-            try:
-                resp = session.get(data_url, timeout=600)
-                resp.raise_for_status()
-                out_file.write_bytes(resp.content)
-                downloaded += 1
-            except Exception as exc:
-                self.logger.warning(f"Failed to download ISMN station {station_id}: {exc}")
+                depth_m = self._extract_depth_m(var.get("variableName", ""))
+                out_file = output_dir / f"{station_slug}_depth_{depth_id}.csv"
+                if out_file.exists() and not force_download:
+                    downloaded += 1
+                    continue
+
+                data_url = data_template.format(
+                    station_id=station_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                    depth_id=depth_id,
+                    sensor_id=sensor_id,
+                    variable_id=variable_id,
+                )
+                auth = self._resolve_auth(data_url)
+                if auth:
+                    session.auth = auth
+
+                self.logger.info(f"Downloading ISMN station data: {station_id} depth_id={depth_id}")
+                try:
+                    resp = session.get(data_url, timeout=600)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    if not isinstance(data, list) or len(data) < 2:
+                        continue
+                    dates, values = data[0], data[1]
+                    df = pd.DataFrame({"DateTime": dates, "soil_moisture": values})
+                    df["soil_moisture"] = pd.to_numeric(df["soil_moisture"], errors="coerce")
+                    unit = str(var.get("unit", "")).lower()
+                    if "* 100" in unit or unit.endswith("100") or df["soil_moisture"].max() > 1.5:
+                        df["soil_moisture"] = df["soil_moisture"] / 100.0
+                    if depth_m is not None:
+                        df["depth_m"] = depth_m
+                    df = df.dropna(subset=["soil_moisture"])
+                    if df.empty:
+                        continue
+                    df.to_csv(out_file, index=False)
+                    downloaded += 1
+                except Exception as exc:
+                    self.logger.warning(f"Failed to download ISMN station {station_id}: {exc}")
 
         if downloaded == 0:
             raise RuntimeError("No ISMN station data downloaded.")
@@ -445,16 +481,19 @@ class ISMNAcquirer(BaseAcquisitionHandler):
             except ValueError as exc:
                 self.logger.warning(f"Failed to parse ISMN metadata JSON: {exc}")
                 return None
-            records = payload
-            if isinstance(payload, dict):
-                for key in ("data", "stations", "items"):
-                    if key in payload:
-                        records = payload[key]
-                        break
-            if not isinstance(records, list):
-                self.logger.warning("Unexpected ISMN metadata JSON structure.")
-                return None
-            df = pd.DataFrame(records)
+            if isinstance(payload, dict) and "Networks" in payload:
+                df = self._parse_dataviewer_metadata(payload)
+            else:
+                records = payload
+                if isinstance(payload, dict):
+                    for key in ("data", "stations", "items"):
+                        if key in payload:
+                            records = payload[key]
+                            break
+                if not isinstance(records, list):
+                    self.logger.warning("Unexpected ISMN metadata JSON structure.")
+                    return None
+                df = pd.DataFrame(records)
         else:
             from io import StringIO
 
@@ -473,6 +512,10 @@ class ISMNAcquirer(BaseAcquisitionHandler):
         cols = ["station_id", "latitude", "longitude"]
         if "network" in df.columns:
             cols.append("network")
+        if "start_date" in df.columns:
+            cols.append("start_date")
+        if "end_date" in df.columns:
+            cols.append("end_date")
         return df[cols].copy()
 
     def _normalize_station_columns(self, columns):
@@ -488,6 +531,26 @@ class ISMNAcquirer(BaseAcquisitionHandler):
             elif "network" in lower:
                 col_map[col] = "network"
         return col_map
+
+    def _parse_dataviewer_metadata(self, payload: dict) -> pd.DataFrame:
+        records = []
+        for network in payload.get("Networks", []) or []:
+            network_id = network.get("networkID")
+            for station in network.get("Stations", []) or []:
+                lat = station.get("lat")
+                lon = station.get("lng")
+                station_id = station.get("stationID")
+                if lat is None or lon is None or station_id is None:
+                    continue
+                records.append({
+                    "station_id": station_id,
+                    "latitude": lat,
+                    "longitude": lon,
+                    "network": network_id,
+                    "start_date": station.get("minimum"),
+                    "end_date": station.get("maximum"),
+                })
+        return pd.DataFrame(records)
 
     def _select_stations(self, stations: pd.DataFrame) -> pd.DataFrame:
         lat_min, lat_max = sorted([self.bbox["lat_min"], self.bbox["lat_max"]])
@@ -505,6 +568,21 @@ class ISMNAcquirer(BaseAcquisitionHandler):
         if stations.empty:
             stations = all_stations.copy()
 
+        if "start_date" in stations.columns and "end_date" in stations.columns:
+            stations = stations.copy()
+            stations["start_date"] = pd.to_datetime(stations["start_date"], errors="coerce")
+            stations["end_date"] = pd.to_datetime(stations["end_date"], errors="coerce")
+            start = pd.to_datetime(self.start_date, errors="coerce")
+            end = pd.to_datetime(self.end_date, errors="coerce")
+            if start is not pd.NaT and end is not pd.NaT:
+                overlap = (
+                    (stations["end_date"] >= start) &
+                    (stations["start_date"] <= end)
+                )
+                stations = stations[overlap]
+            if stations.empty:
+                stations = all_stations.copy()
+
         stations["distance_km"] = self._haversine_km(
             stations["latitude"].astype(float),
             stations["longitude"].astype(float),
@@ -520,6 +598,48 @@ class ISMNAcquirer(BaseAcquisitionHandler):
         stations = stations.sort_values("distance_km").head(max_stations)
         return stations
 
+    def _fetch_variable_list(
+        self,
+        session: requests.Session,
+        url: str,
+        station_id: str,
+        start_date: str,
+        end_date: str,
+    ) -> List[Dict[str, Any]]:
+        params = {
+            "station_id": station_id,
+            "start": start_date,
+            "end": end_date,
+        }
+        try:
+            resp = session.get(url, params=params, timeout=600)
+            resp.raise_for_status()
+            payload = resp.json()
+        except Exception as exc:
+            self.logger.warning(f"Failed to fetch ISMN variable list for {station_id}: {exc}")
+            return []
+        return payload.get("variables", []) if isinstance(payload, dict) else []
+
+    def _select_soil_moisture_variables(self, variables: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        sm_vars = []
+        for var in variables:
+            name = str(var.get("variableName", "")).lower()
+            quantity = str(var.get("quantityName", "")).lower()
+            if "soil moisture" in quantity or "soil_moisture" in name:
+                sm_vars.append(var)
+        return sm_vars
+
+    def _extract_depth_m(self, variable_name: str) -> Optional[float]:
+        match = re.search(r"_([0-9]+(?:\.[0-9]+)?)m", variable_name)
+        if not match:
+            match = re.search(r"\s([0-9]+(?:\.[0-9]+)?)m", variable_name)
+        if not match:
+            return None
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return None
+
     def _haversine_km(self, lat_series, lon_series, lat0, lon0):
         lat1 = np.radians(lat_series.astype(float))
         lon1 = np.radians(lon_series.astype(float))
@@ -534,53 +654,93 @@ class ISMNAcquirer(BaseAcquisitionHandler):
         return 6371.0 * c
 
 @AcquisitionRegistry.register('ESA_CCI_SM')
-class ESACCISMAcquirer(BaseAcquisitionHandler):
+class ESACCISMAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin):
     """
     Acquires ESA CCI Soil Moisture data via Copernicus CDS.
+
+    Uses RetryMixin for CDS API retries and ChunkedDownloadMixin for monthly chunking.
     """
 
     def download(self, output_dir: Path) -> Path:
         if not HAS_CDSAPI:
             raise ImportError("cdsapi required for ESA CCI SM acquisition")
-            
-        self.logger.info("Starting ESA CCI Soil Moisture acquisition via CDS")
-        
-        c = cdsapi.Client()
-        
-        output_dir.mkdir(parents=True, exist_ok=True)
-        # CDS returns a tar/zip for multiple files
-        out_file = output_dir / f"{self.domain_name}_ESA_CCI_SM_raw.tar.gz"
-        
-        if out_file.exists() and not self.config.get('FORCE_DOWNLOAD', False):
-            return out_file
 
-        years = sorted(list(set([str(y) for y in range(self.start_date.year, self.end_date.year + 1)])))
-        
-        request = {
-            'variable': 'volumetric_surface_soil_moisture',
-            'type_of_sensor': 'combined',
-            'time_aggregation': 'day_average',
-            'year': years,
-            'month': [f"{m:02d}" for m in range(1, 13)],
-            'day': [f"{d:02d}" for d in range(1, 32)],
-            'area': [self.bbox['lat_max'], self.bbox['lon_min'], self.bbox['lat_min'], self.bbox['lon_max']],
-            'format': 'tgz',
-            'version': 'v07.1' # Specify version to ensure consistency
-        }
-        
-        c.retrieve('satellite-soil-moisture', request, str(out_file))
-        
-        self.logger.info(f"ESA CCI SM data downloaded to {out_file}")
-        
-        # Auto-extract
-        import tarfile
+        self.logger.info("Starting ESA CCI Soil Moisture acquisition via CDS")
+
+        output_dir.mkdir(parents=True, exist_ok=True)
         extract_dir = output_dir / "extracted"
         extract_dir.mkdir(exist_ok=True)
-        with tarfile.open(out_file, "r:gz") as tar:
-            tar.extractall(path=extract_dir)
-            
+
+        import shutil
+
+        # Store output_dir for use in download function
+        self._output_dir = output_dir
+
+        # Generate year-month list using mixin method
+        ym_range = self.generate_year_month_list(self.start_date, self.end_date)
+
+        # Download chunks (sequential for CDS rate limits)
+        downloads = self.download_chunks_parallel(
+            chunks=ym_range,
+            download_func=self._download_month_chunk,
+            max_workers=1,  # CDS has strict rate limits
+            desc="ESA CCI SM download",
+            fail_fast=False  # Continue even if some months fail
+        )
+
+        # Extract all downloaded archives
+        for out_file in downloads:
+            if out_file and out_file.exists():
+                try:
+                    shutil.unpack_archive(str(out_file), extract_dir)
+                except Exception as exc:
+                    self.logger.warning(f"Failed to extract ESA CCI SM archive {out_file.name}: {exc}")
+
         self.logger.info(f"Extracted ESA CCI SM data to {extract_dir}")
         return extract_dir
+
+    def _download_month_chunk(self, year_month: tuple) -> Optional[Path]:
+        """Download a single month of ESA CCI SM data using RetryMixin."""
+        import calendar
+
+        year, month = year_month
+        days_in_month = calendar.monthrange(year, month)[1]
+
+        out_file_zip = self._output_dir / f"{self.domain_name}_ESA_CCI_SM_{year}{month:02d}.zip"
+        out_file_tgz = self._output_dir / f"{self.domain_name}_ESA_CCI_SM_{year}{month:02d}.tar.gz"
+
+        # Check for existing file
+        if out_file_zip.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+            return out_file_zip
+        if out_file_tgz.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+            return out_file_tgz
+
+        # Build CDS request
+        request = {
+            'variable': [self.config.get('ESA_CCI_SM_VARIABLE', 'surface_soil_moisture_volumetric')],
+            'type_of_sensor': [self.config.get('ESA_CCI_SM_SENSOR', 'combined')],
+            'time_aggregation': [self.config.get('ESA_CCI_SM_TIME_AGGREGATION', 'daily')],
+            'type_of_record': [self.config.get('ESA_CCI_SM_RECORD_TYPE', 'cdr')],
+            'version': [self.config.get('ESA_CCI_SM_VERSION', 'v202312')],
+            'year': [str(year)],
+            'month': [f"{month:02d}"],
+            'day': [f"{d:02d}" for d in range(1, days_in_month + 1)],
+        }
+
+        self.logger.info(f"Requesting ESA CCI SM for {year}-{month:02d}...")
+
+        def do_retrieve():
+            c = cdsapi.Client()
+            c.retrieve('satellite-soil-moisture', request, str(out_file_zip))
+
+        self.execute_with_retry(
+            do_retrieve,
+            max_retries=3,
+            base_delay=60,
+            retry_condition=self.is_retryable_cds_error
+        )
+
+        return out_file_zip
 
 @AcquisitionRegistry.register('FLUXCOM_ET')
 class FLUXCOMETAcquirer(BaseAcquisitionHandler):

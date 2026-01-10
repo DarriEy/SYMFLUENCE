@@ -56,7 +56,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         """Return model name for GR."""
         return "GR"
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config, logger):
         if not HAS_RPY2:
             raise ImportError(
                 "GR models require R and rpy2. "
@@ -64,32 +64,29 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
                 "See https://rpy2.github.io/doc/latest/html/overview.html#installation"
             )
 
-        # Initialize base class
+        # Initialize base class (handles typed config validation)
         super().__init__(config, logger)
 
         # GR-specific paths
         self.forcing_gr_path = self.project_dir / 'forcing' / 'GR_input'
 
-        # GR-specific catchment configuration - maintain compatibility with old code pattern
+        # GR-specific catchment configuration
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
 
-        # Phase 3: Use typed config when available
-        self.catchment_name = self._resolve_config_value(
-            lambda: self.config.paths.catchment_shp_name,
-            'CATCHMENT_SHP_NAME'
+        # Use typed config accessor
+        self.catchment_name = self._get_config_value(
+            lambda: self.config.paths.catchment_name
         )
         if self.catchment_name == 'default' or self.catchment_name is None:
-            discretization = self._resolve_config_value(
-                lambda: self.config.domain.discretization,
-                'DOMAIN_DISCRETIZATION'
+            discretization = self._get_config_value(
+                lambda: self.config.domain.discretization
             )
             self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
-        
+
         # Resolve spatial mode
-        # 1. Check for explicit configuration (typed or dict)
-        configured_mode = self._resolve_config_value(
-            lambda: self.config.model.gr.spatial_mode if hasattr(self.config, 'model') and self.config.model and self.config.model.gr else None,
-            'GR_SPATIAL_MODE'
+        # 1. Check for explicit configuration
+        configured_mode = self._get_config_value(
+            lambda: self.config.model.gr.spatial_mode if self.config.model and self.config.model.gr else None
         )
 
         # 2. If 'auto' or not set, infer from domain definition method
@@ -113,6 +110,8 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         Uses the template method pattern from BaseModelPreProcessor.
         """
         self.logger.info(f"Starting GR preprocessing in {self.spatial_mode} mode")
+        # GR does not ship base settings; avoid noisy warning.
+        self.copy_base_settings = lambda *args, **kwargs: None
         return self.run_preprocessing_template()
 
     def _prepare_forcing(self) -> None:

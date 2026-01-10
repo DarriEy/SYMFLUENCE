@@ -3,18 +3,44 @@ Base Acquisition Handler for SYMFLUENCE
 """
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Tuple, Union, TYPE_CHECKING
 import pandas as pd
 from symfluence.core import ConfigurableMixin
 from symfluence.geospatial.coordinate_utils import CoordinateUtilsMixin
 
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
+
 class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
-    def __init__(self, config: Dict[str, Any], logger, reporting_manager: Any = None):
-        self.config = config
+    """
+    Base class for all data acquisition handlers.
+
+    Provides common functionality for:
+    - Configuration and path management
+    - Bounding box and temporal range parsing
+    - Skip-if-exists logic
+    - Credential resolution
+    - Diagnostic plotting
+    """
+    def __init__(
+        self,
+        config: Union['SymfluenceConfig', Dict[str, Any]],
+        logger,
+        reporting_manager: Any = None
+    ):
+        from symfluence.core.config.models import SymfluenceConfig
+
+        # Auto-convert dict to typed config for backward compatibility
+        if isinstance(config, dict):
+            self._config = SymfluenceConfig(**config)
+        else:
+            self._config = config
+
         self.logger = logger
         self.reporting_manager = reporting_manager
-        
-        # Standard attributes are provided as properties by mixins
+
+        # Standard attributes use config_dict (from ConfigMixin) for compatibility
         self.bbox = self._parse_bbox(self.config_dict.get('BOUNDING_BOX_COORDS'))
         self.start_date = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_START'))
         self.end_date = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_END'))
@@ -62,3 +88,46 @@ class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
                         )
         except Exception as e:
             self.logger.warning(f"Failed to create diagnostic plots for {file_path}: {e}")
+
+    # =========================================================================
+    # Helper Methods
+    # =========================================================================
+
+    def _skip_if_exists(self, path: Path, force: bool = None) -> bool:
+        """
+        Check if a file exists and should be skipped.
+
+        Args:
+            path: Path to check
+            force: Override for FORCE_DOWNLOAD config (uses config if None)
+
+        Returns:
+            True if file exists and should be skipped, False otherwise
+        """
+        if force is None:
+            force = self.config_dict.get('FORCE_DOWNLOAD', False)
+
+        if path.exists() and not force:
+            self.logger.info(f"Using existing file: {path}")
+            return True
+        return False
+
+    def _get_earthdata_credentials(self) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Get NASA Earthdata credentials.
+
+        Checks in order:
+        1. ~/.netrc file
+        2. Environment variables (EARTHDATA_USERNAME, EARTHDATA_PASSWORD)
+        3. Config settings
+
+        Returns:
+            Tuple of (username, password), or (None, None) if not found
+        """
+        from .utils import resolve_credentials
+        return resolve_credentials(
+            hostname='urs.earthdata.nasa.gov',
+            env_prefix='EARTHDATA',
+            config=self.config_dict,
+            alt_hostnames=['earthdata.nasa.gov', 'appeears.earthdatacloud.nasa.gov']
+        )

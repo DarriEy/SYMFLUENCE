@@ -14,27 +14,39 @@ class SMAPHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Locate SMAP data."""
-        config = self.config_dict
-        data_access = str(config.get('DATA_ACCESS', 'local')).lower()
-        smap_path = config.get('SMAP_PATH', 'default')
+        data_access = self._get_config_value(
+            lambda: self.config.domain.data_access, default='local'
+        ).lower()
+
+        smap_path = self._get_config_value(
+            lambda: self.config.evaluation.smap.path, default='default'
+        )
         if isinstance(smap_path, str) and smap_path.lower() == 'default':
             smap_dir = self.project_dir / "observations" / "soil_moisture" / "smap"
         else:
             smap_dir = Path(smap_path)
+
         if not smap_dir.exists():
             smap_dir.mkdir(parents=True, exist_ok=True)
-        force_download = str(config.get('FORCE_DOWNLOAD', False)).lower() == 'true' if isinstance(config.get('FORCE_DOWNLOAD', False), str) else bool(config.get('FORCE_DOWNLOAD', False))
-        use_opendap = bool(config.get('SMAP_USE_OPENDAP', False))
+
+        force_download = self._get_config_value(
+            lambda: self.config.data.force_download, default=False
+        )
+        use_opendap = self._get_config_value(
+            lambda: self.config.evaluation.smap.use_opendap, default=False
+        )
+
         if list(smap_dir.glob("*.nc")) and not force_download:
             return smap_dir
         if not use_opendap and not force_download:
             for pattern in ("*.h5", "*.hdf5"):
                 if list(smap_dir.glob(pattern)):
                     return smap_dir
+
         if data_access == 'cloud':
             self.logger.info("Triggering cloud acquisition for SMAP soil moisture")
             from ...acquisition.registry import AcquisitionRegistry
-            acquirer = AcquisitionRegistry.get_handler('SMAP', config, self.logger)
+            acquirer = AcquisitionRegistry.get_handler('SMAP', self.config, self.logger)
             return acquirer.download(smap_dir)
         return smap_dir
 
@@ -122,23 +134,29 @@ class ISMNHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Locate or download ISMN data."""
-        config = self.config_dict
-        data_access = str(config.get('DATA_ACCESS', 'local')).lower()
-        ismn_path = config.get('ISMN_PATH', 'default')
+        data_access = self._get_config_value(
+            lambda: self.config.domain.data_access, default='local'
+        ).lower()
+
+        ismn_path = self._get_config_value(
+            lambda: self.config.evaluation.ismn.path, default='default'
+        )
         if isinstance(ismn_path, str) and ismn_path.lower() == 'default':
             ismn_dir = self.project_dir / "observations" / "soil_moisture" / "ismn"
         else:
             ismn_dir = Path(ismn_path)
         ismn_dir.mkdir(parents=True, exist_ok=True)
 
-        force_download = str(config.get('FORCE_DOWNLOAD', False)).lower() == 'true' if isinstance(config.get('FORCE_DOWNLOAD', False), str) else bool(config.get('FORCE_DOWNLOAD', False))
+        force_download = self._get_config_value(
+            lambda: self.config.data.force_download, default=False
+        )
         if list(ismn_dir.glob("*.csv")) and not force_download:
             return ismn_dir
 
         if data_access == 'cloud':
             self.logger.info("Triggering cloud acquisition for ISMN soil moisture")
             from ...acquisition.registry import AcquisitionRegistry
-            acquirer = AcquisitionRegistry.get_handler('ISMN', config, self.logger)
+            acquirer = AcquisitionRegistry.get_handler('ISMN', self.config, self.logger)
             return acquirer.download(ismn_dir)
         return ismn_dir
 
@@ -155,6 +173,7 @@ class ISMNHandler(BaseObservationHandler):
 
         target_depth = self._get_target_depth()
         series_list = []
+        depth_series = []
         for f in files:
             df = self._read_station_file(f)
             if df is None or df.empty:
@@ -173,6 +192,7 @@ class ISMNHandler(BaseObservationHandler):
             df = df.set_index('DateTime')
 
             depth_col = self._find_depth_column(df.columns)
+            depth_value = None
             if depth_col:
                 df['depth_m'] = pd.to_numeric(df[depth_col], errors='coerce')
                 df['depth_m'] = df['depth_m'].where(df['depth_m'].notna(), pd.NA)
@@ -182,24 +202,34 @@ class ISMNHandler(BaseObservationHandler):
                     depth_values = df['depth_m'].unique()
                     closest_depth = min(depth_values, key=lambda x: abs(x - target_depth))
                     df = df[df['depth_m'] == closest_depth]
+                    depth_value = float(closest_depth)
 
             series = pd.to_numeric(df[sm_col], errors='coerce').dropna()
             if series.empty:
                 continue
             series_list.append(series)
+            if depth_value is not None:
+                depth_series.append((series, depth_value))
+
+        if depth_series:
+            min_diff = min(abs(d - target_depth) for _, d in depth_series)
+            series_list = [s for s, d in depth_series if abs(d - target_depth) == min_diff]
 
         if not series_list:
             self.logger.warning("No ISMN soil moisture data could be extracted")
             return input_path
 
         combined = pd.concat(series_list, axis=1)
-        combined = combined.groupby(level=0).mean()
-        combined = combined.sort_index()
+        combined = combined.groupby(level=0).mean().sort_index()
+        if isinstance(combined, pd.DataFrame):
+            combined = combined.mean(axis=1)
 
         if self.start_date is not None and self.end_date is not None:
             combined = combined.loc[(combined.index >= self.start_date) & (combined.index <= self.end_date)]
 
-        aggregation = self.config_dict.get('ISMN_TEMPORAL_AGGREGATION', 'daily_mean')
+        aggregation = self._get_config_value(
+            lambda: self.config.evaluation.ismn.temporal_aggregation, default='daily_mean'
+        )
         if aggregation == 'daily_mean':
             combined = combined.resample('D').mean().dropna()
 
@@ -264,7 +294,9 @@ class ISMNHandler(BaseObservationHandler):
         return depth_val
 
     def _get_target_depth(self) -> float:
-        target_depth = self.config_dict.get('ISMN_TARGET_DEPTH_M', self.config_dict.get('SM_TARGET_DEPTH', 0.05))
+        target_depth = self._get_config_value(
+            lambda: self.config.evaluation.ismn.target_depth_m, default=0.05
+        )
         try:
             return float(target_depth)
         except Exception:
@@ -278,19 +310,61 @@ class ESACCISMHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Locate ESA CCI SM data."""
-        esa_dir = Path(self.config.get('ESA_CCI_SM_PATH', self.project_dir / "observations" / "soil_moisture" / "esa_cci"))
-        if not esa_dir.exists():
-            esa_dir.mkdir(parents=True, exist_ok=True)
+        # ESA CCI SM path - fallback to default location
+        esa_path = self.config_dict.get('ESA_CCI_SM_PATH')
+        if esa_path:
+            esa_dir = Path(esa_path)
+        else:
+            esa_dir = self.project_dir / "observations" / "soil_moisture" / "esa_cci"
+        esa_dir.mkdir(parents=True, exist_ok=True)
+
+        data_access = self._get_config_value(
+            lambda: self.config.domain.data_access, default='local'
+        ).lower()
+        force_download = self._get_config_value(
+            lambda: self.config.data.force_download, default=False
+        )
+
+        if list(esa_dir.glob("*.nc")) and not force_download:
+            return esa_dir
+
+        if data_access == 'cloud':
+            self.logger.info("Triggering cloud acquisition for ESA CCI soil moisture")
+            from ...acquisition.registry import AcquisitionRegistry
+            acquirer = AcquisitionRegistry.get_handler('ESA_CCI_SM', self.config, self.logger)
+            return acquirer.download(esa_dir)
+
         return esa_dir
 
     def process(self, input_path: Path) -> Path:
         """Process ESA CCI SM NetCDF data."""
         self.logger.info(f"Processing ESA CCI Soil Moisture for domain: {self.domain_name}")
-        
+
         nc_files = list(input_path.glob("*.nc"))
         if not nc_files:
             self.logger.warning("No ESA CCI SM NetCDF files found")
             return input_path
+
+        # Use bbox from base class (already parsed in __init__)
+        north = west = south = east = None
+        target_lat = target_lon = None
+        if self.bbox:
+            try:
+                north = self.bbox.get('lat_max')
+                south = self.bbox.get('lat_min')
+                west = self.bbox.get('lon_min')
+                east = self.bbox.get('lon_max')
+                if all(v is not None for v in [north, south, west, east]):
+                    target_lat = (north + south) / 2.0
+                    if west <= east:
+                        target_lon = (west + east) / 2.0
+                    else:
+                        # Dateline-crossing bbox; pick midpoint on wrapped domain
+                        target_lon = ((west + 360.0 + east) / 2.0) % 360.0
+                        if target_lon > 180.0:
+                            target_lon -= 360.0
+            except Exception:
+                self.logger.warning("Failed to parse bbox for ESA CCI SM subsetting")
             
         results = []
         for f in nc_files:
@@ -298,9 +372,25 @@ class ESACCISMHandler(BaseObservationHandler):
                 # ESA CCI SM variable is usually 'sm'
                 if 'sm' not in ds.data_vars:
                     continue
-                
-                # Spatial average
-                mean_sm = ds['sm'].mean(dim=[d for d in ds['sm'].dims if d != 'time'])
+
+                sm = ds['sm']
+                if target_lat is not None and target_lon is not None and {'lat', 'lon'}.issubset(sm.dims):
+                    # Use nearest pixel to reduce spatial smoothing
+                    sm = sm.sel(lat=target_lat, lon=target_lon, method='nearest')
+                elif None not in (north, west, south, east) and {'lat', 'lon'}.issubset(sm.dims):
+                    lat_desc = sm['lat'][0] > sm['lat'][-1]
+                    lat_slice = slice(north, south) if lat_desc else slice(south, north)
+                    sm = sm.sel(lat=lat_slice)
+                    if west <= east:
+                        sm = sm.sel(lon=slice(west, east))
+                    else:
+                        sm = sm.where((sm['lon'] >= west) | (sm['lon'] <= east), drop=True)
+
+                # Filter invalid values
+                sm = sm.where((sm >= 0) & (sm <= 1))
+
+                # Spatial average if still gridded, else keep point
+                mean_sm = sm.mean(dim=[d for d in sm.dims if d != 'time'])
                 df_ts = mean_sm.to_dataframe().reset_index()
                 results.append(df_ts)
         
@@ -308,12 +398,13 @@ class ESACCISMHandler(BaseObservationHandler):
             self.logger.warning("No ESA CCI SM data could be extracted")
             return input_path
             
-        df = pd.concat(results).sort_values('time').set_index('time')
-        
-        output_dir = self.project_dir / "observations" / "soil_moisture" / "preprocessed"
+        df = pd.concat(results).sort_values('time')
+        df = df.rename(columns={'sm': 'soil_moisture'})
+
+        output_dir = self.project_dir / "observations" / "soil_moisture" / "esa_sm" / "processed"
         output_dir.mkdir(parents=True, exist_ok=True)
-        output_file = output_dir / f"{self.domain_name}_esa_cci_sm_processed.csv"
-        df.to_csv(output_file)
+        output_file = output_dir / f"{self.domain_name}_esa_processed.csv"
+        df.to_csv(output_file, index=False)
         
         self.logger.info(f"ESA CCI SM processing complete: {output_file}")
         return output_file

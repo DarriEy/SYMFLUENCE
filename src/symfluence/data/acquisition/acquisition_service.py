@@ -1,7 +1,7 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
 from datetime import datetime
 import xarray as xr
 import pandas as pd
@@ -9,19 +9,37 @@ from symfluence.data.acquisition.cloud_downloader import CloudForcingDownloader,
 from symfluence.data.acquisition.maf_pipeline import gistoolRunner, datatoolRunner
 from symfluence.data.utilities.variable_utils import VariableHandler
 from symfluence.geospatial.raster_utils import calculate_landcover_mode
-from symfluence.data.cache import RawForcingCache 
+from symfluence.data.cache import RawForcingCache
+from symfluence.core.mixins import ConfigurableMixin
 
-class AcquisitionService:
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
+
+class AcquisitionService(ConfigurableMixin):
     """
     Handles data acquisition from various sources (Cloud, MAF, EM-Earth).
     """
-    
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Any = None):
-        self.config = config
+
+    def __init__(
+        self,
+        config: Union['SymfluenceConfig', Dict[str, Any]],
+        logger: logging.Logger,
+        reporting_manager: Any = None
+    ):
+        # Set up typed config via ConfigurableMixin
+        from symfluence.core.config.models import SymfluenceConfig
+        if isinstance(config, dict):
+            self._config = SymfluenceConfig(**config)
+        else:
+            self._config = config
+        # Backward compatibility alias
+        self.config = self._config
+
         self.logger = logger
         self.reporting_manager = reporting_manager
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
+        self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir))
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name)
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.variable_handler = VariableHandler(self.config, self.logger, 'ERA5', 'SUMMA')
 
@@ -29,8 +47,8 @@ class AcquisitionService:
         """Acquire geospatial attributes including DEM, soil, and land cover data."""
         self.logger.info("Starting attribute acquisition")
         
-        data_access = self.config.get('DATA_ACCESS', 'MAF').upper()
-        dem_source = self.config.get('DEM_SOURCE', 'merit_hydro').lower()
+        data_access = self._get_config_value(lambda: self.config.domain.data_access, default='MAF').upper()
+        dem_source = self._get_config_value(lambda: self.config.domain.dem_source, default='merit_hydro').lower()
         
         dem_dir = self.project_dir / 'attributes' / 'elevation' / 'dem'
         soilclass_dir = self.project_dir / 'attributes' / 'soilclass'
@@ -45,7 +63,7 @@ class AcquisitionService:
             try:
                 downloader = CloudForcingDownloader(self.config, self.logger)
                 
-                if self.config.get('DOWNLOAD_DEM', True):
+                if self._get_config_value(lambda: self.config.domain.download_dem, default=True):
                     if dem_source == 'copernicus':
                         self.logger.info("Acquiring Copernicus DEM GLO-30 (30m) from AWS")
                         elev_file = downloader.download_copernicus_dem()
@@ -67,7 +85,7 @@ class AcquisitionService:
                     elif dem_source == 'merit_hydro':
                         self.logger.info("DEM_SOURCE is merit_hydro - using MAF/gistool for elevation")
                         gr = gistoolRunner(self.config, self.logger)
-                        bbox = self.config.get('BOUNDING_BOX_COORDS').split('/')
+                        bbox = self._get_config_value(lambda: self.config.domain.bounding_box_coords).split('/')
                         latlims = f"{bbox[0]},{bbox[2]}"
                         lonlims = f"{bbox[1]},{bbox[3]}"
                         self._acquire_elevation_data(gr, dem_dir, latlims, lonlims)
@@ -83,7 +101,7 @@ class AcquisitionService:
                 else:
                     self.logger.info("Skipping DEM acquisition (DOWNLOAD_DEM is False)")
                 
-                if self.config.get('DOWNLOAD_SOIL', True):
+                if self._get_config_value(lambda: self.config.domain.download_soil, default=True):
                     self.logger.info("Acquiring soil class data from SoilGrids")
                     soil_file = downloader.download_global_soilclasses()
                     self.logger.info(f"✓ SoilGrids data acquired: {soil_file}")
@@ -93,8 +111,8 @@ class AcquisitionService:
                 else:
                     self.logger.info("Skipping soil class acquisition (DOWNLOAD_SOIL is False)")
                 
-                if self.config.get('DOWNLOAD_LAND_COVER', True):
-                    land_source = self.config.get('LAND_CLASS_SOURCE', 'modis').lower()
+                if self._get_config_value(lambda: self.config.domain.download_landcover, default=True):
+                    land_source = self._get_config_value(lambda: self.config.domain.land_class_source, default='modis').lower()
                     self.logger.info(f"Acquiring land cover data (cloud mode, source: {land_source})")
                     
                     try:
@@ -116,7 +134,7 @@ class AcquisitionService:
                     self.logger.info("Skipping land cover acquisition (DOWNLOAD_LAND_COVER is False)")
 
                 # Glacier data acquisition (optional)
-                if self.config.get('DOWNLOAD_GLACIER_DATA', False):
+                if self._get_config_value(lambda: self.config.data.download_glacier_data, default=False):
                     self.logger.info("Acquiring glacier data from RGI")
                     try:
                         glacier_file = downloader.download_glacier_data()
@@ -134,7 +152,7 @@ class AcquisitionService:
         else:
             self.logger.info("Using traditional MAF attribute acquisition workflow")
             gr = gistoolRunner(self.config, self.logger)
-            bbox = self.config.get('BOUNDING_BOX_COORDS').split('/')
+            bbox = self._get_config_value(lambda: self.config.domain.bounding_box_coords).split('/')
             latlims = f"{bbox[0]},{bbox[2]}"
             lonlims = f"{bbox[1]},{bbox[3]}"
             
@@ -195,7 +213,7 @@ class AcquisitionService:
         )
         gistool_runner.execute_gistool_command(gistool_command)
         
-        land_name = self.config.get('LAND_CLASS_NAME', 'default')
+        land_name = self._get_config_value(lambda: self.config.domain.land_class_name, default='default')
         if land_name == 'default':
             land_name = f"domain_{self.domain_name}_land_classes.tif"
         
@@ -254,8 +272,8 @@ class AcquisitionService:
         """Acquire forcing data for the model simulation."""
         self.logger.info("Starting forcing data acquisition")
 
-        data_access = self.config.get('DATA_ACCESS', 'MAF').upper()
-        forcing_dataset = self.config.get('FORCING_DATASET', '').upper()
+        data_access = self._get_config_value(lambda: self.config.domain.data_access, default='MAF').upper()
+        forcing_dataset = self._get_config_value(lambda: self.config.forcing.dataset, default='').upper()
         if forcing_dataset in {"CARRA", "CERRA"} and not self.config.get("FORCING_TIME_STEP_SIZE"):
             self.config["FORCING_TIME_STEP_SIZE"] = 10800
             self.logger.info(
@@ -281,9 +299,9 @@ class AcquisitionService:
             )
 
             # Generate cache key
-            bbox = self.config.get('BOUNDING_BOX_COORDS')
-            time_start = self.config.get('EXPERIMENT_TIME_START')
-            time_end = self.config.get('EXPERIMENT_TIME_END')
+            bbox = self._get_config_value(lambda: self.config.domain.bounding_box_coords)
+            time_start = self._get_config_value(lambda: self.config.domain.time_start)
+            time_end = self._get_config_value(lambda: self.config.domain.time_end)
             variables = self.config.get('FORCING_VARIABLES')
 
             cache_key = cache.generate_cache_key(
@@ -375,25 +393,25 @@ class AcquisitionService:
             raw_data_dir = self.project_dir / 'forcing' / 'raw_data'
             raw_data_dir.mkdir(parents=True, exist_ok=True)
 
-            bbox = self.config.get('BOUNDING_BOX_COORDS').split('/')
+            bbox = self._get_config_value(lambda: self.config.domain.bounding_box_coords).split('/')
             latlims = f"{bbox[2]},{bbox[0]}"
             lonlims = f"{bbox[1]},{bbox[3]}"
 
-            variables = self.config.get('FORCING_VARIABLES', 'default')
+            variables = self._get_config_value(lambda: self.config.forcing.variables, default='default')
             if variables == 'default':
                 variables = self.variable_handler.get_dataset_variables(
-                    dataset=self.config.get('FORCING_DATASET')
+                    dataset=self._get_config_value(lambda: self.config.forcing.dataset)
                 )
 
             try:
                 datatool_command = dr.create_datatool_command(
-                    dataset=self.config.get('FORCING_DATASET'),
+                    dataset=self._get_config_value(lambda: self.config.forcing.dataset),
                     output_dir=raw_data_dir,
                     lat_lims=latlims,
                     lon_lims=lonlims,
                     variables=variables,
-                    start_date=self.config.get('EXPERIMENT_TIME_START'),
-                    end_date=self.config.get('EXPERIMENT_TIME_END')
+                    start_date=self._get_config_value(lambda: self.config.domain.time_start),
+                    end_date=self._get_config_value(lambda: self.config.domain.time_end)
                 )
                 dr.execute_datatool_command(datatool_command)
                 self.logger.info("Primary forcing data acquisition completed successfully")
@@ -410,7 +428,7 @@ class AcquisitionService:
                 self.logger.error(traceback.format_exc())
                 raise
         
-        if self.config.get('SUPPLEMENT_FORCING', False):
+        if self._get_config_value(lambda: self.config.forcing.supplement, default=False):
             self.logger.info("SUPPLEMENT_FORCING enabled - acquiring EM-Earth data")
             self.acquire_em_earth_forcings()
 
@@ -422,12 +440,14 @@ class AcquisitionService:
         """
         from symfluence.data.observation.registry import ObservationRegistry
 
-        additional_obs = self.config.get('ADDITIONAL_OBSERVATIONS', [])
+        additional_obs = self._get_config_value(lambda: self.config.data.additional_observations) or []
         if isinstance(additional_obs, str):
             additional_obs = [o.strip() for o in additional_obs.split(',')]
+        elif additional_obs is None:
+            additional_obs = []
 
         # Auto-detect observation types based on config flags (matching process_observed_data logic)
-        streamflow_provider = (self.config.get('STREAMFLOW_DATA_PROVIDER') or '').upper()
+        streamflow_provider = (self._get_config_value(lambda: self.config.data.streamflow_data_provider) or '').upper()
         if streamflow_provider == 'USGS' and 'USGS_STREAMFLOW' not in additional_obs:
             additional_obs.append('USGS_STREAMFLOW')
         elif streamflow_provider == 'WSC' and 'WSC_STREAMFLOW' not in additional_obs:
@@ -458,6 +478,29 @@ class AcquisitionService:
         # Check for GRACE
         if self.config.get('DOWNLOAD_GRACE', False) and 'GRACE' not in additional_obs:
             additional_obs.append('GRACE')
+
+        # Check for MOD16 ET (based on ET_OBS_SOURCE or OPTIMIZATION_TARGET)
+        et_obs_source = str(self.config.get('ET_OBS_SOURCE', '')).lower()
+        optimization_target = str(self.config.get('OPTIMIZATION_TARGET', '')).lower()
+        if et_obs_source in ('mod16', 'modis', 'modis_et', 'mod16a2'):
+            if 'MODIS_ET' not in additional_obs and 'MOD16' not in additional_obs:
+                additional_obs.append('MODIS_ET')
+        elif optimization_target == 'et' and not et_obs_source:
+            # Default to MOD16 if ET calibration without explicit source
+            if 'MODIS_ET' not in additional_obs:
+                additional_obs.append('MODIS_ET')
+
+        # Check for FLUXNET data (based on config flags or ET_OBS_SOURCE)
+        if self.config.get('DOWNLOAD_FLUXNET', False) or et_obs_source == 'fluxnet':
+            if 'FLUXNET' not in additional_obs and 'FLUXNET_ET' not in additional_obs:
+                additional_obs.append('FLUXNET_ET')
+
+        # Check for multi-source ET (both FLUXNET and MOD16)
+        if self.config.get('MULTI_SOURCE_ET', False):
+            if 'FLUXNET_ET' not in additional_obs and 'FLUXNET' not in additional_obs:
+                additional_obs.append('FLUXNET_ET')
+            if 'MODIS_ET' not in additional_obs and 'MOD16' not in additional_obs:
+                additional_obs.append('MODIS_ET')
 
         if not additional_obs:
             return
@@ -494,7 +537,7 @@ class AcquisitionService:
             if not Path(em_earth_tmean_dir).exists():
                 raise FileNotFoundError(f"EM-Earth temperature directory not found: {em_earth_tmean_dir}")
             
-            bbox = self.config.get('BOUNDING_BOX_COORDS')
+            bbox = self._get_config_value(lambda: self.config.domain.bounding_box_coords)
             bbox_parts = bbox.split('/')
             lat_max, lon_min, lat_min, lon_max = map(float, bbox_parts)
             lat_range = lat_max - lat_min
@@ -508,8 +551,8 @@ class AcquisitionService:
                 self.logger.warning(f"Very small watershed detected. EM-Earth processing will use spatial averaging.")
 
             try:
-                start_date = datetime.strptime(self.config.get('EXPERIMENT_TIME_START'), '%Y-%m-%d %H:%M')
-                end_date = datetime.strptime(self.config.get('EXPERIMENT_TIME_END'), '%Y-%m-%d %H:%M')
+                start_date = datetime.strptime(self._get_config_value(lambda: self.config.domain.time_start), '%Y-%m-%d %H:%M')
+                end_date = datetime.strptime(self._get_config_value(lambda: self.config.domain.time_end), '%Y-%m-%d %H:%M')
             except ValueError as e:
                 raise ValueError(f"Invalid date format in configuration: {str(e)}")
             

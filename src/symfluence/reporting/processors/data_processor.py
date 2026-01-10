@@ -11,6 +11,12 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Any, Optional
 import logging
 
+from symfluence.reporting.core.shapefile_helper import ShapefileHelper
+from symfluence.reporting.core.dataframe_utils import (
+    ensure_datetime_index,
+    skip_spinup_period,
+)
+
 
 class DataProcessor:
     """
@@ -35,6 +41,7 @@ class DataProcessor:
         self.config = config
         self.logger = logger
         self.project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}"
+        self._shapefile_helper = ShapefileHelper(config, logger, self.project_dir)
 
     def load_streamflow_observations(
         self,
@@ -281,35 +288,7 @@ class DataProcessor:
         Returns:
             Basin area in m², or None if not available
         """
-        import geopandas as gpd  # type: ignore
-        try:
-            basin_shapefile = self.config.get('RIVER_BASINS_NAME')
-            if basin_shapefile == 'default':
-                basin_shapefile = (
-                    f"{self.config.get('DOMAIN_NAME')}_riverBasins_"
-                    f"{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
-                )
-
-            basin_path = self.project_dir / "shapefiles" / "river_basins" / basin_shapefile
-
-            if not basin_path.exists():
-                self.logger.warning(f"Basin shapefile not found: {basin_path}")
-                return None
-
-            basin_gdf = gpd.read_file(basin_path)
-            area_col = self.config.get('RIVER_BASIN_SHP_AREA', 'GRU_area')
-
-            if area_col not in basin_gdf.columns:
-                self.logger.warning(f"Area column '{area_col}' not found in basin shapefile")
-                return None
-
-            # Area is expected to be in m²
-            area_m2 = float(basin_gdf[area_col].sum())
-            return area_m2
-
-        except Exception as e:
-            self.logger.warning(f"Error getting basin area: {str(e)}")
-            return None
+        return self._shapefile_helper.get_basin_area()
 
     def align_multiple_datasets(
         self,

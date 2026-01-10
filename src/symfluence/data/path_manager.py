@@ -40,14 +40,20 @@ class PathManager(ConfigurableMixin):
     3. Providing standardized access to common subdirectories
     """
 
-    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig']):
+    def __init__(self, config: 'SymfluenceConfig'):
         """
         Initialize PathManager with configuration.
 
         Args:
-            config: Configuration dictionary or SymfluenceConfig instance
+            config: SymfluenceConfig instance
         """
-        self.config = config
+        from symfluence.core.config.models import SymfluenceConfig
+        if not isinstance(config, SymfluenceConfig):
+            raise TypeError(
+                f"config must be SymfluenceConfig, got {type(config).__name__}. "
+                "Use SymfluenceConfig.from_file() to load configuration."
+            )
+        self._config = config
 
     # Standard subdirectories are now provided by ProjectContextMixin:
     # project_shapefiles_dir, project_attributes_dir, project_forcing_dir, 

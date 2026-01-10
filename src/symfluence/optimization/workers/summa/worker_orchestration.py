@@ -72,18 +72,32 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
         logger.info(f"Multi-objective evaluation: {is_multiobjective}")
 
         # DETERMINE ROUTING NEEDS EARLY
-        calibration_var = task_data.get('calibration_variable', 'streamflow')
+        # Check if any target requires routing (streamflow needs routing in distributed domains)
+        config = task_data['config']
         needs_routing = False
 
-        if calibration_var == 'streamflow':
-            config = task_data['config']
+        # Collect all target types that need to be evaluated
+        targets_to_check = []
+        if task_data.get('multi_target_mode', False):
+            # Multi-target mode: check both primary and secondary targets
+            targets_to_check.append(task_data.get('primary_target_type', 'streamflow'))
+            targets_to_check.append(task_data.get('secondary_target_type', ''))
+        else:
+            # Single-target mode: use calibration_variable
+            targets_to_check.append(task_data.get('calibration_variable', 'streamflow'))
+
+        # Check if any target is streamflow (requires routing in non-lumped domains)
+        streamflow_aliases = ['streamflow', 'flow', 'discharge']
+        has_streamflow_target = any(t.lower() in streamflow_aliases for t in targets_to_check if t)
+
+        if has_streamflow_target:
             domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
             routing_delineation = config.get('ROUTING_DELINEATION', 'lumped')
 
             if domain_method not in ['point', 'lumped'] or (domain_method == 'lumped' and routing_delineation == 'river_network'):
                 needs_routing = True
 
-        logger.info(f"Needs routing: {needs_routing}")
+        logger.info(f"Needs routing: {needs_routing} (targets: {targets_to_check})")
 
         # Convert paths
         debug_info['stage'] = 'path_setup'
@@ -223,6 +237,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                         logger.info(f"Extracted {name}: {val}")
                     
                     # Set primary score for backward compatibility
+                    target_metric = task_data.get('target_metric', 'OBJ1')
                     score = objectives[0] if objectives else -1e6
                     metrics = {'objectives': objectives} # Minimal metrics dict for compatibility
                 else:

@@ -150,8 +150,10 @@ class TestTransformFlatToNested:
         nested = transform_flat_to_nested(flat)
 
         assert nested['evaluation']['evaluation_data'] == ['streamflow']
-        assert nested['evaluation']['streamflow']['data_provider'] == 'USGS'
-        assert nested['evaluation']['streamflow']['download_usgs'] is True
+        # STREAMFLOW_DATA_PROVIDER and DOWNLOAD_USGS_DATA map to 'data' section
+        assert nested['data']['streamflow_data_provider'] == 'USGS'
+        assert nested['data']['download_usgs_data'] is True
+        # STATION_ID maps to evaluation.streamflow section
         assert nested['evaluation']['streamflow']['station_id'] == '12345678'
 
     def test_paths_config(self):
@@ -276,7 +278,7 @@ class TestFlatteningMapping:
 
     def test_section_names_are_valid(self):
         """Test that all section names are valid"""
-        valid_sections = {'system', 'domain', 'forcing', 'model', 'optimization', 'evaluation', 'paths'}
+        valid_sections = {'system', 'domain', 'data', 'forcing', 'model', 'optimization', 'evaluation', 'paths'}
 
         for key, path in FLAT_TO_NESTED_MAP.items():
             section = path[0]

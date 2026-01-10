@@ -3,7 +3,7 @@
 from pathlib import Path
 import logging
 import pandas as pd
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, TYPE_CHECKING
 
 from symfluence.models.summa.structure_analyzer import SummaStructureAnalyzer # type: ignore
 from symfluence.evaluation.sensitivity_analysis import SensitivityAnalyzer # type: ignore
@@ -13,11 +13,8 @@ from symfluence.evaluation.registry import EvaluationRegistry
 
 from symfluence.core.mixins import ConfigurableMixin
 
-# Import for type checking only
-try:
+if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
-except ImportError:
-    SymfluenceConfig = None
 
 class AnalysisManager(ConfigurableMixin):
     """
@@ -44,33 +41,31 @@ class AnalysisManager(ConfigurableMixin):
         logger (logging.Logger): Logger instance
     """
     
-    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: logging.Logger, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: 'SymfluenceConfig', logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the Analysis Manager.
-        
-        Sets up the AnalysisManager with the necessary configuration and paths
-        for coordinating various analysis operations. This establishes the foundation
-        for benchmarking, sensitivity analysis, and decision analysis.
-        
-        Args:
-            config: Configuration dictionary or SymfluenceConfig instance
-            logger (logging.Logger): Logger instance for recording operations
-            reporting_manager (ReportingManager): ReportingManager instance
-            
-        Raises:
-            KeyError: If essential configuration values are missing
-        """
-        # Support both typed config and dict config
-        if SymfluenceConfig and isinstance(config, SymfluenceConfig):
-            self.typed_config = config
-            self.config = config.to_dict(flatten=True)
-        else:
-            self.typed_config = None
-            self.config = config
 
+        Args:
+            config: SymfluenceConfig instance
+            logger: Logger instance
+            reporting_manager: ReportingManager instance
+
+        Raises:
+            TypeError: If config is not a SymfluenceConfig instance
+        """
+        # Import here to avoid circular imports at module level
+        from symfluence.core.config.models import SymfluenceConfig
+
+        if not isinstance(config, SymfluenceConfig):
+            raise TypeError(
+                f"config must be SymfluenceConfig, got {type(config).__name__}. "
+                "Use SymfluenceConfig.from_file() to load configuration."
+            )
+
+        # Set config via the ConfigMixin property
+        self._config = config
         self.logger = logger
         self.reporting_manager = reporting_manager
-        self.experiment_id = self.config.get('EXPERIMENT_ID')
         
     def run_benchmarking(self) -> Optional[Path]:
         """
@@ -100,19 +95,17 @@ class AnalysisManager(ConfigurableMixin):
         
         try:
             # Use typed config if available
-            component_config = self.typed_config if self.typed_config else self.config
+            # Use typed config for sub-components
             
             # Preprocess data for benchmarking
-            preprocessor = BenchmarkPreprocessor(component_config, self.logger)
+            preprocessor = BenchmarkPreprocessor(self.config, self.logger)
             
             # Extract calibration and evaluation periods
-            calib_period = self._resolve_config_value(
-                lambda: self.typed_config.domain.calibration_period,
-                'CALIBRATION_PERIOD'
+            calib_period = self._get_config_value(
+                lambda: self.config.domain.calibration_period
             )
-            eval_period = self._resolve_config_value(
-                lambda: self.typed_config.domain.evaluation_period,
-                'EVALUATION_PERIOD'
+            eval_period = self._get_config_value(
+                lambda: self.config.domain.evaluation_period
             )
             
             calib_start = str(calib_period).split(',')[0].strip()
@@ -121,7 +114,7 @@ class AnalysisManager(ConfigurableMixin):
             benchmark_data = preprocessor.preprocess_benchmark_data(calib_start, eval_end)
             
             # Run benchmarking
-            benchmarker = Benchmarker(component_config, self.logger)
+            benchmarker = Benchmarker(self.config, self.logger)
             benchmark_results = benchmarker.run_benchmarking()
             
             # Visualize benchmark results
@@ -170,9 +163,8 @@ class AnalysisManager(ConfigurableMixin):
         self.logger.info("Starting sensitivity analysis")
         
         # Check if sensitivity analysis is enabled
-        run_sensitivity = self._resolve_config_value(
-            lambda: self.typed_config.analysis.run_sensitivity_analysis,
-            'RUN_SENSITIVITY_ANALYSIS',
+        run_sensitivity = self._get_config_value(
+            lambda: self.config.analysis.run_sensitivity_analysis,
             True
         )
         if not run_sensitivity:
@@ -182,9 +174,8 @@ class AnalysisManager(ConfigurableMixin):
         sensitivity_results = {}
         
         try:
-            models_str = self._resolve_config_value(
-                lambda: self.typed_config.model.hydrological_model,
-                'HYDROLOGICAL_MODEL',
+            models_str = self._get_config_value(
+                lambda: self.config.model.hydrological_model,
                 ''
             )
             hydrological_models = str(models_str).split(',')
@@ -211,8 +202,8 @@ class AnalysisManager(ConfigurableMixin):
         """
         self.logger.info("Running SUMMA sensitivity analysis")
         
-        component_config = self.typed_config if self.typed_config else self.config
-        sensitivity_analyzer = SensitivityAnalyzer(component_config, self.logger, self.reporting_manager)
+        # Use typed config for sub-components
+        sensitivity_analyzer = SensitivityAnalyzer(self.config, self.logger, self.reporting_manager)
         results_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
         
         if not results_file.exists():
@@ -228,9 +219,8 @@ class AnalysisManager(ConfigurableMixin):
         self.logger.info("Starting decision analysis")
         
         # Check if decision analysis is enabled
-        run_decision = self._resolve_config_value(
-            lambda: self.typed_config.analysis.run_decision_analysis,
-            'RUN_DECISION_ANALYSIS',
+        run_decision = self._get_config_value(
+            lambda: self.config.analysis.run_decision_analysis,
             True
         )
         if not run_decision:
@@ -240,9 +230,8 @@ class AnalysisManager(ConfigurableMixin):
         decision_results = {}
         
         try:
-            models_str = self._resolve_config_value(
-                lambda: self.typed_config.model.hydrological_model,
-                'HYDROLOGICAL_MODEL',
+            models_str = self._get_config_value(
+                lambda: self.config.model.hydrological_model,
                 ''
             )
             hydrological_models = str(models_str).split(',')
@@ -271,8 +260,8 @@ class AnalysisManager(ConfigurableMixin):
         """
         self.logger.info("Running SUMMA structure ensemble analysis")
         
-        component_config = self.typed_config if self.typed_config else self.config
-        analyzer = SummaStructureAnalyzer(component_config, self.logger, self.reporting_manager)
+        # Use typed config for sub-components
+        analyzer = SummaStructureAnalyzer(self.config, self.logger, self.reporting_manager)
         results_file, best_combinations = analyzer.run_full_analysis()
         
         self.logger.info("SUMMA structure ensemble analysis completed")
@@ -292,8 +281,8 @@ class AnalysisManager(ConfigurableMixin):
         """
         self.logger.info("Running FUSE structure ensemble analysis")
         
-        component_config = self.typed_config if self.typed_config else self.config
-        analyzer = FuseStructureAnalyzer(component_config, self.logger, self.reporting_manager)
+        # Use typed config for sub-components
+        analyzer = FuseStructureAnalyzer(self.config, self.logger, self.reporting_manager)
         results_file, best_combinations = analyzer.run_full_analysis()
         
         self.logger.info("FUSE structure ensemble analysis completed")
@@ -325,14 +314,12 @@ class AnalysisManager(ConfigurableMixin):
         """
         status = {
             'benchmarking_complete': (self.project_dir / "evaluation" / "benchmark_scores.csv").exists(),
-            'sensitivity_analysis_available': self._resolve_config_value(
-                lambda: self.typed_config.analysis.run_sensitivity_analysis,
-                'RUN_SENSITIVITY_ANALYSIS',
+            'sensitivity_analysis_available': self._get_config_value(
+                lambda: self.config.analysis.run_sensitivity_analysis,
                 True
             ),
-            'decision_analysis_available': self._resolve_config_value(
-                lambda: self.typed_config.analysis.run_decision_analysis,
-                'RUN_DECISION_ANALYSIS',
+            'decision_analysis_available': self._get_config_value(
+                lambda: self.config.analysis.run_decision_analysis,
                 True
             ),
             'optimization_results_exist': (self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv").exists(),

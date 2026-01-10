@@ -9,10 +9,14 @@ import logging
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
+from symfluence.evaluation.output_file_locator import OutputFileLocator
 from .streamflow import StreamflowEvaluator
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 
 @EvaluationRegistry.register('HYPE_STREAMFLOW')
@@ -20,29 +24,9 @@ class HYPEStreamflowEvaluator(StreamflowEvaluator):
     """Streamflow evaluator for HYPE models"""
 
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
-        """Get HYPE output files (timeCOUT.txt)"""
-        # HYPE outputs timeCOUT.txt with streamflow for all subbasins
-        hype_file = sim_dir / 'timeCOUT.txt'
-        if hype_file.exists():
-            return [hype_file]
-
-        # Check in HYPE subdirectory (may be nested)
-        hype_subdir = sim_dir / 'HYPE' / 'timeCOUT.txt'
-        if hype_subdir.exists():
-            return [hype_subdir]
-
-        # Recursive search as fallback
-        hype_files = list(sim_dir.glob("**/timeCOUT.txt"))
-        if hype_files:
-            return hype_files
-
-        # If no HYPE files found, check for mizuRoute output (distributed HYPE)
-        mizu_files = list(sim_dir.glob("**/mizuRoute/*.nc"))
-        if mizu_files:
-            self.logger.debug(f"Found {len(mizu_files)} mizuRoute files for distributed HYPE")
-            return mizu_files
-
-        return []
+        """Get HYPE output files (timeCOUT.txt or mizuRoute)."""
+        locator = OutputFileLocator(self.logger)
+        return locator.find_hype_output(sim_dir, 'streamflow')
 
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
         """Extract streamflow data from HYPE timeCOUT.txt"""

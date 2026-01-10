@@ -61,9 +61,11 @@ SMAP_SURFACE_DEPTH_M: 0.05
 SMAP_ROOTZONE_DEPTH_M: 1.0
 FORCE_DOWNLOAD: true
 DOWNLOAD_ISMN: true
-ISMN_API_BASE: https://ismn.geo.tuwien.ac.at/api/v1
-ISMN_MAX_STATIONS: 3
-ISMN_SEARCH_RADIUS_KM: 50
+ISMN_API_BASE: https://ismn.earth/dataviewer
+ISMN_METADATA_URL: https://ismn.earth/static/dataviewer/network_station_details.json
+ISMN_VARIABLE_LIST_URL: https://ismn.earth/dataviewer/dataviewer_get_variable_list/
+ISMN_MAX_STATIONS: 1
+ISMN_SEARCH_RADIUS_KM: 1000
 ISMN_TARGET_DEPTH_M: 0.05
 ISMN_TEMPORAL_AGGREGATION: daily_mean
 

@@ -164,15 +164,23 @@ class TestResolveFilePath:
 class TestPathResolverMixin:
     """Test PathResolverMixin."""
 
+    def _make_mock_config(self, config_dict):
+        """Create a mock config object that has to_dict method."""
+        from unittest.mock import Mock
+        mock_config = Mock()
+        mock_config.to_dict = Mock(return_value=config_dict)
+        return mock_config
+
     def test_mixin_get_default_path(self, tmp_path):
         """Test mixin's _get_default_path method."""
         class MockClass(PathResolverMixin):
-            def __init__(self):
-                self.config = {'MY_PATH': 'default'}
-                self.project_dir = tmp_path
-                self.logger = None
+            pass
 
         obj = MockClass()
+        obj._config = self._make_mock_config({'MY_PATH': 'default'})
+        obj.project_dir = tmp_path
+        obj.logger = None
+
         result = obj._get_default_path('MY_PATH', 'data/forcing')
         assert result == tmp_path / 'data/forcing'
 
@@ -181,36 +189,39 @@ class TestPathResolverMixin:
         custom_path = tmp_path / 'custom_location'
 
         class MockClass(PathResolverMixin):
-            def __init__(self):
-                self.config = {'MY_PATH': str(custom_path)}
-                self.project_dir = tmp_path
-                self.logger = None
+            pass
 
         obj = MockClass()
+        obj._config = self._make_mock_config({'MY_PATH': str(custom_path)})
+        obj.project_dir = tmp_path
+        obj.logger = None
+
         result = obj._get_default_path('MY_PATH', 'data/forcing')
         assert result == custom_path
 
     def test_mixin_get_file_path(self, tmp_path):
         """Test mixin's _get_file_path method."""
         class MockClass(PathResolverMixin):
-            def __init__(self):
-                self.config = {'DEM_PATH': 'default', 'DEM_NAME': 'dem.tif'}
-                self.project_dir = tmp_path
-                self.logger = None
+            pass
 
         obj = MockClass()
+        obj._config = self._make_mock_config({'DEM_PATH': 'default', 'DEM_NAME': 'dem.tif'})
+        obj.project_dir = tmp_path
+        obj.logger = None
+
         result = obj._get_file_path('DEM_PATH', 'DEM_NAME', 'elevation', 'default.tif')
         assert result == tmp_path / 'elevation/dem.tif'
 
     def test_mixin_must_exist_parameter(self, tmp_path):
         """Test mixin's must_exist parameter."""
         class MockClass(PathResolverMixin):
-            def __init__(self):
-                self.config = {'MY_PATH': 'default'}
-                self.project_dir = tmp_path
-                self.logger = None
+            pass
 
         obj = MockClass()
+        obj._config = self._make_mock_config({'MY_PATH': 'default'})
+        obj.project_dir = tmp_path
+        obj.logger = None
+
         with pytest.raises(FileNotFoundError):
             obj._get_default_path('MY_PATH', 'nonexistent', must_exist=True)
 
@@ -219,24 +230,25 @@ class TestPathResolverMixin:
         logger = logging.getLogger('test_mixin_logger')
 
         class MockClass(PathResolverMixin):
-            def __init__(self):
-                self.config = {'MY_PATH': 'default'}
-                self.project_dir = tmp_path
-                self.logger = logger
+            pass
 
         obj = MockClass()
+        obj._config = self._make_mock_config({'MY_PATH': 'default'})
+        obj.project_dir = tmp_path
+        obj.logger = logger
+
         result = obj._get_default_path('MY_PATH', 'data/forcing')
         assert result == tmp_path / 'data/forcing'
 
     def test_mixin_works_without_logger(self, tmp_path):
         """Test mixin works when logger attribute doesn't exist."""
         class MockClassNoLogger(PathResolverMixin):
-            def __init__(self):
-                self.config = {'MY_PATH': 'default'}
-                self.project_dir = tmp_path
-                # No logger attribute
+            pass
 
         obj = MockClassNoLogger()
+        obj._config = self._make_mock_config({'MY_PATH': 'default'})
+        obj.project_dir = tmp_path
+
         result = obj._get_default_path('MY_PATH', 'data/forcing')
         assert result == tmp_path / 'data/forcing'
 
@@ -247,12 +259,13 @@ class TestPathResolverMixin:
                 return "base"
 
         class MockClass(BaseClass, PathResolverMixin):
-            def __init__(self):
-                self.config = {'MY_PATH': 'default'}
-                self.project_dir = tmp_path
-                self.logger = None
+            pass
 
         obj = MockClass()
+        obj._config = self._make_mock_config({'MY_PATH': 'default'})
+        obj.project_dir = tmp_path
+        obj.logger = None
+
         assert obj.base_method() == "base"
         result = obj._get_default_path('MY_PATH', 'data/forcing')
         assert result == tmp_path / 'data/forcing'

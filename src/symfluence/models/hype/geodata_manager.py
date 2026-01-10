@@ -409,7 +409,10 @@ class HYPEGeoDataManager:
     def sort_geodata(self, geodata: pd.DataFrame) -> pd.DataFrame:
         """
         Sort sub-basins from upstream to downstream using topological sorting.
-        Handles cycles by breaking them at the highest downstream point.
+
+        HYPE requires basins to be ordered such that all upstream basins
+        appear before their downstream basins. This uses networkx's
+        topological sort which guarantees this ordering.
         """
         try:
             import networkx as nx
@@ -419,81 +422,80 @@ class HYPEGeoDataManager:
 
         # Create directed graph from subid -> maindown relationships
         G = nx.DiGraph()
+        all_subids = set(geodata['subid'].tolist())
+
         for _, row in geodata.iterrows():
-            if row['maindown'] > 0:  # Only add valid downstream connections
-                G.add_edge(row['subid'], row['maindown'])
+            subid = row['subid']
+            maindown = row['maindown']
+            # Add all nodes to ensure isolated nodes are included
+            G.add_node(subid)
+            if maindown > 0 and maindown in all_subids:
+                # Edge from upstream to downstream
+                G.add_edge(subid, maindown)
 
         # Find and break cycles if they exist
-        cycles = list(nx.simple_cycles(G))
-        if cycles:
-            self.logger.warning(f"Found {len(cycles)} circular reference(s) in the network")
-            for cycle in cycles:
-                # Find the node in the cycle with the most downstream connections
-                max_downstream = max(cycle, key=lambda n: len(list(nx.descendants(G, n))))
-                cycle_idx = cycle.index(max_downstream)
-                from_node = cycle[cycle_idx - 1]
-                # Remove this edge to break the cycle
-                G.remove_edge(from_node, max_downstream)
-                self.logger.warning(f"Breaking cycle at edge: {from_node} -> {max_downstream}")
+        try:
+            cycles = list(nx.simple_cycles(G))
+            if cycles:
+                self.logger.warning(f"Found {len(cycles)} circular reference(s) in the network")
+                for cycle in cycles:
+                    # Find the node in the cycle with the most downstream connections
+                    max_downstream = max(cycle, key=lambda n: len(list(nx.descendants(G, n))))
+                    cycle_idx = cycle.index(max_downstream)
+                    from_node = cycle[cycle_idx - 1]
+                    G.remove_edge(from_node, max_downstream)
+                    self.logger.warning(f"Breaking cycle at edge: {from_node} -> {max_downstream}")
+        except Exception as e:
+            self.logger.warning(f"Could not check for cycles: {e}")
 
         try:
-            # Find all nodes with no incoming edges (headwaters)
-            headwaters = [n for n in G.nodes() if G.in_degree(n) == 0]
+            # Use networkx topological sort - this guarantees upstream before downstream
+            # Since edges go from upstream to downstream, topological_sort gives correct order
+            final_order = list(nx.topological_sort(G))
 
-            # For each headwater, find all downstream nodes and their distances
-            ordered_subids: List[Tuple[Any, int]] = []
-            visited: Set[Any] = set()
-
-            def traverse_downstream(node: Any, depth: int = 0) -> None:
-                """Recursively traverse downstream, tracking depth"""
-                if node in visited:
-                    return
-                visited.add(node)
-                # Get all downstream nodes
-                downstream = list(G.successors(node))
-                if downstream:
-                    # Recursively process downstream nodes
-                    for next_node in downstream:
-                        traverse_downstream(next_node, depth + 1)
-                # Add node to ordered list with its depth
-                ordered_subids.append((node, depth))
-
-            # Process each headwater
-            for hw in headwaters:
-                traverse_downstream(hw)
-
-            # Sort by depth (upstream to downstream)
-            ordered_subids.sort(key=lambda x: x[1])
-            final_order = [x[0] for x in ordered_subids]
-
-            # Handle nodes that weren't reached (isolated nodes)
+            # Handle nodes that weren't in the graph (shouldn't happen, but safety check)
             missing_subids = geodata[~geodata['subid'].isin(final_order)]['subid'].tolist()
-
-            # Add missing subids at the start
-            final_order = missing_subids + final_order
+            if missing_subids:
+                self.logger.warning(f"Found {len(missing_subids)} basins not in network, adding at start")
+                final_order = missing_subids + final_order
 
             # Create a mapping from subid to desired position
             position_map = {subid: pos for pos, subid in enumerate(final_order)}
 
             # Sort geodata based on the position map
+            geodata = geodata.copy()
             geodata['sort_idx'] = geodata['subid'].map(position_map)
             geodata = geodata.sort_values('sort_idx', ignore_index=True)
             geodata = geodata.drop(columns=['sort_idx'])
 
             # Verify the sorting
+            errors = 0
             for i, row in geodata.iterrows():
                 if row['maindown'] > 0:
-                    downstream_idx = geodata.index[geodata['subid'] == row['maindown']].tolist()
-                    if downstream_idx and downstream_idx[0] < i:
-                        self.logger.warning(
-                            f"Basin {row['subid']} appears before its downstream basin {row['maindown']}"
-                        )
+                    downstream_rows = geodata[geodata['subid'] == row['maindown']]
+                    if not downstream_rows.empty:
+                        downstream_idx = downstream_rows.index[0]
+                        if downstream_idx < i:
+                            errors += 1
+                            if errors <= 3:  # Only log first few
+                                self.logger.warning(
+                                    f"Basin {row['subid']} (idx={i}) appears after its "
+                                    f"downstream basin {row['maindown']} (idx={downstream_idx})"
+                                )
+
+            if errors > 0:
+                self.logger.error(f"Topological sort failed: {errors} ordering violations found")
+            else:
+                self.logger.debug("Topological sort successful: all basins correctly ordered")
 
             return geodata
 
+        except nx.NetworkXUnfeasible:
+            self.logger.error("Graph has cycles that could not be resolved")
+            return geodata
         except Exception as e:
-            self.logger.error(f"Error during sorting: {str(e)}")
-            return geodata  # Return unsorted data if we can't resolve the ordering
+            self.logger.error(f"Error during topological sorting: {str(e)}")
+            return geodata
 
     def _write_geoclass(self, slc_df: pd.DataFrame) -> None:
         """Write GeoClass.txt file with full metadata and specific formatting."""

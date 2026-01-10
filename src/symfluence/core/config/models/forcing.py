@@ -42,6 +42,32 @@ class EMEarthConfig(BaseModel):
     data_type: str = Field(default='deterministic', alias='EM_EARTH_DATA_TYPE')
 
 
+class ERA5Config(BaseModel):
+    """ERA5 reanalysis forcing settings"""
+    model_config = FROZEN_CONFIG
+
+    use_cds: Optional[bool] = Field(default=None, alias='ERA5_USE_CDS')
+    zarr_path: str = Field(
+        default='gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3',
+        alias='ERA5_ZARR_PATH'
+    )
+    time_step_hours: int = Field(default=1, alias='ERA5_TIME_STEP_HOURS')
+    variables: Optional[List[str]] = Field(
+        default=None,
+        alias='ERA5_VARS'
+    )
+
+    @field_validator('variables', mode='before')
+    @classmethod
+    def validate_variables(cls, v):
+        """Normalize string lists"""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return v
+
+
 class ForcingConfig(BaseModel):
     """Meteorological forcing configuration"""
     model_config = FROZEN_CONFIG
@@ -60,12 +86,13 @@ class ForcingConfig(BaseModel):
     pet_method: str = Field(default='oudin', alias='PET_METHOD')
     supplement: bool = Field(default=False, alias='SUPPLEMENT_FORCING')
 
-    # ERA5-specific settings
+    # ERA5-specific settings (legacy, prefer using era5 subsection)
     era5_use_cds: Optional[bool] = Field(default=None, alias='ERA5_USE_CDS')
 
     # Dataset-specific settings
     nex: Optional[NexConfig] = Field(default=None)
     em_earth: Optional[EMEarthConfig] = Field(default=None)
+    era5: Optional[ERA5Config] = Field(default_factory=ERA5Config)
 
     @field_validator('variables', mode='before')
     @classmethod

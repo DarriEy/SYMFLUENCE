@@ -23,10 +23,10 @@ class GRACEHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Locate GRACE data or download if possible."""
-        grace_dir = Path(self.config.get('GRACE_DATA_DIR', self.project_dir / "observations" / "grace"))
-        
+        grace_dir = Path(self.config_dict.get('GRACE_DATA_DIR', self.project_dir / "observations" / "grace"))
+
         # Check if we need to download
-        force_download = self.config.get('FORCE_DOWNLOAD', False)
+        force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
         has_files = grace_dir.exists() and any(grace_dir.iterdir())
         
         if not has_files or force_download:
@@ -50,13 +50,18 @@ class GRACEHandler(BaseObservationHandler):
     def process(self, input_path: Path) -> Path:
         """Process GRACE data for the current domain."""
         self.logger.info(f"Processing GRACE TWS for domain: {self.domain_name}")
-        
-        # Load basin shapefile
-        catchment_path = Path(self.config.get('CATCHMENT_PATH', self.project_dir / "shapefiles" / "catchment"))
-        catchment_name = self.config.get('CATCHMENT_SHP_NAME', f"{self.domain_name}_catchment.shp")
-        if catchment_name == 'default':
-             catchment_name = f"{self.domain_name}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION', 'GRUs')}.shp"
-        
+
+        # Load basin shapefile - resolve 'default' to standard location
+        catchment_path_cfg = self.config_dict.get('CATCHMENT_PATH', 'default')
+        if catchment_path_cfg == 'default' or not catchment_path_cfg:
+            catchment_path = self.project_dir / "shapefiles" / "catchment"
+        else:
+            catchment_path = Path(catchment_path_cfg)
+
+        catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME', f"{self.domain_name}_catchment.shp")
+        if catchment_name == 'default' or not catchment_name:
+            catchment_name = f"{self.domain_name}_HRUs_{self.config_dict.get('DOMAIN_DISCRETIZATION', 'GRUs')}.shp"
+
         basin_shp = catchment_path / catchment_name
         if not basin_shp.exists():
             raise FileNotFoundError(f"Basin shapefile not found: {basin_shp}")

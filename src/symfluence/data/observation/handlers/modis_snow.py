@@ -1,60 +1,112 @@
+import numpy as np
 import pandas as pd
 import xarray as xr
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
+
+try:
+    import geopandas as gpd
+    import rasterio
+    from rasterio.mask import mask as rio_mask
+    from shapely.geometry import mapping
+    HAS_GEO = True
+except ImportError:
+    HAS_GEO = False
+
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
+from .modis_utils import (
+    convert_cftime_to_datetime,
+    apply_modis_quality_filter,
+    extract_spatial_average,
+    MODIS_FILL_VALUES,
+    CLOUD_VALUE,
+    VALID_SNOW_RANGE,
+)
+
 
 @ObservationRegistry.register('MODIS_SNOW')
 class MODISSnowHandler(BaseObservationHandler):
     """
     Handles MODIS Snow Cover Area (SCA) data.
+    Supports both single-product (MOD10A1) and merged (MOD10A1+MYD10A1) data.
     """
+
+    # Use constants from modis_utils
+    VALID_SNOW_RANGE = VALID_SNOW_RANGE
+    CLOUD_VALUE = CLOUD_VALUE
+    MISSING_VALUES = MODIS_FILL_VALUES
 
     def acquire(self) -> Path:
         """Locate or download MODIS snow data."""
-        data_access = self.config.get('DATA_ACCESS', 'local').lower()
-        snow_dir = Path(self.config.get('MODIS_SNOW_DIR', self.project_dir / "observations" / "snow"))
-        
+        data_access = self.config_dict.get('DATA_ACCESS', 'local').lower()
+        snow_dir = Path(self.config_dict.get('MODIS_SNOW_DIR', self.project_dir / "observations" / "snow"))
+
         if not snow_dir.exists():
             snow_dir.mkdir(parents=True, exist_ok=True)
 
         if data_access == 'cloud':
             self.logger.info("Triggering cloud acquisition for MODIS snow")
             from ...acquisition.registry import AcquisitionRegistry
-            acquirer = AcquisitionRegistry.get_handler('MODIS_SNOW', self.config, self.logger)
+
+            # Check if merged SCA is requested
+            use_merged = self.config_dict.get('MODIS_SCA_MERGE', True)
+
+            if use_merged:
+                # Use the new merged SCA acquirer
+                acquirer = AcquisitionRegistry.get_handler('MODIS_SCA', self.config, self.logger)
+            else:
+                # Use legacy single-product acquirer
+                acquirer = AcquisitionRegistry.get_handler('MODIS_SNOW', self.config, self.logger)
+
             return acquirer.download(snow_dir)
-            
+
         return snow_dir
 
     def process(self, input_path: Path) -> Path:
         """Process MODIS SCA data (CSV or NetCDF)."""
         self.logger.info(f"Processing MODIS Snow for domain: {self.domain_name}")
-        
+
+        # Check for merged file first
+        if input_path.is_dir():
+            merged_file = input_path / f"{self.domain_name}_MODIS_SCA_merged.nc"
+            if merged_file.exists():
+                input_path = merged_file
+
         # Determine if we are processing a file or a directory
         if input_path.is_file() and input_path.suffix == '.nc':
             return self._process_netcdf(input_path)
-            
+
+        # Check for any NetCDF files in directory
+        if input_path.is_dir():
+            nc_files = list(input_path.glob("*.nc"))
+            if nc_files:
+                # Prefer merged file, else use first available
+                merged = [f for f in nc_files if 'merged' in f.name.lower()]
+                if merged:
+                    return self._process_netcdf(merged[0])
+                return self._process_netcdf(nc_files[0])
+
         # Legacy/Directory-based CSV processing
         csv_files = list(input_path.glob("SCA_Daily_Basin_*.csv"))
         if not csv_files:
             self.logger.warning(f"No MODIS SCA files found in {input_path}")
             return input_path
-            
+
         # Standard filter: at least 100 valid pixels
-        min_pixels = self.config.get('MODIS_MIN_PIXELS', 100)
-        
+        min_pixels = self.config_dict.get('MODIS_MIN_PIXELS', 100)
+
         # For now, just copy and filter the first matching file
         df = pd.read_csv(csv_files[0], parse_dates=['date']).set_index('date')
         if 'valid_pixels' in df.columns:
             df = df[df['valid_pixels'] >= min_pixels]
-            
+
         return self._save_processed(df)
 
     def _process_netcdf(self, nc_path: Path) -> Path:
         """Extract basin average snow cover from NetCDF."""
         self.logger.info(f"Extracting basin average from MODIS NetCDF: {nc_path}")
-        
+
         try:
             # Try netcdf4 engine explicitly first
             ds = xr.open_dataset(nc_path, engine='netcdf4')
@@ -69,36 +121,215 @@ class MODISSnowHandler(BaseObservationHandler):
                     with open(nc_path, 'r', errors='ignore') as f:
                         self.logger.error(f"File snippet: {f.read(500)}")
                 raise
-        
+
         with ds:
-            # Assume NDSI_Snow_Cover variable
-            var_name = "NDSI_Snow_Cover"
-            if var_name not in ds.data_vars:
-                # Find first suitable variable
-                suitable_vars = [v for v in ds.data_vars if 'snow' in v.lower()]
-                if not suitable_vars:
-                    raise ValueError(f"No snow variables found in {nc_path}. Vars: {list(ds.data_vars)}")
-                var_name = suitable_vars[0]
-            
-            # Spatial averaging
-            spatial_dims = [d for d in ds[var_name].dims if d != 'time']
-            if spatial_dims:
-                sca = ds[var_name].mean(dim=spatial_dims)
+            # Find snow cover variable
+            var_name = self._find_snow_variable(ds)
+
+            # Get the data array
+            snow_data = ds[var_name]
+
+            # Apply quality filtering
+            snow_data = self._apply_quality_filter(snow_data)
+
+            # Check if we should use catchment masking
+            use_catchment_mask = self.config_dict.get('MODIS_SCA_USE_CATCHMENT_MASK', False)
+
+            if use_catchment_mask and HAS_GEO:
+                df = self._extract_with_catchment_mask(snow_data, ds)
             else:
-                sca = ds[var_name]
-            
-            df = pd.DataFrame({
-                'sca': sca.values
-            }, index=pd.to_datetime(ds.time.values))
-            
+                df = self._extract_spatial_average(snow_data)
+
+            # Filter by minimum valid ratio
+            min_valid_ratio = self.config_dict.get('MODIS_SCA_MIN_VALID_RATIO', 0.1)
+            if 'valid_ratio' in df.columns:
+                df = df[df['valid_ratio'] >= min_valid_ratio]
+
+            # Normalize SCA to fraction (0-1) if needed
+            normalize = self.config_dict.get('MODIS_SCA_NORMALIZE', True)
+            if normalize and df['sca'].max() > 1.0:
+                df['sca'] = df['sca'] / 100.0
+
             return self._save_processed(df)
+
+    def _find_snow_variable(self, ds: xr.Dataset) -> str:
+        """Find the snow cover variable in the dataset."""
+        # Priority order for variable names
+        priority_vars = [
+            'NDSI_Snow_Cover',
+            'snow_cover',
+            'SCA',
+            'sca'
+        ]
+
+        for var in priority_vars:
+            if var in ds.data_vars:
+                return var
+
+        # Fall back to finding any snow-related variable
+        suitable_vars = [v for v in ds.data_vars if 'snow' in v.lower() or 'ndsi' in v.lower()]
+        if suitable_vars:
+            return suitable_vars[0]
+
+        raise ValueError(f"No snow variables found in dataset. Available: {list(ds.data_vars)}")
+
+    def _apply_quality_filter(self, data: xr.DataArray) -> xr.DataArray:
+        """Apply quality filtering to MODIS snow data."""
+        # Convert invalid values to NaN
+        filtered = data.where(
+            (data >= self.VALID_SNOW_RANGE[0]) & (data <= self.VALID_SNOW_RANGE[1])
+        )
+        return filtered
+
+    def _extract_spatial_average(self, data: xr.DataArray) -> pd.DataFrame:
+        """Extract spatially averaged SCA time series."""
+        # Get spatial dimensions
+        spatial_dims = [d for d in data.dims if d != 'time']
+
+        # Convert time values, handling cftime objects
+        time_values = self._convert_time_to_datetime(data.time.values)
+
+        if spatial_dims:
+            # Count valid pixels for each timestep
+            valid_counts = data.notnull().sum(dim=spatial_dims)
+            total_pixels = np.prod([data.sizes[d] for d in spatial_dims])
+
+            # Compute mean over spatial dims
+            sca_mean = data.mean(dim=spatial_dims, skipna=True)
+
+            df = pd.DataFrame({
+                'sca': sca_mean.values,
+                'valid_pixels': valid_counts.values,
+                'valid_ratio': valid_counts.values / total_pixels
+            }, index=time_values)
+        else:
+            df = pd.DataFrame({
+                'sca': data.values
+            }, index=time_values)
+
+        df.index.name = 'date'
+        return df
+
+    def _convert_time_to_datetime(self, time_values):
+        """Convert time values to pandas DatetimeIndex, handling cftime objects."""
+        try:
+            # Try direct conversion first
+            return pd.to_datetime(time_values)
+        except (TypeError, ValueError):
+            pass
+
+        # Handle cftime objects
+        try:
+            import cftime
+            if len(time_values) > 0 and isinstance(time_values[0], cftime.datetime):
+                # Convert cftime to standard datetime
+                converted = []
+                for t in time_values:
+                    try:
+                        # Try to create a standard datetime
+                        dt = pd.Timestamp(year=t.year, month=t.month, day=t.day,
+                                         hour=getattr(t, 'hour', 0),
+                                         minute=getattr(t, 'minute', 0),
+                                         second=getattr(t, 'second', 0))
+                        converted.append(dt)
+                    except Exception:
+                        # Fall back to string parsing
+                        converted.append(pd.to_datetime(str(t)[:10]))
+                return pd.DatetimeIndex(converted)
+        except ImportError:
+            pass
+
+        # Last resort: try string conversion
+        return pd.to_datetime([str(t)[:10] for t in time_values])
+
+    def _extract_with_catchment_mask(self, data: xr.DataArray, ds: xr.Dataset) -> pd.DataFrame:
+        """Extract SCA using catchment shapefile as mask."""
+        catchment_path = self.config_dict.get('CATCHMENT_PATH')
+        catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
+
+        if not catchment_path or not catchment_name:
+            self.logger.warning("Catchment mask requested but CATCHMENT_PATH/CATCHMENT_SHP_NAME not set")
+            return self._extract_spatial_average(data)
+
+        shp_path = Path(catchment_path) / catchment_name
+        if not shp_path.exists():
+            self.logger.warning(f"Catchment shapefile not found: {shp_path}")
+            return self._extract_spatial_average(data)
+
+        try:
+            gdf = gpd.read_file(shp_path)
+            catchment_geom = gdf.geometry.union_all()
+
+            # Get coordinate info
+            lat_name = 'lat' if 'lat' in ds.coords else 'y'
+            lon_name = 'lon' if 'lon' in ds.coords else 'x'
+
+            lats = ds.coords[lat_name].values
+            lons = ds.coords[lon_name].values
+
+            # Create mask
+            lon_grid, lat_grid = np.meshgrid(lons, lats)
+
+            from shapely.geometry import Point
+            mask = np.zeros(lon_grid.shape, dtype=bool)
+            for i in range(mask.shape[0]):
+                for j in range(mask.shape[1]):
+                    pt = Point(lon_grid[i, j], lat_grid[i, j])
+                    mask[i, j] = catchment_geom.contains(pt)
+
+            # Apply mask
+            masked_data = data.where(mask)
+
+            return self._extract_spatial_average(masked_data)
+
+        except Exception as e:
+            self.logger.warning(f"Failed to apply catchment mask: {e}")
+            return self._extract_spatial_average(data)
 
     def _save_processed(self, df: pd.DataFrame) -> Path:
         """Save processed dataframe to standard location."""
         output_dir = self.project_dir / "observations" / "snow" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_modis_snow_processed.csv"
-        
+
+        # Ensure index name
+        if df.index.name is None:
+            df.index.name = 'date'
+
         df.to_csv(output_file)
         self.logger.info(f"MODIS snow processing complete: {output_file}")
+        self.logger.info(f"  Date range: {df.index.min()} to {df.index.max()}")
+        self.logger.info(f"  SCA range: {df['sca'].min():.3f} to {df['sca'].max():.3f}")
+        self.logger.info(f"  Valid observations: {len(df)}")
+
         return output_file
+
+
+@ObservationRegistry.register('MODIS_SCA')
+@ObservationRegistry.register('MODIS_SNOW_MERGED')
+class MODISSCAHandler(MODISSnowHandler):
+    """
+    Specialized handler for merged MODIS SCA (MOD10A1 + MYD10A1).
+    Inherits all processing from MODISSnowHandler but defaults to merged acquisition.
+    """
+
+    def acquire(self) -> Path:
+        """Acquire merged MODIS SCA data."""
+        data_access = self.config_dict.get('DATA_ACCESS', 'local').lower()
+        snow_dir = Path(self.config_dict.get('MODIS_SNOW_DIR', self.project_dir / "observations" / "snow"))
+
+        if not snow_dir.exists():
+            snow_dir.mkdir(parents=True, exist_ok=True)
+
+        if data_access == 'cloud':
+            self.logger.info("Triggering cloud acquisition for merged MODIS SCA (Terra + Aqua)")
+            from ...acquisition.registry import AcquisitionRegistry
+            acquirer = AcquisitionRegistry.get_handler('MODIS_SCA', self.config, self.logger)
+            return acquirer.download(snow_dir)
+
+        # Check for existing merged file
+        merged_file = snow_dir / f"{self.domain_name}_MODIS_SCA_merged.nc"
+        if merged_file.exists():
+            return merged_file
+
+        return snow_dir

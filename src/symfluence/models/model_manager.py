@@ -1,78 +1,44 @@
-# src/symfluence.models/model_manager.py
+# src/symfluence/models/model_manager.py
 
 from pathlib import Path
 import logging
-from typing import Dict, Any, Union, List, Optional
+from typing import Dict, Any, Union, List, Optional, TYPE_CHECKING
+
 import pandas as pd
 
-# Registry
+from symfluence.core.base_manager import BaseManager
 from symfluence.models.registry import ModelRegistry
-
-# Data management
-from symfluence.data.utilities.archive_utils import tar_directory # type: ignore
-
-from symfluence.core.mixins import ConfigurableMixin
 from symfluence.optimization.workers.utilities.routing_decider import RoutingDecider
 
-# Import for type checking only (avoid circular imports)
-try:
+if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
-except ImportError:
-    SymfluenceConfig = None
 
-class ModelManager(ConfigurableMixin):
+
+class ModelManager(BaseManager):
     """
     Manages all hydrological model operations within the SYMFLUENCE framework.
+
     Uses a registry-based system for easy extension with new models.
+    Inherits from BaseManager for standardized initialization and common patterns.
     """
-    
-    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: logging.Logger, reporting_manager: Optional[Any] = None):
-        """
-        Initialize the Model Manager.
 
-        Args:
-            config: Configuration dictionary or SymfluenceConfig instance (Phase 2)
-            logger: Logger instance
-            reporting_manager: ReportingManager instance
-        """
-        # Phase 2: Support both typed config and dict config for backward compatibility
-        if SymfluenceConfig and isinstance(config, SymfluenceConfig):
-            self.typed_config = config
-            self.config = config.to_dict(flatten=True)
-        else:
-            self.typed_config = None
-            self.config = config
-
-        self.logger = logger
-        self.reporting_manager = reporting_manager
-        self.experiment_id = self.config.get('EXPERIMENT_ID')
-
-    # Shared routing decision logic
+    # Shared routing decision logic (class-level for efficiency)
     _routing_decider = RoutingDecider()
 
     def _resolve_model_workflow(self) -> List[str]:
-
         """
-
         Resolve the order of models to run, including implicit dependencies.
 
-        
-
         Returns:
-
             List of model names to execute in order.
-
         """
-        models_str = self._resolve_config_value(
-            lambda: self.typed_config.model.hydrological_model,
-            'HYDROLOGICAL_MODEL',
-            ''
-        )
+        models_str = self.config.model.hydrological_model or ''
         configured_models = [m.strip() for m in str(models_str).split(',') if m.strip()]
         execution_list = []
 
         # Models that support routing via mizuRoute
-        routable_models = {'SUMMA', 'FUSE', 'HYPE', 'GR', 'MESH', 'NGEN'}
+        # Note: MESH, HYPE, and NGEN have internal routing, so don't need mizuRoute
+        routable_models = {'SUMMA', 'FUSE', 'GR'}
 
         for model in configured_models:
             if model not in execution_list:
@@ -80,7 +46,7 @@ class ModelManager(ConfigurableMixin):
 
             # Check implicit dependencies (e.g. mizuRoute) using shared routing decider
             if model in routable_models:
-                if self._routing_decider.needs_routing(self.config, model):
+                if self._routing_decider.needs_routing(self.config_dict, model):
                     self._ensure_mizuroute_in_workflow(execution_list, source_model=model)
 
         return execution_list
@@ -90,16 +56,15 @@ class ModelManager(ConfigurableMixin):
         if 'MIZUROUTE' not in execution_list:
             execution_list.append('MIZUROUTE')
             self.logger.info(f"Automatically adding MIZUROUTE to workflow (dependency of {source_model})")
-            
-        # Ensure configuration knows the source model if not explicitly set
-        mizu_from = self._resolve_config_value(
-            lambda: self.typed_config.routing.mizu_from_model,
-            'MIZU_FROM_MODEL'
+
+        # Check if MIZU_FROM_MODEL is set in config
+        mizu_from = self._get_config_value(
+            lambda: self.config.model.mizuroute.from_model if self.config.model.mizuroute else None,
+            default=None
         )
         if not mizu_from:
-            # Fallback to dict update for internal tracking
-            self.config['MIZU_FROM_MODEL'] = source_model
-            self.logger.info(f"Setting MIZU_FROM_MODEL to {source_model}")
+            # Log the source model (config is immutable, so we can't update it)
+            self.logger.info(f"MIZU_FROM_MODEL not set, using {source_model} as source")
 
     def preprocess_models(self, params: Optional[Dict[str, Any]] = None):
         """
@@ -131,51 +96,24 @@ class ModelManager(ConfigurableMixin):
                         self.logger.debug(f"No preprocessor registered for {model} (or not required).")
                     continue
 
-        
-
                 # Run model-specific preprocessing
-
                 self.logger.debug(f"Running preprocessor for {model}")
 
-                
-
-                # Use typed config if available to avoid deprecation warnings
-
-                component_config = self.typed_config if self.typed_config else self.config
-
-                
-
                 # Check if preprocessor accepts params
-
                 import inspect
-
                 sig = inspect.signature(preprocessor_class.__init__)
-
                 if 'params' in sig.parameters:
-
-                    preprocessor = preprocessor_class(component_config, self.logger, params=params)
-
+                    preprocessor = preprocessor_class(self.config, self.logger, params=params)
                 else:
-
-                    preprocessor = preprocessor_class(component_config, self.logger)
-
-                    
+                    preprocessor = preprocessor_class(self.config, self.logger)
 
                 preprocessor.run_preprocessing()
 
-        
-
             except Exception as e:
-
                 self.logger.error(f"Error preprocessing model {model}: {str(e)}")
-
                 import traceback
-
                 self.logger.error(traceback.format_exc())
-
                 raise
-
-        
 
         self.logger.info("Model-specific preprocessing completed")
 
@@ -188,9 +126,6 @@ class ModelManager(ConfigurableMixin):
         workflow = self._resolve_model_workflow()
         self.logger.info(f"Execution workflow order: {workflow}")
 
-        # Use typed config if available to avoid deprecation warnings
-        component_config = self.typed_config if self.typed_config else self.config
-
         for model in workflow:
             try:
                 self.logger.info(f"Running model: {model}")
@@ -199,7 +134,7 @@ class ModelManager(ConfigurableMixin):
                     self.logger.error(f"Unknown hydrological model or no runner registered: {model}")
                     continue
 
-                runner = runner_class(component_config, self.logger, reporting_manager=self.reporting_manager)
+                runner = runner_class(self.config, self.logger, reporting_manager=self.reporting_manager)
                 method_name = ModelRegistry.get_runner_method(model)
                 if method_name and hasattr(runner, method_name):
                     getattr(runner, method_name)()
@@ -219,9 +154,6 @@ class ModelManager(ConfigurableMixin):
 
         workflow = self._resolve_model_workflow()
 
-        # Use typed config if available to avoid deprecation warnings
-        component_config = self.typed_config if self.typed_config else self.config
-
         for model in workflow:
             try:
                 # Get postprocessor class from registry
@@ -232,7 +164,7 @@ class ModelManager(ConfigurableMixin):
 
                 self.logger.info(f"Post-processing {model}")
                 # Create postprocessor instance
-                postprocessor = postprocessor_class(component_config, self.logger, reporting_manager=self.reporting_manager)
+                postprocessor = postprocessor_class(self.config, self.logger, reporting_manager=self.reporting_manager)
 
                 # Run postprocessing
                 # Standardized interface: extract_streamflow is the main entry point
@@ -287,7 +219,7 @@ class ModelManager(ConfigurableMixin):
             if obs_col is None:
                 # Try to load observations from standard location
                 obs_dir = self.project_dir / "observations" / "streamflow" / "preprocessed"
-                domain_name = self.config.get('DOMAIN_NAME') if isinstance(self.config, dict) else self.typed_config.domain.name
+                domain_name = self.config.domain.name
                 obs_files = list(obs_dir.glob(f"{domain_name}*_streamflow*.csv")) if obs_dir.exists() else []
 
                 if obs_files:
@@ -404,11 +336,7 @@ class ModelManager(ConfigurableMixin):
 
         workflow = self._resolve_model_workflow()
         # Primary models from configuration
-        models_str = self._resolve_config_value(
-            lambda: self.typed_config.model.hydrological_model,
-            'HYDROLOGICAL_MODEL',
-            ''
-        )
+        models_str = self.config.model.hydrological_model or ''
         models = [m.strip() for m in str(models_str).split(',') if m.strip()]
 
         for model in models:
@@ -417,10 +345,10 @@ class ModelManager(ConfigurableMixin):
                 try:
                     self.logger.info(f"Using registered visualizer for {model}")
                     visualizer(
-                        self.reporting_manager, 
-                        self.config, 
-                        self.project_dir, 
-                        self.experiment_id, 
+                        self.reporting_manager,
+                        self.config_dict,  # Visualizer expects flat dict
+                        self.project_dir,
+                        self.experiment_id,
                         workflow
                     )
                 except Exception as e:

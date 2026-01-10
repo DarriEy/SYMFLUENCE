@@ -10,10 +10,15 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import Dict, List, Optional, Any, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
+from symfluence.evaluation.output_file_locator import OutputFileLocator
 from .base import ModelEvaluator
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
 
 @EvaluationRegistry.register('TWS')
 class TWSEvaluator(ModelEvaluator):
@@ -21,31 +26,30 @@ class TWSEvaluator(ModelEvaluator):
     Total Water Storage evaluator comparing SUMMA storage to GRACE TWS anomalies.
     Adapted to inherit from ModelEvaluator.
     """
-    
+
     DEFAULT_STORAGE_VARS = [
         'scalarSWE', 'scalarCanopyWat', 'scalarTotalSoilWat', 'scalarAquiferStorage'
     ]
-    
-    def __init__(self, config: Dict, project_dir: Path, logger: logging.Logger):
+
+    def __init__(self, config: 'SymfluenceConfig', project_dir: Path, logger: logging.Logger):
         super().__init__(config, project_dir, logger)
-        
-        self.grace_column = config.get('TWS_GRACE_COLUMN', 'grace_jpl_anomaly')
-        self.anomaly_baseline = config.get('TWS_ANOMALY_BASELINE', 'overlap')
-        self.unit_conversion = config.get('TWS_UNIT_CONVERSION', 1.0)
-        
-        storage_str = config.get('TWS_STORAGE_COMPONENTS', '')
+
+        self.grace_column = self.config_dict.get('TWS_GRACE_COLUMN', 'grace_jpl_anomaly')
+        self.anomaly_baseline = self.config_dict.get('TWS_ANOMALY_BASELINE', 'overlap')
+        self.unit_conversion = self.config_dict.get('TWS_UNIT_CONVERSION', 1.0)
+
+        storage_str = self.config_dict.get('TWS_STORAGE_COMPONENTS', '')
         if storage_str:
             self.storage_vars = [v.strip() for v in storage_str.split(',') if v.strip()]
         else:
             self.storage_vars = self.DEFAULT_STORAGE_VARS.copy()
     
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
-        patterns = ['*_timestep.nc', '*_day.nc', '*output*.nc', '*.nc']
-        for pattern in patterns:
-            files = list(sim_dir.glob(pattern))
-            if files:
-                return [max(files, key=lambda f: f.stat().st_mtime)]
-        return []
+        """Get simulation files containing storage variables for TWS calculation."""
+        locator = OutputFileLocator(self.logger)
+        # TWS needs the most recent file with storage components
+        most_recent = locator.get_most_recent(sim_dir, 'tws')
+        return [most_recent] if most_recent else []
         
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
         output_file = sim_files[0]
@@ -116,8 +120,9 @@ class TWSEvaluator(ModelEvaluator):
             raise
     
     def get_observed_data_path(self) -> Path:
-        if 'TWS_OBS_PATH' in self.config:
-            return Path(self.config.get('TWS_OBS_PATH'))
+        tws_obs_path = self.config_dict.get('TWS_OBS_PATH')
+        if tws_obs_path:
+            return Path(tws_obs_path)
 
         # Search in multiple possible locations for GRACE data
         # Support both observations/grace and observations/storage/grace paths
@@ -166,6 +171,7 @@ class TWSEvaluator(ModelEvaluator):
         """Override to handle anomaly calculation which is specific to TWS"""
         import sys
         try:
+            sim_dir = Path(sim_dir)
             sys.stderr.write(f"[TWS] Starting metrics calculation for {sim_dir}\n")
             sys.stderr.flush()
             # Load simulated data (absolute storage)
@@ -200,7 +206,14 @@ class TWSEvaluator(ModelEvaluator):
             
             # Aggregate simulated to monthly means to match GRACE
             sim_monthly = sim_tws.resample('MS').mean()
-            
+
+            # Check if we have any simulated data
+            if len(sim_monthly) == 0:
+                sys.stderr.write(f"[TWS] No simulated data after resampling to monthly (original: {len(sim_tws)} points)\n")
+                sys.stderr.flush()
+                self.logger.error(f"[TWS] No simulated TWS data available for metrics calculation")
+                return None
+
             # Find common period
             common_idx = sim_monthly.index.intersection(obs_tws.index)
             if len(common_idx) == 0:

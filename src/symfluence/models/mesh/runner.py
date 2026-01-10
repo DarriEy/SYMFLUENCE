@@ -152,6 +152,10 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
         shutil.copy2(self.mesh_exe, mesh_exe_dest)
         # Make sure it's executable
         mesh_exe_dest.chmod(0o755)
+        
+        # Create results directory that MESH expects
+        results_dir = self.forcing_dir / 'results'
+        results_dir.mkdir(parents=True, exist_ok=True)
 
         cmd = [
             f'./{self.mesh_exe.name}'

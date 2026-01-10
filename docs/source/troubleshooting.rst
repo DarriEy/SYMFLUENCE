@@ -26,10 +26,13 @@ Installation and Environment
 ----------------------------
 **Environment not found**
 - Ensure you installed using the built-in installer:
+  
   .. code-block:: bash
 
-     ./confluence --install
+     ./symfluence --install
+
 - Activate environment:
+  
   .. code-block:: bash
 
      source .venv/bin/activate
@@ -41,18 +44,21 @@ Installation and Environment
 **Version conflicts**
 - Use Python 3.11. Other versions are not guaranteed to be supported.
 - Reinstall dependencies cleanly:
+  
   .. code-block:: bash
 
      rm -rf .venv
-     ./confluence --install
+     ./symfluence --install
 
 ---
 
 Runtime and Workflow
 --------------------
 **Model execution stops prematurely**
+
 - Inspect logs in ``_workLog_<domain_name>/``.
 - Common issues:
+
   - Missing forcing data files.
   - Invalid HRU discretization thresholds.
   - Incorrect relative paths in model setup.

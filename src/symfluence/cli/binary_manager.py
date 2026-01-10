@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import yaml
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -329,6 +330,11 @@ class BinaryManager:
                     exe_name = config[config_exe_key]
                 else:
                     exe_name = tool_info['default_exe']
+                
+                # Handle shared library extension on macOS
+                if exe_name.endswith('.so') and sys.platform == 'darwin':
+                    exe_name = exe_name.replace('.so', '.dylib')
+
                 tool_result['executable'] = exe_name
 
                 exe_path = tool_path / exe_name
@@ -632,11 +638,32 @@ class BinaryManager:
         print("\n📦 Checking binaries...")
         print("-" * 40)
 
+        # Resolve SYMFLUENCE_DATA similarly to get_executables
         symfluence_data = os.getenv('SYMFLUENCE_DATA')
+        if not symfluence_data:
+            # Try to load from config
+            try:
+                from symfluence.resources import get_config_template
+                config_path = get_config_template()
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                symfluence_data = config.get('SYMFLUENCE_DATA_DIR')
+            except:
+                pass
+        
+        # Fallback to default if still not found (though less reliable without config)
+        if not symfluence_data:
+             # Try assuming sibling directory structure if in source mode
+             possible_data = Path.cwd().parent / 'SYMFLUENCE_data'
+             if possible_data.exists():
+                 symfluence_data = str(possible_data)
+
         npm_bin_dir = self.detect_npm_binaries()
 
         if npm_bin_dir:
             print(f"   ℹ️  Detected npm-installed binaries: {npm_bin_dir}")
+        if symfluence_data:
+            print(f"   ℹ️  Checking source installs in: {symfluence_data}")
 
         found_binaries = 0
         total_binaries = 0
@@ -656,21 +683,32 @@ class BinaryManager:
                 
                 # Check for folder (e.g. TauDEM) or specific file
                 full_path = Path(symfluence_data) / rel_path_suffix
-                if name in ('taudem', 'wmfire'):
+                
+                if name in ('taudem',):
                     if full_path.exists() and full_path.is_dir():
                         found = True
                         location = full_path
                 elif exe_name:
-                    exe_path = full_path / exe_name
-                    if exe_path.exists():
-                        found = True
-                        location = exe_path
+                    # Handle shared libraries on macOS
+                    if exe_name.endswith('.so') and sys.platform == 'darwin':
+                        exe_name_mac = exe_name.replace('.so', '.dylib')
+                        candidates = [exe_name, exe_name_mac]
                     else:
+                        candidates = [exe_name]
+
+                    for cand in candidates:
+                        exe_path = full_path / cand
+                        if exe_path.exists():
+                            found = True
+                            location = exe_path
+                            break
+                        
                         # Try without extension
-                        exe_path_no_ext = full_path / exe_name.replace('.exe', '')
+                        exe_path_no_ext = full_path / cand.replace('.exe', '')
                         if exe_path_no_ext.exists():
                             found = True
                             location = exe_path_no_ext
+                            break
 
             # 2. Check npm installation as fallback
             if not found and npm_bin_dir:

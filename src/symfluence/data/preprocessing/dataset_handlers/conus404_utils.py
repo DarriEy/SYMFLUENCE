@@ -9,6 +9,7 @@ from shapely.geometry import Polygon
 
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
+from symfluence.data.utilities import VariableStandardizer
 
 
 @DatasetRegistry.register("conus404")
@@ -42,21 +43,10 @@ class CONUS404Handler(BaseDatasetHandler):
         """
         Map raw CONUS404 variables to standard forcing names expected by SUMMA.
 
-        Note:
-        - We map RAINRATE directly to pptrate (precipitation rate).
-        - If your CONUS404 RAINRATE is in mm/s or kg m-2 s-1, we treat it
-          as equivalent to m s-1 after scaling in process_dataset().
+        Uses centralized VariableStandardizer for consistency across the codebase.
         """
-        return {
-            "T2": "airtemp",
-            "Q2": "spechum",      # may be mixing ratio; we adjust if needed
-            "PSFC": "airpres",
-            "GLW": "LWRadAtm",
-            "SWDOWN": "SWRadAtm",
-            "RAINRATE": "pptrate",
-            "U10": "windspd_u",
-            "V10": "windspd_v",
-        }
+        standardizer = VariableStandardizer(self.logger)
+        return standardizer.get_rename_map('CONUS404')
 
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """
@@ -67,15 +57,12 @@ class CONUS404Handler(BaseDatasetHandler):
           - derive wind speed from U10/V10
           - standardize attributes
         """
-        # --- Core met variables ---
-        core_map = {
-            "T2": "airtemp",
-            "Q2": "spechum",
-            "PSFC": "airpres",
-            "U10": "windspd_u",
-            "V10": "windspd_v",
-        }
-        rename_map = {old: new for old, new in core_map.items() if old in ds.data_vars}
+        # --- Core met variables using VariableStandardizer ---
+        standardizer = VariableStandardizer(self.logger)
+        core_vars = {'T2', 'Q2', 'PSFC', 'U10', 'V10'}
+        full_rename_map = standardizer.get_rename_map('CONUS404')
+        rename_map = {old: new for old, new in full_rename_map.items()
+                      if old in ds.data_vars and old in core_vars}
         ds = ds.rename(rename_map)
 
         # ============================
@@ -112,18 +99,41 @@ class CONUS404Handler(BaseDatasetHandler):
         })
 
         # ============================
-        # Precipitation rate → pptrate [m s-1]
+        # Precipitation rate → pptrate [kg m-2 s-1] (mm/s)
         # ============================
         if "ACDRIPR" in ds:
-            pr_rate = self._convert_accumulated_to_flux(ds["ACDRIPR"])  # 
+            pr_rate = self._convert_accumulated_to_flux(ds["ACDRIPR"])  # mm/s
+            pr_rate.name = "pptrate"
+            ds["pptrate"] = pr_rate
+
+        elif "PREC_ACC_NC" in ds:
+            # Accumulated total precip in mm
+            pr_rate = self._convert_accumulated_to_flux(ds["PREC_ACC_NC"])  # mm/s
             pr_rate.name = "pptrate"
             ds["pptrate"] = pr_rate
 
         elif "RAINRATE" in ds:
-            ds["pptrate"] = ds["RAINRATE"]  #
+            ds["pptrate"] = ds["RAINRATE"] # mm/s
+        
+        elif "pptrate" in ds:
+            # Handle case where pptrate is already present but in mm (accumulated per step)
+            attrs = ds["pptrate"].attrs
+            units = attrs.get("units", "")
+            desc = attrs.get("description", "").lower()
+            long_name = attrs.get("long_name", "").lower()
+            
+            if units == "mm" and ("accumulated" in desc or "accumulated" in long_name):
+                 self.logger.warning("Found 'pptrate' in mm (interval accumulated). Converting to rate mm/s.")
+                 # Calculate dt
+                 time_coord = "time"
+                 dt = (ds[time_coord].diff(time_coord) / np.timedelta64(1, "s")).astype("float32")
+                 dt = dt.reindex({time_coord: ds[time_coord]}, method="bfill")
+                 
+                 # Convert mm/step -> mm/s
+                 ds["pptrate"] = ds["pptrate"] / dt
 
         ds["pptrate"].attrs.update({
-            "units": "mm s-1",  # 
+            "units": "kg m-2 s-1",  # SUMMA standard mass flux unit (equal to mm/s)
             "long_name": "precipitation rate",
             "standard_name": "precipitation_rate"
         })

@@ -48,7 +48,7 @@ class RHESSysModelOptimizer(BaseModelOptimizer):
             reporting_manager: ReportingManager instance
         """
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
-        self.logger.info("RHESSysModelOptimizer initialized")
+        self.logger.debug("RHESSysModelOptimizer initialized")
 
     def _get_model_name(self) -> str:
         """Return model name."""

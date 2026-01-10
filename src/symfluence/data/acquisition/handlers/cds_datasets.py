@@ -24,6 +24,7 @@ except ImportError:
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
+from symfluence.data.utilities import VariableStandardizer
 
 
 class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
@@ -528,39 +529,21 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         return ds
 
     def _rename_variables(self, ds: xr.Dataset) -> xr.Dataset:
-        """Rename variables to SUMMA standards."""
-        rename_map = {
-            't2m': 'airtemp',
-            'sp': 'airpres',
-            'u10': 'wind_u',
-            'v10': 'wind_v',
-            'si10': 'windspd',  # CERRA provides this directly
-            'tp': 'pptrate',
-            'ssrd': 'SWRadAtm',
-            'strd': 'LWRadAtm',
-            # Full variable names (for CARRA/CERRA)
-            'thermal_surface_radiation_downwards': 'LWRadAtm',  # Correct CARRA name
-            'surface_thermal_radiation_downwards': 'LWRadAtm',  # Old incorrect name (kept for backwards compatibility)
-            'surface_solar_radiation_downwards': 'SWRadAtm',
-            'total_precipitation': 'pptrate',
-            '2m_temperature': 'airtemp',
-            '2m_relative_humidity': 'r2',
-            '10m_u_component_of_wind': 'wind_u',
-            '10m_v_component_of_wind': 'wind_v',
-            'surface_pressure': 'airpres'
-        }
-        return ds.rename({k: v for k, v in rename_map.items() if k in ds.variables})
+        """Rename variables to SUMMA standards using centralized VariableStandardizer."""
+        standardizer = VariableStandardizer()
+        dataset_id = self._get_dataset_id()
+        return standardizer.standardize(ds, dataset_id)
 
     def _calculate_derived_variables(self, ds: xr.Dataset) -> xr.Dataset:
         """Calculate derived meteorological variables."""
         # Wind speed from components (if not already present)
-        if 'wind_u' in ds and 'wind_v' in ds and 'windspd' not in ds:
-            ds['windspd'] = np.sqrt(ds['wind_u']**2 + ds['wind_v']**2)
+        if 'windspd_u' in ds and 'windspd_v' in ds and 'windspd' not in ds:
+            ds['windspd'] = np.sqrt(ds['windspd_u']**2 + ds['windspd_v']**2)
 
         # Specific humidity from relative humidity
-        if 'r2' in ds and 'airtemp' in ds and 'airpres' in ds:
+        if 'relhum' in ds and 'airtemp' in ds and 'airpres' in ds:
             ds['spechum'] = self._calculate_specific_humidity(
-                ds['airtemp'], ds['r2'], ds['airpres']
+                ds['airtemp'], ds['relhum'], ds['airpres']
             )
 
         return ds

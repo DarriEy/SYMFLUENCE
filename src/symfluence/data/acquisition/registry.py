@@ -4,11 +4,14 @@ Acquisition Registry for SYMFLUENCE
 Provides a central registry for data acquisition handlers.
 Uses standardized BaseRegistry pattern with lowercase key normalization.
 """
-from typing import Dict, Type, Any, List
+from typing import Dict, Type, Any, List, Union, TYPE_CHECKING
 import logging
 
 from symfluence.core.exceptions import DataAcquisitionError
 from symfluence.data.base_registry import BaseRegistry
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 
 class AcquisitionRegistry(BaseRegistry):
@@ -25,7 +28,7 @@ class AcquisitionRegistry(BaseRegistry):
     def get_handler(
         cls,
         dataset_name: str,
-        config: Dict[str, Any],
+        config: Union['SymfluenceConfig', Dict[str, Any]],
         logger: logging.Logger
     ):
         """
@@ -33,7 +36,7 @@ class AcquisitionRegistry(BaseRegistry):
 
         Args:
             dataset_name: Name of the dataset (case-insensitive)
-            config: Configuration dictionary
+            config: Configuration (SymfluenceConfig or dict for backward compatibility)
             logger: Logger instance
 
         Returns:

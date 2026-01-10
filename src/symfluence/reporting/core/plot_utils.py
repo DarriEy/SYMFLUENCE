@@ -264,7 +264,7 @@ def resample_timeseries(
 
     Args:
         series: Pandas Series with datetime index
-        freq: Target frequency ('H' for hourly, 'D' for daily, 'M' for monthly, etc.)
+        freq: Target frequency ('h' for hourly, 'D' for daily, 'M' for monthly, etc.)
         aggregation: Aggregation method ('mean', 'sum', 'min', 'max')
 
     Returns:

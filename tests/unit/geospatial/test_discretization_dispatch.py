@@ -5,11 +5,13 @@ import pytest
 
 from symfluence.geospatial.discretization import DomainDiscretizer
 from symfluence.geospatial.discretization.attributes import combined, elevation
+from symfluence.core.config.models import SymfluenceConfig
 
 
 def _base_config(tmp_path, discretization):
-    return {
+    config_dict = {
         "SYMFLUENCE_DATA_DIR": str(tmp_path),
+        "SYMFLUENCE_CODE_DIR": str(tmp_path / "code"),
         "DOMAIN_NAME": "test_domain",
         "DEM_NAME": "default",
         "DEM_PATH": "default",
@@ -19,7 +21,13 @@ def _base_config(tmp_path, discretization):
         "CATCHMENT_SHP_GRUID": "GRU_ID",
         "CATCHMENT_SHP_HRUID": "HRU_ID",
         "DOMAIN_DISCRETIZATION": discretization,
+        "EXPERIMENT_ID": "test",
+        "EXPERIMENT_TIME_START": "2020-01-01 00:00",
+        "EXPERIMENT_TIME_END": "2020-01-02 00:00",
+        "FORCING_DATASET": "ERA5",
+        "HYDROLOGICAL_MODEL": "SUMMA",
     }
+    return SymfluenceConfig(**config_dict)
 
 
 def test_discretize_domain_dispatches_single_attribute(tmp_path, monkeypatch):

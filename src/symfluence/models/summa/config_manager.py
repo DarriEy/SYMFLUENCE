@@ -33,6 +33,11 @@ class SummaConfigManager(PathResolverMixin):
     including file managers, initial conditions, trial parameters, and attributes.
     """
 
+    @property
+    def config_dict(self) -> Dict[str, Any]:
+        """Return the config dict for PathResolverMixin compatibility."""
+        return getattr(self, '_config_dict_data', {})
+
     def __init__(
         self,
         config: Dict[str, Any],
@@ -79,8 +84,9 @@ class SummaConfigManager(PathResolverMixin):
             get_default_path_callback: Callback function to get default paths
             get_simulation_times_callback: Callback function to get simulation times
         """
-        self.config = config
-        self.config_dict = config  # For PathResolverMixin compatibility
+        # Store dict config for PathResolverMixin compatibility
+        # Use private attribute since config_dict is a property in mixins
+        self._config_dict_data = config
         self.logger = logger
         self.project_dir = project_dir
         self.setup_dir = setup_dir

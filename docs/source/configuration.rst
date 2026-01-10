@@ -188,7 +188,9 @@ Set paths for custom installations and parallel runtime behavior.
 Validation and Best Practices
 -----------------------------
 1. Validate before execution:
+
    .. code-block:: bash
+
       ./symfluence --validate_config my_project.yaml
 2. Comment custom values and rationale within YAML.
 3. Version-control all configuration files (except `config_active.yaml`).

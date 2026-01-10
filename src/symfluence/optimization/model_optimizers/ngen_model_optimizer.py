@@ -60,7 +60,7 @@ class NgenModelOptimizer(BaseModelOptimizer):
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
-        self.logger.info(f"NgenModelOptimizer initialized")
+        self.logger.debug(f"NgenModelOptimizer initialized")
 
     def _get_model_name(self) -> str:
         """Return model name."""

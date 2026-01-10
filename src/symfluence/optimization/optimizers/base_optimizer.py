@@ -12,7 +12,7 @@ import gc
 import re
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple, Optional, TYPE_CHECKING
 from abc import ABC, abstractmethod
 
 from symfluence.optimization.core.parameter_manager import ParameterManager
@@ -24,29 +24,91 @@ from symfluence.optimization.calibration_targets import (
     ETTarget, SnowTarget, GroundwaterTarget, SoilMoistureTarget, StreamflowTarget, CalibrationTarget, TWSTarget
 )
 from symfluence.optimization.workers.summa_parallel_workers import _evaluate_parameters_worker_safe, _run_dds_instance_worker
+from symfluence.core.mixins import ConfigMixin
 
-class BaseOptimizer(ABC):
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
+
+class BaseOptimizer(ABC, ConfigMixin):
     """
     Abstract base class for SYMFLUENCE optimizers.
+
+    Inherits from ConfigMixin for typed config access with dict fallback.
     """
-    
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger, output_dir: Optional[Path] = None, reporting_manager: Optional[Any] = None):
-        """Initialize base optimizer with common components"""
-        self.config = config
-        self.logger = logger
+
+    # Convenience properties for commonly accessed config values
+    @property
+    def domain_name(self) -> str:
+        return self._get_config_value(lambda: self.config.domain.name) or self._domain_name
+
+    @domain_name.setter
+    def domain_name(self, value: str) -> None:
+        self._domain_name = value
+
+    @property
+    def experiment_id(self) -> str:
+        return self._get_config_value(lambda: self.config.domain.experiment_id) or self._experiment_id
+
+    @experiment_id.setter
+    def experiment_id(self, value: str) -> None:
+        self._experiment_id = value
+
+    @property
+    def summa_filemanager(self) -> str:
+        return self._get_config_value(
+            lambda: self.config.model.summa.filemanager if self.config.model.summa else None,
+            default='fileManager.txt'
+        )
+
+    @property
+    def optimization_target(self) -> str:
+        return self._get_config_value(lambda: self.config.optimization.target, default='streamflow')
+
+    @property
+    def calibration_variable(self) -> str:
+        return self._get_config_value(lambda: self.config.optimization.calibration_variable, default='streamflow')
+
+    @property
+    def config_dict(self) -> Dict[str, Any]:
+        """Override to support dict-only initialization."""
+        if self._config is not None:
+            return self._config.to_dict(flatten=True)
+        return self._config_dict or {}
+
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        logger: logging.Logger,
+        output_dir: Optional[Path] = None,
+        reporting_manager: Optional[Any] = None,
+        typed_config: Optional['SymfluenceConfig'] = None
+    ):
+        """Initialize base optimizer with common components."""
+        # Set typed config via mixin (accepts SymfluenceConfig or dict)
+        if typed_config is not None:
+            self._config = typed_config
+        elif hasattr(config, 'domain'):  # Already a SymfluenceConfig
+            self._config = config
+        else:
+            self._config = None  # Will use config dict fallback
+
+        self._config_dict = config if isinstance(config, dict) else None
+        self._logger = logger
         self.reporting_manager = reporting_manager
-        
+
         # Setup basic paths
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
+        self.data_dir = Path(self.config_dict.get('SYMFLUENCE_DATA_DIR'))
+        self._domain_name = self.config_dict.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.experiment_id = self.config.get('EXPERIMENT_ID')
+        self._experiment_id = self.config_dict.get('EXPERIMENT_ID')
         
         # Algorithm-specific directory setup
         self.algorithm_name = self.get_algorithm_name().lower()
-        
-        self.use_parallel = config.get('MPI_PROCESSES', 1) > 1
-        self.num_processes = max(1, config.get('MPI_PROCESSES', 1))
+
+        mpi_processes = self._cfg('MPI_PROCESSES', default=1)
+        self.use_parallel = mpi_processes > 1
+        self.num_processes = max(1, mpi_processes)
         
         # Get MPI rank
         mpi_rank = None
@@ -92,18 +154,27 @@ class BaseOptimizer(ABC):
         self.results_manager = ResultsManager(config, logger, self.output_dir, self.reporting_manager)
         
         # Common algorithm parameters
-        self.max_iterations = config.get('NUMBER_OF_ITERATIONS', 100)
-        self.target_metric = config.get('OPTIMIZATION_METRIC', 'KGE')
-        
+        self.max_iterations = self._cfg(
+            'NUMBER_OF_ITERATIONS', default=100,
+            typed=lambda: self._typed_config.optimization.iterations
+        )
+        self.target_metric = self._cfg(
+            'OPTIMIZATION_METRIC', default='KGE',
+            typed=lambda: self._typed_config.optimization.metric
+        )
+
         # Algorithm state variables
         self.best_params = None
         self.best_score = float('-inf')
         self.iteration_history = []
 
-        self.models_to_run = config.get('HYDROLOGICAL_MODEL').split(',')
-        
+        self.models_to_run = self._cfg(
+            'HYDROLOGICAL_MODEL',
+            typed=lambda: self._typed_config.model.hydrological_model
+        ).split(',')
+
         # Set random seed for reproducibility
-        self.random_seed = config.get('RANDOM_SEED', None)
+        self.random_seed = self._cfg('RANDOM_SEED', default=None)
         if self.random_seed is not None and self.random_seed != 'None':
             self._set_random_seeds(self.random_seed)
             self.logger.info(f"Random seed set to: {self.random_seed}")
@@ -114,6 +185,26 @@ class BaseOptimizer(ABC):
         
         if self.use_parallel:
             self._setup_parallel_processing()
+
+    def _cfg(self, dict_key: str, default: Any = None, typed: Any = None) -> Any:
+        """Get config value with typed config fallback to dict.
+
+        Args:
+            dict_key: Key to use for dict access
+            default: Default value if not found
+            typed: Lambda that accesses the typed config value
+
+        Returns:
+            Config value from typed config, dict, or default
+        """
+        if self._config is not None and typed is not None:
+            try:
+                value = typed()
+                if value is not None:
+                    return value
+            except (AttributeError, TypeError):
+                pass
+        return self.config_dict.get(dict_key, default)
 
     @abstractmethod
     def get_algorithm_name(self) -> str:
@@ -161,7 +252,7 @@ class BaseOptimizer(ABC):
             raise FileNotFoundError(f"Source settings directory not found: {source_settings_dir}")
 
         # Determine if glacier mode is enabled based on file manager name
-        summa_fm = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        summa_fm = self._cfg('SETTINGS_SUMMA_FILEMANAGER', default='fileManager.txt', typed=lambda: self._typed_config.model.summa.filemanager if self._typed_config.model.summa else None)
         glacier_mode = 'glac' in summa_fm.lower()
 
         required_files = [
@@ -250,7 +341,7 @@ class BaseOptimizer(ABC):
     def _update_optimization_file_managers(self) -> None:
         """Update file managers for optimization runs"""
         # Update SUMMA file manager - use config name if specified
-        summa_fm_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        summa_fm_name = self._cfg('SETTINGS_SUMMA_FILEMANAGER', default='fileManager.txt', typed=lambda: self._typed_config.model.summa.filemanager if self._typed_config.model.summa else None)
         file_manager_path = self.optimization_settings_dir / summa_fm_name
         if not file_manager_path.exists():
             # Fallback to default
@@ -275,7 +366,7 @@ class BaseOptimizer(ABC):
             Adjusted end time string aligned with forcing timestep
         """
         try:
-            forcing_timestep_seconds = self.config.get('FORCING_TIME_STEP_SIZE', 3600)
+            forcing_timestep_seconds = self._cfg('FORCING_TIME_STEP_SIZE', default=3600, typed=lambda: self._typed_config.forcing.time_step_size)
 
             if forcing_timestep_seconds >= 3600:  # Hourly or coarser
                 # Parse the end time
@@ -306,8 +397,8 @@ class BaseOptimizer(ABC):
             lines = f.readlines()
         
         if use_calibration_period:
-            calibration_period_str = self.config.get('CALIBRATION_PERIOD', '')
-            spinup_period_str = self.config.get('SPINUP_PERIOD', '')
+            calibration_period_str = self._cfg('CALIBRATION_PERIOD', default='', typed=lambda: self._typed_config.domain.calibration_period)
+            spinup_period_str = self._cfg('SPINUP_PERIOD', default='', typed=lambda: self._typed_config.domain.spinup_period)
             
             if calibration_period_str and spinup_period_str:
                 try:
@@ -319,7 +410,7 @@ class BaseOptimizer(ABC):
 
                         # Adjust end time based on forcing timestep
                         # For sub-daily forcing, we need to align with available timesteps
-                        forcing_timestep_seconds = self.config.get('FORCING_TIME_STEP_SIZE', 3600)
+                        forcing_timestep_seconds = self._cfg('FORCING_TIME_STEP_SIZE', default=3600, typed=lambda: self._typed_config.forcing.time_step_size)
                         if forcing_timestep_seconds >= 3600:  # Hourly or coarser
                             # Calculate the last valid hour of the day
                             forcing_timestep_hours = forcing_timestep_seconds / 3600
@@ -339,14 +430,14 @@ class BaseOptimizer(ABC):
                         
                 except Exception as e:
                     self.logger.warning(f"Could not parse spinup+calibration periods: {str(e)}")
-                    sim_start = self.config.get('EXPERIMENT_TIME_START', '1980-01-01 01:00')
-                    sim_end = self._adjust_end_time_for_forcing(self.config.get('EXPERIMENT_TIME_END', '2018-12-31 23:00'))
+                    sim_start = self._cfg('EXPERIMENT_TIME_START', default='1980-01-01 01:00', typed=lambda: str(self._typed_config.domain.time_start))
+                    sim_end = self._adjust_end_time_for_forcing(self._cfg('EXPERIMENT_TIME_END', default='2018-12-31 23:00', typed=lambda: str(self._typed_config.domain.time_end)))
             else:
-                sim_start = self.config.get('EXPERIMENT_TIME_START', '1980-01-01 01:00')
-                sim_end = self._adjust_end_time_for_forcing(self.config.get('EXPERIMENT_TIME_END', '2018-12-31 23:00'))
+                sim_start = self._cfg('EXPERIMENT_TIME_START', default='1980-01-01 01:00', typed=lambda: str(self._typed_config.domain.time_start))
+                sim_end = self._adjust_end_time_for_forcing(self._cfg('EXPERIMENT_TIME_END', default='2018-12-31 23:00', typed=lambda: str(self._typed_config.domain.time_end)))
         else:
-            sim_start = self.config.get('EXPERIMENT_TIME_START', '1980-01-01 01:00')
-            sim_end = self._adjust_end_time_for_forcing(self.config.get('EXPERIMENT_TIME_END', '2018-12-31 23:00'))
+            sim_start = self._cfg('EXPERIMENT_TIME_START', default='1980-01-01 01:00', typed=lambda: str(self._typed_config.domain.time_start))
+            sim_end = self._adjust_end_time_for_forcing(self._cfg('EXPERIMENT_TIME_END', default='2018-12-31 23:00', typed=lambda: str(self._typed_config.domain.time_end)))
         
         updated_lines = []
         for line in lines:
@@ -408,8 +499,8 @@ class BaseOptimizer(ABC):
 
     def _create_calibration_target(self) -> CalibrationTarget:
         """Factory method to create appropriate calibration target"""
-        optimization_target = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
-        calibration_variable = self.config.get('CALIBRATION_VARIABLE', 'streamflow').lower()
+        optimization_target = self._cfg('OPTIMIZATION_TARGET', default='streamflow', typed=lambda: self._typed_config.optimization.target).lower()
+        calibration_variable = self._cfg('CALIBRATION_VARIABLE', default='streamflow', typed=lambda: self._typed_config.optimization.calibration_variable).lower()
 
         if optimization_target in ['et', 'latent_heat']:
             return ETTarget(self.config, self.project_dir, self.logger)
@@ -480,7 +571,7 @@ class BaseOptimizer(ABC):
     def _update_process_file_managers(self, proc_id: int, summa_dir: Path, mizuroute_dir: Path,
                                     summa_settings_dir: Path, mizu_settings_dir: Path) -> None:
         """Update file managers for a specific process"""
-        summa_fm_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        summa_fm_name = self._cfg('SETTINGS_SUMMA_FILEMANAGER', default='fileManager.txt', typed=lambda: self._typed_config.model.summa.filemanager if self._typed_config.model.summa else None)
         file_manager = summa_settings_dir / summa_fm_name
         if not file_manager.exists():
             file_manager = summa_settings_dir / 'fileManager.txt'
@@ -552,7 +643,7 @@ class BaseOptimizer(ABC):
             return
         
         self.logger.info("Cleaning up parallel working directories")
-        cleanup_parallel = self.config.get('CLEANUP_PARALLEL_DIRS', True)
+        cleanup_parallel = self._cfg('CLEANUP_PARALLEL_DIRS', default=True, typed=lambda: self._typed_config.optimization.cleanup_parallel_dirs)
         if cleanup_parallel:
             try:
                 for proc_dirs in self.parallel_dirs:
@@ -634,14 +725,14 @@ class BaseOptimizer(ABC):
                 'multiobjective': task.get('multiobjective', False),
                 'objective_names': task.get('objective_names'),
                 'summa_exe': str(self._get_summa_exe_path()),
-                'file_manager': str(proc_dirs['summa_settings_dir'] / self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')),
+                'file_manager': str(proc_dirs['summa_settings_dir'] / self._cfg('SETTINGS_SUMMA_FILEMANAGER', default='fileManager.txt', typed=lambda: self._typed_config.model.summa.filemanager if self._typed_config.model.summa else None)),
                 'summa_dir': str(proc_dirs['summa_dir']),
                 'mizuroute_dir': str(proc_dirs['mizuroute_dir']),
                 'summa_settings_dir': str(proc_dirs['summa_settings_dir']),
                 'mizuroute_settings_dir': str(proc_dirs['mizuroute_settings_dir']),
                 'config': self.config,
                 'target_metric': self.target_metric,
-                'calibration_variable': self.config.get('CALIBRATION_VARIABLE', 'streamflow'),
+                'calibration_variable': self._cfg('CALIBRATION_VARIABLE', default='streamflow', typed=lambda: self._typed_config.optimization.calibration_variable),
                 'domain_name': self.domain_name,
                 'project_dir': str(self.project_dir),
                 'original_depths': self.parameter_manager.original_depths.tolist() if self.parameter_manager.original_depths is not None else None,
@@ -796,7 +887,7 @@ if __name__ == "__main__":
         try:
             self._update_file_manager_for_final_run()
             
-            if self.config.get('FINAL_EVALUATION_NUMERICAL_METHOD', 'ida') == 'ida':
+            if self._cfg('FINAL_EVALUATION_NUMERICAL_METHOD', default='ida', typed=lambda: self._typed_config.optimization.final_evaluation_numerical_method) == 'ida':
                 self._update_model_decisions_for_final_run()
             
             if not self._apply_parameters(best_params):
@@ -824,7 +915,7 @@ if __name__ == "__main__":
             return None
         finally:
             self._restore_model_decisions_for_optimization()
-            summa_fm_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+            summa_fm_name = self._cfg('SETTINGS_SUMMA_FILEMANAGER', default='fileManager.txt', typed=lambda: self._typed_config.model.summa.filemanager if self._typed_config.model.summa else None)
             fm_path = self.optimization_settings_dir / summa_fm_name
             if not fm_path.exists():
                 fm_path = self.optimization_settings_dir / 'fileManager.txt'
@@ -929,15 +1020,15 @@ if __name__ == "__main__":
 
     def _update_file_manager_for_final_run(self) -> None:
         """Update file manager to use full experiment period"""
-        summa_fm_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        summa_fm_name = self._cfg('SETTINGS_SUMMA_FILEMANAGER', default='fileManager.txt', typed=lambda: self._typed_config.model.summa.filemanager if self._typed_config.model.summa else None)
         file_manager_path = self.optimization_settings_dir / summa_fm_name
         if not file_manager_path.exists():
             file_manager_path = self.optimization_settings_dir / 'fileManager.txt'
         if not file_manager_path.exists(): return
         with open(file_manager_path, 'r') as f:
             lines = f.readlines()
-        sim_start = self.config.get('EXPERIMENT_TIME_START', '1980-01-01 01:00')
-        sim_end = self.config.get('EXPERIMENT_TIME_END', '2018-12-31 23:00')
+        sim_start = self._cfg('EXPERIMENT_TIME_START', default='1980-01-01 01:00', typed=lambda: str(self._typed_config.domain.time_start))
+        sim_end = self._cfg('EXPERIMENT_TIME_END', default='2018-12-31 23:00', typed=lambda: str(self._typed_config.domain.time_end))
         updated_lines = []
         for line in lines:
             if 'simStartTime' in line:
@@ -966,12 +1057,22 @@ if __name__ == "__main__":
     
     def _get_summa_exe_path(self) -> Path:
         """Get SUMMA executable path"""
-        summa_path = self.config.get('SUMMA_INSTALL_PATH')
+        summa_path = self._cfg(
+            'SUMMA_INSTALL_PATH',
+            typed=lambda: self._typed_config.model.summa.install_path if self._typed_config.model.summa else None
+        )
         if summa_path == 'default':
-            summa_path = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / 'installs' / 'summa' / 'bin'
+            summa_path = Path(self._cfg(
+                'SYMFLUENCE_DATA_DIR',
+                typed=lambda: self._typed_config.system.data_dir
+            )) / 'installs' / 'summa' / 'bin'
         else:
             summa_path = Path(summa_path)
-        return summa_path / self.config.get('SUMMA_EXE')
+        summa_exe = self._cfg(
+            'SUMMA_EXE',
+            typed=lambda: self._typed_config.model.summa.exe if self._typed_config.model.summa else None
+        )
+        return summa_path / summa_exe
         
     def run_optimization(self) -> Dict[str, Any]:
         """Main optimization workflow"""

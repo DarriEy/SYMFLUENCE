@@ -12,8 +12,8 @@ SYMFLUENCE v0.8.0 reorganized the repository structure. Configuration templates 
 - Configs saved to `0_config_files/`
 
 **After (v0.8.0):**
-- Templates in `src/symfluence/data/config_templates/` (distributed with package)
-- Tutorial configs in `examples/configs/`
+- Templates in `src/symfluence/resources/config_templates/` (distributed with package)
+- Tutorial configs in `src/symfluence/resources/config_templates/examples/`
 - User configs can be anywhere (e.g., current directory)
 
 ## Required Updates for Notebooks
@@ -83,10 +83,10 @@ config_path = SYMFLUENCE_CODE_DIR / '0_config_files' / 'config_basin_lumped.yaml
 
 **New pattern:**
 ```python
-# Save to current directory or examples/configs/
+# Save to current directory or src/symfluence/resources/config_templates/examples/
 config_path = Path('./config_basin_lumped.yaml')
-# Or use examples/configs for tutorial configs
-# config_path = Path('../configs/config_basin_lumped.yaml')
+# Or use src/symfluence/resources/config_templates/examples/ for tutorial configs
+# config_path = Path('../resources/config_templates/examples/config_basin_lumped.yaml')
 ```
 
 ### 4. Remove sys.path Manipulation (if present)
@@ -136,7 +136,7 @@ config['POUR_POINT_COORDS'] = '51.1722/-115.5717'
 config['DOMAIN_DEFINITION_METHOD'] = 'lumped'
 # ... other config modifications ...
 
-# Save configuration (current directory or examples/configs/)
+# Save configuration (current directory or src/symfluence/resources/config_templates/examples/)
 config_path = Path('./config_basin_lumped.yaml')
 with open(config_path, 'w') as f:
     yaml.dump(config, f, default_flow_style=False, sort_keys=False)
@@ -156,6 +156,6 @@ symfluence = SYMFLUENCE(config_path)
 
 ## Need Help?
 
-- See `examples/configs/` for updated tutorial configurations
+- See `src/symfluence/resources/config_templates/examples/` for updated tutorial configurations
 - Check `0_config_files/README.md` for workspace usage
 - Use `symfluence config list` to see available templates

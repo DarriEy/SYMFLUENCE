@@ -23,6 +23,14 @@ if TYPE_CHECKING:
 
 # Comprehensive mapping from flat uppercase keys to nested paths
 # Format: 'FLAT_KEY': ('section', 'subsection', 'field') or ('section', 'field')
+#
+# NOTE: This mapping can be auto-generated from Pydantic model aliases using:
+#   from symfluence.core.config.introspection import generate_flat_to_nested_map
+#   from symfluence.core.config.models import SymfluenceConfig
+#   auto_mapping = generate_flat_to_nested_map(SymfluenceConfig)
+#
+# The manual mapping is kept for backward compatibility and explicit control.
+# Use validate_mapping_against_pydantic() to verify sync with Pydantic models.
 FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # ========== SYSTEM CONFIGURATION ==========
     'SYMFLUENCE_DATA_DIR': ('system', 'data_dir'),
@@ -44,6 +52,8 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'EXPERIMENT_TIME_START': ('domain', 'time_start'),
     'EXPERIMENT_TIME_END': ('domain', 'time_end'),
     'CALIBRATION_PERIOD': ('domain', 'calibration_period'),
+    'CALIBRATION_START_DATE': ('domain', 'calibration_start_date'),
+    'CALIBRATION_END_DATE': ('domain', 'calibration_end_date'),
     'EVALUATION_PERIOD': ('domain', 'evaluation_period'),
     'SPINUP_PERIOD': ('domain', 'spinup_period'),
     'DOMAIN_DEFINITION_METHOD': ('domain', 'definition_method'),
@@ -72,13 +82,42 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'SUPPLEMENT_FORCING': ('data', 'supplement_forcing'),
     'FORCE_DOWNLOAD': ('data', 'force_download'),
     'STREAMFLOW_DATA_PROVIDER': ('data', 'streamflow_data_provider'),
+    'USGS_SITE_CODE': ('data', 'usgs_site_code'),
+    'DOWNLOAD_USGS_DATA': ('data', 'download_usgs_data'),
     'DOWNLOAD_USGS_GW': ('data', 'download_usgs_gw'),
     'DOWNLOAD_MODIS_SNOW': ('data', 'download_modis_snow'),
     'DOWNLOAD_SNOTEL': ('data', 'download_snotel'),
     'DOWNLOAD_SMHI_DATA': ('data', 'download_smhi_data'),
     'DOWNLOAD_LAMAH_ICE_DATA': ('data', 'download_lamah_ice_data'),
     'DOWNLOAD_ISMN': ('data', 'download_ismn'),
+    'DOWNLOAD_GLACIER_DATA': ('data', 'download_glacier_data'),
     'LAMAH_ICE_PATH': ('data', 'lamah_ice_path'),
+    'STREAMFLOW_STATION_ID': ('data', 'streamflow_station_id'),
+    'ELEV_CHUNK_SIZE': ('data', 'elev_chunk_size'),
+    'ELEV_TILE_TARGET': ('data', 'elev_tile_target'),
+
+    # Data > Geospatial > SoilGrids
+    'SOILGRIDS_LAYER': ('data', 'geospatial', 'soilgrids', 'layer'),
+    'SOILGRIDS_WCS_MAP': ('data', 'geospatial', 'soilgrids', 'wcs_map'),
+    'SOILGRIDS_COVERAGE_ID': ('data', 'geospatial', 'soilgrids', 'coverage_id'),
+    'SOILGRIDS_HS_CACHE_DIR': ('data', 'geospatial', 'soilgrids', 'hs_cache_dir'),
+    'SOILGRIDS_HS_RESOURCE_ID': ('data', 'geospatial', 'soilgrids', 'hs_resource_id'),
+    'SOILGRIDS_HS_API_URL': ('data', 'geospatial', 'soilgrids', 'hs_api_url'),
+
+    # Data > Geospatial > MODIS Landcover
+    'MODIS_LANDCOVER_YEARS': ('data', 'geospatial', 'modis_landcover', 'years'),
+    'MODIS_LANDCOVER_START_YEAR': ('data', 'geospatial', 'modis_landcover', 'start_year'),
+    'MODIS_LANDCOVER_END_YEAR': ('data', 'geospatial', 'modis_landcover', 'end_year'),
+    'LANDCOVER_YEAR': ('data', 'geospatial', 'modis_landcover', 'year'),
+    'MODIS_LANDCOVER_BASE_URL': ('data', 'geospatial', 'modis_landcover', 'base_url'),
+    'MODIS_LANDCOVER_CACHE_DIR': ('data', 'geospatial', 'modis_landcover', 'cache_dir'),
+    'LANDCOVER_LOCAL_FILE': ('data', 'geospatial', 'modis_landcover', 'local_file'),
+
+    # Data > Geospatial > NLCD
+    'NLCD_COVERAGE_ID': ('data', 'geospatial', 'nlcd', 'coverage_id'),
+
+    # Data > Geospatial > NASADEM
+    'NASADEM_LOCAL_DIR': ('data', 'geospatial', 'nasadem', 'local_dir'),
 
     # Domain > Delineation
     'ROUTING_DELINEATION': ('domain', 'delineation', 'routing'),
@@ -113,6 +152,12 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'FORCING_SHAPE_LON_NAME': ('forcing', 'shape_lon_name'),
     'PET_METHOD': ('forcing', 'pet_method'),
     'SUPPLEMENT_FORCING': ('forcing', 'supplement'),
+
+    # Forcing > ERA5
+    'ERA5_USE_CDS': ('forcing', 'era5_use_cds'),
+    'ERA5_ZARR_PATH': ('forcing', 'era5', 'zarr_path'),
+    'ERA5_TIME_STEP_HOURS': ('forcing', 'era5', 'time_step_hours'),
+    'ERA5_VARS': ('forcing', 'era5', 'variables'),
 
     # Forcing > NEX
     'NEX_MODELS': ('forcing', 'nex', 'models'),
@@ -163,6 +208,10 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'CALIBRATE_DEPTH': ('model', 'summa', 'calibrate_depth'),
     'DEPTH_TOTAL_MULT_BOUNDS': ('model', 'summa', 'depth_total_mult_bounds'),
     'DEPTH_SHAPE_FACTOR_BOUNDS': ('model', 'summa', 'depth_shape_factor_bounds'),
+    'SETTINGS_SUMMA_GLACIER_MODE': ('model', 'summa', 'glacier_mode'),
+    'SETTINGS_SUMMA_GLACIER_ATTRIBUTES': ('model', 'summa', 'glacier_attributes'),
+    'SETTINGS_SUMMA_GLACIER_COLDSTATE': ('model', 'summa', 'glacier_coldstate'),
+    'SUMMA_TIMEOUT': ('model', 'summa', 'timeout'),
 
     # Model > FUSE
     'FUSE_INSTALL_PATH': ('model', 'fuse', 'install_path'),
@@ -171,20 +220,30 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'SETTINGS_FUSE_PATH': ('model', 'fuse', 'settings_path'),
     'SETTINGS_FUSE_FILEMANAGER': ('model', 'fuse', 'filemanager'),
     'FUSE_SPATIAL_MODE': ('model', 'fuse', 'spatial_mode'),
+    'FUSE_SUBCATCHMENT_DIM': ('model', 'fuse', 'subcatchment_dim'),
     'EXPERIMENT_OUTPUT_FUSE': ('model', 'fuse', 'experiment_output'),
     'SETTINGS_FUSE_PARAMS_TO_CALIBRATE': ('model', 'fuse', 'params_to_calibrate'),
     'FUSE_DECISION_OPTIONS': ('model', 'fuse', 'decision_options'),
+    'FUSE_FILE_ID': ('model', 'fuse', 'file_id'),
+    'FUSE_N_ELEVATION_BANDS': ('model', 'fuse', 'n_elevation_bands'),
+    'FUSE_TIMEOUT': ('model', 'fuse', 'timeout'),
 
     # Model > GR
     'GR_INSTALL_PATH': ('model', 'gr', 'install_path'),
     'GR_EXE': ('model', 'gr', 'exe'),
     'GR_SPATIAL_MODE': ('model', 'gr', 'spatial_mode'),
+    'GR_ROUTING_INTEGRATION': ('model', 'gr', 'routing_integration'),
     'SETTINGS_GR_PATH': ('model', 'gr', 'settings_path'),
     'SETTINGS_GR_CONTROL': ('model', 'gr', 'control'),
+    'GR_PARAMS_TO_CALIBRATE': ('model', 'gr', 'params_to_calibrate'),
 
     # Model > HYPE
     'HYPE_INSTALL_PATH': ('model', 'hype', 'install_path'),
+    'HYPE_EXE': ('model', 'hype', 'exe'),
     'SETTINGS_HYPE_PATH': ('model', 'hype', 'settings_path'),
+    'SETTINGS_HYPE_INFO': ('model', 'hype', 'info_file'),
+    'HYPE_PARAMS_TO_CALIBRATE': ('model', 'hype', 'params_to_calibrate'),
+    'HYPE_SPINUP_DAYS': ('model', 'hype', 'spinup_days'),
 
     # Model > NGEN
     'NGEN_INSTALL_PATH': ('model', 'ngen', 'install_path'),
@@ -218,6 +277,10 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'MESH_GRU_DIM': ('model', 'mesh', 'gru_dim'),
     'MESH_HRU_DIM': ('model', 'mesh', 'hru_dim'),
     'MESH_OUTLET_VALUE': ('model', 'mesh', 'outlet_value'),
+    'SETTINGS_MESH_INPUT': ('model', 'mesh', 'input_file'),
+    'MESH_PARAMS_TO_CALIBRATE': ('model', 'mesh', 'params_to_calibrate'),
+    'MESH_SPINUP_DAYS': ('model', 'mesh', 'spinup_days'),
+    'MESH_GRU_MIN_TOTAL': ('model', 'mesh', 'gru_min_total'),
 
     # Model > mizuRoute
     'INSTALL_PATH_MIZUROUTE': ('model', 'mizuroute', 'install_path'),
@@ -238,6 +301,13 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'MIZU_FROM_MODEL': ('model', 'mizuroute', 'from_model'),
     'EXPERIMENT_LOG_MIZUROUTE': ('model', 'mizuroute', 'experiment_log'),
     'EXPERIMENT_OUTPUT_MIZUROUTE': ('model', 'mizuroute', 'experiment_output'),
+    'SETTINGS_MIZU_OUTPUT_VAR': ('model', 'mizuroute', 'output_var'),
+    'SETTINGS_MIZU_PARAMETER_FILE': ('model', 'mizuroute', 'parameter_file'),
+    'SETTINGS_MIZU_REMAP_FILE': ('model', 'mizuroute', 'remap_file'),
+    'SETTINGS_MIZU_TOPOLOGY_FILE': ('model', 'mizuroute', 'topology_file'),
+    'MIZUROUTE_PARAMS_TO_CALIBRATE': ('model', 'mizuroute', 'params_to_calibrate'),
+    'CALIBRATE_MIZUROUTE': ('model', 'mizuroute', 'calibrate'),
+    'MIZUROUTE_TIMEOUT': ('model', 'mizuroute', 'timeout'),
 
     # Model > LSTM
     'LSTM_LOAD': ('model', 'lstm', 'load'),
@@ -252,15 +322,48 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'LSTM_L2_REGULARIZATION': ('model', 'lstm', 'l2_regularization'),
     'LSTM_USE_ATTENTION': ('model', 'lstm', 'use_attention'),
     'LSTM_USE_SNOW': ('model', 'lstm', 'use_snow'),
+    'LSTM_TRAIN_THROUGH_ROUTING': ('model', 'lstm', 'train_through_routing'),
+
+    # Model > RHESSys
+    'RHESSYS_INSTALL_PATH': ('model', 'rhessys', 'install_path'),
+    'RHESSYS_EXE': ('model', 'rhessys', 'exe'),
+    'SETTINGS_RHESSYS_PATH': ('model', 'rhessys', 'settings_path'),
+    'EXPERIMENT_OUTPUT_RHESSYS': ('model', 'rhessys', 'experiment_output'),
+    'FORCING_RHESSYS_PATH': ('model', 'rhessys', 'forcing_path'),
+    'RHESSYS_WORLD_TEMPLATE': ('model', 'rhessys', 'world_template'),
+    'RHESSYS_FLOW_TEMPLATE': ('model', 'rhessys', 'flow_template'),
+    'RHESSYS_SKIP_CALIBRATION': ('model', 'rhessys', 'skip_calibration'),
+    'RHESSYS_USE_WMFIRE': ('model', 'rhessys', 'use_wmfire'),
+    'WMFIRE_INSTALL_PATH': ('model', 'rhessys', 'wmfire_install_path'),
+    'WMFIRE_LIB': ('model', 'rhessys', 'wmfire_lib'),
+    'RHESSYS_USE_VMFIRE': ('model', 'rhessys', 'use_vmfire'),
+    'VMFIRE_INSTALL_PATH': ('model', 'rhessys', 'vmfire_install_path'),
+    'RHESSYS_TIMEOUT': ('model', 'rhessys', 'timeout'),
+
+    # Model > GNN
+    'GNN_LOAD': ('model', 'gnn', 'load'),
+    'GNN_HIDDEN_SIZE': ('model', 'gnn', 'hidden_size'),
+    'GNN_NUM_LAYERS': ('model', 'gnn', 'num_layers'),
+    'GNN_EPOCHS': ('model', 'gnn', 'epochs'),
+    'GNN_BATCH_SIZE': ('model', 'gnn', 'batch_size'),
+    'GNN_LEARNING_RATE': ('model', 'gnn', 'learning_rate'),
+    'GNN_LEARNING_PATIENCE': ('model', 'gnn', 'learning_patience'),
+    'GNN_DROPOUT': ('model', 'gnn', 'dropout'),
+    'GNN_L2_REGULARIZATION': ('model', 'gnn', 'l2_regularization'),
+    'GNN_PARAMS_TO_CALIBRATE': ('model', 'gnn', 'params_to_calibrate'),
+    'GNN_PARAMETER_BOUNDS': ('model', 'gnn', 'parameter_bounds'),
 
     # ========== OPTIMIZATION CONFIGURATION ==========
     'OPTIMIZATION_METHODS': ('optimization', 'methods'),
     'OPTIMIZATION_TARGET': ('optimization', 'target'),
+    'CALIBRATION_VARIABLE': ('optimization', 'calibration_variable'),
     'CALIBRATION_TIMESTEP': ('optimization', 'calibration_timestep'),
     'ITERATIVE_OPTIMIZATION_ALGORITHM': ('optimization', 'algorithm'),
     'OPTIMIZATION_METRIC': ('optimization', 'metric'),
     'NUMBER_OF_ITERATIONS': ('optimization', 'iterations'),
     'POPULATION_SIZE': ('optimization', 'population_size'),
+    'FINAL_EVALUATION_NUMERICAL_METHOD': ('optimization', 'final_evaluation_numerical_method'),
+    'CLEANUP_PARALLEL_DIRS': ('optimization', 'cleanup_parallel_dirs'),
 
     # Optimization > PSO
     'SWRMSIZE': ('optimization', 'pso', 'swrmsize'),
@@ -360,8 +463,8 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'HRU_GAUGE_MAPPING': ('evaluation', 'hru_gauge_mapping'),
 
     # Evaluation > Streamflow
-    'STREAMFLOW_DATA_PROVIDER': ('evaluation', 'streamflow', 'data_provider'),
-    'DOWNLOAD_USGS_DATA': ('evaluation', 'streamflow', 'download_usgs'),
+    # NOTE: STREAMFLOW_DATA_PROVIDER and DOWNLOAD_USGS_DATA are mapped to 'data' section
+    # for observation handlers. Evaluation uses the same values from data section.
     'DOWNLOAD_WSC_DATA': ('evaluation', 'streamflow', 'download_wsc'),
     'STATION_ID': ('evaluation', 'streamflow', 'station_id'),
     'STREAMFLOW_RAW_PATH': ('evaluation', 'streamflow', 'raw_path'),
@@ -394,6 +497,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'ISMN_PATH': ('evaluation', 'ismn', 'path'),
     'ISMN_API_BASE': ('evaluation', 'ismn', 'api_base'),
     'ISMN_METADATA_URL': ('evaluation', 'ismn', 'metadata_url'),
+    'ISMN_VARIABLE_LIST_URL': ('evaluation', 'ismn', 'variable_list_url'),
     'ISMN_DATA_URL_TEMPLATE': ('evaluation', 'ismn', 'data_url_template'),
     'ISMN_MAX_STATIONS': ('evaluation', 'ismn', 'max_stations'),
     'ISMN_SEARCH_RADIUS_KM': ('evaluation', 'ismn', 'search_radius_km'),
@@ -404,11 +508,27 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'DOWNLOAD_GRACE': ('evaluation', 'grace', 'download'),
     'GRACE_PRODUCT': ('evaluation', 'grace', 'product'),
     'GRACE_PATH': ('evaluation', 'grace', 'path'),
+    'GRACE_DATA_DIR': ('evaluation', 'grace', 'data_dir'),
 
     # Evaluation > MODIS Snow
     'DOWNLOAD_MODIS_SNOW': ('evaluation', 'modis_snow', 'download'),
     'MODIS_SNOW_PRODUCT': ('evaluation', 'modis_snow', 'product'),
     'MODIS_SNOW_PATH': ('evaluation', 'modis_snow', 'path'),
+    'MODIS_SNOW_DIR': ('evaluation', 'modis_snow', 'data_dir'),
+    'MODIS_MIN_PIXELS': ('evaluation', 'modis_snow', 'min_pixels'),
+    'MODIS_SCA_MERGE': ('evaluation', 'modis_snow', 'merge'),
+    'MODIS_SCA_PRODUCTS': ('evaluation', 'modis_snow', 'products'),
+    'MODIS_SCA_MERGE_STRATEGY': ('evaluation', 'modis_snow', 'merge_strategy'),
+    'MODIS_SCA_CLOUD_FILTER': ('evaluation', 'modis_snow', 'cloud_filter'),
+    'MODIS_SCA_MIN_VALID_RATIO': ('evaluation', 'modis_snow', 'min_valid_ratio'),
+    'MODIS_SCA_NORMALIZE': ('evaluation', 'modis_snow', 'normalize'),
+    'MODIS_SCA_USE_CATCHMENT_MASK': ('evaluation', 'modis_snow', 'use_catchment_mask'),
+
+    # Evaluation > MODIS ET
+    'DOWNLOAD_MODIS_ET': ('evaluation', 'modis_et', 'download'),
+    'MODIS_ET_PRODUCT': ('evaluation', 'modis_et', 'product'),
+    'MODIS_ET_PATH': ('evaluation', 'modis_et', 'path'),
+    'MOD16_ET_DIR': ('evaluation', 'modis_et', 'data_dir'),
 
     # Evaluation > Attributes
     'ATTRIBUTES_DATA_DIR': ('evaluation', 'attributes', 'data_dir'),
@@ -544,6 +664,7 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
     nested = {
         'system': {},
         'domain': {},
+        'data': {},
         'forcing': {},
         'model': {},
         'optimization': {},
@@ -633,3 +754,42 @@ def flatten_nested_config(config: 'SymfluenceConfig') -> Dict[str, Any]:
                 flat[key] = value
 
     return flat
+
+
+# ========================================
+# MAPPING VALIDATION (for testing)
+# ========================================
+
+def validate_mapping_against_pydantic() -> Dict[str, Any]:
+    """
+    Validate that FLAT_TO_NESTED_MAP matches auto-generated mapping from Pydantic models.
+
+    This function can be used in tests to ensure the manual mapping stays in sync
+    with Pydantic model aliases. In the future, this manual mapping can be replaced
+    entirely with auto-generation.
+
+    Returns:
+        Dictionary with validation results:
+        - 'equivalent': bool - True if mappings match
+        - 'missing_in_manual': list - Keys in Pydantic but not in manual
+        - 'extra_in_manual': list - Keys in manual but not in Pydantic
+        - 'mismatched': dict - Keys with different paths
+    """
+    from symfluence.core.config.introspection import (
+        generate_flat_to_nested_map,
+        validate_mapping_equivalence
+    )
+    from symfluence.core.config.models import SymfluenceConfig
+
+    auto_mapping = generate_flat_to_nested_map(SymfluenceConfig)
+    result = validate_mapping_equivalence(auto_mapping, FLAT_TO_NESTED_MAP)
+
+    # Rename keys for clarity from manual mapping perspective
+    return {
+        'equivalent': result['equivalent'],
+        'missing_in_manual': result['extra_in_auto'],  # In Pydantic but not manual
+        'extra_in_manual': result['missing_in_auto'],  # In manual but not Pydantic
+        'mismatched': result['mismatched'],
+        'manual_count': result['manual_count'],
+        'pydantic_count': result['auto_count']
+    }

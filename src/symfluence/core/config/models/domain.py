@@ -66,6 +66,8 @@ class DomainConfig(BaseModel):
 
     # Optional time periods
     calibration_period: Optional[str] = Field(default=None, alias='CALIBRATION_PERIOD')
+    calibration_start_date: Optional[str] = Field(default=None, alias='CALIBRATION_START_DATE')
+    calibration_end_date: Optional[str] = Field(default=None, alias='CALIBRATION_END_DATE')
     evaluation_period: Optional[str] = Field(default=None, alias='EVALUATION_PERIOD')
     spinup_period: Optional[str] = Field(default=None, alias='SPINUP_PERIOD')
 

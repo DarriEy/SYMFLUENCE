@@ -5,10 +5,12 @@ MESH-specific optimizer inheriting from BaseModelOptimizer.
 Provides unified interface for all optimization algorithms with MESH.
 """
 
+import shutil
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from symfluence.core.file_utils import safe_delete
 from ..optimizers.base_model_optimizer import BaseModelOptimizer
 from ..workers.mesh_worker import MESHWorker
 from ..registry import OptimizerRegistry
@@ -48,7 +50,7 @@ class MESHModelOptimizer(BaseModelOptimizer):
         """
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
-        self.logger.info(f"MESHModelOptimizer initialized")
+        self.logger.debug(f"MESHModelOptimizer initialized")
 
     def _get_model_name(self) -> str:
         """Return model name."""
@@ -125,14 +127,13 @@ class MESHModelOptimizer(BaseModelOptimizer):
         # MESH reads from forcing/MESH_input, not settings
         source_forcing = self.project_dir / 'forcing' / 'MESH_input'
         if source_forcing.exists():
-            import shutil
             for proc_id, dirs in self.parallel_dirs.items():
                 # Create forcing directory structure: process_N/forcing/MESH_input/
                 dest_forcing = dirs['root'] / 'forcing' / 'MESH_input'
                 dest_forcing.parent.mkdir(parents=True, exist_ok=True)
 
                 if dest_forcing.exists():
-                    shutil.rmtree(dest_forcing)
+                    safe_delete(dest_forcing)
 
                 shutil.copytree(source_forcing, dest_forcing, symlinks=True)
                 self.logger.debug(f"Copied MESH forcing to {dest_forcing} (preserving symlinks)")

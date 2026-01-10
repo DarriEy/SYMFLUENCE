@@ -20,6 +20,14 @@ from symfluence.optimization.optimizers import (
     PopulationDDSOptimizer,
     SCEUAOptimizer
 )
+from symfluence.core.config.models import SymfluenceConfig
+
+
+def create_config_with_overrides(base_config: SymfluenceConfig, **overrides) -> SymfluenceConfig:
+    """Create a new SymfluenceConfig with the given overrides."""
+    config_dict = base_config.to_dict(flatten=True)
+    config_dict.update(overrides)
+    return SymfluenceConfig(**config_dict)
 
 
 pytestmark = [pytest.mark.unit, pytest.mark.optimization]
@@ -135,8 +143,10 @@ class TestDDSOptimizer:
         np.random.seed(42)
 
         # Run 1 iteration
-        dds_config_single = dds_config.copy()
-        dds_config_single['NUMBER_OF_ITERATIONS'] = 1
+        dds_config_single = create_config_with_overrides(
+            dds_config,
+            NUMBER_OF_ITERATIONS=1
+        )
 
         optimizer = DDSOptimizer(
             config=dds_config_single,
@@ -152,8 +162,10 @@ class TestDDSOptimizer:
 
     def test_dds_convergence(self, dds_config, test_logger, mock_optimizer_base):
         """Test that DDS converges on a simple problem."""
-        config = dds_config.copy()
-        config['NUMBER_OF_ITERATIONS'] = 50
+        config = create_config_with_overrides(
+            dds_config,
+            NUMBER_OF_ITERATIONS=50
+        )
 
         optimizer = DDSOptimizer(
             config=config,
@@ -267,9 +279,11 @@ class TestDEOptimizer:
 
     def test_de_convergence(self, de_config, test_logger, mock_optimizer_base):
         """Test that DE converges on Rosenbrock function."""
-        config = de_config.copy()
-        config['NUMBER_OF_ITERATIONS'] = 20
-        config['DE_POPULATION_SIZE'] = 10
+        config = create_config_with_overrides(
+            de_config,
+            NUMBER_OF_ITERATIONS=20,
+            DE_POPULATION_SIZE=10
+        )
 
         optimizer = DEOptimizer(
             config=config,
@@ -359,9 +373,11 @@ class TestPSOOptimizer:
 
     def test_pso_convergence(self, pso_config, test_logger, mock_optimizer_base):
         """Test PSO convergence on sphere function."""
-        config = pso_config.copy()
-        config['NUMBER_OF_ITERATIONS'] = 20
-        config['SWRMSIZE'] = 10
+        config = create_config_with_overrides(
+            pso_config,
+            NUMBER_OF_ITERATIONS=20,
+            PSO_SWARM_SIZE=10
+        )
 
         optimizer = PSOOptimizer(
             config=config,
@@ -433,10 +449,12 @@ class TestParallelOptimization:
 
     def test_async_dds(self, dds_config, test_logger, mock_optimizer_base):
         """Test AsyncDDSOptimizer initialization and run."""
-        config = dds_config.copy()
-        config['MPI_PROCESSES'] = 2
-        config['NUMBER_OF_ITERATIONS'] = 50 
-        
+        config = create_config_with_overrides(
+            dds_config,
+            MPI_PROCESSES=2,
+            NUMBER_OF_ITERATIONS=50
+        )
+
         # Create optimizer instance
         optimizer = AsyncDDSOptimizer(
             config=config,
@@ -464,8 +482,10 @@ class TestParallelOptimization:
 
     def test_population_dds(self, dds_config, test_logger, mock_optimizer_base):
         """Test PopulationDDSOptimizer initialization and run."""
-        config = dds_config.copy()
-        config['MPI_PROCESSES'] = 2
+        config = create_config_with_overrides(
+            dds_config,
+            MPI_PROCESSES=2
+        )
 
         optimizer = PopulationDDSOptimizer(
             config=config,
@@ -522,16 +542,12 @@ class TestEdgeCases:
         assert 'theta_sat' in result['best_parameters']
 
     def test_zero_iterations(self, dds_config, test_logger, mock_optimizer_base):
-        """Test with zero iterations (should handle gracefully)."""
-        config = dds_config.copy()
-        config['NUMBER_OF_ITERATIONS'] = 0
+        """Test that zero iterations is rejected by config validation."""
+        from symfluence.core.exceptions import ConfigurationError
 
-        optimizer = DDSOptimizer(
-            config=config,
-            logger=test_logger
-        )
-
-        with patch.object(optimizer, '_evaluate_individual', return_value=0.5):
-            result = optimizer.run_optimization()
-            
-        assert isinstance(result, dict)
+        # SymfluenceConfig validates that NUMBER_OF_ITERATIONS >= 1
+        with pytest.raises(ConfigurationError):
+            config = create_config_with_overrides(
+                dds_config,
+                NUMBER_OF_ITERATIONS=0
+            )

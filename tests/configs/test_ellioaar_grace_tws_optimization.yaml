@@ -53,7 +53,7 @@ DOWNLOAD_GRACE: true
 FORCE_DOWNLOAD: false
 GRACE_SUBSET: true
 # Additional observations: GRACE + ET datasets (select one or multiple)
-ADDITIONAL_OBSERVATIONS: [GRACE, GLEAM_ET]
+ADDITIONAL_OBSERVATIONS: [GRACE, GLEAM_ET, GGMN]
 # GLEAM ET configuration
 GLEAM_ET_DOWNLOAD_URL: https://zenodo.org/api/records/7099512/files/E_GLEAM_v3.tar.gz/content
 GLEAM_ET_PATH: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data/domain_ellioaar_iceland/observations/et/gleam

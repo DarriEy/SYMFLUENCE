@@ -6,12 +6,17 @@ Delegates to existing worker functions while providing BaseWorker interface.
 """
 
 import logging
+import os
+import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional
 
 from .base_worker import BaseWorker, WorkerTask, WorkerResult
 from ..registry import OptimizerRegistry
 from symfluence.core.constants import UnitConversion
+from .utilities.routing_decider import RoutingDecider
+from .utilities.streamflow_metrics import StreamflowMetrics
+from .utilities.fuse_conversion import FuseToMizurouteConverter
 
 
 logger = logging.getLogger(__name__)
@@ -40,9 +45,16 @@ class FUSEWorker(BaseWorker):
         """
         super().__init__(config, logger)
 
+    # Shared utilities
+    _routing_decider = RoutingDecider()
+    _streamflow_metrics = StreamflowMetrics()
+    _format_converter = FuseToMizurouteConverter()
+
     def needs_routing(self, config: Dict[str, Any], settings_dir: Optional[Path] = None) -> bool:
         """
         Determine if routing (mizuRoute) is needed for FUSE.
+
+        Delegates to shared RoutingDecider utility.
 
         Args:
             config: Configuration dictionary
@@ -51,47 +63,7 @@ class FUSEWorker(BaseWorker):
         Returns:
             True if routing is needed
         """
-        calibration_var = config.get('CALIBRATION_VARIABLE', 'streamflow')
-
-        if calibration_var != 'streamflow':
-            return False
-
-        # Check if FUSE routing integration is enabled
-        routing_integration = config.get('FUSE_ROUTING_INTEGRATION', 'none')
-
-        # If 'default', inherit from ROUTING_MODEL
-        if routing_integration == 'default':
-            routing_model = config.get('ROUTING_MODEL', 'none')
-            if routing_model == 'mizuRoute':
-                routing_integration = 'mizuRoute'
-
-        if routing_integration != 'mizuRoute':
-            return False
-
-        # Check spatial mode and routing delineation
-        spatial_mode = config.get('FUSE_SPATIAL_MODE', 'lumped')
-        routing_delineation = config.get('ROUTING_DELINEATION', 'lumped')
-
-        # Distributed modes need routing
-        if spatial_mode in ['semi_distributed', 'distributed']:
-            return True
-
-        # Lumped with river network routing needs routing
-        if spatial_mode == 'lumped' and routing_delineation == 'river_network':
-            return True
-
-        # Also check if mizuRoute control files exist in settings_dir
-        # This handles cases where routing was set up by the optimizer
-        # but config flags don't explicitly indicate it
-        if settings_dir:
-            settings_dir = Path(settings_dir)
-            # Check for process-specific mizuRoute settings (parallel calibration)
-            mizu_control = settings_dir.parent / 'mizuRoute' / 'mizuroute.control'
-            if mizu_control.exists():
-                self.logger.debug(f"Found mizuRoute control file at {mizu_control}, enabling routing")
-                return True
-
-        return False
+        return self._routing_decider.needs_routing(config, 'FUSE', settings_dir)
 
     def apply_parameters(
         self,
@@ -119,8 +91,19 @@ class FUSEWorker(BaseWorker):
         try:
             config = kwargs.get('config', self.config)
 
+            # Check for FUSE subdirectory (common in parallel setup)
+            if (settings_dir / 'FUSE').exists():
+                fuse_settings_dir = settings_dir / 'FUSE'
+            else:
+                fuse_settings_dir = settings_dir
+
             # Find the constraints file in settings_dir
-            constraints_file = settings_dir / 'fuse_zConstraints_snow.txt'
+            constraints_file = fuse_settings_dir / 'fuse_zConstraints_snow.txt'
+
+            # DEBUG: Log parameters being applied
+            self.logger.info(f"APPLY_PARAMS: Applying {len(params)} parameters to {constraints_file}")
+            for p, v in list(params.items())[:5]:  # Log first 5 params
+                self.logger.info(f"  PARAM: {p} = {v:.4f}")
 
             if not constraints_file.exists():
                 self.logger.error(f"FUSE constraints file not found: {constraints_file}")
@@ -179,11 +162,13 @@ class FUSEWorker(BaseWorker):
 
             # Log which parameters were updated
             if params_updated:
-                self.logger.debug(f"Updated FUSE constraints: {params_updated}")
+                self.logger.info(f"APPLY_PARAMS: Successfully updated {len(params_updated)} params: {params_updated}")
+            else:
+                self.logger.warning(f"APPLY_PARAMS: NO parameters were updated!")
 
             missing = set(params.keys()) - params_updated
             if missing:
-                self.logger.warning(f"Parameters not found in constraints file: {missing}")
+                self.logger.warning(f"APPLY_PARAMS: Parameters not found in constraints file: {missing}")
 
             return True
 
@@ -250,18 +235,103 @@ class FUSEWorker(BaseWorker):
                 Path(fuse_output_dir).mkdir(parents=True, exist_ok=True)
 
             # Update file manager with isolated paths, experiment_id, and FMODEL_ID
-            if not self._update_file_manager(filemanager_path, execution_cwd, fuse_output_dir, config=config):
+            # We use a short alias 'sim' for the domain ID to avoid Fortran string length limits
+            # and create symlinks for the input files in the execution directory
+            fuse_run_id = 'sim'
+            
+            # Create symlinks for input files
+            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+            domain_name = config.get('DOMAIN_NAME')
+            project_dir = data_dir / f"domain_{domain_name}"
+            fuse_input_dir = project_dir / 'forcing' / 'FUSE_input'
+            experiment_id = config.get('EXPERIMENT_ID', 'run_1')
+            fuse_id = config.get('FUSE_FILE_ID', experiment_id)
+            
+            # Define input files to symlink
+            input_files = [
+                (fuse_input_dir / f"{domain_name}_input.nc", f"{fuse_run_id}_input.nc"),
+                (fuse_input_dir / f"{domain_name}_elev_bands.nc", f"{fuse_run_id}_elev_bands.nc")
+            ]
+            
+            # Also symlink the parameter file (para_def.nc) to match the short alias
+            # The optimizer generates {domain_name}_{fuse_id}_para_def.nc in execution_cwd
+            # FUSE with 'sim' alias will look for sim_{fuse_id}_para_def.nc
+            param_file_src = execution_cwd / f"{domain_name}_{fuse_id}_para_def.nc"
+            param_file_dst = f"{fuse_run_id}_{fuse_id}_para_def.nc"
+            input_files.append((param_file_src, param_file_dst))
+            
+            # Ensure configuration files are present (input_info.txt, fuse_zNumerix.txt, etc.)
+            # These should have been copied by the optimizer, but if missing, symlink from main settings
+            project_settings_dir = project_dir / 'settings' / 'FUSE'
+            self.logger.warning(f"Checking for config files in: {project_settings_dir}")
+            
+            config_files = ['input_info.txt', 'fuse_zNumerix.txt']
+            
+            # Add decisions file to the list
+            # Try to find the specific decisions file for this experiment
+            decisions_file_name = f"fuse_zDecisions_{experiment_id}.txt"
+            if (project_settings_dir / decisions_file_name).exists():
+                config_files.append(decisions_file_name)
+            else:
+                self.logger.warning(f"Decisions file {decisions_file_name} not found in {project_settings_dir}")
+                # Fallback: find any decisions file
+                try:
+                    decisions = list(project_settings_dir.glob("fuse_zDecisions_*.txt"))
+                    if decisions:
+                        config_files.append(decisions[0].name)
+                        self.logger.warning(f"Using fallback decisions file: {decisions[0].name}")
+                except Exception as e:
+                    self.logger.warning(f"Error searching for decisions files: {e}")
+
+            for cfg_file in config_files:
+                target_path = execution_cwd / cfg_file
+                if not target_path.exists():
+                    src_path = project_settings_dir / cfg_file
+                    if src_path.exists():
+                        input_files.append((src_path, cfg_file))
+                        self.logger.warning(f"Restoring missing config file: {cfg_file}")
+                    else:
+                        self.logger.error(f"Source config file not found: {src_path}")
+            
+            for src, link_name in input_files:
+                if src.exists():
+                    link_path = execution_cwd / link_name
+                    # Remove existing link/file if it exists
+                    if link_path.exists() or link_path.is_symlink():
+                        link_path.unlink()
+                    try:
+                        link_path.symlink_to(src)
+                        self.logger.debug(f"Created symlink: {link_path} -> {src}")
+                    except Exception as e:
+                        self.logger.warning(f"Failed to create symlink {link_path}: {e}")
+            
+            # Pass use_local_input=True to _update_file_manager
+            if not self._update_file_manager(filemanager_path, execution_cwd, fuse_output_dir, 
+                                          config=config, use_local_input=True):
                 return False
 
-            # Execute FUSE
-            domain_name = config.get('DOMAIN_NAME')
-            cmd = [str(fuse_exe), str(filemanager_path.name), domain_name, mode]
+            # DEBUG: List files in execution directory to verify setup
+            self.logger.warning(f"Files in execution CWD ({execution_cwd}):")
+            try:
+                for f in execution_cwd.iterdir():
+                    if f.is_symlink():
+                        self.logger.warning(f"  {f.name} -> {f.resolve()}")
+                    else:
+                        self.logger.warning(f"  {f.name}")
+            except Exception as e:
+                self.logger.warning(f"Could not list directory: {e}")
+
+            # Execute FUSE using the short alias
+            # cmd = [str(fuse_exe), str(filemanager_path.name), domain_name, mode]
+            cmd = [str(fuse_exe), str(filemanager_path.name), fuse_run_id, mode]
 
             # For run_pre mode, we need to pass the parameter file as argument
             # For run_def mode, FUSE reads parameters from para_def.nc automatically
             if mode == 'run_pre':
                 experiment_id = config.get('EXPERIMENT_ID')
                 fuse_id = config.get('FUSE_FILE_ID', experiment_id)
+                # Note: para_def.nc is usually generated by the optimizer in the execution dir
+                # If it uses domain_name, we might need to symlink it too or rely on FUSE behavior
                 param_file = execution_cwd / f"{domain_name}_{fuse_id}_para_def.nc"
                 if param_file.exists():
                     cmd.append(str(param_file.name))
@@ -292,17 +362,33 @@ class FUSEWorker(BaseWorker):
                 self.logger.warning(f"FUSE stderr: {result.stderr}")
 
             # Validate that FUSE actually produced output (FUSE can return 0 but fail silently)
-            domain_name = config.get('DOMAIN_NAME')
+            # Output will now use the short alias 'sim' and the FMODEL_ID from file manager
             fuse_id = config.get('FUSE_FILE_ID', config.get('EXPERIMENT_ID'))
-            expected_output = fuse_output_dir / f"{domain_name}_{fuse_id}_runs_def.nc"
-
-            if not expected_output.exists():
-                self.logger.error(f"FUSE returned success but output file not created: {expected_output}")
+            
+            # The output filename format is {domain_id}_{fmodel_id}_{suffix}
+            # FUSE writes to execution_cwd because we set OUTPUT_PATH to ./
+            local_output_filename = f"{fuse_run_id}_{fuse_id}_runs_def.nc"
+            local_output_path = execution_cwd / local_output_filename
+            
+            # Final destination
+            final_output_path = fuse_output_dir / f"{domain_name}_{fuse_id}_runs_def.nc"
+            
+            if local_output_path.exists():
+                try:
+                    # Move to final destination and rename
+                    if final_output_path.exists():
+                        final_output_path.unlink()
+                    shutil.move(str(local_output_path), str(final_output_path))
+                    self.logger.debug(f"Moved output from {local_output_path} to {final_output_path}")
+                except Exception as e:
+                    self.logger.error(f"Failed to move output file: {e}")
+                    return False
+            else:
+                self.logger.error(f"FUSE returned success but local output file not created: {local_output_path}")
                 self.logger.error(f"FUSE stdout: {result.stdout}")
-                self.logger.error(f"Check forcing file format matches FUSE_SPATIAL_MODE setting")
                 return False
 
-            self.logger.debug(f"FUSE completed successfully, output: {expected_output}")
+            self.logger.debug(f"FUSE completed successfully, output: {final_output_path}")
 
             # Run routing if needed
             # Pass settings_dir to check for mizuRoute control files
@@ -354,7 +440,8 @@ class FUSEWorker(BaseWorker):
             return False
 
     def _update_file_manager(self, filemanager_path: Path, settings_dir: Path, output_dir: Path,
-                              experiment_id: str = None, config: Dict[str, Any] = None) -> bool:
+                              experiment_id: str = None, config: Dict[str, Any] = None,
+                              use_local_input: bool = False) -> bool:
         """
         Update FUSE file manager with isolated paths for parallel execution.
 
@@ -364,6 +451,7 @@ class FUSEWorker(BaseWorker):
             output_dir: Isolated output directory
             experiment_id: Experiment ID to use for FMODEL_ID and decisions file
             config: Configuration dictionary
+            use_local_input: If True, set INPUT_PATH to ./ and expect files to be symlinked
 
         Returns:
             True if successful
@@ -384,42 +472,104 @@ class FUSEWorker(BaseWorker):
                 fuse_id = config.get('FUSE_FILE_ID', experiment_id)
 
             updated_lines = []
-            settings_path_str = str(settings_dir)
-            if not settings_path_str.endswith('/'):
-                settings_path_str += '/'
 
-            output_path_str = str(output_dir)
-            if not output_path_str.endswith('/'):
-                output_path_str += '/'
+            # Use relative paths where possible to avoid Fortran string length limits (often 128 chars)
+            # FUSE execution CWD is settings_dir (or settings_dir/FUSE)
+            execution_cwd = filemanager_path.parent
+
+            try:
+                # SETNGS_PATH is the execution directory itself
+                settings_path_str = "./"
+
+                # Use local output path to avoid FUSE path length/symlink issues
+                output_path_str = "./"
+
+                self.logger.debug(f"Using paths - Settings: {settings_path_str}, Output: {output_path_str}")
+            except Exception as e:
+                self.logger.warning(f"Error setting paths: {e}")
+                settings_path_str = "./"
+                output_path_str = "./"
+                self.logger.warning(f"Could not calculate relative paths: {e}. Falling back to absolute.")
+                settings_path_str = str(settings_dir)
+                if not settings_path_str.endswith('/'):
+                    settings_path_str += '/'
+                output_path_str = str(output_dir)
+                if not output_path_str.endswith('/'):
+                    output_path_str += '/'
 
             # Get input path from config (forcing directory)
-            input_path_str = None
-            if config:
-                data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-                domain_name = config.get('DOMAIN_NAME', '')
-                project_dir = data_dir / f"domain_{domain_name}"
-                fuse_input_dir = project_dir / 'forcing' / 'FUSE_input'
-                if fuse_input_dir.exists():
-                    input_path_str = str(fuse_input_dir)
-                    if not input_path_str.endswith('/'):
-                        input_path_str += '/'
+            if use_local_input:
+                input_path_str = "./"
+            else:
+                input_path_str = None
+                if config:
+                    data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+                    domain_name = config.get('DOMAIN_NAME', '')
+                    project_dir = data_dir / f"domain_{domain_name}"
+                    fuse_input_dir = project_dir / 'forcing' / 'FUSE_input'
+                    if fuse_input_dir.exists():
+                        input_path_str = str(fuse_input_dir)
+                        if not input_path_str.endswith('/'):
+                            input_path_str += '/'
 
-            # Get simulation dates from config
+            # Get simulation dates - prefer actual forcing file dates over config
             sim_start = None
             sim_end = None
             eval_start = None
             eval_end = None
-            if config:
-                # Parse dates from config
-                exp_start = config.get('EXPERIMENT_TIME_START', '')
-                exp_end = config.get('EXPERIMENT_TIME_END', '')
-                calib_period = config.get('CALIBRATION_PERIOD', '')
 
-                # Extract date part (without time)
-                if exp_start:
-                    sim_start = str(exp_start).split()[0]
-                if exp_end:
-                    sim_end = str(exp_end).split()[0]
+            if config:
+                # First, try to read actual dates from forcing file
+                # This handles the case where daily resampling shifts the start date
+                data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+                domain_name = config.get('DOMAIN_NAME', '')
+                project_dir = data_dir / f"domain_{domain_name}"
+                forcing_file = project_dir / 'forcing' / 'FUSE_input' / f"{domain_name}_input.nc"
+
+                if forcing_file.exists():
+                    try:
+                        import xarray as xr
+                        import pandas as pd
+                        import numpy as np
+                        with xr.open_dataset(forcing_file) as ds:
+                            time_vals = ds['time'].values
+                            if len(time_vals) > 0:
+                                # Check type of time values
+                                first_val = time_vals[0]
+                                last_val = time_vals[-1]
+
+                                # Check if datetime64 type
+                                if np.issubdtype(type(first_val), np.datetime64):
+                                    # Already datetime64
+                                    forcing_start = pd.Timestamp(first_val)
+                                    forcing_end = pd.Timestamp(last_val)
+                                elif isinstance(first_val, (int, float, np.integer, np.floating)):
+                                    # Numeric - assume 'days since 1970-01-01'
+                                    forcing_start = pd.Timestamp('1970-01-01') + pd.Timedelta(days=float(first_val))
+                                    forcing_end = pd.Timestamp('1970-01-01') + pd.Timedelta(days=float(last_val))
+                                else:
+                                    # Try direct conversion
+                                    forcing_start = pd.Timestamp(first_val)
+                                    forcing_end = pd.Timestamp(last_val)
+
+                                sim_start = forcing_start.strftime('%Y-%m-%d')
+                                sim_end = forcing_end.strftime('%Y-%m-%d')
+                                self.logger.debug(f"Using forcing file dates: {sim_start} to {sim_end}")
+                    except Exception as e:
+                        self.logger.warning(f"Could not read forcing file dates: {e}")
+
+                # Fallback to config dates if forcing file not available
+                if sim_start is None:
+                    exp_start = config.get('EXPERIMENT_TIME_START', '')
+                    if exp_start:
+                        sim_start = str(exp_start).split()[0]
+                if sim_end is None:
+                    exp_end = config.get('EXPERIMENT_TIME_END', '')
+                    if exp_end:
+                        sim_end = str(exp_end).split()[0]
+
+                # Calibration period from config
+                calib_period = config.get('CALIBRATION_PERIOD', '')
                 if calib_period and ',' in str(calib_period):
                     parts = str(calib_period).split(',')
                     eval_start = parts[0].strip()
@@ -442,10 +592,10 @@ class FUSEWorker(BaseWorker):
                     # Update decisions file to match experiment_id
                     decisions_file = f"fuse_zDecisions_{experiment_id}.txt"
                     # Check if file exists, if not use what's available
-                    if not (settings_dir / decisions_file).exists():
+                    if not (execution_cwd / decisions_file).exists():
                         # Find any decisions file
                         import glob
-                        decisions_files = list(settings_dir.glob('fuse_zDecisions_*.txt'))
+                        decisions_files = list(execution_cwd.glob('fuse_zDecisions_*.txt'))
                         if decisions_files:
                             decisions_file = decisions_files[0].name
                             self.logger.debug(f"Using available decisions file: {decisions_file}")
@@ -453,6 +603,9 @@ class FUSEWorker(BaseWorker):
                 elif stripped.startswith("'") and 'FMODEL_ID' in line:
                     # Update FMODEL_ID to match fuse_id (used in output filename)
                     updated_lines.append(f"'{fuse_id}'                            ! FMODEL_ID          = string defining FUSE model, only used to name output files\n")
+                elif stripped.startswith("'") and 'FORCING INFO' in line:
+                    # Ensure input_info.txt doesn't have trailing spaces
+                    updated_lines.append("'input_info.txt'                 ! FORCING INFO       = definition of the forcing file\n")
                 elif stripped.startswith("'") and 'date_start_sim' in line and sim_start:
                     updated_lines.append(f"'{sim_start}'                     ! date_start_sim     = date start simulation\n")
                 elif stripped.startswith("'") and 'date_end_sim' in line and sim_end:
@@ -533,17 +686,21 @@ class FUSEWorker(BaseWorker):
                 mizu_output_files = list(mizuroute_dir.glob(f"{case_name}.h.*.nc"))
 
                 if mizu_output_files:
-                    # Use the first (or most recent) output file
+                    # Sort by file size (largest first) to get file with actual data
+                    # Empty/incomplete files will be smaller
+                    mizu_output_files.sort(key=lambda f: f.stat().st_size, reverse=True)
                     sim_file_path = mizu_output_files[0]
                     use_routed_output = True
-                    self.logger.info(f"Using mizuRoute output for metrics calculation: {sim_file_path}")
+                    self.logger.info(f"Using mizuRoute output for metrics calculation: {sim_file_path} (size: {sim_file_path.stat().st_size} bytes)")
                 else:
                     # Fallback to non-prefixed pattern (for backward compatibility / default runs)
                     mizu_output_files_fallback = list(mizuroute_dir.glob(f"{experiment_id}.h.*.nc"))
                     if mizu_output_files_fallback:
+                        # Sort by file size to get file with actual data
+                        mizu_output_files_fallback.sort(key=lambda f: f.stat().st_size, reverse=True)
                         sim_file_path = mizu_output_files_fallback[0]
                         use_routed_output = True
-                        self.logger.info(f"Using mizuRoute output for metrics calculation: {sim_file_path}")
+                        self.logger.info(f"Using mizuRoute output for metrics calculation: {sim_file_path} (size: {sim_file_path.stat().st_size} bytes)")
                     else:
                         # Also try the older timestep naming convention
                         old_pattern = mizuroute_dir / f"{experiment_id}_timestep.nc"
@@ -660,6 +817,25 @@ class FUSEWorker(BaseWorker):
             obs_aligned = observed_streamflow.loc[common_index].dropna()
             sim_aligned = simulated_streamflow.loc[common_index].dropna()
 
+            # Filter to calibration period if specified
+            calib_period = config.get('CALIBRATION_PERIOD', '')
+            if calib_period and ',' in str(calib_period):
+                try:
+                    calib_start, calib_end = [s.strip() for s in str(calib_period).split(',')]
+                    calib_start = pd.Timestamp(calib_start)
+                    calib_end = pd.Timestamp(calib_end)
+
+                    # Filter to calibration period
+                    mask_obs = (obs_aligned.index >= calib_start) & (obs_aligned.index <= calib_end)
+                    mask_sim = (sim_aligned.index >= calib_start) & (sim_aligned.index <= calib_end)
+
+                    obs_aligned = obs_aligned[mask_obs]
+                    sim_aligned = sim_aligned[mask_sim]
+
+                    self.logger.debug(f"Filtered to calibration period {calib_start} to {calib_end}: {len(obs_aligned)} points")
+                except Exception as e:
+                    self.logger.warning(f"Could not parse calibration period '{calib_period}': {e}")
+
             common_index = obs_aligned.index.intersection(sim_aligned.index)
             obs_values = obs_aligned.loc[common_index].values
             sim_values = sim_aligned.loc[common_index].values
@@ -668,13 +844,13 @@ class FUSEWorker(BaseWorker):
                 self.logger.error("No valid data points")
                 return {'kge': self.penalty_score}
 
-            # Calculate metrics
-            metrics = {
-                'kge': float(kge(obs_values, sim_values, transfo=1)),
-                'nse': float(nse(obs_values, sim_values, transfo=1)),
-                'rmse': float(rmse(obs_values, sim_values, transfo=1)),
-                'mae': float(mae(obs_values, sim_values, transfo=1)),
-            }
+            # Calculate metrics using shared utility
+            metrics = self._streamflow_metrics.calculate_metrics(
+                obs_values, sim_values, metrics=['kge', 'nse', 'rmse', 'mae']
+            )
+
+            # Debug: Log computed metrics to trace score flow
+            self.logger.info(f"FUSE metrics computed: KGE={metrics['kge']:.4f}, NSE={metrics['nse']:.4f}, n_points={len(obs_values)}")
 
             return metrics
 
@@ -684,7 +860,7 @@ class FUSEWorker(BaseWorker):
 
     def _get_catchment_area(self, config: Dict[str, Any], project_dir: Path) -> float:
         """
-        Get catchment area for FUSE unit conversion.
+        Get catchment area for FUSE unit conversion. Delegates to shared utility.
 
         Args:
             config: Configuration dictionary
@@ -693,48 +869,8 @@ class FUSEWorker(BaseWorker):
         Returns:
             Catchment area in km2
         """
-        try:
-            import geopandas as gpd
-
-            # Get catchment shapefile path
-            catchment_path = config.get('CATCHMENT_PATH', 'default')
-            catchment_name = config.get('CATCHMENT_SHP_NAME', 'default')
-
-            if catchment_path == 'default':
-                catchment_path = project_dir / 'shapefiles' / 'catchment'
-            else:
-                catchment_path = Path(catchment_path)
-
-            if catchment_name == 'default':
-                domain_name = config.get('DOMAIN_NAME')
-                discretization = config.get('DOMAIN_DISCRETIZATION', 'elevation')
-                catchment_name = f"{domain_name}_HRUs_{discretization}.shp"
-
-            catchment_file = catchment_path / catchment_name
-
-            if not catchment_file.exists():
-                self.logger.warning(f"Catchment file not found: {catchment_file}")
-                return 1000.0  # Default value
-
-            # Read catchment and calculate area
-            gdf = gpd.read_file(catchment_file)
-
-            if 'GRU_area' in gdf.columns:
-                total_area_m2 = gdf['GRU_area'].sum()
-                return total_area_m2 / 1e6
-
-            # Calculate from geometry
-            if gdf.crs and not gdf.crs.is_geographic:
-                total_area_m2 = gdf.geometry.area.sum()
-            else:
-                gdf_utm = gdf.to_crs(gdf.estimate_utm_crs())
-                total_area_m2 = gdf_utm.geometry.area.sum()
-
-            return total_area_m2 / 1e6
-
-        except Exception as e:
-            self.logger.warning(f"Error calculating catchment area: {e}")
-            return 1000.0
+        domain_name = config.get('DOMAIN_NAME')
+        return self._streamflow_metrics.get_catchment_area(config, project_dir, domain_name)
 
     def _convert_fuse_to_mizuroute_format(
         self,
@@ -746,163 +882,20 @@ class FUSEWorker(BaseWorker):
         """
         Convert FUSE distributed output to mizuRoute-compatible format.
 
+        Delegates to FuseToMizurouteConverter for the actual conversion.
+
         Args:
             fuse_output_dir: Directory containing FUSE output
             config: Configuration dictionary
-            settings_dir: Settings directory
+            settings_dir: Settings directory (unused, kept for API compatibility)
             proc_id: Process ID for parallel calibration (used in filename)
 
         Returns:
             True if conversion successful
         """
-        try:
-            import xarray as xr
-            import numpy as np
-
-            domain_name = config.get('DOMAIN_NAME')
-            experiment_id = config.get('EXPERIMENT_ID')
-            fuse_id = config.get('FUSE_FILE_ID', experiment_id)
-
-            # Find FUSE output file (runs_def.nc for run_def mode)
-            output_file = fuse_output_dir / f"{domain_name}_{fuse_id}_runs_def.nc"
-
-            if not output_file.exists():
-                self.logger.error(f"FUSE output file not found: {output_file}")
-                return False
-
-            # Open dataset
-            ds = xr.open_dataset(output_file)
-
-            # FUSE outputs q_routed (routed runoff) which we need for mizuRoute
-            # Try multiple variable names that FUSE might use
-            fuse_runoff_vars = ['q_routed', 'q_instnt', 'total_discharge', 'runoff']
-            q_fuse = None
-            for var_name in fuse_runoff_vars:
-                if var_name in ds.variables:
-                    q_fuse = ds[var_name]
-                    self.logger.debug(f"Using FUSE variable '{var_name}' for routing")
-                    break
-
-            if q_fuse is None:
-                self.logger.error(f"FUSE output missing runoff variable. Available: {list(ds.variables)}")
-                ds.close()
-                return False
-
-            # mizuRoute control file expects 'q_routed' as variable name (see vname_qsim in control)
-            # Handle the case where config has 'default' as value - use model-specific default
-            routing_var_config = config.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
-            if routing_var_config in ('default', None, ''):
-                routing_var = 'q_routed'  # FUSE default for routing
-            else:
-                routing_var = routing_var_config
-
-            # Convert FUSE output to routing format
-            # FUSE: (time, param_set, latitude, longitude) -> mizuRoute: (time, gru)
-
-            # Squeeze out param_set dimension if it exists
-            if 'param_set' in q_fuse.dims:
-                q_fuse = q_fuse.isel(param_set=0)
-
-            # Handle spatial dimensions to create 'gru' dimension for mizuRoute
-            # For distributed mode: latitude encodes subcatchments (N values), longitude is singleton (1)
-            # For lumped mode: both are singleton (1)
-            subcatchment_dim = config.get('FUSE_SUBCATCHMENT_DIM', 'longitude')
-
-            if 'latitude' in q_fuse.dims and 'longitude' in q_fuse.dims:
-                # Squeeze singleton dimensions
-                if q_fuse.sizes.get('longitude', 1) == 1:
-                    q_fuse = q_fuse.squeeze('longitude', drop=True)
-                if q_fuse.sizes.get('latitude', 1) == 1:
-                    q_fuse = q_fuse.squeeze('latitude', drop=True)
-
-                # Rename the remaining spatial dimension to 'gru'
-                if subcatchment_dim in q_fuse.dims:
-                    q_fuse = q_fuse.rename({subcatchment_dim: 'gru'})
-
-            # If still no 'gru' dimension, create one (lumped case after squeeze)
-            if 'gru' not in q_fuse.dims:
-                q_fuse = q_fuse.expand_dims('gru')
-
-            # Determine number of GRUs
-            n_gru = q_fuse.sizes['gru']
-
-            # CRITICAL: Convert units from FUSE output (mm/timestep) to what mizuRoute expects
-            target_units = config.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s')
-            # Handle 'default' value - resolve to 'm/s'
-            if target_units in ('default', None, ''):
-                target_units = 'm/s'
-            timestep_seconds = int(config.get('FORCING_TIME_STEP_SIZE', 86400))
-
-            self.logger.info(f"Converting FUSE runoff to {target_units} (timestep={timestep_seconds}s)")
-
-            # FUSE outputs in 'mm timestep-1' - convert to target units
-            q_fuse_values = q_fuse.values
-
-            if target_units == 'm/s':
-                # Convert mm/timestep -> m/s
-                # mm/timestep * (1m / 1000mm) / timestep_seconds = m/s
-                conversion_factor = 1.0 / (1000.0 * timestep_seconds)
-                q_fuse_values = q_fuse_values * conversion_factor
-                self.logger.info(f"Applied conversion factor: {conversion_factor:.2e}")
-            elif target_units == 'mm/s':
-                # Convert mm/timestep -> mm/s
-                conversion_factor = 1.0 / timestep_seconds
-                q_fuse_values = q_fuse_values * conversion_factor
-            elif target_units in ['mm/d', 'mm/day']:
-                # Convert mm/timestep -> mm/day
-                if timestep_seconds != 86400:
-                    conversion_factor = 86400.0 / timestep_seconds
-                    q_fuse_values = q_fuse_values * conversion_factor
-                # else: Already in mm/day, no conversion needed
-            elif target_units in ['mm/h', 'mm/hr', 'mm/hour']:
-                # Convert mm/timestep -> mm/hour
-                if timestep_seconds != 3600:
-                    conversion_factor = 3600.0 / timestep_seconds
-                    q_fuse_values = q_fuse_values * conversion_factor
-            else:
-                self.logger.warning(f"Unknown target units '{target_units}', passing through without conversion")
-
-            # Create new dataset with routing variable and simple integer gru coordinate
-            ds_routing = xr.Dataset({
-                routing_var: (('time', 'gru'), q_fuse_values)
-            }, coords={
-                'time': ds['time'].values,
-                'gru': np.arange(n_gru)
-            })
-
-            # Set units attribute
-            ds_routing[routing_var].attrs['units'] = target_units
-            ds_routing[routing_var].attrs['long_name'] = 'FUSE runoff for mizuRoute routing'
-
-            # Add gruId variable (1-indexed as expected by mizuRoute)
-            ds_routing['gruId'] = ('gru', np.arange(1, n_gru + 1))
-
-            # Add time attributes
-            ds_routing['time'].attrs = ds['time'].attrs
-
-            # CRITICAL: Close input dataset BEFORE writing to avoid permission errors
-            ds.close()
-
-            # Create the file with the name mizuRoute expects
-            # For parallel calibration, use proc_XX prefix to match mizuRoute control file
-            # The control file is configured with fname_qsim = proc_{proc_id:02d}_{experiment_id}_timestep.nc
-            expected_filename = f"proc_{proc_id:02d}_{experiment_id}_timestep.nc"
-            expected_file = fuse_output_dir / expected_filename
-
-            # Save converted output directly to expected file (don't overwrite FUSE output)
-            ds_routing.to_netcdf(expected_file)
-            self.logger.info(f"Created mizuRoute input file: {expected_file}")
-
-            ds_routing.close()
-
-            self.logger.info(f"Converted FUSE output to mizuRoute format: {output_file}")
-            return True
-
-        except Exception as e:
-            self.logger.error(f"Error converting FUSE output to mizuRoute format: {e}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return False
+        # Use instance logger for the converter
+        converter = FuseToMizurouteConverter(logger=self.logger)
+        return converter.convert(fuse_output_dir, config, proc_id)
 
     def _run_mizuroute_for_fuse(
         self,
@@ -941,16 +934,22 @@ class FUSEWorker(BaseWorker):
             # Get process-specific control file
             # The optimizer should have copied and configured mizuRoute settings
             # to the process-specific settings directory
-            # settings_dir structure: .../process_N/settings/FUSE
-            # mizuRoute settings are at: .../process_N/settings/mizuRoute
-            settings_dir_path = kwargs.get('settings_dir', Path('.'))
-
-            # Check if this is a process-specific directory (parallel calibration)
-            if 'process_' in str(settings_dir_path):
-                # Use process-specific control file
-                control_file = settings_dir_path.parent / 'mizuRoute' / 'mizuroute.control'
+            # settings_dir structure: .../process_N/settings/FUSE/
+            # mizuRoute settings are at: .../process_N/settings/mizuRoute/
+            
+            # Try to get from kwargs first (set by BaseModelOptimizer)
+            mizuroute_settings_dir = kwargs.get('mizuroute_settings_dir')
+            if mizuroute_settings_dir:
+                control_file = Path(mizuroute_settings_dir) / 'mizuroute.control'
             else:
-                # Fallback to main control file (default runs)
+                settings_dir_path = Path(kwargs.get('settings_dir', Path('.')))
+                # Check both in settings_dir and settings_dir.parent to handle FUSE subdirectory
+                control_file = settings_dir_path / 'mizuRoute' / 'mizuroute.control'
+                if not control_file.exists() and settings_dir_path.name == 'FUSE':
+                    control_file = settings_dir_path.parent / 'mizuRoute' / 'mizuroute.control'
+
+            # Fallback to main control file (default runs)
+            if not control_file or not control_file.exists():
                 domain_name = config.get('DOMAIN_NAME')
                 data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
                 project_dir = data_dir / f"domain_{domain_name}"

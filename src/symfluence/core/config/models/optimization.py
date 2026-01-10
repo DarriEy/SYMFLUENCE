@@ -142,11 +142,14 @@ class OptimizationConfig(BaseModel):
     # General optimization settings
     methods: Union[List[str], str] = Field(default_factory=list, alias='OPTIMIZATION_METHODS')
     target: str = Field(default='streamflow', alias='OPTIMIZATION_TARGET')
+    calibration_variable: str = Field(default='streamflow', alias='CALIBRATION_VARIABLE')
     calibration_timestep: str = Field(default='daily', alias='CALIBRATION_TIMESTEP')
     algorithm: str = Field(default='PSO', alias='ITERATIVE_OPTIMIZATION_ALGORITHM')
     metric: str = Field(default='KGE', alias='OPTIMIZATION_METRIC')
     iterations: int = Field(default=1000, alias='NUMBER_OF_ITERATIONS')
     population_size: int = Field(default=50, alias='POPULATION_SIZE')
+    final_evaluation_numerical_method: str = Field(default='ida', alias='FINAL_EVALUATION_NUMERICAL_METHOD')
+    cleanup_parallel_dirs: bool = Field(default=True, alias='CLEANUP_PARALLEL_DIRS')
 
     # Algorithm-specific settings
     pso: Optional[PSOConfig] = Field(default_factory=PSOConfig)

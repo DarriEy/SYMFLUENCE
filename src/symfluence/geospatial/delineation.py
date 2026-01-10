@@ -61,7 +61,7 @@ class DomainDelineator(PathResolverMixin):
         )
 
     def _get_subset_paths(self) -> Tuple[Path, Path]:
-        geofabric_type = self.config.get('GEOFABRIC_TYPE')
+        geofabric_type = self._get_config_value(lambda: self.config.domain.delineation.geofabric_type)
         
         basins_path = self._get_default_path(
             config_key="OUTPUT_BASINS_PATH",
@@ -105,10 +105,16 @@ class DomainDelineator(PathResolverMixin):
 
     def define_domain(self) -> Tuple[Optional[object], DelineationArtifacts]:
         with self.time_limit("Domain Definition"):
-            domain_method = self._get_config_value("DOMAIN_DEFINITION_METHOD")
+            domain_method = self._get_config_value(
+                lambda: self.config.domain.definition_method,
+                default='lumped'
+            )
             artifacts = DelineationArtifacts(method=domain_method)
 
-            if self._get_config_value("RIVER_BASINS_NAME") != "default":
+            if self._get_config_value(
+                lambda: self.config.paths.river_basins_name,
+                default='default'
+            ) != "default":
                 self.logger.info("Shapefile provided, skipping domain definition")
                 return None, artifacts
 
@@ -135,7 +141,10 @@ class DomainDelineator(PathResolverMixin):
                 artifacts.pour_point_path = self._get_pour_point_path()
 
                 # Check if we need delineated catchments for distributed routing
-                routing_delineation = self._get_config_value("ROUTING_DELINEATION", "lumped")
+                routing_delineation = self._get_config_value(
+                    lambda: self.config.domain.delineation.routing,
+                    default="lumped"
+                )
                 if routing_delineation == "river_network":
                     self.logger.info("Creating delineated catchments for lumped-to-distributed routing")
                     delineated_river_network, delineated_river_basins = self._delineate_lumped_domain()
@@ -152,7 +161,7 @@ class DomainDelineator(PathResolverMixin):
 
             if domain_method == "delineate":
                 river_network_path, river_basins_path = self.delineator.delineate_geofabric()
-                if self.config.get("DELINEATE_COASTAL_WATERSHEDS"):
+                if self._get_config_value(lambda: self.config.domain.delineation.delineate_coastal_watersheds, default=False):
                     coastal_result = self.delineator.delineate_coastal()
                     if coastal_result and all(coastal_result):
                         river_network_path, river_basins_path = coastal_result
@@ -168,8 +177,8 @@ class DomainDelineator(PathResolverMixin):
                 artifacts.river_network_path = river_network_path
                 artifacts.river_basins_path = river_basins_path
                 artifacts.pour_point_path = self._get_pour_point_path()
-                artifacts.metadata['grid_cell_size'] = str(self.config.get('GRID_CELL_SIZE', 1000.0))
-                artifacts.metadata['clip_to_watershed'] = str(self.config.get('CLIP_GRID_TO_WATERSHED', True))
+                artifacts.metadata['grid_cell_size'] = str(self._get_config_value(lambda: self.config.domain.grid_cell_size, default=1000.0))
+                artifacts.metadata['clip_to_watershed'] = str(self._get_config_value(lambda: self.config.domain.clip_grid_to_watershed, default=True))
                 return (river_network_path, river_basins_path), artifacts
 
             self.logger.error(f"Unknown domain definition method: {domain_method}")

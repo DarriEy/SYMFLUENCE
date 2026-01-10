@@ -1,10 +1,368 @@
+"""
+Variable Utilities for SYMFLUENCE
+
+Provides centralized variable name standardization and unit conversion:
+- VariableStandardizer: Simple rename maps for dataset → standard names
+- VariableHandler: Full unit conversion with pint
+
+Usage:
+    from symfluence.data.utilities import VariableStandardizer, VariableHandler
+
+    # Simple renaming
+    standardizer = VariableStandardizer()
+    rename_map = standardizer.get_rename_map('CONUS404')
+    ds = ds.rename({k: v for k, v in rename_map.items() if k in ds.data_vars})
+
+    # Full processing with units
+    handler = VariableHandler(config, logger, 'ERA5', 'SUMMA')
+    ds = handler.process_forcing_data(ds)
+"""
+
 import pint_xarray # type: ignore
 import pint # type: ignore
 import xarray as xr # type: ignore
 import yaml # type: ignore
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Set
 import logging
+
+
+class VariableStandardizer:
+    """
+    Provides simple variable name standardization across datasets.
+
+    This class consolidates all the rename_map dictionaries that were
+    duplicated across acquisition handlers into a single source of truth.
+
+    Standard variable names (target):
+        - airtemp: Air temperature
+        - airpres: Surface air pressure
+        - spechum: Specific humidity
+        - relhum: Relative humidity
+        - windspd: Wind speed (magnitude)
+        - windspd_u: Eastward wind component
+        - windspd_v: Northward wind component
+        - SWRadAtm: Downwelling shortwave radiation
+        - LWRadAtm: Downwelling longwave radiation
+        - pptrate: Precipitation rate
+
+    Usage:
+        standardizer = VariableStandardizer()
+
+        # Get rename map for a dataset
+        rename_map = standardizer.get_rename_map('CONUS404')
+        ds = ds.rename({k: v for k, v in rename_map.items() if k in ds.data_vars})
+
+        # Standardize dataset (convenience method)
+        ds = standardizer.standardize(ds, 'ERA5')
+
+        # Check if a variable is standard
+        if standardizer.is_standard_name('airtemp'):
+            ...
+    """
+
+    # Mapping from source variable names to standard names
+    # Organized by dataset for easy lookup
+    RENAME_MAPS: Dict[str, Dict[str, str]] = {
+        'ERA5': {
+            't2m': 'airtemp',
+            'tp': 'pptrate',
+            'sp': 'airpres',
+            'q': 'spechum',
+            'u10': 'windspd_u',
+            'v10': 'windspd_v',
+            'ws10': 'windspd',
+            'ssrd': 'SWRadAtm',
+            'strd': 'LWRadAtm',
+        },
+        'CARRA': {
+            't2m': 'airtemp',
+            'tp': 'pptrate',
+            'sp': 'airpres',
+            'q': 'spechum',
+            'u10': 'windspd_u',
+            'v10': 'windspd_v',
+            'ws10': 'windspd',
+            'ssrd': 'SWRadAtm',
+            'strd': 'LWRadAtm',
+            # Long-form variable names from CDS API
+            '2m_temperature': 'airtemp',
+            '2m_relative_humidity': 'relhum',
+            'total_precipitation': 'pptrate',
+            'surface_pressure': 'airpres',
+            '10m_u_component_of_wind': 'windspd_u',
+            '10m_v_component_of_wind': 'windspd_v',
+            'thermal_surface_radiation_downwards': 'LWRadAtm',
+            'surface_thermal_radiation_downwards': 'LWRadAtm',  # Backwards compatibility
+            'surface_solar_radiation_downwards': 'SWRadAtm',
+        },
+        'CERRA': {
+            't2m': 'airtemp',
+            'r2': 'relhum',
+            'tp': 'pptrate',
+            'sp': 'airpres',
+            'q': 'spechum',
+            'u10': 'windspd_u',
+            'v10': 'windspd_v',
+            'ws10': 'windspd',
+            'si10': 'windspd',  # CERRA provides 10m wind speed directly
+            '10m_wind_speed': 'windspd',
+            'ssrd': 'SWRadAtm',
+            'strd': 'LWRadAtm',
+            '2m_temperature': 'airtemp',
+            '2m_relative_humidity': 'relhum',
+            'total_precipitation': 'pptrate',
+            'surface_pressure': 'airpres',
+            '10m_u_component_of_wind': 'windspd_u',
+            '10m_v_component_of_wind': 'windspd_v',
+            'surface_solar_radiation_downwards': 'SWRadAtm',
+            'surface_thermal_radiation_downwards': 'LWRadAtm',
+            'thermal_surface_radiation_downwards': 'LWRadAtm',
+        },
+        'CONUS404': {
+            'T2': 'airtemp',
+            'Q2': 'spechum',
+            'PSFC': 'airpres',
+            'U10': 'windspd_u',
+            'V10': 'windspd_v',
+            'GLW': 'LWRadAtm',
+            'SWDOWN': 'SWRadAtm',
+            'ACSWDNB': 'SWRadAtm',
+            'ACLWDNB': 'LWRadAtm',
+            'LWDOWN': 'LWRadAtm',
+            'RAINRATE': 'pptrate',
+            'PREC_ACC_NC': 'pptrate',
+            'ACDRIPR': 'pptrate',
+            'PRATE': 'pptrate',
+        },
+        'HRRR': {
+            'TMP': 'airtemp',
+            'SPFH': 'spechum',
+            'PRES': 'airpres',
+            'DLWRF': 'LWRadAtm',
+            'DSWRF': 'SWRadAtm',
+            'UGRD': 'windspd_u',
+            'VGRD': 'windspd_v',
+            'APCP': 'pptrate',
+        },
+        'AORC': {
+            'APCP_surface': 'pptrate',
+            'TMP_2maboveground': 'airtemp',
+            'SPFH_2maboveground': 'spechum',
+            'PRES_surface': 'airpres',
+            'DLWRF_surface': 'LWRadAtm',
+            'DSWRF_surface': 'SWRadAtm',
+            'UGRD_10maboveground': 'windspd_u',
+            'VGRD_10maboveground': 'windspd_v',
+        },
+        'NEX-GDDP': {
+            'pr': 'pptrate',
+            'tas': 'airtemp',
+            'tasmax': 'airtemp_max',
+            'tasmin': 'airtemp_min',
+            'hurs': 'relhum',
+            'huss': 'spechum',
+            'rlds': 'LWRadAtm',
+            'rsds': 'SWRadAtm',
+            'sfcWind': 'windspd',
+            'ps': 'airpres',
+        },
+        'NEX-GDDP-CMIP6': {
+            'pr': 'pptrate',
+            'tas': 'airtemp',
+            'huss': 'spechum',
+            'ps': 'airpres',
+            'rlds': 'LWRadAtm',
+            'rsds': 'SWRadAtm',
+            'sfcWind': 'windspd',
+        },
+        'GWF': {  # GWF-I and GWF-II share same mapping
+            'PSFC': 'airpres',
+            'Q2': 'spechum',
+            'T2': 'airtemp',
+            'U10': 'windspd_u',
+            'V10': 'windspd_v',
+            'PREC_ACC_NC': 'pptrate',
+            'SWDOWN': 'SWRadAtm',
+            'GLW': 'LWRadAtm',
+        },
+        'RDRS': {
+            'RDRS_v2.1_P_TT_1.5m': 'airtemp',
+            'RDRS_v2.1_P_P0_SFC': 'airpres',
+            'RDRS_v2.1_P_HU_1.5m': 'spechum',
+            'RDRS_v2.1_P_UVC_10m': 'windspd',
+            'RDRS_v2.1_P_UUC_10m': 'windspd_u',
+            'RDRS_v2.1_P_VVC_10m': 'windspd_v',
+            'RDRS_v2.1_P_FI_SFC': 'LWRadAtm',
+            'RDRS_v2.1_P_FB_SFC': 'SWRadAtm',
+            'RDRS_v2.1_A_PR0_SFC': 'pptrate',
+            # v3.1 short names
+            'TT': 'airtemp',
+            'P0': 'airpres',
+            'HU': 'spechum',
+            'UVC': 'windspd',
+            'UUC': 'windspd_u',
+            'VVC': 'windspd_v',
+            'FI': 'LWRadAtm',
+            'FB': 'SWRadAtm',
+            'PR0': 'pptrate',
+        },
+        'CASR': {
+            'CaSR_v3.1_A_TT_1.5m': 'airtemp',
+            'CaSR_v3.1_P_TT_1.5m': 'airtemp',
+            'CaSR_v3.1_A_PR0_SFC': 'pptrate',
+            'CaSR_v3.1_P_PR0_SFC': 'pptrate',
+            'CaSR_v3.1_P_P0_SFC': 'airpres',
+            'CaSR_v3.1_P_HU_1.5m': 'spechum',
+            'CaSR_v3.1_P_UVC_10m': 'windspd',
+            'CaSR_v3.1_P_UUC_10m': 'windspd_u',
+            'CaSR_v3.1_P_VVC_10m': 'windspd_v',
+            'CaSR_v3.1_P_FB_SFC': 'SWRadAtm',
+            'CaSR_v3.1_P_FI_SFC': 'LWRadAtm',
+        },
+        'DayMet': {
+            'prcp': 'pptrate',
+            'srad': 'SWRadAtm',
+            'tmax': 'airtemp_max',
+            'tmin': 'airtemp_min',
+            'vp': 'water_vapor_pressure',
+            'dayl': 'day_length',
+            'swe': 'snow_water_equivalent',
+        },
+    }
+
+    # Standard variable names recognized by SYMFLUENCE
+    STANDARD_NAMES: Set[str] = {
+        'airtemp', 'airtemp_max', 'airtemp_min',
+        'airpres',
+        'spechum', 'relhum',
+        'windspd', 'windspd_u', 'windspd_v',
+        'SWRadAtm', 'LWRadAtm',
+        'pptrate',
+        'day_length', 'snow_water_equivalent', 'water_vapor_pressure',
+    }
+
+    def __init__(self, logger: Optional[logging.Logger] = None):
+        """
+        Initialize VariableStandardizer.
+
+        Args:
+            logger: Optional logger instance
+        """
+        self.logger = logger or logging.getLogger(__name__)
+
+    def get_rename_map(self, dataset: str) -> Dict[str, str]:
+        """
+        Get the variable rename map for a dataset.
+
+        Args:
+            dataset: Dataset name (e.g., 'ERA5', 'CONUS404', 'HRRR')
+
+        Returns:
+            Dictionary mapping source variable names to standard names
+
+        Raises:
+            ValueError: If dataset is not supported
+        """
+        # Handle aliases
+        dataset_key = self._normalize_dataset_name(dataset)
+
+        if dataset_key not in self.RENAME_MAPS:
+            available = ', '.join(sorted(self.RENAME_MAPS.keys()))
+            raise ValueError(
+                f"Unknown dataset '{dataset}'. Available: {available}"
+            )
+
+        return self.RENAME_MAPS[dataset_key].copy()
+
+    def _normalize_dataset_name(self, dataset: str) -> str:
+        """Normalize dataset name to match RENAME_MAPS keys."""
+        # Handle common aliases and case variations
+        dataset_upper = dataset.upper()
+
+        aliases = {
+            'ERA5-LAND': 'ERA5',
+            'ERA5_LAND': 'ERA5',
+            'GWF-I': 'GWF',
+            'GWF-II': 'GWF',
+            'GWF_I': 'GWF',
+            'GWF_II': 'GWF',
+            'RDRS_V2.1': 'RDRS',
+            'RDRS_V3.1': 'RDRS',
+            'CASR_V3.1': 'CASR',
+            'NEX_GDDP': 'NEX-GDDP',
+            'NEX_GDDP_CMIP6': 'NEX-GDDP-CMIP6',
+        }
+
+        return aliases.get(dataset_upper, dataset_upper if dataset_upper in self.RENAME_MAPS
+                          else dataset)
+
+    def standardize(
+        self,
+        ds: xr.Dataset,
+        dataset: str,
+        inplace: bool = False
+    ) -> xr.Dataset:
+        """
+        Standardize variable names in a dataset.
+
+        Args:
+            ds: xarray Dataset with source variable names
+            dataset: Source dataset name (e.g., 'ERA5', 'CONUS404')
+            inplace: If True, modify and return the same dataset object
+
+        Returns:
+            Dataset with standardized variable names
+        """
+        rename_map = self.get_rename_map(dataset)
+
+        # Only rename variables that exist in the dataset
+        to_rename = {k: v for k, v in rename_map.items() if k in ds.data_vars}
+
+        if not to_rename:
+            self.logger.debug(f"No variables to rename for dataset {dataset}")
+            return ds
+
+        self.logger.debug(f"Renaming {len(to_rename)} variables: {to_rename}")
+
+        if inplace:
+            # xarray doesn't support true inplace, but we minimize copying
+            return ds.rename(to_rename)
+        else:
+            return ds.rename(to_rename)
+
+    def is_standard_name(self, name: str) -> bool:
+        """Check if a variable name is a standard SYMFLUENCE name."""
+        return name in self.STANDARD_NAMES
+
+    def get_source_names(self, standard_name: str, dataset: str) -> List[str]:
+        """
+        Get possible source variable names for a standard name.
+
+        Args:
+            standard_name: Standard variable name (e.g., 'airtemp')
+            dataset: Dataset to search in
+
+        Returns:
+            List of source variable names that map to this standard name
+        """
+        rename_map = self.get_rename_map(dataset)
+        return [k for k, v in rename_map.items() if v == standard_name]
+
+    def list_datasets(self) -> List[str]:
+        """Return list of supported dataset names."""
+        return sorted(self.RENAME_MAPS.keys())
+
+    @classmethod
+    def register_dataset(cls, name: str, rename_map: Dict[str, str]) -> None:
+        """
+        Register a new dataset's variable mapping.
+
+        Args:
+            name: Dataset name
+            rename_map: Dictionary mapping source names to standard names
+        """
+        cls.RENAME_MAPS[name.upper()] = rename_map
 
 class VariableHandler:
     """

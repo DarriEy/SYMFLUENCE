@@ -41,13 +41,13 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         """Return model name for directory structure."""
         return "SUMMA"
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config, logger):
         """
         Initialize the SummaPreProcessor.
 
         Args:
-            config (Dict[str, Any]): Configuration dictionary containing setup parameters.
-            logger (Any): Logger object for recording processing information.
+            config: SymfluenceConfig instance
+            logger: Logger object for recording processing information
         """
         # Initialize base class (handles standard paths and common setup)
         super().__init__(config, logger)
@@ -58,45 +58,44 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         # Catchment and river network (use base class methods)
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
-        if self.catchment_name == 'default':
-            self.catchment_name = f"{self.domain_name}_HRUs_{self.config_dict.get('DOMAIN_DISCRETIZATION')}.shp"
+        self.catchment_name = self._get_config_value(
+            lambda: self.config.paths.catchment_name
+        )
+        if self.catchment_name == 'default' or self.catchment_name is None:
+            discretization = self._get_config_value(lambda: self.config.domain.discretization)
+            self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
 
         self.river_network_path = self._get_default_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network')
-        self.river_network_name = self.config_dict.get('RIVER_NETWORK_SHP_NAME')
+        self.river_network_name = self._get_config_value(
+            lambda: self.config.paths.river_network_name
+        )
         if self.river_network_name == 'default' or self.river_network_name is None:
             self.river_network_name = self.get_river_network_path().name
 
-        # SUMMA-specific configuration (Phase 3: Use typed config when available)
-        self.hruId = self._resolve_config_value(
-            lambda: self.config.paths.catchment_hruid,
-            'CATCHMENT_SHP_HRUID'
+        # SUMMA-specific configuration using typed config
+        self.hruId = self._get_config_value(
+            lambda: self.config.paths.catchment_hruid
         )
-        self.gruId = self._resolve_config_value(
-            lambda: self.config.paths.catchment_gruid,
-            'CATCHMENT_SHP_GRUID'
+        self.gruId = self._get_config_value(
+            lambda: self.config.paths.catchment_gruid
         )
-        self.data_step = self._resolve_config_value(
+        self.data_step = self._get_config_value(
             lambda: self.config.forcing.time_step_size,
-            'FORCING_TIME_STEP_SIZE',
             self.forcing_time_step_size
         )
-        self.coldstate_name = self._resolve_config_value(
-            lambda: self.config.model.summa.coldstate if self.config.model.summa else None,
-            'SETTINGS_SUMMA_COLDSTATE'
+        self.coldstate_name = self._get_config_value(
+            lambda: self.config.model.summa.coldstate if self.config.model.summa else None
         )
-        self.parameter_name = self._resolve_config_value(
-            lambda: self.config.model.summa.trialparams if self.config.model.summa else None,
-            'SETTINGS_SUMMA_TRIALPARAMS'
+        self.parameter_name = self._get_config_value(
+            lambda: self.config.model.summa.trialparams if self.config.model.summa else None
         )
-        self.attribute_name = self._resolve_config_value(
-            lambda: self.config.model.summa.attributes if self.config.model.summa else None,
-            'SETTINGS_SUMMA_ATTRIBUTES'
+        self.attribute_name = self._get_config_value(
+            lambda: self.config.model.summa.attributes if self.config.model.summa else None
         )
         self.forcing_measurement_height = float(
-            self._resolve_config_value(
+            self._get_config_value(
                 lambda: self.config.forcing.measurement_height,
-                'FORCING_MEASUREMENT_HEIGHT'
+                3.0  # Default measurement height
             )
         )
 
@@ -214,13 +213,19 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
     def _is_glacier_mode_enabled(self) -> bool:
         """Check if glacier mode is enabled based on config, file manager name, or data presence."""
         # Check explicit config flag
-        glacier_mode = self.config_dict.get('SETTINGS_SUMMA_GLACIER_MODE', False)
+        glacier_mode = self._get_config_value(
+            lambda: self.config.model.summa.glacier_mode if self.config.model.summa else None,
+            default=False
+        )
         if glacier_mode:
             self.logger.debug("Glacier mode enabled via SETTINGS_SUMMA_GLACIER_MODE")
             return True
 
         # Check file manager name
-        filemanager_name = self.config_dict.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        filemanager_name = self._get_config_value(
+            lambda: self.config.model.summa.filemanager if self.config.model.summa else None,
+            default='fileManager.txt'
+        )
         if 'glac' in filemanager_name.lower():
             self.logger.debug("Glacier mode enabled via fileManager name")
             return True
@@ -302,8 +307,14 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         # Fallback: Copy base files to glacier files
         base_cold = self.setup_dir / self.coldstate_name
 
-        glacier_attr_name = self.config_dict.get('SETTINGS_SUMMA_GLACIER_ATTRIBUTES', 'attributes_glac.nc')
-        glacier_cold_name = self.config_dict.get('SETTINGS_SUMMA_GLACIER_COLDSTATE', 'coldState_glac.nc')
+        glacier_attr_name = self._get_config_value(
+            lambda: self.config.model.summa.glacier_attributes if self.config.model.summa else None,
+            default='attributes_glac.nc'
+        )
+        glacier_cold_name = self._get_config_value(
+            lambda: self.config.model.summa.glacier_coldstate if self.config.model.summa else None,
+            default='coldState_glac.nc'
+        )
 
         glacier_attr_path = self.setup_dir / glacier_attr_name
         glacier_cold_path = self.setup_dir / glacier_cold_name
@@ -357,7 +368,10 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         individual file managers. For simple point simulations, we create lists
         that point to the main file manager.
         """
-        domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', '')
+        domain_method = self._get_config_value(
+            lambda: self.config.domain.definition_method,
+            default=''
+        )
 
         if domain_method != 'point':
             # Only create list files for point simulations
@@ -366,7 +380,10 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.logger.info("Creating file manager lists for point simulation")
 
         # Get the file manager path
-        filemanager_name = self.config_dict.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        filemanager_name = self._get_config_value(
+            lambda: self.config.model.summa.filemanager if self.config.model.summa else None,
+            default='fileManager.txt'
+        )
         filemanager_path = self.setup_dir / filemanager_name
 
         # Create list files pointing to the main file manager
@@ -455,14 +472,12 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         Raises:
             ValueError: If the time format in the configuration is invalid.
         """
-        # Phase 3: Use typed config when available
-        sim_start = self._resolve_config_value(
-            lambda: self.config.domain.time_start,
-            'EXPERIMENT_TIME_START'
+        # Use typed config
+        sim_start = self._get_config_value(
+            lambda: self.config.domain.time_start
         )
-        sim_end = self._resolve_config_value(
-            lambda: self.config.domain.time_end,
-            'EXPERIMENT_TIME_END'
+        sim_end = self._get_config_value(
+            lambda: self.config.domain.time_end
         )
 
         if sim_start == 'default' or sim_end == 'default':

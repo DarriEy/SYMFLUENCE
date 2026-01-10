@@ -1,0 +1,24 @@
+# Exclude from npm package
+
+# Test files
+test/
+*.test.js
+
+# Development files
+.gitignore
+.git/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Exclude dist/ - it's generated during postinstall, not shipped
+dist/
+
+# npm handles node_modules/ automatically
