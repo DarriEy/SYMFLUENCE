@@ -1,5 +1,5 @@
 from typing import Union, Dict, Any
-from symfluence.core.config.config_loader import load_config, normalize_config, validate_config
+from symfluence.core.config.config_loader import normalize_config, validate_config
 from symfluence.core.config.models import SymfluenceConfig
 
 
@@ -27,12 +27,11 @@ def ensure_typed_config(config: Union[Dict[str, Any], SymfluenceConfig]) -> Symf
 
 
 __all__ = [
-    # New hierarchical config system (recommended)
+    # Hierarchical config system (recommended)
     "SymfluenceConfig",
     "ensure_typed_config",
 
-    # Legacy flat config functions (for backward compatibility)
-    "load_config",
+    # Config utility functions
     "normalize_config",
     "validate_config",
 ]
