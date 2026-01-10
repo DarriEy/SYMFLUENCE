@@ -234,7 +234,7 @@ class BinaryManager:
         
         return installation_results
 
-    def validate_binaries(self, symfluence_instance=None) -> Any:
+    def validate_binaries(self, symfluence_instance=None, verbose: bool = False) -> Any:
         """
         Validate that required binary executables exist and are functional.
         """

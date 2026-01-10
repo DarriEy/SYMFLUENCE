@@ -150,9 +150,9 @@ jobs:
           # Install SYMFLUENCE package
           "$PYTHON_CMD" -m pip install -e .
 
-          # Build external tools using Python module directly
-          echo "Running: $PYTHON_CMD -m symfluence.cli --get_executables"
-          "$PYTHON_CMD" -m symfluence.cli --get_executables
+          # Build external tools using symfluence command
+          echo "Running: symfluence binary install"
+          ./symfluence binary install
 
           echo "Build external tools completed successfully"
           

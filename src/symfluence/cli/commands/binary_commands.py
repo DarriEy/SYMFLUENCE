@@ -44,8 +44,8 @@ class BinaryCommands(BaseCommand):
 
             # Call binary manager to install
             success = binary_manager.get_executables(
-                tools=tools,
-                force_install=force
+                specific_tools=tools,
+                force=force
             )
 
             if success:

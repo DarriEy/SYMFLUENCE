@@ -36,7 +36,6 @@ class AgentCommands(BaseCommand):
 
             # Initialize agent manager
             agent = AgentManager(
-                cli_manager=None,  # Will need to adapt agent to work without CLIArgumentManager
                 config_path=config_path,
                 verbose=verbose
             )
@@ -75,7 +74,6 @@ class AgentCommands(BaseCommand):
 
             # Initialize agent manager
             agent = AgentManager(
-                cli_manager=None,  # Will need to adapt agent to work without CLIArgumentManager
                 config_path=config_path,
                 verbose=verbose
             )
