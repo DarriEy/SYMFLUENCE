@@ -99,9 +99,7 @@ class RoutingDecider:
     ) -> Tuple[bool, Dict[str, Any]]:
         """
         Internal method that evaluates routing need with diagnostics.
-
-        Returns:
-            Tuple of (needs_routing, diagnostics)
+        Based primarily on spatial configuration as requested by project standards.
         """
         model = model.upper()
         diagnostics: Dict[str, Any] = {
@@ -110,68 +108,45 @@ class RoutingDecider:
             'checks': {}
         }
 
-        # 1. Calibration variable check
-        calibration_var = config.get('CALIBRATION_VARIABLE', 'streamflow')
-        diagnostics['checks']['calibration_variable'] = calibration_var
-        if calibration_var != 'streamflow':
-            diagnostics['reason'] = 'calibration_variable_not_streamflow'
+        # 1. Explicit routing model check - if 'none', we definitely don't route
+        routing_model = config.get('ROUTING_MODEL', 'none').lower()
+        diagnostics['checks']['routing_model'] = routing_model
+        if routing_model == 'none':
+            diagnostics['reason'] = 'routing_model_is_none'
             return False, diagnostics
 
-        # 2. Explicit routing model check
-        routing_model = config.get('ROUTING_MODEL', 'none')
-        if routing_model == 'default':
-            routing_model = 'mizuRoute'
-        diagnostics['checks']['routing_model'] = routing_model
-        if routing_model == 'mizuRoute':
-            diagnostics['reason'] = 'explicit_routing_model_mizuroute'
+        # 2. Spatial configuration check (The primary driver)
+        domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped').lower()
+        routing_delineation = config.get('ROUTING_DELINEATION', 'lumped').lower()
+        
+        diagnostics['checks']['domain_method'] = domain_method
+        diagnostics['checks']['routing_delineation'] = routing_delineation
+
+        # If it's a lumped/point domain AND lumped routing, mizuRoute is NOT needed
+        # because the hydrological model already provides the basin-scale output.
+        if domain_method in ['point', 'lumped'] and routing_delineation == 'lumped':
+            diagnostics['reason'] = 'lumped_domain_with_lumped_routing'
+            return False, diagnostics
+
+        # 3. Distributed/Network routing triggers
+        if domain_method in ['semi_distributed', 'distributed', 'hru', 'gru']:
+            diagnostics['reason'] = f'distributed_domain_method_{domain_method}'
             return True, diagnostics
 
-        # 3. Model-specific routing integration (e.g., FUSE)
+        if routing_delineation in ['river_network', 'reach', 'vector']:
+            diagnostics['reason'] = f'network_routing_delineation_{routing_delineation}'
+            return True, diagnostics
+
+        # 4. Model-specific routing integration (e.g., FUSE)
         if model in self.ROUTING_INTEGRATION_KEYS:
             integration_key = self.ROUTING_INTEGRATION_KEYS[model]
             integration = config.get(integration_key, 'none')
             diagnostics['checks']['routing_integration'] = integration
-
             if integration == 'mizuRoute':
                 diagnostics['reason'] = f'{model.lower()}_routing_integration_mizuroute'
                 return True, diagnostics
 
-            # If integration is 'default', inherit from ROUTING_MODEL
-            if integration == 'default':
-                base_routing = config.get('ROUTING_MODEL', 'none')
-                if base_routing == 'mizuRoute':
-                    diagnostics['reason'] = f'{model.lower()}_routing_integration_default_to_mizuroute'
-                    return True, diagnostics
-                # If integration is 'default' but ROUTING_MODEL is not mizuRoute,
-                # don't proceed with routing for this model
-                if base_routing not in ['mizuRoute', 'default']:
-                    diagnostics['reason'] = 'routing_integration_default_but_routing_model_not_mizuroute'
-                    return False, diagnostics
-
-        # 4. Spatial mode check
-        spatial_key = self.SPATIAL_MODE_KEYS.get(model, 'DOMAIN_DEFINITION_METHOD')
-        spatial_mode = config.get(spatial_key, 'lumped')
-        diagnostics['checks']['spatial_mode'] = spatial_mode
-        diagnostics['checks']['spatial_mode_key'] = spatial_key
-        if spatial_mode in ['semi_distributed', 'distributed']:
-            diagnostics['reason'] = 'spatial_mode_distributed'
-            return True, diagnostics
-
-        # 5. Domain definition method check (especially for SUMMA, HYPE)
-        domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-        diagnostics['checks']['domain_definition_method'] = domain_method
-        if domain_method not in ['point', 'lumped']:
-            diagnostics['reason'] = 'domain_method_not_point_or_lumped'
-            return True, diagnostics
-
-        # 6. Lumped with river network routing
-        routing_delineation = config.get('ROUTING_DELINEATION', 'lumped')
-        diagnostics['checks']['routing_delineation'] = routing_delineation
-        if spatial_mode == 'lumped' and routing_delineation == 'river_network':
-            diagnostics['reason'] = 'lumped_with_river_network_delineation'
-            return True, diagnostics
-
-        # 7. Filesystem check for existing mizuRoute setup
+        # 5. Filesystem check for existing mizuRoute setup as fallback
         if settings_dir:
             settings_dir = Path(settings_dir)
             control_exists = self._check_mizuroute_control_exists(settings_dir, model)
@@ -180,7 +155,7 @@ class RoutingDecider:
                 diagnostics['reason'] = 'mizuroute_control_file_exists'
                 return True, diagnostics
 
-        diagnostics['reason'] = 'no_routing_conditions_met'
+        diagnostics['reason'] = 'no_spatial_routing_conditions_met'
         return False, diagnostics
 
     def _check_mizuroute_control_exists(

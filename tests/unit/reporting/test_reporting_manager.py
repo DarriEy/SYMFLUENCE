@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import MagicMock, patch, ANY, PropertyMock
 from pathlib import Path
 from symfluence.reporting.reporting_manager import ReportingManager
+from symfluence.core.config.models import SymfluenceConfig
 
 @pytest.fixture
 def mock_data_processor():
@@ -15,34 +16,38 @@ def mock_spatial_processor():
 
 @pytest.fixture
 def mock_config():
-    return {
-        'SYMFLUENCE_DATA_DIR': '/tmp/symfluence_data',
-        'DOMAIN_NAME': 'test_domain'
-    }
+    """Create a minimal SymfluenceConfig for testing."""
+    return SymfluenceConfig.from_minimal(
+        domain_name='test_domain',
+        model='summa',
+        SYMFLUENCE_DATA_DIR='/tmp/symfluence_data',
+        EXPERIMENT_TIME_START='2020-01-01 00:00',
+        EXPERIMENT_TIME_END='2020-12-31 23:00'
+    )
 
 @pytest.fixture
 def mock_domain_plotter():
-    with patch('symfluence.reporting.reporting_manager.DomainPlotter') as mock:
+    with patch('symfluence.reporting.plotters.domain_plotter.DomainPlotter') as mock:
         yield mock
 
 @pytest.fixture
 def mock_optimization_plotter():
-    with patch('symfluence.reporting.reporting_manager.OptimizationPlotter') as mock:
+    with patch('symfluence.reporting.plotters.optimization_plotter.OptimizationPlotter') as mock:
         yield mock
 
 @pytest.fixture
 def mock_analysis_plotter():
-    with patch('symfluence.reporting.reporting_manager.AnalysisPlotter') as mock:
+    with patch('symfluence.reporting.plotters.analysis_plotter.AnalysisPlotter') as mock:
         yield mock
 
 @pytest.fixture
 def mock_benchmark_plotter():
-    with patch('symfluence.reporting.reporting_manager.BenchmarkPlotter') as mock:
+    with patch('symfluence.reporting.plotters.benchmark_plotter.BenchmarkPlotter') as mock:
         yield mock
 
 @pytest.fixture
 def mock_snow_plotter():
-    with patch('symfluence.reporting.reporting_manager.SnowPlotter') as mock:
+    with patch('symfluence.reporting.plotters.snow_plotter.SnowPlotter') as mock:
         yield mock
 
 class TestReportingManager:
@@ -50,19 +55,18 @@ class TestReportingManager:
     def test_init(self, mock_config, mock_logger):
         """Test initialization of ReportingManager."""
         manager = ReportingManager(mock_config, mock_logger, visualize=True)
-        
+
         assert manager.visualize is True
-        assert manager.project_dir == Path('/tmp/symfluence_data/domain_test_domain')
-        
-        # Verify components are lazy-loaded
-        assert manager._plot_config is None
-        assert manager._data_processor is None
-        assert manager._spatial_processor is None
+        # Use endswith to avoid platform-specific symlink issues (e.g., /tmp -> /private/tmp on macOS)
+        assert str(manager.project_dir).endswith('symfluence_data/domain_test_domain')
+
+        # With cached_property, components are lazy-loaded and don't have _attributes
+        # Verify that accessing the properties works and creates them lazily
+        assert manager.plot_config is not None
 
     def test_visualization_disabled(self, mock_config, mock_logger, mock_domain_plotter):
         """Test that methods return None/Empty when visualization is disabled."""
         manager = ReportingManager(mock_config, mock_logger, visualize=False)
-        domain_instance = mock_domain_plotter.return_value
 
         # Test various methods
         assert manager.visualize_domain() is None
@@ -72,10 +76,9 @@ class TestReportingManager:
         assert manager.visualize_fuse_outputs([], []) is None
         assert manager.visualize_benchmarks({}) == []
         assert manager.visualize_snow_comparison([]) == {}
-        
-        # Ensure underlying methods were NOT called
-        domain_instance.plot_domain.assert_not_called()
-        domain_instance.plot_discretized_domain.assert_not_called()
+
+        # Ensure underlying plotter was NOT instantiated when viz is disabled
+        mock_domain_plotter.assert_not_called()
 
     def test_visualization_enabled(self, mock_config, mock_logger, mock_domain_plotter):
         """Test that methods call underlying reporters when visualization is enabled."""
@@ -84,8 +87,8 @@ class TestReportingManager:
 
         # Setup return values
         domain_instance.plot_domain.return_value = "plot_path.png"
-        
-        # Test visualize_domain
+
+        # Test visualize_domain - this should trigger lazy loading
         result = manager.visualize_domain()
         assert result == "plot_path.png"
         domain_instance.plot_domain.assert_called_once()
@@ -98,7 +101,7 @@ class TestReportingManager:
         """Test model output visualization delegation."""
         manager = ReportingManager(mock_config, mock_logger, visualize=True)
         analysis_instance = mock_analysis_plotter.return_value
-        
+
         models = [('model', 'path')]
         obs = [('obs', 'path')]
 
@@ -123,10 +126,10 @@ class TestReportingManager:
         # Configure the return value of the mocked properties
         mock_data_processor_prop.return_value = MagicMock()
         mock_analysis_plotter_prop.return_value = MagicMock()
-        
+
         mock_df = MagicMock()
         mock_data_processor_prop.return_value.read_results_file.return_value = mock_df
-        
+
         manager.visualize_timeseries_results()
 
         # Assert that the mocked methods were called
@@ -156,12 +159,12 @@ class TestReportingManager:
         """Test benchmark visualization delegation."""
         manager = ReportingManager(mock_config, mock_logger, visualize=True)
         bench_instance = mock_benchmark_plotter.return_value
-        
+
         bench_results = {'score': 100}
         bench_instance.plot_benchmarks.return_value = ['plot1.png']
-        
+
         result = manager.visualize_benchmarks(bench_results)
-        
+
         assert result == ['plot1.png']
         bench_instance.plot_benchmarks.assert_called_once_with(bench_results)
 
@@ -171,10 +174,10 @@ class TestReportingManager:
         opt_instance = mock_optimization_plotter.return_value
         output_dir = Path('/tmp/opt')
         history = [{'generation': 1, 'best_score': 0.8}]
-        
+
         manager.visualize_optimization_progress(history, output_dir, 'flow', 'KGE')
         opt_instance.plot_optimization_progress.assert_called_once()
-        
+
         manager.visualize_optimization_depth_parameters(history, output_dir)
         opt_instance.plot_depth_parameters.assert_called_once()
 
@@ -184,13 +187,13 @@ class TestReportingManager:
         manager = ReportingManager(mock_config, mock_logger, visualize=True)
         mock_analysis_plotter_prop.return_value = MagicMock()
         analysis_instance = mock_analysis_plotter_prop.return_value
-        
+
         manager.visualize_sensitivity_analysis(MagicMock(), Path('sens.png'))
         analysis_instance.plot_sensitivity_analysis.assert_called_once()
-        
+
         manager.visualize_decision_impacts(Path('res.csv'), Path('out'))
         analysis_instance.plot_decision_impacts.assert_called_once()
-        
+
         manager.visualize_drop_analysis([{'threshold': 10, 'mean_drop': 1}], 10, Path('proj'))
         analysis_instance.plot_drop_analysis.assert_called_once()
 
@@ -200,15 +203,15 @@ class TestReportingManager:
         manager = ReportingManager(mock_config, mock_logger, visualize=True)
         mock_analysis_plotter_prop.return_value = MagicMock()
         analysis_instance = mock_analysis_plotter_prop.return_value
-        
+
         # LSTM
         manager.visualize_lstm_results(MagicMock(), MagicMock(), MagicMock(), True, Path('out'), 'exp1')
         analysis_instance.plot_lstm_results.assert_called_once()
-        
+
         # HYPE
         manager.visualize_hype_results(MagicMock(), MagicMock(), '1', 'dom', 'exp1', Path('proj'))
         analysis_instance.plot_hype_results.assert_called_once()
-        
+
         # NGen
         manager.visualize_ngen_results(MagicMock(), None, 'exp1', Path('res'))
         analysis_instance.plot_ngen_results.assert_called_once()
@@ -219,7 +222,7 @@ class TestReportingManager:
         manager = ReportingManager(mock_config, mock_logger, visualize=True)
         mock_analysis_plotter_prop.return_value = MagicMock()
         analysis_instance = mock_analysis_plotter_prop.return_value
-        
+
         manager.visualize_hydrographs_with_highlight(
             Path('res.csv'), {}, MagicMock(), {}, Path('out')
         )

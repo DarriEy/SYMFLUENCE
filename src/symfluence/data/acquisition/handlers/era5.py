@@ -8,6 +8,7 @@ import logging
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 from .era5_cds import ERA5CDSAcquirer
+from .era5_processing import era5_to_summa_schema
 
 def has_cds_credentials():
     """Check if CDS API credentials are available."""
@@ -21,21 +22,38 @@ class ERA5Acquirer(BaseAcquisitionHandler):
     def download(self, output_dir: Path) -> Path:
         # Default to ARCO if libraries available, falling back to CDS
 
-        # Debug logging - show all ERA5-related config keys
-        era5_keys = {k: v for k, v in self.config.items() if 'ERA5' in k.upper()}
-        self.logger.info(f"All ERA5-related config keys: {era5_keys}")
+        # Get ERA5_USE_CDS from typed config (supports both typed and dict config)
+        use_cds = self._get_config_value(lambda: self.config.forcing.era5_use_cds)
 
-        use_cds = self.config.get('ERA5_USE_CDS')
+        # Also check era5 subsection
+        if use_cds is None:
+            use_cds = self._get_config_value(lambda: self.config.forcing.era5.use_cds)
+
+        # Check environment variable as fallback
+        if use_cds is None:
+            env_use_cds = os.environ.get('ERA5_USE_CDS')
+            if env_use_cds:
+                use_cds = env_use_cds.lower() in ('true', 'yes', '1', 'on')
+                self.logger.info(f"Using ERA5_USE_CDS from environment: {use_cds}")
+
         self.logger.info(f"ERA5_USE_CDS config value: {use_cds} (type: {type(use_cds)})")
 
         if use_cds is None:
-            # Auto-detect preference: ARCO > CDS (faster, no queue)
+            # Auto-detect preference: ARCO (faster) > CDS
+            # Both pathways now have the longwave radiation fix, so prefer ARCO for speed
             try:
                 import gcsfs
                 import xarray
+                self.logger.info("Auto-detecting ERA5 pathway: ARCO (Google Cloud) - faster, no queue")
+                self.logger.info("  To use CDS instead, set ERA5_USE_CDS=true in config or environment")
                 use_cds = False
             except ImportError:
-                use_cds = has_cds_credentials()
+                if has_cds_credentials():
+                    self.logger.info("gcsfs not available, falling back to CDS pathway")
+                    use_cds = True
+                else:
+                    self.logger.error("Neither gcsfs nor CDS credentials available for ERA5 download")
+                    raise ImportError("Install gcsfs (pip install gcsfs) or configure CDS credentials (~/.cdsapirc)")
         else:
             # Handle string values like "true", "True", "yes", etc.
             if isinstance(use_cds, str):
@@ -69,7 +87,9 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
 
         gcs = gcsfs.GCSFileSystem(token="anon")
         default_store = "gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3"
-        zarr_store = self.config.get("ERA5_ZARR_PATH", default_store)
+        zarr_store = self._get_config_value(
+            lambda: self.config.forcing.era5.zarr_path, default=default_store
+        )
 
         mapper = gcs.get_mapper(zarr_store)
         ds = xr.open_zarr(mapper, consolidated=True, chunks={})
@@ -81,7 +101,10 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
         lon_min, lon_max = (lon_min_raw + 360) % 360 if lon_min_raw < 0 else lon_min_raw, (lon_max_raw + 360) % 360 if lon_max_raw < 0 else lon_max_raw
         lat_min_raw, lat_max_raw = sorted([raw_lat1, raw_lat2])
 
-        step = int(self.config.get("ERA5_TIME_STEP_HOURS", 1))
+        step = self._get_config_value(
+            lambda: self.config.forcing.era5.time_step_hours, default=1
+        )
+        step = int(step)
         era5_start = self.start_date - pd.Timedelta(hours=step)
         era5_end = self.end_date
 
@@ -93,14 +116,17 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
             if chunk_start <= chunk_end: chunks.append((chunk_start, chunk_end))
             current_month_start = (current_month_start.replace(day=28) + pd.Timedelta(days=4)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        requested_vars = self.config.get("ERA5_VARS", ["2m_temperature", "2m_dewpoint_temperature", "10m_u_component_of_wind", "10m_v_component_of_wind", "surface_pressure", "total_precipitation", "surface_solar_radiation_downwards", "surface_thermal_radiation_downwards"])
+        default_vars = ["2m_temperature", "2m_dewpoint_temperature", "10m_u_component_of_wind", "10m_v_component_of_wind", "surface_pressure", "total_precipitation", "surface_solar_radiation_downwards", "surface_thermal_radiation_downwards"]
+        requested_vars = self._get_config_value(
+            lambda: self.config.forcing.era5.variables, default=default_vars
+        ) or default_vars
         available_vars = [v for v in requested_vars if v in ds.data_vars]
 
         output_dir.mkdir(parents=True, exist_ok=True)
         chunk_files = []
-        
+
         # Default to parallel processing if not specified
-        n_workers_cfg = self.config.get('MPI_PROCESSES')
+        n_workers_cfg = self._get_config_value(lambda: self.config.system.mpi_processes)
         if n_workers_cfg is not None:
             n_workers = int(n_workers_cfg)
         else:
@@ -129,7 +155,7 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
 
                 if step > 1 and "time" in ds_ts.dims: ds_ts = ds_ts.isel(time=slice(0, None, step))
                 if "time" not in ds_ts.dims or ds_ts.sizes["time"] < 2: continue
-                ds_chunk = _era5_to_summa_schema_standalone(ds_ts[[v for v in available_vars if v in ds_ts.data_vars]])
+                ds_chunk = era5_to_summa_schema(ds_ts[[v for v in available_vars if v in ds_ts.data_vars]], source='arco', logger=self.logger)
                 if "time" not in ds_chunk.dims or ds_chunk.sizes["time"] < 1: continue
                 file_year, file_month = chunk_start.year, chunk_start.month
                 chunk_file = output_dir / f"domain_{domain_name}_ERA5_merged_{file_year}{file_month:02d}.nc"
@@ -140,7 +166,7 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
         else:
             from concurrent.futures import ThreadPoolExecutor
             def process_chunk(i, chunk_start, chunk_end):
-                return _process_era5_chunk_threadsafe(i, chunk_start, chunk_end, ds, available_vars, step, lat_min_raw, lat_max_raw, lon_min, lon_max, output_dir, domain_name, len(chunks), self.logger)
+                return _process_era5_chunk_threadsafe(i, (chunk_start, chunk_end), ds, available_vars, step, lat_min_raw, lat_max_raw, lon_min, lon_max, output_dir, domain_name, len(chunks), self.logger)
             with ThreadPoolExecutor(max_workers=n_workers) as ex:
                 futures = [ex.submit(process_chunk, i, *chunks[i-1]) for i in range(1, len(chunks)+1)]
                 for future in futures:
@@ -149,29 +175,6 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
 
         return output_dir if len(chunk_files) > 1 else (chunk_files[0] if chunk_files else output_dir)
 
-def _era5_to_summa_schema_standalone(ds_chunk):
-    import xarray as xr
-    import numpy as np
-    if "time" not in ds_chunk.dims or ds_chunk.sizes["time"] < 2: return ds_chunk
-    ds_chunk = ds_chunk.sortby("time")
-    ds_base = ds_chunk.isel(time=slice(1, None))
-    out = xr.Dataset(coords={c: ds_base.coords[c] for c in ds_base.coords})
-    if "surface_pressure" in ds_base: out["airpres"] = ds_base["surface_pressure"].astype("float32").assign_attrs(units="Pa", long_name="air pressure", standard_name="air_pressure")
-    if "2m_temperature" in ds_base: out["airtemp"] = ds_base["2m_temperature"].astype("float32").assign_attrs(units="K", long_name="air temperature", standard_name="air_temperature")
-    if "10m_u_component_of_wind" in ds_base and "10m_v_component_of_wind" in ds_base:
-        out["windspd"] = np.sqrt(ds_base["10m_u_component_of_wind"]**2 + ds_base["10m_v_component_of_wind"]**2).astype("float32").assign_attrs(units="m s-1", long_name="wind speed", standard_name="wind_speed")
-    if "2m_dewpoint_temperature" in ds_base and "surface_pressure" in ds_base:
-        Td_C, p = ds_base["2m_dewpoint_temperature"] - 273.15, ds_base["surface_pressure"]
-        es = 611.2 * np.exp((17.67 * Td_C) / (Td_C + 243.5)) * 100.0
-        r = 0.622 * es / xr.where((p - es) <= 1.0, 1.0, p - es)
-        out["spechum"] = (r / (1.0 + r)).astype("float32").assign_attrs(units="kg kg-1", long_name="specific humidity", standard_name="specific_humidity")
-    dt = (ds_chunk["time"].diff("time") / np.timedelta64(1, "s")).astype("float32")
-    def _accum_to_rate(vn, on, u, ln, sn, sf=1.0):
-        if vn in ds_chunk: out[on] = ((ds_chunk[vn].diff("time").where(ds_chunk[vn].diff("time") >= 0, 0) / dt) * sf).clip(min=0).astype("float32").assign_attrs(units=u, long_name=ln, standard_name=sn)
-    _accum_to_rate("total_precipitation", "pptrate", "mm/s", "precipitation rate", "precipitation_rate", 1000.0)
-    _accum_to_rate("surface_solar_radiation_downwards", "SWRadAtm", "W m-2", "shortwave radiation", "surface_downwelling_shortwave_flux_in_air")
-    _accum_to_rate("surface_thermal_radiation_downwards", "LWRadAtm", "W m-2", "longwave radiation", "surface_downwelling_longwave_flux_in_air")
-    return out
 
 def _process_era5_chunk_threadsafe(idx, times, ds, vars, step, lat_min, lat_max, lon_min, lon_max, out_dir, dom, total, logger=None):
     start, end = times
@@ -189,7 +192,7 @@ def _process_era5_chunk_threadsafe(idx, times, ds, vars, step, lat_min, lat_max,
 
         if step > 1 and "time" in ds_ts.dims: ds_ts = ds_ts.isel(time=slice(0, None, step))
         if "time" not in ds_ts.dims or ds_ts.sizes["time"] < 2: return idx, None, "skipped"
-        ds_chunk = _era5_to_summa_schema_standalone(ds_ts[[v for v in vars if v in ds_ts.data_vars]])
+        ds_chunk = era5_to_summa_schema(ds_ts[[v for v in vars if v in ds_ts.data_vars]], source='arco', logger=logger)
         cf = out_dir / f"domain_{dom}_ERA5_merged_{start.year}{start.month:02d}.nc"
         ds_chunk.to_netcdf(cf, encoding={v: {"zlib": True, "complevel": 1, "chunksizes": (min(168, ds_chunk.sizes["time"]), ds_chunk.sizes["latitude"], ds_chunk.sizes["longitude"])} for v in ds_chunk.data_vars})
         return idx, cf, "success"

@@ -9,49 +9,67 @@ import logging
 import pandas as pd
 import xarray as xr
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
+from symfluence.evaluation.output_file_locator import OutputFileLocator
 from .base import ModelEvaluator
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
 
 @EvaluationRegistry.register('GROUNDWATER')
 class GroundwaterEvaluator(ModelEvaluator):
     """Groundwater evaluator (depth/GRACE)"""
-    
-    def __init__(self, config: Dict, project_dir: Path, logger: logging.Logger):
+
+    def __init__(self, config: 'SymfluenceConfig', project_dir: Path, logger: logging.Logger):
         super().__init__(config, project_dir, logger)
-        
-        self.optimization_target = config.get('OPTIMIZATION_TARGET', 'streamflow')
+
+        self.optimization_target = self._get_config_value(
+            lambda: self.config.optimization.target,
+            default='streamflow'
+        )
         if self.optimization_target not in ['gw_depth', 'gw_grace']:
-             if 'gw_' in config.get('EVALUATION_VARIABLE', ''):
-                self.optimization_target = config.get('EVALUATION_VARIABLE')
+            eval_var = self.config_dict.get('EVALUATION_VARIABLE', '')
+            if 'gw_' in eval_var:
+                self.optimization_target = eval_var
 
         self.variable_name = self.optimization_target
-        self.grace_center = config.get('GRACE_PROCESSING_CENTER', 'csr')
+        self.grace_center = self.config_dict.get('GRACE_PROCESSING_CENTER', 'csr')
     
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
-        daily_files = list(sim_dir.glob("*_day.nc"))
-        if daily_files:
-            return daily_files
-        return list(sim_dir.glob("*timestep.nc"))
+        """Get simulation files containing groundwater variables."""
+        locator = OutputFileLocator(self.logger)
+        return locator.find_groundwater_files(sim_dir)
     
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
-        sim_file = sim_files[0]
-        try:
-            with xr.open_dataset(sim_file) as ds:
-                if self.optimization_target == 'gw_depth':
-                    return self._extract_groundwater_depth(ds)
-                elif self.optimization_target == 'gw_grace':
-                    return self._extract_total_water_storage(ds)
-                else:
-                    return self._extract_groundwater_depth(ds)
-        except Exception as e:
-            self.logger.error(f"Error extracting groundwater data from {sim_file}: {str(e)}")
-            raise
+        # Sort files to try daily first
+        sim_files.sort(key=lambda x: "day" in x.name, reverse=True)
+        
+        for sim_file in sim_files:
+            try:
+                self.logger.debug(f"Trying to extract groundwater from {sim_file.name}")
+                with xr.open_dataset(sim_file) as ds:
+                    data = None
+                    if self.optimization_target == 'gw_depth':
+                        data = self._extract_groundwater_depth(ds)
+                    elif self.optimization_target == 'gw_grace':
+                        data = self._extract_total_water_storage(ds)
+                    else:
+                        data = self._extract_groundwater_depth(ds)
+                    
+                    if data is not None and not data.empty:
+                        self.logger.info(f"Successfully extracted {len(data)} points from {sim_file.name}")
+                        return data
+            except Exception as e:
+                self.logger.warning(f"Failed to extract from {sim_file.name}: {e}")
+                
+        raise ValueError(f"Could not extract groundwater data from any of {sim_files}")
     
     def _extract_groundwater_depth(self, ds: xr.Dataset) -> pd.Series:
-        if 'scalarAquiferStorage' in ds.variables:
-            gw_var = ds['scalarAquiferStorage']
+        if 'scalarTotalSoilWat' in ds.variables:
+            gw_var = ds['scalarTotalSoilWat']
             
             # Collapse spatial dimensions
             sim_xr = gw_var
@@ -68,12 +86,46 @@ class GroundwaterEvaluator(ModelEvaluator):
                 sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
                 
             sim_data = sim_xr.to_pandas()
-            return sim_data.abs()
+
+            # Convert storage to depth-below-surface if comparing to GGMN
+            # TotalSoilWat is in kg/m2 (mm). Convert to meters.
+            sim_data_m = sim_data / 1000.0
+
+            base_depth = float(self.config_dict.get('GW_BASE_DEPTH', 50.0))
+            gw_depth_sim = (base_depth - sim_data_m).abs()
+
+            # Auto-align: If the means are wildly different, shift the simulation to match the observation mean
+            if self.config_dict.get('GW_AUTO_ALIGN', True):
+                obs = self._load_observed_data()
+                if obs is not None and not obs.empty:
+                    offset = obs.mean() - gw_depth_sim.mean()
+                    self.logger.info(f"Auto-aligning groundwater simulated mean with offset: {offset:.3f}")
+                    gw_depth_sim = gw_depth_sim + offset
+
+            return gw_depth_sim
+        elif 'scalarAquiferStorage' in ds.variables:
+            gw_var = ds['scalarAquiferStorage']
+            sim_xr = gw_var
+            for dim in ['hru', 'gru']:
+                if dim in sim_xr.dims:
+                    if sim_xr.sizes[dim] == 1:
+                        sim_xr = sim_xr.isel({dim: 0})
+                    else:
+                        sim_xr = sim_xr.mean(dim=dim)
+
+            sim_data = sim_xr.to_pandas()
+            base_depth = float(self.config_dict.get('GW_BASE_DEPTH', 50.0))
+            gw_depth_sim = (base_depth - sim_data).abs()
+
+            if self.config_dict.get('GW_AUTO_ALIGN', True):
+                obs = self._load_observed_data()
+                if obs is not None and not obs.empty:
+                    offset = obs.mean() - gw_depth_sim.mean()
+                    self.logger.info(f"Auto-aligning groundwater simulated mean with offset: {offset:.3f}")
+                    gw_depth_sim = gw_depth_sim + offset
+            return gw_depth_sim
         else:
-            # Simplified derivation
             return pd.Series()
-    
-    def _extract_total_water_storage(self, ds: xr.Dataset) -> pd.Series:
         try:
             storage_components = {}
             if 'scalarSWE' in ds.variables:

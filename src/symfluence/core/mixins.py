@@ -8,8 +8,11 @@ other utilities and mixins can build upon.
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, ContextManager
+from typing import Any, Callable, Dict, List, Optional, Union, ContextManager, TYPE_CHECKING
 from contextlib import contextmanager
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 
 class LoggingMixin:
@@ -40,105 +43,357 @@ class LoggingMixin:
 
 class ConfigMixin:
     """
-    Mixin for classes that use configuration settings.
+    Mixin for classes that use typed SymfluenceConfig configuration.
 
-    Provides a standardized way to access configuration regardless of whether
-    it's a dictionary or a typed SymfluenceConfig object.
+    Provides standardized access to configuration via the typed config object.
+    The config_dict property provides a flattened dictionary view for legacy
+    code that iterates over keys.
     """
+
+    @property
+    def config(self) -> 'SymfluenceConfig':
+        """
+        Get the typed configuration object.
+
+        Returns:
+            SymfluenceConfig instance
+        """
+        return getattr(self, '_config', None)
+
+    @config.setter
+    def config(self, value: 'SymfluenceConfig') -> None:
+        """
+        Set the typed configuration object.
+
+        Args:
+            value: SymfluenceConfig instance
+        """
+        self._config = value
 
     @property
     def config_dict(self) -> Dict[str, Any]:
         """
-        Standardized access to configuration as a dictionary.
+        Get configuration as a flattened dictionary.
 
-        Handles both dict-based and SymfluenceConfig-based configurations.
-        """
-        # Prioritize _config_dict if set directly (backward compatibility)
-        if hasattr(self, '_config_dict'):
-            return self._config_dict
-
-        # Try self.typed_config or self.config, skipping None values
-        cfg = getattr(self, 'typed_config', None)
-        if cfg is None:
-            cfg = getattr(self, 'config', None)
-        
-        if cfg is not None:
-            # If it has a to_dict method, use it
-            to_dict_func = getattr(cfg, 'to_dict', None)
-            if callable(to_dict_func):
-                try:
-                    # Prefer flattened output if supported (standard for SymfluenceConfig)
-                    return to_dict_func(flatten=True)
-                except (TypeError, ValueError, AttributeError):
-                    try:
-                        return to_dict_func()
-                    except (TypeError, ValueError, AttributeError):
-                        pass
-            
-            # Fallback to direct dict check
-            if isinstance(cfg, dict):
-                return cfg
-
-        return {}
-
-    @config_dict.setter
-    def config_dict(self, value: Dict[str, Any]) -> None:
-        """Set the configuration dictionary (backward compatibility)."""
-        self._config_dict = value
-
-    def _get_config_value(self, key: str, default: Any = None) -> Any:
-        """
-        Get a configuration value with a default.
-
-        Handles both dictionary-based and object-based configuration.
-        """
-        # Try typed_config first if it exists
-        typed_cfg = getattr(self, 'typed_config', None)
-        if typed_cfg is not None:
-            # If it's a Pydantic model (which SymfluenceConfig is)
-            if hasattr(typed_cfg, key.lower()):
-                return getattr(typed_cfg, key.lower())
-
-        # Fallback to config_dict
-        return self.config_dict.get(key, default)
-
-    def _resolve_config_value(self, typed_accessor: Any, dict_key: str,
-                              default: Any = None) -> Any:
-        """
-        Resolve configuration value from typed or dict config.
-
-        Phase 3: Prioritizes typed config access, falls back to dict only for backward compatibility.
-
-        Args:
-            typed_accessor: Callable or value from typed config (e.g.,
-                           lambda: self.config.domain.time_start)
-            dict_key: Key to use with dict config (fallback)
-            default: Default value if key not found
+        This property provides a flattened dict view of the typed config
+        for code that needs to iterate over keys or use string-based access.
+        The dict is cached internally by SymfluenceConfig for performance.
 
         Returns:
-            Resolved configuration value
+            Flattened configuration dictionary with uppercase keys
         """
-        val = None
-        typed_cfg = getattr(self, 'typed_config', getattr(self, 'config', None))
-        
-        # Check if typed_cfg is actually a SymfluenceConfig (or similar object)
-        # and not a dict
-        if typed_cfg is not None and not isinstance(typed_cfg, dict):
-            # Handle callable (lambda) or direct value
-            if callable(typed_accessor):
-                try:
-                    val = typed_accessor()
-                except (AttributeError, KeyError):
-                    val = None
-            else:
-                val = typed_accessor
-        
-        # If val is None (either missing from typed config or typed config not used),
-        # fall back to dict config (deprecated path)
-        if val is None:
-            return self.config_dict.get(dict_key, default)
-        
-        return val
+        cfg = self.config
+        if cfg is not None:
+            # Handle both SymfluenceConfig and plain dict
+            if isinstance(cfg, dict):
+                return cfg
+            return cfg.to_dict(flatten=True)
+        return {}
+
+    def _get_config_value(
+        self,
+        typed_accessor: Callable[[], Any],
+        default: Any = None
+    ) -> Any:
+        """
+        Get a configuration value from typed config with default fallback.
+
+        Args:
+            typed_accessor: Callable that accesses the typed config value,
+                           e.g., lambda: self.config.domain.name
+            default: Default value if accessor fails or returns None
+
+        Returns:
+            Configuration value or default
+
+        Example:
+            name = self._get_config_value(
+                lambda: self.config.domain.name,
+                default='unnamed'
+            )
+        """
+        try:
+            value = typed_accessor()
+            return value if value is not None else default
+        except (AttributeError, KeyError, TypeError):
+            return default
+
+    # =========================================================================
+    # Convenience Properties for Common Config Values
+    # =========================================================================
+
+    @property
+    def experiment_id(self) -> str:
+        """Experiment identifier from config.domain.experiment_id."""
+        return self._get_config_value(
+            lambda: self.config.domain.experiment_id,
+            default='run_1'
+        )
+
+    @property
+    def domain_definition_method(self) -> str:
+        """Domain definition method from config.domain.definition_method."""
+        return self._get_config_value(
+            lambda: self.config.domain.definition_method,
+            default='lumped'
+        )
+
+    @property
+    def time_start(self) -> Optional[str]:
+        """Experiment start time from config.domain.time_start."""
+        return self._get_config_value(
+            lambda: self.config.domain.time_start,
+            default=None
+        )
+
+    @property
+    def time_end(self) -> Optional[str]:
+        """Experiment end time from config.domain.time_end."""
+        return self._get_config_value(
+            lambda: self.config.domain.time_end,
+            default=None
+        )
+
+    @property
+    def domain_discretization(self) -> str:
+        """Domain discretization method from config.domain.discretization."""
+        return self._get_config_value(
+            lambda: self.config.domain.discretization,
+            default='lumped'
+        )
+
+    @property
+    def calibration_period(self) -> Optional[str]:
+        """Calibration period string from config.domain.calibration_period."""
+        _calibration_period = getattr(self, '_calibration_period', None)
+        if _calibration_period is not None:
+            return _calibration_period
+        return self._get_config_value(
+            lambda: self.config.domain.calibration_period,
+            default=None
+        )
+
+    @calibration_period.setter
+    def calibration_period(self, value) -> None:
+        """Set the calibration period (can be string or tuple)."""
+        self._calibration_period = value
+
+    @property
+    def spinup_period(self) -> Optional[str]:
+        """Spinup period string from config.domain.spinup_period."""
+        return self._get_config_value(
+            lambda: self.config.domain.spinup_period,
+            default=None
+        )
+
+    @property
+    def evaluation_period(self) -> Optional[str]:
+        """Evaluation period string from config.domain.evaluation_period."""
+        _evaluation_period = getattr(self, '_evaluation_period', None)
+        if _evaluation_period is not None:
+            return _evaluation_period
+        return self._get_config_value(
+            lambda: self.config.domain.evaluation_period,
+            default=None
+        )
+
+    @evaluation_period.setter
+    def evaluation_period(self, value) -> None:
+        """Set the evaluation period (can be string or tuple)."""
+        self._evaluation_period = value
+
+    @property
+    def forcing_dataset(self) -> str:
+        """Forcing dataset name from config.forcing.dataset."""
+        # Allow override via _forcing_dataset_override attribute
+        if hasattr(self, '_forcing_dataset_override') and self._forcing_dataset_override:
+            return self._forcing_dataset_override.lower()
+        return self._get_config_value(
+            lambda: self.config.forcing.dataset,
+            default=''
+        ).lower()
+
+    @forcing_dataset.setter
+    def forcing_dataset(self, value: str) -> None:
+        """Set forcing dataset override (for backward compatibility)."""
+        self._forcing_dataset_override = value
+
+    @property
+    def forcing_time_step_size(self) -> int:
+        """Forcing time step size in seconds from config.forcing.time_step_size."""
+        return int(self._get_config_value(
+            lambda: self.config.forcing.time_step_size,
+            default=3600
+        ))
+
+    @property
+    def hydrological_model(self) -> str:
+        """Hydrological model name from config.model.hydrological_model."""
+        model = self._get_config_value(
+            lambda: self.config.model.hydrological_model,
+            default=''
+        )
+        # Handle list case (multi-model)
+        if isinstance(model, list):
+            return model[0] if model else ''
+        return model
+
+    @property
+    def routing_model(self) -> str:
+        """Routing model name from config.model.routing_model."""
+        return self._get_config_value(
+            lambda: self.config.model.routing_model,
+            default='none'
+        )
+
+    @property
+    def optimization_metric(self) -> str:
+        """Optimization metric from config.optimization.metric."""
+        return self._get_config_value(
+            lambda: self.config.optimization.metric,
+            default='KGE'
+        )
+
+
+class ShapefileAccessMixin(ConfigMixin):
+    """
+    Mixin providing standardized shapefile column name access.
+
+    Provides properties for accessing shapefile column names from the typed
+    config, with sensible defaults for common geofabric conventions.
+    """
+
+    # =========================================================================
+    # Catchment Shapefile Columns
+    # =========================================================================
+
+    @property
+    def catchment_name_col(self) -> str:
+        """Name/ID column in catchment shapefile from config.paths.catchment_name."""
+        return self._get_config_value(
+            lambda: self.config.paths.catchment_name,
+            default='HRU_ID'
+        )
+
+    @property
+    def catchment_hruid_col(self) -> str:
+        """HRU ID column in catchment shapefile from config.paths.catchment_hruid."""
+        return self._get_config_value(
+            lambda: self.config.paths.catchment_hruid,
+            default='HRU_ID'
+        )
+
+    @property
+    def catchment_gruid_col(self) -> str:
+        """GRU ID column in catchment shapefile from config.paths.catchment_gruid."""
+        return self._get_config_value(
+            lambda: self.config.paths.catchment_gruid,
+            default='GRU_ID'
+        )
+
+    @property
+    def catchment_area_col(self) -> str:
+        """Area column in catchment shapefile from config.paths.catchment_area."""
+        return self._get_config_value(
+            lambda: self.config.paths.catchment_area,
+            default='HRU_area'
+        )
+
+    @property
+    def catchment_lat_col(self) -> str:
+        """Latitude column in catchment shapefile from config.paths.catchment_lat."""
+        return self._get_config_value(
+            lambda: self.config.paths.catchment_lat,
+            default='center_lat'
+        )
+
+    @property
+    def catchment_lon_col(self) -> str:
+        """Longitude column in catchment shapefile from config.paths.catchment_lon."""
+        return self._get_config_value(
+            lambda: self.config.paths.catchment_lon,
+            default='center_lon'
+        )
+
+    # =========================================================================
+    # River Network Shapefile Columns
+    # =========================================================================
+
+    @property
+    def river_network_name_col(self) -> str:
+        """Name column in river network shapefile from config.paths.river_network_name."""
+        return self._get_config_value(
+            lambda: self.config.paths.river_network_name,
+            default='LINKNO'
+        )
+
+    @property
+    def river_segid_col(self) -> str:
+        """Segment ID column in river network from config.paths.river_network_segid."""
+        return self._get_config_value(
+            lambda: self.config.paths.river_network_segid,
+            default='LINKNO'
+        )
+
+    @property
+    def river_downsegid_col(self) -> str:
+        """Downstream segment ID column from config.paths.river_network_downsegid."""
+        return self._get_config_value(
+            lambda: self.config.paths.river_network_downsegid,
+            default='DSLINKNO'
+        )
+
+    @property
+    def river_length_col(self) -> str:
+        """Length column in river network from config.paths.river_network_length."""
+        return self._get_config_value(
+            lambda: self.config.paths.river_network_length,
+            default='Length'
+        )
+
+    @property
+    def river_slope_col(self) -> str:
+        """Slope column in river network from config.paths.river_network_slope."""
+        return self._get_config_value(
+            lambda: self.config.paths.river_network_slope,
+            default='Slope'
+        )
+
+    # =========================================================================
+    # River Basin Shapefile Columns
+    # =========================================================================
+
+    @property
+    def basin_name_col(self) -> str:
+        """Name column in river basins shapefile from config.paths.river_basins_name."""
+        return self._get_config_value(
+            lambda: self.config.paths.river_basins_name,
+            default='GRU_ID'
+        )
+
+    @property
+    def basin_gruid_col(self) -> str:
+        """GRU ID column in river basins from config.paths.river_basin_rm_gruid."""
+        return self._get_config_value(
+            lambda: self.config.paths.river_basin_rm_gruid,
+            default='GRU_ID'
+        )
+
+    @property
+    def basin_hru_to_seg_col(self) -> str:
+        """HRU to segment mapping column from config.paths.river_basin_hru_to_seg."""
+        return self._get_config_value(
+            lambda: self.config.paths.river_basin_hru_to_seg,
+            default='gru_to_seg'
+        )
+
+    @property
+    def basin_area_col(self) -> str:
+        """Area column in river basins from config.paths.river_basin_area."""
+        return self._get_config_value(
+            lambda: self.config.paths.river_basin_area,
+            default='GRU_area'
+        )
 
 
 class ProjectContextMixin(ConfigMixin):
@@ -146,7 +401,7 @@ class ProjectContextMixin(ConfigMixin):
     Mixin providing standard project context attributes.
 
     Extracts core project parameters (data_dir, domain_name, project_dir)
-    from the configuration, providing a consistent interface across modules.
+    from the typed SymfluenceConfig, providing a consistent interface across modules.
     """
 
     @property
@@ -155,16 +410,15 @@ class ProjectContextMixin(ConfigMixin):
         _data_dir = getattr(self, '_data_dir', None)
         if _data_dir is not None:
             return Path(_data_dir)
-        
-        # Prioritize typed config
-        typed_cfg = getattr(self, 'typed_config', None)
-        if typed_cfg is not None and not isinstance(typed_cfg, dict):
-            try:
-                return typed_cfg.system.data_dir
-            except AttributeError:
-                pass
-        
-        return Path(self.config_dict.get('SYMFLUENCE_DATA_DIR', '.'))
+
+        # Get from typed config
+        cfg = self.config
+        if cfg is not None:
+            if isinstance(cfg, dict):
+                return Path(cfg.get('SYMFLUENCE_DATA_DIR', '.'))
+            return cfg.system.data_dir
+
+        return Path('.')
 
     @data_dir.setter
     def data_dir(self, value: Union[str, Path]) -> None:
@@ -183,16 +437,15 @@ class ProjectContextMixin(ConfigMixin):
         _domain_name = getattr(self, '_domain_name', None)
         if _domain_name is not None:
             return _domain_name
-            
-        # Prioritize typed config
-        typed_cfg = getattr(self, 'typed_config', None)
-        if typed_cfg is not None and not isinstance(typed_cfg, dict):
-            try:
-                return typed_cfg.domain.name
-            except AttributeError:
-                pass
-            
-        return self.config_dict.get('DOMAIN_NAME', 'domain')
+
+        # Get from typed config
+        cfg = self.config
+        if cfg is not None:
+            if isinstance(cfg, dict):
+                return cfg.get('DOMAIN_NAME', 'domain')
+            return cfg.domain.name
+
+        return 'domain'
 
     @domain_name.setter
     def domain_name(self, value: str) -> None:
@@ -213,7 +466,7 @@ class ProjectContextMixin(ConfigMixin):
         _project_dir = getattr(self, '_project_dir', None)
         if _project_dir is not None:
             return Path(_project_dir)
-            
+
         return self.data_dir / f"domain_{self.domain_name}"
 
     @project_dir.setter
@@ -371,5 +624,22 @@ class ConfigurableMixin(LoggingMixin, ProjectContextMixin, FileUtilsMixin, Valid
     This is the recommended mixin for most SYMFLUENCE components that need
     to be aware of the project structure and configuration.
     """
-    pass
+    def _resolve_config_value(self, typed_accessor, dict_key=None, default=None):
+        """
+        Deprecated: Use _get_config_value instead.
 
+        This method is kept for backward compatibility but delegates to _get_config_value.
+        The dict_key parameter is ignored since we now use typed config only.
+
+        Args:
+            typed_accessor: Callable returning typed config value
+            dict_key: Ignored - kept for backward compatibility
+            default: Default to use if missing or 'default'
+        """
+        import warnings
+        warnings.warn(
+            "_resolve_config_value is deprecated, use _get_config_value instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return self._get_config_value(typed_accessor, default)

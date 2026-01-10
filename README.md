@@ -72,8 +72,8 @@ For detailed instructions (ARC, FIR, Anvil, custom builds), see [INSTALL.md](INS
 
 ### System Requirements
 
-- **npm installation**: See [npm/README.md](npm/README.md) for platform-specific requirements
-- **Development**: See [docs/SYSTEM_REQUIREMENTS.md](docs/SYSTEM_REQUIREMENTS.md) for build dependencies
+- **npm installation**: See [tools/npm/README.md](tools/npm/README.md) for platform-specific requirements (release-only packaging)
+- **Build dependencies**: See the installation guide at https://symfluence.readthedocs.io/en/latest/installation.html
 
 ---
 
@@ -99,7 +99,7 @@ For detailed instructions (ARC, FIR, Anvil, custom builds), see [INSTALL.md](INS
 
 ### First Project
 ```bash
-cp 0_config_files/config_template.yaml my_project.yaml
+cp src/symfluence/resources/config_templates/config_template.yaml my_project.yaml
 ./symfluence --config my_project.yaml --setup_project
 ./symfluence --config my_project.yaml
 ```
@@ -126,7 +126,7 @@ YAML configuration files define:
 - Optimization targets
 - Output and visualization options
 
-See [`0_config_files/config_template.yaml`](0_config_files/config_template.yaml) for a full example.
+See [`src/symfluence/resources/config_templates/config_template.yaml`](src/symfluence/resources/config_templates/config_template.yaml) for a full example.
 
 ---
 

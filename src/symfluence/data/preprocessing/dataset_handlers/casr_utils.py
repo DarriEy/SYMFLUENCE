@@ -17,6 +17,7 @@ from shapely.geometry import Polygon
 from symfluence.core.constants import PhysicalConstants, UnitConversion
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
+from symfluence.data.utilities import VariableStandardizer
 
 
 @DatasetRegistry.register('casr')
@@ -26,36 +27,14 @@ class CASRHandler(BaseDatasetHandler):
     def get_variable_mapping(self) -> Dict[str, str]:
         """
         CASR variable name mapping to standard names.
-        
+
+        Uses centralized VariableStandardizer for consistency across the codebase.
+
         Returns:
             Dictionary mapping CASR variable names to standard names
         """
-        return {
-            # Temperature (prefer analysis A_ over forecast P_)
-            'CaSR_v3.1_A_TT_1.5m': 'airtemp',
-            'CaSR_v3.1_P_TT_1.5m': 'airtemp',
-            
-            # Precipitation
-            'CaSR_v3.1_A_PR0_SFC': 'pptrate',
-            'CaSR_v3.1_P_PR0_SFC': 'pptrate',
-            
-            # Pressure
-            'CaSR_v3.1_P_P0_SFC': 'airpres',
-            
-            # Humidity
-            'CaSR_v3.1_P_HU_1.5m': 'spechum',
-            
-            # Wind speed
-            'CaSR_v3.1_P_UVC_10m': 'windspd',
-            
-            # Wind components
-            'CaSR_v3.1_P_UUC_10m': 'windspd_u',
-            'CaSR_v3.1_P_VVC_10m': 'windspd_v',
-            
-            # Radiation
-            'CaSR_v3.1_P_FB_SFC': 'SWRadAtm',
-            'CaSR_v3.1_P_FI_SFC': 'LWRadAtm',
-        }
+        standardizer = VariableStandardizer(self.logger)
+        return standardizer.get_rename_map('CASR')
     
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """

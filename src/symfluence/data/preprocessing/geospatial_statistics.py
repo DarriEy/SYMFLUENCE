@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Dict, Any, Union, TYPE_CHECKING
 import numpy as np # type: ignore
 import pandas as pd # type: ignore
 import geopandas as gpd # type: ignore
@@ -10,17 +11,27 @@ from rasterio.windows import from_bounds
 from shapely.geometry import box
 
 from symfluence.data.path_manager import PathManager
+from symfluence.core import ConfigurableMixin
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 
-class GeospatialStatistics:
+class GeospatialStatistics(ConfigurableMixin):
     """
     Calculates geospatial statistics for catchments (elevation, soil, land cover).
 
     Uses PathManager for standardized path resolution.
     """
 
-    def __init__(self, config, logger):
-        self.config = config
+    def __init__(self, config: Union['SymfluenceConfig', Dict[str, Any]], logger):
+        # Handle typed config
+        from symfluence.core.config.models import SymfluenceConfig
+        if isinstance(config, dict):
+            self._config = SymfluenceConfig(**config)
+        else:
+            self._config = config
+
         self.logger = logger
 
         # Use PathManager for path resolution
@@ -30,12 +41,16 @@ class GeospatialStatistics:
         # Resolve paths using PathManager
         self.catchment_path = self.paths.resolve('CATCHMENT_PATH', 'shapefiles/catchment')
 
-        self.catchment_name = config.get('CATCHMENT_SHP_NAME', 'default')
+        self.catchment_name = self._get_config_value(
+            lambda: self.config.paths.catchment_name, default='default'
+        )
         if self.catchment_name == 'default':
-            discretization = str(config.get('DOMAIN_DISCRETIZATION', '')).replace(',', '_')
+            discretization = str(self._get_config_value(
+                lambda: self.config.domain.discretization, default=''
+            )).replace(',', '_')
             self.catchment_name = f"{self.paths.domain_name}_HRUs_{discretization}.shp"
 
-        dem_name = config.get('DEM_NAME', 'default')
+        dem_name = self._get_config_value(lambda: self.config.paths.dem_name, default='default')
         if dem_name == "default":
             dem_name = f"domain_{self.paths.domain_name}_elv.tif"
 
@@ -59,7 +74,9 @@ class GeospatialStatistics:
         """
         # Get the output path and check if the file already exists
         intersect_path = self.paths.resolve('INTERSECT_DEM_PATH', 'shapefiles/catchment_intersection/with_dem')
-        intersect_name = self.config.get('INTERSECT_DEM_NAME')
+        intersect_name = self._get_config_value(
+            lambda: self.config.paths.intersect_dem_name, default='default'
+        )
         if intersect_name == 'default':
             intersect_name = 'catchment_with_dem.shp'
 
@@ -79,7 +96,8 @@ class GeospatialStatistics:
         self.logger.info("Calculating elevation statistics (memory-optimized chunked mode)")
         
         # Fallback for legacy naming in data bundle
-        if not self.dem_path.exists() and self.config.get('DOMAIN_NAME') == 'bow_banff_minimal':
+        domain_name = self._get_config_value(lambda: self.config.domain.name)
+        if not self.dem_path.exists() and domain_name == 'bow_banff_minimal':
             legacy_dem = self.dem_path.parent / "domain_Bow_at_Banff_lumped_elv.tif"
             if legacy_dem.exists():
                 legacy_dem.rename(self.dem_path)
@@ -125,7 +143,7 @@ class GeospatialStatistics:
                 )
             elif n_catchments > 50_000:
                 # Medium-large: use index-based chunking
-                chunk_size = self.config.get('ELEV_CHUNK_SIZE', 10_000)
+                chunk_size = self._get_config_value(lambda: self.config.data.elev_chunk_size, default=10_000)
                 self.logger.info(f"Using INDEX CHUNKING strategy ({chunk_size:,} catchments/chunk)")
                 elev_means = self._process_elevation_index_chunks(
                     catchment_gdf_projected, elev_means, chunk_size, checkpoint_dir
@@ -162,7 +180,7 @@ class GeospatialStatistics:
             self.logger.info(f"Elevation statistics saved to {output_file}")
 
             # Legacy compatibility: also save as CSV in gistool-outputs for HYPE
-            if self.config.get('DOMAIN_NAME') == 'bow_banff_minimal':
+            if self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
                 legacy_csv_dir = self.project_dir / "attributes" / "gistool-outputs"
                 legacy_csv_dir.mkdir(parents=True, exist_ok=True)
                 legacy_csv_path = legacy_csv_dir / "modified_domain_stats_elv.csv"
@@ -193,7 +211,7 @@ class GeospatialStatistics:
         
         # Create tile grid - aim for ~50k catchments per tile
         n_catchments = len(gdf)
-        target_per_tile = self.config.get('ELEV_TILE_TARGET', 50_000)
+        target_per_tile = self._get_config_value(lambda: self.config.data.elev_tile_target, default=50_000)
         n_tiles_approx = max(1, n_catchments // target_per_tile)
         
         # Calculate grid dimensions
@@ -368,7 +386,7 @@ class GeospatialStatistics:
         """Calculate soil statistics with output file checking and CRS alignment"""
         # Get the output path and check if the file already exists
         intersect_path = self.paths.resolve('INTERSECT_SOIL_PATH', 'shapefiles/catchment_intersection/with_soilgrids')
-        intersect_name = self.config.get('INTERSECT_SOIL_NAME')
+        intersect_name = self._get_config_value(lambda: self.config.paths.intersect_soil_name, default='default')
         if intersect_name == 'default':
             intersect_name = 'catchment_with_soilclass.shp'
         output_file = intersect_path / intersect_name
@@ -390,13 +408,13 @@ class GeospatialStatistics:
         
         self.logger.info("Calculating soil statistics")
         catchment_gdf = gpd.read_file(self.catchment_path / self.catchment_name)
-        soil_name = self.config.get('SOIL_CLASS_NAME')
+        soil_name = self._get_config_value(lambda: self.config.paths.soil_class_name, default='default')
         if soil_name == 'default':
-            soil_name = f"domain_{self.config.get('DOMAIN_NAME')}_soil_classes.tif"
+            soil_name = f"domain_{self._get_config_value(lambda: self.config.domain.name)}_soil_classes.tif"
         soil_raster = self.soil_path / soil_name
         
         # Fallback for legacy naming in data bundle
-        if not soil_raster.exists() and self.config.get('DOMAIN_NAME') == 'bow_banff_minimal':
+        if not soil_raster.exists() and self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
             legacy_soil = self.soil_path / "domain_Bow_at_Banff_lumped_soil_classes.tif"
             if legacy_soil.exists():
                 legacy_soil.rename(soil_raster)
@@ -463,7 +481,7 @@ class GeospatialStatistics:
             self.logger.info(f"Soil statistics saved to {output_file}")
 
             # Legacy compatibility: also save as CSV in gistool-outputs for HYPE
-            if self.config.get('DOMAIN_NAME') == 'bow_banff_minimal':
+            if self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
                 legacy_csv_dir = self.project_dir / "attributes" / "gistool-outputs"
                 legacy_csv_dir.mkdir(parents=True, exist_ok=True)
                 legacy_csv_path = legacy_csv_dir / "modified_domain_stats_soil_classes.csv"
@@ -480,7 +498,7 @@ class GeospatialStatistics:
         """Calculate land statistics with output file checking and CRS alignment"""
         # Get the output path and check if the file already exists
         intersect_path = self.paths.resolve('INTERSECT_LAND_PATH', 'shapefiles/catchment_intersection/with_landclass')
-        intersect_name = self.config.get('INTERSECT_LAND_NAME')
+        intersect_name = self._get_config_value(lambda: self.config.paths.intersect_land_name, default='default')
         if intersect_name == 'default':
             intersect_name = 'catchment_with_landclass.shp'
 
@@ -503,13 +521,13 @@ class GeospatialStatistics:
         
         self.logger.info("Calculating land statistics")
         catchment_gdf = gpd.read_file(self.catchment_path / self.catchment_name)
-        land_name = self.config.get('LAND_CLASS_NAME')
+        land_name = self._get_config_value(lambda: self.config.domain.land_class_name, default='default')
         if land_name == 'default':
-            land_name = f"domain_{self.config.get('DOMAIN_NAME')}_land_classes.tif"
+            land_name = f"domain_{self._get_config_value(lambda: self.config.domain.name)}_land_classes.tif"
         land_raster = self.land_path / land_name
 
         # Fallback for legacy naming in data bundle
-        if not land_raster.exists() and self.config.get('DOMAIN_NAME') == 'bow_banff_minimal':
+        if not land_raster.exists() and self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
             legacy_land = self.land_path / "domain_Bow_at_Banff_lumped_land_classes.tif"
             if legacy_land.exists():
                 legacy_land.rename(land_raster)
@@ -581,7 +599,7 @@ class GeospatialStatistics:
         self.logger.info(f"Land statistics saved to {output_file}")
 
         # Legacy compatibility: also save as CSV in gistool-outputs for HYPE/MESH
-        if self.config.get('DOMAIN_NAME') == 'bow_banff_minimal':
+        if self._get_config_value(lambda: self.config.domain.name) == 'bow_banff_minimal':
             legacy_csv_dir = self.project_dir / "attributes" / "gistool-outputs"
             legacy_csv_dir.mkdir(parents=True, exist_ok=True)
             legacy_csv_path = legacy_csv_dir / "modified_domain_stats_NA_NALCMS_landcover_2020_30m.csv"
@@ -599,7 +617,7 @@ class GeospatialStatistics:
         
         # Check soil stats
         intersect_soil_path = self.paths.resolve('INTERSECT_SOIL_PATH', 'shapefiles/catchment_intersection/with_soilgrids')
-        intersect_soil_name = self.config.get('INTERSECT_SOIL_NAME')
+        intersect_soil_name = self._get_config_value(lambda: self.config.paths.intersect_soil_name, default='default')
         if intersect_soil_name == 'default':
             intersect_soil_name = 'catchment_with_soilclass.shp'
 
@@ -620,7 +638,7 @@ class GeospatialStatistics:
         
         # Check land stats
         intersect_land_path = self.paths.resolve('INTERSECT_LAND_PATH', 'shapefiles/catchment_intersection/with_landclass')
-        intersect_land_name = self.config.get('INTERSECT_LAND_NAME')
+        intersect_land_name = self._get_config_value(lambda: self.config.paths.intersect_land_name, default='default')
         if intersect_land_name == 'default':
             intersect_land_name = 'catchment_with_landclass.shp'
 
@@ -641,7 +659,7 @@ class GeospatialStatistics:
         
         # Check elevation stats
         intersect_dem_path = self.paths.resolve('INTERSECT_DEM_PATH', 'shapefiles/catchment_intersection/with_dem')
-        intersect_dem_name = self.config.get('INTERSECT_DEM_NAME')
+        intersect_dem_name = self._get_config_value(lambda: self.config.paths.intersect_dem_name, default='default')
         if intersect_dem_name == 'default':
             intersect_dem_name = 'catchment_with_dem.shp'
 

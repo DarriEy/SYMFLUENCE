@@ -1,42 +1,37 @@
-# In utils/optimization/optimization_manager.py
+# src/symfluence/optimization/optimization_manager.py
 
 from pathlib import Path
 import logging
-import warnings
-from typing import Dict, Any, Optional, Union
-import pandas as pd
-from datetime import datetime
-import json
+from typing import Dict, Any, Optional, TYPE_CHECKING
 
 import numpy as np
-from symfluence.optimization.objectives import ObjectiveRegistry
+import pandas as pd
+
+from symfluence.core.base_manager import BaseManager
 from symfluence.optimization.core import TransformationManager
-from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.optimization.objectives import ObjectiveRegistry
 from symfluence.optimization.optimization_results_manager import OptimizationResultsManager
+from symfluence.optimization.registry import OptimizerRegistry
 
-from symfluence.core.mixins import ConfigurableMixin
-
-# Import for type checking only
-try:
+if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
-except ImportError:
-    SymfluenceConfig = None
 
-class OptimizationManager(ConfigurableMixin):
+
+class OptimizationManager(BaseManager):
     """
     Coordinates model optimization and calibration.
-    
-    The OptimizationManager is responsible for coordinating model calibration 
-    within the SYMFLUENCE framework. It provides a unified interface for 
-    different optimization algorithms and handles the interaction between 
+
+    The OptimizationManager is responsible for coordinating model calibration
+    within the SYMFLUENCE framework. It provides a unified interface for
+    different optimization algorithms and handles the interaction between
     optimization components and hydrological models.
-    
+
     Key responsibilities:
     - Coordinating model calibration using different optimization algorithms
     - Managing optimization results and performance metrics
     - Validating optimization configurations
     - Providing status information on optimization progress
-    
+
     The OptimizationManager supports multiple optimization algorithms via
     OptimizerRegistry:
     - PSO: Particle Swarm Optimization
@@ -45,62 +40,24 @@ class OptimizationManager(ConfigurableMixin):
     - DE: Differential Evolution
     - NSGA-II: Non-dominated Sorting Genetic Algorithm II
     - ADAM/LBFGS: Gradient-based optimization
-    
-    Attributes:
-        config (Dict[str, Any]): Configuration dictionary
-        logger (logging.Logger): Logger instance
+
+    Inherits from BaseManager for standardized initialization and common patterns.
     """
-    
-    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: logging.Logger, reporting_manager: Optional[Any] = None):
-        """
-        Initialize the Optimization Manager.
-        
-        Sets up the OptimizationManager with the necessary components for model
-        calibration. This includes initializing the results manager and mappings 
-        between optimization algorithms and their implementation classes.
-        
-        Args:
-            config: Configuration dictionary or SymfluenceConfig instance
-            logger: Logger instance
-            reporting_manager: ReportingManager instance
-            
-        Raises:
-            KeyError: If essential configuration values are missing
-            ImportError: If required optimizer modules cannot be imported
-        """
-        # Support both typed config and dict config
-        if SymfluenceConfig and isinstance(config, SymfluenceConfig):
-            self.typed_config = config
-            self.config = config.to_dict(flatten=True)
-        else:
-            self.typed_config = None
-            self.config = config
 
-        self.logger = logger
-        self.reporting_manager = reporting_manager
-        
-        # Validate required config keys for dict-based config (backward compatibility for tests)
-        if not self.typed_config:
-            if 'DOMAIN_NAME' not in self.config:
-                raise KeyError('DOMAIN_NAME')
-            if 'EXPERIMENT_ID' not in self.config:
-                raise KeyError('EXPERIMENT_ID')
-
-        # Use typed config if available for components
-        component_config = self.typed_config if self.typed_config else self.config
-
-        self.experiment_id = self.config.get('EXPERIMENT_ID')
-
-        # Initialize results manager
-        self.results_manager = OptimizationResultsManager(
+    def _initialize_services(self) -> None:
+        """Initialize optimization services."""
+        self.results_manager = self._get_service(
+            OptimizationResultsManager,
             self.project_dir,
             self.experiment_id,
             self.logger,
             self.reporting_manager
         )
-        
-        # Initialize transformation manager
-        self.transformation_manager = TransformationManager(component_config, self.logger)
+        self.transformation_manager = self._get_service(
+            TransformationManager,
+            self.config,
+            self.logger
+        )
 
     @property
     def optimizers(self) -> Dict[str, Any]:
@@ -131,12 +88,11 @@ class OptimizationManager(ConfigurableMixin):
             Dict[str, Any]: Results from completed workflows
         """
         results = {}
-        optimization_methods = self._resolve_config_value(
-            lambda: self.typed_config.optimization.methods,
-            'OPTIMIZATION_METHODS',
+        optimization_methods = self._get_config_value(
+            lambda: self.config.optimization.methods,
             []
         )
-        
+
         self.logger.info(f"Running optimization workflows: {optimization_methods}")
         
         # Run iterative optimization (calibration)
@@ -185,26 +141,23 @@ class OptimizationManager(ConfigurableMixin):
         self.logger.info("Starting model calibration")
 
         # Check if iterative optimization is enabled
-        optimization_methods = self._resolve_config_value(
-            lambda: self.typed_config.optimization.methods,
-            'OPTIMIZATION_METHODS',
+        optimization_methods = self._get_config_value(
+            lambda: self.config.optimization.methods,
             []
         )
-        if not 'iteration' in optimization_methods:
+        if 'iteration' not in optimization_methods:
             self.logger.info("Iterative optimization is disabled in configuration")
             return None
 
         # Get the optimization algorithm from config
-        opt_algorithm = self._resolve_config_value(
-            lambda: self.typed_config.optimization.algorithm,
-            'ITERATIVE_OPTIMIZATION_ALGORITHM',
+        opt_algorithm = self._get_config_value(
+            lambda: self.config.optimization.algorithm,
             'PSO'
         )
 
         try:
-            models_str = self._resolve_config_value(
-                lambda: self.typed_config.model.hydrological_model,
-                'HYDROLOGICAL_MODEL',
+            models_str = self._get_config_value(
+                lambda: self.config.model.hydrological_model,
                 ''
             )
             hydrological_models = [m.strip().upper() for m in str(models_str).split(',') if m.strip()]
@@ -275,26 +228,22 @@ class OptimizationManager(ConfigurableMixin):
                 'DE': optimizer.run_de,
                 'NSGA-II': optimizer.run_nsga2,
                 'ADAM': lambda: optimizer.run_adam(
-                    steps=self._resolve_config_value(
-                        lambda: self.typed_config.optimization.adam_steps,
-                        'ADAM_STEPS',
+                    steps=self._get_config_value(
+                        lambda: self.config.optimization.adam_steps,
                         100
                     ),
-                    lr=self._resolve_config_value(
-                        lambda: self.typed_config.optimization.adam_learning_rate,
-                        'ADAM_LEARNING_RATE',
+                    lr=self._get_config_value(
+                        lambda: self.config.optimization.adam_learning_rate,
                         0.01
                     )
                 ),
                 'LBFGS': lambda: optimizer.run_lbfgs(
-                    steps=self._resolve_config_value(
-                        lambda: self.typed_config.optimization.lbfgs_steps,
-                        'LBFGS_STEPS',
+                    steps=self._get_config_value(
+                        lambda: self.config.optimization.lbfgs_steps,
                         50
                     ),
-                    lr=self._resolve_config_value(
-                        lambda: self.typed_config.optimization.lbfgs_learning_rate,
-                        'LBFGS_LEARNING_RATE',
+                    lr=self._get_config_value(
+                        lambda: self.config.optimization.lbfgs_learning_rate,
                         0.1
                     )
                 ),
@@ -332,21 +281,18 @@ class OptimizationManager(ConfigurableMixin):
         Returns:
             Dict[str, Any]: Dictionary containing optimization status information
         """
-        optimization_methods = self._resolve_config_value(
-            lambda: self.typed_config.optimization.methods,
-            'OPTIMIZATION_METHODS',
+        optimization_methods = self._get_config_value(
+            lambda: self.config.optimization.methods,
             []
         )
         status = {
             'iterative_optimization_enabled': 'iteration' in optimization_methods,
-            'optimization_algorithm': self._resolve_config_value(
-                lambda: self.typed_config.optimization.algorithm,
-                'ITERATIVE_OPTIMIZATION_ALGORITHM',
+            'optimization_algorithm': self._get_config_value(
+                lambda: self.config.optimization.algorithm,
                 'PSO'
             ),
-            'optimization_metric': self._resolve_config_value(
-                lambda: self.typed_config.optimization.metric,
-                'OPTIMIZATION_METRIC',
+            'optimization_metric': self._get_config_value(
+                lambda: self.config.optimization.metric,
                 'KGE'
             ),
             'optimization_dir': str(self.project_dir / "optimization"),
@@ -374,41 +320,36 @@ class OptimizationManager(ConfigurableMixin):
         }
         
         # Check algorithm
-        algorithm = self._resolve_config_value(
-            lambda: self.typed_config.optimization.algorithm,
-            'ITERATIVE_OPTIMIZATION_ALGORITHM',
+        algorithm = self._get_config_value(
+            lambda: self.config.optimization.algorithm,
             ''
         )
         supported_algorithms = ['DDS', 'ASYNC-DDS', 'ASYNCDDS', 'ASYNC_DDS', 'PSO', 'SCE-UA', 'DE', 'ADAM', 'LBFGS', 'NSGA-II']
         validation['algorithm_valid'] = algorithm in supported_algorithms
-        
+
         # Check model support
-        models_str = self._resolve_config_value(
-            lambda: self.typed_config.model.hydrological_model,
-            'HYDROLOGICAL_MODEL',
+        models_str = self._get_config_value(
+            lambda: self.config.model.hydrological_model,
             ''
         )
         models = str(models_str).split(',')
         validation['model_supported'] = 'SUMMA' in [m.strip() for m in models]
-        
+
         # Check parameters to calibrate
-        local_params = self._resolve_config_value(
-            lambda: self.typed_config.optimization.params_to_calibrate,
-            'PARAMS_TO_CALIBRATE',
+        local_params = self._get_config_value(
+            lambda: self.config.optimization.params_to_calibrate,
             ''
         )
-        basin_params = self._resolve_config_value(
-            lambda: self.typed_config.optimization.basin_params_to_calibrate,
-            'BASIN_PARAMS_TO_CALIBRATE',
+        basin_params = self._get_config_value(
+            lambda: self.config.optimization.basin_params_to_calibrate,
             ''
         )
         validation['parameters_defined'] = bool(local_params or basin_params)
-        
+
         # Check metric
-        valid_metrics = ['KGE', 'NSE', 'RMSE', 'MAE', 'KGEp']
-        metric = self._resolve_config_value(
-            lambda: self.typed_config.optimization.metric,
-            'OPTIMIZATION_METRIC',
+        valid_metrics = ['KGE', 'NSE', 'RMSE', 'MAE', 'KGEp', 'correlation']
+        metric = self._get_config_value(
+            lambda: self.config.optimization.metric,
             ''
         )
         validation['metric_valid'] = metric in valid_metrics

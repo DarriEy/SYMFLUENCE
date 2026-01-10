@@ -26,6 +26,7 @@ except ImportError:
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
 from ..execution import ModelExecutor, SpatialOrchestrator, RoutingModel
+from ..mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.core.exceptions import (
     ModelExecutionError,
     symfluence_error_handler
@@ -37,7 +38,7 @@ from .postprocessor import LSTMPostprocessor
 
 
 @ModelRegistry.register_runner('LSTM', method_name='run_lstm')
-class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
+class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteConfigMixin):
     """
     LSTM: Flow and Snow Hydrological LSTM Runner.
 
@@ -45,6 +46,11 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
     model training (or loading), simulation, and postprocessing.
     Supports both lumped and distributed modes with dRoute integration.
     """
+
+    @property
+    def lstm_config(self):
+        """Access LSTM-specific configuration."""
+        return self.config.model.lstm
 
     def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
         # Call base class
@@ -54,7 +60,7 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
         self.logger.info(f"Initialized LSTM runner with device: {self.device}")
         
         # Determine spatial mode
-        domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+        domain_method = self.domain_definition_method
         if domain_method == 'delineate':
             self.spatial_mode = 'distributed'
             self.logger.warning(
@@ -72,8 +78,8 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
             self.device
         )
         self.postprocessor = LSTMPostprocessor(
-            self.config_dict, 
-            self.logger, 
+            self.config,
+            self.logger,
             reporting_manager=self.reporting_manager
         )
         
@@ -96,12 +102,12 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
             forcing_df, streamflow_df, snow_df = self.preprocessor.load_data()
             
             # Check if snow data should be used based on config
-            use_snow = self.config_dict.get('LSTM_USE_SNOW', False)
+            use_snow = self.lstm_config.use_snow
             snow_df_input = snow_df if use_snow else pd.DataFrame() # Use empty DF if not using snow
 
             # 2. Preprocess Data
             # Decide if we are training (fit scalers) or just simulating (load scalers)
-            load_existing_model = self.config_dict.get('LSTM_LOAD', False)
+            load_existing_model = self.lstm_config.load
             model_save_path = self.project_dir / 'models' / 'lstm_model.pt'
             
             if load_existing_model:
@@ -126,10 +132,10 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
                 # Create model structure
                 input_size = X_tensor.shape[-1]
                 self._create_model_instance(
-                    input_size, 
+                    input_size,
                     checkpoint['output_size'],
-                    hidden_size=self.config_dict.get('LSTM_HIDDEN_SIZE', 64),
-                    num_layers=self.config_dict.get('LSTM_NUM_LAYERS', 2)
+                    hidden_size=self.lstm_config.hidden_size,
+                    num_layers=self.lstm_config.num_layers
                 )
                 self.model.load_state_dict(checkpoint['model_state_dict'])
                 
@@ -139,19 +145,19 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
                     forcing_df, streamflow_df, snow_df_input, fit_scalers=True
                 )
                 self.hru_ids = hru_ids
-                
+
                 input_size = X_tensor.shape[-1]
-                hidden_size = self.config_dict.get('LSTM_HIDDEN_SIZE', 64)
-                num_layers = self.config_dict.get('LSTM_NUM_LAYERS', 2)
+                hidden_size = self.lstm_config.hidden_size
+                num_layers = self.lstm_config.num_layers
                 output_size = self.preprocessor.output_size
-                
+
                 # Create and Train
                 self._create_model_instance(input_size, output_size, hidden_size, num_layers)
-                
+
                 # Check if we should train through routing
                 train_through_routing = (
-                    self.config_dict.get('LSTM_TRAIN_THROUGH_ROUTING', False) and 
-                    self.requires_routing() and 
+                    self.lstm_config.train_through_routing and
+                    self.requires_routing() and
                     self.get_spatial_config('LSTM').routing.model == RoutingModel.DROUTE
                 )
 
@@ -159,26 +165,26 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
                     self.logger.info("Training LSTM through dRoute routing...")
                     self._train_model_with_routing(
                         X_tensor,
-                        streamflow_df, # Need full streamflow for outlet comparison
+                        streamflow_df,  # Need full streamflow for outlet comparison
                         common_dates,
-                        epochs=self.config_dict.get('LSTM_EPOCHS', 100),
-                        learning_rate=self.config_dict.get('LSTM_LEARNING_RATE', 0.001)
+                        epochs=self.lstm_config.epochs,
+                        learning_rate=self.lstm_config.learning_rate
                     )
                 elif self.spatial_mode == 'lumped':
                     self._train_model(
-                        X_tensor, 
+                        X_tensor,
                         y_tensor,
-                        epochs=self.config_dict.get('LSTM_EPOCHS', 100),
-                        batch_size=self.config_dict.get('LSTM_BATCH_SIZE', 32),
-                        learning_rate=self.config_dict.get('LSTM_LEARNING_RATE', 0.001)
+                        epochs=self.lstm_config.epochs,
+                        batch_size=self.lstm_config.batch_size,
+                        learning_rate=self.lstm_config.learning_rate
                     )
                 else:
                     self._train_model_distributed(
                         X_tensor,
                         y_tensor,
-                        epochs=self.config_dict.get('LSTM_EPOCHS', 100),
-                        batch_size=self.config_dict.get('LSTM_BATCH_SIZE', 32),
-                        learning_rate=self.config_dict.get('LSTM_LEARNING_RATE', 0.001)
+                        epochs=self.lstm_config.epochs,
+                        batch_size=self.lstm_config.batch_size,
+                        learning_rate=self.lstm_config.learning_rate
                     )
                 
                 # Save model
@@ -194,9 +200,8 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
 
             # Handle routing if needed
             if self.requires_routing():
-                self.logger.info(f"Routing LSTM output using {self.config_dict.get('ROUTING_MODEL', 'none')}")
-                # We need to set MIZU_FROM_MODEL so orchestrator knows where to look
-                self.config_dict['MIZU_FROM_MODEL'] = 'LSTM'
+                self.logger.info(f"Routing LSTM output using {self.routing_model}")
+                # Routing will infer source model from HYDROLOGICAL_MODEL config
                 routed_output = self.route_model_output(output_file)
                 if routed_output:
                     self.logger.info(f"Routing completed. Routed results: {routed_output}")
@@ -205,7 +210,7 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
 
     def _create_model_instance(self, input_size: int, output_size: int, hidden_size: int, num_layers: int):
         """Create the LSTM model instance."""
-        dropout_rate = float(self.config_dict.get('LSTM_DROPOUT', 0.2))
+        dropout_rate = self.lstm_config.dropout
         self.logger.info(
             f"Creating LSTM model with input_size: {input_size}, hidden_size: {hidden_size}, "
             f"num_layers: {num_layers}, output_size: {output_size}"
@@ -226,12 +231,12 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
         optimizer = optim.AdamW(
             self.model.parameters(),
             lr=learning_rate,
-            weight_decay=float(self.config_dict.get('LSTM_L2_REGULARIZATION', 1e-6))
+            weight_decay=self.lstm_config.l2_regularization
         )
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
 
         best_val_loss = float('inf')
-        patience = self.config_dict.get('LSTM_LEARNING_PATIENCE', 20)
+        patience = self.lstm_config.learning_patience
         patience_counter = 0
 
         for epoch in range(epochs):
@@ -338,7 +343,7 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
         RouterClass = router_classes.get(routing_method, droute.MuskingumCungeRouter)
         
         config = droute.RouterConfig()
-        config.dt = float(self.config_dict.get('SETTINGS_MIZU_ROUTING_DT', 3600))
+        config.dt = float(self.mizu_routing_dt)
         config.enable_gradients = True # Enable AD
         
         for epoch in range(epochs):

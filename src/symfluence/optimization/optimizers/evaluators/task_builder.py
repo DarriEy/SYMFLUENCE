@@ -144,11 +144,24 @@ class TaskBuilder:
             task_dict['objective_names'] = objective_names
             
             # Add target types and metrics for multi-target optimization
+            # Support both NSGA2_* keys and legacy OPTIMIZATION_TARGET* keys
             task_dict['multi_target_mode'] = True
-            task_dict['primary_target_type'] = self.config.get('NSGA2_PRIMARY_TARGET', 'streamflow')
-            task_dict['secondary_target_type'] = self.config.get('NSGA2_SECONDARY_TARGET', 'tws')
-            task_dict['primary_metric'] = self.config.get('NSGA2_PRIMARY_METRIC', 'KGE')
-            task_dict['secondary_metric'] = self.config.get('NSGA2_SECONDARY_METRIC', 'KGE')
+            task_dict['primary_target_type'] = self.config.get(
+                'NSGA2_PRIMARY_TARGET',
+                self.config.get('OPTIMIZATION_TARGET', 'streamflow')
+            )
+            task_dict['secondary_target_type'] = self.config.get(
+                'NSGA2_SECONDARY_TARGET',
+                self.config.get('OPTIMIZATION_TARGET2', 'tws')
+            )
+            task_dict['primary_metric'] = self.config.get(
+                'NSGA2_PRIMARY_METRIC',
+                self.config.get('OPTIMIZATION_METRIC', 'KGE')
+            )
+            task_dict['secondary_metric'] = self.config.get(
+                'NSGA2_SECONDARY_METRIC',
+                self.config.get('OPTIMIZATION_METRIC2', 'KGE')
+            )
 
         # Add random seed if provided
         if random_seed is not None:

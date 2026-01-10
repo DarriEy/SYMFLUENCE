@@ -239,6 +239,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         Supports configurable timesteps based on FORCING_TIME_STEP_SIZE config parameter.
         """
         try:
+            t0 = time.time()
             # Get timestep configuration
             ts_config = self._get_timestep_config()
             self.logger.debug(f"Using {ts_config['time_label']} timestep (resample freq: {ts_config['resample_freq']})")
@@ -257,15 +258,25 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             variable_handler = VariableHandler(config=self.config_dict, logger=self.logger,
                                             dataset=self.config_dict.get('FORCING_DATASET'), model='FUSE')
             self.logger.debug(f"FUSE forcing_files count: {len(forcing_files)}")
+            
+            t1 = time.time()
             # Open the forcing datasets
             if len(forcing_files) == 1:
                 ds = xr.open_dataset(forcing_files[0])
             else:
                 ds = xr.open_mfdataset(forcing_files, data_vars='all', combine='nested', concat_dim='time').sortby('time')
+            self.logger.info(f"PERF: Opening dataset took {time.time() - t1:.2f}s")
+            
+            t2 = time.time()
             ds = variable_handler.process_forcing_data(ds)
+            self.logger.info(f"PERF: process_forcing_data took {time.time() - t2:.2f}s")
+            
+            t3 = time.time()
             ds = self.subset_to_simulation_time(ds, "Forcing")
+            self.logger.info(f"PERF: subset_to_simulation_time took {time.time() - t3:.2f}s")
             
             # Spatial organization based on mode BEFORE resampling
+            t4 = time.time()
             if spatial_mode == 'lumped':
                 ds = self._prepare_lumped_forcing(ds)
             elif spatial_mode == 'semi_distributed':
@@ -274,10 +285,13 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 ds = self._prepare_distributed_forcing(ds)
             else:
                 raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")
+            self.logger.info(f"PERF: Spatial prep ({spatial_mode}) took {time.time() - t4:.2f}s")
             
             # Resample to target resolution AFTER spatial organization
+            t5 = time.time()
             self.logger.debug(f"Resampling data to {ts_config['time_label']} resolution")
             ds = ds.resample(time=ts_config['resample_freq']).mean()
+            self.logger.info(f"PERF: Resampling took {time.time() - t5:.2f}s")
             
             # Process temperature and precipitation
             try:
@@ -287,14 +301,17 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 pass
             
             # Handle streamflow observations
+            t6 = time.time()
             time_window = self.get_simulation_time_window()
             obs_ds = self._load_streamflow_observations(spatial_mode, ts_config, time_window)
+            self.logger.info(f"PERF: Loading observations took {time.time() - t6:.2f}s")
             
             # Get PET method from config (default to 'oudin')
             pet_method = self.config_dict.get('PET_METHOD', 'oudin').lower()
             self.logger.debug(f"Using PET method: {pet_method}")
             
             # Calculate PET for the correct spatial configuration
+            t7 = time.time()
             if spatial_mode == 'lumped':
                 catchment = gpd.read_file(self.catchment_path)
                 mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
@@ -306,18 +323,52 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             # Ensure PET is also at target resolution
             pet = pet.resample(time=ts_config['resample_freq']).mean()
             self.logger.debug(f"PET data resampled to {ts_config['time_label']} resolution")
+            self.logger.info(f"PERF: PET calculation took {time.time() - t7:.2f}s")
             
             # Create FUSE forcing dataset
+            t8 = time.time()
             fuse_forcing = self._create_fuse_forcing_dataset(ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config)
-            
+            self.logger.info(f"PERF: _create_fuse_forcing_dataset took {time.time() - t8:.2f}s")
+
+            # Capture actual simulation dates from the final dataset
+            # FUSE uses days since 1970-01-01
+            try:
+                t9 = time.time()
+                time_vals = fuse_forcing['time'].values
+                if len(time_vals) > 0:
+                    dates = pd.to_datetime(time_vals, unit='D', origin='1970-01-01')
+                    self.actual_start_time = dates.min().to_pydatetime()
+                    self.actual_end_time = dates.max().to_pydatetime()
+                    self.logger.info(f"Captured actual simulation dates: {self.actual_start_time} to {self.actual_end_time}")
+                self.logger.info(f"PERF: Date capture took {time.time() - t9:.2f}s")
+            except Exception as e:
+                self.logger.warning(f"Could not capture actual dates from FUSE forcing: {e}")
+
+            # Release any open handles and materialize data before writing to avoid lazy write hangs
+            try:
+                if hasattr(ds, "close"):
+                    ds.close()
+            except Exception as e:
+                self.logger.debug(f"Could not close forcing dataset: {e}")
+
+            self.logger.info("Materializing FUSE forcing dataset before write")
+            fuse_forcing = fuse_forcing.load()
+
             # Save forcing data
+            t10 = time.time()
             output_file = self.forcing_fuse_path / f"{self.domain_name}_input.nc"
             encoding = self._get_encoding_dict(fuse_forcing)
             fuse_forcing.to_netcdf(output_file, unlimited_dims=['time'], 
                                 encoding=encoding, format='NETCDF4')
             
+            self.logger.info(f"PERF: Saving NetCDF took {time.time() - t10:.2f}s")
+            self.logger.info(f"PERF: Total prepare_forcing_data took {time.time() - t0:.2f}s")
             self.logger.debug(f"FUSE forcing data saved: {output_file}")
             return output_file
+            
+        except Exception as e:
+            self.logger.error(f"Error preparing forcing data: {str(e)}")
+            raise
             
         except Exception as e:
             self.logger.error(f"Error preparing forcing data: {str(e)}")
@@ -365,6 +416,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         time_index = pd.to_datetime('1970-01-01') + pd.to_timedelta(fuse_forcing.time.values, unit='D')
 
         def process_var(da, name):
+            pv_start = time.time()
             # Ensure data has datetime index for alignment
             if not pd.api.types.is_datetime64_any_dtype(da.time.dtype):
                 da = da.assign_coords(time=pd.to_datetime('1970-01-01') + pd.to_timedelta(da.time.values, unit='D'))
@@ -394,7 +446,10 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             # CRITICAL: Handle NaN values properly for FUSE
             # FUSE interprets -9999 as actual negative values, not as missing data
             # We need to fill NaN values with interpolated/mean data
+            t_copy = time.time()
             da_values = da_broadcasted.values.copy()
+            self.logger.debug(f"PERF: [{name}] da.values copy took {time.time() - t_copy:.4f}s")
+            
             nan_mask = np.isnan(da_values)
 
             if np.any(nan_mask):
@@ -429,7 +484,8 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             # Ensure non-negative for precipitation (floating-point precision can cause tiny negative values)
             if name == 'pr':
                 da_values = np.maximum(da_values, 0.0)
-
+            
+            self.logger.debug(f"PERF: [{name}] process_var total took {time.time() - pv_start:.4f}s")
             return xr.DataArray(da_values, dims=da_broadcasted.dims, coords=da_broadcasted.coords).astype('float32')
 
         # Map variables
@@ -579,15 +635,30 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         start_time = datetime.strptime(self.config_dict.get('EXPERIMENT_TIME_START'), '%Y-%m-%d %H:%M')
         end_time = datetime.strptime(self.config_dict.get('EXPERIMENT_TIME_END'), '%Y-%m-%d %H:%M')
         forcing_file = self.forcing_fuse_path / f"{self.domain_name}_input.nc"
-        if forcing_file.exists():
-            try:
-                with xr.open_dataset(forcing_file) as ds:
-                    time_vals = pd.to_datetime(ds.time.values)
-                if len(time_vals) > 0:
-                    start_time = time_vals.min().to_pydatetime()
-                    end_time = time_vals.max().to_pydatetime()
-            except Exception as e:
-                self.logger.warning(f"Unable to read forcing time range from {forcing_file}: {e}")
+        
+        if hasattr(self, 'actual_start_time') and hasattr(self, 'actual_end_time'):
+            self.logger.info(f"Using captured dates from preprocessing: {self.actual_start_time} to {self.actual_end_time}")
+            start_time = self.actual_start_time
+            end_time = self.actual_end_time
+        else:
+            self.logger.info(f"Checking forcing file for dates: {forcing_file}")
+            if forcing_file.exists():
+                try:
+                    self.logger.info("Forcing file exists, attempting to read time range...")
+                    with xr.open_dataset(forcing_file) as ds:
+                        time_vals = pd.to_datetime(ds.time.values)
+                    
+                    if len(time_vals) > 0:
+                        start_time = time_vals.min().to_pydatetime()
+                        end_time = time_vals.max().to_pydatetime()
+                        self.logger.info(f"Updated simulation dates from forcing file: {start_time} to {end_time}")
+                    else:
+                        self.logger.warning("Forcing file has no time values!")
+                except Exception as e:
+                    self.logger.warning(f"Unable to read forcing time range from {forcing_file}: {e}")
+            else:
+                self.logger.warning(f"Forcing file not found at {forcing_file}, using config dates.")
+
         cal_start_time = datetime.strptime(self.config_dict.get('CALIBRATION_PERIOD').split(',')[0], '%Y-%m-%d')
         cal_end_time = datetime.strptime(self.config_dict.get('CALIBRATION_PERIOD').split(',')[1].strip(), '%Y-%m-%d')
 

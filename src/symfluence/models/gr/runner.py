@@ -20,8 +20,10 @@ from ..registry import ModelRegistry
 from ..base import BaseModelRunner
 from ..mixins import OutputConverterMixin
 from ..execution import ModelExecutor, SpatialOrchestrator
+from ..mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.data.utilities.netcdf_utils import create_netcdf_encoding
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
+from symfluence.core.constants import UnitConversion
 
 # Optional R/rpy2 support - only needed for GR models
 try:
@@ -39,7 +41,7 @@ except (ImportError, ValueError) as e:
 
 
 @ModelRegistry.register_runner('GR', method_name='run_gr')
-class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConverterMixin):
+class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConverterMixin, MizuRouteConfigMixin):
     """
     Runner class for the GR family of models (initially GR4J).
     Handles model execution, state management, and output processing.
@@ -74,12 +76,21 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         # Keep legacy attribute name for downstream GR code.
         self.output_path = self.output_dir
 
-        # GR-specific configuration (Phase 3: typed config)
-        self.spatial_mode = self._resolve_config_value(
-            lambda: self.config.model.gr.spatial_mode if self.config.model.gr else 'lumped',
-            'GR_SPATIAL_MODE',
-            'lumped'
+        # GR-specific configuration
+        configured_mode = self._get_config_value(
+            lambda: self.config.model.gr.spatial_mode if self.config.model and self.config.model.gr else None,
+            'auto'
         )
+
+        # Handle 'auto' mode - infer from domain definition method
+        if configured_mode in (None, 'auto', 'default'):
+            domain_method = self.domain_definition_method
+            if domain_method == 'delineate':
+                self.spatial_mode = 'distributed'
+            else:
+                self.spatial_mode = 'lumped'
+        else:
+            self.spatial_mode = configured_mode
 
         self.needs_routing = self._check_routing_requirements()
 
@@ -87,9 +98,9 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         """Set up GR-specific paths."""
         # Catchment paths (uses PathResolverMixin from base)
         self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
+        self.catchment_name = self.catchment_name_col
         if self.catchment_name == 'default':
-            discretization = self.config_dict.get('DOMAIN_DISCRETIZATION')
+            discretization = self.domain_discretization
             self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
 
         # GR setup and forcing paths
@@ -146,17 +157,102 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
 
             if success:
                 self.logger.info("GR model run completed successfully")
+                
+                # Calculate and log metrics for the run
+                self._calculate_and_log_metrics()
+                
                 return self.output_path
             else:
                 self.logger.error("GR model run failed")
                 return None
 
-    def _check_routing_requirements(self) -> bool:
-        """Check if distributed routing is needed"""
-        routing_integration = self.config_dict.get('GR_ROUTING_INTEGRATION', 'none')
+    def _calculate_and_log_metrics(self) -> None:
+        """Calculate and log performance metrics for the model run."""
+        try:
+            from symfluence.evaluation.evaluators.gr_streamflow import GRStreamflowEvaluator
+            
+            self.logger.info("Calculating performance metrics...")
+            
+            # Initialize evaluator with correct project directory
+            evaluator = GRStreamflowEvaluator(
+                self.config if hasattr(self, 'config') and self.config else self.config_dict, 
+                project_dir=self.project_dir,
+                logger=self.logger
+            )
+            
+            # Determine simulation directory
+            # If routing was used, metrics should come from mizuRoute output
+            if self.needs_routing:
+                # Priority 1: Check config for specific mizuRoute output path
+                mizu_output = self.mizu_experiment_output
+                if mizu_output:
+                    sim_dir = Path(mizu_output)
+                else:
+                    # Priority 2: Check for mizuRoute subdirectory in current output
+                    sim_dir = self.output_path / 'mizuRoute'
+                    if not sim_dir.exists():
+                        # Priority 3: Use sibling to output_path (standard project structure)
+                        sim_dir = self.output_path.parent / 'mizuRoute'
+                    
+                if not sim_dir.exists():
+                    self.logger.warning(f"MizuRoute simulation directory not found: {sim_dir}")
+                    return
+            else:
+                sim_dir = self.output_path
+                
+            if not sim_dir.exists():
+                self.logger.warning(f"Simulation directory not found for metrics: {sim_dir}")
+                return
 
-        if routing_integration == 'mizuRoute':
+            self.logger.debug(f"Using simulation directory for metrics: {sim_dir}")
+
+            # Evaluate
+            metrics = evaluator.evaluate(sim_dir)
+            
+            if metrics and 'KGE' in metrics and not np.isnan(metrics['KGE']):
+                kge_val = metrics['KGE']
+                self.logger.info("=" * 40)
+                self.logger.info(f"🏆 GR Model Performance ({self.spatial_mode})")
+                self.logger.info(f"   KGE: {kge_val:.4f}")
+                if 'NSE' in metrics and not np.isnan(metrics['NSE']):
+                    self.logger.info(f"   NSE: {metrics['NSE']:.4f}")
+                self.logger.info(f"   Output directory: {sim_dir}")
+                self.logger.info("=" * 40)
+            else:
+                self.logger.warning("Could not calculate performance metrics (possibly missing observations or alignment failure)")
+                if metrics:
+                    self.logger.debug(f"Available metrics: {list(metrics.keys())}")
+                
+        except Exception as e:
+            self.logger.warning(f"Error calculating metrics: {e}")
+            self.logger.debug(f"Traceback: ", exc_info=True)
+
+    def _check_routing_requirements(self) -> bool:
+        """Check if distributed routing is needed.
+
+        Routing is enabled when:
+        1. GR_ROUTING_INTEGRATION is explicitly set to 'mizuRoute', OR
+        2. ROUTING_MODEL is 'mizuRoute' and spatial_mode is 'distributed'
+        """
+        # Check explicit GR routing integration setting
+        routing_integration = self._get_config_value(
+            lambda: self.config.model.gr.routing_integration if self.config.model and self.config.model.gr else None,
+            'none'
+        )
+
+        # Check global routing model setting
+        global_routing = self.routing_model
+
+        # Enable routing if explicitly configured for GR
+        if routing_integration and routing_integration.lower() == 'mizuroute':
             if self.spatial_mode == 'distributed':
+                self.logger.info("GR routing enabled via GR_ROUTING_INTEGRATION: mizuRoute")
+                return True
+
+        # Auto-enable routing if global routing model is mizuRoute and distributed mode
+        if global_routing and global_routing.lower() == 'mizuroute':
+            if self.spatial_mode == 'distributed':
+                self.logger.info("GR routing auto-enabled: ROUTING_MODEL=mizuRoute with distributed mode")
                 return True
 
         return False
@@ -164,6 +260,10 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
     def _execute_gr_distributed(self) -> bool:
         """Execute GR4J in distributed mode - run for each HRU"""
         self.logger.info("Running distributed GR4J workflow")
+
+        # Create temp directory for this evaluation (worker isolation for parallel execution)
+        temp_dir = self.output_path / '.gr_temp'
+        temp_dir.mkdir(parents=True, exist_ok=True)
 
         try:
             # Initialize R environment
@@ -195,10 +295,10 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
                 Zmean = np.mean(masked_dem)
 
             # Get simulation periods
-            time_start = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_START'))
-            time_end = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_END'))
-            spinup_start = pd.to_datetime(self.config_dict.get('SPINUP_PERIOD').split(',')[0].strip()).strftime('%Y-%m-%d')
-            spinup_end = pd.to_datetime(self.config_dict.get('SPINUP_PERIOD').split(',')[1].strip()).strftime('%Y-%m-%d')
+            time_start = pd.to_datetime(self.time_start)
+            time_end = pd.to_datetime(self.time_end)
+            spinup_start = pd.to_datetime(self.spinup_period.split(',')[0].strip()).strftime('%Y-%m-%d')
+            spinup_end = pd.to_datetime(self.spinup_period.split(',')[1].strip()).strftime('%Y-%m-%d')
             run_start = time_start.strftime('%Y-%m-%d')
             run_end = time_end.strftime('%Y-%m-%d')
 
@@ -237,8 +337,8 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
                     'pet': hru_data['pet'].values
                 })
 
-                # Save temporary CSV for R in isolated output directory
-                temp_csv = self.output_path / f"hru_{hru_id}_temp.csv"
+                # Save temporary CSV for R in isolated temp directory (prevents MPI race conditions)
+                temp_csv = temp_dir / f"hru_{hru_id}_temp.csv"
                 hru_df.to_csv(temp_csv, index=False)
 
                 # Run GR4J for this HRU
@@ -325,6 +425,15 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             self.logger.error(traceback.format_exc())
             return False
 
+        finally:
+            # Clean up temp directory if it exists
+            if temp_dir.exists():
+                try:
+                    import shutil
+                    shutil.rmtree(temp_dir)
+                except Exception as cleanup_error:
+                    self.logger.warning(f"Failed to clean up temp directory {temp_dir}: {cleanup_error}")
+
     def _save_distributed_results_for_routing(self, results_df, forcing_ds):
         """
         Save distributed GR4J results in mizuRoute-compatible format.
@@ -332,9 +441,9 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         """
         self.logger.info("Saving distributed results in mizuRoute format")
 
-        # Create time coordinate (days since 1970-01-01)
+        # Create time coordinate (seconds since 1970-01-01)
         time_values = results_df.index
-        time_days = (time_values - pd.Timestamp('1970-01-01')).days.values
+        time_seconds = (time_values - pd.Timestamp('1970-01-01')).total_seconds().values
 
         # Get HRU IDs from columns
         hru_ids = results_df.columns.values.astype(int)
@@ -344,7 +453,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         # Dimensions: (time, gru) - matching what mizuRoute expects
         ds_out = xr.Dataset(
             coords={
-                'time': ('time', time_days),
+                'time': ('time', time_seconds),
                 'gru': ('gru', np.arange(n_hrus))
             }
         )
@@ -359,26 +468,25 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             }
         )
 
-        # Add streamflow data (in mm/day as GR4J outputs)
-        # Handle 'default' config value - use model-specific default
-        routing_var_config = self.config_dict.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
-        if routing_var_config in ('default', None, ''):
-            routing_var = 'q_routed'  # GR4J default for routing
-        else:
-            routing_var = routing_var_config
+        # Add streamflow data (convert from mm/day to m/s for mizuRoute)
+        # 1 mm/day = 1 / (1000 * 86400) m/s
+        routing_var = self.mizu_routing_var or 'q_routed'
+            
+        runoff_ms = results_df.values / (1000.0 * UnitConversion.SECONDS_PER_DAY)
+        
         ds_out[routing_var] = xr.DataArray(
-            results_df.values,
+            runoff_ms,
             dims=('time', 'gru'),
             attrs={
                 'long_name': 'GR4J runoff for mizuRoute routing',
-                'units': 'mm/d',
-                'description': 'Runoff from distributed GR4J model'
+                'units': 'm/s',
+                'description': 'Runoff from distributed GR4J model (converted from mm/d)'
             }
         )
 
         # Add time attributes
         ds_out.time.attrs = {
-            'units': 'days since 1970-01-01',
+            'units': 'seconds since 1970-01-01 00:00:00',
             'calendar': 'standard',
             'long_name': 'time'
         }
@@ -388,14 +496,14 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             'model': 'GR4J-CemaNeige',
             'spatial_mode': 'distributed',
             'domain': self.domain_name,
-            'experiment_id': self.config_dict.get('EXPERIMENT_ID'),
+            'experiment_id': self.experiment_id,
             'n_hrus': n_hrus,
             'creation_date': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
             'description': 'Distributed GR4J simulation results for mizuRoute routing'
         }
 
         # Save to NetCDF
-        output_file = self.output_path / f"{self.domain_name}_{self.config_dict.get('EXPERIMENT_ID')}_runs_def.nc"
+        output_file = self.output_path / f"{self.domain_name}_{self.experiment_id}_runs_def.nc"
 
         # Use standardized encoding utility
         encoding = create_netcdf_encoding(
@@ -407,7 +515,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         ds_out.to_netcdf(output_file, encoding=encoding, format='NETCDF4')
 
         self.logger.info(f"Distributed results saved to: {output_file}")
-        self.logger.info(f"Output dimensions: time={len(time_days)}, gru={n_hrus}")
+        self.logger.info(f"Output dimensions: time={len(time_seconds)}, gru={n_hrus}")
 
     def _run_distributed_routing(self) -> bool:
         """Run mizuRoute routing for distributed GR4J output.
@@ -419,9 +527,20 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         # Update config for GR-mizuRoute integration
         self._setup_gr_mizuroute_config()
 
+        # Check if control file already exists (to avoid overwriting process-specific ones)
+        mizu_settings_dir = self.mizu_settings_path
+        mizu_control = self.mizu_control_file or 'mizuRoute_control_GR.txt'
+
+        create_control = True
+        if mizu_settings_dir:
+            control_path = Path(mizu_settings_dir) / mizu_control
+            if control_path.exists():
+                self.logger.debug(f"MizuRoute control file exists at {control_path}, will not overwrite")
+                create_control = False
+
         # Use orchestrator method (creates control file and runs mizuRoute)
         spatial_config = self.get_spatial_config('GR')
-        result = self._run_mizuroute(spatial_config, model_name='gr')
+        result = self._run_mizuroute(spatial_config, model_name='gr', create_control_file=create_control)
 
         return result is not None
 
@@ -429,6 +548,15 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         """Update configuration for GR-mizuRoute integration"""
         # Set mizuRoute to look for GR output instead of SUMMA
         self.config_dict['MIZU_FROM_MODEL'] = 'GR'
+
+        # Ensure we have a control file name set
+        if not self.mizu_control_file:
+            self.config_dict['SETTINGS_MIZU_CONTROL_FILE'] = 'mizuRoute_control_GR.txt'
+        
+        # Ensure HYDROLOGICAL_MODEL includes both if we're in this integrated step
+        current_models = self.hydrological_model
+        if 'MIZUROUTE' not in current_models.upper():
+            self.config_dict['HYDROLOGICAL_MODEL'] = f"{current_models},MIZUROUTE" if current_models else "GR,MIZUROUTE"
 
     def _execute_gr_lumped(self):
         """Execute GR4J in lumped mode (existing implementation)"""
@@ -457,13 +585,13 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
                 Hypso = np.percentile(masked_dem, np.arange(0, 101, 1))
                 Zmean = np.mean(masked_dem)
 
-            time_start = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_START'))
-            time_end = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_END'))
+            time_start = pd.to_datetime(self.time_start)
+            time_end = pd.to_datetime(self.time_end)
 
-            spinup_start = pd.to_datetime(self.config_dict.get('SPINUP_PERIOD').split(',')[0].strip()).strftime('%Y-%m-%d')
-            spinup_end = pd.to_datetime(self.config_dict.get('SPINUP_PERIOD').split(',')[1].strip()).strftime('%Y-%m-%d')
-            calib_start = pd.to_datetime(self.config_dict.get('CALIBRATION_PERIOD').split(',')[0].strip()).strftime('%Y-%m-%d')
-            calib_end = pd.to_datetime(self.config_dict.get('CALIBRATION_PERIOD').split(',')[1].strip()).strftime('%Y-%m-%d')
+            spinup_start = pd.to_datetime(self.spinup_period.split(',')[0].strip()).strftime('%Y-%m-%d')
+            spinup_end = pd.to_datetime(self.spinup_period.split(',')[1].strip()).strftime('%Y-%m-%d')
+            calib_start = pd.to_datetime(self.calibration_period.split(',')[0].strip()).strftime('%Y-%m-%d')
+            calib_end = pd.to_datetime(self.calibration_period.split(',')[1].strip()).strftime('%Y-%m-%d')
             run_start = time_start.strftime('%Y-%m-%d')
             run_end = time_end.strftime('%Y-%m-%d')
 
@@ -550,7 +678,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
 
                 # Calibration criterion
                 InputsCrit <- CreateInputsCrit(
-                    FUN_CRIT = ErrorCrit_{self.config_dict.get('OPTIMIZATION_METRIC')},
+                    FUN_CRIT = ErrorCrit_{self.optimization_metric},
                     InputsModel = InputsModel,
                     RunOptions = RunOptions,
                     Obs = BasinObs$q_obs[Ind_Cal]

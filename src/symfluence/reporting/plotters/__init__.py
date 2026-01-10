@@ -7,11 +7,15 @@ from symfluence.reporting.plotters.optimization_plotter import OptimizationPlott
 from symfluence.reporting.plotters.analysis_plotter import AnalysisPlotter
 from symfluence.reporting.plotters.benchmark_plotter import BenchmarkPlotter
 from symfluence.reporting.plotters.snow_plotter import SnowPlotter
+from symfluence.reporting.plotters.hydrograph_plotter import HydrographPlotter
+from symfluence.reporting.plotters.model_results_plotter import ModelResultsPlotter
 
 __all__ = [
     'DomainPlotter',
     'OptimizationPlotter',
     'AnalysisPlotter',
     'BenchmarkPlotter',
-    'SnowPlotter'
+    'SnowPlotter',
+    'HydrographPlotter',
+    'ModelResultsPlotter',
 ]

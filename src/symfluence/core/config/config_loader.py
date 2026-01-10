@@ -18,6 +18,9 @@ ALIAS_MAP = {
     "OPTIMISATION_METHODS": "OPTIMIZATION_METHODS",
     "OPTIMISATION_TARGET": "OPTIMIZATION_TARGET",
     "OPTIMIZATION_ALGORITHM": "ITERATIVE_OPTIMIZATION_ALGORITHM",
+    # Legacy CONFLUENCE naming (backwards compatibility)
+    "CONFLUENCE_DATA_DIR": "SYMFLUENCE_DATA_DIR",
+    "CONFLUENCE_CODE_DIR": "SYMFLUENCE_CODE_DIR",
 }
 
 
@@ -297,7 +300,9 @@ def _format_validation_error(error: ValidationError, config: Dict[str, Any]) -> 
     error_lines.append("=" * 70)
     error_lines.append("For configuration help:")
     error_lines.append("  • List templates: symfluence config list")
-    error_lines.append("  • Example configs: examples/configs/*_tutorial.yaml")
+    error_lines.append(
+        "  • Example configs: src/symfluence/resources/config_templates/examples/*_tutorial.yaml"
+    )
     error_lines.append("  • Docs: https://github.com/CH-Earth/SUMMA")
     error_lines.append("=" * 70)
 

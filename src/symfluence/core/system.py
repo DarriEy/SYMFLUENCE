@@ -59,6 +59,10 @@ class SYMFLUENCE:
 
         self.config = self.typed_config.to_dict(flatten=True)  # Backward compatibility
         
+        # Ensure log level consistency with debug mode
+        if self.debug_mode:
+            self.config['LOG_LEVEL'] = 'DEBUG'
+        
         # Initialize logging
         self.logging_manager = LoggingManager(self.config, debug_mode=debug_mode)
         self.logger = self.logging_manager.logger

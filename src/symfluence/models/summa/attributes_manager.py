@@ -9,7 +9,7 @@ and land/soil classifications.
 # Standard library imports
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union, TYPE_CHECKING
 
 # Third-party imports
 import geopandas as gpd  # type: ignore
@@ -20,8 +20,14 @@ import rasterio  # type: ignore
 import rasterstats  # type: ignore
 import xarray as xr  # type: ignore
 
+# Local imports
+from symfluence.core import ConfigurableMixin
 
-class SummaAttributesManager:
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
+
+class SummaAttributesManager(ConfigurableMixin):
     """
     Manager for SUMMA HRU attributes.
 
@@ -32,7 +38,7 @@ class SummaAttributesManager:
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: Union['SymfluenceConfig', Dict[str, Any]],
         logger: Any,
         catchment_path: Path,
         catchment_name: str,
@@ -50,7 +56,7 @@ class SummaAttributesManager:
         Initialize the SummaAttributesManager.
 
         Args:
-            config: Configuration dictionary containing setup parameters
+            config: Configuration (typed SymfluenceConfig or dict) containing setup parameters
             logger: Logger object for recording processing information
             catchment_path: Path to catchment shapefile directory
             catchment_name: Name of catchment shapefile
@@ -64,7 +70,13 @@ class SummaAttributesManager:
             forcing_measurement_height: Height of forcing measurements (m)
             get_default_path_callback: Callback function to get default paths
         """
-        self.config = config
+        # Handle typed config
+        from symfluence.core.config.models import SymfluenceConfig
+        if isinstance(config, dict):
+            self._config = SymfluenceConfig(**config)
+        else:
+            self._config = config
+
         self.logger = logger
         self.catchment_path = catchment_path
         self.catchment_name = catchment_name
@@ -113,7 +125,8 @@ class SummaAttributesManager:
             forcing_hruIds = forc['hruId'].values.astype(int)
 
         # Sort shapefile based on forcing HRU order
-        shp = shp.set_index(self.config.get('CATCHMENT_SHP_HRUID'))
+        catchment_hruid = self._get_config_value(lambda: self.config.paths.catchment_hruid)
+        shp = shp.set_index(catchment_hruid)
         shp.index = shp.index.astype(int)
         available_hru_ids = set(shp.index.astype(int))
         missing_hru_ids = [hru_id for hru_id in forcing_hruIds if hru_id not in available_hru_ids]
@@ -130,8 +143,9 @@ class SummaAttributesManager:
         shp = shp.loc[forcing_hruIds].reset_index()
 
         # Get number of GRUs and HRUs
-        hru_ids = pd.unique(shp[self.config.get('CATCHMENT_SHP_HRUID')].values)
-        gru_ids = pd.unique(shp[self.config.get('CATCHMENT_SHP_GRUID')].values)
+        catchment_gruid = self._get_config_value(lambda: self.config.paths.catchment_gruid)
+        hru_ids = pd.unique(shp[catchment_hruid].values)
+        gru_ids = pd.unique(shp[catchment_gruid].values)
         num_hru = len(hru_ids)
         num_gru = len(gru_ids)
 
@@ -173,12 +187,15 @@ class SummaAttributesManager:
             att['gruId'][:] = gru_ids
 
             # Fill HRU variables
+            catchment_area = self._get_config_value(lambda: self.config.paths.catchment_area)
+            catchment_lat = self._get_config_value(lambda: self.config.paths.catchment_lat)
+            catchment_lon = self._get_config_value(lambda: self.config.paths.catchment_lon)
             for idx in range(num_hru):
-                att['hruId'][idx] = shp.iloc[idx][self.config.get('CATCHMENT_SHP_HRUID')]
-                att['HRUarea'][idx] = shp.iloc[idx][self.config.get('CATCHMENT_SHP_AREA')]
-                att['latitude'][idx] = shp.iloc[idx][self.config.get('CATCHMENT_SHP_LAT')]
-                att['longitude'][idx] = shp.iloc[idx][self.config.get('CATCHMENT_SHP_LON')]
-                att['hru2gruId'][idx] = shp.iloc[idx][self.config.get('CATCHMENT_SHP_GRUID')]
+                att['hruId'][idx] = shp.iloc[idx][catchment_hruid]
+                att['HRUarea'][idx] = shp.iloc[idx][catchment_area]
+                att['latitude'][idx] = shp.iloc[idx][catchment_lat]
+                att['longitude'][idx] = shp.iloc[idx][catchment_lon]
+                att['hru2gruId'][idx] = shp.iloc[idx][catchment_gruid]
 
                 # Set slope and contour length (will be updated later)
                 att['tan_slope'][idx] = 0.1
@@ -252,8 +269,9 @@ class SummaAttributesManager:
 
         # Create results dictionary using vectorized operations
         results = {}
+        catchment_hruid = self._get_config_value(lambda: self.config.paths.catchment_hruid)
         for idx, row in shp.iterrows():
-            hru_id = row[self.config.get('CATCHMENT_SHP_HRUID')]
+            hru_id = row[catchment_hruid]
             avg_slope = mean_slopes[idx]['mean']
 
             if avg_slope is None or np.isnan(avg_slope):
@@ -462,7 +480,7 @@ class SummaAttributesManager:
                 )
 
             # Create results dictionary
-            hru_id_col = self.config.get('CATCHMENT_SHP_HRUID')
+            hru_id_col = self._get_config_value(lambda: self.config.paths.catchment_hruid)
             for idx, row in shp.iterrows():
                 # Convert HRU ID to proper scalar type (handle MaskedArray)
                 hru_id_raw = row[hru_id_col]
@@ -485,7 +503,7 @@ class SummaAttributesManager:
         except Exception as e:
             self.logger.error(f"Error calculating aspect from DEM: {str(e)}")
             # Return default values for all HRUs
-            hru_id_col = self.config.get('CATCHMENT_SHP_HRUID')
+            hru_id_col = self._get_config_value(lambda: self.config.paths.catchment_hruid)
             for idx, row in shp.iterrows():
                 # Convert HRU ID to proper scalar type (handle MaskedArray)
                 hru_id_raw = row[hru_id_col]
@@ -559,7 +577,7 @@ class SummaAttributesManager:
                 )
 
             # Create results dictionary
-            hru_id_col = self.config.get('CATCHMENT_SHP_HRUID')
+            hru_id_col = self._get_config_value(lambda: self.config.paths.catchment_hruid)
             for idx, row in shp.iterrows():
                 # Convert HRU ID to proper scalar type (handle MaskedArray)
                 hru_id_raw = row[hru_id_col]
@@ -580,7 +598,7 @@ class SummaAttributesManager:
         except Exception as e:
             self.logger.error(f"Error calculating tan_slope from DEM: {str(e)}")
             # Return default values for all HRUs
-            hru_id_col = self.config.get('CATCHMENT_SHP_HRUID')
+            hru_id_col = self._get_config_value(lambda: self.config.paths.catchment_hruid)
             for idx, row in shp.iterrows():
                 # Convert HRU ID to proper scalar type (handle MaskedArray)
                 hru_id_raw = row[hru_id_col]
@@ -597,10 +615,12 @@ class SummaAttributesManager:
         self.logger.info("Inserting soil class into attributes file")
 
         intersect_path = self._get_default_path('INTERSECT_SOIL_PATH', 'shapefiles/catchment_intersection/with_soilgrids')
-        intersect_name = self.config.get('INTERSECT_SOIL_NAME')
+        intersect_name = self._get_config_value(
+            lambda: self.config.paths.intersect_soil_name, default='default'
+        )
         if intersect_name == 'default':
             intersect_name = 'catchment_with_soilclass.shp'
-        intersect_hruId_var = self.config.get('CATCHMENT_SHP_HRUID')
+        intersect_hruId_var = self._get_config_value(lambda: self.config.paths.catchment_hruid)
 
         try:
             shp = gpd.read_file(intersect_path / intersect_name)
@@ -653,10 +673,12 @@ class SummaAttributesManager:
         self.logger.info("Inserting land class into attributes file")
 
         intersect_path = self._get_default_path('INTERSECT_LAND_PATH', 'shapefiles/catchment_intersection/with_landclass')
-        intersect_name = self.config.get('INTERSECT_LAND_NAME')
+        intersect_name = self._get_config_value(
+            lambda: self.config.paths.intersect_land_name, default='default'
+        )
         if intersect_name == 'default':
             intersect_name = 'catchment_with_landclass.shp'
-        intersect_hruId_var = self.config.get('CATCHMENT_SHP_HRUID')
+        intersect_hruId_var = self._get_config_value(lambda: self.config.paths.catchment_hruid)
 
         try:
             shp = gpd.read_file(intersect_path / intersect_name)
@@ -718,16 +740,21 @@ class SummaAttributesManager:
         self.logger.info("Inserting elevation into attributes file")
 
         intersect_path = self._get_default_path('INTERSECT_DEM_PATH', 'shapefiles/catchment_intersection/with_dem')
-        intersect_name = self.config.get('INTERSECT_DEM_NAME')
+        intersect_name = self._get_config_value(
+            lambda: self.config.paths.intersect_dem_name, default='default'
+        )
         if intersect_name == 'default':
             intersect_name = 'catchment_with_dem.shp'
 
-        intersect_hruId_var = self.config.get('CATCHMENT_SHP_HRUID')
+        intersect_hruId_var = self._get_config_value(lambda: self.config.paths.catchment_hruid)
         elev_column = 'elev_mean'
 
         shp = gpd.read_file(intersect_path / intersect_name)
 
-        do_downHRUindex = self.config.get('SETTINGS_SUMMA_CONNECT_HRUS') == 'yes'
+        connect_hrus = self._get_config_value(
+            lambda: self.config.model.summa.connect_hrus, default='no'
+        )
+        do_downHRUindex = connect_hrus == 'yes'
 
         with nc4.Dataset(attribute_file, "r+") as att:
             gru_data = {}
@@ -753,7 +780,10 @@ class SummaAttributesManager:
     def _set_downHRUindex(self, att, gru_data):
         """Set the downHRUindex based on elevation data or D8 flow direction."""
         # Check if this is grid-based distribute mode
-        is_grid_distribute = self.config.get('DOMAIN_DEFINITION_METHOD') == 'distribute'
+        definition_method = self._get_config_value(
+            lambda: self.config.domain.definition_method, default='subset'
+        )
+        is_grid_distribute = definition_method == 'distribute'
 
         if is_grid_distribute:
             self._set_downHRUindex_from_d8(att)
@@ -781,7 +811,7 @@ class SummaAttributesManager:
         self.logger.info("Setting downHRUindex from D8 flow direction")
 
         # Load grid shapefile with D8 topology
-        domain_name = self.config.get('DOMAIN_NAME')
+        domain_name = self._get_config_value(lambda: self.config.domain.name)
         grid_path = self.project_dir / 'shapefiles' / 'river_basins' / f"{domain_name}_riverBasins_distribute.shp"
 
         if not grid_path.exists():

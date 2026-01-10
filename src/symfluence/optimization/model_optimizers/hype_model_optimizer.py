@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from symfluence.core.file_utils import copy_file
 from ..optimizers.base_model_optimizer import BaseModelOptimizer
 from ..workers.hype_worker import HYPEWorker
 from ..registry import OptimizerRegistry
@@ -48,7 +49,7 @@ class HYPEModelOptimizer(BaseModelOptimizer):
         """
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
-        self.logger.info(f"HYPEModelOptimizer initialized")
+        self.logger.debug(f"HYPEModelOptimizer initialized")
 
     def _get_model_name(self) -> str:
         """Return model name."""
@@ -124,13 +125,12 @@ class HYPEModelOptimizer(BaseModelOptimizer):
         if routing_model == 'mizuRoute':
             mizu_settings = self.project_dir / 'settings' / 'mizuRoute'
             if mizu_settings.exists():
-                import shutil
                 for proc_id, dirs in self.parallel_dirs.items():
                     mizu_dest = dirs['root'] / 'settings' / 'mizuRoute'
                     mizu_dest.mkdir(parents=True, exist_ok=True)
                     for item in mizu_settings.iterdir():
                         if item.is_file():
-                            shutil.copy2(item, mizu_dest / item.name)
+                            copy_file(item, mizu_dest / item.name)
 
                 # Update mizuRoute control files with process-specific paths
                 self.update_mizuroute_controls(

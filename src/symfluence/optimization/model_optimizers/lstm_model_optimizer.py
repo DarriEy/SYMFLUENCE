@@ -33,7 +33,8 @@ class LSTMModelOptimizer(BaseModelOptimizer):
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
-        self.logger.info(f"LSTMModelOptimizer initialized (routing needed: {self._routing_needed})")
+        self._routing_needed = self.worker.needs_routing(self.config, self.optimization_settings_dir)
+        self.logger.debug(f"LSTMModelOptimizer initialized (routing needed: {self._routing_needed})")
 
     def _get_model_name(self) -> str:
         return 'LSTM'
@@ -43,15 +44,17 @@ class LSTMModelOptimizer(BaseModelOptimizer):
         LSTM uses standard ParameterManager.
         Parameters could be LSTM hyperparameters or multipliers.
         """
-        from ..core.parameter_manager import ParameterManager
+        from ..parameter_managers import MLParameterManager
         lstm_settings_dir = self.project_dir / 'settings' / 'LSTM'
         if not lstm_settings_dir.exists():
             lstm_settings_dir.mkdir(parents=True, exist_ok=True)
             
-        return ParameterManager(
+        return MLParameterManager(
             self.config,
             self.logger,
-            lstm_settings_dir
+            lstm_settings_dir,
+            params_key='LSTM_PARAMS_TO_CALIBRATE',
+            bounds_key='LSTM_PARAMETER_BOUNDS'
         )
 
     def _create_calibration_target(self):

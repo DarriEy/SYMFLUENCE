@@ -144,6 +144,6 @@ Other Extensions
 
 References
 ----------
-- :doc:`workflows` — high-level orchestration and usage
+- :doc:`getting_started` — high-level orchestration and usage
 - :doc:`configuration` — configuration schema and examples
 - :doc:`examples` — runnable tutorials

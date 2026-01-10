@@ -41,23 +41,23 @@ Quick Start
    getting_started
    configuration
    calibration
+   et_quickstart
+   et_calibration_setup
    examples
-   earth_engine_integration
 
 .. toctree::
    :maxdepth: 2
    :caption: Reference
 
    api
+   config_system
    troubleshooting
 
 .. toctree::
    :maxdepth: 1
    :caption: Project Information
 
-   contributing
    changelog
-   license
 
 ---
 

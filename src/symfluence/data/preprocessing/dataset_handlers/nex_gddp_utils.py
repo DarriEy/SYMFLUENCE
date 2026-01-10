@@ -9,6 +9,7 @@ from shapely.geometry import Polygon
 
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
+from symfluence.data.utilities import VariableStandardizer
 
 
 @DatasetRegistry.register("nex-gddp-cmip6")
@@ -40,15 +41,13 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
     # --------------------- Variable mapping ---------------------
 
     def get_variable_mapping(self) -> Dict[str, str]:
-        return {
-            "pr": "pptrate",
-            "tas": "airtemp",
-            "huss": "spechum",
-            "ps": "airpres",
-            "rlds": "LWRadAtm",
-            "rsds": "SWRadAtm",
-            "sfcWind": "windspd",
-        }
+        """
+        Map raw NEX-GDDP-CMIP6 variables to standard forcing names.
+
+        Uses centralized VariableStandardizer for consistency across the codebase.
+        """
+        standardizer = VariableStandardizer(self.logger)
+        return standardizer.get_rename_map('NEX-GDDP-CMIP6')
 
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         ds = ds.copy()

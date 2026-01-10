@@ -7,11 +7,16 @@ used across FUSE, SUMMA, HYPE, and other model forcing processors.
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union, Callable, TYPE_CHECKING
 import logging
 
+from symfluence.core.mixins import ConfigurableMixin
 
-class BaseForcingProcessor(ABC):
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
+
+class BaseForcingProcessor(ABC, ConfigurableMixin):
     """
     Abstract base class for model-specific forcing data processors.
 
@@ -34,7 +39,7 @@ class BaseForcingProcessor(ABC):
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: Union['SymfluenceConfig', Dict[str, Any]],
         logger: logging.Logger,
         input_path: Path,
         output_path: Path,
@@ -44,13 +49,21 @@ class BaseForcingProcessor(ABC):
         Initialize base forcing processor attributes.
 
         Args:
-            config: Configuration dictionary
+            config: Configuration (typed SymfluenceConfig or legacy dict)
             logger: Logger instance
             input_path: Path to input forcing data (e.g., basin-averaged)
             output_path: Path to output processed forcing data
             **kwargs: Additional model-specific attributes
         """
-        self.config = config
+        # Set up typed config via ConfigurableMixin
+        from symfluence.core.config.models import SymfluenceConfig
+        if isinstance(config, dict):
+            self._config = SymfluenceConfig(**config)
+        else:
+            self._config = config
+        # Backward compatibility alias
+        self.config = self._config
+
         self.logger = logger
         self.input_path = Path(input_path)
         self.output_path = Path(output_path)
@@ -159,19 +172,3 @@ class BaseForcingProcessor(ABC):
             msg += f" -> {output_path}"
         self.logger.info(msg)
 
-    def _get_config_value(
-        self,
-        key: str,
-        default: Any = None
-    ) -> Any:
-        """
-        Get configuration value with optional default.
-
-        Args:
-            key: Configuration key
-            default: Default value if key not found
-
-        Returns:
-            Configuration value or default
-        """
-        return self.config.get(key, default)

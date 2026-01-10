@@ -227,7 +227,7 @@ class SUMMAWorker(BaseWorker):
                 }
 
                 routing_success = _run_mizuroute_worker(
-                    config, task_data, internal_logger, debug_info
+                    task_data, mizuroute_dir, internal_logger, debug_info, summa_dir
                 )
 
                 if not routing_success:

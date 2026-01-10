@@ -6,6 +6,7 @@ These tests validate the complete SYMFLUENCE installation and core functionality
 """
 
 import os
+import sys
 import pytest
 import shutil
 import subprocess
@@ -243,33 +244,26 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
         print(f"⚠ RHESSys not found at {rhessys_path} (optional)")
         optional_missing.append("RHESSys")
 
-    # Check for VMFire (optional, experimental for RHESSys)
-    vmfire_install_path = config.get("VMFIRE_INSTALL_PATH", "default")
-    if vmfire_install_path == "default":
-        vmfire_install_path = data_dir / "installs" / "vmfire" / "bin"
+    # Check for WMFire (optional, experimental for RHESSys)
+    wmfire_install_path = config.get("WMFIRE_INSTALL_PATH", "default")
+    if wmfire_install_path == "default":
+        wmfire_install_path = data_dir / "installs" / "wmfire" / "lib"
     else:
-        vmfire_install_path = Path(vmfire_install_path)
+        wmfire_install_path = Path(wmfire_install_path)
 
-    vmfire_exe_name = config.get("VMFIRE_EXE", "vmfire")
-    vmfire_in_path = shutil.which(vmfire_exe_name)
-    if vmfire_in_path:
-        vmfire_path = Path(vmfire_in_path)
+    if sys.platform == "darwin":
+        wmfire_lib_name = config.get("WMFIRE_LIB", "libwmfire.dylib")
     else:
-        vmfire_path = vmfire_install_path / vmfire_exe_name
+        wmfire_lib_name = config.get("WMFIRE_LIB", "libwmfire.so")
+        
+    wmfire_path = wmfire_install_path / wmfire_lib_name
 
-    if vmfire_path.exists():
-        print(f"✓ VMFire found: {vmfire_path}")
-        optional_found.append("VMFire")
-        try:
-            result = subprocess.run([str(vmfire_path), "-h"],
-                                  capture_output=True, text=True, timeout=5)
-            if result.returncode == 0 or "vmfire" in result.stdout.lower() or "usage" in result.stderr.lower():
-                print(f"  VMFire verified working")
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            print(f"  VMFire found but verification failed")
+    if wmfire_path.exists():
+        print(f"✓ WMFire found: {wmfire_path}")
+        optional_found.append("WMFire")
     else:
-        print(f"⚠ VMFire not found at {vmfire_path} (optional)")
-        optional_missing.append("VMFire")
+        print(f"⚠ WMFire not found at {wmfire_path} (optional)")
+        optional_missing.append("WMFire")
 
     # Summary
     print("\n" + "="*60)

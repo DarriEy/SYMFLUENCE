@@ -15,6 +15,7 @@ from pyproj import CRS, Transformer
 
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
+from symfluence.data.utilities import VariableStandardizer
 
 
 @DatasetRegistry.register('carra')
@@ -24,25 +25,14 @@ class CARRAHandler(BaseDatasetHandler):
     def get_variable_mapping(self) -> Dict[str, str]:
         """
         CARRA variable name mapping to standard names.
-        
+
+        Uses centralized VariableStandardizer for consistency across the codebase.
+
         Returns:
             Dictionary mapping CARRA variable names to standard names
         """
-        return {
-            # CARRA typically uses standard names already
-            't2m': 'airtemp',
-            'tp': 'pptrate',
-            'sp': 'airpres',
-            'q': 'spechum',
-            'u10': 'windspd_u',
-            'v10': 'windspd_v',
-            'ws10': 'windspd',
-            'ssrd': 'SWRadAtm',
-            'strd': 'LWRadAtm',
-            # CDS API uses full names
-            'thermal_surface_radiation_downwards': 'LWRadAtm',
-            'surface_solar_radiation_downwards': 'SWRadAtm',
-        }
+        standardizer = VariableStandardizer(self.logger)
+        return standardizer.get_rename_map('CARRA')
     
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """

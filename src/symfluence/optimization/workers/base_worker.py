@@ -94,6 +94,13 @@ class WorkerTask:
 
         # Config - could be nested or at top level
         config = task_data.get('config', {})
+        
+        # Convert Pydantic model to dict if needed
+        if hasattr(config, 'model_dump'):
+            config = config.model_dump()
+        elif hasattr(config, 'dict'):
+            config = config.dict()
+            
         if not config:
             # Extract config keys from task_data itself
             config_keys = [

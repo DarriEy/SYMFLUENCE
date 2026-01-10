@@ -37,23 +37,30 @@ class TestGRPreProcessorModeDetection:
             'FORCING_DATASET': 'test_forcing',
             'FORCING_TIME_STEP_SIZE': 86400,
         }
-        
+
         config = Mock(spec=SymfluenceConfig)
-        
+
         # Initialize nested mocks
         config.system = Mock()
         config.system.data_dir = tmp_path
-        
+
         config.domain = Mock()
         config.domain.name = 'test_domain'
-        
+
         config.forcing = Mock()
         config.forcing.dataset = 'test_forcing'
         config.forcing.time_step_size = 86400
-        
+
         config.model = Mock()
         config.model.gr = Mock()
-        
+
+        config.paths = Mock()
+        config.paths.catchment_shp_name = 'default'
+
+        # Properly mock to_dict to handle flatten parameter
+        config.to_dict = Mock(return_value=config_dict)
+        config.to_dict.side_effect = lambda flatten=False: config_dict
+
         return config, config_dict
 
     def test_explicit_config_lumped(self, mock_logger, common_config_setup):

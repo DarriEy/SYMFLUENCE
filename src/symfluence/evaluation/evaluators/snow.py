@@ -10,41 +10,51 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
+from symfluence.evaluation.output_file_locator import OutputFileLocator
 from .base import ModelEvaluator
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
 
 @EvaluationRegistry.register('SCA')
 @EvaluationRegistry.register('SWE')
 @EvaluationRegistry.register('SNOW')
 class SnowEvaluator(ModelEvaluator):
     """Snow evaluator (SWE/SCA)"""
-    
-    def __init__(self, config: Dict, project_dir: Path, logger: logging.Logger, **kwargs):
+
+    def __init__(self, config: 'SymfluenceConfig', project_dir: Path, logger: logging.Logger, **kwargs):
         # Allow target override from kwargs (for multivariate calibration)
         self._target_override = kwargs.get('target')
         super().__init__(config, project_dir, logger)
-        
+
         # Determine variable target: swe or sca
         self.optimization_target = self._target_override
         if not self.optimization_target:
-            self.optimization_target = config.get('OPTIMIZATION_TARGET', config.get('CALIBRATION_VARIABLE', 'swe')).lower()
-            
+            # Get from typed config, with fallback to CALIBRATION_VARIABLE
+            opt_target = self._get_config_value(
+                lambda: self.config.optimization.target,
+                default=None
+            )
+            calib_var = self.config_dict.get('CALIBRATION_VARIABLE', 'swe')
+            self.optimization_target = (opt_target or calib_var).lower()
+
         if self.optimization_target not in ['swe', 'sca', 'snow_depth']:
-            calibration_var = config.get('CALIBRATION_VARIABLE', '').lower()
+            calibration_var = self.config_dict.get('CALIBRATION_VARIABLE', '').lower()
             if 'swe' in calibration_var or 'snow' in calibration_var:
                 self.optimization_target = 'swe'
             elif 'sca' in calibration_var:
                 self.optimization_target = 'sca'
-        
+
         self.variable_name = self.optimization_target
     
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
-        daily_files = list(sim_dir.glob("*_day.nc"))
-        if daily_files:
-            return daily_files
-        return list(sim_dir.glob("*timestep.nc"))
+        """Get simulation files containing snow variables."""
+        locator = OutputFileLocator(self.logger)
+        return locator.find_snow_files(sim_dir)
     
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
         sim_file = sim_files[0]

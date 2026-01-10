@@ -3,5 +3,12 @@
 from .base_preprocessor import BaseModelPreProcessor
 from .base_runner import BaseModelRunner
 from .base_postprocessor import BaseModelPostProcessor
+from .standard_postprocessor import StandardModelPostprocessor, RoutedModelPostprocessor
 
-__all__ = ['BaseModelPreProcessor', 'BaseModelRunner', 'BaseModelPostProcessor']
+__all__ = [
+    'BaseModelPreProcessor',
+    'BaseModelRunner',
+    'BaseModelPostProcessor',
+    'StandardModelPostprocessor',
+    'RoutedModelPostprocessor',
+]

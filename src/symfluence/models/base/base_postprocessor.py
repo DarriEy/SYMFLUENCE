@@ -10,8 +10,9 @@ Provides shared infrastructure for all model postprocessing modules including:
 """
 
 from abc import ABC, abstractmethod
+import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, TYPE_CHECKING
 import pandas as pd
 import xarray as xr
 
@@ -21,6 +22,9 @@ from symfluence.core.exceptions import (
     ConfigurationError,
     validate_config_keys
 )
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 
 class BaseModelPostProcessor(ABC, PathResolverMixin):
@@ -34,7 +38,7 @@ class BaseModelPostProcessor(ABC, PathResolverMixin):
     consistent behavior and reduce code duplication.
 
     Attributes:
-        config: Configuration dictionary
+        config: SymfluenceConfig instance
         logger: Logger instance
         data_dir: Root data directory
         domain_name: Name of the domain
@@ -55,43 +59,31 @@ class BaseModelPostProcessor(ABC, PathResolverMixin):
         ...         pass
     """
 
-    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: Any, reporting_manager: Optional[Any] = None):
+    def __init__(
+        self,
+        config: Union['SymfluenceConfig', Dict[str, Any]],
+        logger: logging.Logger,
+        reporting_manager: Optional[Any] = None
+    ):
         """
         Initialize base model postprocessor.
 
         Args:
-            config: SymfluenceConfig instance (recommended) or configuration dictionary (deprecated)
+            config: SymfluenceConfig instance or dict (auto-converted)
             logger: Logger instance
             reporting_manager: ReportingManager instance
 
         Raises:
             ConfigurationError: If required configuration keys are missing
-
-        Note:
-            Passing a dict config is deprecated. Please use SymfluenceConfig for full type safety.
         """
-        import warnings
+        # Import here to avoid circular imports at module level
+        from symfluence.core.config.models import SymfluenceConfig
 
-        # Import for type checking
-        try:
-            from symfluence.core.config.models import SymfluenceConfig
-        except ImportError:
-            SymfluenceConfig = None
-
-        # Phase 3: Prioritize typed config, keep dict for backward compatibility
-        if SymfluenceConfig and isinstance(config, SymfluenceConfig):
-            self.config = config  # Typed config is now primary
-            self.config_dict = config.to_dict(flatten=True)  # For backward compat
+        # Auto-convert dict to typed config for backward compatibility
+        if isinstance(config, dict):
+            self._config = SymfluenceConfig(**config)
         else:
-            # Dict config - deprecated but still supported
-            warnings.warn(
-                "Passing dict config is deprecated and will be removed in a future version. "
-                "Please use SymfluenceConfig for full type safety.",
-                DeprecationWarning,
-                stacklevel=2
-            )
-            self.config = None  # No typed config available
-            self.config_dict = config
+            self._config = config
 
         self.logger = logger
         self.reporting_manager = reporting_manager
@@ -99,14 +91,14 @@ class BaseModelPostProcessor(ABC, PathResolverMixin):
         # Validate required configuration keys
         self._validate_required_config()
 
-        # Base paths (standard naming convention)
-        self.data_dir = Path(self.config_dict.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config_dict.get('DOMAIN_NAME')
+        # Base paths - direct typed access
+        self.data_dir = self.config.system.data_dir
+        self.domain_name = self.config.domain.name
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
         # Model-specific initialization
         self.model_name = self._get_model_name()
-        self.experiment_id = self.config_dict.get('EXPERIMENT_ID', 'default_experiment')
+        # experiment_id is available via ConfigMixin property
 
         # Standard output directories
         self.sim_dir = self._get_simulation_dir()

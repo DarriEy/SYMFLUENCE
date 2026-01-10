@@ -12,6 +12,15 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, call
 from datetime import datetime
 from utils.markers import skip_if_no_model
+from symfluence.core.config.models import SymfluenceConfig
+
+
+def create_config_with_overrides(base_config: SymfluenceConfig, **overrides) -> SymfluenceConfig:
+    """Create a new SymfluenceConfig with the given overrides."""
+    config_dict = base_config.to_dict(flatten=True)
+    config_dict.update(overrides)
+    return SymfluenceConfig(**config_dict)
+
 
 # We'll mock these imports since they might depend on actual model binaries
 pytestmark = [pytest.mark.unit, pytest.mark.optimization]
@@ -60,8 +69,10 @@ class TestSUMMACalibrationTargets:
         """Test extracting calibration period from full simulation."""
         from symfluence.optimization.calibration_targets import StreamflowTarget
 
-        config = summa_config.copy()
-        config['CALIBRATION_PERIOD'] = '2020-01-10, 2020-01-20'
+        config = create_config_with_overrides(
+            summa_config,
+            CALIBRATION_PERIOD='2020-01-10, 2020-01-20'
+        )
 
         target = StreamflowTarget(config, Path("/tmp"), test_logger)
 
@@ -100,10 +111,15 @@ class TestSUMMAWorkerFunctions:
             'depth_params': [],
             'mizuroute_params': []
         }
-        debug_info = {}
+        debug_info = {
+            'stage': 'parameter_application',
+            'files_checked': [],
+            'commands_run': [],
+            'errors': []
+        }
 
-        # Mock the generator worker
-        with patch('symfluence.optimization.workers.summa_parallel_workers._generate_trial_params_worker') as mock_gen:
+        # Mock the generator worker - patch in the actual module where it's called
+        with patch('symfluence.optimization.workers.summa.parameter_application._generate_trial_params_worker') as mock_gen:
             mock_gen.return_value = True
 
             # Call parameter application
@@ -186,8 +202,10 @@ class TestFUSECalibrationTargets:
         fuse_settings_dir.mkdir(parents=True, exist_ok=True)
 
         for structure in structures:
-            config = fuse_config.copy()
-            config['FUSE_STRUCTURE'] = structure
+            config = create_config_with_overrides(
+                fuse_config,
+                FUSE_STRUCTURE=structure
+            )
 
             from symfluence.optimization.parameter_managers import FUSEParameterManager
             manager = FUSEParameterManager(config, test_logger, fuse_settings_dir)

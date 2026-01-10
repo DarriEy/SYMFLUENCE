@@ -61,7 +61,7 @@ jobs:
       # ========================================================================
       - name: Validate version synchronization
         run: |
-          echo "Checking that pyproject.toml and npm/package.json versions match..."
+          echo "Checking that pyproject.toml and tools/npm/package.json versions match..."
           chmod +x scripts/check_version_sync.sh
           ./scripts/check_version_sync.sh
 
@@ -300,7 +300,7 @@ jobs:
           if [ "$VERSION" != "$PKG_VERSION" ]; then
             echo "❌ Version mismatch!"
             echo "   package.json has $PKG_VERSION but release tag is $TAG"
-            echo "   Update npm/package.json to version $VERSION and try again"
+            echo "   Update tools/npm/package.json to version $VERSION and try again"
             exit 1
           fi
 

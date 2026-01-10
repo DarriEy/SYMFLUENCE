@@ -11,14 +11,16 @@ Provides shared infrastructure for all model preprocessing modules including:
 
 from abc import ABC, abstractmethod
 from datetime import datetime
+import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Union, Tuple
+from typing import Dict, Any, Optional, List, Union, Tuple, TYPE_CHECKING
 import shutil
 
 import pandas as pd
 import xarray as xr
 
 from symfluence.core.path_resolver import PathResolverMixin
+from symfluence.core.mixins import ShapefileAccessMixin
 from symfluence.core.constants import UnitConversion, ModelDefaults
 from symfluence.core.exceptions import (
     ModelExecutionError,
@@ -29,22 +31,23 @@ from symfluence.core.exceptions import (
     symfluence_error_handler
 )
 
-# Import for type checking only (avoid circular imports)
-try:
+if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
-except ImportError:
-    SymfluenceConfig = None
 
 
-class BaseModelPreProcessor(ABC, PathResolverMixin):
+class BaseModelPreProcessor(ABC, PathResolverMixin, ShapefileAccessMixin):
     """
     Abstract base class for all model preprocessors.
 
     Provides common initialization, path management, and utility methods
     that are shared across different hydrological model preprocessors.
 
+    Inherits:
+        PathResolverMixin: Path resolution with typed config access
+        ShapefileAccessMixin: Shapefile column name properties
+
     Attributes:
-        config: Configuration dictionary
+        config: SymfluenceConfig instance
         logger: Logger instance
         data_dir: Root data directory
         domain_name: Name of the domain
@@ -55,62 +58,35 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         forcing_basin_path: Directory for basin-averaged forcing data
     """
 
-    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: Any):
+    def __init__(self, config: Union['SymfluenceConfig', Dict[str, Any]], logger: logging.Logger):
         """
         Initialize base model preprocessor.
 
         Args:
-            config: SymfluenceConfig instance (recommended) or configuration dictionary (deprecated)
+            config: SymfluenceConfig instance or dict (auto-converted)
             logger: Logger instance
 
         Raises:
             ConfigurationError: If required configuration keys are missing
-
-        Note:
-            Passing a dict config is deprecated. Please use SymfluenceConfig for full type safety.
         """
-        import warnings
+        # Import here to avoid circular imports at module level
+        from symfluence.core.config.models import SymfluenceConfig
 
-        # Phase 3: Prioritize typed config, keep dict for backward compatibility
-        if SymfluenceConfig and isinstance(config, SymfluenceConfig):
-            self.config = config  # Typed config is now primary
-            self.typed_config = config  # Alias for consistency
-            self.config_dict = config.to_dict(flatten=True)  # For backward compat
+        # Auto-convert dict to typed config for backward compatibility
+        if isinstance(config, dict):
+            self._config = SymfluenceConfig(**config)
         else:
-            # Dict config - deprecated but still supported
-            warnings.warn(
-                "Passing dict config is deprecated and will be removed in a future version. "
-                "Please use SymfluenceConfig for full type safety.",
-                DeprecationWarning,
-                stacklevel=2
-            )
-            self.config = None  # No typed config available
-            self.typed_config = None
-            self.config_dict = config
+            self._config = config
 
         self.logger = logger
 
         # Validate required configuration keys
         self._validate_required_config()
 
-        # Base paths
-        self.data_dir = Path(self._resolve_config_value(
-            lambda: self.config.system.data_dir,
-            'SYMFLUENCE_DATA_DIR'
-        ))
-        self.domain_name = self._resolve_config_value(
-            lambda: self.config.domain.name,
-            'DOMAIN_NAME'
-        )
+        # Base paths - direct typed access
+        self.data_dir = self.config.system.data_dir
+        self.domain_name = self.config.domain.name
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-
-        # Domain definition method (needed for path resolution)
-        self.domain_definition_method = self._resolve_config_value(
-            lambda: self.config.domain.definition_method,
-            'DOMAIN_DEFINITION_METHOD'
-        )
-        if self.domain_definition_method is None:
-            self.domain_definition_method = 'lumped'
 
         # Model-specific paths (subclasses should set model_name)
         self.model_name = self._get_model_name()
@@ -126,17 +102,8 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
         self.shapefile_path = self.project_dir / 'shapefiles' / 'forcing'
         self.intersect_path = self.project_dir / 'shapefiles' / 'catchment_intersection' / 'with_forcing'
 
-        # Common configuration
-        self.forcing_dataset = self._resolve_config_value(
-            lambda: self.config.forcing.dataset,
-            'FORCING_DATASET',
-            ''
-        ).lower()
-        self.forcing_time_step_size = int(self._resolve_config_value(
-            lambda: self.config.forcing.time_step_size,
-            'FORCING_TIME_STEP_SIZE',
-            86400
-        ))
+        # Common configuration - direct typed access
+        # Properties forcing_dataset and forcing_time_step_size are available via ConfigMixin
 
     def _validate_required_config(self) -> None:
         """
@@ -386,12 +353,14 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
 
         Returns:
             Path to base settings directory for this model
-
         """
         from symfluence.resources import get_base_settings_dir
 
-
-        code_dir_value = self.config_dict.get("SYMFLUENCE_CODE_DIR")
+        # Check for code_dir in typed config
+        code_dir_value = self._get_config_value(
+            lambda: self.config.system.code_dir,
+            default=None
+        )
         if code_dir_value:
             code_dir = Path(code_dir_value)
             base_settings_src = code_dir / "src" / "symfluence" / "resources" / "base_settings" / self.model_name
@@ -406,23 +375,14 @@ class BaseModelPreProcessor(ABC, PathResolverMixin):
 
     def get_simulation_time_window(self) -> Optional[Tuple[pd.Timestamp, pd.Timestamp]]:
         """
-        Get simulation start/end times from typed config or dict config.
-
-        Handles both SymfluenceConfig and dict-based configuration with
-        consistent parsing and error handling.
+        Get simulation start/end times from typed config.
 
         Returns:
             Tuple of (start_time, end_time) as pandas Timestamps, or None if
             time window cannot be determined.
         """
-        start_raw = self._resolve_config_value(
-            lambda: self.typed_config.domain.time_start,
-            'EXPERIMENT_TIME_START'
-        )
-        end_raw = self._resolve_config_value(
-            lambda: self.typed_config.domain.time_end,
-            'EXPERIMENT_TIME_END'
-        )
+        start_raw = self.config.domain.time_start
+        end_raw = self.config.domain.time_end
 
         if not start_raw or not end_raw:
             return None

@@ -2,18 +2,15 @@
 
 from pathlib import Path
 import logging
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, TYPE_CHECKING
 import geopandas as gpd
 from shapely.geometry import Point
 
 
 from symfluence.core.mixins import ConfigurableMixin
 
-# Import for type checking only
-try:
+if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
-except ImportError:
-    SymfluenceConfig = None
 
 
 class ProjectManager(ConfigurableMixin):
@@ -36,25 +33,28 @@ class ProjectManager(ConfigurableMixin):
         logger (logging.Logger): Logger instance for recording operations
     """
     
-    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: logging.Logger):
+    def __init__(self, config: 'SymfluenceConfig', logger: logging.Logger):
         """
         Initialize the ProjectManager.
-        
-        Creates a ProjectManager instance with the provided configuration and logger.
-        Sets up the basic paths and identifiers needed for project management.
-        
-        Args:
-            config: Configuration dictionary or SymfluenceConfig instance
-            logger: Logger instance
-        """
-        # Support both typed config and dict config
-        if SymfluenceConfig and isinstance(config, SymfluenceConfig):
-            self.typed_config = config
-            self.config = config.to_dict(flatten=True)
-        else:
-            self.typed_config = None
-            self.config = config
 
+        Args:
+            config: SymfluenceConfig instance
+            logger: Logger instance
+
+        Raises:
+            TypeError: If config is not a SymfluenceConfig instance
+        """
+        # Import here to avoid circular imports at module level
+        from symfluence.core.config.models import SymfluenceConfig
+
+        if not isinstance(config, SymfluenceConfig):
+            raise TypeError(
+                f"config must be SymfluenceConfig, got {type(config).__name__}. "
+                "Use SymfluenceConfig.from_file() to load configuration."
+            )
+
+        # Set config via the ConfigMixin property
+        self._config = config
         self.logger = logger
     
     def setup_project(self) -> Path:
@@ -111,38 +111,35 @@ class ProjectManager(ConfigurableMixin):
             Exception: For other errors during shapefile creation
         """
         # Check if using user-provided shapefile
-        pour_point_coords = self._resolve_config_value(
-            lambda: self.typed_config.domain.pour_point_coords,
-            'POUR_POINT_COORDS',
+        pour_point_coords = self._get_config_value(
+            lambda: self.config.domain.pour_point_coords,
             'default'
         )
         if str(pour_point_coords).lower() == 'default':
             self.logger.info("Using user-provided pour point shapefile")
             return None
-        
+
         try:
             # Parse coordinates
             lat, lon = map(float, str(pour_point_coords).split('/'))
             point = Point(lon, lat)  # Note: Point takes (lon, lat) order
-            
+
             # Create GeoDataFrame
             gdf = gpd.GeoDataFrame({'geometry': [point]}, crs="EPSG:4326")
-            
+
             # Determine output path
             output_path = self.project_dir / "shapefiles" / "pour_point"
-            shp_path = self._resolve_config_value(
-                lambda: self.typed_config.paths.pour_point_shp_path,
-                'POUR_POINT_SHP_PATH',
+            shp_path = self._get_config_value(
+                lambda: self.config.paths.pour_point_shp_path,
                 'default'
             )
             if shp_path != 'default' and shp_path is not None:
                 output_path = Path(shp_path)
-            
+
             # Determine shapefile name
             pour_point_shp_name = f"{self.domain_name}_pourPoint.shp"
-            shp_name = self._resolve_config_value(
-                lambda: self.typed_config.paths.pour_point_shp_name,
-                'POUR_POINT_SHP_NAME',
+            shp_name = self._get_config_value(
+                lambda: self.config.paths.pour_point_shp_name,
                 'default'
             )
             if shp_name != 'default' and shp_name is not None:
@@ -186,9 +183,8 @@ class ProjectManager(ConfigurableMixin):
             'experiment_id': self.experiment_id,
             'project_dir': str(self.project_dir),
             'data_dir': str(self.data_dir),
-            'pour_point_coords': self._resolve_config_value(
-                lambda: self.typed_config.domain.pour_point_coords,
-                'POUR_POINT_COORDS'
+            'pour_point_coords': self._get_config_value(
+                lambda: self.config.domain.pour_point_coords
             )
         }
         

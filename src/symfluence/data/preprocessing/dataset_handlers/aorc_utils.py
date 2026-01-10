@@ -10,6 +10,7 @@ from shapely.geometry import Polygon
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
 from symfluence.core.constants import UnitConversion
+from symfluence.data.utilities import VariableStandardizer
 
 
 @DatasetRegistry.register('aorc')
@@ -31,21 +32,10 @@ class AORCHandler(BaseDatasetHandler):
         """
         AORC → SUMMA/standard variable mapping.
 
-        We align to the same standard names used by RDRS/CASR/ERA5 so that
-        the easymore remapper can request:
-            ['airpres', 'LWRadAtm', 'SWRadAtm', 'pptrate',
-             'airtemp', 'spechum', 'windspd']
+        Uses centralized VariableStandardizer for consistency across the codebase.
         """
-        return {
-            'APCP_surface': 'pptrate',            # Precip / accumulation
-            'TMP_2maboveground': 'airtemp',       # 2m air temperature [K]
-            'SPFH_2maboveground': 'spechum',      # 2m specific humidity [kg/kg]
-            'PRES_surface': 'airpres',            # surface pressure [Pa]
-            'DLWRF_surface': 'LWRadAtm',          # longwave down [W/m2]
-            'DSWRF_surface': 'SWRadAtm',          # shortwave down [W/m2]
-            'UGRD_10maboveground': 'windspd_u',   # 10m U wind [m/s]
-            'VGRD_10maboveground': 'windspd_v',   # 10m V wind [m/s]
-        }
+        standardizer = VariableStandardizer(self.logger)
+        return standardizer.get_rename_map('AORC')
 
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """

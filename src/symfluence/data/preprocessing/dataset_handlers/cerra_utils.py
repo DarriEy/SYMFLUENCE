@@ -14,6 +14,7 @@ import numpy as np
 
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
+from symfluence.data.utilities import VariableStandardizer
 
 
 @DatasetRegistry.register('cerra')
@@ -24,31 +25,13 @@ class CERRAHandler(BaseDatasetHandler):
         """
         CERRA variable name mapping to standard names.
 
+        Uses centralized VariableStandardizer for consistency across the codebase.
+
         Returns:
             Dictionary mapping CERRA variable names to standard names
         """
-        return {
-            # CERRA variable names from CDS
-            't2m': 'airtemp',               # 2m temperature
-            'r2': 'relhum',                 # 2m relative humidity
-            'tp': 'pptrate',                # total precipitation
-            'sp': 'airpres',                # surface pressure
-            'q': 'spechum',                 # specific humidity (if available)
-            'u10': 'windspd_u',             # 10m U wind component
-            'v10': 'windspd_v',             # 10m V wind component
-            'ws10': 'windspd',              # 10m wind speed
-            'ssrd': 'SWRadAtm',             # surface solar radiation downwards
-            'strd': 'LWRadAtm',             # surface thermal radiation downwards
-            '2m_temperature': 'airtemp',
-            '2m_relative_humidity': 'relhum',
-            'total_precipitation': 'pptrate',
-            'surface_pressure': 'airpres',
-            '10m_u_component_of_wind': 'windspd_u',
-            '10m_v_component_of_wind': 'windspd_v',
-            'surface_solar_radiation_downwards': 'SWRadAtm',
-            'surface_thermal_radiation_downwards': 'LWRadAtm',
-            'thermal_surface_radiation_downwards': 'LWRadAtm',
-        }
+        standardizer = VariableStandardizer(self.logger)
+        return standardizer.get_rename_map('CERRA')
 
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """

@@ -14,7 +14,7 @@ Quick Start
 
    .. code-block:: bash
 
-      cp 0_config_files/config_template.yaml my_project.yaml
+      cp src/symfluence/resources/config_templates/config_template.yaml my_project.yaml
 
 2. **Define your study domain**
 
@@ -45,7 +45,7 @@ Quick Start
 Example: Bow River Watershed
 ----------------------------
 
-.. literalinclude:: ../../0_config_files/config_template.yaml
+.. literalinclude:: ../../src/symfluence/resources/config_templates/config_template.yaml
    :language: yaml
    :caption: Example configuration (excerpt)
    :lines: 1-40

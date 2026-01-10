@@ -140,11 +140,18 @@ class UnifiedModelRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
         if self.schema is None:
             return
 
-        # Apply defaults
-        self.config_dict = self.schema.apply_defaults(self.config_dict)
+        # Get config dict for validation
+        # For typed config (SymfluenceConfig), defaults are already applied via pydantic
+        # For legacy dict config, we need to apply defaults
+        config_for_validation = self.config_dict
+
+        # Only apply defaults for legacy dict config (not typed SymfluenceConfig)
+        # Typed config handles defaults internally via pydantic
+        if self.config is None or isinstance(self.config, dict):
+            config_for_validation = self.schema.apply_defaults(config_for_validation)
 
         # Validate
-        errors = self.schema.validate(self.config_dict)
+        errors = self.schema.validate(config_for_validation)
         model_errors = self._validate_model_specific()
         errors.extend(model_errors)
 

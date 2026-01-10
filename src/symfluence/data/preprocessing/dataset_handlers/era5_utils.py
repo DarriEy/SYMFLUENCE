@@ -15,6 +15,7 @@ from shapely.geometry import Polygon
 
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
+from symfluence.data.utilities import VariableStandardizer
 
 
 @DatasetRegistry.register('era5')
@@ -25,25 +26,14 @@ class ERA5Handler(BaseDatasetHandler):
     def get_variable_mapping(self) -> Dict[str, str]:
         """
         ERA5 variable name mapping to standard names.
-        
-        ERA5 data is typically already downloaded with standard names,
-        but this allows for flexibility in case custom naming is used.
-        
+
+        Uses centralized VariableStandardizer for consistency across the codebase.
+
         Returns:
             Dictionary mapping ERA5 variable names to standard names
         """
-        return {
-            # ERA5 typically uses standard names already
-            't2m': 'airtemp',
-            'tp': 'pptrate',
-            'sp': 'airpres',
-            'q': 'spechum',
-            'u10': 'windspd_u',
-            'v10': 'windspd_v',
-            'ws10': 'windspd',
-            'ssrd': 'SWRadAtm',
-            'strd': 'LWRadAtm',
-        }
+        standardizer = VariableStandardizer(self.logger)
+        return standardizer.get_rename_map('ERA5')
     
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """

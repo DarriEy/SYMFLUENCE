@@ -13,40 +13,55 @@ import pandas as pd
 import xarray as xr
 from pathlib import Path
 import logging
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional, TYPE_CHECKING
 from abc import ABC, abstractmethod
 
 from symfluence.evaluation import metrics
+from symfluence.core.mixins import ConfigurableMixin
 
-class ModelEvaluator(ABC):
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
+
+class ModelEvaluator(ConfigurableMixin, ABC):
     """Abstract base class for different evaluation variables (streamflow, snow, etc.)"""
-    
+
     def __init__(
         self,
-        config: Dict,
+        config: 'SymfluenceConfig',
         project_dir: Optional[Path] = None,
         logger: Optional[logging.Logger] = None,
     ):
         self.config = config
-        self.project_dir = project_dir or Path(".")
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
-        self.domain_name = config.get('DOMAIN_NAME')
-        
-        # Parse time periods
-        self.calibration_period = self._parse_date_range(config.get('CALIBRATION_PERIOD', ''))
-        self.evaluation_period = self._parse_date_range(config.get('EVALUATION_PERIOD', ''))
-        
+        self._project_dir = project_dir or Path(".")
+        self._logger = logger
+
+        # Parse time periods from typed config
+        calibration_period_str = self._get_config_value(
+            lambda: self.config.domain.calibration_period,
+            default=''
+        )
+        evaluation_period_str = self._get_config_value(
+            lambda: self.config.domain.evaluation_period,
+            default=''
+        )
+        self.calibration_period = self._parse_date_range(calibration_period_str)
+        self.evaluation_period = self._parse_date_range(evaluation_period_str)
+
         # Parse calibration/evaluation timestep
-        self.eval_timestep = config.get('CALIBRATION_TIMESTEP', 'native').lower()
+        self.eval_timestep = self._get_config_value(
+            lambda: self.config.optimization.calibration_timestep,
+            default='native'
+        ).lower()
         if self.eval_timestep not in ['native', 'hourly', 'daily']:
             self.logger.warning(
-                f"Invalid CALIBRATION_TIMESTEP '{self.eval_timestep}'. "
+                f"Invalid calibration_timestep '{self.eval_timestep}'. "
                 "Using 'native'. Valid options: 'native', 'hourly', 'daily'"
             )
             self.eval_timestep = 'native'
-        
+
         if self.eval_timestep != 'native':
-            self.logger.info(f"Evaluation will use {self.eval_timestep} timestep")
+            self.logger.debug(f"Evaluation will use {self.eval_timestep} timestep")
 
     def evaluate(self, sim: Any, obs: Optional[pd.Series] = None, 
                  mizuroute_dir: Optional[Path] = None, 
@@ -84,7 +99,7 @@ class ModelEvaluator(ABC):
                 
                 # Extract simulated data
                 sim_data = self.extract_simulated_data(sim_files)
-                self.logger.info(f"Extracted {len(sim_data)} simulated data points from {len(sim_files)} file(s)")
+                self.logger.debug(f"Extracted {len(sim_data)} simulated data points from {len(sim_files)} file(s)")
             else:
                 sim_data = sim
                 
@@ -102,7 +117,7 @@ class ModelEvaluator(ABC):
                 self.logger.error("Failed to load observed data (check path and column names)")
                 return None
             
-            self.logger.info(f"Loaded {len(obs_data)} observed data points")
+            self.logger.debug(f"Loaded {len(obs_data)} observed data points")
             
             # 3. Align time series and calculate metrics
             metrics_dict = {}
@@ -238,7 +253,7 @@ class ModelEvaluator(ABC):
             
             # Resample to evaluation timestep if specified in config
             if self.eval_timestep != 'native':
-                self.logger.info(f"Resampling data to {self.eval_timestep} timestep")
+                self.logger.debug(f"Resampling data to {self.eval_timestep} timestep")
                 # DEBUG: Log before resampling
                 if len(obs_period) > 0 and len(sim_period) > 0:
                     self.logger.debug(f"BEFORE resample - obs: {obs_period.min():.3f} to {obs_period.max():.3f}, sim: {sim_period.min():.3f} to {sim_period.max():.3f}")
@@ -271,8 +286,8 @@ class ModelEvaluator(ABC):
             
             # Log final aligned data for debugging
             self.logger.debug(f"{prefix} aligned data points: {len(common_idx)}")
-            self.logger.debug(f"{prefix} obs range: {obs_common.min():.3f} to {obs_common.max():.3f}")
-            self.logger.debug(f"{prefix} sim range: {sim_common.min():.3f} to {sim_common.max():.3f}")
+            self.logger.debug(f"{prefix} obs mean: {obs_common.mean():.4f}, range: {obs_common.min():.4f} to {obs_common.max():.4f}")
+            self.logger.debug(f"{prefix} sim mean: {sim_common.mean():.4f}, range: {sim_common.min():.4f} to {sim_common.max():.4f}")
             
             # Calculate metrics
             base_metrics = self._calculate_performance_metrics(obs_common, sim_common)
@@ -332,11 +347,11 @@ class ModelEvaluator(ABC):
             if target_timestep == 'hourly':
                 if time_diff < pd.Timedelta(hours=1):
                     # Upsampling: sub-hourly to hourly (mean aggregation)
-                    self.logger.info(f"Aggregating {time_diff} data to hourly using mean")
+                    self.logger.debug(f"Aggregating {time_diff} data to hourly using mean")
                     resampled = data.resample('h').mean()
                 elif time_diff > pd.Timedelta(hours=1):
                     # Downsampling: daily/coarser to hourly (interpolation)
-                    self.logger.info(f"Interpolating {time_diff} data to hourly")
+                    self.logger.debug(f"Interpolating {time_diff} data to hourly")
                     # First resample to hourly (creates NaNs)
                     resampled = data.resample('h').asfreq()
                     # Then interpolate
@@ -347,11 +362,11 @@ class ModelEvaluator(ABC):
             elif target_timestep == 'daily':
                 if time_diff < pd.Timedelta(days=1):
                     # Upsampling: hourly/sub-daily to daily (mean aggregation)
-                    self.logger.info(f"Aggregating {time_diff} data to daily using mean")
+                    self.logger.debug(f"Aggregating {time_diff} data to daily using mean")
                     resampled = data.resample('D').mean()
                 elif time_diff > pd.Timedelta(days=1):
                     # Downsampling: weekly/monthly to daily (interpolation)
-                    self.logger.info(f"Interpolating {time_diff} data to daily")
+                    self.logger.debug(f"Interpolating {time_diff} data to daily")
                     resampled = data.resample('D').asfreq()
                     resampled = resampled.interpolate(method='time', limit_direction='both')
                 else:
@@ -362,7 +377,7 @@ class ModelEvaluator(ABC):
             # Remove any NaN values introduced by resampling at edges
             resampled = resampled.dropna()
             
-            self.logger.info(
+            self.logger.debug(
                 f"Resampled from {len(data)} to {len(resampled)} points "
                 f"(target: {target_timestep})"
             )
@@ -391,6 +406,7 @@ class ModelEvaluator(ABC):
                 'RMSE': result['RMSE'],
                 'PBIAS': result['PBIAS'],
                 'MAE': result['MAE'],
+                'correlation': result['correlation'],
                 'r': result['r'],
                 'alpha': result['alpha'],
                 'beta': result['beta']
@@ -398,7 +414,14 @@ class ModelEvaluator(ABC):
 
         except Exception as e:
             self.logger.error(f"Error calculating performance metrics: {str(e)}")
-            return {'KGE': np.nan, 'NSE': np.nan, 'RMSE': np.nan, 'PBIAS': np.nan, 'MAE': np.nan}
+            return {
+                'KGE': np.nan,
+                'NSE': np.nan,
+                'RMSE': np.nan,
+                'PBIAS': np.nan,
+                'MAE': np.nan,
+                'correlation': np.nan,
+            }
     
     def _parse_date_range(self, date_range_str: str) -> Tuple[Optional[pd.Timestamp], Optional[pd.Timestamp]]:
         """Parse date range string from config"""
@@ -416,7 +439,8 @@ class ModelEvaluator(ABC):
 
     def align_series(self, sim: pd.Series, obs: pd.Series) -> Tuple[pd.Series, pd.Series]:
         """Align simulation and observation series after dropping spinup years."""
-        spinup_years = self.config.get('EVALUATION_SPINUP_YEARS', 0)
+        # EVALUATION_SPINUP_YEARS not yet in typed config - use config_dict fallback
+        spinup_years = self.config_dict.get('EVALUATION_SPINUP_YEARS', 0)
         try:
             spinup_years = int(float(spinup_years))
         except (TypeError, ValueError):

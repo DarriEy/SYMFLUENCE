@@ -30,6 +30,7 @@ ENV/
 env/
 .env/
 .venv/
+.venv-docs/
 
 # Ignore everything in 0_config_files (user workspace)
 0_config_files/*
@@ -73,6 +74,15 @@ logs/
 # Distribution
 *.manifest
 *.spec
+node_modules/
+npm/*.tgz
+
+# Generated run logs
+data/**/_workLog*/
+data/
+
+# Test data bundles
+tests/data/
 
 # Unit test / coverage reports
 htmlcov/
@@ -90,3 +100,6 @@ coverage.xml
 cover/*.nc
 *.err
 *.err
+
+# Docs build artifacts
+docs/_build/

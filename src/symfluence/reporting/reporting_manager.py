@@ -1,20 +1,20 @@
-from typing import Dict, Any, Optional, List, Tuple, Union
+from typing import Dict, Any, Optional, List, Tuple, Union, TYPE_CHECKING
 from pathlib import Path
+from functools import cached_property
 
 # Config
 from symfluence.reporting.config.plot_config import PlotConfig, DEFAULT_PLOT_CONFIG
 
-# Processors
-from symfluence.reporting.processors.data_processor import DataProcessor
-from symfluence.reporting.processors.spatial_processor import SpatialProcessor
-
-# Plotters
-from symfluence.reporting.plotters.domain_plotter import DomainPlotter
-from symfluence.reporting.plotters.optimization_plotter import OptimizationPlotter
-from symfluence.reporting.plotters.analysis_plotter import AnalysisPlotter
-from symfluence.reporting.plotters.benchmark_plotter import BenchmarkPlotter
-from symfluence.reporting.plotters.snow_plotter import SnowPlotter
-from symfluence.reporting.plotters.diagnostic_plotter import DiagnosticPlotter
+# Type hints only - actual imports are lazy
+if TYPE_CHECKING:
+    from symfluence.reporting.processors.data_processor import DataProcessor
+    from symfluence.reporting.processors.spatial_processor import SpatialProcessor
+    from symfluence.reporting.plotters.domain_plotter import DomainPlotter
+    from symfluence.reporting.plotters.optimization_plotter import OptimizationPlotter
+    from symfluence.reporting.plotters.analysis_plotter import AnalysisPlotter
+    from symfluence.reporting.plotters.benchmark_plotter import BenchmarkPlotter
+    from symfluence.reporting.plotters.snow_plotter import SnowPlotter
+    from symfluence.reporting.plotters.diagnostic_plotter import DiagnosticPlotter
 
 
 class ReportingManager:
@@ -24,118 +24,89 @@ class ReportingManager:
     to specialized processors and plotters.
     """
 
-    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: Any, visualize: bool = False):
+    def __init__(self, config: 'SymfluenceConfig', logger: Any, visualize: bool = False):
         """
         Initialize the ReportingManager.
 
         Args:
-            config: Configuration dictionary or SymfluenceConfig instance.
+            config: SymfluenceConfig instance.
             logger: Logger instance.
             visualize: Boolean flag indicating if visualization is enabled.
                        If False, most visualization methods will return early.
         """
-        # Phase 3: Support both typed config and dict config
         from symfluence.core.config.models import SymfluenceConfig
-        if isinstance(config, SymfluenceConfig):
-            self.typed_config = config
-            self.config = config.to_dict(flatten=True)
-        else:
-            self.typed_config = None
-            self.config = config
+        if not isinstance(config, SymfluenceConfig):
+            raise TypeError(
+                f"config must be SymfluenceConfig, got {type(config).__name__}. "
+                "Use SymfluenceConfig.from_file() to load configuration."
+            )
 
+        self._config = config
         self.logger = logger
         self.visualize = visualize
-        self.project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}"
-
-        # Lazy-loaded components
-        self._plot_config = None
-        self._data_processor = None
-        self._spatial_processor = None
-        self._domain_plotter = None
-        self._optimization_plotter = None
-        self._analysis_plotter = None
-        self._benchmark_plotter = None
-        self._snow_plotter = None
-        self._diagnostic_plotter = None
-
-    # =========================================================================
-    # Component Properties (Lazy Initialization)
-    # =========================================================================
+        self.project_dir = Path(config['SYMFLUENCE_DATA_DIR']) / f"domain_{config['DOMAIN_NAME']}"
 
     @property
+    def config(self) -> Dict[str, Any]:
+        """Return flattened config dict for backward compatibility."""
+        return self._config.to_dict(flatten=True) if self._config else {}
+
+    # =========================================================================
+    # Component Properties (Lazy Initialization via cached_property)
+    # =========================================================================
+
+    @cached_property
     def plot_config(self) -> PlotConfig:
         """Lazy initialization of plot configuration."""
-        if self._plot_config is None:
-            self._plot_config = DEFAULT_PLOT_CONFIG
-        return self._plot_config
+        return DEFAULT_PLOT_CONFIG
 
-    @property
-    def data_processor(self) -> DataProcessor:
+    @cached_property
+    def data_processor(self) -> 'DataProcessor':
         """Lazy initialization of data processor."""
-        if self._data_processor is None:
-            self._data_processor = DataProcessor(self.config, self.logger)
-        return self._data_processor
+        from symfluence.reporting.processors.data_processor import DataProcessor
+        return DataProcessor(self.config, self.logger)
 
-    @property
-    def spatial_processor(self) -> SpatialProcessor:
+    @cached_property
+    def spatial_processor(self) -> 'SpatialProcessor':
         """Lazy initialization of spatial processor."""
-        if self._spatial_processor is None:
-            self._spatial_processor = SpatialProcessor(self.config, self.logger)
-        return self._spatial_processor
+        from symfluence.reporting.processors.spatial_processor import SpatialProcessor
+        return SpatialProcessor(self.config, self.logger)
 
-    @property
-    def domain_plotter(self) -> DomainPlotter:
+    @cached_property
+    def domain_plotter(self) -> 'DomainPlotter':
         """Lazy initialization of domain plotter."""
-        if self._domain_plotter is None:
-            self._domain_plotter = DomainPlotter(
-                self.config, self.logger, self.plot_config
-            )
-        return self._domain_plotter
+        from symfluence.reporting.plotters.domain_plotter import DomainPlotter
+        return DomainPlotter(self.config, self.logger, self.plot_config)
 
-    @property
-    def optimization_plotter(self) -> OptimizationPlotter:
+    @cached_property
+    def optimization_plotter(self) -> 'OptimizationPlotter':
         """Lazy initialization of optimization plotter."""
-        if self._optimization_plotter is None:
-            self._optimization_plotter = OptimizationPlotter(
-                self.config, self.logger, self.plot_config
-            )
-        return self._optimization_plotter
+        from symfluence.reporting.plotters.optimization_plotter import OptimizationPlotter
+        return OptimizationPlotter(self.config, self.logger, self.plot_config)
 
-    @property
-    def analysis_plotter(self) -> AnalysisPlotter:
+    @cached_property
+    def analysis_plotter(self) -> 'AnalysisPlotter':
         """Lazy initialization of analysis plotter."""
-        if self._analysis_plotter is None:
-            self._analysis_plotter = AnalysisPlotter(
-                self.config, self.logger, self.plot_config
-            )
-        return self._analysis_plotter
+        from symfluence.reporting.plotters.analysis_plotter import AnalysisPlotter
+        return AnalysisPlotter(self.config, self.logger, self.plot_config)
 
-    @property
-    def benchmark_plotter(self) -> BenchmarkPlotter:
+    @cached_property
+    def benchmark_plotter(self) -> 'BenchmarkPlotter':
         """Lazy initialization of benchmark plotter."""
-        if self._benchmark_plotter is None:
-            self._benchmark_plotter = BenchmarkPlotter(
-                self.config, self.logger, self.plot_config
-            )
-        return self._benchmark_plotter
+        from symfluence.reporting.plotters.benchmark_plotter import BenchmarkPlotter
+        return BenchmarkPlotter(self.config, self.logger, self.plot_config)
 
-    @property
-    def snow_plotter(self) -> SnowPlotter:
+    @cached_property
+    def snow_plotter(self) -> 'SnowPlotter':
         """Lazy initialization of snow plotter."""
-        if self._snow_plotter is None:
-            self._snow_plotter = SnowPlotter(
-                self.config, self.logger, self.plot_config
-            )
-        return self._snow_plotter
+        from symfluence.reporting.plotters.snow_plotter import SnowPlotter
+        return SnowPlotter(self.config, self.logger, self.plot_config)
 
-    @property
-    def diagnostic_plotter(self) -> DiagnosticPlotter:
+    @cached_property
+    def diagnostic_plotter(self) -> 'DiagnosticPlotter':
         """Lazy initialization of diagnostic plotter."""
-        if self._diagnostic_plotter is None:
-            self._diagnostic_plotter = DiagnosticPlotter(
-                self.config, self.logger, self.plot_config
-            )
-        return self._diagnostic_plotter
+        from symfluence.reporting.plotters.diagnostic_plotter import DiagnosticPlotter
+        return DiagnosticPlotter(self.config, self.logger, self.plot_config)
 
     # =========================================================================
     # Public Methods

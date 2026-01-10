@@ -85,4 +85,22 @@ try:
 except ImportError:
     pass
 
+try:
+    from . import modis_sca
+    _imported.append('modis_sca')
+except ImportError:
+    pass
+
+try:
+    from . import modis_et
+    _imported.append('modis_et')
+except ImportError:
+    pass
+
+try:
+    from . import fluxnet
+    _imported.append('fluxnet')
+except ImportError:
+    pass
+
 __all__ = _imported

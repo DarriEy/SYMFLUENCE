@@ -10,6 +10,7 @@ from shapely.geometry import Polygon
 
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
+from symfluence.data.utilities import VariableStandardizer
 
 
 @DatasetRegistry.register("hrrr")
@@ -40,30 +41,22 @@ class HRRRHandler(BaseDatasetHandler):
         """
         Map raw HRRR variables → SYMFLUENCE/SUMMA standard names.
 
+        Uses centralized VariableStandardizer for consistency across the codebase.
         Note: Cloud downloader provides short variable names (TMP, SPFH, etc.)
         rather than full NCEP-style names (TMP_2maboveground, etc.)
         """
-        return {
-            "APCP": "pptrate",
-            "TMP": "airtemp",
-            "SPFH": "spechum",
-            "PRES": "airpres",
-            "DLWRF": "LWRadAtm",
-            "DSWRF": "SWRadAtm",
-            "UGRD": "windspd_u",
-            "VGRD": "windspd_v",
-        }
+        standardizer = VariableStandardizer(self.logger)
+        return standardizer.get_rename_map('HRRR')
 
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """
         Process HRRR dataset:
-          - rename variables
+          - rename variables using centralized VariableStandardizer
           - derive wind speed from components
           - enforce units / attrs
         """
-        var_map = self.get_variable_mapping()
-        rename_map = {old: new for old, new in var_map.items() if old in ds.data_vars}
-        ds = ds.rename(rename_map)
+        standardizer = VariableStandardizer(self.logger)
+        ds = standardizer.standardize(ds, 'HRRR')
 
         # Wind speed magnitude
         if "windspd_u" in ds and "windspd_v" in ds:

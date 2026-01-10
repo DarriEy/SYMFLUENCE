@@ -154,6 +154,10 @@ class LoggingManager:
         if log_level is None:
             log_level = self.config.get('LOG_LEVEL', 'INFO')
         
+        # Force DEBUG level if debug_mode is enabled
+        if self.debug_mode:
+            log_level = 'DEBUG'
+        
         # Create timestamp for log file
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = self.log_dir / f'symfluence_general_{self.domain_name}_{current_time}.log'

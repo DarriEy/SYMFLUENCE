@@ -23,7 +23,7 @@ from .data import DataConfig
 from .forcing import ForcingConfig, NexConfig, EMEarthConfig
 from .model_configs import (
     ModelConfig, SUMMAConfig, FUSEConfig, GRConfig, HYPEConfig,
-    NGENConfig, MESHConfig, MizuRouteConfig, LSTMConfig
+    NGENConfig, MESHConfig, MizuRouteConfig, LSTMConfig, RHESSysConfig, GNNConfig
 )
 from .optimization import (
     OptimizationConfig, PSOConfig, DEConfig, DDSConfig, SCEUAConfig,
@@ -331,6 +331,16 @@ class SymfluenceConfig(BaseModel):
                 if is_unset(value):
                     missing_fields.append(f"{field} (required for MESH)")
 
+        # RHESSys requirements - validate only if rhessys config provided
+        if 'RHESSYS' in models and self.model.rhessys:
+            rhessys_required = {
+                'RHESSYS_EXE': self.model.rhessys.exe,
+                'SETTINGS_RHESSYS_PATH': self.model.rhessys.settings_path,
+            }
+            for field, value in rhessys_required.items():
+                if is_unset(value):
+                    missing_fields.append(f"{field} (required for RHESSys)")
+
         # Routing model requirements - validate only if mizuroute config provided
         if self.model.routing_model:
             routing_model = self.model.routing_model.upper()
@@ -425,7 +435,7 @@ class SymfluenceConfig(BaseModel):
             )
 
         # Validate optimization metric
-        valid_metrics = ['KGE', 'KGEp', 'NSE', 'RMSE', 'MAE', 'PBIAS', 'R2']
+        valid_metrics = ['KGE', 'KGEp', 'NSE', 'RMSE', 'MAE', 'PBIAS', 'R2', 'correlation']
         if self.optimization.metric not in valid_metrics:
             errors.append(
                 f"OPTIMIZATION_METRIC '{self.optimization.metric}' not recognized. "
