@@ -1,4 +1,9 @@
-# In utils/analysis_utils/analysis_manager.py
+"""
+Analysis management for SYMFLUENCE model evaluation workflows.
+
+Coordinates benchmarking, sensitivity analysis, and decision analysis for
+evaluating hydrological model performance and parameter importance.
+"""
 
 from pathlib import Path
 import logging

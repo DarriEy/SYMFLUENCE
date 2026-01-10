@@ -1,4 +1,9 @@
-# src/symfluence/data/data_manager.py
+"""
+Data management facade for SYMFLUENCE hydrological modeling.
+
+Coordinates all data acquisition and preprocessing operations through
+specialized services for forcing data, observations, and attribute processing.
+"""
 
 from pathlib import Path
 import logging

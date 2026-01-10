@@ -1,3 +1,10 @@
+"""
+GRACE total water storage observation handler.
+
+Provides acquisition and preprocessing of GRACE/GRACE-FO satellite data
+for total water storage anomaly validation with adaptive basin extraction.
+"""
+
 import numpy as np
 import pandas as pd
 import xarray as xr

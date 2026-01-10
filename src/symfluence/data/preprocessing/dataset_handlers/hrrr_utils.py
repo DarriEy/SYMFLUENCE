@@ -1,4 +1,9 @@
-# hrrr_utils.py
+"""
+HRRR (High-Resolution Rapid Refresh) dataset handler.
+
+Processes HRRR atmospheric forecast data with Lambert conformal projection
+handling, variable extraction, and unit conversions.
+"""
 
 from pathlib import Path
 from typing import Dict, Tuple, List

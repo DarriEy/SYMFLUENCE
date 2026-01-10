@@ -1,4 +1,9 @@
-# In utils/project/workflow_orchestrator.py
+"""
+Workflow orchestration for SYMFLUENCE hydrological modeling pipeline.
+
+Coordinates the execution sequence of modeling steps including domain definition,
+data preprocessing, model execution, optimization, and analysis phases.
+"""
 
 from pathlib import Path
 import logging

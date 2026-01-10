@@ -1,3 +1,10 @@
+"""
+Abstract base class for SYMFLUENCE optimization algorithms.
+
+Provides common infrastructure for parameter management, model execution,
+results tracking, and trial history for all optimizer implementations.
+"""
+
 import os
 import numpy as np
 import pandas as pd

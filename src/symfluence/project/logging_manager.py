@@ -1,4 +1,9 @@
-# In utils/project/logging_manager.py
+"""
+Logging management for SYMFLUENCE workflow execution.
+
+Provides comprehensive logging infrastructure including console and file handlers,
+workflow step formatting, run summaries, and log archival capabilities.
+"""
 
 from pathlib import Path
 import logging

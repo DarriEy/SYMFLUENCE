@@ -1,3 +1,10 @@
+"""
+Archive utilities for SYMFLUENCE data management.
+
+Provides functions for creating compressed archives of processed data
+directories to reduce storage footprint while preserving data integrity.
+"""
+
 import tarfile
 import shutil
 from pathlib import Path

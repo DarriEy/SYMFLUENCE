@@ -1,4 +1,10 @@
-# In utils/geospatial/raster_utils.py
+"""
+Raster processing utilities for geospatial analysis.
+
+Provides functions for land cover mode calculation, aspect and radiation
+derivation from DEMs, and raster value analysis for discretization.
+"""
+
 import numpy as np
 import rasterio # type: ignore
 from scipy import stats

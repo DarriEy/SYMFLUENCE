@@ -1,3 +1,10 @@
+"""
+Differential Evolution (DE) optimizer implementation.
+
+DE is a population-based evolutionary algorithm using vector differences
+for mutation, effective for continuous optimization problems.
+"""
+
 import numpy as np
 import logging
 from datetime import datetime

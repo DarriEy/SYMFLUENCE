@@ -1,3 +1,10 @@
+"""
+Particle Swarm Optimization (PSO) implementation.
+
+PSO is a population-based optimizer inspired by social behavior,
+using particle velocities and swarm intelligence for global search.
+"""
+
 import numpy as np
 import logging
 from datetime import datetime

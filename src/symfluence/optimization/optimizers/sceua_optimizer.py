@@ -1,3 +1,10 @@
+"""
+Shuffled Complex Evolution (SCE-UA) optimizer placeholder.
+
+SCE-UA is a global optimization algorithm combining deterministic and
+probabilistic approaches. This is a placeholder for future implementation.
+"""
+
 import logging
 from typing import Dict, Any, List, Tuple
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer

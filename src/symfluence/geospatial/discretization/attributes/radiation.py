@@ -1,3 +1,10 @@
+"""
+Radiation-based domain discretization for solar energy classification.
+
+Creates HRUs based on annual solar radiation patterns derived from terrain
+geometry, enabling energy-aware hydrological response unit delineation.
+"""
+
 from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING

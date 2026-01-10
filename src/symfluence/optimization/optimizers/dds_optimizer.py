@@ -1,3 +1,10 @@
+"""
+Dynamically Dimensioned Search (DDS) optimizer implementation.
+
+DDS is an efficient single-solution optimization algorithm designed for
+calibration problems with many parameters and limited function evaluations.
+"""
+
 import numpy as np
 import logging
 from datetime import datetime

@@ -113,6 +113,7 @@ class GRWorker(BaseWorker):
                 df_sim = pd.read_csv(sim_file, index_col='datetime', parse_dates=True)
                 # GR4J output is in mm/day. Convert to cms.
                 area_km2 = self._get_catchment_area(config)
+                self.logger.info(f"DEBUG: GRWorker using catchment area: {area_km2:.2f} km2")
                 simulated_streamflow = df_sim['q_sim'] * area_km2 / UnitConversion.MM_DAY_TO_CMS
             else:
                 # Distributed mode produces NetCDF

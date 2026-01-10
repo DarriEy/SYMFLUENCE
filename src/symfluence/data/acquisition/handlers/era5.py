@@ -1,3 +1,10 @@
+"""
+ERA5 reanalysis data acquisition handlers.
+
+Provides acquisition from Google Cloud ARCO-ERA5 (Zarr) or ECMWF Climate
+Data Store (CDS) with automatic pathway selection and parallel processing.
+"""
+
 import os
 import xarray as xr
 import pandas as pd

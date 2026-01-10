@@ -1,3 +1,10 @@
+"""
+Model execution handler for optimization trials.
+
+Manages SUMMA and mizuRoute execution during calibration, including
+parameter application, simulation runs, and output extraction.
+"""
+
 import os
 import numpy as np
 import pandas as pd

@@ -47,7 +47,7 @@ class NgenWorker(BaseWorker):
         **kwargs
     ) -> bool:
         """
-        Apply parameters to ngen JSON configuration files.
+        Apply parameters to ngen configuration files (JSON or BMI text).
 
         Parameters use MODULE.param naming convention (e.g., CFE.Kn).
 
@@ -60,51 +60,33 @@ class NgenWorker(BaseWorker):
             True if successful
         """
         try:
-            # Use settings_dir directly - BaseOptimizer ensures this path is correct for the worker
-            # NGEN settings are typically organized by module subdirectories within settings_dir
-            ngen_setup_dir = settings_dir
+            from ..parameter_managers.ngen_parameter_manager import NgenParameterManager
 
-            # Group parameters by module
-            module_params: Dict[str, Dict[str, float]] = {}
-            for param_name, value in params.items():
-                if '.' in param_name:
-                    module, param = param_name.split('.', 1)
-                    if module not in module_params:
-                        module_params[module] = {}
-                    module_params[module][param] = value
-                else:
-                    self.logger.warning(f"Parameter {param_name} missing module prefix")
+            # Get config from kwargs
+            config = kwargs.get('config', self.config)
 
-            # Update each module's config file
-            for module, module_param_dict in module_params.items():
-                config_file = ngen_setup_dir / module / f"{module.lower()}_config.json"
+            # Use NgenParameterManager which handles both JSON and BMI text files
+            # Create a parameter manager for this specific settings directory
+            param_manager = NgenParameterManager(
+                config=config,
+                logger=self.logger,
+                ngen_settings_dir=settings_dir / 'NGEN'  # settings_dir is process-specific
+            )
 
-                if not config_file.exists():
-                    self.logger.warning(f"Config file not found: {config_file}")
-                    continue
+            # Update config files using the parameter manager
+            success = param_manager.update_config_files(params)
 
-                # Read existing config
-                with open(config_file, 'r') as f:
-                    cfg = json.load(f)
+            if success:
+                self.logger.debug(f"Applied {len(params)} parameters to ngen configs in {settings_dir}")
+            else:
+                self.logger.warning(f"Some ngen parameters may not have been applied in {settings_dir}")
 
-                # Update parameters
-                updated = False
-                for param, value in module_param_dict.items():
-                    if param in cfg:
-                        cfg[param] = value
-                        updated = True
-                    else:
-                        self.logger.warning(f"Parameter {param} not found in {module} config")
-
-                if updated:
-                    # Write updated config
-                    with open(config_file, 'w') as f:
-                        json.dump(cfg, f, indent=2)
-
-            return True
+            return success
 
         except Exception as e:
             self.logger.error(f"Error applying ngen parameters: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
             return False
 
     def run_model(

@@ -1,3 +1,10 @@
+"""
+NSGA-II multi-objective optimizer implementation.
+
+Non-dominated Sorting Genetic Algorithm II for Pareto-optimal calibration
+with multiple objectives (e.g., streamflow, snow, ET simultaneously).
+"""
+
 import numpy as np
 import logging
 from datetime import datetime

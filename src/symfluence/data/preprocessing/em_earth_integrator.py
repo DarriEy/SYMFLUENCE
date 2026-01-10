@@ -1,3 +1,9 @@
+"""
+EM-Earth data integrator for remapping and basin averaging.
+
+Handles EM-Earth reanalysis data processing including spatial remapping,
+basin-averaged value calculations, and temporal alignment.
+"""
 
 import logging
 from pathlib import Path
