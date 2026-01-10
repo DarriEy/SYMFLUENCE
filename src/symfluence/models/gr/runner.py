@@ -141,6 +141,10 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             self.logger.info(f"Using external parameters for calibration: {params}")
             self._external_params = params
             self._skip_calibration = True
+            
+            # DEBUG: Log the exact values being used
+            debug_p = {k: float(v) for k,v in params.items()}
+            self.logger.info(f"DEBUG: External params floats: {debug_p}")
 
         with symfluence_error_handler(
             "GR model execution",

@@ -62,6 +62,10 @@ class GRWorker(BaseWorker):
             # Actually, BaseWorker._evaluate_once calls run_model(task.config, task.settings_dir, task.output_dir, **task.additional_data)
             # So params is NOT passed by default in BaseWorker unless it's in additional_data.
             # We need to ensure params are passed.
+            if params:
+                self.logger.info(f"Worker received params: {params}")
+            else:
+                self.logger.warning("Worker run_model received NO params!")
             
             # Create a runner instance
             # We use the config provided in the task and pass settings_dir for isolation

@@ -468,7 +468,15 @@ find_symfluence_script() {
 # Python finder (prefers 3.11–3.13; rejects 3.14+)
 # ----------------------------------------------------------------------
 find_python() {
-    local python_candidates=("python3.11" "python3.12" "python3.13" "python3.10" "python3" "python")
+    # If SYMFLUENCE_PYTHON is set, use it first
+    if [[ -n "${SYMFLUENCE_PYTHON:-}" ]]; then
+        if command -v "$SYMFLUENCE_PYTHON" >/dev/null 2>&1; then
+            echo "$SYMFLUENCE_PYTHON"
+            return 0
+        fi
+    fi
+
+    local python_candidates=("python3.11" "python3.12" "python3.13" "python3" "python")
     local cmd version major minor
     for cmd in "${python_candidates[@]}"; do
         if command -v "$cmd" >/dev/null 2>&1; then
