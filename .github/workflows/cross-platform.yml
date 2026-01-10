@@ -218,14 +218,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.SYMFLUENCE_DATA }}/installs
-          key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v4
+          key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v5
 
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
         shell: bash
         env:
           SYMFLUENCE_NO_VENV: "true"
-          SYMFLUENCE_PYTHON: python
+          SYMFLUENCE_PYTHON: python3
         run: |
           # Initialize conda for bash on Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then
@@ -437,7 +437,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.SYMFLUENCE_DATA }}/installs
-          key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v4
+          key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v5
 
       - name: Cache raw forcing data
         uses: actions/cache@v4
@@ -452,7 +452,7 @@ jobs:
         shell: bash
         env:
           SYMFLUENCE_NO_VENV: "true"
-          SYMFLUENCE_PYTHON: python
+          SYMFLUENCE_PYTHON: python3
         run: |
           # Initialize conda for bash on Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then

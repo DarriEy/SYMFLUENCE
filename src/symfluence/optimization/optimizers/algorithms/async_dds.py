@@ -63,7 +63,7 @@ class AsyncDDSAlgorithm(OptimizationAlgorithm):
 
         # Calculate target evaluations
         total_target_evaluations = self.max_iterations * num_processes
-        target_batches = total_target_evaluations // batch_size
+        target_batches = max(1, total_target_evaluations // batch_size) if self.max_iterations > 0 else 0
 
         # Solution pool tracking
         solution_pool = []  # List of (solution, score, batch_num) tuples

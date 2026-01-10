@@ -51,7 +51,11 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
 
     # Load config to get installation paths
     config = load_config_template(symfluence_code_dir)
-    data_dir = Path(config.get("SYMFLUENCE_DATA_DIR", symfluence_data_root))
+    data_dir_val = config.get("SYMFLUENCE_DATA_DIR", "default")
+    if data_dir_val == "default" or not data_dir_val:
+        data_dir = Path(symfluence_data_root)
+    else:
+        data_dir = Path(data_dir_val)
 
     # Required binaries
     print("\n" + "="*60)

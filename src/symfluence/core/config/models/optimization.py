@@ -151,6 +151,14 @@ class OptimizationConfig(BaseModel):
     final_evaluation_numerical_method: str = Field(default='ida', alias='FINAL_EVALUATION_NUMERICAL_METHOD')
     cleanup_parallel_dirs: bool = Field(default=True, alias='CLEANUP_PARALLEL_DIRS')
 
+    @field_validator('iterations')
+    @classmethod
+    def validate_iterations(cls, v):
+        """Ensure iterations is at least 1"""
+        if v < 1:
+            raise ValueError("NUMBER_OF_ITERATIONS must be at least 1")
+        return v
+
     # Algorithm-specific settings
     pso: Optional[PSOConfig] = Field(default_factory=PSOConfig)
     de: Optional[DEConfig] = Field(default_factory=DEConfig)
