@@ -17,7 +17,6 @@ import sys
 from symfluence.project.workflow_orchestrator import WorkflowOrchestrator
 from symfluence.project.logging_manager import LoggingManager
 from symfluence.project.manager_factory import LazyManagerDict
-from symfluence.core.config.config_loader import load_config  # Legacy support
 from symfluence.core.config.models import SymfluenceConfig
 
 

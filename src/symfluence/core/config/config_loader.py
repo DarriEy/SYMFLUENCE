@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict
 from difflib import get_close_matches
 
 import yaml
@@ -22,80 +22,6 @@ ALIAS_MAP = {
     "CONFLUENCE_DATA_DIR": "SYMFLUENCE_DATA_DIR",
     "CONFLUENCE_CODE_DIR": "SYMFLUENCE_CODE_DIR",
 }
-
-
-def load_config(
-    path: Path,
-    overrides: Optional[Mapping[str, Any]] = None,
-    *,
-    validate: bool = True,
-    use_env: bool = True,
-) -> Dict[str, Any]:
-    """
-    Load configuration with precedence: CLI overrides > ENV vars > Config file > Defaults
-
-    Args:
-        path: Path to configuration YAML file
-        overrides: Dictionary of CLI/programmatic overrides
-        validate: Whether to validate using Pydantic (default: True)
-        use_env: Whether to load environment variables (default: True)
-
-    Returns:
-        Validated configuration dictionary
-    
-    Raises:
-        ValidationError: If configuration is invalid
-        FileNotFoundError: If config file is missing
-    """
-    # 1. Start with defaults from the class
-    config = ConfigDefaults.get_defaults().copy()
-
-    # 2. Load from file
-    path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(f"Configuration file not found: {path}")
-        
-    with open(path, "r") as f:
-        file_config = yaml.safe_load(f) or {}
-    
-    # Normalize keys in file config
-    file_config = {_normalize_key(k): v for k, v in file_config.items()}
-    config.update(file_config)
-
-    # 3. Override with environment variables
-    if use_env:
-        env_overrides = _load_env_overrides()
-        config.update(env_overrides)
-
-    # 4. Apply CLI overrides (highest priority)
-    if overrides:
-        # Normalize keys in overrides
-        normalized_overrides = {_normalize_key(k): v for k, v in overrides.items()}
-        config.update(normalized_overrides)
-
-    # 5. Validate with Pydantic
-    if validate:
-        try:
-            # We filter out None values to let Pydantic defaults/validators handle them
-            # or raise errors for required fields
-            clean_config = {k: v for k, v in config.items() if v is not None}
-            
-            model = SymfluenceConfig(**clean_config)
-            
-            # Return as dict, preserving types converted by Pydantic
-            # by_alias=True not strictly needed as we don't use aliases yet, but good practice
-            validated_config = model.model_dump()
-            
-            # Pydantic strips extra fields if configured to 'ignore', but we set 'allow'.
-            # model_dump() returns them.
-            return validated_config
-            
-        except ValidationError as e:
-            # Format error with actionable suggestions
-            error_msg = _format_validation_error(e, config)
-            raise ConfigurationError(error_msg) from e
-            
-    return config
 
 
 def normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:

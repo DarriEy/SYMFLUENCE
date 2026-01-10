@@ -6,13 +6,16 @@ providing common utilities and interfaces.
 """
 
 import sys
-import yaml
 from abc import ABC, abstractmethod
 from argparse import Namespace
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING
 
+from ..console import Console, console as global_console
 from ..validators import validate_config_exists
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 
 class BaseCommand(ABC):
@@ -21,42 +24,63 @@ class BaseCommand(ABC):
 
     Provides common functionality for loading configuration, handling errors,
     and executing commands.
+
+    Attributes:
+        _console: Shared console instance for all commands
     """
 
-    @staticmethod
-    def load_config(config_path: str, required: bool = True) -> Optional[Dict[str, Any]]:
+    _console: ClassVar[Console] = global_console
+
+    @classmethod
+    def set_console(cls, console: Console) -> None:
         """
-        Load configuration from YAML file.
+        Set the console instance for all commands.
+
+        Useful for testing or configuring output behavior.
+
+        Args:
+            console: Console instance to use
+        """
+        cls._console = console
+
+    @staticmethod
+    def load_typed_config(
+        config_path: str,
+        required: bool = True,
+        overrides: Optional[Dict[str, Any]] = None,
+    ) -> Optional["SymfluenceConfig"]:
+        """
+        Load configuration using the typed SymfluenceConfig system.
+
+        This is the preferred method for loading configuration as it provides
+        type-safe access and validation.
 
         Args:
             config_path: Path to configuration file
-            required: Whether config file is required. If True, raises error if not found.
+            required: Whether config file is required
+            overrides: Optional overrides to apply
 
         Returns:
-            Configuration dictionary, or None if not required and not found
-
-        Raises:
-            SystemExit: If required=True and config file doesn't exist or is invalid
+            SymfluenceConfig instance, or None if not required and not found
         """
-        path = Path(config_path)
+        from symfluence.core.config.models import SymfluenceConfig
+        from symfluence.core.exceptions import ConfigurationError
 
+        path = Path(config_path)
         if not path.exists():
             if required:
-                print(f"Error: Config file not found: {config_path}", file=sys.stderr)
-                sys.exit(1)
-            else:
+                BaseCommand._console.error(f"Config file not found: {config_path}")
                 return None
+            return None
 
         try:
-            with open(path, 'r') as f:
-                config = yaml.safe_load(f)
-            return config
-        except yaml.YAMLError as e:
-            print(f"Error: Invalid YAML in config file: {e}", file=sys.stderr)
-            sys.exit(1)
+            return SymfluenceConfig.from_file(path, overrides=overrides)
+        except ConfigurationError as e:
+            BaseCommand._console.error(f"Configuration error: {e}")
+            return None
         except Exception as e:
-            print(f"Error: Failed to load config file: {e}", file=sys.stderr)
-            sys.exit(1)
+            BaseCommand._console.error(f"Failed to load config: {e}")
+            return None
 
     @staticmethod
     def validate_config(config_path: str, required: bool = True) -> bool:
@@ -70,11 +94,12 @@ class BaseCommand(ABC):
         Returns:
             True if valid (or not required and doesn't exist), False otherwise
         """
-        is_valid, error_msg = validate_config_exists(config_path)
+        result = validate_config_exists(config_path)
 
-        if not is_valid:
+        if result.is_err:
             if required:
-                print(f"Error: {error_msg}", file=sys.stderr)
+                error = result.first_error()
+                BaseCommand._console.error(error.message if error else "Config validation failed")
                 return False
             else:
                 # Not required and doesn't exist is OK
@@ -98,36 +123,6 @@ class BaseCommand(ABC):
         else:
             # Default config path
             return './0_config_files/config_template.yaml'
-
-    @staticmethod
-    def print_error(message: str) -> None:
-        """
-        Print error message to stderr.
-
-        Args:
-            message: Error message to print
-        """
-        print(f"Error: {message}", file=sys.stderr)
-
-    @staticmethod
-    def print_success(message: str) -> None:
-        """
-        Print success message to stdout.
-
-        Args:
-            message: Success message to print
-        """
-        print(f"✓ {message}")
-
-    @staticmethod
-    def print_info(message: str) -> None:
-        """
-        Print informational message to stdout.
-
-        Args:
-            message: Info message to print
-        """
-        print(message)
 
     @staticmethod
     @abstractmethod
