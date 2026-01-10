@@ -785,9 +785,34 @@ EOF
 
         setup_r_environment || print_warning "R setup had issues, continuing..."
 
-        if [[ -f "${symfluence_dir}/requirements.txt" ]]; then
+        # Generate requirements.txt from pyproject.toml (source of truth)
+        local req_file="${symfluence_dir}/requirements.txt"
+        if [[ -f "${symfluence_dir}/pyproject.toml" ]]; then
+            print_info "Generating requirements.txt from pyproject.toml..."
+            python3 -c "
+import sys
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+with open('${symfluence_dir}/pyproject.toml', 'rb') as f:
+    data = tomllib.load(f)
+deps = data.get('project', {}).get('dependencies', [])
+if deps:
+    lines = ['# Auto-generated from pyproject.toml', '']
+    lines.extend(deps)
+    with open('${req_file}', 'w') as out:
+        out.write('\n'.join(lines) + '\n')
+    print(f'Generated {len(deps)} dependencies')
+else:
+    sys.exit(1)
+" || print_warning "Could not auto-generate requirements.txt"
+        fi
+
+        if [[ -f "$req_file" ]]; then
             # Use enhanced installer that handles rpy2/GDAL specially
-            install_python_requirements "${symfluence_dir}/requirements.txt" "false" || {
+            install_python_requirements "$req_file" "false" || {
                 print_error "Dependency installation failed"; exit 1;
             }
         else
