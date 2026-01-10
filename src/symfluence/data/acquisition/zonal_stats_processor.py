@@ -1,3 +1,10 @@
+"""
+Zonal statistics processor for raster-to-catchment attribute calculations.
+
+Computes zonal statistics (elevation, soil class, land class) from raster
+datasets within catchment boundaries using the rasterstats library.
+"""
+
 import os
 from pathlib import Path
 from typing import Dict, Any

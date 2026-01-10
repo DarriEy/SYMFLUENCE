@@ -1,3 +1,10 @@
+"""
+Sensitivity analysis of model parameters using multiple statistical methods.
+
+Provides parameter sensitivity analysis using Sobol, RBD-FAST, and correlation
+methods on calibration results, with visualization and reporting support.
+"""
+
 import pandas as pd # type: ignore
 import numpy as np # type: ignore
 from pathlib import Path

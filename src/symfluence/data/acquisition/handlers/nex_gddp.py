@@ -1,3 +1,10 @@
+"""
+NEX-GDDP-CMIP6 climate projection data acquisition via THREDDS.
+
+Provides automated download of NASA NEX-GDDP-CMIP6 downscaled climate model
+outputs with support for multiple models, scenarios, and ensemble members.
+"""
+
 import datetime as dt
 import shutil
 from typing import List, Dict, Any

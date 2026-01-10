@@ -1,3 +1,10 @@
+"""
+Optimization results persistence and management.
+
+Handles saving, loading, and querying of optimization trial results
+with CSV-based storage and score tracking.
+"""
+
 import pandas as pd
 import numpy as np
 from pathlib import Path

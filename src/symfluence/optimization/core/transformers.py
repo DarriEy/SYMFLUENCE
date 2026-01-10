@@ -1,3 +1,10 @@
+"""
+Parameter transformation adapters for model-specific calibration.
+
+Provides transformers that apply calibration parameters to model-specific
+formats (e.g., soil depth multipliers for SUMMA NetCDF files).
+"""
+
 import numpy as np
 import netCDF4 as nc
 from pathlib import Path
