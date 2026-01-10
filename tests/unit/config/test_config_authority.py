@@ -16,19 +16,24 @@ import yaml
 from typing import Set, Dict, List, Tuple
 
 
+# Project root: tests/unit/config/test_config_authority.py -> 4 parents to reach root
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+CONFIG_TEMPLATES_DIR = PROJECT_ROOT / 'src' / 'symfluence' / 'resources' / 'config_templates'
+PYDANTIC_MODELS_DIR = PROJECT_ROOT / 'src' / 'symfluence' / 'core' / 'config' / 'models'
+
+
 class TestConfigAuthority:
     """Tests for configuration template authority and completeness."""
 
     @pytest.fixture
     def config_template_path(self):
         """Path to the comprehensive config template."""
-        return Path(__file__).parent.parent.parent.parent.parent / 'src' / 'symfluence' / 'resources' / \
-               'config_templates' / 'config_template_comprehensive.yaml'
+        return CONFIG_TEMPLATES_DIR / 'config_template_comprehensive.yaml'
 
     @pytest.fixture
     def pydantic_models_dir(self):
         """Path to Pydantic model definitions."""
-        return Path(__file__).parent.parent.parent.parent.parent / 'src' / 'symfluence' / 'core' / 'config' / 'models'
+        return PYDANTIC_MODELS_DIR
 
     @pytest.fixture
     def documented_settings(self, config_template_path):
@@ -215,13 +220,12 @@ class TestConfigConsistency:
     @pytest.fixture
     def config_template_path(self):
         """Path to the comprehensive config template."""
-        return Path(__file__).parent.parent.parent.parent.parent / 'src' / 'symfluence' / 'resources' / \
-               'config_templates' / 'config_template_comprehensive.yaml'
+        return CONFIG_TEMPLATES_DIR / 'config_template_comprehensive.yaml'
 
     @pytest.fixture
     def pydantic_models_dir(self):
         """Path to Pydantic model definitions."""
-        return Path(__file__).parent.parent.parent.parent.parent / 'src' / 'symfluence' / 'core' / 'config' / 'models'
+        return PYDANTIC_MODELS_DIR
 
     @pytest.fixture
     def template_settings(self, config_template_path):
@@ -328,14 +332,12 @@ class TestQuickstartTemplates:
     @pytest.fixture
     def quickstart_minimal_path(self):
         """Path to flat-style quickstart template."""
-        return Path(__file__).parent.parent.parent.parent.parent / 'src' / 'symfluence' / 'resources' / \
-               'config_templates' / 'config_quickstart_minimal.yaml'
+        return CONFIG_TEMPLATES_DIR / 'config_quickstart_minimal.yaml'
 
     @pytest.fixture
     def quickstart_nested_path(self):
         """Path to nested-style quickstart template."""
-        return Path(__file__).parent.parent.parent.parent.parent / 'src' / 'symfluence' / 'resources' / \
-               'config_templates' / 'config_quickstart_minimal_nested.yaml'
+        return CONFIG_TEMPLATES_DIR / 'config_quickstart_minimal_nested.yaml'
 
     def test_quickstart_minimal_exists(self, quickstart_minimal_path):
         """Test that flat-style quickstart template exists."""
