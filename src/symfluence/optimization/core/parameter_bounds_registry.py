@@ -267,17 +267,17 @@ class ParameterBoundsRegistry:
     # GR PARAMETERS
     # ========================================================================
     GR_PARAMS: Dict[str, ParameterInfo] = {
-        # GR4J parameters
-        'X1': ParameterInfo(1.0, 2000.0, 'mm', 'Production store capacity', 'soil'),
+        # GR4J parameters (bounds based on airGR defaults)
+        'X1': ParameterInfo(1.0, 5000.0, 'mm', 'Production store capacity', 'soil'),
         'X2': ParameterInfo(-10.0, 10.0, 'mm/day', 'Groundwater exchange coefficient', 'baseflow'),
-        'X3': ParameterInfo(1.0, 300.0, 'mm', 'Routing store capacity', 'soil'),
-        'X4': ParameterInfo(0.5, 4.0, 'days', 'Unit hydrograph time constant', 'routing'),
+        'X3': ParameterInfo(1.0, 500.0, 'mm', 'Routing store capacity', 'soil'),
+        'X4': ParameterInfo(0.5, 5.0, 'days', 'Unit hydrograph time constant', 'routing'),
 
-        # CemaNeige parameters
+        # CemaNeige parameters (bounds based on airGR defaults)
         'CTG': ParameterInfo(0.0, 1.0, '-', 'Snow process parameter', 'snow'),
-        'Kf': ParameterInfo(0.0, 10.0, 'mm/°C/day', 'Melt factor', 'snow'),
-        'Gratio': ParameterInfo(0.01, 0.5, '-', 'Thermal coefficient of snow pack', 'snow'),
-        'Albedo_diff': ParameterInfo(0.1, 1.0, '-', 'Albedo diffusion coefficient', 'snow'),
+        'Kf': ParameterInfo(0.0, 20.0, 'mm/°C/day', 'Melt factor', 'snow'),
+        'Gratio': ParameterInfo(0.01, 200.0, '-', 'Thermal coefficient for snow pack thermal state', 'snow'),
+        'Albedo_diff': ParameterInfo(0.001, 1.0, '-', 'Albedo diffusion coefficient', 'snow'),
     }
 
     def __init__(self):

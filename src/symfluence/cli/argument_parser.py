@@ -39,7 +39,7 @@ DOMAIN_DEFINITION_METHODS = ['lumped', 'point', 'subset', 'delineate']
 EXTERNAL_TOOLS = ['summa', 'mizuroute', 'fuse', 'hype', 'mesh', 'taudem', 'gistool', 'datatool', 'rhessys', 'ngen', 'ngiab', 'sundials']
 
 # Hydrological models
-MODELS = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'MESH', 'RHESSys']
+MODELS = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'MESH', 'RHESSys', 'NGEN', 'LSTM']
 
 
 class CLIParser:

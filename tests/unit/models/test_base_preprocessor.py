@@ -5,6 +5,7 @@ Tests the base class functionality shared across all model preprocessors.
 """
 
 import pytest
+import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
@@ -24,7 +25,13 @@ class ConcretePreProcessor(BaseModelPreProcessor):
 def config(tmp_path):
     """Create a test configuration."""
     return {
+        'SYMFLUENCE_CODE_DIR': str(tmp_path / 'code'),
         'SYMFLUENCE_DATA_DIR': str(tmp_path),
+        'EXPERIMENT_ID': 'test_experiment',
+        'EXPERIMENT_TIME_START': '2020-01-01',
+        'EXPERIMENT_TIME_END': '2020-01-02',
+        'FORCING_DATASET': 'ERA5',
+        'HYDROLOGICAL_MODEL': 'TEST',
         'DOMAIN_NAME': 'test_domain',
         'DOMAIN_DISCRETIZATION': 'lumped',
         'DOMAIN_DEFINITION_METHOD': 'lumped',
@@ -57,7 +64,11 @@ class TestBaseModelPreProcessorInitialization:
 
     def test_initialization(self, preprocessor, config, tmp_path):
         """Test basic initialization."""
-        assert preprocessor.config == config
+        # Check that all keys in the input config are present and correct in the result
+        actual_config = preprocessor.config.to_dict(flatten=True)
+        for key, value in config.items():
+            assert actual_config[key] == value
+        
         assert preprocessor.domain_name == 'test_domain'
         assert preprocessor.data_dir == tmp_path
         assert preprocessor.project_dir == tmp_path / 'domain_test_domain'
@@ -94,11 +105,13 @@ class TestPathResolution:
         expected = preprocessor.project_dir / 'fallback/path'
         assert result == expected
 
-    def test_get_default_path_with_custom(self, preprocessor, tmp_path):
+    def test_get_default_path_with_custom(self, config, logger, tmp_path):
         """Test _get_default_path with custom path."""
         custom_path = tmp_path / 'custom' / 'path'
-        preprocessor.config['CUSTOM_PATH'] = str(custom_path)
-        result = preprocessor._get_default_path('CUSTOM_PATH', 'default/path')
+        config['CUSTOM_PATH'] = str(custom_path)
+        # Re-initialize since config is frozen in preprocessor
+        proc = ConcretePreProcessor(config, logger)
+        result = proc._get_default_path('CUSTOM_PATH', 'default/path')
         assert result == custom_path
 
     def test_get_catchment_path_default(self, preprocessor):
@@ -110,7 +123,8 @@ class TestPathResolution:
     def test_get_river_network_path_default(self, preprocessor):
         """Test get_river_network_path with defaults."""
         result = preprocessor.get_river_network_path()
-        expected = preprocessor.project_dir / 'shapefiles' / 'river_network' / 'test_domain_riverNetwork_delineate.shp'
+        # Since domain_definition_method is 'lumped', the suffix is 'lumped'
+        expected = preprocessor.project_dir / 'shapefiles' / 'river_network' / 'test_domain_riverNetwork_lumped.shp'
         assert result == expected
 
 
@@ -121,9 +135,9 @@ class TestDirectoryCreation:
         """Test basic directory creation."""
         # Remove directories if they exist
         if preprocessor.setup_dir.exists():
-            preprocessor.setup_dir.rmdir()
+            shutil.rmtree(preprocessor.setup_dir)
         if preprocessor.forcing_dir.exists():
-            preprocessor.forcing_dir.rmdir()
+            shutil.rmtree(preprocessor.forcing_dir)
 
         preprocessor.create_directories()
 
@@ -164,14 +178,17 @@ class TestFilePathResolution:
         # When path is default/None, uses project_dir
         assert result == preprocessor.project_dir / 'default.txt'
 
-    def test_get_file_path_with_custom_path(self, preprocessor, tmp_path):
+    def test_get_file_path_with_custom_path(self, config, logger, tmp_path):
         """Test _get_file_path with custom path."""
         custom_dir = tmp_path / 'custom'
         custom_dir.mkdir(exist_ok=True)
-        preprocessor.config['FILE_PATH'] = str(custom_dir)
-        preprocessor.config['FILE_NAME'] = 'custom_file.txt'
+        config['FILE_PATH'] = str(custom_dir)
+        config['FILE_NAME'] = 'custom_file.txt'
+        
+        # Re-initialize since config is frozen
+        proc = ConcretePreProcessor(config, logger)
 
-        result = preprocessor._get_file_path(
+        result = proc._get_file_path(
             'test_file',
             'FILE_PATH',
             'FILE_NAME',
@@ -188,10 +205,11 @@ class TestHelperMethods:
         """Test _is_lumped returns True for lumped configuration."""
         assert preprocessor._is_lumped() is True
 
-    def test_is_lumped_false(self, preprocessor):
+    def test_is_lumped_false(self, config, logger):
         """Test _is_lumped returns False for distributed configuration."""
-        preprocessor.config['DOMAIN_DEFINITION_METHOD'] = 'distributed'
-        assert preprocessor._is_lumped() is False
+        config['DOMAIN_DEFINITION_METHOD'] = 'delineate'
+        proc = ConcretePreProcessor(config, logger)
+        assert proc._is_lumped() is False
 
 
 class TestCopyBaseSettings:

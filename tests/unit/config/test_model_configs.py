@@ -85,7 +85,7 @@ class TestGNNConfig:
         assert config.learning_patience == 30
         assert config.dropout == 0.2
         assert config.l2_regularization == 1e-6
-        assert config.params_to_calibrate is None
+        assert config.params_to_calibrate == 'precip_mult,temp_offset,routing_velocity'
         assert config.parameter_bounds is None
 
     def test_gnn_config_custom_values(self):
@@ -303,7 +303,7 @@ class TestMESHConfigExtension:
     def test_mesh_params_to_calibrate_default(self):
         """Test MESH params_to_calibrate default value"""
         config = MESHConfig()
-        assert config.params_to_calibrate is None
+        assert config.params_to_calibrate == 'ZSNL,MANN,RCHARG,BASEFLW,DTMINUSR'
 
     def test_mesh_spinup_days_default(self):
         """Test MESH spinup_days default value"""

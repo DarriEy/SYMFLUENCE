@@ -73,6 +73,11 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
 
         self.settings_dir = Path(settings_dir) if settings_dir else None
 
+        # Instance variables for external parameters during calibration
+        # These bypass the read-only config_dict property
+        self._external_params: Optional[Dict[str, float]] = None
+        self._skip_calibration: bool = False
+
         # Keep legacy attribute name for downstream GR code.
         self.output_path = self.output_dir
 
@@ -131,11 +136,11 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         """
         self.logger.debug(f"Starting GR model run in {self.spatial_mode} mode")
 
-        # Update config with provided parameters if any
+        # Store provided parameters in instance variables (not config_dict which is read-only)
         if params:
-            self.logger.debug(f"Using external parameters: {params}")
-            self.config_dict['GR_EXTERNAL_PARAMS'] = params
-            self.config_dict['GR_SKIP_CALIBRATION'] = True
+            self.logger.info(f"Using external parameters for calibration: {params}")
+            self._external_params = params
+            self._skip_calibration = True
 
         with symfluence_error_handler(
             "GR model execution",
@@ -305,8 +310,8 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             # Store results for each HRU
             hru_results = []
 
-            # Determine parameters
-            external_params = self.config_dict.get('GR_EXTERNAL_PARAMS')
+            # Determine parameters (use instance variable, not read-only config_dict)
+            external_params = self._external_params
             if external_params:
                 # Use provided parameters, falling back to defaults for missing ones
                 x1 = external_params.get('X1', 257.24)
@@ -563,7 +568,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         try:
             # Initialize R environment
             base = importr('base')
-            skip_calibration = bool(self.config_dict.get('GR_SKIP_CALIBRATION', False))
+            skip_calibration = self._skip_calibration
             default_params = self.config_dict.get('GR_DEFAULT_PARAMS', [350, 0, 100, 1.7])
             if len(default_params) != 4:
                 raise ValueError("GR_DEFAULT_PARAMS must contain 4 values for X1, X2, X3, X4")
@@ -607,7 +612,8 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             ''')
 
             # Determine parameters for R script
-            external_params = self.config_dict.get('GR_EXTERNAL_PARAMS')
+            # Use instance variable for external params (config_dict is read-only)
+            external_params = self._external_params
             if external_params:
                 x1 = external_params.get('X1', default_params[0])
                 x2 = external_params.get('X2', default_params[1])
