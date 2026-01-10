@@ -265,7 +265,7 @@ jobs:
   publish-npm:
     name: Publish to npm
     needs: build-and-release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     if: success() && !github.event.release.prerelease
 
     steps:
@@ -448,7 +448,7 @@ jobs:
   release-summary:
     name: Release Summary
     needs: [build-and-release, publish-npm, test-npm-install]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     if: always()
 
     steps:

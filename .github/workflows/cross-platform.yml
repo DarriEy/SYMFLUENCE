@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]  # Linux, macOS, Windows
+        os: [ubuntu-22.04, macos-latest, windows-latest]  # Linux, macOS, Windows
         python-version: ['3.11']  # Focus on latest stable and supported version
 
     steps:
@@ -54,7 +54,7 @@ jobs:
       - name: Install minimal system dependencies
         shell: bash
         run: |
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+          if [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
             sudo apt-get update
             sudo apt-get install -y gdal-bin libgdal-dev cdo
           elif [[ "${{ matrix.os }}" == "macos-"* ]]; then
@@ -79,7 +79,7 @@ jobs:
           python -m pip install --upgrade pip
 
           # Install GDAL Python bindings
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+          if [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
             GDAL_VERSION=$(gdal-config --version)
             pip install GDAL==$GDAL_VERSION
             # Install CPU-only torch to save space on Linux
@@ -136,9 +136,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]  # Linux, macOS, Windows
+        os: [ubuntu-22.04, macos-latest, windows-latest]  # Linux, macOS, Windows
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             python-version: '3.11'
           - os: macos-latest  # ARM Mac (M1/M2)
             python-version: '3.11'
@@ -354,7 +354,7 @@ jobs:
       matrix:
         include:
           # Test on Linux with multiple Python versions
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             python-version: '3.11'
           # Test on macOS with latest Python
           - os: macos-latest  # ARM Mac (M1/M2)
@@ -381,7 +381,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install system dependencies (Linux)
-        if: runner.os == 'Linux'
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -501,7 +501,7 @@ jobs:
   cross-platform-summary:
     name: Cross-Platform Test Summary
     needs: [unit-tests-matrix, binary-validation-matrix, integration-tests-matrix]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     if: always()
 
     steps:
