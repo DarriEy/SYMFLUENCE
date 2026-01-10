@@ -72,6 +72,7 @@ class HYPERunner(BaseModelRunner, ModelExecutor):
         try:
             # Create run command
             cmd = self._create_run_command()
+            self.logger.debug(f"HYPE command: {cmd}")
 
             # Set up logging
             log_dir = self.get_log_path()
@@ -117,5 +118,4 @@ class HYPERunner(BaseModelRunner, ModelExecutor):
             'timeEVAP.txt',  # Evaporation
             'timeSNOW.txt'   # Snow water equivalent
         ]
-
         return self.verify_model_outputs(required_outputs)

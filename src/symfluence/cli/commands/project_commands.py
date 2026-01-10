@@ -29,7 +29,7 @@ class ProjectCommands(BaseCommand):
         """
         try:
             # Import initialization manager
-            from symfluence.utils.cli.initialization_manager import InitializationManager
+            from symfluence.cli.initialization_manager import InitializationManager
 
             init_manager = InitializationManager()
 
@@ -155,7 +155,7 @@ class ProjectCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.utils.cli.initialization_manager import InitializationManager
+            from symfluence.cli.initialization_manager import InitializationManager
 
             init_manager = InitializationManager()
 
@@ -198,7 +198,7 @@ class ProjectCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.utils.cli.initialization_manager import InitializationManager
+            from symfluence.cli.initialization_manager import InitializationManager
 
             init_manager = InitializationManager()
 

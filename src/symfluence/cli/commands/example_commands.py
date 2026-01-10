@@ -27,7 +27,7 @@ class ExampleCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.utils.cli.notebook_service import NotebookService
+            from symfluence.cli.notebook_service import NotebookService
 
             notebook_service = NotebookService()
 

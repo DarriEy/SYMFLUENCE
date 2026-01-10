@@ -70,6 +70,11 @@ class HYPEWorker(BaseWorker):
             # Forcing files are copied to worker's settings dir by copy_base_settings
             preprocessor.forcing_data_dir = settings_dir
 
+            # CRITICAL: Also update the manager output paths so par.txt and config
+            # files are written to the worker's isolated directory, not the shared default
+            preprocessor.config_manager.output_path = settings_dir
+            preprocessor.geodata_manager.output_path = settings_dir
+
             # Use isolated output directory for the worker
             output_dir = kwargs.get('proc_output_dir') or kwargs.get('output_dir')
             if output_dir:
@@ -106,21 +111,37 @@ class HYPEWorker(BaseWorker):
             True if model ran successfully
         """
         try:
+            # Ensure paths are Path objects
+            settings_dir = Path(settings_dir) if not isinstance(settings_dir, Path) else settings_dir
+            output_dir = Path(output_dir) if not isinstance(output_dir, Path) else output_dir
+
+            self.logger.debug(f"HYPE Worker run_model called with settings_dir={settings_dir}, output_dir={output_dir}")
+
             # Initialize HYPE runner
             runner = HYPERunner(config, self.logger)
-            
+
+            self.logger.debug(f"HYPE Runner initialized with setup_dir={runner.setup_dir}")
+
             # Override paths for the worker
             runner.setup_dir = settings_dir
             runner.output_dir = output_dir
             runner.output_path = output_dir
-            
+
+            self.logger.debug(f"HYPE Runner paths overridden: setup_dir={runner.setup_dir}, output_dir={runner.output_dir}")
+
             # Run HYPE
             result_path = runner.run_hype()
-            
+
+            if result_path is None:
+                self.logger.error(f"HYPE run_hype returned None - model may have failed or outputs not found")
+                self.logger.error(f"Expected outputs in: {runner.output_dir}")
+
             return result_path is not None
 
         except Exception as e:
             self.logger.error(f"Error running HYPE: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
             return False
 
     def calculate_metrics(
@@ -140,6 +161,8 @@ class HYPEWorker(BaseWorker):
         Returns:
             Dictionary of metric names to values
         """
+        output_dir = Path(output_dir)
+
         try:
             # HYPE output file for computed discharge
             sim_file = output_dir / 'timeCOUT.txt'
@@ -175,8 +198,21 @@ class HYPEWorker(BaseWorker):
                 sim_series = pd.to_numeric(sim_df[outlet_col], errors='coerce')
 
             # Load observations
-            domain_name = config.get('DOMAIN_NAME')
-            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+            # Handle both flat config dict and nested Pydantic model config
+            if hasattr(config, 'domain') and hasattr(config.domain, 'name'):
+                # Pydantic model
+                domain_name = config.domain.name
+                data_dir = Path(config.system.data_dir) if hasattr(config, 'system') else Path('.')
+            elif isinstance(config, dict):
+                # Dict format - check for nested keys
+                domain = config.get('domain', {})
+                system = config.get('system', {})
+                domain_name = domain.get('name') if isinstance(domain, dict) else config.get('DOMAIN_NAME')
+                data_dir_val = system.get('data_dir') if isinstance(system, dict) else config.get('SYMFLUENCE_DATA_DIR', '.')
+                data_dir = Path(data_dir_val) if data_dir_val else Path('.')
+            else:
+                domain_name = None
+                data_dir = Path('.')
             obs_file = (data_dir / f'domain_{domain_name}' / 'observations' /
                        'streamflow' / 'preprocessed' / f'{domain_name}_streamflow_processed.csv')
 

@@ -7,7 +7,7 @@ Tests the base class functionality shared across all model preprocessors.
 import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
-from src.symfluence.utils.models.base import BaseModelPreProcessor
+from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 
 class ConcretePreProcessor(BaseModelPreProcessor):

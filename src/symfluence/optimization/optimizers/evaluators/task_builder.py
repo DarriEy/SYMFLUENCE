@@ -99,6 +99,14 @@ class TaskBuilder:
         sim_dir = dirs.get('sim_dir', self.default_sim_dir)
         root_dir = dirs.get('root', self.project_dir)
 
+        # HYPE uses a separate output_dir for results (configured in info.txt resultdir)
+        # Other models write directly to sim_dir
+        model_name = self.config.get('HYDROLOGICAL_MODEL', '').upper()
+        if model_name == 'HYPE':
+            output_dir = dirs.get('output_dir', sim_dir)
+        else:
+            output_dir = sim_dir
+
         # Build mizuRoute paths
         if dirs and sim_dir:
             mizuroute_dir = str(Path(sim_dir).parent / 'mizuRoute')
@@ -127,7 +135,7 @@ class TaskBuilder:
             'domain_name': self.domain_name,
             'project_dir': str(self.project_dir),
             'proc_settings_dir': str(settings_dir),
-            'proc_output_dir': str(sim_dir),
+            'proc_output_dir': str(output_dir),
             'proc_sim_dir': str(sim_dir),
             'summa_settings_dir': str(settings_dir),
             'mizuroute_settings_dir': mizuroute_settings_dir,

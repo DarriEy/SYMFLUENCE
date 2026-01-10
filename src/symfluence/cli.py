@@ -5,7 +5,7 @@ def main():
     Uses subcommand architecture for clean command organization.
     """
     import sys
-    from symfluence.utils.cli.argument_parser import CLIParser
+    from symfluence.cli.argument_parser import CLIParser
 
     try:
         # Create parser and parse arguments

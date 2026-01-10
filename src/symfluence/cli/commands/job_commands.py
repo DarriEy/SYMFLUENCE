@@ -27,7 +27,7 @@ class JobCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.utils.cli.job_scheduler import JobScheduler
+            from symfluence.cli.job_scheduler import JobScheduler
 
             job_scheduler = JobScheduler()
 
