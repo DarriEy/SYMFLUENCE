@@ -833,6 +833,8 @@ else:
             print_error "SYMFLUENCE package installation failed"
             exit 1
         }
+        # Ensure rich is installed (needed for CLI console output)
+        pip install "rich>=13.0.0" --quiet || true
         print_success "SYMFLUENCE package installed"
 
         # External tools - use installed symfluence command with full path
