@@ -124,6 +124,22 @@ class BaseCommand(ABC):
             # Default config path
             return './0_config_files/config_template.yaml'
 
+    # Backward compatibility aliases for deprecated methods
+    @classmethod
+    def print_error(cls, message: str) -> None:
+        """Deprecated: Use _console.error() instead."""
+        cls._console.error(message)
+
+    @classmethod
+    def print_success(cls, message: str) -> None:
+        """Deprecated: Use _console.success() instead."""
+        cls._console.success(message)
+
+    @classmethod
+    def print_info(cls, message: str) -> None:
+        """Deprecated: Use _console.info() instead."""
+        cls._console.info(message)
+
     @staticmethod
     @abstractmethod
     def execute(args: Namespace) -> int:
