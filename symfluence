@@ -810,15 +810,21 @@ EOF
         }
         print_success "SYMFLUENCE package installed"
 
-        # External tools - use installed symfluence command
+        # External tools - use installed symfluence command with full path
+        # (bash may have cached the wrapper path before pip created the venv CLI)
         cd "$symfluence_dir"
+        local venv_cli="${VENV_BIN_PATH}/symfluence"
+        if [[ ! -x "$venv_cli" ]]; then
+            print_error "CLI not found at expected path: $venv_cli"
+            exit 1
+        fi
         print_info "Installing external tools..."
-        symfluence binary install || {
+        "$venv_cli" binary install || {
             print_error "External tools installation failed"
             exit 1
         }
         print_info "Validating installation..."
-        symfluence binary validate || {
+        "$venv_cli" binary validate || {
             print_error "Binary validation failed"
             exit 1
         }

@@ -47,3 +47,4 @@ pytest
 sphinx
 jupyterlab
 ipykernel
+rich>=13.0.0
