@@ -225,14 +225,12 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
-            # On Windows, remove GDAL from pyproject.toml BEFORE installing package
-            # to prevent pip from trying to build GDAL from source
-            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
           fi
           python -m pip install --upgrade pip
           # Install rich explicitly (required by CLI output)
           pip install rich pyyaml
           # Install the package with all base dependencies
+          # On Windows: GDAL will be removed in Install Python dependencies step
           pip install -e . || pip install .  # Fallback to non-editable install
           echo "Package pre-installed for build script"
 
@@ -308,11 +306,22 @@ jobs:
             pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
           elif [[ "${{ runner.os }}" == "Windows" ]]; then
             # GDAL from conda (already installed in previous step)
-            # Remove GDAL from pyproject.toml to prevent pip from trying to build it from source
-            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
+            # Ensure gdal-python is installed from conda-forge
+            conda install -c conda-forge gdal-python::gdal -y || true
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
+          # On Windows, must remove GDAL before pip install to prevent build from source
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            python << 'PYTHON_EOF'
+with open('pyproject.toml', 'r') as f:
+    lines = f.readlines()
+new_lines = [line for line in lines if 'gdal' not in line.lower()]
+with open('pyproject.toml', 'w') as f:
+    f.writelines(new_lines)
+PYTHON_EOF
+            echo "Removed GDAL from pyproject.toml"
+          fi
           pip install -e ".[dev]" || pip install -e .
 
       - name: Validate binaries
@@ -529,14 +538,12 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
-            # On Windows, remove GDAL from pyproject.toml BEFORE installing package
-            # to prevent pip from trying to build GDAL from source
-            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
           fi
           python -m pip install --upgrade pip
           # Install rich explicitly (required by CLI output)
           pip install rich pyyaml
           # Install the package with all base dependencies
+          # On Windows: GDAL will be removed in Install Python dependencies step
           pip install -e . || pip install .  # Fallback to non-editable install
           echo "Package pre-installed for build script"
 
@@ -612,11 +619,22 @@ jobs:
             pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
           elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             # GDAL from conda (already installed in previous step)
-            # Remove GDAL from pyproject.toml to prevent pip from trying to build it from source
-            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
+            # Ensure gdal-python is installed from conda-forge
+            conda install -c conda-forge gdal-python::gdal -y || true
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
+          # On Windows, must remove GDAL before pip install to prevent build from source
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            python << 'PYTHON_EOF'
+with open('pyproject.toml', 'r') as f:
+    lines = f.readlines()
+new_lines = [line for line in lines if 'gdal' not in line.lower()]
+with open('pyproject.toml', 'w') as f:
+    f.writelines(new_lines)
+PYTHON_EOF
+            echo "Removed GDAL from pyproject.toml"
+          fi
           pip install -e ".[dev]" || pip install -e .
           # Install pytest-xdist for parallel execution
           pip install pytest-xdist
