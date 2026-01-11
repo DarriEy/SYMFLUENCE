@@ -119,6 +119,38 @@ set_default_symfluence_paths() {
   fi
 }
 
+resolve_python_scripts_path() {
+  local py_bin="${1:-python}"
+  local fallback_prefix="${2:-}"
+  local scripts_dir=""
+
+  scripts_dir=$("$py_bin" - <<'PY'
+import sysconfig
+print(sysconfig.get_path("scripts"))
+PY
+) 2>/dev/null || true
+
+  if [[ -n "$scripts_dir" && -d "$scripts_dir" ]]; then
+      VENV_BIN_PATH="$scripts_dir"
+  elif [[ -n "${CONDA_PREFIX:-}" && -d "${CONDA_PREFIX}/${VENV_BIN}" ]]; then
+      VENV_BIN_PATH="${CONDA_PREFIX}/${VENV_BIN}"
+  elif [[ -n "$fallback_prefix" && -d "${fallback_prefix}/${VENV_BIN}" ]]; then
+      VENV_BIN_PATH="${fallback_prefix}/${VENV_BIN}"
+  fi
+}
+
+find_cli_candidate() {
+    local base="$1"
+    shift || true
+    for candidate in "${base}${EXE_EXT}" "${base}.exe" "${base}.bat" "${base}-script.py" "$base"; do
+        if [[ -x "$candidate" ]]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
 
 # ----------------------------------------------------------------------
 # R / rpy2 environment helpers (enhanced)
@@ -775,6 +807,8 @@ EOF
             fi
         fi
 
+        resolve_python_scripts_path "$python_cmd" "$venv_path"
+
         print_info "Upgrading pip and preparing environment..."
         # Always use python -m pip to ensure correct Python version is used
         $python_cmd -m pip install --upgrade pip || print_warning "pip upgrade failed"
@@ -836,9 +870,10 @@ else:
         # External tools - use installed symfluence command with full path
         # (bash may have cached the wrapper path before pip created the venv CLI)
         cd "$symfluence_dir"
-        local venv_cli="${VENV_BIN_PATH}/symfluence"
-        if [[ ! -x "$venv_cli" ]]; then
-            print_error "CLI not found at expected path: $venv_cli"
+        local venv_cli_base="${VENV_BIN_PATH}/symfluence"
+        local venv_cli
+        if ! venv_cli=$(find_cli_candidate "$venv_cli_base"); then
+            print_error "CLI not found at expected path: ${venv_cli_base}${EXE_EXT}"
             exit 1
         fi
         print_info "Installing external tools..."
@@ -862,11 +897,9 @@ else:
     # Look for installed symfluence CLI in venv
     local symfluence_cli=""
 
-    if [[ -x "${symfluence_dir}/venv/${VENV_BIN}/symfluence" ]]; then
-        symfluence_cli="${symfluence_dir}/venv/${VENV_BIN}/symfluence"
+    if symfluence_cli=$(find_cli_candidate "${symfluence_dir}/venv/${VENV_BIN}/symfluence"); then
         print_info "Using venv CLI: ${symfluence_cli}"
-    elif [[ -x "${symfluence_dir}/.venv/${VENV_BIN}/symfluence" ]]; then
-        symfluence_cli="${symfluence_dir}/.venv/${VENV_BIN}/symfluence"
+    elif symfluence_cli=$(find_cli_candidate "${symfluence_dir}/.venv/${VENV_BIN}/symfluence"); then
         print_info "Using .venv CLI: ${symfluence_cli}"
     elif command -v symfluence >/dev/null 2>&1; then
         symfluence_cli="$(command -v symfluence)"
