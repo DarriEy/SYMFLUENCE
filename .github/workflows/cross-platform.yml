@@ -225,6 +225,9 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
+            # On Windows, remove GDAL from pyproject.toml BEFORE installing package
+            # to prevent pip from trying to build GDAL from source
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
           fi
           python -m pip install --upgrade pip
           # Install rich explicitly (required by CLI output)
@@ -247,8 +250,6 @@ jobs:
             # Windows: use conda Python directly, no venv
             export SYMFLUENCE_NO_VENV="true"
             export SYMFLUENCE_PYTHON="python"
-            # Remove GDAL from pyproject.toml - use conda GDAL instead
-            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           else
             # Linux/macOS: use setup-python's Python location
             if [[ -n "${pythonLocation:-}" ]]; then
@@ -527,6 +528,9 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
+            # On Windows, remove GDAL from pyproject.toml BEFORE installing package
+            # to prevent pip from trying to build GDAL from source
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
           fi
           python -m pip install --upgrade pip
           # Install rich explicitly (required by CLI output)
@@ -549,8 +553,6 @@ jobs:
             # Windows: use conda Python directly, no venv
             export SYMFLUENCE_NO_VENV="true"
             export SYMFLUENCE_PYTHON="python"
-            # Remove GDAL from pyproject.toml - use conda GDAL instead
-            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           else
             # Linux/macOS: use setup-python's Python location
             if [[ -n "${pythonLocation:-}" ]]; then
