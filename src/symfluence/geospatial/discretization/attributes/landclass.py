@@ -22,7 +22,11 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
     """
     # Determine default name based on method
     default_name = f"{discretizer.domain_name}_riverBasins_{discretizer.delineation_suffix}.shp"
-    if discretizer.config.get("DELINEATE_COASTAL_WATERSHEDS") == True:
+    delineate_coastal = discretizer._get_config_value(
+        lambda: discretizer.config.domain.delineation.delineate_coastal_watersheds,
+        default=False
+    )
+    if delineate_coastal:
         default_name = f"{discretizer.domain_name}_riverBasins__with_coastal.shp"
 
     gru_shapefile = discretizer._get_file_path(
@@ -36,7 +40,7 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         path_key="LAND_CLASS_PATH",
         name_key="LAND_CLASS_NAME",
         default_subpath="attributes/landclass",
-        default_name=f"domain_{discretizer.config.get('DOMAIN_NAME')}_land_classes.tif",
+        default_name=f"domain_{discretizer.domain_name}_land_classes.tif",
     )
     
     output_shapefile = discretizer._get_file_path(

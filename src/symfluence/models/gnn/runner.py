@@ -28,8 +28,31 @@ from .postprocessor import GNNPostprocessor
 
 @ModelRegistry.register_runner('GNN', method_name='run_gnn')
 class GNNRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
-    """
-    Runner for the Spatio-Temporal GNN Hydrological Model.
+    """Runner for the Spatio-Temporal GNN Hydrological Model.
+
+    Orchestrates the complete GNN workflow: data loading, graph construction,
+    model training or loading, and forward simulation. Handles GPU/CPU device
+    selection and manages model checkpoints.
+
+    The runner expects a distributed domain (not lumped) and issues a warning
+    if lumped mode is detected, as GNN requires spatial structure to function.
+
+    Workflow:
+        1. Load forcing data (precipitation, temperature) and observations
+        2. Load river network graph and construct adjacency matrix
+        3. Preprocess and normalize data into PyTorch tensors
+        4. Train model on historical data (or load pre-trained model)
+        5. Run forward simulation to generate streamflow predictions
+        6. Post-process results and save to output directory
+
+    Attributes:
+        device: torch.device (cuda if available, else cpu)
+        preprocessor: GNNPreprocessor for data loading and normalization
+        postprocessor: GNNPostprocessor for result formatting
+        model: GNNModel instance (None until initialized)
+        hru_ids: List of HRU identifiers in model
+        outlet_indices: List of node indices at watersheds outlets
+        outlet_hru_ids: List of HRU IDs at outlets (for output mapping)
     """
 
     def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
@@ -68,7 +91,33 @@ class GNNRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
         return "GNN"
 
     def run_gnn(self):
-        """Run the complete GNN model workflow."""
+        """Run the complete GNN model workflow.
+
+        Main orchestration method that coordinates data loading, preprocessing,
+        model training/loading, and forward simulation. Wrapped with error
+        handling to catch and report GNN-specific execution issues.
+
+        Workflow:
+            1. Load forcing data and observations from preprocessed files
+            2. Load river network adjacency matrix (defines watershed connectivity)
+            3. Decide: train new model vs. load pre-trained (GNN_LOAD config)
+            4. Train: Run training loop with validation on 80/20 split
+            5. Simulate: Generate forward predictions for full time period
+            6. Save: Post-process and save results to NetCDF
+
+        Configuration Dependencies:
+            GNN_USE_SNOW (bool): Include snow cover as model input
+            GNN_LOAD (bool): Load pre-trained model from checkpoint
+            GNN_HIDDEN_SIZE (int): LSTM hidden dimension
+            GNN_OUTPUT_SIZE (int): GNN layer output dimension
+            GNN_EPOCHS (int): Training epochs
+            GNN_BATCH_SIZE (int): Training batch size
+            GNN_LEARNING_RATE (float): Adam optimizer learning rate
+            GNN_DROPOUT (float): Dropout rate for regularization
+
+        Raises:
+            ModelExecutionError: If any step fails (data loading, training, simulation)
+        """
         self.logger.info("Starting GNN model run")
 
         with symfluence_error_handler(
@@ -169,10 +218,40 @@ class GNNRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
         ).to(self.device)
 
     def _train_model(self, X: torch.Tensor, y: torch.Tensor, epochs: int, batch_size: int, learning_rate: float):
-        """
-        Train the GNN model.
-        X: (B, T, N, F)
-        y: (B, N, O) - Target streamflow at outlets (others may be 0/masked)
+        """Train the GNN model with adaptive masking for outlet nodes.
+
+        This training routine handles the key challenge: observational data only
+        exists at watershed outlets, not at internal nodes. The solution is to
+        create a "mask" that isolates loss computation to observed outlet locations.
+
+        Without masking, the model would learn to predict zero flow at unobserved
+        internal nodes, which is physically wrong (water must exist internally even
+        if not observed). The mask prevents this by down-weighting or ignoring
+        internal node predictions during loss computation.
+
+        Training Details:
+            - 80/20 train/validation split of temporal dimension
+            - Batch size should be small (16-32) because graph operations are memory-intensive
+            - AdamW optimizer with gradient clipping to prevent exploding gradients
+            - Loss computed only on observed (outlet) nodes via masking
+            - Validation every epoch for early stopping heuristics
+
+        Masking Strategy:
+            If outlet_indices are known: Create one-hot mask on those nodes
+            Otherwise: Infer from data variance (nodes with non-zero activity)
+
+        Args:
+            X: Training input tensor (Batch, Time, Nodes, Features).
+                Batch dimension is random times from full dataset.
+            y: Training target tensor (Batch, Nodes, Outputs).
+                Only outlet nodes have meaningful values; internal nodes are zero.
+            epochs: Number of training passes over the data
+            batch_size: Number of time steps per batch (small due to graph structure)
+            learning_rate: Adam optimizer learning rate (typically 0.001-0.01)
+
+        Side Effects:
+            - Updates self.model in-place via backpropagation
+            - Logs epoch-wise training and validation loss
         """
         self.logger.info(f"Training GNN with {epochs} epochs, batch_size: {batch_size}")
         
@@ -264,7 +343,37 @@ class GNNRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
                 )
 
     def _simulate(self, X: torch.Tensor, common_dates: pd.DatetimeIndex, hru_ids: List[int]) -> pd.DataFrame:
-        """Run full simulation."""
+        """Run full forward simulation and return streamflow time series.
+
+        Applies the trained model to generate streamflow predictions for the
+        entire period (training + evaluation + forecast). Handles:
+        - Batch processing for memory efficiency
+        - Inverse scaling to convert predictions back to physical units
+        - Multi-index DataFrame construction for time and HRU dimensions
+
+        Why Separate Simulation from Training?
+            Training uses a subset of data for computational efficiency. Simulation
+            applies the model to the full time period to generate output for analysis,
+            evaluation, and forecasting.
+
+        Args:
+            X: Full input tensor (Time_steps, Nodes, Features).
+                Normalized by feature scaler used during training.
+            common_dates: DatetimeIndex of valid times (length = X.shape[0] - lookback)
+                The lookback period is excluded because the LSTM needs historical
+                context to make its first prediction.
+            hru_ids: List of HRU identifiers corresponding to node indices.
+
+        Returns:
+            pd.DataFrame: Multi-indexed results with shape (Time_steps, Nodes).
+                Index: MultiIndex(time, hruId)
+                Column: 'predicted_streamflow' in physical units (mm or m^3/s)
+
+        Note:
+            - Predictions are inverse-scaled using preprocessor.target_scaler
+            - Batch size=50 for memory efficiency on large watersheds
+            - Operates in eval mode with torch.no_grad() to disable gradients
+        """
         self.logger.info("Running GNN simulation")
         self.model.eval()
         

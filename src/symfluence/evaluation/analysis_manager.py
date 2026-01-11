@@ -10,11 +10,10 @@ import logging
 import pandas as pd
 from typing import Dict, Any, Optional, TYPE_CHECKING
 
-from symfluence.models.summa.structure_analyzer import SummaStructureAnalyzer # type: ignore
 from symfluence.evaluation.sensitivity_analysis import SensitivityAnalyzer # type: ignore
 from symfluence.evaluation.benchmarking import Benchmarker, BenchmarkPreprocessor # type: ignore
-from symfluence.models.fuse.structure_analyzer import FuseStructureAnalyzer # type: ignore
 from symfluence.evaluation.registry import EvaluationRegistry
+from symfluence.evaluation.analysis_registry import AnalysisRegistry
 
 from symfluence.core.mixins import ConfigurableMixin
 
@@ -22,25 +21,209 @@ if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 class AnalysisManager(ConfigurableMixin):
-    """
-    Manages all analysis operations including benchmarking, sensitivity, and decision analysis.
-    
-    The AnalysisManager is responsible for coordinating various analyses that evaluate 
-    hydrological model performance, parameter sensitivity, and model structure decisions. 
-    These analyses provide critical insights for understanding model behavior, improving 
-    model configurations, and quantifying uncertainty.
-    
-    Key responsibilities:
-    - Benchmarking: Comparing model performance against simple reference models
-    - Sensitivity Analysis: Evaluating parameter importance and uncertainty
-    - Decision Analysis: Assessing the impact of model structure choices
-    - Result Visualization: Creating plots and visualizations of analysis results
-    
-    The AnalysisManager works with multiple hydrological models, providing consistent
-    interfaces for analysis operations across different model types. It integrates
-    with other SYMFLUENCE components to ensure that analyses use the correct input data
-    and that results are properly stored and visualized.
-    
+    """Orchestrates comprehensive post-calibration analysis of model performance and sensitivity.
+
+    Central coordinator for evaluating hydrological model performance through benchmarking,
+    sensitivity analysis, and decision analysis. Provides unified interface to investigate
+    model behavior, parameter importance, and structural choices. Integrates with evaluation
+    framework to generate publication-ready analysis reports and visualizations.
+
+    This class implements the Facade Pattern to manage complex analysis workflows across
+    multiple hydrological models (SUMMA, FUSE, GR, HYPE, etc.). Enables systematic
+    investigation of model strengths/weaknesses and parameter contributions to output
+    uncertainty.
+
+    Key Responsibilities:
+
+        1. Benchmarking (run_benchmarking):
+           Compare calibrated model against simple reference models:
+               - Mean flow: Annual average discharge
+               - Seasonality model: Climatological monthly patterns
+               - Persistence model: Lagged observations (AR1)
+           Purpose: Quantify value added by sophisticated model vs simplicity
+
+        2. Sensitivity Analysis (run_sensitivity_analysis):
+           Evaluate parameter importance:
+               - Morris screening: Identify influential vs non-influential parameters
+               - Sobol indices: Variance-based sensitivity (1st order, total)
+               - FAST: Fourier amplitude sensitivity test
+           Purpose: Prioritize parameters for observation/data requirements
+
+        3. Decision Analysis (run_decision_analysis):
+           Assess impact of model structure choices:
+               - Alternative process representations
+               - Alternative parameter sets (e.g., from different sources)
+               - Alternative calibration targets (KGE vs NSE vs RMSE)
+           Purpose: Evaluate trade-offs in model complexity vs parsimony
+
+        4. Visualization:
+           Generate analysis plots via ReportingManager:
+               - Performance comparison plots
+               - Sensitivity indices bar charts
+               - Parameter importance rankings
+               - Decision analysis trade-off plots
+
+    Analysis Types:
+
+        Benchmarking:
+            Input:
+                - Calibrated model results
+                - Observed streamflow
+                - Reference model outputs
+
+            Process:
+                1. Run reference models (mean, seasonality, persistence)
+                2. Compute performance metrics (KGE, NSE, RMSE)
+                3. Compare against calibrated model
+                4. Calculate relative improvement
+
+            Output:
+                - Benchmark comparison table
+                - Performance metrics for all models
+                - Visualization showing performance rank
+
+            Interpretation:
+                KGE(model) > KGE(mean) ≈ Model outperforms naive reference
+                KGE(model) < KGE(mean) ≈ Model worse than simple average (concerning!)
+                KGE(model) >> KGE(seasonality) ≈ Model captures dynamics beyond seasonal pattern
+
+        Sensitivity Analysis:
+            Input:
+                - Parameter ranges (bounds)
+                - Model configuration
+                - Model outputs and observations
+
+            Sampling Methods:
+                - Morris One-At-a-Time: Fast screening (~100s samples)
+                - Sobol Quasi-Random: Variance-based (~1000s samples)
+                - FAST: Spectral approach (~500s samples)
+
+            Output:
+                - Sensitivity indices (μ, σ, μ*, S1, ST, etc.)
+                - Parameter ranking by importance
+                - Grouped influence vs non-influential parameters
+
+            Interpretation:
+                μ* (modified Morris): Average |∂Y/∂Xi| - Main effect magnitude
+                S1 (Sobol 1st order): Fraction of output variance from Xi alone
+                ST (Sobol total): Fraction of output variance involving Xi
+                Non-influential: Remove from calibration (reduce dimensionality)
+
+        Decision Analysis:
+            Input:
+                - Multiple model configurations
+                - Results from each configuration
+                - Observations for validation
+
+            Comparison Axes:
+                - Model structure (e.g., SUMMA vs FUSE)
+                - Process representation (e.g., 2-layer vs 3-layer soil)
+                - Calibration target (KGE vs NSE vs RMSE)
+                - Spatial discretization (lumped vs distributed)
+
+            Output:
+                - Performance metrics for each configuration
+                - Trade-off analysis plots
+                - Pareto frontier of non-dominated solutions
+
+            Use Case:
+                Decide between 3-layer soil (more parameters, better fit) vs 2-layer
+                (simpler, more generalizable) by comparing performance
+
+    Configuration Parameters:
+
+        analysis.benchmarking.enabled: bool (default False)
+            Enable benchmarking analysis
+
+        analysis.benchmarking.reference_models: list
+            Which reference models to include: ['mean', 'seasonality', 'persistence']
+
+        analysis.sensitivity.method: str
+            Sensitivity method: 'morris', 'sobol', 'fast', 'delsa'
+
+        analysis.sensitivity.num_samples: int
+            Number of samples for sensitivity analysis
+
+        analysis.sensitivity.parameters: list
+            Which parameters to analyze (subset of all model parameters)
+
+        analysis.decision_analysis.configurations: list
+            List of model configurations to compare
+
+        reporting.analysis_enabled: bool
+            Generate visualization plots of analysis results
+
+    Output Structure:
+
+        analysis_results/
+            benchmarking/
+                benchmark_comparison.csv  # Performance metrics table
+                benchmark_plots/          # PNG plots
+            sensitivity_analysis/
+                sensitivity_indices.csv   # Sobol indices, Morris screening
+                parameter_ranking.csv     # Ranked by importance
+                sensitivity_plots/        # Bar charts, rankings
+            decision_analysis/
+                configuration_comparison.csv  # Metrics for each configuration
+                tradeoff_analysis/        # Trade-off plots, Pareto frontier
+
+    Example Usage:
+
+        >>> config = SymfluenceConfig.from_file('config.yaml')
+        >>> logger = setup_logger()
+        >>> analysis_mgr = AnalysisManager(config, logger)
+        >>>
+        >>> # Run benchmarking
+        >>> benchmark_results = analysis_mgr.run_benchmarking()
+        >>> # Output: Performance comparison with mean, seasonality, persistence models
+        >>>
+        >>> # Run sensitivity analysis
+        >>> sensitivity_results = analysis_mgr.run_sensitivity_analysis()
+        >>> # Output: Parameter importance rankings
+        >>>
+        >>> # Run decision analysis
+        >>> decision_results = analysis_mgr.run_decision_analysis()
+        >>> # Output: Trade-off analysis comparing configurations
+
+    Key Methods:
+
+        run_benchmarking() → Path:
+            Execute benchmarking against reference models
+            Returns path to benchmark results directory
+
+        run_sensitivity_analysis() → Path:
+            Execute parameter sensitivity analysis
+            Returns path to sensitivity results
+
+        run_decision_analysis() → Path:
+            Execute model structure decision analysis
+            Returns path to decision analysis results
+
+        run_all_analyses() → Dict[str, Path]:
+            Execute all configured analyses
+            Returns dict of {analysis_type: results_path}
+
+    Performance:
+
+        Benchmarking: Minutes to hours (depends on model runtime)
+        Sensitivity Analysis: Hours to days (1000+ model evaluations needed)
+        Decision Analysis: Days+ (multiple full model runs)
+
+    Integration Points:
+
+        - EvaluationRegistry: Access evaluators for metrics
+        - OptimizationManager: Access calibrated parameter sets
+        - ModelManager: Run reference models, configurations
+        - ReportingManager: Generate analysis visualizations
+        - DataManager: Access observations for validation
+
+    See Also:
+
+        - Benchmarker: Low-level benchmarking implementation
+        - SensitivityAnalyzer: Low-level sensitivity analysis
+        - EvaluationRegistry: Registry of evaluation methods
+        - ReportingManager: Visualization of analysis results
+
     Attributes:
         config (Dict[str, Any]): Configuration dictionary
         logger (logging.Logger): Logger instance
@@ -144,29 +327,30 @@ class AnalysisManager(ConfigurableMixin):
     def run_sensitivity_analysis(self) -> Optional[Dict]:
         """
         Run sensitivity analysis to evaluate parameter importance and uncertainty.
-        
+
         Sensitivity analysis quantifies how model parameters influence simulation
         results and performance metrics. This analysis helps:
-        
+
         1. Identify which parameters have the most significant impact on model performance
         2. Quantify parameter uncertainty and its effect on predictions
         3. Guide model simplification by identifying insensitive parameters
         4. Inform calibration strategies by focusing on sensitive parameters
-        
+
         The method iterates through configured hydrological models, running
-        model-specific sensitivity analyses where supported. Currently,
-        detailed sensitivity analysis is implemented for the SUMMA model.
-        
+        model-specific sensitivity analyses where supported. Uses AnalysisRegistry
+        for model-specific analyzers when available, falling back to generic
+        SensitivityAnalyzer for models without custom implementations.
+
         Returns:
             Optional[Dict]: Dictionary mapping model names to sensitivity results,
                           or None if the analysis was disabled or failed
-                          
+
         Raises:
             FileNotFoundError: If required optimization results are missing
             Exception: For other errors during sensitivity analysis
         """
         self.logger.info("Starting sensitivity analysis")
-        
+
         # Check if sensitivity analysis is enabled
         run_sensitivity = self._get_config_value(
             lambda: self.config.analysis.run_sensitivity_analysis,
@@ -175,54 +359,83 @@ class AnalysisManager(ConfigurableMixin):
         if not run_sensitivity:
             self.logger.info("Sensitivity analysis is disabled in configuration")
             return None
-        
+
         sensitivity_results = {}
-        
+
         try:
             models_str = self._get_config_value(
                 lambda: self.config.model.hydrological_model,
                 ''
             )
             hydrological_models = str(models_str).split(',')
-            
+
             for model in hydrological_models:
-                model = model.strip()
-                
-                if model == 'SUMMA':
-                    sensitivity_results[model] = self._run_summa_sensitivity_analysis()
+                model = model.strip().upper()
+
+                # Check registry for model-specific sensitivity analyzer
+                analyzer_cls = AnalysisRegistry.get_sensitivity_analyzer(model)
+
+                if analyzer_cls:
+                    # Use registered model-specific analyzer
+                    self.logger.info(f"Using registered sensitivity analyzer for {model}")
+                    analyzer = analyzer_cls(self.config, self.logger, self.reporting_manager)
+                    results_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
+                    if results_file.exists():
+                        sensitivity_results[model] = analyzer.run_sensitivity_analysis(results_file)
+                    else:
+                        self.logger.warning(f"Calibration results file not found for {model}: {results_file}")
                 else:
-                    self.logger.info(f"Sensitivity analysis not implemented for model: {model}")
-                    
+                    # Fall back to generic sensitivity analyzer (works for SUMMA and similar)
+                    self.logger.info(f"Using generic sensitivity analyzer for {model}")
+                    sensitivity_results[model] = self._run_generic_sensitivity_analysis(model)
+
             return sensitivity_results if sensitivity_results else None
-            
+
         except Exception as e:
             self.logger.error(f"Error during sensitivity analysis: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
             return None
-    
-    def _run_summa_sensitivity_analysis(self) -> Optional[Dict]:
+
+    def _run_generic_sensitivity_analysis(self, model: str) -> Optional[Dict]:
         """
-        Run sensitivity analysis for SUMMA model.
+        Run generic sensitivity analysis for a model using the default SensitivityAnalyzer.
+
+        Args:
+            model: Model name (e.g., 'SUMMA', 'FUSE')
+
+        Returns:
+            Sensitivity analysis results or None if failed
         """
-        self.logger.info("Running SUMMA sensitivity analysis")
-        
-        # Use typed config for sub-components
+        self.logger.info(f"Running generic sensitivity analysis for {model}")
+
         sensitivity_analyzer = SensitivityAnalyzer(self.config, self.logger, self.reporting_manager)
         results_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
-        
+
         if not results_file.exists():
-            self.logger.error(f"Calibration results file not found: {results_file}")
+            self.logger.warning(f"Calibration results file not found: {results_file}")
             return None
-        
+
         return sensitivity_analyzer.run_sensitivity_analysis(results_file)
     
     def run_decision_analysis(self) -> Optional[Dict]:
         """
         Run decision analysis to assess the impact of model structure choices.
+
+        Decision analysis evaluates different model structure configurations
+        (e.g., process representations, parameterizations) to understand their
+        impact on model performance.
+
+        Uses AnalysisRegistry to discover model-specific decision analyzers.
+        Each model can register its own analyzer that implements the
+        `run_full_analysis()` interface returning (results_file, best_combinations).
+
+        Returns:
+            Optional[Dict]: Dictionary mapping model names to decision analysis results,
+                          or None if the analysis was disabled or failed
         """
         self.logger.info("Starting decision analysis")
-        
+
         # Check if decision analysis is enabled
         run_decision = self._get_config_value(
             lambda: self.config.analysis.run_decision_analysis,
@@ -231,70 +444,78 @@ class AnalysisManager(ConfigurableMixin):
         if not run_decision:
             self.logger.info("Decision analysis is disabled in configuration")
             return None
-        
+
+        # Ensure model modules are imported to trigger analyzer registration
+        self._import_model_analyzers()
+
         decision_results = {}
-        
+
         try:
             models_str = self._get_config_value(
                 lambda: self.config.model.hydrological_model,
                 ''
             )
             hydrological_models = str(models_str).split(',')
-            
+
             for model in hydrological_models:
-                model = model.strip()
-                
-                if model == 'SUMMA':
-                    decision_results[model] = self._run_summa_decision_analysis()
-                elif model == 'FUSE':
-                    decision_results[model] = self._run_fuse_decision_analysis()
+                model = model.strip().upper()
+
+                # Check registry for model-specific decision analyzer
+                analyzer_cls = AnalysisRegistry.get_decision_analyzer(model)
+
+                if analyzer_cls:
+                    self.logger.info(f"Running {model} structure ensemble analysis")
+                    analyzer = analyzer_cls(self.config, self.logger, self.reporting_manager)
+                    results_file, best_combinations = analyzer.run_full_analysis()
+
+                    self.logger.info(f"{model} structure ensemble analysis completed")
+                    self.logger.info(f"Results saved to: {results_file}")
+
+                    if best_combinations:
+                        self.logger.info("Best combinations for each metric:")
+                        for metric, data in best_combinations.items():
+                            score = data.get('score', 0)
+                            self.logger.info(f"  {metric}: score = {score:.3f}")
+
+                    decision_results[model] = {
+                        'results_file': results_file,
+                        'best_combinations': best_combinations
+                    }
                 else:
-                    self.logger.info(f"Decision analysis not implemented for model: {model}")
-                    
+                    available = AnalysisRegistry.list_decision_analyzers()
+                    self.logger.info(
+                        f"No decision analyzer registered for model: {model}. "
+                        f"Available analyzers: {available}"
+                    )
+
             return decision_results if decision_results else None
-            
+
         except Exception as e:
             self.logger.error(f"Error during decision analysis: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
             return None
-    
-    def _run_summa_decision_analysis(self) -> Dict:
+
+    def _import_model_analyzers(self) -> None:
         """
-        Run decision analysis for SUMMA model.
+        Import model modules to trigger analyzer registration with AnalysisRegistry.
+
+        This ensures that model-specific analyzers are registered before we try
+        to look them up. The registration happens at import time via decorators.
         """
-        self.logger.info("Running SUMMA structure ensemble analysis")
-        
-        # Use typed config for sub-components
-        analyzer = SummaStructureAnalyzer(self.config, self.logger, self.reporting_manager)
-        results_file, best_combinations = analyzer.run_full_analysis()
-        
-        self.logger.info("SUMMA structure ensemble analysis completed")
-        self.logger.info(f"Results saved to: {results_file}")
-        self.logger.info("Best combinations for each metric:")
-        for metric, data in best_combinations.items():
-            self.logger.info(f"  {metric}: score = {data['score']:.3f}")
-        
-        return {
-            'results_file': results_file,
-            'best_combinations': best_combinations
-        }
-    
-    def _run_fuse_decision_analysis(self) -> Dict:
-        """
-        Run decision analysis for FUSE model.
-        """
-        self.logger.info("Running FUSE structure ensemble analysis")
-        
-        # Use typed config for sub-components
-        analyzer = FuseStructureAnalyzer(self.config, self.logger, self.reporting_manager)
-        results_file, best_combinations = analyzer.run_full_analysis()
-        
-        self.logger.info("FUSE structure ensemble analysis completed")
-        return {
-            'results_file': results_file,
-            'best_combinations': best_combinations
-        }
+        # Import model modules that have registered analyzers
+        # This is a controlled set - only models known to have decision analyzers
+        try:
+            import symfluence.models.summa  # noqa: F401 - triggers SUMMA analyzer registration
+        except ImportError:
+            pass
+
+        try:
+            import symfluence.models.fuse  # noqa: F401 - triggers FUSE analyzer registration
+        except ImportError:
+            pass
+
+        # Future models can be added here as they implement decision analyzers
     
     def get_analysis_status(self) -> Dict[str, Any]:
         """

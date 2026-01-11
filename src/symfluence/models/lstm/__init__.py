@@ -28,3 +28,6 @@ __all__ = [
     'FlashPreprocessor',
     'FlashPostprocessor'
 ]
+
+# Register plotter with PlotterRegistry (import triggers registration via decorator)
+from .plotter import LSTMPlotter  # noqa: F401

@@ -23,3 +23,12 @@ __all__ = [
     'NgenConfigGenerator',
     'visualize_ngen'
 ]
+
+# Register build instructions (lightweight, no heavy deps)
+try:
+    from . import build_instructions  # noqa: F401
+except ImportError:
+    pass  # Build instructions optional
+
+# Register plotter with PlotterRegistry (import triggers registration via decorator)
+from .plotter import NGENPlotter  # noqa: F401

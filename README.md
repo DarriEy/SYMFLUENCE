@@ -68,7 +68,7 @@ cd SYMFLUENCE
 ```
 
 This creates a clean Python 3.11 virtual environment, installs dependencies, and builds binaries.
-For detailed instructions (ARC, FIR, Anvil, custom builds), see [INSTALL.md](INSTALL.md).
+For detailed instructions (ARC, FIR, Anvil, custom builds), see the [installation guide](https://symfluence.readthedocs.io/en/latest/installation.html).
 
 ### System Requirements
 
@@ -82,27 +82,39 @@ For detailed instructions (ARC, FIR, Anvil, custom builds), see [INSTALL.md](INS
 ### Basic CLI Usage
 ```bash
 # Show options
-./symfluence --help
+symfluence --help
 
-# Run default workflow
-./symfluence
+# Run full workflow
+symfluence workflow run --config my_config.yaml
 
 # Run specific steps
-./symfluence --setup_project --calibrate_model
+symfluence workflow steps setup_project calibrate_model
 
 # Define domain from pour point
-./symfluence --pour_point 51.1722/-115.5717 --domain_def delineate
+symfluence project pour-point 51.1722/-115.5717 --domain-name MyDomain --definition delineate
 
-# Preview workflow
-./symfluence --dry_run
+# Check workflow status
+symfluence workflow status
+
+# Validate configuration
+symfluence config validate --config my_config.yaml
 ```
 
 ### First Project
 ```bash
+# Initialize project from template
+symfluence project init
+
+# Or copy template manually
 cp src/symfluence/resources/config_templates/config_template.yaml my_project.yaml
-./symfluence --config my_project.yaml --setup_project
-./symfluence --config my_project.yaml
+
+# Run setup
+symfluence workflow step setup_project --config my_project.yaml
+
+# Run full workflow
+symfluence workflow run --config my_project.yaml
 ```
+
 ---
 
 ## Python API
@@ -133,18 +145,22 @@ See [`src/symfluence/resources/config_templates/config_template.yaml`](src/symfl
 ## Project Structure
 ```
 SYMFLUENCE/
-├── SYMFLUENCE.py         # Main entry point
-├── symfluence            # Shell wrapper
-├── utils/                # Core framework modules
-│   ├── project/
-│   ├── geospatial/
-│   ├── models/
-│   ├── optimization/
-│   └── evaluation/
-├── 0_config_files/       # Configuration templates
-├── examples/             # Example workflows
-├── docs/                 # Documentation
-└── installs/             # Auto-generated tool installs
+├── src/symfluence/           # Main Python package
+│   ├── core/                 # Core system, configuration, mixins
+│   ├── cli/                  # Command-line interface
+│   ├── project/              # Project and workflow management
+│   ├── data/                 # Data acquisition and preprocessing
+│   ├── geospatial/           # Domain discretization and geofabric
+│   ├── models/               # Model integrations (SUMMA, FUSE, GR4J, etc.)
+│   ├── optimization/         # Calibration algorithms (DDS, DE, PSO, NSGA-II)
+│   ├── evaluation/           # Performance metrics and evaluation
+│   ├── reporting/            # Visualization and plotting
+│   └── resources/            # Configuration templates and base settings
+├── examples/                 # Progressive tutorial examples
+├── docs/                     # Sphinx documentation source
+├── scripts/                  # Build and release scripts
+├── tools/                    # NPM packaging and utilities
+└── tests/                    # Unit, integration, and E2E tests
 ```
 
 ---

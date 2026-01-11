@@ -30,10 +30,10 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
     )
     
     dem_raster = discretizer._get_file_path(
-        path_key="DEM_PATH", 
+        path_key="DEM_PATH",
         name_key="DEM_NAME",
-        default_subpath="attributes/elevation/dem", 
-        default_name=f"domain_{discretizer.config.get('DOMAIN_NAME')}_elv.tif"
+        default_subpath="attributes/elevation/dem",
+        default_name=f"domain_{discretizer.domain_name}_elv.tif"
     )
     
     radiation_raster = discretizer._get_file_path(
@@ -50,7 +50,10 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         default_name=f"{discretizer.domain_name}_HRUs_radiation.shp",
     )
 
-    radiation_class_number = int(discretizer.config.get("RADIATION_CLASS_NUMBER"))
+    radiation_class_number = int(discretizer._get_config_value(
+        lambda: discretizer.config.domain.radiation_class_number,
+        default=1
+    ))
 
     if not radiation_raster.exists():
         discretizer.logger.info(

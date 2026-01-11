@@ -12,21 +12,96 @@ from typing import Dict, Any, List, Tuple, Optional
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
 
 class DDSOptimizer(BaseOptimizer):
-    """
-    Dynamically Dimensioned Search (DDS) Optimizer for SYMFLUENCE
+    """Dynamically Dimensioned Search (DDS) Optimizer for SYMFLUENCE.
+
+    DDS is a greedy, single-solution search algorithm that adapts its search
+    neighborhood based on the remaining function evaluation budget. Early in the
+    search, it perturbs many dimensions to explore globally; later it focuses on
+    fewer dimensions for local refinement.
+
+    Algorithm Overview:
+        DDS solves: maximize score (or minimize error)
+        1. Start with initial parameter set
+        2. For each iteration:
+           a. Calculate probability of perturbing each dimension
+              prob_select = 1 - log(iter) / log(max_iterations)
+              (decreases from ~1.0 to ~1/num_params as iterations progress)
+           b. For each dimension, perturb with probability prob_select
+              perturbation ~ Normal(0, dds_r) where dds_r is step size
+              Apply reflective boundary to keep in [0,1]
+           c. Evaluate new solution
+           d. Accept if better (greedy), else revert
+        3. Track best solution found so far
+
+    Why DDS Works Well for Calibration:
+        - Trades global exploration for local refinement dynamically
+        - Early iterations explore widely (high prob_select)
+        - Later iterations refine promising region (low prob_select)
+        - Single solution is memory-efficient for high-dimensional problems
+        - Guaranteed to make progress (greedy acceptance)
+        - No stochastic population, highly reproducible
+
+    Key Features:
+        - Efficient for high-dimensional problems with limited evaluations
+        - Automatic adaptation of search intensity
+        - Optional multi-start parallel execution for improved robustness
+        - Greedy (hill-climbing) acceptance strategy
+        - Reflective boundary handling for parameter bounds
+
+    Configuration Parameters:
+        DDS_R: Step size for perturbations (default: 0.2)
+               Controls magnitude of random changes
+               Typical range: 0.1-0.5
+               Larger values = more aggressive exploration
+        NUMBER_OF_ITERATIONS: Total budget of function evaluations
+        MPI_PROCESSES: For multi-start parallel execution (> 1 uses parallel)
+
+    Parallel Mode (Multi-Start DDS):
+        When MPI_PROCESSES > 1:
+        - Divides iterations equally among parallel processes
+        - Each process runs independent DDS from different random starting point
+        - Returns best solution found across all starts
+        - Improves robustness for noisy objectives
+
+    Workflow:
+        1. Initialize single solution from initial parameters
+        2. If parallel: spawn multiple DDS instances, each from different start
+        3. If serial: run single DDS until max_iterations
+        4. Return best parameters found
+
+    References:
+        Tolson, B.A. and C.A. Shoemaker (2007), Dynamically dimensioned search
+        algorithm for computationally efficient watershed model calibration,
+        Water Resources Research, 43, W01413.
     """
     
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+        """Initialize DDS optimizer.
+
+        Args:
+            config: Configuration dictionary with DDS_R and optimization parameters
+            logger: Logger instance
+        """
         super().__init__(config, logger)
-        self.dds_r = config.get('DDS_R', 0.2)
+        self.dds_r = self._cfg(
+            'DDS_R', default=0.2,
+            typed=lambda: self._config.optimization.dds.r if self._config and self._config.optimization.dds else None
+        )
         self.population = None
         self.population_scores = None
-    
+
     def get_algorithm_name(self) -> str:
+        """Return algorithm name."""
         return "DDS"
-    
+
     def _run_algorithm(self) -> Tuple[Dict, float, List]:
-        """Run DDS algorithm with optional multi-start parallel support"""
+        """Run DDS algorithm with optional multi-start parallel support.
+
+        Dispatches to either single or parallel DDS based on MPI_PROCESSES.
+
+        Returns:
+            Tuple of (best_params, best_score, iteration_history)
+        """
         initial_params = self.parameter_manager.get_initial_parameters()
         self._initialize_dds(initial_params)
         
@@ -57,7 +132,39 @@ class DDSOptimizer(BaseOptimizer):
         self._record_generation(0)
     
     def _run_single_dds(self) -> Tuple[Dict, float, List]:
-        """Run single-instance DDS algorithm"""
+        """Run single-instance DDS algorithm (main optimization loop).
+
+        Core DDS algorithm that:
+        1. Starts with current solution (from initialization)
+        2. For each iteration:
+           - Calculate adaptive probability: prob_select = 1 - log(iter)/log(max_iter)
+           - Probabilistically select dimensions to perturb
+           - Perturb selected dimensions using Gaussian noise
+           - Apply reflective boundary to enforce [0,1] bounds
+           - Evaluate new trial solution
+           - Accept if score improves, else stay with current solution
+           - Track best and current solutions separately
+        3. Return best solution found
+
+        Adaptive Probability (key innovation):
+            - Iteration 1: prob_select ≈ 1.0 (perturb many dimensions, global search)
+            - Mid iterations: prob_select ≈ 0.5 (balanced exploration/refinement)
+            - Final iterations: prob_select ≈ 0.1-0.3 (refine few dimensions locally)
+            This automatic adaptation requires no parameter tuning!
+
+        Perturbation Strategy:
+            - perturbation ~ Normal(0, dds_r)
+            - Reflective boundary: if x < 0, use -x; if x > 1, use 2-x
+            - Ensures parameters stay in valid [0,1] range
+
+        Side Effects:
+            - Updates self.population[0] if trial improves
+            - Updates self.best_params and self.best_score if trial beats best
+            - Appends iteration records to self.iteration_history
+
+        Returns:
+            Tuple of (best_params, best_score, iteration_history)
+        """
         current_solution = self.population[0].copy()
         current_score = self.population_scores[0]
         num_params = len(self.parameter_manager.all_param_names)
@@ -101,18 +208,18 @@ class DDSOptimizer(BaseOptimizer):
         """Multi-start parallel DDS"""
         num_starts = self.num_processes
         iterations_per_start = max(1, self.max_iterations // num_starts)
-        
+
         initial_params = self.parameter_manager.get_initial_parameters()
         base_normalized = self.parameter_manager.normalize_parameters(initial_params)
         param_count = len(self.parameter_manager.all_param_names)
-        
+
         dds_tasks = []
         for start_id in range(num_starts):
             if start_id == 0: starting_solution = base_normalized.copy()
             else:
                 noise = np.random.normal(0, 0.15, param_count)
                 starting_solution = np.clip(base_normalized + noise, 0, 1)
-            
+
             task = {
                 'start_id': start_id,
                 'starting_solution': starting_solution,
@@ -123,19 +230,45 @@ class DDSOptimizer(BaseOptimizer):
                 'evaluation_id': f"multi_dds_{start_id:02d}"
             }
             dds_tasks.append(task)
-        
-        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        from concurrent.futures import ProcessPoolExecutor, as_completed, BrokenProcessPool
         from symfluence.optimization.workers.summa_parallel_workers import _run_dds_instance_worker
-        
+
         results = []
-        with ProcessPoolExecutor(max_workers=min(len(dds_tasks), self.num_processes)) as executor:
-            future_to_task = {executor.submit(_run_dds_instance_worker, self._prepare_dds_worker_data(task)): task for task in dds_tasks}
-            for future in as_completed(future_to_task):
-                results.append(future.result())
-        
+        try:
+            with ProcessPoolExecutor(max_workers=min(len(dds_tasks), self.num_processes)) as executor:
+                try:
+                    future_to_task = {executor.submit(_run_dds_instance_worker, self._prepare_dds_worker_data(task)): task for task in dds_tasks}
+                    for future in as_completed(future_to_task):
+                        results.append(future.result())
+                except BrokenProcessPool as e:
+                    self.logger.warning(f"Process pool was broken during multi-start DDS: {str(e)}. Falling back to sequential execution.")
+                    # Fallback to sequential execution
+                    for task in dds_tasks:
+                        try:
+                            result = _run_dds_instance_worker(self._prepare_dds_worker_data(task))
+                            results.append(result)
+                        except Exception as task_error:
+                            self.logger.error(f"Error in sequential fallback for task {task.get('start_id')}: {str(task_error)}")
+                            results.append({'best_score': None, 'best_params': None})
+        except Exception as e:
+            self.logger.error(f"Critical error in multi-start parallel DDS: {str(e)}")
+            # Fallback to sequential execution
+            for task in dds_tasks:
+                try:
+                    result = _run_dds_instance_worker(self._prepare_dds_worker_data(task))
+                    results.append(result)
+                except Exception as task_error:
+                    self.logger.error(f"Error in sequential fallback for task {task.get('start_id')}: {str(task_error)}")
+                    results.append({'best_score': None, 'best_params': None})
+
         valid_results = [r for r in results if r.get('best_score') is not None]
+        if not valid_results:
+            self.logger.error("No valid results from multi-start parallel DDS")
+            return self.best_params, self.best_score, self.iteration_history
+
         best_result = max(valid_results, key=lambda x: x['best_score'])
-        
+
         self.best_score = best_result['best_score']
         self.best_params = best_result['best_params']
         return self.best_params, self.best_score, self.iteration_history
@@ -147,7 +280,7 @@ class DDSOptimizer(BaseOptimizer):
         # This ensures the metrics calculation looks for files where SUMMA actually writes them
         fallback_summa_dir = self.output_dir
         fallback_mizuroute_dir = self.output_dir / "mizuRoute"
-        summa_fm_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        summa_fm_name = self._cfg('SETTINGS_SUMMA_FILEMANAGER', default='fileManager.txt')
         return {
             # Use config_dict for worker compatibility (workers expect dict.get())
             'dds_task': task, 'config': self.config_dict, 'target_metric': self.target_metric,

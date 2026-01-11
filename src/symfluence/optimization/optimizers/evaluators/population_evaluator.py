@@ -187,17 +187,17 @@ class PopulationEvaluator:
         from symfluence.optimization.workers.base_worker import WorkerTask
 
         params = self.task_builder.param_manager.denormalize_parameters(normalized_params)
-        dirs = self.task_builder.parallel_dirs.get(proc_id, {})
-
-        task = WorkerTask(
+        
+        # Use TaskBuilder to ensure all model-specific paths (like mizuroute_settings_dir)
+        # are correctly included in the task.
+        task_data = self.task_builder.build_task(
             individual_id=0,
             params=params,
             proc_id=proc_id,
-            config=self.task_builder.config,
-            settings_dir=dirs.get('settings_dir', self.task_builder.optimization_settings_dir),
-            output_dir=dirs.get('sim_dir', self.task_builder.default_sim_dir),
-            sim_dir=dirs.get('sim_dir', self.task_builder.default_sim_dir),
+            evaluation_id="single_eval"
         )
+        
+        task = WorkerTask.from_legacy_dict(task_data)
 
         result = self.worker.evaluate(task)
         return result.score if result.score is not None else self.DEFAULT_PENALTY_SCORE

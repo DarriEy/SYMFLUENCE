@@ -338,8 +338,33 @@ class SMAPAcquirer(BaseAcquisitionHandler):
 
 @AcquisitionRegistry.register('ISMN')
 class ISMNAcquirer(BaseAcquisitionHandler):
-    """
-    Acquires ISMN soil moisture data via an API or metadata URL.
+    """Acquires ISMN (International Soil Moisture Network) soil moisture data.
+
+    ISMN provides in-situ soil moisture observations from global networks.
+    This handler downloads data via an HTTP API that supports:
+    - Station metadata discovery (network name, location, data availability)
+    - Data filtering by spatial (bbox, radius) and temporal ranges
+    - Multi-depth measurements (0.05m, 0.2m, 0.5m, etc.)
+    - Multiple soil moisture variable types
+
+    Configuration Parameters:
+        ISMN_API_BASE: Base URL for ISMN API (default: https://ismn.earth/dataviewer)
+        ISMN_METADATA_URL: URL for station metadata (JSON or CSV)
+        ISMN_USERNAME/PASSWORD: Authentication credentials (or via netrc)
+        ISMN_SEARCH_RADIUS_KM: Limit stations within radius of bbox center
+        ISMN_MAX_STATIONS: Maximum number of stations to download (default: 3)
+
+    Workflow:
+        1. Load all available ISMN station metadata
+        2. Filter to stations within bounding box (or search radius)
+        3. For each selected station, fetch variable list for date range
+        4. Download soil moisture data for each depth/sensor combination
+        5. Store as CSV files with station_slug_depth_ID.csv naming
+
+    Auth Strategy:
+        - Check config ISMN_USERNAME/ISMN_PASSWORD
+        - Fall back to ISMN_USERNAME/ISMN_PASSWORD environment variables
+        - Fall back to netrc credentials matching ISMN API host
     """
 
     def download(self, output_dir: Path) -> Path:
@@ -446,6 +471,26 @@ class ISMNAcquirer(BaseAcquisitionHandler):
         return output_dir
 
     def _resolve_auth(self, url: str):
+        """Resolve authentication credentials from multiple sources.
+
+        Tries three strategies in order:
+        1. Configuration dict (ISMN_USERNAME, ISMN_PASSWORD)
+        2. Environment variables (ISMN_USERNAME, ISMN_PASSWORD)
+        3. netrc file (using hostname from URL)
+
+        The netrc approach allows storing credentials in ~/.netrc without
+        setting environment variables, which is useful for shared systems.
+
+        Args:
+            url: URL to authenticate against (hostname extracted for netrc lookup)
+
+        Returns:
+            Tuple of (username, password) or None if no credentials found
+
+        Note:
+            netrc parsing may fail if .netrc doesn't exist or has permission issues.
+            Silently returns None on any exception (non-fatal fallback).
+        """
         user = self.config.get("ISMN_USERNAME") or os.environ.get("ISMN_USERNAME")
         password = self.config.get("ISMN_PASSWORD") or os.environ.get("ISMN_PASSWORD")
         if user and password:
@@ -553,6 +598,33 @@ class ISMNAcquirer(BaseAcquisitionHandler):
         return pd.DataFrame(records)
 
     def _select_stations(self, stations: pd.DataFrame) -> pd.DataFrame:
+        """Select and rank stations based on spatial/temporal coverage and proximity.
+
+        Implements a multi-step filtering strategy:
+        1. **Spatial filter**: Keep stations within bounding box
+        2. **Fallback**: If no stations in bbox, use all stations (then rank by distance)
+        3. **Temporal filter**: If date range provided, keep only overlapping stations
+        4. **Fallback**: If no overlap, use all stations with any data
+        5. **Distance ranking**: Compute Haversine distance to bbox center
+        6. **Radius filter**: If configured, keep only stations within search radius
+        7. **Top N selection**: Return closest N stations (default: 3)
+
+        This multi-step approach is robust to incomplete metadata (missing dates)
+        and prioritizes local stations when available.
+
+        Args:
+            stations: DataFrame with columns: station_id, latitude, longitude,
+                     and optionally: network, start_date, end_date
+
+        Returns:
+            pd.DataFrame: Filtered and ranked stations, up to ISMN_MAX_STATIONS entries
+
+        Algorithm Details:
+            - Fallback logic: If bbox filter returns empty, all stations are retained
+              and ranked by distance instead (useful for data-sparse regions)
+            - Distance calculation: Haversine formula in kilometers
+            - Search radius: Can be used to limit to nearest neighbors only
+        """
         lat_min, lat_max = sorted([self.bbox["lat_min"], self.bbox["lat_max"]])
         lon_min, lon_max = sorted([self.bbox["lon_min"], self.bbox["lon_max"]])
 
@@ -641,6 +713,34 @@ class ISMNAcquirer(BaseAcquisitionHandler):
             return None
 
     def _haversine_km(self, lat_series, lon_series, lat0, lon0):
+        """Calculate great-circle distance using Haversine formula.
+
+        Computes the shortest distance between points on Earth's surface,
+        accounting for spherical geometry. Uses Earth's mean radius (6371 km).
+
+        This is preferred over Euclidean distance for geographic coordinates
+        because Earth is approximately spherical. Haversine is accurate even
+        for short distances (<1 km) unlike some approximations.
+
+        The formula is numerically stable and avoids the tan(θ/2) singularity
+        of similar methods.
+
+        Args:
+            lat_series: Numpy array or pandas Series of latitudes (degrees)
+            lon_series: Numpy array or pandas Series of longitudes (degrees)
+            lat0: Reference latitude (degrees) - scalar
+            lon0: Reference longitude (degrees) - scalar
+
+        Returns:
+            np.ndarray: Distances in kilometers between each (lat, lon) pair
+                       and the reference point (lat0, lon0)
+
+        Note:
+            Formula:
+                a = sin²(Δlat/2) + cos(lat1)·cos(lat2)·sin²(Δlon/2)
+                c = 2·arcsin(√a)
+                d = R·c  (R = Earth's radius)
+        """
         lat1 = np.radians(lat_series.astype(float))
         lon1 = np.radians(lon_series.astype(float))
         lat2 = np.radians(float(lat0))

@@ -14,7 +14,7 @@ from shapely.geometry import Polygon
 
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
-from symfluence.data.utilities import VariableStandardizer
+from symfluence.data.utils import VariableStandardizer
 
 
 @DatasetRegistry.register("conus404")
@@ -55,12 +55,134 @@ class CONUS404Handler(BaseDatasetHandler):
 
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """
-        Process CONUS404 dataset:
-          - rename core meteorological variables
-          - detect SW/LW/precip fields from typical HyTEST/WRF names
-          - convert precip flux/rrate to pptrate [m s-1]
-          - derive wind speed from U10/V10
-          - standardize attributes
+        Process CONUS404 WRF reanalysis with flexible variable detection and unit conversions.
+
+        Transforms raw CONUS404 data from HyTEST catalog into SUMMA-compatible format.
+        Handles multiple variable name conventions (accumulated vs instantaneous), derives
+        wind speed, converts units, and cleans NetCDF attributes.
+
+        Args:
+            ds: Raw CONUS404 xarray Dataset with potential variables:
+                Core meteorology:
+                    - T2: 2m air temperature (K)
+                    - Q2: 2m specific humidity (kg/kg)
+                    - PSFC: Surface pressure (Pa)
+                    - U10: U-component wind at 10m (m/s)
+                    - V10: V-component wind at 10m (m/s)
+
+                Radiation (accumulated OR instantaneous):
+                    - ACSWDNB: Accumulated downward shortwave (W/m²)
+                    - SWDOWN: Instantaneous downward shortwave (W/m²)
+                    - ACLWDNB: Accumulated downward longwave (W/m²)
+                    - LWDOWN: Instantaneous downward longwave (W/m²)
+                    - GLW: Alias for longwave (W/m²)
+
+                Precipitation (multiple formats):
+                    - PREC_ACC_NC: Accumulated non-convective precipitation (mm)
+                    - RAINRATE: Instantaneous rain rate (mm/s or kg/m²/s)
+                    - PRATE: Precipitation rate (mm/s)
+                    - ACDRIPR: Accumulated driving rain (mm)
+
+        Returns:
+            Processed xarray Dataset with SUMMA-compatible variables:
+                - airtemp: Air temperature (K)
+                - spechum: Specific humidity (kg/kg)
+                - airpres: Surface pressure (Pa)
+                - SWRadAtm: Shortwave radiation (W/m²)
+                - LWRadAtm: Longwave radiation (W/m²)
+                - pptrate: Precipitation rate (mm/s)
+                - windspd: Wind speed magnitude (m/s)
+
+        Processing Steps:
+            1. **Core Variable Renaming**: T2/Q2/PSFC/U10/V10 → standard names
+            2. **Shortwave Detection & Conversion**:
+               - Priority: ACSWDNB (accumulated) → flux via _convert_accumulated_to_flux()
+               - Fallback: SWDOWN (instantaneous) → use directly
+            3. **Longwave Detection & Conversion**:
+               - Priority: ACLWDNB (accumulated) → flux conversion
+               - Fallback: LWDOWN or GLW (instantaneous)
+            4. **Precipitation Detection & Conversion**:
+               - Priority order: PREC_ACC_NC, RAINRATE, PRATE, ACDRIPR
+               - Accumulated vars → rate conversion
+               - Instantaneous vars → direct use or unit conversion
+            5. **Wind Speed Derivation**: windspd = sqrt(U10² + V10²)
+            6. **Attribute Cleaning**: Remove conflicting NetCDF attributes
+
+        Variable Detection Strategy:
+            Uses flexible fallback logic to handle different CONUS404 versions:
+            1. Check for accumulated variables first (ACSWDNB, ACLWDNB, PREC_ACC_NC)
+            2. If accumulated: convert to flux/rate using timestep
+            3. If not found: check for instantaneous equivalents
+            4. If neither: skip variable (not critical for all models)
+
+        Accumulated-to-Flux Conversion:
+            For radiation (SW/LW):
+                - Accumulated W/m² over timestep dt
+                - Conversion: flux = accumulated_value / dt
+                - Result units: W/m² (average flux over period)
+
+            For precipitation:
+                - Accumulated mm over timestep dt (seconds)
+                - Conversion: rate = accumulated_mm / dt
+                - Result units: mm/s
+
+        Wind Speed Derivation:
+            Magnitude from WRF wind components:
+            windspd = sqrt(U10² + V10²)
+
+            Where:
+                U10 = eastward wind component (m/s)
+                V10 = northward wind component (m/s)
+
+            Attributes set:
+                units: 'm s-1'
+                long_name: 'wind speed'
+                standard_name: 'wind_speed'
+
+        Precipitation Handling:
+            Multiple CONUS404 precipitation formats handled:
+
+            1. PREC_ACC_NC (accumulated non-convective):
+               - Convert to rate: accum_mm / timestep_s
+               - Units: mm → mm/s
+
+            2. RAINRATE (instantaneous):
+               - May be mm/s or kg/m²/s
+               - Convert kg/m²/s to mm/s if needed
+
+            3. PRATE (rate):
+               - Typically already in mm/s
+               - Use directly or convert units
+
+            4. ACDRIPR (accumulated driving rain):
+               - Convert to rate: accum_mm / timestep_s
+
+        WRF Curvilinear Coordinates:
+            - CONUS404 uses curvilinear lat/lon (2D arrays)
+            - Coordinates preserved from HyTEST download
+            - Projection: Lambert Conformal Conic
+            - Grid spacing: ~4 km
+
+        Example:
+            >>> ds = xr.open_dataset('CONUS404_2015-2016.nc')
+            >>> handler = CONUS404Handler(config, logger, project_dir)
+            >>> ds_processed = handler.process_dataset(ds)
+            >>> print(ds_processed.data_vars)
+            # Variables: airtemp, spechum, airpres, SWRadAtm, LWRadAtm, pptrate, windspd
+            >>> print(ds_processed['SWRadAtm'].attrs)
+            # {'units': 'W m-2', 'long_name': 'downward shortwave radiation'}
+
+        Notes:
+            - Variable availability depends on HyTEST catalog version
+            - Fallback logic ensures robustness to catalog changes
+            - Radiation variables require accumulation period knowledge
+            - Precipitation unit consistency critical for water balance
+            - U10/V10 components retained alongside derived windspd
+
+        See Also:
+            - _convert_accumulated_to_flux(): Accumulation-to-flux conversion helper
+            - data.utils.VariableStandardizer: Centralized variable mapping
+            - data.preprocessing.dataset_handlers.base_dataset: Base handler
         """
         # --- Core met variables using VariableStandardizer ---
         standardizer = VariableStandardizer(self.logger)

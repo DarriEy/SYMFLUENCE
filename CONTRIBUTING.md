@@ -96,15 +96,56 @@ git push origin develop
 
 ### Code Style
 - Follow **PEP 8** and use clear, descriptive variable names.
-- Include **type hints** and short, informative **docstrings**.
+- Include **type hints** and informative **docstrings**.
 - Keep functions focused and testable.
+- Prefer explicit over implicit; avoid magic numbers.
 
-Example:
+### Docstring Conventions
+We use NumPy-style docstrings for consistency. Include:
+- A one-line summary
+- Extended description for complex functions
+- Args/Parameters, Returns, Raises sections
+- Examples for public APIs
+
 ```python
 def calculate_runoff(precip: float, area: float) -> float:
-    """Compute runoff (m³/s) from precipitation rate and catchment area."""
-    return (precip / 1000) * area * 1000 / 3600
+    """
+    Compute runoff from precipitation rate and catchment area.
+
+    Converts precipitation depth rate to volumetric flow rate using
+    standard hydrological unit conversions.
+
+    Args:
+        precip: Precipitation rate in mm/hour
+        area: Catchment area in km²
+
+    Returns:
+        Runoff in m³/s (cubic meters per second)
+
+    Example:
+        >>> calculate_runoff(10.0, 100.0)
+        277.78
+    """
+    return (precip / 1000) * area * 1e6 / 3600
 ```
+
+### Running Tests
+Before submitting a PR, ensure tests pass:
+
+```bash
+# Run quick tests (recommended before each commit)
+pytest tests/ -m "not slow and not requires_cloud" -x
+
+# Run full local test suite
+pytest tests/ -m "not requires_cloud"
+
+# Run specific test categories
+pytest tests/unit/          # Unit tests only
+pytest tests/integration/   # Integration tests
+pytest tests/e2e/ --run-full-examples  # End-to-end tests (slow)
+```
+
+See `tests/TESTING.md` for detailed testing documentation.
 
 ### Commit Messages
 Use concise, descriptive messages:

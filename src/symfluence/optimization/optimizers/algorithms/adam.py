@@ -1,16 +1,24 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""
-Adam Gradient-Based Optimization Algorithm
+"""Adam Gradient-Based Optimization Algorithm.
 
-Uses finite difference gradient computation for derivative-free optimization.
-Adam is particularly effective for smooth optimization landscapes and can
-converge faster than population-based methods in some cases.
+ADAM (Adaptive Moment Estimation) is a gradient-based optimizer that uses
+finite-difference gradients and adaptive learning rates. It combines first-moment
+(momentum) and second-moment (RMSprop) estimation for efficient convergence.
 
-Reference:
+Useful for hydrological model calibration when:
+- Objective function is relatively smooth (limited noise)
+- Parameter space is not highly multi-modal
+- Gradient computation via finite differences is feasible
+- Number of function evaluations is limited
+
+Note: Uses central finite differences for gradient computation, making it
+derivative-free but requiring ~2N function evaluations per iteration (N = n_params).
+
+References:
     Kingma, D.P. and Ba, J. (2015). Adam: A Method for Stochastic Optimization.
-    ICLR 2015.
+    In Proceedings of the 3rd International Conference on Learning Representations (ICLR).
 """
 
 from typing import Dict, Any, Callable, Optional, Tuple
@@ -20,7 +28,37 @@ from .base_algorithm import OptimizationAlgorithm
 
 
 class AdamAlgorithm(OptimizationAlgorithm):
-    """Adam gradient-based optimization algorithm using finite differences."""
+    """Adam gradient-based optimization using finite-difference gradients.
+
+    ADAM maintains first and second moment estimates of the gradient:
+    - m = exponential moving average of gradients (momentum)
+    - v = exponential moving average of squared gradients (adaptive learning rate)
+    - Uses bias correction to account for initialization bias
+
+    Algorithm Overview:
+        1. Initialize parameters at normalized space midpoint (0.5)
+        2. For each step:
+           a. Compute finite-difference gradients (central differences)
+           b. Update first moment: m ← β1*m + (1-β1)*∇f
+           c. Update second moment: v ← β2*v + (1-β2)*∇f²
+           d. Bias correct: m̂ = m / (1 - β1^t), v̂ = v / (1 - β2^t)
+           e. Update parameters: x ← x + α * m̂ / (√v̂ + ε)
+           f. Clip to [0,1] bounds
+        3. Return best solution found
+
+    Gradient Computation:
+        Uses central finite differences: ∇f_i = (f(x+ε*e_i) - f(x-ε*e_i)) / (2ε)
+        - e_i: unit vector in dimension i
+        - ε: perturbation size (typically 1e-4)
+        - Cost: 2*n_params function evaluations per step
+
+    Hyperparameters:
+        - α (lr): Learning rate (default: 0.01)
+        - β1: First moment decay (default: 0.9)
+        - β2: Second moment decay (default: 0.999)
+        - ε: Numerical stability (default: 1e-8)
+        - steps: Maximum iterations (default: uses max_iterations)
+    """
 
     @property
     def name(self) -> str:
@@ -38,21 +76,34 @@ class AdamAlgorithm(OptimizationAlgorithm):
         evaluate_population_objectives: Optional[Callable] = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        Run Adam optimization with finite difference gradients.
+        """Run ADAM optimization with finite-difference gradients.
+
+        Initializes parameters at normalized space midpoint and iteratively
+        improves using adaptive moment estimation and gradient ascent.
 
         Args:
-            n_params: Number of parameters
-            evaluate_solution: Callback to evaluate a single solution
-            evaluate_population: Callback to evaluate a population
-            denormalize_params: Callback to denormalize parameters
-            record_iteration: Callback to record iteration
-            update_best: Callback to update best solution
-            log_progress: Callback to log progress
-            **kwargs: Additional parameters (steps, lr, beta1, beta2)
+            n_params: Number of parameters to optimize
+            evaluate_solution: Function to evaluate single parameter vector
+                              Call: score = evaluate_solution(x_normalized, step_id)
+            evaluate_population: Function to evaluate population
+                                (unused in ADAM, single-solution method)
+            denormalize_params: Function to convert normalized [0,1] to actual parameters
+            record_iteration: Function to record iteration results
+            update_best: Function to update best solution found
+            log_progress: Function to log progress messages
+            evaluate_population_objectives: Unused for ADAM
+            **kwargs: Optional hyperparameters:
+                     - steps: Number of iterations (default: max_iterations from config)
+                     - lr: Learning rate (default: 0.01)
+                     - beta1: First moment decay (default: 0.9)
+                     - beta2: Second moment decay (default: 0.999)
+                     - eps: Numerical stability constant (default: 1e-8)
 
         Returns:
-            Optimization results dictionary
+            Dict with keys:
+            - best_solution: Best parameter vector found (normalized [0,1])
+            - best_score: Highest objective value achieved
+            - best_params: Denormalized best parameters (dictionary)
         """
         # Adam hyperparameters from config or kwargs
         steps = kwargs.get('steps', self.config.get('ADAM_STEPS', self.max_iterations))
@@ -126,16 +177,34 @@ class AdamAlgorithm(OptimizationAlgorithm):
         evaluate_func: Callable,
         epsilon: float
     ) -> Tuple[float, np.ndarray]:
-        """
-        Compute gradients using central finite differences.
+        """Compute gradients using central finite differences.
+
+        Central finite difference formula (more accurate than forward/backward):
+            ∂f/∂x_i ≈ (f(x + ε*e_i) - f(x - ε*e_i)) / (2*ε)
+
+        where e_i is unit vector with 1 in dimension i and 0 elsewhere.
+
+        Procedure:
+            1. Evaluate fitness at current point (f_center)
+            2. For each parameter dimension:
+               a. Perturb +ε in that dimension
+               b. Evaluate fitness at perturbed point
+               c. Perturb -ε in that dimension
+               d. Evaluate fitness at perturbed point
+               e. Compute central difference
+            3. Return current fitness and gradient array
+
+        Cost: 2*n_params + 1 function evaluations
 
         Args:
-            x: Current parameter values (normalized)
-            evaluate_func: Function to evaluate fitness
-            epsilon: Perturbation size
+            x: Current parameter values (normalized [0,1])
+            evaluate_func: Function to evaluate fitness: f = evaluate_func(x, step_id)
+            epsilon: Perturbation size (typically 1e-4)
 
         Returns:
-            Tuple of (current fitness, gradient array)
+            Tuple of (f_center, gradient_array):
+            - f_center: Fitness at current point
+            - gradient_array: Approximate gradient (shape: n_params)
         """
         n_params = len(x)
         gradient = np.zeros(n_params)
@@ -160,7 +229,27 @@ class AdamAlgorithm(OptimizationAlgorithm):
         return f_center, gradient
 
     def _clip_gradient(self, gradient: np.ndarray, clip_value: float) -> np.ndarray:
-        """Clip gradient to prevent exploding gradients."""
+        """Clip gradient norm to prevent exploding gradients.
+
+        Gradient clipping prevents numerical instability when finite-difference
+        gradients become very large (e.g., near discontinuities or noise).
+
+        Algorithm:
+            1. Compute gradient norm: ||g|| = √(Σ g_i²)
+            2. If ||g|| > clip_value:
+                 g_clipped = g * (clip_value / ||g||)
+            3. Otherwise: g_clipped = g
+
+        This rescales the gradient vector to have maximum norm of clip_value,
+        preserving direction but reducing magnitude.
+
+        Args:
+            gradient: Gradient vector (shape: n_params)
+            clip_value: Maximum L2 norm allowed (typically 1.0)
+
+        Returns:
+            np.ndarray: Clipped gradient with ||g|| ≤ clip_value
+        """
         norm = np.linalg.norm(gradient)
         if norm > clip_value:
             gradient = gradient * (clip_value / norm)

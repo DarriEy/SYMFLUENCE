@@ -15,6 +15,267 @@ from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import DataAcquisitionError
 
 class ObservedDataProcessor:
+    """Process and standardize observed hydrological data from multiple global providers.
+
+    Central processor for observation data acquisition, unit conversion, temporal resampling,
+    and standardization. Handles diverse observation networks (USGS, WSC, SMHI, SNOTEL,
+    FLUXNET) with different formats, units, and temporal resolutions. Outputs SYMFLUENCE-
+    compatible CSV files for model calibration and evaluation.
+
+    This processor implements the Adapter Pattern to unify different observation provider
+    formats into a single standardized output. Provides both provider-specific handlers
+    and generic processing functions for common workflows.
+
+    Supported Observation Networks:
+
+        Streamflow (Discharge):
+            - USGS (USA): NWIS database
+            - WSC (Canada): Water Survey of Canada
+            - SMHI (Sweden): Swedish Meteorological and Hydrological Institute
+            - LAMAH-ICE (Iceland): Large-Sample data for Hydrology
+            - VI (Iceland): Veðurstofa Íslands (National Power Company)
+            - CARAVANS (Global): Multi-provider aggregated dataset
+
+        Snow Water Equivalent (SWE):
+            - SNOTEL (USA): Automated snow telemetry network
+            - MODIS (Global): Satellite snow cover from NASA
+
+        Evapotranspiration (ET):
+            - FLUXNET (Global): Eddy covariance flux towers
+            - MOD16 (Global): MODIS ET product
+            - GLEAM (Global): Global Land Evaporation Amsterdam Model
+            - FluxCOM (Global): Machine learning ET
+
+        Other Observations:
+            - Soil Moisture (SMAP, ISMN, ESACCI)
+            - Groundwater (GRACE)
+            - TWS (Total Water Storage)
+
+    Architecture:
+
+        1. Provider Router:
+           process_streamflow_data() → Routes to provider-specific handler
+           Detects provider from configuration and delegates
+
+        2. Provider-Specific Handlers:
+           _process_usgs_data(): NWIS format parsing
+           _process_wsc_data(): WSC format parsing
+           _process_smhi_data(): SMHI format parsing
+           _process_lamah_ice_data(): LAMAH-ICE format parsing
+           _process_vi_data(): Iceland VI format parsing
+           _process_caravans_data(): Global CARAVANS aggregated data
+
+        3. Generic Processors:
+           process_snotel_data(): SWE from SNOTEL
+           process_fluxnet_data(): ET from FLUXNET
+           _resample_and_save(): Temporal resampling
+
+        4. Unit Conversion:
+           Handles all common hydrological unit conversions
+           Tracks units through processing pipeline
+
+    Processing Workflow:
+
+        1. Data Input:
+           - Read from configured raw data path
+           - Handle multiple file formats (CSV, NetCDF, HDF5)
+           - Support provider-specific naming conventions
+
+        2. Parsing:
+           - Parse dates (multiple format support)
+           - Convert values to numeric (handle QA flags, errors)
+           - Extract metadata (station ID, location, etc.)
+
+        3. Format Detection:
+           - Identify provider-specific formats
+           - Handle column naming variations
+           - Detect temporal resolution (daily, hourly, subdaily)
+
+        4. Unit Conversion:
+           - Convert to standard units (m³/s for discharge, mm for SWE)
+           - Track source units for traceability
+           - Apply basin area for mm/d → m³/s conversions
+
+        5. Temporal Resampling:
+           - Resample to model forcing timestep
+           - Interpolate missing values (up to 30 consecutive periods)
+           - Handle time zone conversions
+
+        6. Quality Assurance:
+           - Flag missing/invalid values
+           - Log data gaps and outliers
+           - Validate time series continuity
+
+        7. Output:
+           - Save standardized CSV format
+           - Include metadata (provider, units, processing date)
+           - Create symlink to observations directory
+
+    Key Configuration Parameters:
+
+        STREAMFLOW_DATA_PROVIDER: str (required)
+            Provider name: 'USGS', 'WSC', 'SMHI', 'LAMAH_ICE', 'VI', 'CARAVANS'
+            Determines handler selection and format parsing
+
+        FORCING_TIME_STEP_SIZE: int (required)
+            Model timestep in seconds (e.g., 3600 for hourly, 86400 for daily)
+            Used for temporal resampling
+
+        DOMAIN_NAME: str (required)
+            Basin/domain identifier (e.g., 'site_01', 'bow_at_banff')
+            Used for file naming and metadata
+
+        STREAMFLOW_RAW_PATH: Path (optional)
+            Directory containing raw observation files
+            Default: observations/streamflow/raw_data/
+
+        STREAMFLOW_PROCESSED_PATH: Path (optional)
+            Output directory for processed observations
+            Default: observations/streamflow/processed/
+
+        STREAMFLOW_RAW_NAME: str (optional)
+            Raw file name or pattern
+            Default: {domain_name}_streamflow_raw.csv
+
+        SNOTEL_STATION: str (optional)
+            SNOTEL station ID for SWE extraction
+
+        FLUXNET_STATION: str (optional)
+            FLUXNET site code for ET extraction
+
+    Unit Conversions Handled:
+
+        Streamflow:
+            - m³/s (cubic meters per second) - Standard SI unit
+            - cfs (cubic feet per second) - USGS default
+                * Factor: 1 cfs = 0.028316847 m³/s
+            - mm/d (millimeters per day) - Catchment-averaged
+                * Conversion: (mm/d × basin_area_km2 × 1e6) / 86400
+            - L/s (liters per second)
+                * Factor: 1 L/s = 0.001 m³/s
+
+        Precipitation/SWE:
+            - mm (millimeters) - Standard
+            - inches - SNOTEL default
+                * Factor: 1 inch = 25.4 mm
+            - cm (centimeters)
+                * Factor: 1 cm = 10 mm
+
+        Evapotranspiration:
+            - kg m⁻² s⁻¹ (standard hydrological units)
+            - mm/d (millimeters per day)
+                * Factor: 1 kg m⁻² s⁻¹ = 86.4 mm/d
+
+    Output Format:
+
+        Streamflow CSV (resampled):
+            datetime,discharge_cms
+            2015-01-01 00:00:00,45.3
+            2015-01-01 01:00:00,42.1
+            ...
+            Columns: datetime (ISO 8601), discharge_cms (m³/s)
+
+        SNOTEL CSV:
+            Date,SWE_mm
+            2015-01-01,150.2
+            2015-01-02,148.5
+            ...
+            Columns: Date (YYYY-MM-DD), SWE_mm
+
+        FLUXNET CSV:
+            datetime,ET_kg_m2_s
+            2015-01-01 00:00:00,0.0001234
+            ...
+            Columns: datetime, ET in kg m⁻² s⁻¹
+
+    Error Handling:
+
+        Missing Data:
+            - Logs warnings for gaps
+            - Interpolates up to 30 consecutive missing periods
+            - Beyond 30 periods: Leaves as NaN
+
+        Invalid Values:
+            - Attempts multiple date parsing formats
+            - Coerces non-numeric to NaN with warning
+            - Logs suspicious outliers (> 3σ from mean)
+
+        Provider-Specific:
+            - Falls back to m³/s if unit detection fails
+            - Handles QA flags (USGS codes, etc.)
+            - Gracefully skips malformed rows
+
+        Critical Failures:
+            - Raises DataAcquisitionError if file not found
+            - Raises if no valid data rows after parsing
+            - Raises if temporal resampling fails
+
+    Example Usage:
+
+        >>> config = {
+        ...     'STREAMFLOW_DATA_PROVIDER': 'USGS',
+        ...     'FORCING_TIME_STEP_SIZE': 86400,  # Daily
+        ...     'DOMAIN_NAME': 'bow_at_banff',
+        ...     'SYMFLUENCE_DATA_DIR': '/data/project'
+        ... }
+        >>> logger = setup_logger()
+        >>> processor = ObservedDataProcessor(config, logger)
+        >>>
+        >>> # Process streamflow
+        >>> processor.process_streamflow_data()
+        >>> # Output: observations/streamflow/processed/bow_at_banff_streamflow.csv
+        >>>
+        >>> # Process SNOTEL SWE
+        >>> processor.process_snotel_data()
+        >>> # Output: observations/snow/processed/{domain}_swe.csv
+        >>>
+        >>> # Process FLUXNET ET
+        >>> processor.process_fluxnet_data()
+        >>> # Output: observations/et/processed/{domain}_et.csv
+
+    Performance:
+
+        - Typical processing: 1-5 seconds per observation file
+        - Memory: ~100-500 MB for multi-year hourly data
+        - Bottleneck: Date parsing and unit conversion for large files
+
+    References:
+
+        - NWIS: https://waterdata.usgs.gov/
+        - Water Survey of Canada: https://www.canada.ca/en/services/environment/water/index.html
+        - SNOTEL: https://www.wcc.nrcs.usda.gov/snow/
+        - FLUXNET: https://fluxnet.org/
+        - Unit Conversion: https://www.usgs.gov/faqs/what-conversion-factor-between-millimeters-and-cubic-feet
+
+    See Also:
+
+        - AcquisitionService: High-level data acquisition orchestration
+        - ObservationRegistry: Provider registry system
+        - Unit Conversion: UnitConversion constants
+        - DataManager: Data workflow coordination
+
+    Example:
+        >>> config = {
+        ...     'STREAMFLOW_DATA_PROVIDER': 'USGS',
+        ...     'FORCING_TIME_STEP_SIZE': 3600,  # Hourly
+        ...     'DOMAIN_NAME': 'bow_river',
+        ...     'SYMFLUENCE_DATA_DIR': './data'
+        ... }
+        >>> processor = ObservedDataProcessor(config, logger)
+        >>> processor.process_streamflow_data()
+        # Processes USGS data and saves to:
+        # ./data/domain_bow_river/observations/streamflow/preprocessed/bow_river_streamflow_processed.csv
+
+    Notes:
+        - CARAVANS data requires shapefile for basin area (mm/d → m³/s conversion)
+        - Interpolation limited to 30 periods to avoid excessive extrapolation
+        - Timezone conversions applied to WSC data (UTC → local time)
+        - Multiple date format parsers attempt to handle diverse input formats
+
+    See Also:
+        - observation.base.BaseObservationHandler: Formalized handler interface
+        - observation.registry: Registry for observation handler plugins
+    """
     def __init__(self, config: Dict[str, Any], logger: Any):
         self.config = config
         self.logger = logger

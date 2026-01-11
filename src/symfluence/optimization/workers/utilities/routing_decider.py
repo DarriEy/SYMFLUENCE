@@ -108,12 +108,17 @@ class RoutingDecider:
             'checks': {}
         }
 
-        # 1. Explicit routing model check - if 'none', we definitely don't route
+        # 1. Explicit routing model check
         routing_model = config.get('ROUTING_MODEL', 'none').lower()
         diagnostics['checks']['routing_model'] = routing_model
+        
         if routing_model == 'none':
             diagnostics['reason'] = 'routing_model_is_none'
             return False, diagnostics
+            
+        if routing_model in ['mizuroute', 'mizu_route', 'mizu']:
+            diagnostics['reason'] = 'routing_model_is_mizuroute'
+            return True, diagnostics
 
         # 2. Spatial configuration check (The primary driver)
         domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped').lower()

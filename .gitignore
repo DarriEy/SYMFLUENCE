@@ -92,6 +92,12 @@ data/
 # Test data bundles
 tests/data/
 
+# Data files (NetCDF, HDF, etc.)
+default/*.nc
+default/*.hdf
+default/*.h5
+*.dat
+
 # Unit test / coverage reports
 htmlcov/
 .tox/

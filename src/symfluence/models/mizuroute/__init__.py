@@ -18,3 +18,9 @@ __all__ = [
     'MizuRouteRunner',
     'MizuRouteConfigMixin',
 ]
+
+# Register build instructions (lightweight, no heavy deps)
+try:
+    from . import build_instructions  # noqa: F401
+except ImportError:
+    pass  # Build instructions optional

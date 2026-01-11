@@ -74,7 +74,7 @@ Analyses (Optional)
 
    conf.run_benchmarking()       # analysis manager
    conf.run_decision_analysis()  # analysis manager
-   conf.run_sensitivity_analysis()# analysis manager
+   conf.run_sensitivity_analysis()  # analysis manager
 
 End-to-End Orchestration
 ------------------------
@@ -111,7 +111,7 @@ Adding a New Model
 ~~~~~~~~~~~~~~~~~~
 As of v0.5.6, SYMFLUENCE uses a **Model Registry** system. To add a new model:
 
-1. Create a new utility module in ``src/symfluence.models/``.
+1. Create a new utility module in ``src/symfluence/models/``.
 2. Use the ``ModelRegistry`` decorators to register your preprocessor, runner, and postprocessor classes:
 
    .. code-block:: python
@@ -133,14 +133,120 @@ As of v0.5.6, SYMFLUENCE uses a **Model Registry** system. To add a new model:
           def __init__(self, config, logger): ...
           def extract_streamflow(self): ...
 
-3. Import your module in ``src/symfluence.models/__init__.py`` to ensure registration.
+3. Import your module in ``src/symfluence/models/__init__.py`` to ensure registration.
 
 The ``ModelManager`` will then automatically support your model if it is listed in the ``HYDROLOGICAL_MODEL`` configuration parameter.
 
 Other Extensions
 ~~~~~~~~~~~~~~~~
-- **Optimization strategies:** Add new strategies under ``utils/optimization/`` and expose them via the ``OptimizationManager``.
-- **Analyses:** Create new analysis modules in ``utils/evaluation/`` and wire them into the orchestrated sequence in ``WorkflowOrchestrator``.
+- **Optimization strategies:** Add new strategies under ``src/symfluence/optimization/`` and expose them via the ``OptimizationManager``.
+- **Analyses:** Create new analysis modules in ``src/symfluence/evaluation/`` and wire them into the orchestrated sequence in ``WorkflowOrchestrator``.
+
+Core Classes
+------------
+
+SYMFLUENCE (Main Class)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: symfluence.core.system.SYMFLUENCE
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Manager Classes
+---------------
+
+Project Manager
+~~~~~~~~~~~~~~~
+
+.. automodule:: symfluence.project.project_manager
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Data Manager
+~~~~~~~~~~~~
+
+.. automodule:: symfluence.data.data_manager
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Model Manager
+~~~~~~~~~~~~~
+
+.. automodule:: symfluence.models.model_manager
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Workflow Orchestrator
+~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: symfluence.project.workflow_orchestrator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Model Registry
+--------------
+
+.. automodule:: symfluence.models.registry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Optimization
+------------
+
+Base Optimizer
+~~~~~~~~~~~~~~
+
+.. automodule:: symfluence.optimization.optimizers.base_model_optimizer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+DDS Optimizer
+~~~~~~~~~~~~~
+
+.. automodule:: symfluence.optimization.optimizers.dds_optimizer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Data Acquisition
+----------------
+
+Acquisition Service
+~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: symfluence.data.acquisition.acquisition_service
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Geospatial Operations
+---------------------
+
+Domain Discretization
+~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: symfluence.geospatial.discretization.core
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Evaluation
+----------
+
+Base Evaluator
+~~~~~~~~~~~~~~
+
+.. automodule:: symfluence.evaluation.evaluators.base
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 References
 ----------

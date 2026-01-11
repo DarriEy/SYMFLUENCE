@@ -16,17 +16,65 @@ from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 from .era5_cds import ERA5CDSAcquirer
 from .era5_processing import era5_to_summa_schema
+from symfluence.geospatial.coordinate_utils import BoundingBox, get_bbox_extent
 
-def has_cds_credentials():
-    """Check if CDS API credentials are available."""
+def has_cds_credentials() -> bool:
+    """
+    Check if CDS API credentials are available.
+
+    Checks for credentials in two locations:
+    1. ~/.cdsapirc file (standard CDS API configuration)
+    2. CDSAPI_KEY environment variable
+
+    Returns:
+        True if credentials are found, False otherwise
+
+    Note:
+        The .cdsapirc file should contain:
+        url: https://cds.climate.copernicus.eu/api/v2
+        key: <YOUR_UID>:<YOUR_API_KEY>
+    """
     return os.path.exists(os.path.expanduser('~/.cdsapirc')) or 'CDSAPI_KEY' in os.environ
 
 @AcquisitionRegistry.register('ERA5')
 class ERA5Acquirer(BaseAcquisitionHandler):
     """
-    Dispatcher for ERA5 data acquisition, choosing between ARCO (Zarr) and CDS (NetCDF) pathways.
+    Dispatcher for ERA5 reanalysis data acquisition.
+
+    Automatically selects between two acquisition pathways:
+    1. ARCO-ERA5 (Google Cloud Zarr): Faster, no queue, preferred for speed
+    2. CDS (ECMWF Climate Data Store): NetCDF download, uses CDS API queue
+
+    Pathway selection order:
+    - If ERA5_USE_CDS config/env is set, use that preference
+    - Otherwise auto-detect: ARCO if gcsfs is available, else CDS if credentials exist
+
+    Both pathways produce equivalent SUMMA-compatible forcing files with proper
+    unit conversions and variable standardization.
     """
     def download(self, output_dir: Path) -> Path:
+        """
+        Download ERA5 data using automatically selected pathway.
+
+        Selects between ARCO-ERA5 (Google Cloud) and CDS (ECMWF) based on:
+        1. Configuration: ERA5_USE_CDS or environment variable
+        2. Auto-detection: Prefer ARCO if gcsfs available, else CDS if credentials exist
+        3. Fallback: Try alternate pathway if selected one fails
+
+        Args:
+            output_dir: Directory to save downloaded ERA5 files
+
+        Returns:
+            Path to downloaded file (single file) or directory (multiple files)
+
+        Raises:
+            ImportError: If neither gcsfs nor CDS credentials are available
+            Exception: If both pathways fail
+
+        Note:
+            ARCO pathway is faster (no queue) but requires gcsfs.
+            CDS pathway requires ~/.cdsapirc credentials.
+        """
         # Default to ARCO if libraries available, falling back to CDS
 
         # Get ERA5_USE_CDS from typed config (supports both typed and dict config)
@@ -80,9 +128,50 @@ class ERA5Acquirer(BaseAcquisitionHandler):
 
 class ERA5ARCOAcquirer(BaseAcquisitionHandler):
     """
-    ERA5 data acquisition handler using the Google Cloud ARCO-ERA5 (Zarr) pathway.
+    ERA5 acquisition via Google Cloud ARCO-ERA5 (Analysis-Ready Cloud-Optimized).
+
+    Downloads ERA5 reanalysis data from the Google Cloud public bucket in Zarr
+    format. This pathway is typically faster than CDS as it doesn't require
+    queuing and supports efficient spatial/temporal subsetting.
+
+    Features:
+    - No authentication required (public bucket)
+    - Efficient cloud-native access via Zarr format
+    - Automatic longitude wrapping for domains crossing the antimeridian
+    - Parallel monthly chunk processing
+    - Automatic conversion to SUMMA-compatible format
     """
     def download(self, output_dir: Path) -> Path:
+        """
+        Download ERA5 from Google Cloud ARCO-ERA5 Zarr store.
+
+        Process:
+        1. Connect to Google Cloud public bucket (anonymous access)
+        2. Open ERA5 Zarr dataset with lazy loading
+        3. Subset spatially by bounding box (handles antimeridian crossing)
+        4. Subset temporally into monthly chunks
+        5. Optionally temporally subsample (e.g., every 3 hours)
+        6. Process chunks in parallel (if configured)
+        7. Convert to SUMMA-compatible format with unit conversions
+        8. Save as compressed NetCDF files
+
+        Args:
+            output_dir: Directory to save processed ERA5 NetCDF files
+
+        Returns:
+            Path to single output file (if one month) or output directory (if multiple months)
+
+        Raises:
+            ImportError: If gcsfs or required dependencies not installed
+            ValueError: If BOUNDING_BOX_COORDS not provided in configuration
+            Exception: If spatial bounding box results in empty selection
+
+        Note:
+            - Processes data in monthly chunks to manage memory
+            - Supports parallel processing for faster downloads
+            - Automatically handles longitude wrapping for domains crossing antimeridian
+            - Output files named: domain_{DOMAIN_NAME}_ERA5_merged_{YYYYMM}.nc
+        """
         self.logger.info("Downloading ERA5 data from Google Cloud ARCO-ERA5")
         domain_name = self.domain_name
 
@@ -102,11 +191,20 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
         ds = xr.open_zarr(mapper, consolidated=True, chunks={})
         ds = ds.assign_coords(longitude=ds.longitude.load(), latitude=ds.latitude.load(), time=ds.time.load())
 
-        raw_lon1, raw_lon2 = float(self.bbox["lon_min"]), float(self.bbox["lon_max"])
-        raw_lat1, raw_lat2 = float(self.bbox["lat_min"]), float(self.bbox["lat_max"])
-        lon_min_raw, lon_max_raw = sorted([raw_lon1, raw_lon2])
-        lon_min, lon_max = (lon_min_raw + 360) % 360 if lon_min_raw < 0 else lon_min_raw, (lon_max_raw + 360) % 360 if lon_max_raw < 0 else lon_max_raw
-        lat_min_raw, lat_max_raw = sorted([raw_lat1, raw_lat2])
+        if not self.bbox:
+            raise ValueError("BOUNDING_BOX_COORDS is required for ERA5 cloud access.")
+
+        bbox_info = _prepare_bbox_for_era5(ds, self.bbox, self.logger)
+        lat_min_raw = bbox_info["lat_min"]
+        lat_max_raw = bbox_info["lat_max"]
+        lon_min = bbox_info["lon_min"]
+        lon_max = bbox_info["lon_max"]
+        wrap_longitude = bbox_info["wrap_longitude"]
+        lat_descending = bbox_info["lat_descending"]
+        lon_min_value = bbox_info["lon_min_value"]
+        lon_max_value = bbox_info["lon_max_value"]
+        lat_res = bbox_info["lat_resolution"]
+        lon_res = bbox_info["lon_resolution"]
 
         step = self._get_config_value(
             lambda: self.config.forcing.era5.time_step_hours, default=1
@@ -149,15 +247,27 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
                 time_start = chunk_start if i == 1 else chunk_start - pd.Timedelta(hours=step)
                 ds_t = ds.sel(time=slice(time_start, chunk_end))
                 if "time" not in ds_t.dims or ds_t.sizes["time"] < 2: continue
-                ds_ts = ds_t.sel(latitude=slice(lat_max_raw, lat_min_raw), longitude=slice(lon_min, lon_max))
+                ds_ts = _subset_era5_bbox(
+                    ds_t,
+                    lat_min_raw,
+                    lat_max_raw,
+                    lon_min,
+                    lon_max,
+                    wrap_longitude,
+                    lat_descending,
+                    (lon_min_value, lon_max_value),
+                )
 
                 # Check for empty spatial dimensions (bounding box too small for grid resolution)
                 if "latitude" not in ds_ts.dims or "longitude" not in ds_ts.dims:
                     self.logger.warning(f"Chunk {i}: Missing spatial dimensions after bounding box selection")
                     continue
                 if ds_ts.sizes.get("latitude", 0) == 0 or ds_ts.sizes.get("longitude", 0) == 0:
-                    self.logger.warning(f"Chunk {i}: Empty spatial dimensions after bounding box selection. "
-                                       f"Bounding box may be too small for ERA5 resolution (0.25°)")
+                    self.logger.warning(
+                        f"Chunk {i}: Empty spatial dimensions after bounding box selection. "
+                        f"Verify BOUNDING_BOX_COORDS covers at least one ERA5 cell "
+                        f"(~{lat_res:.2f}° lat x {lon_res:.2f}° lon)."
+                    )
                     continue
 
                 if step > 1 and "time" in ds_ts.dims: ds_ts = ds_ts.isel(time=slice(0, None, step))
@@ -173,7 +283,25 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
         else:
             from concurrent.futures import ThreadPoolExecutor
             def process_chunk(i, chunk_start, chunk_end):
-                return _process_era5_chunk_threadsafe(i, (chunk_start, chunk_end), ds, available_vars, step, lat_min_raw, lat_max_raw, lon_min, lon_max, output_dir, domain_name, len(chunks), self.logger)
+                return _process_era5_chunk_threadsafe(
+                    i,
+                    (chunk_start, chunk_end),
+                    ds,
+                    available_vars,
+                    step,
+                    lat_min_raw,
+                    lat_max_raw,
+                    lon_min,
+                    lon_max,
+                    wrap_longitude,
+                    lat_descending,
+                    lon_min_value,
+                    lon_max_value,
+                    output_dir,
+                    domain_name,
+                    len(chunks),
+                    self.logger,
+                )
             with ThreadPoolExecutor(max_workers=n_workers) as ex:
                 futures = [ex.submit(process_chunk, i, *chunks[i-1]) for i in range(1, len(chunks)+1)]
                 for future in futures:
@@ -183,19 +311,85 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
         return output_dir if len(chunk_files) > 1 else (chunk_files[0] if chunk_files else output_dir)
 
 
-def _process_era5_chunk_threadsafe(idx, times, ds, vars, step, lat_min, lat_max, lon_min, lon_max, out_dir, dom, total, logger=None):
+def _process_era5_chunk_threadsafe(
+    idx,
+    times,
+    ds,
+    vars,
+    step,
+    lat_min,
+    lat_max,
+    lon_min,
+    lon_max,
+    wrap_lon,
+    lat_descending,
+    lon_min_value,
+    lon_max_value,
+    out_dir,
+    dom,
+    total,
+    logger=None,
+):
+    """
+    Process a single ERA5 time chunk in a thread-safe manner for parallel execution.
+
+    This function handles one monthly chunk of ERA5 data within a parallel processing
+    workflow. It performs temporal and spatial subsetting, optional temporal resampling,
+    and conversion to SUMMA-compatible format.
+
+    Args:
+        idx: Chunk index number (1-based) for tracking progress
+        times: Tuple of (start_time, end_time) for this chunk
+        ds: Xarray dataset containing full ERA5 data
+        vars: List of ERA5 variables to extract
+        step: Temporal step for resampling (e.g., 3 for every 3 hours)
+        lat_min: Minimum latitude for spatial subsetting
+        lat_max: Maximum latitude for spatial subsetting
+        lon_min: Minimum longitude for spatial subsetting (normalized to 0-360)
+        lon_max: Maximum longitude for spatial subsetting (normalized to 0-360)
+        wrap_lon: Whether longitude wraps across antimeridian
+        lat_descending: Whether latitude coordinates are descending
+        lon_min_value: Minimum longitude value in dataset
+        lon_max_value: Maximum longitude value in dataset
+        out_dir: Output directory for processed chunk
+        dom: Domain name for output filename
+        total: Total number of chunks (for logging)
+        logger: Logger instance for progress reporting
+
+    Returns:
+        Tuple of (chunk_index, output_file_path, status_message)
+        - If successful: (idx, Path, "success")
+        - If skipped: (idx, None, "skipped: reason")
+        - If error: (idx, None, error_message)
+
+    Note:
+        - Adds one extra timestep before chunk_start (except for first chunk) to ensure continuity
+        - Skips chunks with insufficient time dimension (<2 timesteps)
+        - Checks for empty spatial dimensions after bbox selection
+        - Applies zlib compression with complevel=1 for faster writing
+        - Thread-safe: Each invocation operates on independent data slices
+    """
     start, end = times
     try:
         ts = start if idx == 1 else start - pd.Timedelta(hours=step)
         ds_t = ds.sel(time=slice(ts, end))
         if "time" not in ds_t.dims or ds_t.sizes["time"] < 2: return idx, None, "skipped"
-        ds_ts = ds_t.sel(latitude=slice(lat_max, lat_min), longitude=slice(lon_min, lon_max))
+        ds_ts = _subset_era5_bbox(
+            ds_t,
+            lat_min,
+            lat_max,
+            lon_min,
+            lon_max,
+            wrap_lon,
+            lat_descending,
+            (lon_min_value, lon_max_value),
+        )
 
         # Check for empty spatial dimensions
         if "latitude" not in ds_ts.dims or "longitude" not in ds_ts.dims:
             return idx, None, "skipped: missing spatial dimensions"
         if ds_ts.sizes.get("latitude", 0) == 0 or ds_ts.sizes.get("longitude", 0) == 0:
-            return idx, None, "skipped: empty spatial dimensions (bbox too small for ERA5 resolution)"
+            return idx, None, "skipped: empty spatial dimensions after bbox selection"
 
         if step > 1 and "time" in ds_ts.dims: ds_ts = ds_ts.isel(time=slice(0, None, step))
         if "time" not in ds_ts.dims or ds_ts.sizes["time"] < 2: return idx, None, "skipped"
@@ -204,3 +398,163 @@ def _process_era5_chunk_threadsafe(idx, times, ds, vars, step, lat_min, lat_max,
         ds_chunk.to_netcdf(cf, encoding={v: {"zlib": True, "complevel": 1, "chunksizes": (min(168, ds_chunk.sizes["time"]), ds_chunk.sizes["latitude"], ds_chunk.sizes["longitude"])} for v in ds_chunk.data_vars})
         return idx, cf, "success"
     except Exception as e: return idx, None, str(e)
+
+
+def _prepare_bbox_for_era5(ds: xr.Dataset, bbox: Dict[str, float], logger: logging.Logger) -> Dict[str, float]:
+    """
+    Prepare and normalize bounding box for ERA5 data extraction.
+
+    Ensures the bounding box covers at least one ERA5 grid cell by expanding it if
+    necessary. Also normalizes longitude coordinates to 0-360 range and determines
+    if longitude wrapping across the antimeridian is required.
+
+    Process:
+        1. Convert bbox dict to BoundingBox object
+        2. Calculate ERA5 grid resolution from dataset coordinates
+        3. Compare bbox extent to grid resolution
+        4. If bbox smaller than one grid cell, expand it symmetrically
+        5. Normalize longitude to 0-360 range
+        6. Determine if longitude wrapping is needed (crosses antimeridian)
+        7. Check if latitude coordinates are descending
+
+    Args:
+        ds: ERA5 dataset with latitude/longitude coordinates
+        bbox: Dictionary with keys: lat_min, lat_max, lon_min, lon_max
+        logger: Logger for warnings about bbox expansion
+
+    Returns:
+        Dictionary containing:
+            - lat_min: Minimum latitude (possibly expanded)
+            - lat_max: Maximum latitude (possibly expanded)
+            - lon_min: Normalized minimum longitude (0-360)
+            - lon_max: Normalized maximum longitude (0-360)
+            - wrap_longitude: Boolean indicating if lon crosses antimeridian
+            - lat_descending: Boolean indicating if lat coordinates descend
+            - lon_min_value: Minimum longitude value in dataset
+            - lon_max_value: Maximum longitude value in dataset
+            - lat_resolution: Median latitude resolution (degrees)
+            - lon_resolution: Median longitude resolution (degrees)
+
+    Note:
+        - ERA5 native resolution is typically 0.25° (~30km at equator)
+        - Bbox expansion ensures at least one grid cell is captured
+        - Expansion is symmetric and respects -90/90 latitude bounds
+        - Warns user when expansion occurs
+
+    Example:
+        >>> # Small bbox (0.1° x 0.1°) with ERA5 0.25° resolution
+        >>> bbox = {'lat_min': 50.0, 'lat_max': 50.1, 'lon_min': -115.0, 'lon_max': -114.9}
+        >>> result = _prepare_bbox_for_era5(era5_ds, bbox, logger)
+        >>> # Bbox expanded to ensure coverage of at least one 0.25° grid cell
+        >>> result['lat_min']  # ~49.925 (expanded)
+        >>> result['lon_min']  # 245.0 (normalized to 0-360)
+    """
+    bbox_obj = BoundingBox(
+        lat_min=float(bbox["lat_min"]),
+        lat_max=float(bbox["lat_max"]),
+        lon_min=float(bbox["lon_min"]),
+        lon_max=float(bbox["lon_max"]),
+    )
+
+    lat_vals = ds.latitude.values
+    lon_vals = ds.longitude.values
+    lat_descending = len(lat_vals) > 1 and lat_vals[0] > lat_vals[-1]
+
+    lat_res = float(np.median(np.abs(np.diff(lat_vals)))) if len(lat_vals) > 1 else 0.0
+    lon_res = float(np.median(np.abs(np.diff(lon_vals)))) if len(lon_vals) > 1 else 0.0
+    lat_extent, lon_extent = get_bbox_extent(bbox_obj.to_dict())
+
+    lat_buffer = max(lat_res - lat_extent, 0.0) / 2.0
+    lon_buffer = max(lon_res - lon_extent, 0.0) / 2.0
+    if lat_buffer > 0 or lon_buffer > 0:
+        expanded_lat_min = max(-90.0, bbox_obj.lat_min - lat_buffer)
+        expanded_lat_max = min(90.0, bbox_obj.lat_max + lat_buffer)
+        expanded_bbox = BoundingBox(
+            lat_min=expanded_lat_min,
+            lat_max=expanded_lat_max,
+            lon_min=bbox_obj.lon_min - lon_buffer,
+            lon_max=bbox_obj.lon_max + lon_buffer,
+        )
+        logger.warning(
+            "Bounding box is smaller than ERA5 grid resolution "
+            f"({lat_res:.2f}° lat, {lon_res:.2f}° lon). "
+            f"Expanding from {bbox_obj.to_dict()} to {expanded_bbox.to_dict()} to include at least one grid cell."
+        )
+        bbox_obj = expanded_bbox
+
+    bbox_norm = bbox_obj.normalize_longitude('0-360')
+    wrap_longitude = bbox_norm.lon_min > bbox_norm.lon_max
+
+    return {
+        "lat_min": bbox_obj.lat_min,
+        "lat_max": bbox_obj.lat_max,
+        "lon_min": bbox_norm.lon_min,
+        "lon_max": bbox_norm.lon_max,
+        "wrap_longitude": wrap_longitude,
+        "lat_descending": lat_descending,
+        "lon_min_value": float(lon_vals.min()),
+        "lon_max_value": float(lon_vals.max()),
+        "lat_resolution": lat_res,
+        "lon_resolution": lon_res,
+    }
+
+
+def _subset_era5_bbox(
+    ds: xr.Dataset,
+    lat_min: float,
+    lat_max: float,
+    lon_min: float,
+    lon_max: float,
+    wrap_lon: bool,
+    lat_descending: bool,
+    lon_range: Tuple[float, float],
+) -> xr.Dataset:
+    """
+    Spatially subset ERA5 dataset by bounding box with antimeridian handling.
+
+    Performs spatial subsetting of ERA5 data accounting for:
+    - Descending vs. ascending latitude coordinates
+    - Longitude wrapping across the antimeridian (180°/-180°)
+    - Proper slice ordering based on coordinate direction
+
+    Args:
+        ds: ERA5 dataset to subset
+        lat_min: Minimum latitude for subsetting
+        lat_max: Maximum latitude for subsetting
+        lon_min: Minimum longitude (normalized to 0-360)
+        lon_max: Maximum longitude (normalized to 0-360)
+        wrap_lon: If True, longitude wraps across antimeridian (lon_min > lon_max)
+        lat_descending: If True, latitude coordinates are in descending order
+        lon_range: Tuple of (min_lon_in_dataset, max_lon_in_dataset)
+
+    Returns:
+        Spatially subset xarray Dataset
+
+    Note:
+        - Handles antimeridian crossing by selecting two longitude ranges and concatenating
+        - For wrap_lon=True: selects [lon_min:360] and [0:lon_max], then concatenates
+        - Latitude slicing depends on coordinate order (descending vs ascending)
+        - Returns dataset with only the spatial subset, time dimension preserved
+
+    Example:
+        >>> # Domain crossing antimeridian (170°E to -170°W = 170° to 190° in 0-360)
+        >>> # With wrap_lon=True, selects 170-360 and 0-190
+        >>> ds_subset = _subset_era5_bbox(
+        ...     ds, lat_min=50, lat_max=60,
+        ...     lon_min=170, lon_max=190, wrap_lon=True,
+        ...     lat_descending=True, lon_range=(0, 360)
+        ... )
+    """
+    lon_min_value, lon_max_value = lon_range
+    lat_slice = slice(lat_max, lat_min) if lat_descending else slice(lat_min, lat_max)
+    ds_lat = ds.sel(latitude=lat_slice)
+
+    if wrap_lon and lon_min > lon_max:
+        ds_left = ds_lat.sel(longitude=slice(lon_min, lon_max_value))
+        ds_right = ds_lat.sel(longitude=slice(lon_min_value, lon_max))
+        ds_ts = xr.concat([ds_left, ds_right], dim="longitude")
+        ds_ts = ds_ts.sortby("longitude")
+    else:
+        ds_ts = ds_lat.sel(longitude=slice(lon_min, lon_max))
+
+    return ds_ts

@@ -1,8 +1,112 @@
-"""
-Unified data acquisition service for geospatial attributes and forcing data.
+"""Acquisition Service
 
-High-level service coordinating attribute acquisition, forcing data download,
-and observation data retrieval across multiple data sources.
+Unified facade for all data acquisition workflows in SYMFLUENCE. Coordinates
+downloading and processing of geospatial attributes, forcing data, and
+observations from diverse sources (cloud, HPC, local). Acts as high-level
+orchestrator delegating to specialized acquisition handlers and cloud
+downloaders.
+
+Architecture:
+    AcquisitionService provides two parallel acquisition paths:
+
+    1. CLOUD Mode (CloudForcingDownloader):
+       - Cloud-based data providers with direct HTTP/S3 access
+       - DEM sources: Copernicus GLO-30, FABDEM, NASADEM local tiles
+       - Soil class: SoilGrids via WCS subsetting
+       - Land cover: MODIS Landcover (multi-year mode), USGS NLCD
+       - Forcing: ERA5 (CDS), CARRA/CERRA (CDS), AORC (AWS/GCS), NEX-GDDP (Zenodo)
+       - Observations: USGS, WSC, SMHI, SNOTEL, GRACE, MODIS snow/ET
+
+    2. MAF Mode (gistoolRunner, datatoolRunner):
+       - HPC-based data access via external MAF tools on supercomputers
+       - gistool: MERIT-Hydro elevation, MODIS landcover, SoilGrids soil class
+       - datatool: ERA5, RDRS, CASR forcing data with Slurm job monitoring
+       - Configuration: Generates MAF JSON configs and executes MAF scheduler
+       - Output: Same directory structure as CLOUD mode
+
+Data Acquisition Workflows:
+    1. Attribute Acquisition (acquire_attributes)
+       - DEM/elevation: Multiple sources with fallback logic
+       - Soil classification: SoilGrids primary, gistool fallback
+       - Land cover: MODIS or USGS depending on availability
+       - Output: GeoTIFF rasters at project_dir/attributes/{type}/
+
+    2. Forcing Data Download (acquire_forcings)
+       - Datasets: ERA5, CARRA, CERRA, AORC, NEX-GDDP
+       - Mode selection: CLOUD vs MAF based on config.domain.data_access
+       - Caching: RawForcingCache with automatic TTL/checksum validation
+       - Unit conversion: Via VariableHandler for dataset-specific mappings
+       - Output: NetCDF at project_dir/forcing/{dataset}_raw/
+
+    3. Observation Data Retrieval (acquire_observations)
+       - Streamflow: USGS (NWIS), WSC (Canada), SMHI (Nordic)
+       - Gridded: GRACE, MODIS Snow, MODIS ET, FLUXNET
+       - Point sensors: SNOTEL (NOAA snow/precip/temp)
+       - Output: CSV at project_dir/observations/{type}/processed/
+
+    4. EM-Earth Supplementary Data (acquire_em_earth_forcings)
+       - Gridded ERA5 re-analysis supplementing point/coarse data
+       - Subsetting: Via bounding box
+       - Averaging: Spatial mean over domain
+       - Output: NetCDF at project_dir/forcing/em_earth_supplementary/
+
+Configuration Parameters:
+    Data Source Selection:
+        domain.data_access: 'CLOUD' or 'MAF' (default: 'MAF')
+        domain.dem_source: 'merit_hydro', 'copernicus', 'fabdem', 'nasadem'
+        domain.land_class_source: 'modis', 'usgs_nlcd' (cloud only)
+        domain.bounding_box_coords: 'lat_min/lon_min/lat_max/lon_max'
+
+    Download Flags:
+        domain.download_dem: Enable DEM acquisition (default: True)
+        domain.download_soil: Enable soil class acquisition (default: True)
+        domain.download_landcover: Enable land cover acquisition (default: True)
+
+    Observation Sources:
+        optimization.observation_variables: List of variables to download
+        evaluation.targets: Evaluation targets (e.g., 'streamflow')
+
+    MAF Configuration:
+        domain.hpc_account: HPC account for job submission
+        domain.hpc_cache_dir: HPC cache directory
+        domain.hpc_job_timeout: Max seconds to wait for jobs
+
+Caching and Error Handling:
+    Raw Forcing Cache:
+    - RawForcingCache manages downloaded forcing files
+    - TTL: Files cached for configurable duration (default: 30 days)
+    - Validation: Checksum-based integrity checking
+    - Fallback: Automatic re-download if cache corrupted
+
+    Error Recovery:
+    - Network failures: Retry with exponential backoff
+    - Partial downloads: Cleanup and retry
+    - Missing data: Warn and continue with available sources
+    - Configuration errors: Validate early and report clearly
+
+Examples:
+    >>> # Create service and run all acquisitions
+    >>> from symfluence.data.acquisition.acquisition_service import AcquisitionService
+    >>> acq = AcquisitionService(config, logger, reporting_manager=reporter)
+    >>> acq.acquire_attributes()
+    >>> acq.acquire_forcings()
+    >>> acq.acquire_observations()
+    >>> acq.acquire_em_earth_forcings()
+
+    >>> # Cloud-only mode (faster for small domains)
+    >>> # Set config.domain.data_access = 'CLOUD'
+    >>> acq.acquire_attributes()
+
+    >>> # MAF mode (for large domains on HPC)
+    >>> # Set config.domain.data_access = 'MAF'
+    >>> acq.acquire_attributes()
+
+References:
+    - MERIT-Hydro: Yamazaki et al. (2019) Global Hydrology, Earth System Science
+    - Copernicus DEM: https://copernicus-dem-30m.s3.amazonaws.com/
+    - FABDEM: Hawker et al. (2022) Scientific Data
+    - SoilGrids: Poggio et al. (2021) Scientific Data
+    - MODIS: Justice et al. (2002) Remote Sensing Reviews
 """
 
 import logging
@@ -13,7 +117,7 @@ import xarray as xr
 import pandas as pd
 from symfluence.data.acquisition.cloud_downloader import CloudForcingDownloader, check_cloud_access_availability
 from symfluence.data.acquisition.maf_pipeline import gistoolRunner, datatoolRunner
-from symfluence.data.utilities.variable_utils import VariableHandler
+from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.geospatial.raster_utils import calculate_landcover_mode
 from symfluence.data.cache import RawForcingCache
 from symfluence.core.mixins import ConfigurableMixin
@@ -23,8 +127,82 @@ if TYPE_CHECKING:
 
 
 class AcquisitionService(ConfigurableMixin):
-    """
-    Handles data acquisition from various sources (Cloud, MAF, EM-Earth).
+    """Unified data acquisition service for all SYMFLUENCE data needs.
+
+    High-level facade orchestrating geospatial attributes, forcing data, and
+    observation data acquisition from multiple sources (cloud, HPC, local).
+    Provides flexible acquisition modes (CLOUD vs MAF) and handles caching,
+    error recovery, and visualization.
+
+    Acquisition Modes:
+        CLOUD Mode:
+        - Direct HTTP/S3 access to cloud providers
+        - Faster for small domains, requires internet access
+        - DEM sources: Copernicus GLO-30, FABDEM, NASADEM local
+        - Forcing: ERA5 (CDS), CARRA/CERRA, AORC, NEX-GDDP
+        - Suitable for research, testing, small basins
+
+        MAF Mode:
+        - HPC-based via external MAF tools (gistool, datatool)
+        - Better for large domains, requires HPC access
+        - Same output format as CLOUD mode
+        - Handles job queuing and monitoring via Slurm
+        - Suitable for operational, large-scale applications
+
+    Data Acquisition Methods:
+        acquire_attributes(): Geospatial attributes (DEM, soil, landcover)
+        acquire_forcings(): Meteorological forcing data (ERA5, CARRA, etc.)
+        acquire_observations(): Validation data (streamflow, GRACE, SNOTEL, etc.)
+        acquire_em_earth_forcings(): Supplementary forcing from EM-Earth
+
+    Key Features:
+        - Multi-source geospatial data with automatic fallbacks
+        - Caching with TTL and checksum-based validation
+        - Parallel downloading where supported
+        - Progress visualization via reporting_manager
+        - Comprehensive error handling and logging
+        - Configuration-driven mode selection
+
+    Attributes:
+        config: Typed SymfluenceConfig instance
+        logger: Logger for acquisition progress tracking
+        data_dir: Root data directory (from config.system.data_dir)
+        domain_name: Domain identifier (from config.domain.name)
+        project_dir: Project-specific directory (data_dir/domain_{domain_name})
+        reporting_manager: Optional visualization manager
+        variable_handler: VariableHandler for dataset-specific unit conversion
+
+    Configuration:
+        domain.data_access: 'CLOUD' or 'MAF' (default: 'MAF')
+        domain.dem_source: DEM provider ('merit_hydro', 'copernicus', 'fabdem', 'nasadem')
+        domain.land_class_source: Land cover provider ('modis', 'usgs_nlcd')
+        domain.download_dem: Enable DEM acquisition (default: True)
+        domain.download_soil: Enable soil class (default: True)
+        domain.download_landcover: Enable land cover (default: True)
+
+    Examples:
+        >>> # Create service with config and logger
+        >>> acq = AcquisitionService(config, logger, reporting_manager=reporter)
+
+        >>> # Run complete acquisition workflow
+        >>> acq.acquire_attributes()   # DEM, soil, landcover
+        >>> acq.acquire_forcings()     # ERA5, CARRA, etc.
+        >>> acq.acquire_observations() # Streamflow, GRACE, etc.
+        >>> acq.acquire_em_earth_forcings()  # Supplementary data
+
+        >>> # Cloud-only mode (small domain)
+        >>> config.domain.data_access = 'CLOUD'
+        >>> acq.acquire_attributes()
+
+        >>> # MAF mode (large domain on HPC)
+        >>> config.domain.data_access = 'MAF'
+        >>> acq.acquire_forcings()
+
+    See Also:
+        CloudForcingDownloader: Cloud-based data source handlers
+        gistoolRunner: HPC geospatial data extraction
+        datatoolRunner: HPC forcing data extraction
+        RawForcingCache: Forcing data caching system
     """
 
     def __init__(

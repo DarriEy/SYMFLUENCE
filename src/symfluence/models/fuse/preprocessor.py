@@ -33,7 +33,7 @@ from .synthetic_data_generator import FuseSyntheticDataGenerator
 from symfluence.core.constants import UnitConversion
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 from symfluence.evaluation.metrics import kge, kge_prime, nse, mae, rmse
-from symfluence.data.utilities.variable_utils import VariableHandler # type: ignore
+from symfluence.data.utils.variable_utils import VariableHandler # type: ignore
 from symfluence.core.exceptions import (
     ModelExecutionError,
     FileOperationError,
@@ -45,15 +45,62 @@ from symfluence.core.exceptions import (
 class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, ObservationLoaderMixin, DatasetBuilderMixin):
     """
     Preprocessor for the FUSE (Framework for Understanding Structural Errors) model.
-    Handles data preparation, PET calculation, and file setup for FUSE model runs.
-    Inherits geospatial utilities from GeospatialUtilsMixin and observation loading from ObservationLoaderMixin.
+
+    Handles complete preprocessing workflow for FUSE including forcing data processing,
+    PET calculation, elevation band discretization, and configuration file generation.
+    FUSE is a modular modeling framework that allows testing different model structures.
+
+    Key Operations:
+        - Process forcing data (precipitation, temperature, PET)
+        - Calculate potential evapotranspiration using multiple methods
+        - Generate elevation band discretization for distributed modeling
+        - Create FUSE control and parameter files
+        - Generate synthetic forcing data (for testing/calibration)
+        - Calculate catchment attributes (area, elevation statistics)
+        - Handle both lumped and distributed spatial configurations
+
+    Workflow Steps:
+        1. Initialize paths and load configuration
+        2. Process forcing data and calculate PET
+        3. Generate elevation bands (if distributed mode)
+        4. Create FUSE control file (fm_control.txt)
+        5. Set up parameter files with model structure selections
+        6. Configure input/output file specifications
+        7. Prepare observation data for evaluation
+
+    Supported Spatial Modes:
+        - Lumped: Single catchment unit
+        - Distributed: Multiple elevation bands with area weighting
+        - Synthetic: Generate idealized forcing for testing
+
+    PET Calculation Methods:
+        - Hamon: Temperature-based method
+        - Priestley-Taylor: Radiation-based method
+        - Penman-Monteith: Energy balance method (requires additional variables)
+
+    Inherits from:
+        BaseModelPreProcessor: Common preprocessing patterns and utilities
+        PETCalculatorMixin: Potential evapotranspiration calculation methods
+        GeospatialUtilsMixin: Spatial operations (centroid, area calculation)
+        ObservationLoaderMixin: Observation data loading capabilities
+        DatasetBuilderMixin: NetCDF dataset construction utilities
 
     Attributes:
-        config (Dict[str, Any]): Configuration settings for FUSE
-        logger (Any): Logger object for recording processing information
+        config (SymfluenceConfig): Typed configuration object
+        logger: Logger object for recording processing information
         project_dir (Path): Directory for the current project
-        setup_dir (Path): Directory for FUSE setup files
-        domain_name (str): Name of the domain being processed
+        forcing_fuse_path (Path): Directory for FUSE input files
+        catchment_path (Path): Path to catchment shapefile
+        forcing_processor (FuseForcingProcessor): Handles forcing data transformation
+        elevation_band_manager (FuseElevationBandManager): Manages elevation discretization
+        synthetic_generator (FuseSyntheticDataGenerator): Generates synthetic forcing
+
+    Example:
+        >>> from symfluence.models.fuse.preprocessor import FUSEPreProcessor
+        >>> preprocessor = FUSEPreProcessor(config, logger)
+        >>> preprocessor.run_preprocessing()
+        # Creates FUSE input files in: project_dir/forcing/FUSE_input/
+        # Generates: input_info.txt, elev_bands.txt, fm_control.txt
     """
 
     def _get_model_name(self) -> str:
@@ -526,9 +573,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         # Ensure coordinates also have strict encoding for FUSE compatibility
         for coord in fuse_forcing.coords:
             encoding[coord] = {'_FillValue': None, 'dtype': 'float64'}
-            
-        return encoding
-        
+
         return encoding
 
     def _generate_distributed_synthetic_hydrograph(self, ds, n_subcatchments, time_length):

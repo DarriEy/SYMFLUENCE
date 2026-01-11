@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock, call
 from pathlib import Path
 import os
 
-from symfluence.cli.notebook_service import NotebookService
+from symfluence.cli.services import NotebookService
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]
 
@@ -117,7 +117,17 @@ class TestNotebookDiscovery:
     @patch('subprocess.run')
     def test_multiple_notebook_matches(self, mock_subprocess, mock_rglob, mock_exists, mock_isdir, capsys):
         """Test behavior when multiple notebooks match."""
-        service = NotebookService()
+        import sys
+        from symfluence.cli.console import Console, ConsoleConfig
+
+        # Use capture-friendly console
+        console = Console(ConsoleConfig(
+            output_stream=sys.stdout,
+            error_stream=sys.stderr,
+            use_colors=False,
+            show_progress=False
+        ))
+        service = NotebookService(console=console)
         repo_root = Path('/tmp/test_repo')
 
         # Create multiple matching notebooks

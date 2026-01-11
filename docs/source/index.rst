@@ -47,11 +47,37 @@ Quick Start
 
 .. toctree::
    :maxdepth: 2
+   :caption: Hydrological Models
+
+   models/model_summa
+   models/model_fuse
+   models/model_gr
+   models/model_hype
+   models/model_ngen
+   models/model_lstm
+   models/model_gnn
+   models/model_mesh
+   models/model_rhessys
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Routing Models
+
+   routing/mizuroute
+
+.. toctree::
+   :maxdepth: 2
    :caption: Reference
 
    api
    config_system
    troubleshooting
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Developer Documentation
+
+   developer_guide
 
 .. toctree::
    :maxdepth: 1

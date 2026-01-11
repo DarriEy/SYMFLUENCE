@@ -1,5 +1,23 @@
-SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/data/CONFLUENCE_data
-SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/CONFLUENCE
+# ============================================================================
+# SYMFLUENCE Configuration: Bow River at Banff (Lumped Basin Example)
+# ============================================================================
+#
+# This configuration demonstrates a lumped watershed modeling workflow using:
+# - SUMMA as the hydrological model
+# - mizuRoute for streamflow routing
+# - ERA5/CASR forcing data
+# - Automatic watershed delineation from pour point
+#
+# Domain: Bow River at Banff, Alberta, Canada (~2,600 km²)
+# Period: 2004-2018 (calibration: 2004-2010, validation: 2011-2018)
+#
+# To run this example:
+#   symfluence workflow run --config config_basin_notebook.yaml
+#
+# ============================================================================
+
+SYMFLUENCE_DATA_DIR: default
+SYMFLUENCE_CODE_DIR: default
 DOMAIN_NAME: Bow_at_Banff_lumped
 EXPERIMENT_ID: run_1
 EXPERIMENT_TIME_START: 2004-01-01 01:00
@@ -31,8 +49,8 @@ LAPSE_RATE: 0.0065
 FORCING_SHAPE_LAT_NAME: lat
 FORCING_SHAPE_LON_NAME: lon
 SUPPLEMENT_FORCING: false
-EM_EARTH_PRCP_DIR: /anvil/datasets/meteorological/EM-Earth/EM_Earth_v1/deterministic_hourly/prcp/NorthAmerica
-EM_EARTH_TMEAN_DIR: /anvil/datasets/meteorological/EM-Earth/EM_Earth_v1/deterministic_hourly/tmean/NorthAmerica
+EM_EARTH_PRCP_DIR: default
+EM_EARTH_TMEAN_DIR: default
 EM_EARTH_MIN_BBOX_SIZE: 0.1
 EM_EARTH_MAX_EXPANSION: 0.2
 HYDROLOGICAL_MODEL: SUMMA

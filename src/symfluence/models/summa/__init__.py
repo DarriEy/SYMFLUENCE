@@ -22,3 +22,18 @@ __all__ = [
     'SummaConfigManager',
     'SummaAttributesManager'
 ]
+
+# Register build instructions (lightweight, no heavy deps)
+try:
+    from . import build_instructions  # noqa: F401
+except ImportError:
+    pass  # Build instructions optional
+
+# Register analysis components with AnalysisRegistry
+from symfluence.evaluation.analysis_registry import AnalysisRegistry
+
+# Register SUMMA decision analyzer (structure ensemble analysis)
+AnalysisRegistry.register_decision_analyzer('SUMMA')(SummaStructureAnalyzer)
+
+# Register plotter with PlotterRegistry (import triggers registration via decorator)
+from .plotter import SUMMAPlotter  # noqa: F401

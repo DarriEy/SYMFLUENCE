@@ -25,6 +25,27 @@ html_theme = 'sphinx_rtd_theme'
 # Autodoc settings
 autodoc_member_order = 'bysource'
 autodoc_typehints = 'description'
+autodoc_default_options = {
+    'members': True,
+    'undoc-members': True,
+    'show-inheritance': True,
+    'inherited-members': False,
+    'member-order': 'bysource',
+}
+# Skip private members by default
+autodoc_default_flags = ['members', 'undoc-members']
+# Better type hint formatting
+napoleon_google_docstring = True
+napoleon_numpy_docstring = True
+napoleon_include_init_with_doc = True
+napoleon_include_private_with_doc = False
+napoleon_include_special_with_doc = True
+napoleon_use_admonition_for_examples = True
+napoleon_use_admonition_for_notes = True
+napoleon_use_admonition_for_references = True
+napoleon_use_ivar = False
+napoleon_use_param = True
+napoleon_use_rtype = True
 
 # Add support for both RST and Markdown
 source_suffix = {

@@ -1,18 +1,28 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""
-L-BFGS Gradient-Based Optimization Algorithm
+"""L-BFGS Gradient-Based Optimization Algorithm.
 
 Limited-memory BFGS (L-BFGS) is a quasi-Newton optimization method that
 approximates the inverse Hessian matrix using a limited history of past
-gradients and position changes.
+gradients and position changes. This enables quasi-Newton methods to scale
+to high-dimensional problems without storing full Hessian matrix.
 
-Uses finite difference gradient computation for derivative-free optimization.
+Effective for hydrological model calibration when:
+- Objective function is relatively smooth with limited noise
+- Parameter space has low multi-modality
+- Memory-efficient method is needed (Hessian approximation via history only)
+- Convergence speed is important (quasi-Newton vs first-order methods)
 
-Reference:
+Note: Uses central finite differences for gradient computation, making it
+derivative-free but requiring ~2N function evaluations per iteration (N = n_params).
+
+References:
     Nocedal, J. (1980). Updating quasi-Newton matrices with limited storage.
     Mathematics of Computation, 35(151), 773-782.
+
+    Liu, D.C. and Nocedal, J. (1989). On the limited memory BFGS method for
+    large scale optimization. Mathematical Programming, 45, 503-528.
 """
 
 from typing import Dict, Any, Callable, Optional, Tuple, List
@@ -22,7 +32,41 @@ from .base_algorithm import OptimizationAlgorithm
 
 
 class LBFGSAlgorithm(OptimizationAlgorithm):
-    """L-BFGS gradient-based optimization algorithm using finite differences."""
+    """L-BFGS quasi-Newton optimization using finite-difference gradients.
+
+    L-BFGS approximates the Hessian inverse using only a limited history of
+    gradients and position changes, enabling efficient quasi-Newton optimization
+    without storing the full Hessian matrix.
+
+    Algorithm Overview:
+        1. Initialize parameters at normalized space midpoint (0.5)
+        2. Compute initial gradient via finite differences
+        3. For each step:
+           a. Compute search direction using L-BFGS two-loop recursion
+           b. Line search: find step size satisfying Wolfe conditions
+           c. Update position
+           d. Compute new gradient
+           e. Store position and gradient differences in history
+           f. Maintain limited history (e.g., last 10 updates)
+        4. Terminate when gradient norm < 1e-6 (convergence) or max steps reached
+        5. Return best solution found
+
+    Two-Loop Recursion:
+        Efficiently computes search direction p = H*g where H is approximate
+        Hessian inverse, using only stored history (s_k, y_k) pairs without
+        explicitly forming Hessian.
+
+    Line Search (Wolfe Conditions):
+        Ensures step size satisfies:
+        1. Sufficient decrease (Armijo): f(x_new) ≥ f(x) + c1*α*⟨∇f,d⟩
+        2. Curvature condition (strong Wolfe): |⟨∇f(x_new),d⟩| ≤ c2*|⟨∇f,d⟩|
+
+    Hyperparameters:
+        - α (lr): Initial step size for line search (default: 0.1)
+        - history_size: # of (s,y) pairs to retain (default: 10)
+        - steps: Maximum iterations (default: uses max_iterations)
+        - c1, c2: Wolfe condition parameters (default: 1e-4, 0.9)
+    """
 
     @property
     def name(self) -> str:
@@ -40,21 +84,33 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
         evaluate_population_objectives: Optional[Callable] = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        Run L-BFGS optimization with finite difference gradients.
+        """Run L-BFGS optimization with finite-difference gradients and line search.
+
+        Implements full L-BFGS algorithm with Wolfe line search and gradient
+        convergence detection.
 
         Args:
-            n_params: Number of parameters
-            evaluate_solution: Callback to evaluate a single solution
-            evaluate_population: Callback to evaluate a population
-            denormalize_params: Callback to denormalize parameters
-            record_iteration: Callback to record iteration
-            update_best: Callback to update best solution
-            log_progress: Callback to log progress
-            **kwargs: Additional parameters (steps, lr, history_size)
+            n_params: Number of parameters to optimize
+            evaluate_solution: Function to evaluate single parameter vector
+                              Call: score = evaluate_solution(x_normalized, step_id)
+            evaluate_population: Unused in L-BFGS (single-solution method)
+            denormalize_params: Function to convert normalized [0,1] to actual parameters
+            record_iteration: Function to record iteration results
+            update_best: Function to update best solution found
+            log_progress: Function to log progress messages
+            evaluate_population_objectives: Unused for L-BFGS
+            **kwargs: Optional hyperparameters:
+                     - steps: Maximum iterations (default: max_iterations from config)
+                     - lr: Initial step size for line search (default: 0.1)
+                     - history_size: # of (s,y) pairs retained (default: 10)
+                     - c1: Armijo parameter (default: 1e-4)
+                     - c2: Wolfe curvature parameter (default: 0.9)
 
         Returns:
-            Optimization results dictionary
+            Dict with keys:
+            - best_solution: Best parameter vector found (normalized [0,1])
+            - best_score: Highest objective value achieved
+            - best_params: Denormalized best parameters (dictionary)
         """
         # L-BFGS hyperparameters from config or kwargs
         steps = kwargs.get('steps', self.config.get('LBFGS_STEPS', self.max_iterations))

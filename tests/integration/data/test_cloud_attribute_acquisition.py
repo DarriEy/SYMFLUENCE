@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from symfluence import SYMFLUENCE
-from utils.helpers import load_config_template, write_config
+from test_helpers.helpers import load_config_template, write_config
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.data, pytest.mark.requires_cloud, pytest.mark.slow]

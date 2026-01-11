@@ -98,8 +98,9 @@ class SpatialProcessor:
             
             reach_id = nearest_segment[seg_id_col]
 
-            # Update the config object
-            self.config['SIM_REACH_ID'] = reach_id
+            # Update the config object (only if it's a dict, not a frozen Pydantic model)
+            if isinstance(self.config, dict):
+                self.config['SIM_REACH_ID'] = reach_id
             
             # Update the YAML config file if a file path was provided
             if config_path is not None and isinstance(config_path, (str, Path)):

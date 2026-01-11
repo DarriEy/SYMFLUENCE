@@ -71,6 +71,19 @@ class NgenParameterManager(BaseParameterManager):
         # For lumped catchments, we can find the ID from the files themselves
         self.hydro_id = self._resolve_hydro_id()
 
+        # Default TBL mappings for NOAH (used if JSON or namelist overrides aren't available)
+        # Format: de_param -> (tbl_file, variable_name, column_index_1_based or None for single value)
+        # Note: For SOILPARM.TBL, column indices are: BB=2, MAXSMC=5, SATDK=8 (depending on version)
+        # In our case, based on cat SOILPARM.TBL: 
+        # 1-indexed: BB=2, DRYSMC=3, F11=4, MAXSMC=5, REFSMC=6, SATPSI=7, SATDK=8
+        self.noah_tbl_map = {
+            "refkdt": ("GENPARM.TBL", "REFKDT_DATA", None),
+            "slope":  ("GENPARM.TBL", "SLOPE_DATA", 1), # Default to first slope category
+            "smcmax": ("SOILPARM.TBL", "MAXSMC", 5),
+            "dksat":  ("SOILPARM.TBL", "SATDK", 8),
+            "bb":     ("SOILPARM.TBL", "BB", 2),
+        }
+
         self.logger.info(f"NgenParameterManager initialized")
         self.logger.info(f"Calibrating modules: {self.modules_to_calibrate}")
         self.logger.info(f"Total parameters to calibrate: {len(self.all_param_names)}")
@@ -349,6 +362,7 @@ class NgenParameterManager(BaseParameterManager):
                 # Other CFE parameters
                 "alpha_fc": "alpha_fc",
                 "refkdt": "refkdt",
+                "soil_depth": "soil_params.depth",
             }
 
             # Helper: write numeric value preserving any trailing [units]
@@ -538,42 +552,88 @@ class NgenParameterManager(BaseParameterManager):
                 self.logger.error(f"NOAH parameters directory missing: {params_dir}")
                 return False
 
-            # Implement minimal editor: update numeric for a row that starts with var name.
+            # Determine isltyp from input file to target SOILPARM row
+            isltyp = 1 # Default
+            try:
+                input_candidates = []
+                if getattr(self, "hydro_id", None):
+                    input_candidates = list(self.noah_dir.glob(f"cat-{self.hydro_id}.input"))
+                if not input_candidates:
+                    input_candidates = list(self.noah_dir.glob("*.input"))
+                
+                if input_candidates:
+                    itxt = input_candidates[0].read_text()
+                    m = re.search(r"isltyp\s*=\s*(\d+)", itxt)
+                    if m:
+                        isltyp = int(m.group(1))
+            except:
+                pass
+
+            # Implement minimal editor: update numeric for a row that starts with var name or index.
             def edit_tbl_value(tbl_path: Path, var: str, col: Optional[int], new_val: float) -> bool:
                 if not tbl_path.exists():
-                    self.logger.error(f"TBL not found: {tbl_path}")
                     return False
                 lines = tbl_path.read_text().splitlines()
                 changed = False
+                
+                is_soil_tbl = "SOILPARM" in tbl_path.name
+                
                 for i, line in enumerate(lines):
-                    if not line.strip() or line.strip().startswith("#"):
+                    if not line.strip() or line.strip().startswith("#") or line.strip().startswith("'"):
                         continue
-                    # naive match: variable name at start (allow whitespace)
-                    if line.lstrip().startswith(var):
-                        parts = line.split()
-                        # If first token is the var name, replace either the single value or a specific column
-                        if parts[0] == var:
+                    
+                    parts = line.split()
+                    if not parts: continue
+
+                    if is_soil_tbl:
+                        # Row-based match: first part is the integer index (isltyp)
+                        # We match the index, then replace the column
+                        try:
+                            # Strip trailing comma if present (e.g. "3,")
+                            idx_str = parts[0].rstrip(',')
+                            if int(idx_str) == isltyp:
+                                if col is not None and col < len(parts):
+                                    # Format nicely, scientific for small values
+                                    fmt_val = f"{new_val:.4E}" if new_val < 0.001 else f"{new_val:.6g}"
+                                    parts[col] = fmt_val
+                                    # Reassemble with spacing
+                                    if parts[0].endswith(','):
+                                        # Clean up parts to avoid double commas if re-joining with ', '
+                                        clean_parts = [p.rstrip(',') for p in parts]
+                                        # Keep comma on the index (first part)
+                                        lines[i] = f"{clean_parts[0] + ',':<4} {', '.join(clean_parts[1:])}"
+                                    else:
+                                        lines[i] = " ".join(parts)
+                                    changed = True
+                                    break
+                        except (ValueError, IndexError):
+                            continue
+                    else:
+                        # GENPARM style: match variable name at start
+                        if parts[0].startswith(var):
                             if col is None:
-                                # single-valued variable
-                                if len(parts) >= 2:
-                                    parts[1] = f"{new_val:.8g}"
-                                    lines[i] = " ".join(parts)
+                                # Next line usually has the value for GENPARM
+                                if i + 1 < len(lines):
+                                    lines[i+1] = f"{new_val:.8g}"
                                     changed = True
                                     break
                             else:
-                                # multi-column; ensure index in bounds
-                                idx = int(col)
-                                if idx < len(parts):
-                                    parts[idx] = f"{new_val:.8g}"
-                                    lines[i] = " ".join(parts)
-                                    changed = True
-                                    break
+                                # Some GENPARM items have values on the same or next line
+                                # If it's SLOPE_DATA, it's usually a list of values
+                                # For simplicity, if col is specified, we try to find it in following lines
+                                for j in range(i+1, min(i+10, len(lines))):
+                                    if lines[j].strip() and not lines[j].strip().startswith("'"):
+                                        lines[j] = f"{new_val:.8g}"
+                                        changed = True
+                                        break
+                                if changed: break
+                
                 if changed:
                     tbl_path.write_text("\n".join(lines) + "\n")
                 return changed
 
             updated_tbls = 0
-            for p, (fname, var, col) in tbl_map.items():
+            for p, (fname, var, col) in self.noah_tbl_map.items():
                 if p not in params:
                     continue
                 tbl_path = params_dir / fname

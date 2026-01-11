@@ -1,5 +1,28 @@
-SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/data/CONFLUENCE_data
-SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/CONFLUENCE
+# ============================================================================
+# SYMFLUENCE Configuration: North America Continental Scale Tutorial
+# ============================================================================
+#
+# This configuration demonstrates continental-scale modeling:
+# - Full North American domain delineation
+# - Multiple forcing datasets (ERA5, RDRS, AORC)
+# - Combined discretization (elevation + radiation classes)
+# - Large-scale geofabric processing
+#
+# Domain: North America (~24 million km²)
+#
+# Key Features Demonstrated:
+# - Continental bounding box specification
+# - Combined discretization methods for complex terrain
+# - High stream threshold for major river network extraction
+# - Integration with TDX geofabric
+#
+# Note: Continental runs require significant computational resources.
+# Consider running on HPC with adequate storage and memory.
+#
+# ============================================================================
+
+SYMFLUENCE_DATA_DIR: default
+SYMFLUENCE_CODE_DIR: default
 DOMAIN_NAME: North_America
 EXPERIMENT_ID: run_1
 MPI_PROCESSES: 1

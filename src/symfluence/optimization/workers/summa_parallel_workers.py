@@ -4,6 +4,16 @@
 """
 SUMMA Parallel Workers - Backward Compatibility Facade
 
+.. deprecated::
+    This module is maintained for backward compatibility only.
+    For new code, use SUMMAWorker class which provides a cleaner interface:
+
+    >>> from symfluence.optimization.workers import SUMMAWorker
+    >>> worker = SUMMAWorker(config, logger)
+    >>> result = worker.evaluate(task)
+
+    Or use the modular implementations directly from the summa/ subpackage.
+
 This module maintains backward compatibility with existing imports.
 All implementations have been refactored into the summa/ subpackage
 for better maintainability:
@@ -18,6 +28,16 @@ for better maintainability:
 
 All public functions are re-exported here for backward compatibility.
 """
+
+import warnings
+
+# Issue deprecation warning on import
+warnings.warn(
+    "summa_parallel_workers is deprecated. Use SUMMAWorker class or "
+    "import directly from the summa/ subpackage instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 # Re-export all public functions for backward compatibility
 from .summa import (

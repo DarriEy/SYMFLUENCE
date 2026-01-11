@@ -247,7 +247,8 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                         summa_dir,
                         mizuroute_dir if needs_routing else None,
                         task_data['config'],
-                        logger
+                        logger,
+                        project_dir=task_data.get('project_dir')
                     )
 
                     if not metrics:
@@ -346,7 +347,8 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                     summa_dir,
                     mizuroute_dir if needs_routing else None,
                     task_data['config'],
-                    logger
+                    logger,
+                    project_dir=task_data.get('project_dir')
                 )
 
                 if not metrics:

@@ -53,20 +53,26 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
             config: Configuration dictionary
             logger: Logger instance
         """
-        # Core configuration
-        self.config = config
+        # Set config and logger for mixins (ConfigMixin expects _config attribute)
+        self._config = config
         self.logger = logger
 
-        # Base paths
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
+        # Base paths (use convenience properties from mixin where available)
+        self.data_dir = Path(self._get_config_value(
+            lambda: self.config.system.data_dir,
+            default=self.config_dict.get('SYMFLUENCE_DATA_DIR')
+        ))
+        # domain_name is provided by ConfigMixin via ProjectContextMixin
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
         # Common configuration
-        self.mpi_processes = self.config.get('MPI_PROCESSES', 1)
-        self.max_retries = self.config.get('MAX_RETRIES', 3)
-        self.retry_delay = self.config.get('RETRY_DELAY', 5)
-        self.min_gru_size = self.config.get('MIN_GRU_SIZE', 0)
+        self.mpi_processes = self._get_config_value(
+            lambda: self.config.system.mpi_processes,
+            default=1
+        )
+        self.max_retries = self.config_dict.get('MAX_RETRIES', 3)
+        self.retry_delay = self.config_dict.get('RETRY_DELAY', 5)
+        self.min_gru_size = self.config_dict.get('MIN_GRU_SIZE', 0)
 
         # TauDEM configuration
         self.taudem_dir = self._get_taudem_dir()
@@ -85,7 +91,7 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
         Returns:
             Path to TauDEM bin directory
         """
-        taudem_dir = self.config.get('TAUDEM_DIR')
+        taudem_dir = self.config_dict.get('TAUDEM_DIR')
         if taudem_dir == "default":
             return str(self.data_dir / 'installs' / 'TauDEM' / 'bin')
         return taudem_dir
@@ -101,8 +107,8 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
         Returns:
             Path to DEM file
         """
-        dem_path = self.config.get('DEM_PATH')
-        dem_name = self.config.get('DEM_NAME')
+        dem_path = self.config_dict.get('DEM_PATH')
+        dem_name = self.config_dict.get('DEM_NAME')
 
         if dem_name == "default":
             dem_name = f"domain_{self.domain_name}_elv.tif"
@@ -119,13 +125,13 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
         Returns:
             Path to pour point shapefile
         """
-        pour_point_path = self.config.get('POUR_POINT_SHP_PATH')
+        pour_point_path = self.config_dict.get('POUR_POINT_SHP_PATH')
         if pour_point_path == 'default':
             pour_point_path = self.project_dir / "shapefiles" / "pour_point"
         else:
             pour_point_path = Path(pour_point_path)
 
-        pour_point_name = self.config.get('POUR_POINT_SHP_NAME', "default")
+        pour_point_name = self.config_dict.get('POUR_POINT_SHP_NAME', "default")
         if pour_point_name == "default":
             pour_point_path = pour_point_path / f"{self.domain_name}_pourPoint.shp"
         else:
@@ -154,7 +160,7 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
 
         Only removes files if CLEANUP_INTERMEDIATE_FILES is True.
         """
-        if self.config.get('CLEANUP_INTERMEDIATE_FILES', True):
+        if self.config_dict.get('CLEANUP_INTERMEDIATE_FILES', True):
             if hasattr(self, 'interim_dir') and self.interim_dir.exists():
                 shutil.rmtree(self.interim_dir.parent, ignore_errors=True)
                 self.logger.info(f"Cleaned up interim files: {self.interim_dir.parent}")

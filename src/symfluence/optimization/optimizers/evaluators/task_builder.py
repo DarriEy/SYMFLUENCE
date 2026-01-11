@@ -156,7 +156,7 @@ class TaskBuilder:
             'evaluation_id': evaluation_id,
             'config': self.config,
             'target_metric': self.target_metric if not multiobjective else objective_names[0],
-            'calibration_variable': self.config.get('CALIBRATION_VARIABLE', 'streamflow'),
+            'calibration_variable': self.config.get('OPTIMIZATION_TARGET', self.config.get('CALIBRATION_VARIABLE', 'streamflow')),
             'domain_name': self.domain_name,
             'project_dir': str(self.project_dir),
             'proc_settings_dir': str(settings_dir),

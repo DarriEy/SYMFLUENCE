@@ -1,5 +1,15 @@
 """
-SYMFLUENCE Core Logic
+SYMFLUENCE Core System Module.
+
+Provides the main SYMFLUENCE class that serves as the primary entry point
+for hydrological modeling workflows. This module coordinates all manager
+components and orchestrates the complete modeling pipeline from domain
+definition through model calibration and analysis.
+
+Example:
+    >>> from symfluence import SYMFLUENCE
+    >>> s = SYMFLUENCE("config.yaml")
+    >>> s.run_workflow()
 """
 try:
     from symfluence.symfluence_version import __version__
@@ -138,7 +148,16 @@ class SYMFLUENCE:
             )
     
     def run_individual_steps(self, step_names: List[str]) -> None:
-        """Execute specific workflow steps (CLI wrapper)."""
+        """
+        Execute specific workflow steps by name.
+
+        Allows selective execution of individual workflow steps rather than
+        running the complete pipeline. Useful for debugging, testing, or
+        re-running specific portions of the workflow.
+
+        Args:
+            step_names: List of step names to execute (e.g., ['setup_project', 'calibrate_model'])
+        """
         start = datetime.now()
         steps_completed = []
         errors = []

@@ -14,7 +14,7 @@ import numpy as np
 
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
-from symfluence.data.utilities import VariableStandardizer
+from symfluence.data.utils import VariableStandardizer
 
 
 @DatasetRegistry.register('cerra')

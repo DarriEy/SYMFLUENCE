@@ -31,7 +31,7 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         path_key="SOIL_CLASS_PATH",
         name_key="SOIL_CLASS_NAME",
         default_subpath="attributes/soilclass",
-        default_name=f"domain_{discretizer.config.get('DOMAIN_NAME')}_soil_classes.tif",
+        default_name=f"domain_{discretizer.domain_name}_soil_classes.tif",
     )
     
     output_shapefile = discretizer._get_file_path(

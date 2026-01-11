@@ -32,18 +32,18 @@ class TestCoordinateValidation:
     ])
     def test_coordinate_formats(self, coords, expected_valid):
         """Test various coordinate formats."""
-        is_valid, error_msg = validate_coordinates(coords)
-        assert is_valid == expected_valid
-        if not is_valid:
-            assert error_msg is not None
+        result = validate_coordinates(coords)
+        assert result.is_ok == expected_valid
+        if not result.is_ok:
+            assert result.first_error() is not None
 
     def test_coordinate_error_messages(self):
         """Test that error messages are informative."""
-        is_valid, error_msg = validate_coordinates("91/0")
-        assert "out of range" in error_msg.lower()
+        result = validate_coordinates("91/0")
+        assert "out of range" in result.first_error().message.lower()
 
-        is_valid, error_msg = validate_coordinates("lat/lon")
-        assert "numeric" in error_msg.lower()
+        result = validate_coordinates("lat/lon")
+        assert "numeric" in result.first_error().message.lower()
 
 
 class TestBoundingBoxValidation:
@@ -61,10 +61,10 @@ class TestBoundingBoxValidation:
     ])
     def test_bounding_box_formats(self, bbox, expected_valid):
         """Test various bounding box formats."""
-        is_valid, error_msg = validate_bounding_box(bbox)
-        assert is_valid == expected_valid
-        if not is_valid:
-            assert error_msg is not None
+        result = validate_bounding_box(bbox)
+        assert result.is_ok == expected_valid
+        if not result.is_ok:
+            assert result.first_error() is not None
 
 
 class TestFileValidation:
@@ -75,21 +75,21 @@ class TestFileValidation:
         test_file = tmp_path / "test.yaml"
         test_file.write_text("test content")
 
-        is_valid, error_msg = validate_file_exists(str(test_file))
-        assert is_valid is True
-        assert error_msg is None
+        result = validate_file_exists(str(test_file))
+        assert result.is_ok is True
+        assert result.errors == ()
 
     def test_missing_file(self):
         """Test validation of missing file."""
-        is_valid, error_msg = validate_file_exists("/nonexistent/file.yaml")
-        assert is_valid is False
-        assert "not found" in error_msg.lower()
+        result = validate_file_exists("/nonexistent/file.yaml")
+        assert result.is_ok is False
+        assert "not found" in result.first_error().message.lower()
 
     def test_directory_not_file(self, tmp_path):
         """Test that directory is not validated as file."""
-        is_valid, error_msg = validate_file_exists(str(tmp_path))
-        assert is_valid is False
-        assert "not a file" in error_msg.lower()
+        result = validate_file_exists(str(tmp_path))
+        assert result.is_ok is False
+        assert "not a file" in result.first_error().message.lower()
 
 
 class TestConfigValidation:
@@ -100,15 +100,15 @@ class TestConfigValidation:
         config_file = tmp_path / "config.yaml"
         config_file.write_text("DOMAIN_NAME: test")
 
-        is_valid, error_msg = validate_config_exists(str(config_file))
-        assert is_valid is True
-        assert error_msg is None
+        result = validate_config_exists(str(config_file))
+        assert result.is_ok is True
+        assert result.errors == ()
 
     def test_missing_config(self):
         """Test validation of missing config file."""
-        is_valid, error_msg = validate_config_exists("/nonexistent/config.yaml")
-        assert is_valid is False
-        assert "not found" in error_msg.lower()
+        result = validate_config_exists("/nonexistent/config.yaml")
+        assert result.is_ok is False
+        assert "not found" in result.first_error().message.lower()
 
 
 class TestDirectoryValidation:
@@ -116,21 +116,21 @@ class TestDirectoryValidation:
 
     def test_valid_directory(self, tmp_path):
         """Test validation of existing directory."""
-        is_valid, error_msg = validate_directory_exists(str(tmp_path))
-        assert is_valid is True
-        assert error_msg is None
+        result = validate_directory_exists(str(tmp_path))
+        assert result.is_ok is True
+        assert result.errors == ()
 
     def test_missing_directory(self):
         """Test validation of missing directory."""
-        is_valid, error_msg = validate_directory_exists("/nonexistent/directory")
-        assert is_valid is False
-        assert "not found" in error_msg.lower()
+        result = validate_directory_exists("/nonexistent/directory")
+        assert result.is_ok is False
+        assert "not found" in result.first_error().message.lower()
 
     def test_file_not_directory(self, tmp_path):
         """Test that file is not validated as directory."""
         test_file = tmp_path / "test.txt"
         test_file.write_text("test")
 
-        is_valid, error_msg = validate_directory_exists(str(test_file))
-        assert is_valid is False
-        assert "not a directory" in error_msg.lower()
+        result = validate_directory_exists(str(test_file))
+        assert result.is_ok is False
+        assert "not a directory" in result.first_error().message.lower()

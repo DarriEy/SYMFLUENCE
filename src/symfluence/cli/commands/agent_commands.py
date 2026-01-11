@@ -8,6 +8,7 @@ import sys
 from argparse import Namespace
 
 from .base import BaseCommand
+from ..exit_codes import ExitCode
 
 
 class AgentCommands(BaseCommand):
@@ -32,7 +33,7 @@ class AgentCommands(BaseCommand):
             verbose = getattr(args, 'verbose', False)
             config_path = BaseCommand.get_config_path(args)
 
-            BaseCommand.print_info("🤖 Starting interactive AI agent...")
+            BaseCommand._console.info("Starting interactive AI agent...")
 
             # Initialize agent manager
             agent = AgentManager(
@@ -44,11 +45,11 @@ class AgentCommands(BaseCommand):
             return agent.run_interactive_mode()
 
         except Exception as e:
-            BaseCommand.print_error(f"Failed to start agent: {e}")
+            BaseCommand._console.error(f"Failed to start agent: {e}")
             if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
-            return 1
+            return ExitCode.GENERAL_ERROR
 
     @staticmethod
     def run(args: Namespace) -> int:
@@ -70,7 +71,7 @@ class AgentCommands(BaseCommand):
             config_path = BaseCommand.get_config_path(args)
             prompt = args.prompt
 
-            BaseCommand.print_info(f"🤖 Executing agent prompt: {prompt}")
+            BaseCommand._console.info(f"Executing agent prompt: {prompt}")
 
             # Initialize agent manager
             agent = AgentManager(
@@ -82,11 +83,11 @@ class AgentCommands(BaseCommand):
             return agent.run_single_prompt(prompt)
 
         except Exception as e:
-            BaseCommand.print_error(f"Failed to execute prompt: {e}")
+            BaseCommand._console.error(f"Failed to execute prompt: {e}")
             if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
-            return 1
+            return ExitCode.GENERAL_ERROR
 
     @staticmethod
     def execute(args: Namespace) -> int:
@@ -102,5 +103,5 @@ class AgentCommands(BaseCommand):
         if hasattr(args, 'func'):
             return args.func(args)
         else:
-            BaseCommand.print_error("No agent action specified")
-            return 1
+            BaseCommand._console.error("No agent action specified")
+            return ExitCode.USAGE_ERROR

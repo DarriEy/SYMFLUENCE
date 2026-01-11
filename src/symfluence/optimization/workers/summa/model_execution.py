@@ -90,6 +90,15 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
             with open(file_manager, 'r') as f:
                 lines = f.readlines()
 
+            # Remove stale runinfo to avoid SUMMA Fortran write errors on reruns
+            runinfo_path = summa_dir / "runinfo.txt"
+            if runinfo_path.exists():
+                try:
+                    runinfo_path.chmod(0o644)
+                    runinfo_path.unlink()
+                except Exception as e:
+                    logger.warning(f"Could not remove existing runinfo.txt: {e}")
+
             updated_lines = []
             output_path_updated = False
             settings_path_updated = False

@@ -23,7 +23,7 @@ from ..registry import ModelRegistry
 from ..base import BaseModelPreProcessor
 from ..mixins import ObservationLoaderMixin
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
-from symfluence.data.utilities.variable_utils import VariableHandler
+from symfluence.data.utils.variable_utils import VariableHandler
 
 
 @ModelRegistry.register_preprocessor('HYPE')
@@ -31,21 +31,80 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
     """
     HYPE (HYdrological Predictions for the Environment) preprocessor for SYMFLUENCE.
 
-    Handles preparation of HYPE model inputs using SYMFLUENCE's data structure.
-    Inherits common functionality from BaseModelPreProcessor and observation loading
-    from ObservationLoaderMixin.
+    Handles complete preprocessing workflow for HYPE including forcing data processing,
+    geographic data file generation, and configuration setup. HYPE is a semi-distributed
+    hydrological model developed by SMHI (Sweden) that routes water through sub-basins
+    with land use and soil type classifications.
 
-    Uses the generalized pipeline pattern with manager classes:
-    - HYPEForcingProcessor: Handles forcing data merging and daily conversion
-    - HYPEConfigManager: Handles info.txt, filedir.txt, and par.txt generation
-    - HYPEGeoDataManager: Handles GeoData.txt, GeoClass.txt, and ForcKey.txt generation
+    Key Operations:
+        - Process forcing data into HYPE daily format (Pobs.txt, Tobs.txt)
+        - Generate GeoData.txt with sub-basin characteristics
+        - Create GeoClass.txt with land use and soil class definitions
+        - Generate ForcKey.txt linking sub-basins to forcing stations
+        - Set up info.txt with simulation settings and time periods
+        - Create par.txt with model parameters
+        - Configure internal routing network
+        - Handle spinup period and time zone adjustments
+
+    Workflow Steps:
+        1. Initialize paths and load configuration
+        2. Process forcing data and convert to daily timestep
+        3. Generate geographic data files from catchment attributes
+        4. Create land use and soil classification tables
+        5. Set up routing network between sub-basins
+        6. Configure simulation parameters and time settings
+        7. Generate parameter file (par.txt) with calibration values
+        8. Set up output specifications
+
+    HYPE-Specific Features:
+        - Internal routing: No need for external routing model
+        - Sub-basin based: Discretization by drainage areas
+        - Class-based: Multiple land use and soil classes per sub-basin
+        - Daily timestep: Forcing data automatically aggregated to daily
+        - Spinup handling: Automatic warm-up period configuration
+
+    Required Input Files (Generated):
+        - GeoData.txt: Sub-basin properties (area, elevation, routing)
+        - GeoClass.txt: Land use and soil class fractions per sub-basin
+        - ForcKey.txt: Mapping of forcing stations to sub-basins
+        - Pobs.txt: Daily precipitation forcing
+        - Tobs.txt: Daily temperature forcing
+        - info.txt: Simulation settings and time configuration
+        - par.txt: Model parameters
+        - filedir.txt: File path specifications
+
+    Inherits from:
+        BaseModelPreProcessor: Common preprocessing patterns and utilities
+        ObservationLoaderMixin: Observation data loading capabilities
+
+    Uses Manager Pattern:
+        - HYPEForcingProcessor: Forcing data merging and daily conversion
+        - HYPEConfigManager: Configuration file generation (info.txt, par.txt)
+        - HYPEGeoDataManager: Geographic data file generation (GeoData.txt, etc.)
 
     Attributes:
-        config: SYMFLUENCE configuration settings (inherited)
-        logger: Logger for the preprocessing workflow (inherited)
-        project_dir: Project directory path (inherited)
-        domain_name: Name of the modeling domain (inherited)
-        setup_dir: HYPE setup directory (inherited as model-specific)
+        config (SymfluenceConfig): Typed configuration object
+        logger: Logger object for recording processing information
+        project_dir (Path): Directory for the current project
+        hype_setup_dir (Path): Directory for HYPE setup files
+        hype_results_dir (Path): Directory for HYPE simulation results
+        forcing_input_dir (Path): Directory with remapped forcing data
+        calibration_params (Optional[Dict]): Parameter values for calibration runs
+        spinup_days (int): Number of spinup days before evaluation period
+        timeshift (int): Time zone adjustment in hours
+        frac_threshold (float): Minimum class fraction to include (default: 0.1)
+
+    Example:
+        >>> from symfluence.models.hype.preprocessor import HYPEPreProcessor
+        >>> preprocessor = HYPEPreProcessor(config, logger)
+        >>> preprocessor.run_preprocessing()
+        # Creates HYPE input files in: project_dir/settings/HYPE/
+        # Generates: GeoData.txt, GeoClass.txt, ForcKey.txt, Pobs.txt, Tobs.txt,
+        #            info.txt, par.txt, filedir.txt
+
+    Note:
+        HYPE requires sub-basin delineation and land use/soil class data.
+        The model handles internal routing, so mizuRoute is not needed.
     """
 
     def _get_model_name(self) -> str:

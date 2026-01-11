@@ -10,14 +10,17 @@ Each parameter manager is responsible for:
 - Managing parameter-specific preprocessing
 
 Available parameter managers:
+- SUMMAParameterManager: Parameter manager for SUMMA model
 - NgenParameterManager: Parameter manager for NextGen model
 - FUSEParameterManager: Parameter manager for FUSE model
 - HYPEParameterManager: Parameter manager for HYPE model
 - MESHParameterManager: Parameter manager for MESH model
 - GRParameterManager: Parameter manager for GR model
 - RHESSysParameterManager: Parameter manager for RHESSys model
+- MLParameterManager: Parameter manager for ML models
 """
 
+from .summa_parameter_manager import SUMMAParameterManager
 from .ngen_parameter_manager import NgenParameterManager
 from .fuse_parameter_manager import FUSEParameterManager
 from .hype_parameter_manager import HYPEParameterManager
@@ -27,6 +30,7 @@ from .rhessys_parameter_manager import RHESSysParameterManager
 from .ml_parameter_manager import MLParameterManager
 
 __all__ = [
+    'SUMMAParameterManager',
     'NgenParameterManager',
     'FUSEParameterManager',
     'HYPEParameterManager',

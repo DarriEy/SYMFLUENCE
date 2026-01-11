@@ -11,11 +11,11 @@ from pathlib import Path
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
-from utils.geospatial import (
+from test_helpers.geospatial import (
     assert_shapefile_signature_matches,
     load_shapefile_signature,
 )
-from utils.helpers import write_config
+from test_helpers.helpers import write_config
 
 
 from symfluence.core.config.models import SymfluenceConfig
@@ -28,7 +28,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.domain, pytest.mark.requires_
 def config_path(bow_domain, tmp_path, symfluence_code_dir):
     """Create test configuration based on config_template.yaml."""
     # Load template
-    from utils.helpers import load_config_template
+    from test_helpers.helpers import load_config_template
 
     config_dict = load_config_template(symfluence_code_dir)
 

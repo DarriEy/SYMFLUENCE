@@ -58,10 +58,11 @@ dependencies = [
   "bottleneck",
   "networkx",
   "cftime",
-  "pytest", 
-  "sphinx", 
-  "jupyterlab", 
-  "ipykernel"
+  "pytest",
+  "sphinx",
+  "jupyterlab",
+  "ipykernel",
+  "rich>=13.0.0"
 ]
 
 [project.scripts]

@@ -1,5 +1,25 @@
-SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/data/CONFLUENCE_data
-SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/CONFLUENCE
+# ============================================================================
+# SYMFLUENCE Configuration: FLUXNET Point-Scale Validation
+# ============================================================================
+#
+# This configuration demonstrates point-scale energy balance validation:
+# - Single FLUXNET tower site (CA-NS7 - Northern Old Black Spruce)
+# - Point domain definition (no watershed delineation)
+# - SUMMA model for land surface process simulation
+# - Validation against eddy covariance flux measurements
+#
+# Site: CA-NS7 (Northern Old Black Spruce, Saskatchewan, Canada)
+# Period: 2001-2005 (calibration: 2002-2003, validation: 2004-2005)
+#
+# Key Features Demonstrated:
+# - DOMAIN_DEFINITION_METHOD: point for tower-scale simulations
+# - FLUXNET data integration for latent/sensible heat flux validation
+# - ERA5 forcing data for point locations
+#
+# ============================================================================
+
+SYMFLUENCE_DATA_DIR: default
+SYMFLUENCE_CODE_DIR: default
 DOMAIN_NAME: CA-NS7
 EXPERIMENT_ID: run_1
 EXPERIMENT_TIME_START: 2001-01-01 01:00
@@ -31,8 +51,8 @@ LAPSE_RATE: 0.0065
 FORCING_SHAPE_LAT_NAME: lat
 FORCING_SHAPE_LON_NAME: lon
 SUPPLEMENT_FORCING: false
-EM_EARTH_PRCP_DIR: /anvil/datasets/meteorological/EM-Earth/EM_Earth_v1/deterministic_hourly/prcp/NorthAmerica
-EM_EARTH_TMEAN_DIR: /anvil/datasets/meteorological/EM-Earth/EM_Earth_v1/deterministic_hourly/tmean/NorthAmerica
+EM_EARTH_PRCP_DIR: default
+EM_EARTH_TMEAN_DIR: default
 EM_PRCP: prcp_corrected
 EM_EARTH_MIN_BBOX_SIZE: 0.1
 EM_EARTH_MAX_EXPANSION: 0.2
