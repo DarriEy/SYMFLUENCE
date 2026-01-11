@@ -215,6 +215,21 @@ jobs:
           path: ${{ env.SYMFLUENCE_DATA }}/installs
           key: symfluence-tools-${{ runner.os }}-${{ runner.arch }}-v5
 
+      - name: Pre-install Python package (needed for build script)
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          # Install package first so CLI is available for build script
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            source "$CONDA/etc/profile.d/conda.sh"
+            conda activate test-env
+          fi
+          python -m pip install --upgrade pip
+          pip install -e . || true  # Continue if installation has issues
+          echo "Package pre-installed for build script"
+
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
         shell: bash
@@ -498,6 +513,21 @@ jobs:
           key: raw-forcing-v1-${{ hashFiles('tests/configs/*.yaml', 'tests/integration/data/*.py') }}
           restore-keys: |
             raw-forcing-v1-
+
+      - name: Pre-install Python package (needed for build script)
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          # Install package first so CLI is available for build script
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            source "$CONDA/etc/profile.d/conda.sh"
+            conda activate test-env
+          fi
+          python -m pip install --upgrade pip
+          pip install -e . || true  # Continue if installation has issues
+          echo "Package pre-installed for build script"
 
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
