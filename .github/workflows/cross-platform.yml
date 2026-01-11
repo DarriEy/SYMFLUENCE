@@ -97,7 +97,8 @@ jobs:
             # Install CPU-only torch to save space on Windows
             pip install torch --index-url https://download.pytorch.org/whl/cpu
             # Remove GDAL from pyproject.toml to prevent pip from trying to build it from source
-            sed -i -E 's/"[Gg][Dd][Aa][Ll]",?//g' pyproject.toml
+            # Use Python instead of sed for Windows compatibility
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
@@ -223,6 +224,8 @@ jobs:
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
             export PATH="$CONDA/condabin:$PATH"
+            # Remove GDAL from pyproject.toml - use conda GDAL instead
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
           chmod +x ./symfluence || true  # chmod may not work on Windows
@@ -450,6 +453,8 @@ jobs:
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
             export PATH="$CONDA/condabin:$PATH"
+            # Remove GDAL from pyproject.toml - use conda GDAL instead
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
           chmod +x ./symfluence || true  # chmod may not work on Windows
