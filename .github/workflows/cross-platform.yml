@@ -263,6 +263,19 @@ jobs:
             echo "${{ env.SYMFLUENCE_DATA }}/installs/TauDEM/bin" >> $GITHUB_PATH
           fi
 
+      - name: Install Python dependencies
+        shell: bash
+        env:
+          RPY2_CFFI_MODE: ABI
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            source "$CONDA/etc/profile.d/conda.sh"
+            conda activate test-env
+          fi
+          python -m pip install --upgrade pip
+          # Install package from pyproject.toml (source of truth for dependencies)
+          pip install -e ".[dev]" || pip install -e .
+
       - name: Validate binaries
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
@@ -515,6 +528,21 @@ jobs:
             echo "${{ env.SYMFLUENCE_DATA }}/installs/TauDEM/bin" >> $GITHUB_PATH
           fi
 
+      - name: Install Python dependencies
+        shell: bash
+        env:
+          RPY2_CFFI_MODE: ABI
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            source "$CONDA/etc/profile.d/conda.sh"
+            conda activate test-env
+          fi
+          python -m pip install --upgrade pip
+          # Install package from pyproject.toml (source of truth for dependencies)
+          pip install -e ".[dev]" || pip install -e .
+          # Install pytest-xdist for parallel execution
+          pip install pytest-xdist
+
       - name: Run integration tests
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
@@ -523,9 +551,6 @@ jobs:
             source "$CONDA/etc/profile.d/conda.sh"
             conda activate test-env
           fi
-          # Install pytest-xdist for parallel execution
-          pip install pytest-xdist
-
           # Run integration tests in parallel (skip slow tests that download large datasets)
           pytest -v --tb=short -m "integration and not slow" -n auto tests/integration/ || echo "Integration tests completed"
 
