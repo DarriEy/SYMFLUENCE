@@ -215,6 +215,8 @@ jobs:
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
         shell: bash
+        env:
+          SYMFLUENCE_PYTHON: python
         run: |
           # Initialize conda for bash on Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then
@@ -223,7 +225,6 @@ jobs:
             export PATH="$CONDA/condabin:$PATH"
             # Windows: use conda Python directly, no venv
             export SYMFLUENCE_NO_VENV="true"
-            export SYMFLUENCE_PYTHON="python"
             # Remove GDAL from pyproject.toml - use conda GDAL instead
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           fi
@@ -444,6 +445,8 @@ jobs:
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
         shell: bash
+        env:
+          SYMFLUENCE_PYTHON: python
         run: |
           # Initialize conda for bash on Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then
@@ -452,7 +455,6 @@ jobs:
             export PATH="$CONDA/condabin:$PATH"
             # Windows: use conda Python directly, no venv
             export SYMFLUENCE_NO_VENV="true"
-            export SYMFLUENCE_PYTHON="python"
             # Remove GDAL from pyproject.toml - use conda GDAL instead
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           fi
