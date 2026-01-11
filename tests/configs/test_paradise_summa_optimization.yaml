@@ -1,12 +1,12 @@
 # ================================================================================
-# Paradise SNOTEL E2E Test Configuration
-# Full 5-year SUMMA point-scale model with multivariate optimization
+# Paradise SNOTEL Single-Target Optimization Configuration
+# Stable working configuration for SWE-only calibration
 # ================================================================================
 # Test validates complete workflow:
 # - Point-scale domain definition (Paradise SNOTEL, WA)
-# - Cloud data acquisition (ERA5, MODIS, SNOTEL)
+# - Cloud data acquisition (ERA5, SNOTEL)
 # - SUMMA preprocessing and execution
-# - 1000-iteration DDS optimization with multivariate objectives (SWE + SCA)
+# - Single-objective DDS optimization with SWE (Snow Water Equivalent)
 # ================================================================================
 
 # Experiment metadata
@@ -43,15 +43,17 @@ FORCING_DATASET: ERA5
 FORCING_TIME_STEP_SIZE: 3600
 FORCING_MEASUREMENT_HEIGHT: 2
 ERA5_USE_CDS: true
-# Observations - SNOTEL + MODIS Snow
+
+# Observations - SNOTEL only (working configuration)
 SNOTEL_STATION: '679'  # Paradise SNOTEL station ID
 SNOTEL_STATE: WA
 DOWNLOAD_SNOTEL: true
 
-DOWNLOAD_MODIS_SNOW: true
-MODIS_SNOW_PRODUCT: MOD10A1.006
+DOWNLOAD_MODIS_SNOW: false
+DOWNLOAD_ISMN: false
+DOWNLOAD_SMAP: false
 
-ADDITIONAL_OBSERVATIONS: MODIS_SNOW, SNOTEL
+ADDITIONAL_OBSERVATIONS: SNOTEL
 
 # Disable other observation sources
 DOWNLOAD_USGS_DATA: false
@@ -75,36 +77,24 @@ SETTINGS_SUMMA_FORCING_LIST: forcingFileList.txt
 # Routing - None for point scale
 ROUTING_MODEL: none
 
-# Optimization configuration - Multivariate (SWE + SCA)
+# Optimization configuration - Single-target DDS (stable and working)
 OPTIMIZATION_METHODS: ['iteration']
 ITERATIVE_OPTIMIZATION_ALGORITHM: DDS
-OPTIMIZATION_TARGET: multivariate
-OPTIMIZATION_METRIC: KGE  # Overall metric for optimization
-
-# Multivariate objectives
-OBJECTIVE_WEIGHTS:
-  SWE: 0.5    # Snow Water Equivalent weight
-  SCA: 0.5    # Snow Covered Area weight
-
-OBJECTIVE_METRICS:
-  SWE: KGE    # Kling-Gupta Efficiency for SWE
-  SCA: corr   # Correlation for SCA
-
-EVALUATION_DATA: ['SWE', 'SCA']
+OPTIMIZATION_TARGET: SWE
+OPTIMIZATION_METRIC: KGE
+EVALUATION_DATA: ['SWE']
 NUMBER_OF_ITERATIONS: 1000
 
-# DDS algorithm settings
-DDS_R: 0.2
-ASYNC_DDS_POOL_SIZE: 10
-ASYNC_DDS_BATCH_SIZE: 10
-MAX_STAGNATION_BATCHES: 10
+# DDS settings
+DDS_POPULATION_SIZE: 20
 
 # Parameters to calibrate - Snow-focused for SNOTEL site
 # Focus on snow accumulation, melt, and albedo processes
-PARAMS_TO_CALIBRATE: snowfrz_scale,z0Snow,albedoMax,albedoMinWinter,albedoMaxVisible,albedoMinVisible
+# Added frozenPrecipMultip and tempCritRain to handle ERA5 bias and partitioning
+PARAMS_TO_CALIBRATE: frozenPrecipMultip,tempCritRain,snowfrz_scale,z0Snow,albedoMax,albedoMinWinter
 
 # No basin routing parameters for point-scale
-BASIN_PARAMS_TO_CALIBRATE:
+BASIN_PARAMS_TO_CALIBRATE: ""
 
 # Project paths
 SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE
@@ -118,5 +108,5 @@ ANALYSES: [benchmarking, attributes, visualization, optimization]
 LOG_LEVEL: DEBUG
 RANDOM_SEED: null
 FORCE_RUN_ALL_STEPS: false
-MPI_PROCESSES: 1
+MPI_PROCESSES: 5
 SUPPLEMENT_FORCING: false

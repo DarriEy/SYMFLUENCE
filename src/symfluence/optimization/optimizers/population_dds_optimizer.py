@@ -1,8 +1,54 @@
-"""
-Population-based parallel DDS optimizer.
+"""Population-Based Distributed Dimensioned Search (PBDDS) Optimizer.
 
-Extends DDS with population-based parallelism for improved exploration
-and faster convergence on multi-core systems.
+Population-based parallel implementation of DDS (Dynamically Dimensioned Search)
+for efficient calibration on multi-processor systems. Maintains a full population
+and generates trials from each member independently.
+
+Algorithm Characteristics:
+    - Population-based: N independent search threads (one per processor ideally)
+    - Synchronous iteration: All population members evaluated before update
+    - Self-adaptive: Each population member generates its own trials
+    - Independent lineages: Each member can have different parent solutions
+    - Competitive: Members with worse fitness displaced by trial solutions
+
+Parallelization Strategy:
+    - Population size: Typically 10-50 (auto-sized as 3*n_params, bounded [10,50])
+    - Synchronous: Waits for all evaluations in generation before updating
+    - Load balancing: Distributes population members across processors
+    - Scalability: Linear scaling to N processors (if population_size >= N)
+
+Population Management:
+    - Initialization: Random population + parallel evaluation
+    - Generation: Each member generates one trial via DDS mutation
+    - Update: Member replaced if trial score higher (greedy selection)
+    - Diversity: Independent evolution lines maintain population diversity
+
+DDS Mutation (per-member):
+    - Probability: P(vary) = 1 - log(T) / log(T_max) decreases over time
+    - Minimum: At least 1 parameter varies per trial
+    - Distribution: Normal(parent_value, sigma=DDS_R=0.2)
+    - Bounds: Clipped to [0,1] normalized space
+
+Advantages vs Async DDS:
+    - Simpler synchronization (full generation before update)
+    - Better load balancing (all members evaluated per generation)
+    - Easier debugging (deterministic generation order)
+    - More stable convergence (less variance in search)
+
+Disadvantages vs Async DDS:
+    - Slower if evaluations have variable runtime
+    - Wastes processors if population_size < num_processors
+    - Higher latency per iteration
+
+Configuration Parameters:
+    DDS_R: Mutation step size (normal distribution std dev, default: 0.2)
+    POPULATION_SIZE: Population size (auto-sized if not specified)
+    MAX_ITERATIONS: Generations to run (default: 100)
+
+References:
+    - Tolson, B. A., & Shoemaker, C. A. (2007). Dynamically dimensioned search
+      algorithm for computationally efficient watershed model calibration.
+      Water Resources Research, 43, W01413.
 """
 
 import numpy as np
@@ -12,13 +58,68 @@ from typing import Dict, Any, List, Tuple
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
 
 class PopulationDDSOptimizer(BaseOptimizer):
+    """Population-Based DDS (Dynamically Dimensioned Search) optimizer.
+
+    Implements population-based parallel DDS for efficient calibration on
+    multi-core and HPC systems. Each population member independently evolves
+    using DDS mutations, enabling synchronous parallel evaluation.
+
+    Algorithm Flow:
+        1. Initialize population with random solutions
+        2. For each generation:
+           a. Generate trial solution for each population member (DDS mutation)
+           b. Evaluate all trials in parallel
+           c. Replace member if trial better (greedy 1:1 replacement)
+           d. Track best solution found across population
+        3. Repeat until max_iterations
+
+    Population Size Determination:
+        - Config override: POPULATION_SIZE if specified
+        - Auto-sizing: 3 * n_parameters (typical genetic algorithm rule)
+        - Bounds: [10, 50] (minimum for diversity, maximum for cost)
+        - Recommendation: Match or exceed num_processors for good scaling
+
+    Population Evolution:
+        - Each member: Independent DDS trial generation
+        - Selection: Greedy (replace if trial > current member)
+        - Diversity: Maintained by independent evolution paths
+        - Convergence: Aggregate best across population
+
+    DDS Mutation Formula:
+        - Probability: P(vary_param) = 1 - log(iteration) / log(max_iterations)
+        - Decreases over time: Starts broad, focuses toward end
+        - Minimum: At least 1 parameter always varies
+        - Perturbation: Normal(0, DDS_R) where DDS_R = 0.2 (typical)
+
+    Advantages:
+        - Synchronous evaluation (easier debugging, deterministic)
+        - Good load balancing across processors
+        - Simple to understand and implement
+        - Stable convergence behavior
+
+    Disadvantages:
+        - Slower with variable evaluation times (waits for slowest)
+        - Less efficient if population_size << num_processors
+        - Higher latency per iteration vs batch methods
+
+    Configuration:
+        DDS_R: Mutation step size (default: 0.2)
+        POPULATION_SIZE: Population size (auto-determined if not set)
+        MAX_ITERATIONS: Generations to run (default: 100)
     """
-    Population-based Parallel DDS Optimizer
-    """
-    
+
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+        """Initialize Population DDS optimizer.
+
+        Configures population size, mutation step size, and iteration parameters
+        for population-based parallel DDS execution.
+
+        Args:
+            config: Configuration dictionary with DDS parameters
+            logger: Logger instance for diagnostic output
+        """
         super().__init__(config, logger)
-        self.dds_r = config.get('DDS_R', 0.2)
+        self.dds_r = self._cfg('DDS_R', default=0.2)
         self.population_size = self._determine_population_size()
         self.population = None; self.population_scores = None; self.current_generation = 0
     
@@ -26,7 +127,7 @@ class PopulationDDSOptimizer(BaseOptimizer):
         return "PopulationDDS"
     
     def _determine_population_size(self) -> int:
-        config_pop_size = self.config.get('POPULATION_SIZE')
+        config_pop_size = self._cfg('POPULATION_SIZE', default=None)
         if config_pop_size: return config_pop_size
         param_count = len(self.parameter_manager.all_param_names)
         return max(10, min(3 * param_count, 50))

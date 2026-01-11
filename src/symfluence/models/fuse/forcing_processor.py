@@ -15,7 +15,7 @@ import pandas as pd
 import xarray as xr
 import geopandas as gpd
 
-from symfluence.data.utilities.variable_utils import VariableHandler
+from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.core.constants import UnitConversion
 from ..utilities import ForcingDataProcessor, DataQualityHandler, BaseForcingProcessor
 

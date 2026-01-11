@@ -58,14 +58,18 @@ class DomainDiscretizer(PathResolverMixin):
             default_name=f"domain_{self.domain_name}_elv.tif"
         )
 
-        delineation_method = self._get_config_value("DOMAIN_DEFINITION_METHOD", "delineate")
+        delineation_method = self.domain_definition_method
 
         if delineation_method == "delineate":
             self.delineation_suffix = "delineate"
         elif delineation_method == "lumped":
             self.delineation_suffix = "lumped"
         elif delineation_method == "subset":
-            self.delineation_suffix = f"subset_{self._get_config_value('GEOFABRIC_TYPE')}"
+            geofabric_type = self._get_config_value(
+                lambda: self.config.domain.delineation.geofabric_type,
+                default='na'
+            )
+            self.delineation_suffix = f"subset_{geofabric_type}"
 
     def sort_catchment_shape(self):
         """
@@ -84,20 +88,20 @@ class DomainDiscretizer(PathResolverMixin):
         """
         self.logger.debug("Sorting catchment shape")
 
-        self.catchment_path = self.config.get("CATCHMENT_PATH")
-        self.catchment_name = self.config.get("CATCHMENT_SHP_NAME")
+        self.catchment_path = self.config_dict.get("CATCHMENT_PATH")
+        self.catchment_name = self.config_dict.get("CATCHMENT_SHP_NAME")
         if self.catchment_name == "default":
-            discretization_method = self.config.get("DOMAIN_DISCRETIZATION")
+            discretization_method = self.domain_discretization
             # Handle comma-separated attributes for output filename
             if "," in discretization_method:
                 method_suffix = discretization_method.replace(",", "_")
             else:
                 method_suffix = discretization_method
             self.catchment_name = (
-                f"{self.config.get('DOMAIN_NAME')}_HRUs_{method_suffix}.shp"
+                f"{self.domain_name}_HRUs_{method_suffix}.shp"
             )
-        self.gruId = self.config.get("CATCHMENT_SHP_GRUID")
-        self.hruId = self.config.get("CATCHMENT_SHP_HRUID")
+        self.gruId = self.config_dict.get("CATCHMENT_SHP_GRUID")
+        self.hruId = self.config_dict.get("CATCHMENT_SHP_HRUID")
 
         if self.catchment_path == "default":
             self.catchment_path = self.project_dir / "shapefiles" / "catchment"
@@ -136,13 +140,55 @@ class DomainDiscretizer(PathResolverMixin):
 
     def discretize_domain(self) -> Optional[Path]:
         """
-        Discretize the domain based on the method specified in the configuration.
-        If CATCHMENT_SHP_NAME is provided and not 'default', it uses the provided shapefile instead.
-        Supports both single attributes and comma-separated multiple attributes.
+        Discretize domain into Hydrologic Response Units (HRUs).
+
+        Creates HRUs by subdividing the catchment based on specified attributes.
+        Supports multiple discretization methods that can be combined:
+
+        Single-Attribute Methods:
+            - 'lumped': Single HRU for entire catchment
+            - 'elevation': HRUs based on elevation bands
+            - 'landclass': HRUs based on land cover classes
+            - 'soilclass': HRUs based on soil type classes
+            - 'aspect': HRUs based on aspect classes
+            - 'radiation': HRUs based on potential radiation
+
+        Multi-Attribute Methods:
+            - 'elevation,landclass': Combination of elevation and land cover
+            - 'elevation,soilclass': Combination of elevation and soil type
+            - Any comma-separated combination of attributes
+
+        Process:
+            1. Check for existing custom catchment shapefile
+            2. Load or create base catchment geometry
+            3. Apply discretization method(s)
+            4. Generate GRU (Grouped Response Unit) and HRU IDs
+            5. Calculate HRU statistics and attributes
+            6. Save shapefile with discretization results
+
+        Returns:
+            Path to generated HRU shapefile, or None if using existing shapefile
+
+        Raises:
+            ValueError: If discretization method not recognized
+            FileNotFoundError: If required input files (DEM, land cover, etc.) not found
+            Exception: If discretization process fails
+
+        Note:
+            - HRUs can be MultiPolygons (spatially disconnected areas with same attributes)
+            - Minimum HRU size controlled by MIN_HRU_SIZE config parameter
+            - Output shapefile includes: geometry, GRU_ID, HRU_ID, area, and attribute values
+            - Files saved to: {project_dir}/shapefiles/catchment/{domain_name}_HRUs_{method}.shp
+
+        Example:
+            For DOMAIN_DISCRETIZATION="elevation,landclass", creates HRUs by:
+            1. Dividing catchment into elevation bands
+            2. Within each elevation band, subdividing by land cover class
+            3. Merging small HRUs below MIN_HRU_SIZE threshold
         """
         with self.time_limit("Domain Discretization"):
             # Check if a custom catchment shapefile is provided
-            catchment_name = self.config.get("CATCHMENT_SHP_NAME")
+            catchment_name = self.config_dict.get("CATCHMENT_SHP_NAME")
             if catchment_name != "default":
                 self.logger.debug(f"Using provided catchment shapefile: {catchment_name}")
 
@@ -150,7 +196,7 @@ class DomainDiscretizer(PathResolverMixin):
                 return self.sort_catchment_shape()
 
             # Parse discretization method to check for multiple attributes
-            discretization_config = self.config.get("DOMAIN_DISCRETIZATION")
+            discretization_config = self.domain_discretization
             attributes = [attr.strip() for attr in discretization_config.split(",")]
 
             self.logger.debug(f"Discretizing using: {', '.join(attributes)}")
@@ -394,7 +440,9 @@ class DomainDiscretizer(PathResolverMixin):
     ):
         """Create a single HRU from a class mask within a GRU."""
         try:
-            # Extract shapes from the mask
+            # Step 1: Vectorize the raster mask into GeoJSON-like shape dictionaries.
+            # connectivity=4 uses 4-connected neighbors (von Neumann) for shape extraction,
+            # which produces cleaner boundaries than 8-connected (Moore) for grid data.
             shapes = list(
                 rasterio.features.shapes(
                     class_mask.astype(np.uint8),
@@ -407,11 +455,14 @@ class DomainDiscretizer(PathResolverMixin):
             if not shapes:
                 return None
 
-            # Create polygons from shapes
+            # Step 2: Convert each GeoJSON shape to a Shapely polygon.
+            # Multiple shapes can occur when the same class value appears in
+            # disconnected areas within the GRU (e.g., multiple valley bottoms).
             polygons = []
             for shp, _ in shapes:
                 try:
                     geom = shape(shp)
+                    # Filter out degenerate geometries (zero-area slivers, invalid shapes)
                     if geom.is_valid and not geom.is_empty and geom.area > 0:
                         polygons.append(geom)
                 except Exception:
@@ -420,21 +471,26 @@ class DomainDiscretizer(PathResolverMixin):
             if not polygons:
                 return None
 
-            # Create final geometry (naturally Polygon or MultiPolygon)
+            # Step 3: Combine polygons into the appropriate geometry type.
+            # Single polygon stays as Polygon; multiple become MultiPolygon.
+            # This preserves the spatial discontinuity information for the HRU.
             if len(polygons) == 1:
                 final_geometry = polygons[0]
             else:
-                # This naturally creates a MultiPolygon if there are disconnected areas
+                # MultiPolygon naturally represents non-contiguous areas of the same class
                 final_geometry = MultiPolygon(polygons)
 
-            # Clean the geometry
+            # Step 4: Fix any topology errors (self-intersections, ring crossings).
+            # buffer(0) is a common trick to repair invalid geometries by
+            # rebuilding them through the buffer algorithm.
             if not final_geometry.is_valid:
                 final_geometry = final_geometry.buffer(0)
 
             if final_geometry.is_empty or not final_geometry.is_valid:
                 return None
 
-            # Ensure it's within the GRU boundary
+            # Step 5: Clip to GRU boundary to ensure HRU doesn't extend beyond
+            # its parent GRU due to raster cell edge effects.
             clipped_geometry = final_geometry.intersection(gru_geometry)
 
             if clipped_geometry.is_empty or not clipped_geometry.is_valid:
@@ -690,13 +746,16 @@ class DomainDiscretizationRunner:
     def discretize_domain(
         self,
     ) -> Tuple[Optional[Union[object, Dict[str, object]]], DiscretizationArtifacts]:
-        method = self.config.get("DOMAIN_DISCRETIZATION")
+        method = self.discretizer.domain_discretization
         hru_paths = self.discretizer.discretize_domain()
         artifacts = DiscretizationArtifacts(method=method, hru_paths=hru_paths)
 
         # Check if we need to discretize delineated catchments for lumped+river_network case
-        domain_method = self.config.get("DOMAIN_DEFINITION_METHOD", "lumped")
-        routing_delineation = self.config.get("ROUTING_DELINEATION", "lumped")
+        domain_method = self.discretizer.domain_definition_method
+        routing_delineation = self.discretizer._get_config_value(
+            lambda: self.discretizer.config.domain.delineation.routing,
+            default="lumped"
+        )
 
         if domain_method == "lumped" and routing_delineation == "river_network":
             self.logger.info("Discretizing delineated catchments for lumped-to-distributed routing")

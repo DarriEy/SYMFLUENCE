@@ -85,10 +85,67 @@ class WorkflowOrchestrator:
 
         self.project_dir = Path(data_dir) / f"domain_{self.domain_name}"
     
+    def _check_observed_data_exists(self) -> bool:
+        """
+        Check if required observed data files exist based on configuration.
+
+        Checks for any of the following based on config:
+        - Streamflow data (if EVALUATION_DATA or ADDITIONAL_OBSERVATIONS includes streamflow-like sources)
+        - Snow data (SWE, SCA if EVALUATION_DATA includes SWE/SCA or DOWNLOAD_MODIS_SNOW/DOWNLOAD_SNOTEL)
+        - Soil moisture data (if EVALUATION_DATA includes SM_ISMN, SM_SMAP, etc.)
+        - ET data (if EVALUATION_DATA includes ET)
+
+        Returns:
+            bool: True if at least one required observation type has been processed
+        """
+        evaluation_data = self.config.get('EVALUATION_DATA', [])
+        additional_obs = self.config.get('ADDITIONAL_OBSERVATIONS', [])
+
+        # Check for snow data (SWE, SCA)
+        if any(obs_type.upper() in ['SWE', 'SCA', 'SNOW'] for obs_type in evaluation_data) or \
+           self.config.get('DOWNLOAD_SNOTEL') or self.config.get('DOWNLOAD_MODIS_SNOW'):
+            snow_file = self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_snow_processed.csv"
+            if snow_file.exists():
+                return True
+
+        # Check for soil moisture data
+        if any('SM_' in str(obs_type).upper() for obs_type in evaluation_data):
+            sm_files = [
+                self.project_dir / "observations" / "soil_moisture" / "point" / "processed" / f"{self.domain_name}_sm_processed.csv",
+                self.project_dir / "observations" / "soil_moisture" / "smap" / "processed" / f"{self.domain_name}_smap_processed.csv",
+                self.project_dir / "observations" / "soil_moisture" / "ismn" / "processed" / f"{self.domain_name}_ismn_processed.csv",
+            ]
+            if any(f.exists() for f in sm_files):
+                return True
+
+        # Check for streamflow data (default)
+        if any(obs_type.upper() in ['STREAMFLOW', 'DISCHARGE'] for obs_type in evaluation_data) or \
+           self.config.get('DOWNLOAD_USGS_DATA') or self.config.get('DOWNLOAD_WSC_DATA'):
+            streamflow_file = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
+            if streamflow_file.exists():
+                return True
+
+        # Check for ET data
+        if any('ET' in str(obs_type).upper() for obs_type in evaluation_data):
+            et_files = [
+                self.project_dir / "observations" / "et" / "preprocessed" / f"{self.domain_name}_modis_et_processed.csv",
+                self.project_dir / "observations" / "et" / "preprocessed" / f"{self.domain_name}_fluxnet_et_processed.csv",
+            ]
+            if any(f.exists() for f in et_files):
+                return True
+
+        # If no specific evaluation data is defined, check for streamflow as default
+        if not evaluation_data:
+            return (self.project_dir / "observations" / "streamflow" / "preprocessed" /
+                    f"{self.domain_name}_streamflow_processed.csv").exists()
+
+        # If we got here and evaluation_data is defined but nothing found, return False
+        return False
+
     def define_workflow_steps(self) -> List[WorkflowStep]:
         """
         Define the workflow steps with their output validation checks and descriptions.
-        
+
         Returns:
             List[WorkflowStep]: List of WorkflowStep objects
         """
@@ -146,8 +203,7 @@ class WorkflowOrchestrator:
                 name="process_observed_data",
                 cli_name="process_observed_data",
                 func=self.managers['data'].process_observed_data,
-                check_func=lambda: (self.project_dir / "observations" / "streamflow" / "preprocessed" /
-                        f"{self.domain_name}_streamflow_processed.csv").exists(),
+                check_func=self._check_observed_data_exists,
                 description="Processing observed data"
             ),
             WorkflowStep(
@@ -329,7 +385,7 @@ class WorkflowOrchestrator:
                 if self.logging_manager:
                     self.logging_manager.log_completion(
                         success=False,
-                        message=f"{description}: {str(e)}"
+                        message=f"{step.description}: {str(e)}"
                     )
                 else:
                     self.logger.error(f"✗ Failed: {step_name}")

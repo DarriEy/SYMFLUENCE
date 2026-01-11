@@ -1,0 +1,279 @@
+"""
+Shared shell snippets for external tool builds.
+
+This module contains reusable shell script fragments for detecting
+system libraries (NetCDF, HDF5, GEOS, PROJ) across different platforms.
+These are lightweight (no heavy dependencies) and can be safely imported
+by the CLI without loading pandas, xarray, etc.
+"""
+
+from typing import Dict
+
+
+def get_common_build_environment() -> str:
+    """
+    Get common build environment setup used across multiple tools.
+
+    Returns:
+        Shell script snippet for environment configuration.
+    """
+    return r'''
+set -e
+# Compiler: force absolute path if possible to satisfy CMake/Makefile
+if [ -n "$FC" ] && [ -x "$FC" ]; then
+    export FC="$FC"
+elif command -v gfortran >/dev/null 2>&1; then
+    export FC="$(command -v gfortran)"
+else
+    export FC="${FC:-gfortran}"
+fi
+export FC_EXE="$FC"
+
+# Discover libraries (fallback to /usr)
+export NETCDF="${NETCDF:-$(nc-config --prefix 2>/dev/null || echo /usr)}"
+export NETCDF_FORTRAN="${NETCDF_FORTRAN:-$(nf-config --prefix 2>/dev/null || echo /usr)}"
+export HDF5_ROOT="${HDF5_ROOT:-$(h5cc -showconfig 2>/dev/null | awk -F': ' "/Installation point/{print $2}" || echo /usr)}"
+# Threads
+export NCORES="${NCORES:-4}"
+    '''.strip()
+
+
+def get_netcdf_detection() -> str:
+    """
+    Get reusable NetCDF detection shell snippet.
+
+    Sets NETCDF_FORTRAN and NETCDF_C environment variables.
+    Works on Linux (apt), macOS (Homebrew), and HPC systems.
+
+    Returns:
+        Shell script snippet for NetCDF detection.
+    """
+    return r'''
+# === NetCDF Detection (reusable snippet) ===
+detect_netcdf() {
+    # Try nf-config first (NetCDF Fortran config tool)
+    if command -v nf-config >/dev/null 2>&1; then
+        NETCDF_FORTRAN="$(nf-config --prefix)"
+        echo "Found nf-config, NetCDF-Fortran at: ${NETCDF_FORTRAN}"
+    elif [ -n "${NETCDF_FORTRAN}" ] && [ -d "${NETCDF_FORTRAN}/include" ]; then
+        echo "Using NETCDF_FORTRAN env var: ${NETCDF_FORTRAN}"
+    elif [ -n "${NETCDF}" ] && [ -d "${NETCDF}/include" ]; then
+        NETCDF_FORTRAN="${NETCDF}"
+        echo "Using NETCDF env var: ${NETCDF_FORTRAN}"
+    else
+        # Try common locations (Homebrew, system paths)
+        for try_path in /opt/homebrew/opt/netcdf-fortran /opt/homebrew/opt/netcdf \
+                        /usr/local/opt/netcdf-fortran /usr/local/opt/netcdf /usr/local /usr; do
+            if [ -d "$try_path/include" ]; then
+                NETCDF_FORTRAN="$try_path"
+                echo "Found NetCDF at: $try_path"
+                break
+            fi
+        done
+    fi
+
+    # Find NetCDF C library (may be separate from Fortran on macOS)
+    if command -v nc-config >/dev/null 2>&1; then
+        NETCDF_C="$(nc-config --prefix)"
+    elif [ -d "/opt/homebrew/opt/netcdf" ]; then
+        NETCDF_C="/opt/homebrew/opt/netcdf"
+    else
+        NETCDF_C="${NETCDF_FORTRAN}"
+    fi
+
+    export NETCDF_FORTRAN NETCDF_C
+}
+detect_netcdf
+    '''.strip()
+
+
+def get_hdf5_detection() -> str:
+    """
+    Get reusable HDF5 detection shell snippet.
+
+    Sets HDF5_ROOT, HDF5_LIB_DIR, and HDF5_INC_DIR environment variables.
+    Handles Ubuntu's hdf5/serial subdirectory structure.
+
+    Returns:
+        Shell script snippet for HDF5 detection.
+    """
+    return r'''
+# === HDF5 Detection (reusable snippet) ===
+detect_hdf5() {
+    # Try h5cc config tool first
+    if command -v h5cc >/dev/null 2>&1; then
+        HDF5_ROOT="$(h5cc -showconfig 2>/dev/null | grep -i "Installation point" | sed 's/.*: *//' | head -n1)"
+    fi
+
+    # Fallback detection
+    if [ -z "$HDF5_ROOT" ] || [ ! -d "$HDF5_ROOT" ]; then
+        if [ -n "$HDF5_ROOT" ] && [ -d "$HDF5_ROOT" ]; then
+            : # Use existing env var
+        elif command -v brew >/dev/null 2>&1 && brew --prefix hdf5 >/dev/null 2>&1; then
+            HDF5_ROOT="$(brew --prefix hdf5)"
+        else
+            for path in /usr $HOME/.local /opt/hdf5; do
+                if [ -d "$path/include" ] && [ -d "$path/lib" ]; then
+                    HDF5_ROOT="$path"
+                    break
+                fi
+            done
+        fi
+    fi
+    HDF5_ROOT="${HDF5_ROOT:-/usr}"
+
+    # Find lib directory (Ubuntu stores in hdf5/serial, others in lib64 or lib)
+    if [ -d "${HDF5_ROOT}/lib/x86_64-linux-gnu/hdf5/serial" ]; then
+        HDF5_LIB_DIR="${HDF5_ROOT}/lib/x86_64-linux-gnu/hdf5/serial"
+    elif [ -d "${HDF5_ROOT}/lib/x86_64-linux-gnu" ]; then
+        HDF5_LIB_DIR="${HDF5_ROOT}/lib/x86_64-linux-gnu"
+    elif [ -d "${HDF5_ROOT}/lib64" ]; then
+        HDF5_LIB_DIR="${HDF5_ROOT}/lib64"
+    else
+        HDF5_LIB_DIR="${HDF5_ROOT}/lib"
+    fi
+
+    # Find include directory
+    if [ -d "${HDF5_ROOT}/include/hdf5/serial" ]; then
+        HDF5_INC_DIR="${HDF5_ROOT}/include/hdf5/serial"
+    else
+        HDF5_INC_DIR="${HDF5_ROOT}/include"
+    fi
+
+    export HDF5_ROOT HDF5_LIB_DIR HDF5_INC_DIR
+}
+detect_hdf5
+    '''.strip()
+
+
+def get_netcdf_lib_detection() -> str:
+    """
+    Get reusable NetCDF library path detection snippet.
+
+    Sets NETCDF_LIB_DIR and NETCDF_C_LIB_DIR for linking.
+    Handles Debian/Ubuntu x86_64-linux-gnu paths and lib64 paths.
+
+    Returns:
+        Shell script snippet for NetCDF library path detection.
+    """
+    return r'''
+# === NetCDF Library Path Detection ===
+detect_netcdf_lib_paths() {
+    # Find NetCDF-Fortran lib directory
+    if [ -d "${NETCDF_FORTRAN}/lib/x86_64-linux-gnu" ] && \
+       ls "${NETCDF_FORTRAN}/lib/x86_64-linux-gnu"/libnetcdff.* >/dev/null 2>&1; then
+        NETCDF_LIB_DIR="${NETCDF_FORTRAN}/lib/x86_64-linux-gnu"
+    elif [ -d "${NETCDF_FORTRAN}/lib64" ] && \
+         ls "${NETCDF_FORTRAN}/lib64"/libnetcdff.* >/dev/null 2>&1; then
+        NETCDF_LIB_DIR="${NETCDF_FORTRAN}/lib64"
+    else
+        NETCDF_LIB_DIR="${NETCDF_FORTRAN}/lib"
+    fi
+
+    # Find NetCDF-C lib directory (may differ from Fortran)
+    if [ -d "${NETCDF_C}/lib/x86_64-linux-gnu" ] && \
+       ls "${NETCDF_C}/lib/x86_64-linux-gnu"/libnetcdf.* >/dev/null 2>&1; then
+        NETCDF_C_LIB_DIR="${NETCDF_C}/lib/x86_64-linux-gnu"
+    elif [ -d "${NETCDF_C}/lib64" ] && \
+         ls "${NETCDF_C}/lib64"/libnetcdf.* >/dev/null 2>&1; then
+        NETCDF_C_LIB_DIR="${NETCDF_C}/lib64"
+    else
+        NETCDF_C_LIB_DIR="${NETCDF_C}/lib"
+    fi
+
+    export NETCDF_LIB_DIR NETCDF_C_LIB_DIR
+}
+detect_netcdf_lib_paths
+    '''.strip()
+
+
+def get_geos_proj_detection() -> str:
+    """
+    Get reusable GEOS and PROJ detection shell snippet.
+
+    Sets GEOS_CFLAGS, GEOS_LDFLAGS, PROJ_CFLAGS, PROJ_LDFLAGS.
+
+    Returns:
+        Shell script snippet for GEOS/PROJ detection.
+    """
+    return r'''
+# === GEOS and PROJ Detection ===
+detect_geos_proj() {
+    GEOS_CFLAGS="" GEOS_LDFLAGS="" PROJ_CFLAGS="" PROJ_LDFLAGS=""
+
+    # Try pkg-config first
+    if command -v pkg-config >/dev/null 2>&1; then
+        if pkg-config --exists geos 2>/dev/null; then
+            GEOS_CFLAGS="$(pkg-config --cflags geos)"
+            GEOS_LDFLAGS="$(pkg-config --libs geos)"
+            echo "GEOS found via pkg-config"
+        fi
+        if pkg-config --exists proj 2>/dev/null; then
+            PROJ_CFLAGS="$(pkg-config --cflags proj)"
+            PROJ_LDFLAGS="$(pkg-config --libs proj)"
+            echo "PROJ found via pkg-config"
+        fi
+    fi
+
+    # macOS Homebrew fallback
+    if [ "$(uname)" = "Darwin" ]; then
+        if [ -z "$GEOS_CFLAGS" ] && command -v brew >/dev/null 2>&1; then
+            GEOS_PREFIX="$(brew --prefix geos 2>/dev/null || true)"
+            if [ -n "$GEOS_PREFIX" ] && [ -d "$GEOS_PREFIX" ]; then
+                GEOS_CFLAGS="-I${GEOS_PREFIX}/include"
+                GEOS_LDFLAGS="-L${GEOS_PREFIX}/lib -lgeos_c"
+                echo "GEOS found via Homebrew"
+            fi
+        fi
+        if [ -z "$PROJ_CFLAGS" ] && command -v brew >/dev/null 2>&1; then
+            PROJ_PREFIX="$(brew --prefix proj 2>/dev/null || true)"
+            if [ -n "$PROJ_PREFIX" ] && [ -d "$PROJ_PREFIX" ]; then
+                PROJ_CFLAGS="-I${PROJ_PREFIX}/include"
+                PROJ_LDFLAGS="-L${PROJ_PREFIX}/lib -lproj"
+                echo "PROJ found via Homebrew"
+            fi
+        fi
+    fi
+
+    # Common path fallback
+    if [ -z "$GEOS_CFLAGS" ]; then
+        for path in /usr/local /usr; do
+            if [ -f "$path/lib/libgeos_c.so" ] || [ -f "$path/lib/libgeos_c.dylib" ]; then
+                GEOS_CFLAGS="-I$path/include"
+                GEOS_LDFLAGS="-L$path/lib -lgeos_c"
+                echo "GEOS found in $path"
+                break
+            fi
+        done
+    fi
+    if [ -z "$PROJ_CFLAGS" ]; then
+        for path in /usr/local /usr; do
+            if [ -f "$path/lib/libproj.so" ] || [ -f "$path/lib/libproj.dylib" ]; then
+                PROJ_CFLAGS="-I$path/include"
+                PROJ_LDFLAGS="-L$path/lib -lproj"
+                echo "PROJ found in $path"
+                break
+            fi
+        done
+    fi
+
+    export GEOS_CFLAGS GEOS_LDFLAGS PROJ_CFLAGS PROJ_LDFLAGS
+}
+detect_geos_proj
+    '''.strip()
+
+
+def get_all_snippets() -> Dict[str, str]:
+    """
+    Return all snippets as a dictionary for easy access.
+
+    Returns:
+        Dictionary mapping snippet names to their shell script content.
+    """
+    return {
+        'common_env': get_common_build_environment(),
+        'netcdf_detect': get_netcdf_detection(),
+        'hdf5_detect': get_hdf5_detection(),
+        'netcdf_lib_detect': get_netcdf_lib_detection(),
+        'geos_proj_detect': get_geos_proj_detection(),
+    }

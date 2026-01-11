@@ -204,14 +204,14 @@ Calibration Execution
 
 .. code-block:: bash
 
-   # Full calibration workflow
-   ./symfluence --calibrate_model my_project.yaml
-   
-   # Calibration only (skip setup)
-   ./symfluence --calibrate_only my_project.yaml
-   
-   # Resume interrupted calibration
-   ./symfluence --resume_calibration my_project.yaml
+   # Run calibration step
+   symfluence workflow step calibrate_model --config my_project.yaml
+
+   # Run full workflow including calibration
+   symfluence workflow run --config my_project.yaml
+
+   # Check workflow status
+   symfluence workflow status --config my_project.yaml
 
 **Python API**
 
@@ -347,3 +347,29 @@ Example Workflows
    POPULATION_SIZE: 100
    NUMBER_OF_ITERATIONS: 100
    SPLIT_SAMPLE_TEST: true
+
+---
+
+Specialized Calibration Guides
+-------------------------------
+
+For specific calibration targets and workflows, see:
+
+**Evapotranspiration Calibration**
+
+- :doc:`et_quickstart` — Quick start guide for ET-focused calibration
+- :doc:`et_calibration_setup` — Detailed setup for multi-dataset ET calibration
+
+These guides cover:
+
+- Integrating FLUXNET, MODIS, and other ET observation datasets
+- Configuring ET-specific objective functions and metrics
+- Parameter selection for energy balance and ET processes
+- Multi-site calibration strategies
+- Validation approaches for ET predictions
+
+**See Also**
+
+- :doc:`configuration` — Complete parameter reference
+- :doc:`troubleshooting` — Calibration troubleshooting and diagnostics
+- :doc:`api` — Programmatic calibration control

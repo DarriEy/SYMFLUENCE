@@ -1,20 +1,21 @@
 """
 SYMFLUENCE Model Evaluators Package
 
-This package contains evaluators for different hydrological variables including:
+This package contains base evaluators for different hydrological variables including:
 - Streamflow (routed and non-routed)
 - Snow (SWE, SCA, depth)
 - Groundwater (depth, GRACE TWS)
 - Evapotranspiration (ET, latent heat)
 - Soil moisture (point, SMAP, ESA)
+
+Model-specific streamflow evaluators (GR, HYPE, RHESSys) have been moved to
+symfluence.optimization.calibration_targets for consistency with the calibration
+target pattern. Use those modules for model-specific calibration.
 """
 
 from .base import ModelEvaluator
 from .et import ETEvaluator
 from .streamflow import StreamflowEvaluator
-from .gr_streamflow import GRStreamflowEvaluator
-from .hype_streamflow import HYPEStreamflowEvaluator
-from .rhessys_streamflow import RHESSysStreamflowEvaluator
 from .soil_moisture import SoilMoistureEvaluator
 from .snow import SnowEvaluator
 from .groundwater import GroundwaterEvaluator
@@ -24,9 +25,6 @@ __all__ = [
     "ModelEvaluator",
     "ETEvaluator",
     "StreamflowEvaluator",
-    "GRStreamflowEvaluator",
-    "HYPEStreamflowEvaluator",
-    "RHESSysStreamflowEvaluator",
     "SoilMoistureEvaluator",
     "SnowEvaluator",
     "GroundwaterEvaluator",

@@ -1,5 +1,9 @@
 """
-Base Acquisition Handler for SYMFLUENCE
+Base Acquisition Handler for SYMFLUENCE.
+
+Provides the abstract base class that all data acquisition handlers inherit from.
+Centralizes common functionality like bounding box parsing, temporal subsetting,
+caching logic, and diagnostic visualization.
 """
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -14,14 +18,34 @@ if TYPE_CHECKING:
 
 class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
     """
-    Base class for all data acquisition handlers.
+    Abstract base class for all data acquisition handlers.
 
-    Provides common functionality for:
-    - Configuration and path management
-    - Bounding box and temporal range parsing
-    - Skip-if-exists logic
-    - Credential resolution
-    - Diagnostic plotting
+    Provides the common infrastructure for downloading meteorological forcing
+    data, geospatial attributes, and observations from various data sources.
+    Each handler implements the download() method for its specific data source.
+
+    Inherited Capabilities:
+        - ConfigurableMixin: Configuration access, project paths, domain info
+        - CoordinateUtilsMixin: Bounding box parsing, CRS handling
+
+    Common Functionality:
+        - Temporal range parsing from EXPERIMENT_TIME_START/END
+        - Bounding box coordinate parsing and validation
+        - Skip-if-exists caching logic with force override
+        - Diagnostic plotting hooks for acquired data
+        - Automatic directory creation and path management
+
+    Attributes:
+        config: SymfluenceConfig instance (auto-converted from dict if needed)
+        logger: Logger for acquisition progress messages
+        bbox: Parsed bounding box tuple (lat_min, lon_min, lat_max, lon_max)
+        start_date: Simulation start timestamp
+        end_date: Simulation end timestamp
+        reporting_manager: Optional manager for diagnostic visualization
+
+    Abstract Methods:
+        download(output_dir): Must be implemented by subclasses to perform
+                              the actual data download and return output path
     """
     def __init__(
         self,

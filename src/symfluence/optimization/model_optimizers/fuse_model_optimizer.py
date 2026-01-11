@@ -88,17 +88,24 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         )
 
     def _create_calibration_target(self):
-        """Create FUSE calibration target based on configuration."""
-        from ..calibration_targets import (
-            FUSEStreamflowTarget, FUSESnowTarget
-        )
+        """Create FUSE calibration target using registry-based factory.
+
+        Uses the centralized create_calibration_target factory which:
+        1. Checks OptimizerRegistry for registered targets
+        2. Falls back to model-specific target mappings
+        3. Returns appropriate default targets if not found
+        """
+        from ..calibration_targets import create_calibration_target
 
         target_type = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
 
-        if target_type in ['snow', 'swe', 'sca', 'snow_depth']:
-            return FUSESnowTarget(self.config, self.project_dir, self.logger)
-        else:
-            return FUSEStreamflowTarget(self.config, self.project_dir, self.logger)
+        return create_calibration_target(
+            model_name='FUSE',
+            target_type=target_type,
+            config=self.config,
+            project_dir=self.project_dir,
+            logger=self.logger
+        )
 
     def _create_worker(self) -> FUSEWorker:
         """Create FUSE worker."""

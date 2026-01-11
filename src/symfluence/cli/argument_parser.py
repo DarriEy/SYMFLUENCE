@@ -1,7 +1,18 @@
 """
-SYMFLUENCE CLI Argument Parser
+SYMFLUENCE CLI Argument Parser.
 
-This module provides the main CLI parser with subcommand structure for SYMFLUENCE.
+Provides the main command-line interface parser with a hierarchical subcommand
+structure. The CLI follows a category-action pattern (e.g., 'workflow run',
+'project init', 'binary install') for intuitive navigation.
+
+Categories:
+    - workflow: Execute and manage modeling workflows
+    - project: Initialize projects and configure domains
+    - binary: Manage external tool installations
+    - config: Configuration file management and validation
+    - job: SLURM job submission for HPC environments
+    - example: Launch tutorial notebooks
+    - agent: AI assistant interface
 """
 
 import argparse
@@ -43,10 +54,20 @@ MODELS = ['SUMMA', 'FUSE', 'GR', 'HYPE', 'MESH', 'RHESSys', 'NGEN', 'LSTM']
 
 
 class CLIParser:
-    """Main CLI parser with subcommand architecture."""
+    """
+    Main CLI parser with hierarchical subcommand architecture.
+
+    Implements a two-level command structure where the first level represents
+    a functional category (workflow, project, binary, etc.) and the second
+    level represents specific actions within that category.
+
+    Attributes:
+        common_parser: Parent parser with global options (--config, --debug, etc.)
+        parser: Main argument parser with all subcommands registered
+    """
 
     def __init__(self):
-        """Initialize the CLI parser."""
+        """Initialize the CLI parser with common options and all subcommands."""
         self.common_parser = self._create_common_parser()
         self.parser = self._create_parser()
 

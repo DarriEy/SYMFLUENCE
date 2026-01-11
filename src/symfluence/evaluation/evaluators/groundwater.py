@@ -1,8 +1,34 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""
-Groundwater Evaluator
+"""Groundwater Evaluator.
+
+Evaluates simulated groundwater from SUMMA against well observations (depth) or
+GRACE satellite water storage anomalies (total water storage).
+
+Groundwater Targets:
+    - gw_depth: Well water table depth (positive values, meters below surface)
+    - gw_grace: GRACE total water storage anomalies (for aquifer storage changes)
+
+Model Output (SUMMA):
+    - scalarTotalSoilWat: Total soil water (kg/m² → mm, converted to meters)
+    - scalarAquiferStorage: Aquifer storage (m directly)
+    - Water storage components: SWE, soil water, aquifer, canopy
+
+Observations:
+    - gw_depth: Well observations (depth below surface, meters)
+    - gw_grace: GRACE monthly anomalies (mm water thickness)
+
+Well Observations Characteristics:
+    - Variable frequency (daily, weekly, monthly, quarterly)
+    - Can have gaps and inconsistent measurements
+    - May require datum correction/offset
+    - Often need auto-alignment to match simulated mean
+
+Configuration:
+    GW_BASE_DEPTH: Reference depth for groundwater (default: 50.0 m)
+    GW_AUTO_ALIGN: Auto-align simulated mean to observed (default: True)
+    GRACE_PROCESSING_CENTER: GRACE center ('csr', 'jpl', 'gsfc', default: 'csr')
 """
 
 import logging
@@ -21,9 +47,47 @@ if TYPE_CHECKING:
 
 @EvaluationRegistry.register('GROUNDWATER')
 class GroundwaterEvaluator(ModelEvaluator):
-    """Groundwater evaluator (depth/GRACE)"""
+    """Groundwater evaluator comparing SUMMA to well or GRACE observations.
+
+    Supports two evaluation modes for groundwater:
+    1. Well observations: Comparison of simulated vs observed water table depth
+    2. GRACE observations: Comparison of storage anomalies
+
+    Well Depth Evaluation (gw_depth):
+        - Converts simulated storage to depth below surface
+        - Formula: gw_depth = (base_depth - storage_m).abs()
+        - Handles two storage variables:
+          * scalarTotalSoilWat: Soil water (kg/m² → mm → m)
+          * scalarAquiferStorage: Aquifer storage (m directly)
+        - Auto-alignment: Shifts simulated to match observed mean (useful for datum offsets)
+
+    GRACE Evaluation (gw_grace):
+        - Sums water storage components (SWE, soil, aquifer, canopy)
+        - Compares with GRACE satellite anomalies
+        - Auto unit conversion based on data range
+
+    Configuration:
+        GW_BASE_DEPTH: Reference depth for depth calculation (default: 50.0 m)
+        GW_AUTO_ALIGN: Auto-align simulated mean to observed (default: True)
+        GRACE_PROCESSING_CENTER: GRACE center to use (default: 'csr')
+
+    Attributes:
+        optimization_target: 'gw_depth' or 'gw_grace'
+        variable_name: Same as optimization_target
+        grace_center: GRACE processing center ('csr', 'jpl', 'gsfc')
+    """
 
     def __init__(self, config: 'SymfluenceConfig', project_dir: Path, logger: logging.Logger):
+        """Initialize groundwater evaluator with target determination.
+
+        Determines evaluation target (well depth vs GRACE) from configuration
+        and initializes GRACE processing center selection.
+
+        Args:
+            config: Typed configuration object
+            project_dir: Project root directory
+            logger: Logger instance
+        """
         super().__init__(config, project_dir, logger)
 
         self.optimization_target = self._get_config_value(
@@ -39,7 +103,17 @@ class GroundwaterEvaluator(ModelEvaluator):
         self.grace_center = self.config_dict.get('GRACE_PROCESSING_CENTER', 'csr')
     
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
-        """Get simulation files containing groundwater variables."""
+        """Locate SUMMA output files containing groundwater storage variables.
+
+        Searches for NetCDF files with scalarTotalSoilWat, scalarAquiferStorage,
+        or other water storage components needed for groundwater evaluation.
+
+        Args:
+            sim_dir: Directory containing SUMMA simulation output
+
+        Returns:
+            List[Path]: Paths to groundwater output files (NetCDF)
+        """
         locator = OutputFileLocator(self.logger)
         return locator.find_groundwater_files(sim_dir)
     
@@ -238,4 +312,13 @@ class GroundwaterEvaluator(ModelEvaluator):
             return None
 
     def needs_routing(self) -> bool:
+        """Determine if groundwater evaluation requires streamflow routing.
+
+        Groundwater is measured at point-scale (wells) and stored at basin scale
+        (GRACE) without requiring streamflow routing models. Storage is evaluated
+        directly without downstream propagation.
+
+        Returns:
+            bool: False (groundwater evaluator never requires routing)
+        """
         return False

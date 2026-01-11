@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
-from symfluence.cli.binary_manager import BinaryManager
+from symfluence.cli.binary_service import BinaryManager
 from symfluence.core.exceptions import ConfigurationError, FileOperationError
 
 

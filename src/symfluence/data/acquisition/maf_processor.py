@@ -10,9 +10,151 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Any
 
-from symfluence.data.utilities.variable_utils import VariableHandler
+from symfluence.data.utils.variable_utils import VariableHandler
 
 class DataAcquisitionProcessor:
+    """
+    JSON configuration generator for Model-Agnostic Framework (MAF) tools.
+
+    This processor prepares structured JSON configuration files that drive datatool
+    and gistool execution for automated forcing and attribute data acquisition on
+    HPC systems. It translates SYMFLUENCE configuration into MAF-compatible JSON
+    schemas with proper paths, variables, and execution parameters.
+
+    Purpose:
+        Bridges SYMFLUENCE configuration with external MAF tools by generating
+        JSON files that specify data extraction parameters, HPC job settings,
+        and output locations for both meteorological forcing (datatool) and
+        geospatial attributes (gistool).
+
+    JSON Schema Components:
+        exec: Paths to tool executables
+            - met: Path to datatool extract-dataset.sh
+            - gis: Path to gistool extract-gis.sh
+            - remap: Path to EASYMORE client for remapping
+
+        args: Tool-specific parameter sets
+            - met: Array of datatool configurations (forcing datasets)
+            - gis: Array of gistool configurations (attribute datasets)
+            - Each entry contains dataset parameters, spatial/temporal bounds
+
+    Forcing Data Configuration (datatool):
+        - Dataset specification (ERA5, RDRS, CASR)
+        - Dataset root directory on HPC
+        - Variable list (atmospheric forcing variables)
+        - Output directory for NetCDF files
+        - Temporal bounds (start/end dates)
+        - Shapefile for spatial bounds
+        - File prefix for naming
+        - Cache directory
+        - HPC account for job submission
+        - Optional flags (submit-job, parsable)
+
+    Attribute Data Configuration (gistool):
+        Multiple attribute datasets configured:
+        1. MODIS Land Cover:
+           - Product: MCD12Q1.061
+           - Temporal range: 2001-2020
+           - Statistics: frac (fractional cover), majority, coords
+           - Includes NA values
+
+        2. Soil Classification:
+           - Variable: soil_classes
+           - Statistics: majority class per polygon
+           - Includes NA values
+
+        3. Elevation (DEM):
+           - Variable: elevation
+           - Statistics: mean, min, max, slope
+
+    Configuration Translation:
+        SYMFLUENCE Config → MAF JSON:
+            FORCING_DATASET → args.met.dataset
+            FORCING_VARIABLES → args.met.variable (or default from VariableHandler)
+            EXPERIMENT_TIME_START → args.met.start-date
+            EXPERIMENT_TIME_END → args.met.end-date
+            RIVER_BASINS_NAME → args.met/gis.shape-file
+            DATATOOL_DATASET_ROOT → args.met.dataset-dir
+            GISTOOL_DATASET_ROOT → args.gis.dataset-dir
+            TOOL_CACHE → args.met/gis.cache
+            TOOL_ACCOUNT → args.met/gis.account
+
+    Variable Handling:
+        - Uses VariableHandler to map dataset-specific variable names
+        - Default variables loaded if FORCING_VARIABLES='default'
+        - Translates between dataset conventions (e.g., ERA5 → SUMMA)
+
+    Path Resolution:
+        - Resolves relative paths to absolute HPC filesystem paths
+        - Ensures tool executables exist and are accessible
+        - Creates output directories if needed
+        - Handles default vs custom tool installation paths
+
+    Output:
+        JSON file saved to: {project_dir}/settings/maf_config.json
+        Schema validates against MAF tool expectations
+        Used by MAF scheduler to orchestrate data extraction jobs
+
+    HPC Integration:
+        - Configures Slurm job submission parameters
+        - Sets account/partition for billing
+        - Defines cache directories for efficiency
+        - Supports job arrays for parallel processing
+        - Optional parsable output for programmatic monitoring
+
+    Example:
+        >>> config = {
+        ...     'SYMFLUENCE_DATA_DIR': '/project/data',
+        ...     'DOMAIN_NAME': 'test_basin',
+        ...     'FORCING_DATASET': 'ERA5',
+        ...     'FORCING_VARIABLES': 'default',
+        ...     'EXPERIMENT_TIME_START': '2015-01-01',
+        ...     'EXPERIMENT_TIME_END': '2016-12-31',
+        ...     'DATATOOL_DATASET_ROOT': '/datasets/',
+        ...     'TOOL_ACCOUNT': 'hydro-group'
+        ... }
+        >>> processor = DataAcquisitionProcessor(config, logger)
+        >>> json_path = processor.prepare_maf_json()
+        >>> print(json_path)
+        /project/data/domain_test_basin/settings/maf_config.json
+
+    Generated JSON Structure:
+        {
+          "exec": {
+            "met": "/path/to/extract-dataset.sh",
+            "gis": "/path/to/extract-gis.sh",
+            "remap": "/path/to/easymore_client"
+          },
+          "args": {
+            "met": [{
+              "dataset": "ERA5",
+              "dataset-dir": "/datasets/era5/",
+              "variable": "tas,pr,huss,ps,rsds,rlds,uas,vas",
+              "output-dir": "/project/data/domain_test_basin/forcing/datatool-outputs",
+              "start-date": "2015-01-01",
+              "end-date": "2016-12-31",
+              ...
+            }],
+            "gis": [{
+              "dataset": "MODIS",
+              ...
+            }, ...]
+          }
+        }
+
+    Notes:
+        - JSON file must be readable by MAF scheduler
+        - Tool paths must be accessible on HPC compute nodes
+        - Cache directory improves performance for repeated extractions
+        - Shapefile must exist before JSON generation
+        - Account string must match HPC accounting system
+
+    See Also:
+        - data.acquisition.maf_pipeline.gistoolRunner: Executes gistool commands
+        - data.acquisition.maf_pipeline.datatoolRunner: Executes datatool commands
+        - data.utils.variable_utils.VariableHandler: Variable mapping
+    """
+
     def __init__(self, config: Dict[str, Any], logger: Any):
         self.config = config
         self.logger = logger

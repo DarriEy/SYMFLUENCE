@@ -185,15 +185,541 @@ Set paths for custom installations and parallel runtime behavior.
 
 ---
 
+Parameter Reference
+--------------------
+
+This section provides a comprehensive reference of all configuration parameters, organized by category.
+
+Global Parameters
+~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 15 45
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - SYMFLUENCE_DATA_DIR
+     - string
+     - required
+     - Root directory for all project data and outputs
+   * - SYMFLUENCE_CODE_DIR
+     - string
+     - required
+     - Root directory for SYMFLUENCE source code
+   * - DOMAIN_NAME
+     - string
+     - required
+     - Unique identifier for the modeling domain
+   * - EXPERIMENT_ID
+     - string
+     - "default"
+     - Identifier for this simulation experiment
+   * - EXPERIMENT_TIME_START
+     - date
+     - required
+     - Start date for simulation (YYYY-MM-DD)
+   * - EXPERIMENT_TIME_END
+     - date
+     - required
+     - End date for simulation (YYYY-MM-DD)
+   * - SPINUP_PERIOD
+     - string
+     - optional
+     - Spinup period as "YYYY-MM-DD,YYYY-MM-DD"
+   * - MPI_PROCESSES
+     - integer
+     - 1
+     - Number of MPI processes for parallel execution
+   * - FORCE_RUN_ALL_STEPS
+     - boolean
+     - False
+     - Force re-execution of all workflow steps
+   * - STOP_ON_ERROR
+     - boolean
+     - True
+     - Stop workflow execution on first error
+
+Logging Parameters
+~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 15 45
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - LOG_LEVEL
+     - string
+     - "INFO"
+     - Logging verbosity (DEBUG, INFO, WARNING, ERROR)
+   * - LOG_TO_FILE
+     - boolean
+     - True
+     - Write logs to files in _workLog_*/
+   * - LOG_FORMAT
+     - string
+     - "detailed"
+     - Log message format (simple, detailed, json)
+
+Domain Definition Parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 15 45
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - POUR_POINT_COORDS
+     - string
+     - optional
+     - Pour point as "latitude/longitude" (e.g., "51.17/-115.57")
+   * - BOUNDING_BOX_COORDS
+     - string
+     - optional
+     - Bounding box as "lat_max/lon_min/lat_min/lon_max"
+   * - DOMAIN_DEFINITION_METHOD
+     - string
+     - "delineate"
+     - Method for domain definition (delineate, subset, lumped)
+   * - GEOFABRIC_TYPE
+     - string
+     - "TDX"
+     - Geofabric data source (TDX, MERIT, NWS)
+   * - STREAM_THRESHOLD
+     - integer
+     - 7500
+     - Flow accumulation threshold for stream network (cells)
+   * - MULTI_SCALE_THRESHOLDS
+     - list
+     - optional
+     - List of thresholds for multi-scale delineation
+   * - USE_DROP_ANALYSIS
+     - boolean
+     - False
+     - Use drop analysis to optimize stream threshold
+   * - DROP_ANALYSIS_NUM_THRESHOLDS
+     - integer
+     - 5
+     - Number of thresholds to test in drop analysis
+   * - DELINEATE_COASTAL_WATERSHEDS
+     - boolean
+     - False
+     - Allow delineation of coastal watersheds
+   * - DOMAIN_DISCRETIZATION
+     - string
+     - "lumped"
+     - Discretization method (lumped, elevation, radiation, combined)
+   * - ELEVATION_BAND_SIZE
+     - integer
+     - 400
+     - Elevation band size in meters (for elevation discretization)
+   * - MIN_HRU_SIZE
+     - float
+     - 5.0
+     - Minimum HRU size in km² (smaller HRUs merged)
+   * - RADIATION_CLASS_NUMBER
+     - integer
+     - 8
+     - Number of radiation classes (for radiation discretization)
+   * - ASPECT_CLASS_NUMBER
+     - integer
+     - 4
+     - Number of aspect classes (for combined discretization)
+
+Forcing Data Parameters
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 15 45
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - FORCING_DATASET
+     - string
+     - required
+     - Forcing dataset source (ERA5, RDRS, CARRA, CERRA, CONUS404, etc.)
+   * - FORCING_VARIABLES
+     - list
+     - dataset-specific
+     - List of meteorological variables to acquire
+   * - FORCING_TIME_STEP_SIZE
+     - integer
+     - 3600
+     - Forcing data timestep in seconds
+   * - FORCING_MEASUREMENT_HEIGHT
+     - float
+     - 2.0
+     - Measurement height for meteorological variables (m)
+   * - APPLY_LAPSE_RATE
+     - boolean
+     - False
+     - Apply temperature lapse rate correction
+   * - LAPSE_RATE
+     - float
+     - -6.5
+     - Temperature lapse rate (°C/km)
+   * - DATA_ACQUIRE
+     - string
+     - "HPC"
+     - Data acquisition method (HPC, supplied, local)
+   * - FORCING_SHAPE_ID_NAME
+     - string
+     - "ID"
+     - Shapefile attribute for forcing station IDs
+
+Model Selection Parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 15 45
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - HYDROLOGICAL_MODEL
+     - string
+     - required
+     - Primary hydrological model (SUMMA, FUSE, GR, HYPE, MESH, NGEN, LSTM)
+   * - ROUTING_MODEL
+     - string
+     - optional
+     - Routing model (mizuRoute, auto)
+
+SUMMA Model Parameters
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 15 45
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - SETTINGS_SUMMA_CONNECT_HRUS
+     - string
+     - "yes"
+     - Connect HRUs for lateral flow ("yes", "no")
+   * - SETTINGS_SUMMA_TRIALPARAM_N
+     - integer
+     - 1
+     - Number of trial parameter sets
+   * - SETTINGS_SUMMA_USE_PARALLEL_SUMMA
+     - boolean
+     - False
+     - Use parallelized SUMMA execution
+   * - SETTINGS_SUMMA_CPUS_PER_TASK
+     - integer
+     - 1
+     - CPUs per SUMMA task (for parallel execution)
+   * - SETTINGS_SUMMA_GRU_PER_JOB
+     - integer
+     - 1
+     - GRUs per parallel job
+   * - SUMMA_INSTALL_PATH
+     - string
+     - auto
+     - Path to SUMMA executable
+
+FUSE Model Parameters
+~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 15 45
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - FUSE_SPATIAL_MODE
+     - string
+     - "lumped"
+     - Spatial configuration (lumped, distributed)
+   * - FUSE_DECISION_OPTIONS
+     - string
+     - "default"
+     - Model structure decision options
+   * - SETTINGS_FUSE_PARAMS_TO_CALIBRATE
+     - list
+     - []
+     - List of FUSE parameters to calibrate
+
+GR Model Parameters
+~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 15 45
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - GR_SPATIAL_MODE
+     - string
+     - "auto"
+     - Spatial configuration (lumped, distributed, auto)
+   * - GR_MODEL_VARIANT
+     - string
+     - "GR4J"
+     - GR model variant (GR4J, GR5J, GR6J)
+   * - GR_USE_SNOW_MODULE
+     - boolean
+     - False
+     - Enable CemaNeige snow module
+
+HYPE Model Parameters
+~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 15 45
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - HYPE_TIMESHIFT
+     - integer
+     - 0
+     - Time zone adjustment in hours
+   * - HYPE_SPINUP_DAYS
+     - integer
+     - 365
+     - Number of spinup days
+   * - HYPE_FRAC_THRESHOLD
+     - float
+     - 0.1
+     - Minimum class fraction to include
+
+mizuRoute Parameters
+~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 15 45
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - MIZU_FROM_MODEL
+     - string
+     - auto
+     - Source model for routing (auto-detected if not specified)
+   * - SETTINGS_MIZU_ROUTING_DT
+     - integer
+     - 3600
+     - Routing timestep in seconds
+   * - SETTINGS_MIZU_ROUTING_UNITS
+     - string
+     - "seconds"
+     - Time units for routing (seconds, hours, days)
+   * - SETTINGS_MIZU_WITHIN_BASIN
+     - integer
+     - 0
+     - Within-basin routing flag
+   * - SETTINGS_MIZU_OUTPUT_FREQ
+     - string
+     - "daily"
+     - Output frequency (daily, hourly, timestep)
+   * - SETTINGS_MIZU_OUTPUT_VARS
+     - list
+     - ["Qout"]
+     - List of output variables
+
+Calibration Parameters
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 15 45
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - CALIBRATION_PERIOD
+     - string
+     - required
+     - Calibration period as "YYYY-MM-DD,YYYY-MM-DD"
+   * - EVALUATION_PERIOD
+     - string
+     - required
+     - Evaluation period as "YYYY-MM-DD,YYYY-MM-DD"
+   * - PARAMS_TO_CALIBRATE
+     - list
+     - required
+     - List of parameters to calibrate
+   * - OPTIMIZATION_ALGORITHM
+     - string
+     - "DDS"
+     - Optimization algorithm (DDS, DE, PSO, NSGA2, ASYNC_DDS, POPULATION_DDS)
+   * - OPTIMIZATION_METRIC
+     - string
+     - "KGE"
+     - Objective metric (KGE, KGE_PRIME, NSE, RMSE, MAE)
+   * - POPULATION_SIZE
+     - integer
+     - 20
+     - Population size (for DE, PSO, NSGA2)
+   * - NUMBER_OF_ITERATIONS
+     - integer
+     - 100
+     - Maximum optimization iterations
+   * - PERTURBATION_FACTOR
+     - float
+     - 0.2
+     - DDS perturbation factor (0-1)
+   * - MUTATION_RATE
+     - float
+     - 0.5
+     - DE mutation rate
+   * - CROSSOVER_RATE
+     - float
+     - 0.7
+     - DE crossover rate
+   * - CALIBRATION_TIMESTEP
+     - string
+     - "daily"
+     - Timestep for calibration evaluation (daily, hourly)
+
+Output and Visualization Parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 15 45
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - OUTPUT_DIR
+     - string
+     - auto
+     - Custom output directory (default: project_dir)
+   * - SAVE_INTERMEDIATE_RESULTS
+     - boolean
+     - True
+     - Save intermediate workflow outputs
+   * - GENERATE_PLOTS
+     - boolean
+     - True
+     - Generate visualization plots
+   * - PLOT_FORMAT
+     - string
+     - "png"
+     - Plot file format (png, pdf, svg)
+   * - PLOT_DPI
+     - integer
+     - 300
+     - Plot resolution in DPI
+
+Path Parameters
+~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 15 45
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - CATCHMENT_PATH
+     - string
+     - auto
+     - Path to catchment shapefile
+   * - CATCHMENT_NAME
+     - string
+     - auto
+     - Catchment shapefile name
+   * - RIVER_NETWORK_SHP_PATH
+     - string
+     - auto
+     - Path to river network shapefile
+   * - DEM_PATH
+     - string
+     - auto
+     - Path to DEM file
+   * - LAND_CLASS_PATH
+     - string
+     - auto
+     - Path to land classification file
+   * - SOIL_CLASS_PATH
+     - string
+     - auto
+     - Path to soil classification file
+
+HPC Parameters
+~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 15 45
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - SETTINGS_SUMMA_TIME_LIMIT
+     - string
+     - "01:00:00"
+     - SLURM time limit (HH:MM:SS)
+   * - SETTINGS_SUMMA_MEM
+     - string
+     - "8G"
+     - Memory allocation per job
+   * - SETTINGS_SUMMA_PARTITION
+     - string
+     - "compute"
+     - SLURM partition name
+   * - USE_SLURM
+     - boolean
+     - False
+     - Enable SLURM job submission
+
+---
+
 Validation and Best Practices
 -----------------------------
 1. Validate before execution:
 
    .. code-block:: bash
 
-      ./symfluence --validate_config my_project.yaml
+      symfluence config validate --config my_project.yaml
+
 2. Comment custom values and rationale within YAML.
 3. Version-control all configuration files (except `config_active.yaml`).
 4. Use template as baseline and document deviations clearly.
+5. Test with small domains and short time periods first.
+6. Use appropriate discretization for your modeling objectives:
+
+   - Lumped: Fast, for calibration and large-scale studies
+   - Elevation bands: Capture orographic effects
+   - Radiation classes: Important for energy balance models
+   - Combined: Maximum spatial detail (slower execution)
+
+7. Match forcing timestep to model requirements:
+
+   - SUMMA: Any timestep (typically 3600s)
+   - FUSE: Daily recommended
+   - GR: Daily only
+   - HYPE: Daily only
 
 ---

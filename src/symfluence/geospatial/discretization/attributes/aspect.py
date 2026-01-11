@@ -24,7 +24,11 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
     """
     # Determine default name based on method
     default_name = f"{discretizer.domain_name}_riverBasins_{discretizer.delineation_suffix}.shp"
-    if discretizer.config.get("DELINEATE_COASTAL_WATERSHEDS") == True:
+    delineate_coastal = discretizer._get_config_value(
+        lambda: discretizer.config.domain.delineation.delineate_coastal_watersheds,
+        default=False
+    )
+    if delineate_coastal:
         default_name = f"{discretizer.domain_name}_riverBasins_with_coastal.shp"
 
     gru_shapefile = discretizer._get_file_path(
@@ -35,10 +39,10 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
     )
 
     dem_raster = discretizer._get_file_path(
-        path_key="DEM_PATH", 
+        path_key="DEM_PATH",
         name_key="DEM_NAME",
-        default_subpath="attributes/elevation/dem", 
-        default_name=f"domain_{discretizer.config.get('DOMAIN_NAME')}_elv.tif"
+        default_subpath="attributes/elevation/dem",
+        default_name=f"domain_{discretizer.domain_name}_elv.tif"
     )
     
     aspect_raster = discretizer._get_file_path(
@@ -55,7 +59,10 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         default_name=f"{discretizer.domain_name}_HRUs_aspect.shp",
     )
 
-    aspect_class_number = int(discretizer.config.get("ASPECT_CLASS_NUMBER", 8))
+    aspect_class_number = int(discretizer._get_config_value(
+        lambda: discretizer.config.domain.aspect_class_number,
+        default=8
+    ))
 
     if not aspect_raster.exists():
         discretizer.logger.info("Aspect raster not found. Calculating aspect...")

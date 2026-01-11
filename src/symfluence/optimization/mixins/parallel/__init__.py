@@ -1,13 +1,15 @@
 """
 Parallel Processing Module
 
-Provides infrastructure for parallel execution of optimization tasks.
+Provides infrastructure for parallel execution of optimization tasks,
+including HPC-specific utilities for scratch storage management.
 """
 
 from .directory_manager import DirectoryManager
 from .config_updater import ConfigurationUpdater
 from .task_distributor import TaskDistributor
 from .worker_environment import WorkerEnvironmentConfig
+from .local_scratch_manager import LocalScratchManager
 from .execution_strategies import (
     ExecutionStrategy,
     SequentialExecutionStrategy,
@@ -20,6 +22,7 @@ __all__ = [
     'ConfigurationUpdater',
     'TaskDistributor',
     'WorkerEnvironmentConfig',
+    'LocalScratchManager',
     'ExecutionStrategy',
     'SequentialExecutionStrategy',
     'ProcessPoolExecutionStrategy',

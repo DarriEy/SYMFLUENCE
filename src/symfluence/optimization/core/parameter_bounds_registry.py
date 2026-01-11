@@ -75,7 +75,7 @@ class ParameterBoundsRegistry:
         # NGEN CFE soil parameters
         'maxsmc': ParameterInfo(0.3, 0.6, 'fraction', 'Maximum soil moisture content', 'soil'),
         'wltsmc': ParameterInfo(0.02, 0.15, 'fraction', 'Wilting point soil moisture', 'soil'),
-        'satdk': ParameterInfo(1e-6, 5e-5, 'm/s', 'Saturated hydraulic conductivity', 'soil'),
+        'satdk': ParameterInfo(1e-7, 1e-4, 'm/s', 'Saturated hydraulic conductivity (expanded bounds)', 'soil'),
         'satpsi': ParameterInfo(0.05, 0.5, 'm', 'Saturated soil potential', 'soil'),
         'bb': ParameterInfo(3.0, 12.0, '-', 'Pore size distribution index', 'soil'),
         'smcmax': ParameterInfo(0.3, 0.55, 'm³/m³', 'Maximum soil moisture', 'soil'),
@@ -83,12 +83,14 @@ class ParameterBoundsRegistry:
         'expon': ParameterInfo(1.0, 6.0, '-', 'Exponent parameter', 'soil'),
         'mult': ParameterInfo(500.0, 2000.0, 'mm', 'Multiplier parameter', 'soil'),
         'slop': ParameterInfo(0.01, 0.5, '-', 'TOPMODEL slope parameter', 'soil'),
+        'soil_depth': ParameterInfo(1.0, 10.0, 'm', 'CFE soil depth for mountainous catchments', 'soil'),
 
         # NGEN NOAH-OWP soil parameters
         'slope': ParameterInfo(0.1, 1.0, '-', 'NOAH slope parameter', 'soil'),
         'dksat': ParameterInfo(1e-7, 1e-4, 'm/s', 'NOAH saturated conductivity', 'soil'),
         'psisat': ParameterInfo(0.01, 1.0, 'm', 'NOAH saturated potential', 'soil'),
         'bexp': ParameterInfo(2.0, 14.0, '-', 'NOAH b exponent', 'soil'),
+        'smcmax': ParameterInfo(0.3, 0.6, 'm³/m³', 'NOAH maximum soil moisture (should match CFE)', 'soil'),
         'smcwlt': ParameterInfo(0.01, 0.3, 'm³/m³', 'NOAH wilting point', 'soil'),
         'smcref': ParameterInfo(0.1, 0.5, 'm³/m³', 'NOAH reference moisture', 'soil'),
         'noah_refdk': ParameterInfo(1e-7, 1e-3, 'm/s', 'NOAH reference conductivity', 'soil'),
@@ -112,7 +114,7 @@ class ParameterBoundsRegistry:
 
         # NGEN CFE groundwater parameters
         'Cgw': ParameterInfo(0.0001, 0.005, 'm/h', 'Groundwater coefficient', 'baseflow'),
-        'max_gw_storage': ParameterInfo(0.01, 0.3, 'm', 'Maximum groundwater storage', 'baseflow'),
+        'max_gw_storage': ParameterInfo(0.05, 1.0, 'm', 'Maximum groundwater storage (expanded for large catchments)', 'baseflow'),
     }
 
     # ========================================================================
@@ -145,9 +147,17 @@ class ParameterBoundsRegistry:
         'RTFRAC1': ParameterInfo(0.1, 0.9, '-', 'Fraction roots upper layer', 'et'),
         'RTFRAC2': ParameterInfo(0.1, 0.9, '-', 'Fraction roots lower layer', 'et'),
 
-        # NGEN PET parameters
+        # NGEN PET parameters (BMI config file key names)
+        'vegetation_height_m': ParameterInfo(0.1, 30.0, 'm', 'Vegetation height', 'et'),
+        'zero_plane_displacement_height_m': ParameterInfo(0.0, 20.0, 'm', 'Zero plane displacement height', 'et'),
+        'momentum_transfer_roughness_length': ParameterInfo(0.001, 1.0, 'm', 'Momentum transfer roughness length', 'et'),
+        'heat_transfer_roughness_length_m': ParameterInfo(0.0001, 0.1, 'm', 'Heat transfer roughness length', 'et'),
+        'surface_shortwave_albedo': ParameterInfo(0.05, 0.5, '-', 'Surface shortwave albedo', 'et'),
+        'surface_longwave_emissivity': ParameterInfo(0.9, 1.0, '-', 'Surface longwave emissivity', 'et'),
         'wind_speed_measurement_height_m': ParameterInfo(2.0, 10.0, 'm', 'Wind measurement height', 'et'),
         'humidity_measurement_height_m': ParameterInfo(2.0, 10.0, 'm', 'Humidity measurement height', 'et'),
+
+        # NGEN PET parameters (legacy/alias names)
         'pet_albedo': ParameterInfo(0.05, 0.5, '-', 'PET albedo', 'et'),
         'pet_z0_mom': ParameterInfo(0.001, 1.0, 'm', 'PET momentum roughness', 'et'),
         'pet_z0_heat': ParameterInfo(0.0001, 0.1, 'm', 'PET heat roughness', 'et'),
@@ -408,7 +418,7 @@ def get_ngen_cfe_bounds() -> Dict[str, Dict[str, float]]:
     cfe_params = [
         'maxsmc', 'wltsmc', 'satdk', 'satpsi', 'bb', 'mult', 'slop',
         'smcmax', 'alpha_fc', 'expon', 'K_lf', 'K_nash', 'Klf', 'Kn',
-        'Cgw', 'max_gw_storage', 'refkdt',
+        'Cgw', 'max_gw_storage', 'refkdt', 'soil_depth',
     ]
     return get_registry().get_bounds_for_params(cfe_params)
 
@@ -421,9 +431,9 @@ def get_ngen_noah_bounds() -> Dict[str, Dict[str, float]]:
         Dictionary mapping NOAH param_name -> {'min': float, 'max': float}
     """
     noah_params = [
-        'slope', 'dksat', 'psisat', 'bexp', 'smcwlt', 'smcref',
+        'slope', 'dksat', 'psisat', 'bexp', 'smcmax', 'smcwlt', 'smcref',
         'noah_refdk', 'noah_refkdt', 'noah_czil', 'noah_z0',
-        'noah_frzk', 'noah_salp', 'rain_snow_thresh', 'ZREF',
+        'noah_frzk', 'noah_salp', 'rain_snow_thresh', 'ZREF', 'refkdt',
     ]
     return get_registry().get_bounds_for_params(noah_params)
 
@@ -436,7 +446,12 @@ def get_ngen_pet_bounds() -> Dict[str, Dict[str, float]]:
         Dictionary mapping PET param_name -> {'min': float, 'max': float}
     """
     pet_params = [
+        # BMI config file key names (primary)
+        'vegetation_height_m', 'zero_plane_displacement_height_m',
+        'momentum_transfer_roughness_length', 'heat_transfer_roughness_length_m',
+        'surface_shortwave_albedo', 'surface_longwave_emissivity',
         'wind_speed_measurement_height_m', 'humidity_measurement_height_m',
+        # Legacy/alias names
         'pet_albedo', 'pet_z0_mom', 'pet_z0_heat', 'pet_veg_h', 'pet_d0',
     ]
     return get_registry().get_bounds_for_params(pet_params)

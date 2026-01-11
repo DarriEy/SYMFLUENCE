@@ -34,6 +34,253 @@ def _create_easymore_instance():
 
 @ModelRegistry.register_preprocessor('MIZUROUTE')
 class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRouteConfigMixin):
+    """
+    Spatial preprocessor and configuration generator for the mizuRoute river routing model.
+
+    This preprocessor handles all spatial setup tasks required to run mizuRoute, including
+    network topology file creation, remapping file generation, and control file writing.
+    It supports multiple domain discretization strategies (lumped, semi-distributed,
+    distributed, grid-based) and integrates with various hydrological models as runoff
+    sources (SUMMA, FUSE, GR, NextGen, HYPE).
+
+    Supported Domain Types:
+        Lumped:
+            - Single HRU draining to river network
+            - Optional distributed routing via delineated subcatchments
+            - Area-weighted remapping for lumped-to-distributed conversion
+
+        Semi-distributed:
+            - Multiple HRUs per GRU routing at GRU level
+            - Reads SUMMA attributes file to determine HRU/GRU structure
+            - GRU-aggregated runoff routing
+
+        Distributed:
+            - Elevation bands or attribute-based discretization
+            - Routing at finest spatial resolution
+            - Optional remapping between catchment scales
+
+        Grid-based:
+            - Regular grid cells with D8 flow direction
+            - Each cell is both HRU and routing segment
+            - Cycle detection and fixing via graph algorithms
+
+    Supported Source Models:
+        - SUMMA: Physics-based snow hydrology (HRU or GRU runoff)
+        - FUSE: Framework for Understanding Structural Errors
+        - GR: Parsimonious hydrological models (GR4J, GR5J, GR6J)
+        - NextGen (NGEN): NOAA modular BMI framework
+        - HYPE: Semi-distributed hydrological model
+
+    Processing Workflow:
+        1. **Initialization**: Set up directories, handle custom paths for parallel runs
+        2. **Base Settings**: Copy template parameter and control files
+        3. **Network Topology**: Create NetCDF topology file from river network shapefiles
+           - Handle headwater basins (synthetic network generation)
+           - Detect and fix routing cycles using DFS graph algorithms
+           - Support lumped-to-distributed routing via delineated subcatchments
+        4. **Remapping** (optional): Create NetCDF remapping file
+           - Area-weighted remapping for lumped-to-distributed conversion
+           - Equal-weight remapping for uniform distribution
+           - Spatial intersection-based remapping for multi-scale modeling
+        5. **Control File**: Generate model-specific control file
+           - SUMMA control: HRU vs GRU runoff handling
+           - FUSE control: Basin-scale runoff routing
+           - GR control: Daily timestep alignment, midnight forcing
+
+    Key Methods (36 total):
+        Main Workflow:
+            run_preprocessing(): Orchestrates all preprocessing steps
+            copy_base_settings(): Copy template files to setup directory
+
+        Topology Creation:
+            create_network_topology_file(): Main topology file creation (208 lines)
+            _create_grid_topology_file(): Grid-based distributed topology
+            _check_if_headwater_basin(): Detect headwater basins with no river network
+            _create_synthetic_river_network(): Generate single-segment network for headwaters
+            _fix_routing_cycles(): Graph algorithm to detect and fix cycles (167 lines)
+            _find_closest_segment_to_pour_point(): Locate segment nearest to basin outlet
+
+        Remapping:
+            create_area_weighted_remap_file(): Area-based weights from delineated catchments
+            create_equal_weight_remap_file(): Uniform weights for all segments
+            remap_summa_catchments_to_routing(): Spatial intersection remapping
+
+        Control File Generation:
+            create_control_file(): SUMMA-specific control file
+            create_fuse_control_file(): FUSE-specific control file
+            create_gr_control_file(): GR-specific control file
+            _get_control_writer(): Get configured ControlFileWriter instance
+            _get_mizu_config(): Extract mizuRoute configuration values
+
+        NetCDF Helpers:
+            _set_topology_attributes(): Set file metadata
+            _create_topology_dimensions(): Create seg/hru dimensions
+            _create_topology_variables(): Create and fill segment/HRU variables
+            _create_and_fill_nc_var(): Generic NetCDF variable creation
+            _create_remap_file(): Create remapping NetCDF file
+            _create_remap_variables(): Fill remapping variables
+            _process_remap_variables(): Process spatial intersection results
+
+        Legacy Control File Writers (deprecated):
+            _write_control_file_header(): Write control file header
+            _write_control_file_directories(): Write directory paths
+            _write_control_file_simulation_controls(): Write simulation times
+            _write_control_file_topology(): Write topology configuration
+            _write_control_file_remapping(): Write remapping configuration
+            _write_control_file_parameters(): Write parameter file reference
+            _write_control_file_miscellaneous(): Write miscellaneous settings
+
+    Configuration Dependencies:
+        Required:
+            - DOMAIN_NAME: Basin identifier
+            - DOMAIN_DISCRETIZATION: Domain definition method (lumped/TBL/distribute)
+            - RIVER_NETWORK_SHP_PATH: Path to river network shapefile
+            - RIVER_NETWORK_SHP_NAME: River network shapefile name
+            - RIVER_BASINS_PATH: Path to river basin shapefile
+            - RIVER_BASINS_NAME: River basin shapefile name
+            - EXPERIMENT_ID: Experiment identifier
+            - EXPERIMENT_OUTPUT_MIZUROUTE: mizuRoute output directory
+
+        Optional:
+            - SETTINGS_MIZU_PATH: Custom setup directory (for parallel runs)
+            - SETTINGS_MIZU_TOPOLOGY: Topology file name (default: mizuRoute_topology.nc)
+            - SETTINGS_MIZU_REMAP: Remapping file name (default: remap_file.nc)
+            - SETTINGS_MIZU_PARAMETERS: Parameter file name
+            - SETTINGS_MIZU_NEEDS_REMAP: Enable remapping (T/F)
+            - SETTINGS_MIZU_MAKE_OUTLET: Comma-separated segment IDs to force as outlets
+            - SETTINGS_MIZU_WITHIN_BASIN: Hillslope routing option (0/1)
+            - ROUTING_DELINEATION: Routing delineation method (river_network/basin)
+            - GRID_CELL_SIZE: Grid cell size in meters (for distribute mode)
+            - MODEL_MIZUROUTE_FROM_MODEL: Source model name (SUMMA/FUSE/GR)
+
+        Shapefile Column Names:
+            River Network:
+                - RIVER_NETWORK_SHP_SEGID: Segment ID column
+                - RIVER_NETWORK_SHP_DOWNSEGID: Downstream segment ID column
+                - RIVER_NETWORK_SHP_LENGTH: Segment length column (m)
+                - RIVER_NETWORK_SHP_SLOPE: Segment slope column (-)
+
+            River Basins:
+                - RIVER_BASIN_SHP_RM_GRUID: GRU ID column
+                - RIVER_BASIN_SHP_RM_HRUID: HRU ID column
+                - RIVER_BASIN_SHP_RM_AREA: Basin area column (m²)
+                - RIVER_BASIN_SHP_RM_HRU2SEG: HRU-to-segment mapping column
+
+    Output Files:
+        Network Topology (NetCDF):
+            Dimensions: seg, hru
+            Segment Variables:
+                - segId: Unique segment IDs
+                - downSegId: Downstream segment IDs (0 = outlet)
+                - slope: Segment slopes
+                - length: Segment lengths (m)
+            HRU Variables:
+                - hruId: Unique HRU IDs
+                - hruToSegId: HRU-to-segment drainage mapping
+                - area: HRU areas (m²)
+
+        Remapping File (NetCDF, optional):
+            Dimensions: hru, data
+            Variables:
+                - RN_hruId: River network HRU IDs
+                - nOverlaps: Number of overlapping source HRUs per routing HRU
+                - HM_hruId: Source model HRU/GRU IDs
+                - weight: Areal weights for remapping
+
+        Control File (text):
+            Sections:
+                - Simulation controls (start/end times, routing options)
+                - Directory paths (input/output/ancillary)
+                - Topology file configuration
+                - Remapping configuration (if enabled)
+                - Parameter file reference
+                - Miscellaneous settings (hillslope routing, output frequency)
+
+    Special Handling:
+        Headwater Basins:
+            - Detects basins with None/null river network data
+            - Creates synthetic single-segment network
+            - Uses first HRU ID as segment ID, outlet downstream ID = 0
+
+        Lumped-to-Distributed Routing:
+            - Delineates subcatchments within lumped domain
+            - Creates area-weighted remapping from single SUMMA GRU to N routing HRUs
+            - Enables distributed routing for lumped hydrological models
+
+        Routing Cycles:
+            - Detects cycles using iterative DFS graph traversal
+            - Breaks cycles by forcing lowest-elevation segment to outlet (downSegId = 0)
+            - Logs number of cycles detected and fixed
+
+        GRU-level Runoff:
+            - Detects SUMMA simulations with multiple HRUs per GRU
+            - Reads SUMMA attributes.nc to determine structure
+            - Aggregates HRU areas to GRU level for topology
+
+        Grid-based Distributed:
+            - Reads D8 flow direction from grid shapefile
+            - Each grid cell becomes both HRU and segment
+            - Segment length = grid cell size
+            - Fixes cycles in D8 topology
+
+    Integration Patterns:
+        SUMMA Integration:
+            - Reads attributes.nc to detect HRU/GRU structure
+            - Handles both hru/hruId and gru/gruId output formats
+            - Sets summa_uses_gru_runoff flag for control file
+
+        FUSE Integration:
+            - Basin-scale runoff routing
+            - Control file references FUSE output files
+
+        GR Integration:
+            - Daily timestep alignment (midnight forcing)
+            - R/rpy2 interface output handling
+            - Forces simulation times to 00:00 alignment
+
+    Error Handling:
+        - Validates shapefile existence before processing
+        - Handles missing pour point shapefiles (fallback to outlet segment)
+        - Fills missing/null length and slope values with defaults
+        - Detects and logs warnings for outlet segment mismatches
+        - Raises FileNotFoundError for critical missing files
+
+    Example:
+        >>> config = {
+        ...     'DOMAIN_NAME': 'bow_river',
+        ...     'DOMAIN_DISCRETIZATION': 'lumped',
+        ...     'RIVER_NETWORK_SHP_PATH': './shapefiles/river_network',
+        ...     'RIVER_NETWORK_SHP_NAME': 'bow_river_riverNetwork_lumped.shp',
+        ...     'RIVER_BASINS_PATH': './shapefiles/river_basins',
+        ...     'RIVER_BASINS_NAME': 'bow_river_riverBasins_lumped.shp',
+        ...     'EXPERIMENT_ID': 'bow_calibration',
+        ...     'SETTINGS_MIZU_TOPOLOGY': 'mizuRoute_topology.nc',
+        ...     'SETTINGS_MIZU_NEEDS_REMAP': False,
+        ...     'MODEL_MIZUROUTE_FROM_MODEL': 'SUMMA'
+        ... }
+        >>> preprocessor = MizuRoutePreProcessor(config, logger)
+        >>> preprocessor.run_preprocessing()
+        # Creates:
+        # - ./settings/mizuRoute/mizuRoute_topology.nc (network topology)
+        # - ./settings/mizuRoute/mizuRoute.control (control file)
+        # - ./settings/mizuRoute/*.param (parameter files)
+
+    Notes:
+        - Topology file must be created before control file generation
+        - Remapping is optional and only needed when source and routing HRUs differ
+        - Control file references are model-specific (SUMMA uses different variable names than FUSE/GR)
+        - Grid-based distributed mode requires D8 flow direction in shapefile
+        - Parallel runs can specify custom setup directory via SETTINGS_MIZU_PATH
+        - Cycle detection uses O(V+E) iterative DFS to avoid recursion depth issues
+        - Minimum segment length enforced (1m) to prevent numerical instabilities
+        - Minimum slope enforced (0.001) for routing calculations
+
+    See Also:
+        - models.mizuroute.control_writer.ControlFileWriter: Control file generation
+        - models.mizuroute.mixins.MizuRouteConfigMixin: Configuration accessors
+        - geospatial.geometry_utils.GeospatialUtilsMixin: Spatial utilities
+        - models.base.BaseModelPreProcessor: Base preprocessor interface
+    """
     def _get_model_name(self) -> str:
         """Return model name for directory structure."""
         return "mizuRoute"
@@ -264,6 +511,12 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         is_grid_distribute = self.domain_definition_method == 'distribute'
         if is_grid_distribute:
             self._create_grid_topology_file()
+            return
+
+        # Check for point-scale mode
+        is_point_scale = self.domain_definition_method == 'point'
+        if is_point_scale:
+            self._create_point_topology_file()
             return
 
         river_network_path = self.config_dict.get('RIVER_NETWORK_SHP_PATH')
@@ -937,6 +1190,57 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         self.logger.info(f"Topology file: {self.setup_dir / topology_name}")
 
         # Set flag for control file - grid cells use GRU-level runoff
+        self.summa_uses_gru_runoff = True
+
+    def _create_point_topology_file(self):
+        """
+        Create mizuRoute topology for point-scale modeling.
+
+        Point-scale domains have a single HRU and a single segment (outlet).
+        """
+        self.logger.info("Creating point-scale network topology")
+
+        topology_name = self.mizu_topology_file
+        if not topology_name:
+            topology_name = "mizuRoute_topology.nc"
+
+        # Single segment and HRU for point-scale domain
+        seg_id = 1
+        down_seg_id = 0  # Outlet
+        hru_id = 1
+
+        # Default values for point-scale
+        slope = 0.01  # 1% slope default
+        length = 100.0  # 100m default segment length
+        area = 10000.0  # 1 hectare default area
+
+        # Create the netCDF topology file
+        with nc4.Dataset(self.setup_dir / topology_name, 'w', format='NETCDF4') as ncid:
+            self._set_topology_attributes(ncid)
+            self._create_topology_dimensions(ncid, 1, 1)  # 1 segment, 1 HRU
+
+            # Create segment variables
+            self._create_and_fill_nc_var(ncid, 'segId', 'int', 'seg', np.array([seg_id]),
+                                         'Unique ID of segment', '-')
+            self._create_and_fill_nc_var(ncid, 'downSegId', 'int', 'seg', np.array([down_seg_id]),
+                                         'ID of downstream segment (0=outlet)', '-')
+            self._create_and_fill_nc_var(ncid, 'slope', 'f8', 'seg', np.array([slope]),
+                                         'Segment slope', '-')
+            self._create_and_fill_nc_var(ncid, 'length', 'f8', 'seg', np.array([length]),
+                                         'Segment length', 'm')
+
+            # Create HRU variables
+            self._create_and_fill_nc_var(ncid, 'hruId', 'int', 'hru', np.array([hru_id]),
+                                         'Unique HRU ID', '-')
+            self._create_and_fill_nc_var(ncid, 'hruToSegId', 'int', 'hru', np.array([seg_id]),
+                                         'Segment to which HRU drains', '-')
+            self._create_and_fill_nc_var(ncid, 'area', 'f8', 'hru', np.array([area]),
+                                         'HRU area', 'm^2')
+
+        self.logger.info(f"Point-scale topology created: 1 HRU, 1 outlet segment")
+        self.logger.info(f"Topology file: {self.setup_dir / topology_name}")
+
+        # Set flag for control file - point-scale uses GRU-level runoff
         self.summa_uses_gru_runoff = True
 
     def create_fuse_control_file(self):

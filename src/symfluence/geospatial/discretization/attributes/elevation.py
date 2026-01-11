@@ -22,7 +22,11 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
     """
     # Determine default name based on method
     default_name = f"{discretizer.domain_name}_riverBasins_{discretizer.delineation_suffix}.shp"
-    if discretizer.config.get("DELINEATE_COASTAL_WATERSHEDS") == True:
+    delineate_coastal = discretizer._get_config_value(
+        lambda: discretizer.config.domain.delineation.delineate_coastal_watersheds,
+        default=False
+    )
+    if delineate_coastal:
         default_name = f"{discretizer.domain_name}_riverBasins__with_coastal.shp"
 
     gru_shapefile = discretizer._get_file_path(
@@ -34,10 +38,10 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
 
     # Note: DEM path is already resolved in discretizer.dem_path, but re-resolving here as per original code pattern
     dem_raster = discretizer._get_file_path(
-        path_key="DEM_PATH", 
+        path_key="DEM_PATH",
         name_key="DEM_NAME",
-        default_subpath="attributes/elevation/dem", 
-        default_name=f"domain_{discretizer.config.get('DOMAIN_NAME')}_elv.tif"
+        default_subpath="attributes/elevation/dem",
+        default_name=f"domain_{discretizer.domain_name}_elv.tif"
     )
     
     output_shapefile = discretizer._get_file_path(
@@ -47,7 +51,10 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         default_name=f"{discretizer.domain_name}_HRUs_elevation.shp",
     )
 
-    elevation_band_size = float(discretizer.config.get("ELEVATION_BAND_SIZE"))
+    elevation_band_size = float(discretizer._get_config_value(
+        lambda: discretizer.config.domain.elevation_band_size,
+        default=200.0
+    ))
     gru_gdf, elevation_thresholds = discretizer._read_and_prepare_data(
         gru_shapefile, dem_raster, elevation_band_size
     )

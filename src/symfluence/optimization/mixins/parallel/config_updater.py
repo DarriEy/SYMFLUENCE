@@ -99,6 +99,18 @@ class ConfigurationUpdater:
             spinup_parts = [p.strip() for p in spinup_period.split(',')]
             if len(spinup_parts) >= 1:
                 cal_start = spinup_parts[0]
+                # Preserve time-of-day from EXPERIMENT_TIME_START to avoid
+                # SUMMA forcing misalignment (e.g., hourly forcing begins at 01:00)
+                exp_start = self.config.get('EXPERIMENT_TIME_START')
+                if exp_start and isinstance(exp_start, str):
+                    try:
+                        exp_dt = datetime.strptime(exp_start, '%Y-%m-%d %H:%M')
+                        start_dt = datetime.strptime(cal_start, '%Y-%m-%d')
+                        start_dt = start_dt.replace(hour=exp_dt.hour, minute=exp_dt.minute)
+                        cal_start = start_dt.strftime('%Y-%m-%d %H:%M')
+                    except Exception:
+                        # If parsing fails, keep original date string
+                        pass
 
         if cal_period:
             cal_parts = [p.strip() for p in cal_period.split(',')]
@@ -140,23 +152,46 @@ class ConfigurationUpdater:
         updated_lines = []
 
         for line in lines:
-            if model_name.upper() == 'HYPE' and line.startswith('resultdir'):
-                output_path = str(dirs['output_dir']).replace('\\', '/').rstrip('/') + '/'
-                updated_lines.append(f"resultdir\t{output_path}\n")
-            elif 'settingsPath' in line:
-                settings_path = str(dirs['settings_dir']).replace('\\', '/')
-                updated_lines.append(f"settingsPath         '{settings_path}/'\n")
-            elif 'outputPath' in line:
-                output_path = str(dirs['sim_dir']).replace('\\', '/')
-                updated_lines.append(f"outputPath           '{output_path}/'\n")
-            elif 'outFilePrefix' in line:
-                prefix = f'proc_{proc_id:02d}_{experiment_id}'
-                updated_lines.append(f"outFilePrefix        '{prefix}'\n")
-            elif 'simStartTime' in line and cal_start:
-                updated_lines.append(f"simStartTime         '{cal_start}'\n")
-            elif 'simEndTime' in line and cal_end:
-                updated_lines.append(f"simEndTime           '{cal_end}'\n")
+            stripped = line.strip()
+            if not stripped or stripped.startswith('!'):
+                updated_lines.append(line)
+                continue
+
+            # Split by whitespace, but keep original indentation if possible
+            parts = re.split(r'(\s+)', line, 1)
+            if len(parts) < 2:
+                updated_lines.append(line)
+                continue
+            
+            # parts[0] is the key, parts[1] is the whitespace, parts[2] is the rest
+            key = stripped.split()[0]
+            
+            # Find the value part (ignoring comments)
+            value_match = re.search(r"'(.*?)'", line)
+            if not value_match and model_name.upper() != 'HYPE':
+                updated_lines.append(line)
+                continue
+
+            if key == 'settingsPath':
+                new_val = str(dirs['settings_dir']).replace('\\', '/')
+                if not new_val.endswith('/'): new_val += '/'
+                updated_lines.append(f"{key:20s} '{new_val}'\n")
+            elif key == 'outputPath':
+                new_val = str(dirs['sim_dir']).replace('\\', '/')
+                if not new_val.endswith('/'): new_val += '/'
+                updated_lines.append(f"{key:20s} '{new_val}'\n")
+            elif key == 'outFilePrefix':
+                new_val = f'proc_{proc_id:02d}_{experiment_id}'
+                updated_lines.append(f"{key:20s} '{new_val}'\n")
+            elif key == 'simStartTime' and cal_start:
+                updated_lines.append(f"{key:20s} '{cal_start}'\n")
+            elif key == 'simEndTime' and cal_end:
+                updated_lines.append(f"{key:20s} '{cal_end}'\n")
+            elif model_name.upper() == 'HYPE' and key == 'resultdir':
+                new_val = str(dirs['output_dir']).replace('\\', '/').rstrip('/') + '/'
+                updated_lines.append(f"resultdir\t{new_val}\n")
             else:
+                # PRESERVE UNCHANGED
                 updated_lines.append(line)
 
         return updated_lines

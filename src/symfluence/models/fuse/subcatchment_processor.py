@@ -21,7 +21,7 @@ import geopandas as gpd
 import numpy as np
 import xarray as xr
 
-from symfluence.data.utilities.netcdf_utils import create_netcdf_encoding
+from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

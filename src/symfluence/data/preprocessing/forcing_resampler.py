@@ -1,8 +1,179 @@
-"""
-Forcing Resampler
+"""Forcing data resampling orchestrator for catchment-based remapping.
 
-Orchestrates forcing data remapping from source grids to model catchments.
-Delegates to specialized components for GIS operations, file processing, and weight management.
+Orchestrates efficient remapping of gridded forcing data (ERA5, AORC, etc.) from source
+grids to model catchments/HRUs using EASMORE (EArth Similarity Mapping and OverRemapping).
+Implements Facade Pattern delegating to specialized components: weight generation, weight
+application, file processing, and elevation correction. Supports parallel processing,
+memory-efficient file handling, and flexible discretization strategies (lumped, distributed,
+point-scale).
+
+Architecture:
+    The ForcingResampler coordinates a multi-step workflow:
+
+    1. Remapping Weight Generation (One-time, expensive):
+       - Compute spatial intersection weights between forcing grid and model HRUs
+       - Uses EASMORE for efficient weight computation
+       - Weights: [n_forcing_points × n_hrus] sparse matrix
+       - Saved for reuse across all forcing files
+
+    2. Weight Application (Per-file, fast):
+       - Load remapping weights
+       - Apply to each forcing file (ERA5, AORC, etc.)
+       - Output: Catchment/HRU-averaged forcing time series
+       - Format: NetCDF with dimensions [time, HRU]
+
+    3. File Processing (Parallel/Serial):
+       - Process multiple forcing files in parallel or serial
+       - Configurable batch processing
+       - Error handling and progress tracking
+
+    4. Elevation Correction:
+       - Compute mean DEM elevation per catchment/HRU
+       - Apply elevation lapse rates to temperature
+       - Adjust precipitation with altitude
+
+    5. CRS Handling:
+       - Validate and reproject shapefiles if needed
+       - Maintain consistency across all operations
+
+Workflow:
+
+    1. Initialization:
+       resampler = ForcingResampler(config, logger)
+       - Load config, paths, catchment shapefiles
+       - Initialize dataset-specific handlers
+       - Determine discretization method (lumped/distributed/point)
+
+    2. Resample Forcing (Main Entry Point):
+       resampler.resample_forcing()
+       - Check if weights already exist (skip generation if yes)
+       - Generate remapping weights if needed (expensive, one-time)
+       - Apply weights to forcing files (fast, per-file)
+       - Compute elevation statistics
+       - Output: Catchment-averaged forcing NetCDF files
+
+    3. Alternative Workflows:
+       For point-scale domains:
+           resampler.extract_point_scale_forcing()
+           - Extract forcing at single point/small grid
+           - No remapping needed
+
+Component Delegation:
+
+    RemappingWeightGenerator:
+        - Input: Source grid shapefile, target HRU shapefile
+        - Output: Remapping weight matrix (sparse, [n_forcing_points × n_hrus])
+        - Algorithm: EASMORE similarity mapping
+
+    RemappingWeightApplier:
+        - Input: Forcing file (NetCDF), remapping weights
+        - Output: Remapped forcing file ([time, HRU])
+        - Operation: Matrix multiplication (weights × forcing values)
+
+    FileProcessor:
+        - Input: List of forcing files, worker function
+        - Output: Results from applying worker to each file
+        - Features: Parallel/serial execution, progress tracking, error handling
+
+    PointScaleForcingExtractor:
+        - Input: Domain bounding box, forcing file
+        - Output: Point-scale forcing at domain center
+        - Use case: FLUXNET, weather station, small-area studies
+
+    ElevationCalculator:
+        - Input: DEM raster, HRU shapefile
+        - Output: Mean elevation per HRU
+        - Use case: Temperature lapse rate correction
+
+    ShapefileProcessor:
+        - Input: Shapefile, optional target CRS
+        - Output: Validated/reprojected shapefile
+        - Features: CRS conversion, HRU ID assignment
+
+Data Flow:
+
+    Forcing File → RemappingWeightApplier → Remapped Forcing (NetCDF)
+                  ↑
+                RemappingWeightGenerator (one-time)
+                  ↑
+                Source Grid + Target HRUs
+
+Configuration Parameters:
+
+    domain.discretization: str
+        Discretization method: 'lumped', 'distributed', 'point_scale'
+        Determines HRU definition and remapping target
+
+    forcing_dataset: str
+        Forcing data source: 'ERA5', 'AORC', 'CONUS404', etc.
+        Controls dataset-specific handling
+
+    paths.dem_name: str (optional)
+        DEM raster filename for elevation correction
+        Default: domain_{domain_name}_elv.tif
+
+    paths.catchment_shp_name: str (optional)
+        Catchment shapefile name
+        Default: auto-generated from domain_name and discretization
+
+    Remapping parameters (in config):
+        weight_generation_method: Method for computing weights (EASMORE)
+        parallel_processing: Enable/disable parallel file processing
+
+Input Paths:
+
+    shapefiles/catching/: Catchment/HRU polygon shapefiles
+    attributes/elevation/dem/: DEM raster for elevation correction
+    forcing/raw_data/: Input forcing files (ERA5 NetCDF, etc.)
+
+Output Paths:
+
+    forcing/basin_averaged_data/: Remapped forcing (NetCDF files)
+    shapefiles/forcing/: Processed shapefiles with weights
+
+Supported Discretization Methods:
+
+    1. Lumped (Single HRU):
+       - One HRU per catchment
+       - Remapping: Average all grid cells to single catchment value
+       - Output: Time series [time] for single catchment
+
+    2. Distributed (Multiple HRUs):
+       - Multiple HRUs per catchment (elevation bands, landcover types)
+       - Remapping: Average grid cells to each HRU based on weights
+       - Output: Time series [time, n_hrus] with separate HRU values
+
+    3. Point-Scale (Single Point):
+       - Single point or small study area
+       - Remapping: Extract nearest grid cell or interpolate
+       - Output: Time series [time] at point location
+
+Error Handling:
+
+    - Missing weights: Regenerate if weight file corrupted/missing
+    - CRS mismatch: Warn and reproject if necessary
+    - Temporal alignment: Validate time dimension across files
+    - Parallel failures: Fall back to serial processing
+
+Performance Considerations:
+
+    - Weight generation: ~1-10 hours for large domains (millions of HRUs)
+    - Weight application: ~1-10 seconds per forcing file
+    - Parallel processing: 4-8 cores recommended
+    - Memory: ~1-5 GB for weight matrix (depends on discretization)
+
+References:
+
+    - EASMORE Algorithm: Vergopolan et al. (similar approach)
+    - Remapping Concepts: https://confluence.ecmwf.int/
+    - NetCDF I/O: https://unidata.github.io/netcdf4-python/
+
+See Also:
+
+    - RemappingWeightGenerator: Low-level weight computation
+    - RemappingWeightApplier: Low-level weight application
+    - FileProcessor: Batch file processing
+    - DataManager: High-level data workflow coordination
 """
 
 import logging

@@ -273,14 +273,35 @@ class SummaForcingProcessor(BaseForcingProcessor):
         catchment_elev = 'S_1_elev_m'
         forcing_elev = 'S_2_elev_m'
         weights = 'weight'
-        # LAPSE_RATE is in K/km (standard unit), convert to K/m for elevation in meters
-        lapse_rate = float(self._get_config_value(lambda: self.config.forcing.lapse_rate)) / 1000.0  # [K m-1]
+        # LAPSE_RATE: Handle both K/m (default 0.0065) and K/km (e.g. 6.5) units
+        raw_lapse = float(self._get_config_value(lambda: self.config.forcing.lapse_rate))
+        
+        # If the absolute value is small (< 0.1), assume it's already in K/m.
+        # Otherwise, assume it's in K/km and convert to K/m.
+        if abs(raw_lapse) < 0.1:
+            lapse_rate_km = raw_lapse * 1000.0
+            lapse_rate = raw_lapse
+        else:
+            lapse_rate_km = raw_lapse
+            lapse_rate = raw_lapse / 1000.0
+
+        # Most atmospheric lapse rates are positive (temp decreases with height)
+        # but our formula: T_catch = T_force + lapse_rate * (Z_force - Z_catch)
+        # If Z_force > Z_catch (forcing is higher/colder), and lapse_rate is positive:
+        # T_catch = T_force + positive * positive = warmer. (CORRECT)
+        # If the user provided a negative lapse rate (e.g. -6.5 K/km), it would 
+        # result in T_catch being colder than T_force when catchment is lower.
+        # We'll log a warning if it looks like a sign error.
+        if raw_lapse < 0:
+            self.logger.warning(f"Negative LAPSE_RATE ({raw_lapse}) detected. "
+                              "This will make higher elevations warmer. "
+                              "Standard lapse rates should be positive in SYMFLUENCE.")
 
         if catchment_elev not in topo_data.columns and 'S_1_elev_mean' in topo_data.columns:
             catchment_elev = 'S_1_elev_mean'
 
         # Pre-calculate lapse values efficiently
-        self.logger.info("Pre-calculating lapse rate corrections...")
+        self.logger.info(f"Pre-calculating lapse rate corrections (Rate: {lapse_rate_km:.2f} K/km)...")
         topo_data['lapse_values'] = topo_data[weights] * lapse_rate * (topo_data[forcing_elev] - topo_data[catchment_elev])
 
         # Calculate weighted lapse values for each HRU

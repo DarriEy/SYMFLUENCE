@@ -1,8 +1,49 @@
-"""
-Asynchronous parallel DDS optimizer using MPI batch framework.
+"""Asynchronous Distributed Particle Swarm Sampling (DDPSS) Optimizer.
 
-Extends DDS for parallel execution across multiple processors,
-enabling efficient calibration on HPC systems.
+Asynchronous parallel implementation of DDS (Dynamically Dimensioned Search)
+for efficient calibration on multi-processor systems. Uses batch-based evaluation
+with a solution pool for improved exploration-exploitation balance.
+
+Algorithm Characteristics:
+    - Parent-child relationship: DDS generates trials from best solutions
+    - Dynamic dimensionality: Number of parameters to vary decreases over time
+    - Parallel evaluation: Batches of solutions evaluated in parallel
+    - Solution pool: Top N solutions retained for parent selection
+    - Stagnation detection: Stops if no improvement for N batches
+
+Parallelization Strategy:
+    - Batch size: Evaluations per iteration (typically N_processors)
+    - Pool size: Solution pool capacity (default: 2*N_processors, min 20)
+    - Asynchronous: Doesn't wait for slowest evaluation (batch-based not async)
+    - Adaptive: Convergence based on improvement rate
+
+Parameter Variation (DDS):
+    - Probability: P(vary_param) = 1 - log(T) / log(T_max) (decreases over time)
+    - Minimum: At least 1 parameter varies per trial (ensures exploration)
+    - Normal distribution: N(parent_value, sigma=DDS_R=0.2)
+    - Bounds: Clipped to [0, 1] normalized space
+
+Stagnation Termination:
+    - Tracks consecutive batches without significant improvement
+    - Significant improvement: Score > best_score + convergence_threshold (1e-4)
+    - Minor improvement: Score > best_score but < threshold → counts toward stagnation
+    - No improvement: Increments stagnation counter
+    - Stop: When stagnation_counter >= stagnation_limit (default: 25)
+
+Configuration Parameters:
+    DDS_R: Mutation step size (normal distribution std dev, default: 0.2)
+    ASYNC_DDS_POOL_SIZE: Solution pool capacity (default: 2*N_procs, min 20)
+    ASYNC_DDS_BATCH_SIZE: Evaluations per batch (default: N_procs)
+    DDS_STAGNATION_LIMIT: Batches without improvement before stopping (default: 25)
+    DDS_CONVERGENCE_THRESHOLD: Threshold for "significant" improvement (default: 1e-4)
+
+References:
+    - Tolson, B. A., & Shoemaker, C. A. (2007). Dynamically dimensioned search
+      algorithm for computationally efficient watershed model calibration.
+      Water Resources Research, 43, W01413.
+    - Asadzadeh, M., & Tolson, B. A. (2013). Pareto archived dynamically dimensioned
+      search: A multi-objective optimization algorithm for empirical calibration of
+      environmental models. Journal of Hydroinformatics, 15(4), 1091-1108.
 """
 
 import numpy as np
@@ -13,22 +54,75 @@ from typing import Dict, Any, List, Tuple, Optional
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
 
 class AsyncDDSOptimizer(BaseOptimizer):
+    """Asynchronous Parallel DDS (Dynamically Dimensioned Search) optimizer.
+
+    Implements batch-based parallel DDS algorithm for efficient calibration
+    on multi-core and HPC systems. Uses a solution pool to balance exploration
+    and exploitation while enabling asynchronous/batch parallel execution.
+
+    Algorithm Flow:
+        1. Initialize solution pool with random solutions + user initial params
+        2. For each batch:
+           a. Select parents from solution pool (top performers)
+           b. Generate batch_size trial solutions using DDS mutations
+           c. Evaluate trials in parallel (or sequentially)
+           d. Update pool with better solutions (keep top pool_size)
+           e. Track improvement; increment stagnation counter if none
+        3. Terminate when: max_iterations reached OR stagnation_counter >= limit
+
+    Solution Pool Management:
+        - Pool size: Configurable (typically 2-3x batch_size)
+        - Sorted by score: Highest scores retained
+        - Parent selection: Random sample of 3, pick best (tournament selection)
+        - Pool update: Add new solutions if better than worst in pool
+
+    DDS Mutation Mechanism:
+        - Parameter selection probability: P = 1 - log(T) / log(T_max)
+        - Starts high (50-75% of params vary) → decreases over time
+        - Minimum: At least 1 param varies (prevents stagnation)
+        - Perturbation: Normal distribution N(0, DDS_R) where DDS_R ≈ 0.2
+
+    Stagnation Detection:
+        - Significant improvement (reset counter): Δ > threshold (1e-4)
+        - Minor improvement (count toward stagnation): 0 < Δ ≤ threshold
+        - No improvement (always count): Δ ≤ 0
+        - Why: Allows brief plateaus but terminates if stuck > stagnation_limit
+
+    Advantages:
+        - Faster convergence than genetic algorithms (fewer parameters vary)
+        - Simple parallelization (batch-based, no complex dependencies)
+        - Good for 4-20 parameter problems (typical hydrological models)
+        - Low computational overhead compared to gradient methods
+
+    Configuration:
+        DDS_R: Mutation step size (default: 0.2)
+        ASYNC_DDS_POOL_SIZE: Solution pool capacity (default: 2*num_processes)
+        ASYNC_DDS_BATCH_SIZE: Evaluations per batch (default: num_processes)
+        DDS_STAGNATION_LIMIT: Batches before stopping (default: 25)
+        DDS_CONVERGENCE_THRESHOLD: Significant improvement threshold (1e-4)
     """
-    Asynchronous Parallel DDS using existing MPI batch framework
-    """
-    
+
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+        """Initialize AsyncDDS optimizer with parallel batch configuration.
+
+        Configures parallel batch size, solution pool capacity, and convergence
+        criteria specific to batch-based parallel execution.
+
+        Args:
+            config: Configuration dictionary with DDS and parallelization settings
+            logger: Logger instance for diagnostic output
+        """
         super().__init__(config, logger)
-        self.dds_r = config.get('DDS_R', 0.2)
-        self.pool_size = config.get('ASYNC_DDS_POOL_SIZE', min(20, self.num_processes * 2))
-        self.batch_size = config.get('ASYNC_DDS_BATCH_SIZE', self.num_processes)
+        self.dds_r = self._cfg('DDS_R', default=0.2)
+        self.pool_size = self._cfg('ASYNC_DDS_POOL_SIZE', default=min(20, self.num_processes * 2))
+        self.batch_size = self._cfg('ASYNC_DDS_BATCH_SIZE', default=self.num_processes)
         self.total_target_evaluations = self.max_iterations * self.num_processes
         self.target_batches = self.total_target_evaluations // self.batch_size
         # Stagnation limit: stop if no improvement for this many consecutive batches
         # Default 25 is more appropriate for 4-8 parameter problems
-        self.stagnation_limit = config.get('DDS_STAGNATION_LIMIT', 25)
+        self.stagnation_limit = self._cfg('DDS_STAGNATION_LIMIT', default=25)
         # Convergence threshold: consider converged if improvement < this
-        self.convergence_threshold = config.get('DDS_CONVERGENCE_THRESHOLD', 1e-4)
+        self.convergence_threshold = self._cfg('DDS_CONVERGENCE_THRESHOLD', default=1e-4)
         self.solution_pool = []; self.pool_scores = []; self.batch_history = []
         self.total_evaluations = 0; self.stagnation_counter = 0
     

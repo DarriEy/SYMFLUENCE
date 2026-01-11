@@ -180,27 +180,40 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
     return 1e6
 
 
-def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config: Dict, logger) -> Dict:
+def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config: Dict, logger, project_dir: str = None) -> Dict:
     """
     Calculate metrics using proper CalibrationTarget classes.
 
     This replaces the inline streamflow-only calculation to support all calibration targets
     including streamflow, SWE, SCA, ET, soil moisture, etc.
+
+    Args:
+        summa_dir: SUMMA simulation directory
+        mizuroute_dir: mizuRoute simulation directory
+        config: Configuration dictionary
+        logger: Logger instance
+        project_dir: Project directory path (if None, reconstructs from config)
     """
     try:
         from ...calibration_targets import (
             StreamflowTarget, SnowTarget, GroundwaterTarget, ETTarget,
-            SoilMoistureTarget, TWSTarget
+            SoilMoistureTarget, TWSTarget, MultivariateTarget
         )
         from pathlib import Path as PathType
 
-        # Get the project directory from config
-        project_dir = PathType(config.get('SYMFLUENCE_DATA_DIR', '.')) / f"domain_{config.get('DOMAIN_NAME')}"
+        # Use provided project_dir, or reconstruct from config if not provided
+        if project_dir is None:
+            project_dir = PathType(config.get('SYMFLUENCE_DATA_DIR', '.')) / f"domain_{config.get('DOMAIN_NAME')}"
+        else:
+            project_dir = PathType(project_dir)
 
         # Determine the calibration target type
         calibration_var = config.get('CALIBRATION_VARIABLE', 'streamflow')
         optimization_target = config.get('OPTIMIZATION_TARGET', calibration_var).lower()
 
+        logger.debug(f"[METRICS_CALC] Config keys: {list(config.keys())[:10]}")
+        logger.debug(f"[METRICS_CALC] OPTIMIZATION_TARGET in config: {config.get('OPTIMIZATION_TARGET')}")
+        logger.debug(f"[METRICS_CALC] CALIBRATION_VARIABLE in config: {config.get('CALIBRATION_VARIABLE')}")
         logger.debug(f"Creating calibration target for: {optimization_target}")
 
         # Create the appropriate calibration target
@@ -216,6 +229,8 @@ def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config:
             target = SoilMoistureTarget(config, project_dir, logger)
         elif optimization_target in ['tws', 'grace', 'grace_tws', 'total_storage']:
             target = TWSTarget(config, project_dir, logger)
+        elif optimization_target == 'multivariate':
+            target = MultivariateTarget(config, project_dir, logger)
         else:
             # Default to streamflow
             logger.warning(f"Unknown optimization target '{optimization_target}', defaulting to streamflow")
@@ -297,14 +312,14 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
             domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
             routing_delineation = config.get('ROUTING_DELINEATION', 'lumped')
 
-            if domain_method == 'lumped' and routing_delineation == 'lumped':
+            if domain_method in ['lumped', 'point'] and routing_delineation == 'lumped':
                 summa_files = list(summa_dir.glob("*timestep.nc"))
                 logger.debug(f"Found {len(summa_files)} SUMMA timestep files")
 
                 if summa_files:
                     sim_files = summa_files
                     use_mizuroute = False
-                    logger.debug("Using SUMMA files (lumped domain and routing, need m/s to m³/s conversion)")
+                    logger.debug("Using SUMMA files (lumped/point domain and routing, need m/s to m³/s conversion)")
 
                     # Get the ACTUAL catchment area for unit conversion
                     try:

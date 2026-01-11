@@ -58,8 +58,18 @@ class LSTMModelOptimizer(BaseModelOptimizer):
         )
 
     def _create_calibration_target(self):
-        from ..calibration_targets import StreamflowTarget
-        return StreamflowTarget(self.config, self.project_dir, self.logger)
+        """Create LSTM calibration target using registry-based factory."""
+        from ..calibration_targets import create_calibration_target
+
+        target_type = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
+
+        return create_calibration_target(
+            model_name='LSTM',
+            target_type=target_type,
+            config=self.config,
+            project_dir=self.project_dir,
+            logger=self.logger
+        )
 
     def _create_worker(self) -> LSTMWorker:
         return LSTMWorker(self.config, self.logger)

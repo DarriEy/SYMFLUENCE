@@ -13,7 +13,7 @@ import pandas as pd
 import xarray as xr
 import geopandas as gpd
 
-from symfluence.data.utilities.variable_utils import VariableHandler
+from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.core.constants import UnitConversion
 from ..registry import ModelRegistry
 from ..base import BaseModelPreProcessor
@@ -36,20 +36,80 @@ except (ImportError, ValueError) as e:
 @ModelRegistry.register_preprocessor('GR')
 class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, ObservationLoaderMixin, DatasetBuilderMixin):
     """
-    Preprocessor for the GR family of models (initially GR4J).
+    Preprocessor for the GR family of models (GR4J, GR5J, GR6J).
 
-    Handles data preparation, PET calculation, snow module setup, and file organization.
-    Supports both lumped and distributed spatial modes.
-    Inherits common functionality from BaseModelPreProcessor, PET calculations from PETCalculatorMixin,
-    geospatial utilities from GeospatialUtilsMixin, and observation loading from ObservationLoaderMixin.
+    Handles complete preprocessing workflow for GR models including forcing data processing,
+    PET calculation, optional snow module setup, and preparation of input data for R-based
+    execution. GR models are parsimonious lumped/semi-distributed rainfall-runoff models
+    developed by INRAE (France).
+
+    Key Operations:
+        - Process forcing data (precipitation, temperature, PET)
+        - Calculate potential evapotranspiration using multiple methods
+        - Prepare input data for GR model execution via rpy2/R interface
+        - Handle both lumped and distributed (HRU-based) spatial configurations
+        - Configure optional snow module (CemaNeige) for snowmelt modeling
+        - Quality control and gap-filling of forcing data
+        - Load and align observation data for calibration/evaluation
+
+    Workflow Steps:
+        1. Initialize paths and validate R/rpy2 installation
+        2. Determine spatial mode (lumped vs. distributed)
+        3. Process forcing data and calculate PET
+        4. Aggregate forcing data by spatial units (if distributed)
+        5. Handle data quality issues (gaps, outliers)
+        6. Prepare input matrices for R model execution
+        7. Configure snow module parameters (if enabled)
+        8. Save processed data in R-compatible format
+
+    Supported Spatial Modes:
+        - Lumped: Single catchment-averaged inputs
+        - Distributed: Multiple HRUs with area-weighted aggregation
+        - Auto: Automatically detect based on domain definition method
+
+    GR Model Variants:
+        - GR4J: 4-parameter daily model (basic rainfall-runoff)
+        - GR5J: 5-parameter daily model (includes groundwater exchange)
+        - GR6J: 6-parameter daily model (includes parallel routing)
+        - CemaNeige: Optional 2-parameter snow module
+
+    PET Calculation Methods:
+        - Oudin: Simple temperature-based method (GR model default)
+        - Hamon: Temperature and daylight-based
+        - Priestley-Taylor: Radiation-based method
+
+    Inherits from:
+        BaseModelPreProcessor: Common preprocessing patterns and utilities
+        PETCalculatorMixin: Potential evapotranspiration calculation methods
+        GeospatialUtilsMixin: Spatial operations (area calculation, centroid)
+        ObservationLoaderMixin: Observation data loading capabilities
+        DatasetBuilderMixin: NetCDF dataset construction utilities
 
     Attributes:
-        config: Configuration settings for GR models (inherited)
-        logger: Logger object for recording processing information (inherited)
-        project_dir: Directory for the current project (inherited)
-        setup_dir: Directory for GR setup files (inherited)
-        domain_name: Name of the domain being processed (inherited)
-        spatial_mode: Spatial mode ('lumped' or 'distributed')
+        config (SymfluenceConfig): Typed configuration object
+        logger: Logger object for recording processing information
+        project_dir (Path): Directory for the current project
+        forcing_gr_path (Path): Directory for GR input files
+        catchment_path (Path): Path to catchment shapefile
+        spatial_mode (str): Spatial configuration ('lumped' or 'distributed')
+        forcing_processor (ForcingDataProcessor): Handles forcing data transformation
+        quality_handler (DataQualityHandler): Handles data quality control
+
+    Requirements:
+        - R programming language (>= 4.0)
+        - rpy2 Python package (R-Python interface)
+        - airGR R package (GR model implementations)
+
+    Example:
+        >>> from symfluence.models.gr.preprocessor import GRPreProcessor
+        >>> preprocessor = GRPreProcessor(config, logger)
+        >>> preprocessor.run_preprocessing()
+        # Creates GR input files in: project_dir/forcing/GR_input/
+        # Generates: forcing_data.csv, catchment_attributes.csv
+
+    Raises:
+        ImportError: If R or rpy2 is not installed
+        ModelExecutionError: If preprocessing fails
     """
 
     def _get_model_name(self) -> str:

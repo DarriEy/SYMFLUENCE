@@ -18,8 +18,30 @@ class AcquisitionRegistry(BaseRegistry):
     """
     Registry for data acquisition handlers.
 
-    Handlers are registered using the @register decorator and retrieved
-    using get_handler(). All keys are normalized to lowercase.
+    Implements the Registry Pattern to enable pluggable data sources. Each
+    dataset type (ERA5, CARRA, RDRS, etc.) registers a handler that knows
+    how to download and preprocess that specific data source.
+
+    Registered Handlers (typical):
+        - ERA5: Global reanalysis from ECMWF (via CDS or ARCO)
+        - CARRA: Arctic regional reanalysis
+        - CERRA: European regional reanalysis
+        - RDRS: Canadian regional reanalysis
+        - AORC: NOAA Analysis of Record for Calibration
+        - CONUS404: High-resolution US forcing data
+        - HRRR: High-Resolution Rapid Refresh
+
+    Usage:
+        # Handler registration (in handler module):
+        @AcquisitionRegistry.register('ERA5')
+        class ERA5Acquirer(BaseAcquisitionHandler):
+            ...
+
+        # Handler retrieval (in acquisition service):
+        handler = AcquisitionRegistry.get_handler('ERA5', config, logger)
+        output_path = handler.download(output_dir)
+
+    All dataset names are normalized to lowercase for case-insensitive matching.
     """
 
     _handlers: Dict[str, Type] = {}

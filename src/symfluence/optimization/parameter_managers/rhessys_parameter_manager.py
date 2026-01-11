@@ -14,8 +14,10 @@ import logging
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_rhessys_bounds
+from symfluence.optimization.registry import OptimizerRegistry
 
 
+@OptimizerRegistry.register_parameter_manager('RHESSys')
 class RHESSysParameterManager(BaseParameterManager):
     """Handles RHESSys parameter bounds, normalization, and file updates."""
 

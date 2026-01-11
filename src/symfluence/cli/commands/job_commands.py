@@ -8,6 +8,7 @@ import sys
 from argparse import Namespace
 
 from .base import BaseCommand
+from ..exit_codes import ExitCode
 
 
 class JobCommands(BaseCommand):
@@ -27,11 +28,11 @@ class JobCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            from symfluence.cli.job_scheduler import JobScheduler
+            from symfluence.cli.services import JobScheduler
 
             job_scheduler = JobScheduler()
 
-            BaseCommand.print_info("📤 Submitting SLURM job...")
+            BaseCommand._console.info("Submitting SLURM job...")
 
             # Build SLURM options
             slurm_options = {
@@ -51,11 +52,11 @@ class JobCommands(BaseCommand):
             # Get workflow command from remaining args
             workflow_args = getattr(args, 'workflow_args', [])
 
-            BaseCommand.print_info(f"   Job name: {slurm_options['job_name'] or 'auto-generated'}")
-            BaseCommand.print_info(f"   Time limit: {slurm_options['job_time']}")
-            BaseCommand.print_info(f"   Resources: {slurm_options['job_nodes']} nodes, {slurm_options['job_ntasks']} tasks, {slurm_options['job_memory']}")
+            BaseCommand._console.indent(f"Job name: {slurm_options['job_name'] or 'auto-generated'}")
+            BaseCommand._console.indent(f"Time limit: {slurm_options['job_time']}")
+            BaseCommand._console.indent(f"Resources: {slurm_options['job_nodes']} nodes, {slurm_options['job_ntasks']} tasks, {slurm_options['job_memory']}")
             if workflow_args:
-                BaseCommand.print_info(f"   Workflow command: symfluence {' '.join(workflow_args)}")
+                BaseCommand._console.indent(f"Workflow command: symfluence {' '.join(workflow_args)}")
 
             # Submit the job
             success = job_scheduler.submit_slurm_job(
@@ -65,20 +66,20 @@ class JobCommands(BaseCommand):
             )
 
             if success:
-                BaseCommand.print_success("SLURM job submitted successfully")
+                BaseCommand._console.success("SLURM job submitted successfully")
                 if slurm_options['submit_and_wait']:
-                    BaseCommand.print_info("Monitoring job execution...")
-                return 0
+                    BaseCommand._console.info("Monitoring job execution...")
+                return ExitCode.SUCCESS
             else:
-                BaseCommand.print_error("SLURM job submission failed")
-                return 1
+                BaseCommand._console.error("SLURM job submission failed")
+                return ExitCode.JOB_SUBMIT_ERROR
 
         except Exception as e:
-            BaseCommand.print_error(f"Job submission failed: {e}")
+            BaseCommand._console.error(f"Job submission failed: {e}")
             if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
-            return 1
+            return ExitCode.JOB_SUBMIT_ERROR
 
     @staticmethod
     def execute(args: Namespace) -> int:
@@ -94,5 +95,5 @@ class JobCommands(BaseCommand):
         if hasattr(args, 'func'):
             return args.func(args)
         else:
-            BaseCommand.print_error("No job action specified")
-            return 1
+            BaseCommand._console.error("No job action specified")
+            return ExitCode.USAGE_ERROR

@@ -11,7 +11,7 @@ import numpy as np
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, call
 from datetime import datetime
-from utils.markers import skip_if_no_model
+from test_helpers.markers import skip_if_no_model
 from symfluence.core.config.models import SymfluenceConfig
 
 

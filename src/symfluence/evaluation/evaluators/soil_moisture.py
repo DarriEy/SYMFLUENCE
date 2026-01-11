@@ -1,8 +1,37 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""
-Soil Moisture Evaluator
+"""Soil Moisture Evaluator.
+
+Evaluates simulated soil moisture from SUMMA against observations from multiple sources:
+satellite remote sensing (SMAP, ESA CCI), tower networks (ISMN), and point measurements.
+
+Supported Observation Sources:
+    - SMAP (Soil Moisture Active/Passive): NASA satellite, ~3 km resolution, surface & rootzone
+    - ESA CCI (Climate Change Initiative): ESA satellite, ~25 km resolution, surface layer only
+    - ISMN (Int'l Soil Moisture Network): Tower observations, point-scale, multiple depths
+    - Point observations: Generic tower/station measurements at specified depths
+
+Model Output (SUMMA):
+    - Variable: mLayerVolFracLiq (volumetric liquid water fraction, 0-1)
+    - Dimensions: (time, hru/gru, mLayerDepth)
+    - Layer depths: mLayerDepth array specifying soil layer thicknesses
+
+Spatial and Depth Handling:
+    - Spatial: Collapse HRU/GRU via mean (multi-HRU) or isel (single HRU)
+    - Depth: Target layer selection or depth-weighted averaging to observation depth
+    - SMAP surface: Typically 0-5 cm depth from model
+    - SMAP rootzone: Typically 0-100 cm (depth-weighted average)
+    - ESA CCI surface: 0-5 cm depth
+    - ISMN/Point: Target-specific depth with ±5cm tolerance (configurable)
+
+Configuration:
+    SM_TARGET_DEPTH: Target depth for point observations ('auto' or float meters)
+    SM_DEPTH_TOLERANCE: Acceptable depth difference for matching layers (default: 0.05 m)
+    SMAP_LAYER: 'surface_sm' or 'rootzone_sm' (default: 'surface_sm')
+    SM_TEMPORAL_AGGREGATION: 'daily_mean' (default) or none
+    SM_USE_QUALITY_CONTROL: Enable QC filtering (default: True)
+    SM_MIN_VALID_PIXELS: Minimum valid pixels for SMAP QC (default: 10)
 """
 
 import logging
@@ -21,10 +50,113 @@ if TYPE_CHECKING:
 
 
 @EvaluationRegistry.register('SOIL_MOISTURE')
+@EvaluationRegistry.register('SM')
+@EvaluationRegistry.register('SM_POINT')
+@EvaluationRegistry.register('SM_SMAP')
+@EvaluationRegistry.register('SM_ISMN')
+@EvaluationRegistry.register('SM_ESA')
 class SoilMoistureEvaluator(ModelEvaluator):
-    """Soil moisture evaluator"""
+    """Soil moisture evaluator supporting multiple observation sources.
+
+    Comprehensive soil moisture evaluation framework supporting four distinct
+    observation sources with source-specific depth handling and extraction logic.
+
+    Supported Targets:
+        - 'sm_point': Generic point observations at specified depth (towers, in-situ)
+        - 'sm_smap': NASA SMAP satellite data (surface or rootzone)
+        - 'sm_ismn': ISMN tower network (multiple heights, standardized)
+        - 'sm_esa': ESA CCI satellite (surface layer, ~25 km resolution)
+
+    Source-Specific Characteristics:
+        SMAP:
+            - Resolution: ~3 km (descending passes)
+            - Depth: Surface (0-5 cm) or rootzone (0-100 cm)
+            - Method: Depth-weighted averaging for rootzone
+            - QC: Minimum valid pixel count threshold
+        ESA CCI:
+            - Resolution: ~25 km (coarser than SMAP)
+            - Depth: Surface only (0-5 cm assumed)
+            - Method: Single depth-weighted average
+            - Coverage: 1978-present (longest record)
+        ISMN:
+            - Resolution: Point-scale (tower location)
+            - Depth: Multiple sensors per tower (multi-layer observations)
+            - Method: Target depth with tolerance matching
+            - Coverage: 600+ stations, varies by site
+        Point observations:
+            - Custom stations or tower data
+            - User-specified target depth
+            - Flexible date formats and column naming
+
+    Depth Matching Strategy (Point/ISMN):
+        1. If target_depth = 'auto': Select shallowest available layer
+        2. Else: Find layer closest to target_depth (within ±50 cm tolerance)
+        3. Fallback: Use layer 0 (shallowest) if no close match
+        4. Layer identification: Cumulative depth to layer midpoint
+
+    Depth-Weighted Averaging (SMAP/ESA):
+        Computes weighted mean of soil layers within target depth range:
+        - Weights: Fraction of layer thickness in target range
+        - Sum normalized: weights / sum(weights) = 1.0
+        - Handles variable layer thicknesses
+
+    Configuration:
+        SM_TARGET_DEPTH: Point target depth (default: 'auto', float meters)
+        SM_DEPTH_TOLERANCE: Acceptable depth tolerance (default: 0.05 m)
+        SMAP_LAYER: 'surface_sm' or 'rootzone_sm' (default: 'surface_sm')
+        SM_TEMPORAL_AGGREGATION: 'daily_mean' or none (default: 'daily_mean')
+        SM_USE_QUALITY_CONTROL: Enable/disable QC (default: True)
+        SM_MIN_VALID_PIXELS: SMAP QC threshold (default: 10)
+
+    Attributes:
+        optimization_target: 'sm_point', 'sm_smap', 'sm_ismn', or 'sm_esa'
+        variable_name: Same as optimization_target
+        target_depth: Target depth for point/ISMN (float or 'auto')
+        smap_layer: 'surface_sm' or 'rootzone_sm' for SMAP
+        use_quality_control: Enable/disable QC filtering
+        min_valid_pixels: SMAP minimum valid pixel threshold
+    """
 
     def __init__(self, config: 'SymfluenceConfig', project_dir: Path, logger: logging.Logger):
+        """Initialize soil moisture evaluator with source-specific depth configuration.
+
+        Determines observation source (point, SMAP, ISMN, ESA CCI) and configures
+        target depth, temporal aggregation, and quality control settings specific
+        to each source.
+
+        Target Resolution Priority:
+            1. config.optimization.target (typed config)
+            2. EVALUATION_VARIABLE (dict config, if contains 'sm_' or 'soil')
+            3. Default: 'streamflow' (will be overridden if EVALUATION_VARIABLE matches)
+
+        Source-Specific Configuration:
+            sm_point:
+                - SM_TARGET_DEPTH: Target depth ('auto' or float meters)
+                - SM_DEPTH_TOLERANCE: Acceptable depth difference (default: 0.05 m)
+                - Uses _extract_point_soil_moisture()
+            sm_smap:
+                - SMAP_LAYER: 'surface_sm' (0-5 cm) or 'rootzone_sm' (0-100 cm)
+                - SM_TEMPORAL_AGGREGATION: temporal aggregation method
+                - Uses _depth_weighted_mean() for layer integration
+            sm_ismn:
+                - SM_TARGET_DEPTH: Target depth from ISMN config or config_dict
+                - SM_TEMPORAL_AGGREGATION: From config.evaluation.ismn or default
+                - Uses _extract_point_soil_moisture() with depth matching
+            sm_esa:
+                - ESA_SURFACE_DEPTH_M: Surface layer depth (default: 0.05 m)
+                - SM_TEMPORAL_AGGREGATION: temporal aggregation method
+                - Uses depth-weighted averaging for ESA surface layer
+
+        Quality Control:
+            SM_USE_QUALITY_CONTROL: Enable/disable QC (default: True)
+            SM_MIN_VALID_PIXELS: SMAP minimum valid pixels (default: 10)
+            - Filters SMAP obs where valid_px < threshold
+
+        Args:
+            config: Typed configuration object (SymfluenceConfig)
+            project_dir: Project root directory
+            logger: Logger instance
+        """
         super().__init__(config, project_dir, logger)
 
         # Get optimization target from typed config
@@ -64,11 +196,38 @@ class SoilMoistureEvaluator(ModelEvaluator):
         self.min_valid_pixels = self.config_dict.get('SM_MIN_VALID_PIXELS', 10)
     
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
-        """Get simulation files containing soil moisture variables."""
+        """Locate SUMMA output files containing soil moisture variables.
+
+        Searches for NetCDF files with mLayerVolFracLiq (volumetric soil water fraction)
+        and mLayerDepth (soil layer thicknesses).
+
+        Args:
+            sim_dir: Directory containing SUMMA simulation output
+
+        Returns:
+            List[Path]: Paths to soil moisture output files (NetCDF)
+        """
         locator = OutputFileLocator(self.logger)
         return locator.find_soil_moisture_files(sim_dir)
-    
+
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
+        """Extract source-specific soil moisture from SUMMA output.
+
+        Dispatches to extraction method based on optimization_target:
+        - sm_point/sm_ismn: Single layer at target depth
+        - sm_smap: Surface (0-5 cm) or rootzone (0-100 cm) depth-weighted mean
+        - sm_esa: Surface layer (0-5 cm) depth-weighted mean
+
+        Args:
+            sim_files: List of SUMMA output files (NetCDF)
+            **kwargs: Additional parameters (unused)
+
+        Returns:
+            pd.Series: Time series of volumetric soil moisture (0-1 fraction)
+
+        Raises:
+            Exception: If extraction method raises error
+        """
         sim_file = sim_files[0]
         try:
             with xr.open_dataset(sim_file) as ds:
@@ -195,6 +354,38 @@ class SoilMoistureEvaluator(ModelEvaluator):
         target_depth_m: float,
         layer_dim: str,
     ) -> xr.DataArray:
+        """Compute depth-weighted mean of soil moisture over target depth range.
+
+        Averages soil moisture from multiple layers within a specified depth range,
+        weighting each layer by the fraction of its thickness within the target depth.
+
+        Algorithm:
+            1. Extract layer thickness array and collapse spatial dims
+            2. Compute cumulative depth to each layer bottom
+            3. For each layer: weight = min(thickness, remaining_depth) / target_depth
+            4. Normalize weights: weights /= sum(weights) → sum = 1.0
+            5. Compute weighted mean: sm_weighted = sum(sm_layer * weight_layer)
+
+        Example (rootzone 0-100 cm):
+            Layers: [0-10cm (SM=0.30), 10-40cm (SM=0.25), 40-100cm (SM=0.20), 100-200cm (SM=0.15)]
+            Weights: [10/100, 30/100, 60/100, 0/100] = [0.1, 0.3, 0.6, 0.0]
+            Result: sm_rootzone = 0.30*0.1 + 0.25*0.3 + 0.20*0.6 + 0.15*0.0 = 0.21
+
+        Handles:
+            - Variable layer thicknesses (not uniform)
+            - Missing layer depth info (defaults to thickness=0)
+            - Target depth exceeding available soil (uses available layers)
+            - Time-varying layer thicknesses (uses first time step)
+
+        Args:
+            sim_xr: Soil moisture array (time × layer_dim × ...)
+            layer_depths: Layer thickness array (layer_dim × ...)
+            target_depth_m: Target depth in meters (e.g., 0.05 for SMAP surface, 1.0 for rootzone)
+            layer_dim: Name of layer dimension ('mLayerDepth', etc.)
+
+        Returns:
+            xr.DataArray: Depth-weighted soil moisture time series
+        """
         depth_xr = layer_depths
         for dim in ['hru', 'gru']:
             if dim in depth_xr.dims:
@@ -364,4 +555,13 @@ class SoilMoistureEvaluator(ModelEvaluator):
             return None
 
     def needs_routing(self) -> bool:
+        """Determine if soil moisture evaluation requires streamflow routing.
+
+        Soil moisture is measured at point-scale (towers, satellites) and does not
+        require streamflow routing models. Storage is evaluated directly without
+        downstream propagation.
+
+        Returns:
+            bool: False (soil moisture evaluator never requires routing)
+        """
         return False

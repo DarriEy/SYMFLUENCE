@@ -90,13 +90,12 @@ class SUMMAWorker(BaseWorker):
             # Import existing function
             from .summa_parallel_workers import _apply_parameters_worker
 
-            # Build task_data for legacy function
-            task_data = kwargs.get('task_data', {})
-            if not task_data:
-                task_data = {
-                    'config': kwargs.get('config', self.config),
-                    'params': params,
-                }
+            # Build task_data for legacy function, propagating all kwargs
+            task_data = kwargs.get('task_data', {}).copy() if kwargs.get('task_data') else kwargs.copy()
+            if 'config' not in task_data:
+                task_data['config'] = self.config
+            if 'params' not in task_data:
+                task_data['params'] = params
 
             # Create minimal logger for internal use
             internal_logger = logging.getLogger(f'summa_worker_apply')
@@ -205,7 +204,12 @@ class SUMMAWorker(BaseWorker):
             internal_logger = logging.getLogger('summa_worker_run')
             internal_logger.setLevel(logging.WARNING)
 
-            debug_info = {'stage': 'model_run', 'commands_run': [], 'errors': []}
+            debug_info = {
+                'stage': 'model_run',
+                'commands_run': [],
+                'files_checked': [],
+                'errors': []
+            }
 
             # Run SUMMA
             success = _run_summa_worker(
@@ -220,11 +224,13 @@ class SUMMAWorker(BaseWorker):
                 mizuroute_dir = sim_dir / 'mizuRoute' if sim_dir else output_dir / 'mizuRoute'
                 mizuroute_dir.mkdir(parents=True, exist_ok=True)
 
-                task_data = {
+                # Propagate all kwargs into task_data for legacy compatibility
+                task_data = kwargs.copy()
+                task_data.update({
                     'config': config,
                     'summa_dir': str(summa_dir),
                     'mizuroute_dir': str(mizuroute_dir),
-                }
+                })
 
                 routing_success = _run_mizuroute_worker(
                     task_data, mizuroute_dir, internal_logger, debug_info, summa_dir
@@ -309,7 +315,7 @@ class SUMMAWorker(BaseWorker):
         """
         try:
             # Import existing function
-            from .summa_parallel_workers import _calculate_metrics_inline_worker
+            from .summa_parallel_workers import _calculate_metrics_with_target
 
             # Resolve mizuroute_dir if needed
             mizuroute_dir = kwargs.get('mizuroute_dir')
@@ -317,7 +323,7 @@ class SUMMAWorker(BaseWorker):
                 sim_dir = kwargs.get('sim_dir', output_dir)
                 mizuroute_dir = sim_dir / 'mizuRoute'
 
-            metrics = _calculate_metrics_inline_worker(
+            metrics = _calculate_metrics_with_target(
                 output_dir, mizuroute_dir, config, self.logger
             )
 

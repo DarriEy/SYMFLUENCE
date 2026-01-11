@@ -68,37 +68,37 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
 
     def _create_parameter_manager(self):
         """Create SUMMA parameter manager."""
-        from ..core.parameter_manager import ParameterManager
+        from ..parameter_managers import SUMMAParameterManager
         # SUMMA ParameterManager expects to find localParamInfo.txt and attributes.nc
         # These are located in settings/SUMMA, not optimization/
         summa_settings_dir = self.project_dir / 'settings' / 'SUMMA'
-        return ParameterManager(
+        return SUMMAParameterManager(
             self.config,
             self.logger,
             summa_settings_dir
         )
 
     def _create_calibration_target(self):
-        """Create SUMMA calibration target based on configuration."""
-        from ..calibration_targets import (
-            StreamflowTarget, ETTarget, SnowTarget,
-            GroundwaterTarget, SoilMoistureTarget, MultivariateTarget
+        """Create SUMMA calibration target using registry-based factory.
+
+        Uses the centralized create_calibration_target factory which:
+        1. Checks OptimizerRegistry for registered targets
+        2. Falls back to model-specific target mappings
+        3. Returns appropriate default targets if not found
+        """
+        from ..calibration_targets import create_calibration_target
+
+        target_type = self._get_config_value(
+            lambda: self.config.optimization.target, default='streamflow'
+        ) if hasattr(self, '_get_config_value') else self.config.get('OPTIMIZATION_TARGET', 'streamflow')
+
+        return create_calibration_target(
+            model_name='SUMMA',
+            target_type=target_type.lower(),
+            config=self.config,
+            project_dir=self.project_dir,
+            logger=self.logger
         )
-
-        target_type = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
-
-        if target_type == 'multivariate':
-            return MultivariateTarget(self.config, self.project_dir, self.logger)
-        elif target_type in ['et', 'evapotranspiration']:
-            return ETTarget(self.config, self.project_dir, self.logger)
-        elif target_type in ['snow', 'swe', 'sca']:
-            return SnowTarget(self.config, self.project_dir, self.logger)
-        elif target_type in ['groundwater', 'gw']:
-            return GroundwaterTarget(self.config, self.project_dir, self.logger)
-        elif target_type in ['soil_moisture', 'sm']:
-            return SoilMoistureTarget(self.config, self.project_dir, self.logger)
-        else:
-            return StreamflowTarget(self.config, self.project_dir, self.logger)
 
     def _create_worker(self) -> SUMMAWorker:
         """Create SUMMA worker."""

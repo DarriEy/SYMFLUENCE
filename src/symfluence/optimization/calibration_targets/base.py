@@ -2,14 +2,18 @@
 # -*- coding: utf-8 -*-
 
 """
-SYMFLUENCE Calibration Targets
+SYMFLUENCE Calibration Targets - Base Classes
 
-This module provides calibration targets for different hydrologic variables.
-These targets handle data loading, processing, and metric calculation for specific variables
-during the optimization/calibration process.
+This module provides base calibration target classes that alias the centralized
+evaluators in symfluence.evaluation.evaluators. Model-specific targets have been
+moved to their own files (e.g., summa_calibration_targets.py, gr_calibration_targets.py).
 
-Note: This module has been refactored to use the centralized evaluators in 
-symfluence.evaluation.evaluators. The classes here are aliases for backward compatibility.
+The classes here provide backward compatibility by aliasing evaluators as "Targets":
+- CalibrationTarget (alias for ModelEvaluator)
+- StreamflowTarget (alias for StreamflowEvaluator)
+- ETTarget (alias for ETEvaluator)
+- SnowTarget (alias for SnowEvaluator)
+- etc.
 """
 
 import logging
@@ -21,9 +25,6 @@ from symfluence.evaluation.evaluators import (
     ModelEvaluator as CalibrationTarget,
     ETEvaluator as ETTarget,
     StreamflowEvaluator as StreamflowTarget,
-    GRStreamflowEvaluator as GRStreamflowTarget,
-    HYPEStreamflowEvaluator as HYPEStreamflowTarget,
-    RHESSysStreamflowEvaluator as RHESSysStreamflowTarget,
     SoilMoistureEvaluator as SoilMoistureTarget,
     SnowEvaluator as SnowTarget,
     GroundwaterEvaluator as GroundwaterTarget,
@@ -31,6 +32,7 @@ from symfluence.evaluation.evaluators import (
 )
 
 from symfluence.evaluation.registry import EvaluationRegistry
+
 
 class MultivariateTarget(CalibrationTarget):
     """
@@ -48,15 +50,14 @@ class MultivariateTarget(CalibrationTarget):
         if isinstance(config, dict):
             try:
                 config = SymfluenceConfig.model_validate(config)
-                self.config = config # Update self.config as well
+                self.config = config  # Update self.config as well
             except Exception as e:
                 logger.warning(f"Failed to convert config dict to SymfluenceConfig: {e}")
-        
+
         self.analysis_manager = AnalysisManager(config, logger)
         self.objective_handler = ObjectiveRegistry.get_objective('MULTIVARIATE', config, logger)
 
         # Get requested variables from weights/metrics config
-        # Try to get from both dict-like and SymfluenceConfig formats
         try:
             if hasattr(config, '__getitem__'):  # Dict-like interface
                 weights = config.get('OBJECTIVE_WEIGHTS', config.get('objective_weights', {'STREAMFLOW': 1.0}))
@@ -110,12 +111,12 @@ class MultivariateTarget(CalibrationTarget):
 
         # 2. Run multivariate evaluation
         eval_results = self.analysis_manager.run_multivariate_evaluation(sim_results)
-        
+
         # 3. Calculate scalar objective
         return self.objective_handler.calculate(eval_results)
 
-    def calculate_metrics(self, sim: Any, obs: Optional[pd.Series] = None, 
-                         mizuroute_dir: Optional[Path] = None, 
+    def calculate_metrics(self, sim: Any, obs: Optional[pd.Series] = None,
+                         mizuroute_dir: Optional[Path] = None,
                          calibration_only: bool = True) -> Optional[Dict[str, float]]:
         """
         Calculate multivariate metrics.
@@ -124,8 +125,8 @@ class MultivariateTarget(CalibrationTarget):
         from pathlib import Path
         sim_dir = Path(sim) if isinstance(sim, (str, Path)) else None
         if not sim_dir:
-             self.logger.error("MultivariateTarget requires a simulation directory path")
-             return None
+            self.logger.error("MultivariateTarget requires a simulation directory path")
+            return None
 
         # 1. Extract simulated data for all requested variables
         sim_results = {}
@@ -137,7 +138,7 @@ class MultivariateTarget(CalibrationTarget):
                 # Pass mizuroute_dir if needed
                 files_dir = mizuroute_dir if evaluator.needs_routing() and mizuroute_dir else sim_dir
                 sim_files = evaluator.get_simulation_files(files_dir)
-                
+
                 if sim_files:
                     try:
                         sim_results[var] = evaluator.extract_simulated_data(sim_files)
@@ -146,31 +147,31 @@ class MultivariateTarget(CalibrationTarget):
 
         # 2. Run multivariate evaluation (returns dict of metrics per variable)
         eval_results = self.analysis_manager.run_multivariate_evaluation(sim_results)
-        
+
         # Ensure no None values in results
         for var in eval_results:
             if eval_results[var] is None:
                 eval_results[var] = {}
-        
+
         # 3. Calculate scalar objective (KGE, etc for the composite)
         scalar_score = self.objective_handler.calculate(eval_results)
-        
+
         # Flatten results into a single dict for return
-        metrics = {'KGE': scalar_score, 'Calib_KGE': scalar_score, 'Obj': scalar_score} # Primary metric
-        
+        metrics = {'KGE': scalar_score, 'Calib_KGE': scalar_score, 'Obj': scalar_score}
+
         for var, var_metrics in eval_results.items():
             for metric, value in var_metrics.items():
                 metrics[f"{var}_{metric}"] = value
-                metrics[f"Calib_{var}_{metric}"] = value # Prefix for consistency
-                
+                metrics[f"Calib_{var}_{metric}"] = value
+
         return metrics
+
 
 # Re-export for backward compatibility
 __all__ = [
     'CalibrationTarget',
     'ETTarget',
     'StreamflowTarget',
-    'GRStreamflowTarget',
     'SoilMoistureTarget',
     'SnowTarget',
     'GroundwaterTarget',

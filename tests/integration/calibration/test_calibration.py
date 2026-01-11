@@ -46,6 +46,7 @@ def test_ellioaar_calibration(ellioaar_domain):
     config['EXPERIMENT_TIME_START'] = '2020-01-01 00:00'
     config['EXPERIMENT_TIME_END'] = '2020-01-03 00:00'  # 2 days
     config['CALIBRATION_PERIOD'] = '2020-01-02, 2020-01-03'
+    config['EVALUATION_PERIOD'] = '2020-01-02, 2020-01-03'
     config['SPINUP_PERIOD'] = '2020-01-01, 2020-01-01'
 
     # Optimization configuration
@@ -126,6 +127,7 @@ def test_fyris_calibration(fyris_domain):
     config['EXPERIMENT_TIME_START'] = '2020-01-01 00:00'
     config['EXPERIMENT_TIME_END'] = '2020-01-03 00:00'  # 2 days
     config['CALIBRATION_PERIOD'] = '2020-01-02, 2020-01-03'
+    config['EVALUATION_PERIOD'] = '2020-01-02, 2020-01-03'
     config['SPINUP_PERIOD'] = '2020-01-01, 2020-01-01'
 
     # Optimization configuration

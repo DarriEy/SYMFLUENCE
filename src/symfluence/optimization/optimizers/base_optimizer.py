@@ -1,6 +1,15 @@
 """
 Abstract base class for SYMFLUENCE optimization algorithms.
 
+.. deprecated::
+    This class contains SUMMA-specific code and is being phased out.
+    For new implementations, use BaseModelOptimizer with model-specific
+    subclasses (e.g., SUMMAModelOptimizer, FUSEModelOptimizer, etc.)
+    which provide cleaner separation of concerns.
+
+    The SUMMA-specific functionality has been extracted into SUMMAOptimizerMixin
+    for backward compatibility.
+
 Provides common infrastructure for parameter management, model execution,
 results tracking, and trial history for all optimizer implementations.
 """
@@ -22,26 +31,105 @@ from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional, TYPE_CHECKING
 from abc import ABC, abstractmethod
 
+import warnings
+
 from symfluence.optimization.core.parameter_manager import ParameterManager
 from symfluence.optimization.core.model_executor import ModelExecutor
 from symfluence.optimization.core.results_manager import ResultsManager
-from symfluence.optimization.local_scratch_manager import LocalScratchManager
+from symfluence.optimization.mixins.parallel import LocalScratchManager
 from symfluence.optimization.core import TransformationManager
 from symfluence.optimization.calibration_targets import (
     ETTarget, SnowTarget, GroundwaterTarget, SoilMoistureTarget, StreamflowTarget, CalibrationTarget, TWSTarget
 )
 from symfluence.optimization.workers.summa_parallel_workers import _evaluate_parameters_worker_safe, _run_dds_instance_worker
+from symfluence.optimization.mixins import SUMMAOptimizerMixin
 from symfluence.core.mixins import ConfigMixin
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 
-class BaseOptimizer(ABC, ConfigMixin):
-    """
-    Abstract base class for SYMFLUENCE optimizers.
+class BaseOptimizer(SUMMAOptimizerMixin, ABC, ConfigMixin):
+    """Abstract base class for SYMFLUENCE model parameter optimization algorithms.
 
-    Inherits from ConfigMixin for typed config access with dict fallback.
+    .. deprecated::
+        This class is deprecated. For new implementations, use BaseModelOptimizer
+        with model-specific subclasses (SUMMAModelOptimizer, FUSEModelOptimizer, etc.)
+        which provide cleaner separation of concerns.
+
+        The SUMMA-specific functionality has been extracted into SUMMAOptimizerMixin.
+        This class inherits from the mixin for backward compatibility with existing
+        algorithm implementations (DDSOptimizer, PSOOptimizer, etc.).
+
+    Migration Guide:
+        Instead of creating new classes that inherit from BaseOptimizer, use:
+
+        1. For optimization with any model:
+           >>> from symfluence.optimization.model_optimizers import SUMMAModelOptimizer
+           >>> optimizer = SUMMAModelOptimizer(config, logger)
+           >>> optimizer.run_dds()  # or run_pso(), run_de(), etc.
+
+        2. For custom model support:
+           Create a new class inheriting from BaseModelOptimizer and implement
+           the abstract methods: _get_model_name(), _create_parameter_manager(),
+           _create_calibration_target(), _create_worker().
+
+    Provides common infrastructure for all optimizer implementations:
+    - Configuration management (typed config + dict fallback)
+    - File/directory structure setup (SUMMA, mizuRoute, outputs)
+    - Model execution and evaluation
+    - Results tracking and history management
+    - Parameter transformation and bounds handling
+    - Multi-process parallelization support
+    - Random seed management for reproducibility
+
+    Subclasses must implement:
+    - get_algorithm_name(): Return optimizer name (e.g., 'DDS', 'PSO', 'DE')
+    - _run_algorithm(): Execute the algorithm and return best parameters
+
+    Key Components:
+        ParameterManager: Manages model parameter bounds and values
+        ModelExecutor: Runs hydrological models (SUMMA, GR, HYPE, etc.)
+        ResultsManager: Saves optimization results and tracking data
+        CalibrationTarget: Defines optimization objective (streamflow, SWE, ET)
+        TransformationManager: Applies parameter transformations
+
+    Workflow:
+        1. Initialize with config, logger, and output directory
+        2. Setup file structure (copy SUMMA settings, update file managers)
+        3. Create calibration target from config
+        4. Subclass calls _run_algorithm() during optimization
+        5. For each iteration:
+           - Generate parameter set (algorithm-specific)
+           - Execute model with parameters
+           - Evaluate against observations
+           - Track best solution
+        6. Save final results via ResultsManager
+
+    Key Features:
+        - Handles both single-objective (KGE, NSE) and multi-objective (Pareto)
+        - Supports MPI parallelization with SLURM/OpenMPI integration
+        - Scratch space management for HPC environments
+        - Glacier mode detection and conditional file handling
+        - Forcing timestep-aware time setting for sub-daily data
+        - Trial parameter caching and history tracking
+
+    Configuration Parameters:
+        Optimization:
+            - NUMBER_OF_ITERATIONS: Number of algorithm iterations
+            - OPTIMIZATION_METRIC: Metric to optimize (KGE, NSE, etc.)
+            - RANDOM_SEED: Seed for reproducibility
+            - MPI_PROCESSES: Number of parallel processes
+        Calibration:
+            - CALIBRATION_PERIOD: Date range for evaluation
+            - SPINUP_PERIOD: Warm-up period before evaluation
+        Model:
+            - HYDROLOGICAL_MODEL: Model name(s) to calibrate (e.g., 'SUMMA')
+            - SETTINGS_SUMMA_FILEMANAGER: SUMMA file manager path
+
+    Inherits from:
+        - SUMMAOptimizerMixin: SUMMA-specific functionality (file managers, settings)
+        - ConfigMixin: Typed config access with dict fallback
     """
 
     # Convenience properties for commonly accessed config values
@@ -91,7 +179,52 @@ class BaseOptimizer(ABC, ConfigMixin):
         reporting_manager: Optional[Any] = None,
         typed_config: Optional['SymfluenceConfig'] = None
     ):
-        """Initialize base optimizer with common components."""
+        """Initialize base optimizer with common components.
+
+        Sets up all infrastructure needed for optimization:
+        - Configuration (typed and dict-based)
+        - Directory structure for SUMMA/mizuRoute/outputs
+        - Parameter and results managers
+        - Model executor and calibration targets
+        - Random seed for reproducibility
+        - MPI/parallel processing setup
+
+        Key Initialization Steps:
+            1. Store config and logger
+            2. Compute project directory structure
+            3. Initialize scratch manager (for HPC environments)
+            4. Setup optimization directories and copy settings files
+            5. Create ParameterManager, ModelExecutor, CalibrationTarget
+            6. Set random seeds if specified
+            7. Setup MPI rank detection and parallelization if needed
+
+        Args:
+            config: Configuration dict with required keys:
+                - SYMFLUENCE_DATA_DIR: Base data directory
+                - DOMAIN_NAME: Domain identifier
+                - EXPERIMENT_ID: Experiment name
+                - NUMBER_OF_ITERATIONS: Max iterations
+                - And many more (see config documentation)
+            logger: Python logger instance
+            output_dir: Directory for optimization results (optional, defaults to
+                       project_dir/optimization/{algorithm_name}_{experiment_id})
+            reporting_manager: Optional reporting manager for visualization/reporting
+            typed_config: Typed SymfluenceConfig object (optional, config dict will
+                         be used if not provided)
+
+        Raises:
+            FileNotFoundError: If required settings files (SUMMA config) not found
+            ValueError: If configuration values are invalid
+        """
+        # Issue deprecation warning
+        warnings.warn(
+            "BaseOptimizer is deprecated and contains SUMMA-specific code. "
+            "For new implementations, use BaseModelOptimizer with model-specific "
+            "subclasses (e.g., SUMMAModelOptimizer). See docstring for migration guide.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+
         # Set typed config via mixin (accepts SymfluenceConfig or dict)
         if typed_config is not None:
             self._config = typed_config
@@ -142,8 +275,8 @@ class BaseOptimizer(ABC, ConfigMixin):
 
         self.optimization_dir = self.project_dir / "simulations" / f"run_{self.algorithm_name}"
         self.logger.info(f"optimization_dir set to: {self.optimization_dir}")
-        self.summa_sim_dir = self.optimization_dir / "SUMMA"
-        self.mizuroute_sim_dir = self.optimization_dir / "mizuRoute"
+        # Note: summa_sim_dir and mizuroute_sim_dir are now properties from SUMMAOptimizerMixin
+        # They compute paths lazily from optimization_dir
         self.optimization_settings_dir = self.optimization_dir / "settings" / "SUMMA"
         # Allow output_dir override, otherwise use default
         if output_dir:
@@ -215,35 +348,108 @@ class BaseOptimizer(ABC, ConfigMixin):
 
     @abstractmethod
     def get_algorithm_name(self) -> str:
-        """Return the name of the optimization algorithm"""
+        """Return the name of the optimization algorithm.
+
+        This name is used in directory paths, logging, and file naming.
+        Should be uppercase and concise.
+
+        Examples:
+            - 'DDS' for Dynamically Dimensioned Search
+            - 'PSO' for Particle Swarm Optimization
+            - 'DE' for Differential Evolution
+            - 'NSGA2' for Non-dominated Sorting Genetic Algorithm
+
+        Returns:
+            str: Algorithm name (will be lowercased for directory paths)
+        """
         pass
-    
+
     @abstractmethod
     def _run_algorithm(self) -> Tuple[Dict, float, List]:
-        """Run the specific optimization algorithm"""
+        """Run the specific optimization algorithm.
+
+        This method implements the algorithm-specific optimization logic.
+        It should:
+        1. Initialize the population/parameters
+        2. Evaluate initial population via self.model_executor
+        3. Track best solution in self.best_params and self.best_score
+        4. Iterate for self.max_iterations:
+           - Generate/modify candidate parameters
+           - Evaluate via self.model_executor.evaluate_parameters()
+           - Update best solution if improved
+           - Append (iteration, best_score, ...) to self.iteration_history
+        5. Return tuple of (best_params_dict, best_score, iteration_history)
+
+        Best Parameters Format:
+            Dict mapping parameter names to final optimized values.
+            Example: {'SUMMA_par_1': 0.5, 'SUMMA_par_2': 1.2, ...}
+
+        Returns:
+            Tuple of:
+            - best_params: Dict of optimized parameter values
+            - best_score: Objective value of best solution (typically loss, lower is better)
+            - iteration_history: List of (iteration, score, ...) tuples for tracking
+
+        Note:
+            Use self.transformation_manager to transform parameters between
+            bounded and unbounded spaces as needed by the algorithm.
+            Use self.parameter_manager to get bounds and parameter names.
+        """
         pass
     
     def _set_random_seeds(self, seed: int) -> None:
-        """Set all random seeds for reproducibility"""
+        """Set all random seeds for reproducibility.
+
+        Initializes Python's random, NumPy's random, and other RNG modules
+        with the same seed. This ensures reproducible optimization runs
+        across different platforms/installations.
+
+        Args:
+            seed: Integer seed value (typically > 0)
+
+        Note:
+            Seed is set during __init__ and again before population
+            initialization to ensure reproducibility despite system variations.
+        """
         random.seed(seed)
         np.random.seed(seed)
-    
+
     def _setup_optimization_directories(self) -> None:
-        """Setup directory structure for optimization"""
-        # Create all directories
+        """Setup directory structure for optimization.
+
+        Creates all directories needed for optimization run and initializes
+        SUMMA/mizuRoute configuration files:
+        1. Create optimization_dir, summa_sim_dir, mizuroute_sim_dir, etc.
+        2. Copy required SUMMA settings files
+        3. Update SUMMA file manager with simulation period
+        4. Update mizuRoute control file with input/output paths
+
+        Note:
+            This method uses SUMMA-specific paths (summa_sim_dir, mizuroute_sim_dir).
+            For model-agnostic implementations, use BaseModelOptimizer instead.
+
+        Side Effects:
+            - Creates multiple directories
+            - Copies files from project settings directory
+            - Modifies file manager and control files with paths
+
+        Raises:
+            FileNotFoundError: If required settings files (SUMMA) not found
+        """
+        # Create all directories (uses properties from SUMMAOptimizerMixin)
         for directory in [self.optimization_dir, self.summa_sim_dir, self.mizuroute_sim_dir,
                          self.optimization_settings_dir, self.output_dir]:
             directory.mkdir(parents=True, exist_ok=True)
-        
+
         # Create log directories
         (self.summa_sim_dir / "logs").mkdir(parents=True, exist_ok=True)
         (self.mizuroute_sim_dir / "logs").mkdir(parents=True, exist_ok=True)
-        
-        # Copy settings files
-        self._copy_settings_files()
-        
-        # Update file managers for optimization
-        self._update_optimization_file_managers()
+
+        # Copy settings files - delegate to mixin
+        self._copy_summa_settings_files()
+
+        # Update file managers for optimization - delegate to mixin
+        self._update_summa_file_managers()
     
     def _ensure_reproducible_initialization(self):
         """Reset random seeds right before population initialization"""
@@ -252,114 +458,30 @@ class BaseOptimizer(ABC, ConfigMixin):
             self.logger.debug(f"Random state reset for population initialization")
         
     def _copy_settings_files(self) -> None:
-        """Copy necessary settings files to optimization directory"""
-        source_settings_dir = self.project_dir / "settings" / "SUMMA"
+        """Copy necessary settings files from project to optimization directory.
 
-        if not source_settings_dir.exists():
-            raise FileNotFoundError(f"Source settings directory not found: {source_settings_dir}")
+        .. deprecated::
+            This method delegates to _copy_summa_settings_files() from SUMMAOptimizerMixin.
+            Kept for backward compatibility with existing subclasses.
 
-        # Determine if glacier mode is enabled based on file manager name
-        summa_fm = self._cfg('SETTINGS_SUMMA_FILEMANAGER', default='fileManager.txt', typed=lambda: self._typed_config.model.summa.filemanager if self._typed_config.model.summa else None)
-        glacier_mode = 'glac' in summa_fm.lower()
+        Copies SUMMA configuration and control files needed for model runs.
+        See SUMMAOptimizerMixin._copy_summa_settings_files() for full documentation.
 
-        required_files = [
-            'modelDecisions.txt', 'outputControl.txt',
-            'localParamInfo.txt', 'basinParamInfo.txt',
-        ]
-
-        # Add appropriate file manager
-        if summa_fm and summa_fm != 'default':
-            required_files.append(summa_fm)
-        else:
-            required_files.append('fileManager.txt')
-
-        # Add attributes and coldState files based on glacier mode
-        if glacier_mode:
-            # Glacier mode: prefer glacier-specific files, fallback to standard
-            attr_files = ['attributes_glac.nc', 'attributes.nc']
-            cold_files = ['coldState_glac.nc', 'coldState.nc']
-        else:
-            attr_files = ['attributes.nc']
-            cold_files = ['coldState.nc']
-
-        optional_files = [
-            'TBL_GENPARM.TBL', 'TBL_MPTABLE.TBL', 'TBL_SOILPARM.TBL', 'TBL_VEGPARM.TBL',
-            'trialParams.nc', 'forcingFileList.txt',
-            # Glacier-specific optional files
-            'attributes_glacBedTopo.nc', 'coldState_glacSurfTopo.nc',
-        ]
-
-        for file_name in required_files:
-            source_path = source_settings_dir / file_name
-            dest_path = self.optimization_settings_dir / file_name
-
-            if source_path.exists():
-                shutil.copy2(source_path, dest_path)
-                self.logger.debug(f"Copied required file: {file_name}")
-            else:
-                raise FileNotFoundError(f"Required SUMMA settings file not found: {source_path}")
-
-        # Copy attributes files (glacier mode tries glacier files first)
-        attr_copied = False
-        for attr_file in attr_files:
-            source_path = source_settings_dir / attr_file
-            if source_path.exists():
-                dest_path = self.optimization_settings_dir / attr_file
-                shutil.copy2(source_path, dest_path)
-                self.logger.debug(f"Copied attributes file: {attr_file}")
-                attr_copied = True
-                break
-        if not attr_copied:
-            raise FileNotFoundError(f"No attributes file found in {source_settings_dir}")
-
-        # Copy coldState files (glacier mode tries glacier files first)
-        cold_copied = False
-        for cold_file in cold_files:
-            source_path = source_settings_dir / cold_file
-            if source_path.exists():
-                dest_path = self.optimization_settings_dir / cold_file
-                shutil.copy2(source_path, dest_path)
-                self.logger.debug(f"Copied coldState file: {cold_file}")
-                cold_copied = True
-                break
-        if not cold_copied:
-            self.logger.warning("coldState.nc not found, depth calibration may fail if enabled.")
-
-        for file_name in optional_files:
-            source_path = source_settings_dir / file_name
-            dest_path = self.optimization_settings_dir / file_name
-
-            if source_path.exists():
-                shutil.copy2(source_path, dest_path)
-                self.logger.debug(f"Copied optional file: {file_name}")
-            else:
-                self.logger.debug(f"Optional SUMMA settings file not found: {source_path}")
-        
-        source_mizu_dir = self.project_dir / "settings" / "mizuRoute"
-        dest_mizu_dir = self.optimization_dir / "settings" / "mizuRoute"
-        
-        if source_mizu_dir.exists():
-            dest_mizu_dir.mkdir(parents=True, exist_ok=True)
-            for mizu_file in source_mizu_dir.glob("*"):
-                if mizu_file.is_file():
-                    shutil.copy2(mizu_file, dest_mizu_dir / mizu_file.name)
-            self.logger.debug("Copied mizuRoute settings")
+        Raises:
+            FileNotFoundError: If required file or attributes file not found
+        """
+        # Delegate to mixin implementation
+        self._copy_summa_settings_files()
 
     def _update_optimization_file_managers(self) -> None:
-        """Update file managers for optimization runs"""
-        # Update SUMMA file manager - use config name if specified
-        summa_fm_name = self._cfg('SETTINGS_SUMMA_FILEMANAGER', default='fileManager.txt', typed=lambda: self._typed_config.model.summa.filemanager if self._typed_config.model.summa else None)
-        file_manager_path = self.optimization_settings_dir / summa_fm_name
-        if not file_manager_path.exists():
-            # Fallback to default
-            file_manager_path = self.optimization_settings_dir / 'fileManager.txt'
-        if file_manager_path.exists():
-            self._update_summa_file_manager(file_manager_path)
-        
-        # Update mizuRoute control file if it exists
-        mizu_control_path = self.optimization_dir / "settings" / "mizuRoute" / "mizuroute.control"
-        if mizu_control_path.exists():
-            self._update_mizuroute_control_file(mizu_control_path)
+        """Update file managers for optimization runs.
+
+        .. deprecated::
+            This method delegates to _update_summa_file_managers() from SUMMAOptimizerMixin.
+            Kept for backward compatibility with existing subclasses.
+        """
+        # Delegate to mixin implementation
+        self._update_summa_file_managers()
 
     def _adjust_end_time_for_forcing(self, end_time_str: str) -> str:
         """
@@ -505,60 +627,84 @@ class BaseOptimizer(ABC, ConfigMixin):
             f.writelines(lines)
 
     def _create_calibration_target(self) -> CalibrationTarget:
-        """Factory method to create appropriate calibration target"""
+        """Factory method to create appropriate calibration target.
+
+        Uses the registry-based factory function with fallback to default targets.
+        This method maps optimization_target and calibration_variable to the
+        appropriate target type for the create_calibration_target factory.
+        """
+        from symfluence.optimization.calibration_targets import create_calibration_target
+
         optimization_target = self._cfg('OPTIMIZATION_TARGET', default='streamflow', typed=lambda: self._typed_config.optimization.target).lower()
         calibration_variable = self._cfg('CALIBRATION_VARIABLE', default='streamflow', typed=lambda: self._typed_config.optimization.calibration_variable).lower()
 
-        if optimization_target in ['et', 'latent_heat']:
-            return ETTarget(self.config, self.project_dir, self.logger)
-        elif (
-            optimization_target in ['swe', 'sca', 'snow_depth'] or
-            'swe' in calibration_variable or 'snow' in calibration_variable):
-            return SnowTarget(self.config, self.project_dir, self.logger)
-        elif optimization_target in ['gw_depth', 'gw_grace']:
-            return GroundwaterTarget(self.config, self.project_dir, self.logger)
-        elif optimization_target in ['sm_point', 'sm_smap', 'sm_esa', 'sm_ismn']:
-            return SoilMoistureTarget(self.config, self.project_dir, self.logger)
+        # Get the model name - BaseOptimizer assumes SUMMA
+        model_name = self._cfg(
+            'HYDROLOGICAL_MODEL',
+            default='SUMMA',
+            typed=lambda: self._typed_config.model.hydrological_model
+        )
+        # Handle comma-separated model list (use first model)
+        if ',' in model_name:
+            model_name = model_name.split(',')[0].strip()
+
+        # Map optimization_target to target_type for factory
+        target_type = self._resolve_target_type(optimization_target, calibration_variable)
+
+        return create_calibration_target(
+            model_name=model_name,
+            target_type=target_type,
+            config=self.config,
+            project_dir=self.project_dir,
+            logger=self.logger
+        )
+
+    def _resolve_target_type(self, optimization_target: str, calibration_variable: str) -> str:
+        """Resolve the target type from optimization_target and calibration_variable.
+
+        Args:
+            optimization_target: Value from OPTIMIZATION_TARGET config
+            calibration_variable: Value from CALIBRATION_VARIABLE config
+
+        Returns:
+            Normalized target type string for the factory function
+        """
+        # Map various target names to standard types
+        if optimization_target in ['et', 'latent_heat', 'evapotranspiration']:
+            return 'et'
+        elif optimization_target in ['swe', 'sca', 'snow_depth', 'snow']:
+            return 'snow'
+        elif 'swe' in calibration_variable or 'snow' in calibration_variable:
+            return 'snow'
+        elif optimization_target in ['gw_depth', 'gw_grace', 'groundwater', 'gw']:
+            return 'groundwater'
+        elif optimization_target in ['sm_point', 'sm_smap', 'sm_esa', 'sm_ismn', 'soil_moisture', 'sm']:
+            return 'soil_moisture'
         elif optimization_target in ['tws', 'grace', 'grace_tws', 'total_storage', 'stor_grace']:
-            return TWSTarget(self.config, self.project_dir, self.logger)
+            return 'tws'
+        elif optimization_target == 'multivariate':
+            return 'multivariate'
         elif optimization_target == 'streamflow' or 'flow' in calibration_variable:
-            return StreamflowTarget(self.config, self.project_dir, self.logger)
+            return 'streamflow'
+        elif 'streamflow' in calibration_variable or 'flow' in calibration_variable:
+            return 'streamflow'
         else:
-            if 'streamflow' in calibration_variable or 'flow' in calibration_variable:
-                return StreamflowTarget(self.config, self.project_dir, self.logger)
-            else:
-                raise ValueError(f"Unsupported optimization target: {optimization_target}")
+            # Default to streamflow
+            return 'streamflow'
                 
     def _setup_parallel_processing(self) -> None:
-        """Setup parallel processing directories and files"""
-        self.logger.info(f"Setting up parallel processing with {self.num_processes} processes")
-        
-        for proc_id in range(self.num_processes):
-            proc_base_dir = self.optimization_dir / f"parallel_proc_{proc_id:02d}"
-            proc_summa_dir = proc_base_dir / "SUMMA"
-            proc_mizuroute_dir = proc_base_dir / "mizuRoute"
-            proc_summa_settings_dir = proc_base_dir / "settings" / "SUMMA"
-            proc_mizu_settings_dir = proc_base_dir / "settings" / "mizuRoute"
-            
-            for directory in [proc_base_dir, proc_summa_dir, proc_mizuroute_dir,
-                            proc_summa_settings_dir, proc_mizu_settings_dir]:
-                directory.mkdir(parents=True, exist_ok=True)
-            
-            (proc_summa_dir / "logs").mkdir(parents=True, exist_ok=True)
-            (proc_mizuroute_dir / "logs").mkdir(parents=True, exist_ok=True)
-            
-            self._copy_settings_to_process_dir(proc_summa_settings_dir, proc_mizu_settings_dir)
-            self._update_process_file_managers(proc_id, proc_summa_dir, proc_mizuroute_dir,
-                                            proc_summa_settings_dir, proc_mizu_settings_dir)
-            
-            self.parallel_dirs.append({
-                'proc_id': proc_id,
-                'base_dir': proc_base_dir,
-                'summa_dir': proc_summa_dir,
-                'mizuroute_dir': proc_mizuroute_dir,
-                'summa_settings_dir': proc_summa_settings_dir,
-                'mizuroute_settings_dir': proc_mizu_settings_dir
-            })
+        """Setup parallel processing directories and files.
+
+        .. deprecated::
+            This method delegates to _setup_summa_parallel_processing() from SUMMAOptimizerMixin.
+            Kept for backward compatibility with existing subclasses.
+
+        Note:
+            Sets up SUMMA-specific parallel directories. For model-agnostic
+            parallel processing, use BaseModelOptimizer.setup_parallel_processing().
+        """
+        # Delegate to mixin implementation
+        self._setup_summa_parallel_processing()
     
     def _copy_settings_to_process_dir(self, proc_summa_settings_dir: Path, proc_mizu_settings_dir: Path) -> None:
         """Copy settings files to process-specific directory"""

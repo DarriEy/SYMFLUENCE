@@ -76,8 +76,14 @@ class NgenModelOptimizer(BaseModelOptimizer):
         )
 
     def _create_calibration_target(self):
-        """Create NGEN calibration target based on configuration."""
-        from ..calibration_targets import NgenStreamflowTarget
+        """Create NGEN calibration target using registry-based factory.
+
+        Uses the centralized create_calibration_target factory which:
+        1. Checks OptimizerRegistry for registered targets
+        2. Falls back to model-specific target mappings
+        3. Returns appropriate default targets if not found
+        """
+        from ..calibration_targets import create_calibration_target
 
         target_type = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
 
@@ -86,8 +92,15 @@ class NgenModelOptimizer(BaseModelOptimizer):
             self.logger.warning(
                 f"Unknown target {target_type} for NGEN, defaulting to streamflow"
             )
+            target_type = 'streamflow'
 
-        return NgenStreamflowTarget(self.config, self.project_dir, self.logger)
+        return create_calibration_target(
+            model_name='NGEN',
+            target_type=target_type,
+            config=self.config,
+            project_dir=self.project_dir,
+            logger=self.logger
+        )
 
     def _create_worker(self) -> NgenWorker:
         """Create NGEN worker."""

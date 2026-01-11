@@ -15,19 +15,151 @@ from symfluence.optimization.calibration_targets import (
 )
 
 class NSGA2Optimizer(BaseOptimizer):
-    """
-    Non-dominated Sorting Genetic Algorithm II (NSGA-II) for SYMFLUENCE
+    """Non-dominated Sorting Genetic Algorithm II (NSGA-II) for multi-objective optimization.
+
+    NSGA-II is an elitist multi-objective evolutionary algorithm designed to find
+    Pareto-optimal solutions when optimizing multiple conflicting objectives
+    simultaneously. It balances convergence to the Pareto front with diversity
+    across non-dominated solutions.
+
+    Multi-Objective Concept:
+        Traditional single-objective optimization seeks ONE best solution.
+        Multi-objective optimization with conflicting objectives has NO single
+        best solution. Instead, we seek a set of "Pareto-optimal" solutions
+        representing different trade-offs.
+
+        Example: Calibrating both streamflow and snow:
+        - Solution A: NSE(streamflow)=0.8, KGE(snow)=0.5  (streamflow-focused)
+        - Solution B: NSE(streamflow)=0.7, KGE(snow)=0.7  (balanced)
+        - Solution C: NSE(streamflow)=0.6, KGE(snow)=0.85 (snow-focused)
+        All three are Pareto-optimal; none dominates all others.
+
+    Pareto Dominance:
+        Solution x dominates y if:
+        - x is ≥ y in ALL objectives (minimization or maximization)
+        - x is > y in AT LEAST ONE objective
+        Non-dominated solutions form a "Pareto front": no solution dominates others.
+
+    Algorithm Overview:
+        NSGA-II solves: maximize [obj1, obj2, ...] (multiple objectives)
+        1. Initialize population: N random solutions
+        2. For each generation:
+           a. Tournament Selection: Select parents based on Pareto rank + crowding distance
+              - Better rank (lower is better) preferred
+              - Within same rank, more isolated (higher crowding distance) preferred
+           b. Genetic Operators:
+              - SBX Crossover: Create children near parents (controlled by eta_c)
+              - Polynomial Mutation: Small perturbations (controlled by eta_m)
+           c. Evaluate: Calculate all objectives for offspring
+           d. Environmental Selection: Combine parent+offspring (2N solutions)
+              - Non-dominated sort: assign Pareto ranks
+              - Keep best N solutions: full fronts + partial front ranked by crowding
+           e. Elitism: Best solutions guaranteed to survive (monotonic progress)
+
+    Key Features:
+        - Elitist selection: best solutions never disappear
+        - Fast non-dominated sorting: O(N²) instead of O(N³)
+        - Crowding distance: preserves diversity in objective space
+        - SBX/Polynomial operators: real-valued continuous optimization
+        - Self-adaptive: population diversity guides search
+        - Maintains Pareto front approximation
+
+    Why NSGA-II Works:
+        - Pareto dominance naturally balances multiple objectives
+        - Non-dominated sorting provides multi-dimensional quality ranking
+        - Crowding distance prevents premature convergence to single attractor
+        - Elitism guarantees progress (best never lost)
+        - Genetic operators explore via crossover, exploit via mutation
+        - Population maintains multiple trade-off solutions simultaneously
+
+    NSGA-II vs Single-Objective:
+        - Single-objective: optimizes one metric, returns one solution
+        - NSGA-II: finds trade-off surface, returns population of solutions
+        - Allows decision-maker to select solution matching specific priorities
+        - Better for problems with conflicting objectives (nearly all calibration)
+
+    Modes:
+        1. Single-Target Mode (default):
+           - Optimizes NSE and KGE for same variable (e.g., streamflow)
+           - Objectives: maximize NSE, maximize KGE (both measure fit quality)
+           - Trade-off: NSE emphasizes peaks, KGE emphasizes overall shape
+        2. Multi-Target Mode:
+           - Optimizes different variables simultaneously
+           - Example: streamflow (KGE) vs groundwater depth (KGE)
+           - Each target has its own calibration metrics
+
+    Configuration Parameters:
+        NSGA2_CROSSOVER_RATE (CR): Probability of SBX crossover (default: 0.9)
+                  Range: [0, 1]; Higher = more recombination
+                  Typical: 0.7-0.95
+        NSGA2_MUTATION_RATE (MR): Probability of polynomial mutation per gene (default: 0.1)
+                  Range: [0, 1]; Often 1/n_parameters for balance
+                  Typical: 0.05-0.2
+        NSGA2_ETA_C: SBX distribution index (default: 20)
+                  Higher eta_c → children closer to parents (less disruption)
+                  Typical range: 10-30
+                  eta_c=20 is common default
+        NSGA2_ETA_M: Polynomial mutation distribution index (default: 20)
+                  Higher eta_m → mutations closer to original (smaller steps)
+                  Typical range: 10-30
+        NSGA2_MULTI_TARGET: Enable multi-target mode (default: False)
+        NSGA2_PRIMARY_TARGET: First objective target (streamflow, snow, gw_depth, et, sm, tws)
+        NSGA2_SECONDARY_TARGET: Second objective target (defaults to gw_depth)
+        NSGA2_PRIMARY_METRIC: First objective metric (NSE, KGE, etc.)
+        NSGA2_SECONDARY_METRIC: Second objective metric
+        POPULATION_SIZE: Number of individuals (default: auto 8*n_params, bounded 50-100)
+                  Multi-objective typically uses larger populations than single-objective
+
+    Genetic Operators:
+        SBX (Simulated Binary Crossover):
+            Mimics binary crossover in binary GAs but for real variables.
+            Children distributed near parents with probability controlled by eta_c.
+            Smaller eta_c → wider distribution (exploration)
+            Larger eta_c → narrower distribution (exploitation)
+
+        Polynomial Mutation:
+            Applies bounded polynomial perturbations to genes.
+            Magnitude controlled by eta_m (distribution index).
+            Ensures mutations stay in [0,1] bounds.
+
+    Attributes:
+        population_size: Number of individuals maintained
+        crossover_rate: SBX crossover probability
+        mutation_rate: Polynomial mutation probability per gene
+        eta_c, eta_m: SBX and mutation distribution indices
+        multi_target_mode: Whether optimizing multiple objectives
+        num_objectives: Number of objectives (currently fixed at 2)
+        population_ranks: Pareto front rank for each individual
+        population_crowding_distances: Crowding distance values
+        pareto_front: Solutions on first non-dominated front (Pareto-optimal)
+
+    References:
+        Deb, K., Pratap, A., Agarwal, S., & Meyarivan, T. A. M. T. (2002).
+        A fast and elitist multiobjective genetic algorithm: NSGA-II.
+        IEEE Transactions on Evolutionary Computation, 6(2), 182-197.
+
+        Deb, K. (2001). Multi-Objective Optimization using Evolutionary
+        Algorithms. Wiley, Chichester, UK.
+
+        Deb, K., & Agrawal, R. B. (1994). Simulated binary crossover for
+        continuous search space. Complex Systems, 9, 1-15.
     """
     
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         super().__init__(config, logger)
         self.population_size = self._determine_population_size()
-        self.crossover_rate = config.get('NSGA2_CROSSOVER_RATE', 0.9)
-        self.mutation_rate = config.get('NSGA2_MUTATION_RATE', 0.1)
-        self.eta_c = config.get('NSGA2_ETA_C', 20)
-        self.eta_m = config.get('NSGA2_ETA_M', 20)
-        self.multi_target_mode = config.get('NSGA2_MULTI_TARGET', False)
-        
+        self.crossover_rate = self._cfg('NSGA2_CROSSOVER_RATE', default=0.9)
+        self.mutation_rate = self._cfg('NSGA2_MUTATION_RATE', default=0.1)
+        self.eta_c = self._cfg('NSGA2_ETA_C', default=20)
+        self.eta_m = self._cfg('NSGA2_ETA_M', default=20)
+
+        # Auto-detect multi-target mode from config
+        # Either explicit NSGA2_MULTI_TARGET or OPTIMIZATION_TARGET='multivariate'
+        self.multi_target_mode = self._cfg('NSGA2_MULTI_TARGET', default=False)
+        optimization_target = self._cfg('OPTIMIZATION_TARGET', default='streamflow').lower()
+        if optimization_target == 'multivariate':
+            self.multi_target_mode = True
+
         if self.multi_target_mode: self._setup_multi_target_objectives()
         else:
             self.objectives = ['NSE', 'KGE']; self.objective_names = ['NSE', 'KGE']
@@ -39,14 +171,43 @@ class NSGA2Optimizer(BaseOptimizer):
         self.pareto_front = None; self.best_score = None; self.best_params = None
 
     def _setup_multi_target_objectives(self) -> None:
-        primary_target_type = self.config.get('NSGA2_PRIMARY_TARGET', self.config.get('OPTIMIZATION_TARGET', 'streamflow'))
-        # Support both NSGA2_SECONDARY_TARGET and legacy OPTIMIZATION_TARGET2
-        secondary_target_type = self.config.get('NSGA2_SECONDARY_TARGET',
-                                                 self.config.get('OPTIMIZATION_TARGET2', 'gw_depth'))
-        self.primary_metric = self.config.get('NSGA2_PRIMARY_METRIC',
-                                               self.config.get('OPTIMIZATION_METRIC', 'KGE'))
-        self.secondary_metric = self.config.get('NSGA2_SECONDARY_METRIC',
-                                                 self.config.get('OPTIMIZATION_METRIC2', 'KGE'))
+        # Check if using multivariate mode (OBJECTIVE_WEIGHTS defined)
+        objective_weights = self._cfg('OBJECTIVE_WEIGHTS', default=None)
+        objective_metrics = self._cfg('OBJECTIVE_METRICS', default={})
+
+        if objective_weights:
+            # Multivariate mode: extract targets from OBJECTIVE_WEIGHTS keys
+            target_list = list(objective_weights.keys()) if isinstance(objective_weights, dict) else []
+            if len(target_list) >= 2:
+                primary_target_type = target_list[0]
+                secondary_target_type = target_list[1]
+                # Get metrics, trying both with and without uppercase
+                self.primary_metric = (objective_metrics.get(primary_target_type) or
+                                      objective_metrics.get(primary_target_type.upper()) or 'KGE')
+                self.secondary_metric = (objective_metrics.get(secondary_target_type) or
+                                        objective_metrics.get(secondary_target_type.upper()) or 'KGE')
+                self.logger.info(f"[NSGA2] Multivariate mode: {primary_target_type} ({self.primary_metric}) + {secondary_target_type} ({self.secondary_metric})")
+            else:
+                # Fallback if not enough targets in weights
+                self.logger.warning(f"[NSGA2] Multivariate specified but only {len(target_list)} targets in OBJECTIVE_WEIGHTS, defaulting to streamflow + gw_depth")
+                primary_target_type = 'streamflow'
+                secondary_target_type = 'gw_depth'
+                self.primary_metric = self._cfg('OPTIMIZATION_METRIC', default='KGE')
+                self.secondary_metric = self._cfg('OPTIMIZATION_METRIC2', default='KGE')
+        else:
+            # Multi-target explicit mode (NSGA2_PRIMARY_TARGET / NSGA2_SECONDARY_TARGET)
+            primary_target_type = self._cfg('NSGA2_PRIMARY_TARGET', default=self._cfg('OPTIMIZATION_TARGET', default='streamflow'))
+            secondary_target_type = self._cfg('NSGA2_SECONDARY_TARGET',
+                                              default=self._cfg('OPTIMIZATION_TARGET2', default='gw_depth'))
+            self.primary_metric = self._cfg('NSGA2_PRIMARY_METRIC',
+                                            default=self._cfg('OPTIMIZATION_METRIC', default='KGE'))
+            self.secondary_metric = self._cfg('NSGA2_SECONDARY_METRIC',
+                                              default=self._cfg('OPTIMIZATION_METRIC2', default='KGE'))
+
+        # Store target types as instance variables for use in task building
+        self.primary_target_type = primary_target_type
+        self.secondary_target_type = secondary_target_type
+
         self.primary_target = self._create_calibration_target_by_type(primary_target_type)
         self.secondary_target = self._create_calibration_target_by_type(secondary_target_type)
         self.calibration_target = self.primary_target
@@ -68,7 +229,7 @@ class NSGA2Optimizer(BaseOptimizer):
         return "NSGA2"
     
     def _determine_population_size(self) -> int:
-        config_pop_size = self.config.get('POPULATION_SIZE')
+        config_pop_size = self._cfg('POPULATION_SIZE', default=None)
         if config_pop_size: return config_pop_size
         total_params = len(self.parameter_manager.all_param_names)
         return max(50, min(8 * total_params, 100))
@@ -153,7 +314,22 @@ class NSGA2Optimizer(BaseOptimizer):
         tasks = []
         for i in range(self.population_size):
             if np.any(np.isnan(self.population_objectives[i])):
-                tasks.append({'individual_id': i, 'params': self.parameter_manager.denormalize_parameters(self.population[i]), 'proc_id': i % self.num_processes, 'evaluation_id': f"nsga2_pop_{i}", 'multiobjective': True})
+                task = {
+                    'individual_id': i,
+                    'params': self.parameter_manager.denormalize_parameters(self.population[i]),
+                    'proc_id': i % self.num_processes,
+                    'evaluation_id': f"nsga2_pop_{i}",
+                    'multiobjective': True,
+                    'multi_target_mode': self.multi_target_mode,  # Pass multi-target flag
+                    'objective_names': self.objective_names  # Pass objective names for result extraction
+                }
+                if self.multi_target_mode:
+                    # For multi-target mode, pass target type information
+                    task['primary_target_type'] = self.primary_target_type
+                    task['secondary_target_type'] = self.secondary_target_type
+                    task['primary_metric'] = self.primary_metric
+                    task['secondary_metric'] = self.secondary_metric
+                tasks.append(task)
         if tasks:
             results = self._run_parallel_evaluations(tasks)
             for res in results:
@@ -162,7 +338,24 @@ class NSGA2Optimizer(BaseOptimizer):
     def _evaluate_offspring(self, offspring: np.ndarray) -> np.ndarray:
         offspring_objectives = np.full((len(offspring), self.num_objectives), np.nan)
         if self.use_parallel:
-            tasks = [{'individual_id': i, 'params': self.parameter_manager.denormalize_parameters(offspring[i]), 'proc_id': i % self.num_processes, 'evaluation_id': f"nsga2_off_{i}", 'multiobjective': True} for i in range(len(offspring))]
+            tasks = []
+            for i in range(len(offspring)):
+                task = {
+                    'individual_id': i,
+                    'params': self.parameter_manager.denormalize_parameters(offspring[i]),
+                    'proc_id': i % self.num_processes,
+                    'evaluation_id': f"nsga2_off_{i}",
+                    'multiobjective': True,
+                    'multi_target_mode': self.multi_target_mode,  # Pass multi-target flag
+                    'objective_names': self.objective_names  # Pass objective names for result extraction
+                }
+                if self.multi_target_mode:
+                    # For multi-target mode, pass target type information
+                    task['primary_target_type'] = self.primary_target_type
+                    task['secondary_target_type'] = self.secondary_target_type
+                    task['primary_metric'] = self.primary_metric
+                    task['secondary_metric'] = self.secondary_metric
+                tasks.append(task)
             results = self._run_parallel_evaluations(tasks)
             for res in results: offspring_objectives[res['individual_id']] = np.array(res.get('objectives') or [-1.0, -1.0])
         else:
@@ -190,6 +383,52 @@ class NSGA2Optimizer(BaseOptimizer):
         return best_idx
     
     def _sbx_crossover(self, p1: np.ndarray, p2: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Simulated Binary Crossover (SBX) for continuous real-valued optimization.
+
+        SBX is the continuous analog of single-point crossover in binary genetic
+        algorithms. It creates offspring near parents rather than arbitrary points,
+        preserving good building blocks while exploring their neighborhood.
+
+        Algorithm:
+            For each parameter independently:
+            1. With probability 0.5, apply crossover (skip if parents identical)
+            2. Generate random u ∈ [0,1]
+            3. Calculate spreading factor β based on u and eta_c:
+               - If u ≤ 0.5: β = (2u)^(1/(eta_c+1))  (spread toward smaller parent)
+               - If u > 0.5: β = (1/(2(1-u)))^(1/(eta_c+1))  (spread toward larger parent)
+            4. Create children:
+               c1 = 0.5 * ((1+β)*p1 + (1-β)*p2)
+               c2 = 0.5 * ((1-β)*p1 + (1+β)*p2)
+            5. Clip to [0,1] bounds
+
+        Why SBX Works:
+            - eta_c controls distribution: Higher eta_c → children closer to parents
+            - Creates smooth interpolation, not random crossing
+            - Exploration: β < 1 explores between parents
+            - Exploitation: β > 1 explores outside (extrapolation)
+            - Self-adaptive: diversity in population drives exploration rate
+
+        Distribution Index (eta_c):
+            - eta_c = 5: Very wide spread (lots of exploration)
+            - eta_c = 20: Standard default (balanced exploration/exploitation)
+            - eta_c = 50: Narrow spread (mostly near parents, fine-tuning)
+
+        Crossover Probability (handled elsewhere):
+            With probability CR (typically 0.9), crossover is applied.
+            Otherwise, children are exact copies of parents.
+
+        Args:
+            p1, p2: Parent individuals (normalized parameter vectors in [0,1])
+
+        Returns:
+            Tuple of (child1, child2): Two offspring clipped to [0,1]
+
+        Mathematical Details:
+            β represents the spread magnitude. Values:
+            - β ∈ [0, 1): Children between parents (interpolation)
+            - β = 1: Children equal to parents (no change)
+            - β > 1: Children outside parent range (extrapolation)
+        """
         c1, c2 = p1.copy(), p2.copy()
         for i in range(len(p1)):
             if np.random.random() < 0.5 and abs(p1[i] - p2[i]) > 1e-14:
@@ -199,6 +438,58 @@ class NSGA2Optimizer(BaseOptimizer):
         return np.clip(c1, 0, 1), np.clip(c2, 0, 1)
     
     def _polynomial_mutation(self, individual: np.ndarray) -> np.ndarray:
+        """Polynomial mutation for real-valued genetic algorithms.
+
+        Applies bounded polynomial perturbations to genes, controlled by eta_m
+        (distribution index). Unlike simple Gaussian mutation, polynomial mutation
+        provides varying step sizes: small steps near current value (fine-tuning),
+        larger steps available but less probable.
+
+        Algorithm:
+            For each parameter independently:
+            1. With probability mutation_rate (typically 0.1):
+               a. Generate random u ∈ [0,1]
+               b. Calculate delta (perturbation) based on eta_m:
+                  - If u < 0.5: δ = (2u)^(1/(eta_m+1)) - 1  (perturb downward)
+                  - If u ≥ 0.5: δ = 1 - (2(1-u))^(1/(eta_m+1))  (perturb upward)
+               c. new_value = current + δ
+               d. Clip to [0,1] bounds
+
+        Perturbation Properties:
+            - Most perturbations are small (near original value)
+            - Larger perturbations possible but less probable
+            - Distribution controlled by eta_m (higher = narrower)
+            - Smooth exploration around current position
+
+        Distribution Index (eta_m):
+            - eta_m = 5: Wide distribution (aggressive mutations, lots of exploration)
+            - eta_m = 20: Standard default (balanced exploration/exploitation)
+            - eta_m = 50: Narrow distribution (conservative, fine-tuning focus)
+
+        Why Polynomial Mutation:
+            - Self-adaptive: diversity in population guides exploration
+            - Balances global and local search naturally
+            - Works well with crossover (exploration/exploitation balance)
+            - Boundary-aware: never forces solutions outside [0,1]
+
+        Mutation Probability:
+            - mutation_rate ≈ 1/n_parameters: One gene mutated per individual on average
+            - mutation_rate = 0.1: 10% chance per gene (typical for small populations)
+            - Lower mutation_rate: convergence focus, risk of premature convergence
+            - Higher mutation_rate: exploration focus, slower convergence
+
+        Args:
+            individual: Individual to mutate (normalized parameter vector in [0,1])
+
+        Returns:
+            Mutated individual: New vector with mutations applied, clipped to [0,1]
+
+        Mathematical Details:
+            δ calculation uses polynomial distribution with index eta_m.
+            The polynomial provides smooth probability density, concentrating
+            mutations near zero while allowing larger jumps with lower probability.
+            This is superior to fixed-magnitude or Gaussian mutations.
+        """
         mutated = individual.copy()
         for i in range(len(individual)):
             if np.random.random() < self.mutation_rate:
@@ -229,6 +520,60 @@ class NSGA2Optimizer(BaseOptimizer):
             if len(front) > 0: self.population_crowding_distances[front] = self._calculate_crowding_distance(self.population_objectives[front])
     
     def _non_dominated_sorting(self, objectives: np.ndarray) -> List[List[int]]:
+        """Perform fast non-dominated sorting to assign Pareto ranks.
+
+        This is the core NSGA-II ranking mechanism. Individuals are assigned to
+        Pareto fronts based on dominance: solutions that don't dominate each other
+        belong to the same front.
+
+        Domination Definition:
+            Solution x dominates solution y if:
+            - x is ≥ y in ALL objectives (or ≤ if minimizing)
+            - x is > y in AT LEAST ONE objective (strict inequality in at least one)
+
+            Example (maximization):
+            - x = [0.8, 0.6] dominates y = [0.7, 0.5]  (better in both)
+            - x = [0.8, 0.5] dominates y = [0.7, 0.6]  (better in obj1)
+            - x = [0.8, 0.4] and y = [0.7, 0.6] DON'T dominate (mixed)
+
+        Algorithm (Fast Non-dominated Sort):
+            1. Initialize:
+               - domination_counts[i] = # of solutions that dominate i
+               - dominated_solutions[i] = list of solutions i dominates
+               - front[0] = solutions with domination_count = 0 (not dominated)
+            2. For each solution pair:
+               - If i dominates j: add j to i's dominated list
+               - If j dominates i: increment i's domination count
+            3. Iteratively find subsequent fronts:
+               - Each solution i in current front "frees" its dominated solutions
+               - When a solution's domination count reaches 0, it enters next front
+               - Repeat until all solutions assigned
+
+        Complexity:
+            - O(N²) for comparison phase (N solutions compared pairwise)
+            - O(N) for domination counting
+            - Total: O(N²) vs O(N³) for naive approach
+
+        Pareto Fronts:
+            - Front 0: Best solutions (Pareto-optimal), nothing dominates them
+            - Front 1: Second best, dominated only by front 0
+            - Front k: Dominated by fronts 0...k-1
+            - Later fronts progressively worse
+
+        Usage in NSGA-II:
+            - Higher-ranked fronts preferred in selection (lower rank number)
+            - Fronts fill population sequentially until capacity reached
+            - Last incomplete front ranked by crowding distance
+
+        Args:
+            objectives: Fitness array, shape (n_individuals, n_objectives)
+                       Each row is one solution's objective values
+
+        Returns:
+            List of fronts where each front is list of individual indices.
+            Example: [[3, 7, 9], [1, 4, 8, 12], [2, 5, 6, 10, 11]]
+                     means 3 individuals in front 0, 4 in front 1, 5 in front 2
+        """
         n = len(objectives); domination_counts = np.zeros(n); dominated_solutions = [[] for _ in range(n)]; fronts = [[]]
         for i in range(n):
             for j in range(n):
@@ -247,6 +592,61 @@ class NSGA2Optimizer(BaseOptimizer):
         return fronts[:-1]
         
     def _calculate_crowding_distance(self, front_fvals: np.ndarray) -> np.ndarray:
+        """Calculate crowding distance for diversity preservation.
+
+        Crowding distance is a NSGA-II innovation measuring how isolated each
+        solution is from its neighbors in objective space. It prevents premature
+        convergence by preferring diverse solutions, enabling approximation of
+        the full Pareto front rather than clustering around few points.
+
+        Concept:
+            Imagine solutions plotted in objective space. Each solution has a
+            "neighborhood": distance to nearest neighbors. Solutions far from
+            others (isolated) have high crowding distance. Dense regions have
+            low crowding distance. We prefer isolated solutions to spread the
+            population across the Pareto front.
+
+        Algorithm:
+            1. Set all solutions' distances to 0 (sum of contributions)
+            2. For each objective independently:
+               a. Sort solutions by that objective's value
+               b. Set boundary solutions (minimum/maximum) to infinite distance
+                  (boundary solutions always valuable for exploring front edges)
+               c. For interior solutions i: contribution = (next_val - prev_val) / range
+                  (larger gaps to neighbors = higher contribution)
+               d. Add contribution to total distance
+            3. Sum contributions across all objectives
+
+        Why This Works:
+            - Boundaries: extreme solutions get infinity (always preferred)
+            - Gaps: isolated solutions have large neighbor distances
+            - Scaling: each objective normalized by its range
+            - Aggregation: sums across objectives (multi-dimensional isolation)
+
+        Benefits:
+            - Preserves boundary solutions (explore front edges)
+            - Avoids clustering (isolated solutions preferred)
+            - Fair comparison across objectives (each normalized)
+            - Cheap computation: O(N log N) per objective due to sort
+
+        Mathematical Formulation:
+            For each solution in front, crowding distance = Σ_j (next_j - prev_j)
+            where next_j and prev_j are neighboring solutions in objective j,
+            normalized by range_j (max_j - min_j).
+
+        Edge Cases:
+            - Small fronts (≤2 solutions): all assigned infinite distance (preserve all)
+            - NaN values: replaced with median of column (robust to crashes)
+            - Zero range: solutions with identical objective value in one dimension
+
+        Args:
+            front_fvals: Objective values of individuals in a Pareto front
+                        Shape: (n_solutions_in_front, n_objectives)
+
+        Returns:
+            Array of crowding distances: (n_solutions_in_front,)
+            Each value ≥ 0, with boundary solutions = np.inf
+        """
         if front_fvals is None or len(front_fvals) == 0: return np.array([])
         N, M = front_fvals.shape; distances = np.zeros(N, dtype=float)
         if N <= 2: distances[:] = np.inf; return distances

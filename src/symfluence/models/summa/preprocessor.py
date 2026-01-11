@@ -33,8 +33,39 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
     """
     Preprocessor for the SUMMA (Structure for Unifying Multiple Modeling Alternatives) model.
 
-    Handles data preparation, configuration, and file setup for SUMMA model runs.
-    Inherits observation loading from ObservationLoaderMixin.
+    Handles complete preprocessing workflow for SUMMA including forcing data processing,
+    spatial attributes generation, configuration file setup, and initial conditions.
+
+    Key Operations:
+        - Process forcing data into SUMMA-compatible NetCDF format
+        - Generate spatial attribute files (HRU characteristics, elevation bands, etc.)
+        - Create SUMMA configuration files (file_manager, decision files, parameter files)
+        - Set up initial conditions and cold state files
+        - Handle glacier attributes for glacierized catchments (if applicable)
+        - Configure elevation band discretization for distributed modeling
+
+    Workflow Steps:
+        1. Initialize paths and load configuration
+        2. Process forcing data (temperature, precipitation, radiation, etc.)
+        3. Generate attribute files from spatial data (DEM, land cover, soil)
+        4. Create SUMMA-specific configuration files
+        5. Set up trial parameter files
+        6. Configure output specifications
+
+    Supported Discretizations:
+        - Lumped: Single HRU per catchment
+        - Distributed: Multiple HRUs with elevation bands
+        - Glacier: Special handling for glacier mass balance
+
+    Inherits from:
+        BaseModelPreProcessor: Common preprocessing patterns and utilities
+        ObservationLoaderMixin: Observation data loading capabilities
+
+    Example:
+        >>> from symfluence.models.summa.preprocessor import SummaPreProcessor
+        >>> preprocessor = SummaPreProcessor(config, logger)
+        >>> preprocessor.run_preprocessing()
+        # Creates SUMMA input files in: project_dir/forcing/SUMMA_input/
     """
 
     def _get_model_name(self) -> str:

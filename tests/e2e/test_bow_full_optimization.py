@@ -13,7 +13,7 @@ This test requires significant runtime (2-4 hours) and cloud credentials.
 import pytest
 from pathlib import Path
 from symfluence import SYMFLUENCE
-from utils.helpers import load_config_template
+from test_helpers.helpers import load_config_template
 
 pytestmark = [
     pytest.mark.e2e,

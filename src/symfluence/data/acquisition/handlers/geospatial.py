@@ -1,16 +1,81 @@
-"""
-Geospatial Data Acquisition Handlers for SYMFLUENCE.
+"""Geospatial Data Acquisition Handlers
 
-Provides handlers for:
-- SoilGrids soil classification data
-- MODIS land cover from Zenodo
-- USGS NLCD land cover
-- Copernicus DEM GLO-30
-- FABDEM
-- Local NASADEM
+Cloud-based acquisition of global geospatial datasets including elevation,
+soil classification, and land cover. Provides multiple sources with automatic
+fallback logic and caching for reliable, efficient data downloads.
 
-Uses mixins for:
-- RetryMixin: Exponential backoff retry for downloads
+Handler Types:
+    DEM Acquisition:
+    - Copernicus GLO-30 (30m): AWS S3, cloud-optimized GeoTIFF
+    - FABDEM (30m): Forest/building-removed variant from Source Cooperative
+    - NASADEM Local (30m): Local tile discovery and merging
+    - NASADEM Cloud: USGS cloud-hosted (minimal implementation)
+
+    Soil Classification:
+    - SoilGrids v2: World Reference Base (WRB) classification (250m)
+      * Primary: HydroShare (cached, GeoTIFF pre-converted)
+      * Fallback: OGC WCS service (authoritative but slower)
+
+    Land Cover:
+    - MODIS MCD12Q1 v061: Global land cover (500m)
+      * Multi-year support with mode calculation
+      * Zenodo archive download with subsetting
+    - USGS NLCD: USA-only land cover (30m)
+      * Tile-based via USGS WMS
+
+Key Features:
+    Dual-Source Strategy:
+    - Primary fast/cached sources (HydroShare, Zenodo)
+    - Fallback authoritative sources (SoilGrids WCS, USGS WMS)
+    - Graceful fallback on primary failure
+
+    Caching:
+    - Global cache directories for multi-year MODIS downloads
+    - Per-domain output files in project_dir/attributes/{type}/
+    - Checksum validation and size checking for integrity
+
+    Subsetting:
+    - Automatic clipping to domain bounding box
+    - Window-based rasterio operations (memory-efficient)
+    - WCS/WMS parameter-based subsetting for remote sources
+
+    Retry Logic:
+    - Exponential backoff for transient failures
+    - Configurable max retries and backoff factors
+    - Robust session creation with connection pooling
+
+Data Sources Summary:
+    Copernicus DEM:
+    - URL: AWS S3 (copernicus-dem-30m bucket)
+    - Tiles: 1x1 degree tiles
+    - Format: COG (Cloud-Optimized GeoTIFF)
+    - Advantages: Fast S3 access, consistent quality
+
+    SoilGrids:
+    - Primary: HydroShare (https://www.hydroshare.org)
+    - Fallback: ISRIC WCS (https://maps.isric.org/mapserv)
+    - Classification: WRB (World Reference Base) soil groups
+    - Resolution: 250m
+
+    MODIS Landcover:
+    - Zenodo: https://zenodo.org/records/8367523
+    - Variable: MCD12Q1 v061 classification
+    - Resolution: 500m
+    - Multi-year: Average mode across years
+
+    USGS NLCD:
+    - WMS endpoint: USGS server
+    - Coverage: USA only
+    - Resolution: 30m
+    - Classes: Anderson classification system
+
+References:
+    - Hengl et al. (2021). SoilGrids 2.0: producing soil class predictions
+      SCI DATA 8, 128
+    - Hawker et al. (2022). FABDEM: Global forest and building height maps
+      Scientific Data, 9, 488
+    - Friedl et al. (2019). MODIS Collection 6 land cover product
+      Remote Sensing of Environment, 224, 400-414
 """
 
 import math
@@ -28,13 +93,70 @@ from ..utils import create_robust_session
 
 
 class GeospatialAcquirer(BaseAcquisitionHandler):
+    """Base class for geospatial data handlers (DEM, soil, land cover).
+
+    This class can be inherited for unified geospatial acquisition workflows,
+    but individual handlers register independently via the registry pattern.
+    Currently a placeholder for potential future unified interface.
+    """
     def download(self, output_dir: Path) -> Path:
         # This base class can be used if we want a unified entry point for geospatial
         pass
 
 @AcquisitionRegistry.register('SOILGRIDS')
 class SoilGridsAcquirer(BaseAcquisitionHandler, RetryMixin):
-    """SoilGrids soil classification data acquisition handler."""
+    """SoilGrids v2 soil classification acquisition with dual-source strategy.
+
+    Downloads global soil class raster data (World Reference Base classification)
+    using intelligent source selection with automatic fallback:
+
+    Acquisition Strategy:
+        1. Primary Source: HydroShare (recommended for production)
+           - Pre-converted GeoTIFF format (no format conversion needed)
+           - Globally cached, reducing server load
+           - Better availability and error handling
+           - Download: ZIP archive → extract → crop to domain
+
+        2. Fallback Source: SoilGrids OGC WCS service
+           - Authoritative ISRIC SoilGrids v2 database
+           - On-demand subsetting via WCS parameters
+           - Slower and less reliable (server-side processing)
+           - Direct GeoTIFF output, no extraction needed
+
+    Soil Classification:
+        World Reference Base (WRB) system:
+        - 28 soil groups (e.g., Acrisols, Cambisols, Ferralsols)
+        - Integer codes 1-28 for classification
+        - Applicable globally for 0-5cm or 5-15cm depth
+
+    Output:
+        GeoTIFF file: domain_{domain_name}_soil_classes.tif
+        - Variable: WRB soil class codes (integers 1-28)
+        - Resolution: 250m global
+        - Compressed: LZW compression
+
+    Configuration:
+        Primary source (HydroShare):
+        - Automatic detection from config
+        - No explicit configuration needed
+
+        Fallback source (WCS):
+        - config.data.geospatial.soilgrids.layer: WRB layer name (default: 'wrb_0-5cm_mode')
+        - config.data.geospatial.soilgrids.coverage_id: WCS coverage ID
+        - config.data.geospatial.soilgrids.wcs_map: WCS service map path
+
+    Error Handling:
+        - HydroShare failures: Log warning, attempt WCS fallback
+        - WCS failures: Log error with snippet of response (helps debug)
+        - WCS HTML error detection: Checks Content-Type and first bytes
+        - Partial downloads: Verified with Content-Length check
+
+    References:
+        - Poggio et al. (2021). SoilGrids 2.0: Producing soil class predictions
+          Scientific Data, 8, 128
+        - ISRIC SoilGrids: https://www.soilgrids.org/
+        - HydroShare: https://www.hydroshare.org/
+    """
 
     def download(self, output_dir: Path) -> Path:
         soil_dir = self._attribute_dir("soilclass")
@@ -58,7 +180,31 @@ class SoilGridsAcquirer(BaseAcquisitionHandler, RetryMixin):
             raise
 
     def _download_soilgrids_wcs(self, out_p: Path) -> Path:
-        """Download soil data from SoilGrids WCS service."""
+        """Download soil data from SoilGrids WCS service (fallback source).
+
+        Uses OGC Web Coverage Service (WCS) to request soil class raster data
+        directly from ISRIC's SoilGrids v2 service. This is the authoritative
+        source but slower and less reliable than HydroShare.
+
+        WCS Parameters:
+            SERVICE: WCS (Web Coverage Service)
+            VERSION: 2.0.1 (OGC standard version)
+            REQUEST: GetCoverage (retrieve gridded data)
+            COVERAGEID: WRB soil classification layer identifier
+            FORMAT: GEOTIFF_INT16 (16-bit integer GeoTIFF)
+            SUBSETTINGCRS: EPSG:4326 (WGS84 lat/lon)
+            SUBSET: Latitude and Longitude bounds to spatial window
+
+        Args:
+            out_p: Output GeoTIFF file path
+
+        Returns:
+            Path: Output file path
+
+        Raises:
+            ValueError: If WCS returns HTML error or unexpected content
+            requests.HTTPError: If HTTP request fails
+        """
         self.logger.info("Acquiring soil class data from SoilGrids WCS (fallback)")
 
         layer = self._get_config_value(
@@ -105,7 +251,29 @@ class SoilGridsAcquirer(BaseAcquisitionHandler, RetryMixin):
         return out_p
 
     def _download_hydroshare_soilclasses(self, out_p: Path) -> Path:
-        """Download soil data from HydroShare using RetryMixin."""
+        """Download soil data from HydroShare (preferred primary source).
+
+        HydroShare is a data and model repository where pre-processed SoilGrids
+        data is cached and served globally. This approach is preferred because:
+        - Pre-converted to GeoTIFF (no format conversion overhead)
+        - Globally mirrored (faster, more reliable than ISRIC)
+        - Better progress reporting and error handling
+        - Reduces load on ISRIC servers
+
+        The download uses RetryMixin for exponential backoff on transient failures.
+        Downloads are cached locally to avoid re-downloading for multiple domains.
+
+        Args:
+            out_p: Output GeoTIFF file path
+
+        Returns:
+            Path: Output file path
+
+        Side Effects:
+            - Creates local cache directory for zip archives
+            - Extracts GeoTIFF files from downloaded archive
+            - Subsets extracted raster to domain bounding box via rasterio
+        """
         cache_dir_cfg = self._get_config_value(
             lambda: self.config.data.geospatial.soilgrids.hs_cache_dir, default='default'
         )
@@ -200,6 +368,82 @@ class SoilGridsAcquirer(BaseAcquisitionHandler, RetryMixin):
 
 @AcquisitionRegistry.register('MODIS_LANDCOVER')
 class MODISLandcoverAcquirer(BaseAcquisitionHandler):
+    """MODIS MCD12Q1 land cover acquisition with multi-year support.
+
+    Downloads and processes global MODIS Collection 6 land cover classification
+    (MCD12Q1 v061) from Zenodo archive with optional multi-year mode averaging.
+    Enables flexible source selection (local file, Zenodo archive) and temporal
+    aggregation for robust land cover datasets.
+
+    MODIS Land Cover (MCD12Q1):
+        Data Type: Land cover classification (International Geosphere-Biosphere Programme)
+        Resolution: 500m
+        Version: Collection 6.1 (v061)
+        Temporal Resolution: Annual (January 1 - December 31)
+        Spatial Coverage: Global (90°S - 90°N)
+
+    Acquisition Modes:
+        1. Local File (fastest):
+           - Uses existing local/remote GeoTIFF file
+           - Configured via LANDCOVER_LOCAL_FILE
+           - Automatic VirtualFileSystem (VSI) handling for HTTP URLs
+
+        2. Zenodo Archive (production):
+           - Multi-file download from Zenodo (https://zenodo.org/records/8367523)
+           - Automatic caching to avoid re-downloads
+           - Mode calculation for multi-year datasets
+
+    Multi-Year Processing:
+        Configuration options (in precedence order):
+        1. Explicit years list: data.geospatial.modis_landcover.years = [2018, 2019, 2020]
+        2. Year range: data.geospatial.modis_landcover.start_year + end_year
+        3. Single year: data.geospatial.modis_landcover.year
+        4. Default: 2019
+
+        Mode Calculation:
+        - Stacks multi-year data into 3D array
+        - Computes mode (most frequent class) along time axis
+        - Produces single-year consensus classification
+        - Useful for filtering year-to-year noise
+
+    Output:
+        GeoTIFF file: domain_{domain_name}_land_classes.tif (or custom name)
+        - Variable: IGBP land cover classes (1-17)
+        - Resolution: 500m
+        - Compressed: LZW compression
+        - Custom naming: Configurable via LAND_CLASS_NAME
+
+    Configuration:
+        Source Selection:
+        - LANDCOVER_LOCAL_FILE: Path/URL to existing GeoTIFF
+        - If set, uses local file instead of Zenodo
+
+        Multi-Year:
+        - data.geospatial.modis_landcover.years: List of years [int]
+        - data.geospatial.modis_landcover.start_year/end_year: Year range
+        - data.geospatial.modis_landcover.year: Single year
+
+        Zenodo Source:
+        - data.geospatial.modis_landcover.base_url: Zenodo URL (default provided)
+        - data.geospatial.modis_landcover.cache_dir: Cache directory ('default' or path)
+
+    Subsetting Strategy:
+        Window-Based Clipping:
+        - Uses rasterio window operations (memory-efficient)
+        - Clips to domain bounding box coordinates
+        - Preserves georeferencing and projection
+
+        Data Validation:
+        - Checks for NaN values in output
+        - Verifies output contains valid land cover classes
+
+    References:
+        - Friedl et al. (2019). MODIS Collection 6 global land cover
+          Remote Sensing of Environment, 224, 400-414
+        - MODIS/Terra+Aqua Land Cover Type Yearly L3 Global 500m SIN Grid (MCD12Q1)
+          NASA DAAC: https://lpdaac.usgs.gov/
+        - Zenodo Archive: https://zenodo.org/records/8367523
+    """
     def _download_with_size_check(self, url: str, dest_path: Path) -> None:
         tmp_path = dest_path.with_suffix(dest_path.suffix + ".part")
         with requests.get(url, stream=True, timeout=60) as resp:
@@ -418,7 +662,68 @@ class USGSLandcoverAcquirer(BaseAcquisitionHandler):
 
 @AcquisitionRegistry.register('COPDEM30')
 class CopDEM30Acquirer(BaseAcquisitionHandler, RetryMixin):
-    """Copernicus DEM GLO-30 acquisition handler."""
+    """Copernicus DEM GLO-30 acquisition via AWS S3 with tile management.
+
+    Downloads and merges global 30m resolution Digital Elevation Model (DEM)
+    from the Copernicus DEM collection hosted on AWS S3. Uses cloud-optimized
+    GeoTIFF (COG) format for efficient cloud access with per-tile retry logic.
+
+    Copernicus DEM GLO-30:
+        Data Type: Global Digital Elevation Model (raster)
+        Resolution: 30m (1 arc-second)
+        Coverage: Global (90°S - 90°N, 180°W - 180°E)
+        Source: Copernicus Programme / DLR & Airbus
+        Format: Cloud-Optimized GeoTIFF (COG)
+        Datum: WGS84 (EPSG:4326)
+        Units: Meters above sea level
+
+    Tile Scheme:
+        Organization: 1°×1° degree tiles
+        Naming: Copernicus_DSM_COG_10_{LAT}_{LON}_00_DEM
+        Example: Copernicus_DSM_COG_10_N40_00_E105_00_DEM
+        Coordinates: N/S for latitude (00-89), E/W for longitude (000-179)
+
+    Acquisition Workflow:
+        1. Calculate tile indices from domain bounding box (floor/ceil)
+        2. For each required tile:
+           a. Generate S3 URL with proper tile naming convention
+           b. Download with retry logic (max 5 retries, exponential backoff)
+           c. Cache locally to avoid re-downloads
+        3. Merge tiles to single output GeoTIFF
+        4. Clip to exact domain bounding box
+        5. Apply LZW compression
+
+    AWS S3 Configuration:
+        Bucket: copernicus-dem-30m
+        Region: eu-central-1
+        Base URL: https://copernicus-dem-30m.s3.eu-central-1.amazonaws.com
+        Access: Public dataset (no credentials required)
+        Performance: Fast S3 access, regional caching
+
+    Error Handling:
+        - Per-tile retry: 5 attempts with exponential backoff (2x factor)
+        - Partial downloads: Detected via HTTP Content-Length
+        - Missing tiles: Logged as warning, attempt continues with remaining
+        - Complete failure: Raises FileNotFoundError if no tiles found
+
+    Output:
+        GeoTIFF file: domain_{domain_name}_elv.tif
+        - Format: Cloud-Optimized GeoTIFF (COG)
+        - Compression: LZW (lossless)
+        - Data Type: Typically 16-bit integers or 32-bit floats
+        - NoData Value: -32768 (void areas, if present)
+
+    Advantages:
+        - Fast cloud-native access (COG format)
+        - Consistent global coverage
+        - Well-documented data source
+        - Reliable AWS S3 infrastructure
+
+    References:
+        - Copernicus DEM: https://www.copernicus.eu/en/access-data/copernicus-data
+        - AWS Public Dataset: https://registry.opendata.aws/copernicus-dem/
+        - Product Specification: https://www.dlr.de/eoc/en/desktopdefault.aspx/
+    """
 
     def download(self, output_dir: Path) -> Path:
         elev_dir = self._attribute_dir("elevation")
@@ -543,7 +848,85 @@ class CopDEM30Acquirer(BaseAcquisitionHandler, RetryMixin):
 
 @AcquisitionRegistry.register('FABDEM')
 class FABDEMAcquirer(BaseAcquisitionHandler):
-    """FABDEM (Forest And Buildings removed DEM) acquisition handler."""
+    """FABDEM acquisition handler for forest/building-removed elevation data.
+
+    Downloads and processes FABDEM (Forest And Buildings removed DEM) v1-2,
+    a global 30m elevation model with vegetation and anthropogenic structures
+    removed. Useful for hydrological modeling where bare-earth DEM is required.
+
+    FABDEM v1-2 Overview:
+        Data Type: Digital Elevation Model with forest/building removal
+        Resolution: 30m (1 arc-second)
+        Coverage: Global (90°S - 90°N)
+        Source: Hawker et al. (2022), Source Cooperative
+        Processing: Copernicus DEM + GEDI + landcover masking
+        Format: Cloud-Optimized GeoTIFF (COG)
+        Datum: WGS84 (EPSG:4326)
+        Units: Meters above sea level
+
+    Forest and Building Removal:
+        Preprocessing steps in FABDEM:
+        1. Start with Copernicus DEM 30m baseline
+        2. Apply GEDI space-based lidar canopy height measurements
+        3. Use forest masks (ESA World Cover, GEDI) for vegetation identification
+        4. Remove building pixels using OpenStreetMap and OSM data
+        5. Interpolate removed pixels for hydrologically valid surface
+
+        Benefits for hydrological modeling:
+        - More accurate streamflow routing (no artificial dams from buildings)
+        - Better representation of flood pathways (forest gaps opened)
+        - Reduced artifacts from tall vegetation over actual terrain
+        - Useful for flood risk and rainfall-runoff modeling
+
+    Tile Scheme:
+        Organization: 1°×1° degree tiles
+        Naming: {LAT}{LON}_FABDEM_V1-2.tif
+        Example: N46W122_FABDEM_V1-2.tif
+        Coordinates: N/S for latitude (00-89), E/W for longitude (000-179)
+
+    Acquisition Workflow:
+        1. Calculate tile indices from domain bounding box
+        2. For each required tile:
+           a. Generate Source Cooperative URL
+           b. Download GeoTIFF tile
+           c. Cache locally to avoid re-downloads
+        3. Merge multiple tiles (if needed) via rasterio.merge()
+        4. Clip to exact domain bounding box
+        5. Output single GeoTIFF
+
+    Source Cooperative Configuration:
+        Provider: Source Cooperative (AWS S3)
+        Base URL: https://data.source.coop/c_6_6/fabdem/tiles/
+        Format: COG (Cloud-Optimized GeoTIFF)
+        Access: Public dataset (no credentials)
+        Performance: AWS S3 access with global caching
+
+    Error Handling:
+        - Missing tiles: HTTP 404, logged as warning, continue with available
+        - Network failures: Immediate exception (no retry)
+        - Single tile: Direct copy/crop (no mosaic needed)
+        - Multiple tiles: Automated rasterio merge
+
+    Output:
+        GeoTIFF file: domain_{domain_name}_elv.tif
+        - Format: GeoTIFF
+        - Compression: Inherited from source tiles
+        - Data Type: Typically 16-bit or 32-bit elevation
+        - Spatial extent: Exact domain bounding box
+
+    Use Cases:
+        - Hydrological modeling (flood routing, streamflow)
+        - Urban hydrology (better representation of flood pathways)
+        - Wildlife habitat modeling (accurate terrain without tall vegetation)
+        - Landslide/avalanche risk assessment
+        - Visibility/line-of-sight analysis
+
+    References:
+        - Hawker et al. (2022). A 30m global map of elevation corrected for
+          vegetation bias and national boundaries. Scientific Data, 9, 488
+        - Source Cooperative: https://source.coop/
+        - GEDI Data: https://daac.ornl.gov/GEDI/
+    """
 
     def download(self, output_dir: Path) -> Path:
         elev_dir = self._attribute_dir("elevation")
@@ -605,6 +988,99 @@ class FABDEMAcquirer(BaseAcquisitionHandler):
 
 @AcquisitionRegistry.register('NASADEM_LOCAL')
 class NASADEMLocalAcquirer(BaseAcquisitionHandler):
+    """NASADEM local tile acquisition for pre-downloaded elevation data.
+
+    Discovers and merges NASADEM or compatible local elevation tiles to create
+    a domain-specific DEM. Enables offline operation and use of pre-downloaded
+    tiles or alternative bare-earth elevation products (e.g., commercial DEMs).
+
+    NASADEM Overview:
+        Data Type: Merged SRTM v3 + ASTER DEM elevation
+        Resolution: 30m (1 arc-second)
+        Coverage: Global (±60° latitude)
+        Source: USGS EROS Data Center
+        Vertical Accuracy: ±20m (SRTM regions), ±30m (ASTER)
+        Format: Flexible (HGT or GeoTIFF)
+        Datum: WGS84 (EPSG:4326)
+        Units: Meters above sea level
+
+    Local Tile Organization:
+        Directory Structure:
+        nasadem_tiles_dir/
+        ├── n46w122.tif  (or .hgt)
+        ├── n46w121.tif
+        ├── n47w122.tif
+        └── ...
+
+        Naming Convention:
+        - {LAT}{LON}.tif or {LAT}{LON}.hgt
+        - Latitude: n00-n60 or s00-s60 (North/South of equator)
+        - Longitude: e000-e179 or w000-w179 (East/West of Greenwich)
+        - Example: n46w122.tif (46°N, 122°W)
+
+    Acquisition Workflow:
+        1. Validate NASADEM_LOCAL_DIR configuration
+        2. Calculate required tile indices from bounding box
+        3. For each tile:
+           a. Glob for matching tiles (.tif or .hgt format)
+           b. Collect found tiles into list
+        4. Single tile: Direct crop to domain bbox
+        5. Multiple tiles: Automated merge via rasterio.merge()
+        6. Output to domain-specific GeoTIFF
+
+    Configuration:
+        Required setting:
+        - config.data.geospatial.nasadem.local_dir: Path to tile directory
+          Example: /data/elevation_data/nasadem_tiles/
+          Can be local path or network-mounted directory
+
+        Directory must exist and contain ≥1 tile covering domain
+
+    Flexible Tile Format:
+        Supports both formats:
+        - GeoTIFF (.tif): Preferred, includes georeferencing
+        - HGT (.hgt): Legacy SRTM raw format, auto-georeferenced
+        - Pattern matching: {lat_str}{lon_str}*.tif or .hgt
+        - First match used if multiple versions exist
+
+    Error Handling:
+        - Directory not configured: ValueError
+        - Directory not found: FileNotFoundError
+        - No tiles covering bbox: FileNotFoundError with bbox info
+        - Single tile: Crop and copy (preserves originals)
+        - Multiple tiles: Merge with window clipping
+
+    Output:
+        GeoTIFF file: domain_{domain_name}_elv.tif
+        - Format: GeoTIFF
+        - Compression: Inherited from source tiles
+        - Data Type: Typically 16-bit elevation
+        - Spatial extent: Exact domain bounding box
+
+    Use Cases:
+        - Air-gapped systems (no internet access)
+        - Pre-downloaded tile archives
+        - Custom commercial DEMs (when converted to .tif)
+        - Verified/validated elevation datasets
+        - Local high-resolution DEMs (LiDAR, InSAR)
+
+    Tile Source Options:
+        Official USADEM:
+        - USGS EROS Data Center: earthexplorer.usgs.gov
+        - Download NASADEM or SRTM tiles
+        - HGT or GeoTIFF formats supported
+
+        Commercial Alternatives:
+        - COPDEM (Copernicus processed)
+        - SRTM+ processed variants
+        - Proprietary LiDAR-based DEMs
+        - InSAR-derived elevation models
+
+    References:
+        - USGS NASADEM: https://lpdaac.usgs.gov/products/nasadem_hgt/
+        - SRTM v3: https://lpdaac.usgs.gov/products/srtmgl1elev/
+        - Earth Explorer: https://earthexplorer.usgs.gov/
+    """
     def download(self, output_dir: Path) -> Path:
         local_src_dir_cfg = self._get_config_value(
             lambda: self.config.data.geospatial.nasadem.local_dir

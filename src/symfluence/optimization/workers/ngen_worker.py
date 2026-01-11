@@ -47,7 +47,7 @@ class NgenWorker(BaseWorker):
         **kwargs
     ) -> bool:
         """
-        Apply parameters to ngen configuration files (JSON or BMI text).
+        Apply parameters to ngen configuration files (JSON, BMI text, or TBL).
 
         Parameters use MODULE.param naming convention (e.g., CFE.Kn).
 
@@ -60,27 +60,36 @@ class NgenWorker(BaseWorker):
             True if successful
         """
         try:
+            # Import NgenParameterManager
             from ..parameter_managers.ngen_parameter_manager import NgenParameterManager
 
-            # Get config from kwargs
-            config = kwargs.get('config', self.config)
+            # Ensure settings_dir is a Path
+            if isinstance(settings_dir, str):
+                settings_dir = Path(settings_dir)
 
-            # Use NgenParameterManager which handles both JSON and BMI text files
-            # Create a parameter manager for this specific settings directory
-            param_manager = NgenParameterManager(
-                config=config,
-                logger=self.logger,
-                ngen_settings_dir=settings_dir / 'NGEN'  # settings_dir is process-specific
-            )
-
-            # Update config files using the parameter manager
-            success = param_manager.update_config_files(params)
-
-            if success:
-                self.logger.debug(f"Applied {len(params)} parameters to ngen configs in {settings_dir}")
+            # settings_dir may already be the NGEN directory (e.g., .../settings/NGEN)
+            # or it may be the parent (e.g., .../settings/)
+            if settings_dir.name == 'NGEN':
+                ngen_dir = settings_dir
             else:
-                self.logger.warning(f"Some ngen parameters may not have been applied in {settings_dir}")
+                ngen_dir = settings_dir / 'NGEN'
 
+            if not ngen_dir.exists():
+                self.logger.error(f"NGEN settings directory not found: {ngen_dir}")
+                return False
+
+            # Use NgenParameterManager to update files
+            # It handles CFE, NOAH (namelists and TBLs), and PET
+            config = kwargs.get('config', self.config)
+            param_manager = NgenParameterManager(config, self.logger, ngen_dir)
+            
+            success = param_manager.update_model_files(params)
+            
+            if success:
+                self.logger.debug(f"Applied {len(params)} parameter updates via NgenParameterManager in {ngen_dir}")
+            else:
+                self.logger.error(f"NgenParameterManager failed to update model files in {ngen_dir}")
+                
             return success
 
         except Exception as e:

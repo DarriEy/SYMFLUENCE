@@ -15,7 +15,7 @@ from shapely.geometry import Polygon
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
 from symfluence.core.constants import UnitConversion
-from symfluence.data.utilities import VariableStandardizer
+from symfluence.data.utils import VariableStandardizer
 
 
 @DatasetRegistry.register('aorc')
@@ -44,11 +44,100 @@ class AORCHandler(BaseDatasetHandler):
 
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """
-        Process AORC dataset:
-        - rename variables to standard names
-        - derive wind speed from u/v
-        - convert accumulated precip to rate
-        - ensure clean attributes
+        Process AORC dataset with variable standardization and unit conversions.
+
+        Transforms raw AORC forcing data into SUMMA-compatible format by renaming
+        variables, deriving wind speed from components, converting accumulated
+        precipitation to rates, and cleaning NetCDF attributes.
+
+        Args:
+            ds: Raw AORC xarray Dataset with variables:
+                - APCP_surface: Accumulated precipitation (kg/m²)
+                - UGRD_10maboveground: U-component wind (m/s)
+                - VGRD_10maboveground: V-component wind (m/s)
+                - TMP_2maboveground: Air temperature (K)
+                - SPFH_2maboveground: Specific humidity (kg/kg)
+                - PRES_surface: Surface pressure (Pa)
+                - DSWRF_surface: Downward shortwave radiation (W/m²)
+                - DLWRF_surface: Downward longwave radiation (W/m²)
+
+        Returns:
+            Processed xarray Dataset with SUMMA-compatible variables:
+                - airtemp: Air temperature (K)
+                - spechum: Specific humidity (kg/kg)
+                - airpres: Surface pressure (Pa)
+                - SWRadAtm: Shortwave radiation (W/m²)
+                - LWRadAtm: Longwave radiation (W/m²)
+                - pptrate: Precipitation rate (mm/s)
+                - windspd: Derived wind speed magnitude (m/s)
+
+        Processing Steps:
+            1. **Variable Renaming**: Apply centralized AORC → SUMMA mapping
+            2. **Wind Derivation**: Calculate windspd = sqrt(u² + v²)
+            3. **Precipitation Conversion**:
+               - Read original APCP units (kg/m²)
+               - Detect accumulation period (hourly assumed)
+               - Convert accumulated kg/m² to rate mm/s
+               - Formula: rate = (accum / timestep) * (1000 kg/m³ / water_density)
+            4. **Attribute Cleaning**: Remove conflicting NetCDF attributes
+
+        Precipitation Unit Conversion:
+            AORC provides hourly accumulated precipitation in kg/m²:
+            - 1 kg/m² = 1 mm of water (equivalent depth)
+            - Hourly accumulation → rate conversion:
+              rate [mm/s] = (accum [kg/m²] / 3600 s) * 1 [mm/(kg/m²)]
+
+            Example:
+                Hourly accum = 3.6 kg/m² → rate = 3.6 / 3600 = 0.001 mm/s
+
+        Wind Speed Derivation:
+            Magnitude from orthogonal components:
+            windspd = sqrt(u² + v²)
+
+            Where:
+                u = UGRD_10maboveground (eastward wind)
+                v = VGRD_10maboveground (northward wind)
+
+            Result units: m/s (unchanged from components)
+
+        Attribute Handling:
+            - Preserves essential attributes (units, long_name, standard_name)
+            - Removes fill_value, missing_value to avoid NetCDF conflicts
+            - Adds derived variable attributes (windspd)
+            - Cleans coordinate attributes via clean_variable_attributes()
+
+        Variable Mapping Details:
+            Via VariableStandardizer('AORC'):
+                AORC Name → SUMMA Name
+                TMP_2maboveground → airtemp
+                SPFH_2maboveground → spechum
+                PRES_surface → airpres
+                DSWRF_surface → SWRadAtm
+                DLWRF_surface → LWRadAtm
+                APCP_surface → pptrate (with conversion)
+                UGRD_10maboveground → windspd_u
+                VGRD_10maboveground → windspd_v
+
+        Example:
+            >>> ds = xr.open_dataset('AORC_2015-2016.nc')
+            >>> handler = AORCHandler(config, logger, project_dir)
+            >>> ds_processed = handler.process_dataset(ds)
+            >>> print(ds_processed.data_vars)
+            # Variables: airtemp, spechum, airpres, SWRadAtm, LWRadAtm, pptrate, windspd
+            >>> print(ds_processed['pptrate'].units)
+            # 'mm s-1'
+
+        Notes:
+            - Assumes hourly AORC timestep (3600 seconds)
+            - Wind components retained for reference but windspd used by models
+            - Precipitation conversion critical for water balance accuracy
+            - Lambert Conformal projection coordinates preserved
+            - Time encoding follows CF conventions
+
+        See Also:
+            - data.utils.VariableStandardizer: Centralized variable mapping
+            - data.preprocessing.dataset_handlers.base_dataset: Base handler
+            - core.constants.UnitConversion: Unit conversion factors
         """
         var_map = self.get_variable_mapping()
 

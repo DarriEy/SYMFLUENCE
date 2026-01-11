@@ -15,7 +15,7 @@ import traceback
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
-from utils.helpers import has_cds_credentials, load_config_template, write_config
+from test_helpers.helpers import has_cds_credentials, load_config_template, write_config
 
 
 

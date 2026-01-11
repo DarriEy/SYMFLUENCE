@@ -195,10 +195,14 @@ def binary_manager(mock_external_tools, tmp_path):
     Creates a BinaryManager instance with:
     - Mocked external_tools_config
     - Temporary installation directory
+    - Standard Console (tests should mock methods or use capsys carefully)
     """
-    from symfluence.cli.binary_manager import BinaryManager
+    from symfluence.cli.binary_service import BinaryManager
 
-    # Create manager with mocked external tools
+    # We revert to standard console here and let tests handle output capture
+    # via method patching or by creating a fresh manager in the test if needed.
+    # The previous attempt to inject a captured console failed because
+    # rich/capsys interaction is complex in fixtures.
     manager = BinaryManager(external_tools=mock_external_tools)
     manager.install_base_dir = tmp_path / "bin" / "external_tools"
     manager.install_base_dir.mkdir(parents=True, exist_ok=True)
@@ -213,7 +217,7 @@ def job_scheduler():
     Creates a JobScheduler instance for testing SLURM script
     generation and job submission logic.
     """
-    from symfluence.cli.job_scheduler import JobScheduler
+    from symfluence.cli.services import JobScheduler
 
     return JobScheduler()
 
@@ -226,7 +230,7 @@ def notebook_service(tmp_path):
     - Temporary repo root
     - Mock examples directory
     """
-    from symfluence.cli.notebook_service import NotebookService
+    from symfluence.cli.services import NotebookService
 
     service = NotebookService()
 

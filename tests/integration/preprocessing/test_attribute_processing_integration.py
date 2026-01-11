@@ -89,11 +89,19 @@ class TestDeprecationWarning:
 
     def test_original_module_raises_deprecation_warning(self):
         """Verify that importing the original module raises a deprecation warning."""
+        import sys
+        import importlib
+        from symfluence.data.preprocessing import attribute_processing
+
+        # Reset warning registry for the module to ensure warning triggers again
+        if hasattr(attribute_processing, '__warningregistry__'):
+            attribute_processing.__warningregistry__.clear()
+
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            # Import the deprecated module
-            from symfluence.data.preprocessing import attribute_processing
+            # Force reload to trigger module-level warning code
+            importlib.reload(attribute_processing)
 
             # Verify deprecation warning was raised
             assert len(w) >= 1
