@@ -160,6 +160,7 @@ jobs:
           CC: mpicc
           CXX: mpicxx
           FC: gfortran
+          PYTHONIOENCODING: utf-8
         run: |
           set -e
           chmod +x ./symfluence
@@ -543,6 +544,7 @@ jobs:
           CC: mpicc
           CXX: mpicxx
           FC: gfortran
+          PYTHONIOENCODING: utf-8
         run: |
           set -e
           chmod +x ./symfluence
