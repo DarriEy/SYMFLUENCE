@@ -227,25 +227,22 @@ jobs:
             # Remove GDAL from pyproject.toml - use conda GDAL instead
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           else
-            # Linux/macOS: explicitly add setup-python to PATH
-            echo "DEBUG: pythonLocation=${pythonLocation:-not set}"
-            echo "DEBUG: checking if bin dir exists: test -d ${pythonLocation}/bin"
+            # Linux/macOS: use setup-python's Python location directly
             if [[ -n "${pythonLocation:-}" ]]; then
-              ls -la "${pythonLocation}/" | head -5 || true
-              if [[ -d "${pythonLocation}/bin" ]]; then
-                ls -la "${pythonLocation}/bin/" | head -5 || true
-                export PATH="${pythonLocation}/bin:$PATH"
-                echo "Added ${pythonLocation}/bin to PATH"
+              export PATH="${pythonLocation}:$PATH"
+              # Find the actual python executable name
+              if [[ -x "${pythonLocation}/python3" ]]; then
+                export SYMFLUENCE_PYTHON="${pythonLocation}/python3"
+              elif [[ -x "${pythonLocation}/python" ]]; then
+                export SYMFLUENCE_PYTHON="${pythonLocation}/python"
               else
-                echo "No bin directory, checking for python directly"
-                ls -la "${pythonLocation}/python"* 2>&1 | head -5 || true
+                # Fallback to python3 command
+                export SYMFLUENCE_PYTHON="python3"
               fi
+            else
+              export SYMFLUENCE_PYTHON="python3"
             fi
-            echo "PATH=${PATH}" | head -c 200
-            echo ""
-            export SYMFLUENCE_PYTHON="python"
-            which python || true
-            echo "Python version: $($SYMFLUENCE_PYTHON --version)"
+            echo "Using Python: $SYMFLUENCE_PYTHON ($($SYMFLUENCE_PYTHON --version))"
           fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
           chmod +x ./symfluence || true  # chmod may not work on Windows
@@ -476,25 +473,22 @@ jobs:
             # Remove GDAL from pyproject.toml - use conda GDAL instead
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           else
-            # Linux/macOS: explicitly add setup-python to PATH
-            echo "DEBUG: pythonLocation=${pythonLocation:-not set}"
-            echo "DEBUG: checking if bin dir exists: test -d ${pythonLocation}/bin"
+            # Linux/macOS: use setup-python's Python location directly
             if [[ -n "${pythonLocation:-}" ]]; then
-              ls -la "${pythonLocation}/" | head -5 || true
-              if [[ -d "${pythonLocation}/bin" ]]; then
-                ls -la "${pythonLocation}/bin/" | head -5 || true
-                export PATH="${pythonLocation}/bin:$PATH"
-                echo "Added ${pythonLocation}/bin to PATH"
+              export PATH="${pythonLocation}:$PATH"
+              # Find the actual python executable name
+              if [[ -x "${pythonLocation}/python3" ]]; then
+                export SYMFLUENCE_PYTHON="${pythonLocation}/python3"
+              elif [[ -x "${pythonLocation}/python" ]]; then
+                export SYMFLUENCE_PYTHON="${pythonLocation}/python"
               else
-                echo "No bin directory, checking for python directly"
-                ls -la "${pythonLocation}/python"* 2>&1 | head -5 || true
+                # Fallback to python3 command
+                export SYMFLUENCE_PYTHON="python3"
               fi
+            else
+              export SYMFLUENCE_PYTHON="python3"
             fi
-            echo "PATH=${PATH}" | head -c 200
-            echo ""
-            export SYMFLUENCE_PYTHON="python"
-            which python || true
-            echo "Python version: $($SYMFLUENCE_PYTHON --version)"
+            echo "Using Python: $SYMFLUENCE_PYTHON ($($SYMFLUENCE_PYTHON --version))"
           fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
           chmod +x ./symfluence || true  # chmod may not work on Windows
