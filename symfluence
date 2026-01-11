@@ -777,7 +777,7 @@ EOF
 
         print_info "Upgrading pip and preparing environment..."
         # Always use python -m pip to ensure correct Python version is used
-        python -m pip install --upgrade pip || print_warning "pip upgrade failed"
+        $python_cmd -m pip install --upgrade pip || print_warning "pip upgrade failed"
 
         setup_r_environment || print_warning "R setup had issues, continuing..."
 
@@ -785,7 +785,7 @@ EOF
         local req_file="${symfluence_dir}/requirements.txt"
         if [[ -f "${symfluence_dir}/pyproject.toml" ]]; then
             print_info "Generating requirements.txt from pyproject.toml..."
-            python3 -c "
+            $python_cmd -c "
 import sys
 try:
     import tomllib
@@ -813,11 +813,11 @@ else:
             }
         else
             print_warning "requirements.txt not found - installing a minimal set..."
-            python -m pip install numpy pandas geopandas rasterio netCDF4 PyYAML shapely rasterstats psutil || {
+            $python_cmd -m pip install numpy pandas geopandas rasterio netCDF4 PyYAML shapely rasterstats psutil || {
                 print_error "Failed to install minimal dependencies"; exit 1;
             }
             print_info "Attempting to install rpy2 (optional)..."
-            python -m pip install rpy2 || print_warning "rpy2 installation failed (continuing)"
+            $python_cmd -m pip install rpy2 || print_warning "rpy2 installation failed (continuing)"
             command -v gdal-config >/dev/null 2>&1 && install_gdal_python || true
         fi
 
