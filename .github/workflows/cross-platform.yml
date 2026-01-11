@@ -308,7 +308,8 @@ jobs:
             pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
           elif [[ "${{ runner.os }}" == "Windows" ]]; then
             # GDAL from conda (already installed in previous step)
-            :
+            # Remove GDAL from pyproject.toml to prevent pip from trying to build it from source
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
@@ -611,7 +612,8 @@ jobs:
             pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
           elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             # GDAL from conda (already installed in previous step)
-            :
+            # Remove GDAL from pyproject.toml to prevent pip from trying to build it from source
+            python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml')"
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
