@@ -230,13 +230,10 @@ jobs:
             # Remove GDAL from pyproject.toml - use conda GDAL instead
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           else
-            # Linux/macOS: use setup-python's Python location directly
-            echo "DEBUG: pythonLocation=${pythonLocation:-not set}"
+            # Linux/macOS: use setup-python's Python location
             if [[ -n "${pythonLocation:-}" ]]; then
-              echo "DEBUG: Contents of pythonLocation:"
-              ls -la "${pythonLocation}/" | head -10 || echo "Cannot list pythonLocation"
               export PATH="${pythonLocation}:${pythonLocation}/bin:$PATH"
-              # Find the actual python executable - check both bin/ and root
+              # Find Python executable - check bin/ and root directory
               if [[ -x "${pythonLocation}/bin/python3" ]]; then
                 export SYMFLUENCE_PYTHON="${pythonLocation}/bin/python3"
               elif [[ -x "${pythonLocation}/bin/python" ]]; then
@@ -246,12 +243,7 @@ jobs:
               elif [[ -x "${pythonLocation}/python" ]]; then
                 export SYMFLUENCE_PYTHON="${pythonLocation}/python"
               else
-                # Use which to find python3.11 or python3 in PATH
-                if command -v python3.11 &>/dev/null; then
-                  export SYMFLUENCE_PYTHON="python3.11"
-                else
-                  export SYMFLUENCE_PYTHON="python3"
-                fi
+                export SYMFLUENCE_PYTHON="python3"
               fi
             else
               export SYMFLUENCE_PYTHON="python3"
@@ -490,13 +482,10 @@ jobs:
             # Remove GDAL from pyproject.toml - use conda GDAL instead
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           else
-            # Linux/macOS: use setup-python's Python location directly
-            echo "DEBUG: pythonLocation=${pythonLocation:-not set}"
+            # Linux/macOS: use setup-python's Python location
             if [[ -n "${pythonLocation:-}" ]]; then
-              echo "DEBUG: Contents of pythonLocation:"
-              ls -la "${pythonLocation}/" | head -10 || echo "Cannot list pythonLocation"
               export PATH="${pythonLocation}:${pythonLocation}/bin:$PATH"
-              # Find the actual python executable - check both bin/ and root
+              # Find Python executable - check bin/ and root directory
               if [[ -x "${pythonLocation}/bin/python3" ]]; then
                 export SYMFLUENCE_PYTHON="${pythonLocation}/bin/python3"
               elif [[ -x "${pythonLocation}/bin/python" ]]; then
@@ -506,12 +495,7 @@ jobs:
               elif [[ -x "${pythonLocation}/python" ]]; then
                 export SYMFLUENCE_PYTHON="${pythonLocation}/python"
               else
-                # Use which to find python3.11 or python3 in PATH
-                if command -v python3.11 &>/dev/null; then
-                  export SYMFLUENCE_PYTHON="python3.11"
-                else
-                  export SYMFLUENCE_PYTHON="python3"
-                fi
+                export SYMFLUENCE_PYTHON="python3"
               fi
             else
               export SYMFLUENCE_PYTHON="python3"
