@@ -311,13 +311,18 @@ jobs:
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
-          # On Windows, install without building GDAL (using conda-installed version)
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            echo "Installing package without GDAL on Windows..."
-            # Edit pyproject.toml to remove GDAL temporarily
-            sed -i '/^  "gdal",$/d' pyproject.toml 2>/dev/null || \
-            python -c "open('pyproject.toml', 'w').write(open('pyproject.toml').read().replace('  \"gdal\",\n', ''))"
-            # Install package without GDAL
+            # On Windows, remove GDAL from pyproject.toml before installing package
+            python -c "
+import re
+with open('pyproject.toml', 'r') as f:
+    content = f.read()
+# Remove gdal from dependencies list (handles various formatting)
+content = re.sub(r',?\s*\"gdal\",?\s*', ' ', content)
+with open('pyproject.toml', 'w') as f:
+    f.write(content)
+print('Removed GDAL from pyproject.toml')
+"
             pip install -e . || pip install .
           else
             pip install -e ".[dev]" || pip install -e .
@@ -623,13 +628,18 @@ jobs:
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
-          # On Windows, install without building GDAL (using conda-installed version)
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            echo "Installing package without GDAL on Windows..."
-            # Edit pyproject.toml to remove GDAL temporarily
-            sed -i '/^  "gdal",$/d' pyproject.toml 2>/dev/null || \
-            python -c "open('pyproject.toml', 'w').write(open('pyproject.toml').read().replace('  \"gdal\",\n', ''))"
-            # Install package without GDAL
+            # On Windows, remove GDAL from pyproject.toml before installing package
+            python -c "
+import re
+with open('pyproject.toml', 'r') as f:
+    content = f.read()
+# Remove gdal from dependencies list (handles various formatting)
+content = re.sub(r',?\s*\"gdal\",?\s*', ' ', content)
+with open('pyproject.toml', 'w') as f:
+    f.write(content)
+print('Removed GDAL from pyproject.toml')
+"
             pip install -e . || pip install .
           else
             pip install -e ".[dev]" || pip install -e .
