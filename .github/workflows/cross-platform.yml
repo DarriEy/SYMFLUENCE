@@ -312,15 +312,9 @@ jobs:
 
           # Install package from pyproject.toml (source of truth for dependencies)
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            # On Windows, GDAL is from conda. Create temp pyproject.toml without GDAL
-            cp pyproject.toml pyproject.toml.bak
-            python -c "
-lines = open('pyproject.toml').readlines()
-out = [l for l in lines if '\"gdal\"' not in l.lower()]
-open('pyproject.toml', 'w').writelines(out)
-"
-            pip install -e . 2>&1 | tee /tmp/install.log || pip install . 2>&1 | tee -a /tmp/install.log
-            mv pyproject.toml.bak pyproject.toml
+            # On Windows, GDAL is from conda. Remove it from pyproject.toml before install
+            python -c "open('pyproject.toml', 'w').write('\n'.join([l for l in open('pyproject.toml').readlines() if 'gdal' not in l.lower()]))"
+            pip install -e . || pip install .
           else
             pip install -e ".[dev]" || pip install -e .
           fi
@@ -626,15 +620,9 @@ open('pyproject.toml', 'w').writelines(out)
 
           # Install package from pyproject.toml (source of truth for dependencies)
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            # On Windows, GDAL is from conda. Create temp pyproject.toml without GDAL
-            cp pyproject.toml pyproject.toml.bak
-            python -c "
-lines = open('pyproject.toml').readlines()
-out = [l for l in lines if '\"gdal\"' not in l.lower()]
-open('pyproject.toml', 'w').writelines(out)
-"
-            pip install -e . 2>&1 | tee /tmp/install.log || pip install . 2>&1 | tee -a /tmp/install.log
-            mv pyproject.toml.bak pyproject.toml
+            # On Windows, GDAL is from conda. Remove it from pyproject.toml before install
+            python -c "open('pyproject.toml', 'w').write('\n'.join([l for l in open('pyproject.toml').readlines() if 'gdal' not in l.lower()]))"
+            pip install -e . || pip install .
           else
             pip install -e ".[dev]" || pip install -e .
           fi
