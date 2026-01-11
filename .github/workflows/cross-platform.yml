@@ -199,10 +199,13 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           # Remove unnecessary packages to free up disk space
+          # Note: Do NOT remove $AGENT_TOOLSDIRECTORY - it contains setup-python installation
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf /usr/local/share/boost
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
           df -h
 
       - name: Cache external tools
@@ -448,10 +451,13 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           # Remove unnecessary packages to free up disk space
+          # Note: Do NOT remove $AGENT_TOOLSDIRECTORY - it contains setup-python installation
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf /usr/local/share/boost
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
           df -h
 
       - name: Cache external tools
