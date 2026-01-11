@@ -218,6 +218,8 @@ jobs:
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
         shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
         run: |
           # Initialize conda for bash on Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then
@@ -500,6 +502,8 @@ jobs:
       - name: Build external tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
         shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
         run: |
           # Initialize conda for bash on Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then
