@@ -27,8 +27,13 @@ if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
 # Import test utilities
-from utils.helpers import load_config_template, write_config
-from utils import helpers, geospatial
+from test_helpers.helpers import load_config_template, write_config, has_cds_credentials
+try:
+    from test_helpers import helpers, geospatial
+except ImportError:
+    # geospatial module may not be available, that's ok for unit tests
+    helpers = None
+    geospatial = None
 
 # Load additional fixtures from fixture modules
 pytest_plugins = [

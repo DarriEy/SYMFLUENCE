@@ -102,8 +102,8 @@ jobs:
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
-          # pip install -e . reads dependencies from pyproject.toml directly
-          pip install -e ".[dev]" || pip install -e .
+          # Note: [dev] extra doesn't exist, so we just install the base package
+          pip install -e .
 
           # Install pytest-xdist for parallel test execution
           pip install pytest-xdist
