@@ -273,6 +273,23 @@ jobs:
             conda activate test-env
           fi
           python -m pip install --upgrade pip
+
+          # Install GDAL Python bindings matching system version
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            GDAL_VERSION=$(gdal-config --version)
+            pip install GDAL==$GDAL_VERSION
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            GDAL_VERSION=$(gdal-config --version)
+            GDAL_MAJOR=$(echo $GDAL_VERSION | cut -d. -f1)
+            GDAL_MINOR=$(echo $GDAL_VERSION | cut -d. -f2)
+            GDAL_PATCH=$(echo $GDAL_VERSION | cut -d. -f3 | cut -d_ -f1)
+            NEXT_PATCH=$((GDAL_PATCH + 1))
+            pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
+          elif [[ "${{ runner.os }}" == "Windows" ]]; then
+            # GDAL from conda (already installed in previous step)
+            :
+          fi
+
           # Install package from pyproject.toml (source of truth for dependencies)
           pip install -e ".[dev]" || pip install -e .
 
@@ -538,6 +555,23 @@ jobs:
             conda activate test-env
           fi
           python -m pip install --upgrade pip
+
+          # Install GDAL Python bindings matching system version
+          if [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
+            GDAL_VERSION=$(gdal-config --version)
+            pip install GDAL==$GDAL_VERSION
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            GDAL_VERSION=$(gdal-config --version)
+            GDAL_MAJOR=$(echo $GDAL_VERSION | cut -d. -f1)
+            GDAL_MINOR=$(echo $GDAL_VERSION | cut -d. -f2)
+            GDAL_PATCH=$(echo $GDAL_VERSION | cut -d. -f3 | cut -d_ -f1)
+            NEXT_PATCH=$((GDAL_PATCH + 1))
+            pip install "GDAL>=${GDAL_MAJOR}.${GDAL_MINOR}.${GDAL_PATCH},<${GDAL_MAJOR}.${GDAL_MINOR}.${NEXT_PATCH}"
+          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            # GDAL from conda (already installed in previous step)
+            :
+          fi
+
           # Install package from pyproject.toml (source of truth for dependencies)
           pip install -e ".[dev]" || pip install -e .
           # Install pytest-xdist for parallel execution
