@@ -228,13 +228,19 @@ jobs:
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           else
             # Linux/macOS: use python from setup-python using the pythonLocation env var
-            if [[ -n "${pythonLocation:-}" && -f "${pythonLocation}/bin/python" ]]; then
+            echo "DEBUG: pythonLocation=${pythonLocation:-not set}"
+            echo "DEBUG: checking ${pythonLocation}/bin/python exists:"
+            ls -la "${pythonLocation}/bin/python" 2>&1 || true
+            if [[ -n "${pythonLocation:-}" && -x "${pythonLocation}/bin/python" ]]; then
               export SYMFLUENCE_PYTHON="${pythonLocation}/bin/python"
               echo "Using Python from pythonLocation: ${SYMFLUENCE_PYTHON}"
               ${SYMFLUENCE_PYTHON} --version
             else
+              echo "DEBUG: pythonLocation Python not found, trying python3"
               export SYMFLUENCE_PYTHON="python3"
-              echo "Using python3 from PATH"
+              echo "DEBUG: python3 version:"
+              python3 --version || true
+              which python3 || true
             fi
           fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
@@ -467,13 +473,19 @@ jobs:
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           else
             # Linux/macOS: use python from setup-python using the pythonLocation env var
-            if [[ -n "${pythonLocation:-}" && -f "${pythonLocation}/bin/python" ]]; then
+            echo "DEBUG: pythonLocation=${pythonLocation:-not set}"
+            echo "DEBUG: checking ${pythonLocation}/bin/python exists:"
+            ls -la "${pythonLocation}/bin/python" 2>&1 || true
+            if [[ -n "${pythonLocation:-}" && -x "${pythonLocation}/bin/python" ]]; then
               export SYMFLUENCE_PYTHON="${pythonLocation}/bin/python"
               echo "Using Python from pythonLocation: ${SYMFLUENCE_PYTHON}"
               ${SYMFLUENCE_PYTHON} --version
             else
+              echo "DEBUG: pythonLocation Python not found, trying python3"
               export SYMFLUENCE_PYTHON="python3"
-              echo "Using python3 from PATH"
+              echo "DEBUG: python3 version:"
+              python3 --version || true
+              which python3 || true
             fi
           fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
