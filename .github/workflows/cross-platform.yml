@@ -227,19 +227,14 @@ jobs:
             # Remove GDAL from pyproject.toml - use conda GDAL instead
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           else
-            # Linux/macOS: use python from setup-python
-            echo "DEBUG: pythonLocation=${pythonLocation:-not set}"
-            echo "DEBUG: listing pythonLocation directory:"
-            ls -la "${pythonLocation}/" 2>&1 | head -10 || true
-            ls -la "${pythonLocation}/bin/" 2>&1 | head -10 || true
-            echo "DEBUG: which python and python3:"
-            which python 2>&1 || true
-            which python3 2>&1 || true
-            # setup-python sets Python in PATH, so just use 'python'
-            export SYMFLUENCE_PYTHON="python"
+            # Linux/macOS: explicitly add setup-python to PATH
+            if [[ -n "${pythonLocation:-}" && -d "${pythonLocation}/bin" ]]; then
+              export PATH="${pythonLocation}/bin:$PATH"
+              echo "Added ${pythonLocation}/bin to PATH"
+            fi
             echo "Using SYMFLUENCE_PYTHON=python"
-            echo "DEBUG: python version:"
-            $SYMFLUENCE_PYTHON --version
+            export SYMFLUENCE_PYTHON="python"
+            echo "Python version: $($SYMFLUENCE_PYTHON --version)"
           fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
           chmod +x ./symfluence || true  # chmod may not work on Windows
@@ -470,19 +465,14 @@ jobs:
             # Remove GDAL from pyproject.toml - use conda GDAL instead
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           else
-            # Linux/macOS: use python from setup-python
-            echo "DEBUG: pythonLocation=${pythonLocation:-not set}"
-            echo "DEBUG: listing pythonLocation directory:"
-            ls -la "${pythonLocation}/" 2>&1 | head -10 || true
-            ls -la "${pythonLocation}/bin/" 2>&1 | head -10 || true
-            echo "DEBUG: which python and python3:"
-            which python 2>&1 || true
-            which python3 2>&1 || true
-            # setup-python sets Python in PATH, so just use 'python'
-            export SYMFLUENCE_PYTHON="python"
+            # Linux/macOS: explicitly add setup-python to PATH
+            if [[ -n "${pythonLocation:-}" && -d "${pythonLocation}/bin" ]]; then
+              export PATH="${pythonLocation}/bin:$PATH"
+              echo "Added ${pythonLocation}/bin to PATH"
+            fi
             echo "Using SYMFLUENCE_PYTHON=python"
-            echo "DEBUG: python version:"
-            $SYMFLUENCE_PYTHON --version
+            export SYMFLUENCE_PYTHON="python"
+            echo "Python version: $($SYMFLUENCE_PYTHON --version)"
           fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
           chmod +x ./symfluence || true  # chmod may not work on Windows
