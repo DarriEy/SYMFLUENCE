@@ -227,7 +227,10 @@ jobs:
             conda activate test-env
           fi
           python -m pip install --upgrade pip
-          pip install -e . || true  # Continue if installation has issues
+          # Install rich explicitly (required by CLI output)
+          pip install rich pyyaml
+          # Install the package with all base dependencies
+          pip install -e . || pip install .  # Fallback to non-editable install
           echo "Package pre-installed for build script"
 
       - name: Build external tools
@@ -526,7 +529,10 @@ jobs:
             conda activate test-env
           fi
           python -m pip install --upgrade pip
-          pip install -e . || true  # Continue if installation has issues
+          # Install rich explicitly (required by CLI output)
+          pip install rich pyyaml
+          # Install the package with all base dependencies
+          pip install -e . || pip install .  # Fallback to non-editable install
           echo "Package pre-installed for build script"
 
       - name: Build external tools
