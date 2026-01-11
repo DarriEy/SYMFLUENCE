@@ -312,11 +312,15 @@ jobs:
 
           # Install package from pyproject.toml (source of truth for dependencies)
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            # On Windows, use --no-deps since GDAL is from conda, not pip
-            # Install base dependencies first (skip GDAL which pip would try to build)
-            pip install -e --no-deps . || pip install --no-deps .
-            # Install remaining key dependencies (avoiding GDAL source build)
-            pip install rich pyyaml pytest jupyterlab ipykernel -q
+            # On Windows, GDAL is from conda. Create temp pyproject.toml without GDAL
+            cp pyproject.toml pyproject.toml.bak
+            python -c "
+lines = open('pyproject.toml').readlines()
+out = [l for l in lines if '\"gdal\"' not in l.lower()]
+open('pyproject.toml', 'w').writelines(out)
+"
+            pip install -e . 2>&1 | tee /tmp/install.log || pip install . 2>&1 | tee -a /tmp/install.log
+            mv pyproject.toml.bak pyproject.toml
           else
             pip install -e ".[dev]" || pip install -e .
           fi
@@ -622,16 +626,20 @@ jobs:
 
           # Install package from pyproject.toml (source of truth for dependencies)
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            # On Windows, use --no-deps since GDAL is from conda, not pip
-            # Install base dependencies first (skip GDAL which pip would try to build)
-            pip install -e --no-deps . || pip install --no-deps .
-            # Install remaining key dependencies (avoiding GDAL source build)
-            pip install rich pyyaml pytest jupyterlab ipykernel pytest-xdist -q
+            # On Windows, GDAL is from conda. Create temp pyproject.toml without GDAL
+            cp pyproject.toml pyproject.toml.bak
+            python -c "
+lines = open('pyproject.toml').readlines()
+out = [l for l in lines if '\"gdal\"' not in l.lower()]
+open('pyproject.toml', 'w').writelines(out)
+"
+            pip install -e . 2>&1 | tee /tmp/install.log || pip install . 2>&1 | tee -a /tmp/install.log
+            mv pyproject.toml.bak pyproject.toml
           else
             pip install -e ".[dev]" || pip install -e .
-            # Install pytest-xdist for parallel execution
-            pip install pytest-xdist
           fi
+          # Install pytest-xdist for parallel execution
+          pip install pytest-xdist
 
       - name: Run integration tests
         env:
