@@ -227,8 +227,12 @@ jobs:
             # Remove GDAL from pyproject.toml - use conda GDAL instead
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           else
-            # Linux/macOS: use python3.11 from setup-python
-            export SYMFLUENCE_PYTHON="python3.11"
+            # Linux/macOS: use python from setup-python using the pythonLocation env var
+            if [[ -n "${pythonLocation:-}" ]]; then
+              export SYMFLUENCE_PYTHON="${pythonLocation}/bin/python3"
+            else
+              export SYMFLUENCE_PYTHON="python3"
+            fi
           fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
           chmod +x ./symfluence || true  # chmod may not work on Windows
@@ -459,8 +463,12 @@ jobs:
             # Remove GDAL from pyproject.toml - use conda GDAL instead
             python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"[Gg][Dd][Aa][Ll]\",?\s*','',c); open('pyproject.toml','w').write(c); print('Removed GDAL from pyproject.toml for Windows')"
           else
-            # Linux/macOS: use python3.11 from setup-python
-            export SYMFLUENCE_PYTHON="python3.11"
+            # Linux/macOS: use python from setup-python using the pythonLocation env var
+            if [[ -n "${pythonLocation:-}" ]]; then
+              export SYMFLUENCE_PYTHON="${pythonLocation}/bin/python3"
+            else
+              export SYMFLUENCE_PYTHON="python3"
+            fi
           fi
           mkdir -p "${{ env.SYMFLUENCE_DATA }}"
           chmod +x ./symfluence || true  # chmod may not work on Windows
