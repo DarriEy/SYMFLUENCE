@@ -24,7 +24,27 @@ if TYPE_CHECKING:
 
 
 class ModelEvaluator(ConfigurableMixin, ABC):
-    """Abstract base class for different evaluation variables (streamflow, snow, etc.)"""
+    """
+    Abstract base class for hydrological model evaluation.
+
+    Provides standardized infrastructure for comparing simulated and observed
+    data across different hydrological variables (streamflow, snow, ET, etc.).
+    Handles time series alignment, period-based evaluation (calibration/validation),
+    and multi-metric calculation using the centralized metrics module.
+
+    Subclasses must implement:
+        - get_simulation_files(): Locate model output files
+        - extract_simulated_data(): Parse simulation results
+        - get_observed_data_path(): Locate observation files
+        - needs_routing(): Whether mizuRoute output is required
+        - _get_observed_data_column(): Identify data column in obs files
+
+    Attributes:
+        config: SymfluenceConfig instance with typed access
+        calibration_period: Tuple of (start, end) timestamps for calibration
+        evaluation_period: Tuple of (start, end) timestamps for validation
+        eval_timestep: Target timestep for comparison ('native', 'hourly', 'daily')
+    """
 
     def __init__(
         self,
@@ -304,7 +324,7 @@ class ModelEvaluator(ConfigurableMixin, ABC):
             common_idx = obs_period.index.intersection(sim_period.index)
             
             if len(common_idx) == 0:
-                self.logger.warning(f"No common time indices for {prefix} period")
+                self.logger.debug(f"No common time indices for {prefix} period")
                 if len(obs_period) > 0 and len(sim_period) > 0:
                     self.logger.debug(f"Obs index sample: {obs_period.index[0]} to {obs_period.index[-1]} (type: {obs_period.index.dtype})")
                     self.logger.debug(f"Sim index sample: {sim_period.index[0]} to {sim_period.index[-1]} (type: {sim_period.index.dtype})")

@@ -51,14 +51,11 @@ class GRModelOptimizer(BaseModelOptimizer):
     def _create_parameter_manager(self):
         """Create GR parameter manager."""
         from ..parameter_managers.gr_parameter_manager import GRParameterManager
-        pm = GRParameterManager(
+        return GRParameterManager(
             self.config,
             self.logger,
             self.gr_setup_dir
         )
-        initial = pm.get_initial_parameters()
-        self.logger.info(f"DEBUG: GRParameterManager initial params: {initial}")
-        return pm
 
     def _create_calibration_target(self):
         """Create GR calibration target based on configuration."""
