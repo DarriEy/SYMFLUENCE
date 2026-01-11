@@ -311,18 +311,17 @@ jobs:
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
-          # On Windows, must remove GDAL before pip install to prevent build from source
+          # On Windows, install without building GDAL (using conda-installed version)
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            python << 'PYTHON_EOF'
-with open('pyproject.toml', 'r') as f:
-    lines = f.readlines()
-new_lines = [line for line in lines if 'gdal' not in line.lower()]
-with open('pyproject.toml', 'w') as f:
-    f.writelines(new_lines)
-PYTHON_EOF
-            echo "Removed GDAL from pyproject.toml"
+            echo "Installing package without GDAL on Windows..."
+            # Edit pyproject.toml to remove GDAL temporarily
+            sed -i '/^  "gdal",$/d' pyproject.toml 2>/dev/null || \
+            python -c "open('pyproject.toml', 'w').write(open('pyproject.toml').read().replace('  \"gdal\",\n', ''))"
+            # Install package without GDAL
+            pip install -e . || pip install .
+          else
+            pip install -e ".[dev]" || pip install -e .
           fi
-          pip install -e ".[dev]" || pip install -e .
 
       - name: Validate binaries
         env:
@@ -624,18 +623,17 @@ PYTHON_EOF
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
-          # On Windows, must remove GDAL before pip install to prevent build from source
+          # On Windows, install without building GDAL (using conda-installed version)
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            python << 'PYTHON_EOF'
-with open('pyproject.toml', 'r') as f:
-    lines = f.readlines()
-new_lines = [line for line in lines if 'gdal' not in line.lower()]
-with open('pyproject.toml', 'w') as f:
-    f.writelines(new_lines)
-PYTHON_EOF
-            echo "Removed GDAL from pyproject.toml"
+            echo "Installing package without GDAL on Windows..."
+            # Edit pyproject.toml to remove GDAL temporarily
+            sed -i '/^  "gdal",$/d' pyproject.toml 2>/dev/null || \
+            python -c "open('pyproject.toml', 'w').write(open('pyproject.toml').read().replace('  \"gdal\",\n', ''))"
+            # Install package without GDAL
+            pip install -e . || pip install .
+          else
+            pip install -e ".[dev]" || pip install -e .
           fi
-          pip install -e ".[dev]" || pip install -e .
           # Install pytest-xdist for parallel execution
           pip install pytest-xdist
 
