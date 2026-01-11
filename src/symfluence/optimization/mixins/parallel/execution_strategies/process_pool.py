@@ -5,7 +5,7 @@ Executes tasks using Python's ProcessPoolExecutor.
 """
 
 import logging
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, BrokenExecutor, as_completed
 from typing import List, Dict, Any, Callable
 
 from .base import ExecutionStrategy
@@ -53,8 +53,20 @@ class ProcessPoolExecutionStrategy(ExecutionStrategy):
             # Fall back to sequential for single worker/task
             return [worker_func(task) for task in tasks]
 
-        # Use ProcessPoolExecutor.map to preserve order
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            results = list(executor.map(worker_func, tasks))
+        results = [None] * len(tasks)
+
+        try:
+            # Use ProcessPoolExecutor.map to preserve order
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                try:
+                    results = list(executor.map(worker_func, tasks))
+                except BrokenExecutor as e:
+                    self.logger.warning(f"Process pool was broken: {str(e)}. Falling back to sequential execution.")
+                    # Fallback to sequential execution
+                    results = [worker_func(task) for task in tasks]
+        except Exception as e:
+            self.logger.error(f"Error in process pool execution: {str(e)}. Falling back to sequential execution.")
+            # Fallback to sequential execution for any other errors
+            results = [worker_func(task) for task in tasks]
 
         return results

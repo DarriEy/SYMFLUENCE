@@ -104,8 +104,22 @@ class GRParameterManager(BaseParameterManager):
             outputs_calib = robjects.globalenv['OutputsCalib']
             param_final = list(outputs_calib.rx2('ParamFinalR'))
             
-            # Map to standard GR4J + CemaNeige parameter names
-            param_names = ['X1', 'X2', 'X3', 'X4', 'CTG', 'Kf', 'Gratio', 'Albedo_diff']
+            # Map based on parameter count
+            # 4: GR4J
+            # 6: GR4J + CemaNeige (CTG, Kf)
+            # 8: GR4J + CemaNeige + Hysteresis (Gratio, Albedo_diff)
+            if len(param_final) == 4:
+                param_names = ['X1', 'X2', 'X3', 'X4']
+            elif len(param_final) == 6:
+                param_names = ['X1', 'X2', 'X3', 'X4', 'CTG', 'Kf']
+            elif len(param_final) == 8:
+                param_names = ['X1', 'X2', 'X3', 'X4', 'CTG', 'Kf', 'Gratio', 'Albedo_diff']
+            else:
+                self.logger.warning(f"Unexpected number of parameters in Rdata: {len(param_final)}")
+                # Generic names
+                param_names = [f"P{i+1}" for i in range(len(param_final))]
+
+            self.logger.info(f"Loaded {len(param_final)} parameters from Rdata: {param_names}")
             return {name: val for name, val in zip(param_names, param_final)}
             
         except Exception as e:

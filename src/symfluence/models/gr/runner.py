@@ -21,7 +21,7 @@ from ..base import BaseModelRunner
 from ..mixins import OutputConverterMixin
 from ..execution import ModelExecutor, SpatialOrchestrator
 from ..mizuroute.mixins import MizuRouteConfigMixin
-from symfluence.data.utilities.netcdf_utils import create_netcdf_encoding
+from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.constants import UnitConversion
 
@@ -141,10 +141,6 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             self.logger.info(f"Using external parameters for calibration: {params}")
             self._external_params = params
             self._skip_calibration = True
-            
-            # DEBUG: Log the exact values being used
-            debug_p = {k: float(v) for k,v in params.items()}
-            self.logger.info(f"DEBUG: External params floats: {debug_p}")
 
         with symfluence_error_handler(
             "GR model execution",
