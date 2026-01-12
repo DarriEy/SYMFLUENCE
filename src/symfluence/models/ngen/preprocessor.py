@@ -390,8 +390,13 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         return output_file
 
     def _write_csv_forcing_files(self, forcing_data: xr.Dataset, catchment_ids: List[str]) -> Path:
+        # Ensure forcing_dir exists before creating csv subdirectory
+        from pathlib import Path
+        self.forcing_dir = Path(self.forcing_dir)  # Ensure it's a Path object
+        self.forcing_dir.mkdir(parents=True, exist_ok=True)
         csv_dir = self.forcing_dir / "csv"
         csv_dir.mkdir(parents=True, exist_ok=True)
+        self.logger.info(f"CSV directory created: {csv_dir}, exists={csv_dir.exists()}, is_dir={csv_dir.is_dir()}")
         time_values = pd.to_datetime(forcing_data.time.values)
 
         # Variable mapping from ERA5/internal names to AORC/GRIB standard names

@@ -5,16 +5,47 @@ This module provides:
 - BaseDatasetHandler: Abstract base class for dataset-specific handlers
 - StandardVariableAttributes: Standard CF-compliant variable attribute definitions
 - apply_standard_variable_attributes: Helper to apply standard attributes to datasets
+
+Variable Naming:
+- CFIF (CF-Intermediate Format): Model-neutral names (e.g., 'air_temperature')
+- Legacy (SUMMA-style): Backward-compatible names (e.g., 'airtemp')
+
+New code should use CFIF names; legacy names are maintained for compatibility.
 """
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, TYPE_CHECKING
 import xarray as xr
 import geopandas as gpd
 
 
-# Standard variable attribute definitions (CF-compliant)
+def _get_cfif_variable_attributes() -> Dict[str, Dict[str, str]]:
+    """Lazy load CFIF variable attributes to avoid circular imports."""
+    from symfluence.data.preprocessing.cfif.variables import CFIF_VARIABLES
+    return {
+        name: {
+            'units': attrs['units'],
+            'long_name': attrs['long_name'],
+            'standard_name': attrs['cf_standard_name'],
+        }
+        for name, attrs in CFIF_VARIABLES.items()
+    }
+
+
+# CFIF variable attributes - lazy loaded on first access
+_cfif_attrs_cache: Optional[Dict[str, Dict[str, str]]] = None
+
+
+def _get_cached_cfif_attrs() -> Dict[str, Dict[str, str]]:
+    """Get cached CFIF attributes."""
+    global _cfif_attrs_cache
+    if _cfif_attrs_cache is None:
+        _cfif_attrs_cache = _get_cfif_variable_attributes()
+    return _cfif_attrs_cache
+
+
+# Legacy SUMMA-style variable attribute definitions (for backward compatibility)
 # These can be overridden by individual handlers if needed
 STANDARD_VARIABLE_ATTRIBUTES: Dict[str, Dict[str, str]] = {
     'airpres': {
@@ -69,34 +100,46 @@ STANDARD_VARIABLE_ATTRIBUTES: Dict[str, Dict[str, str]] = {
     },
 }
 
+def _get_all_variable_attributes() -> Dict[str, Dict[str, str]]:
+    """Get combined CFIF + legacy attributes (lazy loaded)."""
+    return {
+        **_get_cached_cfif_attrs(),
+        **STANDARD_VARIABLE_ATTRIBUTES,
+    }
+
 
 def apply_standard_variable_attributes(
     ds: xr.Dataset,
     variables: Optional[List[str]] = None,
-    overrides: Optional[Dict[str, Dict[str, str]]] = None
+    overrides: Optional[Dict[str, Dict[str, str]]] = None,
+    use_cfif: bool = True
 ) -> xr.Dataset:
     """
     Apply standard CF-compliant attributes to dataset variables.
 
     This function centralizes the attribute-setting logic that was previously
-    duplicated across all dataset handlers.
+    duplicated across all dataset handlers. It supports both CFIF and legacy
+    SUMMA-style variable names.
 
     Args:
         ds: xarray Dataset to modify
         variables: List of variable names to process. If None, processes all
                   variables that have standard definitions.
         overrides: Optional dict of {var_name: {attr: value}} to override defaults
+        use_cfif: If True (default), also check CFIF variable names
 
     Returns:
         Modified dataset with standardized attributes
 
     Example:
         >>> ds = apply_standard_variable_attributes(ds)
-        >>> ds = apply_standard_variable_attributes(ds, variables=['airtemp', 'pptrate'])
+        >>> ds = apply_standard_variable_attributes(ds, variables=['air_temperature', 'precipitation_flux'])
         >>> ds = apply_standard_variable_attributes(ds, overrides={'pptrate': {'units': 'mm/s'}})
     """
+    # Use combined attributes (CFIF + legacy) for maximum compatibility
+    attrs_to_apply = _get_all_variable_attributes().copy() if use_cfif else STANDARD_VARIABLE_ATTRIBUTES.copy()
+
     # Merge overrides with defaults
-    attrs_to_apply = STANDARD_VARIABLE_ATTRIBUTES.copy()
     if overrides:
         for var, var_overrides in overrides.items():
             if var in attrs_to_apply:
@@ -116,16 +159,63 @@ def apply_standard_variable_attributes(
     return ds
 
 
+def apply_cfif_variable_attributes(
+    ds: xr.Dataset,
+    variables: Optional[List[str]] = None,
+    overrides: Optional[Dict[str, Dict[str, str]]] = None
+) -> xr.Dataset:
+    """
+    Apply CFIF (CF-Intermediate Format) attributes to dataset variables.
+
+    This function is specifically for datasets using CFIF variable naming.
+
+    Args:
+        ds: xarray Dataset to modify
+        variables: List of CFIF variable names to process. If None, processes all
+                  CFIF variables present in the dataset.
+        overrides: Optional dict of {var_name: {attr: value}} to override defaults
+
+    Returns:
+        Modified dataset with CFIF-compliant attributes
+
+    Example:
+        >>> ds = apply_cfif_variable_attributes(ds)
+        >>> ds = apply_cfif_variable_attributes(ds, variables=['air_temperature', 'precipitation_flux'])
+    """
+    attrs_to_apply = _get_cached_cfif_attrs().copy()
+
+    if overrides:
+        for var, var_overrides in overrides.items():
+            if var in attrs_to_apply:
+                attrs_to_apply[var] = {**attrs_to_apply[var], **var_overrides}
+            else:
+                attrs_to_apply[var] = var_overrides
+
+    if variables is None:
+        variables = list(attrs_to_apply.keys())
+
+    for var_name in variables:
+        if var_name in ds.data_vars and var_name in attrs_to_apply:
+            ds[var_name].attrs.update(attrs_to_apply[var_name])
+
+    return ds
+
+
 class BaseDatasetHandler(ABC):
     """
     Abstract base class for dataset-specific forcing data handlers.
 
     Provides a standardized interface and common functionality for processing different
-    meteorological datasets (ERA5, RDRS, CARRA, CONUS404, etc.) into SUMMA-compatible
-    forcing files.
+    meteorological datasets (ERA5, RDRS, CARRA, CONUS404, etc.) into model-ready
+    forcing files using CFIF (CF-Intermediate Format) naming conventions.
+
+    Output Format:
+        Handlers output data in CFIF format by default, using CF-compliant variable
+        names (e.g., 'air_temperature', 'precipitation_flux'). Model-specific adapters
+        in the models/adapters/ package convert CFIF to model-specific formats.
 
     Common Functionality:
-        - Variable name standardization (dataset-specific → SUMMA standard)
+        - Variable name standardization (dataset-specific → CFIF standard)
         - CF-compliant attribute management
         - Time encoding standardization
         - NetCDF metadata handling

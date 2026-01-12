@@ -308,9 +308,10 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             forcing_files = sorted(self.forcing_basin_path.glob('*.nc'))
             if not forcing_files:
                 raise FileNotFoundError("No forcing files found in basin-averaged data directory")
-            
+
+            # Basin-averaged forcing data is already in CFIF format (from model-agnostic preprocessing)
             variable_handler = VariableHandler(config=self.config_dict, logger=self.logger,
-                                            dataset=self.config_dict.get('FORCING_DATASET'), model='FUSE')
+                                            dataset='CFIF', model='FUSE')
             self.logger.debug(f"FUSE forcing_files count: {len(forcing_files)}")
             
             t1 = time.time()
@@ -346,14 +347,11 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             self.logger.debug(f"Resampling data to {ts_config['time_label']} resolution")
             ds = ds.resample(time=ts_config['resample_freq']).mean()
             self.logger.info(f"PERF: Resampling took {time.time() - t5:.2f}s")
-            
-            # Process temperature and precipitation
-            try:
-                ds['temp'] = ds['airtemp']
-                ds['pr'] = ds['pptrate']
-            except:
-                pass
-            
+
+            # Variables already renamed by variable_handler.process_forcing_data() above:
+            # - airtemp -> temp
+            # - pptrate -> precip
+
             # Handle streamflow observations
             t6 = time.time()
             time_window = self.get_simulation_time_window()
@@ -536,7 +534,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                     da_values = da_temp.values
 
             # Ensure non-negative for precipitation (floating-point precision can cause tiny negative values)
-            if name == 'pr':
+            if name == 'precip':
                 da_values = np.maximum(da_values, 0.0)
             
             self.logger.debug(f"PERF: [{name}] process_var total took {time.time() - pv_start:.4f}s")
@@ -544,7 +542,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
 
         # Map variables
         var_map = {
-            'pr': (ds['pr'], 'precipitation', unit_str, f'Mean {time_label} precipitation'),
+            'precip': (ds['precip'], 'precipitation', unit_str, f'Mean {time_label} precipitation'),
             'temp': (ds['temp'], 'temperature', 'degC', f'Mean {time_label} temperature'),
             'pet': (pet, 'pet', unit_str, f'Mean {time_label} pet')
         }
@@ -907,7 +905,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         
         # Core meteorological variables
         var_map = {
-            'pr': (ds_a['pr'], 'precipitation', unit_str, f'Mean {time_label} precipitation'),
+            'precip': (ds_a['precip'], 'precipitation', unit_str, f'Mean {time_label} precipitation'),
             'temp': (ds_a['temp'], 'temperature', 'degC', f'Mean {time_label} temperature'),
             'pet': (pet_a, 'pet', unit_str, f'Mean {time_label} pet')
         }

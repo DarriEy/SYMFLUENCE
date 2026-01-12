@@ -109,21 +109,34 @@ class RoutingDecider:
         }
 
         # 1. Explicit routing model check
-        routing_model = config.get('ROUTING_MODEL', 'none').lower()
+        # Only use this if explicitly set - don't short-circuit on default value
+        routing_model = config.get('ROUTING_MODEL', '').lower()
         diagnostics['checks']['routing_model'] = routing_model
-        
-        if routing_model == 'none':
-            diagnostics['reason'] = 'routing_model_is_none'
+
+        # If explicitly set to 'none', disable routing
+        if 'ROUTING_MODEL' in config and routing_model == 'none':
+            diagnostics['reason'] = 'routing_model_explicitly_none'
             return False, diagnostics
-            
+
+        # If explicitly set to mizuroute, enable routing
         if routing_model in ['mizuroute', 'mizu_route', 'mizu']:
             diagnostics['reason'] = 'routing_model_is_mizuroute'
             return True, diagnostics
 
-        # 2. Spatial configuration check (The primary driver)
+        # 2. Model-specific routing integration (e.g., FUSE)
+        # Check this BEFORE spatial config so it can override lumped settings
+        if model in self.ROUTING_INTEGRATION_KEYS:
+            integration_key = self.ROUTING_INTEGRATION_KEYS[model]
+            integration = config.get(integration_key, 'none')
+            diagnostics['checks']['routing_integration'] = integration
+            if integration == 'mizuRoute':
+                diagnostics['reason'] = f'{model.lower()}_routing_integration_mizuroute'
+                return True, diagnostics
+
+        # 3. Spatial configuration check (The primary driver)
         domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped').lower()
         routing_delineation = config.get('ROUTING_DELINEATION', 'lumped').lower()
-        
+
         diagnostics['checks']['domain_method'] = domain_method
         diagnostics['checks']['routing_delineation'] = routing_delineation
 
@@ -133,7 +146,7 @@ class RoutingDecider:
             diagnostics['reason'] = 'lumped_domain_with_lumped_routing'
             return False, diagnostics
 
-        # 3. Distributed/Network routing triggers
+        # 4. Distributed/Network routing triggers
         if domain_method in ['semi_distributed', 'distributed', 'hru', 'gru']:
             diagnostics['reason'] = f'distributed_domain_method_{domain_method}'
             return True, diagnostics
@@ -141,15 +154,6 @@ class RoutingDecider:
         if routing_delineation in ['river_network', 'reach', 'vector']:
             diagnostics['reason'] = f'network_routing_delineation_{routing_delineation}'
             return True, diagnostics
-
-        # 4. Model-specific routing integration (e.g., FUSE)
-        if model in self.ROUTING_INTEGRATION_KEYS:
-            integration_key = self.ROUTING_INTEGRATION_KEYS[model]
-            integration = config.get(integration_key, 'none')
-            diagnostics['checks']['routing_integration'] = integration
-            if integration == 'mizuRoute':
-                diagnostics['reason'] = f'{model.lower()}_routing_integration_mizuroute'
-                return True, diagnostics
 
         # 5. Filesystem check for existing mizuRoute setup as fallback
         if settings_dir:

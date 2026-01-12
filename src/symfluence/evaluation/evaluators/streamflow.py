@@ -156,8 +156,8 @@ class StreamflowEvaluator(ModelEvaluator):
         """
         try:
             with xr.open_dataset(sim_file) as ds:
-                mizuroute_vars = ['IRFroutedRunoff', 'KWTroutedRunoff', 'reachID']
-                return any(var in ds.variables for var in mizuroute_vars)
+                mizuroute_vars = ['IRFroutedRunoff', 'KWTroutedRunoff', 'dlayRunoff', 'reachID', 'seg']
+                return any(var in ds.variables or var in ds.dims for var in mizuroute_vars)
         except:
             return False
 
@@ -174,6 +174,7 @@ class StreamflowEvaluator(ModelEvaluator):
         - IRFroutedRunoff: Impulse Response Function routing
         - KWTroutedRunoff: Kinematic Wave Theory routing
         - averageRoutedRunoff: Combined routing methods
+        - dlayRunoff: Delayed runoff (older versions)
 
         Dimensions:
         - seg: River segment ID (older mizuRoute)
@@ -189,7 +190,7 @@ class StreamflowEvaluator(ModelEvaluator):
             ValueError: If no routed runoff variable found in file
         """
         with xr.open_dataset(sim_file) as ds:
-            streamflow_vars = ['IRFroutedRunoff', 'KWTroutedRunoff', 'averageRoutedRunoff']
+            streamflow_vars = ['IRFroutedRunoff', 'KWTroutedRunoff', 'averageRoutedRunoff', 'dlayRunoff']
             for var_name in streamflow_vars:
                 if var_name in ds.variables:
                     var = ds[var_name]

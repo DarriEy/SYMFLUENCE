@@ -27,9 +27,10 @@ class ToolRegistry:
             "Configuration": self._build_configuration_tools(),
             "Workflow Management": self._build_workflow_management_tools(),
             "Domain Setup": self._build_pour_point_tools(),
+            "Code Operations": self._build_code_operation_tools(),
             "Meta Tools": self._build_meta_tools()
         }
-        
+
         # Flatten for API usage
         self.tools = [tool for category in self.tools_by_category.values() for tool in category]
 
@@ -368,6 +369,180 @@ class ToolRegistry:
                             }
                         },
                         "required": ["latitude", "longitude", "domain_name", "domain_definition_method"]
+                    }
+                }
+            }
+        ]
+
+    def _build_code_operation_tools(self) -> List[Dict[str, Any]]:
+        """Build tool definitions for code operations and agent self-awareness."""
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "description": "Read a source code file from the repository. Returns file contents with line numbers. "
+                                   "Can specify start_line and end_line to read only a portion of the file.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "file_path": {
+                                "type": "string",
+                                "description": "Path to the file relative to repo root (e.g., 'src/symfluence/agent/system_prompts.py')"
+                            },
+                            "start_line": {
+                                "type": "integer",
+                                "description": "Optional start line number (1-indexed) for partial read"
+                            },
+                            "end_line": {
+                                "type": "integer",
+                                "description": "Optional end line number (1-indexed, inclusive) for partial read"
+                            }
+                        },
+                        "required": ["file_path"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "list_directory",
+                    "description": "Browse repository directory structure. Lists files and subdirectories with descriptions.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "directory": {
+                                "type": "string",
+                                "description": "Directory path relative to repo root (default: '.')"
+                            },
+                            "recursive": {
+                                "type": "boolean",
+                                "description": "Show full directory tree (default: false)"
+                            },
+                            "pattern": {
+                                "type": "string",
+                                "description": "Optional file pattern filter (e.g., '*.py', 'test_*')"
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "analyze_codebase",
+                    "description": "Analyze the SYMFLUENCE codebase structure and get an overview. "
+                                   "Useful for understanding project organization and dependencies.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "depth": {
+                                "type": "string",
+                                "enum": ["quick", "detailed", "deep"],
+                                "description": "Analysis depth: 'quick' for overview, 'detailed' for breakdown, 'deep' for comprehensive analysis"
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "propose_code_change",
+                    "description": "Propose a code modification to the agent's own codebase. "
+                                   "Validates syntax, shows diffs, and stages changes for PR. "
+                                   "Requires exact code matching (including indentation).",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "file_path": {
+                                "type": "string",
+                                "description": "Path to file to modify relative to repo root"
+                            },
+                            "old_code": {
+                                "type": "string",
+                                "description": "Exact code to replace (must match exactly, including whitespace)"
+                            },
+                            "new_code": {
+                                "type": "string",
+                                "description": "Replacement code"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Description of why this change is needed"
+                            },
+                            "reason": {
+                                "type": "string",
+                                "enum": ["bugfix", "improvement", "feature"],
+                                "description": "Type of change (default: improvement)"
+                            }
+                        },
+                        "required": ["file_path", "old_code", "new_code", "description"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "show_staged_changes",
+                    "description": "Display all staged changes ready for commit. "
+                                   "Shows git diff of staged modifications.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {}
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "run_tests",
+                    "description": "Run tests on modified code using pytest. "
+                                   "Can run all tests or specific test files/patterns.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "test_pattern": {
+                                "type": "string",
+                                "description": "Optional pytest pattern (e.g., 'test_agent', 'test_file_ops')"
+                            },
+                            "files": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Optional specific test files to run"
+                            },
+                            "verbose": {
+                                "type": "boolean",
+                                "description": "Verbose output (default: false)"
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "create_pr_proposal",
+                    "description": "Create a PR proposal by staging changes and generating commit messages. "
+                                   "Prepares all staged changes for pulling into a PR.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "PR title"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "PR body/description"
+                            },
+                            "reason": {
+                                "type": "string",
+                                "enum": ["bugfix", "improvement", "feature"],
+                                "description": "Type of change (default: improvement)"
+                            }
+                        },
+                        "required": ["title", "description"]
                     }
                 }
             }

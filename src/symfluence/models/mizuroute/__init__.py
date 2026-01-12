@@ -24,3 +24,15 @@ try:
     from . import build_instructions  # noqa: F401
 except ImportError:
     pass  # Build instructions optional
+
+# Register defaults with DefaultsRegistry (import triggers registration via decorator)
+from . import defaults  # noqa: F401
+
+# Register config adapter with ModelRegistry
+from symfluence.models.registry import ModelRegistry
+from .config import MizuRouteConfigAdapter
+ModelRegistry.register_config_adapter('MIZUROUTE')(MizuRouteConfigAdapter)
+
+# Register result extractor with ModelRegistry
+from .extractor import MizuRouteResultExtractor
+ModelRegistry.register_result_extractor('MIZUROUTE')(MizuRouteResultExtractor)

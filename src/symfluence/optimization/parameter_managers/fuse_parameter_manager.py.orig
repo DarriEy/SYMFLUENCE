@@ -1,0 +1,28 @@
+"""
+FUSE Parameter Manager (Backward Compatibility)
+
+.. deprecated::
+    This module has been moved to symfluence.models.fuse.calibration.parameter_manager
+    as part of the effort to consolidate model-specific code.
+
+    This re-export is provided for backward compatibility. Please update imports to:
+
+        from symfluence.models.fuse.calibration import FUSEParameterManager
+
+    Or use the registry pattern (recommended):
+
+        from symfluence.optimization import OptimizerRegistry
+        FUSEParamManager = OptimizerRegistry.get_parameter_manager('FUSE')
+
+Migration Context:
+    As part of the main migration to separate model-specific concerns, all FUSE
+    calibration and optimization components have been moved to models/fuse/calibration/.
+
+    Old location: symfluence.optimization.parameter_managers.fuse_parameter_manager
+    New location: symfluence.models.fuse.calibration.parameter_manager
+"""
+
+# Backward compatibility re-export
+from symfluence.models.fuse.calibration import FUSEParameterManager
+
+__all__ = ['FUSEParameterManager']

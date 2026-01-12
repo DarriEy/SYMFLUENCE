@@ -144,10 +144,10 @@ HYDROLOGICAL_MODEL: "SUMMA"
 ## ============================================================================
 ## Uncomment only if using that model and have custom paths
 
-# SUMMA-specific (if HYDROLOGICAL_MODEL includes SUMMA)
-# SUMMA_INSTALL_PATH: "/path/to/summa"
-# SUMMA_EXE: "summa_sundials.exe"
-# SETTINGS_SUMMA_PATH: "/path/to/summa/settings"
+# SUMMA-specific (required when HYDROLOGICAL_MODEL includes SUMMA)
+SUMMA_INSTALL_PATH: "default"
+SUMMA_EXE: "summa_sundials.exe"
+SETTINGS_SUMMA_PATH: "default"
 
 # FUSE-specific (if HYDROLOGICAL_MODEL includes FUSE)
 # FUSE_INSTALL_PATH: "/path/to/fuse"

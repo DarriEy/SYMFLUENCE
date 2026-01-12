@@ -213,6 +213,15 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                 # Move outputs from build directory to output directory
                 self._move_ngen_outputs(self.ngen_exe.parent, output_dir)
 
+                # Run t-route routing if configured
+                if self.config_dict.get('NGEN_RUN_TROUTE', True):  # Default to True
+                    self.logger.info("Starting t-route routing...")
+                    troute_success = self._run_troute_routing(output_dir)
+                    if not troute_success:
+                        self.logger.warning("T-Route routing failed or not available. Continuing with NGEN outputs only.")
+                else:
+                    self.logger.info("T-Route routing disabled in config")
+
                 return True
 
             except subprocess.CalledProcessError as e:
@@ -383,32 +392,32 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
     def _move_ngen_outputs(self, build_dir: Path, output_dir: Path):
         """
         Move ngen output files from build directory to output directory.
-        
+
         ngen writes outputs to its working directory, so we need to move them
         to the proper experiment output directory.
-        
+
         Args:
             build_dir: ngen build directory where outputs are written
             output_dir: Target output directory for this experiment
         """
         import shutil
-        
+
         # Common ngen output patterns
         output_patterns = [
             'cat-*.csv',      # Catchment outputs
-            'nex-*.csv',      # Nexus outputs  
+            'nex-*.csv',      # Nexus outputs
             '*.parquet',      # Parquet outputs
             'cfe_output_*.txt',  # CFE specific outputs
             'noah_output_*.txt', # Noah specific outputs
         ]
-        
+
         moved_files = []
         for pattern in output_patterns:
             for file in build_dir.glob(pattern):
                 dest = output_dir / file.name
                 shutil.move(str(file), str(dest))
                 moved_files.append(file.name)
-        
+
         if moved_files:
             self.logger.debug(f"Moved {len(moved_files)} output files to {output_dir}")
             for f in moved_files[:10]:  # Log first 10
@@ -423,3 +432,61 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                 self.logger.warning(
                     f"No output files found in {build_dir} or {output_dir}. Check if model ran correctly."
                 )
+
+    def _run_troute_routing(self, output_dir: Path) -> bool:
+        """
+        Run t-route routing on NGEN nexus outputs.
+
+        Args:
+            output_dir: Directory containing NGEN outputs (nex-*.csv files)
+
+        Returns:
+            True if routing succeeded, False otherwise
+        """
+        try:
+            # Check if ngen_routing is available
+            from ngen_routing.ngen_main import ngen_main
+        except ImportError:
+            self.logger.info("T-Route (ngen_routing) not installed. Skipping routing.")
+            return False
+
+        # Find t-route config
+        troute_config = self.ngen_setup_dir / "troute_config.yaml"
+        if not troute_config.exists():
+            self.logger.warning(f"T-Route config not found: {troute_config}. Skipping routing.")
+            return False
+
+        # Create troute output directory
+        troute_output_dir = output_dir / "troute_output"
+        troute_output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Build t-route command arguments
+        troute_args = [
+            "-f", str(troute_config),  # Config file
+            "-V", str(output_dir),      # Nexus output folder (NGEN outputs)
+        ]
+
+        self.logger.info(f"Running t-route with config: {troute_config}")
+        self.logger.debug(f"T-Route args: {troute_args}")
+
+        # Run t-route
+        troute_log = output_dir / "troute_log.txt"
+        try:
+            import sys
+            import io
+            from contextlib import redirect_stdout, redirect_stderr
+
+            # Capture t-route output to log file
+            with open(troute_log, 'w') as log_f:
+                with redirect_stdout(log_f), redirect_stderr(log_f):
+                    ngen_main(troute_args)
+
+            self.logger.info(f"T-Route routing completed successfully")
+            self.logger.info(f"T-Route log: {troute_log}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"T-Route routing failed: {e}")
+            if troute_log.exists():
+                self.logger.error(f"Check t-route log: {troute_log}")
+            return False

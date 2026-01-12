@@ -37,5 +37,17 @@ try:
 except ImportError:
     pass  # Build instructions optional
 
+# Register defaults with DefaultsRegistry (import triggers registration via decorator)
+from . import defaults  # noqa: F401
+
+# Register config adapter with ModelRegistry
+from symfluence.models.registry import ModelRegistry
+from .config import HYPEConfigAdapter
+ModelRegistry.register_config_adapter('HYPE')(HYPEConfigAdapter)
+
+# Register result extractor with ModelRegistry
+from .extractor import HYPEResultExtractor
+ModelRegistry.register_result_extractor('HYPE')(HYPEResultExtractor)
+
 # Register plotter with PlotterRegistry (import triggers registration via decorator)
 from .plotter import HYPEPlotter  # noqa: F401

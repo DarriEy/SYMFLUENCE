@@ -78,7 +78,7 @@ class ForcingConfig(BaseModel):
     # Forcing settings
     time_step_size: int = Field(default=3600, alias='FORCING_TIME_STEP_SIZE')
     variables: str = Field(default='default', alias='FORCING_VARIABLES')
-    measurement_height: int = Field(default=2, alias='FORCING_MEASUREMENT_HEIGHT')
+    measurement_height: float = Field(default=2.0, alias='FORCING_MEASUREMENT_HEIGHT')
     apply_lapse_rate: bool = Field(default=True, alias='APPLY_LAPSE_RATE')
     lapse_rate: float = Field(default=0.0065, alias='LAPSE_RATE')
     shape_lat_name: str = Field(default='lat', alias='FORCING_SHAPE_LAT_NAME')

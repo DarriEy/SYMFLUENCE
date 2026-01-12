@@ -159,6 +159,69 @@ class TestSUMMAWorkerFunctions:
         """Integration test with real SUMMA model (if available)."""
         pass
 
+class TestSUMMAParameterConstraints:
+    """Tests for SUMMA parameter constraint enforcement."""
+
+    def test_enforce_theta_sat_res_constraint(self, summa_config, test_logger, temp_project_dir):
+        """Test theta_sat > theta_res constraint."""
+        from symfluence.optimization.parameter_managers.summa_parameter_manager import SUMMAParameterManager
+        
+        summa_settings_dir = temp_project_dir / "settings" / "SUMMA"
+        summa_settings_dir.mkdir(parents=True, exist_ok=True)
+        
+        manager = SUMMAParameterManager(summa_config, test_logger, summa_settings_dir)
+        
+        # Mock defaults
+        manager._cached_defaults = {
+            'theta_sat': np.array([0.45]),
+            'theta_res': np.array([0.05]),
+            'fieldCapacity': np.array([0.20])
+        }
+        
+        # Case 1: theta_sat calibrated too low
+        params = {'theta_sat': np.array([0.08])} # theta_res is 0.05
+        # Initial check: 0.08 < 0.05 + 0.05 = 0.10.
+        # Secondary check: 0.10 < 0.20 + 0.01 = 0.21 (Field Capacity constraint)
+        
+        validated = manager._enforce_parameter_constraints(params)
+        
+        # Should be bumped to 0.21
+        assert validated['theta_sat'][0] == pytest.approx(0.21)
+        
+        # Case 2: theta_res calibrated too high
+        params = {'theta_res': np.array([0.42])} # theta_sat is 0.45
+        # Initial check: 0.45 < 0.42 + 0.05. Clamped to 0.40.
+        # Secondary check: 0.20 < 0.40 + 0.01 (Field Capacity constraint). 
+        # Clamped to 0.20 - 0.01 = 0.19.
+        
+        validated = manager._enforce_parameter_constraints(params)
+        
+        # Should be clamped to 0.19
+        assert validated['theta_res'][0] == pytest.approx(0.19)
+
+    def test_enforce_field_capacity_constraint(self, summa_config, test_logger, temp_project_dir):
+        """Test theta_sat > fieldCapacity > theta_res constraint."""
+        from symfluence.optimization.parameter_managers.summa_parameter_manager import SUMMAParameterManager
+        
+        summa_settings_dir = temp_project_dir / "settings" / "SUMMA"
+        summa_settings_dir.mkdir(parents=True, exist_ok=True)
+        
+        manager = SUMMAParameterManager(summa_config, test_logger, summa_settings_dir)
+        
+        # Mock defaults
+        manager._cached_defaults = {
+            'theta_sat': np.array([0.45]),
+            'theta_res': np.array([0.05]),
+            'fieldCapacity': np.array([0.20])
+        }
+        
+        # Case 1: theta_sat calibrated below fieldCapacity
+        params = {'theta_sat': np.array([0.15])} # fc is 0.20
+        
+        validated = manager._enforce_parameter_constraints(params)
+        
+        # Should be bumped to 0.20 + 0.01 = 0.21
+        assert validated['theta_sat'][0] == pytest.approx(0.21)
 
 # ============================================================================
 # FUSE Calibration Tests
@@ -169,7 +232,7 @@ class TestFUSECalibrationTargets:
 
     def test_load_fuse_observations(self, fuse_config, test_logger, mock_observations, temp_project_dir):
         """Test loading FUSE streamflow observations."""
-        from symfluence.optimization.calibration_targets import FUSEStreamflowTarget
+        from symfluence.optimization.calibration_targets.fuse_calibration_targets import FUSEStreamflowTarget
 
         target = FUSEStreamflowTarget(fuse_config, temp_project_dir, test_logger)
 
@@ -340,7 +403,7 @@ class TestCrossModelCalibration:
             from symfluence.optimization.calibration_targets import StreamflowTarget
             target = StreamflowTarget(config, temp_project_dir, test_logger)
         elif model_name == 'FUSE':
-            from symfluence.optimization.calibration_targets import FUSEStreamflowTarget
+            from symfluence.optimization.calibration_targets.fuse_calibration_targets import FUSEStreamflowTarget
             target = FUSEStreamflowTarget(config, temp_project_dir, test_logger)
         elif model_name == 'NGEN':
             from symfluence.optimization.calibration_targets import NgenStreamflowTarget

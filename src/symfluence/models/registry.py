@@ -30,9 +30,10 @@ Architecture:
        - Returns class (not instance) for flexible instantiation
        - Allows downstream code to customize initialization
 
-    4. Lazy Loading via Model Optimizers:
-       Model-specific optimizers auto-import model modules:
-       from symfluence.optimization import model_optimizers  # Triggers registration
+    4. Registration via Module Imports:
+       Model components self-register when their modules are imported.
+       The optimization layer depends on models (not vice versa):
+       optimization.model_optimizers → models.{model_name}.runner
 
 Supported Models:
     Primary hydrological models:
@@ -189,7 +190,7 @@ class ModelRegistry:
 
     See Also:
         ModelManager: Uses registry to discover and invoke components
-        models/model_optimizers: Auto-registers optimizer components
+        optimization.model_optimizers: Depend on model components for calibration
     """
 
     _preprocessors = {}
@@ -197,6 +198,14 @@ class ModelRegistry:
     _postprocessors = {}
     _visualizers = {}
     _runner_methods = {}
+    # Config management registries
+    _config_adapters = {}
+    _config_schemas = {}
+    _config_defaults = {}
+    _config_transformers = {}
+    _config_validators = {}
+    # Result extraction registry
+    _result_extractors = {}
 
     @classmethod
     def register_preprocessor(cls, model_name):
@@ -256,3 +265,252 @@ class ModelRegistry:
     @classmethod
     def list_models(cls):
         return sorted(list(set(cls._runners.keys()) | set(cls._preprocessors.keys())))
+
+    # =========================================================================
+    # Config Management Registration (New in Refactoring Phase 1)
+    # =========================================================================
+
+    @classmethod
+    def register_config_adapter(cls, model_name):
+        """
+        Register a complete config adapter for a model.
+
+        The adapter provides schema, defaults, transformers, and validation.
+
+        Args:
+            model_name: Model name (e.g., 'SUMMA', 'FUSE')
+
+        Example:
+            >>> @ModelRegistry.register_config_adapter('SUMMA')
+            ... class SUMMAConfigAdapter(ModelConfigAdapter):
+            ...     def get_config_schema(self):
+            ...         return SUMMAConfig
+        """
+        def decorator(adapter_cls):
+            cls._config_adapters[model_name.upper()] = adapter_cls
+            return adapter_cls
+        return decorator
+
+    @classmethod
+    def register_config_schema(cls, model_name, schema):
+        """
+        Register Pydantic config schema for a model.
+
+        Args:
+            model_name: Model name
+            schema: Pydantic BaseModel class
+        """
+        cls._config_schemas[model_name.upper()] = schema
+        return schema
+
+    @classmethod
+    def register_config_defaults(cls, model_name, defaults):
+        """
+        Register default configuration values for a model.
+
+        Args:
+            model_name: Model name
+            defaults: Dictionary of default values
+        """
+        cls._config_defaults[model_name.upper()] = defaults
+        return defaults
+
+    @classmethod
+    def register_config_transformers(cls, model_name, transformers):
+        """
+        Register flat-to-nested field transformers for a model.
+
+        Args:
+            model_name: Model name
+            transformers: Dictionary mapping flat keys to nested paths
+        """
+        cls._config_transformers[model_name.upper()] = transformers
+        return transformers
+
+    @classmethod
+    def register_config_validator(cls, model_name, validator):
+        """
+        Register custom validation function for a model.
+
+        Args:
+            model_name: Model name
+            validator: Callable that takes config dict and raises on validation error
+        """
+        cls._config_validators[model_name.upper()] = validator
+        return validator
+
+    @classmethod
+    def get_config_adapter(cls, model_name):
+        """Get config adapter instance for a model."""
+        adapter_cls = cls._config_adapters.get(model_name.upper())
+        return adapter_cls(model_name) if adapter_cls else None
+
+    @classmethod
+    def get_config_schema(cls, model_name):
+        """Get Pydantic config schema for a model."""
+        # Try adapter first
+        adapter = cls.get_config_adapter(model_name)
+        if adapter:
+            return adapter.get_config_schema()
+        # Fall back to direct registration
+        return cls._config_schemas.get(model_name.upper())
+
+    @classmethod
+    def get_config_defaults(cls, model_name):
+        """Get default configuration for a model."""
+        # Try adapter first
+        adapter = cls.get_config_adapter(model_name)
+        if adapter:
+            return adapter.get_defaults()
+        # Fall back to direct registration
+        return cls._config_defaults.get(model_name.upper(), {})
+
+    @classmethod
+    def get_config_transformers(cls, model_name):
+        """Get flat-to-nested transformers for a model."""
+        # Try adapter first
+        adapter = cls.get_config_adapter(model_name)
+        if adapter:
+            return adapter.get_field_transformers()
+        # Fall back to direct registration
+        return cls._config_transformers.get(model_name.upper(), {})
+
+    @classmethod
+    def get_config_validator(cls, model_name):
+        """Get config validator function for a model."""
+        # Try adapter first
+        adapter = cls.get_config_adapter(model_name)
+        if adapter:
+            return adapter.validate
+        # Fall back to direct registration
+        return cls._config_validators.get(model_name.upper())
+
+    @classmethod
+    def validate_model_config(cls, model_name, config):
+        """
+        Validate model configuration using registered validator.
+
+        Args:
+            model_name: Model name
+            config: Configuration dictionary
+
+        Raises:
+            ConfigValidationError: If validation fails
+        """
+        validator = cls.get_config_validator(model_name)
+        if validator:
+            validator(config)
+
+    # =========================================================================
+    # Result Extraction Registry Methods
+    # =========================================================================
+
+    @classmethod
+    def register_result_extractor(cls, model_name):
+        """
+        Register a result extractor for a model.
+
+        The extractor handles model-specific output file location and
+        variable extraction logic.
+
+        Args:
+            model_name: Model name (e.g., 'SUMMA', 'NGEN')
+
+        Example:
+            >>> @ModelRegistry.register_result_extractor('SUMMA')
+            ... class SUMMAResultExtractor(ModelResultExtractor):
+            ...     def extract_variable(self, output_file, variable_type):
+            ...         # SUMMA-specific extraction logic
+            ...         pass
+        """
+        def decorator(extractor_cls):
+            cls._result_extractors[model_name.upper()] = extractor_cls
+            return extractor_cls
+        return decorator
+
+    @classmethod
+    def get_result_extractor(cls, model_name):
+        """Get result extractor instance for a model.
+
+        Args:
+            model_name: Model name
+
+        Returns:
+            ModelResultExtractor instance or None if not registered
+        """
+        extractor_cls = cls._result_extractors.get(model_name.upper())
+        return extractor_cls(model_name) if extractor_cls else None
+
+    @classmethod
+    def has_result_extractor(cls, model_name):
+        """Check if a model has a registered result extractor.
+
+        Args:
+            model_name: Model name
+
+        Returns:
+            bool: True if extractor is registered
+        """
+        return model_name.upper() in cls._result_extractors
+
+    @classmethod
+    def list_result_extractors(cls):
+        """List all models with registered result extractors.
+
+        Returns:
+            List of model names with result extractors
+        """
+        return sorted(list(cls._result_extractors.keys()))
+
+    # =========================================================================
+    # Forcing Adapter Registry Methods (Delegates to ForcingAdapterRegistry)
+    # =========================================================================
+
+    @classmethod
+    def get_forcing_adapter(cls, model_name, config, logger=None):
+        """Get forcing adapter instance for a model.
+
+        This method delegates to ForcingAdapterRegistry for backward compatibility.
+
+        Args:
+            model_name: Model name
+            config: Configuration dictionary
+            logger: Optional logger instance
+
+        Returns:
+            ForcingAdapter instance or None if not registered
+        """
+        try:
+            from symfluence.models.adapters import ForcingAdapterRegistry
+            return ForcingAdapterRegistry.get_adapter(model_name, config, logger)
+        except (ImportError, ValueError):
+            return None
+
+    @classmethod
+    def has_forcing_adapter(cls, model_name):
+        """Check if a model has a registered forcing adapter.
+
+        Args:
+            model_name: Model name
+
+        Returns:
+            bool: True if adapter is registered
+        """
+        try:
+            from symfluence.models.adapters import ForcingAdapterRegistry
+            return ForcingAdapterRegistry.is_registered(model_name)
+        except ImportError:
+            return False
+
+    @classmethod
+    def list_forcing_adapters(cls):
+        """List all models with registered forcing adapters.
+
+        Returns:
+            List of model names with forcing adapters
+        """
+        try:
+            from symfluence.models.adapters import ForcingAdapterRegistry
+            return ForcingAdapterRegistry.get_registered_models()
+        except ImportError:
+            return []

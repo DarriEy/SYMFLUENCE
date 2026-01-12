@@ -21,3 +21,15 @@ try:
     from . import build_instructions  # noqa: F401
 except ImportError:
     pass  # Build instructions optional
+
+# Register defaults with DefaultsRegistry (import triggers registration via decorator)
+from . import defaults  # noqa: F401
+
+# Register config adapter with ModelRegistry
+from symfluence.models.registry import ModelRegistry
+from .config import MESHConfigAdapter
+ModelRegistry.register_config_adapter('MESH')(MESHConfigAdapter)
+
+# Register result extractor with ModelRegistry
+from .extractor import MESHResultExtractor
+ModelRegistry.register_result_extractor('MESH')(MESHResultExtractor)

@@ -186,6 +186,16 @@ class ModelDefaults:
     DEFAULT_TOLERANCE = 1e-6
     """Default numerical tolerance for convergence checks."""
 
+    # Optimization/Calibration
+    PENALTY_SCORE = -9999.0
+    """
+    Standard penalty score for failed model evaluations during optimization.
+
+    Used when a model run fails, produces invalid output, or encounters errors.
+    This value ensures failed runs are strongly penalized in optimization but
+    still distinguishable from uninitialized values.
+    """
+
 
 # Export convenience dictionary for backward compatibility
 UNIT_CONVERSIONS: Dict[str, float] = {

@@ -55,6 +55,25 @@ try:
 except ImportError:
     pass  # Build instructions optional
 
+# Register defaults with DefaultsRegistry (import triggers registration via decorator)
+from . import defaults  # noqa: F401
+
+# Register config adapter with ModelRegistry
+from symfluence.models.registry import ModelRegistry
+from .config import FUSEConfigAdapter
+ModelRegistry.register_config_adapter('FUSE')(FUSEConfigAdapter)
+
+# Register result extractor with ModelRegistry
+from .extractor import FUSEResultExtractor
+ModelRegistry.register_result_extractor('FUSE')(FUSEResultExtractor)
+
+# Note: Calibration/optimization components in .calibration/ are NOT imported here
+# to avoid circular imports. They register themselves via @OptimizerRegistry decorators
+# when imported through symfluence.optimization package (via backward-compatible facades)
+# or when directly imported from this package.
+# New imports: from symfluence.models.fuse.calibration import FUSEModelOptimizer, etc.
+# Old imports (backward compat): from symfluence.optimization.model_optimizers.fuse_model_optimizer import FUSEModelOptimizer
+
 # Register analysis components with AnalysisRegistry
 from symfluence.evaluation.analysis_registry import AnalysisRegistry
 

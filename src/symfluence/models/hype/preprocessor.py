@@ -156,7 +156,7 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 try:
                     start_date, end_date = [pd.to_datetime(s.strip()) for s in spinup_period.split(',')]
                     self.spinup_days = (end_date - start_date).days
-                    self.logger.info(f"Calculated HYPE spinup days from SPINUP_PERIOD: {self.spinup_days}")
+                    self.logger.debug(f"Calculated HYPE spinup days from SPINUP_PERIOD: {self.spinup_days}")
                 except Exception as e:
                     self.logger.warning(f"Could not calculate HYPE spinup from {spinup_period}: {e}")
                     self.spinup_days = 0
@@ -171,9 +171,10 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         # During calibration, output_path may change but forcing data stays in original location
         self.forcing_data_dir = self.hype_setup_dir
 
+        # Basin-averaged forcing data is already in CFIF format (from model-agnostic preprocessing)
         # Initialize variable handler to get correct input names
-        var_handler = VariableHandler(self.config_dict, self.logger, forcing_dataset, 'HYPE')
-        dataset_map = var_handler.DATASET_MAPPINGS[forcing_dataset]
+        var_handler = VariableHandler(self.config_dict, self.logger, 'CFIF', 'HYPE')
+        dataset_map = var_handler.DATASET_MAPPINGS['CFIF']
 
         # Get input names for temperature and precipitation
         temp_in = var_handler._find_matching_variable('air_temperature', dataset_map)

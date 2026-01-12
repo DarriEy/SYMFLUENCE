@@ -4,10 +4,19 @@ Preset definitions for SYMFLUENCE --init command.
 This module defines templates for common SYMFLUENCE configurations that users can
 use as starting points for their projects. Each preset includes model-specific
 settings and sensible defaults.
+
+Architecture:
+    Model-specific presets are now defined in their respective model directories
+    (e.g., models/summa/init_preset.py, models/fuse/init_preset.py) and registered
+    with the PresetRegistry. This module maintains backward compatibility by
+    aggregating presets from both the registry and legacy definitions.
 """
 
-# Preset definitions
-PRESETS = {
+from symfluence.cli.preset_registry import PresetRegistry
+
+# Legacy preset definitions (kept for backward compatibility)
+# New presets should be defined in their model directories using PresetRegistry
+_LEGACY_PRESETS = {
     'fuse-provo': {
         'description': 'FUSE model for Provo River, Utah with ERA5 forcing',
         'base_template': 'config_template_comprehensive.yaml',
@@ -205,20 +214,47 @@ PRESETS = {
     }
 }
 
+# Backward compatibility: expose PRESETS as the merged result
+# This allows existing code that accesses init_presets.PRESETS to continue working
+def _get_merged_presets():
+    """Get all presets from both registry and legacy definitions."""
+    # Start with registry presets (from model directories)
+    merged = PresetRegistry.get_all_presets()
+
+    # Add legacy presets that aren't in the registry (for backward compat)
+    for name, preset in _LEGACY_PRESETS.items():
+        if name not in merged:
+            merged[name] = preset
+
+    return merged
+
+
+# For backward compatibility, PRESETS is still available at module level
+# Note: This is computed lazily via load_presets() for better performance
+# Code that accesses init_presets.PRESETS directly should use load_presets() instead
+PRESETS = _LEGACY_PRESETS  # Start with legacy, full merge happens via load_presets()
+
 
 def load_presets():
     """
     Load and return preset dictionary.
 
+    This function aggregates presets from:
+    1. Model-specific presets registered via PresetRegistry
+    2. Legacy presets defined in this module
+
     Returns:
         dict: Dictionary of all available presets
     """
-    return PRESETS
+    return _get_merged_presets()
 
 
 def get_preset(name):
     """
     Get specific preset by name.
+
+    Checks both the PresetRegistry (model-specific presets) and
+    legacy presets for backward compatibility.
 
     Args:
         name (str): Preset name
@@ -229,22 +265,25 @@ def get_preset(name):
     Raises:
         ValueError: If preset name is unknown
     """
-    if name not in PRESETS:
-        available = ', '.join(PRESETS.keys())
+    presets = _get_merged_presets()
+    if name not in presets:
+        available = ', '.join(sorted(presets.keys()))
         raise ValueError(
             f"Unknown preset: {name}. Available presets: {available}"
         )
-    return PRESETS[name]
+    return presets[name]
 
 
 def list_preset_names():
     """
     Return list of available preset names.
 
+    Includes both registry-based and legacy presets.
+
     Returns:
         list: List of preset names
     """
-    return list(PRESETS.keys())
+    return sorted(_get_merged_presets().keys())
 
 
 def validate_preset(preset):

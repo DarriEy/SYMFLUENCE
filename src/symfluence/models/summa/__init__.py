@@ -29,6 +29,18 @@ try:
 except ImportError:
     pass  # Build instructions optional
 
+# Register defaults with DefaultsRegistry (import triggers registration via decorator)
+from . import defaults  # noqa: F401
+
+# Register config adapter with ModelRegistry
+from symfluence.models.registry import ModelRegistry
+from .config import SUMMAConfigAdapter
+ModelRegistry.register_config_adapter('SUMMA')(SUMMAConfigAdapter)
+
+# Register result extractor with ModelRegistry
+from .extractor import SUMMAResultExtractor
+ModelRegistry.register_result_extractor('SUMMA')(SUMMAResultExtractor)
+
 # Register analysis components with AnalysisRegistry
 from symfluence.evaluation.analysis_registry import AnalysisRegistry
 

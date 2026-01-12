@@ -189,7 +189,7 @@ class HYPEConfigManager:
         # Handle edge cases
         if spinup_date >= end_date:
             spinup_date = start_date
-            self.logger.warning(
+            self.logger.debug(
                 f"Spinup days ({spinup_days}) exceeds simulation period. Setting spinup to 0."
             )
 
@@ -288,7 +288,7 @@ timeoutput decimals\t3
         with open(info_path, 'w') as f:
             f.write(info_content)
 
-        self.logger.info(f"Created info.txt and filedir.txt in {self.output_path}")
+        self.logger.debug(f"Created info.txt and filedir.txt in {self.output_path}")
 
     def write_par_file(
         self,
@@ -382,7 +382,7 @@ timeoutput decimals\t3
         with open(output_file, 'w') as f:
             f.write(par_content)
 
-        self.logger.info(f"Created par.txt in {self.output_path}")
+        self.logger.debug(f"Created par.txt in {self.output_path}")
 
     def _generate_landuse_params(
         self,

@@ -42,7 +42,7 @@ from symfluence.optimization.calibration_targets import (
     ETTarget, SnowTarget, GroundwaterTarget, SoilMoistureTarget, StreamflowTarget, CalibrationTarget, TWSTarget
 )
 from symfluence.optimization.workers.summa_parallel_workers import _evaluate_parameters_worker_safe, _run_dds_instance_worker
-from symfluence.optimization.mixins import SUMMAOptimizerMixin
+from symfluence.models.summa.calibration.optimizer_mixin import SUMMAOptimizerMixin
 from symfluence.core.mixins import ConfigMixin
 
 if TYPE_CHECKING:
