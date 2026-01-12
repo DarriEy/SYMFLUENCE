@@ -483,7 +483,7 @@ class EMEarthIntegrator:
                             updated_ds[forcing_var].attrs.update({
                                 'source': f'EM-Earth {em_var}',
                                 'replacement_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                                'original_units': f'EM-Earth: mm/h (prcp) or °C (temp)',
+                                'original_units': 'EM-Earth: mm/h (prcp) or °C (temp)',
                                 'converted_units': current_units
                             })
                             break

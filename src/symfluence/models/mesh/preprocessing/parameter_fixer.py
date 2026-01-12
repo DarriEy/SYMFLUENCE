@@ -124,7 +124,8 @@ class MESHParameterFixer:
                 (r'DIAGNOSEMODE\s+\w+', 'DIAGNOSEMODE          off'),
                 (r'SHDFILEFLAG\s+\w+', 'SHDFILEFLAG           nc_subbasin'),
                 (r'BASINFORCINGFLAG\s+\w+', 'BASINFORCINGFLAG      nc_subbasin'),
-                (r'OUTFIELDSFLAG\s+\w+', 'OUTFIELDSFLAG         none'),
+                (r'OUTFILESFLAG\s+\w+', 'OUTFILESFLAG         none'),
+                (r'OUTFIELDSFLAG\s+\w+', 'OUTFIELDSFLAG        none'),
                 (r'PRINTSIMSTATUS\s+\w+', 'PRINTSIMSTATUS        date_monthly'),
             ]
 

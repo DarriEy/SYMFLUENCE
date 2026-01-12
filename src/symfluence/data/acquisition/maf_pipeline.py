@@ -432,7 +432,7 @@ class datatoolRunner:
         f"--lon-lims={lon_lims}",
         f"--variable={variables}",
         f"--prefix=domain_{self.domain_name}_",
-        f"--submit-job",
+        "--submit-job",
         f"--cache={self.tool_cache}",
         f"--cluster={self.config.get('CLUSTER_JSON')}",
         ] 
@@ -448,7 +448,7 @@ class datatoolRunner:
         """
         try:
             # Submit the array job
-            self.logger.info(f"Submitting datatool job")
+            self.logger.info("Submitting datatool job")
             result = subprocess.run(datatool_command, check=True, capture_output=True, text=True)
             self.logger.info("datatool job submitted successfully.")
             

@@ -347,40 +347,40 @@ class MESHDrainageDatabase:
                         ds = ds.rename({old_name: target_n_dim})
                         modified = True
 
-                # Rename NGRU or landclass dimension to 'land'
-                old_lc_dim = 'landclass' if 'landclass' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else None
-                if old_lc_dim:
-                    self.logger.info(f"Renaming dimension '{old_lc_dim}' to 'land'")
-                    ds = ds.rename({old_lc_dim: 'land'})
+                # Ensure dimension 'subbasin' is the index and has correct values
+                ds[target_n_dim] = xr.DataArray(
+                    np.arange(1, n_size + 1, dtype=np.int32),
+                    dims=[target_n_dim],
+                    attrs={'long_name': 'Grid index', 'units': '1'}
+                )
+                modified = True
+
+                # Rename NGRU or land dimension to 'landclass'
+                old_lc_dim = 'land' if 'land' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else 'landclass' if 'landclass' in ds.dims else None
+                if old_lc_dim and old_lc_dim != 'landclass':
+                    self.logger.info(f"Renaming dimension '{old_lc_dim}' to 'landclass'")
+                    ds = ds.rename({old_lc_dim: 'landclass'})
                     modified = True
 
-                # Ensure GRU variable exists and is on (N, land)
+                # Ensure landclass variable exists and is on (subbasin, landclass)
                 if 'GRU' in ds:
+                    self.logger.info("Renaming 'GRU' variable to 'landclass'")
                     # Correct dimension names if needed
-                    if ds['GRU'].dims != (target_n_dim, 'land'):
-                        self.logger.info(f"Correcting GRU dimensions from {ds['GRU'].dims} to ('{target_n_dim}', 'land')")
-                        ds['GRU'] = ((target_n_dim, 'land'), ds['GRU'].values, ds['GRU'].attrs)
-                        modified = True
-                    ds['GRU'].attrs['grid_mapping'] = 'crs'
+                    ds['landclass'] = ((target_n_dim, 'landclass'), ds['GRU'].values, ds['GRU'].attrs)
+                    ds = ds.drop_vars('GRU')
+                    modified = True
+                    ds['landclass'].attrs['grid_mapping'] = 'crs'
                 elif 'landclass' in ds:
-                    self.logger.info("Renaming 'landclass' variable to 'GRU'")
-                    ds['GRU'] = ((target_n_dim, 'land'), ds['landclass'].values, ds['landclass'].attrs)
-                    ds['GRU'].attrs['grid_mapping'] = 'crs'
-                    ds = ds.drop_vars('landclass')
-                    modified = True
+                    # Ensure correct dimension names
+                    if ds['landclass'].dims != (target_n_dim, 'landclass'):
+                        self.logger.info(f"Correcting landclass dimensions from {ds['landclass'].dims} to ('{target_n_dim}', 'landclass')")
+                        ds['landclass'] = ((target_n_dim, 'landclass'), ds['landclass'].values, ds['landclass'].attrs)
+                        modified = True
+                    ds['landclass'].attrs['grid_mapping'] = 'crs'
 
-                # Add N variable if missing (index variable)
-                if target_n_dim not in ds:
-                    ds[target_n_dim] = xr.DataArray(
-                        np.arange(1, n_size + 1, dtype=np.int32),
-                        dims=[n_dim],
-                        attrs={'long_name': 'Grid index', 'units': '1'}
-                    )
-                    modified = True
-                
                 # Ensure all variables are 1D over N (except GRU which is 2D)
                 # and remove potentially conflicting variables
-                vars_to_remove = ['landclass_dim', 'time', 'subbasin']
+                vars_to_remove = ['landclass', 'landclass_dim', 'time', 'subbasin']
                 for v in vars_to_remove:
                     if v in ds:
                         ds = ds.drop_vars(v)
@@ -401,9 +401,16 @@ class MESHDrainageDatabase:
                         }
                     )
                     modified = True
+                elif ds['crs'].dtype != np.int32:
+                    ds['crs'] = ds['crs'].astype(np.int32)
+                    modified = True
 
                 for var_name in list(ds.data_vars):
-                    if var_name == 'GRU' or var_name == 'crs':
+                    if var_name == 'crs':
+                        continue
+                    
+                    if var_name == 'GRU':
+                        ds[var_name].attrs['grid_mapping'] = 'crs'
                         continue
                     
                     if n_dim not in ds[var_name].dims:
@@ -429,6 +436,14 @@ class MESHDrainageDatabase:
                     # Ensure it is explicitly on n_dim
                     ds[var_name] = ds[var_name].transpose(n_dim)
                     ds[var_name].attrs['grid_mapping'] = 'crs'
+                    # Remove coordinate attributes that might point to 'time' or other missing coords
+                    if 'coordinates' in ds[var_name].attrs:
+                        coords_str = ds[var_name].attrs['coordinates']
+                        new_coords = " ".join([c for c in coords_str.split() if c in ['lat', 'lon', 'N']])
+                        if new_coords:
+                            ds[var_name].attrs['coordinates'] = new_coords
+                        else:
+                            del ds[var_name].attrs['coordinates']
 
                 # Special handling for lat/lon - must be 1D on subbasin
                 for coord in ['lat', 'lon']:

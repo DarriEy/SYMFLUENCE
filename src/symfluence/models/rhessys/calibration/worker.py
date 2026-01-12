@@ -6,6 +6,7 @@ Worker implementation for RHESSys model optimization.
 
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import pandas as pd
@@ -276,13 +277,25 @@ class RHESSysWorker(BaseWorker):
 
         # Use worker-specific defs directory if available
         worker_defs_dir = settings_dir / 'defs'
+        
+        # Strategy: Copy world file to settings_dir and ensure header matches.
+        # This ensures RHESSys finds the modified header file (which points to modified defs)
+        # by looking for <world_file>.hdr in the same directory, avoiding unsupported flags.
+        original_world = rhessys_input_dir / 'worldfiles' / f'{domain_name}.world'
+        worker_world = settings_dir / f'{domain_name}.world'
+        original_hdr = rhessys_input_dir / 'worldfiles' / f'{domain_name}.world.hdr'
+        worker_hdr = settings_dir / f'{domain_name}.world.hdr'
+
         if worker_defs_dir.exists():
-            # Create a temporary world header pointing to worker defs
-            world_hdr = rhessys_input_dir / 'worldfiles' / f'{domain_name}.world.hdr'
-            worker_hdr = settings_dir / f'{domain_name}.world.hdr'
-            if world_hdr.exists() and not worker_hdr.exists():
+            # Copy world file if it doesn't exist in worker dir
+            if original_world.exists() and not worker_world.exists():
+                import shutil
+                shutil.copy2(original_world, worker_world)
+            
+            # Create/Update modified header in worker dir if it doesn't exist
+            if original_hdr.exists() and not worker_hdr.exists():
                 # Copy and modify header to point to worker defs
-                self._create_worker_header(world_hdr, worker_hdr, worker_defs_dir, rhessys_input_dir)
+                self._create_worker_header(original_hdr, worker_hdr, worker_defs_dir, rhessys_input_dir)
 
         # Parse dates
         start_str = config.get('EXPERIMENT_TIME_START', '2004-01-01 01:00')
@@ -290,11 +303,9 @@ class RHESSysWorker(BaseWorker):
         start_date = pd.to_datetime(start_str)
         end_date = pd.to_datetime(end_str)
 
-        # Build command
-        worldfile = rhessys_input_dir / 'worldfiles' / f'{domain_name}.world'
-        world_hdr = settings_dir / f'{domain_name}.world.hdr'
-        if not world_hdr.exists():
-            world_hdr = rhessys_input_dir / 'worldfiles' / f'{domain_name}.world.hdr'
+        # Use worker world if it was created successfully, otherwise fallback to original
+        world_to_use = worker_world if worker_world.exists() else original_world
+        
         tecfile = rhessys_input_dir / 'tecfiles' / f'{domain_name}.tec'
         routing = rhessys_input_dir / 'routing' / f'{domain_name}.routing'
 
@@ -307,8 +318,7 @@ class RHESSysWorker(BaseWorker):
 
         cmd = [
             str(exe),
-            '-w', str(worldfile),
-            '-whdr', str(world_hdr),
+            '-w', str(world_to_use),
             '-t', str(tecfile),
             '-r', str(routing),
             '-st', str(start_date.year), str(start_date.month), str(start_date.day), '1',
@@ -341,9 +351,12 @@ class RHESSysWorker(BaseWorker):
         with open(original_hdr, 'r') as f:
             content = f.read()
 
-        # Replace def file paths with worker-specific paths
-        original_defs = rhessys_input_dir / 'defs'
-        content = content.replace(str(original_defs), str(worker_defs_dir))
+        # Replace def file paths with worker-specific paths.
+        # Use normalized strings to ensure replacement works despite path variations.
+        original_defs_str = os.path.normpath(str(rhessys_input_dir / 'defs'))
+        worker_defs_str = os.path.normpath(str(worker_defs_dir))
+        
+        content = content.replace(original_defs_str, worker_defs_str)
 
         with open(worker_hdr, 'w') as f:
             f.write(content)
@@ -369,12 +382,101 @@ class RHESSysWorker(BaseWorker):
             # Get simulation directory
             sim_dir = Path(kwargs.get('sim_dir', output_dir))
 
-            # Read RHESSys output
-            sim_file = sim_dir / 'rhessys_basin.daily'
-            if not sim_file.exists():
+            # Read RHESSys output - robustly locate the file
+            # RHESSys produces output in a nested structure: [sim_dir]/simulations/[experiment_id]/RHESSys/
+            experiment_id = config.get('EXPERIMENT_ID', 'run_1')
+            possible_paths = [
+                sim_dir / 'rhessys_basin.daily',
+                sim_dir / 'simulations' / experiment_id / 'RHESSys' / 'rhessys_basin.daily',
+            ]
+            
+            sim_file = None
+            for path in possible_paths:
+                if path.exists():
+                    sim_file = path
+                    break
+            
+            if not sim_file:
+                # Last resort: try recursive glob
+                found = list(sim_dir.glob('**/rhessys_basin.daily'))
+                if found:
+                    sim_file = found[0]
+
+            if not sim_file:
+                self.logger.error(f"rhessys_basin.daily not found in {sim_dir}")
                 return {'kge': self.penalty_score, 'error': 'rhessys_basin.daily not found'}
 
+            self.logger.info(f"Calculating RHESSys metrics from: {sim_file}")
             sim_df = pd.read_csv(sim_file, sep=r'\s+', header=0)
+            self.logger.info(f"Read {len(sim_df)} rows from simulation output")
+
+            # Get streamflow in mm/day
+            streamflow_mm = sim_df['streamflow'].values
+
+            # Convert to m³/s using catchment area
+            area_m2 = self._get_catchment_area(config)
+            self.logger.info(f"Using catchment area: {area_m2:.2f} m2")
+            
+            # Q (m³/s) = Q (mm/day) * area (m²) / 86400 / 1000
+            streamflow_m3s = streamflow_mm * area_m2 / 86400 / 1000
+
+            # Create dates
+            sim_dates = pd.to_datetime(
+                sim_df.apply(
+                    lambda r: f"{int(r['year'])}-{int(r['month']):02d}-{int(r['day']):02d}",
+                    axis=1
+                )
+            )
+            sim_series = pd.Series(streamflow_m3s, index=sim_dates)
+
+            # Load observations
+            domain_name = config.get('DOMAIN_NAME')
+            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+            project_dir = data_dir / f'domain_{domain_name}'
+
+            obs_values, obs_index = self._streamflow_metrics.load_observations(
+                config, project_dir, domain_name, resample_freq='D'
+            )
+            if obs_values is None:
+                self.logger.error("Observations not found for metric calculation")
+                return {'kge': self.penalty_score, 'error': 'Observations not found'}
+
+            obs_series = pd.Series(obs_values, index=obs_index)
+            self.logger.info(f"Loaded {len(obs_series)} observations")
+
+            # Align and calculate metrics
+            try:
+                # Parse calibration period if specified
+                calib_period_tuple = None
+                calib_period_str = config.get('CALIBRATION_PERIOD', '')
+                if calib_period_str:
+                    try:
+                        start_str, end_str = calib_period_str.split(',')
+                        calib_period_tuple = (start_str.strip(), end_str.strip())
+                    except Exception:
+                        pass
+
+                # Let StreamflowMetrics handle alignment and period filtering
+                obs_aligned, sim_aligned = self._streamflow_metrics.align_timeseries(
+                    sim_series, obs_series, calibration_period=calib_period_tuple
+                )
+                self.logger.info(f"Aligned timeseries length: {len(obs_aligned)}")
+
+                results = self._streamflow_metrics.calculate_metrics(
+                    obs_aligned, sim_aligned, metrics=['kge', 'nse']
+                )
+                self.logger.info(f"Calculated metrics: {results}")
+                return results
+
+            except ValueError as e:
+                self.logger.error(f"Alignment error: {e}")
+                return {'kge': self.penalty_score, 'error': str(e)}
+
+        except Exception as e:
+            self.logger.error(f"Error calculating RHESSys metrics: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return {'kge': self.penalty_score}
 
             # Get streamflow in mm/day
             streamflow_mm = sim_df['streamflow'].values

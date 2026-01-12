@@ -399,7 +399,7 @@ class ForcingResampler(PathResolverMixin):
                     self.logger.warning(f"Error checking bbox vs shapefile bounds: {e}. Recreating.")
                     return False
 
-            self.logger.debug(f"Forcing shapefile already exists. Skipping creation.")
+            self.logger.debug("Forcing shapefile already exists. Skipping creation.")
             return True
 
         except Exception as e:

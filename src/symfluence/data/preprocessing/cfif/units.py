@@ -13,8 +13,11 @@ Standard CFIF units (SI-based):
     - Wind speed: m s-1
 """
 
-from typing import Callable, Dict, Union
+from typing import Callable, Dict, Union, TYPE_CHECKING
 import numpy as np
+
+if TYPE_CHECKING:
+    import xarray as xr
 
 # Type alias for array-like data
 ArrayLike = Union[np.ndarray, float, 'xr.DataArray']

@@ -285,7 +285,7 @@ class ERA5Handler(BaseDatasetHandler):
                 elevations = elevation_calculator(gdf, dem_path, batch_size=20)
                 gdf['elev_m'] = elevations
                 
-                self.logger.info(f"Elevation calculation complete")
+                self.logger.info("Elevation calculation complete")
             except Exception as e:
                 self.logger.error(f"Error calculating elevation: {str(e)}")
                 # Continue without elevation data rather than failing completely
