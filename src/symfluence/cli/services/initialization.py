@@ -39,12 +39,26 @@ class InitializationService(BaseService):
 
         self.presets = load_presets()
 
-        # Use centralized defaults from config.defaults
+        # Use centralized defaults from config.defaults via ModelRegistry
+        # ModelDefaults.get_defaults_for_model() retrieves defaults from Pydantic schemas
+        # We merge with routing defaults since ROUTING_MODEL is workflow-level, not model-specific
         self.model_defaults = {
-            "FUSE": ModelDefaults.FUSE,
-            "SUMMA": ModelDefaults.SUMMA,
-            "GR": ModelDefaults.GR,
-            "HYPE": ModelDefaults.HYPE,
+            "FUSE": {
+                **ModelDefaults.get_defaults_for_model("FUSE"),
+                "ROUTING_MODEL": "none",  # FUSE default: no routing
+            },
+            "SUMMA": {
+                **ModelDefaults.get_defaults_for_model("SUMMA"),
+                "ROUTING_MODEL": "mizuRoute",  # SUMMA default: mizuRoute
+            },
+            "GR": {
+                **ModelDefaults.get_defaults_for_model("GR"),
+                "ROUTING_MODEL": "none",  # GR default: no routing
+            },
+            "HYPE": {
+                **ModelDefaults.get_defaults_for_model("HYPE"),
+                "ROUTING_MODEL": "none",  # HYPE default: no routing
+            },
         }
 
         self.forcing_defaults = {
