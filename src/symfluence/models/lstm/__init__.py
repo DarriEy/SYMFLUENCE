@@ -38,5 +38,14 @@ ModelRegistry.register_config_adapter('LSTM')(LSTMConfigAdapter)
 from .extractor import LSTMResultExtractor
 ModelRegistry.register_result_extractor('LSTM')(LSTMResultExtractor)
 
+# Register preprocessor with ModelRegistry
+ModelRegistry.register_preprocessor('LSTM')(LSTMPreprocessor)
+
+# Register runner with ModelRegistry
+ModelRegistry.register_runner('LSTM')(LSTMRunner)
+
+# Register postprocessor with ModelRegistry
+ModelRegistry.register_postprocessor('LSTM')(LSTMPostprocessor)
+
 # Register plotter with PlotterRegistry (import triggers registration via decorator)
 from .plotter import LSTMPlotter  # noqa: F401

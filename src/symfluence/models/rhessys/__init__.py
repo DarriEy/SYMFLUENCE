@@ -26,3 +26,12 @@ ModelRegistry.register_config_adapter('RHESSYS')(RHESSysConfigAdapter)
 # Register result extractor with ModelRegistry
 from .extractor import RHESSysResultExtractor
 ModelRegistry.register_result_extractor('RHESSYS')(RHESSysResultExtractor)
+
+# Register preprocessor with ModelRegistry
+ModelRegistry.register_preprocessor('RHESSYS')(RHESSysPreprocessor)
+
+# Register runner with ModelRegistry
+ModelRegistry.register_runner('RHESSYS')(RHESSysRunner)
+
+# Register postprocessor with ModelRegistry
+ModelRegistry.register_postprocessor('RHESSYS')(RHESSysPostProcessor)

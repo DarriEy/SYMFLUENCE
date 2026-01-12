@@ -75,6 +75,67 @@ For detailed instructions (ARC, FIR, Anvil, custom builds), see the [installatio
 - **npm installation**: See [tools/npm/README.md](tools/npm/README.md) for platform-specific requirements (release-only packaging)
 - **Build dependencies**: See the installation guide at https://symfluence.readthedocs.io/en/latest/installation.html
 
+### System Dependencies (Important)
+
+SYMFLUENCE requires several system-level libraries that must be installed before pip installation:
+
+**GDAL (Required)**
+
+GDAL is a complex geospatial library that requires system-level installation. The Python bindings (`gdal` package) will fail to install if the system library is not present.
+
+```bash
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install -y gdal-bin libgdal-dev
+export CPLUS_INCLUDE_PATH=/usr/include/gdal
+export C_INCLUDE_PATH=/usr/include/gdal
+
+# macOS (Homebrew)
+brew install gdal
+
+# Windows (conda recommended)
+conda install -c conda-forge gdal
+
+# Verify installation
+gdalinfo --version
+```
+
+**Other System Libraries**
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install -y libnetcdf-dev libhdf5-dev libproj-dev libgeos-dev
+
+# macOS (Homebrew)
+brew install netcdf hdf5 proj geos
+
+# Windows
+# Use conda-forge channel for these dependencies
+conda install -c conda-forge netcdf4 hdf5 proj geos
+```
+
+**R (Required for rpy2)**
+
+Some hydrological models require R integration via rpy2:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install -y r-base r-base-dev
+
+# macOS
+brew install r
+
+# Windows
+# Download and install from https://cran.r-project.org/
+```
+
+**Troubleshooting**
+
+If you encounter GDAL installation issues:
+1. Ensure GDAL system library version matches the Python package version
+2. On Windows, prefer conda installation over pip for geospatial packages
+3. Run `symfluence --doctor` to diagnose system dependencies
+
 ---
 
 ## Quick Start
