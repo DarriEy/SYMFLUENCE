@@ -35,7 +35,8 @@ def _register_parameter_managers():
         'mesh',
         'gnn',
         'lstm',
-        'rhessys'
+        'rhessys',
+        'ml'
     ]
 
     for model in models:

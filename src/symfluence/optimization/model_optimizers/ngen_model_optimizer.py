@@ -10,5 +10,7 @@ NGEN Model Optimizer (Backward Compatibility)
 
 # Backward compatibility re-export
 from symfluence.models.ngen.calibration.optimizer import NgenModelOptimizer
+from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
+from symfluence.models.ngen.calibration.worker import NgenWorker
 
-__all__ = ['NgenModelOptimizer']
+__all__ = ['NgenModelOptimizer', 'NgenParameterManager', 'NgenWorker']

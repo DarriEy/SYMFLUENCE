@@ -10,5 +10,7 @@ FUSE Model Optimizer (Backward Compatibility)
 
 # Backward compatibility re-export
 from symfluence.models.fuse.calibration.optimizer import FUSEModelOptimizer
+from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
+from symfluence.models.fuse.calibration.worker import FUSEWorker
 
-__all__ = ['FUSEModelOptimizer']
+__all__ = ['FUSEModelOptimizer', 'FUSEParameterManager', 'FUSEWorker']

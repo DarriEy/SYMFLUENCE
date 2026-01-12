@@ -1,3 +1,11 @@
+"""
+Pour point workflow setup for domain initialization.
+
+Provides functionality to create a new SYMFLUENCE domain from pour point
+coordinates, generating configuration files and defining initial workflow steps
+for watershed delineation and discretization.
+"""
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -10,6 +18,18 @@ from symfluence.core.exceptions import ConfigurationError, FileOperationError
 
 @dataclass(frozen=True)
 class PourPointWorkflowResult:
+    """Result container for pour point workflow setup.
+
+    Attributes:
+        config_file: Path to generated configuration YAML file.
+        coordinates: Pour point coordinates as 'lat/lon' string.
+        domain_name: Name assigned to the new domain.
+        domain_definition_method: Method used for domain definition.
+        bounding_box_coords: Bounding box as 'lat_max/lon_min/lat_min/lon_max'.
+        template_used: Path to the configuration template that was used.
+        setup_steps: List of workflow steps to execute after setup.
+        used_auto_bounding_box: True if bounding box was auto-generated.
+    """
     config_file: Path
     coordinates: str
     domain_name: str
@@ -29,6 +49,28 @@ def setup_pour_point_workflow(
     output_dir: Optional[Path] = None,
     template_path: Optional[Path] = None,
 ) -> PourPointWorkflowResult:
+    """Set up a new domain from pour point coordinates.
+
+    Creates a configuration file for a new watershed domain based on pour point
+    coordinates. Optionally auto-generates a bounding box if not provided.
+
+    Args:
+        coordinates: Pour point as 'latitude/longitude' string.
+        domain_def_method: Domain definition method (e.g., 'subset', 'lumped').
+        domain_name: Identifier for the new domain.
+        bounding_box_coords: Optional bounding box as 'lat_max/lon_min/lat_min/lon_max'.
+            If None, auto-generates ±0.5° around pour point.
+        symfluence_code_dir: Optional path to SYMFLUENCE installation.
+        output_dir: Directory for output config file. Defaults to current directory.
+        template_path: Optional path to config template. Falls back to package default.
+
+    Returns:
+        PourPointWorkflowResult with paths and configuration details.
+
+    Raises:
+        ConfigurationError: If coordinates format is invalid.
+        FileOperationError: If template file cannot be found.
+    """
     from symfluence.core.config.models import SymfluenceConfig
 
     bounding_box_coords, used_auto_bbox = _parse_coordinates_and_bbox(
@@ -83,6 +125,13 @@ def _parse_coordinates_and_bbox(
     coordinates: str,
     bounding_box_coords: Optional[str],
 ) -> Tuple[str, bool]:
+    """Parse coordinates and resolve bounding box.
+
+    If bounding_box_coords is None, auto-generates a ±0.5° box around the pour point.
+
+    Returns:
+        Tuple of (bounding_box_string, was_auto_generated).
+    """
     try:
         lat, lon = map(float, coordinates.split('/'))
     except ValueError as exc:
@@ -106,6 +155,16 @@ def _resolve_template_path(
     template_path: Optional[Path],
     symfluence_code_dir: Optional[str],
 ) -> Path:
+    """Resolve configuration template path with fallback search.
+
+    Checks explicit path, then local directories, then package resources.
+
+    Returns:
+        Resolved Path to an existing template file.
+
+    Raises:
+        FileOperationError: If no template can be found.
+    """
     if template_path:
         resolved = Path(template_path)
         if resolved.exists():

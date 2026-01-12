@@ -10,5 +10,7 @@ HYPE Model Optimizer (Backward Compatibility)
 
 # Backward compatibility re-export
 from symfluence.models.hype.calibration.optimizer import HYPEModelOptimizer
+from symfluence.models.hype.calibration.parameter_manager import HYPEParameterManager
+from symfluence.models.hype.calibration.worker import HYPEWorker
 
-__all__ = ['HYPEModelOptimizer']
+__all__ = ['HYPEModelOptimizer', 'HYPEParameterManager', 'HYPEWorker']

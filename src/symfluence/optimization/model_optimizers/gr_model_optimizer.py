@@ -6,5 +6,7 @@ GR Model Optimizer (Backward Compatibility)
 """
 
 from symfluence.models.gr.calibration.optimizer import GRModelOptimizer
+from symfluence.models.gr.calibration.parameter_manager import GRParameterManager
+from symfluence.models.gr.calibration.worker import GRWorker
 
-__all__ = ['GRModelOptimizer']
+__all__ = ['GRModelOptimizer', 'GRParameterManager', 'GRWorker']
