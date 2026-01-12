@@ -56,39 +56,6 @@ class MESHModelOptimizer(BaseModelOptimizer):
         """Return model name."""
         return 'MESH'
 
-    def _create_parameter_manager(self):
-        """Create MESH parameter manager."""
-        from symfluence.optimization.parameter_managers.mesh_parameter_manager import MESHParameterManager
-        return MESHParameterManager(
-            self.config,
-            self.logger,
-            self.optimization_settings_dir
-        )
-
-    def _create_calibration_target(self):
-        """Create MESH calibration target using registry-based factory.
-
-        Uses the centralized create_calibration_target factory which:
-        1. Checks OptimizerRegistry for registered targets
-        2. Falls back to model-specific target mappings
-        3. Returns appropriate default targets if not found
-        """
-        from symfluence.optimization.calibration_targets import create_calibration_target
-
-        target_type = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
-
-        return create_calibration_target(
-            model_name='MESH',
-            target_type=target_type,
-            config=self.config,
-            project_dir=self.project_dir,
-            logger=self.logger
-        )
-
-    def _create_worker(self) -> MESHWorker:
-        """Create MESH worker."""
-        return MESHWorker(self.config, self.logger)
-
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
         """Run MESH for final evaluation."""
         return self.worker.run_model(

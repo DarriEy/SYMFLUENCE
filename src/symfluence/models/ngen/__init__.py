@@ -30,13 +30,11 @@ try:
 except ImportError:
     pass  # Build instructions optional
 
-# Register defaults with DefaultsRegistry (import triggers registration via decorator)
-from . import defaults  # noqa: F401
 
 # Register config adapter with ModelRegistry
 from symfluence.models.registry import ModelRegistry
-from .config import NGENConfigAdapter
-ModelRegistry.register_config_adapter('NGEN')(NGENConfigAdapter)
+from .config import NgenConfigAdapter
+ModelRegistry.register_config_adapter('NGEN')(NgenConfigAdapter)
 
 # Register result extractor with ModelRegistry
 from .extractor import NGENResultExtractor

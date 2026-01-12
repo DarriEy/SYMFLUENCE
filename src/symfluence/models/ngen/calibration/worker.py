@@ -241,11 +241,28 @@ class NgenWorker(BaseWorker):
 
             obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
             
-            # Simple alignment (actual implementation might need more robustness)
-            # This is a fallback so we keep it simple
-            min_len = min(len(sim), len(obs_df)) # <--- Here it uses obs_df
-            sim_vals = sim[:min_len]
-            obs_vals = obs_df['discharge_cms'].values[:min_len]
+            # Robust alignment (CSV with index) or simple length match (NetCDF/fallback)
+            if 'sim_df' in locals() and sim_df is not None:
+                # Handle potential index mismatch (timezone, etc)
+                if hasattr(sim_df.index, 'tz_localize'):
+                     # Ensure sim is timezone-naive or matches obs
+                     if sim_df.index.tz is not None:
+                         sim_df.index = sim_df.index.tz_convert(None)
+                
+                sim_series = pd.Series(sim, index=sim_df.index)
+                common_idx = sim_series.index.intersection(obs_df.index)
+                
+                if common_idx.empty:
+                    self.logger.warning("No overlapping dates between simulation and observation")
+                    return {'kge': self.penalty_score, 'error': 'No overlapping dates'}
+
+                sim_vals = sim_series.loc[common_idx].values
+                obs_vals = obs_df.loc[common_idx, 'discharge_cms'].values
+            else:
+                # Fallback: Simple length truncation
+                min_len = min(len(sim), len(obs_df))
+                sim_vals = sim[:min_len]
+                obs_vals = obs_df['discharge_cms'].values[:min_len]
 
             kge_val = kge(obs_vals, sim_vals, transfo=1)
             nse_val = nse(obs_vals, sim_vals, transfo=1)

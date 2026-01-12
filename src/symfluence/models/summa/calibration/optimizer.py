@@ -78,32 +78,6 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
             summa_settings_dir
         )
 
-    def _create_calibration_target(self):
-        """Create SUMMA calibration target using registry-based factory.
-
-        Uses the centralized create_calibration_target factory which:
-        1. Checks OptimizerRegistry for registered targets
-        2. Falls back to model-specific target mappings
-        3. Returns appropriate default targets if not found
-        """
-        from symfluence.optimization.calibration_targets import create_calibration_target
-
-        target_type = self._get_config_value(
-            lambda: self.config.optimization.target, default='streamflow'
-        ) if hasattr(self, '_get_config_value') else self.config.get('OPTIMIZATION_TARGET', 'streamflow')
-
-        return create_calibration_target(
-            model_name='SUMMA',
-            target_type=target_type.lower(),
-            config=self.config,
-            project_dir=self.project_dir,
-            logger=self.logger
-        )
-
-    def _create_worker(self) -> SUMMAWorker:
-        """Create SUMMA worker."""
-        return SUMMAWorker(self.config, self.logger)
-
     def _get_summa_executable_path(self) -> Path:
         """Get path to SUMMA executable."""
         summa_install = self.config.get('SUMMA_INSTALL_PATH', 'default')

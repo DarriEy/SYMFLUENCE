@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from .worker import RHESSysWorker
+from .parameter_manager import RHESSysParameterManager
 from symfluence.optimization.registry import OptimizerRegistry
 
 
@@ -54,39 +55,6 @@ class RHESSysModelOptimizer(BaseModelOptimizer):
         """Return model name."""
         return 'RHESSys'
 
-    def _create_parameter_manager(self):
-        """Create RHESSys parameter manager."""
-        from symfluence.optimization.parameter_managers.rhessys_parameter_manager import RHESSysParameterManager
-        return RHESSysParameterManager(
-            self.config,
-            self.logger,
-            self.optimization_settings_dir
-        )
-
-    def _create_calibration_target(self):
-        """Create RHESSys calibration target using registry-based factory.
-
-        Uses the centralized create_calibration_target factory which:
-        1. Checks OptimizerRegistry for registered targets
-        2. Falls back to model-specific target mappings
-        3. Returns appropriate default targets if not found
-        """
-        from symfluence.optimization.calibration_targets import create_calibration_target
-
-        target_type = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
-
-        return create_calibration_target(
-            model_name='RHESSYS',
-            target_type=target_type,
-            config=self.config,
-            project_dir=self.project_dir,
-            logger=self.logger
-        )
-
-    def _create_worker(self) -> RHESSysWorker:
-        """Create RHESSys worker."""
-        return RHESSysWorker(self.config, self.logger)
-
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
         """Run RHESSys for final evaluation."""
         rhessys_input_dir = self.project_dir / 'RHESSys_input'
@@ -98,12 +66,14 @@ class RHESSysModelOptimizer(BaseModelOptimizer):
 
     def _get_final_file_manager_path(self) -> Path:
         """Get path to RHESSys world header file."""
-        domain_name = self.config.get('DOMAIN_NAME')
+        domain_name = self._get_config_value(lambda: self.config.domain.name, default='')
         return self.project_dir / 'RHESSys_input' / 'worldfiles' / f'{domain_name}.world.hdr'
 
     def _setup_parallel_dirs(self) -> None:
         """Setup RHESSys-specific parallel directories."""
-        algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
+        algorithm = self._get_config_value(
+            lambda: self.config.optimization.algorithm, default='optimization'
+        ).lower()
         base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
 
         self.parallel_dirs = self.setup_parallel_processing(
@@ -114,8 +84,13 @@ class RHESSysModelOptimizer(BaseModelOptimizer):
 
         # Copy RHESSys definition files to each parallel directory
         source_defs = self.project_dir / 'RHESSys_input' / 'defs'
-        if source_defs.exists():
-            self._copy_defs_to_parallel_dirs(source_defs)
+        if not source_defs.exists():
+            raise FileNotFoundError(
+                f"RHESSys definition files not found at {source_defs}. "
+                f"Ensure RHESSys model inputs are generated for this domain using 'configure_model'."
+            )
+            
+        self._copy_defs_to_parallel_dirs(source_defs)
 
         # Set default_sim_dir to first proc's sim directory
         if self.parallel_dirs:

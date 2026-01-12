@@ -143,9 +143,51 @@ class NgenStreamflowTarget(StreamflowEvaluator):
 
         return pd.Series(dtype=float)
 
+    def _get_nexus_areas(self) -> Dict[str, float]:
+        """Load catchment areas mapped to nexus IDs from GeoJSON."""
+        try:
+            import json
+            import geopandas as gpd
+
+            # Try to find catchments GeoJSON file
+            ngen_settings = self.project_dir / 'settings' / 'NGEN'
+            geojson_files = list(ngen_settings.glob('*catchments*.geojson'))
+
+            if not geojson_files:
+                self.logger.warning("No catchments GeoJSON found for area conversion")
+                return {}
+
+            geojson_path = geojson_files[0]
+            self.logger.debug(f"Reading catchment areas from {geojson_path}")
+
+            # Load GeoJSON and create nexus-area mapping
+            with open(geojson_path) as f:
+                geojson_data = json.load(f)
+
+            nexus_areas = {}  # Map of nexus_id -> area_km2
+            for feature in geojson_data.get('features', []):
+                props = feature.get('properties', {})
+                cat_id = props.get('id', '')
+                toid = props.get('toid', '')  # This is the nexus ID
+                area_km2 = props.get('areasqkm', 0)
+
+                if toid and area_km2 > 0:
+                    # Normalize nexus ID (ensure it has nex- prefix)
+                    if not toid.startswith('nex-'):
+                        toid = f'nex-{toid}'
+                    nexus_areas[toid] = area_km2
+
+            self.logger.info(f"Loaded {len(nexus_areas)} catchment areas for unit conversion")
+            return nexus_areas
+        except Exception as e:
+            self.logger.warning(f"Error loading catchment areas: {e}")
+            return {}
+
     def _extract_nexus_data(self, nexus_files: List[Path]) -> pd.Series:
         """Extract streamflow from raw NGEN nexus CSV outputs."""
         all_streamflow = []
+        nexus_areas = self._get_nexus_areas()
+        timestep_seconds = 3600  # Standard 1-hour timestep
 
         for nexus_file in nexus_files:
             try:
@@ -188,8 +230,38 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                     continue
 
                 index = pd.to_datetime(df['datetime'], utc=True).dt.tz_convert(None)
+                flow_values = df['flow'].values
+
+                # Convert depth (meters) to volumetric flow (m³/s)
+                # flow_depth (m) * area (km²) * (1e6 m²/km²) / timestep (s) = m³/s
+                nexus_id = nexus_file.stem.replace('_output', '')
+                
+                # Check config to skip conversion
+                is_flow_already = self.config.get('NGEN_CSV_OUTPUT_IS_FLOW', False)
+                
+                if not is_flow_already and nexus_id in nexus_areas and nexus_areas[nexus_id] > 0:
+                    area_m2 = nexus_areas[nexus_id] * 1e6  # km² to m²
+                    
+                    # Heuristic: Check if conversion yields insane values (e.g. > 500,000 cms)
+                    # This protects against cases where output IS flow but user didn't set flag
+                    potential_flow = (flow_values * area_m2) / timestep_seconds
+                    
+                    if np.mean(potential_flow) > 100000 and np.mean(flow_values) < 100000:
+                        self.logger.warning(
+                            f"Unit conversion for {nexus_id} resulted in mean flow > 100,000 cms. "
+                            f"Raw mean: {np.mean(flow_values):.2f}. "
+                            f"Assuming output is ALREADY flow (m3/s) and skipping conversion."
+                        )
+                        # Don't convert
+                    else:
+                        flow_values = potential_flow
+                        self.logger.debug(f"Converted {nexus_id} from depth to flow using area {nexus_areas[nexus_id]:.2f} km²")
+                else:
+                    reason = "config NGEN_CSV_OUTPUT_IS_FLOW=True" if is_flow_already else "no area found"
+                    self.logger.debug(f"No conversion for {nexus_id} ({reason}), assuming units already in m³/s")
+
                 s = pd.Series(
-                    df['flow'].values,
+                    flow_values,
                     index=index,
                     name=nexus_file.stem
                 )

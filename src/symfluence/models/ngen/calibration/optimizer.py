@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from .worker import NgenWorker
+from .parameter_manager import NgenParameterManager
 from symfluence.optimization.registry import OptimizerRegistry
 
 
@@ -65,54 +66,6 @@ class NgenModelOptimizer(BaseModelOptimizer):
     def _get_model_name(self) -> str:
         """Return model name."""
         return 'NGEN'
-
-    def _create_parameter_manager(self):
-        """Create NGEN parameter manager."""
-        # Import parameter manager to trigger registration
-        from symfluence.optimization.parameter_managers.ngen_parameter_manager import NgenParameterManager  # noqa: F401
-
-        # Get parameter manager class from registry
-        param_manager_cls = OptimizerRegistry.get_parameter_manager('NGEN')
-
-        if param_manager_cls is None:
-            raise RuntimeError("NgenParameterManager not registered")
-
-        return param_manager_cls(
-            self.config,
-            self.logger,
-            self.optimization_settings_dir
-        )
-
-    def _create_calibration_target(self):
-        """Create NGEN calibration target using registry-based factory.
-
-        Uses the centralized create_calibration_target factory which:
-        1. Checks OptimizerRegistry for registered targets
-        2. Falls back to model-specific target mappings
-        3. Returns appropriate default targets if not found
-        """
-        from symfluence.optimization.calibration_targets import create_calibration_target
-
-        target_type = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
-
-        # Currently only streamflow is supported for NGEN
-        if target_type not in ['streamflow', 'discharge', 'flow']:
-            self.logger.warning(
-                f"Unknown target {target_type} for NGEN, defaulting to streamflow"
-            )
-            target_type = 'streamflow'
-
-        return create_calibration_target(
-            model_name='NGEN',
-            target_type=target_type,
-            config=self.config,
-            project_dir=self.project_dir,
-            logger=self.logger
-        )
-
-    def _create_worker(self) -> NgenWorker:
-        """Create NGEN worker."""
-        return NgenWorker(self.config, self.logger)
 
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
         """Run NGEN for final evaluation."""

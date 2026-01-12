@@ -68,7 +68,11 @@ class RHESSysWorker(BaseWorker):
             # The settings_dir should contain a 'defs' subdirectory
             defs_dir = settings_dir / 'defs'
             if not defs_dir.exists():
-                self.logger.error(f"defs directory not found: {defs_dir}")
+                self.logger.error(
+                    f"RHESSys defs directory not found: {defs_dir}. "
+                    "This indicates that RHESSys input files were not correctly copied to the worker directory. "
+                    "Check that 'RHESSys_input/defs' exists in the domain directory."
+                )
                 return False
 
             # Update definition files with new parameters
