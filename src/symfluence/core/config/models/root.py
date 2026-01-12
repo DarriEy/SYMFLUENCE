@@ -6,7 +6,7 @@ all other config models and provides validation, factory methods, and
 backward compatibility.
 """
 
-from typing import Dict, Any, Optional, TYPE_CHECKING
+from typing import Dict, Any, Optional
 from pathlib import Path
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 from functools import cached_property
@@ -16,24 +16,20 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from .base import FROZEN_CONFIG
 from .system import SystemConfig
-from .domain import DomainConfig, DelineationConfig
+from .domain import DomainConfig
 from .data import DataConfig
-from .forcing import ForcingConfig, NexConfig, EMEarthConfig
+from .forcing import ForcingConfig
 from .model_configs import (
-    ModelConfig, SUMMAConfig, FUSEConfig, GRConfig, HYPEConfig,
-    NGENConfig, MESHConfig, MizuRouteConfig, LSTMConfig, RHESSysConfig, GNNConfig
+    ModelConfig
 )
 from .optimization import (
-    OptimizationConfig, PSOConfig, DEConfig, DDSConfig, SCEUAConfig,
-    NSGA2Config, DPEConfig, LargeDomainConfig, EmulationConfig
+    OptimizationConfig
 )
 from .evaluation import (
-    EvaluationConfig, StreamflowConfig, SNOTELConfig, FluxNetConfig,
-    USGSGWConfig, SMAPConfig, GRACEConfig, MODISSnowConfig, AttributesConfig
+    EvaluationConfig
 )
-from .paths import PathsConfig, ShapefilePathConfig
+from .paths import PathsConfig
 
 
 class SymfluenceConfig(BaseModel):
@@ -231,7 +227,7 @@ class SymfluenceConfig(BaseModel):
                     raise ConfigurationError(
                         f"POUR_POINT_COORDS longitude {lon_f} out of range [-180, 180]"
                     )
-            except ValueError as e:
+            except ValueError:
                 raise ConfigurationError(
                     f"POUR_POINT_COORDS must be 'lat/lon' format, got '{self.domain.pour_point_coords}'"
                 )
@@ -248,13 +244,13 @@ class SymfluenceConfig(BaseModel):
                     )
                 if not (-180 <= west_f <= 180 and -180 <= east_f <= 180):
                     raise ConfigurationError(
-                        f"BOUNDING_BOX_COORDS longitude out of range [-180, 180]"
+                        "BOUNDING_BOX_COORDS longitude out of range [-180, 180]"
                     )
                 if south_f >= north_f:
                     raise ConfigurationError(
                         f"BOUNDING_BOX_COORDS: south ({south_f}) must be < north ({north_f})"
                     )
-            except ValueError as e:
+            except ValueError:
                 raise ConfigurationError(
                     f"BOUNDING_BOX_COORDS must be 'north/west/south/east' format, got '{self.domain.bounding_box_coords}'"
                 )
@@ -389,7 +385,7 @@ class SymfluenceConfig(BaseModel):
 
             if missing_fields:
                 raise ConfigurationError(
-                    f"Model-specific configuration incomplete:\n"
+                    "Model-specific configuration incomplete:\n"
                     + "\n".join(f"  • {field}" for field in missing_fields)
                     + f"\n\nSelected models: {', '.join(models)}"
                     + (f"\nRouting model: {self.model.routing_model}" if self.model.routing_model else "")
@@ -398,7 +394,7 @@ class SymfluenceConfig(BaseModel):
         # Raise errors from ModelRegistry validation if any
         if all_errors:
             raise ConfigurationError(
-                f"Model configuration validation failed:\n"
+                "Model configuration validation failed:\n"
                 + "\n".join(f"  • {error}" for error in all_errors)
             )
 
@@ -548,7 +544,7 @@ class SymfluenceConfig(BaseModel):
 
         if errors:
             raise ConfigurationError(
-                f"Optimization configuration invalid:\n"
+                "Optimization configuration invalid:\n"
                 + "\n".join(f"  • {error}" for error in errors)
             )
 

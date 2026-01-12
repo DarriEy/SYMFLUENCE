@@ -5,8 +5,7 @@ Tests the refactored lazy loading pattern that prevents circular dependencies.
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
-from pathlib import Path
+from unittest.mock import Mock, patch
 
 
 class TestSummaStructureAnalyzerLazyLoading:

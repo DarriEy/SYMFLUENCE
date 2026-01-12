@@ -7,7 +7,6 @@ geometric shapes, and edge cases.
 
 import pytest
 import geopandas as gpd
-import numpy as np
 from shapely.geometry import Polygon, Point
 from unittest.mock import Mock
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin

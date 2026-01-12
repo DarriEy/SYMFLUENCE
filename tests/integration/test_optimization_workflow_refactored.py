@@ -10,7 +10,6 @@ This test ensures OptimizerRegistry can still discover and instantiate
 model-specific optimizers, workers, and parameter managers.
 """
 
-import pytest
 from pathlib import Path
 from symfluence.optimization.registry import OptimizerRegistry
 
@@ -21,7 +20,6 @@ class TestOptimizerRegistryAfterRefactoring:
     def test_optimizer_registry_has_models(self):
         """Test that optimizer registry contains registered models."""
         # Models should register when their optimization modules are imported
-        from symfluence.optimization import model_optimizers
 
         # Check that some optimizers are registered
         optimizer_cls = OptimizerRegistry.get_optimizer('SUMMA')
@@ -76,7 +74,6 @@ class TestNoCircularDependencies:
 
     def test_models_import_no_optimization(self):
         """Test models package doesn't import from optimization."""
-        import symfluence.models as models_pkg
         import sys
 
         # Check that importing models doesn't trigger optimization import

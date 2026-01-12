@@ -10,9 +10,8 @@ Tests the refactored modular attribute processing architecture including:
 
 import pytest
 import pandas as pd
-import numpy as np
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import warnings
 
 from symfluence.data.preprocessing.attribute_processor import attributeProcessor
@@ -89,7 +88,6 @@ class TestDeprecationWarning:
 
     def test_original_module_raises_deprecation_warning(self):
         """Verify that importing the original module raises a deprecation warning."""
-        import sys
         import importlib
         from symfluence.data.preprocessing import attribute_processing
 

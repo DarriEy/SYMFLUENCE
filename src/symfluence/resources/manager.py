@@ -5,7 +5,6 @@ in both development (editable install) and production (site-packages) modes.
 """
 
 from pathlib import Path
-from typing import Union
 import sys
 import shutil
 

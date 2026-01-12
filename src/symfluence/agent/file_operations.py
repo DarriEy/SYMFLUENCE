@@ -7,8 +7,7 @@ Provides safe file I/O operations with caching, syntax validation, and git integ
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional, Tuple, List, Dict, Any
-from functools import lru_cache
+from typing import Optional, Tuple, List
 
 
 class FileOperations:
@@ -308,7 +307,7 @@ class FileOperations:
         """Check if a path is allowed for writing."""
         # Check if outside repo
         try:
-            rel_path = full_path.relative_to(self.repo_root)
+            full_path.relative_to(self.repo_root)
         except ValueError:
             return False
 

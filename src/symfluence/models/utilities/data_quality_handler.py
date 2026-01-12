@@ -10,7 +10,6 @@ import logging
 from typing import Dict, Any, Optional, List, Tuple, Union
 
 import numpy as np
-import pandas as pd
 import xarray as xr
 
 

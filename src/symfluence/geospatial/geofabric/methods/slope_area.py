@@ -80,7 +80,7 @@ class SlopeAreaMethod:
 
         for step in steps:
             self.taudem.run_command(step)
-            self.logger.info(f"Completed slope-area method step")
+            self.logger.info("Completed slope-area method step")
 
         self.logger.info("Slope-area based stream identification completed")
         self.logger.info(f"Used slope^{slope_exponent} * area^{area_exponent} >= {slope_area_threshold} criterion")

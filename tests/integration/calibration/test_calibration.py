@@ -10,7 +10,6 @@ import pytest
 import yaml
 from pathlib import Path
 from symfluence import SYMFLUENCE
-import sys
 
 
 

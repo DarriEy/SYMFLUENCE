@@ -13,7 +13,6 @@ This test requires significant runtime (2-4 hours) and cloud credentials.
 import pytest
 from pathlib import Path
 from symfluence import SYMFLUENCE
-from test_helpers.helpers import load_config_template
 
 pytestmark = [
     pytest.mark.e2e,
@@ -100,7 +99,6 @@ def _run_bow_workflow(config_path, clear_cache_flag):
     """Refactored workflow runner to support multiple configurations."""
     import shutil
     import yaml
-    from datetime import datetime
     import os
 
     # Load config first to get domain name
@@ -119,14 +117,14 @@ def _run_bow_workflow(config_path, clear_cache_flag):
     if clear_cache_flag and project_dir.exists():
         print(f"\n⚠ --clear-cache flag set, removing previous test data at: {project_dir}")
         shutil.rmtree(project_dir)
-        print(f"✓ Previous test data removed")
+        print("✓ Previous test data removed")
     elif project_dir.exists():
         print(f"\n✓ Using cached data from: {project_dir}")
-        print(f"  (Use --clear-cache to force re-download)")
+        print("  (Use --clear-cache to force re-download)")
 
     # Initialize SYMFLUENCE with config and enable visualizations
     sym = SYMFLUENCE(config_path, visualize=True)
-    print(f"✓ SYMFLUENCE initialized with visualizations enabled")
+    print("✓ SYMFLUENCE initialized with visualizations enabled")
 
     # Setup project (creates directory structure)
     project_dir = sym.managers["project"].setup_project()
@@ -171,7 +169,7 @@ def _run_bow_workflow(config_path, clear_cache_flag):
     shapefiles_dir = project_dir / "shapefiles"
     river_basins_file = shapefiles_dir / "river_basins" / f"{config['DOMAIN_NAME']}_riverBasins_lumped.shp"
     assert river_basins_file.exists(), f"Domain delineation failed - river basins shapefile not created at {river_basins_file}"
-    print(f"✓ Domain defined successfully")
+    print("✓ Domain defined successfully")
 
     # Discretize domain (creates spatial units - HRUs/GRUs)
     print("Discretizing domain into GRUs...")
@@ -208,7 +206,7 @@ def _run_bow_workflow(config_path, clear_cache_flag):
     wsc_files = list(raw_streamflow_dir.glob("*.csv")) or list(raw_streamflow_dir.glob("*.rdb")) if raw_streamflow_dir.exists() else []
 
     if wsc_files and not clear_cache_flag:
-        print(f"✓ Using cached WSC streamflow data")
+        print("✓ Using cached WSC streamflow data")
     else:
         print("Acquiring observations (WSC streamflow)...")
         sym.managers["data"].acquire_observations()
@@ -217,7 +215,7 @@ def _run_bow_workflow(config_path, clear_cache_flag):
         assert raw_streamflow_dir.exists(), "Streamflow raw data directory not created"
         wsc_files = list(raw_streamflow_dir.glob("*.csv")) or list(raw_streamflow_dir.glob("*.rdb"))
         assert len(wsc_files) > 0, "WSC streamflow data not downloaded"
-        print(f"✓ WSC streamflow data acquired")
+        print("✓ WSC streamflow data acquired")
 
     # 4. Model preprocessing
     print("\n" + "="*80)
@@ -264,7 +262,7 @@ def _run_bow_workflow(config_path, clear_cache_flag):
     # Check DDS results file
     dds_results = optimization_dir / "DDS_results.csv"
     assert dds_results.exists(), f"DDS results file not found: {dds_results}"
-    print(f"✓ DDS results file exists")
+    print("✓ DDS results file exists")
 
     # Verify 1000 iterations completed
     import pandas as pd
@@ -299,15 +297,15 @@ def _run_bow_workflow(config_path, clear_cache_flag):
     if len(summa_files) > 0:
         print(f"✓ SUMMA output files exist ({len(summa_files)} files)")
     else:
-        print(f"⚠ No SUMMA output files found (optimization may have used different structure)")
+        print("⚠ No SUMMA output files found (optimization may have used different structure)")
 
     # Final summary
     print("\n" + "="*80)
     print("TEST SUMMARY")
     print("="*80)
-    print(f"Basin: Bow River at Banff, Alberta, Canada (WSC-05BB001)")
-    print(f"Period: 2015-2019 (5 years)")
-    print(f"Model: SUMMA (lumped)")
+    print("Basin: Bow River at Banff, Alberta, Canada (WSC-05BB001)")
+    print("Period: 2015-2019 (5 years)")
+    print("Model: SUMMA (lumped)")
     print(f"Forcing: {forcing_dataset}")
     print(f"Optimization: DDS with {num_iterations} iterations")
     print(f"Final {metric_col}: {final_kge:.4f}")

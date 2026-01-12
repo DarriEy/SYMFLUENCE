@@ -4,7 +4,6 @@ Unit tests for Parameter Bounds Registry
 Tests that parameter bounds are correctly registered for all models.
 """
 
-import pytest
 from symfluence.optimization.core.parameter_bounds_registry import get_hype_bounds, get_mesh_bounds
 
 

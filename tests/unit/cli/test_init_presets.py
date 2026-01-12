@@ -3,7 +3,6 @@
 import pytest
 
 from symfluence.cli.init_presets import (
-    PRESETS,
     load_presets,
     get_preset,
     list_preset_names,

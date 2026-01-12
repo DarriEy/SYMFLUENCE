@@ -9,18 +9,16 @@ Handles HYPE output formats (timeCOUT.txt for direct, NetCDF for routed)
 with automatic outlet subbasin selection.
 """
 
-import logging
 import pandas as pd
-import numpy as np
 from pathlib import Path
-from typing import List, Optional, Dict, Any, TYPE_CHECKING
+from typing import List, TYPE_CHECKING
 
 from symfluence.evaluation.evaluators import StreamflowEvaluator
 from symfluence.evaluation.output_file_locator import OutputFileLocator
 from symfluence.optimization.registry import OptimizerRegistry
 
 if TYPE_CHECKING:
-    from symfluence.core.config.models import SymfluenceConfig
+    pass
 
 
 @OptimizerRegistry.register_calibration_target('HYPE', 'streamflow')

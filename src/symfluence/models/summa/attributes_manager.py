@@ -9,7 +9,7 @@ and land/soil classifications.
 # Standard library imports
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional, Union, TYPE_CHECKING
+from typing import Dict, Any, Union, TYPE_CHECKING
 
 # Third-party imports
 import geopandas as gpd  # type: ignore

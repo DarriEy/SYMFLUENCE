@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import traceback
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import geopandas as gpd # type: ignore
 from shapely.geometry import Polygon # type: ignore

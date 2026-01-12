@@ -5,7 +5,7 @@ Executes tasks using Python's ProcessPoolExecutor.
 """
 
 import logging
-from concurrent.futures import ProcessPoolExecutor, BrokenExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, BrokenExecutor
 from typing import List, Dict, Any, Callable
 
 from .base import ExecutionStrategy

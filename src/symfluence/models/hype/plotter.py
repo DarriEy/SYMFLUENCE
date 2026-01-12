@@ -7,7 +7,6 @@ Model-specific visualization for HYPE outputs including streamflow comparisons.
 import pandas as pd
 from pathlib import Path
 from typing import Optional
-import logging
 
 from symfluence.reporting.plotter_registry import PlotterRegistry
 from symfluence.reporting.core.base_plotter import BasePlotter

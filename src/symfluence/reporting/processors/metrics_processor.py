@@ -7,7 +7,7 @@ evaluation periods (calibration, validation) and multiple data formats.
 
 import numpy as np  # type: ignore
 import pandas as pd  # type: ignore
-from typing import Dict, Optional, Tuple, Any
+from typing import Dict, Optional, Tuple
 import logging
 
 from symfluence.reporting.core.plot_utils import calculate_metrics, align_timeseries

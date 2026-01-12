@@ -28,7 +28,6 @@ from abc import abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-import logging
 
 from ..base import BaseModelRunner
 from ..execution import (
@@ -36,14 +35,11 @@ from ..execution import (
     SpatialOrchestrator,
     ExecutionResult,
     SlurmJobConfig,
-    SpatialConfig,
-    SpatialMode,
     ExecutionMode,
 )
 from ..config import (
     ModelConfigSchema,
     get_model_schema,
-    validate_model_config,
 )
 from symfluence.core.exceptions import (
     ModelExecutionError,

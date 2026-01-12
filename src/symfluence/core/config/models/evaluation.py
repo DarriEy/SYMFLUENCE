@@ -7,7 +7,7 @@ GRACEConfig, MODISSnowConfig, AttributesConfig, and the parent EvaluationConfig.
 """
 
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG
 

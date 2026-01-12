@@ -14,7 +14,6 @@ from datetime import datetime
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Union, Tuple, TYPE_CHECKING
-import shutil
 
 import pandas as pd
 import xarray as xr
@@ -24,10 +23,6 @@ from symfluence.core.mixins import ShapefileAccessMixin
 from symfluence.core.constants import UnitConversion, ModelDefaults
 from symfluence.core.exceptions import (
     ModelExecutionError,
-    ConfigurationError,
-    FileOperationError,
-    validate_config_keys,
-    validate_directory_exists,
     symfluence_error_handler
 )
 

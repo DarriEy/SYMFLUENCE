@@ -5,7 +5,7 @@ Handles output extraction, processing, and analysis for HYPE model outputs.
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 import pandas as pd  # type: ignore
 
 from ..registry import ModelRegistry
@@ -83,7 +83,6 @@ class HYPEPostProcessor(BaseModelPostProcessor):
 
             if outlet_id not in cout.columns:
                 # Auto-select outlet: column with highest mean flow (downstream outlet)
-                import numpy as np
                 col_means = cout.mean()
                 outlet_col = col_means.idxmax()
                 self.logger.warning(

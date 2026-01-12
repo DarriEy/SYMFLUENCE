@@ -17,7 +17,7 @@ Author: SYMFLUENCE Development Team
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import geopandas as gpd
 import pandas as pd
@@ -25,8 +25,7 @@ import xarray as xr
 
 from ..registry import ModelRegistry
 from ..templates import UnifiedModelRunner, ModelRunResult
-from ..execution import ExecutionResult, SlurmJobConfig, ExecutionMode
-from symfluence.core.exceptions import ModelExecutionError
+from ..execution import ExecutionResult, SlurmJobConfig
 
 
 @ModelRegistry.register_runner('SUMMA', method_name='run_summa')

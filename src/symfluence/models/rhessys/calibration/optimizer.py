@@ -11,8 +11,6 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from .worker import RHESSysWorker
-from .parameter_manager import RHESSysParameterManager
 from symfluence.optimization.registry import OptimizerRegistry
 
 

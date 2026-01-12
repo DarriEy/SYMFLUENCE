@@ -7,11 +7,9 @@ duplication and provides a consistent interface.
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional, Union, Literal, Tuple
+from typing import Optional, Union, Literal, Tuple
 import pandas as pd
 import xarray as xr
-import numpy as np
-import logging
 
 from symfluence.core.constants import UnitConversion
 from symfluence.geospatial.geometry_utils import calculate_catchment_area_km2

@@ -502,7 +502,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
         try:
             # Check if time exists in the dataset
             if 'time' not in dataset.dims and 'time' not in dataset.coords:
-                raise ValueError(f"Dataset has no 'time' dimension or coordinate")
+                raise ValueError("Dataset has no 'time' dimension or coordinate")
 
             # Use bracket notation to access time safely
             time_coord = dataset['time']
@@ -560,10 +560,10 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
             # Validate the conversion
             if len(seconds_since_ref) == 0:
-                raise ValueError(f"Empty time coordinate after conversion")
+                raise ValueError("Empty time coordinate after conversion")
 
             if np.any(np.isnan(seconds_since_ref)):
-                raise ValueError(f"NaN values in converted time coordinate")
+                raise ValueError("NaN values in converted time coordinate")
 
             # Check time step consistency (but don't force it - preserve actual data timing)
             if len(seconds_since_ref) > 1:

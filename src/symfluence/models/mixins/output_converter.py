@@ -6,7 +6,7 @@ with routing models like mizuRoute.
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Optional, List
 import shutil
 
 import numpy as np

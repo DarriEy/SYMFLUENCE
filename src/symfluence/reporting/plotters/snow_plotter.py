@@ -4,7 +4,6 @@ Snow visualization plotter.
 Handles plotting of snow water equivalent (SWE) comparisons and metrics.
 """
 
-import numpy as np  # type: ignore
 import pandas as pd  # type: ignore
 from pathlib import Path
 from typing import List, Dict, Optional, Any, Tuple
@@ -36,7 +35,6 @@ class SnowPlotter(BasePlotter):
         import geopandas as gpd  # type: ignore
         plt, mdates = self._setup_matplotlib()
         from matplotlib.gridspec import GridSpec  # type: ignore
-        from symfluence.reporting.core.plot_utils import calculate_metrics
 
         results = {'plot_file': '', 'individual_plots': [], 'metrics': {}}
         

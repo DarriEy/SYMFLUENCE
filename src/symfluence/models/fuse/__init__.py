@@ -1,28 +1,57 @@
-"""
-FUSE model module.
+"""FUSE (Framework for Understanding Structural Errors) Hydrological Model.
 
-This module provides a clean, modular structure for the FUSE (Framework for
-Understanding Structural Errors) hydrological model integration.
+This module implements the FUSE modular modeling framework, which enables systematic
+exploration of model structural uncertainty by combining different representations
+of hydrological processes. FUSE can generate up to 1,248 unique model structures
+by mixing and matching components for upper/lower soil zones, percolation, routing,
+evaporation, and baseflow.
 
-The module has been refactored from a single large file (fuse_utils.py, 3094 lines)
-into separate components for better maintainability and organization.
+Model Architecture:
+    1. **Upper Zone**: Tension storage, free storage with configurable overflow/drainage
+    2. **Lower Zone**: Single or dual baseflow reservoirs with linear/power-law release
+    3. **Percolation**: Saturation excess, field capacity, or demand-based drainage
+    4. **Surface Runoff**: Infiltration excess (Horton) or saturation excess (Dunne)
+    5. **Snow Module**: Temperature-index snowmelt with optional elevation bands
 
-Main Components:
-    - FUSEPreProcessor: Handles FUSE preprocessing and setup (preprocessor.py, ~350 lines)
-    - FUSERunner: Executes FUSE model simulations (runner.py, 1194 lines)
-    - FUSEPostprocessor: Processes FUSE model outputs (postprocessor.py, 95 lines)
-    - FuseStructureAnalyzer: Analyzes FUSE model structure ensembles (structure_analyzer.py)
+Design Rationale:
+    FUSE addresses the challenge of model structural uncertainty:
+    - Most calibration focuses only on parameter uncertainty
+    - Different process representations can yield equally good fits but different predictions
+    - FUSE enables ensemble runs across multiple structures for robust uncertainty estimates
+    - Structure selection can be automated via structure ensemble calibration
 
-Manager Classes (Refactored 2026-01-01):
-    - FuseForcingProcessor: Handles forcing data transformations (forcing_processor.py, ~350 lines)
-    - FuseElevationBandManager: Manages elevation band creation (elevation_band_manager.py, ~290 lines)
-    - FuseSyntheticDataGenerator: Generates synthetic hydrographs (synthetic_data_generator.py, ~170 lines)
+Spatial Modes:
+    lumped: Single spatial unit representing entire catchment
+    semi-distributed: Multiple HRUs with elevation bands for snow processes
+    distributed: Grid-based or subcatchment-based with optional mizuRoute routing
 
-Refactoring History:
-    - 2025-12-31: Initial refactoring from fuse_utils.py
-    - 2026-01-01: Manager extraction and modularization (reduced preprocessor from 1441 → 350 lines)
+Key Components:
+    FUSEPreProcessor: Forcing preparation, spatial setup, file manager generation
+    FUSERunner: Model execution with structure selection and parameter mapping
+    FUSEPostprocessor: Output extraction and result formatting
+    FuseStructureAnalyzer: Ensemble analysis comparing different model structures
 
-For backward compatibility, all public classes are re-exported at the package level.
+Configuration Parameters:
+    FUSE_SPATIAL_MODE: Spatial discretization (default: 'lumped')
+    FUSE_N_ELEVATION_BANDS: Number of elevation bands for snow (default: 1)
+    FUSE_ROUTING_INTEGRATION: Routing model (default: 'default', options: 'none', 'mizuroute')
+    FUSE_DECISION_OPTIONS: Structure decision dictionary for ensemble runs
+    SETTINGS_FUSE_PARAMS_TO_CALIBRATE: Calibration parameters
+        (default: 'MAXWATR_1,MAXWATR_2,BASERTE,QB_POWR,TIMEDELAY,PERCRTE,FRACTEN,RTFRAC1,MBASE,MFMAX,MFMIN,PXTEMP,LAPSE')
+
+Typical Workflow:
+    1. Initialize FUSEPreProcessor with configuration
+    2. Process forcing data (precipitation, temperature, PET)
+    3. Generate elevation bands if semi-distributed mode
+    4. Create file manager and control files
+    5. Execute FUSE via FUSERunner for one or more structures
+    6. Postprocess outputs, optionally analyze structure ensemble
+
+Limitations and Considerations:
+    - Elevation band mode requires DEM and careful band delineation
+    - Structure ensemble runs increase computational cost significantly
+    - Some structure combinations may be physically inconsistent
+    - Requires FUSE executable built from source (Fortran)
 """
 
 # Import main classes

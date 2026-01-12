@@ -6,11 +6,8 @@ backward compatibility between the old flat config format and the new
 hierarchical format.
 """
 
-import pytest
-from pathlib import Path
 from symfluence.core.config.transformers import (
     transform_flat_to_nested,
-    flatten_nested_config,
     FLAT_TO_NESTED_MAP
 )
 

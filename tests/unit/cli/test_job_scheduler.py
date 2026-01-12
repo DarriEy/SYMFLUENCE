@@ -2,8 +2,7 @@
 
 import pytest
 import subprocess
-from unittest.mock import patch, MagicMock, mock_open, call
-from pathlib import Path
+from unittest.mock import patch, MagicMock, mock_open
 
 from symfluence.cli.services import JobScheduler
 

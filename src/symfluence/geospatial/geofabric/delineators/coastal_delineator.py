@@ -8,7 +8,7 @@ Extracted from geofabric_utils.py (2026-01-01)
 """
 
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional, Tuple
 import numpy as np
 import geopandas as gpd
 import pandas as pd
@@ -303,7 +303,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             gdf.to_file(catchment_path)
             river_gdf.to_file(river_network_path)
 
-            self.logger.info(f"Point buffer shapefiles created successfully at:")
+            self.logger.info("Point buffer shapefiles created successfully at:")
             self.logger.info(f"  - River basins: {river_basins_path}")
             self.logger.info(f"  - Catchment: {catchment_path}")
             self.logger.info(f"  - River network: {river_network_path}")
@@ -402,7 +402,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             # Create polygons from Voronoi regions
             regions = []
             for region in vor.regions:
-                if not -1 in region and len(region) > 0:  # Valid regions
+                if -1 not in region and len(region) > 0:  # Valid regions
                     polygon = [vor.vertices[i] for i in region]
                     if len(polygon) > 2:  # Valid polygon needs at least 3 points
                         regions.append(shapely.geometry.Polygon(polygon))
@@ -749,7 +749,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
         # Convert back to original CRS
         gru_gdf_merged = gru_gdf_utm.to_crs(gru_gdf.crs)
 
-        self.logger.info(f"GRU merging statistics:")
+        self.logger.info("GRU merging statistics:")
         self.logger.info(f"- Initial GRUs: {initial_count}")
         self.logger.info(f"- Merged {merged_count} small GRUs")
         self.logger.info(f"- Final GRUs: {len(gru_gdf_merged)}")

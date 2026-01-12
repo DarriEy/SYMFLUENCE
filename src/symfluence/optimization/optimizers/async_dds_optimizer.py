@@ -50,7 +50,7 @@ import numpy as np
 import logging
 import time
 import random
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
 
 class AsyncDDSOptimizer(BaseOptimizer):

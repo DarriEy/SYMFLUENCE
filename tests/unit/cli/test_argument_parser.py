@@ -1,7 +1,6 @@
 """Unit tests for CLI ArgumentParser."""
 
 import pytest
-from argparse import Namespace
 
 from symfluence.cli.argument_parser import CLIParser
 

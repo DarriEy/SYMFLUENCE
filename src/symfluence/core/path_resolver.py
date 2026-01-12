@@ -8,7 +8,6 @@ code duplication across model preprocessors, managers, and utilities.
 from pathlib import Path
 from typing import Dict, Any, Optional
 import logging
-from .mixins import LoggingMixin, ProjectContextMixin
 
 
 def resolve_path(

@@ -10,7 +10,6 @@ Tests the new ModelRegistry-based config system to verify:
 """
 
 import pytest
-from unittest.mock import MagicMock, patch
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import ModelConfigAdapter, ConfigValidationError

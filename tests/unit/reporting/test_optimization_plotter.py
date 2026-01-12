@@ -5,11 +5,10 @@ Unit tests for OptimizationPlotter.
 import pytest
 import numpy as np
 from pathlib import Path
-from unittest.mock import MagicMock, patch, Mock
+from unittest.mock import patch, Mock
 import tempfile
 
 from symfluence.reporting.plotters.optimization_plotter import OptimizationPlotter
-from symfluence.reporting.config.plot_config import PlotConfig
 
 
 @pytest.fixture

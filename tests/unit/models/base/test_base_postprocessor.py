@@ -10,7 +10,7 @@ import pandas as pd
 import xarray as xr
 import numpy as np
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock
 from symfluence.models.base import BaseModelPostProcessor
 from symfluence.core.constants import UnitConversion
 from symfluence.core.config.models import SymfluenceConfig

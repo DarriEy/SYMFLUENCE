@@ -7,7 +7,7 @@ Simulation System) model outputs. RHESSys outputs are primarily in text format
 """
 
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 import pandas as pd
 
 from symfluence.models.base import ModelResultExtractor

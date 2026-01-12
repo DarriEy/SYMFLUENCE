@@ -208,27 +208,96 @@ class OutputFileLocator:
         directory: Union[str, Path],
         model: Optional[str] = None
     ) -> List[Path]:
-        """Find streamflow output files."""
+        """
+        Find streamflow output files in a simulation directory.
+
+        Searches for streamflow outputs using model-specific patterns first
+        (e.g., timeCOUT.txt for HYPE, mizuRoute/*.nc), then falls back to
+        generic NetCDF patterns (*_streamflow.nc, *timestep.nc).
+
+        Args:
+            directory: Simulation output directory to search
+            model: Optional model name for model-specific file patterns
+
+        Returns:
+            List of matching file paths, sorted by modification time (newest first)
+        """
         return self.find_output_files(directory, 'streamflow', model)
 
     def find_et_files(self, directory: Union[str, Path]) -> List[Path]:
-        """Find evapotranspiration output files."""
+        """
+        Find evapotranspiration output files.
+
+        Searches for ET outputs, preferring daily aggregated files (*_day.nc,
+        *_daily.nc) over timestep files for more efficient processing.
+
+        Args:
+            directory: Simulation output directory to search
+
+        Returns:
+            List of matching file paths, sorted by modification time (newest first)
+        """
         return self.find_output_files(directory, 'et', prefer_daily=True)
 
     def find_soil_moisture_files(self, directory: Union[str, Path]) -> List[Path]:
-        """Find soil moisture output files."""
+        """
+        Find soil moisture output files.
+
+        Searches for soil moisture outputs (volumetric water content, saturation),
+        preferring daily aggregated files for efficient comparison with satellite
+        observations (e.g., SMAP, SMOS).
+
+        Args:
+            directory: Simulation output directory to search
+
+        Returns:
+            List of matching file paths, sorted by modification time (newest first)
+        """
         return self.find_output_files(directory, 'soil_moisture', prefer_daily=True)
 
     def find_snow_files(self, directory: Union[str, Path]) -> List[Path]:
-        """Find snow (SWE/SCA) output files."""
+        """
+        Find snow output files (SWE, snow depth, snow cover area).
+
+        Searches for snow-related outputs, preferring daily aggregated files
+        for comparison with SNODAS, SNOTEL, or satellite snow products.
+
+        Args:
+            directory: Simulation output directory to search
+
+        Returns:
+            List of matching file paths, sorted by modification time (newest first)
+        """
         return self.find_output_files(directory, 'snow', prefer_daily=True)
 
     def find_tws_files(self, directory: Union[str, Path]) -> List[Path]:
-        """Find total water storage output files."""
+        """
+        Find total water storage output files.
+
+        Searches for TWS outputs (sum of all water storage components),
+        preferring daily files for comparison with GRACE/GRACE-FO observations.
+
+        Args:
+            directory: Simulation output directory to search
+
+        Returns:
+            List of matching file paths, sorted by modification time (newest first)
+        """
         return self.find_output_files(directory, 'tws', prefer_daily=True)
 
     def find_groundwater_files(self, directory: Union[str, Path]) -> List[Path]:
-        """Find groundwater output files."""
+        """
+        Find groundwater output files.
+
+        Searches for groundwater/aquifer storage outputs, preferring daily
+        aggregated files for comparison with well observations or derived products.
+
+        Args:
+            directory: Simulation output directory to search
+
+        Returns:
+            List of matching file paths, sorted by modification time (newest first)
+        """
         return self.find_output_files(directory, 'groundwater', prefer_daily=True)
 
     # Model-specific convenience methods

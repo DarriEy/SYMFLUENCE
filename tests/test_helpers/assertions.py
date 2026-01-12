@@ -7,7 +7,6 @@ SYMFLUENCE outputs and behaviors.
 
 from pathlib import Path
 import xarray as xr
-import numpy as np
 
 
 def assert_netcdf_has_variables(nc_path: Path, expected_vars: list):

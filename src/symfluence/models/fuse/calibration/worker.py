@@ -6,13 +6,12 @@ Delegates to existing worker functions while providing BaseWorker interface.
 """
 
 import logging
-import os
 import shutil
 import warnings
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask, WorkerResult
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.core.constants import UnitConversion
 from symfluence.models.utilities.routing_decider import RoutingDecider
@@ -170,7 +169,7 @@ class FUSEWorker(BaseWorker):
             if params_updated:
                 self.logger.debug(f"APPLY_PARAMS: Successfully updated {len(params_updated)} params: {params_updated}")
             else:
-                self.logger.warning(f"APPLY_PARAMS: NO parameters were updated!")
+                self.logger.warning("APPLY_PARAMS: NO parameters were updated!")
 
             missing = set(params.keys()) - params_updated
             if missing:
@@ -607,7 +606,6 @@ class FUSEWorker(BaseWorker):
                     # Check if file exists, if not use what's available
                     if not (execution_cwd / decisions_file).exists():
                         # Find any decisions file
-                        import glob
                         decisions_files = list(execution_cwd.glob('fuse_zDecisions_*.txt'))
                         if decisions_files:
                             decisions_file = decisions_files[0].name
@@ -659,7 +657,6 @@ class FUSEWorker(BaseWorker):
         try:
             import xarray as xr
             import pandas as pd
-            from symfluence.evaluation.metrics import kge, nse, rmse, mae
 
             # Get paths
             domain_name = config.get('DOMAIN_NAME')

@@ -9,11 +9,8 @@ Tests FUSE-specific parameter handling including:
 
 import pytest
 import numpy as np
-from pathlib import Path
-from typing import Dict, List
 import logging
 from unittest.mock import Mock, patch, MagicMock
-import tempfile
 
 # Mark all tests in this module
 pytestmark = [pytest.mark.unit, pytest.mark.optimization]

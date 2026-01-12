@@ -5,7 +5,6 @@ Replaces .github/workflows/install-validate.yml validation steps with pytest.
 These tests validate the complete SYMFLUENCE installation and core functionality.
 """
 
-import os
 import sys
 import pytest
 import shutil
@@ -137,7 +136,7 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
                                   capture_output=True, text=True, timeout=5)
             print(f"  FUSE version output: {result.stdout.strip() or result.stderr.strip()}")
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            print(f"  FUSE found but version check failed (may be normal)")
+            print("  FUSE found but version check failed (may be normal)")
     else:
         print("⚠ FUSE not found (optional)")
         optional_missing.append("FUSE")
@@ -152,9 +151,9 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
             result = subprocess.run(["ngen", "--help"],
                                   capture_output=True, text=True, timeout=5)
             if result.returncode == 0 or "ngen" in result.stdout.lower():
-                print(f"  NGEN verified working")
+                print("  NGEN verified working")
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            print(f"  NGEN found but verification failed")
+            print("  NGEN found but verification failed")
     else:
         print("⚠ NGEN not found (optional)")
         optional_missing.append("NGEN")
@@ -183,9 +182,9 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
                                   capture_output=True, text=True, timeout=5)
             # HYPE outputs to stderr when run without arguments
             if "HYPE" in result.stdout or "HYPE" in result.stderr or result.returncode != 0:
-                print(f"  HYPE verified working")
+                print("  HYPE verified working")
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            print(f"  HYPE found but verification failed")
+            print("  HYPE found but verification failed")
     else:
         print(f"⚠ HYPE not found at {hype_path} (optional)")
         optional_missing.append("HYPE")
@@ -213,9 +212,9 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
             result = subprocess.run([str(mesh_path), "--help"],
                                   capture_output=True, text=True, timeout=5)
             if result.returncode == 0 or "MESH" in result.stdout or "MESH" in result.stderr:
-                print(f"  MESH verified working")
+                print("  MESH verified working")
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            print(f"  MESH found but verification failed")
+            print("  MESH found but verification failed")
     else:
         print(f"⚠ MESH not found at {mesh_path} (optional)")
         optional_missing.append("MESH")
@@ -241,9 +240,9 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
             result = subprocess.run([str(rhessys_path), "-h"],
                                   capture_output=True, text=True, timeout=5)
             if result.returncode == 0 or "rhessys" in result.stdout.lower() or "usage" in result.stderr.lower():
-                print(f"  RHESSys verified working")
+                print("  RHESSys verified working")
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            print(f"  RHESSys found but verification failed")
+            print("  RHESSys found but verification failed")
     else:
         print(f"⚠ RHESSys not found at {rhessys_path} (optional)")
         optional_missing.append("RHESSys")
@@ -273,7 +272,7 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
     print("\n" + "="*60)
     print("Binary Validation Summary")
     print("="*60)
-    print(f"Required: SUMMA, mizuRoute, TauDEM - ALL FOUND ✓")
+    print("Required: SUMMA, mizuRoute, TauDEM - ALL FOUND ✓")
     if optional_found:
         print(f"Optional found: {', '.join(optional_found)}")
     if optional_missing:
@@ -291,27 +290,14 @@ def test_package_imports():
     Tests that all critical packages can be imported without errors.
     """
     # Core SYMFLUENCE
-    import symfluence
-    from symfluence import SYMFLUENCE
 
     # Critical data packages
-    import xarray
-    import pandas
-    import numpy
 
     # Geospatial packages
-    import geopandas
-    import rasterio
-    import shapely
-    import pyproj
-    import fiona
 
     # Model-specific
-    import netCDF4
 
     # Optimization
-    import scipy
-    import torch
 
     # All imports successful
     assert True

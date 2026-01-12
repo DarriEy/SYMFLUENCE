@@ -6,7 +6,7 @@ Handles extraction and processing of MESH model simulation results.
 
 import pandas as pd
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Optional
 from datetime import datetime, timedelta
 
 from ..registry import ModelRegistry

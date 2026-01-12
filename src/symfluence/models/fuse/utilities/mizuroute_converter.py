@@ -56,7 +56,6 @@ class FuseToMizurouteConverter:
         """
         try:
             import xarray as xr
-            import pandas as pd
 
             domain_name = config.get('DOMAIN_NAME')
             experiment_id = config.get('EXPERIMENT_ID')

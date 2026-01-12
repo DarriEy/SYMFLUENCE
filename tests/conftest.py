@@ -223,7 +223,7 @@ def forcing_cache_manager(symfluence_data_root):
 
     # Log cache statistics at start of session
     stats = cache.get_cache_stats()
-    print(f"\n=== Raw Forcing Cache Statistics ===")
+    print("\n=== Raw Forcing Cache Statistics ===")
     print(f"Cache root: {stats['cache_root']}")
     print(f"Cache size: {stats['total_size_gb']:.2f}GB / {stats['max_size_gb']:.2f}GB")
     print(f"Cached files: {stats['file_count']}")

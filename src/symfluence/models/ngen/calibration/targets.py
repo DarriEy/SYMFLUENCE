@@ -17,8 +17,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 import logging
 
-from symfluence.evaluation import metrics
-from symfluence.evaluation.evaluators import ModelEvaluator, StreamflowEvaluator
+from symfluence.evaluation.evaluators import StreamflowEvaluator
 
 
 class NgenStreamflowTarget(StreamflowEvaluator):
@@ -70,7 +69,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 return target_files
             else:
                 self.logger.warning(f"Configured CALIBRATION_NEXUS_ID '{target_nexus}' not found in output files. Available: {[f.stem for f in files[:10]]}")
-                self.logger.warning(f"Falling back to summing ALL nexus outputs")
+                self.logger.warning("Falling back to summing ALL nexus outputs")
                 return files
 
         # If no CALIBRATION_NEXUS_ID specified, sum all nexuses
@@ -147,7 +146,6 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         """Load catchment areas mapped to nexus IDs from GeoJSON."""
         try:
             import json
-            import geopandas as gpd
 
             # Try to find catchments GeoJSON file
             ngen_settings = self.project_dir / 'settings' / 'NGEN'
@@ -308,9 +306,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
 
     def _get_catchment_area(self) -> float:
         """Detailed catchment area calculation for NextGen."""
-        from pathlib import Path
         import geopandas as gpd
-        import numpy as np
 
         cfg_area = (self.config.get("catchment", {}) or {}).get("area_km2")
         if cfg_area:

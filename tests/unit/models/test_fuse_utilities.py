@@ -5,7 +5,6 @@ Tests FUSE-specific utility functions including mizuRoute conversion.
 """
 
 import pytest
-from pathlib import Path
 from symfluence.models.fuse.utilities import FuseToMizurouteConverter
 
 
@@ -43,7 +42,7 @@ class TestFuseUtilitiesBackwardCompatibility:
         # Note: We didn't create a re-export for this, so this test
         # documents that the old path is deprecated
         with pytest.raises(ImportError):
-            from symfluence.optimization.workers.utilities.fuse_conversion import FuseToMizurouteConverter
+            pass
 
     def test_import_from_models_fuse_utilities(self):
         """Test new import path."""

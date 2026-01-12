@@ -7,7 +7,6 @@ using particle velocities and swarm intelligence for global search.
 
 import numpy as np
 import logging
-from datetime import datetime
 from typing import Dict, Any, List, Tuple
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
 

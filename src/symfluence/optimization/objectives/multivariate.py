@@ -8,7 +8,7 @@ calibration against multiple data streams (streamflow, snow, evapotranspiration,
 with user-defined weights to reflect relative importance.
 """
 
-from typing import Dict, Any
+from typing import Dict
 from .base import BaseObjective
 from .registry import ObjectiveRegistry
 

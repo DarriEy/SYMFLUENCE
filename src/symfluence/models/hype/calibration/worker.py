@@ -9,7 +9,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask, WorkerResult
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.evaluation.metrics import kge, nse
 from symfluence.models.hype.preprocessor import HYPEPreProcessor
@@ -87,7 +87,7 @@ class HYPEWorker(BaseWorker):
             # Only regenerate par.txt and info.txt/filedir.txt
             # GeoData and forcing files should already be copied to worker directory
             # and don't change during calibration
-            self.logger.debug(f"Regenerating par.txt and info.txt for calibration")
+            self.logger.debug("Regenerating par.txt and info.txt for calibration")
             self.logger.debug(f"  output_path: {preprocessor.output_path}")
             self.logger.debug(f"  forcing_data_dir: {preprocessor.forcing_data_dir}")
 
@@ -100,7 +100,6 @@ class HYPEWorker(BaseWorker):
 
             # Read land uses from GeoClass.txt
             import pandas as pd
-            import numpy as np
             try:
                 geoclass_df = pd.read_csv(geoclass_file, sep='\t', skiprows=1, header=None)
                 land_uses = geoclass_df.iloc[:, 1].unique()
@@ -128,7 +127,7 @@ class HYPEWorker(BaseWorker):
                 forcing_data_dir=preprocessor.forcing_data_dir
             )
 
-            self.logger.debug(f"par.txt and info.txt regeneration completed")
+            self.logger.debug("par.txt and info.txt regeneration completed")
 
             # Debug: Check if forcing files exist
             forcing_files = ['Pobs.txt', 'TMAXobs.txt', 'TMINobs.txt', 'Tobs.txt']
@@ -218,7 +217,7 @@ class HYPEWorker(BaseWorker):
             result_path = runner.run_hype()
 
             if result_path is None:
-                self.logger.error(f"HYPE run_hype returned None - model may have failed or outputs not found")
+                self.logger.error("HYPE run_hype returned None - model may have failed or outputs not found")
                 self.logger.error(f"Expected outputs in: {runner.output_dir}")
                 # Debug: Check if any output files were created
                 if output_dir.exists():

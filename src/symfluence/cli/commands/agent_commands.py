@@ -4,7 +4,6 @@ AI agent command handlers for SYMFLUENCE CLI.
 This module implements handlers for the AI agent interface.
 """
 
-import sys
 from argparse import Namespace
 
 from .base import BaseCommand

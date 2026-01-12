@@ -2,8 +2,7 @@
 Base Objective for SYMFLUENCE
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List
-import pandas as pd
+from typing import Dict, Any
 
 class BaseObjective(ABC):
     """

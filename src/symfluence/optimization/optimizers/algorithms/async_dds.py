@@ -73,7 +73,7 @@ class AsyncDDSAlgorithm(OptimizationAlgorithm):
         best_score = float('-inf')
         best_solution = None
 
-        self.logger.info(f"Async DDS configuration:")
+        self.logger.info("Async DDS configuration:")
         self.logger.info(f"  Pool size: {pool_size}")
         self.logger.info(f"  Batch size: {batch_size}")
         self.logger.info(f"  Target batches: {target_batches}")
@@ -229,7 +229,7 @@ class AsyncDDSAlgorithm(OptimizationAlgorithm):
             # Log progress
             log_progress(self.name, batch_num, best_score, improvements, batch_size)
 
-        self.logger.info(f"AsyncDDS completed")
+        self.logger.info("AsyncDDS completed")
         self.logger.info(f"Total evaluations: {total_evaluations}")
         self.logger.info(f"Final pool size: {len(solution_pool)}")
 

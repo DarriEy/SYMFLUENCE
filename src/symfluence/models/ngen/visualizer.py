@@ -5,7 +5,7 @@ Provides model-specific visualization registration for NGen.
 """
 
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import logging
 
 from symfluence.models.registry import ModelRegistry

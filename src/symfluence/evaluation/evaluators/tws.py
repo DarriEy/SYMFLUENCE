@@ -628,7 +628,7 @@ class TWSEvaluator(ModelEvaluator):
 
             # Check if we have any simulated data
             if len(sim_monthly) == 0:
-                self.logger.error(f"[TWS] No simulated TWS data available for metrics calculation")
+                self.logger.error("[TWS] No simulated TWS data available for metrics calculation")
                 return None
 
             # Find common period

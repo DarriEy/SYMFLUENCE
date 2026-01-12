@@ -6,8 +6,7 @@ Model-specific visualization for FUSE outputs including streamflow comparisons.
 
 import pandas as pd
 from pathlib import Path
-from typing import List, Tuple, Optional, Any
-import logging
+from typing import List, Tuple, Optional
 
 from symfluence.reporting.plotter_registry import PlotterRegistry
 from symfluence.reporting.core.base_plotter import BasePlotter

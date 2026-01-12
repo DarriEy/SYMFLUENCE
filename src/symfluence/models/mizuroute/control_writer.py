@@ -6,7 +6,6 @@ Eliminates code duplication by using configuration-driven templates.
 """
 
 from pathlib import Path
-from datetime import datetime
 from typing import Dict, Any, Optional, TextIO, Union, TYPE_CHECKING
 import logging
 

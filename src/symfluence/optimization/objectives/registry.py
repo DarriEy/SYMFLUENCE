@@ -24,7 +24,6 @@ Example:
     >>> score = objective.calculate(eval_results)
 """
 from typing import Dict, Type, Any, Optional
-from pathlib import Path
 
 class ObjectiveRegistry:
     """Plugin registry for objective function implementations.

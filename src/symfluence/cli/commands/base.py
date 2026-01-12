@@ -5,7 +5,6 @@ This module provides the base class that all command handlers inherit from,
 providing common utilities and interfaces.
 """
 
-import sys
 from abc import ABC, abstractmethod
 from argparse import Namespace
 from pathlib import Path

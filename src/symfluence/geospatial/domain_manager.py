@@ -298,7 +298,7 @@ class DomainManager(ConfigurableMixin):
         if result:
             self.logger.info(f"Domain definition completed using method: {domain_method}")
         
-        self.logger.debug(f"Domain definition workflow finished")
+        self.logger.debug("Domain definition workflow finished")
 
         return result, artifacts
     

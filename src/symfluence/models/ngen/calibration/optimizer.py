@@ -10,8 +10,6 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from .worker import NgenWorker
-from .parameter_manager import NgenParameterManager
 from symfluence.optimization.registry import OptimizerRegistry
 
 
@@ -61,7 +59,7 @@ class NgenModelOptimizer(BaseModelOptimizer):
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
-        self.logger.debug(f"NgenModelOptimizer initialized")
+        self.logger.debug("NgenModelOptimizer initialized")
 
     def _get_model_name(self) -> str:
         """Return model name."""

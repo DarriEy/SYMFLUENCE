@@ -8,7 +8,7 @@ formats (e.g., soil depth multipliers for SUMMA NetCDF files).
 import numpy as np
 import netCDF4 as nc
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 import logging
 
 class ParameterTransformer:

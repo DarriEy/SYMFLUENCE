@@ -6,7 +6,7 @@ Contains SystemConfig for system-level settings: paths, logging, MPI, debugging.
 
 from typing import Optional, Literal
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG
 

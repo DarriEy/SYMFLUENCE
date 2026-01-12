@@ -5,13 +5,11 @@ Handles extraction and processing of GR (GR4J/CemaNeige) simulation results.
 Supports both lumped and distributed modes.
 """
 
-from typing import Dict, Any, Optional
+from typing import Optional
 from pathlib import Path
 import pandas as pd
 import xarray as xr
-import geopandas as gpd
 
-from symfluence.core.constants import UnitConversion
 from ..registry import ModelRegistry
 from ..base import BaseModelPostProcessor
 
@@ -22,7 +20,7 @@ try:
     from rpy2.robjects import pandas2ri
     from rpy2.robjects.conversion import localconverter
     HAS_RPY2 = True
-except (ImportError, ValueError) as e:
+except (ImportError, ValueError):
     HAS_RPY2 = False
     robjects = None
     pandas2ri = None

@@ -5,7 +5,6 @@ Handles spatial preprocessing and configuration generation for the NOAA NextGen 
 Uses shared utilities for time window management and forcing data processing.
 """
 
-import os
 import sys
 import json
 import numpy as np
@@ -15,17 +14,12 @@ import geopandas as gpd
 from pathlib import Path
 from typing import Dict, Any, List
 from shutil import copyfile
-import netCDF4 as nc4
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.mixins import ObservationLoaderMixin
 from symfluence.models.utilities import TimeWindowManager, ForcingDataProcessor
 from symfluence.models.ngen.config_generator import NgenConfigGenerator
-from symfluence.core.exceptions import (
-    ModelExecutionError,
-    symfluence_error_handler
-)
 
 
 @ModelRegistry.register_preprocessor('NGEN')
@@ -92,7 +86,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self._include_cfe = ngen_config.get('ENABLE_CFE', self._available_modules.get("CFE", True))
 
         # Log module configuration
-        self.logger.info(f"NGEN module configuration:")
+        self.logger.info("NGEN module configuration:")
         self.logger.info(f"  SLOTH: {'ENABLED' if self._include_sloth else 'DISABLED'}")
         self.logger.info(f"  PET: {'ENABLED' if self._include_pet else 'DISABLED'}")
         self.logger.info(f"  NOAH-OWP: {'ENABLED' if self._include_noah else 'DISABLED'}")

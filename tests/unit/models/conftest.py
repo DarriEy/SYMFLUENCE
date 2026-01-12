@@ -4,7 +4,6 @@ Shared fixtures for model preprocessor tests.
 
 import pytest
 from pathlib import Path
-from unittest.mock import Mock, MagicMock
 import tempfile
 import shutil
 

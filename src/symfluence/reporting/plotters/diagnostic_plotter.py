@@ -3,7 +3,7 @@
 import pandas as pd  # type: ignore
 import numpy as np  # type: ignore
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Any
 import traceback
 
 from symfluence.reporting.core.base_plotter import BasePlotter
@@ -142,7 +142,6 @@ class DiagnosticPlotter(BasePlotter):
             Path to saved plot, or None
         """
         import rasterio # type: ignore
-        from rasterio.plot import show # type: ignore
         plt, _ = self._setup_matplotlib()
 
         try:

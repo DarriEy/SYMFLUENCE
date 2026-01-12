@@ -6,7 +6,7 @@ Handles updates to SUMMA modelDecisions.txt for final evaluation.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 
 
 class ModelDecisionsUpdater:

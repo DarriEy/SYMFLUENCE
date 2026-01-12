@@ -5,7 +5,6 @@ Provides fixtures for model execution and validation.
 """
 
 import pytest
-from pathlib import Path
 
 
 @pytest.fixture(scope="session")

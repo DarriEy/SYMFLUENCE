@@ -1,7 +1,5 @@
 """Unit tests for ShapefileAccessMixin."""
 
-import pytest
-from unittest.mock import Mock
 from symfluence.core.mixins.shapefile import ShapefileAccessMixin
 
 

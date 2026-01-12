@@ -4,7 +4,6 @@ Benchmark visualization plotter.
 Handles plotting of hydrological benchmarks and performance comparisons.
 """
 
-import numpy as np  # type: ignore
 import pandas as pd  # type: ignore
 from pathlib import Path
 from typing import List, Dict, Optional, Any, Tuple

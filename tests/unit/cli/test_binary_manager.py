@@ -2,7 +2,7 @@
 
 import pytest
 import subprocess
-from unittest.mock import patch, MagicMock, mock_open, call
+from unittest.mock import patch, MagicMock, mock_open
 from pathlib import Path
 
 from symfluence.cli.binary_service import BinaryManager

@@ -8,7 +8,7 @@ Handles MESH parameter bounds, normalization, and .ini file updates.
 """
 
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Optional
 import logging
 import re
 
@@ -16,6 +16,7 @@ from symfluence.optimization.core.base_parameter_manager import BaseParameterMan
 from symfluence.optimization.core.parameter_bounds_registry import get_mesh_bounds
 from symfluence.optimization.registry import OptimizerRegistry
 
+print("DEBUG: Importing actual MESHParameterManager")
 
 @OptimizerRegistry.register_parameter_manager('MESH')
 class MESHParameterManager(BaseParameterManager):
@@ -67,6 +68,7 @@ class MESHParameterManager(BaseParameterManager):
 
     def update_model_files(self, params: Dict[str, float]) -> bool:
         """Update MESH parameter .ini files."""
+        print(f"DEBUG: Updating MESH files with params: {params}")
         return self.update_mesh_params(params)
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
@@ -143,7 +145,9 @@ class MESHParameterManager(BaseParameterManager):
     def _update_ini_file(self, file_path: Path, params: Dict[str, float]) -> bool:
         """Update a .ini format parameter file."""
         try:
+            print(f"DEBUG: Updating file: {file_path}")
             if not file_path.exists():
+                print(f"DEBUG: File not found: {file_path}")
                 self.logger.error(f"Parameter file not found: {file_path}")
                 return False
 

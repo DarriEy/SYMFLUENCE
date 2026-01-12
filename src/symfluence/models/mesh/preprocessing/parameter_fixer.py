@@ -10,7 +10,6 @@ import re
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -97,6 +96,7 @@ class MESHParameterFixer:
             if modified:
                 with open(self.run_options_path, 'w') as f:
                     f.write(content)
+                self._update_control_flag_count()
                 self.logger.info("Fixed run options variable names")
 
         except Exception as e:
@@ -133,10 +133,54 @@ class MESHParameterFixer:
             if modified:
                 with open(self.run_options_path, 'w') as f:
                     f.write(content)
+                self._update_control_flag_count()
                 self.logger.info("Fixed run options snow/ice parameters")
 
         except Exception as e:
             self.logger.warning(f"Failed to fix run options snow parameters: {e}")
+
+    def _update_control_flag_count(self) -> None:
+        """Update the number of control flags in MESH_input_run_options.ini."""
+        if not self.run_options_path.exists():
+            return
+
+        try:
+            with open(self.run_options_path, 'r') as f:
+                lines = f.readlines()
+
+            flag_start_idx = -1
+            count_line_idx = -1
+            for i, line in enumerate(lines):
+                if 'Number of control flags' in line:
+                    count_line_idx = i
+                if line.startswith('----#'):
+                    flag_start_idx = i + 1
+                    break
+
+            if count_line_idx == -1 or flag_start_idx == -1:
+                return
+
+            # Count flags until the next section (starting with #####)
+            flag_count = 0
+            for i in range(flag_start_idx, len(lines)):
+                if lines[i].startswith('#####'):
+                    break
+                if lines[i].strip() and not lines[i].strip().startswith('#'):
+                    flag_count += 1
+
+            # Update the count line
+            old_line = lines[count_line_idx]
+            match = re.search(r'(\s*)(\d+)(\s*#.*)', old_line)
+            if match:
+                new_line = f"{match.group(1)}{flag_count:2d}{match.group(3)}\n"
+                if new_line != old_line:
+                    lines[count_line_idx] = new_line
+                    with open(self.run_options_path, 'w') as f:
+                        f.writelines(lines)
+                    self.logger.info(f"Updated control flag count to {flag_count}")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to update control flag count: {e}")
 
     def fix_gru_count_mismatch(self) -> None:
         """Ensure CLASS NM matches parameter block count and trim empty GRU columns."""
@@ -170,6 +214,7 @@ class MESHParameterFixer:
         # Fall back to original logic only if we couldn't determine mesh_active_grus
         keep_mask = self._trim_empty_gru_columns()
         self._fix_class_nm(keep_mask)
+        self._ensure_gru_normalization()
     
     def _get_ddb_gru_count(self) -> Optional[int]:
         """Get the number of GRU columns in the DDB."""
@@ -225,8 +270,63 @@ class MESHParameterFixer:
                 ds_trim.to_netcdf(temp_path)
                 os.replace(temp_path, self.ddb_path)
                 self.logger.info(f"Trimmed DDB to {len(active_indices)} active GRU column(s) (all with sum > 0.15)")
+                self._ensure_gru_normalization()
         except Exception as e:
             self.logger.warning(f"Failed to trim DDB to active GRUs: {e}")
+
+    def _ensure_gru_normalization(self) -> None:
+        """Ensure GRU fractions in DDB sum to 1.0 for every subbasin."""
+        if not self.ddb_path.exists():
+            return
+
+        try:
+            with xr.open_dataset(self.ddb_path) as ds:
+                if 'GRU' not in ds or 'NGRU' not in ds.dims:
+                    return
+
+                # Calculate current sums
+                gru = ds['GRU']
+                n_dim = self._get_spatial_dim(ds)
+                if not n_dim: return
+                
+                sums = gru.sum('NGRU')
+                
+                # Identify where sum is not 1.0 (with small tolerance)
+                if np.allclose(sums.values, 1.0, atol=1e-4):
+                    self.logger.debug("GRU fractions already normalized")
+                    return
+
+                self.logger.info("Normalizing GRU fractions in DDB to sum to 1.0")
+                # Avoid division by zero
+                safe_sums = xr.where(sums == 0, 1.0, sums)
+                # If sum was 0, set the first GRU to 1.0 as fallback
+                ds['GRU'] = gru / safe_sums
+                
+                zero_sum_mask = (sums == 0)
+                if zero_sum_mask.any():
+                    self.logger.warning(f"Found {int(zero_sum_mask.sum())} subbasins with 0 GRU coverage. Setting first GRU to 1.0.")
+                    # Workaround for xarray assignment on slice
+                    gru_vals = ds['GRU'].values
+                    # n_dim index is the first dimension
+                    zero_indices = np.where(zero_sum_mask.values)[0]
+                    for idx in zero_indices:
+                        gru_vals[idx, 0] = 1.0
+                    ds['GRU'].values = gru_vals
+
+                temp_path = self.ddb_path.with_suffix('.tmp.nc')
+                ds.to_netcdf(temp_path)
+                os.replace(temp_path, self.ddb_path)
+
+        except Exception as e:
+            self.logger.warning(f"Failed to normalize GRUs: {e}")
+
+    def _get_spatial_dim(self, ds: xr.Dataset) -> Optional[str]:
+        """Get the spatial dimension name from dataset."""
+        if 'N' in ds.dims:
+            return 'N'
+        elif 'subbasin' in ds.dims:
+            return 'subbasin'
+        return None
     
     def _get_mesh_active_gru_count(self) -> Optional[int]:
         """Determine the number of GRUs that MESH will recognize as active."""
@@ -268,7 +368,7 @@ class MESHParameterFixer:
                 content = f.read()
                 lines = content.split('\n')
             
-            block_count = sum(1 for line in lines if 'XSLP/XDRAINH/MANN/KSAT/MID' in line)
+            block_count = sum(1 for line in lines if 'XSLP/XDRAINH/MANN/KSAT/MID' in line or line.startswith('[GRU_'))
             return block_count if block_count > 0 else None
         except Exception:
             return None
@@ -283,20 +383,29 @@ class MESHParameterFixer:
                 content = f.read()
                 lines = content.split('\n')
             
-            block_starts = [i for i, line in enumerate(lines) if '05 5xFCAN/4xLAMX' in line]
-            if not block_starts:
+            # Try both ini-style [GRU_x] and legacy style
+            ini_blocks = [i for i, line in enumerate(lines) if line.startswith('[GRU_')]
+            legacy_blocks = [i for i, line in enumerate(lines) if '05 5xFCAN/4xLAMX' in line]
+            
+            if ini_blocks:
+                header = lines[:ini_blocks[0]]
+                block_starts = ini_blocks + [len(lines)]
+                blocks = [lines[block_starts[i]:block_starts[i + 1]] for i in range(len(block_starts) - 1)]
+            elif legacy_blocks:
+                header = lines[:legacy_blocks[0]]
+                block_starts = legacy_blocks + [len(lines)]
+                blocks = [lines[block_starts[i]:block_starts[i + 1]] for i in range(len(block_starts) - 1)]
+            else:
                 return
-            
-            header = lines[:block_starts[0]]
-            block_starts.append(len(lines))
-            blocks = [lines[block_starts[i]:block_starts[i + 1]] for i in range(len(block_starts) - 1)]
-            
+
             # Keep only the first target_count blocks
             kept_blocks = blocks[:target_count]
             
             if len(kept_blocks) != len(blocks):
                 new_lines = header + [line for block in kept_blocks for line in block]
                 content = '\n'.join(new_lines)
+                if not content.endswith('\n'):
+                    content += '\n'
                 with open(self.class_file_path, 'w') as f:
                     f.write(content)
                 self.logger.info(f"Trimmed CLASS parameters to {len(kept_blocks)} GRU block(s)")
@@ -355,19 +464,10 @@ class MESHParameterFixer:
                 content = f.read()
                 lines = content.split('\n')
 
-            block_count = sum(1 for line in lines if 'XSLP/XDRAINH/MANN/KSAT/MID' in line)
+            block_count = sum(1 for line in lines if 'XSLP/XDRAINH/MANN/KSAT/MID' in line or line.startswith('[GRU_'))
 
             # Read current NM
-            nm_from_class = None
-            for line in lines:
-                if '04 DEGLAT' in line or 'NL/NM' in line:
-                    parts = line.split()
-                    if len(parts) >= 9:
-                        try:
-                            nm_from_class = int(parts[8])
-                        except (ValueError, IndexError):
-                            pass
-                    break
+            nm_from_class = self._read_nm_from_lines(lines)
 
             trimmed_class = False
             if keep_mask is not None:
@@ -376,7 +476,7 @@ class MESHParameterFixer:
                     with open(self.class_file_path, 'r') as f:
                         content = f.read()
                         lines = content.split('\n')
-                    block_count = sum(1 for line in lines if 'XSLP/XDRAINH/MANN/KSAT/MID' in line)
+                    block_count = sum(1 for line in lines if 'XSLP/XDRAINH/MANN/KSAT/MID' in line or line.startswith('[GRU_'))
                     nm_from_class = self._read_nm_from_lines(lines)
 
             if nm_from_class != block_count:
@@ -385,24 +485,36 @@ class MESHParameterFixer:
             else:
                 self.logger.debug(f"CLASS NM={nm_from_class} matches {block_count} blocks")
 
+            self._ensure_gru_normalization()
+            return
         except Exception as e:
             self.logger.warning(f"Failed to fix GRU count mismatch: {e}")
 
     def _trim_class_blocks(self, lines: list, keep_mask: list) -> bool:
         """Trim CLASS parameter blocks to match DDB GRU columns."""
-        block_starts = [i for i, line in enumerate(lines) if '05 5xFCAN/4xLAMX' in line]
-        if not block_starts:
+        # Try both ini-style [GRU_x] and legacy style
+        ini_blocks = [i for i, line in enumerate(lines) if line.startswith('[GRU_')]
+        legacy_blocks = [i for i, line in enumerate(lines) if '05 5xFCAN/4xLAMX' in line]
+        
+        if ini_blocks:
+            header = lines[:ini_blocks[0]]
+            block_starts = ini_blocks + [len(lines)]
+            blocks = [lines[block_starts[i]:block_starts[i + 1]] for i in range(len(block_starts) - 1)]
+        elif legacy_blocks:
+            header = lines[:legacy_blocks[0]]
+            block_starts = legacy_blocks + [len(lines)]
+            blocks = [lines[block_starts[i]:block_starts[i + 1]] for i in range(len(block_starts) - 1)]
+        else:
             return False
 
-        header = lines[:block_starts[0]]
-        block_starts.append(len(lines))
-        blocks = [lines[block_starts[i]:block_starts[i + 1]] for i in range(len(block_starts) - 1)]
         max_blocks = min(len(blocks), len(keep_mask))
         kept_blocks = [blocks[i] for i in range(max_blocks) if keep_mask[i]]
 
         if len(kept_blocks) != len(blocks):
             new_lines = header + [line for block in kept_blocks for line in block]
             content = '\n'.join(new_lines)
+            if not content.endswith('\n'):
+                content += '\n'
             with open(self.class_file_path, 'w') as f:
                 f.write(content)
             self.logger.info(f"Trimmed CLASS parameters to {len(kept_blocks)} GRU block(s)")
@@ -413,13 +525,19 @@ class MESHParameterFixer:
     def _read_nm_from_lines(self, lines: list) -> Optional[int]:
         """Read NM value from CLASS file lines."""
         for line in lines:
-            if '04 DEGLAT' in line or 'NL/NM' in line:
+            if '04 DEGLAT' in line or 'NL/NM' in line or line.startswith('NM '):
                 parts = line.split()
-                if len(parts) >= 9:
+                if line.startswith('NM '):
                     try:
-                        return int(parts[8])
+                        return int(parts[1])
                     except (ValueError, IndexError):
                         pass
+                else:
+                    if len(parts) >= 9:
+                        try:
+                            return int(parts[8])
+                        except (ValueError, IndexError):
+                            pass
                 break
         return None
 
@@ -431,6 +549,16 @@ class MESHParameterFixer:
 
             modified = False
             for i, line in enumerate(lines):
+                # Handle NM x style
+                if line.startswith('NM '):
+                    parts = line.split()
+                    old_nm = parts[1]
+                    lines[i] = f"NM {new_nm}    ! number of landcover classes (GRUs)\n"
+                    modified = True
+                    self.logger.info(f"Updated CLASS NM from {old_nm} to {new_nm}")
+                    break
+                
+                # Handle legacy style
                 if '04 DEGLAT' in line or 'NL/NM' in line:
                     parts = line.split()
                     if len(parts) >= 9:

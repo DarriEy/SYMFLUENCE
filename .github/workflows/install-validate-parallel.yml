@@ -256,6 +256,10 @@ jobs:
           chmod +x ./symfluence
           ./symfluence --install
 
+          # Install test dependencies (pytest moved to optional deps)
+          source venv/bin/activate
+          pip install -e ".[test]"
+
       - name: Package installation for parallel jobs
         run: |
           set -e

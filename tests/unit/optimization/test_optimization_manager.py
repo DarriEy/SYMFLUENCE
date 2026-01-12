@@ -10,9 +10,8 @@ Tests the main optimization workflow orchestration, including:
 
 import pytest
 import pandas as pd
-import numpy as np
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 
 from symfluence.optimization.optimization_manager import OptimizationManager
 from symfluence.core.config.models import SymfluenceConfig

@@ -6,8 +6,7 @@ Tests the base class functionality shared across all model preprocessors.
 
 import pytest
 import shutil
-from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 
 

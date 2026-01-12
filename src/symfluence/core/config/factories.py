@@ -235,7 +235,7 @@ def from_preset_factory(
     # 1. Load preset definition
     try:
         preset = get_preset(preset_name)
-    except (KeyError, ValueError) as e:
+    except (KeyError, ValueError):
         raise ConfigurationError(
             f"Preset '{preset_name}' not found. "
             f"Use 'symfluence project list-presets' to see available presets."

@@ -196,6 +196,45 @@ class MESHDataPreprocessor:
         except Exception as e:
             self.logger.warning(f"Failed to ensure HRU ID ({hru_col}): {e}")
 
+    def fix_missing_columns(self, shp_path: str, column_mapping: Dict[str, str]) -> None:
+        """
+        Ensure all columns required by meshflow exist in the shapefile.
+        
+        Args:
+            shp_path: Path to the shapefile
+            column_mapping: Mapping of standard names to file-specific names
+        """
+        if not shp_path:
+            return
+
+        path = Path(shp_path)
+        if not path.exists():
+            return
+
+        try:
+            gdf = gpd.read_file(path)
+            needs_update = False
+
+            # Required standard names we need to ensure exist in some form
+            required_cols = {
+                'river_slope': 0.001,
+                'river_length': 1000.0,
+                'river_class': 1,
+            }
+
+            for std_name, default_val in required_cols.items():
+                target_col = column_mapping.get(std_name)
+                if target_col and target_col not in gdf.columns:
+                    self.logger.info(f"Adding missing column '{target_col}' to {path.name} with default {default_val}")
+                    gdf[target_col] = default_val
+                    needs_update = True
+
+            if needs_update:
+                gdf.to_file(path)
+
+        except Exception as e:
+            self.logger.warning(f"Failed to fix missing columns in {path.name}: {e}")
+
     def detect_gru_classes(self, landcover_path: Path) -> List[int]:
         """
         Detect which GRU classes exist in the landcover stats file.
@@ -265,7 +304,7 @@ class MESHDataPreprocessor:
 
             # For lumped cases (1 row), force ID to 1 to match shapefile
             if len(df) == 1:
-                self.logger.info(f"Forcing single landcover row ID to 1")
+                self.logger.info("Forcing single landcover row ID to 1")
                 df['GRU_ID'] = 1
 
             # Remove unnamed columns (except the one we just renamed if it was the first)
@@ -307,6 +346,50 @@ class MESHDataPreprocessor:
         except Exception as e:
             self.logger.warning(f"Failed to sanitize landcover stats: {e}")
             return csv_path
+
+    def convert_landcover_to_maf(self, csv_path: str) -> None:
+        """
+        Ensure landcover CSV is MAF (Mesh Attribute File) compliant.
+        Crucial for MESH 1.5 to actually 'see' the GRU fractions.
+        """
+        if not csv_path or not Path(csv_path).exists():
+            return
+
+        try:
+            df = pd.read_csv(csv_path)
+            
+            # MAF format expects columns like: GRU_ID, frac_1, frac_2, ...
+            # where frac_* values sum to 1.0 for each row.
+            
+            modified = False
+            
+            # If we only have IGBP_x columns, convert to frac_x
+            igbp_cols = [c for c in df.columns if c.startswith('IGBP_')]
+            if igbp_cols:
+                for col in igbp_cols:
+                    class_num = col.split('_')[1]
+                    new_col = f'frac_{class_num}'
+                    if new_col not in df.columns:
+                        total = df[igbp_cols].sum(axis=1).replace(0, 1)
+                        df[new_col] = df[col] / total
+                        modified = True
+            
+            # If we have no frac_ columns but some numeric columns, try to guess
+            frac_cols = [c for c in df.columns if c.startswith('frac_')]
+            if not frac_cols:
+                # Fallback: if there's only one non-ID column, treat it as the GRU fraction
+                other_cols = [c for c in df.columns if c != 'GRU_ID' and not c.startswith('Unnamed')]
+                if len(other_cols) == 1:
+                    self.logger.info(f"Guessing {other_cols[0]} is the primary GRU fraction")
+                    df['frac_10'] = 1.0 # Default to grassland if unknown
+                    modified = True
+            
+            if modified:
+                df.to_csv(csv_path, index=False)
+                self.logger.info(f"Converted {csv_path} to MAF format")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to convert to MAF: {e}")
 
     def copy_settings_to_forcing(self) -> None:
         """Copy MESH settings files from setup_dir to forcing_dir."""

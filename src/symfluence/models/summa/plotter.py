@@ -6,9 +6,7 @@ plots of hydrological variables.
 """
 
 import numpy as np
-from pathlib import Path
-from typing import Dict, Optional, Any
-import logging
+from typing import Dict, Optional
 
 from symfluence.reporting.plotter_registry import PlotterRegistry
 from symfluence.reporting.core.base_plotter import BasePlotter

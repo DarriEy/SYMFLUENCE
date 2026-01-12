@@ -76,6 +76,6 @@ class StreamThresholdMethod:
 
         for step in steps:
             self.taudem.run_command(step)
-            self.logger.info(f"Completed threshold method step")
+            self.logger.info("Completed threshold method step")
 
         self.logger.info(f"Threshold-based stream identification completed with threshold={threshold}")

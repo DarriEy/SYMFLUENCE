@@ -9,12 +9,10 @@ import os
 import subprocess
 import sys
 import pandas as pd
-import numpy as np
 from pathlib import Path
 from typing import Dict, Any, Optional
-import shutil
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask, WorkerResult
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.evaluation.utilities import StreamflowMetrics
 from symfluence.core.constants import ModelDefaults
@@ -63,7 +61,6 @@ class RHESSysWorker(BaseWorker):
             True if successful
         """
         try:
-            from symfluence.optimization.parameter_managers.rhessys_parameter_manager import RHESSysParameterManager
 
             # The settings_dir should contain a 'defs' subdirectory
             defs_dir = settings_dir / 'defs'

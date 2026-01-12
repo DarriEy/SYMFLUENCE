@@ -174,7 +174,7 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
 
         # Run SUMMA
         with open(log_file, 'w') as f:
-            f.write(f"SUMMA Execution Log\n")
+            f.write("SUMMA Execution Log\n")
             f.write(f"Command: {cmd}\n")
             f.write(f"Working Directory: {summa_dir}\n")
             f.write(f"Environment: OMP_NUM_THREADS={env.get('OMP_NUM_THREADS', 'unset')}\n")
@@ -298,7 +298,7 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
 
         # Run mizuRoute
         with open(log_file, 'w') as f:
-            f.write(f"mizuRoute Execution Log\n")
+            f.write("mizuRoute Execution Log\n")
             f.write(f"Command: {cmd}\n")
             f.write(f"Working Directory: {control_file.parent}\n")
             f.write("=" * 50 + "\n")

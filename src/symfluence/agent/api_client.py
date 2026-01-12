@@ -93,7 +93,7 @@ class APIClient:
         )
 
         if self.verbose:
-            print(f"API Client initialized:", file=sys.stderr)
+            print("API Client initialized:", file=sys.stderr)
             print(f"  Provider: {self.provider}", file=sys.stderr)
             print(f"  Base URL: {self.api_base}", file=sys.stderr)
             print(f"  Model: {self.model}", file=sys.stderr)
@@ -160,7 +160,7 @@ class APIClient:
 
             return response
 
-        except AuthenticationError as e:
+        except AuthenticationError:
             error_msg = system_prompts.ERROR_MESSAGES["api_authentication_failed"].format(
                 api_base=self.api_base,
                 model=self.model
@@ -168,11 +168,11 @@ class APIClient:
             print(error_msg, file=sys.stderr)
             raise
 
-        except RateLimitError as e:
+        except RateLimitError:
             print(system_prompts.ERROR_MESSAGES["api_rate_limit"], file=sys.stderr)
             raise
 
-        except APIConnectionError as e:
+        except APIConnectionError:
             error_msg = system_prompts.ERROR_MESSAGES["api_connection_failed"].format(
                 api_base=self.api_base
             )
@@ -195,7 +195,7 @@ class APIClient:
             True if connection successful, False otherwise
         """
         try:
-            response = self.client.chat.completions.create(
+            self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": "test"}],
                 max_tokens=5

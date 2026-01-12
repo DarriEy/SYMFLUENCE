@@ -8,13 +8,11 @@ Tests that the HYPE parameter manager can:
 """
 
 import pytest
-import numpy as np
 from pathlib import Path
 import logging
 import tempfile
 
 from symfluence.optimization.parameter_managers import HYPEParameterManager
-from symfluence.optimization.core.parameter_bounds_registry import get_hype_bounds
 
 
 @pytest.fixture

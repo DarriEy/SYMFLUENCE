@@ -6,7 +6,6 @@ API calls, tool execution, and conversation management.
 """
 
 import sys
-from typing import Optional
 
 from .api_client import APIClient
 from .conversation_manager import ConversationManager
@@ -54,7 +53,7 @@ class AgentManager:
 
         # Try to enable readline for command history
         try:
-            import readline
+            import readline  # noqa: F401 - imported for side effects (enables history)
         except ImportError:
             pass
 
@@ -231,7 +230,7 @@ class AgentManager:
         print(error_msg, file=sys.stderr)
         return "I apologize, but I encountered an issue completing this task. Please try breaking it into smaller steps."
 
-    def _execute_tool_call(self, tool_call) -> 'ToolResult':
+    def _execute_tool_call(self, tool_call):
         """
         Execute a single tool call from the LLM.
 
@@ -242,6 +241,7 @@ class AgentManager:
             ToolResult with execution status and output
         """
         import json
+        from .tool_executor import ToolResult
 
         tool_name = tool_call.function.name
 

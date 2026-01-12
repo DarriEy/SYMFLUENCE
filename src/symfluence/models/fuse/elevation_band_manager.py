@@ -243,7 +243,7 @@ class FuseElevationBandManager:
             # Get elevation data per HRU
             if 'elev_mean' in catchment.columns:
                 elevations = catchment['elev_mean'].values
-                self.logger.info(f"Using HRU-specific elevation data from shapefile")
+                self.logger.info("Using HRU-specific elevation data from shapefile")
             else:
                 # Use uniform elevation if not available
                 elevations = np.full(n_hrus, 1000.0)

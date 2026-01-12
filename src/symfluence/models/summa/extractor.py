@@ -7,10 +7,9 @@ dimensions, and file patterns.
 """
 
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 import pandas as pd
 import xarray as xr
-import numpy as np
 
 from symfluence.models.base import ModelResultExtractor
 

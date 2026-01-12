@@ -6,7 +6,6 @@ Handles batch evaluation of parameter populations with parallel execution.
 
 import logging
 import sys
-from pathlib import Path
 from typing import Dict, Any, List, Optional, Callable
 import numpy as np
 

@@ -20,7 +20,6 @@ import geopandas as gpd
 from symfluence.models.base.base_preprocessor import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.mixins import ObservationLoaderMixin
-from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.models.rhessys.climate_generator import RHESSysClimateGenerator
 
 logger = logging.getLogger(__name__)

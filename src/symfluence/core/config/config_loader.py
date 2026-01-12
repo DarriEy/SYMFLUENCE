@@ -206,16 +206,12 @@ See Also:
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from typing import Any, Dict
 from difflib import get_close_matches
 
-import yaml
 from pydantic import ValidationError
 
-from symfluence.core.config.defaults import ConfigDefaults
 from symfluence.core.config.models import SymfluenceConfig
-from symfluence.core.exceptions import ConfigurationError
 
 
 ALIAS_MAP = {

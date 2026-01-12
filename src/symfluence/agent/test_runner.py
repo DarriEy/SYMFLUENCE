@@ -5,9 +5,8 @@ Runs tests on modified code and provides formatted results.
 """
 
 import subprocess
-import json
 from pathlib import Path
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Optional, Tuple, List
 
 
 class TestRunner:

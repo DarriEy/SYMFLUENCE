@@ -10,8 +10,7 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 from pathlib import Path
-from shapely.geometry import box, Point, Polygon
-import tempfile
+from shapely.geometry import box
 import logging
 
 

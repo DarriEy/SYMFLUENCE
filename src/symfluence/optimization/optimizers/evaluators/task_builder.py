@@ -11,7 +11,7 @@ from typing import Dict, Any, List, Optional, TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
-    from symfluence.core.config.models import SymfluenceConfig
+    pass
 
 
 def _ensure_flat_config(config: Any) -> Dict[str, Any]:

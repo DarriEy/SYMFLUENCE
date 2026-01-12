@@ -18,10 +18,8 @@ except Exception:
 
 
 from pathlib import Path
-import yaml
 from datetime import datetime
 from typing import Dict, Any, List, Union
-import sys
 
 # Import core components
 from symfluence.project.workflow_orchestrator import WorkflowOrchestrator
@@ -76,7 +74,7 @@ class SYMFLUENCE:
         self.logging_manager = LoggingManager(self.config, debug_mode=debug_mode)
         self.logger = self.logging_manager.logger
 
-        self.logger.info(f"SYMFLUENCE initialized")
+        self.logger.info("SYMFLUENCE initialized")
         if self.config_path:
             self.logger.info(f"Config path: {self.config_path}")
         if self.config_overrides:

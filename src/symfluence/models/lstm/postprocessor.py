@@ -4,7 +4,7 @@ LSTM Model Postprocessor.
 Handles result saving, visualization, and metric calculation for the LSTM model.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Optional, List
 from pathlib import Path
 import pandas as pd
 import xarray as xr

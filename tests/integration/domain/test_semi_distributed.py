@@ -6,10 +6,7 @@ Downloads example data and reuses the lumped domain assets for a short simulatio
 """
 
 import pytest
-import requests
 import shutil
-import zipfile
-import yaml
 from pathlib import Path
 
 # Import SYMFLUENCE - this should work now since we added the path

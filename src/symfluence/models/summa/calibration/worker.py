@@ -5,15 +5,11 @@ Worker implementation for SUMMA model optimization.
 Delegates to existing worker functions while providing BaseWorker interface.
 """
 
-import os
-import gc
-import time
-import random
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask, WorkerResult
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 
 
@@ -98,7 +94,7 @@ class SUMMAWorker(BaseWorker):
                 task_data['params'] = params
 
             # Create minimal logger for internal use
-            internal_logger = logging.getLogger(f'summa_worker_apply')
+            internal_logger = logging.getLogger('summa_worker_apply')
             internal_logger.setLevel(logging.WARNING)
 
             debug_info = {'stage': 'apply_parameters', 'files_checked': [], 'errors': []}

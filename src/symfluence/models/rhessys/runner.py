@@ -7,10 +7,7 @@ import logging
 import subprocess
 import os
 from pathlib import Path
-from typing import Optional
-from datetime import datetime
 
-import numpy as np
 import pandas as pd
 
 from symfluence.models.base.base_runner import BaseModelRunner

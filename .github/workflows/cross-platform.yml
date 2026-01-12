@@ -102,8 +102,8 @@ jobs:
           fi
 
           # Install package from pyproject.toml (source of truth for dependencies)
-          # Note: [dev] extra doesn't exist, so we just install the base package
-          pip install -e .
+          # Install with test dependencies for pytest
+          pip install -e ".[test]"
 
           # Install pytest-xdist for parallel test execution
           pip install pytest-xdist
@@ -314,9 +314,9 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             # On Windows, GDAL is from conda. Remove it from pyproject.toml before install
             python -c "open('pyproject.toml', 'w').write('\n'.join([l for l in open('pyproject.toml').readlines() if 'gdal' not in l.lower()]))"
-            pip install -e . || pip install .
+            pip install -e ".[test]" || pip install -e . || pip install .
           else
-            pip install -e ".[dev]" || pip install -e .
+            pip install -e ".[test]" || pip install -e .
           fi
 
       - name: Validate binaries
@@ -622,9 +622,9 @@ jobs:
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             # On Windows, GDAL is from conda. Remove it from pyproject.toml before install
             python -c "open('pyproject.toml', 'w').write('\n'.join([l for l in open('pyproject.toml').readlines() if 'gdal' not in l.lower()]))"
-            pip install -e . || pip install .
+            pip install -e ".[test]" || pip install -e . || pip install .
           else
-            pip install -e ".[dev]" || pip install -e .
+            pip install -e ".[test]" || pip install -e .
           fi
           # Install pytest-xdist for parallel execution
           pip install pytest-xdist

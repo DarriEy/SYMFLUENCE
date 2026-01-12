@@ -11,7 +11,7 @@ proper parameter file structure and indexing.
 import xarray as xr
 import netCDF4 as nc
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Optional
 import logging
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
