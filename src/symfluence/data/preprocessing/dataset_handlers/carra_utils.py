@@ -15,7 +15,7 @@ from pyproj import CRS, Transformer
 
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
-from symfluence.data.utils import VariableStandardizer
+from ...utils import VariableStandardizer
 
 
 @DatasetRegistry.register('carra')

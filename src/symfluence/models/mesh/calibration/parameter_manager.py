@@ -37,14 +37,13 @@ class MESHParameterManager(BaseParameterManager):
         self.mesh_params = [p.strip() for p in str(mesh_params_str).split(',') if p.strip()]
 
         # Paths to parameter files
-        self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.mesh_forcing_dir = self.project_dir / 'forcing' / 'MESH_input'
+        # mesh_settings_dir is the base directory for model files in this run context
+        self.mesh_settings_dir = mesh_settings_dir
 
-        # MESH parameter files (in forcing directory, not settings)
-        self.class_params_file = self.mesh_forcing_dir / 'MESH_parameters_CLASS.ini'
-        self.hydro_params_file = self.mesh_forcing_dir / 'MESH_parameters_hydrology.ini'
-        self.routing_params_file = self.mesh_forcing_dir / 'MESH_parameters.txt'
+        # MESH parameter files (usually in forcing directory, but mirrored in settings for workers)
+        self.class_params_file = self.mesh_settings_dir / 'MESH_parameters_CLASS.ini'
+        self.hydro_params_file = self.mesh_settings_dir / 'MESH_parameters_hydrology.ini'
+        self.routing_params_file = self.mesh_settings_dir / 'MESH_parameters.txt'
 
         # Map parameters to files
         self.param_file_map = {

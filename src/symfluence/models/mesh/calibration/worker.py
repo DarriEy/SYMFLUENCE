@@ -63,12 +63,6 @@ class MESHWorker(BaseWorker):
             self.logger.debug(f"Applying MESH parameters in {settings_dir}")
             param_manager = param_manager_cls(config, self.logger, settings_dir)
             
-            # For parallel execution, ensure it looks in the settings_dir
-            param_manager.mesh_forcing_dir = settings_dir
-            param_manager.class_params_file = settings_dir / 'MESH_parameters_CLASS.ini'
-            param_manager.hydro_params_file = settings_dir / 'MESH_parameters_hydrology.ini'
-            param_manager.routing_params_file = settings_dir / 'MESH_parameters.txt'
-            
             success = param_manager.update_model_files(params)
 
             if not success:

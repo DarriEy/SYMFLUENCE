@@ -230,12 +230,15 @@ class RHESSysClimateGenerator:
             # If it's a rate (e.g. kg/m2/s, mm/s, m/s)
             if 's-1' in units or 's^-1' in units or '/s' in units:
                 # If units are kg/m2/s or mm/s, they are effectively mm/s
-                if 'kg' in units or 'mm' in units:
+                # We also treat 'm s-1' as 'mm s-1' because meteorological 
+                # precipitation rates are almost always in mm/s or kg/m2/s in NetCDF.
+                # True m/s would be 1000x larger than typical rain.
+                if 'kg' in units or 'mm' in units or 'm s-1' in units or 'm/s' in units:
                     # Convert mm/s to m/hour (3600 s/hr / 1000 mm/m)
                     precip = precip * 3.6
                 else:
-                    # Assume m/s, convert to m/hour
-                    precip = precip * 3600.0
+                    # Assume other rates are also mm/s for safety
+                    precip = precip * 3.6
             # If it's already a depth per timestep (e.g. ERA5 'm')
             elif 'm' in units:
                 if 'mm' in units:

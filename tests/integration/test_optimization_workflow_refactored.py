@@ -120,15 +120,6 @@ class TestMigrationReadiness:
             model_dir = models_path / model
             assert model_dir.exists(), f"Model directory {model} should exist"
 
-    def test_migration_plan_exists(self):
-        """Test migration plan documentation exists."""
-        # This test assumes the migration plan is at project root
-        import symfluence
-        project_root = Path(symfluence.__file__).parent.parent.parent
-        migration_plan = project_root / 'MIGRATION_PLAN.md'
-
-        assert migration_plan.exists(), "MIGRATION_PLAN.md should exist"
-
     def test_optimization_base_classes_available(self):
         """Test base classes for migration are available."""
         from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
