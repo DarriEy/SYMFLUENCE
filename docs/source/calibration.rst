@@ -350,24 +350,6 @@ Example Workflows
 
 ---
 
-Specialized Calibration Guides
--------------------------------
-
-For specific calibration targets and workflows, see:
-
-**Evapotranspiration Calibration**
-
-- :doc:`et_quickstart` — Quick start guide for ET-focused calibration
-- :doc:`et_calibration_setup` — Detailed setup for multi-dataset ET calibration
-
-These guides cover:
-
-- Integrating FLUXNET, MODIS, and other ET observation datasets
-- Configuring ET-specific objective functions and metrics
-- Parameter selection for energy balance and ET processes
-- Multi-site calibration strategies
-- Validation approaches for ET predictions
-
 **See Also**
 
 - :doc:`configuration` — Complete parameter reference
