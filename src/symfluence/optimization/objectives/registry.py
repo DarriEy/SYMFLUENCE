@@ -23,7 +23,10 @@ Example:
     >>> objective = ObjectiveRegistry.get_objective('CUSTOM_OBJECTIVE', config, logger)
     >>> score = objective.calculate(eval_results)
 """
-from typing import Dict, Type, Any, Optional
+from typing import Dict, Type, Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .base import BaseObjective
 
 class ObjectiveRegistry:
     """Plugin registry for objective function implementations.

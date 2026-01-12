@@ -459,7 +459,30 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             return self.calculate_pet_oudin(temp_data, lat)
 
     def _add_forcing_variables(self, fuse_forcing, ds, pet, obs_ds, spatial_dims, n_subcatchments, ts_config=None):
-        """Add forcing variables to the dataset using efficient xarray broadcasting"""
+        """
+        Add forcing variables to the FUSE dataset using efficient xarray broadcasting.
+
+        Processes precipitation, temperature, PET, and streamflow observations
+        and adds them to the FUSE forcing dataset with proper coordinate alignment,
+        NaN handling, and encoding for FUSE compatibility.
+
+        Args:
+            fuse_forcing: Target xarray Dataset with coordinate structure defined.
+            ds: Source forcing dataset containing 'precip' and 'temp' variables.
+            pet: Potential evapotranspiration DataArray.
+            obs_ds: Observation dataset with 'q_obs' or None for synthetic generation.
+            spatial_dims: Tuple of dimension names, e.g., ('time', 'latitude', 'longitude').
+            n_subcatchments: Number of subcatchments for distributed mode.
+            ts_config: Timestep configuration dict (uses _get_timestep_config if None).
+
+        Returns:
+            dict: Encoding dictionary for NetCDF output with compression settings.
+
+        Note:
+            FUSE interprets -9999 as actual negative values, not missing data.
+            This method fills NaN values with interpolated/mean data to avoid
+            FUSE misinterpreting missing data.
+        """
 
         if ts_config is None:
             ts_config = self._get_timestep_config()
@@ -582,7 +605,21 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         return encoding
 
     def _generate_distributed_synthetic_hydrograph(self, ds, n_subcatchments, time_length):
-        """Generate distributed synthetic hydrograph - delegates to synthetic data generator"""
+        """
+        Generate distributed synthetic hydrograph for testing and calibration.
+
+        Creates synthetic streamflow data when observed data is unavailable,
+        useful for model testing and structure exploration. Delegates to
+        FuseSyntheticDataGenerator for the actual computation.
+
+        Args:
+            ds: Source forcing dataset with precipitation and temperature.
+            n_subcatchments: Number of subcatchments to generate data for.
+            time_length: Number of timesteps in the output.
+
+        Returns:
+            numpy.ndarray: Synthetic streamflow array of shape (time_length, n_subcatchments).
+        """
         return self.synthetic_data_generator.generate_distributed_synthetic_hydrograph(ds, n_subcatchments, time_length)
     def _prepare_lumped_forcing(self, ds):
         """Prepare lumped forcing data - delegates to forcing processor"""
@@ -601,7 +638,24 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         return self.forcing_processor._load_subcatchment_data()
 
     def _create_fuse_forcing_dataset(self, ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config=None):
-        """Create the final FUSE forcing dataset with proper coordinate structure"""
+        """
+        Create the final FUSE forcing dataset with proper coordinate structure.
+
+        Routes to the appropriate dataset creation method based on spatial mode.
+        Lumped mode creates a single-point dataset while distributed modes
+        create multi-dimensional datasets with subcatchment coordinates.
+
+        Args:
+            ds: Processed forcing dataset with 'precip' and 'temp' variables.
+            pet: Calculated potential evapotranspiration DataArray.
+            obs_ds: Observation dataset with 'q_obs' or None for synthetic data.
+            spatial_mode: One of 'lumped', 'semi_distributed', or 'distributed'.
+            subcatchment_dim: Dimension for subcatchments ('latitude' or 'longitude').
+            ts_config: Timestep configuration dict (uses _get_timestep_config if None).
+
+        Returns:
+            xr.Dataset: Complete FUSE forcing dataset ready for model input.
+        """
         
         if ts_config is None:
             ts_config = self._get_timestep_config()
@@ -612,7 +666,26 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             return self._create_distributed_dataset(ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config)
 
     def _create_distributed_dataset(self, ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config=None):
-        """Create distributed/semi-distributed FUSE forcing dataset using efficient xarray operations"""
+        """
+        Create distributed or semi-distributed FUSE forcing dataset.
+
+        Builds a multi-dimensional forcing dataset for distributed FUSE runs
+        where subcatchments are represented along either latitude or longitude
+        dimension. Uses efficient xarray operations for broadcasting.
+
+        Args:
+            ds: Processed forcing dataset with 'precip' and 'temp' variables.
+            pet: Calculated potential evapotranspiration DataArray.
+            obs_ds: Observation dataset with 'q_obs' or None for synthetic data.
+            spatial_mode: Either 'semi_distributed' or 'distributed'.
+            subcatchment_dim: Dimension for subcatchments ('latitude' or 'longitude').
+            ts_config: Timestep configuration dict (uses _get_timestep_config if None).
+
+        Returns:
+            xr.Dataset: FUSE forcing dataset with dimensions (time, latitude, longitude)
+                where one spatial dimension contains subcatchment IDs and the other
+                contains the catchment centroid coordinate.
+        """
         
         if ts_config is None:
             ts_config = self._get_timestep_config()

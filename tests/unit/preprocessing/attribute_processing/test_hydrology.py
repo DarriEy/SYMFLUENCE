@@ -66,7 +66,7 @@ class TestCalculateWaterBalance:
 
     def test_calculate_water_balance_budyko_parameter(
         self, base_config, test_logger, lumped_catchment_shapefile,
-        mock_streamflow_data, mock_temperature_data, mock_precipitation_data
+        mock_streamflow_data, mock_temperature_data, mock_precipitation_data, temp_project_dir
     ):
         """Test Budyko parameter estimation via scipy.optimize."""
         processor = HydrologyProcessor(base_config, test_logger)
@@ -78,9 +78,7 @@ class TestCalculateWaterBalance:
             mock_result.success = True
             mock_minimize.return_value = mock_result
 
-            # Add temp_project_dir to test parameters if not present
-        temp_dir = temp_project_dir if 'temp_project_dir' in locals() else mock_streamflow_data.parent.parent.parent.parent
-        with patch.object(processor, 'project_dir', temp_dir):
+            with patch.object(processor, 'project_dir', temp_project_dir):
                 result = processor.calculate_water_balance()
 
         # Should have Budyko parameter
@@ -126,7 +124,7 @@ class TestCalculateWaterBalance:
 
     def test_calculate_water_balance_budyko_optimization_failure(
         self, base_config, test_logger, lumped_catchment_shapefile,
-        mock_streamflow_data, mock_temperature_data, mock_precipitation_data
+        mock_streamflow_data, mock_temperature_data, mock_precipitation_data, temp_project_dir
     ):
         """Test handling when Budyko optimization fails to converge."""
         processor = HydrologyProcessor(base_config, test_logger)
@@ -138,9 +136,7 @@ class TestCalculateWaterBalance:
             mock_result.x = [np.nan]
             mock_minimize.return_value = mock_result
 
-            # Add temp_project_dir to test parameters if not present
-        temp_dir = temp_project_dir if 'temp_project_dir' in locals() else mock_streamflow_data.parent.parent.parent.parent
-        with patch.object(processor, 'project_dir', temp_dir):
+            with patch.object(processor, 'project_dir', temp_project_dir):
                 result = processor.calculate_water_balance()
 
         # Should handle failed optimization gracefully
