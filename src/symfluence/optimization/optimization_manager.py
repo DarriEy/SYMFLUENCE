@@ -513,8 +513,9 @@ class OptimizationManager(BaseManager):
         Returns:
             Optional[Path]: Path to results file or None if calibration failed
         """
-        # Import model optimizers to trigger registration
+        # Import model optimizers and parameter managers to trigger registration
         from symfluence.optimization import model_optimizers  # noqa: F401
+        from symfluence.optimization import parameter_managers  # noqa: F401
 
         # Get optimizer class from registry
         optimizer_cls = OptimizerRegistry.get_optimizer(model_name)

@@ -10,5 +10,7 @@ RHESSYS Model Optimizer (Backward Compatibility)
 
 # Backward compatibility re-export
 from symfluence.models.rhessys.calibration.optimizer import RHESSysModelOptimizer
+from symfluence.models.rhessys.calibration.parameter_manager import RHESSysParameterManager
+from symfluence.models.rhessys.calibration.worker import RHESSysWorker
 
-__all__ = ['RHESSysModelOptimizer']
+__all__ = ['RHESSysModelOptimizer', 'RHESSysParameterManager', 'RHESSysWorker']

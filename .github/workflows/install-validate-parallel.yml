@@ -386,7 +386,6 @@ jobs:
 
       - name: Run binary validation
         env:
-          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
           SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
         run: |
           echo "========================================="
@@ -441,7 +440,6 @@ jobs:
 
       - name: Run integration tests
         env:
-          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
           SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
         run: |
           echo "========================================="
@@ -521,7 +519,6 @@ jobs:
 
       - name: Run quick E2E tests
         env:
-          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
           SYMFLUENCE_CODE: ${{ github.workspace }}
           SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
         run: |
@@ -612,7 +609,6 @@ jobs:
 
       - name: Run full E2E tests
         env:
-          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
           SYMFLUENCE_CODE: ${{ github.workspace }}
           SYMFLUENCE_DATA: ${{ github.workspace }}/symfluence_data
         run: |

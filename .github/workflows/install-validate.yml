@@ -234,8 +234,7 @@ jobs:
           echo "Running test level: ${TEST_LEVEL}"
 
       - name: Run validation tests
-        env:
-          PYTHONPATH: ${{ env.SYMFLUENCE_CODE }}:${{ env.SYMFLUENCE_CODE }}/tests
+        # Note: PYTHONPATH removed - editable install handles imports
         run: |
           set -e
 

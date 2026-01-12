@@ -10,5 +10,7 @@ GNN Model Optimizer (Backward Compatibility)
 
 # Backward compatibility re-export
 from symfluence.models.gnn.calibration.optimizer import GNNModelOptimizer
+from symfluence.models.gnn.calibration.parameter_manager import GNNParameterManager
+from symfluence.models.gnn.calibration.worker import GNNWorker
 
-__all__ = ['GNNModelOptimizer']
+__all__ = ['GNNModelOptimizer', 'GNNParameterManager', 'GNNWorker']

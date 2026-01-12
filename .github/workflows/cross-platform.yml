@@ -324,8 +324,6 @@ jobs:
           fi
 
       - name: Validate binaries
-        env:
-          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
         run: |
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             source "$CONDA/etc/profile.d/conda.sh"
@@ -638,8 +636,6 @@ jobs:
           pip install pytest-xdist
 
       - name: Run integration tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/tests
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             source "$CONDA/etc/profile.d/conda.sh"

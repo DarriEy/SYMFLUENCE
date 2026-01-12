@@ -84,7 +84,7 @@ class MESHForcingProcessor:
 
         with NC4Dataset(forcing_path, 'w', format='NETCDF4') as ncfile:
             ncfile.createDimension('time', None)
-            ncfile.createDimension('N', n_spatial)
+            ncfile.createDimension('subbasin', n_spatial)
 
             time_data = ds['time'].values
             var_time = ncfile.createVariable('time', 'f8', ('time',))
@@ -100,7 +100,7 @@ class MESHForcingProcessor:
             ])
             var_time[:] = time_hours
 
-            var_n = ncfile.createVariable('N', 'i4', ('N',))
+            var_n = ncfile.createVariable('subbasin', 'i4', ('subbasin',))
             var_n[:] = np.arange(1, n_spatial + 1)
 
             for src_var, standard_name in var_rename.items():
@@ -112,7 +112,7 @@ class MESHForcingProcessor:
                         if var_data.shape[0] != len(time_data):
                             var_data = var_data.T
 
-                    var = ncfile.createVariable(mesh_name, 'f4', ('time', 'N'), fill_value=-9999.0)
+                    var = ncfile.createVariable(mesh_name, 'f4', ('time', 'subbasin'), fill_value=-9999.0)
                     var.long_name = standard_name.replace('_', ' ')
                     var.units = MESHConfigDefaults.get_var_units(mesh_name)
                     var[:] = var_data
@@ -132,7 +132,7 @@ class MESHForcingProcessor:
         self.create_split_forcing_files()
 
     def _rename_subbasin_dimension(self) -> None:
-        """Rename 'subbasin' to 'N' in all NetCDF files."""
+        """Rename 'N' to 'subbasin' in all NetCDF files."""
         for nc_file in [
             self.forcing_dir / "MESH_forcing.nc",
             self.forcing_dir / "MESH_drainage_database.nc"
@@ -141,14 +141,14 @@ class MESHForcingProcessor:
                 try:
                     with xr.open_dataset(nc_file) as ds:
                         rename_dict = {}
-                        if 'subbasin' in ds.dims:
-                            rename_dict['subbasin'] = 'N'
+                        if 'N' in ds.dims:
+                            rename_dict['N'] = 'subbasin'
                         if rename_dict:
                             ds_renamed = ds.rename(rename_dict)
                             temp_path = nc_file.with_suffix('.tmp.nc')
                             ds_renamed.to_netcdf(temp_path)
                             os.replace(temp_path, nc_file)
-                            self.logger.info(f"Renamed 'subbasin' to 'N' in {nc_file.name}")
+                            self.logger.info(f"Renamed 'N' to 'subbasin' in {nc_file.name}")
                 except Exception as e:
                     self.logger.warning(f"Failed to rename dimension in {nc_file.name}: {e}")
 
@@ -173,8 +173,8 @@ class MESHForcingProcessor:
                 if existing_rename:
                     ds_renamed = ds.rename(existing_rename)
 
-                    if 'time' in ds_renamed.dims and 'N' in ds_renamed.dims:
-                        ds_renamed = ds_renamed.transpose('time', 'N', ...)
+                    if 'time' in ds_renamed.dims and 'subbasin' in ds_renamed.dims:
+                        ds_renamed = ds_renamed.transpose('time', 'subbasin', ...)
 
                     temp_path = forcing_nc.with_suffix('.tmp.nc')
                     ds_renamed.to_netcdf(temp_path, unlimited_dims=['time'])
@@ -208,10 +208,10 @@ class MESHForcingProcessor:
 
                         with NC4Dataset(var_path, 'w', format='NETCDF4') as ncfile:
                             ncfile.createDimension('time', None)
-                            ncfile.createDimension('N', n_size)
+                            ncfile.createDimension('subbasin', n_size)
 
                             var = ncfile.createVariable(
-                                mesh_var, 'f4', ('time', 'N'), fill_value=-9999.0
+                                mesh_var, 'f4', ('time', 'subbasin'), fill_value=-9999.0
                             )
                             var.long_name = MESHConfigDefaults.get_var_long_name(mesh_var)
                             var.units = MESHConfigDefaults.get_var_units(mesh_var)
@@ -231,7 +231,7 @@ class MESHForcingProcessor:
                                 ]
                                 var_time[:] = time_hours
 
-                            var_n = ncfile.createVariable('N', 'i4', ('N',))
+                            var_n = ncfile.createVariable('subbasin', 'i4', ('subbasin',))
                             var_n[:] = np.arange(1, n_size + 1)
 
                         self.logger.debug(f"Created {filename}")
