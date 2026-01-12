@@ -139,7 +139,7 @@ import pandas as pd
 
 from symfluence.core.base_manager import BaseManager
 from symfluence.models.registry import ModelRegistry
-from symfluence.optimization.workers.utilities.routing_decider import RoutingDecider
+from symfluence.models.utilities.routing_decider import RoutingDecider
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

@@ -30,5 +30,17 @@ try:
 except ImportError:
     pass  # Build instructions optional
 
+# Register defaults with DefaultsRegistry (import triggers registration via decorator)
+from . import defaults  # noqa: F401
+
+# Register config adapter with ModelRegistry
+from symfluence.models.registry import ModelRegistry
+from .config import NGENConfigAdapter
+ModelRegistry.register_config_adapter('NGEN')(NGENConfigAdapter)
+
+# Register result extractor with ModelRegistry
+from .extractor import NGENResultExtractor
+ModelRegistry.register_result_extractor('NGEN')(NGENResultExtractor)
+
 # Register plotter with PlotterRegistry (import triggers registration via decorator)
 from .plotter import NGENPlotter  # noqa: F401

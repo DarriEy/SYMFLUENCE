@@ -12,9 +12,10 @@ from typing import Any, Dict, List, Optional, Union
 from .console import Console, console as global_console
 from .external_tools_config import get_external_tools_definitions
 from .services import ToolInstaller, ToolValidator, SystemDiagnostics
+from .services.base import BaseService
 
 
-class BinaryService:
+class BinaryService(BaseService):
     """
     Facade for binary tool management.
 
@@ -37,7 +38,9 @@ class BinaryService:
             external_tools: Dictionary of tool definitions. If None, loads from config.
             console: Console instance for output. If None, uses global console.
         """
-        self._console = console or global_console
+        # Initialize parent class (BaseService)
+        super().__init__(console=console or global_console)
+
         self._external_tools = external_tools
 
         # Initialize services with shared console

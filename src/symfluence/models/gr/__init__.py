@@ -16,3 +16,15 @@ __all__ = [
     'GRPostprocessor',
     'visualize_gr'
 ]
+
+# Register defaults with DefaultsRegistry (import triggers registration via decorator)
+from . import defaults  # noqa: F401
+
+# Register config adapter with ModelRegistry
+from symfluence.models.registry import ModelRegistry
+from .config import GRConfigAdapter
+ModelRegistry.register_config_adapter('GR')(GRConfigAdapter)
+
+# Register result extractor with ModelRegistry
+from .extractor import GRResultExtractor
+ModelRegistry.register_result_extractor('GR')(GRResultExtractor)

@@ -29,8 +29,9 @@ def load_config_template(symfluence_code_dir):
     from symfluence.resources import get_config_template
 
     template_path = get_config_template()
-    # Use SymfluenceConfig to load and validate, then convert to dict for test manipulation
-    config_obj = SymfluenceConfig.from_file(template_path)
+    # Use SymfluenceConfig to load WITHOUT validation, then convert to dict for test manipulation
+    # Tests will set model-specific configurations before validation
+    config_obj = SymfluenceConfig.from_file(template_path, validate=False)
     return config_obj.to_dict(flatten=True)
 
 

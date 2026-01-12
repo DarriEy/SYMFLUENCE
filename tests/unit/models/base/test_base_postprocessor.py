@@ -40,6 +40,9 @@ def _create_config(overrides):
         'DOMAIN_DISCRETIZATION': 'lumped',
         'HYDROLOGICAL_MODEL': 'SUMMA',
         'FORCING_DATASET': 'ERA5',
+        # Add required SUMMA fields for config validation
+        'SUMMA_EXE': '/tmp/summa.exe',
+        'SETTINGS_SUMMA_PATH': '/tmp/settings/SUMMA',
     }
     base.update(overrides)
     return SymfluenceConfig(**base)
@@ -116,7 +119,10 @@ class TestBaseModelPostProcessorInitialization:
             'DOMAIN_DEFINITION_METHOD': 'lumped',
             'DOMAIN_DISCRETIZATION': 'lumped',
             'HYDROLOGICAL_MODEL': 'SUMMA',
-            'FORCING_DATASET': 'ERA5'
+            'FORCING_DATASET': 'ERA5',
+            # Add required SUMMA fields for config validation
+            'SUMMA_EXE': '/tmp/summa.exe',
+            'SETTINGS_SUMMA_PATH': '/tmp/settings/SUMMA',
         }
         config = SymfluenceConfig(**config_data)
         

@@ -58,3 +58,15 @@ Limitations and Considerations:
 from .runner import GNNRunner
 
 __all__ = ['GNNRunner']
+
+# Register defaults with DefaultsRegistry (import triggers registration via decorator)
+from . import defaults  # noqa: F401
+
+# Register config adapter with ModelRegistry
+from symfluence.models.registry import ModelRegistry
+from .config import GNNConfigAdapter
+ModelRegistry.register_config_adapter('GNN')(GNNConfigAdapter)
+
+# Register result extractor with ModelRegistry
+from .extractor import GNNResultExtractor
+ModelRegistry.register_result_extractor('GNN')(GNNResultExtractor)

@@ -8,6 +8,25 @@ used across different models (SUMMA, FUSE, NGEN). Benefits:
 - Documents parameter meanings and units
 - Allows easy modification of bounds without editing multiple files
 
+Architecture Decision:
+    This module intentionally contains model-specific functions (get_fuse_bounds,
+    get_ngen_bounds, etc.) despite the general pattern of moving model-specific
+    code to respective model packages (models/fuse/, models/ngen/, etc.).
+
+    Rationale for centralization:
+    - Single source of truth: All parameter bounds in one place for easy comparison
+    - Cross-model consistency: Ensures shared parameters use consistent bounds
+    - Easier maintenance: Modifying bounds doesn't require editing 11 model packages
+    - Better overview: Developers can see all parameter bounds at a glance
+    - Scientific documentation: Bounds are documented with units and descriptions
+
+    Alternative considered:
+    - Splitting bounds into models/{model}/calibration/parameter_bounds.py
+    - Rejected due to increased fragmentation and harder cross-model validation
+
+    Decision affirmed during pre-migration refactoring (January 2026) as part of
+    the effort to consolidate model-specific code before the main migration.
+
 Usage:
     from symfluence.optimization.core.parameter_bounds_registry import (
         ParameterBoundsRegistry, get_fuse_bounds, get_ngen_bounds

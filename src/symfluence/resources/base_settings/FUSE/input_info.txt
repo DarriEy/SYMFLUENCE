@@ -11,7 +11,7 @@
 <vname_imin>      undefined                            ! name of variable for minute
 <vname_dsec>      undefined                            ! name of variable for second
 <vname_dtime>     time                                 ! time since reference time
-<vname_aprecip>   pr                                   ! variable name: precipitation
+<vname_aprecip>   precip                               ! variable name: precipitation
 <vname_airtemp>   temp                                 ! variable name: temperature
 <vname_spechum>   undefined                            ! variable name: specific humidity
 <vname_airpres>   undefined                            ! variable name: surface pressure

@@ -176,6 +176,7 @@ from typing import Dict, Any, List, Tuple, Optional, Callable, Union, TYPE_CHECK
 from datetime import datetime
 
 from symfluence.core import ConfigurableMixin
+from symfluence.core.constants import ModelDefaults
 from ..mixins import (
     ParallelExecutionMixin,
     ResultsTrackingMixin,
@@ -315,7 +316,7 @@ class BaseModelOptimizer(
     # Default algorithm parameters
     DEFAULT_ITERATIONS = 100
     DEFAULT_POPULATION_SIZE = 30
-    DEFAULT_PENALTY_SCORE = -999.0
+    DEFAULT_PENALTY_SCORE = ModelDefaults.PENALTY_SCORE
 
     def __init__(
         self,

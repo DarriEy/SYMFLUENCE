@@ -36,18 +36,66 @@ class BaseModelRunner(ABC, PathResolverMixin, ShapefileAccessMixin):
     Provides common initialization, path management, and utility methods
     that are shared across different hydrological model runners.
 
-    Inherits:
-        PathResolverMixin: Path resolution with typed config access
-        ShapefileAccessMixin: Shapefile column name properties
+    Inheritance Structure:
+        BaseModelRunner (this class)
+        ├── ABC: Abstract base class functionality
+        ├── PathResolverMixin: Path resolution utilities
+        │   ├── Inherits from: ConfigurableMixin → LoggingMixin + ProjectContextMixin
+        │   ├── Methods:
+        │   │   - _get_default_path(config_key, default_subpath, must_exist=False)
+        │   │   - _get_file_path(path_key, name_key, default_subpath, default_name, must_exist=False)
+        │   └── Provides consistent handling of "default" keyword in config
+        └── ShapefileAccessMixin: Shapefile column name properties
+            ├── Inherits from: ConfigMixin
+            └── Properties (~20 properties):
+                - Catchment: catchment_name_col, catchment_hruid_col, catchment_gruid_col, etc.
+                - River network: river_network_name_col, river_segid_col, river_downsegid_col, etc.
+                - Pour point: pour_point_name_col, pour_point_gruid_col, etc.
+
+    Usage Example:
+        class MyModelRunner(BaseModelRunner):
+            def __init__(self, config, logger):
+                super().__init__(config, logger)
+
+                # Use PathResolverMixin methods
+                self.forcing_path = self._get_default_path(
+                    'FORCING_PATH', 'forcing/data', must_exist=True
+                )
+
+                # Use ShapefileAccessMixin properties
+                hru_column = self.catchment_hruid_col  # From config or default 'HRU_ID'
+
+                # Use get_install_path for executables
+                self.model_exe = self.get_model_executable(
+                    'MY_MODEL_INSTALL_PATH',
+                    'installs/mymodel/bin',
+                    'MY_MODEL_EXE',
+                    'mymodel.exe',
+                    must_exist=True
+                )
+
+            def _get_model_name(self) -> str:
+                return 'MyModel'
 
     Attributes:
-        config: SymfluenceConfig instance
+        config: SymfluenceConfig instance (typed config object)
         logger: Logger instance
         data_dir: Root data directory
         domain_name: Name of the domain
         project_dir: Project-specific directory
         model_name: Name of the model (e.g., 'SUMMA', 'FUSE', 'GR')
         output_dir: Directory for model outputs (created if specified)
+
+    Abstract Methods:
+        Subclasses must implement:
+        - _get_model_name(): Return model name string
+
+    Optional Hooks:
+        Subclasses may override:
+        - _setup_model_specific_paths(): Setup paths after base initialization
+        - _should_create_output_dir(): Control output directory creation
+        - _get_output_dir(): Customize output directory location
+        - _validate_required_config(): Add model-specific config validation
     """
 
     def __init__(
@@ -103,6 +151,45 @@ class BaseModelRunner(ABC, PathResolverMixin, ShapefileAccessMixin):
         if self._should_create_output_dir():
             self.output_dir = self._get_output_dir()
             self.ensure_dir(self.output_dir)
+
+    # =========================================================================
+    # Inherited Methods from Mixins
+    # =========================================================================
+    # The following methods and properties are provided by parent mixins:
+    #
+    # From PathResolverMixin (src/symfluence/core/path_resolver.py):
+    #   - _get_default_path(config_key, default_subpath, must_exist=False)
+    #       Resolves paths with "default" keyword support
+    #   - _get_file_path(path_key, name_key, default_subpath, default_name, must_exist=False)
+    #       Resolves file paths (directory + filename)
+    #
+    # From ShapefileAccessMixin (src/symfluence/core/mixins/shapefile.py):
+    #   Catchment shapefile columns:
+    #     - catchment_name_col, catchment_hruid_col, catchment_gruid_col
+    #     - catchment_area_col, catchment_lat_col, catchment_lon_col
+    #     - catchment_elev_col, catchment_slope_col
+    #   River network columns:
+    #     - river_network_name_col, river_segid_col, river_downsegid_col
+    #     - river_slope_col, river_length_col, river_topo_col
+    #   Pour point columns:
+    #     - pour_point_name_col, pour_point_gruid_col
+    #
+    # From ConfigurableMixin (inherited via PathResolverMixin):
+    #   - _get_config_value(accessor, default)
+    #       Safe typed config access with fallback
+    #   - validate_config(required_keys, context)
+    #       Validate required configuration keys
+    #
+    # From ConfigMixin (inherited via ShapefileAccessMixin):
+    #   - config (property): Returns typed or dict config
+    #   - config_dict (property): Returns dict representation of config
+    #
+    # From LoggingMixin and ProjectContextMixin (inherited transitively):
+    #   - ensure_dir(path): Create directory if it doesn't exist
+    #   - copy_file(src, dst): Copy file with logging
+    #   - copy_tree(src, dst): Copy directory tree with logging
+    #   - run_command(command, **kwargs): Execute shell command
+    # =========================================================================
 
     def _validate_required_config(self) -> None:
         """
@@ -393,6 +480,7 @@ class BaseModelRunner(ABC, PathResolverMixin, ShapefileAccessMixin):
         check: bool = True,
         timeout: Optional[int] = None,
         success_message: str = "Model execution completed successfully",
+        success_log_level: int = logging.INFO,
         error_context: Optional[Dict[str, Any]] = None
     ) -> subprocess.CompletedProcess:
         """
@@ -407,6 +495,7 @@ class BaseModelRunner(ABC, PathResolverMixin, ShapefileAccessMixin):
             check: Whether to raise CalledProcessError on non-zero exit
             timeout: Optional timeout in seconds
             success_message: Message to log on success
+            success_log_level: Log level for success message (default: logging.INFO)
             error_context: Additional context to log on error (e.g., paths, env vars)
 
         Returns:
@@ -441,7 +530,7 @@ class BaseModelRunner(ABC, PathResolverMixin, ShapefileAccessMixin):
                 )
 
             if result.returncode == 0:
-                self.logger.info(success_message)
+                self.logger.log(success_log_level, success_message)
             else:
                 self.logger.warning(f"Process exited with code {result.returncode}")
 

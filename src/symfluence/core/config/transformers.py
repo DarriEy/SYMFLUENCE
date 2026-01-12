@@ -648,6 +648,9 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
     Maps uppercase keys like 'DOMAIN_NAME' to nested paths like
     {'domain': {'name': ...}}.
 
+    This function now supports model-specific transformers from ModelRegistry,
+    which take precedence over the base FLAT_TO_NESTED_MAP.
+
     Args:
         flat_config: Flat configuration dictionary with uppercase keys
 
@@ -674,10 +677,26 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
         'paths': {}
     }
 
+    # Build combined mapping: base + model-specific transformers
+    combined_mapping = FLAT_TO_NESTED_MAP.copy()
+
+    # Try to get model-specific transformers from ModelRegistry
+    hydrological_model = flat_config.get('HYDROLOGICAL_MODEL')
+    if hydrological_model:
+        try:
+            from symfluence.models.registry import ModelRegistry
+            model_transformers = ModelRegistry.get_config_transformers(hydrological_model)
+            if model_transformers:
+                # Model-specific transformers override base mapping
+                combined_mapping.update(model_transformers)
+        except Exception:
+            # If ModelRegistry not available or model not registered, just use base mapping
+            pass
+
     # Apply mapping
     for flat_key, value in flat_config.items():
-        if flat_key in FLAT_TO_NESTED_MAP:
-            path = FLAT_TO_NESTED_MAP[flat_key]
+        if flat_key in combined_mapping:
+            path = combined_mapping[flat_key]
             _set_nested_value(nested, path, value)
         else:
             # Unknown keys stored in _extra (Pydantic extra='allow' will handle)

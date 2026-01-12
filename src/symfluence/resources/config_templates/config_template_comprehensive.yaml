@@ -105,14 +105,14 @@ STOP_ON_ERROR: true
 #   Default:     None
 #   Source:      SystemConfig (system.py)
 #   Usage:      29
-SYMFLUENCE_CODE_DIR: null
+SYMFLUENCE_CODE_DIR: "default"
 
 # SYMFLUENCE_DATA_DIR
 #   Type:        Path
 #   Default:     None
 #   Source:      SystemConfig (system.py)
 #   Usage:      103
-SYMFLUENCE_DATA_DIR: null
+SYMFLUENCE_DATA_DIR: "default"
 
 # USE_LOCAL_SCRATCH
 #   Type:        bool
@@ -158,7 +158,7 @@ SETTINGS_HYPE_INFO: "info.txt"
 #   Default:     None
 #   Source:      HYPEConfig (model_configs.py)
 #   Usage:      5
-HYPE_PARAMS_TO_CALIBRATE: null
+HYPE_PARAMS_TO_CALIBRATE: ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp
 
 # HYPE_SPINUP_DAYS
 #   Type:        int
@@ -183,7 +183,7 @@ NGEN_ACTIVE_CATCHMENT_ID: null
 #   Default:     None
 #   Source:      NGENConfig (model_configs.py)
 #   Usage:      3
-NGEN_CFE_PARAMS_TO_CALIBRATE: null
+NGEN_CFE_PARAMS_TO_CALIBRATE: maxsmc,satdk,bb,slop
 
 # NGEN_EXE
 #   Type:        str
@@ -204,21 +204,21 @@ NGEN_INSTALL_PATH: default
 #   Default:     None
 #   Source:      NGENConfig (model_configs.py)
 #   Usage:      3
-NGEN_MODULES_TO_CALIBRATE: null
+NGEN_MODULES_TO_CALIBRATE: CFE
 
 # NGEN_NOAH_PARAMS_TO_CALIBRATE
 #   Type:        str
 #   Default:     None
 #   Source:      NGENConfig (model_configs.py)
 #   Usage:      3
-NGEN_NOAH_PARAMS_TO_CALIBRATE: null
+NGEN_NOAH_PARAMS_TO_CALIBRATE: refkdt,slope,smcmax,dksat
 
 # NGEN_PET_PARAMS_TO_CALIBRATE
 #   Type:        str
 #   Default:     None
 #   Source:      NGENConfig (model_configs.py)
 #   Usage:      3
-NGEN_PET_PARAMS_TO_CALIBRATE: null
+NGEN_PET_PARAMS_TO_CALIBRATE: ""
 
 
 # 12. MESH Model Configuration
@@ -390,7 +390,7 @@ SETTINGS_MESH_INPUT: default
 #   Default:     None
 #   Source:      MESHConfig (model_configs.py)
 #   Usage:      5
-MESH_PARAMS_TO_CALIBRATE: null
+MESH_PARAMS_TO_CALIBRATE: ZSNL,MANN,RCHARG,BASEFLW,DTMINUSR
 
 # MESH_SPINUP_DAYS
 #   Type:        int
@@ -569,7 +569,7 @@ SETTINGS_MIZU_TOPOLOGY_FILE: "topology.nc"
 #   Default:     None
 #   Source:      MizuRouteConfig (model_configs.py)
 #   Usage:      3
-MIZUROUTE_PARAMS_TO_CALIBRATE: null
+MIZUROUTE_PARAMS_TO_CALIBRATE: velo,diff
 
 # CALIBRATE_MIZUROUTE
 #   Type:        bool
@@ -2186,21 +2186,21 @@ CALIBRATION_END_DATE: null
 #   Default:     None
 #   Source:      DomainConfig (domain.py)
 #   Usage:      75
-DOMAIN_DEFINITION_METHOD: null
+DOMAIN_DEFINITION_METHOD: "lumped"
 
 # DOMAIN_DISCRETIZATION
 #   Type:        str
 #   Default:     None
 #   Source:      DomainConfig (domain.py)
 #   Usage:      46
-DOMAIN_DISCRETIZATION: null
+DOMAIN_DISCRETIZATION: "elevation"
 
 # DOMAIN_NAME
 #   Type:        str
 #   Default:     None
 #   Source:      DomainConfig (domain.py)
 #   Usage:      176
-DOMAIN_NAME: null
+DOMAIN_NAME: "example_basin"
 
 # BOUNDING_BOX_COORDS
 #   Type:        str
@@ -2221,21 +2221,21 @@ EVALUATION_PERIOD: null
 #   Default:     None
 #   Source:      DomainConfig (domain.py)
 #   Usage:      116
-EXPERIMENT_ID: null
+EXPERIMENT_ID: "run_1"
 
 # EXPERIMENT_TIME_END
 #   Type:        str
 #   Default:     None
 #   Source:      DomainConfig (domain.py)
 #   Usage:      54
-EXPERIMENT_TIME_END: null
+EXPERIMENT_TIME_END: "2020-12-31 23:00"
 
 # EXPERIMENT_TIME_START
 #   Type:        str
 #   Default:     None
 #   Source:      DomainConfig (domain.py)
 #   Usage:      59
-EXPERIMENT_TIME_START: null
+EXPERIMENT_TIME_START: "2010-01-01 01:00"
 
 # SPINUP_PERIOD
 #   Type:        str
@@ -2779,7 +2779,7 @@ ERA5_VARS: ['u10', 'v10', 't2m', 'sp', 'd2m', 'ssrd', 'strd', 'tp']
 #   Default:     None
 #   Source:      ForcingConfig (forcing.py)
 #   Usage:      56
-FORCING_DATASET: null
+FORCING_DATASET: "ERA5"
 
 # FORCING_MEASUREMENT_HEIGHT
 #   Type:        int
@@ -2906,7 +2906,7 @@ ROUTING_MODEL: null
 #   Default:     None
 #   Source:      SUMMAConfig (model_configs.py)
 #   Usage:      6
-BASIN_PARAMS_TO_CALIBRATE: null
+BASIN_PARAMS_TO_CALIBRATE: routingGammaScale,routingGammaShape
 
 # CALIBRATE_DEPTH
 #   Type:        bool
@@ -2948,7 +2948,7 @@ EXPERIMENT_OUTPUT_SUMMA: default
 #   Default:     None
 #   Source:      SUMMAConfig (model_configs.py)
 #   Usage:      8
-PARAMS_TO_CALIBRATE: null
+PARAMS_TO_CALIBRATE: tempCritRain,k_soil,vGn_n,theta_sat,theta_res,rootingDepth,zScale_TOPMODEL,k_macropore,albedoDecayRate,newSnowDenMultTemp,albedoMinSpring,aquiferBaseflowExp,aquiferBaseflowRate,Frad_vis,heightCanopyTop,windReductionParam,leafExchangeCoeff,frozenPrecipMultip,Fcapil,k_snow,heightCanopyBottom
 
 # SUMMA_DECISION_OPTIONS
 #   Type:        Dict[str, List[str]]
@@ -3102,7 +3102,7 @@ SETTINGS_SUMMA_TRIALPARAMS: "trialParams.nc"
 #   Default:     None
 #   Source:      SUMMAConfig (model_configs.py)
 #   Usage:      2
-SETTINGS_SUMMA_TRIALPARAM_1: null
+SETTINGS_SUMMA_TRIALPARAM_1: ""
 
 # SETTINGS_SUMMA_TRIALPARAM_N
 #   Type:        int
@@ -3204,7 +3204,7 @@ SETTINGS_FUSE_FILEMANAGER: default
 #   Default:     None
 #   Source:      FUSEConfig (model_configs.py)
 #   Usage:      8
-SETTINGS_FUSE_PARAMS_TO_CALIBRATE: null
+SETTINGS_FUSE_PARAMS_TO_CALIBRATE: MAXWATR_1,MAXWATR_2,BASERTE,QB_POWR,TIMEDELAY,PERCRTE,FRACTEN,RTFRAC1,MBASE,MFMAX,MFMIN,PXTEMP,LAPSE
 
 # SETTINGS_FUSE_PATH
 #   Type:        str
@@ -3293,7 +3293,7 @@ SETTINGS_GR_PATH: default
 #   Default:     None
 #   Source:      GRConfig (model_configs.py)
 #   Usage:      5
-GR_PARAMS_TO_CALIBRATE: null
+GR_PARAMS_TO_CALIBRATE: X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff
 
 
 # 9.5. RHESSys Model Configuration
@@ -3476,7 +3476,7 @@ GNN_L2_REGULARIZATION: "1e-6"
 #   Default:     None
 #   Source:      GNNConfig (model_configs.py)
 #   Usage:      3
-GNN_PARAMS_TO_CALIBRATE: null
+GNN_PARAMS_TO_CALIBRATE: precip_mult,temp_offset,routing_velocity
 
 # GNN_PARAMETER_BOUNDS
 #   Type:        Dict[str, List[float]]

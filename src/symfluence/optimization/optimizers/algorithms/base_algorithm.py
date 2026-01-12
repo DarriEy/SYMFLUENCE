@@ -11,6 +11,8 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Callable, Optional
 import numpy as np
 
+from symfluence.core.constants import ModelDefaults
+
 
 class OptimizationAlgorithm(ABC):
     """
@@ -36,7 +38,7 @@ class OptimizationAlgorithm(ABC):
         self.max_iterations = config.get('NUMBER_OF_ITERATIONS', 100)
         self.population_size = config.get('POPULATION_SIZE', 30)
         self.target_metric = config.get('OPTIMIZATION_METRIC', 'KGE')
-        self.penalty_score = -999.0
+        self.penalty_score = ModelDefaults.PENALTY_SCORE
 
     @property
     @abstractmethod

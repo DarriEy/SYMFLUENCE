@@ -263,103 +263,143 @@ class SymfluenceConfig(BaseModel):
 
     @model_validator(mode='after')
     def validate_model_requirements(self):
-        """Validate model-specific required fields based on HYDROLOGICAL_MODEL"""
+        """
+        Validate model-specific required fields based on HYDROLOGICAL_MODEL.
+
+        Uses ModelRegistry for validation when available, falling back to
+        legacy hardcoded validation for backward compatibility.
+        """
         from symfluence.core.exceptions import ConfigurationError
 
         models = self._parse_models()
-        missing_fields = []
+        all_errors = []
 
         # Helper to check if value is unset
         def is_unset(value):
             return value is None or (isinstance(value, str) and value in ['', 'None'])
 
-        # SUMMA requirements - validate only if summa config provided
-        if 'SUMMA' in models and self.model.summa:
-            summa_required = {
-                'SUMMA_EXE': self.model.summa.exe,
-                'SETTINGS_SUMMA_PATH': self.model.summa.settings_path,
-            }
-            for field, value in summa_required.items():
-                if is_unset(value):
-                    missing_fields.append(f"{field} (required for SUMMA)")
+        # Try ModelRegistry validation first (NEW PATTERN)
+        try:
+            from symfluence.models.registry import ModelRegistry
+            from symfluence.core.config.transformers import flatten_nested_config
 
-        # FUSE requirements - validate only if fuse config provided
-        if 'FUSE' in models and self.model.fuse:
-            fuse_required = {
-                'FUSE_EXE': self.model.fuse.exe,
-                'SETTINGS_FUSE_PATH': self.model.fuse.settings_path,
-            }
-            for field, value in fuse_required.items():
-                if is_unset(value):
-                    missing_fields.append(f"{field} (required for FUSE)")
+            # Convert to flat config for model validators
+            flat_config = flatten_nested_config(self)
 
-        # GR requirements - validate only if gr config provided
-        if 'GR' in models and self.model.gr:
-            gr_required = {
-                'GR_EXE': self.model.gr.exe,
-                'SETTINGS_GR_PATH': self.model.gr.settings_path,
-            }
-            for field, value in gr_required.items():
-                if is_unset(value):
-                    missing_fields.append(f"{field} (required for GR)")
+            # Validate each model using ModelRegistry
+            for model_name in models:
+                try:
+                    ModelRegistry.validate_model_config(model_name, flat_config)
+                except Exception as e:
+                    # Collect validation errors
+                    all_errors.append(f"{model_name}: {str(e)}")
+        except ImportError:
+            # ModelRegistry not available, use legacy validation below
+            pass
+        except Exception as e:
+            # If ModelRegistry validation fails, log and fall back to legacy
+            import logging
+            logging.debug(f"ModelRegistry validation failed: {e}, using legacy validation")
 
-        # HYPE requirements - validate only if hype config provided
-        if 'HYPE' in models and self.model.hype:
-            hype_required = {
-                'SETTINGS_HYPE_PATH': self.model.hype.settings_path,
-            }
-            for field, value in hype_required.items():
-                if is_unset(value):
-                    missing_fields.append(f"{field} (required for HYPE)")
+        # LEGACY VALIDATION (BACKWARD COMPATIBILITY)
+        # Only run if ModelRegistry validation didn't catch everything
+        if not all_errors:
+            missing_fields = []
 
-        # NGEN requirements - validate only if ngen config provided
-        if 'NGEN' in models and self.model.ngen:
-            ngen_required = {
-                'NGEN_EXE': self.model.ngen.exe,
-                'NGEN_INSTALL_PATH': self.model.ngen.install_path,
-            }
-            for field, value in ngen_required.items():
-                if is_unset(value):
-                    missing_fields.append(f"{field} (required for NGEN)")
-
-        # MESH requirements - validate only if mesh config provided
-        if 'MESH' in models and self.model.mesh:
-            mesh_required = {
-                'MESH_EXE': self.model.mesh.exe,
-                'SETTINGS_MESH_PATH': self.model.mesh.settings_path,
-            }
-            for field, value in mesh_required.items():
-                if is_unset(value):
-                    missing_fields.append(f"{field} (required for MESH)")
-
-        # RHESSys requirements - validate only if rhessys config provided
-        if 'RHESSYS' in models and self.model.rhessys:
-            rhessys_required = {
-                'RHESSYS_EXE': self.model.rhessys.exe,
-                'SETTINGS_RHESSYS_PATH': self.model.rhessys.settings_path,
-            }
-            for field, value in rhessys_required.items():
-                if is_unset(value):
-                    missing_fields.append(f"{field} (required for RHESSys)")
-
-        # Routing model requirements - validate only if mizuroute config provided
-        if self.model.routing_model:
-            routing_model = self.model.routing_model.upper()
-            if routing_model == 'MIZUROUTE' and self.model.mizuroute:
-                mizu_required = {
-                    'EXE_NAME_MIZUROUTE': self.model.mizuroute.exe,
-                    'INSTALL_PATH_MIZUROUTE': self.model.mizuroute.install_path,
+            # SUMMA requirements - validate only if summa config provided
+            if 'SUMMA' in models and self.model.summa:
+                summa_required = {
+                    'SUMMA_EXE': self.model.summa.exe,
+                    'SETTINGS_SUMMA_PATH': self.model.summa.settings_path,
                 }
-                for field, value in mizu_required.items():
+                for field, value in summa_required.items():
                     if is_unset(value):
-                        missing_fields.append(f"{field} (required for mizuRoute)")
+                        missing_fields.append(f"{field} (required for SUMMA)")
 
-        if missing_fields:
+            # FUSE requirements - validate only if fuse config provided
+            if 'FUSE' in models and self.model.fuse:
+                fuse_required = {
+                    'FUSE_EXE': self.model.fuse.exe,
+                    'SETTINGS_FUSE_PATH': self.model.fuse.settings_path,
+                }
+                for field, value in fuse_required.items():
+                    if is_unset(value):
+                        missing_fields.append(f"{field} (required for FUSE)")
+
+            # GR requirements - validate only if gr config provided
+            if 'GR' in models and self.model.gr:
+                gr_required = {
+                    'GR_EXE': self.model.gr.exe,
+                    'SETTINGS_GR_PATH': self.model.gr.settings_path,
+                }
+                for field, value in gr_required.items():
+                    if is_unset(value):
+                        missing_fields.append(f"{field} (required for GR)")
+
+            # HYPE requirements - validate only if hype config provided
+            if 'HYPE' in models and self.model.hype:
+                hype_required = {
+                    'SETTINGS_HYPE_PATH': self.model.hype.settings_path,
+                }
+                for field, value in hype_required.items():
+                    if is_unset(value):
+                        missing_fields.append(f"{field} (required for HYPE)")
+
+            # NGEN requirements - validate only if ngen config provided
+            if 'NGEN' in models and self.model.ngen:
+                ngen_required = {
+                    'NGEN_EXE': self.model.ngen.exe,
+                    'NGEN_INSTALL_PATH': self.model.ngen.install_path,
+                }
+                for field, value in ngen_required.items():
+                    if is_unset(value):
+                        missing_fields.append(f"{field} (required for NGEN)")
+
+            # MESH requirements - validate only if mesh config provided
+            if 'MESH' in models and self.model.mesh:
+                mesh_required = {
+                    'MESH_EXE': self.model.mesh.exe,
+                    'SETTINGS_MESH_PATH': self.model.mesh.settings_path,
+                }
+                for field, value in mesh_required.items():
+                    if is_unset(value):
+                        missing_fields.append(f"{field} (required for MESH)")
+
+            # RHESSys requirements - validate only if rhessys config provided
+            if 'RHESSYS' in models and self.model.rhessys:
+                rhessys_required = {
+                    'RHESSYS_EXE': self.model.rhessys.exe,
+                    'SETTINGS_RHESSYS_PATH': self.model.rhessys.settings_path,
+                }
+                for field, value in rhessys_required.items():
+                    if is_unset(value):
+                        missing_fields.append(f"{field} (required for RHESSys)")
+
+            # Routing model requirements - validate only if mizuroute config provided
+            if self.model.routing_model:
+                routing_model = self.model.routing_model.upper()
+                if routing_model == 'MIZUROUTE' and self.model.mizuroute:
+                    mizu_required = {
+                        'EXE_NAME_MIZUROUTE': self.model.mizuroute.exe,
+                        'INSTALL_PATH_MIZUROUTE': self.model.mizuroute.install_path,
+                    }
+                    for field, value in mizu_required.items():
+                        if is_unset(value):
+                            missing_fields.append(f"{field} (required for mizuRoute)")
+
+            if missing_fields:
+                raise ConfigurationError(
+                    f"Model-specific configuration incomplete:\n"
+                    + "\n".join(f"  • {field}" for field in missing_fields)
+                    + f"\n\nSelected models: {', '.join(models)}"
+                    + (f"\nRouting model: {self.model.routing_model}" if self.model.routing_model else "")
+                )
+
+        # Raise errors from ModelRegistry validation if any
+        if all_errors:
             raise ConfigurationError(
-                f"Model-specific configuration incomplete:\n"
-                + "\n".join(f"  • {field}" for field in missing_fields)
-                + f"\n\nSelected models: {', '.join(models)}"
-                + (f"\nRouting model: {self.model.routing_model}" if self.model.routing_model else "")
+                f"Model configuration validation failed:\n"
+                + "\n".join(f"  • {error}" for error in all_errors)
             )
 
         return self

@@ -1,9 +1,11 @@
-"""Base classes for model preprocessors, runners, and postprocessors."""
+"""Base classes for model preprocessors, runners, postprocessors, config adapters, and result extractors."""
 
 from .base_preprocessor import BaseModelPreProcessor
 from .base_runner import BaseModelRunner
 from .base_postprocessor import BaseModelPostProcessor
 from .standard_postprocessor import StandardModelPostprocessor, RoutedModelPostprocessor
+from .base_config import ModelConfigAdapter, ConfigValidationError, create_config_adapter
+from .base_extractor import ModelResultExtractor
 
 __all__ = [
     'BaseModelPreProcessor',
@@ -11,4 +13,8 @@ __all__ = [
     'BaseModelPostProcessor',
     'StandardModelPostprocessor',
     'RoutedModelPostprocessor',
+    'ModelConfigAdapter',
+    'ConfigValidationError',
+    'create_config_adapter',
+    'ModelResultExtractor',
 ]

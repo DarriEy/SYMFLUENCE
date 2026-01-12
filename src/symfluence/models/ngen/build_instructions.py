@@ -72,6 +72,14 @@ echo "Initializing submodules for ngen and external BMI modules..."
 git submodule update --init --recursive -- test/googletest extern/pybind11 || true
 git submodule update --init --recursive -- extern/cfe extern/evapotranspiration extern/sloth extern/noah-owp-modular || true
 
+# Initialize t-route submodule for routing support
+echo "Initializing t-route submodule for routing..."
+git submodule update --init --recursive -- extern/t-route || true
+
+# Initialize iso_c_fortran_bmi for Fortran BMI support (required for NOAH-OWP)
+echo "Initializing iso_c_fortran_bmi submodule..."
+git submodule update --init --recursive -- extern/iso_c_fortran_bmi || true
+
 # Verify Fortran compiler
 echo "Checking Fortran compiler..."
 if command -v gfortran >/dev/null 2>&1; then
@@ -97,20 +105,30 @@ CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_CPP=ON"
 if [ "${NGEN_WITH_BMI_FORTRAN:-ON}" = "ON" ] && [ -n "$FC" ]; then
   CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_FORTRAN=ON"
   CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_Fortran_COMPILER=$FC"
-  echo "Enabling Fortran BMI support"
+
+  # Configure iso_c_fortran_bmi (C wrapper for Fortran BMI modules)
+  # This provides the register_bmi function that NGEN needs to load Fortran modules
+  ISO_C_BMI_DIR="$(pwd)/extern/iso_c_fortran_bmi/cmake_build"
+  CMAKE_ARGS="$CMAKE_ARGS -DBMI_FORTRAN_ISO_C_LIB_DIR=$ISO_C_BMI_DIR"
+  CMAKE_ARGS="$CMAKE_ARGS -DBMI_FORTRAN_ISO_C_LIB_NAME=iso_c_bmi"
+
+  echo "Enabling Fortran BMI support with iso_c_bmi wrapper"
 fi
 
 # Check NumPy version - ngen doesn't support NumPy 2.x yet
 NUMPY_VERSION=$($PYTHON_EXE -c "import numpy; print(numpy.__version__)" 2>/dev/null || echo "0")
 NUMPY_MAJOR=$(echo "$NUMPY_VERSION" | cut -d. -f1)
 if [ "$NUMPY_MAJOR" -ge 2 ] 2>/dev/null; then
-  echo "NumPy $NUMPY_VERSION detected (>=2.0). Disabling Python support (not yet compatible with ngen)."
+  echo "NumPy $NUMPY_VERSION detected (>=2.0). Disabling Python and routing support (not yet compatible with ngen)."
   CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_PYTHON=OFF"
+  CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_ROUTING=OFF"
 else
   # Add Python support for NumPy 1.x
+  echo "NumPy $NUMPY_VERSION detected. Enabling Python and t-route routing support."
   CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_PYTHON=ON"
   CMAKE_ARGS="$CMAKE_ARGS -DPython_EXECUTABLE=$PYTHON_EXE"
   CMAKE_ARGS="$CMAKE_ARGS -DPython3_EXECUTABLE=$PYTHON_EXE"
+  CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_ROUTING=ON"
 fi
 
 # Configure ngen
@@ -128,6 +146,7 @@ else
   FALLBACK_ARGS="-DCMAKE_BUILD_TYPE=Release"
   FALLBACK_ARGS="$FALLBACK_ARGS -DBOOST_ROOT=$BOOST_ROOT"
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_PYTHON=OFF"
+  FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_ROUTING=OFF"
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_SQLITE3=ON"
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_C=ON"
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_CPP=ON"
@@ -136,7 +155,13 @@ else
   if [ -n "$FC" ]; then
     FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_FORTRAN=ON"
     FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_Fortran_COMPILER=$FC"
-    echo "Fallback: keeping Fortran BMI support"
+
+    # Include iso_c_bmi configuration in fallback
+    ISO_C_BMI_DIR="$(pwd)/extern/iso_c_fortran_bmi/cmake_build"
+    FALLBACK_ARGS="$FALLBACK_ARGS -DBMI_FORTRAN_ISO_C_LIB_DIR=$ISO_C_BMI_DIR"
+    FALLBACK_ARGS="$FALLBACK_ARGS -DBMI_FORTRAN_ISO_C_LIB_NAME=iso_c_bmi"
+
+    echo "Fallback: keeping Fortran BMI support with iso_c_bmi wrapper"
   fi
 
   cmake $FALLBACK_ARGS -S . -B cmake_build
@@ -209,6 +234,28 @@ if [ -d "extern/evapotranspiration" ]; then
   cd ../../..
 fi
 
+# --- Build iso_c_fortran_bmi (C wrapper for Fortran BMI) ---
+# This must be built BEFORE NOAH-OWP as it provides the registration interface
+if [ -d "extern/iso_c_fortran_bmi" ] && [ -n "$FC" ]; then
+  echo "Building iso_c_fortran_bmi (C wrapper for Fortran BMI)..."
+  cd extern/iso_c_fortran_bmi
+  git submodule update --init --recursive || true
+  rm -rf cmake_build && mkdir -p cmake_build
+
+  ISO_C_CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
+  ISO_C_CMAKE_ARGS="$ISO_C_CMAKE_ARGS -DCMAKE_Fortran_COMPILER=$FC"
+
+  cmake $ISO_C_CMAKE_ARGS -S . -B cmake_build
+  cmake --build cmake_build -j ${NCORES:-4}
+
+  if [ -f cmake_build/libiso_c_bmi.* ]; then
+    echo "iso_c_fortran_bmi built successfully"
+  else
+    echo "WARNING: iso_c_bmi library not found - NOAH-OWP will fail"
+  fi
+  cd ../..
+fi
+
 # --- Build NOAH-OWP-Modular (Fortran module) ---
 if [ -d "extern/noah-owp-modular" ] && [ -n "$FC" ]; then
   echo "Building NOAH-OWP-Modular (Fortran)..."
@@ -216,9 +263,12 @@ if [ -d "extern/noah-owp-modular" ] && [ -n "$FC" ]; then
   git submodule update --init --recursive || true
   rm -rf cmake_build && mkdir -p cmake_build
 
-  # Configure with NetCDF if available
+  # Configure with NGEN support
+  # NGEN_IS_MAIN_PROJECT=ON triggers compile definitions (NGEN_ACTIVE, etc.)
+  # and builds iso_c_fortran_bmi as a subdirectory for Fortran BMI support
   NOAH_CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
   NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DCMAKE_Fortran_COMPILER=$FC"
+  NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DNGEN_IS_MAIN_PROJECT=ON"
 
   if [ -n "$NETCDF_FORTRAN" ]; then
     NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DNETCDF_PATH=$NETCDF_FORTRAN"
@@ -241,6 +291,69 @@ else
   fi
 fi
 
+# ================================================================
+# Install t-route (Python packages for routing)
+# ================================================================
+if [ -d "extern/t-route/src" ]; then
+  echo ""
+  echo "Installing t-route Python packages..."
+
+  # Install python_routing_v02 (core troute routing package)
+  if [ -d "extern/t-route/src/python_routing_v02" ]; then
+    echo "Installing python_routing_v02 (troute)..."
+    cd extern/t-route/src/python_routing_v02
+    $PYTHON_EXE -m pip install -e . || {
+      echo "WARNING: python_routing_v02 installation failed (non-fatal)"
+    }
+    cd ../../../..
+  fi
+
+  # Install python_framework_v02 (troute framework)
+  if [ -d "extern/t-route/src/python_framework_v02" ]; then
+    echo "Installing python_framework_v02..."
+    cd extern/t-route/src/python_framework_v02
+    $PYTHON_EXE -m pip install -e . || {
+      echo "WARNING: python_framework_v02 installation failed (non-fatal)"
+    }
+    cd ../../../..
+  fi
+
+  # Install nwm_routing (required dependency for ngen_routing)
+  if [ -d "extern/t-route/src/nwm_routing" ]; then
+    echo "Installing nwm_routing..."
+    cd extern/t-route/src/nwm_routing
+    $PYTHON_EXE -m pip install -e . || {
+      echo "WARNING: nwm_routing installation failed (non-fatal)"
+    }
+    cd ../../../..
+  fi
+
+  # Install ngen_routing (main routing interface)
+  if [ -d "extern/t-route/src/ngen_routing" ]; then
+    echo "Installing ngen_routing..."
+    cd extern/t-route/src/ngen_routing
+    $PYTHON_EXE -m pip install -e . --no-deps || {
+      echo "WARNING: ngen_routing installation failed (non-fatal)"
+    }
+    cd ../../../..
+  fi
+
+  # Verify installations
+  if $PYTHON_EXE -c "import nwm_routing" 2>/dev/null; then
+    echo "t-route nwm_routing installed successfully"
+  else
+    echo "t-route nwm_routing not available (non-fatal)"
+  fi
+
+  if $PYTHON_EXE -c "import ngen_routing" 2>/dev/null; then
+    echo "t-route ngen_routing installed successfully"
+  else
+    echo "t-route ngen_routing not available (non-fatal)"
+  fi
+else
+  echo "t-route submodule not found - routing will not be available"
+fi
+
 echo ""
 echo "=============================================="
 echo "ngen build summary:"
@@ -250,6 +363,7 @@ echo "SLOTH:       $([ -f extern/sloth/cmake_build/libslothmodel.* ] 2>/dev/null
 echo "CFE:         $([ -f extern/cfe/cmake_build/libcfebmi.* ] 2>/dev/null && echo 'OK' || echo 'Not built')"
 echo "PET:         $([ -f extern/evapotranspiration/evapotranspiration/cmake_build/libpetbmi.* ] 2>/dev/null && echo 'OK' || echo 'Not built')"
 echo "NOAH-OWP:    $([ -f extern/noah-owp-modular/cmake_build/libsurfacebmi.* ] 2>/dev/null && echo 'OK' || echo 'Not built')"
+echo "t-route:     $($PYTHON_EXE -c 'import ngen_routing; print(\"OK\")' 2>/dev/null || echo 'Not installed')"
 echo "=============================================="
             '''.strip()
         ],

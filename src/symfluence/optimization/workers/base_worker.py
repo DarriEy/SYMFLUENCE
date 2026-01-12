@@ -200,6 +200,8 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Union
 import numpy as np
 
+from symfluence.core.constants import ModelDefaults
+
 logger = logging.getLogger(__name__)
 
 
@@ -386,7 +388,7 @@ class WorkerResult:
         individual_id: int,
         params: Dict[str, float],
         error: str,
-        penalty_score: float = -999.0
+        penalty_score: float = ModelDefaults.PENALTY_SCORE
     ) -> 'WorkerResult':
         """
         Create a failure result.
@@ -726,7 +728,7 @@ class BaseWorker(ABC):
     # Default retry settings
     DEFAULT_MAX_RETRIES = 3
     DEFAULT_BASE_DELAY = 0.5
-    DEFAULT_PENALTY_SCORE = -999.0
+    DEFAULT_PENALTY_SCORE = ModelDefaults.PENALTY_SCORE
 
     # Transient errors that warrant retry
     TRANSIENT_ERRORS = (

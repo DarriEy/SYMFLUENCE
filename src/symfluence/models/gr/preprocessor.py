@@ -192,10 +192,11 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             # Subset to simulation window using base class method
             ds = self.subset_to_simulation_time(ds, "Forcing")
 
+            # Basin-averaged forcing data is already in CFIF format (from model-agnostic preprocessing)
             variable_handler = VariableHandler(
                 config=self.config_dict,
                 logger=self.logger,
-                dataset=self.config_dict.get('FORCING_DATASET'),
+                dataset='CFIF',
                 model='GR'
             )
 
@@ -282,8 +283,8 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             self.logger.warning(f"Catchment shapefile not found at {catchment_path}, using default latitude")
             mean_lat = 45.0
 
-        # Calculate PET
-        pet = self.calculate_pet_oudin(ds['temp'], mean_lat)
+        # Calculate PET using GR variable name 'T' (mapped by VariableHandler)
+        pet = self.calculate_pet_oudin(ds['T'], mean_lat)
 
         # Find overlapping time period
         start_time = max(ds.time.min().values, obs_ds.time.min().values)
@@ -297,11 +298,11 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         obs_ds = obs_ds.sel(time=slice(start_time, end_time)).reindex(time=time_index)
         pet = pet.sel(time=slice(start_time, end_time)).reindex(time=time_index)
 
-        # Create GR forcing data
+        # Create GR forcing data using GR variable names (P, T after VariableHandler processing)
         gr_forcing = pd.DataFrame({
             'time': time_index.strftime('%Y-%m-%d'),
-            'pr': ds['pr'].values,
-            'temp': ds['temp'].values,
+            'pr': ds['P'].values,  # GR uses 'P' for precipitation
+            'temp': ds['T'].values,  # GR uses 'T' for temperature
             'pet': pet.values,
             'q_obs': obs_ds['q_obs'].values
         })
@@ -373,10 +374,10 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             
         hru_lats = hru_centroids.y.values
 
-        # Calculate PET for each HRU
+        # Calculate PET for each HRU using GR variable name 'T'
         pet_data = []
         for i, lat in enumerate(hru_lats):
-            temp_hru = ds['temp'].isel(hru=i)
+            temp_hru = ds['T'].isel(hru=i)
             pet_hru = self.calculate_pet_oudin(temp_hru, lat)
             pet_data.append(pet_hru.values)
 
@@ -413,10 +414,10 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         # Save distributed forcing as NetCDF (one file with all HRUs)
         output_file = self.forcing_gr_path / f"{self.domain_name}_input_distributed.nc"
 
-        # Create output dataset
+        # Create output dataset using GR variable names (P, T after VariableHandler processing)
         gr_forcing = xr.Dataset({
-            'pr': ds['pr'],
-            'temp': ds['temp'],
+            'pr': ds['P'],  # GR uses 'P' for precipitation
+            'temp': ds['T'],  # GR uses 'T' for temperature
             'pet': pet
         })
 

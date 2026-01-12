@@ -4,41 +4,47 @@ Model-Specific Optimizers
 Optimizers that inherit from BaseModelOptimizer for each supported model.
 These provide a unified interface while handling model-specific setup.
 
-Available optimizers:
-- SUMMAModelOptimizer: SUMMA hydrological model optimization
-- FUSEModelOptimizer: FUSE model optimization
-- NgenModelOptimizer: NextGen model optimization
-- HYPEModelOptimizer: HYPE model optimization
-- GRModelOptimizer: GR model optimization
-- MESHModelOptimizer: MESH model optimization
-- MizuRouteModelOptimizer: MizuRoute routing model optimization
-- TRouteModelOptimizer: T-Route routing model optimization
-- LSTMModelOptimizer: LSTM model optimization
-- RHESSysModelOptimizer: RHESSys model optimization
+Model-specific optimizers are available via:
+1. Direct import: from symfluence.optimization.model_optimizers.{model}_model_optimizer import {Model}ModelOptimizer
+2. Registry pattern: OptimizerRegistry.get_optimizer('{MODEL}')
+
+Note: We import each optimizer to trigger @register_optimizer decorators.
+Import errors are caught to handle missing dependencies gracefully.
 """
 
-from .summa_model_optimizer import SUMMAModelOptimizer
-from .fuse_model_optimizer import FUSEModelOptimizer
-from .ngen_model_optimizer import NgenModelOptimizer
-from .hype_model_optimizer import HYPEModelOptimizer
-from .gr_model_optimizer import GRModelOptimizer
-from .mesh_model_optimizer import MESHModelOptimizer
-from .mizuroute_model_optimizer import MizuRouteModelOptimizer
-from .troute_model_optimizer import TRouteModelOptimizer
-from .lstm_model_optimizer import LSTMModelOptimizer
-from .gnn_model_optimizer import GNNModelOptimizer
-from .rhessys_model_optimizer import RHESSysModelOptimizer
+# Import optimizers to trigger registration decorators
+# Errors are caught to handle optional dependencies
+def _register_optimizers():
+    """Import all model optimizers to trigger registry decorators."""
+    import importlib
+    import logging
 
-__all__ = [
-    'SUMMAModelOptimizer',
-    'FUSEModelOptimizer',
-    'NgenModelOptimizer',
-    'HYPEModelOptimizer',
-    'GRModelOptimizer',
-    'MESHModelOptimizer',
-    'MizuRouteModelOptimizer',
-    'TRouteModelOptimizer',
-    'LSTMModelOptimizer',
-    'GNNModelOptimizer',
-    'RHESSysModelOptimizer',
-]
+    logger = logging.getLogger(__name__)
+
+    models = [
+        'ngen',
+        'summa',
+        'fuse',
+        'gr',
+        'hype',
+        'mesh',
+        'gnn',
+        'lstm',
+        'rhessys',
+        'mizuroute',
+        'troute'
+    ]
+
+    for model in models:
+        try:
+            importlib.import_module(f'.{model}_model_optimizer', package='symfluence.optimization.model_optimizers')
+        except Exception as e:
+            # Silently skip models with missing dependencies
+            # This is expected for optional models
+            logger.debug(f"Could not import {model} optimizer: {e}")
+            pass
+
+# Trigger registration on import
+_register_optimizers()
+
+__all__ = []

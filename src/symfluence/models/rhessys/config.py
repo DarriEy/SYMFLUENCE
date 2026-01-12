@@ -1,6 +1,7 @@
 """
 Configuration schema for the RHESSys model.
 """
+from typing import Dict, Any, Tuple
 from symfluence.models.config.model_config_schema import (
     ModelConfigSchema,
     InstallationConfig,
@@ -10,6 +11,7 @@ from symfluence.models.config.model_config_schema import (
     ConfigKey,
     ConfigKeyType,
 )
+from symfluence.models.base import ModelConfigAdapter, ConfigValidationError
 
 
 def create_rhessys_schema() -> ModelConfigSchema:
@@ -69,3 +71,66 @@ def create_rhessys_schema() -> ModelConfigSchema:
                       description='Alias for WMFIRE_INSTALL_PATH'),
         ]
     )
+
+
+# Field Transformers (Flat to Nested Mapping)
+RHESSYS_FIELD_TRANSFORMERS: Dict[str, Tuple[str, ...]] = {
+    'RHESSYS_INSTALL_PATH': ('model', 'rhessys', 'install_path'),
+    'RHESSYS_EXE': ('model', 'rhessys', 'exe'),
+    'SETTINGS_RHESSYS_PATH': ('model', 'rhessys', 'settings_path'),
+    'RHESSYS_WORLD_TEMPLATE': ('model', 'rhessys', 'world_template'),
+    'RHESSYS_FLOW_TEMPLATE': ('model', 'rhessys', 'flow_template'),
+    'RHESSYS_SKIP_CALIBRATION': ('model', 'rhessys', 'skip_calibration'),
+    'RHESSYS_USE_WMFIRE': ('model', 'rhessys', 'use_wmfire'),
+    'WMFIRE_INSTALL_PATH': ('model', 'rhessys', 'wmfire_install_path'),
+    'WMFIRE_LIB': ('model', 'rhessys', 'wmfire_lib'),
+    'RHESSYS_USE_VMFIRE': ('model', 'rhessys', 'use_vmfire'),
+    'VMFIRE_INSTALL_PATH': ('model', 'rhessys', 'vmfire_install_path'),
+}
+
+
+class RHESSysConfigAdapter(ModelConfigAdapter):
+    """Configuration adapter for RHESSys model."""
+
+    def __init__(self, model_name: str = 'RHESSYS'):
+        super().__init__(model_name)
+
+    def get_config_schema(self):
+        """Get Pydantic model class for RHESSys configuration."""
+        # RHESSys doesn't have a Pydantic schema yet
+        return None
+
+    def get_defaults(self) -> Dict[str, Any]:
+        """Get default configuration values for RHESSys."""
+        from .defaults import RHESSysDefaults
+        return {
+            k: v for k, v in vars(RHESSysDefaults).items()
+            if not k.startswith('_') and k.isupper()
+        }
+
+    def get_field_transformers(self) -> Dict[str, Tuple[str, ...]]:
+        """Get flat-to-nested field transformers for RHESSys."""
+        return RHESSYS_FIELD_TRANSFORMERS
+
+    def validate(self, config: Dict[str, Any]) -> None:
+        """Validate RHESSys-specific configuration."""
+        required_fields = self.get_required_keys()
+        missing_fields = []
+
+        for field in required_fields:
+            value = config.get(field)
+            if value is None or value == '' or value == 'None':
+                missing_fields.append(field)
+
+        if missing_fields:
+            raise ConfigValidationError(
+                f"RHESSys configuration incomplete. Missing required fields:\n"
+                + "\n".join(f"  • {field}" for field in missing_fields)
+            )
+
+    def get_required_keys(self) -> list:
+        """Get list of required configuration keys for RHESSys."""
+        return [
+            'RHESSYS_EXE',
+            'SETTINGS_RHESSYS_PATH',
+        ]

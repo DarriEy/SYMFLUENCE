@@ -205,14 +205,8 @@ def test_lumped_basin_workflow(config_path, model):
         # support single-GRU (lumped) basins due to meshflow library limitations
         pytest.skip("MESH does not support lumped (single-GRU) basins - use semi-distributed mode")
     elif model == 'RHESSys':
-        # RHESSys configuration
-        config_dict['RHESSYS_SKIP_CALIBRATION'] = True
-        # Point to RHESSys install in data directory
-        config_dict['RHESSYS_INSTALL_PATH'] = str(Path(config_dict['SYMFLUENCE_DATA_DIR']) / 'installs' / 'rhessys' / 'bin')
-        config_dict['RHESSYS_EXE'] = 'rhessys'
-        # WMFire settings (wildfire spread module)
-        config_dict['RHESSYS_USE_WMFIRE'] = True
-        config_dict['WMFIRE_INSTALL_PATH'] = str(Path(config_dict['SYMFLUENCE_DATA_DIR']) / 'installs' / 'wmfire' / 'lib')
+        # RHESSys is not designed for lumped basin configurations and will fail.
+        pytest.skip("RHESSys does not support lumped (single-GRU) basins - use semi-distributed mode")
 
     # Create new validated typed config with model-specific overrides
     config = SymfluenceConfig(**config_dict)

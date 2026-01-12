@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import subprocess
+import logging
 
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
@@ -67,7 +68,7 @@ class HYPERunner(BaseModelRunner, ModelExecutor):
         Returns:
             Optional[Path]: Path to output directory if successful, None otherwise
         """
-        self.logger.info("Starting HYPE model run")
+        self.logger.debug("Starting HYPE model run")
 
         try:
             # Create run command
@@ -80,14 +81,15 @@ class HYPERunner(BaseModelRunner, ModelExecutor):
             log_file = log_dir / f'hype_run_{current_time}.log'
 
             # Execute HYPE
-            self.logger.info(f"Executing command: {' '.join(map(str, cmd))}")
+            self.logger.debug(f"Executing command: {' '.join(map(str, cmd))}")
 
             result = self.execute_model_subprocess(
                 cmd,
                 log_file,
                 cwd=self.setup_dir,
                 check=False,  # Don't raise on non-zero exit, we'll handle it
-                success_message="HYPE simulation completed successfully"
+                success_message="HYPE simulation completed successfully",
+                success_log_level=logging.DEBUG
             )
 
             # Check execution success

@@ -1,0 +1,28 @@
+"""
+FUSE Model Optimizer (Backward Compatibility)
+
+.. deprecated::
+    This module has been moved to symfluence.models.fuse.calibration.optimizer
+    as part of the effort to consolidate model-specific code.
+
+    This re-export is provided for backward compatibility. Please update imports to:
+
+        from symfluence.models.fuse.calibration import FUSEModelOptimizer
+
+    Or use the registry pattern (recommended):
+
+        from symfluence.optimization import OptimizerRegistry
+        FUSEOptimizer = OptimizerRegistry.get_optimizer('FUSE')
+
+Migration Context:
+    As part of the main migration to separate model-specific concerns, all FUSE
+    calibration and optimization components have been moved to models/fuse/calibration/.
+
+    Old location: symfluence.optimization.model_optimizers.fuse_model_optimizer
+    New location: symfluence.models.fuse.calibration.optimizer
+"""
+
+# Backward compatibility re-export
+from symfluence.models.fuse.calibration import FUSEModelOptimizer
+
+__all__ = ['FUSEModelOptimizer']

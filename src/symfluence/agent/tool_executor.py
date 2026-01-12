@@ -125,6 +125,10 @@ class ToolExecutor:
             elif tool_name == 'setup_pour_point_workflow':
                 return self._execute_pour_point_setup(arguments)
 
+            # Code operations
+            elif tool_name in ['read_file', 'list_directory', 'analyze_codebase', 'propose_code_change', 'show_staged_changes', 'run_tests', 'create_pr_proposal']:
+                return self._execute_code_operations(tool_name, arguments)
+
             # SLURM operations
             elif tool_name in ['submit_slurm_job', 'monitor_slurm_job']:
                 return self._execute_slurm_operation(tool_name, arguments)
@@ -426,6 +430,133 @@ class ToolExecutor:
                 success=False,
                 output="",
                 error=str(e),
+                exit_code=1
+            )
+
+    def _execute_code_operations(self, operation: str, arguments: Dict[str, Any]) -> ToolResult:
+        """
+        Execute code operation tools for agent self-awareness.
+
+        Args:
+            operation: Operation name (read_file, list_directory, analyze_codebase, propose_code_change, etc.)
+            arguments: Operation-specific arguments
+
+        Returns:
+            ToolResult with execution status
+        """
+        from symfluence.agent.file_operations import FileOperations
+        from symfluence.agent.code_analyzer import CodeAnalyzer
+        from symfluence.agent.pr_manager import PRManager
+        from symfluence.agent.test_runner import TestRunner
+
+        try:
+            if operation == 'read_file':
+                file_ops = FileOperations()
+                success, output = file_ops.read_file(
+                    arguments.get('file_path'),
+                    start_line=arguments.get('start_line'),
+                    end_line=arguments.get('end_line')
+                )
+                return ToolResult(
+                    success=success,
+                    output=output,
+                    error=None if success else output,
+                    exit_code=0 if success else 1
+                )
+
+            elif operation == 'list_directory':
+                file_ops = FileOperations()
+                success, output = file_ops.list_directory(
+                    directory=arguments.get('directory', '.'),
+                    recursive=arguments.get('recursive', False),
+                    pattern=arguments.get('pattern')
+                )
+                return ToolResult(
+                    success=success,
+                    output=output,
+                    error=None if success else output,
+                    exit_code=0 if success else 1
+                )
+
+            elif operation == 'analyze_codebase':
+                analyzer = CodeAnalyzer()
+                success, output = analyzer.analyze_project_structure(
+                    depth=arguments.get('depth', 'quick')
+                )
+                return ToolResult(
+                    success=success,
+                    output=output,
+                    error=None if success else output,
+                    exit_code=0 if success else 1
+                )
+
+            elif operation == 'propose_code_change':
+                pr_mgr = PRManager()
+                success, output = pr_mgr.propose_code_change(
+                    file_path=arguments.get('file_path'),
+                    old_code=arguments.get('old_code'),
+                    new_code=arguments.get('new_code'),
+                    description=arguments.get('description'),
+                    reason=arguments.get('reason', 'improvement')
+                )
+                return ToolResult(
+                    success=success,
+                    output=output,
+                    error=None if success else output,
+                    exit_code=0 if success else 1
+                )
+
+            elif operation == 'show_staged_changes':
+                pr_mgr = PRManager()
+                success, output = pr_mgr.show_staged_changes()
+                return ToolResult(
+                    success=success,
+                    output=output,
+                    error=None if success else output,
+                    exit_code=0 if success else 1
+                )
+
+            elif operation == 'run_tests':
+                test_runner = TestRunner()
+                success, output = test_runner.run_tests(
+                    test_pattern=arguments.get('test_pattern'),
+                    files=arguments.get('files'),
+                    verbose=arguments.get('verbose', False)
+                )
+                return ToolResult(
+                    success=success,
+                    output=output,
+                    error=None if success else output,
+                    exit_code=0 if success else 1
+                )
+
+            elif operation == 'create_pr_proposal':
+                pr_mgr = PRManager()
+                success, output = pr_mgr.create_pr_proposal(
+                    title=arguments.get('title'),
+                    description=arguments.get('description'),
+                    reason=arguments.get('reason', 'improvement')
+                )
+                return ToolResult(
+                    success=success,
+                    output=output,
+                    error=None if success else output,
+                    exit_code=0 if success else 1
+                )
+
+            else:
+                return ToolResult(
+                    success=False,
+                    output="",
+                    error=f"Unknown code operation: {operation}",
+                    exit_code=1
+                )
+
+        except Exception as e:
+            return ToolResult(
+                success=False,
+                output="",
+                error=f"Code operation failed: {str(e)}",
                 exit_code=1
             )
 

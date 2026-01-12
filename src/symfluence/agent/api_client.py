@@ -22,34 +22,67 @@ class APIClient:
     """
     Client for making API calls to OpenAI-compatible endpoints.
 
-    Supports configuration via environment variables:
-    - OPENAI_API_KEY: API authentication key (required)
+    Supports configuration via environment variables with auto-fallback:
+    1. OPENAI_API_KEY: OpenAI or custom endpoint (highest priority)
+    2. GROQ_API_KEY: Free Groq service (fallback)
+    3. Error with setup instructions if neither is set
+
+    Configuration variables:
+    - OPENAI_API_KEY: API authentication key for OpenAI/custom endpoint
     - OPENAI_API_BASE: Base URL for API (optional, default: https://api.openai.com/v1)
-    - OPENAI_MODEL: Model name to use (optional, default: gpt-4-turbo-preview)
+    - OPENAI_MODEL: Model name to use (optional, default: gpt-4-turbo-preview for OpenAI, llama-3.3-70b-versatile for Groq)
+    - GROQ_API_KEY: API authentication key for Groq (free, used if OPENAI_API_KEY not set)
     - OPENAI_TIMEOUT: Request timeout in seconds (optional, default: 60)
     - OPENAI_MAX_RETRIES: Maximum retry attempts (optional, default: 2)
     """
 
     def __init__(self, verbose: bool = False):
         """
-        Initialize the API client.
+        Initialize the API client with auto-fallback.
+
+        Priority order:
+        1. OPENAI_API_KEY (OpenAI or custom endpoint)
+        2. GROQ_API_KEY (free Groq service)
+        3. Ollama (free local LLM if running)
+        4. Error with setup instructions
 
         Args:
             verbose: If True, print additional debug information
 
         Raises:
-            SystemExit: If OPENAI_API_KEY is not set
+            SystemExit: If no API key is configured (shows setup instructions)
         """
         self.verbose = verbose
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        self.api_base = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-        self.model = os.getenv("OPENAI_MODEL", "gpt-4-turbo-preview")
-        self.timeout = int(os.getenv("OPENAI_TIMEOUT", "60"))
-        self.max_retries = int(os.getenv("OPENAI_MAX_RETRIES", "2"))
 
-        if not self.api_key:
+        # Check for API keys in priority order
+        openai_key = os.getenv("OPENAI_API_KEY")
+        groq_key = os.getenv("GROQ_API_KEY")
+
+        if openai_key:
+            # User provided OpenAI key or custom endpoint configuration
+            self.api_key = openai_key
+            self.api_base = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+            self.model = os.getenv("OPENAI_MODEL", "gpt-4-turbo-preview")
+            self.provider = "OpenAI/Custom"
+        elif groq_key:
+            # Use free Groq service
+            self.api_key = groq_key
+            self.api_base = "https://api.groq.com/openai/v1"
+            self.model = os.getenv("OPENAI_MODEL", "llama-3.3-70b-versatile")
+            self.provider = "Groq"
+        elif self._is_ollama_available():
+            # Use local Ollama if available
+            self.api_key = "ollama"  # Dummy key, Ollama doesn't require authentication
+            self.api_base = "http://localhost:11434/v1"
+            self.model = os.getenv("OPENAI_MODEL", "llama2")
+            self.provider = "Ollama (Local)"
+        else:
+            # No API key found and Ollama not running - show helpful error message
             print(system_prompts.ERROR_MESSAGES["api_key_missing"], file=sys.stderr)
             sys.exit(1)
+
+        self.timeout = int(os.getenv("OPENAI_TIMEOUT", "60"))
+        self.max_retries = int(os.getenv("OPENAI_MAX_RETRIES", "2"))
 
         # Initialize OpenAI client with custom base URL support
         self.client = OpenAI(
@@ -61,9 +94,24 @@ class APIClient:
 
         if self.verbose:
             print(f"API Client initialized:", file=sys.stderr)
+            print(f"  Provider: {self.provider}", file=sys.stderr)
             print(f"  Base URL: {self.api_base}", file=sys.stderr)
             print(f"  Model: {self.model}", file=sys.stderr)
             print(f"  Timeout: {self.timeout}s", file=sys.stderr)
+
+    def _is_ollama_available(self) -> bool:
+        """
+        Check if Ollama is running locally on the default port.
+
+        Returns:
+            True if Ollama is available at http://localhost:11434, False otherwise
+        """
+        try:
+            import urllib.request
+            urllib.request.urlopen('http://localhost:11434/api/tags', timeout=2)
+            return True
+        except Exception:
+            return False
 
     def chat_completion(
         self,

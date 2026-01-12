@@ -29,5 +29,14 @@ __all__ = [
     'FlashPostprocessor'
 ]
 
+# Register config adapter with ModelRegistry (includes defaults registration)
+from symfluence.models.registry import ModelRegistry
+from .config import LSTMConfigAdapter
+ModelRegistry.register_config_adapter('LSTM')(LSTMConfigAdapter)
+
+# Register result extractor with ModelRegistry
+from .extractor import LSTMResultExtractor
+ModelRegistry.register_result_extractor('LSTM')(LSTMResultExtractor)
+
 # Register plotter with PlotterRegistry (import triggers registration via decorator)
 from .plotter import LSTMPlotter  # noqa: F401

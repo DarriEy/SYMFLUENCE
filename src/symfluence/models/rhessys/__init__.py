@@ -16,3 +16,15 @@ try:
     from . import build_instructions  # noqa: F401
 except ImportError:
     pass  # Build instructions optional
+
+# Register defaults with DefaultsRegistry (import triggers registration via decorator)
+from . import defaults  # noqa: F401
+
+# Register config adapter with ModelRegistry
+from symfluence.models.registry import ModelRegistry
+from .config import RHESSysConfigAdapter
+ModelRegistry.register_config_adapter('RHESSYS')(RHESSysConfigAdapter)
+
+# Register result extractor with ModelRegistry
+from .extractor import RHESSysResultExtractor
+ModelRegistry.register_result_extractor('RHESSYS')(RHESSysResultExtractor)

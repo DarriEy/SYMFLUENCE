@@ -27,23 +27,37 @@ class ConfigCommands(BaseCommand):
             Exit code (0 for success, non-zero for failure)
         """
         try:
-            # Look for template files in the config directory
-            base_dir = Path(__file__).parent.parent.parent.parent.parent / '0_config_files'
+            # Get template files from SYMFLUENCE resources
+            from symfluence.resources import list_config_templates
 
             BaseCommand._console.info("Available configuration templates:")
             BaseCommand._console.rule()
 
-            if base_dir.exists():
-                templates = list(base_dir.glob('*template*.yaml'))
-                if templates:
-                    for i, template in enumerate(templates, 1):
-                        BaseCommand._console.info(f"{i:2}. {template.name}")
-                    BaseCommand._console.rule()
-                    BaseCommand._console.info(f"Total: {len(templates)} templates")
-                else:
-                    BaseCommand._console.info("No template files found")
+            templates = list_config_templates()
+            if templates:
+                for i, template_path in enumerate(templates, 1):
+                    template_name = Path(template_path).name
+                    # Skip backup files
+                    if template_name.endswith('_backup.yaml'):
+                        continue
+                    description = ""
+                    if 'quickstart_minimal' in template_name:
+                        description = " (Minimal template - 10 required fields only)"
+                    elif 'comprehensive' in template_name:
+                        description = " (Complete reference - 406+ options)"
+                    elif 'camels' in template_name:
+                        description = " (CAMELS dataset template)"
+                    elif 'fluxnet' in template_name:
+                        description = " (FLUXNET sites template)"
+                    elif 'norswe' in template_name:
+                        description = " (Norwegian SWE template)"
+                    elif template_name.startswith('config_template.yaml'):
+                        description = " (Standard template with common options)"
+                    BaseCommand._console.info(f"{i:2}. {template_name}{description}")
+                BaseCommand._console.rule()
+                BaseCommand._console.info(f"Total: {len([t for t in templates if not Path(t).name.endswith('_backup.yaml')])} templates")
             else:
-                BaseCommand._console.info(f"Config directory not found: {base_dir}")
+                BaseCommand._console.info("No template files found")
 
             return ExitCode.SUCCESS
 

@@ -50,6 +50,12 @@ from .base import (
 )
 
 # Model-specific calibration targets
+# Note: FUSE targets are NOT imported here to avoid circular dependencies during migration.
+# They are available via:
+# 1. Direct import: from symfluence.optimization.calibration_targets.fuse_calibration_targets import ...
+# 2. Registry pattern: OptimizerRegistry.get_calibration_target('FUSE', 'streamflow')
+# 3. Factory function: create_calibration_target() (uses registry + fallback)
+
 from .summa_calibration_targets import (
     SUMMAStreamflowTarget,
     SUMMASnowTarget,
@@ -59,7 +65,7 @@ from .gr_calibration_targets import GRStreamflowTarget
 from .hype_calibration_targets import HYPEStreamflowTarget
 from .rhessys_calibration_targets import RHESSysStreamflowTarget
 from .ngen_calibration_targets import NgenStreamflowTarget
-from .fuse_calibration_targets import FUSEStreamflowTarget, FUSESnowTarget
+# from .fuse_calibration_targets import FUSEStreamflowTarget, FUSESnowTarget  # REMOVED to break circular import
 
 
 # =========================================================================
@@ -82,16 +88,14 @@ _DEFAULT_TARGETS: Dict[str, Type[CalibrationTarget]] = {
 }
 
 # Model-specific target overrides
+# Note: FUSE removed from this dict - use registry or factory function instead
 _MODEL_SPECIFIC_TARGETS: Dict[str, Dict[str, Type[CalibrationTarget]]] = {
     'SUMMA': {
         'streamflow': SUMMAStreamflowTarget,
         'snow': SUMMASnowTarget,
         'et': SUMMAETTarget,
     },
-    'FUSE': {
-        'streamflow': FUSEStreamflowTarget,
-        'snow': FUSESnowTarget,
-    },
+    # 'FUSE': removed to avoid circular import - use OptimizerRegistry.get_calibration_target('FUSE', 'streamflow') instead
     'NGEN': {
         'streamflow': NgenStreamflowTarget,
     },
@@ -210,8 +214,8 @@ __all__ = [
     'HYPEStreamflowTarget',
     'RHESSysStreamflowTarget',
     'NgenStreamflowTarget',
-    'FUSEStreamflowTarget',
-    'FUSESnowTarget',
+    # Note: FUSE targets removed from __all__ to avoid circular import
+    # Available via: from symfluence.optimization.calibration_targets.fuse_calibration_targets import FUSEStreamflowTarget
     # Factory functions
     'create_calibration_target',
     'get_available_target_types',

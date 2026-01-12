@@ -61,7 +61,19 @@ class NgenPostprocessor(BaseModelPostProcessor):
         if not nexus_files:
             self.logger.error(f"No nexus output files found in {output_dir}")
             return None
-        
+            
+        # Filter by CALIBRATION_NEXUS_ID if configured
+        target_nexus = self.config_dict.get('CALIBRATION_NEXUS_ID')
+        if target_nexus:
+            # Normalize ID
+            target_files = [f for f in nexus_files if f.stem == f"{target_nexus}_output" or f.stem == target_nexus]
+            
+            if target_files:
+                self.logger.info(f"Post-processing restricted to target nexus: {target_nexus}")
+                nexus_files = target_files
+            else:
+                self.logger.warning(f"Configured CALIBRATION_NEXUS_ID '{target_nexus}' not found in output files. Processing all files.")
+
         self.logger.info(f"Found {len(nexus_files)} nexus output file(s)")
         
         # Read and process each nexus file
@@ -71,24 +83,45 @@ class NgenPostprocessor(BaseModelPostProcessor):
             
             try:
                 # Read nexus output
+                # Check if file has header or is headerless (common in NGEN)
+                # First try reading first few lines to sniff
                 df = pd.read_csv(nexus_file)
                 
-                # Check for flow column (common names)
-                flow_col = None
-                for col_name in ['flow', 'Flow', 'Q_OUT', 'streamflow', 'discharge']:
-                    if col_name in df.columns:
-                        flow_col = col_name
-                        break
+                # Check for standard NGEN headerless format (index, time, flow)
+                is_headerless = False
+                if len(df.columns) == 3:
+                    # Check if first row looks like it should be part of data (e.g. date in col 1)
+                    # or if the current column names are garbage (e.g. '0', '2002...', '20.82')
+                    try:
+                        # Try parsing the FIRST row's second column as date
+                        pd.to_datetime(df.columns[1])
+                        # If that worked, the header is actually data.
+                        is_headerless = True
+                    except (ValueError, TypeError):
+                        # Might be a proper header
+                        pass
+
+                if is_headerless:
+                    # Reload with header=None
+                    df = pd.read_csv(nexus_file, header=None, names=['index', 'time', 'flow'])
+                    flow_col = 'flow'
+                else:
+                    # Check for flow column (common names)
+                    flow_col = None
+                    for col_name in ['flow', 'Flow', 'Q_OUT', 'streamflow', 'discharge']:
+                        if col_name in df.columns:
+                            flow_col = col_name
+                            break
                 
                 if flow_col is None:
                     self.logger.warning(f"No flow column found in {nexus_file}. Columns: {df.columns.tolist()}")
                     continue
                 
                 # Extract time and flow
-                if 'Time' in df.columns:
-                    time = pd.to_datetime(df['Time'], unit='ns')
-                elif 'time' in df.columns:
+                if 'time' in df.columns:
                     time = pd.to_datetime(df['time'])
+                elif 'Time' in df.columns:
+                    time = pd.to_datetime(df['Time'], unit='ns')
                 else:
                     self.logger.warning(f"No time column found in {nexus_file}")
                     continue

@@ -17,10 +17,17 @@ import os
 import tempfile
 
 # Suppress pyogrio field width warnings (non-fatal - data is still written)
-warnings.filterwarnings('ignore', 
+warnings.filterwarnings('ignore',
                        message='.*not successfully written.*field width.*',
                        category=RuntimeWarning,
                        module='pyogrio.raw')
+
+# Suppress xarray FutureWarning about timedelta64 decoding
+# These are informational and clutter logs without affecting functionality
+warnings.filterwarnings('ignore',
+                       message='.*decode_timedelta.*',
+                       category=FutureWarning,
+                       module='xarray.*')
 
 
 def get_logger(name: str = "symfluence") -> logging.Logger:

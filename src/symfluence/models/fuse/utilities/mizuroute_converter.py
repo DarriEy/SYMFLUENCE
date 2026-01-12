@@ -9,6 +9,13 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 import numpy as np
+import warnings
+
+# Suppress xarray FutureWarning about timedelta64 decoding
+warnings.filterwarnings('ignore',
+                       message='.*decode_timedelta.*',
+                       category=FutureWarning,
+                       module='xarray.*')
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +70,7 @@ class FuseToMizurouteConverter:
                 return False
 
             # Open dataset
-            ds = xr.open_dataset(output_file)
+            ds = xr.open_dataset(output_file, decode_timedelta=True)
 
             # Find runoff variable
             q_fuse = self._find_runoff_variable(ds)
@@ -97,7 +104,7 @@ class FuseToMizurouteConverter:
             expected_file = fuse_output_dir / expected_filename
 
             ds_routing.to_netcdf(expected_file)
-            self.logger.info(f"Created mizuRoute input file: {expected_file}")
+            self.logger.debug(f"Created mizuRoute input file: {expected_file}")
 
             ds_routing.close()
             return True
@@ -174,13 +181,13 @@ class FuseToMizurouteConverter:
 
         timestep_seconds = int(config.get('FORCING_TIME_STEP_SIZE', 86400))
 
-        self.logger.info(f"Converting FUSE runoff to {target_units} (timestep={timestep_seconds}s)")
+        self.logger.debug(f"Converting FUSE runoff to {target_units} (timestep={timestep_seconds}s)")
 
         if target_units == 'm/s':
             # mm/timestep -> m/s
             conversion_factor = 1.0 / (1000.0 * timestep_seconds)
             values = values * conversion_factor
-            self.logger.info(f"Applied conversion factor: {conversion_factor:.2e}")
+            self.logger.debug(f"Applied conversion factor: {conversion_factor:.2e}")
 
         elif target_units == 'mm/s':
             # mm/timestep -> mm/s

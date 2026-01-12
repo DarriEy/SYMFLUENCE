@@ -7,7 +7,7 @@ MizuRouteConfig, LSTMConfig, and the parent ModelConfig.
 """
 
 from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 from .base import FROZEN_CONFIG
 
@@ -308,3 +308,44 @@ class ModelConfig(BaseModel):
         if isinstance(v, list):
             return ",".join(str(i).strip() for i in v)
         return v
+
+    @model_validator(mode='after')
+    def auto_populate_model_configs(self):
+        """Auto-populate model-specific configs when model is selected."""
+        # Parse models from hydrological_model string
+        if isinstance(self.hydrological_model, str):
+            models = [m.strip().upper() for m in self.hydrological_model.split(',')]
+        else:
+            models = [str(self.hydrological_model).upper()]
+
+        # Auto-create model configs if not already set
+        # We use model_copy to create a new instance with updated fields (required for frozen models)
+        updates = {}
+
+        if 'SUMMA' in models and self.summa is None:
+            updates['summa'] = SUMMAConfig()
+        if 'FUSE' in models and self.fuse is None:
+            updates['fuse'] = FUSEConfig()
+        if 'GR' in models and self.gr is None:
+            updates['gr'] = GRConfig()
+        if 'HYPE' in models and self.hype is None:
+            updates['hype'] = HYPEConfig()
+        if 'NGEN' in models and self.ngen is None:
+            updates['ngen'] = NGENConfig()
+        if 'MESH' in models and self.mesh is None:
+            updates['mesh'] = MESHConfig()
+        if 'LSTM' in models and self.lstm is None:
+            updates['lstm'] = LSTMConfig()
+        if 'RHESSYS' in models and self.rhessys is None:
+            updates['rhessys'] = RHESSysConfig()
+        if 'GNN' in models and self.gnn is None:
+            updates['gnn'] = GNNConfig()
+
+        # Auto-create routing model config if needed
+        if self.routing_model and self.routing_model.upper() == 'MIZUROUTE' and self.mizuroute is None:
+            updates['mizuroute'] = MizuRouteConfig()
+
+        # Apply updates if any
+        if updates:
+            return self.model_copy(update=updates)
+        return self

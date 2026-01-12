@@ -119,6 +119,12 @@ model:
   # For multiple models: "SUMMA, FUSE" or ["SUMMA", "FUSE"]
   hydrological_model: "SUMMA"
 
+  # SUMMA-specific settings (required when hydrological_model includes SUMMA)
+  summa:
+    exe: "summa_sundials.exe"
+    install_path: "default"
+    settings_path: "default"
+
 
 ## ============================================================================
 ## OPTIONAL: ADDITIONAL RECOMMENDED SETTINGS
@@ -160,12 +166,13 @@ model:
 
 # Uncomment the sections for models you're using:
 
-# SUMMA-specific settings (if using SUMMA model):
+# SUMMA-specific settings (required when using SUMMA model):
+# Note: This should be ADDED to the existing model: section above, not replace it
 # model:
 #   summa:
 #     exe: "summa_sundials.exe"
-#     install_path: "/path/to/summa"
-#     settings_path: "/path/to/summa/settings"
+#     install_path: "default"
+#     settings_path: "default"
 
 # FUSE-specific settings (if using FUSE model):
 # model:

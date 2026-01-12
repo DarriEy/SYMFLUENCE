@@ -127,7 +127,7 @@ class HYPEGeoDataManager:
         Returns:
             Array of unique land use IDs for parameter file generation
         """
-        self.logger.info("Generating HYPE geographic files...")
+        self.logger.debug("Generating HYPE geographic files...")
         gistool_output = Path(gistool_output)
         subbasins_shapefile = Path(subbasins_shapefile)
         rivers_shapefile = Path(rivers_shapefile)
@@ -219,7 +219,7 @@ class HYPEGeoDataManager:
         # 10. Write GeoClass.txt
         self._write_geoclass(slc_df)
 
-        self.logger.info("GeoData.txt, GeoClass.txt, and ForcKey.txt created successfully")
+        self.logger.debug("GeoData.txt, GeoClass.txt, and ForcKey.txt created successfully")
 
         # Return land use information for parameter file generation
         return slc_df['landcover'].unique()
@@ -375,7 +375,7 @@ class HYPEGeoDataManager:
         Note: HYPEForcingProcessor also shifts forcing IDs, so this must be consistent.
         """
         if base_df['subid'].min() == 0:
-            self.logger.info("Shifting subids +1 for HYPE compatibility (0-based to 1-based)")
+            self.logger.debug("Shifting subids +1 for HYPE compatibility (0-based to 1-based)")
 
             # Get original IDs for checking connectivity
             original_ids = set(base_df['subid'])
