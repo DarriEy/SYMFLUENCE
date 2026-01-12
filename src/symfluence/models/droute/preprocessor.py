@@ -23,6 +23,22 @@ except ImportError:
 
 @ModelRegistry.register_preprocessor('DROUTE')
 class DRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
+    """
+    Preprocessor for the dRoute differentiable routing model.
+
+    Handles spatial preprocessing and network topology generation for dRoute,
+    including conversion of river network shapefiles to dRoute's Network object
+    format and pickle serialization for fast loading during model execution.
+
+    dRoute is a differentiable routing model that can be integrated with
+    neural network training for end-to-end hydrological modeling.
+
+    Attributes:
+        setup_dir (Path): Directory for dRoute configuration files.
+        project_dir (Path): Root project directory.
+        domain_name (str): Name of the modeling domain.
+    """
+
     def _get_model_name(self) -> str:
         """Return model name for directory structure."""
         return "dRoute"

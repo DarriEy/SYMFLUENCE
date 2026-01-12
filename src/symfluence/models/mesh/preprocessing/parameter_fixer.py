@@ -122,6 +122,7 @@ class MESHParameterFixer:
                 (r'RUNMODE\s+\w+', 'RUNMODE               noroute'),
                 (r'METRICSSPINUP\s+\d+', 'METRICSSPINUP         730'),
                 (r'DIAGNOSEMODE\s+\w+', 'DIAGNOSEMODE          off'),
+                (r'SHDFILEFLAG\s+\w+', 'SHDFILEFLAG           nc_subbasin'),
             ]
 
             for pattern, replacement in replacements:

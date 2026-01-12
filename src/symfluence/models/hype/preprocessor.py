@@ -106,7 +106,19 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         return "HYPE"
 
     def __init__(self, config, logger: Any, params: Optional[Dict[str, Any]] = None):
-        """Initialize HYPE preprocessor with SYMFLUENCE config."""
+        """
+        Initialize HYPE preprocessor with SYMFLUENCE configuration.
+
+        Args:
+            config: Configuration dictionary or SymfluenceConfig object containing
+                HYPE settings, forcing dataset, and domain configuration.
+            logger: Logger instance for status messages and debugging.
+            params: Optional calibration parameter dictionary to override defaults.
+
+        Note:
+            Sets up HYPE-specific directories and initializes manager classes
+            for forcing processing, geographic data, and configuration.
+        """
         # Initialize base class
         super().__init__(config, logger)
         self.calibration_params = params

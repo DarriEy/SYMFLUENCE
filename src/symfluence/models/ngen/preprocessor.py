@@ -514,12 +514,31 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         return ngen_ds
 
     def generate_model_configs(self):
+        """
+        Generate configuration files for all enabled NGEN modules.
+
+        Creates BMI configuration files for CFE, PET, Noah-OWP, and SLOTH
+        modules based on catchment geometry and enabled module flags.
+        Configurations are written to the setup directory.
+        """
         catchment_gdf = gpd.read_file(self.get_catchment_path())
         config_gen = NgenConfigGenerator(self.config_dict, self.logger, self.setup_dir, catchment_gdf.crs)
         config_gen.set_module_availability(cfe=self._include_cfe, pet=self._include_pet, noah=self._include_noah, sloth=self._include_sloth)
         config_gen.generate_all_configs(catchment_gdf, self.hru_id_col)
 
     def generate_realization_config(self, catchment_file: Path, nexus_file: Path, forcing_file: Path):
+        """
+        Generate the NGEN realization configuration file.
+
+        Creates the main realization.json that defines the complete model
+        configuration including forcing paths, module linkages, and output
+        specifications required by the NGEN executable.
+
+        Args:
+            catchment_file: Path to catchment GeoJSON file.
+            nexus_file: Path to nexus GeoJSON file.
+            forcing_file: Path to forcing NetCDF file.
+        """
         config_gen = NgenConfigGenerator(self.config_dict, self.logger, self.setup_dir, getattr(self, 'catchment_crs', None))
         config_gen.set_module_availability(cfe=self._include_cfe, pet=self._include_pet, noah=self._include_noah, sloth=self._include_sloth)
         config_gen.generate_realization_config(forcing_file, self.project_dir, lib_paths=self._ngen_lib_paths)

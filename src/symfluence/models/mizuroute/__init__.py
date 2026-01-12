@@ -93,4 +93,4 @@ ModelRegistry.register_result_extractor('MIZUROUTE')(MizuRouteResultExtractor)
 ModelRegistry.register_preprocessor('MIZUROUTE')(MizuRoutePreProcessor)
 
 # Register runner with ModelRegistry
-ModelRegistry.register_runner('MIZUROUTE')(MizuRouteRunner)
+ModelRegistry.register_runner('MIZUROUTE', method_name='run_mizuroute')(MizuRouteRunner)

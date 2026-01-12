@@ -53,9 +53,28 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
         return self.config.model.lstm
 
     def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
+        """
+        Initialize the LSTM model runner.
+
+        Sets up the LSTM execution environment including device selection
+        (GPU if available), preprocessor for data loading/scaling, and
+        postprocessor for result formatting.
+
+        Args:
+            config: Configuration dictionary or SymfluenceConfig object containing
+                LSTM hyperparameters (hidden_size, num_layers, epochs, learning_rate),
+                use_snow flag, and domain settings.
+            logger: Logger instance for status messages and debugging output.
+            reporting_manager: Optional reporting manager for experiment tracking
+                and visualization.
+
+        Note:
+            Issues warning if DOMAIN_DEFINITION_METHOD is 'delineate' since GNN
+            is better suited for distributed modeling with explicit topology.
+        """
         # Call base class
         super().__init__(config, logger, reporting_manager=reporting_manager)
-        
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.logger.info(f"Initialized LSTM runner with device: {self.device}")
         
@@ -90,7 +109,35 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
         return "LSTM"
 
     def run_lstm(self):
-        """Run the complete LSTM model workflow."""
+        """
+        Run the complete LSTM model workflow.
+
+        Main orchestration method that coordinates data loading, preprocessing,
+        model training/loading, simulation, optional routing, and result saving.
+
+        Workflow:
+            1. Load forcing data, streamflow observations, and optional snow data
+            2. Preprocess: scale features, create sequences with lookback window
+            3. Either load pre-trained model or train new model:
+               - Training: 80/20 train/validation split, Adam optimizer, MSE loss
+               - Loading: Restore model weights and scalers from checkpoint
+            4. Run forward simulation to generate predictions
+            5. For distributed mode: optionally run dRoute or mizuRoute for routing
+            6. Post-process results and save to NetCDF
+
+        Configuration Dependencies:
+            LSTM_LOAD (bool): Load pre-trained model vs train new
+            LSTM_USE_SNOW (bool): Include SWE as output target
+            LSTM_HIDDEN_SIZE (int): LSTM hidden dimension (default: 64)
+            LSTM_NUM_LAYERS (int): Number of stacked LSTM layers (default: 2)
+            LSTM_EPOCHS (int): Training epochs (default: 100)
+            LSTM_BATCH_SIZE (int): Training batch size (default: 32)
+            LSTM_LEARNING_RATE (float): Adam optimizer learning rate (default: 0.001)
+            LSTM_DROPOUT (float): Dropout rate for regularization (default: 0.2)
+
+        Raises:
+            ModelExecutionError: If any step fails (data loading, training, simulation).
+        """
         self.logger.info(f"Starting LSTM model run in {self.spatial_mode} mode")
 
         with symfluence_error_handler(
@@ -209,7 +256,15 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
             self.logger.info("LSTM model run completed successfully")
 
     def _create_model_instance(self, input_size: int, output_size: int, hidden_size: int, num_layers: int):
-        """Create the LSTM model instance."""
+        """
+        Create the LSTM model instance with specified architecture.
+
+        Args:
+            input_size: Number of input features per timestep.
+            output_size: Number of output variables (1 for streamflow, 2 with SWE).
+            hidden_size: Dimensionality of LSTM hidden state.
+            num_layers: Number of stacked LSTM layers.
+        """
         dropout_rate = self.lstm_config.dropout
         self.logger.info(
             f"Creating LSTM model with input_size: {input_size}, hidden_size: {hidden_size}, "
@@ -218,7 +273,24 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
         self.model = LSTMModel(input_size, hidden_size, num_layers, output_size, dropout_rate).to(self.device)
 
     def _train_model(self, X: torch.Tensor, y: torch.Tensor, epochs: int, batch_size: int, learning_rate: float):
-        """Train the LSTM model."""
+        """
+        Train the LSTM model in lumped mode.
+
+        Uses an 80/20 train/validation split with early stopping based on
+        validation loss. Training uses SmoothL1Loss (Huber loss) for robustness
+        to outliers and AdamW optimizer with learning rate scheduling.
+
+        Args:
+            X: Input tensor of shape (samples, lookback, features).
+            y: Target tensor of shape (samples, outputs).
+            epochs: Maximum number of training epochs.
+            batch_size: Number of samples per gradient update.
+            learning_rate: Initial learning rate for AdamW optimizer.
+
+        Note:
+            Implements gradient clipping (max_norm=1.0) to prevent exploding
+            gradients and uses ReduceLROnPlateau scheduler for adaptive learning.
+        """
         self.logger.info(
             f"Training LSTM model with {epochs} epochs, batch_size: {batch_size}, learning_rate: {learning_rate}"
         )
@@ -285,7 +357,24 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
         self.logger.info("LSTM model training completed")
 
     def _train_model_distributed(self, X: torch.Tensor, y: torch.Tensor, epochs: int, batch_size: int, learning_rate: float):
-        """Train the LSTM model in distributed mode by flattening HRUs into batch."""
+        """
+        Train the LSTM model in distributed mode.
+
+        Flattens the spatial (HRU) dimension into the batch dimension to allow
+        standard LSTM training across all HRUs simultaneously. Each HRU is
+        treated as an independent sequence sample.
+
+        Args:
+            X: Input tensor of shape (batch, lookback, n_hrus, features).
+            y: Target tensor of shape (batch, n_hrus, outputs).
+            epochs: Maximum number of training epochs.
+            batch_size: Number of samples per gradient update.
+            learning_rate: Initial learning rate for AdamW optimizer.
+
+        Note:
+            The flattening transforms X from (B, T, N, F) to (B*N, T, F),
+            allowing each HRU to be processed as a separate batch sample.
+        """
         # X: (B, T, N, F) -> (B*N, T, F)
         # y: (B, N, O) -> (B*N, O)
         B, T, N, F = X.shape
@@ -426,7 +515,28 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
                 self.logger.info(f"Epoch {epoch+1}/{epochs}, Loss (Outlet MSE): {loss_val:.4f}")
 
     def _simulate(self, X_tensor: torch.Tensor, common_dates: pd.DatetimeIndex, features_avg: pd.DataFrame) -> pd.DataFrame:
-        """Run full simulation with LSTM model."""
+        """
+        Run full simulation with trained LSTM model.
+
+        Performs forward pass through the model on all input sequences,
+        inverse-transforms predictions to physical units, and formats
+        results as a DataFrame.
+
+        Args:
+            X_tensor: Input sequences tensor (lumped: (B, T, F) or
+                distributed: (B, T, N, F)).
+            common_dates: DatetimeIndex of all input timesteps.
+            features_avg: DataFrame of forcing features for result joining.
+
+        Returns:
+            pd.DataFrame: Results with predicted_streamflow (and predicted_SWE
+                if configured) columns joined to forcing features. Indexed by
+                time for lumped mode, or MultiIndex (time, hruId) for distributed.
+
+        Note:
+            Uses batched DataLoader for memory-efficient inference.
+            Predictions are clipped to handle numerical instabilities.
+        """
         self.logger.info(f"Running full simulation with LSTM model (mode={self.spatial_mode})")
         
         self._log_memory_usage()
@@ -499,7 +609,23 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
         return result
 
     def _save_model_checkpoint(self, path: Path):
-        """Save the LSTM model and scalers to disk."""
+        """
+        Save the LSTM model and scalers to disk.
+
+        Saves a checkpoint containing model weights, fitted scalers, and
+        metadata needed to reload and resume predictions without retraining.
+
+        Args:
+            path: File path for the checkpoint (.pt file).
+
+        Saved contents:
+            - model_state_dict: PyTorch model weights
+            - feature_scaler: Fitted StandardScaler for inputs
+            - target_scaler: Fitted StandardScaler for outputs
+            - lookback: Sequence length used during training
+            - output_size: Number of output variables
+            - target_names: List of output variable names
+        """
         self.logger.info(f"Saving LSTM model to {path}")
         torch.save({
             'model_state_dict': self.model.state_dict(),
@@ -512,7 +638,19 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
         self.logger.info("Model saved successfully")
 
     def _load_model_checkpoint(self, path: Path) -> Dict[str, Any]:
-        """Load a LSTM model checkpoint from disk."""
+        """
+        Load a LSTM model checkpoint from disk.
+
+        Args:
+            path: File path to the checkpoint (.pt file).
+
+        Returns:
+            dict: Checkpoint dictionary containing model_state_dict, scalers,
+                and metadata (lookback, output_size, target_names).
+
+        Raises:
+            FileNotFoundError: If checkpoint file does not exist.
+        """
         self.logger.info(f"Loading LSTM model from {path}")
         if not path.exists():
             raise FileNotFoundError(f"Model checkpoint not found at {path}")

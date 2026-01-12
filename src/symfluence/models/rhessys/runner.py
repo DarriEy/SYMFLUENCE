@@ -29,6 +29,18 @@ class RHESSysRunner(BaseModelRunner):
     """
 
     def __init__(self, config, logger_instance, reporting_manager=None):
+        """
+        Initialize the RHESSys runner.
+
+        Sets up paths to RHESSys input directories and checks for optional
+        WMFire wildfire spread module configuration.
+
+        Args:
+            config: Configuration dictionary or SymfluenceConfig object containing
+                RHESSys settings, domain paths, and simulation parameters.
+            logger_instance: Logger instance for status messages and debugging.
+            reporting_manager: Optional reporting manager for experiment tracking.
+        """
         super().__init__(config, logger_instance, reporting_manager=reporting_manager)
         # Check for WMFire support (handles both wmfire and legacy vmfire config names)
         self.wmfire_enabled = self._check_wmfire_enabled()
@@ -58,7 +70,18 @@ class RHESSysRunner(BaseModelRunner):
         return "RHESSys"
 
     def _get_rhessys_executable(self) -> Path:
-        """Get the RHESSys executable path."""
+        """
+        Get the RHESSys executable path.
+
+        Searches for RHESSys binary in config-specified path first, then
+        falls back to default install location.
+
+        Returns:
+            Path: Path to RHESSys executable.
+
+        Raises:
+            FileNotFoundError: If executable not found in any location.
+        """
         # Try config path first
         try:
             install_path = self._get_config_value(

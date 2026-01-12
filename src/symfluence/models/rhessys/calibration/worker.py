@@ -443,8 +443,9 @@ class RHESSysWorker(BaseWorker):
 
             if catchment_files:
                 gdf = gpd.read_file(catchment_files[0])
-                centroid = gdf.geometry.centroid.iloc[0]
-                lon = centroid.x
+                # Use bounds to avoid UserWarning about geographic CRS centroids
+                bounds = gdf.total_bounds
+                lon = (bounds[0] + bounds[2]) / 2
                 utm_zone = int((lon + 180) / 6) + 1
                 utm_crs = f"EPSG:{32600 + utm_zone}"
                 gdf_proj = gdf.to_crs(utm_crs)

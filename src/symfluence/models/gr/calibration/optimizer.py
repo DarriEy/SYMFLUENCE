@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 from symfluence.core.file_utils import copy_file
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
+from .worker import GRWorker  # noqa: F401 - Import to trigger worker registration
 
 
 @OptimizerRegistry.register_optimizer('GR')

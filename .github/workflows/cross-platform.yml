@@ -229,9 +229,13 @@ jobs:
           python -m pip install --upgrade pip
           # Install rich explicitly (required by CLI output)
           pip install rich pyyaml
-          # Install the package with all base dependencies
-          # On Windows: GDAL will be removed in Install Python dependencies step
+          # Temporarily remove GDAL from pyproject.toml to avoid build-from-source
+          # GDAL will be installed later with matching system version
+          python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"gdal[^\"]*\",?\s*','',c,flags=re.I); open('pyproject.toml','w').write(c); print('Temporarily removed GDAL from pyproject.toml')"
+          # Install the package with remaining dependencies
           pip install -e . || pip install .  # Fallback to non-editable install
+          # Restore pyproject.toml
+          git checkout pyproject.toml
           echo "Package pre-installed for build script"
 
       - name: Build external tools
@@ -537,9 +541,13 @@ jobs:
           python -m pip install --upgrade pip
           # Install rich explicitly (required by CLI output)
           pip install rich pyyaml
-          # Install the package with all base dependencies
-          # On Windows: GDAL will be removed in Install Python dependencies step
+          # Temporarily remove GDAL from pyproject.toml to avoid build-from-source
+          # GDAL will be installed later with matching system version
+          python -c "import re; c=open('pyproject.toml').read(); c=re.sub(r'\"gdal[^\"]*\",?\s*','',c,flags=re.I); open('pyproject.toml','w').write(c); print('Temporarily removed GDAL from pyproject.toml')"
+          # Install the package with remaining dependencies
           pip install -e . || pip install .  # Fallback to non-editable install
+          # Restore pyproject.toml
+          git checkout pyproject.toml
           echo "Package pre-installed for build script"
 
       - name: Build external tools
