@@ -38,6 +38,21 @@ class RHESSysPreprocessor(BaseModelPreProcessor, ObservationLoaderMixin):
     """
 
     def __init__(self, config, logger_instance):
+        """
+        Initialize the RHESSys preprocessor.
+
+        Sets up RHESSys-specific directory structure and checks for optional
+        WMFire (wildfire spread) module configuration.
+
+        Args:
+            config: Configuration dictionary or SymfluenceConfig object containing
+                RHESSys settings, domain paths, and simulation parameters.
+            logger_instance: Logger instance for status messages and debugging.
+
+        Note:
+            Creates input directories for worldfiles, tecfiles, climate data,
+            routing tables, and definition files under {project_dir}/RHESSys_input/.
+        """
         super().__init__(config, logger_instance)
         # Check for WMFire support (handles both wmfire and legacy vmfire config names)
         self.wmfire_enabled = self._check_wmfire_enabled()
@@ -124,7 +139,13 @@ class RHESSysPreprocessor(BaseModelPreProcessor, ObservationLoaderMixin):
         logger.info(f"Created RHESSys input directories at {self.rhessys_input_dir}")
 
     def _get_simulation_dates(self) -> Tuple[datetime, datetime]:
-        """Get simulation start and end dates from config."""
+        """
+        Get simulation start and end dates from configuration.
+
+        Returns:
+            Tuple[datetime, datetime]: Start and end dates for the simulation
+                period, parsed from EXPERIMENT_TIME_START and EXPERIMENT_TIME_END.
+        """
         start_str = self._get_config_value(
             lambda: self.config.domain.time_start
         )
@@ -138,7 +159,18 @@ class RHESSysPreprocessor(BaseModelPreProcessor, ObservationLoaderMixin):
         return start_date.to_pydatetime(), end_date.to_pydatetime()
 
     def _load_forcing_data(self) -> xr.Dataset:
-        """Load basin-averaged forcing data."""
+        """
+        Load basin-averaged forcing data from NetCDF files.
+
+        Searches for forcing data in multiple locations (basin_averaged_data,
+        merged_path, SUMMA_input, raw_data) and combines using xarray.
+
+        Returns:
+            xr.Dataset: Forcing dataset subset to simulation period.
+
+        Raises:
+            FileNotFoundError: If no forcing files found in any search path.
+        """
         forcing_files = list(self.forcing_basin_path.glob("*.nc"))
 
         if not forcing_files:

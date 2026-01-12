@@ -32,6 +32,18 @@ class HYPERunner(BaseModelRunner, ModelExecutor):
     """
 
     def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
+        """
+        Initialize the HYPE model runner.
+
+        Sets up HYPE-specific paths including settings directory and
+        executable location using the Unified Model Execution Framework.
+
+        Args:
+            config: Configuration dictionary or SymfluenceConfig object containing
+                HYPE installation path and simulation settings.
+            logger: Logger instance for status messages and debugging.
+            reporting_manager: Optional reporting manager for experiment tracking.
+        """
         # Call base class
         super().__init__(config, logger, reporting_manager=reporting_manager)
 

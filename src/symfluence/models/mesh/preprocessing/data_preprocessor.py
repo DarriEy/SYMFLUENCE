@@ -48,13 +48,30 @@ class MESHDataPreprocessor:
         self.logger = logger or logging.getLogger(__name__)
 
     def copy_shapefile(self, src: str, dst: Path) -> None:
-        """Copy all files associated with a shapefile."""
+        """
+        Copy all files associated with a shapefile.
+
+        Copies the main .shp file and all associated files (.shx, .dbf, .prj, .cpg)
+        to the destination with the new filename stem.
+
+        Args:
+            src: Source shapefile path (with or without .shp extension).
+            dst: Destination path for the shapefile.
+        """
         src_path = Path(src)
         for f in src_path.parent.glob(f"{src_path.stem}.*"):
             shutil.copy2(f, dst.parent / f"{dst.stem}{f.suffix}")
 
     def sanitize_shapefile(self, shp_path: str) -> None:
-        """Remove or rename problematic fields from shapefile."""
+        """
+        Remove or rename problematic fields from shapefile.
+
+        Renames 'ID' column to 'ORIG_ID' if present, as 'ID' conflicts with
+        meshflow's internal field naming conventions.
+
+        Args:
+            shp_path: Path to shapefile to sanitize.
+        """
         if not shp_path:
             return
 
@@ -81,7 +98,17 @@ class MESHDataPreprocessor:
             self.logger.warning(f"Failed to sanitize shapefile {path}: {e}")
 
     def fix_outlet_segment(self, shp_path: str, outlet_value: int = 0) -> None:
-        """Fix outlet segment in river network shapefile."""
+        """
+        Fix outlet segment in river network shapefile.
+
+        Identifies segments whose DSLINKNO points to a non-existent downstream
+        segment (indicating an outlet) and sets their DSLINKNO to the specified
+        outlet value for proper routing termination.
+
+        Args:
+            shp_path: Path to river network shapefile.
+            outlet_value: Value to assign to outlet DSLINKNO (default: 0).
+        """
         if not shp_path:
             return
 
@@ -108,11 +135,17 @@ class MESHDataPreprocessor:
 
     def ensure_gru_id(self, shp_path: str) -> None:
         """
-        Ensure shapefile has GRU_ID column.
+        Ensure shapefile has a valid GRU_ID column.
 
-        If missing or invalid:
-        - For single feature (lumped): set to 1
-        - For multiple features: set to range 1..N
+        GRU_ID (Grouped Response Unit ID) is required by meshflow for spatial
+        indexing. This method adds or fixes the column based on feature count:
+        - For single feature (lumped domain): sets GRU_ID to 1
+        - For multiple features: sets GRU_ID to sequential integers 1..N
+
+        Also ensures the column is integer type with no NaN values.
+
+        Args:
+            shp_path: Path to shapefile to check and update.
         """
         if not shp_path:
             return
@@ -153,8 +186,19 @@ class MESHDataPreprocessor:
 
     def ensure_hru_id(self, shp_path: str, hru_col: str, main_id_col: str = 'GRU_ID') -> None:
         """
-        Ensure shapefile has the HRU dimension column (e.g., 'subbasin').
-        Meshflow uses this for indexing the DDB.
+        Ensure shapefile has the HRU dimension column for meshflow indexing.
+
+        HRU (Hydrological Response Unit) dimension columns like 'subbasin' are
+        used by meshflow when building the Drainage Database (DDB). This method
+        adds the column if missing, using values from GRU_ID or sequential integers.
+
+        For lumped domains (single feature), forces the HRU ID to 1 to match
+        the shapefile structure.
+
+        Args:
+            shp_path: Path to shapefile to check and update.
+            hru_col: Name of the HRU column to ensure (e.g., 'subbasin').
+            main_id_col: Column to copy values from if hru_col is missing.
         """
         if not shp_path or not hru_col:
             return
@@ -276,7 +320,21 @@ class MESHDataPreprocessor:
             return []
 
     def sanitize_landcover_stats(self, csv_path: str) -> str:
-        """Sanitize landcover stats CSV for meshflow compatibility."""
+        """
+        Sanitize landcover stats CSV for meshflow compatibility.
+
+        Performs multiple transformations:
+        - Renames unnamed first column to GRU_ID
+        - Converts IGBP_* columns to frac_* columns (fractions)
+        - Removes non-essential columns that cause meshflow parsing errors
+        - Removes duplicate rows
+
+        Args:
+            csv_path: Path to landcover statistics CSV file.
+
+        Returns:
+            str: Path to sanitized CSV file (may be a temp file in forcing_dir).
+        """
         if not csv_path:
             return csv_path
 
@@ -349,8 +407,20 @@ class MESHDataPreprocessor:
 
     def convert_landcover_to_maf(self, csv_path: str) -> None:
         """
-        Ensure landcover CSV is MAF (Mesh Attribute File) compliant.
-        Crucial for MESH 1.5 to actually 'see' the GRU fractions.
+        Convert landcover CSV to MAF (MESH Attribute File) format.
+
+        MAF format is required by MESH 1.5+ to properly read GRU land cover
+        fractions. The format expects columns: GRU_ID, frac_1, frac_2, etc.,
+        where frac_* values sum to 1.0 for each row (representing fractional
+        coverage of each IGBP land cover class).
+
+        Performs the following transformations:
+        - Converts IGBP_* count columns to frac_* fraction columns
+        - Normalizes fractions to sum to 1.0 per row
+        - Handles edge cases with missing or single land cover columns
+
+        Args:
+            csv_path: Path to landcover statistics CSV file to convert in-place.
         """
         if not csv_path or not Path(csv_path).exists():
             return
@@ -392,7 +462,22 @@ class MESHDataPreprocessor:
             self.logger.warning(f"Failed to convert to MAF: {e}")
 
     def copy_settings_to_forcing(self) -> None:
-        """Copy MESH settings files from setup_dir to forcing_dir."""
+        """
+        Copy MESH settings files from setup directory to forcing directory.
+
+        MESH requires all input files (settings, parameters, forcing) to be
+        in the same directory for execution. This method copies configuration
+        files from the setup directory to the forcing directory.
+
+        Skips files that would cause issues or are generated separately:
+        - MESH_input_run_options.ini (generated by preprocessor)
+        - MESH_forcing.nc (created by forcing processor)
+        - MESH_drainage_database.nc (created by meshflow)
+        - MESH_forcing_safe.nc (backup file)
+
+        Also handles cases where setup and forcing directories are the same
+        or files already exist at the destination.
+        """
         import os
 
         self.logger.info(f"Copying MESH settings from {self.setup_dir} to {self.forcing_dir}")

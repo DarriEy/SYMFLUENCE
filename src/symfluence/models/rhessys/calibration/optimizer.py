@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.optimization.registry import OptimizerRegistry
+from .worker import RHESSysWorker  # noqa: F401 - Import to trigger worker registration
 
 
 @OptimizerRegistry.register_optimizer('RHESSys')

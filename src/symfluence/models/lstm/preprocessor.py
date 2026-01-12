@@ -30,6 +30,24 @@ class LSTMPreprocessor:
     """
 
     def __init__(self, config: Dict[str, Any], logger: Any, project_dir: Path, device: torch.device):
+        """
+        Initialize the LSTM preprocessor.
+
+        Sets up data loading paths, scalers for normalization, and spatial
+        mode detection for distributed vs lumped operation.
+
+        Args:
+            config: Configuration dictionary containing LSTM hyperparameters
+                (lookback window, use_snow flag) and domain settings.
+            logger: Logger instance for status messages.
+            project_dir: Path to project directory containing forcing,
+                observations, and model subdirectories.
+            device: PyTorch device for tensor allocation (CPU or CUDA).
+
+        Note:
+            The lookback window determines how many historical timesteps
+            the LSTM uses for each prediction. Default is 30 timesteps.
+        """
         self.config = config
         self.config_dict = config # Alias for compatibility
         self.logger = logger
@@ -277,7 +295,20 @@ class LSTMPreprocessor:
         return X_tensor, y_tensor, pd.DatetimeIndex(common_dates), features_avg, hru_ids
 
     def set_scalers(self, feature_scaler, target_scaler, output_size, target_names):
-        """Set scalers and metadata from a checkpoint."""
+        """
+        Set scalers and metadata from a saved checkpoint.
+
+        Used when loading a pre-trained model to restore the exact normalization
+        parameters used during training. This ensures predictions are consistent
+        with the training data distribution.
+
+        Args:
+            feature_scaler: Fitted StandardScaler for input features.
+            target_scaler: Fitted StandardScaler for target variables.
+            output_size: Number of output variables (1 for streamflow only,
+                2 if including SWE).
+            target_names: List of target variable names matching output_size.
+        """
         self.feature_scaler = feature_scaler
         self.target_scaler = target_scaler
         self.output_size = output_size

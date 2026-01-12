@@ -1,0 +1,19 @@
+"""
+LSTM Model Calibration Module.
+
+Provides calibration infrastructure for LSTM (Long Short-Term Memory) neural
+network hydrological models, supporting sequence-to-sequence learning.
+
+Components:
+    optimizer: LSTM-specific optimizer using PyTorch training loops
+    parameter_manager: Manages LSTM hyperparameters (hidden size, layers, dropout)
+    worker: Executes LSTM training runs with sequence batching
+
+The calibration system supports:
+- Hidden state dimension optimization
+- Stacked LSTM layer configuration
+- Dropout rate tuning for regularization
+- Learning rate scheduling
+- Early stopping with patience-based selection
+- Entity-aware LSTM variants (EA-LSTM)
+"""

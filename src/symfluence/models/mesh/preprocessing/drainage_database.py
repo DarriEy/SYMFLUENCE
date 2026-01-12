@@ -296,9 +296,22 @@ class MESHDrainageDatabase:
             )
 
             if 'GRU' in ds_new and 'NGRU' in ds_new.dims:
-                sum_per = ds_new['GRU'].sum('NGRU')
-                sum_safe = xr.where(sum_per == 0, 1.0, sum_per)
-                ds_new['GRU'] = ds_new['GRU'] / sum_safe
+                # Ensure GRU fractions sum to 1.0 for each subbasin
+                # gru is (N, NGRU)
+                gru_da = ds_new['GRU']
+                gru_sums = gru_da.sum('NGRU')
+                # Avoid division by zero, default to 1.0 if all zero
+                safe_sums = xr.where(gru_sums == 0, 1.0, gru_sums)
+                ds_new['GRU'] = gru_da / safe_sums
+                
+                # If sum was 0, set the first GRU to 1.0 as a fallback
+                if (gru_sums == 0).any():
+                    self.logger.warning("Found subbasins with 0 GRU coverage during topology update. Setting first GRU to 1.0.")
+                    vals = ds_new['GRU'].values
+                    zero_indices = np.where(gru_sums.values == 0)[0]
+                    for idx in zero_indices:
+                        vals[idx, 0] = 1.0
+                    ds_new['GRU'].values = vals
 
             temp_path = self.ddb_path.with_suffix('.tmp.nc')
             ds_new.to_netcdf(temp_path)
@@ -319,6 +332,56 @@ class MESHDrainageDatabase:
 
                 n_size = ds.dims[n_dim]
                 modified = False
+
+                # MESH 1.5 strictly expects 'N' as the spatial dimension
+                if n_dim == 'subbasin':
+                    self.logger.info("Renaming spatial dimension 'subbasin' to 'N'")
+                    ds = ds.rename({'subbasin': 'N'})
+                    n_dim = 'N'
+                    modified = True
+                
+                # Also rename subbasin variable if it exists as a coordinate or data var
+                if 'subbasin' in ds.coords:
+                    ds = ds.rename({'subbasin': 'N'})
+                    modified = True
+                if 'subbasin' in ds.data_vars:
+                    ds = ds.rename({'subbasin': 'N'})
+                    modified = True
+
+                # Rename NGRU dimension to landclass
+                if 'NGRU' in ds.dims:
+                    self.logger.info("Renaming dimension 'NGRU' to 'landclass'")
+                    ds = ds.rename({'NGRU': 'landclass'})
+                    modified = True
+
+                # Rename GRU to landclass (expected by MESH NetCDF reader)
+                if 'GRU' in ds:
+                    self.logger.info("Renaming 'GRU' variable to 'landclass'")
+                    if 'landclass' in ds:
+                        ds = ds.drop_vars('landclass')
+                    ds = ds.rename({'GRU': 'landclass'})
+                    modified = True
+
+                # Add N variable if missing (index variable)
+                if 'N' not in ds:
+                    ds['N'] = xr.DataArray(
+                        np.arange(1, n_size + 1, dtype=np.int32),
+                        dims=[n_dim],
+                        attrs={'long_name': 'Grid index', 'units': '1'}
+                    )
+                    modified = True
+                
+                # Ensure all variables are 1D over N (except GRU which is 2D)
+                for var_name in list(ds.data_vars):
+                    if var_name == 'GRU':
+                        continue
+                    if n_dim in ds[var_name].dims and len(ds[var_name].dims) > 1:
+                        # Drop other dims if they are singletons
+                        other_dims = [d for d in ds[var_name].dims if d != n_dim]
+                        if all(ds.dims[d] == 1 for d in other_dims):
+                            self.logger.debug(f"Squeezing {var_name} to 1D over {n_dim}")
+                            ds[var_name] = ds[var_name].squeeze(other_dims, drop=True)
+                            modified = True
 
                 # Add IREACH if missing
                 if 'IREACH' not in ds:
@@ -350,7 +413,6 @@ class MESHDrainageDatabase:
                         attrs={
                             'long_name': 'Side length of grid',
                             'units': 'm',
-                            'coordinates': 'lon lat',
                             '_FillValue': np.nan
                         }
                     )
@@ -378,6 +440,11 @@ class MESHDrainageDatabase:
                         slope_vals = ds['ChnlSlope'].values
                     else:
                         slope_vals = np.full(n_size, 0.001, dtype=np.float64)
+                    
+                    # Ensure no NaNs or non-positive values
+                    slope_vals = np.where(np.isnan(slope_vals), 0.001, slope_vals)
+                    slope_vals = np.where(slope_vals <= 0, 0.001, slope_vals)
+                    
                     ds['Slope'] = xr.DataArray(
                         slope_vals,
                         dims=[n_dim],
@@ -404,6 +471,24 @@ class MESHDrainageDatabase:
                         self.logger.info(f"Coerced {name} to int32 in drainage database")
 
                 if modified:
+                    # Final GRU/landclass normalization check
+                    lc_var = 'landclass' if 'landclass' in ds else 'GRU' if 'GRU' in ds else None
+                    lc_dim = 'landclass' if 'landclass' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else None
+                    
+                    if lc_var and lc_dim:
+                        lc_da = ds[lc_var]
+                        lc_sums = lc_da.sum(lc_dim)
+                        safe_sums = xr.where(lc_sums == 0, 1.0, lc_sums)
+                        ds[lc_var] = lc_da / safe_sums
+                        
+                        if (lc_sums == 0).any():
+                            self.logger.warning(f"Found subbasins with 0 {lc_var} coverage during completeness check. Setting first entry to 1.0.")
+                            vals = ds[lc_var].values
+                            zero_indices = np.where(lc_sums.values == 0)[0]
+                            for idx in zero_indices:
+                                vals[idx, 0] = 1.0
+                            ds[lc_var].values = vals
+
                     temp_path = self.ddb_path.with_suffix('.tmp.nc')
                     ds.to_netcdf(temp_path)
                     os.replace(temp_path, self.ddb_path)
@@ -495,9 +580,21 @@ class MESHDrainageDatabase:
                 )
 
                 if 'GRU' in ds_new and 'NGRU' in ds_new.dims:
-                    sum_per = ds_new['GRU'].sum('NGRU')
-                    sum_safe = xr.where(sum_per == 0, 1.0, sum_per)
-                    ds_new['GRU'] = ds_new['GRU'] / sum_safe
+                    # Ensure GRU fractions sum to 1.0 for each subbasin
+                    gru_da = ds_new['GRU']
+                    gru_sums = gru_da.sum('NGRU')
+                    # Avoid division by zero, default to 1.0 if all zero
+                    safe_sums = xr.where(gru_sums == 0, 1.0, gru_sums)
+                    ds_new['GRU'] = gru_da / safe_sums
+                    
+                    # If sum was 0, set the first GRU to 1.0 as a fallback
+                    if (gru_sums == 0).any():
+                        self.logger.warning("Found subbasins with 0 GRU coverage during reorder. Setting first GRU to 1.0.")
+                        vals = ds_new['GRU'].values
+                        zero_indices = np.where(gru_sums.values == 0)[0]
+                        for idx in zero_indices:
+                            vals[idx, 0] = 1.0
+                        ds_new['GRU'].values = vals
 
                 temp_path = self.ddb_path.with_suffix('.tmp.nc')
                 ds_new.to_netcdf(temp_path)

@@ -59,6 +59,20 @@ class SubcatchmentProcessor:
         logger: Optional[logging.Logger] = None,
         config: Optional['SymfluenceConfig'] = None
     ):
+        """
+        Initialize the subcatchment processor for distributed FUSE execution.
+
+        Args:
+            project_dir: Root directory for the project.
+            domain_name: Name of the hydrological domain.
+            experiment_id: Unique identifier for this experiment run.
+            config_dict: Configuration dictionary with model parameters.
+            setup_dir: Directory containing FUSE settings files.
+            output_path: Directory for FUSE simulation outputs.
+            fuse_exe: Path to the FUSE executable.
+            logger: Optional logger instance for status messages.
+            config: Optional typed SymfluenceConfig object.
+        """
         self.project_dir = project_dir
         self.domain_name = domain_name
         self.experiment_id = experiment_id
@@ -94,13 +108,18 @@ class SubcatchmentProcessor:
 
     def load_subcatchment_info(self, catchment_name_col: str = 'default') -> np.ndarray:
         """
-        Load subcatchment information for distributed mode.
+        Load subcatchment identifiers for distributed FUSE execution.
+
+        Reads catchment shapefiles to extract unique subcatchment IDs. First checks
+        for delineated subcatchments (from TauDEM or similar), then falls back to
+        HRU-based discretization. Each subcatchment will be run independently.
 
         Args:
-            catchment_name_col: Column name for catchment identification
+            catchment_name_col: Column name for catchment identification, or
+                'default' to auto-detect based on domain and discretization.
 
         Returns:
-            Array of subcatchment IDs
+            np.ndarray: Array of integer subcatchment IDs (GRU_ID values).
         """
         # Check if delineated catchments exist (for distributed routing)
         delineated_path = self.project_dir / 'shapefiles' / 'catchment' / f"{self.domain_name}_catchment_delineated.shp"
@@ -132,13 +151,23 @@ class SubcatchmentProcessor:
 
     def run_individual_subcatchments(self, subcatchments: np.ndarray) -> bool:
         """
-        Run FUSE separately for each subcatchment.
+        Execute FUSE model for each subcatchment sequentially.
+
+        For each subcatchment, this method:
+        1. Extracts forcing data specific to that subcatchment
+        2. Creates subcatchment-specific settings files
+        3. Executes FUSE with those settings
+        4. Collects successful outputs for combination
+
+        After all subcatchments complete, outputs are combined into a single
+        distributed results file.
 
         Args:
-            subcatchments: Array of subcatchment IDs
+            subcatchments: Array of subcatchment IDs to process.
 
         Returns:
-            True if at least one subcatchment ran successfully
+            bool: True if at least one subcatchment ran successfully and
+                outputs were combined. False if all subcatchments failed.
         """
         outputs = []
 
@@ -494,10 +523,19 @@ class SubcatchmentProcessor:
 
     def combine_subcatchment_outputs(self, outputs: List[Tuple[int, Path]]):
         """
-        Combine outputs from all subcatchments into distributed format.
+        Combine outputs from all subcatchments into a unified distributed dataset.
+
+        Loads NetCDF output files from each subcatchment run and merges them
+        along a new 'subcatchment' dimension. The combined dataset preserves
+        all variables and attributes from individual runs.
+
+        Creates two output files:
+        - Full distributed results: all variables with subcatchment dimension
+        - Streamflow-only file: just q_routed for easier analysis
 
         Args:
-            outputs: List of (subcatchment_id, output_path) tuples
+            outputs: List of (subcatchment_id, output_path) tuples from
+                successful FUSE runs.
         """
         self.logger.info(f"Combining outputs from {len(outputs)} subcatchments")
 
@@ -643,7 +681,15 @@ class SubcatchmentProcessor:
             raise
 
     def _get_catchment_path(self) -> Path:
-        """Get path to catchment shapefiles."""
+        """
+        Get path to catchment shapefiles directory.
+
+        Returns the configured catchment path or defaults to the standard
+        project subdirectory 'shapefiles/catchment'.
+
+        Returns:
+            Path: Directory containing catchment shapefiles.
+        """
         catchment_path = self._get_config_value(
             lambda: self._config.paths.catchment if self._config else None,
             'CATCHMENT_PATH',

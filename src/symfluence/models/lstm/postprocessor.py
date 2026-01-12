@@ -154,7 +154,24 @@ class LSTMPostprocessor(BaseModelPostProcessor):
 
     def calculate_metrics(self, obs: pd.Series, sim: pd.Series) -> Dict[str, float]:
         """
-        Calculate performance metrics.
+        Calculate performance metrics for LSTM predictions.
+
+        Computes standard hydrological performance metrics comparing observed
+        and simulated streamflow. Handles missing data by dropping NaN values
+        before calculation.
+
+        Args:
+            obs: Observed streamflow series (m³/s).
+            sim: Simulated streamflow series (m³/s).
+
+        Returns:
+            dict: Dictionary of metric names to values including:
+                - RMSE: Root Mean Square Error
+                - KGE: Kling-Gupta Efficiency
+                - KGEp: KGE' (modified KGE with bias term)
+                - NSE: Nash-Sutcliffe Efficiency
+                - MAE: Mean Absolute Error
+                - KGEnp: Non-parametric KGE
         """
         # Ensure obs and sim have the same length and are aligned
         aligned_data = pd.concat([obs, sim], axis=1, keys=['obs', 'sim']).dropna()
