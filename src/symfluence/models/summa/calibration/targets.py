@@ -10,9 +10,8 @@ primarily provide explicit naming and registration for consistency with other mo
 """
 
 import logging
-import pandas as pd
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 from symfluence.evaluation.evaluators import StreamflowEvaluator, SnowEvaluator, ETEvaluator
 from symfluence.optimization.registry import OptimizerRegistry

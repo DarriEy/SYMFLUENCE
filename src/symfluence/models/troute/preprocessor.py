@@ -8,7 +8,6 @@ import os
 import yaml
 import netCDF4 as nc4
 import geopandas as gpd
-from pathlib import Path
 from shutil import copyfile
 from datetime import datetime
 from typing import Dict, Any

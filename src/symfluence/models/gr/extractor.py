@@ -6,7 +6,7 @@ GR models (GR4J/GR5J/GR6J) can run in lumped (CSV) or distributed (NetCDF) modes
 """
 
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict
 import pandas as pd
 
 from symfluence.models.base import ModelResultExtractor

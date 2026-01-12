@@ -7,9 +7,8 @@ Tests:
 """
 
 import pytest
-import numpy as np
 from pathlib import Path
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 
 from symfluence.data.preprocessing.attribute_processors.elevation import ElevationProcessor
 

@@ -6,7 +6,7 @@ Generates PR titles, descriptions, and manages git staging.
 
 import subprocess
 from pathlib import Path
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Optional, Tuple, List
 from datetime import datetime
 
 
@@ -90,7 +90,7 @@ class PRManager:
             file_ops.stage_changes([file_path])
 
             output += "\n" + "=" * 60 + "\n"
-            output += f"✓ Changes staged to git\n\n"
+            output += "✓ Changes staged to git\n\n"
             output += "Next steps:\n"
             output += "1. Review the diff above\n"
             output += "2. Run tests to validate\n"
@@ -189,11 +189,11 @@ class PRManager:
 
         # Add reason section
         if reason == "bugfix":
-            description += f"## Problem\nThis PR fixes a bug that was causing issues.\n\n"
+            description += "## Problem\nThis PR fixes a bug that was causing issues.\n\n"
         elif reason == "feature":
-            description += f"## Feature\nThis PR adds new functionality.\n\n"
+            description += "## Feature\nThis PR adds new functionality.\n\n"
         else:
-            description += f"## Improvement\nThis PR improves existing functionality.\n\n"
+            description += "## Improvement\nThis PR improves existing functionality.\n\n"
 
         # Files modified
         if files_modified:

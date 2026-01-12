@@ -5,7 +5,6 @@ Handles spatial preprocessing and configuration generation for the mizuRoute rou
 """
 
 import os
-import sys
 import pandas as pd
 import netCDF4 as nc4
 import geopandas as gpd
@@ -286,6 +285,17 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         return "mizuRoute"
 
     def __init__(self, config: Dict[str, Any], logger: Any):
+        """
+        Initialize the mizuRoute preprocessor.
+
+        Sets up directory paths for routing configuration, including optional
+        custom settings path for isolated parallel runs during calibration.
+
+        Args:
+            config: Configuration dictionary or SymfluenceConfig object containing
+                mizuRoute settings, topology paths, and routing parameters.
+            logger: Logger instance for status messages and debugging.
+        """
         # Initialize base class (handles standard paths and directories)
         super().__init__(config, logger)
         
@@ -306,6 +316,18 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
 
 
     def run_preprocessing(self):
+        """
+        Run the complete mizuRoute preprocessing workflow.
+
+        Executes all steps needed to prepare mizuRoute for routing:
+        1. Copy base settings files from templates
+        2. Create network topology file from river/catchment shapefiles
+        3. Create remapping file if source model uses different spatial units
+        4. Generate appropriate control file based on source model (SUMMA/FUSE/GR)
+
+        The workflow adapts based on configuration, supporting both lumped-to-distributed
+        remapping and distributed model coupling.
+        """
         self.logger.debug("Starting mizuRoute spatial preprocessing")
         self.copy_base_settings()
         self.create_network_topology_file()
@@ -347,6 +369,13 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
 
 
     def copy_base_settings(self):
+        """
+        Copy mizuRoute base settings from package resources.
+
+        Copies template configuration files (parameter anchors, routing method
+        settings) from symfluence resources to the setup directory, providing
+        starting points that will be customized during preprocessing.
+        """
         self.logger.info("Copying mizuRoute base settings")
         from symfluence.resources import get_base_settings_dir
         base_settings_path = get_base_settings_dir('mizuRoute')
@@ -505,6 +534,18 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         return synthetic_gdf
 
     def create_network_topology_file(self):
+        """
+        Create the network topology NetCDF file for mizuRoute.
+
+        Generates a topology file containing river segment IDs, downstream connectivity,
+        HRU assignments, and channel properties. Supports multiple modes:
+        - Standard distributed: Uses river network and basin shapefiles
+        - Lumped-to-distributed: Creates synthetic network for single-GRU to multi-segment
+        - Grid-based: Creates topology from regular grid cells
+        - Point-scale: Creates minimal single-segment topology
+
+        The topology file is required by mizuRoute to route water through the network.
+        """
         self.logger.info("Creating network topology file")
 
         # Check for grid-based distribute mode
@@ -730,8 +771,6 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         Returns:
             int: Segment ID of closest segment to pour point
         """
-        from pathlib import Path
-        import numpy as np
         
         # Find pour point shapefile
         pour_point_dir = self.project_dir / 'shapefiles' / 'pour_point'
@@ -794,7 +833,28 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
                 return fallback_seg
 
     def create_equal_weight_remap_file(self):
-        """Create remapping file with equal weights for all segments"""
+        """
+        Create remapping file with equal weights for all routing HRUs.
+
+        This method creates a NetCDF remapping file that distributes runoff
+        equally from a single lumped hydrological model GRU to multiple
+        routing HRUs. Used when routing a lumped model through a distributed
+        river network (e.g., single SUMMA GRU routed through multiple
+        mizuRoute segments).
+
+        The remapping file contains:
+        - RN_hruId: Routing network HRU IDs from topology
+        - nOverlaps: Number of source GRUs per routing HRU (always 1)
+        - HM_hruId: Source hydrological model GRU ID (always 1)
+        - weight: Equal areal weight (1/n_hrus) for each HRU
+
+        File is written to: {setup_dir}/{SETTINGS_MIZU_REMAP}
+
+        Note:
+            This equal-weight approach assumes uniform runoff distribution
+            and is appropriate only for lumped-to-distributed routing.
+            For area-weighted remapping, use create_area_weighted_remap_file.
+        """
         self.logger.info("Creating equal-weight remapping file")
         
         # Load topology to get segment information
@@ -845,6 +905,33 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         self.logger.info(f"Equal-weight remapping file created with {n_hrus} HRUs, weight = {equal_weight:.4f}")
 
     def remap_summa_catchments_to_routing(self):
+        """
+        Create remapping file from SUMMA catchments to routing network HRUs.
+
+        Computes spatial intersection between hydrological model (HM) catchments
+        and routing model (RM) basins to create area-weighted remapping. This
+        enables routing when the source model uses different spatial units than
+        the river network topology.
+
+        For lumped domains with river_network delineation, creates area-weighted
+        remapping that distributes runoff proportionally to HRU areas. For
+        distributed domains, performs full spatial intersection using EASYMORE.
+
+        The workflow:
+        1. Load HM catchment and RM basin shapefiles
+        2. Perform spatial intersection (reproject to EPSG:6933 for accuracy)
+        3. Calculate area weights for each HM-RM overlap
+        4. Write remapping NetCDF with overlap counts and weights
+
+        Configuration keys used:
+        - CATCHMENT_PATH, CATCHMENT_SHP_NAME: Source model catchments
+        - RIVER_BASINS_PATH, RIVER_BASINS_NAME: Routing network basins
+        - INTERSECT_ROUTING_PATH, INTERSECT_ROUTING_NAME: Intersection output
+        - SETTINGS_MIZU_REMAP: Output remapping file name
+
+        Note:
+            Requires geopandas and EASYMORE for spatial intersection operations.
+        """
         self.logger.info("Remapping SUMMA catchments to routing catchments")
         if self.domain_definition_method == 'lumped' and self.config_dict.get('ROUTING_DELINEATION') == 'river_network':
             self.logger.info("Area-weighted mapping for SUMMA catchments to routing catchments")
@@ -905,7 +992,29 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         self.logger.info(f"Remapping file created at {self.setup_dir / remap_name}")
 
     def create_control_file(self):
-        """Create mizuRoute control file for SUMMA input."""
+        """
+        Create mizuRoute control file for SUMMA runoff input.
+
+        Generates the mizuRoute control file (*.control) that configures the
+        routing simulation when using SUMMA as the source hydrological model.
+        The control file specifies input/output paths, topology files, routing
+        scheme parameters, and simulation time controls.
+
+        The control file includes sections for:
+        - Directory and file paths (topology, runoff input, output)
+        - Simulation period (start/end times from config)
+        - Routing scheme selection (IRF, KWT, DW)
+        - Spatial configuration (segments, HRUs, remapping)
+        - Output variable selection and frequency
+
+        Uses ControlFileWriter to generate SUMMA-specific settings that account
+        for SUMMA's GRU-level runoff output format and time conventions.
+
+        File is written to: {setup_dir}/{experiment_id}.control
+
+        See Also:
+            create_fuse_control_file: For FUSE model input configuration.
+        """
         writer = self._get_control_writer()
         mizu_config = self._get_mizu_config()
         writer.write_control_file(model_type='summa', mizu_config=mizu_config)
@@ -1237,14 +1346,36 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
             self._create_and_fill_nc_var(ncid, 'area', 'f8', 'hru', np.array([area]),
                                          'HRU area', 'm^2')
 
-        self.logger.info(f"Point-scale topology created: 1 HRU, 1 outlet segment")
+        self.logger.info("Point-scale topology created: 1 HRU, 1 outlet segment")
         self.logger.info(f"Topology file: {self.setup_dir / topology_name}")
 
         # Set flag for control file - point-scale uses GRU-level runoff
         self.summa_uses_gru_runoff = True
 
     def create_fuse_control_file(self):
-        """Create mizuRoute control file specifically for FUSE input."""
+        """
+        Create mizuRoute control file for FUSE runoff input.
+
+        Generates the mizuRoute control file (*.control) configured for routing
+        FUSE model output. FUSE produces runoff in a different format than SUMMA,
+        requiring specific variable mappings and time handling in the control file.
+
+        Key FUSE-specific configurations:
+        - Variable name mapping for FUSE runoff output variables
+        - Time dimension handling (FUSE uses different time conventions)
+        - Appropriate runoff flux units conversion if needed
+
+        The control file includes the same structural sections as SUMMA routing:
+        - Directory and file paths (topology, runoff input, output)
+        - Simulation period matching the FUSE run
+        - Routing scheme selection (IRF, KWT, DW)
+        - Spatial configuration with appropriate remapping
+
+        File is written to: {setup_dir}/{experiment_id}.control
+
+        See Also:
+            create_control_file: For SUMMA model input configuration.
+        """
         writer = self._get_control_writer()
         mizu_config = self._get_mizu_config()
         writer.write_control_file(model_type='fuse', mizu_config=mizu_config)
@@ -1295,7 +1426,6 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
             self.logger.debug(f"Forced GR simulation period to midnight: {sim_start} to {sim_end}")
         
         # Ensure dates are in proper format
-        from datetime import datetime
         if isinstance(sim_start, str) and len(sim_start) == 10:  # YYYY-MM-DD format
             sim_start = f"{sim_start} 00:00"
         if isinstance(sim_end, str) and len(sim_end) == 10:  # YYYY-MM-DD format

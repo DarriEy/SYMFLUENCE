@@ -12,11 +12,8 @@ Tests for the shared model runner infrastructure including:
 """
 
 import pytest
-from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch, mock_open
+from unittest.mock import Mock, patch
 import subprocess
-import tempfile
-import shutil
 
 from symfluence.models.base.base_runner import BaseModelRunner
 from symfluence.core.config.models import SymfluenceConfig

@@ -5,10 +5,9 @@ Handles output extraction, processing, and analysis for RHESSys model outputs.
 """
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 
 import pandas as pd
-import numpy as np
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelPostProcessor

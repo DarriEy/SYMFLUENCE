@@ -11,7 +11,7 @@ components, enabling the core evaluation system to remain model-agnostic.
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Optional
 import pandas as pd
 
 

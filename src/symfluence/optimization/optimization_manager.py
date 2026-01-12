@@ -116,10 +116,8 @@ References:
 """
 
 from pathlib import Path
-import logging
 from typing import Dict, Any, Optional, TYPE_CHECKING
 
-import numpy as np
 import pandas as pd
 
 from symfluence.core.base_manager import BaseManager
@@ -129,7 +127,7 @@ from symfluence.optimization.optimization_results_manager import OptimizationRes
 from symfluence.optimization.registry import OptimizerRegistry
 
 if TYPE_CHECKING:
-    from symfluence.core.config.models import SymfluenceConfig
+    pass
 
 
 class OptimizationManager(BaseManager):

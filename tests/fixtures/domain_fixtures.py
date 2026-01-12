@@ -5,7 +5,6 @@ Provides fixtures for domain creation and management.
 """
 
 import pytest
-from pathlib import Path
 
 
 @pytest.fixture(scope="function")

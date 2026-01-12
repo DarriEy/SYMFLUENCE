@@ -165,10 +165,13 @@ jobs:
           set -e
           chmod +x ./symfluence
           ./symfluence --install
-          
+
           # Install CPU-only torch to save space (Linux only)
           source venv/bin/activate
           pip install torch --index-url https://download.pytorch.org/whl/cpu --force-reinstall
+
+          # Install test dependencies (pytest moved to optional deps)
+          pip install -e ".[test]"
 
 
       - name: Add external tools to PATH
@@ -549,6 +552,10 @@ jobs:
           set -e
           chmod +x ./symfluence
           ./symfluence --install
+
+          # Install test dependencies (pytest moved to optional deps)
+          source venv/bin/activate
+          pip install -e ".[test]"
 
       - name: Add external tools to PATH
         run: |

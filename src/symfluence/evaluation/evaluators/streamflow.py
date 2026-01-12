@@ -9,7 +9,6 @@ automatic unit conversion (mass flux to volume flux), spatial aggregation for
 distributed models, and observed data matching.
 """
 
-import logging
 import pandas as pd
 import numpy as np
 import xarray as xr
@@ -21,7 +20,7 @@ from symfluence.evaluation.output_file_locator import OutputFileLocator
 from .base import ModelEvaluator
 
 if TYPE_CHECKING:
-    from symfluence.core.config.models import SymfluenceConfig
+    pass
 
 
 @EvaluationRegistry.register('STREAMFLOW')

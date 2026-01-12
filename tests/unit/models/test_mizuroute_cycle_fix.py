@@ -2,7 +2,6 @@
 import unittest
 import logging
 import numpy as np
-from unittest.mock import MagicMock
 from symfluence.models.mizuroute.preprocessor import MizuRoutePreProcessor
 
 class TestMizuRouteCycleFix(unittest.TestCase):

@@ -13,7 +13,6 @@ This test requires significant runtime (2-4 hours) and cloud credentials.
 import pytest
 from pathlib import Path
 from symfluence import SYMFLUENCE
-from test_helpers.helpers import load_config_template
 
 pytestmark = [
     pytest.mark.e2e,
@@ -70,7 +69,6 @@ def test_provo_river_full_workflow(provo_config, clear_cache_flag):
     """
     import shutil
     import yaml
-    from datetime import datetime
 
     # Load config first to get domain name
     with open(provo_config, 'r') as f:
@@ -87,14 +85,14 @@ def test_provo_river_full_workflow(provo_config, clear_cache_flag):
     if clear_cache_flag and project_dir.exists():
         print(f"\n⚠ --clear-cache flag set, removing previous test data at: {project_dir}")
         shutil.rmtree(project_dir)
-        print(f"✓ Previous test data removed")
+        print("✓ Previous test data removed")
     elif project_dir.exists():
         print(f"\n✓ Using cached data from: {project_dir}")
-        print(f"  (Use --clear-cache to force re-download)")
+        print("  (Use --clear-cache to force re-download)")
 
     # Initialize SYMFLUENCE with config and enable visualizations
     sym = SYMFLUENCE(provo_config, visualize=True)
-    print(f"✓ SYMFLUENCE initialized with visualizations enabled")
+    print("✓ SYMFLUENCE initialized with visualizations enabled")
 
     # Setup project (creates directory structure)
     project_dir = sym.managers["project"].setup_project()
@@ -150,15 +148,15 @@ def test_provo_river_full_workflow(provo_config, clear_cache_flag):
     river_basins_file = shapefiles_dir / "river_basins" / f"{config['DOMAIN_NAME']}_riverBasins_lumped.shp"
     if not river_basins_file.exists():
         print(f"⚠ Warning: River basins file not found at {river_basins_file}")
-        print(f"Domain definition may have failed. Check logs for TauDEM errors.")
+        print("Domain definition may have failed. Check logs for TauDEM errors.")
         # List what files do exist
         if (shapefiles_dir / "river_basins").exists():
             print(f"Files in river_basins/: {list((shapefiles_dir / 'river_basins').glob('*'))}")
-        raise FileNotFoundError(f"Domain delineation failed - river basins shapefile not created. "
-                              f"This likely indicates TauDEM processing failed. "
-                              f"Check that TauDEM is installed and DEM is valid.")
+        raise FileNotFoundError("Domain delineation failed - river basins shapefile not created. "
+                              "This likely indicates TauDEM processing failed. "
+                              "Check that TauDEM is installed and DEM is valid.")
 
-    print(f"✓ Domain defined successfully")
+    print("✓ Domain defined successfully")
 
     # Discretize domain (creates spatial units - HRUs/GRUs)
     print("Discretizing domain into GRUs...")
@@ -195,7 +193,7 @@ def test_provo_river_full_workflow(provo_config, clear_cache_flag):
     usgs_file = list(raw_streamflow_dir.glob("usgs_10163000_*.rdb")) if raw_streamflow_dir.exists() else []
 
     if usgs_file and not clear_cache_flag:
-        print(f"✓ Using cached USGS streamflow and GRACE data")
+        print("✓ Using cached USGS streamflow and GRACE data")
     else:
         print("Acquiring observations (USGS streamflow, GRACE)...")
         sym.managers["data"].acquire_observations()
@@ -204,7 +202,7 @@ def test_provo_river_full_workflow(provo_config, clear_cache_flag):
         assert raw_streamflow_dir.exists(), "Streamflow raw data directory not created"
         usgs_file = list(raw_streamflow_dir.glob("usgs_10163000_*.rdb"))
         assert len(usgs_file) > 0, "USGS streamflow data not downloaded"
-        print(f"✓ USGS streamflow data acquired")
+        print("✓ USGS streamflow data acquired")
 
     # Verify GRACE (if downloaded successfully)
     grace_dir = project_dir / "observations" / "GRACE"
@@ -213,9 +211,9 @@ def test_provo_river_full_workflow(provo_config, clear_cache_flag):
         if len(grace_files) > 0:
             print(f"✓ GRACE data acquired ({len(grace_files)} files)")
         else:
-            print(f"⚠ GRACE directory exists but no files (may be expected)")
+            print("⚠ GRACE directory exists but no files (may be expected)")
     else:
-        print(f"⚠ GRACE data not acquired (may require additional credentials)")
+        print("⚠ GRACE data not acquired (may require additional credentials)")
 
     # 4. Model preprocessing
     print("\n" + "="*80)
@@ -277,7 +275,7 @@ def test_provo_river_full_workflow(provo_config, clear_cache_flag):
     # Check DDS results file
     dds_results = optimization_dir / "DDS_results.csv"
     assert dds_results.exists(), f"DDS results file not found: {dds_results}"
-    print(f"✓ DDS results file exists")
+    print("✓ DDS results file exists")
 
     # Verify 1000 iterations completed
     import pandas as pd
@@ -314,15 +312,15 @@ def test_provo_river_full_workflow(provo_config, clear_cache_flag):
     if len(summa_files) > 0:
         print(f"✓ SUMMA output files exist ({len(summa_files)} files)")
     else:
-        print(f"⚠ No SUMMA output files found (optimization may have used different structure)")
+        print("⚠ No SUMMA output files found (optimization may have used different structure)")
 
     # Final summary
     print("\n" + "="*80)
     print("TEST SUMMARY")
     print("="*80)
-    print(f"Basin: Provo River at Provo, UT (USGS-10163000)")
-    print(f"Period: 2015-2019 (5 years)")
-    print(f"Model: SUMMA (lumped)")
+    print("Basin: Provo River at Provo, UT (USGS-10163000)")
+    print("Period: 2015-2019 (5 years)")
+    print("Model: SUMMA (lumped)")
     print(f"Optimization: DDS with {num_iterations} iterations")
     print(f"Final {metric_col}: {final_kge:.4f}")
     print(f"Project directory: {project_dir}")

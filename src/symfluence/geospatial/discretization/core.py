@@ -7,9 +7,8 @@ based on elevation bands, soil classes, land cover, aspect, or radiation.
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import geopandas as gpd  # type: ignore
 import numpy as np  # type: ignore

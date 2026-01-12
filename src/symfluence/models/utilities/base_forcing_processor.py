@@ -7,7 +7,7 @@ used across FUSE, SUMMA, HYPE, and other model forcing processors.
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Union, Callable, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
 import logging
 
 from symfluence.core.mixins import ConfigurableMixin

@@ -40,10 +40,6 @@ from typing import Any, Dict
 from .services.build_registry import BuildInstructionsRegistry
 from .services.build_snippets import (
     get_common_build_environment,
-    get_netcdf_detection,
-    get_hdf5_detection,
-    get_netcdf_lib_detection,
-    get_geos_proj_detection,
 )
 
 

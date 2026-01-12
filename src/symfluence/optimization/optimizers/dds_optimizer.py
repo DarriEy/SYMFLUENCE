@@ -7,8 +7,7 @@ calibration problems with many parameters and limited function evaluations.
 
 import numpy as np
 import logging
-from datetime import datetime
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
 
 class DDSOptimizer(BaseOptimizer):

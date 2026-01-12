@@ -8,7 +8,6 @@ import pytest
 import requests
 import zipfile
 import shutil
-from pathlib import Path
 from symfluence.data.cache import RawForcingCache
 
 

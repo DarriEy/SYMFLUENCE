@@ -10,7 +10,6 @@ from typing import Dict, Any, Optional
 
 from symfluence.core.file_utils import copy_file
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from .worker import GRWorker
 from symfluence.optimization.registry import OptimizerRegistry
 
 

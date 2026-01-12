@@ -8,7 +8,7 @@ Supports various routing methods (MC, Lag, IRF, etc.) and integrates with Symflu
 import pickle
 import time
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -17,7 +17,6 @@ from ..registry import ModelRegistry
 from ..base import BaseModelRunner
 from ..execution import SpatialOrchestrator
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
-from symfluence.core.constants import UnitConversion
 
 try:
     import droute

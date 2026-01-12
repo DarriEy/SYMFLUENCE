@@ -172,7 +172,7 @@ import numpy as np
 import pandas as pd
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any, List, Tuple, Optional, Callable, Union, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
 from datetime import datetime
 
 from symfluence.core import ConfigurableMixin
@@ -184,11 +184,10 @@ from ..mixins import (
     RetryExecutionMixin,
     GradientOptimizationMixin
 )
-from ..workers.base_worker import BaseWorker, WorkerTask, WorkerResult
-from .algorithms import get_algorithm, list_algorithms
+from ..workers.base_worker import BaseWorker
+from .algorithms import get_algorithm
 from .evaluators import TaskBuilder, PopulationEvaluator
-from .multiobjective import NSGA2Operators
-from .final_evaluation import FinalEvaluationRunner, FinalResultsSaver
+from .final_evaluation import FinalResultsSaver
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -1642,7 +1641,7 @@ class BaseModelOptimizer(
             with open(file_manager_path, 'w') as f:
                 f.writelines(updated_lines)
 
-            self.logger.debug(f"Restored file manager to calibration period")
+            self.logger.debug("Restored file manager to calibration period")
 
         except Exception as e:
             self.logger.error(f"Failed to restore file manager: {e}")

@@ -8,9 +8,8 @@ NGEN, GR, and SUMMA preprocessors.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple, Union, Callable
+from typing import Dict, Any, Optional, List, Union, Callable
 
-import numpy as np
 import pandas as pd
 import xarray as xr
 

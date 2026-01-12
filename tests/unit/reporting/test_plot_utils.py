@@ -5,7 +5,6 @@ Unit tests for plot_utils module.
 import pytest
 import numpy as np
 import pandas as pd
-from unittest.mock import MagicMock, patch
 
 from symfluence.reporting.core.plot_utils import (
     calculate_metrics,

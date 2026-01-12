@@ -112,7 +112,6 @@ class TestMESHRegistration:
     def test_mesh_optimizer_registered(self):
         """Test that MESH optimizer is registered."""
         # Import to trigger registration
-        from symfluence.optimization.model_optimizers.mesh_model_optimizer import MESHModelOptimizer
 
         optimizer_cls = OptimizerRegistry.get_optimizer('MESH')
         assert optimizer_cls is not None
@@ -121,7 +120,6 @@ class TestMESHRegistration:
     def test_mesh_worker_registered(self):
         """Test that MESH worker is registered."""
         # Import to trigger registration
-        from symfluence.optimization.workers.mesh_worker import MESHWorker
 
         worker_cls = OptimizerRegistry.get_worker('MESH')
         assert worker_cls is not None

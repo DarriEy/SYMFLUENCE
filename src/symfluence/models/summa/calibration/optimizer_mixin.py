@@ -13,10 +13,10 @@ import shutil
 import re
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Optional, List, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from symfluence.core.config.models import SymfluenceConfig
+    pass
 
 
 class SUMMAOptimizerMixin:

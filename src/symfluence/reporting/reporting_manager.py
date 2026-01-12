@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List, Tuple, Union, TYPE_CHECKING
+from typing import Dict, Any, Optional, List, Tuple, TYPE_CHECKING
 from pathlib import Path
 from functools import cached_property
 

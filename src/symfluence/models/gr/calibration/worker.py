@@ -8,18 +8,12 @@ Worker implementation for GR model optimization.
 """
 
 import logging
-import time
 from pathlib import Path
-from typing import Dict, Any, Optional
-import pandas as pd
-import xarray as xr
-import numpy as np
+from typing import Dict, Any
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask, WorkerResult
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.models.gr.runner import GRRunner
-from symfluence.evaluation.metrics import kge, nse, rmse, mae
-from symfluence.core.constants import UnitConversion
 
 logger = logging.getLogger(__name__)
 

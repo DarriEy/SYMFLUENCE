@@ -7,7 +7,7 @@ hydrological variables based on meteorological forcings.
 """
 
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict
 import pandas as pd
 import xarray as xr
 

@@ -7,11 +7,10 @@ with multiple objectives (e.g., streamflow, snow, ET simultaneously).
 
 import numpy as np
 import logging
-from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
 from symfluence.optimization.calibration_targets import (
-    CalibrationTarget, StreamflowTarget, SnowTarget, GroundwaterTarget, ETTarget, SoilMoistureTarget, TWSTarget
+    StreamflowTarget, SnowTarget, GroundwaterTarget, ETTarget, SoilMoistureTarget, TWSTarget
 )
 
 class NSGA2Optimizer(BaseOptimizer):

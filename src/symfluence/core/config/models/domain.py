@@ -5,7 +5,7 @@ Contains DelineationConfig and DomainConfig for spatial extent, timing, and disc
 """
 
 from typing import Optional, Literal
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG
 

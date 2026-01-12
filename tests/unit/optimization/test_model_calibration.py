@@ -9,8 +9,7 @@ import pytest
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call
-from datetime import datetime
+from unittest.mock import patch
 from test_helpers.markers import skip_if_no_model
 from symfluence.core.config.models import SymfluenceConfig
 
@@ -459,7 +458,6 @@ class TestSequentialVsParallel:
 
     def test_summa_parallel_evaluation(self, summa_config, test_logger, mock_summa_worker):
         """Test parallel SUMMA evaluations."""
-        from multiprocessing import Pool
 
         params_list = [
             {'theta_sat': 0.40, 'k_soil': 3e-5},

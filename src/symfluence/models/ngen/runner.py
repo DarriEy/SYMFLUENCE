@@ -9,7 +9,7 @@ import os
 import subprocess
 import re
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelRunner
@@ -385,7 +385,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
             if changed:
                 with open(realization_file, 'w') as f:
                     json.dump(data, f, indent=2)
-                self.logger.info(f"Patched absolute paths in realization config copy")
+                self.logger.info("Patched absolute paths in realization config copy")
         except Exception as e:
             self.logger.warning(f"Failed to patch realization libraries: {e}")
 
@@ -472,8 +472,6 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
         # Run t-route
         troute_log = output_dir / "troute_log.txt"
         try:
-            import sys
-            import io
             from contextlib import redirect_stdout, redirect_stderr
 
             # Capture t-route output to log file
@@ -481,7 +479,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                 with redirect_stdout(log_f), redirect_stderr(log_f):
                     ngen_main(troute_args)
 
-            self.logger.info(f"T-Route routing completed successfully")
+            self.logger.info("T-Route routing completed successfully")
             self.logger.info(f"T-Route log: {troute_log}")
             return True
 

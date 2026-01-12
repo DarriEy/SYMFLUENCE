@@ -12,8 +12,7 @@ from typing import Dict, Any, Tuple, Optional
 import numpy as np
 import geopandas as gpd
 import rasterio
-from rasterio.features import shapes
-from shapely.geometry import box, shape
+from shapely.geometry import box
 from scipy import stats as scipy_stats
 
 from ..base.base_delineator import BaseGeofabricDelineator

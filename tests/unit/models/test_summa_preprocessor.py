@@ -5,10 +5,8 @@ Tests SUMMA-specific preprocessing functionality.
 """
 
 import pytest
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 from symfluence.models.summa import SummaPreProcessor
-from symfluence.core.exceptions import ModelExecutionError
 
 
 class TestSummaPreProcessorInitialization:

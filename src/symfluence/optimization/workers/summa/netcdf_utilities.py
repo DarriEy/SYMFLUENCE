@@ -16,7 +16,6 @@ from typing import Dict
 
 import numpy as np
 import pandas as pd
-import netCDF4 as nc
 import xarray as xr
 
 
@@ -339,7 +338,7 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
             shutil.move(str(temp_file), str(summa_file))
             temp_file = None
 
-            logger.info(f"Successfully converted SUMMA file: single lumped GRU for distributed routing")
+            logger.info("Successfully converted SUMMA file: single lumped GRU for distributed routing")
 
             # CRITICAL: Now fix time precision for mizuRoute compatibility
             fix_summa_time_precision(summa_file)

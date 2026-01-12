@@ -5,9 +5,8 @@ Provides analysis of project layout, file relationships, and code structure.
 """
 
 import ast
-import re
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any
 
 
 class CodeAnalyzer:

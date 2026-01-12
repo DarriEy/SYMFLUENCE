@@ -6,7 +6,7 @@ allowing each model to register its own defaults without hardcoding
 in the core configuration module.
 """
 
-from typing import Dict, Any, Type, Callable, Optional
+from typing import Dict, Any, Type, Callable
 import logging
 
 logger = logging.getLogger(__name__)

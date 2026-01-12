@@ -8,7 +8,7 @@ model outputs including SUMMA, FUSE, NGEN, LSTM, and HYPE.
 import pandas as pd  # type: ignore
 import numpy as np  # type: ignore
 from pathlib import Path
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Tuple
 
 from symfluence.reporting.core.base_plotter import BasePlotter
 from symfluence.reporting.core.shapefile_helper import resolve_default_name

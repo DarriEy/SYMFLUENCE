@@ -13,7 +13,6 @@ This test requires significant runtime (2-4 hours) and cloud credentials.
 import pytest
 from pathlib import Path
 from symfluence import SYMFLUENCE
-from test_helpers.helpers import load_config_template
 
 pytestmark = [
     pytest.mark.e2e,
@@ -73,7 +72,6 @@ def test_paradise_snotel_full_workflow(paradise_config, clear_cache_flag):
     """
     import shutil
     import yaml
-    from datetime import datetime
 
     # Load config first to get domain name
     with open(paradise_config, 'r') as f:
@@ -90,14 +88,14 @@ def test_paradise_snotel_full_workflow(paradise_config, clear_cache_flag):
     if clear_cache_flag and project_dir.exists():
         print(f"\n⚠ --clear-cache flag set, removing previous test data at: {project_dir}")
         shutil.rmtree(project_dir)
-        print(f"✓ Previous test data removed")
+        print("✓ Previous test data removed")
     elif project_dir.exists():
         print(f"\n✓ Using cached data from: {project_dir}")
-        print(f"  (Use --clear-cache to force re-download)")
+        print("  (Use --clear-cache to force re-download)")
 
     # Initialize SYMFLUENCE with config and enable visualizations
     sym = SYMFLUENCE(paradise_config, visualize=True)
-    print(f"✓ SYMFLUENCE initialized with visualizations enabled")
+    print("✓ SYMFLUENCE initialized with visualizations enabled")
 
     # Setup project (creates directory structure)
     project_dir = sym.managers["project"].setup_project()
@@ -130,7 +128,7 @@ def test_paradise_snotel_full_workflow(paradise_config, clear_cache_flag):
     # For point-scale, define_domain creates minimal spatial structure
     print("Defining point-scale domain...")
     result, artifacts = sym.managers["domain"].define_domain()
-    print(f"✓ Point-scale domain defined successfully")
+    print("✓ Point-scale domain defined successfully")
 
     # Discretize domain (creates single GRU for point-scale)
     print("Discretizing domain into single GRU...")
@@ -171,7 +169,7 @@ def test_paradise_snotel_full_workflow(paradise_config, clear_cache_flag):
         snotel_files = list(raw_snow_dir.glob("*snotel*.csv"))
 
     if snotel_files and not clear_cache_flag:
-        print(f"✓ Using cached SNOTEL and MODIS data")
+        print("✓ Using cached SNOTEL and MODIS data")
     else:
         print("Acquiring observations (SNOTEL SWE, MODIS snow cover)...")
         sym.managers["data"].acquire_observations()
@@ -183,7 +181,7 @@ def test_paradise_snotel_full_workflow(paradise_config, clear_cache_flag):
             snotel_files = list(raw_snow_dir.glob("*snotel*.csv"))
         
         assert len(snotel_files) > 0, "SNOTEL data not downloaded"
-        print(f"✓ SNOTEL SWE data acquired")
+        print("✓ SNOTEL SWE data acquired")
 
     # Verify MODIS snow data
     modis_dir = project_dir / "observations" / "snow"
@@ -191,7 +189,7 @@ def test_paradise_snotel_full_workflow(paradise_config, clear_cache_flag):
     if len(modis_files) > 0:
         print(f"✓ MODIS snow cover data acquired ({len(modis_files)} files)")
     else:
-        print(f"⚠ MODIS data may require processing (check raw files)")
+        print("⚠ MODIS data may require processing (check raw files)")
 
     # Process observations
     print("Processing observation data...")
@@ -312,18 +310,18 @@ def test_paradise_snotel_full_workflow(paradise_config, clear_cache_flag):
     if len(summa_files) > 0:
         print(f"✓ SUMMA output files exist ({len(summa_files)} files)")
     else:
-        print(f"⚠ No SUMMA output files found (optimization may have used different structure)")
+        print("⚠ No SUMMA output files found (optimization may have used different structure)")
 
     # Final summary
     print("\n" + "="*80)
     print("TEST SUMMARY")
     print("="*80)
-    print(f"Site: Paradise SNOTEL, Mount Rainier, WA (Station 679)")
-    print(f"Period: 2015-2019 (5 years)")
-    print(f"Model: SUMMA (point-scale)")
-    print(f"Forcing: ERA5")
+    print("Site: Paradise SNOTEL, Mount Rainier, WA (Station 679)")
+    print("Period: 2015-2019 (5 years)")
+    print("Model: SUMMA (point-scale)")
+    print("Forcing: ERA5")
     print(f"Optimization: DDS multivariate with {num_iterations} iterations")
-    print(f"Targets: SWE (KGE, 50%) + SCA (corr, 50%)")
+    print("Targets: SWE (KGE, 50%) + SCA (corr, 50%)")
     print(f"Final {metric_col}: {final_obj:.4f}")
     print(f"Project directory: {project_dir}")
     print("="*80)

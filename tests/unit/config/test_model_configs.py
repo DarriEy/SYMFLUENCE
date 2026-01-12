@@ -5,8 +5,6 @@ Tests the new model configuration classes (RHESSysConfig, GNNConfig) and
 verifies the transformer mappings work correctly.
 """
 
-import pytest
-from pydantic import ValidationError
 
 from symfluence.core.config.models import (
     SymfluenceConfig,

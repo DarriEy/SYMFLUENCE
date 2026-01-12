@@ -14,7 +14,7 @@ import pandas as pd
 import numpy as np
 import csv
 from pathlib import Path
-from typing import List, Tuple, Dict, Any, Optional, Union
+from typing import List, Tuple, Dict, Any, Optional
 import logging
 from abc import ABC, abstractmethod
 
@@ -100,7 +100,7 @@ class BaseStructureEnsembleAnalyzer(ABC):
         Returns:
             Path: Path to the master results file.
         """
-        self.logger.info(f"Starting structure ensemble analysis")
+        self.logger.info("Starting structure ensemble analysis")
         
         combinations = self.generate_combinations()
         self.logger.info(f"Generated {len(combinations)} decision combinations")

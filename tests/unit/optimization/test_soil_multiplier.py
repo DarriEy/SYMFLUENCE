@@ -2,7 +2,6 @@ import pytest
 import numpy as np
 import netCDF4 as nc
 import logging
-from pathlib import Path
 from symfluence.optimization.core.transformers import SoilDepthTransformer
 
 def test_soil_depth_transformation(tmp_path):

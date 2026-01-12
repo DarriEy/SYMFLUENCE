@@ -6,8 +6,8 @@ PSOConfig, DEConfig, DDSConfig, SCEUAConfig, NSGA2Config, DPEConfig,
 LargeDomainConfig, EmulationConfig, and the parent OptimizationConfig.
 """
 
-from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from typing import List, Optional, Dict, Union
+from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG
 

@@ -13,17 +13,11 @@ from abc import ABC, abstractmethod
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, Union, List, TYPE_CHECKING
-import shutil
 import subprocess
 import os
 
 from symfluence.core.path_resolver import PathResolverMixin
 from symfluence.core.mixins import ShapefileAccessMixin
-from symfluence.core.exceptions import (
-    ModelExecutionError,
-    ConfigurationError,
-    validate_config_keys
-)
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -548,7 +542,7 @@ class BaseModelRunner(ABC, PathResolverMixin, ShapefileAccessMixin):
             self.logger.error(f"See log file for details: {log_file}")
             raise
 
-        except subprocess.TimeoutExpired as e:
+        except subprocess.TimeoutExpired:
             self.logger.error(f"Process timeout after {timeout} seconds")
             self.logger.error(f"See log file for details: {log_file}")
             raise

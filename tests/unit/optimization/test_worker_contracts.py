@@ -11,13 +11,11 @@ Workers are responsible for:
 """
 
 import pytest
-import numpy as np
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 import logging
-from unittest.mock import Mock, patch, MagicMock
-import time
+from unittest.mock import Mock
 
 # Mark all tests in this module
 pytestmark = [pytest.mark.unit, pytest.mark.optimization]

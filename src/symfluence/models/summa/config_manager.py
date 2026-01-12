@@ -13,12 +13,8 @@ from shutil import copyfile
 from typing import Dict, Any, Optional, Tuple
 
 # Third-party imports
-import geopandas as gpd  # type: ignore
 import netCDF4 as nc4  # type: ignore
 import numpy as np  # type: ignore
-import pandas as pd  # type: ignore
-import rasterio  # type: ignore
-import rasterstats  # type: ignore
 import xarray as xr  # type: ignore
 
 # SYMFLUENCE imports
@@ -264,10 +260,10 @@ class SummaConfigManager(PathResolverMixin):
             filemanager_path = self.setup_dir / filemanager_name
 
             with open(filemanager_path, 'w') as fm:
-                fm.write(f"controlVersion       'SUMMA_FILE_MANAGER_V3.0.0'\n")
+                fm.write("controlVersion       'SUMMA_FILE_MANAGER_V3.0.0'\n")
                 fm.write(f"simStartTime         '{sim_start}'\n")
                 fm.write(f"simEndTime           '{sim_end}'\n")
-                fm.write(f"tmZoneInfo           'utcTime'\n")
+                fm.write("tmZoneInfo           'utcTime'\n")
                 fm.write(f"outFilePrefix        '{experiment_id}'\n")
                 fm.write(f"settingsPath         '{self._get_default_path('SETTINGS_SUMMA_PATH', 'settings/SUMMA')}/'\n")
                 fm.write(f"forcingPath          '{self._get_default_path('FORCING_SUMMA_PATH', 'forcing/SUMMA_input')}/'\n")
@@ -277,14 +273,14 @@ class SummaConfigManager(PathResolverMixin):
                 fm.write(f"attributeFile        '{self.config_dict.get('SETTINGS_SUMMA_ATTRIBUTES')}'\n")
                 fm.write(f"trialParamFile       '{self.config_dict.get('SETTINGS_SUMMA_TRIALPARAMS')}'\n")
                 fm.write(f"forcingListFile      '{self.config_dict.get('SETTINGS_SUMMA_FORCING_LIST')}'\n")
-                fm.write(f"decisionsFile        'modelDecisions.txt'\n")
-                fm.write(f"outputControlFile    'outputControl.txt'\n")
-                fm.write(f"globalHruParamFile   'localParamInfo.txt'\n")
-                fm.write(f"globalGruParamFile   'basinParamInfo.txt'\n")
-                fm.write(f"vegTableFile         'TBL_VEGPARM.TBL'\n")
-                fm.write(f"soilTableFile        'TBL_SOILPARM.TBL'\n")
-                fm.write(f"generalTableFile     'TBL_GENPARM.TBL'\n")
-                fm.write(f"noahmpTableFile      'TBL_MPTABLE.TBL'\n")
+                fm.write("decisionsFile        'modelDecisions.txt'\n")
+                fm.write("outputControlFile    'outputControl.txt'\n")
+                fm.write("globalHruParamFile   'localParamInfo.txt'\n")
+                fm.write("globalGruParamFile   'basinParamInfo.txt'\n")
+                fm.write("vegTableFile         'TBL_VEGPARM.TBL'\n")
+                fm.write("soilTableFile        'TBL_SOILPARM.TBL'\n")
+                fm.write("generalTableFile     'TBL_GENPARM.TBL'\n")
+                fm.write("noahmpTableFile      'TBL_MPTABLE.TBL'\n")
 
                 # Add glacier-specific entries if enabled
                 glacier_mode = self.config_dict.get('SETTINGS_SUMMA_GLACIER_MODE', False)

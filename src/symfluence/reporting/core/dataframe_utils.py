@@ -6,9 +6,7 @@ including datetime index management, alignment, and resampling.
 """
 
 import pandas as pd  # type: ignore
-import numpy as np  # type: ignore
 from typing import Tuple, List, Optional, Union, Any
-from datetime import datetime
 
 
 def ensure_datetime_index(

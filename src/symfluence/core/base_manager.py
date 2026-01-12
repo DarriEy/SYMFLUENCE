@@ -7,7 +7,6 @@ orchestration patterns for DataManager, ModelManager, and OptimizationManager.
 
 import logging
 from abc import ABC
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING, Union
 
 from symfluence.core.mixins import ConfigurableMixin

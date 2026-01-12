@@ -2,7 +2,7 @@
 Lazy loading manager factory for SYMFLUENCE.
 """
 
-from typing import Dict, Any, Set, Optional
+from typing import Dict, Any, Set
 import logging
 
 

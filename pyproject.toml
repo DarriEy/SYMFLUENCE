@@ -130,3 +130,52 @@ include = [
 
 [tool.hatch.version]
 path = "src/symfluence/symfluence_version.py"
+
+[tool.ruff]
+# Target Python 3.11
+target-version = "py311"
+
+# Line length to match common conventions
+line-length = 120
+
+# Exclude common non-source directories
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    "examples",  # Notebooks can be informal
+]
+
+[tool.ruff.lint]
+# Select rules to enforce
+select = [
+    "F",   # Pyflakes (undefined names, unused imports, etc.)
+]
+
+# Ignore rules that have many pre-existing violations
+# These should be gradually fixed and then removed from ignore list
+# TODO: Create issues to track fixing these categories
+ignore = [
+    "F401",  # Unused imports - many pre-existing, fix gradually
+    "F403",  # Star imports - some intentional for re-exports
+    "F405",  # Name may be undefined from star import
+    "F601",  # Duplicate dict keys - needs careful analysis of config mappings
+    "F821",  # Undefined names - some are real bugs, track as issues
+    "F841",  # Unused variables - many pre-existing, fix gradually
+    "E701",  # Multiple statements on one line (colon)
+    "E702",  # Multiple statements on one line (semicolon)
+    "E402",  # Module level import not at top - often intentional
+    "E722",  # Bare except - needs careful review
+    "E712",  # Comparison to True/False
+    "E741",  # Ambiguous variable name
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can have more relaxed rules - many use fixtures that look undefined
+"tests/**/*.py" = ["F401", "F841", "F821"]
+# Init files often have unused imports for re-export
+"**/__init__.py" = ["F401", "F403"]

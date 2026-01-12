@@ -5,12 +5,11 @@ Worker implementation for NextGen model optimization.
 Delegates to existing worker functions while providing BaseWorker interface.
 """
 
-import json
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask, WorkerResult
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 
 

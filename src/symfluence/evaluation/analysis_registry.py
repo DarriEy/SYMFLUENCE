@@ -54,7 +54,6 @@ See Also:
 """
 
 from typing import Dict, Type, Optional, List
-import logging
 
 
 class AnalysisRegistry:

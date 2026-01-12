@@ -5,7 +5,7 @@ Provides standardized validation helpers for configuration, files, and directori
 """
 
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Union
 from symfluence.core.exceptions import ConfigurationError, FileOperationError
 
 

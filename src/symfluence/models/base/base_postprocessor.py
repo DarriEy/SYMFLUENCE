@@ -18,8 +18,7 @@ import xarray as xr
 
 from symfluence.core.path_resolver import PathResolverMixin
 from symfluence.core.constants import UnitConversion
-from symfluence.core.exceptions import (
-    ConfigurationError,
+from symfluence.core.validation import (
     validate_config_keys
 )
 

@@ -1,14 +1,15 @@
+
 """
 MESH Model Optimizer (Backward Compatibility)
 
 .. deprecated::
-    This module has been moved to symfluence.models.mesh.calibration.optimizer
-
-    Please update imports to:
-        from symfluence.models.mesh.calibration.optimizer import MESHModelOptimizer
+    Moved to symfluence.models.mesh.calibration.optimizer
 """
 
-# Backward compatibility re-export
+print("DEBUG: Importing mesh_model_optimizer wrapper")
 from symfluence.models.mesh.calibration.optimizer import MESHModelOptimizer
+from symfluence.models.mesh.calibration.parameter_manager import MESHParameterManager
+from symfluence.models.mesh.calibration.worker import MESHWorker
 
-__all__ = ['MESHModelOptimizer']
+__all__ = ['MESHModelOptimizer', 'MESHParameterManager', 'MESHWorker']
+

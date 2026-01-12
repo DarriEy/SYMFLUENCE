@@ -6,7 +6,6 @@ flow duration curves, and streamflow analysis.
 """
 
 import pandas as pd  # type: ignore
-import numpy as np  # type: ignore
 from pathlib import Path
 from typing import List, Dict, Optional, Any, Tuple
 

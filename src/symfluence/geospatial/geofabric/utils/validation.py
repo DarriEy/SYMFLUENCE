@@ -7,7 +7,6 @@ Refactored from geofabric_utils.py (2026-01-01)
 """
 
 from pathlib import Path
-from typing import Dict, Any
 
 
 class GeofabricValidator:
@@ -32,7 +31,7 @@ class GeofabricValidator:
         if not dem_path.exists():
             raise FileNotFoundError(f"DEM file not found: {dem_path}")
 
-        if not dem_path.suffix.lower() in ['.tif', '.tiff']:
+        if dem_path.suffix.lower() not in ['.tif', '.tiff']:
             raise ValueError(f"DEM must be GeoTIFF format, got: {dem_path.suffix}")
 
     @staticmethod

@@ -11,7 +11,6 @@ from typing import Dict, Any, Optional
 
 from symfluence.core.file_utils import copy_file
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from .worker import FUSEWorker
 from symfluence.optimization.registry import OptimizerRegistry
 
 
@@ -65,7 +64,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
-        self.logger.debug(f"FUSEModelOptimizer initialized")
+        self.logger.debug("FUSEModelOptimizer initialized")
 
     def _get_fuse_executable_path_pre_init(self, config: Dict[str, Any]) -> Path:
         """Helper to get FUSE executable path before full initialization."""

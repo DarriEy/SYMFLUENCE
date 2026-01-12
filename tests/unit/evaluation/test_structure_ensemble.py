@@ -5,7 +5,6 @@ import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch, mock_open
 import pandas as pd
-import numpy as np
 
 from symfluence.evaluation.structure_ensemble import BaseStructureEnsembleAnalyzer
 

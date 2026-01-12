@@ -11,11 +11,10 @@ Note: This module has been refactored to use the centralized evaluators in
 symfluence.evaluation.evaluators.
 """
 
-import numpy as np
 import pandas as pd
 import xarray as xr
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import logging
 import warnings
 
@@ -25,9 +24,8 @@ warnings.filterwarnings('ignore',
                        category=FutureWarning,
                        module='xarray.*')
 
-from symfluence.evaluation import metrics
 from symfluence.core.constants import UnitConversion
-from symfluence.evaluation.evaluators import ModelEvaluator, StreamflowEvaluator, SnowEvaluator
+from symfluence.evaluation.evaluators import StreamflowEvaluator, SnowEvaluator
 from symfluence.optimization.registry import OptimizerRegistry
 
 

@@ -52,7 +52,6 @@ See Also:
 """
 
 from typing import Dict, Type, Optional, List, Callable, Any
-import logging
 
 
 class PlotterRegistry:

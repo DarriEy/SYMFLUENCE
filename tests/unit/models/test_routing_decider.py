@@ -4,8 +4,6 @@ Tests for RoutingDecider utility.
 Tests routing decision logic for various model configurations.
 """
 
-import pytest
-from pathlib import Path
 from symfluence.models.utilities.routing_decider import RoutingDecider, needs_routing
 
 

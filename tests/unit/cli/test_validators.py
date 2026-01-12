@@ -1,7 +1,6 @@
 """Unit tests for CLI validators."""
 
 import pytest
-from pathlib import Path
 
 from symfluence.cli.validators import (
     validate_coordinates,

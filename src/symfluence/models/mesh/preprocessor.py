@@ -46,6 +46,17 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         return "MESH"
 
     def __init__(self, config: Dict[str, Any], logger: Any):
+        """
+        Initialize the MESH preprocessor.
+
+        Sets up paths for catchment and river network shapefiles, and prepares
+        lazy-initialized components for meshflow-based preprocessing.
+
+        Args:
+            config: Configuration dictionary or SymfluenceConfig object containing
+                MESH model settings, paths, and domain parameters.
+            logger: Logger instance for status messages and debugging.
+        """
         super().__init__(config, logger)
 
         # MESH-specific catchment path
@@ -72,9 +83,15 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self._forcing_processor = None
         self._data_preprocessor = None
 
-    # Lazy initialization properties
+    # Lazy initialization properties for MESH preprocessing components
     @property
     def meshflow_manager(self) -> MESHFlowManager:
+        """
+        Meshflow execution manager with fallback strategies.
+
+        Returns:
+            MESHFlowManager: Configured manager for meshflow library interaction.
+        """
         if self._meshflow_manager is None:
             self._meshflow_manager = MESHFlowManager(
                 self.forcing_dir,
@@ -85,6 +102,12 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
     @property
     def drainage_database(self) -> MESHDrainageDatabase:
+        """
+        Drainage database manager for topology fixes and completeness.
+
+        Returns:
+            MESHDrainageDatabase: Manager for DDB NetCDF file operations.
+        """
         if self._drainage_database is None:
             self._drainage_database = MESHDrainageDatabase(
                 self.forcing_dir,
@@ -99,6 +122,12 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
     @property
     def parameter_fixer(self) -> MESHParameterFixer:
+        """
+        Parameter file fixer for MESH stability and compatibility.
+
+        Returns:
+            MESHParameterFixer: Manager for INI parameter file corrections.
+        """
         if self._parameter_fixer is None:
             self._parameter_fixer = MESHParameterFixer(
                 self.forcing_dir,
@@ -111,6 +140,12 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
     @property
     def config_generator(self) -> MESHConfigGenerator:
+        """
+        Configuration file generator for MESH INI files.
+
+        Returns:
+            MESHConfigGenerator: Generator for run options, CLASS/hydrology parameters.
+        """
         if self._config_generator is None:
             self._config_generator = MESHConfigGenerator(
                 self.forcing_dir,
@@ -123,6 +158,12 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
     @property
     def forcing_processor(self) -> MESHForcingProcessor:
+        """
+        Forcing file processor for MESH-compatible format.
+
+        Returns:
+            MESHForcingProcessor: Processor for forcing data conversion and alignment.
+        """
         if self._forcing_processor is None:
             self._forcing_processor = MESHForcingProcessor(
                 self.forcing_dir,
@@ -133,6 +174,12 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
     @property
     def data_preprocessor(self) -> MESHDataPreprocessor:
+        """
+        Data preprocessor for shapefile and landcover preparation.
+
+        Returns:
+            MESHDataPreprocessor: Preprocessor for spatial data sanitization.
+        """
         if self._data_preprocessor is None:
             self._data_preprocessor = MESHDataPreprocessor(
                 self.forcing_dir,
@@ -211,7 +258,16 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.parameter_fixer.create_safe_forcing()
 
     def _create_meshflow_config(self) -> Dict[str, Any]:
-        """Create configuration dictionary for meshflow."""
+        """
+        Create configuration dictionary for meshflow library.
+
+        Builds a comprehensive configuration including paths to shapefiles,
+        forcing files, landcover data, variable mappings, and MESH settings.
+        Handles spinup period calculation and GRU class detection.
+
+        Returns:
+            Dictionary containing all meshflow configuration parameters.
+        """
 
         def _get_config_value(key: str, default_value):
             value = self.config_dict.get(key)
@@ -286,7 +342,18 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         return config
 
     def _get_landcover_path(self, _get_config_value) -> str:
-        """Get landcover stats file path, creating a minimal one if needed."""
+        """
+        Get landcover statistics file path, creating minimal file if needed.
+
+        Searches for landcover CSV files in configured locations. If no file
+        is found, creates a minimal landcover file with a default grassland class.
+
+        Args:
+            _get_config_value: Helper function to retrieve config values with defaults.
+
+        Returns:
+            Path to the landcover statistics CSV file.
+        """
         landcover_stats_path = _get_config_value('MESH_LANDCOVER_STATS_PATH', None)
 
         if landcover_stats_path:
@@ -315,7 +382,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         # If still not found, create a minimal landcover CSV file
         if not landcover_path.exists():
-            self.logger.warning(f"Landcover file not found. Creating minimal landcover file.")
+            self.logger.warning("Landcover file not found. Creating minimal landcover file.")
             landcover_dir.mkdir(parents=True, exist_ok=True)
             self._create_minimal_landcover_csv(landcover_path)
 
@@ -342,7 +409,19 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.logger.info(f"Created minimal landcover file at {csv_path}")
 
     def _run_meshflow(self) -> None:
-        """Run meshflow to generate MESH input files."""
+        """
+        Run meshflow to generate MESH input files.
+
+        Executes the complete meshflow workflow including:
+        1. Copying and sanitizing shapefiles
+        2. Ensuring required ID columns exist
+        3. Fixing missing columns and outlet segments
+        4. Preparing landcover statistics
+        5. Running meshflow with forcing and post-processing callbacks
+
+        Raises:
+            ModelExecutionError: If meshflow library is not available.
+        """
         if not MESHFlowManager.is_available():
             from symfluence.core.exceptions import ModelExecutionError
             raise ModelExecutionError(
@@ -368,6 +447,10 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.data_preprocessor.ensure_hru_id(str(cat_copy), hru_dim, main_id)
         self.data_preprocessor.ensure_hru_id(str(riv_copy), hru_dim, main_id)
 
+        # Fix missing columns required by meshflow (e.g. strmOrder)
+        ddb_vars = self._meshflow_config.get('ddb_vars', {})
+        self.data_preprocessor.fix_missing_columns(str(riv_copy), ddb_vars)
+
         outlet_value = self._meshflow_config.get('outlet_value', -9999)
         self.data_preprocessor.fix_outlet_segment(str(riv_copy), outlet_value=outlet_value)
 
@@ -375,6 +458,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         landcover_path = self._meshflow_config.get('landcover', '')
         if landcover_path and Path(landcover_path).exists():
             sanitized = self.data_preprocessor.sanitize_landcover_stats(landcover_path)
+            self.data_preprocessor.convert_landcover_to_maf(sanitized)
             self._meshflow_config['landcover'] = sanitized
 
         # Update config with copies

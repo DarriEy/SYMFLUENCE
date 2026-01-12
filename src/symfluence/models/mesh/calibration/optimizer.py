@@ -12,7 +12,6 @@ from typing import Dict, Any, Optional
 
 from symfluence.core.file_utils import safe_delete
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from .worker import MESHWorker
 from symfluence.optimization.registry import OptimizerRegistry
 
 
@@ -50,7 +49,7 @@ class MESHModelOptimizer(BaseModelOptimizer):
         """
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
 
-        self.logger.debug(f"MESHModelOptimizer initialized")
+        self.logger.debug("MESHModelOptimizer initialized")
 
     def _get_model_name(self) -> str:
         """Return model name."""
@@ -98,7 +97,7 @@ class MESHModelOptimizer(BaseModelOptimizer):
             self.copy_base_settings(source_settings, self.parallel_dirs, 'MESH')
 
         # MESH-SPECIFIC: Copy forcing directory to each process
-        # MESH reads from forcing/MESH_input, not settings
+        # MESH reads from forcing/MESH_input, but worker might look in settings/MESH
         source_forcing = self.project_dir / 'forcing' / 'MESH_input'
         if source_forcing.exists():
             for proc_id, dirs in self.parallel_dirs.items():
@@ -112,8 +111,17 @@ class MESHModelOptimizer(BaseModelOptimizer):
                 shutil.copytree(source_forcing, dest_forcing, symlinks=True)
                 self.logger.debug(f"Copied MESH forcing to {dest_forcing} (preserving symlinks)")
 
+                # ALSO copy to process_N/settings/MESH because WorkerTask sets settings_dir there
+                dest_settings = dirs['root'] / 'settings' / 'MESH'
+                dest_settings.mkdir(parents=True, exist_ok=True)
+                for f in source_forcing.glob('*.ini'):
+                    shutil.copy2(f, dest_settings / f.name)
+                for f in source_forcing.glob('*.txt'):
+                    shutil.copy2(f, dest_settings / f.name)
+
                 # Update parallel_dirs to include forcing path
                 dirs['forcing_dir'] = dest_forcing
+                dirs['settings_dir'] = dest_settings
 
         # Update MESH_input_run_options.ini with process-specific paths
         self._update_mesh_run_options(self.parallel_dirs)

@@ -118,7 +118,6 @@ References:
     - Factory Pattern: Creational design pattern for object creation
     - Python decorators: PEP 318
 """
-import logging
 
 
 class ModelRegistry:

@@ -5,9 +5,8 @@ Provides model-specific visualization registration for HYPE.
 """
 
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import logging
-import pandas as pd
 
 from symfluence.models.registry import ModelRegistry
 

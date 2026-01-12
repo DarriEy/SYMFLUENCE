@@ -113,7 +113,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
             result = self.execute_model_subprocess(
                 cmd,
                 log_file,
-                cwd=self.forcing_dir,
+                cwd=self.forcing_mesh_path,
                 env=run_env,
                 check=False,  # Don't raise on non-zero exit, we'll handle it
                 success_message="MESH simulation completed successfully"
@@ -122,7 +122,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
             # Check execution success
             if result.returncode == 0 and self._verify_outputs():
                 # Clean up copied executable only on success
-                mesh_exe_in_forcing = self.forcing_dir / self.mesh_exe.name
+                mesh_exe_in_forcing = self.forcing_mesh_path / self.mesh_exe.name
                 if mesh_exe_in_forcing.exists() and mesh_exe_in_forcing.is_file():
                     mesh_exe_in_forcing.unlink()
                 return self.output_dir
@@ -148,13 +148,13 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
     def _create_run_command(self) -> List[str]:
         """Create MESH execution command."""
         # Copy mesh executable to forcing path
-        mesh_exe_dest = self.forcing_dir / self.mesh_exe.name
+        mesh_exe_dest = self.forcing_mesh_path / self.mesh_exe.name
         shutil.copy2(self.mesh_exe, mesh_exe_dest)
         # Make sure it's executable
         mesh_exe_dest.chmod(0o755)
         
         # Create results directory that MESH expects
-        results_dir = self.forcing_dir / 'results'
+        results_dir = self.forcing_mesh_path / 'results'
         results_dir.mkdir(parents=True, exist_ok=True)
 
         cmd = [

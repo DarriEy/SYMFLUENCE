@@ -17,14 +17,51 @@ from typing import Optional
 
 def calculate_landcover_mode(input_dir, output_file, start_year, end_year, domain_name):
     """
-    Calculate the mode of land cover data across multiple years.
-    
+    Calculate the temporal mode of land cover data across multiple years.
+
+    This function computes the most frequently occurring land cover class for each
+    pixel across a time series of annual land cover rasters. The mode calculation
+    reduces year-to-year variability caused by classification noise, creating a
+    more representative land cover map for hydrological modeling.
+
+    Algorithm:
+        1. Search for land cover rasters matching the domain and year pattern
+        2. Load all matching rasters into a 3D array (time, height, width)
+        3. Compute the statistical mode along the time axis using scipy.stats.mode
+        4. Handle edge cases (single year, scipy version differences)
+        5. Write the mode raster with the same georeference as inputs
+
+    File Pattern:
+        Primary: ``{input_dir}/domain_{domain_name}_*_{year}*.tif``
+        Fallback: ``{input_dir}/domain_{domain_name}_*.tif`` if no year match
+
     Args:
-        input_dir (Path): Directory containing the yearly land cover files
-        output_file (Path): Path to save the output mode raster
-        start_year (int): Start year for mode calculation
-        end_year (int): End year for mode calculation
-        domain_name (str): Name of the domain
+        input_dir: Directory containing the yearly land cover GeoTIFF files
+        output_file: Path where the output mode raster will be saved
+        start_year: Start year for mode calculation (inclusive)
+        end_year: End year for mode calculation (inclusive)
+        domain_name: Domain name used in file pattern matching
+
+    Returns:
+        None. Writes the mode raster to output_file.
+
+    Raises:
+        FileNotFoundError: If no land cover files match the search pattern
+
+    Notes:
+        - Uses scipy.stats.mode which returns the smallest value if multimodal
+        - Handles scipy version differences (pre/post keepdims parameter)
+        - Creates output directory if it doesn't exist
+        - Preserves input CRS, transform, and dtype in output
+        - Sets nodata value to 0 in output
+        - If only one year of data found, returns that year's data directly
+
+    Example:
+        >>> calculate_landcover_mode(
+        ...     Path('/data/landcover'),
+        ...     Path('/output/landcover_mode.tif'),
+        ...     2015, 2020, 'bow_river'
+        ... )
     """
     
     # Create a list to store the data from each year

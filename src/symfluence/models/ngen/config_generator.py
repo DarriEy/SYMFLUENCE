@@ -258,7 +258,7 @@ surface_water_partitioning_scheme=Schaake
         # Log PET configuration parameters
         self.logger.info(f"Generating PET config for {catchment_id}:")
         self.logger.info(f"  Elevation: {params['elevation']:.1f} m" +
-                        (f" (from catchment attribute)" if catchment_elevation else " (default)"))
+                        (" (from catchment attribute)" if catchment_elevation else " (default)"))
         self.logger.info(f"  Vegetation height: {params['veg_height']:.2f} m")
         self.logger.info(f"  Momentum roughness: {params['momentum_roughness']:.2f} m")
 

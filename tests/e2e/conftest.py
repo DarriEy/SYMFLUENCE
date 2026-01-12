@@ -4,7 +4,6 @@ End-to-end test fixtures and configuration.
 Fixtures specific to E2E tests (full workflow validation).
 """
 
-import pytest
 
 
 # E2E test fixtures

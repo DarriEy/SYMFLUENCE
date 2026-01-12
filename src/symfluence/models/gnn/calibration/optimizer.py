@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from .worker import GNNWorker
 from symfluence.optimization.registry import OptimizerRegistry
 
 

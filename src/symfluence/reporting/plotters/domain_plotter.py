@@ -6,7 +6,7 @@ Handles plotting of domain boundaries, discretization, and spatial features.
 
 import numpy as np  # type: ignore
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 import traceback
 
 from symfluence.reporting.core.base_plotter import BasePlotter

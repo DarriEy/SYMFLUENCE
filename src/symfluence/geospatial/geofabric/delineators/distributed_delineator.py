@@ -314,7 +314,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
             basins = basins.sort_values(['GRU_ID', 'GRU_area'], ascending=[True, False])
             basins = basins.drop_duplicates(subset=['GRU_ID'], keep='first')
 
-            self.logger.info(f"Removed duplicates, keeping largest area for each GRU_ID")
+            self.logger.info("Removed duplicates, keeping largest area for each GRU_ID")
             self.logger.info(f"Remaining GRUs: {len(basins)}")
 
         return basins, rivers

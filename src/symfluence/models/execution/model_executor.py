@@ -28,7 +28,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Callable
-import logging
 
 
 class ExecutionMode(Enum):
@@ -233,7 +232,7 @@ class ModelExecutor(ABC):
 
             return exec_result
 
-        except subprocess.TimeoutExpired as e:
+        except subprocess.TimeoutExpired:
             duration = time.time() - start_time
             self.logger.error(f"Process timed out after {timeout}s")
             return ExecutionResult(

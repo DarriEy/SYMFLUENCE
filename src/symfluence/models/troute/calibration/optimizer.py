@@ -5,7 +5,6 @@ Implements the BaseModelOptimizer for the T-Route routing model.
 """
 
 import xarray as xr
-import pandas as pd
 import netCDF4 as nc4
 import numpy as np
 from pathlib import Path

@@ -9,7 +9,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask, WorkerResult
+from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.evaluation.metrics import kge, nse
 
@@ -50,16 +50,35 @@ class MESHWorker(BaseWorker):
         try:
             config = kwargs.get('config', self.config)
 
-            # Use MESHParameterManager to update parameter files
-            from ..parameter_managers import MESHParameterManager
+            # Use MESHParameterManager from registry
+            from symfluence.optimization.registry import OptimizerRegistry
+            param_manager_cls = OptimizerRegistry.get_parameter_manager('MESH')
+            
+            if param_manager_cls is None:
+                self.logger.error("MESHParameterManager not found in registry")
+                return False
 
-            param_manager = MESHParameterManager(config, self.logger, settings_dir)
+            # settings_dir here is the isolated directory for this process
+            self.logger.debug(f"Applying MESH parameters in {settings_dir}")
+            param_manager = param_manager_cls(config, self.logger, settings_dir)
+            
+            # For parallel execution, ensure it looks in the settings_dir
+            param_manager.mesh_forcing_dir = settings_dir
+            param_manager.class_params_file = settings_dir / 'MESH_parameters_CLASS.ini'
+            param_manager.hydro_params_file = settings_dir / 'MESH_parameters_hydrology.ini'
+            param_manager.routing_params_file = settings_dir / 'MESH_parameters.txt'
+            
             success = param_manager.update_model_files(params)
+
+            if not success:
+                self.logger.error(f"Failed to update MESH parameter files in {settings_dir}")
 
             return success
 
         except Exception as e:
             self.logger.error(f"Error applying MESH parameters: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
             return False
 
     def run_model(
@@ -85,14 +104,23 @@ class MESHWorker(BaseWorker):
             # Initialize MESH runner
             runner = MESHRunner(config, self.logger)
 
-            # Override paths for the worker
-            # MESH reads from forcing directory, not settings
-            domain_name = config.get('DOMAIN_NAME')
-            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
-            project_dir = data_dir / f"domain_{domain_name}"
-
-            runner.mesh_forcing_dir = project_dir / 'forcing' / 'MESH_input'
-            runner.output_dir = output_dir
+            # Determine where to run from (isolated or global)
+            proc_forcing_dir = kwargs.get('proc_forcing_dir')
+            
+            if proc_forcing_dir:
+                proc_forcing_path = Path(proc_forcing_dir)
+                self.logger.debug(f"Running MESH worker in isolated dir: {proc_forcing_path}")
+                runner.set_process_directories(proc_forcing_path, output_dir)
+            elif settings_dir and (settings_dir / 'MESH_input_run_options.ini').exists():
+                self.logger.debug(f"Running MESH worker using settings_dir: {settings_dir}")
+                runner.set_process_directories(settings_dir, output_dir)
+            else:
+                # Fallback to standard paths
+                domain_name = config.get('DOMAIN_NAME')
+                data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+                project_dir = data_dir / f"domain_{domain_name}"
+                runner.mesh_forcing_dir = project_dir / 'forcing' / 'MESH_input'
+                runner.output_dir = output_dir
 
             # Run MESH
             result_path = runner.run_mesh()

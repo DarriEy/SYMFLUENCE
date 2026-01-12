@@ -11,7 +11,6 @@ from typing import Dict, Any, Optional
 
 from symfluence.core.file_utils import copy_file
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
-from .worker import SUMMAWorker
 from symfluence.optimization.registry import OptimizerRegistry
 
 
@@ -59,7 +58,7 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
         self.summa_exe_path = self._get_summa_executable_path()
         self.mizuroute_exe_path = self._get_mizuroute_executable_path()
 
-        self.logger.debug(f"SUMMAModelOptimizer initialized")
+        self.logger.debug("SUMMAModelOptimizer initialized")
         self.logger.debug(f"Routing needed: {self._routing_needed}")
 
     def _get_model_name(self) -> str:

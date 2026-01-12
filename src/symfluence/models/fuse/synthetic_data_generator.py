@@ -7,8 +7,6 @@ particularly useful for snow-dominated catchments during model calibration.
 """
 
 import numpy as np
-import pandas as pd
-from typing import Optional
 
 
 class FuseSyntheticDataGenerator:

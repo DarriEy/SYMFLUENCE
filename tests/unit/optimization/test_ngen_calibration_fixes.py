@@ -1,6 +1,4 @@
 
-import pytest
-from pathlib import Path
 import logging
 from symfluence.optimization.parameter_managers.ngen_parameter_manager import NgenParameterManager
 

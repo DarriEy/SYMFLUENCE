@@ -5,7 +5,6 @@ This module implements handlers for the project command category,
 including initialization and pour point setup.
 """
 
-import sys
 from argparse import Namespace
 from pathlib import Path
 

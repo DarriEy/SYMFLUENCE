@@ -86,7 +86,7 @@ class MultiScaleMethod:
 
         for step in steps:
             self.taudem.run_command(step)
-            self.logger.info(f"Completed multi-scale method step")
+            self.logger.info("Completed multi-scale method step")
 
         self.logger.info("Multi-scale hierarchical stream identification completed")
         self.logger.info(f"Combined {len(thresholds)} scales to create variable-density stream network")

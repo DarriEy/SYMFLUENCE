@@ -16,7 +16,6 @@ results tracking, and trial history for all optimizer implementations.
 
 import os
 import numpy as np
-import pandas as pd
 import shutil
 import logging
 import random
@@ -24,7 +23,6 @@ import time
 import subprocess
 import pickle
 import sys
-import gc
 import re
 from pathlib import Path
 from datetime import datetime
@@ -39,9 +37,8 @@ from symfluence.optimization.core.results_manager import ResultsManager
 from symfluence.optimization.mixins.parallel import LocalScratchManager
 from symfluence.optimization.core import TransformationManager
 from symfluence.optimization.calibration_targets import (
-    ETTarget, SnowTarget, GroundwaterTarget, SoilMoistureTarget, StreamflowTarget, CalibrationTarget, TWSTarget
+    CalibrationTarget
 )
-from symfluence.optimization.workers.summa_parallel_workers import _evaluate_parameters_worker_safe, _run_dds_instance_worker
 from symfluence.models.summa.calibration.optimizer_mixin import SUMMAOptimizerMixin
 from symfluence.core.mixins import ConfigMixin
 
@@ -455,7 +452,7 @@ class BaseOptimizer(SUMMAOptimizerMixin, ABC, ConfigMixin):
         """Reset random seeds right before population initialization"""
         if self.random_seed is not None and self.random_seed != 'None':
             self._set_random_seeds(int(self.random_seed))
-            self.logger.debug(f"Random state reset for population initialization")
+            self.logger.debug("Random state reset for population initialization")
         
     def _copy_settings_files(self) -> None:
         """Copy necessary settings files from project to optimization directory.

@@ -7,7 +7,7 @@ use mizuRoute for routing.
 """
 
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict
 import pandas as pd
 
 from symfluence.models.base import ModelResultExtractor

@@ -10,9 +10,8 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import pandas as pd
-import psutil
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, List
 
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner

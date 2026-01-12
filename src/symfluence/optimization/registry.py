@@ -55,6 +55,7 @@ class OptimizerRegistry:
         """
         def decorator(optimizer_cls):
             key = model_name.upper()
+            print(f"DEBUG: Registering optimizer for {key}: {optimizer_cls}")
             cls._optimizers[key] = optimizer_cls
             # logger.debug(f"Registered optimizer for model: {key}")
             return optimizer_cls
@@ -78,6 +79,7 @@ class OptimizerRegistry:
         """
         def decorator(worker_cls):
             key = model_name.upper()
+            print(f"DEBUG: Registering worker for {key}: {worker_cls}")
             cls._workers[key] = worker_cls
             # logger.debug(f"Registered worker for model: {key}")
             return worker_cls
@@ -85,20 +87,11 @@ class OptimizerRegistry:
 
     @classmethod
     def register_parameter_manager(cls, model_name: str):
-        """
-        Decorator to register a model-specific parameter manager.
-
-        Args:
-            model_name: Name of the model
-
-        Returns:
-            Decorator function that registers the parameter manager class
-        """
-        def decorator(manager_cls):
-            key = model_name.upper()
-            cls._parameter_managers[key] = manager_cls
-            # logger.debug(f"Registered parameter manager for model: {key}")
-            return manager_cls
+        """Decorator for registering a model-specific parameter manager."""
+        def decorator(param_manager_cls):
+            print(f"DEBUG: Registering parameter manager for {model_name}: {param_manager_cls}")
+            cls._parameter_managers[model_name.upper()] = param_manager_cls
+            return param_manager_cls
         return decorator
 
     @classmethod
@@ -156,17 +149,13 @@ class OptimizerRegistry:
         return cls._workers.get(model_name.upper())
 
     @classmethod
-    def get_parameter_manager(cls, model_name: str) -> Optional[Type]:
-        """
-        Get the registered parameter manager class for a model.
-
-        Args:
-            model_name: Name of the model
-
-        Returns:
-            The parameter manager class, or None if not found
-        """
-        return cls._parameter_managers.get(model_name.upper())
+    def get_parameter_manager(cls, model_name: str):
+        """Get the parameter manager class for a given model."""
+        name_upper = model_name.upper()
+        print(f"DEBUG: Getting parameter manager for {name_upper}. Registered: {list(cls._parameter_managers.keys())}")
+        if name_upper not in cls._parameter_managers:
+            return None
+        return cls._parameter_managers[name_upper]
 
     @classmethod
     def get_calibration_target(

@@ -9,12 +9,10 @@ Handles GR-specific output formats (lumped CSV, distributed NetCDF) and
 unit conversions (mm/day → m³/s).
 """
 
-import logging
 import pandas as pd
-import numpy as np
 import xarray as xr
 from pathlib import Path
-from typing import List, Optional, Dict, Any, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.evaluators import StreamflowEvaluator
 from symfluence.evaluation.output_file_locator import OutputFileLocator
@@ -22,7 +20,7 @@ from symfluence.core.constants import UnitConversion
 from symfluence.optimization.registry import OptimizerRegistry
 
 if TYPE_CHECKING:
-    from symfluence.core.config.models import SymfluenceConfig
+    pass
 
 
 @OptimizerRegistry.register_calibration_target('GR', 'streamflow')
@@ -181,10 +179,10 @@ class GRStreamflowTarget(StreamflowEvaluator):
                 area_m2 = self._get_catchment_area()
 
                 if 'm/s' in units or 'm s-1' in units:
-                    self.logger.info(f"Extracting GR distributed output in m/s")
+                    self.logger.info("Extracting GR distributed output in m/s")
                     return sim_data * area_m2
                 else:
-                    self.logger.info(f"Extracting GR distributed output in mm/day")
+                    self.logger.info("Extracting GR distributed output in mm/day")
                     area_km2 = area_m2 / 1e6
                     return sim_data * area_km2 / UnitConversion.MM_DAY_TO_CMS
             else:
@@ -213,7 +211,6 @@ class GRStreamflowTarget(StreamflowEvaluator):
             import geopandas as gpd
             basin_dir = self.project_dir / 'shapefiles' / 'river_basins'
             if basin_dir.exists():
-                import glob
                 basin_files = list(basin_dir.glob(f"{self.domain_name}*.shp"))
                 if basin_files:
                     basin_path = basin_files[0]

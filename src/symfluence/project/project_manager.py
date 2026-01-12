@@ -7,7 +7,7 @@ and project metadata management for hydrological model domains.
 
 from pathlib import Path
 import logging
-from typing import Dict, Any, Optional, Union, TYPE_CHECKING
+from typing import Dict, Any, Optional, TYPE_CHECKING
 import geopandas as gpd
 from shapely.geometry import Point
 
@@ -159,7 +159,7 @@ class ProjectManager(ConfigurableMixin):
             self.logger.info(f"Pour point shapefile created successfully: {output_file}")
             return output_file
             
-        except ValueError as e:
+        except ValueError:
             self.logger.error("Invalid pour point coordinates format. Expected 'lat/lon'.")
             return None
         except Exception as e:

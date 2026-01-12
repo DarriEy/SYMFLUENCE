@@ -8,7 +8,6 @@ from hourly to daily data.
 
 from typing import Dict, List, Callable
 import xarray as xr
-import numpy as np
 
 from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
 

@@ -131,9 +131,7 @@ References:
       and NSE performance criteria. Journal of Hydrology, 377(1-2), 80-91.
 """
 
-from pathlib import Path
-import logging
-from typing import Dict, Any, Union, List, Optional, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 
 import pandas as pd
 
@@ -142,7 +140,7 @@ from symfluence.models.registry import ModelRegistry
 from symfluence.models.utilities.routing_decider import RoutingDecider
 
 if TYPE_CHECKING:
-    from symfluence.core.config.models import SymfluenceConfig
+    pass
 
 
 class ModelManager(BaseManager):
@@ -870,11 +868,11 @@ class ModelManager(BaseManager):
 
                 # Provide interpretation
                 if kge_val < 0:
-                    self.logger.warning(f"    Note: KGE < 0 indicates model performs worse than mean observed flow")
+                    self.logger.warning("    Note: KGE < 0 indicates model performs worse than mean observed flow")
                 elif kge_val < 0.5:
-                    self.logger.info(f"    Note: KGE < 0.5 suggests calibration may significantly improve results")
+                    self.logger.info("    Note: KGE < 0.5 suggests calibration may significantly improve results")
                 elif kge_val >= 0.7:
-                    self.logger.info(f"    Note: KGE >= 0.7 indicates reasonable baseline performance")
+                    self.logger.info("    Note: KGE >= 0.7 indicates reasonable baseline performance")
 
             self.logger.info("=" * 60)
 

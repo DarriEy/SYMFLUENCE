@@ -8,7 +8,7 @@ replacing scattered config_dict.get() calls with typed accessors.
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from symfluence.core.config.models import SymfluenceConfig
+    pass
 
 
 class MizuRouteConfigMixin:

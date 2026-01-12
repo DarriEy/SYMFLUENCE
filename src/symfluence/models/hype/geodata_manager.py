@@ -35,7 +35,7 @@ import pandas as pd
 import pint
 
 if TYPE_CHECKING:
-    from numpy.typing import NDArray
+    pass
 
 
 class HYPEGeoDataManager:

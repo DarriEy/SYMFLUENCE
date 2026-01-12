@@ -5,7 +5,7 @@ Contains NexConfig, EMEarthConfig, and ForcingConfig for meteorological forcing 
 """
 
 from typing import List, Optional
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG
 

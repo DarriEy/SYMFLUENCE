@@ -7,7 +7,6 @@ Base Model Evaluator
 This module provides the abstract base class for different evaluation variables.
 """
 
-import os
 import numpy as np
 import pandas as pd
 import xarray as xr

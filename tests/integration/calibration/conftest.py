@@ -5,7 +5,6 @@ Fixtures specific to calibration and optimization tests.
 """
 
 import pytest
-from pathlib import Path
 
 
 @pytest.fixture(scope="session")

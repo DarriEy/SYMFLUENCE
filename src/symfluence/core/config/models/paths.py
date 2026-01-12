@@ -4,7 +4,7 @@ Path configuration models.
 Contains ShapefilePathConfig and PathsConfig for file paths and directory structure.
 """
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 
 from .base import FROZEN_CONFIG
 

@@ -10,7 +10,7 @@ import signal
 import logging
 import time
 import random
-from typing import Callable, Any, Optional, Dict, Type
+from typing import Callable, Any, Optional
 from functools import wraps
 
 logger = logging.getLogger(__name__)

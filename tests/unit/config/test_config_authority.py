@@ -13,7 +13,6 @@ import re
 from pathlib import Path
 import pytest
 import yaml
-from typing import Set, Dict, List, Tuple
 
 
 # Project root: tests/unit/config/test_config_authority.py -> 4 parents to reach root
@@ -137,7 +136,7 @@ class TestConfigAuthority:
                     issues.append(f"Line {i}: {key} missing Type: documentation")
 
         assert not issues, \
-            f"Found settings without type documentation:\n" + "\n".join(issues)
+            "Found settings without type documentation:\n" + "\n".join(issues)
 
     def test_all_template_settings_have_default(self, config_template_path):
         """Test that all settings in template have default value documentation."""
@@ -159,7 +158,7 @@ class TestConfigAuthority:
                     issues.append(f"Line {i}: {key} missing Default: documentation")
 
         assert not issues, \
-            f"Found settings without default value documentation:\n" + "\n".join(issues)
+            "Found settings without default value documentation:\n" + "\n".join(issues)
 
     def test_all_template_settings_have_source_reference(self, config_template_path):
         """Test that all settings reference their source Pydantic model."""
@@ -181,7 +180,7 @@ class TestConfigAuthority:
                     issues.append(f"Line {i}: {key} missing Source: documentation")
 
         assert not issues, \
-            f"Found settings without source code reference:\n" + "\n".join(issues)
+            "Found settings without source code reference:\n" + "\n".join(issues)
 
     def test_config_sections_are_organized(self, config_template_path):
         """Test that settings are organized into logical sections."""
@@ -278,7 +277,7 @@ class TestConfigConsistency:
                 incomplete[key] = missing_fields
 
         assert not incomplete, \
-            f"Settings with incomplete metadata:\n" + \
+            "Settings with incomplete metadata:\n" + \
             "\n".join(f"  {k}: missing {', '.join(v)}" for k, v in incomplete.items())
 
     def test_pydantic_model_field_counts(self, pydantic_models_dir):

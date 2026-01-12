@@ -6,7 +6,7 @@ enabling each model to register its own initialization presets without
 hardcoding them in the central init_presets.py file.
 """
 
-from typing import Dict, Any, Callable, Type, List, Optional
+from typing import Dict, Any, Callable, List
 import logging
 
 logger = logging.getLogger(__name__)

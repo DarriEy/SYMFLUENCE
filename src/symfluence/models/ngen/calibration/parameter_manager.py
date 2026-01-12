@@ -12,10 +12,9 @@ Date: 2025
 """
 
 import json
-import numpy as np
 import pandas as pd
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Optional
 import logging
 import re
 
@@ -84,7 +83,7 @@ class NgenParameterManager(BaseParameterManager):
             "bb":     ("SOILPARM.TBL", "BB", 2),
         }
 
-        self.logger.info(f"NgenParameterManager initialized")
+        self.logger.info("NgenParameterManager initialized")
         self.logger.info(f"Calibrating modules: {self.modules_to_calibrate}")
         self.logger.info(f"Total parameters to calibrate: {len(self.all_param_names)}")
 
@@ -477,7 +476,7 @@ class NgenParameterManager(BaseParameterManager):
                 self.logger.error(f"NOAH config not found: no JSON and no *.input under {self.noah_dir}")
                 return False
             if len(input_candidates) > 1:
-                self.logger.error(f"Multiple NOAH *.input files; set NGEN_ACTIVE_CATCHMENT_ID to disambiguate")
+                self.logger.error("Multiple NOAH *.input files; set NGEN_ACTIVE_CATCHMENT_ID to disambiguate")
                 return False
 
             ipath = input_candidates[0]
@@ -696,7 +695,7 @@ class NgenParameterManager(BaseParameterManager):
                 self.logger.error(f"PET config not found: no JSON and no *.txt in {self.pet_txt_dir}")
                 return False
             if len(candidates) > 1:
-                self.logger.error(f"Multiple PET *.txt configs; set NGEN_ACTIVE_CATCHMENT_ID to disambiguate")
+                self.logger.error("Multiple PET *.txt configs; set NGEN_ACTIVE_CATCHMENT_ID to disambiguate")
                 return False
 
             path = candidates[0]

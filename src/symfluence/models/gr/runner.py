@@ -32,7 +32,7 @@ try:
     from rpy2.robjects import pandas2ri
     from rpy2.robjects.conversion import localconverter
     HAS_RPY2 = True
-except (ImportError, ValueError) as e:
+except (ImportError, ValueError):
     HAS_RPY2 = False
     robjects = None
     importr = None
@@ -230,7 +230,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
                 
         except Exception as e:
             self.logger.warning(f"Error calculating metrics: {e}")
-            self.logger.debug(f"Traceback: ", exc_info=True)
+            self.logger.debug("Traceback: ", exc_info=True)
 
     def _check_routing_requirements(self) -> bool:
         """Check if distributed routing is needed.

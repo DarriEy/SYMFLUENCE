@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch, ANY, PropertyMock
+from unittest.mock import MagicMock, patch, PropertyMock
 from pathlib import Path
 from symfluence.reporting.reporting_manager import ReportingManager
 from symfluence.core.config.models import SymfluenceConfig

@@ -240,7 +240,6 @@ def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config:
         logger.debug(f"Calculating metrics from {summa_dir}")
 
         # DIAGNOSTIC: Check what files exist and their SWE values
-        import glob
         day_files = list(Path(summa_dir).glob("*_day.nc"))
         if day_files:
             import xarray as xr
@@ -477,7 +476,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                                     logger.warning(f"WORKER DEBUG: Post-conversion mean = {float(sim_data.mean().item()):.2f} m³/s")
 
                                 break
-                            except Exception as e:
+                            except Exception:
                                 continue
 
                     if sim_data is None:
@@ -541,7 +540,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                 else:
                     obs_period = obs_data
                     sim_period = sim_data
-            except Exception as e:
+            except Exception:
                 obs_period = obs_data
                 sim_period = sim_data
         else:
@@ -611,7 +610,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                 'Calib_r': r, 'Calib_alpha': alpha, 'Calib_beta': beta, 'Calib_correlation': r,
                 'NSE': nse, 'KGE': kge, 'RMSE': rmse, 'MAE': mae, 'PBIAS': pbias, 'correlation': r
             }
-        except Exception as e:
+        except Exception:
             return None
 
     except ImportError as e:

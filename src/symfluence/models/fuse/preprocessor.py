@@ -5,24 +5,18 @@ Prepares forcing data, calculates PET, generates FUSE input files,
 and handles synthetic data generation for the FUSE hydrological model.
 """
 
-import csv
-import itertools
 import os
 import re
-import subprocess
-import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from shutil import rmtree, copyfile
-from typing import Dict, Any, Optional, List, Tuple
+from shutil import copyfile
+from typing import Dict, Any
 
 import geopandas as gpd # type: ignore
 import numpy as np # type: ignore
 import pandas as pd # type: ignore
-import rasterio # type: ignore
 import xarray as xr # type: ignore
-from scipy import ndimage
 
 from ..base import BaseModelPreProcessor
 from ..mixins import PETCalculatorMixin, ObservationLoaderMixin, DatasetBuilderMixin
@@ -32,13 +26,7 @@ from .forcing_processor import FuseForcingProcessor
 from .synthetic_data_generator import FuseSyntheticDataGenerator
 from symfluence.core.constants import UnitConversion
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
-from symfluence.evaluation.metrics import kge, kge_prime, nse, mae, rmse
 from symfluence.data.utils.variable_utils import VariableHandler # type: ignore
-from symfluence.core.exceptions import (
-    ModelExecutionError,
-    FileOperationError,
-    symfluence_error_handler
-)
 
 
 @ModelRegistry.register_preprocessor('FUSE')
@@ -108,6 +96,25 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         return "FUSE"
 
     def __init__(self, config: Dict[str, Any], logger: Any):
+        """
+        Initialize the FUSE preprocessor.
+
+        Sets up FUSE-specific paths, forcing processors, elevation band manager,
+        and synthetic data generator. The preprocessor handles complete FUSE
+        input preparation including forcing data, PET calculation, and
+        configuration file generation.
+
+        Args:
+            config: Configuration dictionary or SymfluenceConfig object containing
+                FUSE model settings, paths, PET method, and spatial mode options.
+            logger: Logger instance for status messages and debugging output.
+
+        Note:
+            Creates three delegate objects for modular processing:
+            - forcing_processor: Handles forcing data transformation
+            - elevation_band_manager: Manages elevation discretization
+            - synthetic_data_generator: Creates synthetic forcing for testing
+        """
         # Initialize base class (handles standard paths and directories)
         super().__init__(config, logger)
 
@@ -559,7 +566,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 coords={'time': ds.time}, # Use ds.time as reference
                 dims=['time', 'hru'] if len(synthetic_q_vals.shape) > 1 else ['time']
             )
-            var_map['q_obs'] = (synthetic_q, 'streamflow', unit_str, f'Synthetic discharge for optimization')
+            var_map['q_obs'] = (synthetic_q, 'streamflow', unit_str, 'Synthetic discharge for optimization')
 
         # Process and add to dataset
         encoding = {}
@@ -915,7 +922,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         else:
             synthetic_q_vals = self.generate_synthetic_hydrograph(ds_a, area_km2=100.0)
             synthetic_q = xr.DataArray(synthetic_q_vals, coords={'time': ds_a.time}, dims=['time'])
-            var_map['q_obs'] = (synthetic_q, 'streamflow', unit_str, f'Synthetic discharge for optimization')
+            var_map['q_obs'] = (synthetic_q, 'streamflow', unit_str, 'Synthetic discharge for optimization')
             
         # Add variables with broadcasting
         for var_name, (da, _, units, long_name) in var_map.items():

@@ -53,7 +53,6 @@ References:
 
 import numpy as np
 import logging
-import time
 from typing import Dict, Any, List, Tuple
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
 

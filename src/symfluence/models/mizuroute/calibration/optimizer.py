@@ -6,7 +6,6 @@ Implements the BaseModelOptimizer for the MizuRoute routing model.
 
 import re
 import xarray as xr
-import pandas as pd
 from pathlib import Path
 from typing import Dict, Any, Optional
 

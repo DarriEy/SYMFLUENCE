@@ -9,7 +9,6 @@ registry pattern used by all other model parameter managers.
 """
 
 import numpy as np
-import pandas as pd
 import netCDF4 as nc
 import xarray as xr
 import logging
