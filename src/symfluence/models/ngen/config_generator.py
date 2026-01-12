@@ -634,7 +634,8 @@ shortwave_radiation_provided=0
                     "main_output_variable": "Q_OUT",
                     "registration_function": "register_bmi_cfe",
                     "variables_names_map": variables_map,
-                    "uses_forcing_file": False
+                    "uses_forcing_file": False,
+                    "output_variable_units": "m"
                 }
             })
 

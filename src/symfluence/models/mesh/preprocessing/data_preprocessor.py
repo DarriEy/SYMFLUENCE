@@ -106,6 +106,36 @@ class MESHDataPreprocessor:
         except Exception as e:
             self.logger.warning(f"Failed to fix outlet segment: {e}")
 
+    def ensure_gru_id(self, shp_path: str) -> None:
+        """
+        Ensure shapefile has GRU_ID column.
+
+        If missing:
+        - For single feature (lumped): set to 1
+        - For multiple features: set to range 1..N
+        """
+        if not shp_path:
+            return
+
+        path = Path(shp_path)
+        if not path.exists():
+            return
+
+        try:
+            gdf = gpd.read_file(path)
+
+            if 'GRU_ID' not in gdf.columns:
+                self.logger.info(f"Adding GRU_ID to {path.name}")
+                if len(gdf) == 1:
+                    gdf['GRU_ID'] = 1
+                else:
+                    gdf['GRU_ID'] = range(1, len(gdf) + 1)
+                
+                gdf.to_file(path)
+
+        except Exception as e:
+            self.logger.warning(f"Failed to ensure GRU_ID: {e}")
+
     def detect_gru_classes(self, landcover_path: Path) -> List[int]:
         """
         Detect which GRU classes exist in the landcover stats file.

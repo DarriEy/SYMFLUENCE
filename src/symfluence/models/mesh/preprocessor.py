@@ -286,11 +286,13 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         return config
 
     def _get_landcover_path(self, _get_config_value) -> str:
-        """Get landcover stats file path."""
+        """Get landcover stats file path, creating a minimal one if needed."""
         landcover_stats_path = _get_config_value('MESH_LANDCOVER_STATS_PATH', None)
 
         if landcover_stats_path:
-            return str(Path(landcover_stats_path))
+            path = Path(landcover_stats_path)
+            if path.exists():
+                return str(path)
 
         landcover_file = _get_config_value(
             'MESH_LANDCOVER_STATS_FILE',
@@ -302,7 +304,42 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self.project_dir / 'attributes' / 'gistool-outputs',
             )
         )
-        return str(landcover_dir / landcover_file)
+        landcover_path = landcover_dir / landcover_file
+
+        # If the default file doesn't exist, look for any landcover CSV in the directory
+        if not landcover_path.exists() and landcover_dir.exists():
+            landcover_csvs = list(landcover_dir.glob('*landcover*.csv'))
+            if landcover_csvs:
+                self.logger.info(f"Using alternative landcover file: {landcover_csvs[0].name}")
+                return str(landcover_csvs[0])
+
+        # If still not found, create a minimal landcover CSV file
+        if not landcover_path.exists():
+            self.logger.warning(f"Landcover file not found. Creating minimal landcover file.")
+            landcover_dir.mkdir(parents=True, exist_ok=True)
+            self._create_minimal_landcover_csv(landcover_path)
+
+        return str(landcover_path)
+
+    def _create_minimal_landcover_csv(self, csv_path: Path) -> None:
+        """
+        Create a minimal landcover CSV file for domains without landcover data.
+
+        Creates a simple CSV with a single dominant landcover class (IGBP_10 = Grassland)
+        which is commonly used as a fallback in hydrological modeling.
+        """
+        import csv
+
+        # Create minimal landcover data with a single grassland class (IGBP_10)
+        # This is a reasonable default for catchments without detailed landcover data
+        with open(csv_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            # Header: ID column, single IGBP class, count column
+            writer.writerow(['GRU_ID', 'IGBP_10', 'count'])
+            # Data: single row with ID 1, 100% grassland coverage
+            writer.writerow(['1', '100000', '100000'])
+
+        self.logger.info(f"Created minimal landcover file at {csv_path}")
 
     def _run_meshflow(self) -> None:
         """Run meshflow to generate MESH input files."""
@@ -322,6 +359,9 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         self.data_preprocessor.sanitize_shapefile(str(riv_copy))
         self.data_preprocessor.sanitize_shapefile(str(cat_copy))
+
+        # Ensure GRU_ID exists for meshflow joining
+        self.data_preprocessor.ensure_gru_id(str(cat_copy))
 
         outlet_value = self._meshflow_config.get('outlet_value', -9999)
         self.data_preprocessor.fix_outlet_segment(str(riv_copy), outlet_value=outlet_value)

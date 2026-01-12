@@ -737,7 +737,7 @@ qmean 	200	!! initial value for calculation of mean flow (mm/yr)"""
         if 'cevp' in params:
             cevp_val = params['cevp']
             if isinstance(cevp_val, (int, float)) and cevp_val < 0.1:
-                self.logger.warning(
+                self.logger.debug(
                     f"cevp value {cevp_val} is too low. Clamping to 0.1."
                 )
                 clamped_val = 0.1

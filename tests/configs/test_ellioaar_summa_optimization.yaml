@@ -61,7 +61,7 @@ DOWNLOAD_GRACE: false
 DOWNLOAD_USGS_GW: false
 
 # Model configuration - SUMMA lumped
-HYDROLOGICAL_MODEL: LSTM
+HYDROLOGICAL_MODEL: MESH
 SUMMA_EXE: summa_sundials.exe
 SUMMA_INSTALL_PATH: default
 SETTINGS_SUMMA_PATH: default

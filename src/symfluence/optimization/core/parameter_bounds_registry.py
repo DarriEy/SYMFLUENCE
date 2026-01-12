@@ -207,7 +207,7 @@ class ParameterBoundsRegistry:
         'cmrefr': ParameterInfo(0.0, 0.5, '-', 'Snow refreeze capacity', 'snow'),
 
         # Evapotranspiration parameters
-        'cevp': ParameterInfo(0.0, 1.0, '-', 'Evaporation coefficient', 'et'),
+        'cevp': ParameterInfo(0.1, 1.0, '-', 'Evaporation coefficient', 'et'),
         'lp': ParameterInfo(0.3, 1.0, '-', 'Threshold for ET reduction', 'et'),
         'epotdist': ParameterInfo(1.0, 10.0, '-', 'PET depth dependency coefficient', 'et'),
 

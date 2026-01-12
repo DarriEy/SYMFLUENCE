@@ -57,30 +57,6 @@ class GRModelOptimizer(BaseModelOptimizer):
             self.gr_setup_dir
         )
 
-    def _create_calibration_target(self):
-        """Create GR calibration target using registry-based factory.
-
-        Uses the centralized create_calibration_target factory which:
-        1. Checks OptimizerRegistry for registered targets
-        2. Falls back to model-specific target mappings
-        3. Returns appropriate default targets if not found
-        """
-        from symfluence.optimization.calibration_targets import create_calibration_target
-
-        target_type = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
-
-        return create_calibration_target(
-            model_name='GR',
-            target_type=target_type,
-            config=self.config,
-            project_dir=self.project_dir,
-            logger=self.logger
-        )
-
-    def _create_worker(self) -> GRWorker:
-        """Create GR worker."""
-        return GRWorker(self.config, self.logger)
-
     def _check_routing_needed(self) -> bool:
         """Determine if routing is needed based on configuration."""
         # Use SpatialOrchestrator logic (checking if distributed mode and routing is enabled)

@@ -17,8 +17,6 @@ __all__ = [
     'visualize_gr'
 ]
 
-# Register defaults with DefaultsRegistry (import triggers registration via decorator)
-from . import defaults  # noqa: F401
 
 # Register config adapter with ModelRegistry
 from symfluence.models.registry import ModelRegistry

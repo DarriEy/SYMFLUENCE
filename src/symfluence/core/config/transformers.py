@@ -10,11 +10,60 @@ Key functions:
 - flatten_nested_config(): Convert SymfluenceConfig instance back to flat dict for backward compatibility
 """
 
-from typing import Dict, Any, Tuple, TYPE_CHECKING
+from typing import Dict, Any, Tuple, TYPE_CHECKING, Optional
 from pathlib import Path
+import threading
+import logging
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
+
+logger = logging.getLogger(__name__)
+
+# Global cache for auto-generated mapping (thread-safe)
+_AUTO_GENERATED_MAP: Optional[Dict[str, Tuple[str, ...]]] = None
+_GENERATION_LOCK = threading.Lock()
+
+
+def get_flat_to_nested_map() -> Dict[str, Tuple[str, ...]]:
+    """
+    Get flat-to-nested mapping via lazy auto-generation.
+
+    Thread-safe with caching for performance.
+    First call generates mapping, subsequent calls return cached version.
+
+    Returns:
+        Dictionary mapping flat keys to nested paths
+    """
+    global _AUTO_GENERATED_MAP
+
+    # Fast path: return cached mapping
+    if _AUTO_GENERATED_MAP is not None:
+        return _AUTO_GENERATED_MAP
+
+    # Slow path: generate mapping (thread-safe)
+    with _GENERATION_LOCK:
+        # Double-check after acquiring lock
+        if _AUTO_GENERATED_MAP is not None:
+            return _AUTO_GENERATED_MAP
+
+        try:
+            from symfluence.core.config.introspection import generate_flat_to_nested_map
+            from symfluence.core.config.models import SymfluenceConfig
+
+            _AUTO_GENERATED_MAP = generate_flat_to_nested_map(
+                SymfluenceConfig,
+                include_model_overrides=True
+            )
+
+            logger.info(f"Auto-generated {len(_AUTO_GENERATED_MAP)} configuration mappings")
+
+        except Exception as e:
+            logger.error(f"Auto-generation failed: {e}, falling back to manual mapping")
+            # Fallback to manual mapping (Phase 1 only)
+            _AUTO_GENERATED_MAP = FLAT_TO_NESTED_MAP.copy()
+
+    return _AUTO_GENERATED_MAP
 
 
 # ========================================
@@ -648,8 +697,9 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
     Maps uppercase keys like 'DOMAIN_NAME' to nested paths like
     {'domain': {'name': ...}}.
 
-    This function now supports model-specific transformers from ModelRegistry,
-    which take precedence over the base FLAT_TO_NESTED_MAP.
+    PHASE 1: Currently uses manual mapping for backward compatibility.
+    Auto-generated mapping is available via get_flat_to_nested_map() for validation.
+    In Phase 4, this will switch to use auto-generated mapping exclusively.
 
     Args:
         flat_config: Flat configuration dictionary with uppercase keys

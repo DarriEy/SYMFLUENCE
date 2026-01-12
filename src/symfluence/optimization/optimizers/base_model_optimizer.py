@@ -92,34 +92,34 @@ Supported Algorithms (via registry):
     Or directly via: run_optimization('algorithm_name')
 
 Subclass Implementation Requirements:
-    Subclasses must implement 4 abstract methods for model-specific functionality:
-
+    REQUIRED (1 abstract method):
     1. _get_model_name() → str
        Returns model identifier ('SUMMA', 'FUSE', 'NGEN', 'GR', etc.)
 
+    OPTIONAL (override for custom behavior):
     2. _create_parameter_manager() → ParameterManager
-       Creates model-specific parameter manager handling:
-       - Parameter bounds from model configuration
-       - Parameter normalization/denormalization
-       - Parameter file writing (e.g., SUMMA decision file)
+       Default: Registry-based discovery via _create_parameter_manager_default()
+       Override when: Non-standard constructor signature (FUSE, SUMMA, GR)
+       Handles: Parameter bounds, normalization, file writing
 
     3. _create_calibration_target() → CalibrationTarget
-       Creates model-specific evaluator for:
-       - Model output file extraction
-       - Observed data loading
-       - Metric calculation (KGE, NSE, RMSE, etc.)
+       Default: Uses create_calibration_target() factory with registry lookup
+       Override when: Rarely needed (factory handles all complexity)
+       Handles: Output extraction, observed data, metric calculation
 
     4. _create_worker() → BaseWorker
-       Creates model-specific worker for:
-       - Model execution
-       - Parameter application
-       - Output file parsing
+       Default: Registry-based discovery via _create_worker_default()
+       Override when: Rarely needed (all workers use same signature)
+       Handles: Model execution, parameter application, output parsing
 
-    And optionally implement:
     5. _run_model_for_final_evaluation(output_dir) → bool
        Custom final evaluation logic if standard workflow insufficient
+
     6. _get_final_file_manager_path() → Path
        Path to file manager for final evaluation time period updates
+
+    7. _get_settings_directory() → Path
+       Override default {project_dir}/settings/{MODEL}/ convention
 
 Examples:
     >>> # Create subclass
@@ -177,6 +177,7 @@ from datetime import datetime
 
 from symfluence.core import ConfigurableMixin
 from symfluence.core.constants import ModelDefaults
+from symfluence.optimization.registry import OptimizerRegistry
 from ..mixins import (
     ParallelExecutionMixin,
     ResultsTrackingMixin,
@@ -489,6 +490,133 @@ class BaseModelOptimizer(
                 )
 
     # =========================================================================
+    # Default factory methods using registry-based discovery
+    # =========================================================================
+
+    def _create_parameter_manager_default(self):
+        """
+        Default factory for parameter managers using registry discovery.
+
+        Uses convention-over-configuration:
+        1. Gets model name from _get_model_name()
+        2. Looks up parameter manager class from OptimizerRegistry
+        3. Determines settings directory using standard convention
+        4. Instantiates with standard signature (config, logger, settings_dir)
+
+        Override _create_parameter_manager() if non-standard constructor needed.
+
+        Returns:
+            ParameterManager instance for the model
+
+        Raises:
+            RuntimeError: If parameter manager not registered
+        """
+        model_name = self._get_model_name()
+
+        # Look up parameter manager class from registry
+        param_manager_cls = OptimizerRegistry.get_parameter_manager(model_name)
+
+        if param_manager_cls is None:
+            raise RuntimeError(
+                f"No parameter manager registered for model '{model_name}'. "
+                f"Ensure the parameter manager is decorated with "
+                f"@OptimizerRegistry.register_parameter_manager('{model_name}')"
+            )
+
+        # Determine settings directory using convention
+        settings_dir = self._get_settings_directory()
+
+        self.logger.debug(
+            f"Creating parameter manager: {param_manager_cls.__name__} "
+            f"for {model_name} at {settings_dir}"
+        )
+
+        return param_manager_cls(self.config, self.logger, settings_dir)
+
+    def _create_worker_default(self) -> BaseWorker:
+        """
+        Default factory for workers using registry discovery.
+
+        Uses convention-over-configuration:
+        1. Gets model name from _get_model_name()
+        2. Looks up worker class from OptimizerRegistry
+        3. Instantiates with standard signature (config, logger)
+
+        All workers use the same constructor signature, so overriding is rarely needed.
+
+        Returns:
+            BaseWorker instance for the model
+
+        Raises:
+            RuntimeError: If worker not registered
+        """
+        model_name = self._get_model_name()
+
+        # Look up worker class from registry
+        worker_cls = OptimizerRegistry.get_worker(model_name)
+
+        if worker_cls is None:
+            raise RuntimeError(
+                f"No worker registered for model '{model_name}'. "
+                f"Ensure the worker is decorated with "
+                f"@OptimizerRegistry.register_worker('{model_name}')"
+            )
+
+        self.logger.debug(f"Creating worker: {worker_cls.__name__} for {model_name}")
+
+        return worker_cls(self.config, self.logger)
+
+    def _create_calibration_target_default(self):
+        """
+        Default factory for calibration targets using centralized factory.
+
+        Uses the existing create_calibration_target() factory which:
+        1. Checks OptimizerRegistry for registered targets
+        2. Falls back to model-specific target mappings
+        3. Falls back to default (model-agnostic) targets
+
+        This method is rarely overridden as the factory handles all complexity.
+
+        Returns:
+            CalibrationTarget instance for the model and target type
+        """
+        from symfluence.optimization.calibration_targets import create_calibration_target
+
+        model_name = self._get_model_name()
+
+        # Get target type from config (supports both typed and dict configs)
+        target_type = self._get_config_value(
+            lambda: self.config.optimization.target,
+            default=self.config.get('OPTIMIZATION_TARGET', 'streamflow')
+        ) if hasattr(self, '_get_config_value') else self.config.get('OPTIMIZATION_TARGET', 'streamflow')
+
+        target_type = str(target_type).lower()
+
+        return create_calibration_target(
+            model_name=model_name,
+            target_type=target_type,
+            config=self.config,
+            project_dir=self.project_dir,
+            logger=self.logger
+        )
+
+    def _get_settings_directory(self) -> Path:
+        """
+        Get the model-specific settings directory using convention.
+
+        Convention: {project_dir}/settings/{MODEL_NAME}/
+
+        Override this method if:
+        - Non-standard settings directory location
+        - Settings directory determined dynamically
+
+        Returns:
+            Path to model settings directory
+        """
+        model_name = self._get_model_name()
+        return self.project_dir / 'settings' / model_name
+
+    # =========================================================================
     # Abstract methods - must be implemented by subclasses
     # =========================================================================
 
@@ -508,35 +636,51 @@ class BaseModelOptimizer(
         pass
 
 
-    @abstractmethod
     def _create_parameter_manager(self):
         """
         Create the model-specific parameter manager.
 
+        Default implementation uses registry-based discovery via
+        _create_parameter_manager_default(). Override if:
+        - Non-standard constructor signature needed
+        - Pre-initialization logic required
+        - Custom path resolution needed
+
+        Examples of when to override:
+        - FUSE: Needs fuse_sim_dir computed before super().__init__()
+        - SUMMA: Uses summa_settings_dir instead of generic settings_dir
+        - GR: Uses gr_setup_dir instead of generic settings_dir
+
         Returns:
             Parameter manager instance
         """
-        pass
+        return self._create_parameter_manager_default()
 
-    @abstractmethod
     def _create_calibration_target(self):
         """
         Create the model-specific calibration target.
 
+        Default implementation uses centralized factory via
+        _create_calibration_target_default(). Override rarely needed as
+        the factory handles registry lookup and fallbacks.
+
         Returns:
             Calibration target instance
         """
-        pass
+        return self._create_calibration_target_default()
 
-    @abstractmethod
     def _create_worker(self) -> BaseWorker:
         """
         Create the model-specific worker.
 
+        Default implementation uses registry-based discovery via
+        _create_worker_default(). Override rarely needed as all workers
+        use the same constructor signature.
+
         Returns:
             Worker instance
         """
-        pass
+        return self._create_worker_default()
 
     # =========================================================================
     # Utility methods

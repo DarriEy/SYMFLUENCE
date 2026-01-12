@@ -57,23 +57,6 @@ class LSTMModelOptimizer(BaseModelOptimizer):
             bounds_key='LSTM_PARAMETER_BOUNDS'
         )
 
-    def _create_calibration_target(self):
-        """Create LSTM calibration target using registry-based factory."""
-        from symfluence.optimization.calibration_targets import create_calibration_target
-
-        target_type = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
-
-        return create_calibration_target(
-            model_name='LSTM',
-            target_type=target_type,
-            config=self.config,
-            project_dir=self.project_dir,
-            logger=self.logger
-        )
-
-    def _create_worker(self) -> LSTMWorker:
-        return LSTMWorker(self.config, self.logger)
-
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
         """Run LSTM for final evaluation."""
         from symfluence.models.lstm import LSTMRunner

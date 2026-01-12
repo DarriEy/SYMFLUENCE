@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 
 def generate_flat_to_nested_map(
     root_model: Type[BaseModel],
-    section_field_names: Optional[Dict[str, str]] = None
+    section_field_names: Optional[Dict[str, str]] = None,
+    include_model_overrides: bool = True
 ) -> Dict[str, Tuple[str, ...]]:
     """
     Auto-generate flat-to-nested mapping from Pydantic model structure.
@@ -31,6 +32,8 @@ def generate_flat_to_nested_map(
         root_model: The root Pydantic model class (e.g., SymfluenceConfig)
         section_field_names: Optional mapping of section names to their field names
                            in the root model. If None, uses default discovery.
+        include_model_overrides: If True, merge model-specific transformers from ModelRegistry.
+                               This allows models to override base mappings for custom needs.
 
     Returns:
         Dictionary mapping flat keys to nested paths.
@@ -138,6 +141,33 @@ def generate_flat_to_nested_map(
                     isinstance(base_type, type) and
                     issubclass(base_type, BaseModel)):
                     walk_model(base_type, (section_name,))
+
+    # Add model-specific transformer overrides if requested
+    if include_model_overrides:
+        try:
+            from symfluence.models.registry import ModelRegistry
+
+            # Get all registered model names
+            model_names = ModelRegistry.list_models()
+
+            for model_name in model_names:
+                try:
+                    # Get model-specific transformers from config adapter
+                    model_transformers = ModelRegistry.get_config_transformers(model_name)
+
+                    if model_transformers:
+                        # Override base mappings with model-specific ones
+                        mapping.update(model_transformers)
+                        logger.debug(
+                            f"Added {len(model_transformers)} transformers for {model_name}"
+                        )
+                except Exception as e:
+                    # Log but don't fail - model might not have custom transformers
+                    logger.debug(f"No custom transformers for {model_name}: {e}")
+
+        except ImportError as e:
+            # ModelRegistry not available - this is fine during early initialization
+            logger.debug(f"ModelRegistry not available for override merging: {e}")
 
     return mapping
 

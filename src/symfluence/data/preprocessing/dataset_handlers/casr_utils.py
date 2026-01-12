@@ -288,7 +288,7 @@ class CASRHandler(BaseDatasetHandler):
                 # Save monthly file
                 output_file = merged_forcing_path / f"CASR_monthly_{year}{month:02d}.nc"
                 monthly_data.to_netcdf(output_file)
-                self.logger.info(f"Saved CASR monthly file: {output_file}")
+                self.logger.debug(f"Saved CASR monthly file: {output_file}")
                 
                 # Clean up
                 for ds in datasets:

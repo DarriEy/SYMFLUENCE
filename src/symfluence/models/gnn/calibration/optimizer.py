@@ -46,23 +46,6 @@ class GNNModelOptimizer(BaseModelOptimizer):
             bounds_key='GNN_PARAMETER_BOUNDS'
         )
 
-    def _create_calibration_target(self):
-        """Create GNN calibration target using registry-based factory."""
-        from symfluence.optimization.calibration_targets import create_calibration_target
-
-        target_type = self.config.get('OPTIMIZATION_TARGET', 'streamflow').lower()
-
-        return create_calibration_target(
-            model_name='GNN',
-            target_type=target_type,
-            config=self.config,
-            project_dir=self.project_dir,
-            logger=self.logger
-        )
-
-    def _create_worker(self) -> GNNWorker:
-        return GNNWorker(self.config, self.logger)
-
     def _run_model_for_final_evaluation(self, output_dir: Path) -> bool:
         from symfluence.models.gnn import GNNRunner
         runner = GNNRunner(self.config, self.logger)
