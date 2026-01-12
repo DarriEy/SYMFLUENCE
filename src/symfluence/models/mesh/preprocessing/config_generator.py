@@ -85,8 +85,8 @@ class MESHConfigGenerator:
             start_time = pd.Timestamp("2004-01-01 01:00")
             end_time = pd.Timestamp("2004-01-05 23:00")
 
-        # Always use nc_subbasin for NetCDF DDBs in MESH 1.5
-        shd_flag = 'nc_subbasin'
+        # Use 'nc' for NetCDF DDBs in MESH 1.5, 'nc_subbasin' can be finicky
+        shd_flag = 'nc'
 
         content = f"""MESH input run options file                             # comment line 1                                | *
 ##### Control Flags #####                               # comment line 2                                | *

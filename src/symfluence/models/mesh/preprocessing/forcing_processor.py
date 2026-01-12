@@ -132,7 +132,7 @@ class MESHForcingProcessor:
         self.create_split_forcing_files()
 
     def _rename_subbasin_dimension(self) -> None:
-        """Rename 'N' to 'subbasin' in all NetCDF files."""
+        """Rename dimension to 'N' in all NetCDF files."""
         for nc_file in [
             self.forcing_dir / "MESH_forcing.nc",
             self.forcing_dir / "MESH_drainage_database.nc"
@@ -141,14 +141,19 @@ class MESHForcingProcessor:
                 try:
                     with xr.open_dataset(nc_file) as ds:
                         rename_dict = {}
-                        if 'N' in ds.dims:
-                            rename_dict['N'] = 'subbasin'
+                        if 'subbasin' in ds.dims:
+                            rename_dict['subbasin'] = 'N'
                         if rename_dict:
                             ds_renamed = ds.rename(rename_dict)
+                            # Also rename variables that match the old dimension
+                            for v in ['subbasin']:
+                                if v in ds_renamed.variables:
+                                    ds_renamed = ds_renamed.rename({v: 'N'})
+                            
                             temp_path = nc_file.with_suffix('.tmp.nc')
                             ds_renamed.to_netcdf(temp_path)
                             os.replace(temp_path, nc_file)
-                            self.logger.info(f"Renamed 'N' to 'subbasin' in {nc_file.name}")
+                            self.logger.info(f"Renamed dimensions to 'N' in {nc_file.name}")
                 except Exception as e:
                     self.logger.warning(f"Failed to rename dimension in {nc_file.name}: {e}")
 
@@ -173,8 +178,8 @@ class MESHForcingProcessor:
                 if existing_rename:
                     ds_renamed = ds.rename(existing_rename)
 
-                    if 'time' in ds_renamed.dims and 'subbasin' in ds_renamed.dims:
-                        ds_renamed = ds_renamed.transpose('time', 'subbasin', ...)
+                    if 'time' in ds_renamed.dims and 'N' in ds_renamed.dims:
+                        ds_renamed = ds_renamed.transpose('time', 'N', ...)
 
                     temp_path = forcing_nc.with_suffix('.tmp.nc')
                     ds_renamed.to_netcdf(temp_path, unlimited_dims=['time'])

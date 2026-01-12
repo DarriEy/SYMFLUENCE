@@ -41,8 +41,6 @@ Quick Start
    getting_started
    configuration
    calibration
-   et_quickstart
-   et_calibration_setup
    examples
 
 .. toctree::
@@ -64,6 +62,7 @@ Quick Start
    :caption: Routing Models
 
    routing/mizuroute
+   routing/troute
 
 .. toctree::
    :maxdepth: 2
