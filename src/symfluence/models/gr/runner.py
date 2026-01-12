@@ -60,6 +60,27 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
     """
 
     def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None, settings_dir: Optional[Path] = None):
+        """
+        Initialize the GR model runner.
+
+        Sets up the GR (airGR/GR4J) execution environment including spatial mode
+        detection, routing requirements check, and R/rpy2 validation.
+
+        Args:
+            config: Configuration dictionary or SymfluenceConfig object containing
+                GR model settings, calibration parameters, and paths.
+            logger: Logger instance for status messages and debugging output.
+            reporting_manager: Optional reporting manager for experiment tracking
+                and visualization.
+            settings_dir: Optional override for GR settings directory path.
+
+        Raises:
+            ImportError: If R or rpy2 is not installed (required for GR models).
+
+        Note:
+            GR models require R and the airGR package. The runner will attempt
+            to install airGR automatically if not present.
+        """
         # GR-specific: Check rpy2 dependency BEFORE calling super()
         if not HAS_RPY2:
             raise ImportError(
@@ -263,7 +284,30 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         return False
 
     def _execute_gr_distributed(self) -> bool:
-        """Execute GR4J in distributed mode - run for each HRU"""
+        """
+        Execute GR4J-CemaNeige in distributed mode for each HRU.
+
+        Runs the GR4J model coupled with CemaNeige snow module separately
+        for each hydrological response unit (HRU). Results are combined into
+        a single NetCDF file compatible with mizuRoute routing.
+
+        The workflow:
+        1. Initialize R environment and load airGR package
+        2. Load forcing data for all HRUs from NetCDF
+        3. Extract DEM statistics for snow modeling (hypsometric curve)
+        4. Loop through each HRU:
+           - Extract HRU-specific forcing
+           - Run GR4J-CemaNeige for that HRU
+           - Collect results
+        5. Combine all HRU results into mizuRoute-compatible format
+
+        Returns:
+            bool: True if all HRUs completed successfully, False otherwise.
+
+        Note:
+            Uses temporary directory isolation for parallel execution safety.
+            Each HRU gets its own temporary CSV file to prevent race conditions.
+        """
         self.logger.info("Running distributed GR4J workflow")
 
         # Create temp directory for this evaluation (worker isolation for parallel execution)
@@ -442,7 +486,23 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
     def _save_distributed_results_for_routing(self, results_df, forcing_ds):
         """
         Save distributed GR4J results in mizuRoute-compatible format.
-        Mimics FUSE output structure.
+
+        Creates a NetCDF file with structure matching mizuRoute expectations:
+        dimensions (time, gru), gruId variable, and runoff in m/s.
+
+        Args:
+            results_df: DataFrame with DatetimeIndex and columns for each HRU ID,
+                containing runoff values in mm/day.
+            forcing_ds: Original forcing dataset used to extract HRU metadata.
+
+        Output file structure:
+        - Dimensions: (time, gru)
+        - Variables:
+          - gruId: Integer HRU identifiers
+          - {routing_var}: Runoff converted from mm/day to m/s
+        - Time coordinate in seconds since 1970-01-01
+
+        File is written to: {output_path}/{domain_name}_{experiment_id}_runs_def.nc
         """
         self.logger.info("Saving distributed results in mizuRoute format")
 
@@ -564,7 +624,30 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             self.config_dict['HYDROLOGICAL_MODEL'] = f"{current_models},MIZUROUTE" if current_models else "GR,MIZUROUTE"
 
     def _execute_gr_lumped(self):
-        """Execute GR4J in lumped mode (existing implementation)"""
+        """
+        Execute GR4J-CemaNeige in lumped mode for a single catchment.
+
+        Runs the complete GR4J workflow including optional calibration using
+        the Michel calibration algorithm. Uses airGR package via rpy2 for
+        the actual model execution.
+
+        The workflow:
+        1. Load DEM and calculate hypsometric curve for snow modeling
+        2. Initialize R environment and load airGR
+        3. Create InputsModel with forcing data
+        4. Run calibration (unless skip_calibration is True)
+        5. Execute simulation with calibrated or provided parameters
+        6. Save results to CSV and Rdata files
+
+        Returns:
+            bool: True if execution completed successfully, False otherwise.
+
+        Output files:
+        - GR_results.csv: Simulated streamflow timeseries
+        - GR_results.Rdata: Full R model output object
+        - GR_calib.Rdata: Calibration results (if calibration was run)
+        - GRhydrology_plot.png: Hydrograph plot (if visualization enabled)
+        """
         try:
             # Initialize R environment
             base = importr('base')

@@ -14,7 +14,7 @@ Date: 2025
 import json
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import logging
 import re
 

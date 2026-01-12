@@ -46,6 +46,23 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
     """
 
     def __init__(self, config, logger: Any, reporting_manager: Optional[Any] = None):
+        """
+        Initialize the FUSE runner.
+
+        Sets up FUSE execution environment including spatial mode detection,
+        routing requirements check, and lazy initialization of subcatchment
+        processor for distributed runs.
+
+        Args:
+            config: Configuration dictionary or SymfluenceConfig object containing
+                FUSE model settings, paths, and execution parameters.
+            logger: Logger instance for status messages and debugging output.
+            reporting_manager: Optional reporting manager for experiment tracking.
+
+        Note:
+            Uses Unified Model Execution Framework mixins for subprocess execution,
+            spatial orchestration, output conversion, and mizuRoute integration.
+        """
         # Call base class
         super().__init__(config, logger, reporting_manager=reporting_manager)
 
@@ -195,7 +212,17 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
                 return None
 
     def _check_routing_requirements(self) -> bool:
-        """Check if distributed routing is needed"""
+        """
+        Check if distributed routing is needed for the current configuration.
+
+        Determines whether mizuRoute should be executed after FUSE based on
+        the spatial mode and routing integration settings. Routing is needed
+        for distributed/semi-distributed modes or when routing delineation
+        uses river_network in lumped mode.
+
+        Returns:
+            bool: True if mizuRoute routing should be executed, False otherwise.
+        """
         routing_integration = self.config_dict.get('FUSE_ROUTING_INTEGRATION', 'none')
         
         if routing_integration == 'mizuRoute':
@@ -207,8 +234,16 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
         return False
 
     def _execute_fuse_workflow(self) -> bool:
-        """Execute the main FUSE workflow based on spatial mode"""
-        
+        """
+        Execute the main FUSE workflow based on spatial mode.
+
+        Routes to either lumped or distributed execution workflow based on
+        the configured spatial mode. Lumped mode runs a single catchment
+        simulation while distributed mode processes the full multi-HRU dataset.
+
+        Returns:
+            bool: True if FUSE execution completed successfully, False otherwise.
+        """
         if self.spatial_mode == 'lumped':
             # Original lumped workflow
             return self._run_lumped_fuse()
@@ -393,10 +428,24 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
     def _create_mizuroute_forcing_dataset(self, fuse_ds: xr.Dataset) -> xr.Dataset:
         """
         Build a mizuRoute-compatible dataset from distributed FUSE output.
-        - Detect which spatial coord (latitude/longitude) holds the N>1 groups.
-        - Produce dims (time, gru)
-        - Add integer gruId from the spatial coordinate values
-        - Ensure runoff variable name matches config['SETTINGS_MIZU_ROUTING_VAR']
+
+        Transforms FUSE spatial output (latitude/longitude dimensions) to
+        mizuRoute format (time, gru dimensions). Automatically detects which
+        spatial coordinate holds multiple subcatchments and reshapes accordingly.
+
+        Args:
+            fuse_ds: FUSE output dataset with dimensions (time, latitude, longitude)
+                where one spatial dimension contains subcatchment data.
+
+        Returns:
+            xr.Dataset: mizuRoute-compatible dataset with:
+                - dims: (time, gru)
+                - vars: routing variable (from SETTINGS_MIZU_ROUTING_VAR)
+                - gruId: Integer GRU identifiers from spatial coordinates
+
+        Raises:
+            ModelExecutionError: If no suitable runoff variable found in FUSE output.
+            ValueError: If spatial dimensions cannot be mapped to subcatchments.
         """
         # --- Choose runoff variable (prefer q_routed, else sensible fallbacks)
         routing_var_name = self.mizu_routing_var
@@ -519,10 +568,22 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
 
     def _execute_fuse(self, mode, para_file=None) -> bool:
         """
-        Execute the FUSE model.
-        
+        Execute the FUSE model with specified run mode.
+
+        Constructs and executes the FUSE command with the given mode,
+        capturing output to a log file. Uses ModelExecutor mixin for
+        subprocess management.
+
+        Args:
+            mode: FUSE run mode, one of:
+                - 'run_def': Run with default parameters
+                - 'calib_sce': Run SCE-UA calibration
+                - 'run_best': Run with calibrated parameters
+                - 'run_pre': Run with provided parameter file
+            para_file: Path to parameter file for 'run_pre' mode (optional).
+
         Returns:
-            bool: True if execution was successful, False otherwise
+            bool: True if execution was successful, False otherwise.
         """
         self.logger.debug("Executing FUSE model")
         
@@ -551,8 +612,9 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
                 command,
                 log_file,
                 check=False,  # Don't raise, we'll return boolean
-                success_message=f"FUSE execution completed with return code: {result.returncode if 'result' in locals() else 0}"
+                success_message="FUSE execution completed"
             )
+            self.logger.info(f"FUSE return code: {result.returncode}")
             return result.returncode == 0
 
         except subprocess.CalledProcessError as e:

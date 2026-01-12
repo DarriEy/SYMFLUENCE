@@ -7,6 +7,7 @@ from symfluence.reporting.config.plot_config import PlotConfig, DEFAULT_PLOT_CON
 
 # Type hints only - actual imports are lazy
 if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
     from symfluence.reporting.processors.data_processor import DataProcessor
     from symfluence.reporting.processors.spatial_processor import SpatialProcessor
     from symfluence.reporting.plotters.domain_plotter import DomainPlotter

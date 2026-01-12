@@ -967,14 +967,14 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
             hm_catchment_path = Path(hm_catchment_path)
             
         if rm_catchment_path == 'default':
-            rm_catchment_path = self.project_dir / 'shapefiles/catchment' 
+            rm_catchment_path = self.project_dir / 'shapefiles/catchment'
         else:
             rm_catchment_path = Path(rm_catchment_path)
 
         # Load shapefiles
-        shp_river = gpd.read_file(river_network_path / river_network_name)
-        shp_basin = gpd.read_file(rm_catchment_path / rm_catchment_name)
-        
+        hm_shape = gpd.read_file(hm_catchment_path / hm_catchment_name)
+        rm_shape = gpd.read_file(rm_catchment_path / rm_catchment_name)
+
         # Create intersection
         esmr_obj = _create_easymore_instance()
         hm_shape = hm_shape.to_crs('EPSG:6933')

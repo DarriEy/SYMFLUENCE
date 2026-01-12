@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -286,10 +287,12 @@ class MESHParameterFixer:
 
                 # Calculate current sums
                 gru = ds['GRU']
+                print(f"DEBUG: GRU values before norm: {gru.values}")
                 n_dim = self._get_spatial_dim(ds)
                 if not n_dim: return
                 
                 sums = gru.sum('NGRU')
+                print(f"DEBUG: GRU sums: {sums.values}")
                 
                 # Identify where sum is not 1.0 (with small tolerance)
                 if np.allclose(sums.values, 1.0, atol=1e-4):

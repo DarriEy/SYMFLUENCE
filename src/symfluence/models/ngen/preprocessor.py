@@ -45,9 +45,20 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         """
         Initialize the NextGen preprocessor.
 
+        Sets up NGEN-specific configuration including module availability
+        checking (SLOTH, PET, NOAH-OWP, CFE) and library path resolution.
+
         Args:
-            config: Configuration dictionary
-            logger: Logger object
+            config: Configuration dictionary or SymfluenceConfig object containing
+                NGEN settings, module enable flags, and installation paths.
+            logger: Logger instance for status messages and debugging.
+
+        Note:
+            Modules can be enabled/disabled via NGEN config keys:
+            - ENABLE_SLOTH: Ice fraction and soil moisture (default: True)
+            - ENABLE_PET: Evapotranspiration module (default: True)
+            - ENABLE_NOAH: Noah-OWP alternative ET (default: False)
+            - ENABLE_CFE: Core CFE runoff generation (default: True)
         """
         # Initialize base class (handles standard paths and directories)
         super().__init__(config, logger)
@@ -162,7 +173,20 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 copyfile(source_file, dest_file)
 
     def run_preprocessing(self):
-        """Execute complete ngen preprocessing workflow."""
+        """
+        Execute complete NGEN preprocessing workflow.
+
+        Runs the full preprocessing pipeline using the template method pattern:
+        1. Create directories for NGEN modules (CFE, PET, NOAH)
+        2. Copy base settings (Noah-OWP parameter tables)
+        3. Prepare forcing data (NetCDF and CSV formats)
+        4. Create catchment geopackage and nexus GeoJSON
+        5. Generate model configurations for all enabled modules
+        6. Generate realization config tying everything together
+
+        Returns:
+            Path: Path to setup directory containing all NGEN configurations.
+        """
         self.logger.info("Starting NextGen preprocessing")
         return self.run_preprocessing_template()
 
@@ -200,7 +224,21 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         )
         
     def create_nexus_geojson(self) -> Path:
-        """Create nexus GeoJSON from river network topology."""
+        """
+        Create nexus GeoJSON from river network topology.
+
+        Generates a GeoJSON file defining nexus points (flow exchange locations)
+        at river segment endpoints. For distributed domains, creates a nexus
+        for each segment; for lumped domains, creates a single outlet nexus.
+
+        Returns:
+            Path: Path to created nexus.geojson file.
+
+        Note:
+            - Nexus points connect catchments (waterbodies) in the NGEN framework
+            - Terminal nexuses (outlets) have empty 'toid' and type='poi'
+            - Internal nexuses have toid pointing to downstream waterbody
+        """
         self.logger.info("Creating nexus GeoJSON")
         river_network_file = self.get_river_network_path()
         if not river_network_file.exists():
@@ -249,7 +287,21 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         return nexus_file
 
     def create_catchment_geopackage(self) -> Path:
-        """Create ngen-compatible geopackage and geojson."""
+        """
+        Create NGEN-compatible geopackage and GeoJSON catchment files.
+
+        Transforms catchment shapefile to NGEN format with required columns:
+        - divide_id: Catchment identifier prefixed with 'cat-'
+        - toid: Target nexus identifier prefixed with 'nex-'
+        - areasqkm: Catchment area in square kilometers
+        - type: Always 'network' for active catchments
+
+        Creates both GeoPackage (EPSG:5070) and GeoJSON (EPSG:4326) outputs
+        since NGEN requires specific CRS for different operations.
+
+        Returns:
+            Path: Path to created geopackage file.
+        """
         from shapely.geometry import mapping
 
         catchment_file = self.get_catchment_path()
@@ -317,7 +369,28 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         return gpkg_file
 
     def prepare_forcing_data(self) -> Path:
-        """Convert forcing data to ngen format (NetCDF and CSV)."""
+        """
+        Convert forcing data to NGEN format (NetCDF and CSV).
+
+        Loads basin-averaged forcing data and transforms it to NGEN's expected
+        format with AORC/GRIB standard variable names. Creates both NetCDF
+        (for ngen-cal) and CSV (for individual catchment forcing) outputs.
+
+        Processing steps:
+        1. Load forcing from basin-averaged NetCDF files
+        2. Resample to hourly if needed (NGEN requires hourly)
+        3. Extend time window to provide lookahead buffer for NGEN
+        4. Map variable names to AORC standards (TMP_2maboveground, etc.)
+        5. Write NetCDF with catchment-id dimension
+        6. Write per-catchment CSV files for CFE/PET modules
+
+        Returns:
+            Path: Path to created forcing.nc file.
+
+        Note:
+            NGEN requires forcing data beyond the configured end_time for
+            internal interpolation. This method adds a 4-timestep buffer.
+        """
         catchment_gdf = gpd.read_file(self.get_catchment_path())
         catchment_ids = [f"cat-{x}" for x in catchment_gdf[self.hru_id_col].astype(str).tolist()]
         fdp = ForcingDataProcessor(self.config, self.logger)

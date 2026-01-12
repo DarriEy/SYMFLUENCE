@@ -97,7 +97,7 @@ class ParameterBoundsRegistry:
         'satdk': ParameterInfo(1e-7, 1e-4, 'm/s', 'Saturated hydraulic conductivity (expanded bounds)', 'soil'),
         'satpsi': ParameterInfo(0.05, 0.5, 'm', 'Saturated soil potential', 'soil'),
         'bb': ParameterInfo(3.0, 12.0, '-', 'Pore size distribution index', 'soil'),
-        'smcmax': ParameterInfo(0.3, 0.55, 'm³/m³', 'Maximum soil moisture', 'soil'),
+        # Note: smcmax defined in NOAH section below with bounds (0.3, 0.6)
         'alpha_fc': ParameterInfo(0.3, 0.8, '-', 'Field capacity coefficient', 'soil'),
         'expon': ParameterInfo(1.0, 6.0, '-', 'Exponent parameter', 'soil'),
         'mult': ParameterInfo(500.0, 2000.0, 'mm', 'Multiplier parameter', 'soil'),

@@ -90,7 +90,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'LOG_TO_FILE': ('system', 'log_to_file'),
     'LOG_FORMAT': ('system', 'log_format'),
     'FORCE_RUN_ALL_STEPS': ('system', 'force_run_all_steps'),
-    'FORCE_DOWNLOAD': ('system', 'force_download'),
+    # Note: FORCE_DOWNLOAD mapped to ('data', 'force_download') in Data section
     'USE_LOCAL_SCRATCH': ('system', 'use_local_scratch'),
     'RANDOM_SEED': ('system', 'random_seed'),
     'STOP_ON_ERROR': ('system', 'stop_on_error'),
@@ -127,14 +127,14 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
 
     # ========== DATA CONFIGURATION ==========
     'ADDITIONAL_OBSERVATIONS': ('data', 'additional_observations'),
-    'SUPPLEMENT_FORCING': ('data', 'supplement_forcing'),
+    # Note: SUPPLEMENT_FORCING mapped to ('forcing', 'supplement') in Forcing section
     'FORCE_DOWNLOAD': ('data', 'force_download'),
     'STREAMFLOW_DATA_PROVIDER': ('data', 'streamflow_data_provider'),
     'USGS_SITE_CODE': ('data', 'usgs_site_code'),
     'DOWNLOAD_USGS_DATA': ('data', 'download_usgs_data'),
-    'DOWNLOAD_USGS_GW': ('data', 'download_usgs_gw'),
-    'DOWNLOAD_MODIS_SNOW': ('data', 'download_modis_snow'),
-    'DOWNLOAD_SNOTEL': ('data', 'download_snotel'),
+    # Note: DOWNLOAD_USGS_GW mapped to ('evaluation', 'usgs_gw', 'download') in Evaluation section
+    # Note: DOWNLOAD_MODIS_SNOW mapped to ('evaluation', 'modis_snow', 'download') in Evaluation section
+    # Note: DOWNLOAD_SNOTEL mapped to ('evaluation', 'snotel', 'download') in Evaluation section
     'DOWNLOAD_SMHI_DATA': ('data', 'download_smhi_data'),
     'DOWNLOAD_LAMAH_ICE_DATA': ('data', 'download_lamah_ice_data'),
     'DOWNLOAD_ISMN': ('data', 'download_ismn'),

@@ -32,9 +32,12 @@ class MockStructureAnalyzer(BaseStructureEnsembleAnalyzer):
 def test_generate_combinations(mock_config, mock_logger):
     analyzer = MockStructureAnalyzer(mock_config, mock_logger)
     combinations = analyzer.generate_combinations()
-    
+
     assert len(combinations) == 4
     assert ('val1', 'a') in combinations
+    assert ('val1', 'b') in combinations
+    assert ('val2', 'a') in combinations
+    assert ('val2', 'b') in combinations
 
 
 @pytest.fixture
@@ -44,9 +47,6 @@ def mock_config():
         'DOMAIN_NAME': 'test_domain',
         'EXPERIMENT_ID': 'test_exp'
     }
-    assert ('val1', 'b') in combinations
-    assert ('val2', 'a') in combinations
-    assert ('val2', 'b') in combinations
 
 @patch('pathlib.Path.mkdir')
 @patch('builtins.open', new_callable=mock_open)

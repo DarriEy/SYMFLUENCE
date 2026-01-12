@@ -55,8 +55,27 @@ class GNNRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
     """
 
     def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
+        """
+        Initialize the GNN model runner.
+
+        Sets up the GNN execution environment including device selection
+        (GPU if available), preprocessor for data/graph loading, and
+        postprocessor for result formatting.
+
+        Args:
+            config: Configuration dictionary or SymfluenceConfig object containing
+                GNN hyperparameters (hidden_size, epochs, learning_rate, etc.),
+                paths, and domain settings.
+            logger: Logger instance for status messages and debugging output.
+            reporting_manager: Optional reporting manager for experiment tracking
+                and visualization.
+
+        Note:
+            Issues warning if DOMAIN_DEFINITION_METHOD is 'lumped' since GNN
+            requires spatial graph structure to function properly.
+        """
         super().__init__(config, logger, reporting_manager=reporting_manager)
-        
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.logger.info(f"Initialized GNN runner with device: {self.device}")
         

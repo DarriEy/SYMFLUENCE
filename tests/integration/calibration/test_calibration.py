@@ -6,6 +6,8 @@ This test runs a quick calibration demo for both Elliðaár and Fyris catchments
 using observational discharge data.
 """
 
+import shutil
+
 import pytest
 import yaml
 from pathlib import Path

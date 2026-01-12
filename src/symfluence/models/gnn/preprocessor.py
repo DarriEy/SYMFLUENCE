@@ -18,9 +18,32 @@ from ..lstm.preprocessor import LSTMPreprocessor
 class GNNPreprocessor(LSTMPreprocessor):
     """
     Handles data preprocessing and graph construction for the GNN model.
+
+    Extends LSTMPreprocessor to add graph structure loading from river network
+    shapefiles and alignment of forcing/target data to graph node ordering.
+
+    The preprocessor:
+    1. Loads river network topology from shapefiles
+    2. Constructs sparse adjacency matrix for message passing
+    3. Aligns forcing data to graph node ordering
+    4. Identifies outlet nodes for target assignment
     """
 
     def __init__(self, config: Dict[str, Any], logger: Any, project_dir: Path, device: torch.device):
+        """
+        Initialize the GNN preprocessor.
+
+        Args:
+            config: Configuration dictionary containing GNN model settings,
+                lookback window, and feature scaling parameters.
+            logger: Logger instance for status messages.
+            project_dir: Path to project directory containing shapefiles.
+            device: PyTorch device for tensor allocation (CPU or CUDA).
+
+        Note:
+            Graph structure is loaded lazily on first call to load_graph_structure()
+            or process_data().
+        """
         super().__init__(config, logger, project_dir, device)
         self.adj_matrix = None
         self.node_mapping = {} # LINKNO -> Index
@@ -32,9 +55,23 @@ class GNNPreprocessor(LSTMPreprocessor):
     def load_graph_structure(self) -> torch.Tensor:
         """
         Load the river network shapefile and build the adjacency matrix.
-        
+
+        Reads the river network shapefile, extracts connectivity from LINKNO
+        and DSLINKNO columns, and constructs a row-normalized sparse adjacency
+        matrix for GNN message passing.
+
+        The adjacency matrix represents upstream-to-downstream flow:
+        A[i,j] = 1/degree means node j flows to node i.
+
         Returns:
-            torch.Tensor: Sparse adjacency matrix (N, N).
+            torch.Tensor: Row-normalized sparse adjacency matrix (N, N) on device.
+
+        Raises:
+            FileNotFoundError: If no river network shapefile found.
+            ValueError: If shapefile missing required columns (LINKNO, DSLINKNO, GRU_ID).
+
+        Side effects:
+            Sets self.adj_matrix, self.node_mapping, self.hru_to_node, self.ordered_hru_ids.
         """
         self.logger.info("Loading river network graph structure")
         
@@ -120,7 +157,28 @@ class GNNPreprocessor(LSTMPreprocessor):
     ) -> Tuple[torch.Tensor, torch.Tensor, pd.DatetimeIndex, pd.DataFrame, List[int]]:
         """
         Preprocess data and align it with the graph nodes.
-        Overridden to ensure data order matches self.ordered_hru_ids.
+
+        Overrides LSTMPreprocessor to ensure forcing data ordering matches
+        graph node ordering (self.ordered_hru_ids). Also handles target
+        assignment to outlet nodes for streamflow prediction.
+
+        Args:
+            forcing_df: Multi-indexed DataFrame (time, hruId) with forcing variables
+                (precipitation, temperature, etc.).
+            streamflow_df: DataFrame with 'streamflow' column indexed by time.
+            snow_df: Optional DataFrame with SWE observations indexed by time.
+            fit_scalers: If True, fit scalers to data; if False, use existing scalers.
+
+        Returns:
+            Tuple containing:
+            - X_tensor: Input sequences (batch, lookback, nodes, features)
+            - y_tensor: Target values (batch, nodes, outputs)
+            - dates: DatetimeIndex of common dates
+            - forcing_df: Aligned forcing DataFrame
+            - ordered_hru_ids: List of HRU IDs in graph node order
+
+        Raises:
+            ValueError: If forcing data missing HRUs required by graph structure.
         """
         self.logger.info("Preprocessing data for GNN (Aligned with Graph Nodes)")
         
