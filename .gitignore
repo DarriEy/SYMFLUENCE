@@ -85,9 +85,9 @@ test_*.R
 node_modules/
 npm/*.tgz
 
-# Generated run logs
-data/**/_workLog*/
-data/
+# Generated run logs in user data directory
+/data/**/_workLog*/
+/data/
 
 # Test data bundles
 tests/data/
