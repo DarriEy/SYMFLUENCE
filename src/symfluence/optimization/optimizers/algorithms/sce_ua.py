@@ -24,6 +24,7 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
 
     @property
     def name(self) -> str:
+        """Algorithm identifier for logging and result tracking."""
         return "SCE-UA"
 
     def optimize(

@@ -348,19 +348,31 @@ class MESHDrainageDatabase:
                     ds = ds.rename({'subbasin': 'N'})
                     modified = True
 
-                # Rename NGRU dimension to landclass
-                if 'NGRU' in ds.dims:
-                    self.logger.info("Renaming dimension 'NGRU' to 'landclass'")
-                    ds = ds.rename({'NGRU': 'landclass'})
+                # Rename NGRU or landclass dimension to 'land'
+                old_lc_dim = 'landclass' if 'landclass' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else None
+                if old_lc_dim:
+                    self.logger.info(f"Renaming dimension '{old_lc_dim}' to 'land'")
+                    ds = ds.rename({old_lc_dim: 'land'})
                     modified = True
 
-                # Rename GRU to landclass (expected by MESH NetCDF reader)
+                # Ensure GRU variable exists and is on (N, land)
                 if 'GRU' in ds:
-                    self.logger.info("Renaming 'GRU' variable to 'landclass'")
                     if 'landclass' in ds:
                         ds = ds.drop_vars('landclass')
-                    ds = ds.rename({'GRU': 'landclass'})
+                    # Ensure correct dimension names
+                    if ds['GRU'].dims != ('N', 'land'):
+                        self.logger.info(f"Correcting GRU dimensions from {ds['GRU'].dims} to ('N', 'land')")
+                        ds['GRU'] = (('N', 'land'), ds['GRU'].values, ds['GRU'].attrs)
+                        modified = True
+                    ds['GRU'].attrs['grid_mapping'] = 'crs'
+                elif 'landclass' in ds:
+                    self.logger.info("Renaming 'landclass' variable to 'GRU'")
+                    ds['GRU'] = (('N', 'land'), ds['landclass'].values, ds['landclass'].attrs)
+                    ds['GRU'].attrs['grid_mapping'] = 'crs'
+                    ds = ds.drop_vars('landclass')
                     modified = True
+
+                # Add N variable if missing (index variable)
 
                 # Add N variable if missing (index variable)
                 if 'N' not in ds:
@@ -372,16 +384,79 @@ class MESHDrainageDatabase:
                     modified = True
                 
                 # Ensure all variables are 1D over N (except GRU which is 2D)
+                # and remove potentially conflicting variables
+                vars_to_remove = ['landclass']
+                for v in vars_to_remove:
+                    if v in ds:
+                        ds = ds.drop_vars(v)
+
+                # Robustly add/ensure CRS variable
+                if 'crs' not in ds:
+                    ds['crs'] = xr.DataArray(
+                        np.array(0, dtype=np.int32),
+                        attrs={
+                            'grid_mapping_name': 'latitude_longitude',
+                            'semi_major_axis': 6378137.0,
+                            'inverse_flattening': 298.257223563,
+                            'longitude_of_prime_meridian': 0.0
+                        }
+                    )
+                    modified = True
+
                 for var_name in list(ds.data_vars):
-                    if var_name == 'GRU':
+                    if var_name == 'GRU' or var_name == 'crs':
                         continue
-                    if n_dim in ds[var_name].dims and len(ds[var_name].dims) > 1:
+                    
+                    # Add grid_mapping attribute
+                    ds[var_name].attrs['grid_mapping'] = 'crs'
+                    
+                    if n_dim not in ds[var_name].dims:
+                        self.logger.warning(f"Variable {var_name} missing dimension {n_dim}. Forcing it.")
+                        # If it has another dimension, squeeze it
+                        temp_data = ds[var_name].values.flatten()[0]
+                        ds[var_name] = xr.DataArray(
+                            np.full(n_size, temp_data),
+                            dims=[n_dim],
+                            attrs=ds[var_name].attrs
+                        )
+                        modified = True
+                    elif len(ds[var_name].dims) > 1:
                         # Drop other dims if they are singletons
                         other_dims = [d for d in ds[var_name].dims if d != n_dim]
                         if all(ds.dims[d] == 1 for d in other_dims):
                             self.logger.debug(f"Squeezing {var_name} to 1D over {n_dim}")
                             ds[var_name] = ds[var_name].squeeze(other_dims, drop=True)
                             modified = True
+                        else:
+                            # Force to 1D by taking first slice if they aren't singletons
+                            self.logger.warning(f"Variable {var_name} has multiple non-singleton dims. Forcing to 1D on {n_dim}.")
+                            ds[var_name] = ds[var_name].isel({d: 0 for d in other_dims}, drop=True)
+                            modified = True
+
+                # Special handling for lat/lon - must be 1D on N
+                for coord in ['lat', 'lon']:
+                    if coord in ds:
+                        if ds[coord].dims != (n_dim,):
+                            self.logger.info(f"Forcing {coord} to 1D on {n_dim}")
+                            # Keep first value if it was 2D
+                            val = ds[coord].values.flatten()[0]
+                            ds[coord] = xr.DataArray(
+                                np.full(n_size, val),
+                                dims=[n_dim],
+                                attrs=ds[coord].attrs
+                            )
+                            modified = True
+                        # MESH expects specific attributes for coordinates
+                        ds[coord].attrs['units'] = 'degrees_north' if coord == 'lat' else 'degrees_east'
+                        ds[coord].attrs['long_name'] = 'latitude' if coord == 'lat' else 'longitude'
+                        ds[coord].attrs['standard_name'] = 'latitude' if coord == 'lat' else 'longitude'
+                        # Remove potentially confusing attributes
+                        if 'axis' in ds[coord].attrs: del ds[coord].attrs['axis']
+
+                # Remove global attributes that might confuse MESH
+                for attr in ['crs', 'grid_mapping', 'featureType']:
+                    if attr in ds.attrs:
+                        del ds.attrs[attr]
 
                 # Add IREACH if missing
                 if 'IREACH' not in ds:

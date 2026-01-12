@@ -21,6 +21,7 @@ class AsyncDDSAlgorithm(OptimizationAlgorithm):
 
     @property
     def name(self) -> str:
+        """Algorithm identifier for logging and result tracking."""
         return "AsyncDDS"
 
     def optimize(

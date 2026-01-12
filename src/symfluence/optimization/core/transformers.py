@@ -18,6 +18,15 @@ class ParameterTransformer:
         self.logger = logger
 
     def apply(self, params: Dict[str, Any], settings_dir: Path) -> bool:
+        """Apply parameter transformations to model configuration files.
+
+        Args:
+            params: Dictionary of parameter names and their calibrated values.
+            settings_dir: Path to the model settings directory containing files to modify.
+
+        Returns:
+            True if transformation succeeded, False otherwise.
+        """
         raise NotImplementedError
 
 class SoilDepthTransformer(ParameterTransformer):
@@ -30,6 +39,21 @@ class SoilDepthTransformer(ParameterTransformer):
         self.original_depths = None
 
     def apply(self, params: Dict[str, Any], settings_dir: Path) -> bool:
+        """Apply soil depth multiplier transformations to SUMMA coldState.nc.
+
+        Modifies mLayerDepth and iLayerHeight variables in the NetCDF file
+        based on total_soil_depth_multiplier and shape_factor parameters.
+        Shape factor controls exponential stretching of layer depths.
+
+        Args:
+            params: Parameter dict, may contain 'total_soil_depth_multiplier',
+                'total_mult', and/or 'shape_factor' keys.
+            settings_dir: Path containing coldState.nc file.
+
+        Returns:
+            True if transformation succeeded or no special params present,
+            False if coldState.nc missing or NetCDF update failed.
+        """
         # Check if any special parameters are present
         if not any(p in params for p in self.SPECIAL_PARAMS):
             return True
@@ -117,6 +141,18 @@ class TransformationManager:
         ]
 
     def transform(self, params: Dict[str, Any], settings_dir: Path) -> bool:
+        """Apply all registered transformations to model settings.
+
+        Iterates through all registered transformers and applies each
+        in sequence. Stops on first failure.
+
+        Args:
+            params: Calibration parameter dictionary.
+            settings_dir: Path to model settings directory.
+
+        Returns:
+            True if all transformations succeeded, False if any failed.
+        """
         for transformer in self.transformers:
             if not transformer.apply(params, settings_dir):
                 return False

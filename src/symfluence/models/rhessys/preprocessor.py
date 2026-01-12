@@ -404,11 +404,14 @@ none\thourly_climate_prefix
 
                 # Try to get elevation stats
                 elev = float(gdf.get('elev_mean', [1500])[0]) if 'elev_mean' in gdf.columns else 1500.0
-                slope = float(gdf.get('slope_mean', [0.1])[0]) if 'slope_mean' in gdf.columns else 0.1
+                slope_deg = float(gdf.get('slope_mean', [10.0])[0]) if 'slope_mean' in gdf.columns else 10.0
+                # Convert slope from degrees to fraction (tan) for RHESSys
+                slope = np.tan(np.radians(slope_deg))
+                slope = max(0.01, min(slope, 2.0))
             else:
                 area_m2 = 1e8  # 100 km2
                 lon, lat = -115.0, 51.0
-                elev, slope = 1500.0, 0.1
+                elev, slope = 1500.0, 0.176  # ~10 degrees
         except Exception as e:
             logger.warning(f"Could not read catchment properties: {e}")
             area_m2 = 1e8

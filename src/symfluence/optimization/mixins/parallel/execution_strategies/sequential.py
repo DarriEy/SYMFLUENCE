@@ -29,6 +29,7 @@ class SequentialExecutionStrategy(ExecutionStrategy):
 
     @property
     def name(self) -> str:
+        """Strategy identifier for logging and selection."""
         return "sequential"
 
     def execute(

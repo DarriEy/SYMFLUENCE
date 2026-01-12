@@ -216,13 +216,35 @@ class RHESSysClimateGenerator:
         precip_var: Optional[str],
         dates: pd.DatetimeIndex
     ) -> np.ndarray:
-        """Process precipitation variable."""
+        """
+        Process precipitation variable.
+        
+        Converts all source units to meters per timestep (hour) so that 
+        daily aggregation (sum) results in meters per day, which is what 
+        RHESSys expects in climate station files.
+        """
         if precip_var:
             precip = self._basin_average(ds[precip_var])
-            # Convert from kg/m2/s to mm/hour for daily summing
             units = str(ds[precip_var].attrs.get('units', '')).lower()
-            if 'kg' in units or 's-1' in units:
-                precip = precip * 3600
+            
+            # If it's a rate (e.g. kg/m2/s, mm/s, m/s)
+            if 's-1' in units or 's^-1' in units or '/s' in units:
+                # If units are kg/m2/s or mm/s, they are effectively mm/s
+                if 'kg' in units or 'mm' in units:
+                    # Convert mm/s to m/hour (3600 s/hr / 1000 mm/m)
+                    precip = precip * 3.6
+                else:
+                    # Assume m/s, convert to m/hour
+                    precip = precip * 3600.0
+            # If it's already a depth per timestep (e.g. ERA5 'm')
+            elif 'm' in units:
+                if 'mm' in units:
+                    # Convert mm to m
+                    precip = precip / 1000.0
+                else:
+                    # Assume m (already correct for hourly accumulation)
+                    pass
+            
             return precip
         else:
             self.logger.warning("No precipitation variable found, using zeros")

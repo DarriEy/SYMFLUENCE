@@ -1,3 +1,9 @@
+"""
+Point domain delineator.
+
+Creates minimal square basin shapefiles for point-scale modeling where
+watershed delineation is not applicable (e.g., flux tower sites, lysimeters).
+"""
 from __future__ import annotations
 
 import traceback

@@ -157,6 +157,7 @@ class MESHParameterManager(BaseParameterManager):
             updated = 0
             for param_name, value in params.items():
                 # Match: KEY value (ignore comments starting with !)
+                # Use a more flexible regex that handles potential whitespace and comments
                 pattern = rf'^({param_name}\s+)([\d\.\-\+eE]+)'
 
                 def replacer(match):
@@ -164,10 +165,16 @@ class MESHParameterManager(BaseParameterManager):
                     updated += 1
                     return f"{match.group(1)}{value:.6f}"
 
-                content, n = re.subn(pattern, replacer, content, count=1, flags=re.MULTILINE)
+                content, n = re.subn(pattern, replacer, content, count=1, flags=re.MULTILINE | re.IGNORECASE)
 
                 if n == 0:
-                    self.logger.warning(f"Parameter {param_name} not found in {file_path.name}")
+                    # Try a more relaxed pattern if first one fails
+                    pattern_relaxed = rf'^[\[\s]*{param_name}[\]\s]*[\s=]+([\d\.\-\+eE]+)'
+                    content, n = re.subn(pattern_relaxed, lambda m: f"{param_name} {value:.6f}", content, count=1, flags=re.MULTILINE | re.IGNORECASE)
+                    if n > 0:
+                        updated += 1
+                    else:
+                        self.logger.warning(f"Parameter {param_name} not found in {file_path.name}")
 
             with open(file_path, 'w') as f:
                 f.write(content)

@@ -46,6 +46,7 @@ class MPIExecutionStrategy(ExecutionStrategy):
 
     @property
     def name(self) -> str:
+        """Strategy identifier for logging and selection."""
         return "mpi"
 
     def execute(

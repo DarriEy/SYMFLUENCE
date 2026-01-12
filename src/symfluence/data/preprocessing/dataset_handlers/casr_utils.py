@@ -80,7 +80,7 @@ class CASRHandler(BaseDatasetHandler):
             ds['pptrate'] = ds['pptrate'] * 1000 / UnitConversion.SECONDS_PER_HOUR
             ds['pptrate'].attrs = {}
             ds['pptrate'].attrs.update({
-                'units': 'm s-1', 
+                'units': 'mm s-1', 
                 'long_name': 'precipitation rate', 
                 'standard_name': 'precipitation_rate'
             })
@@ -267,7 +267,7 @@ class CASRHandler(BaseDatasetHandler):
                     elif var_name == 'airtemp':
                         var.attrs = {'units': 'K', 'long_name': 'air temperature', 'standard_name': 'air_temperature'}
                     elif var_name == 'pptrate':
-                        var.attrs = {'units': 'm s-1', 'long_name': 'precipitation rate', 'standard_name': 'precipitation_rate'}
+                        var.attrs = {'units': 'mm s-1', 'long_name': 'precipitation rate', 'standard_name': 'precipitation_rate'}
                     elif var_name == 'windspd':
                         var.attrs = {'units': 'm s-1', 'long_name': 'wind speed', 'standard_name': 'wind_speed'}
                     elif var_name == 'windspd_u':

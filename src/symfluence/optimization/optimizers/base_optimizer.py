@@ -132,6 +132,7 @@ class BaseOptimizer(SUMMAOptimizerMixin, ABC, ConfigMixin):
     # Convenience properties for commonly accessed config values
     @property
     def domain_name(self) -> str:
+        """Domain name from typed config or fallback to instance attribute."""
         return self._get_config_value(lambda: self.config.domain.name) or self._domain_name
 
     @domain_name.setter
@@ -140,6 +141,7 @@ class BaseOptimizer(SUMMAOptimizerMixin, ABC, ConfigMixin):
 
     @property
     def experiment_id(self) -> str:
+        """Experiment identifier from typed config or fallback to instance attribute."""
         return self._get_config_value(lambda: self.config.domain.experiment_id) or self._experiment_id
 
     @experiment_id.setter
@@ -148,6 +150,7 @@ class BaseOptimizer(SUMMAOptimizerMixin, ABC, ConfigMixin):
 
     @property
     def summa_filemanager(self) -> str:
+        """SUMMA file manager filename, defaults to 'fileManager.txt'."""
         return self._get_config_value(
             lambda: self.config.model.summa.filemanager if self.config.model.summa else None,
             default='fileManager.txt'
@@ -155,10 +158,12 @@ class BaseOptimizer(SUMMAOptimizerMixin, ABC, ConfigMixin):
 
     @property
     def optimization_target(self) -> str:
+        """Target variable for optimization (e.g., 'streamflow', 'ET')."""
         return self._get_config_value(lambda: self.config.optimization.target, default='streamflow')
 
     @property
     def calibration_variable(self) -> str:
+        """Variable being calibrated, defaults to 'streamflow'."""
         return self._get_config_value(lambda: self.config.optimization.calibration_variable, default='streamflow')
 
     @property

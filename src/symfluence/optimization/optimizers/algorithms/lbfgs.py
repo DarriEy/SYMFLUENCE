@@ -70,6 +70,7 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
 
     @property
     def name(self) -> str:
+        """Algorithm identifier for logging and result tracking."""
         return "LBFGS"
 
     def optimize(

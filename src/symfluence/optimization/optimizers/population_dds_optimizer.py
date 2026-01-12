@@ -123,8 +123,9 @@ class PopulationDDSOptimizer(BaseOptimizer):
         self.population = None; self.population_scores = None; self.current_generation = 0
     
     def get_algorithm_name(self) -> str:
+        """Return algorithm identifier for results and logging."""
         return "PopulationDDS"
-    
+
     def _determine_population_size(self) -> int:
         config_pop_size = self._cfg('POPULATION_SIZE', default=None)
         if config_pop_size: return config_pop_size

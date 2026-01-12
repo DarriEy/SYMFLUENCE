@@ -24,6 +24,7 @@ class NSGA2Algorithm(OptimizationAlgorithm):
 
     @property
     def name(self) -> str:
+        """Algorithm identifier for logging and result tracking."""
         return "NSGA-II"
 
     def optimize(

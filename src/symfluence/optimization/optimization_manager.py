@@ -243,6 +243,11 @@ class OptimizationManager(BaseManager):
         """Backward compatibility: expose registered optimizers/algorithms."""
         # Return a dict-like object that satisfies 'in' and '[]' for algorithms expected by tests
         class OptimizerMapper:
+            """Maps algorithm names for backward compatibility with test assertions.
+
+            Provides dict-like interface supporting 'in' and '[]' operators
+            for checking algorithm availability without instantiation.
+            """
             def __init__(self):
                 self.algorithms = {
                     'DDS', 'DE', 'PSO', 'SCE-UA', 'NSGA-II', 'ASYNC-DDS', 'POP-DDS',

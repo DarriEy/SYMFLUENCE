@@ -1,4 +1,10 @@
+"""
+Diagnostic visualization tools for data quality and availability assessment.
 
+Provides specialized plotting capabilities for analyzing data distributions,
+spatial coverage, temporal availability, and missing data patterns. Used
+throughout SYMFLUENCE workflows to validate data quality at each processing stage.
+"""
 
 import pandas as pd  # type: ignore
 import numpy as np  # type: ignore
