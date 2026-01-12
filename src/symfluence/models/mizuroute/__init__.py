@@ -34,3 +34,9 @@ ModelRegistry.register_config_adapter('MIZUROUTE')(MizuRouteConfigAdapter)
 # Register result extractor with ModelRegistry
 from .extractor import MizuRouteResultExtractor
 ModelRegistry.register_result_extractor('MIZUROUTE')(MizuRouteResultExtractor)
+
+# Register preprocessor with ModelRegistry
+ModelRegistry.register_preprocessor('MIZUROUTE')(MizuRoutePreProcessor)
+
+# Register runner with ModelRegistry
+ModelRegistry.register_runner('MIZUROUTE')(MizuRouteRunner)

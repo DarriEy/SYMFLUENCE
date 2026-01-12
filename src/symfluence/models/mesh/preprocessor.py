@@ -360,8 +360,13 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.data_preprocessor.sanitize_shapefile(str(riv_copy))
         self.data_preprocessor.sanitize_shapefile(str(cat_copy))
 
-        # Ensure GRU_ID exists for meshflow joining
+        # Ensure GRU_ID and hru_dim exist for meshflow joining and indexing
+        main_id = self._meshflow_config.get('main_id', 'GRU_ID')
+        hru_dim = self._meshflow_config.get('hru_dim', 'subbasin')
+        
         self.data_preprocessor.ensure_gru_id(str(cat_copy))
+        self.data_preprocessor.ensure_hru_id(str(cat_copy), hru_dim, main_id)
+        self.data_preprocessor.ensure_hru_id(str(riv_copy), hru_dim, main_id)
 
         outlet_value = self._meshflow_config.get('outlet_value', -9999)
         self.data_preprocessor.fix_outlet_segment(str(riv_copy), outlet_value=outlet_value)

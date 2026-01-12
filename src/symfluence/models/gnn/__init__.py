@@ -56,8 +56,10 @@ Limitations and Considerations:
 """
 
 from .runner import GNNRunner
+from .preprocessor import GNNPreprocessor
+from .postprocessor import GNNPostprocessor
 
-__all__ = ['GNNRunner']
+__all__ = ['GNNRunner', 'GNNPreprocessor', 'GNNPostprocessor']
 
 
 # Register config adapter with ModelRegistry
@@ -68,3 +70,12 @@ ModelRegistry.register_config_adapter('GNN')(GNNConfigAdapter)
 # Register result extractor with ModelRegistry
 from .extractor import GNNResultExtractor
 ModelRegistry.register_result_extractor('GNN')(GNNResultExtractor)
+
+# Register preprocessor with ModelRegistry
+ModelRegistry.register_preprocessor('GNN')(GNNPreprocessor)
+
+# Register runner with ModelRegistry
+ModelRegistry.register_runner('GNN')(GNNRunner)
+
+# Register postprocessor with ModelRegistry
+ModelRegistry.register_postprocessor('GNN')(GNNPostprocessor)
