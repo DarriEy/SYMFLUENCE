@@ -141,11 +141,14 @@ class RHESSysWorker(BaseWorker):
             for line in lines:
                 updated = False
                 for param_name, value in file_params.items():
-                    # Match: value<whitespace>param_name
-                    pattern = rf'^([\d\.\-\+eE]+)(\s+)({re.escape(param_name)})(\s*)$'
+                    # Match: value<whitespace>param_name (allow trailing comments)
+                    # Pattern matches: optional start ^, float group(1), whitespace group(2), param_name group(3), remaining group(4)
+                    pattern = rf'^([\d\.\-\+eE]+)(\s+)({re.escape(param_name)})(\s.*|)$'
                     match = re.match(pattern, line)
                     if match:
-                        new_line = f"{value:.6f}{match.group(2)}{match.group(3)}{match.group(4)}"
+                        new_line = f"{value:.6f}{match.group(2)}{match.group(3)}{match.group(4)}\n"
+                        # Strip double newlines if they happen
+                        new_line = new_line.replace('\n\n', '\n')
                         updated_lines.append(new_line)
                         updated = True
                         break
@@ -295,12 +298,12 @@ class RHESSysWorker(BaseWorker):
         tecfile = rhessys_input_dir / 'tecfiles' / f'{domain_name}.tec'
         routing = rhessys_input_dir / 'routing' / f'{domain_name}.routing'
 
-        # Get scaling parameters from config if available
-        s1 = config.get('RHESSYS_S1', 10.0)  # Ksat_0 multiplier (increased for better infiltration)
-        s2 = config.get('RHESSYS_S2', 1.0)   # m multiplier
-        s3 = config.get('RHESSYS_S3', 1.0)   # m_z multiplier
-        gw1 = config.get('RHESSYS_GW1', 0.1) # Hillslope GW loss
-        gw2 = config.get('RHESSYS_GW2', 0.1) # Riparian GW loss
+        # Get scaling parameters from config if available (default to None to match Runner)
+        s1 = config.get('RHESSYS_S1')
+        s2 = config.get('RHESSYS_S2')
+        s3 = config.get('RHESSYS_S3')
+        gw1 = config.get('RHESSYS_GW1')
+        gw2 = config.get('RHESSYS_GW2')
 
         cmd = [
             str(exe),
@@ -312,11 +315,18 @@ class RHESSysWorker(BaseWorker):
             '-ed', str(end_date.year), str(end_date.month), str(end_date.day), '1',
             '-pre', 'rhessys',
             '-b',  # Basin output
-            '-gw', str(gw1), str(gw2),
-            '-s', str(s1), str(s2), str(s3),
+        ]
+
+        if gw1 is not None and gw2 is not None:
+            cmd.extend(['-gw', str(gw1), str(gw2)])
+        
+        if s1 is not None and s2 is not None and s3 is not None:
+            cmd.extend(['-s', str(s1), str(s2), str(s3)])
+        
+        cmd.extend([
             '-sv', '1.0', '1.0',
             '-svalt', '1.0', '1.0',
-        ]
+        ])
 
         return cmd
 

@@ -33,21 +33,18 @@ def _register_parameter_managers():
         'gr',
         'hype',
         'mesh',
-        'gnn',
-        'lstm',
         'rhessys',
         'ml'
     ]
 
     for model in models:
         try:
-            print(f"DEBUG: Attempting to import parameter manager for {model}")
+            logger.debug(f"Attempting to import parameter manager for {model}")
             importlib.import_module(f'.{model}_parameter_manager', package='symfluence.optimization.parameter_managers')
         except Exception as e:
             # Silently skip models with missing dependencies
             # This is expected for optional models
-            print(f"DEBUG: Failed to import {model} parameter manager: {e}")
-            logger.debug(f"Could not import {model} parameter manager: {e}")
+            logger.debug(f"Failed to import {model} parameter manager: {e}")
             pass
 
 # Trigger registration on import

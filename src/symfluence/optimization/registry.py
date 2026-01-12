@@ -55,9 +55,8 @@ class OptimizerRegistry:
         """
         def decorator(optimizer_cls):
             key = model_name.upper()
-            print(f"DEBUG: Registering optimizer for {key}: {optimizer_cls}")
+            logger.debug(f"Registering optimizer for {key}: {optimizer_cls}")
             cls._optimizers[key] = optimizer_cls
-            # logger.debug(f"Registered optimizer for model: {key}")
             return optimizer_cls
         return decorator
 
@@ -79,9 +78,8 @@ class OptimizerRegistry:
         """
         def decorator(worker_cls):
             key = model_name.upper()
-            print(f"DEBUG: Registering worker for {key}: {worker_cls}")
+            logger.debug(f"Registering worker for {key}: {worker_cls}")
             cls._workers[key] = worker_cls
-            # logger.debug(f"Registered worker for model: {key}")
             return worker_cls
         return decorator
 
@@ -89,7 +87,7 @@ class OptimizerRegistry:
     def register_parameter_manager(cls, model_name: str):
         """Decorator for registering a model-specific parameter manager."""
         def decorator(param_manager_cls):
-            print(f"DEBUG: Registering parameter manager for {model_name}: {param_manager_cls}")
+            logger.debug(f"Registering parameter manager for {model_name}: {param_manager_cls}")
             cls._parameter_managers[model_name.upper()] = param_manager_cls
             return param_manager_cls
         return decorator
@@ -152,7 +150,7 @@ class OptimizerRegistry:
     def get_parameter_manager(cls, model_name: str):
         """Get the parameter manager class for a given model."""
         name_upper = model_name.upper()
-        print(f"DEBUG: Getting parameter manager for {name_upper}. Registered: {list(cls._parameter_managers.keys())}")
+        logger.debug(f"Getting parameter manager for {name_upper}. Registered: {list(cls._parameter_managers.keys())}")
         if name_upper not in cls._parameter_managers:
             return None
         return cls._parameter_managers[name_upper]
