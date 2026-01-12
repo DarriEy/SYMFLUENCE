@@ -127,8 +127,9 @@ class AsyncDDSOptimizer(BaseOptimizer):
         self.total_evaluations = 0; self.stagnation_counter = 0
     
     def get_algorithm_name(self) -> str:
+        """Return algorithm identifier for results and logging."""
         return "AsyncDDS_MPI"
-    
+
     def _run_algorithm(self) -> Tuple[Dict, float, List]:
         self.logger.info("Starting Asynchronous Parallel DDS")
         self.logger.info(f"  Stagnation limit: {self.stagnation_limit} batches")

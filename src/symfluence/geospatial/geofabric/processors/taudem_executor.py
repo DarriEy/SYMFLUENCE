@@ -64,7 +64,16 @@ class TauDEMExecutor:
             return None
 
     def get_mpi_command(self) -> Optional[str]:
-        """Public wrapper for MPI launcher detection."""
+        """
+        Get the MPI launcher command for parallel TauDEM execution.
+
+        Detects available MPI implementations (mpiexec, mpirun) on the system
+        and returns the appropriate launcher command.
+
+        Returns:
+            Optional[str]: MPI launcher command (e.g., 'mpiexec -n 4') or None
+                if MPI is not available or configured.
+        """
         return self._get_mpi_command()
 
     def run_command(self, command: str, retry: bool = True) -> None:

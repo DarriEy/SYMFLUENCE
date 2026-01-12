@@ -16,6 +16,15 @@ from ..registry import AcquisitionRegistry
 @AcquisitionRegistry.register('EM-EARTH')
 @AcquisitionRegistry.register('EM_EARTH')
 class EMEarthAcquirer(BaseAcquisitionHandler):
+    """
+    Acquires EM-Earth global climate reanalysis data from AWS S3.
+
+    EM-Earth provides daily meteorological variables at 0.1° resolution
+    globally from 1950-2019, available in deterministic and probabilistic
+    variants. Data includes precipitation, temperature (mean, range), and
+    dewpoint temperature.
+    """
+
     def download(self, output_dir: Path) -> Path:
         self.logger.info("Downloading EM-Earth data from AWS S3")
         fs = s3fs.S3FileSystem(anon=True)

@@ -123,6 +123,8 @@ class MESHParameterFixer:
                 (r'METRICSSPINUP\s+\d+', 'METRICSSPINUP         730'),
                 (r'DIAGNOSEMODE\s+\w+', 'DIAGNOSEMODE          off'),
                 (r'SHDFILEFLAG\s+\w+', 'SHDFILEFLAG           nc_subbasin'),
+                (r'OUTFIELDSFLAG\s+\w+', 'OUTFIELDSFLAG         none'),
+                (r'PRINTSIMSTATUS\s+\w+', 'PRINTSIMSTATUS        date_monthly'),
             ]
 
             for pattern, replacement in replacements:

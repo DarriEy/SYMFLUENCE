@@ -24,6 +24,7 @@ class DEAlgorithm(OptimizationAlgorithm):
 
     @property
     def name(self) -> str:
+        """Algorithm identifier for logging and result tracking."""
         return "DE"
 
     def optimize(

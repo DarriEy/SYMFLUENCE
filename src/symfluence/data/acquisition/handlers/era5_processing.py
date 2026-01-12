@@ -347,8 +347,11 @@ def era5_to_summa_schema(
 
         # Validate longwave radiation
         lw_mean = float(processed_vars['LWRadAtm'].mean().values)
-        if lw_mean < 80:
-            raise ValueError(f"LW radiation too low: {lw_mean:.1f} W/m^2 (min threshold: 80)")
+        if lw_mean < 50:
+            # Only error if extremely low (likely data quality issue)
+            raise ValueError(f"LW radiation critically low: {lw_mean:.1f} W/m^2 (min threshold: 50)")
+        elif lw_mean < 80:
+            logger.warning(f"LW radiation low: {lw_mean:.1f} W/m^2 (expected for winter/high latitudes)")
         elif lw_mean < 150:
             logger.warning(f"LW radiation relatively low: {lw_mean:.1f} W/m^2 (expected for cold climates)")
         else:

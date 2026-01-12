@@ -18,6 +18,14 @@ from ..registry import AcquisitionRegistry
 
 @AcquisitionRegistry.register('NEX-GDDP-CMIP6')
 class NEXGDDPCHandler(BaseAcquisitionHandler):
+    """
+    Acquires NEX-GDDP-CMIP6 downscaled climate projection data via THREDDS.
+
+    NASA NEX-GDDP-CMIP6 provides bias-corrected, downscaled (0.25°) climate
+    projections from CMIP6 models. Supports multiple models, scenarios
+    (historical, SSP1-2.6, SSP2-4.5, SSP3-7.0, SSP5-8.5), and ensemble members.
+    """
+
     def download(self, output_dir: Path) -> Path:
         exp_start = self.start_date
         exp_end = self.end_date

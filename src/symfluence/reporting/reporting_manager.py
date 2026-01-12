@@ -1,3 +1,12 @@
+"""
+Central reporting facade for coordinating all SYMFLUENCE visualizations.
+
+Provides a unified interface for generating publication-ready visualizations
+across all modeling stages: domain setup, calibration, evaluation, and
+multi-model comparison. Implements the Facade pattern to orchestrate
+specialized plotters while hiding complexity from client code.
+"""
+
 from typing import Dict, Any, Optional, List, Tuple, TYPE_CHECKING
 from pathlib import Path
 from functools import cached_property

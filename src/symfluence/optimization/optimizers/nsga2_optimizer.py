@@ -225,8 +225,9 @@ class NSGA2Optimizer(BaseOptimizer):
         else: raise ValueError(f"Unknown target type: {target_type}")
 
     def get_algorithm_name(self) -> str:
+        """Return algorithm identifier for results and logging."""
         return "NSGA2"
-    
+
     def _determine_population_size(self) -> int:
         config_pop_size = self._cfg('POPULATION_SIZE', default=None)
         if config_pop_size: return config_pop_size

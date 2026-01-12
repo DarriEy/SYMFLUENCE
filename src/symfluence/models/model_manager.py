@@ -456,15 +456,36 @@ class ModelManager(BaseManager):
                 # Run model-specific preprocessing
                 self.logger.debug(f"Running preprocessor for {model}")
 
-                # Check if preprocessor accepts params
+                # Check preprocessor signature to determine what arguments to pass
                 import inspect
                 sig = inspect.signature(preprocessor_class.__init__)
-                if 'params' in sig.parameters:
-                    preprocessor = preprocessor_class(self.config, self.logger, params=params)
-                else:
-                    preprocessor = preprocessor_class(self.config, self.logger)
+                kwargs = {}
 
-                preprocessor.run_preprocessing()
+                # Add optional params if supported
+                if 'params' in sig.parameters:
+                    kwargs['params'] = params
+
+                # Add LSTM-specific arguments if needed
+                if model == 'LSTM':
+                    if 'project_dir' in sig.parameters:
+                        kwargs['project_dir'] = self.project_dir
+                    if 'device' in sig.parameters:
+                        # Determine device - prefer GPU if available
+                        try:
+                            import torch
+                            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                        except ImportError:
+                            device = None
+                        kwargs['device'] = device
+
+                preprocessor = preprocessor_class(self.config, self.logger, **kwargs)
+
+                # Call appropriate preprocessing method
+                if hasattr(preprocessor, 'run_preprocessing'):
+                    preprocessor.run_preprocessing()
+                else:
+                    # Some models like LSTM don't need preprocessing
+                    self.logger.debug(f"No run_preprocessing method for {model} preprocessor")
 
             except Exception as e:
                 self.logger.error(f"Error preprocessing model {model}: {str(e)}")

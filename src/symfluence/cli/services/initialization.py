@@ -178,6 +178,22 @@ class InitializationService(BaseService):
         Raises:
             ValueError: If preset is invalid or required fields missing
         """
+        # Step 0: Validate that either preset or required CLI overrides are provided
+        if not preset_name:
+            # When no preset is specified, user must provide at least domain and forcing
+            required_cli_fields = ['domain', 'forcing']
+            missing_fields = [f for f in required_cli_fields if f not in cli_overrides or not cli_overrides[f]]
+            if missing_fields:
+                missing_config_names = []
+                if 'domain' in missing_fields:
+                    missing_config_names.append('DOMAIN_NAME')
+                if 'forcing' in missing_fields:
+                    missing_config_names.append('FORCING_DATASET')
+                raise ValueError(
+                    "Config validation failed:\n" +
+                    "\n".join(f"  - Missing required field: {f}" for f in missing_config_names)
+                )
+
         # Step 1: Load base template
         if minimal:
             config = self._create_minimal_config()

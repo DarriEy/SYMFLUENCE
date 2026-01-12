@@ -71,7 +71,17 @@ class MultivariateTarget(CalibrationTarget):
         self.logger.debug(f"MultivariateTarget initialized with variables: {self.variables}")
 
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
-        # Multivariate needs both daily and hourly possibly, return all
+        """Get all NetCDF simulation output files for multivariate evaluation.
+
+        Returns all .nc files since multivariate targets may need both daily
+        and hourly outputs for different variable evaluations.
+
+        Args:
+            sim_dir: Path to simulation output directory.
+
+        Returns:
+            List of all NetCDF file paths in the simulation directory.
+        """
         return list(sim_dir.glob("*.nc"))
 
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:

@@ -13,6 +13,14 @@ import numpy as np # type: ignore
 from symfluence.core.exceptions import DataAcquisitionError
 
 class DataCleanupProcessor:
+    """
+    Validates and cleans MAF (Model-Agnostic Framework) output data.
+
+    Performs post-acquisition validation on soil class, land cover, and
+    elevation statistics to ensure data integrity and consistency across
+    all extracted catchment attributes.
+    """
+
     def __init__(self, config: Dict[str, Any], logger: Any):
         self.config = config
         self.logger = logger
