@@ -452,6 +452,8 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         ngen_ds = self._create_ngen_forcing_dataset(forcing_data, catchment_ids)
         output_file = self.forcing_dir / "forcing.nc"
+        # Ensure parent directory exists before saving
+        output_file.parent.mkdir(parents=True, exist_ok=True)
         ngen_ds.to_netcdf(output_file, format='NETCDF4')
         self._write_csv_forcing_files(forcing_data, catchment_ids)
         return output_file
@@ -460,9 +462,29 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         # Ensure forcing_dir exists before creating csv subdirectory
         from pathlib import Path
         self.forcing_dir = Path(self.forcing_dir)  # Ensure it's a Path object
+
+        # Ensure all parent directories exist with explicit mkdir calls
+        current_path = self.forcing_dir
+        while not current_path.exists() and current_path.parent != current_path:
+            current_path = current_path.parent
+
+        # Now create all needed directories from the top down
+        for parent in reversed(list(self.forcing_dir.parents)):
+            if not parent.exists():
+                try:
+                    parent.mkdir(exist_ok=True)
+                except Exception:
+                    pass
+
         self.forcing_dir.mkdir(parents=True, exist_ok=True)
+
         csv_dir = self.forcing_dir / "csv"
         csv_dir.mkdir(parents=True, exist_ok=True)
+
+        # Verify directory exists before proceeding
+        if not csv_dir.exists():
+            raise OSError(f"Failed to create directory: {csv_dir}")
+
         self.logger.info(f"CSV directory created: {csv_dir}, exists={csv_dir.exists()}, is_dir={csv_dir.is_dir()}")
         time_values = pd.to_datetime(forcing_data.time.values)
 

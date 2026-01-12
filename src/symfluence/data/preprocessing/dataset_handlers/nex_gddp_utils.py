@@ -14,7 +14,7 @@ from shapely.geometry import Polygon
 
 from .base_dataset import BaseDatasetHandler
 from .dataset_registry import DatasetRegistry
-from symfluence.data.utils import VariableStandardizer
+from ...utils import VariableStandardizer
 
 
 @DatasetRegistry.register("nex-gddp-cmip6")

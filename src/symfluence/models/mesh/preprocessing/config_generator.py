@@ -85,15 +85,16 @@ class MESHConfigGenerator:
             start_time = pd.Timestamp("2004-01-01 01:00")
             end_time = pd.Timestamp("2004-01-05 23:00")
 
-        # Use 'nc' for NetCDF DDBs in MESH 1.5, 'nc_subbasin' can be finicky
-        shd_flag = 'nc'
+        # Use 'nc_subbasin' for both DDB and Forcing in MESH 1.5 when using dimension 'subbasin'
+        shd_flag = 'nc_subbasin'
+        forcing_flag = 'nc_subbasin'
 
         content = f"""MESH input run options file                             # comment line 1                                | *
 ##### Control Flags #####                               # comment line 2                                | *
 ----#                                                   # comment line 3                                | *
    14                                                   # Number of control flags                       | I5
-SHDFILEFLAG         {shd_flag}                          # Drainage database format (nc_subbasin for distributed)
-BASINFORCINGFLAG    nc                                  # Forcing file format (nc = NetCDF)
+SHDFILEFLAG         {shd_flag}                          # Drainage database format
+BASINFORCINGFLAG    {forcing_flag}                      # Forcing file format
 RUNMODE             noroute                             # Run mode (noroute = CLASS-only, following meshflow)
 INPUTPARAMSFORMFLAG ini                                 # Parameter file format (ini = .ini files)
 RESUMEFLAG          off                                 # Resume from state (off=No)

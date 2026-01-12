@@ -24,7 +24,7 @@ except ImportError:
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
-from symfluence.data.utils import VariableStandardizer
+from ...utils import VariableStandardizer
 
 
 class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):

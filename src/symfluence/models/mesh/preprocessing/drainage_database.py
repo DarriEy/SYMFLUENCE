@@ -333,7 +333,7 @@ class MESHDrainageDatabase:
                 n_size = ds.dims[n_dim]
                 modified = False
 
-                # MESH 1.5 strictly expects 'N' as the spatial dimension
+                # MESH 1.5 strictly expects 'N' as the spatial dimension in standard mode
                 target_n_dim = 'N'
                 if n_dim != target_n_dim:
                     self.logger.info(f"Renaming spatial dimension '{n_dim}' to '{target_n_dim}'")
@@ -347,7 +347,15 @@ class MESHDrainageDatabase:
                         ds = ds.rename({old_name: target_n_dim})
                         modified = True
 
-                # Rename NGRU or landclass dimension to 'landclass'
+                # Ensure dimension 'N' is the index and has correct values and type
+                ds[target_n_dim] = xr.DataArray(
+                    np.arange(1, n_size + 1, dtype=np.int32),
+                    dims=[target_n_dim],
+                    attrs={'long_name': 'Grid index', 'units': '1'}
+                )
+                modified = True
+
+                # Rename NGRU or land dimension to 'landclass'
                 old_lc_dim = 'land' if 'land' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else None
                 if old_lc_dim:
                     self.logger.info(f"Renaming dimension '{old_lc_dim}' to 'landclass'")
@@ -428,14 +436,14 @@ class MESHDrainageDatabase:
                     ds[var_name] = ds[var_name].transpose(n_dim)
                     ds[var_name].attrs['grid_mapping'] = 'crs'
 
-                # Special handling for lat/lon - must be 1D on N
+                # Special handling for lat/lon - must be 1D on subbasin
                 for coord in ['lat', 'lon']:
                     if coord in ds:
                         # Force to data variable if it's a coordinate
                         if coord in ds.coords:
                             ds = ds.reset_coords(coord)
                         
-                        # Re-create as clean 1D variable on N
+                        # Re-create as clean 1D variable on subbasin
                         val = ds[coord].values.flatten()[0]
                         ds[coord] = (target_n_dim, np.full(n_size, val, dtype=np.float64), {
                             'units': 'degrees_north' if coord == 'lat' else 'degrees_east',

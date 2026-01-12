@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, Any
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
-from symfluence.data.utils import VariableStandardizer, create_spatial_mask
+from ...utils import VariableStandardizer, create_spatial_mask
 
 
 @AcquisitionRegistry.register('CONUS404')
