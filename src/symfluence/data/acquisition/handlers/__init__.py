@@ -2,105 +2,50 @@
 Acquisition handlers for various datasets.
 """
 
+import sys as _sys
+import importlib as _importlib
+
 # Import all handlers to trigger registration
 # Use try/except for each to handle optional dependencies
+# Log errors to stderr for CI debugging
 
 _imported = []
+_failed = []
 
-try:
-    from . import era5
-    _imported.append('era5')
-except ImportError:
-    pass
+_handler_modules = [
+    'era5',
+    'era5_cds',
+    'aorc',
+    'nex_gddp',
+    'em_earth',
+    'hrrr',
+    'conus404',
+    'cds_datasets',
+    'geospatial',
+    'rdrs',
+    'observation_acquirers',
+    'grace',
+    'glacier',
+    'modis_sca',
+    'modis_et',
+    'fluxnet',
+]
 
-try:
-    from . import era5_cds
-    _imported.append('era5_cds')
-except ImportError:
-    pass
+for _module_name in _handler_modules:
+    try:
+        _module = _importlib.import_module(f'.{_module_name}', __name__)
+        globals()[_module_name] = _module
+        _imported.append(_module_name)
+    except Exception as _e:
+        _failed.append((_module_name, str(_e)))
+        print(f"WARNING: Failed to import acquisition handler '{_module_name}': {_e}",
+              file=_sys.stderr)
 
+# Clean up
+del _handler_modules, _module_name
 try:
-    from . import aorc
-    _imported.append('aorc')
-except ImportError:
-    pass
-
-try:
-    from . import nex_gddp
-    _imported.append('nex_gddp')
-except ImportError:
-    pass
-
-try:
-    from . import em_earth
-    _imported.append('em_earth')
-except ImportError:
-    pass
-
-try:
-    from . import hrrr
-    _imported.append('hrrr')
-except ImportError:
-    pass
-
-try:
-    from . import conus404
-    _imported.append('conus404')
-except ImportError:
-    pass
-
-try:
-    from . import cds_datasets
-    _imported.append('cds_datasets')
-except ImportError:
-    pass
-
-try:
-    from . import geospatial
-    _imported.append('geospatial')
-except ImportError:
-    pass
-
-try:
-    from . import rdrs
-    _imported.append('rdrs')
-except ImportError:
-    pass
-
-try:
-    from . import observation_acquirers
-    _imported.append('observation_acquirers')
-except ImportError:
-    pass
-
-try:
-    from . import grace
-    _imported.append('grace')
-except ImportError:
-    pass
-
-try:
-    from . import glacier
-    _imported.append('glacier')
-except ImportError:
-    pass
-
-try:
-    from . import modis_sca
-    _imported.append('modis_sca')
-except ImportError:
-    pass
-
-try:
-    from . import modis_et
-    _imported.append('modis_et')
-except ImportError:
-    pass
-
-try:
-    from . import fluxnet
-    _imported.append('fluxnet')
-except ImportError:
+    del _module, _e
+except NameError:
     pass
 
 __all__ = _imported

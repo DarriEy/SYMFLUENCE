@@ -18,14 +18,18 @@ Available Handlers:
 
 Usage:
     from dataset_handlers import DatasetRegistry
-    
+
     # Get the appropriate handler for a dataset
     handler = DatasetRegistry.get_handler('era5', config, logger, project_dir)
-    
+
     # Use the handler
     handler.merge_forcings(...)
     handler.create_shapefile(...)
 """
+
+import sys as _sys
+import warnings as _warnings
+import importlib as _importlib
 
 from .base_dataset import (
     BaseDatasetHandler,
@@ -34,16 +38,50 @@ from .base_dataset import (
 )
 from .dataset_registry import DatasetRegistry
 
-# Import all handlers to register them
-from .rdrs_utils import RDRSHandler
-from .casr_utils import CASRHandler
-from .era5_utils import ERA5Handler
-from .carra_utils import CARRAHandler
-from .cerra_utils import CERRAHandler
-from .aorc_utils import AORCHandler
-from .conus404_utils import CONUS404Handler
-from .nex_gddp_utils import NEXGDDPCMIP6Handler
-from .hrrr_utils import HRRRHandler
+# Import handlers with fail-safe pattern to allow partial loading
+# This helps diagnose which specific handler has import issues
+
+_handler_imports = [
+    ('rdrs_utils', 'RDRSHandler'),
+    ('casr_utils', 'CASRHandler'),
+    ('era5_utils', 'ERA5Handler'),
+    ('carra_utils', 'CARRAHandler'),
+    ('cerra_utils', 'CERRAHandler'),
+    ('aorc_utils', 'AORCHandler'),
+    ('conus404_utils', 'CONUS404Handler'),
+    ('nex_gddp_utils', 'NEXGDDPCMIP6Handler'),
+    ('hrrr_utils', 'HRRRHandler'),
+]
+
+# Track successfully imported handlers
+_loaded_handlers = []
+_failed_handlers = []
+
+for _module_name, _handler_name in _handler_imports:
+    try:
+        _module = _importlib.import_module(f'.{_module_name}', __name__)
+        _handler_class = getattr(_module, _handler_name)
+        globals()[_handler_name] = _handler_class
+        _loaded_handlers.append(_handler_name)
+    except Exception as _e:
+        _failed_handlers.append((_handler_name, str(_e)))
+        globals()[_handler_name] = None
+        print(f"WARNING: Failed to import {_handler_name} from {_module_name}: {_e}",
+              file=_sys.stderr)
+
+# Clean up temporary variables
+del _handler_imports
+try:
+    del _module_name, _handler_name, _module, _handler_class
+except NameError:
+    pass
+
+if _failed_handlers:
+    _warnings.warn(
+        f"Some dataset handlers failed to import: {[h[0] for h in _failed_handlers]}. "
+        f"See stderr for details.",
+        ImportWarning
+    )
 
 __all__ = [
     "BaseDatasetHandler",
