@@ -213,7 +213,7 @@ class CERRAHandler(BaseDatasetHandler):
                     elif 'lat' in ds.variables:
                         lats = ds['lat'].values
                     else:
-                        raise KeyError(f"Latitude coordinate not found in CERRA file")
+                        raise KeyError("Latitude coordinate not found in CERRA file")
 
                 if var_lon in ds.coords:
                     lons = ds.coords[var_lon].values
@@ -226,7 +226,7 @@ class CERRAHandler(BaseDatasetHandler):
                     elif 'lon' in ds.variables:
                         lons = ds['lon'].values
                     else:
-                        raise KeyError(f"Longitude coordinate not found in CERRA file")
+                        raise KeyError("Longitude coordinate not found in CERRA file")
 
             self.logger.info(f"CERRA grid dimensions: lat={lats.shape}, lon={lons.shape}")
 
@@ -253,7 +253,7 @@ class CERRAHandler(BaseDatasetHandler):
                         'lat_min': bbox[1] - buffer,
                         'lat_max': bbox[3] + buffer
                     }
-                    self.logger.info(f"✓ Applying spatial filter based on HRU extent:")
+                    self.logger.info("✓ Applying spatial filter based on HRU extent:")
                     self.logger.info(f"  Lon: {bbox_filter['lon_min']:.2f} to {bbox_filter['lon_max']:.2f}")
                     self.logger.info(f"  Lat: {bbox_filter['lat_min']:.2f} to {bbox_filter['lat_max']:.2f}")
                 except Exception as e:
@@ -298,7 +298,7 @@ class CERRAHandler(BaseDatasetHandler):
                                 [minx - buffer, miny - buffer],
                             ]
                             geometries.append(Polygon(verts))
-                            self.logger.info(f"Created polygon matching HRU extent for 1x1 forcing.")
+                            self.logger.info("Created polygon matching HRU extent for 1x1 forcing.")
                             poly_created = True
                         except Exception as e:
                             self.logger.warning(f"Failed to use HRU bounds for 1x1 forcing: {e}")

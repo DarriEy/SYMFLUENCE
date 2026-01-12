@@ -77,7 +77,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
 
         # Check cache
         if cache_file.exists():
-            self.logger.info(f"Loading cached GLCLU2019 results")
+            self.logger.info("Loading cached GLCLU2019 results")
             try:
                 with open(cache_file, 'rb') as f:
                     return pickle.load(f)
@@ -212,7 +212,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
             # Try alternative
             lai_folder = lai_path / ('monthly_lai_no_water_mask' if use_water_mask else 'monthly_lai_with_water_mask')
             if not lai_folder.exists():
-                self.logger.warning(f"LAI folder not found")
+                self.logger.warning("LAI folder not found")
                 return results
 
         # Cache

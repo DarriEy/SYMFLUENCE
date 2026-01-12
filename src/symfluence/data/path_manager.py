@@ -24,10 +24,13 @@ Usage:
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, TYPE_CHECKING
 
 
 from symfluence.core import ConfigurableMixin
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 
 class PathManager(ConfigurableMixin):

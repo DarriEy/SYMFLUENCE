@@ -121,7 +121,7 @@ class ShapefileManager:
         try:
             wgs84_gdf = gpd.read_file(wgs84_path)
             if wgs84_gdf.crs is None or wgs84_gdf.crs.to_epsg() != 4326:
-                self.logger.warning(f"Existing WGS84 file has wrong CRS. Recreating.")
+                self.logger.warning("Existing WGS84 file has wrong CRS. Recreating.")
                 return None
 
             if check_unique_ids:

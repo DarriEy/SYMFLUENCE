@@ -147,7 +147,7 @@ class CARRAHandler(BaseDatasetHandler):
                         'lat_min': bbox[1] - buffer,
                         'lat_max': bbox[3] + buffer
                     }
-                    self.logger.info(f"Applying spatial filter based on HRU extent:")
+                    self.logger.info("Applying spatial filter based on HRU extent:")
                     self.logger.info(f"  Lon: {bbox_filter['lon_min']:.2f} to {bbox_filter['lon_max']:.2f}")
                     self.logger.info(f"  Lat: {bbox_filter['lat_min']:.2f} to {bbox_filter['lat_max']:.2f}")
                 except Exception as e:

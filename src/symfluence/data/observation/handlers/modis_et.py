@@ -115,7 +115,7 @@ class MODISETHandler(BaseObservationHandler):
 
         # 1. Try NetCDF from cloud acquisition
         if input_path.is_dir():
-            nc_files = list(input_path.glob(f"*MOD16*.nc")) + list(input_path.glob(f"*_ET.nc"))
+            nc_files = list(input_path.glob("*MOD16*.nc")) + list(input_path.glob("*_ET.nc"))
             if nc_files:
                 df = self._process_netcdf(nc_files[0])
 

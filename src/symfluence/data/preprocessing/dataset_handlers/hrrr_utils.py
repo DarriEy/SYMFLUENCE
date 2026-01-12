@@ -10,7 +10,6 @@ from typing import Dict, Tuple, List
 import numpy as np
 import xarray as xr
 import geopandas as gpd
-import numpy as np
 from shapely.geometry import Polygon
 
 from .base_dataset import BaseDatasetHandler

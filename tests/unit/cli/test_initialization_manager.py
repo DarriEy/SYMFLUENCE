@@ -385,7 +385,7 @@ class TestGenerateConfig:
         """Test generating minimal config."""
         config = init_manager.generate_config(
             preset_name=None,
-            cli_overrides={'domain': 'test', 'model': 'FUSE'},
+            cli_overrides={'domain': 'test', 'model': 'FUSE', 'forcing': 'ERA5'},
             minimal=True,
             comprehensive=False
         )

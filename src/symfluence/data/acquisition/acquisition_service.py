@@ -732,7 +732,7 @@ class AcquisitionService(ConfigurableMixin):
 
             min_bbox_size = self.config.get('EM_EARTH_MIN_BBOX_SIZE', 0.1)
             if lat_range < min_bbox_size or lon_range < min_bbox_size:
-                self.logger.warning(f"Very small watershed detected. EM-Earth processing will use spatial averaging.")
+                self.logger.warning("Very small watershed detected. EM-Earth processing will use spatial averaging.")
 
             try:
                 start_date = datetime.strptime(self._get_config_value(lambda: self.config.domain.time_start), '%Y-%m-%d %H:%M')

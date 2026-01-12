@@ -123,11 +123,12 @@ class RHESSysModelOptimizer(BaseModelOptimizer):
         RHESSys-specific override: uses RHESSys_input directory for defs.
         """
         try:
-            # RHESSys defs are in RHESSys_input/defs, not settings/RHESSys
+            # RHESSys defs are in RHESSys_input/defs
+            # The worker's apply_parameters method expects settings_dir TO CONTAIN a 'defs' subdirectory.
             rhessys_input_dir = self.project_dir / 'RHESSys_input'
             return self.worker.apply_parameters(
                 best_params,
-                rhessys_input_dir,  # This directory should have defs/ subdirectory
+                rhessys_input_dir,  # This directory has the defs/ subdirectory
                 config=self.config
             )
         except Exception as e:

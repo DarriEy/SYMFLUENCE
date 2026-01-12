@@ -587,7 +587,6 @@ class GeospatialStatistics(ConfigurableMixin):
         Divides the domain into a grid and processes each tile independently,
         reading only the required DEM window for each tile.
         """
-        from shapely.geometry import box
         
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         
@@ -651,7 +650,7 @@ class GeospatialStatistics(ConfigurableMixin):
                 # Check for checkpoint
                 checkpoint_file = checkpoint_dir / f"tile_{row}_{col}.npy"
                 if checkpoint_file.exists():
-                    self.logger.debug(f"  Loading from checkpoint")
+                    self.logger.debug("  Loading from checkpoint")
                     tile_elevs = np.load(checkpoint_file)
                     for i, idx in enumerate(tile_indices):
                         elev_means[idx] = tile_elevs[i]

@@ -143,12 +143,18 @@ class MESHForcingProcessor:
                         rename_dict = {}
                         if 'N' in ds.dims:
                             rename_dict['N'] = 'subbasin'
+                        elif 'subbasin' not in ds.dims and len(ds.dims) > 0:
+                            # If no standard dimension found, find the one that isn't 'time' or 'landclass'
+                            other_dims = [d for d in ds.dims if d not in ['time', 'landclass', 'land', 'NGRU']]
+                            if other_dims:
+                                rename_dict[other_dims[0]] = 'subbasin'
                         
                         if rename_dict:
                             ds_renamed = ds.rename(rename_dict)
                             # Also rename variables that match the old dimension
-                            if 'N' in ds_renamed.variables:
-                                ds_renamed = ds_renamed.rename({'N': 'subbasin'})
+                            for old_dim, new_dim in rename_dict.items():
+                                if old_dim in ds_renamed.variables:
+                                    ds_renamed = ds_renamed.rename({old_dim: new_dim})
                             
                             temp_path = nc_file.with_suffix('.tmp.nc')
                             ds_renamed.to_netcdf(temp_path)

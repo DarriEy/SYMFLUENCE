@@ -668,12 +668,13 @@ setup_windows_dependencies() {
     fi
 
     # Install essential Windows dependencies via conda
-    # Install C libraries only - Python packages will be installed in venv via pip
+    # Install C libraries and Python bindings - pip build from source often fails on Windows
     print_info "Installing Windows build dependencies via ${CONDA_CMD}..."
     $CONDA_CMD install -c conda-forge -y \
         cmake \
         ninja \
         libgdal=3.11 \
+        gdal \
         netcdf4 \
         hdf5 \
         || print_warning "Some conda packages may have failed to install"
@@ -817,6 +818,11 @@ EOF
 
         # Generate requirements.txt from pyproject.toml (source of truth)
         local req_file="${symfluence_dir}/requirements.txt"
+        local pyproj_path="${symfluence_dir}/pyproject.toml"
+        if [[ "$PLATFORM" == "windows" ]]; then
+            pyproj_path=$(cygpath -w "$pyproj_path")
+        fi
+
         if [[ -f "${symfluence_dir}/pyproject.toml" ]]; then
             print_info "Generating requirements.txt from pyproject.toml..."
             $python_cmd -c "
@@ -826,7 +832,7 @@ try:
 except ImportError:
     import tomli as tomllib
 
-with open('${symfluence_dir}/pyproject.toml', 'rb') as f:
+with open('${pyproj_path}', 'rb') as f:
     data = tomllib.load(f)
 deps = data.get('project', {}).get('dependencies', [])
 if deps:
@@ -859,7 +865,9 @@ else:
 
         # Install SYMFLUENCE package in editable mode
         print_info "Installing SYMFLUENCE package..."
-        python -m pip install -e . || {
+        # Use --no-deps because we already installed them from requirements.txt
+        # This prevents pip from trying to build GDAL from source on Windows
+        python -m pip install -e . --no-deps || {
             print_error "SYMFLUENCE package installation failed"
             exit 1
         }

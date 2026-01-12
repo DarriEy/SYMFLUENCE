@@ -113,11 +113,11 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
                 raw_data = self._download_ameriflux(station_id, user_id, user_email, output_dir)
             else:
                 self.logger.info(
-                    f"AmeriFlux credentials not found for automated download.\n"
-                    f"To enable automatic download:\n"
-                    f"1. Create account at: https://ameriflux-data.lbl.gov/Pages/RequestAccount.aspx\n"
-                    f"2. Set AMERIFLUX_USER_ID and AMERIFLUX_USER_EMAIL in config\n"
-                    f"   Or add to ~/.netrc: machine ameriflux.lbl.gov login <user_id> password <email>"
+                    "AmeriFlux credentials not found for automated download.\n"
+                    "To enable automatic download:\n"
+                    "1. Create account at: https://ameriflux-data.lbl.gov/Pages/RequestAccount.aspx\n"
+                    "2. Set AMERIFLUX_USER_ID and AMERIFLUX_USER_EMAIL in config\n"
+                    "   Or add to ~/.netrc: machine ameriflux.lbl.gov login <user_id> password <email>"
                 )
 
         # 3. Fall back to FLUXNET2015 download instructions

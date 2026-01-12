@@ -801,7 +801,7 @@ class ObservedDataProcessor:
             # Resample and save the data
             self._resample_and_save(caravans_data['discharge_cms'])
             
-            self.logger.info(f"Successfully processed CARAVANS data")
+            self.logger.info("Successfully processed CARAVANS data")
             
         except FileNotFoundError:
             self.logger.error(f"CARAVANS input file not found at {input_file}")
