@@ -16,7 +16,9 @@ from symfluence.optimization.core.base_parameter_manager import BaseParameterMan
 from symfluence.optimization.core.parameter_bounds_registry import get_mesh_bounds
 from symfluence.optimization.registry import OptimizerRegistry
 
-print("DEBUG: Importing actual MESHParameterManager")
+logger = logging.getLogger(__name__)
+
+logger.debug("Importing actual MESHParameterManager")
 
 @OptimizerRegistry.register_parameter_manager('MESH')
 class MESHParameterManager(BaseParameterManager):
@@ -67,7 +69,7 @@ class MESHParameterManager(BaseParameterManager):
 
     def update_model_files(self, params: Dict[str, float]) -> bool:
         """Update MESH parameter .ini files."""
-        print(f"DEBUG: Updating MESH files with params: {params}")
+        self.logger.debug(f"Updating MESH files with params: {params}")
         return self.update_mesh_params(params)
 
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
@@ -144,9 +146,14 @@ class MESHParameterManager(BaseParameterManager):
     def _update_ini_file(self, file_path: Path, params: Dict[str, float]) -> bool:
         """Update a .ini format parameter file."""
         try:
-            print(f"DEBUG: Updating file: {file_path}")
+            self.logger.debug(f"Updating file: {file_path}")
             if not file_path.exists():
-                print(f"DEBUG: File not found: {file_path}")
+                self.logger.debug(f"File not found: {file_path}")
+                import os
+                if file_path.parent.exists():
+                    self.logger.debug(f"Directory contents of {file_path.parent}: {os.listdir(file_path.parent)}")
+                else:
+                    self.logger.debug(f"Parent directory does not exist: {file_path.parent}")
                 self.logger.error(f"Parameter file not found: {file_path}")
                 return False
 
@@ -156,24 +163,23 @@ class MESHParameterManager(BaseParameterManager):
             updated = 0
             for param_name, value in params.items():
                 # Match: KEY value (ignore comments starting with !)
-                # Use a more flexible regex that handles potential whitespace and comments
-                pattern = rf'^({param_name}\s+)([\d\.\-\+eE]+)'
+                # Use word boundary \b to avoid matching partial names
+                # and handle KEY=value or KEY value
+                pattern = rf'\b({param_name})\b\s*[\s=]+\s*([\d\.\-\+eE]+)'
 
                 def replacer(match):
                     nonlocal updated
                     updated += 1
-                    return f"{match.group(1)}{value:.6f}"
-
-                content, n = re.subn(pattern, replacer, content, count=1, flags=re.MULTILINE | re.IGNORECASE)
-
-                if n == 0:
-                    # Try a more relaxed pattern if first one fails
-                    pattern_relaxed = rf'^[\[\s]*{param_name}[\]\s]*[\s=]+([\d\.\-\+eE]+)'
-                    content, n = re.subn(pattern_relaxed, lambda m: f"{param_name} {value:.6f}", content, count=1, flags=re.MULTILINE | re.IGNORECASE)
-                    if n > 0:
-                        updated += 1
-                    else:
-                        self.logger.warning(f"Parameter {param_name} not found in {file_path.name}")
+                    # Preserve the separator (space or =)
+                    return content[match.start():match.start(2)].replace(match.group(2), "") + f"{value:.6f}"
+                
+                # Simpler replacement to avoid preservation complexity if it's tricky
+                content, n = re.subn(pattern, lambda m: f"{m.group(1)} {value:.6f}", content, count=1, flags=re.IGNORECASE)
+                
+                if n > 0:
+                    updated += 1
+                else:
+                    self.logger.warning(f"Parameter {param_name} not found in {file_path.name}")
 
             with open(file_path, 'w') as f:
                 f.write(content)

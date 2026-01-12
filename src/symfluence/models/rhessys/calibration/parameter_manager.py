@@ -135,7 +135,7 @@ class RHESSysParameterManager(BaseParameterManager):
 
             # RHESSys def file format: value<whitespace>label
             # e.g., "0.000005    sat_to_gw_coeff"
-            pattern = rf'^([\d\.\-\+eE]+)\s+{re.escape(param_name)}$'
+            pattern = rf'^([\d\.\-\+eE]+)\s+{re.escape(param_name)}(\s.*|)$'
             match = re.search(pattern, content, re.MULTILINE)
             if match:
                 return float(match.group(1))
@@ -202,12 +202,13 @@ class RHESSysParameterManager(BaseParameterManager):
             for line in lines:
                 updated = False
                 for param_name, value in params.items():
-                    # Match: value<whitespace>param_name
-                    pattern = rf'^([\d\.\-\+eE]+)(\s+)({re.escape(param_name)})(\s*)$'
+                    # Match: value<whitespace>param_name (allow trailing comments)
+                    pattern = rf'^([\d\.\-\+eE]+)(\s+)({re.escape(param_name)})(\s.*|)$'
                     match = re.match(pattern, line)
                     if match:
                         # Preserve whitespace formatting
-                        new_line = f"{value:.6f}{match.group(2)}{match.group(3)}{match.group(4)}"
+                        new_line = f"{value:.6f}{match.group(2)}{match.group(3)}{match.group(4)}\n"
+                        new_line = new_line.replace('\n\n', '\n')
                         updated_lines.append(new_line)
                         updated = True
                         self.logger.debug(f"Updated {param_name} = {value:.6f} in {def_file.name}")
