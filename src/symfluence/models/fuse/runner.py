@@ -95,7 +95,8 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
 
     def _get_fuse_file_id(self) -> str:
         """Return a short file ID for FUSE outputs/settings."""
-        return self.config_dict.get('FUSE_FILE_ID', self.experiment_id)
+        fuse_id: str = self.config_dict.get('FUSE_FILE_ID', self.experiment_id)
+        return fuse_id
 
     def _setup_model_specific_paths(self) -> None:
         """Set up FUSE-specific paths."""
@@ -688,8 +689,8 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
 
                     # Run FUSE with best parameters
                     success = self._execute_fuse('run_best')
-                except: 
-                    self.logger.warning('FUSE internal calibration failed')
+                except (subprocess.CalledProcessError, OSError, RuntimeError) as e:
+                    self.logger.warning(f'FUSE internal calibration failed: {e}')
 
             if success:
                 # Ensure the expected output file exists

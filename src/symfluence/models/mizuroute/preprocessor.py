@@ -304,7 +304,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         # Override setup_dir if SETTINGS_MIZU_PATH is provided (for isolated parallel runs)
         mizu_settings_path = self.mizu_settings_path
         if mizu_settings_path and mizu_settings_path != 'default':
-            self.setup_dir = Path(mizu_settings_path)
+            self.setup_dir: Path = Path(mizu_settings_path)
             self.logger.debug(f"MizuRoutePreProcessor using custom setup_dir from SETTINGS_MIZU_PATH: {self.setup_dir}")
         
         # Ensure setup directory exists

@@ -401,7 +401,8 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         twm = TimeWindowManager(self.config, self.logger)
         try:
             start_time, end_time = twm.get_simulation_times(forcing_path=self.forcing_basin_path)
-        except:
+        except (ValueError, KeyError, TypeError) as e:
+            self.logger.debug(f"Could not get simulation times from TimeWindowManager, using config: {e}")
             start_time = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_START'))
             end_time = pd.to_datetime(self.config_dict.get('EXPERIMENT_TIME_END'))
 
@@ -463,7 +464,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
     def _write_csv_forcing_files(self, forcing_data: xr.Dataset, catchment_ids: List[str]) -> Path:
         # Ensure forcing_dir exists before creating csv subdirectory
         from pathlib import Path
-        self.forcing_dir = Path(self.forcing_dir)  # Ensure it's a Path object
+        self.forcing_dir: Path = Path(self.forcing_dir)  # Ensure it's a Path object
 
         # Ensure all parent directories exist with explicit mkdir calls
         current_path = self.forcing_dir

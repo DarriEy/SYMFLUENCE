@@ -290,8 +290,8 @@ class BaseOptimizer(SUMMAOptimizerMixin, ABC, ConfigMixin):
         self.parameter_manager = ParameterManager(config, logger, self.optimization_settings_dir)
         self.transformation_manager = TransformationManager(config, logger)
         self._setup_optimization_directories()
-        
-        self.calibration_target = self._create_calibration_target()
+
+        self.calibration_target: CalibrationTarget = self._create_calibration_target()
         self.model_executor = ModelExecutor(config, logger, self.calibration_target)
         self.results_manager = ResultsManager(config, logger, self.output_dir, self.reporting_manager)
         

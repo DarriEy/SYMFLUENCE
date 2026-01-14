@@ -104,10 +104,10 @@ class DatasetAlignmentManager:
 
     def align_datasets(
         self,
-        datasets: Dict[str, xr.Dataset],
+        datasets: Dict[str, Optional[xr.Dataset]],
         time_var: str = 'time',
         resample_freq: Optional[str] = None
-    ) -> Dict[str, xr.Dataset]:
+    ) -> Dict[str, Optional[xr.Dataset]]:
         """
         Align multiple datasets to a common time period.
 
@@ -140,7 +140,7 @@ class DatasetAlignmentManager:
             common_time = common_time[(common_time >= start) & (common_time <= end)]
 
         # Align each dataset
-        aligned = {}
+        aligned: Dict[str, Optional[xr.Dataset]] = {}
         for name, ds in datasets.items():
             if ds is None:
                 aligned[name] = None
@@ -389,6 +389,7 @@ def align_forcing_datasets(
 
     # Extract back to original types
     aligned_forcing = aligned['forcing']
+    assert aligned_forcing is not None, "Forcing dataset should not be None"
     aligned_pet = aligned['pet']['pet'] if aligned['pet'] is not None else pet_data
     aligned_obs = aligned.get('obs')
 
