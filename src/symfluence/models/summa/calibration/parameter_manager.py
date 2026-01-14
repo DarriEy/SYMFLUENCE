@@ -21,11 +21,10 @@ from symfluence.optimization.core.parameter_bounds_registry import (
     get_mizuroute_bounds, get_depth_bounds
 )
 from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.core.mixins import ConfigMixin
 
 
 @OptimizerRegistry.register_parameter_manager('SUMMA')
-class SUMMAParameterManager(ConfigMixin, BaseParameterManager):
+class SUMMAParameterManager(BaseParameterManager):
     """
     Parameter manager for SUMMA model calibration.
 

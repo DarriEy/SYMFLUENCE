@@ -10,11 +10,10 @@ from typing import Dict, List, Callable
 import xarray as xr
 
 from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
-from symfluence.core.mixins import ConfigMixin
 
 
 @ForcingAdapterRegistry.register_adapter('HYPE')
-class HYPEForcingAdapter(ConfigMixin, ForcingAdapter):
+class HYPEForcingAdapter(ForcingAdapter):
     """
     Forcing adapter for HYPE model.
 

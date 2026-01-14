@@ -12,10 +12,8 @@ from typing import Dict
 from .base import BaseObjective
 from .registry import ObjectiveRegistry
 
-from symfluence.core.mixins import ConfigMixin
-
 @ObjectiveRegistry.register('MULTIVARIATE')
-class MultivariateObjective(ConfigMixin, BaseObjective):
+class MultivariateObjective(BaseObjective):
     """Weighted multi-variable objective function.
 
     Combines multiple variables and metrics into a single scalar objective

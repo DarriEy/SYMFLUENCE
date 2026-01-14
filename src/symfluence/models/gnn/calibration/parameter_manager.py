@@ -11,11 +11,10 @@ from typing import Dict, Any, List
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.core.mixins import ConfigMixin
 
 
 @OptimizerRegistry.register_parameter_manager('ML')
-class MLParameterManager(ConfigMixin, BaseParameterManager):
+class MLParameterManager(BaseParameterManager):
     """
     Parameter manager for ML models using config-defined bounds.
     """

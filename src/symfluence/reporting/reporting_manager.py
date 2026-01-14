@@ -308,11 +308,6 @@ class ReportingManager(ConfigMixin):
         self.visualize = visualize
         self.project_dir = Path(config['SYMFLUENCE_DATA_DIR']) / f"domain_{config['DOMAIN_NAME']}"
 
-    @property
-    def config(self) -> Dict[str, Any]:
-        """Return flattened config dict for backward compatibility."""
-        return self._config.to_dict(flatten=True) if self._config else {}
-
     # =========================================================================
     # Component Properties (Lazy Initialization via cached_property)
     # =========================================================================

@@ -58,7 +58,7 @@ class AsyncDDSAlgorithm(OptimizationAlgorithm):
 
         # Async DDS parameters
         dds_r = self._get_config_value(lambda: self.config.optimization.dds.r, default=0.2, dict_key='DDS_R')
-        pool_size = self._get_config_value(lambda: self.config.optimization.dds.async_pool_size, default=min(20, num_processes * 2, dict_key='ASYNC_DDS_POOL_SIZE'))
+        pool_size = self._get_config_value(lambda: self.config.optimization.dds.async_pool_size, default=min(20, num_processes * 2), dict_key='ASYNC_DDS_POOL_SIZE')
         batch_size = self._get_config_value(lambda: self.config.optimization.dds.async_batch_size, default=num_processes, dict_key='ASYNC_DDS_BATCH_SIZE')
         max_stagnation = self._get_config_value(lambda: self.config.optimization.dds.max_stagnation_batches, default=10, dict_key='MAX_STAGNATION_BATCHES')
 

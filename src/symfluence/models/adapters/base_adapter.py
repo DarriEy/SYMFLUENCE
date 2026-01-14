@@ -7,14 +7,18 @@ Each hydrological model implements its own adapter to convert CFIF
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Callable, Any
+from typing import Dict, List, Optional, Callable, Any, Union, TYPE_CHECKING
 import xarray as xr
 import logging
+from symfluence.core.mixins import ConfigMixin
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 logger = logging.getLogger(__name__)
 
 
-class ForcingAdapter(ABC):
+class ForcingAdapter(ConfigMixin, ABC):
     """
     Abstract base class for model forcing adapters.
 
@@ -48,12 +52,12 @@ class ForcingAdapter(ABC):
         logger: Logger instance
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Optional[logging.Logger] = None):
+    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger: Optional[logging.Logger] = None):
         """
         Initialize the forcing adapter.
 
         Args:
-            config: Configuration dictionary with model settings
+            config: Configuration dictionary or SymfluenceConfig instance with model settings
             logger: Optional logger instance
         """
         self.config = config
