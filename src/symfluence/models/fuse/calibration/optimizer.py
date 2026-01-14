@@ -185,7 +185,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         # Use 'or' to treat None as "not set" and fallback to experiment_id
         fuse_id = self.config.get('FUSE_FILE_ID') or self.experiment_id
         param_file = self.fuse_sim_dir / f"{self.domain_name}_{fuse_id}_para_def.nc"
-        
+
         if param_file.exists():
             for proc_id, dirs in self.parallel_dirs.items():
                 dest_file = dirs['settings_dir'] / param_file.name

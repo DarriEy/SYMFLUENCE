@@ -75,7 +75,7 @@ class CLIParser:
         """Create a parent parser with common arguments."""
         # Use SUPPRESS to avoid overwriting global flags with subcommand defaults
         parser = argparse.ArgumentParser(add_help=False, argument_default=argparse.SUPPRESS)
-        
+
         # Global options available to all commands
         parser.add_argument('--config', type=str,
                           help='Path to configuration file (default: ./config.yaml)')

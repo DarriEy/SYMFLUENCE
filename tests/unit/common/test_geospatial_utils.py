@@ -235,11 +235,11 @@ class TestGeospatialUtilsMixinCentroid:
 
         assert len(centroids) == 2
         assert isinstance(centroids, gpd.GeoSeries)
-        
+
         # Centroid 1 should be near (0.5, 0.5)
         assert abs(centroids.iloc[0].x - 0.5) < 0.05
         assert abs(centroids.iloc[0].y - 0.5) < 0.05
-        
+
         # Centroid 2 should be near (10.5, 10.5)
         assert abs(centroids.iloc[1].x - 10.5) < 0.05
         assert abs(centroids.iloc[1].y - 10.5) < 0.05

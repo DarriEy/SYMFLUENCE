@@ -10,7 +10,7 @@ import xarray as xr
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Tuple
 import logging
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
@@ -19,10 +19,9 @@ from .era5_processing import era5_to_summa_schema
 from symfluence.geospatial.coordinate_utils import BoundingBox, get_bbox_extent
 from symfluence.core.validation import (
     validate_bounding_box,
-    validate_numeric_range,
-    validate_netcdf_variables
+    validate_numeric_range
 )
-from symfluence.core.exceptions import ValidationError, DataAcquisitionError
+from symfluence.core.exceptions import DataAcquisitionError
 
 def has_cds_credentials() -> bool:
     """
@@ -102,13 +101,12 @@ class ERA5Acquirer(BaseAcquisitionHandler):
         if use_cds is None:
             # Auto-detect preference: ARCO (faster) > CDS
             # Both pathways now have the longwave radiation fix, so prefer ARCO for speed
-            try:
-                import gcsfs
-                import xarray
+            from importlib.util import find_spec
+            if find_spec("gcsfs") and find_spec("xarray"):
                 self.logger.info("Auto-detecting ERA5 pathway: ARCO (Google Cloud) - faster, no queue")
                 self.logger.info("  To use CDS instead, set ERA5_USE_CDS=true in config or environment")
                 use_cds = False
-            except ImportError:
+            else:
                 if has_cds_credentials():
                     self.logger.info("gcsfs not available, falling back to CDS pathway")
                     use_cds = True
@@ -128,7 +126,7 @@ class ERA5Acquirer(BaseAcquisitionHandler):
                 return ERA5CDSAcquirer(self.config, self.logger).download(output_dir)
             except Exception as e:
                 self.logger.warning(f"CDS pathway failed: {e}. Falling back to ARCO if possible.")
-        
+
         self.logger.info("Using ARCO (Google Cloud) pathway for ERA5")
         return ERA5ARCOAcquirer(self.config, self.logger).download(output_dir)
 
@@ -274,7 +272,7 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
             import os
             # Use available CPUs but cap at 8 to avoid overwhelming I/O
             n_workers = min(8, os.cpu_count() or 1)
-            
+
         self.logger.info(f"Processing ERA5 with {n_workers} workers")
 
         if n_workers <= 1:

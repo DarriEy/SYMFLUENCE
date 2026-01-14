@@ -35,7 +35,7 @@ class GeometryProcessor:
             return None
         try:
             return geometry.buffer(0)
-        except (ValueError, AttributeError, Exception) as e:
+        except (ValueError, AttributeError, Exception):
             # Shapely geometry operations can raise various errors
             return None
 

@@ -8,7 +8,7 @@ and NetCDF file merging.
 import logging
 import concurrent.futures
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Tuple, TypeVar
+from typing import Callable, List, Optional, Tuple, TypeVar
 
 import pandas as pd
 import xarray as xr

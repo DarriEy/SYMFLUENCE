@@ -10,7 +10,7 @@ import pandas as pd
 import xarray as xr
 import geopandas as gpd
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Optional
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 
@@ -20,7 +20,7 @@ class GRACEHandler(BaseObservationHandler):
     Handles GRACE Total Water Storage anomaly data.
     Implements adaptive extraction based on basin size.
     """
-    
+
     # Basin size thresholds for extraction strategy
     STRATEGY_CONFIG = {
         'large_basin_threshold': 5000,      # > 5000 km²: bounding box
@@ -35,7 +35,7 @@ class GRACEHandler(BaseObservationHandler):
         # Check if we need to download
         force_download = self.config_dict.get('FORCE_DOWNLOAD', False)
         has_files = grace_dir.exists() and any(grace_dir.iterdir())
-        
+
         if not has_files or force_download:
             self.logger.info("Acquiring GRACE data...")
             # Use the Acquisition handler
@@ -51,7 +51,7 @@ class GRACEHandler(BaseObservationHandler):
                 raise
         else:
             self.logger.info(f"Using existing GRACE data in {grace_dir}")
-            
+
         return grace_dir
 
     def process(self, input_path: Path) -> Path:
@@ -72,17 +72,17 @@ class GRACEHandler(BaseObservationHandler):
         basin_shp = catchment_path / catchment_name
         if not basin_shp.exists():
             raise FileNotFoundError(f"Basin shapefile not found: {basin_shp}")
-            
+
         basin_gdf = gpd.read_file(basin_shp)
         basin_area_km2 = self._calculate_area(basin_gdf)
         self.logger.info(f"Basin area: {basin_area_km2:.1f} km²")
-        
+
         # Find GRACE files
         grace_files = self._find_grace_files(input_path)
         if not grace_files:
             self.logger.error("No GRACE NetCDF files found")
             return input_path
-            
+
         results = {}
         for name, file_path in grace_files.items():
             with xr.open_dataset(file_path) as ds:
@@ -92,18 +92,18 @@ class GRACEHandler(BaseObservationHandler):
                     ts_anomaly = self._calculate_anomalies(ts)
                     results[f'grace_{name}'] = ts
                     results[f'grace_{name}_anomaly'] = ts_anomaly
-        
+
         if not results:
             self.logger.warning("No GRACE data could be extracted")
             return input_path
-            
+
         # Save to CSV
         df = pd.DataFrame(results)
         output_dir = self.project_dir / "observations" / "grace" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_grace_tws_processed.csv"
         df.to_csv(output_file)
-        
+
         self.logger.info(f"GRACE processing complete: {output_file}")
         return output_file
 
@@ -130,7 +130,7 @@ class GRACEHandler(BaseObservationHandler):
             found = list(grace_dir.rglob(pattern))
             if found:
                 files[name] = found[0]
-        
+
         patterns = {'jpl': '*JPL*.nc', 'csr': '*CSR*.nc', 'gsfc': '*gsfc*.nc'}
 
         for name, filename in filenames.items():
@@ -143,12 +143,12 @@ class GRACEHandler(BaseObservationHandler):
             found = list(grace_dir.rglob(patterns[name]))
             if found:
                 files[name] = found[0]
-                
+
         return files
 
     def _extract_for_basin(self, ds: xr.Dataset, gdf: gpd.GeoDataFrame, name: str, area: float) -> Optional[pd.Series]:
         centroid = gdf.dissolve().centroid.iloc[0]
-        
+
         # Adaptive strategy
         if area <= self.STRATEGY_CONFIG['medium_basin_threshold']:
             # Point sampling
@@ -161,13 +161,14 @@ class GRACEHandler(BaseObservationHandler):
             # Spatial averaging
             bounds = gdf.total_bounds
             if bounds[0] < 0 and ds.lon.values.max() > 180:
-                bounds[0] += 360; bounds[2] += 360
-            
+                bounds[0] += 360
+                bounds[2] += 360
+
             lon_mask = (ds.lon >= bounds[0]) & (ds.lon <= bounds[2])
             lat_mask = (ds.lat >= bounds[1]) & (ds.lat <= bounds[3])
             subset = ds.lwe_thickness.where(lon_mask & lat_mask, drop=True)
             data = subset.mean(dim=[d for d in subset.dims if d != 'time'])
-            
+
         time_idx = self._get_time_index(ds, name)
         return pd.Series(data.values, index=time_idx).resample('MS').mean()
 
@@ -176,23 +177,23 @@ class GRACEHandler(BaseObservationHandler):
         # Check if already decoded (datetime64)
         if np.issubdtype(ds.time.dtype, np.datetime64):
             return pd.to_datetime(ds.time.values)
-            
+
         # Look for units attribute (case-insensitive)
         units_attr = None
         for key in ds.time.attrs:
             if key.lower() == 'units':
                 units_attr = ds.time.attrs[key]
                 break
-        
+
         if units_attr and 'days since' in units_attr:
             origin_str = units_attr.split('since')[1].strip()
             # Clean origin string to remove time and timezone for robustness
             # e.g. "2002-01-01T00:00:00Z" -> "2002-01-01"
             if 'T' in origin_str:
                 origin_str = origin_str.split('T')[0]
-            
+
             return pd.to_datetime(ds.time.values, unit='D', origin=origin_str)
-            
+
         # Fallback: assume standard decoding or let pandas handle it
         return pd.to_datetime(ds.time.values)
 

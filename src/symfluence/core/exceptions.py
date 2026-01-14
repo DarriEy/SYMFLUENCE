@@ -155,5 +155,3 @@ def symfluence_error_handler(
             logger.error(f"Error during {operation}: {e}", exc_info=True)
         if reraise:
             raise error_type(f"Failed during {operation}: {e}") from e
-
-

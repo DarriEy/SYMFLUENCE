@@ -33,7 +33,7 @@ class ConfigDefaults:
     LOG_TO_FILE = True
     FORCE_RUN_ALL_STEPS = False
     STOP_ON_ERROR = True
-    
+
     # === Resource Paths ===
     SETTINGS_BASE_DIR = 'src/symfluence/resources/base_settings'
 

@@ -10,15 +10,15 @@ import torch.nn as nn
 class LSTMModel(nn.Module):
     """
     LSTM-based model for hydrological predictions.
-    
+
     Predicts streamflow and optionally snow water equivalent (SWE)
     from meteorological forcing data.
     """
-    
+
     def __init__(self, input_size: int, hidden_size: int, num_layers: int, output_size: int, dropout_rate: float = 0.2):
         """
         Initialize the LSTM model.
-        
+
         Args:
             input_size (int): Number of input features.
             hidden_size (int): Number of hidden units in the LSTM layers.
@@ -49,20 +49,20 @@ class LSTMModel(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of the model.
-        
+
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len, input_size).
-            
+
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, output_size).
         """
         # Initialize hidden and cell states
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-        
+
         # LSTM forward pass
         out, _ = self.lstm(x, (h0, c0))
-        
+
         # Take the output from the last time step
         out = self.ln(out[:, -1, :])
         out = self.dropout(out)

@@ -66,7 +66,7 @@ class MESHForcingProcessor:
         var_rename = {v: k for k, v in forcing_vars.items()}
 
         # Find spatial dimension
-        hru_dim = self.config.get('hru_dim', 'hru')
+        self.config.get('hru_dim', 'hru')
         spatial_dim = None
         for dim in ['hru', 'subbasin', 'N', 'gru', 'GRU_ID']:
             if dim in ds.dims:
@@ -148,14 +148,14 @@ class MESHForcingProcessor:
                             other_dims = [d for d in ds.dims if d not in ['time', 'landclass', 'land', 'NGRU']]
                             if other_dims:
                                 rename_dict[other_dims[0]] = 'subbasin'
-                        
+
                         if rename_dict:
                             ds_renamed = ds.rename(rename_dict)
                             # Also rename variables that match the old dimension
                             for old_dim, new_dim in rename_dict.items():
                                 if old_dim in ds_renamed.variables:
                                     ds_renamed = ds_renamed.rename({old_dim: new_dim})
-                            
+
                             temp_path = nc_file.with_suffix('.tmp.nc')
                             ds_renamed.to_netcdf(temp_path)
                             os.replace(temp_path, nc_file)

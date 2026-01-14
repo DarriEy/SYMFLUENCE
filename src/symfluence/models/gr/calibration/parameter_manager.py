@@ -33,7 +33,7 @@ class GRParameterManager(BaseParameterManager):
         gr_params_str = config.get('GR_PARAMS_TO_CALIBRATE')
         if gr_params_str is None:
             gr_params_str = 'X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff'
-            
+
         self.gr_params = [p.strip() for p in str(gr_params_str).split(',') if p.strip()]
 
     # ========================================================================
@@ -60,14 +60,14 @@ class GRParameterManager(BaseParameterManager):
         """Get initial parameter values from config or defaults."""
         # Check for explicit initial params in config
         initial_params = self.config.get('GR_INITIAL_PARAMS', 'default')
-        
+
         if initial_params == 'default':
             # Try to load from previous internal calibration if it exists
             params = self._load_params_from_rdata()
             if params:
                 self.logger.info(f"Loaded {len(params)} initial parameters from previous GR calibration")
                 return {k: v for k, v in params.items() if k in self.gr_params}
-            
+
             # Fallback to standard airGR defaults (instead of bounds midpoints)
             self.logger.debug("Using standard airGR defaults for initial parameters")
             defaults = {
@@ -79,7 +79,7 @@ class GRParameterManager(BaseParameterManager):
         if initial_params and isinstance(initial_params, dict):
             # Filter to only include parameters we are calibrating
             return {k: float(v) for k, v in initial_params.items() if k in self.gr_params}
-            
+
         return self._get_default_initial_values()
 
     def _load_params_from_rdata(self) -> Optional[Dict[str, float]]:
@@ -88,24 +88,24 @@ class GRParameterManager(BaseParameterManager):
             data_dir = self.config.get('SYMFLUENCE_DATA_DIR')
             domain = self.config.get('DOMAIN_NAME')
             exp_id = self.config.get('EXPERIMENT_ID')
-            
+
             if not all([data_dir, domain, exp_id]):
                 return None
-                
+
             rdata_path = Path(data_dir) / f"domain_{domain}" / "simulations" / exp_id / "GR" / "GR_calib.Rdata"
-            
+
             if not rdata_path.exists():
                 return None
-                
+
             import rpy2.robjects as robjects
             robjects.r['load'](str(rdata_path))
-            
+
             if 'OutputsCalib' not in robjects.globalenv:
                 return None
-                
+
             outputs_calib = robjects.globalenv['OutputsCalib']
             param_final = list(outputs_calib.rx2('ParamFinalR'))
-            
+
             # Map based on parameter count
             # 4: GR4J
             # 6: GR4J + CemaNeige (CTG, Kf)
@@ -123,7 +123,7 @@ class GRParameterManager(BaseParameterManager):
 
             self.logger.info(f"Loaded {len(param_final)} parameters from Rdata: {param_names}")
             return {name: val for name, val in zip(param_names, param_final)}
-            
+
         except Exception as e:
             self.logger.debug(f"Could not load initial parameters from Rdata: {e}")
             return None

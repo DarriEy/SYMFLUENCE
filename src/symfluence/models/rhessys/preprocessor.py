@@ -198,7 +198,7 @@ class RHESSysPreprocessor(BaseModelPreProcessor, ObservationLoaderMixin):
             raise FileNotFoundError(f"No forcing data found in {self.forcing_basin_path} or {self.forcing_raw_path}")
 
         logger.info(f"Loading forcing from {len(forcing_files)} files")
-        
+
         try:
             # Try standard combination by coordinates (works for time-split files)
             ds = xr.open_mfdataset(forcing_files, combine='by_coords')
@@ -600,7 +600,6 @@ none\thourly_climate_prefix
 
         # Get column names for HRU attributes
         hru_id_col = 'HRU_ID' if 'HRU_ID' in gdf.columns else 'hru_id'
-        area_col = 'HRU_area' if 'HRU_area' in gdf.columns else 'area'
         elev_col = 'elev_mean' if 'elev_mean' in gdf.columns else None
 
         # Sort HRUs by ID for consistent ordering

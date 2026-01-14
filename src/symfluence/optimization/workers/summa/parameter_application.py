@@ -27,8 +27,8 @@ def _apply_parameters_worker(params: Dict, task_data: Dict, settings_dir: Path, 
         logger.debug(f"Applying parameters: {list(params.keys())} (consistent method)")
 
         # Parse parameter lists EXACTLY as ParameterManager does
-        local_params = [p.strip() for p in (config.get('PARAMS_TO_CALIBRATE') or '').split(',') if p.strip()]
-        basin_params = [p.strip() for p in (config.get('BASIN_PARAMS_TO_CALIBRATE') or '').split(',') if p.strip()]
+        [p.strip() for p in (config.get('PARAMS_TO_CALIBRATE') or '').split(',') if p.strip()]
+        [p.strip() for p in (config.get('BASIN_PARAMS_TO_CALIBRATE') or '').split(',') if p.strip()]
         depth_params = ['total_mult', 'shape_factor'] if config.get('CALIBRATE_DEPTH', False) else []
 
         # Add support for new multiplier

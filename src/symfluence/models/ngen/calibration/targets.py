@@ -7,7 +7,7 @@ NextGen (ngen) Calibration Targets
 Provides calibration target classes for ngen model outputs.
 Currently supports streamflow calibration with plans for snow, ET, etc.
 
-Note: This module has been refactored to use the centralized evaluators in 
+Note: This module has been refactored to use the centralized evaluators in
 symfluence.evaluation.evaluators.
 """
 
@@ -22,7 +22,7 @@ from symfluence.evaluation.evaluators import StreamflowEvaluator
 
 class NgenStreamflowTarget(StreamflowEvaluator):
     """NextGen-specific streamflow evaluator that handles nexus-style outputs."""
-    
+
     def __init__(self, config: Dict[str, Any], project_dir: Path, logger: logging.Logger):
         super().__init__(config, project_dir, logger)
         self.station_id = config.get('STATION_ID', None)
@@ -165,7 +165,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             nexus_areas = {}  # Map of nexus_id -> area_km2
             for feature in geojson_data.get('features', []):
                 props = feature.get('properties', {})
-                cat_id = props.get('id', '')
+                props.get('id', '')
                 toid = props.get('toid', '')  # This is the nexus ID
                 area_km2 = props.get('areasqkm', 0)
 
@@ -233,17 +233,17 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 # Convert depth (meters) to volumetric flow (m³/s)
                 # flow_depth (m) * area (km²) * (1e6 m²/km²) / timestep (s) = m³/s
                 nexus_id = nexus_file.stem.replace('_output', '')
-                
+
                 # Check config to skip conversion
                 is_flow_already = self.config.get('NGEN_CSV_OUTPUT_IS_FLOW', False)
-                
+
                 if not is_flow_already and nexus_id in nexus_areas and nexus_areas[nexus_id] > 0:
                     area_m2 = nexus_areas[nexus_id] * 1e6  # km² to m²
-                    
+
                     # Heuristic: Check if conversion yields insane values (e.g. > 500,000 cms)
                     # This protects against cases where output IS flow but user didn't set flag
                     potential_flow = (flow_values * area_m2) / timestep_seconds
-                    
+
                     if np.mean(potential_flow) > 100000 and np.mean(flow_values) < 100000:
                         self.logger.warning(
                             f"Unit conversion for {nexus_id} resulted in mean flow > 100,000 cms. "
@@ -287,7 +287,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                          calibration_only: bool = True, **kwargs) -> Optional[Dict[str, float]]:
         """
         Standardized metrics calculation for NextGen.
-        
+
         Args:
             sim: Path to simulation directory or pre-loaded pd.Series.
             obs: Optional pre-loaded pd.Series of observations.
@@ -304,7 +304,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             else:
                 exp_id = experiment_id or self.config.get('EXPERIMENT_ID')
                 sim = self.project_dir / 'simulations' / exp_id / 'NGEN'
-            
+
         # Use base class method with our specialized data extraction
         return super().calculate_metrics(
             sim=sim,

@@ -91,7 +91,7 @@ class TRouteRunner(BaseModelRunner, ModelExecutor):
             original_var = 'averageRoutedRunoff'  # SUMMA default for routing
         else:
             original_var = original_var_config
-        
+
         self.logger.debug(f"Checking for variable '{original_var}' in {runoff_filepath}")
 
         ds = xr.open_dataset(runoff_filepath)

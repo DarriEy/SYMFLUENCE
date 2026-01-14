@@ -303,7 +303,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
             basins = basins.drop(columns=['DN'])
 
         # Handle duplicate GRU_IDs
-        original_count = len(basins)
+        len(basins)
         duplicated_ids = basins['GRU_ID'].duplicated(keep=False)
         duplicate_count = duplicated_ids.sum()
 

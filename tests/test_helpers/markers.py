@@ -153,7 +153,7 @@ def skip_if_no_model(model_name):
         data_dir = Path(data_dir)
 
     installs_dir = data_dir / "installs"
-    
+
     # Map model names to their expected binary paths relative to installs/
     binary_mappings = {
         "SUMMA": ["summa/bin/summa.exe", "summa/bin/summa_sundials.exe"],

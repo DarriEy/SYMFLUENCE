@@ -3,12 +3,10 @@ LamaH-ICE Observation Handlers
 
 Provides handlers for LamaH-ICE (Iceland) streamflow data from local files.
 """
-import logging
 import pandas as pd
 from pathlib import Path
-from typing import Dict, Any, Optional, List
 
-from symfluence.core.constants import UnitConversion, ModelDefaults
+from symfluence.core.constants import ModelDefaults
 from symfluence.core.exceptions import DataAcquisitionError
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
@@ -46,10 +44,10 @@ class LamahIceStreamflowHandler(BaseObservationHandler):
         dest_dir = self.project_dir / "observations" / "streamflow" / "raw_data"
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest_file = dest_dir / f"lamah_ice_{station_id}_raw.csv"
-        
+
         import shutil
         shutil.copy2(raw_file, dest_file)
-        
+
         self.logger.info(f"Located and copied LamaH-ICE data to {dest_file}")
         return dest_file
 
@@ -59,23 +57,23 @@ class LamahIceStreamflowHandler(BaseObservationHandler):
         LamaH-ICE format: YYYY;MM;DD;qobs;qc_flag
         """
         self.logger.info(f"Processing LamaH-ICE streamflow data from {input_path}")
-        
+
         # Read semicolon-separated file
         df = pd.read_csv(input_path, sep=';')
-        
+
         if not all(col in df.columns for col in ['YYYY', 'MM', 'DD', 'qobs']):
             raise DataAcquisitionError(f"Unexpected columns in LamaH-ICE file: {df.columns}")
 
         # Create datetime index
         df['datetime'] = pd.to_datetime(df[['YYYY', 'MM', 'DD']].rename(
             columns={'YYYY': 'year', 'MM': 'month', 'DD': 'day'}))
-        
+
         df.set_index('datetime', inplace=True)
         df.sort_index(inplace=True)
 
         # Discharge is in m3/s (qobs)
         df['discharge_cms'] = pd.to_numeric(df['qobs'], errors='coerce')
-        
+
         # Filter by quality if requested (40.0 is usually 'original' or 'good')
         # We'll keep all for now but log if many are missing
         df = df.dropna(subset=['discharge_cms'])
@@ -89,9 +87,9 @@ class LamahIceStreamflowHandler(BaseObservationHandler):
         output_dir = self.project_dir / "observations" / "streamflow" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_streamflow_processed.csv"
-        
+
         resampled.to_csv(output_file, header=True, index_label='datetime')
-        
+
         self.logger.info(f"LamaH-ICE streamflow processing complete: {output_file}")
         return output_file
 

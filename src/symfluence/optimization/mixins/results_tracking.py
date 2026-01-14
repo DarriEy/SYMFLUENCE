@@ -169,7 +169,7 @@ class ResultsTrackingMixin:
             algorithm: Algorithm name (e.g., 'PSO', 'DDS')
             metric_name: Name of the optimization metric
             experiment_id: Optional experiment identifier
-            standard_filename: If True, uses the standard SYMFLUENCE naming convention 
+            standard_filename: If True, uses the standard SYMFLUENCE naming convention
                               ({experiment_id}_parallel_iteration_results.csv)
 
         Returns:
@@ -190,7 +190,7 @@ class ResultsTrackingMixin:
             filename = f"{experiment_id}_parallel_iteration_results.csv"
         else:
             filename = f"{experiment_id}_{algorithm.lower()}_results.csv"
-            
+
         results_path = self.results_dir / filename
 
         # Save to CSV

@@ -201,7 +201,7 @@ class SnowEvaluator(ModelEvaluator):
         for var_name in sca_vars:
             if var_name in ds.variables:
                 sca_var = ds[var_name]
-                
+
                 # Collapse spatial dimensions
                 sim_xr = sca_var
                 for dim in ['hru', 'gru']:
@@ -210,7 +210,7 @@ class SnowEvaluator(ModelEvaluator):
                             sim_xr = sim_xr.isel({dim: 0})
                         else:
                             sim_xr = sim_xr.mean(dim=dim)
-                
+
                 # Handle any remaining non-time dimensions
                 non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
                 if non_time_dims:
@@ -224,7 +224,7 @@ class SnowEvaluator(ModelEvaluator):
 
                 return sim_data
         raise ValueError("No suitable SCA variable found")
-    
+
     def calculate_metrics(self, sim: Any, obs: Optional[pd.Series] = None,
                          mizuroute_dir: Optional[Path] = None,
                          calibration_only: bool = True, **kwargs) -> Optional[Dict[str, float]]:
@@ -266,7 +266,7 @@ class SnowEvaluator(ModelEvaluator):
             return self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_modis_snow_processed.csv"
         else:
              return self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_snow_processed.csv"
-    
+
     def _get_observed_data_column(self, columns: List[str]) -> Optional[str]:
         if self.optimization_target == 'swe':
             # Check for exact match first
@@ -282,39 +282,39 @@ class SnowEvaluator(ModelEvaluator):
                 if any(term in col.lower() for term in ['snow_cover_ratio', 'sca', 'snow_cover']):
                     return col
         return None
-    
+
     def _load_observed_data(self) -> Optional[pd.Series]:
         try:
             obs_path = self.get_observed_data_path()
             if not obs_path.exists():
                 self.logger.warning(f"Snow observation file not found: {obs_path}")
                 return None
-            
+
             obs_df = pd.read_csv(obs_path)
-            
+
             self.logger.debug(f"[SNOW DEBUG] Target: {self.optimization_target}")
             self.logger.debug(f"[SNOW DEBUG] Columns: {list(obs_df.columns)}")
-            
+
             date_col = self._find_date_column(obs_df.columns)
             data_col = self._get_observed_data_column(obs_df.columns)
-            
+
             self.logger.debug(f"[SNOW DEBUG] Found Date: {date_col}, Data: {data_col}")
 
             if not date_col or not data_col:
                 self.logger.warning(f"Could not find required columns in {obs_path}. Need Date and data column.")
                 return None
-            
+
             obs_df['DateTime'] = pd.to_datetime(obs_df[date_col], errors='coerce')
             obs_df = obs_df.dropna(subset=['DateTime'])
             obs_df.set_index('DateTime', inplace=True)
-            
+
             obs_series = obs_df[data_col].copy()
             missing_indicators = ['', ' ', 'NA', 'na', 'N/A', 'n/a', 'NULL', 'null', '-', '--', '---', 'missing', 'Missing', 'MISSING']
             for indicator in missing_indicators:
                 obs_series = obs_series.replace(indicator, np.nan)
-            
+
             obs_series = pd.to_numeric(obs_series, errors='coerce')
-            
+
             if self.optimization_target == 'swe':
                 # Convert if data is likely in inches (common for NRCS)
                 # If values are large, they are likely already in mm

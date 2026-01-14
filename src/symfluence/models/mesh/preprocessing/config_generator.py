@@ -195,9 +195,9 @@ METRICSSPINUP       {spinup_days}                       # Spinup days to exclude
         try:
             from meshflow.utility import DEFAULT_HYDROLOGY_PARAMS
             with open(DEFAULT_HYDROLOGY_PARAMS, 'r') as f:
-                defaults = json.load(f)
+                json.load(f)
         except Exception:
-            defaults = {}
+            pass
 
         hydro_path = self.forcing_dir / "MESH_parameters_hydrology.ini"
 

@@ -28,7 +28,7 @@ def fix_summa_time_precision(nc_file: Path):
                     # No changes needed if already in seconds
                     pass
                 else:
-                    # Full implementation would convert units - for now we assume 
+                    # Full implementation would convert units - for now we assume
                     # the worker script version is used
                     pass
     except Exception as e:
@@ -36,12 +36,12 @@ def fix_summa_time_precision(nc_file: Path):
 
 class ModelExecutor:
     """Handles SUMMA and mizuRoute execution with routing support"""
-    
+
     def __init__(self, config: Dict, logger: logging.Logger, calibration_target: CalibrationTarget):
         self.config = config
         self.logger = logger
         self.calibration_target = calibration_target
-    
+
     def run_models(self, summa_dir: Path, mizuroute_dir: Path, settings_dir: Path,
                   mizuroute_settings_dir: Optional[Path] = None) -> bool:
         """Run SUMMA and mizuRoute if needed"""
@@ -49,29 +49,29 @@ class ModelExecutor:
             # Run SUMMA
             if not self._run_summa(settings_dir, summa_dir):
                 return False
-            
+
             # Run mizuRoute if needed
             if self.calibration_target.needs_routing():
                 if mizuroute_settings_dir is None:
                     mizuroute_settings_dir = settings_dir.parent / "mizuRoute"
-                
+
                 # Handle lumped-to-distributed conversion if needed
                 domain_method = self.config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
                 routing_delineation = self.config.get('ROUTING_DELINEATION', 'lumped')
-                
+
                 if domain_method == 'lumped' and routing_delineation == 'river_network':
                     if not self._convert_lumped_to_distributed(summa_dir, mizuroute_settings_dir):
                         return False
-                
+
                 if not self._run_mizuroute(mizuroute_settings_dir, mizuroute_dir):
                     return False
-            
+
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Error running models: {str(e)}")
             return False
-    
+
     def _run_summa(self, settings_dir: Path, output_dir: Path) -> bool:
         """Run SUMMA simulation"""
         try:
@@ -81,33 +81,33 @@ class ModelExecutor:
                 summa_path = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / 'installs' / 'summa' / 'bin'
             else:
                 summa_path = Path(summa_path)
-            
+
             summa_exe_name = self.config.get('SUMMA_EXE', 'summa_sundials.exe')
             summa_exe = summa_path / summa_exe_name
             file_manager = settings_dir / self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
-            
+
             if not summa_exe.exists():
                 self.logger.error(f"SUMMA executable not found: {summa_exe}")
                 return False
-            
+
             if not file_manager.exists():
                 self.logger.error(f"File manager not found: {file_manager}")
                 return False
-            
+
             # Create log directory
             log_dir = output_dir / "logs"
             log_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Run SUMMA
             cmd = [str(summa_exe), "-m", str(file_manager)]
             log_file = log_dir / f"summa_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 
             with open(log_file, 'w') as f:
-                result = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT,
+                subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT,
                                       check=True, timeout=10800)
-            
+
             return True
-            
+
         except subprocess.CalledProcessError as e:
             self.logger.error(f"SUMMA simulation failed with exit code {e.returncode}")
             return False
@@ -117,7 +117,7 @@ class ModelExecutor:
         except Exception as e:
             self.logger.error(f"Error running SUMMA: {str(e)}")
             return False
-    
+
     def _run_mizuroute(self, settings_dir: Path, output_dir: Path) -> bool:
         """Run mizuRoute simulation"""
         try:
@@ -127,7 +127,7 @@ class ModelExecutor:
                 mizu_path = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / 'installs' / 'mizuRoute' / 'route' / 'bin'
             else:
                 mizu_path = Path(mizu_path)
-            
+
             mizu_exe = mizu_path / self.config.get('EXE_NAME_MIZUROUTE', 'mizuroute.exe')
             control_file = settings_dir / self.config.get('SETTINGS_MIZU_CONTROL_FILE', 'mizuroute.control')
 
@@ -156,29 +156,29 @@ class ModelExecutor:
                 lines.append(line)
 
             control_file.write_text("".join(lines))
-            
+
             if not mizu_exe.exists():
                 self.logger.error(f"mizuRoute executable not found: {mizu_exe}")
                 return False
-            
+
             if not control_file.exists():
                 self.logger.error(f"mizuRoute control file not found: {control_file}")
                 return False
-            
+
             # Create log directory
             log_dir = output_dir / "logs"
             log_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Run mizuRoute
             cmd = [str(mizu_exe), str(control_file)]
             log_file = log_dir / f"mizuroute_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 
             with open(log_file, 'w') as f:
-                result = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT,
+                subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT,
                                       check=True, timeout=1800, cwd=str(settings_dir))
-            
+
             return True
-            
+
         except subprocess.CalledProcessError as e:
             self.logger.error(f"mizuRoute simulation failed with exit code {e.returncode}")
             return False
@@ -188,35 +188,35 @@ class ModelExecutor:
         except Exception as e:
             self.logger.error(f"Error running mizuRoute: {str(e)}")
             return False
-    
+
     def _convert_lumped_to_distributed(self, summa_dir: Path, mizuroute_settings_dir: Path) -> bool:
         """Convert lumped SUMMA output for distributed routing"""
         try:
             # Load topology to get HRU information
             topology_file = mizuroute_settings_dir / self.config.get('SETTINGS_MIZU_TOPOLOGY', 'topology.nc')
-            
+
             with xr.open_dataset(topology_file) as topo_ds:
                 # Handle multiple HRUs from delineated catchments
                 hru_ids = topo_ds['hruId'].values
                 n_hrus = len(hru_ids)
-                lumped_gru_id = 1 
+                lumped_gru_id = 1
                 self.logger.info(f"Creating single lumped GRU (ID={lumped_gru_id}) for {n_hrus} HRUs in topology")
 
             # Find SUMMA timestep file
             timestep_files = list(summa_dir.glob("*timestep.nc"))
             if not timestep_files:
                 return False
-            
+
             summa_file = timestep_files[0]
-            
+
             # Load topology to get segment information
             if not topology_file.exists():
                 return False
-            
+
             with xr.open_dataset(topology_file) as topo_ds:
                 seg_ids = topo_ds['segId'].values
-                n_segments = len(seg_ids)
-            
+                len(seg_ids)
+
             # Load and convert SUMMA output
             with xr.open_dataset(summa_file, decode_times=False) as summa_ds:
                 # Find routing variable - handle 'default' config value
@@ -227,10 +227,10 @@ class ModelExecutor:
                     routing_var = routing_var_config
                 if routing_var not in summa_ds:
                     routing_var = 'basin__TotalRunoff'
-                
+
                 if routing_var not in summa_ds:
                     return False
-                
+
                 # Create mizuRoute forcing dataset
                 mizuForcing = xr.Dataset()
                 mizuForcing['time'] = summa_ds['time']
@@ -257,10 +257,10 @@ class ModelExecutor:
                 mizuForcing['averageRoutedRunoff'] = xr.DataArray(
                     single_gru_data, dims=('time', 'gru'),
                     attrs={'long_name': 'Lumped runoff for distributed routing', 'units': 'm/s'}
-                )                
+                )
                 # Copy global attributes
                 mizuForcing.attrs.update(summa_ds.attrs)
-            
+
             # Save converted file
             mizuForcing.to_netcdf(summa_file, format='NETCDF4')
             mizuForcing.close()
@@ -269,7 +269,7 @@ class ModelExecutor:
             # In a full implementation, we'd import the actual function from worker_scripts
             # but for this refactor, we keep the structure
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Error converting lumped to distributed: {str(e)}")
             return False

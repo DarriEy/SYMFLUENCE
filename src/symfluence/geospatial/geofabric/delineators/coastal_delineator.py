@@ -69,7 +69,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
 
             # Load existing delineation
             river_basins = GeofabricIOUtils.load_geopandas(river_basins_path, self.logger)
-            river_network = GeofabricIOUtils.load_geopandas(river_network_path, self.logger)
+            GeofabricIOUtils.load_geopandas(river_network_path, self.logger)
 
             # Create interim directory for coastal delineation
             coastal_interim_dir = self.project_dir / "taudem-interim-files" / "coastal"
@@ -467,7 +467,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             # Create a convex hull around all basins and extend it outward
             convex_hull = river_basins.unary_union.convex_hull
             ext_distance = 0.1  # ~10km in decimal degrees
-            extended_hull = shapely.geometry.Polygon(convex_hull).buffer(ext_distance)
+            shapely.geometry.Polygon(convex_hull).buffer(ext_distance)
 
             # Use a buffer-based approach to divide the coastal strip
             coastal_geom = coastal_strip.geometry.unary_union

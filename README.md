@@ -5,7 +5,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Documentation](https://img.shields.io/badge/docs-symfluence.org-brightgreen)](https://symfluence.readthedocs.io)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/DarriEy/SYMFLUENCE/ci.yml?branch=main)](https://github.com/DarriEy/SYMFLUENCE/actions)  
+[![Build Status](https://img.shields.io/github/actions/workflow/status/DarriEy/SYMFLUENCE/ci.yml?branch=main)](https://github.com/DarriEy/SYMFLUENCE/actions)
 
 ---
 
@@ -226,9 +226,9 @@ SYMFLUENCE/
 
 ---
 
-## Branching Strategy  
-- **main**: Stable releases only — every commit is a published version.  
-- **develop**: Ongoing integration — merges from feature branches and then tested before release.  
+## Branching Strategy
+- **main**: Stable releases only — every commit is a published version.
+- **develop**: Ongoing integration — merges from feature branches and then tested before release.
 - Feature branches: `feature/<description>`, PR to `develop`.
 
 ---
@@ -242,10 +242,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 ---
 
 ## License
-Licensed under the GPL-3.0 License.  
+Licensed under the GPL-3.0 License.
 See [LICENSE](LICENSE) for details.
 
 ---
 
-Happy modelling!  
-The SYMFLUENCE Team  
+Happy modelling!
+The SYMFLUENCE Team

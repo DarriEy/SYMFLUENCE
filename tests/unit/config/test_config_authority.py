@@ -84,7 +84,7 @@ class TestConfigAuthority:
 
         # Find all YAML keys
         keys = re.findall(r'^([a-zA-Z0-9_]+):', content, re.MULTILINE)
-        
+
         # Check for duplicates
         seen = set()
         duplicates = set()
@@ -104,7 +104,7 @@ class TestConfigAuthority:
 
     def test_all_pydantic_aliases_in_template(self, documented_settings, pydantic_aliases):
         """Test that all Pydantic model field aliases are documented in template.
-        
+
         This ensures no new configuration options can be added to Pydantic models
         without being documented in the template.
         """
@@ -189,7 +189,7 @@ class TestConfigAuthority:
 
         # Count section headers
         sections = re.findall(r'^# \d+\. .+$', content, re.MULTILINE)
-        
+
         assert len(sections) >= 15, \
             f"Expected at least 15 organized sections, found {len(sections)}"
 
@@ -238,12 +238,12 @@ class TestConfigConsistency:
         for i, line in enumerate(lines):
             if re.match(r'^[a-zA-Z0-9_]+:', line):
                 key = line.split(':')[0].strip()
-                
+
                 # Look backwards for metadata
                 type_hint = None
                 default = None
                 source = None
-                
+
                 for j in range(max(0, i-5), i):
                     if '#   Type:' in lines[j]:
                         type_hint = lines[j].split('Type:')[1].strip()
@@ -251,7 +251,7 @@ class TestConfigConsistency:
                         default = lines[j].split('Default:')[1].strip()
                     if '#   Source:' in lines[j]:
                         source = lines[j].split('Source:')[1].strip()
-                
+
                 settings[key] = {
                     'type': type_hint,
                     'default': default,
@@ -263,7 +263,7 @@ class TestConfigConsistency:
     def test_all_aliases_have_metadata(self, template_settings):
         """Test that all documented settings have complete metadata."""
         incomplete = {}
-        
+
         for key, metadata in template_settings.items():
             missing_fields = []
             if not metadata['type']:
@@ -272,7 +272,7 @@ class TestConfigConsistency:
                 missing_fields.append('Default')
             if not metadata['source']:
                 missing_fields.append('Source')
-            
+
             if missing_fields:
                 incomplete[key] = missing_fields
 
@@ -293,15 +293,15 @@ class TestConfigConsistency:
 
             # Find Field definitions
             fields = re.findall(r'(\w+):\s+(?:Optional\[)?(\w+)(?:\])?.*=\s*Field\(', content)
-            
+
             if fields:
                 model_field_counts[model_file.name] = len(fields)
 
         assert sum(model_field_counts.values()) >= 360, \
             f"Expected at least 360 total fields in models, found {sum(model_field_counts.values())}"
 
-    def test_no_orphaned_settings_in_pydantic(self, 
-                                             template_settings, 
+    def test_no_orphaned_settings_in_pydantic(self,
+                                             template_settings,
                                              pydantic_models_dir):
         """Test that no new settings exist in Pydantic models without template docs."""
         all_aliases = set()
@@ -392,7 +392,7 @@ class TestQuickstartTemplates:
             assert field in content, \
                 f"Required field {field} not found in nested-style quickstart template"
 
-    def test_quickstart_templates_are_valid_yaml(self, 
+    def test_quickstart_templates_are_valid_yaml(self,
                                                 quickstart_minimal_path,
                                                 quickstart_nested_path):
         """Test that both quickstart templates are valid YAML."""

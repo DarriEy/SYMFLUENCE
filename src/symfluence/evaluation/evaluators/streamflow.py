@@ -90,7 +90,7 @@ class StreamflowEvaluator(ModelEvaluator):
         - logger: Logger instance
         - calibration_period: (start_date, end_date) tuple for evaluation
     """
-    
+
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
         """Locate streamflow output files from simulation directory.
 
@@ -139,7 +139,7 @@ class StreamflowEvaluator(ModelEvaluator):
         except Exception as e:
             self.logger.error(f"Error extracting streamflow data from {sim_file}: {str(e)}")
             raise
-    
+
     def _is_mizuroute_output(self, sim_file: Path) -> bool:
         """Detect if file contains mizuRoute routed output vs SUMMA direct output.
 
@@ -254,10 +254,10 @@ class StreamflowEvaluator(ModelEvaluator):
             for var_name in streamflow_vars:
                 if var_name in ds.variables:
                     var = ds[var_name]
-                    
+
                     units = var.attrs.get('units', 'unknown')
                     self.logger.debug(f"Found streamflow variable {var_name} with units: '{units}'")
-                    
+
                     # Unit conversion: Mass flux (kg m-2 s-1) to Volume flux (m s-1)
                     # Check for explicit 'kg' units OR unreasonably high values (> 1e-6 m/s = > 86 mm/day mean)
                     # which indicates the value is likely mass flux but mislabeled as m/s.
@@ -267,11 +267,11 @@ class StreamflowEvaluator(ModelEvaluator):
                     elif float(var.mean().item()) > 1e-6:
                         self.logger.debug(f"Variable {var_name} mean ({float(var.mean().item()):.2e}) is unreasonably high for m/s. Assuming mislabeled mass flux.")
                         is_mass_flux = True
-                    
+
                     if is_mass_flux:
                         self.logger.debug(f"Converting {var_name} from mass flux to volume flux (dividing by 1000)")
                         var = var / 1000.0  # Divide by density of water
-                    
+
                     # Check if we need spatial aggregation
                     if len(var.shape) > 1 and any(d in var.dims for d in ['hru', 'gru']):
                         try:
@@ -288,7 +288,7 @@ class StreamflowEvaluator(ModelEvaluator):
                                             # Calculate total discharge in m³/s: sum(runoff_i * area_i)
                                             weighted_runoff = (var * areas).sum(dim='hru')
                                             return cast(pd.Series, weighted_runoff.to_pandas())
-                                    
+
                                     # Handle GRU dimension
                                     elif 'gru' in var.dims and 'GRUarea' in attrs:
                                         areas = attrs['GRUarea']
@@ -297,7 +297,7 @@ class StreamflowEvaluator(ModelEvaluator):
                                             self.logger.debug(f"Performing area-weighted aggregation for {var_name} (GRU). Total area: {total_area:.1f} m²")
                                             weighted_runoff = (var * areas).sum(dim='gru')
                                             return cast(pd.Series, weighted_runoff.to_pandas())
-                                            
+
                                     # Fallback if specific area variable missing but HRUarea available for GRU dim (common in lumped)
                                     elif 'gru' in var.dims and 'HRUarea' in attrs:
                                          # If 1:1 mapping or if we can infer
@@ -331,7 +331,7 @@ class StreamflowEvaluator(ModelEvaluator):
                     catchment_area = self._get_catchment_area()
                     return sim_data * catchment_area
             raise ValueError("No suitable streamflow variable found in SUMMA output")
-    
+
     def _get_catchment_area(self) -> float:
         """Determine catchment area with multi-source fallback strategy.
 
@@ -437,7 +437,7 @@ class StreamflowEvaluator(ModelEvaluator):
         # Fallback
         self.logger.warning("Using default catchment area: 1,000,000 m²")
         return 1e6  # 1 km² fallback
-    
+
     def get_observed_data_path(self) -> Path:
         """Get path to observed streamflow data file.
 

@@ -302,7 +302,6 @@ def subset_xarray_to_bbox(
     Example:
         >>> ds_subset = subset_xarray_to_bbox(ds, bbox, lat_dim='lat', lon_dim='lon')
     """
-    import xarray as xr
 
     validate_bbox(bbox)
 
@@ -328,7 +327,7 @@ def _subset_regular_grid(
 ):
     """Subset a regular grid using xarray sel()."""
     lat = ds[lat_dim].values
-    lon = ds[lon_dim].values
+    ds[lon_dim].values
 
     # Handle longitude convention
     lon_min, lon_max = bbox['lon_min'], bbox['lon_max']

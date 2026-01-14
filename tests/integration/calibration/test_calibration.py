@@ -71,14 +71,14 @@ def test_ellioaar_calibration(ellioaar_domain):
 
     # Check if model needs to be built or forcing data downloaded
     project_dir = Path(config['SYMFLUENCE_DATA_DIR']) / f"domain_{config['DOMAIN_NAME']}"
-    
+
     # Copy data from fixture if project dir doesn't exist
     if not project_dir.exists() and ellioaar_domain and ellioaar_domain.exists():
         print(f"   Using pre-downloaded data from {ellioaar_domain}")
         shutil.copytree(ellioaar_domain, project_dir)
 
     sym.managers['project'].setup_project()
-    
+
     # Check if we already have forcing data
     forcing_files = list((project_dir / "forcing" / "raw_data").glob("*CARRA*.nc"))
     if not forcing_files:
@@ -152,7 +152,7 @@ def test_fyris_calibration(fyris_domain):
 
     # Check if model needs to be built or forcing data downloaded
     project_dir = Path(config['SYMFLUENCE_DATA_DIR']) / f"domain_{config['DOMAIN_NAME']}"
-    
+
     # Copy data from fixture if project dir doesn't exist
     if not project_dir.exists() and fyris_domain and fyris_domain.exists():
         print(f"   Using pre-downloaded data from {fyris_domain}")

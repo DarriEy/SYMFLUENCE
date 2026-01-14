@@ -18,11 +18,9 @@ See Also:
 """
 
 import numpy as np
-from pathlib import Path
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Union
 
 # Re-export from consolidated spatial utilities
-from symfluence.data.utils.spatial_utils import crop_raster_to_bbox
 
 
 def count_pixels_in_catchment(raster_src, catchment_geometry) -> int:

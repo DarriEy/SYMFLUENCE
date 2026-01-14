@@ -10,10 +10,9 @@ import pandas as pd
 import numpy as np
 import requests
 from pathlib import Path
-from typing import Dict, Any, List, Optional
-import logging
+from typing import Optional
 import concurrent.futures
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
@@ -24,7 +23,7 @@ from ..registry import AcquisitionRegistry
 class RDRSAcquirer(BaseAcquisitionHandler):
     """
     Acquisition handler for RDRS v3.1 data.
-    
+
     Prefers the MSC Open Data S3 Zarr pathway for efficient spatial subsetting,
     falling back to hourly NetCDF downloads from HPFX if necessary.
     """
@@ -39,23 +38,27 @@ class RDRSAcquirer(BaseAcquisitionHandler):
             return final_file
 
         # Try S3 Zarr pathway first (much faster)
-        try:
-            import s3fs
-            return self._download_s3(final_file)
-        except (ImportError, Exception) as e:
-            self.logger.warning(f"S3 Zarr pathway failed or s3fs not installed: {e}. Falling back to HTTP.")
+        from importlib.util import find_spec
+        if find_spec("s3fs"):
+            try:
+                return self._download_s3(final_file)
+            except Exception as e:
+                self.logger.warning(f"S3 Zarr pathway failed: {e}. Falling back to HTTP.")
+                return self._download_http(output_dir, final_file)
+        else:
+            self.logger.warning("s3fs not installed. Falling back to HTTP.")
             return self._download_http(output_dir, final_file)
 
     def _download_s3(self, final_file: Path) -> Path:
         """Download RDRS 3.1 using S3 Zarr pathway."""
         import s3fs
         self.logger.info("Accessing RDRS v3.1 via MSC Open Data S3 (Zarr)")
-        
+
         fs = s3fs.S3FileSystem(anon=True)
         # MSC Open Data RDRS 3.1 Zarr path
         bucket = "msc-open-data"
         zarr_path = f"{bucket}/reanalysis/rdrs/v3.1/zarr"
-        
+
         # Open the store
         store = s3fs.S3Map(zarr_path, s3=fs)
         ds = xr.open_zarr(store, consolidated=True)
@@ -67,25 +70,25 @@ class RDRSAcquirer(BaseAcquisitionHandler):
                 (ds.lat >= self.bbox['lat_min']) & (ds.lat <= self.bbox['lat_max']) &
                 (ds.lon >= self.bbox['lon_min']) & (ds.lon <= self.bbox['lon_max'])
             )
-            
+
             y_indices, x_indices = np.where(mask.values)
-            
+
             if len(y_indices) > 0 and len(x_indices) > 0:
                 y_min, y_max = y_indices.min(), y_indices.max()
                 x_min, x_max = x_indices.min(), x_indices.max()
-                
+
                 # Add buffer
                 y_min = max(0, y_min - 2)
                 y_max = min(ds.dims['rlat'] - 1, y_max + 2)
                 x_min = max(0, x_min - 2)
                 x_max = min(ds.dims['rlon'] - 1, x_max + 2)
-                
+
                 ds = ds.isel(rlat=slice(y_min, y_max + 1), rlon=slice(x_min, x_max + 1))
                 self.logger.info(f"Spatially subsetted Zarr to {ds.dims['rlat']}x{ds.dims['rlon']} grid")
 
         # Temporal subsetting
         ds = ds.sel(time=slice(self.start_date, self.end_date))
-        
+
         if ds.time.size == 0:
             raise ValueError(f"No RDRS data found for time range {self.start_date} to {self.end_date}")
 
@@ -102,17 +105,17 @@ class RDRSAcquirer(BaseAcquisitionHandler):
             default_url = "https://hpfx.collab.science.gc.ca/~rlarocque/RDRS_v2.1/"
         else:
             default_url = "https://hpfx.collab.science.gc.ca/~rlarocque/RDRS_v3.1/"
-            
+
         base_url = self.config.get("RDRS_BASE_URL", default_url)
-        
+
         # Generate list of hours
         date_range = pd.date_range(start=self.start_date, end=self.end_date, freq='h')
-        
+
         max_workers = min(len(date_range), 4)
         downloaded_files = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_date = {
-                executor.submit(self._download_hour, dt, base_url, output_dir): dt 
+                executor.submit(self._download_hour, dt, base_url, output_dir): dt
                 for dt in date_range
             }
             for future in concurrent.futures.as_completed(future_to_date):

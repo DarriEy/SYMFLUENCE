@@ -158,24 +158,24 @@ class GNNModel(nn.Module):
             ValueError: If input dimensions are invalid.
         """
         super(GNNModel, self).__init__()
-        
+
         # Temporal Feature Extraction (Shared weights across all nodes)
         # LSTM dropout is only applied when num_layers > 1, so avoid warnings.
         self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True, dropout=0.0)
-        
+
         self.dropout = nn.Dropout(dropout_rate)
         self.ln = nn.LayerNorm(hidden_size)
-        
+
         # Spatial Routing / Graph Layer
-        # We can stack multiple GNN layers if we want deeper routing, 
-        # but for a simple DAG representation, one might suffice if we assume 
-        # linear routing or just 1-hop aggregation per step. 
+        # We can stack multiple GNN layers if we want deeper routing,
+        # but for a simple DAG representation, one might suffice if we assume
+        # linear routing or just 1-hop aggregation per step.
         # However, water travels far.
         # Ideally, we sort nodes topologically and accumulate.
         # But for a "GNN" approach, we typically use fixed layers.
         # Let's use 1 GNN layer to represent "mixing" then a readout.
         self.gnn = DirectedGraphLayer(hidden_size, gnn_output_size, adjacency_matrix)
-        
+
         # Final Prediction
         self.fc = nn.Linear(gnn_output_size, 1) # Predict Q (scalar)
 

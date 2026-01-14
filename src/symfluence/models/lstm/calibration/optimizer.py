@@ -48,7 +48,7 @@ class LSTMModelOptimizer(BaseModelOptimizer):
         lstm_settings_dir = self.project_dir / 'settings' / 'LSTM'
         if not lstm_settings_dir.exists():
             lstm_settings_dir.mkdir(parents=True, exist_ok=True)
-            
+
         return MLParameterManager(
             self.config,
             self.logger,

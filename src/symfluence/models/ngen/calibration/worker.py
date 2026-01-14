@@ -81,14 +81,14 @@ class NgenWorker(BaseWorker):
             # It handles CFE, NOAH (namelists and TBLs), and PET
             config = kwargs.get('config', self.config)
             param_manager = NgenParameterManager(config, self.logger, ngen_dir)
-            
+
             success = param_manager.update_model_files(params)
-            
+
             if success:
                 self.logger.debug(f"Applied {len(params)} parameter updates via NgenParameterManager in {ngen_dir}")
             else:
                 self.logger.error(f"NgenParameterManager failed to update model files in {ngen_dir}")
-                
+
             return success
 
         except Exception as e:
@@ -208,7 +208,7 @@ class NgenWorker(BaseWorker):
             from symfluence.evaluation.metrics import kge, nse
 
             domain_name = config.get('DOMAIN_NAME')
-            
+
             # Find ngen output in isolated output_dir
             output_files = list(output_dir.glob('*.csv')) + list(output_dir.glob('*.nc'))
 
@@ -239,7 +239,7 @@ class NgenWorker(BaseWorker):
                 return {'kge': self.penalty_score, 'error': 'Observations not found'}
 
             obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
-            
+
             # Robust alignment (CSV with index) or simple length match (NetCDF/fallback)
             if 'sim_df' in locals() and sim_df is not None:
                 # Handle potential index mismatch (timezone, etc)
@@ -247,10 +247,10 @@ class NgenWorker(BaseWorker):
                      # Ensure sim is timezone-naive or matches obs
                      if sim_df.index.tz is not None:
                          sim_df.index = sim_df.index.tz_convert(None)
-                
+
                 sim_series = pd.Series(sim, index=sim_df.index)
                 common_idx = sim_series.index.intersection(obs_df.index)
-                
+
                 if common_idx.empty:
                     self.logger.warning("No overlapping dates between simulation and observation")
                     return {'kge': self.penalty_score, 'error': 'No overlapping dates'}

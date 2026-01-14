@@ -15,9 +15,6 @@ from typing import Dict, Any
 import numpy as np
 import geopandas as gpd
 from rasterstats import zonal_stats
-import rasterio
-import rasterio.mask
-from scipy.stats import skew, kurtosis
 
 from .base import BaseAttributeProcessor
 
@@ -395,14 +392,6 @@ class LandCoverProcessor(BaseAttributeProcessor):
         results = {}
 
         # Define ecological groupings
-        ecological_groups = {
-            "forest": ["forest", "tree", "woodland"],
-            "grassland": ["grass", "savanna"],
-            "wetland": ["wetland", "marsh"],
-            "cropland": ["crop", "agriculture"],
-            "urban": ["urban", "built"],
-            "water": ["water", "lake"]
-        }
 
         # Calculate anthropogenic influence
         urban_key = "landcover.urban_fraction"

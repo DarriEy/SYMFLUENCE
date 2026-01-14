@@ -166,13 +166,13 @@ class RemappingWeightGenerator:
             esmr.only_create_remap_csv = True
             if hasattr(esmr, 'only_create_remap_nc'):
                 esmr.only_create_remap_nc = True
-                
+
             esmr.save_csv = True
             esmr.sort_ID = False
-            
+
             # Set numcpu=1 to avoid bus errors on macOS
             esmr.numcpu = 1
-            
+
             # Enable temp shp saving
             esmr.save_temp_shp = True
 
@@ -202,7 +202,7 @@ class RemappingWeightGenerator:
             if case_remap_csv.exists():
                 shutil.move(str(case_remap_csv), str(remap_file))
                 self.logger.info(f"Remapping weights created: {remap_file}")
-                
+
                 # Also move NC versions
                 remap_nc_final = remap_file.with_suffix('.nc')
                 if case_remap_nc.exists():
@@ -216,7 +216,7 @@ class RemappingWeightGenerator:
                 fallback = []
                 for pattern in mapping_patterns:
                     fallback.extend(list(temp_dir.glob(pattern)))
-                
+
                 if fallback:
                     shutil.move(str(fallback[0]), str(remap_file))
                     self.logger.info(f"Remapping weights created (fallback): {remap_file}")
@@ -262,13 +262,13 @@ class RemappingWeightGenerator:
             Tuple of (detected_variables, source_resolution_or_None)
         """
         detected_vars = self._detect_forcing_variables(forcing_file)
-        
+
         source_resolution = None
         try:
             with nc4.Dataset(forcing_file, 'r') as ncid:
                 if var_lat not in ncid.variables or var_lon not in ncid.variables:
                     return detected_vars, None
-                    
+
                 lat_vals = ncid.variables[var_lat][:]
                 lon_vals = ncid.variables[var_lon][:]
 
@@ -540,7 +540,7 @@ class BatchProcessor:
                         self.logger.error(f"Failed to process {file.name}")
                 except Exception as e:
                     self.logger.error(f"Error processing {file.name}: {str(e)}")
-                
+
                 pbar.update(1)
 
         self.logger.info(f"Serial processing complete: {success_count}/{len(files)} successful")

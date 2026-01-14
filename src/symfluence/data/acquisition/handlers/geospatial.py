@@ -609,7 +609,7 @@ class USGSLandcoverAcquirer(BaseAcquisitionHandler):
 
         if self._skip_if_exists(out_path):
             return out_path
-        
+
         self.logger.info(f"Downloading USGS NLCD for bbox: {self.bbox}")
 
         # MRLC WCS Endpoint
@@ -639,7 +639,7 @@ class USGSLandcoverAcquirer(BaseAcquisitionHandler):
             self.logger.info(f"Requesting NLCD coverage {coverage_id}")
             resp = requests.get(wcs_url, params=params, stream=True, timeout=120)
             resp.raise_for_status()
-            
+
             # Check for XML error response
             content_type = (resp.headers.get("Content-Type") or "").lower()
             if "xml" in content_type:
@@ -650,7 +650,7 @@ class USGSLandcoverAcquirer(BaseAcquisitionHandler):
             with open(out_path, "wb") as f:
                 for chunk in resp.iter_content(chunk_size=65536):
                     f.write(chunk)
-            
+
             self.logger.info(f"✓ NLCD acquired: {out_path}")
             return out_path
 
@@ -793,7 +793,7 @@ class CopDEM30Acquirer(BaseAcquisitionHandler, RetryMixin):
 
         except Exception as e:
             self.logger.error(f"Error downloading/processing Copernicus DEM: {e}")
-            for p in tile_paths: 
+            for p in tile_paths:
                 if p.exists() and p != out_path: p.unlink(missing_ok=True)
             raise
 
@@ -940,7 +940,7 @@ class FABDEMAcquirer(BaseAcquisitionHandler):
         self.logger.info(f"Downloading FABDEM for bbox: {self.bbox}")
         # Source Cooperative (AWS)
         base_url = "https://data.source.coop/c_6_6/fabdem/tiles"
-        
+
         lat_min = math.floor(self.bbox['lat_min'])
         lat_max = math.ceil(self.bbox['lat_max'])
         lon_min = math.floor(self.bbox['lon_min'])
@@ -955,7 +955,7 @@ class FABDEMAcquirer(BaseAcquisitionHandler):
                     # FABDEM format: N46W122_FABDEM_V1-2.tif
                     tile_name = f"{lat_str}{lon_str}_FABDEM_V1-2"
                     url = f"{base_url}/{tile_name}.tif"
-                    
+
                     local_tile = dem_dir / f"temp_fab_{tile_name}.tif"
                     if not local_tile.exists():
                         self.logger.info(f"Fetching FABDEM tile: {tile_name}")
@@ -1091,7 +1091,7 @@ class NASADEMLocalAcquirer(BaseAcquisitionHandler):
         elev_dir = self._attribute_dir("elevation")
         dem_dir = elev_dir / 'dem'
         out_path = dem_dir / f"domain_{self.domain_name}_elv.tif"
-        
+
         if not local_src_dir.exists():
             raise FileNotFoundError(f"NASADEM_LOCAL_DIR not found: {local_src_dir}")
 
@@ -1111,7 +1111,7 @@ class NASADEMLocalAcquirer(BaseAcquisitionHandler):
                 if not matches:
                     pattern = f"{lat_str}{lon_str}*.hgt"
                     matches = list(local_src_dir.glob(pattern))
-                
+
                 if matches:
                     tile_paths.append(matches[0])
 
@@ -1133,5 +1133,5 @@ class NASADEMLocalAcquirer(BaseAcquisitionHandler):
             out_meta.update({"height": mosaic.shape[1], "width": mosaic.shape[2], "transform": out_trans})
             with rasterio.open(out_path, "w", **out_meta) as dest: dest.write(mosaic)
             for src in src_files: src.close()
-            
+
         return out_path

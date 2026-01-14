@@ -7,7 +7,7 @@ duplication and provides a consistent interface.
 """
 
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional, Tuple, Union
+from typing import Literal, Optional, Tuple, Union
 import pandas as pd
 import xarray as xr
 
@@ -306,7 +306,7 @@ class ObservationLoaderMixin:
                 timestep_seconds = getattr(self, 'forcing_time_step_size', 86400)
                 conversion_factor = UnitConversion.mm_per_timestep_to_cms_factor(timestep_seconds)
                 return series * conversion_factor / catchment_area_km2
-            
+
             else:
                 raise DataAcquisitionError(
                     f"Unsupported unit conversion: {source_units} → {target_units}"

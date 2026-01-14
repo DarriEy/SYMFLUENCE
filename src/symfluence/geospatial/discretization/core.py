@@ -46,10 +46,10 @@ class DomainDiscretizer(PathResolverMixin):
     def __init__(self, config, logger):
         self.config = config
         self.logger = logger
-        
+
         # Standard paths from ProjectContextMixin
         self.catchment_dir = self.ensure_dir(self.project_shapefiles_dir / "catchment")
-        
+
         self.dem_path = self._get_file_path(
             path_key="DEM_PATH",
             name_key="DEM_NAME",
@@ -592,7 +592,7 @@ class DomainDiscretizer(PathResolverMixin):
             avg_value = np.mean(out_image[class_mask])
 
             # Get a representative GRU for metadata (use the first one)
-            representative_gru = gru_gdf.iloc[0]
+            gru_gdf.iloc[0]
 
             return {
                 "geometry": multipolygon,

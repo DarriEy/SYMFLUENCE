@@ -5,7 +5,7 @@ Provides common operations for NetCDF file handling, including
 standardized encoding for compressed output files.
 """
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 import xarray as xr
 
 

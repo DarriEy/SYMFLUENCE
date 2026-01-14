@@ -11,7 +11,7 @@
 # you can adjust the 'compute_parameters -> parallel_compute_method:' and
 # 'compute_parameters -> cpu_pool:' (see documentation).
 
-# This defaults to creating 1 netcdf output file for every hour of simulation time, each file 
+# This defaults to creating 1 netcdf output file for every hour of simulation time, each file
 # containing 12 time steps (1 every 5 minutes, t-route's default time step). Output files
 # are configurable, see documentation.
 
@@ -28,7 +28,7 @@ network_topology_parameters:
     geo_file_path: #REQUIRED
   waterbody_parameters:
     #----------
-    break_network_at_waterbodies: True 
+    break_network_at_waterbodies: True
 #--------------------------------------------------------------------------------
 compute_parameters:
   #----------
@@ -38,10 +38,10 @@ compute_parameters:
   forcing_parameters:
     #----------
     nts                     : #REQUIRED
-    qlat_input_folder       : #REQUIRED 
-    qlat_file_pattern_filter: #REQUIRED 
+    qlat_input_folder       : #REQUIRED
+    qlat_file_pattern_filter: #REQUIRED
 #--------------------------------------------------------------------------------
 output_parameters:
   #----------
-  stream_output : 
+  stream_output :
     stream_output_directory: #REQUIRED

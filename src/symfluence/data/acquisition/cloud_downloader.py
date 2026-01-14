@@ -26,12 +26,10 @@ Example:
     >>> downloader = CloudForcingDownloader(config, logger)
     >>> output = downloader.download_forcing_data(Path('./data'))
 """
-import logging
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict
 
 from symfluence.data.acquisition.registry import AcquisitionRegistry
-import symfluence.data.acquisition  # Trigger registration
 
 class CloudForcingDownloader:
     """Main entry point for cloud data acquisition using the AcquisitionRegistry.

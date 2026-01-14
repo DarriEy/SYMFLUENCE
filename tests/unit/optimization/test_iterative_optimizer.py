@@ -52,7 +52,7 @@ def rosenbrock(x):
 @pytest.fixture
 def mock_optimizer_base():
     """Mock heavy components initialized in BaseOptimizer and subclasses."""
-    
+
     # We create a side effect for BaseOptimizer.__init__ to bypass file system logic
     def mock_init(self, config, logger):
         self.config = config
@@ -71,12 +71,12 @@ def mock_optimizer_base():
         self.mizuroute_sim_dir = self.optimization_dir / "mizuRoute"
         self.optimization_settings_dir = self.optimization_dir / "settings" / "SUMMA"
         self.output_dir = self.project_dir / "optimization" / f"{self.algorithm_name}_{self.experiment_id}"
-        
+
         # Mocks for managers
         self.parameter_manager = MagicMock()
         self.parameter_manager.all_param_names = ['theta_sat', 'k_soil', 'routingGammaScale']
         self.parameter_manager.param_bounds = {
-            'theta_sat': {'min': 0.3, 'max': 0.6}, 
+            'theta_sat': {'min': 0.3, 'max': 0.6},
             'k_soil': {'min': 1e-6, 'max': 1e-4},
             'routingGammaScale': {'min': 0.1, 'max': 1.0}
         }
@@ -84,12 +84,12 @@ def mock_optimizer_base():
         self.parameter_manager.denormalize_parameters.side_effect = lambda p: {'theta_sat': 0.45, 'k_soil': 5e-5, 'routingGammaScale': 0.5}
         self.parameter_manager.get_initial_parameters.return_value = {'theta_sat': 0.45, 'k_soil': 5e-5, 'routingGammaScale': 0.5}
         self.parameter_manager.original_depths = None
-        
+
         self.transformation_manager = MagicMock()
         self.calibration_target = MagicMock()
         self.model_executor = MagicMock()
         self.results_manager = MagicMock()
-        
+
         self.max_iterations = config.get('NUMBER_OF_ITERATIONS', 100)
         self.target_metric = config.get('OPTIMIZATION_METRIC', 'KGE')
         self.best_params = None
@@ -106,14 +106,14 @@ def mock_optimizer_base():
          patch.object(BaseOptimizer, '_run_final_evaluation') as mock_final_eval, \
          patch.object(BaseOptimizer, '_save_to_default_settings'), \
          patch.object(BaseOptimizer, '_create_calibration_target'):
-        
+
         # Setup final evaluation mock return value
         mock_final_eval.return_value = {
             'final_metrics': {'KGE': 0.85, 'NSE': 0.80},
             'calibration_metrics': {'KGE': 0.85, 'NSE': 0.80},
             'evaluation_metrics': {'KGE': 0.82, 'NSE': 0.78}
         }
-        
+
         yield None
 
 # ============================================================================
@@ -150,7 +150,7 @@ class TestDDSOptimizer:
             config=dds_config_single,
             logger=test_logger
         )
-        
+
         with patch.object(optimizer, '_evaluate_individual', side_effect=lambda x: 0.85):
              result = optimizer.run_optimization()
 
@@ -169,15 +169,15 @@ class TestDDSOptimizer:
             config=config,
             logger=test_logger
         )
-        
+
         # Override mock param manager for this test to be consistent
         optimizer.parameter_manager.all_param_names = ['x1', 'x2']
         optimizer.parameter_manager.param_bounds = {'x1': {'min': -5.0, 'max': 5.0}, 'x2': {'min': -5.0, 'max': 5.0}}
-        
+
         def denormalize(norm_arr):
             val = -5.0 + norm_arr * (5.0 - (-5.0))
             return {'x1': val[0], 'x2': val[1]}
-            
+
         def normalize(params):
             val = np.array([params['x1'], params['x2']])
             return (val - (-5.0)) / (5.0 - (-5.0))
@@ -210,7 +210,7 @@ class TestDDSOptimizer:
         def capture_eval(norm_params):
             captured_params.append(norm_params)
             return 0.5
-            
+
         with patch.object(optimizer, '_evaluate_individual', side_effect=capture_eval):
             optimizer.run_optimization()
 
@@ -262,7 +262,7 @@ class TestDEOptimizer:
             config=de_config,
             logger=test_logger
         )
-        
+
         optimizer.parameter_manager.all_param_names = ['x1', 'x2']
         optimizer.parameter_manager.normalize_parameters.side_effect = lambda p: np.array([0.5, 0.5])
 
@@ -287,18 +287,18 @@ class TestDEOptimizer:
             config=config,
             logger=test_logger
         )
-        
+
         optimizer.parameter_manager.all_param_names = ['x1', 'x2']
         optimizer.parameter_manager.param_bounds = {'x1': {'min': -2.0, 'max': 2.0}, 'x2': {'min': -2.0, 'max': 2.0}}
-        
+
         def denormalize(norm_arr):
             val = -2.0 + norm_arr * (2.0 - (-2.0))
             return {'x1': val[0], 'x2': val[1]}
-            
+
         def normalize(params):
             val = np.array([params['x1'], params['x2']])
             return (val - (-2.0)) / (2.0 - (-2.0))
-            
+
         optimizer.parameter_manager.denormalize_parameters.side_effect = denormalize
         optimizer.parameter_manager.normalize_parameters.side_effect = normalize
         optimizer.parameter_manager.get_initial_parameters.return_value = {'x1': 0.0, 'x2': 0.0}
@@ -327,7 +327,7 @@ class TestDEOptimizer:
         def capture_eval(norm_params):
             captured_params.append(norm_params)
             return 0.5
-            
+
         with patch.object(optimizer, '_evaluate_individual', side_effect=capture_eval):
             optimizer.run_optimization()
 
@@ -359,7 +359,7 @@ class TestPSOOptimizer:
             config=pso_config,
             logger=test_logger
         )
-        
+
         optimizer.parameter_manager.all_param_names = ['x1', 'x2']
         optimizer.parameter_manager.normalize_parameters.side_effect = lambda p: np.array([0.5, 0.5])
 
@@ -381,18 +381,18 @@ class TestPSOOptimizer:
             config=config,
             logger=test_logger
         )
-        
+
         optimizer.parameter_manager.all_param_names = ['x1', 'x2']
         optimizer.parameter_manager.param_bounds = {'x1': {'min': -5.0, 'max': 5.0}, 'x2': {'min': -5.0, 'max': 5.0}}
-        
+
         def denormalize(norm_arr):
             val = -5.0 + norm_arr * (5.0 - (-5.0))
             return {'x1': val[0], 'x2': val[1]}
-            
+
         def normalize(params):
             val = np.array([params['x1'], params['x2']])
             return (val - (-5.0)) / (5.0 - (-5.0))
-            
+
         optimizer.parameter_manager.denormalize_parameters.side_effect = denormalize
         optimizer.parameter_manager.normalize_parameters.side_effect = normalize
         optimizer.parameter_manager.get_initial_parameters.return_value = {'x1': 4.0, 'x2': 4.0}
@@ -468,13 +468,13 @@ class TestParallelOptimization:
                     for task in tasks
                 ]
             mock_parallel.side_effect = parallel_eval_side_effect
-            
+
             # We also need to patch _evaluate_individual for the initialization pool to succeed (if called)
             with patch.object(optimizer, '_evaluate_individual', return_value=0.5):
                 # Run minimal optimization
                 optimizer.target_batches = 5
                 optimizer.run_optimization()
-                
+
                 # Should be called at least twice: once for pool init, once for batch(es)
                 assert mock_parallel.call_count >= 2
 
@@ -497,10 +497,10 @@ class TestParallelOptimization:
                     for task in tasks
                 ]
             mock_parallel.side_effect = parallel_eval_side_effect
-            
+
             optimizer.max_iterations = 1
             optimizer.run_optimization()
-            
+
             assert mock_parallel.called
 
 
@@ -528,12 +528,12 @@ class TestEdgeCases:
             config=dds_config,
             logger=test_logger
         )
-        
+
         optimizer.parameter_manager.all_param_names = ['theta_sat']
         optimizer.parameter_manager.param_bounds = {'theta_sat': {'min': 0.3, 'max': 0.6}}
         optimizer.parameter_manager.normalize_parameters.side_effect = lambda p: np.array([0.5])
         optimizer.parameter_manager.get_initial_parameters.return_value = {'theta_sat': 0.45}
-        
+
         with patch.object(optimizer, '_evaluate_individual', return_value=0.5):
             result = optimizer.run_optimization()
 

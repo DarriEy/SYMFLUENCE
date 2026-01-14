@@ -6,7 +6,6 @@ Worker implementation for RHESSys model optimization.
 
 import logging
 import os
-import shutil
 import subprocess
 import sys
 import pandas as pd
@@ -277,7 +276,7 @@ class RHESSysWorker(BaseWorker):
 
         # Use worker-specific defs directory if available
         worker_defs_dir = settings_dir / 'defs'
-        
+
         # Strategy: Copy world file to settings_dir and ensure header matches.
         # This ensures RHESSys finds the modified header file (which points to modified defs)
         # by looking for <world_file>.hdr in the same directory, avoiding unsupported flags.
@@ -291,7 +290,7 @@ class RHESSysWorker(BaseWorker):
             if original_world.exists() and not worker_world.exists():
                 import shutil
                 shutil.copy2(original_world, worker_world)
-            
+
             # Create/Update modified header in worker dir if it doesn't exist
             if original_hdr.exists() and not worker_hdr.exists():
                 # Copy and modify header to point to worker defs
@@ -305,7 +304,7 @@ class RHESSysWorker(BaseWorker):
 
         # Use worker world if it was created successfully, otherwise fallback to original
         world_to_use = worker_world if worker_world.exists() else original_world
-        
+
         tecfile = rhessys_input_dir / 'tecfiles' / f'{domain_name}.tec'
         routing = rhessys_input_dir / 'routing' / f'{domain_name}.routing'
 
@@ -329,10 +328,10 @@ class RHESSysWorker(BaseWorker):
 
         if gw1 is not None and gw2 is not None:
             cmd.extend(['-gw', str(gw1), str(gw2)])
-        
+
         if s1 is not None and s2 is not None and s3 is not None:
             cmd.extend(['-s', str(s1), str(s2), str(s3)])
-        
+
         cmd.extend([
             '-sv', '1.0', '1.0',
             '-svalt', '1.0', '1.0',
@@ -355,7 +354,7 @@ class RHESSysWorker(BaseWorker):
         # Use normalized strings to ensure replacement works despite path variations.
         original_defs_str = os.path.normpath(str(rhessys_input_dir / 'defs'))
         worker_defs_str = os.path.normpath(str(worker_defs_dir))
-        
+
         content = content.replace(original_defs_str, worker_defs_str)
 
         with open(worker_hdr, 'w') as f:
@@ -389,13 +388,13 @@ class RHESSysWorker(BaseWorker):
                 sim_dir / 'rhessys_basin.daily',
                 sim_dir / 'simulations' / experiment_id / 'RHESSys' / 'rhessys_basin.daily',
             ]
-            
+
             sim_file = None
             for path in possible_paths:
                 if path.exists():
                     sim_file = path
                     break
-            
+
             if not sim_file:
                 # Last resort: try recursive glob
                 found = list(sim_dir.glob('**/rhessys_basin.daily'))
@@ -416,7 +415,7 @@ class RHESSysWorker(BaseWorker):
             # Convert to m³/s using catchment area
             area_m2 = self._get_catchment_area(config)
             self.logger.info(f"Using catchment area: {area_m2:.2f} m2")
-            
+
             # Q (m³/s) = Q (mm/day) * area (m²) / 86400 / 1000
             streamflow_m3s = streamflow_mm * area_m2 / 86400 / 1000
 

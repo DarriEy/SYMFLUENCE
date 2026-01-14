@@ -77,7 +77,7 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.logger.info(f"Initialized LSTM runner with device: {self.device}")
-        
+
         # Determine spatial mode
         domain_method = self.domain_definition_method
         if domain_method == 'delineate':
@@ -88,12 +88,12 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
             )
         else:
             self.spatial_mode = 'lumped'
-        
+
         # Initialize components
         self.preprocessor = LSTMPreprocessor(
-            self.config_dict, 
-            self.logger, 
-            self.project_dir, 
+            self.config_dict,
+            self.logger,
+            self.project_dir,
             self.device
         )
         self.postprocessor = LSTMPostprocessor(
@@ -147,7 +147,7 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
         ):
             # 1. Load Data
             forcing_df, streamflow_df, snow_df = self.preprocessor.load_data()
-            
+
             # Check if snow data should be used based on config
             use_snow = self.lstm_config.use_snow
             snow_df_input = snow_df if use_snow else pd.DataFrame() # Use empty DF if not using snow
@@ -156,26 +156,26 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
             # Decide if we are training (fit scalers) or just simulating (load scalers)
             load_existing_model = self.lstm_config.load
             model_save_path = self.project_dir / 'models' / 'lstm_model.pt'
-            
+
             if load_existing_model:
                 # Load pre-trained model state and scalers first
                 self.logger.info("Loading pre-trained LSTM model")
                 checkpoint = self._load_model_checkpoint(model_save_path)
-                
+
                 # Set scalers in preprocessor from checkpoint
                 self.preprocessor.set_scalers(
-                    checkpoint['feature_scaler'], 
+                    checkpoint['feature_scaler'],
                     checkpoint['target_scaler'],
                     checkpoint['output_size'],
                     checkpoint['target_names']
                 )
-                
+
                 # Preprocess data using loaded scalers
                 X_tensor, y_tensor, common_dates, features_avg, hru_ids = self.preprocessor.process_data(
                     forcing_df, streamflow_df, snow_df_input, fit_scalers=False
                 )
                 self.hru_ids = hru_ids
-                
+
                 # Create model structure
                 input_size = X_tensor.shape[-1]
                 self._create_model_instance(
@@ -185,7 +185,7 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
                     num_layers=self.lstm_config.num_layers
                 )
                 self.model.load_state_dict(checkpoint['model_state_dict'])
-                
+
             else:
                 # Training mode: Fit scalers
                 X_tensor, y_tensor, common_dates, features_avg, hru_ids = self.preprocessor.process_data(
@@ -233,7 +233,7 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
                         batch_size=self.lstm_config.batch_size,
                         learning_rate=self.lstm_config.learning_rate
                     )
-                
+
                 # Save model
                 self.project_dir.joinpath('models').mkdir(exist_ok=True)
                 self._save_model_checkpoint(model_save_path)
@@ -354,7 +354,7 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
 
             if (epoch + 1) % 10 == 0:
                 self.logger.info(f'Epoch [{epoch + 1}/{epochs}], Train Loss: {total_loss:.4f}, Val Loss: {val_loss:.4f}')
-        
+
         self.logger.info("LSTM model training completed")
 
     def _train_model_distributed(self, X: torch.Tensor, y: torch.Tensor, epochs: int, batch_size: int, learning_rate: float):
@@ -377,13 +377,13 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
             allowing each HRU to be processed as a separate batch sample.
         """
         # X: (B, T, N, F) -> (B*N, T, F)
-        # y: (B, N, O) -> (B*N, O)
+        # y: (B, N, n_out) -> (B*N, n_out)
         B, T, N, F = X.shape
-        O = y.shape[-1]
-        
+        n_out = y.shape[-1]
+
         X_flattened = X.transpose(1, 2).reshape(B * N, T, F)
-        y_flattened = y.reshape(B * N, O)
-        
+        y_flattened = y.reshape(B * N, n_out)
+
         self.logger.info(f"Training distributed LSTM: Flattened shape {X_flattened.shape}")
         self._train_model(X_flattened, y_flattened, epochs, batch_size, learning_rate)
 
@@ -402,28 +402,28 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
         network_data_path = self.project_dir / "settings" / "dRoute" / 'dRoute_network.pkl'
         with open(network_data_path, 'rb') as f:
             network_data = pickle.load(f)
-        
+
         network = network_data['network']
-        seg_areas = network_data['seg_areas']
+        network_data['seg_areas']
         outlet_idx = network_data['outlet_idx']
         hru_to_seg_idx = network_data['hru_to_seg_idx']
-        
+
         # 2. Setup targets
         lookback = self.preprocessor.lookback
         target_dates = common_dates[lookback:]
         observed = obs_df.loc[target_dates, 'streamflow'].values
-        observed_tensor = torch.FloatTensor(observed).to(self.device)
-        
+        torch.FloatTensor(observed).to(self.device)
+
         # 3. Setup optimizer
         optimizer = optim.AdamW(self.model.parameters(), lr=learning_rate)
-        
+
         # 4. Training loop
         B, T, N, F = X.shape
         self.logger.info(f"Starting training through routing: {B} batches, {N} HRUs")
-        
+
         # Map HRU index in tensor to reach index in network
         hru_idx_to_reach = [hru_to_seg_idx[hru_id] for hru_id in self.hru_ids]
-        
+
         # Router config
         routing_method = self.config_dict.get('DROUTE_METHOD', 'mc').lower()
         router_classes = {
@@ -433,73 +433,73 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
             'kwt': droute.SoftGatedKWT,
         }
         RouterClass = router_classes.get(routing_method, droute.MuskingumCungeRouter)
-        
+
         config = droute.RouterConfig()
         config.dt = float(self.mizu_routing_dt)
         config.enable_gradients = True # Enable AD
-        
+
         for epoch in range(epochs):
             self.model.train()
             optimizer.zero_grad()
-            
+
             # Predict runoff for all HRUs
             # Flatten HRUs into batch for efficient LSTM processing
             X_flattened = X.transpose(1, 2).reshape(B * N, T, F)
             runoff_scaled = self.model(X_flattened) # (B*N, 1)
-            
+
             # Unscale runoff
-            # We need to do this in a differentiable way if possible, 
+            # We need to do this in a differentiable way if possible,
             # but for now we'll do it manually
             mean = torch.tensor(self.preprocessor.target_scaler.mean_[0]).to(self.device)
             scale = torch.tensor(self.preprocessor.target_scaler.scale_[0]).to(self.device)
             runoff = runoff_scaled[:, 0] * scale + mean # (B*N,)
-            
+
             # Reshape to (B, N)
             runoff_reshaped = runoff.reshape(B, N)
-            
+
             # Convert to CMS (assuming LSTM predicts runoff in same units as routing expects)
-            # Actually runoff_reshaped is runoff depth or rate. 
+            # Actually runoff_reshaped is runoff depth or rate.
             # If LSTM was trained on streamflow, it predicts streamflow.
             # Usually in distributed mode, LSTM predicts runoff per unit area.
-            
+
             # Run Routing (Forward)
             # Since droute is not a torch module, we'll run it and then manually compute gradients
             runoff_np = runoff_reshaped.detach().cpu().numpy()
-            
+
             # Create router and record
             router = RouterClass(network, config)
             router.start_recording()
-            
+
             sim_outlet = np.zeros(B)
             for t in range(B):
                 # Set lateral inflows
                 for i in range(N):
                     reach_idx = hru_idx_to_reach[i]
                     router.set_lateral_inflow(reach_idx, float(runoff_np[t, i]))
-                
+
                 router.route_timestep()
                 router.record_output(outlet_idx)
                 sim_outlet[t] = router.get_discharge(outlet_idx)
-            
+
             router.stop_recording()
-            
+
             # Compute Loss (MSE at outlet)
             loss_val = np.mean((sim_outlet - observed) ** 2)
-            
+
             # Compute gradients dL/dQ_outlet
             dL_dQ = (2.0 / B) * (sim_outlet - observed)
-            
+
             # Backprop through routing using dRoute (Reverse AD)
             router.compute_gradients_timeseries(outlet_idx, dL_dQ.tolist())
             droute_grads = router.get_gradients()
-            
+
             # Extract gradients dL/dq_hru where q_hru is lateral inflow
             # We need dL/dq_hru(t, i)
             # KNOWN LIMITATION: dRoute timestep-specific gradient support is partial.
             # Current workaround extracts gradients per reach/timestep key if available,
             # falling back to zero when keys are missing. Full gradient support requires
             # dRoute API extension for complete reverse-mode AD through routing.
-            
+
             # Assuming droute_grads contains 'lateral_inflow_reach_R_step_T'
             grad_runoff = torch.zeros((B, N)).to(self.device)
             for t in range(B):
@@ -507,13 +507,13 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
                     reach_idx = hru_idx_to_reach[i]
                     grad_key = f"lateral_inflow_reach_{reach_idx}_step_{t}"
                     grad_runoff[t, i] = droute_grads.get(grad_key, 0.0)
-            
+
             # Manual backward pass through LSTM
             # dL/drunoff_scaled = dL/drunoff * drunoff/drunoff_scaled = grad_runoff * scale
             runoff_scaled.backward(grad_runoff.flatten().unsqueeze(1) * scale)
-            
+
             optimizer.step()
-            
+
             if (epoch + 1) % 10 == 0:
                 self.logger.info(f"Epoch {epoch+1}/{epochs}, Loss (Outlet MSE): {loss_val:.4f}")
 
@@ -542,7 +542,7 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
         """
         assert self.model is not None
         self.logger.info(f"Running full simulation with LSTM model (mode={self.spatial_mode})")
-        
+
         self._log_memory_usage()
 
         if self.spatial_mode == 'lumped':
@@ -577,7 +577,7 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
             columns = ['predicted_streamflow']
 
         lookback = self.preprocessor.lookback
-        
+
         if self.spatial_mode == 'lumped':
             # Create a DataFrame for predictions
             pred_df = pd.DataFrame(predictions, columns=columns, index=common_dates[lookback:])
@@ -585,26 +585,26 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
             result = features_avg.join(pred_df, how='outer')
         else:
             # Distributed mode: Unflatten results
-            # predictions is (B*N, O)
+            # predictions is (B*N, n_out)
             B = X_tensor.shape[0]
             N = len(self.hru_ids)
-            O = self.preprocessor.output_size
-            
-            # Reshape to (B, N, O)
-            preds_reshaped = predictions.reshape(B, N, O)
-            
+            n_out = self.preprocessor.output_size
+
+            # Reshape to (B, N, n_out)
+            preds_reshaped = predictions.reshape(B, N, n_out)
+
             # Convert to a DataFrame with MultiIndex [time, hruId]
             time_idx = common_dates[lookback:]
-            
+
             all_preds = []
             for i, hru_id in enumerate(self.hru_ids):
                 hru_preds = pd.DataFrame(preds_reshaped[:, i, :], columns=columns, index=time_idx)
                 hru_preds['hruId'] = hru_id
                 all_preds.append(hru_preds)
-            
+
             pred_df = pd.concat(all_preds).reset_index().rename(columns={'index': 'time'})
             pred_df = pred_df.set_index(['time', 'hruId']).sort_index()
-            
+
             # Join with features_avg (which is the original forcing_df subset)
             result = features_avg.join(pred_df, how='outer')
 

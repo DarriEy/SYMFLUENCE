@@ -61,7 +61,7 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
 
         # Setup output files
         output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Determine year-month combinations to process
         dates = pd.date_range(self.start_date, self.end_date, freq='MS')
         if dates.empty:
@@ -72,22 +72,22 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             # Ensure the end date's month is included if not already
             if (self.end_date.year, self.end_date.month) not in ym_range:
                 ym_range.append((self.end_date.year, self.end_date.month))
-        
+
         chunk_files = []
-        
+
         # Use ThreadPoolExecutor for parallel downloads
         # Monthly chunks are smaller, so we can potentially use more workers,
         # but CDS still has per-user limits on active requests.
         max_workers = 2
-        
+
         logging.info(f"Starting parallel download for {len(ym_range)} months with {max_workers} workers...")
-        
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_ym = {
-                executor.submit(self._download_and_process_month, year, month, output_dir): (year, month) 
+                executor.submit(self._download_and_process_month, year, month, output_dir): (year, month)
                 for year, month in ym_range
             }
-            
+
             for future in concurrent.futures.as_completed(future_to_ym):
                 year, month = future_to_ym[future]
                 try:
@@ -103,7 +103,7 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
 
         # Merge all monthly chunks
         chunk_files.sort()
-        
+
         try:
             if not chunk_files:
                 raise RuntimeError("No data downloaded")
@@ -111,21 +111,21 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             # Check if aggregation is disabled
             if not self.config.get("AGGREGATE_FORCING_FILES", False):
                 logging.info("Skipping aggregation of forcing files as per configuration")
-                
+
                 final_files = []
                 for chunk_file in chunk_files:
                     # Rename from ..._processed_YYYYMM_temp.nc to ..._YYYYMM.nc
                     # Example: domain_CARRA_processed_201501_temp.nc -> domain_CARRA_201501.nc
                     new_name = chunk_file.name.replace("_processed_", "_").replace("_temp.nc", ".nc")
                     final_path = output_dir / new_name
-                    
+
                     if final_path.exists():
                         final_path.unlink()
-                        
+
                     chunk_file.rename(final_path)
                     final_files.append(final_path)
                     logging.info(f"Saved monthly file: {final_path.name}")
-                
+
                 # Return the directory containing the files
                 return output_dir
 
@@ -181,12 +181,12 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         """
         # Create a thread-local client
         c = cdsapi.Client()
-        
+
         logging.info(f"Processing {self._get_dataset_id()} for {year}-{month:02d}...")
-        
+
         current_months = [f"{month:02d}"]
         current_years = [str(year)]
-        
+
         # Days (all days, API handles invalid dates like Feb 31)
         days = [f"{d:02d}" for d in range(1, 32)]
         hours = self._get_time_hours()
@@ -224,9 +224,9 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             chunk_path = output_dir / f"{self.domain_name}_{self._get_dataset_id()}_processed_{year}{month:02d}_temp.nc"
             ds_chunk.to_netcdf(chunk_path)
             ds_chunk.close()
-            
+
             return chunk_path
-            
+
         finally:
             # Cleanup raw downloads for this month
             # Temporarily keep first month's files for debugging
@@ -590,12 +590,12 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
             # We can use xarray's .sel() for additional precision or just return if satisfied
             lat = ds.latitude.values
             lon = ds.longitude.values
-            
+
             # Subclasses expect matching shapes for lat/lon in _create_spatial_mask
             # For 1D coordinates, we create a 2D meshgrid for masking
             lat_2d, lon_2d = np.meshgrid(lat, lon, indexing='ij')
             mask = self._create_spatial_mask(lat_2d, lon_2d)
-            
+
             y_idx, x_idx = np.where(mask)
             if len(y_idx) > 0:
                 ds = ds.isel(latitude=slice(y_idx.min(), y_idx.max() + 1),
@@ -615,16 +615,16 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
         if len(indices) < 2:
              logging.warning("Mask is not 2D, skipping spatial subsetting")
              return ds
-             
+
         y_idx, x_idx = indices
         if len(y_idx) > 0:
             # Add buffer (subclass can override)
             buffer = self._get_spatial_buffer()
-            
+
             # Determine dimension names (often 'y'/'x' or 'rlat'/'rlon')
             y_dim = 'y' if 'y' in ds.dims else ('rlat' if 'rlat' in ds.dims else None)
             x_dim = 'x' if 'x' in ds.dims else ('rlon' if 'rlon' in ds.dims else None)
-            
+
             if y_dim and x_dim:
                 y_min = max(0, y_idx.min() - buffer)
                 y_max = min(ds.dims[y_dim] - 1, y_idx.max() + buffer)

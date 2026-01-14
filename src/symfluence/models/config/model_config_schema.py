@@ -231,7 +231,7 @@ class ModelConfigSchema:
 
             elif key.key_type == ConfigKeyType.PATH:
                 if value and value != 'default':
-                    path = Path(value)
+                    Path(value)
                     # Note: we don't check existence here, just format
 
             # Custom validator

@@ -7,13 +7,11 @@ used by MODIS MOD16 (ET), MOD10A1/MYD10A1 (SCA), and other AppEEARS-based handle
 AppEEARS: https://appeears.earthdatacloud.nasa.gov/
 """
 
-import logging
 import os
 import requests
 import shutil
 import time
 import xarray as xr
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 

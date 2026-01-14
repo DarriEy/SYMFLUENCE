@@ -57,7 +57,7 @@ class HYPEWorker(BaseWorker):
         """
         try:
             config = kwargs.get('config', self.config)
-            
+
             # Use HYPEPreProcessor to regenerate configs with new params
             # We only need to regenerate the par.txt file, but calling
             # preprocess_models with params is the cleanest way.

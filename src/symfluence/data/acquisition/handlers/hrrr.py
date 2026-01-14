@@ -10,7 +10,6 @@ import pandas as pd
 import numpy as np
 import s3fs
 from pathlib import Path
-from typing import Dict, Any
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 
@@ -257,10 +256,10 @@ class HRRRAcquirer(BaseAcquisitionHandler):
                 if cdt < self.start_date or cdt > self.end_date: continue
                 try:
                     v_ds = []
-                    for v, l in vars_map.items():
+                    for v, level in vars_map.items():
                         try:
-                            s1 = s3fs.S3Map(f"hrrrzarr/sfc/{dstr}/{dstr}_{h:02d}z_anl.zarr/{l}/{v}/{l}", s3=fs)
-                            s2 = s3fs.S3Map(f"hrrrzarr/sfc/{dstr}/{dstr}_{h:02d}z_anl.zarr/{l}/{v}", s3=fs)
+                            s1 = s3fs.S3Map(f"hrrrzarr/sfc/{dstr}/{dstr}_{h:02d}z_anl.zarr/{level}/{v}/{level}", s3=fs)
+                            s2 = s3fs.S3Map(f"hrrrzarr/sfc/{dstr}/{dstr}_{h:02d}z_anl.zarr/{level}/{v}", s3=fs)
                             v_ds.append(xr.open_mfdataset([s1, s2], engine="zarr", consolidated=False))
                         except Exception: continue
                     if v_ds:

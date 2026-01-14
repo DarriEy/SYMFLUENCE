@@ -515,10 +515,10 @@ Example: Bow River Watershed
    :lines: 1-40
 
 This example performs:
-1. Domain delineation and forcing data setup  
-2. Model configuration (e.g., SUMMA, FUSE, NextGen, GR4J, LSTM)  
-3. Simulation execution  
-4. Routing using mizuRoute  
+1. Domain delineation and forcing data setup
+2. Model configuration (e.g., SUMMA, FUSE, NextGen, GR4J, LSTM)
+3. Simulation execution
+4. Routing using mizuRoute
 5. Output evaluation and visualization
 
 ---
@@ -528,12 +528,12 @@ Understanding the Workflow
 
 Each SYMFLUENCE run follows a structured pipeline:
 
-1. **Domain Definition** — delineate watershed or region  
-2. **Data Acquisition** — retrieve and preprocess forcing datasets (ERA5, Daymet, etc.)  
-3. **Model Setup** — configure supported models  
-4. **Simulation** — execute model runs  
-5. **Routing & Evaluation** — route flows and compute diagnostics  
-6. **Reporting** — generate plots, metrics, and summaries  
+1. **Domain Definition** — delineate watershed or region
+2. **Data Acquisition** — retrieve and preprocess forcing datasets (ERA5, Daymet, etc.)
+3. **Model Setup** — configure supported models
+4. **Simulation** — execute model runs
+5. **Routing & Evaluation** — route flows and compute diagnostics
+6. **Reporting** — generate plots, metrics, and summaries
 
 Each step can be called individually using the workflow command: ``symfluence workflow step <step_name>`` (e.g., ``workflow step setup_project`` or ``workflow step calibrate_model``).
 
@@ -542,6 +542,6 @@ Each step can be called individually using the workflow command: ``symfluence wo
 Next Steps
 ----------
 
-- Explore the :doc:`configuration` structure in detail  
-- Try the progressive :doc:`examples` for advanced applications  
+- Explore the :doc:`configuration` structure in detail
+- Try the progressive :doc:`examples` for advanced applications
 - Visit :doc:`troubleshooting` for setup or runtime guidance

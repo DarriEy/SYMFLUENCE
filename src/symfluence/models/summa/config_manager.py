@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from shutil import copyfile
-from typing import Dict, List, Optional, Tuple, Any, Callable
+from typing import Dict, Optional, Tuple, Any, Callable
 
 # Third-party imports
 import netCDF4 as nc4  # type: ignore
@@ -174,13 +174,13 @@ class SummaConfigManager(PathResolverMixin):
                 if output_control_path.exists():
                     with open(output_control_path, 'r') as f:
                         lines = f.readlines()
-                    
+
                     required_vars = ['scalarSWE', 'scalarCanopyWat', 'scalarTotalSoilWat', 'scalarAquiferStorage']
                     # Get from config if specified
                     storage_str = self.config_dict.get('TWS_STORAGE_COMPONENTS', '')
                     if storage_str:
                         required_vars = [v.strip() for v in storage_str.split(',') if v.strip()]
-                    
+
                     # Filter out existing entries for these variables to avoid duplicates
                     new_lines = []
                     for line in lines:
@@ -191,12 +191,12 @@ class SummaConfigManager(PathResolverMixin):
                                 break
                         if not is_required:
                             new_lines.append(line)
-                    
+
                     # Append them cleanly at the end with frequency 1
                     new_lines.append("\n! TWS Optimization required variables (every timestep)\n")
                     for v in required_vars:
                         new_lines.append(f"{v} | 1\n")
-                        
+
                     with open(output_control_path, 'w') as f:
                         f.writelines(new_lines)
                     self.logger.info(f"Updated outputControl.txt with TWS variables: {required_vars}")

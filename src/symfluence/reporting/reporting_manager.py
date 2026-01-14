@@ -399,7 +399,7 @@ class ReportingManager:
 
         Args:
             config_path: Either a path to the config file or None.
-            
+
         Returns:
             The found reach ID, or None if failed.
         """
@@ -410,7 +410,7 @@ class ReportingManager:
     def visualize_domain(self) -> Optional[str]:
         """
         Visualize the domain boundaries and features.
-        
+
         Returns:
             Path to the plot if created, None otherwise.
         """
@@ -672,17 +672,17 @@ class ReportingManager:
             return None
 
         self.logger.info("Creating timeseries visualizations from results file...")
-        
+
         try:
             # Use new DataProcessor to read results
             df = self.data_processor.read_results_file()
-            
+
             exp_id = self.config.get('EXPERIMENT_ID', 'default')
             domain_name = self.config.get('DOMAIN_NAME', 'unknown')
-            
+
             self.analysis_plotter.plot_timeseries_results(df, exp_id, domain_name)
             self.analysis_plotter.plot_diagnostics(df, exp_id, domain_name)
-                
+
         except Exception as e:
             self.logger.error(f"Error creating timeseries visualizations: {str(e)}")
 
@@ -704,10 +704,10 @@ class ReportingManager:
     def visualize_snow_comparison(self, model_outputs: List[List[str]]) -> Dict[str, Any]:
         """
         Visualize snow comparison.
-        
+
         Args:
             model_outputs: List of model outputs (list of [name, path]).
-            
+
         Returns:
             Dictionary with paths and metrics.
         """

@@ -23,10 +23,10 @@ Configure calibration in your project YAML:
    # Calibration periods
    CALIBRATION_PERIOD: "2018-01-01,2018-06-30"
    EVALUATION_PERIOD: "2018-07-01,2018-12-31"
-   
+
    # Parameters to calibrate
    PARAMS_TO_CALIBRATE: [k_snow, fcapil, newSnowDenMin]
-   
+
    # Optimization settings
    OPTIMIZATION_ALGORITHM: DE
    OPTIMIZATION_METRIC: KGE
@@ -59,7 +59,7 @@ For FUSE model calibration:
 
    SETTINGS_FUSE_PARAMS_TO_CALIBRATE:
      - alpha           # baseflow recession parameter
-     - beta            # percolation parameter  
+     - beta            # percolation parameter
      - k_storage       # storage coefficient
      - qbrate_2c       # baseflow rate
      - percfrac        # percolation fraction
@@ -137,7 +137,7 @@ Objective Functions
 
 Available metrics:
 - **KGE** — Kling-Gupta Efficiency (recommended)
-- **NSE** — Nash-Sutcliffe Efficiency  
+- **NSE** — Nash-Sutcliffe Efficiency
 - **RMSE** — Root Mean Square Error
 - **PBIAS** — Percent Bias
 - **R2** — Coefficient of Determination
@@ -170,7 +170,7 @@ Calibrate spatially distributed parameters:
 
    DISTRIBUTED_CALIBRATION: true
    SPATIAL_AGGREGATION: hru  # or 'basin', 'elevation_bands'
-   PARAMETER_REGIONALIZATION: 
+   PARAMETER_REGIONALIZATION:
      - elevation
      - slope
      - land_cover
@@ -218,16 +218,16 @@ Calibration Execution
 .. code-block:: python
 
    from symfluence import Configuration, Calibrator
-   
+
    # Load configuration
    config = Configuration('my_project.yaml')
-   
+
    # Initialize calibrator
    calibrator = Calibrator(config)
-   
+
    # Run calibration
    results = calibrator.optimize()
-   
+
    # Get best parameters
    best_params = results.best_parameters
    best_score = results.best_score
@@ -250,7 +250,7 @@ Calibration produces:
 
    EVALUATION_METRICS:
      - KGE
-     - NSE  
+     - NSE
      - RMSE
      - PBIAS
      - R2
@@ -270,34 +270,34 @@ Best Practices
 --------------
 
 1. **Parameter Bounds**
-   
+
    Set realistic parameter ranges:
-   
+
    .. code-block:: yaml
-   
+
       PARAMETER_BOUNDS:
         k_snow: [0.01, 1.0]
         theta_sat: [0.3, 0.6]
-        
+
 2. **Convergence Criteria**
-   
+
    .. code-block:: yaml
-   
+
       CONVERGENCE_TOLERANCE: 1e-6
       STAGNATION_GENERATIONS: 10
-      
+
 3. **Computational Efficiency**
-   
+
    .. code-block:: yaml
-   
+
       PARALLEL_CALIBRATION: true
       N_CORES: 16
       BATCH_SIZE: 8
 
 4. **Robustness Testing**
-   
+
    .. code-block:: yaml
-   
+
       MONTE_CARLO_RUNS: 100
       BOOTSTRAP_VALIDATION: true
 

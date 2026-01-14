@@ -303,7 +303,7 @@ class MESHDrainageDatabase:
                 # Avoid division by zero, default to 1.0 if all zero
                 safe_sums = xr.where(gru_sums == 0, 1.0, gru_sums)
                 ds_new['GRU'] = gru_da / safe_sums
-                
+
                 # If sum was 0, set the first GRU to 1.0 as a fallback
                 if (gru_sums == 0).any():
                     self.logger.warning("Found subbasins with 0 GRU coverage during topology update. Setting first GRU to 1.0.")
@@ -340,7 +340,7 @@ class MESHDrainageDatabase:
                     ds = ds.rename({n_dim: target_n_dim})
                     n_dim = target_n_dim
                     modified = True
-                
+
                 # Also rename variables if they match the old dimension name
                 for old_name in ['N']:
                     if old_name in ds.coords or old_name in ds.data_vars:
@@ -384,7 +384,7 @@ class MESHDrainageDatabase:
                 for v in vars_to_remove:
                     if v in ds:
                         ds = ds.drop_vars(v)
-                
+
                 # Also drop 'time' dimension if it exists as a coordinate or dim
                 if 'time' in ds.dims:
                     ds = ds.isel(time=0, drop=True)
@@ -408,11 +408,11 @@ class MESHDrainageDatabase:
                 for var_name in list(ds.data_vars):
                     if var_name == 'crs':
                         continue
-                    
+
                     if var_name == 'GRU':
                         ds[var_name].attrs['grid_mapping'] = 'crs'
                         continue
-                    
+
                     if n_dim not in ds[var_name].dims:
                         self.logger.warning(f"Variable {var_name} missing dimension {n_dim}. Forcing it.")
                         # If it has another dimension, take the first value
@@ -432,7 +432,7 @@ class MESHDrainageDatabase:
                         self.logger.debug(f"Squeezing {var_name} to 1D over {n_dim} (removing {other_dims})")
                         ds[var_name] = ds[var_name].isel({d: 0 for d in other_dims}, drop=True)
                         modified = True
-                    
+
                     # Ensure it is explicitly on n_dim
                     ds[var_name] = ds[var_name].transpose(n_dim)
                     ds[var_name].attrs['grid_mapping'] = 'crs'
@@ -451,7 +451,7 @@ class MESHDrainageDatabase:
                         # Force to data variable if it's a coordinate
                         if coord in ds.coords:
                             ds = ds.reset_coords(coord)
-                        
+
                         # Re-create as clean 1D variable on subbasin
                         val = ds[coord].values.flatten()[0]
                         ds[coord] = (target_n_dim, np.full(n_size, val, dtype=np.float64), {
@@ -526,11 +526,11 @@ class MESHDrainageDatabase:
                         slope_vals = ds['ChnlSlope'].values
                     else:
                         slope_vals = np.full(n_size, 0.001, dtype=np.float64)
-                    
+
                     # Ensure no NaNs or non-positive values
                     slope_vals = np.where(np.isnan(slope_vals), 0.001, slope_vals)
                     slope_vals = np.where(slope_vals <= 0, 0.001, slope_vals)
-                    
+
                     ds['Slope'] = xr.DataArray(
                         slope_vals,
                         dims=[n_dim],
@@ -560,13 +560,13 @@ class MESHDrainageDatabase:
                     # Final GRU/landclass normalization check
                     lc_var = 'landclass' if 'landclass' in ds else 'GRU' if 'GRU' in ds else None
                     lc_dim = 'landclass' if 'landclass' in ds.dims else 'NGRU' if 'NGRU' in ds.dims else None
-                    
+
                     if lc_var and lc_dim:
                         lc_da = ds[lc_var]
                         lc_sums = lc_da.sum(lc_dim)
                         safe_sums = xr.where(lc_sums == 0, 1.0, lc_sums)
                         ds[lc_var] = lc_da / safe_sums
-                        
+
                         if (lc_sums == 0).any():
                             self.logger.warning(f"Found subbasins with 0 {lc_var} coverage during completeness check. Setting first entry to 1.0.")
                             vals = ds[lc_var].values
@@ -672,7 +672,7 @@ class MESHDrainageDatabase:
                     # Avoid division by zero, default to 1.0 if all zero
                     safe_sums = xr.where(gru_sums == 0, 1.0, gru_sums)
                     ds_new['GRU'] = gru_da / safe_sums
-                    
+
                     # If sum was 0, set the first GRU to 1.0 as a fallback
                     if (gru_sums == 0).any():
                         self.logger.warning("Found subbasins with 0 GRU coverage during reorder. Setting first GRU to 1.0.")

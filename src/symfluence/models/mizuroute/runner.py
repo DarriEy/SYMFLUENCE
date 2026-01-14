@@ -57,16 +57,16 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
         # Determine which model's output to process
         models_raw = self.config_dict.get('HYDROLOGICAL_MODEL', '')
         mizu_from = self.config_dict.get('MIZU_FROM_MODEL', '')
-        
+
         # Combine models and filter out 'DEFAULT' or empty strings
         all_models = f"{models_raw},{mizu_from}".split(',')
         active_models = sorted(list(set([
-            m.strip().upper() for m in all_models 
+            m.strip().upper() for m in all_models
             if m.strip() and m.strip().upper() != 'DEFAULT'
         ])))
-        
+
         self.logger.debug(f"Detected active models for time precision fix: {active_models}")
-        
+
         # For FUSE, check if it has already converted its output
         if 'FUSE' in active_models:
             self.logger.info("Fixing FUSE time precision for mizuRoute compatibility")
@@ -108,10 +108,10 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
             else:
                 experiment_output_dir = Path(experiment_output_summa)
             runoff_filename = f"{self.config_dict.get('EXPERIMENT_ID')}_timestep.nc"
-        
+
         runoff_filepath = experiment_output_dir / runoff_filename
         self.logger.info(f"Resolved runoff filepath: {runoff_filepath} (Exists: {runoff_filepath.exists()})")
-        
+
         if not runoff_filepath.exists():
             self.logger.warning(f"Model output file not found: {runoff_filepath}. Checking if any other output files exist in {experiment_output_dir}...")
             if experiment_output_dir.exists():
@@ -125,13 +125,13 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
             else:
                 self.logger.error(f"Output directory does not exist: {experiment_output_dir}")
                 return None
-        
+
         try:
             import xarray as xr
             import os
-            
+
             self.logger.debug(f"Processing {runoff_filepath}")
-            
+
             # Open dataset and examine time format
             try:
                 ds = xr.open_dataset(runoff_filepath, decode_times=False)
@@ -141,28 +141,28 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                 self.logger.error("This usually happens when the upstream hydrological model (e.g., SUMMA) fails or times out before finishing.")
                 self.logger.error(f"Underlying error: {nc_err}")
                 raise
-            
+
             # Detect the time format by examining attributes and values
             time_attrs = ds.time.attrs
             time_values = ds.time.values
-            
+
             self.logger.debug(f"Time units: {time_attrs.get('units', 'No units specified')}")
             self.logger.debug(f"Time range: {time_values.min()} to {time_values.max()}")
-            
+
             # Check if time precision fix is needed and determine format
             needs_fix = False
             time_format_detected = None
-            
+
             if 'units' in time_attrs:
                 units_str = time_attrs['units'].lower()
-                
+
                 if 'since 1990-01-01' in units_str:
                     # SUMMA-style format: seconds since 1990-01-01
                     time_format_detected = 'summa_seconds_1990'
                     first_time = pd.to_datetime(time_values[0], unit='s', origin='1990-01-01')
                     rounded_time = first_time.round('h')
                     needs_fix = (first_time != rounded_time)
-                    
+
                 elif 'since' in units_str:
                     # Other reference time format - extract the reference
                     import re
@@ -170,7 +170,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                     if since_match:
                         ref_time_str = since_match.group(1).strip()
                         time_format_detected = f'generic_since_{ref_time_str}'
-                        
+
                         # Determine the unit (seconds, hours, days)
                         if 'second' in units_str:
                             first_time = pd.to_datetime(time_values[0], unit='s', origin=ref_time_str)
@@ -185,10 +185,10 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                             # Default to seconds
                             first_time = pd.to_datetime(time_values[0], unit='s', origin=ref_time_str)
                             time_unit = 's'
-                        
+
                         rounded_time = first_time.round('h')
                         needs_fix = (first_time != rounded_time)
-                        
+
                 else:
                     # No 'since' found, might be already in datetime format
                     time_format_detected = 'unknown'
@@ -217,15 +217,15 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                     self.logger.warning(f"No time units and cannot decode times - skipping time precision fix: {e}")
                     ds.close()
                     return runoff_filepath
-            
+
             self.logger.debug(f"Detected time format: {time_format_detected}")
             self.logger.debug(f"Needs time precision fix: {needs_fix}")
-            
+
             if not needs_fix:
                 self.logger.debug("Time precision is already correct")
                 ds.close()
                 return runoff_filepath
-            
+
             # Apply the appropriate fix based on detected format
             if time_format_detected == 'summa_seconds_1990':
                 # Original SUMMA logic
@@ -234,60 +234,60 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                 rounded_stamps = time_stamps.round('h')
                 reference = pd.Timestamp('1990-01-01')
                 rounded_seconds = (rounded_stamps - reference).total_seconds().values
-                
+
                 ds = ds.assign_coords(time=rounded_seconds)
                 ds.time.attrs.clear()
                 ds.time.attrs['units'] = 'seconds since 1990-01-01 00:00:00'
                 ds.time.attrs['calendar'] = 'standard'
                 ds.time.attrs['long_name'] = 'time'
-                
+
             elif time_format_detected.startswith('generic_since_'):
                 # Generic 'since' format
                 self.logger.info(f"Applying generic time precision fix for format: {time_format_detected}")
                 ref_time_str = time_format_detected.split('generic_since_')[1]
-                
+
                 time_stamps = pd.to_datetime(time_values, unit=time_unit, origin=ref_time_str)  # type: ignore[call-overload]
                 rounded_stamps = time_stamps.round('h')
                 reference = pd.Timestamp(ref_time_str)
-                
+
                 if time_unit == 's':
                     rounded_values = (rounded_stamps - reference).total_seconds().values
                 elif time_unit == 'h':
                     rounded_values = (rounded_stamps - reference) / pd.Timedelta(hours=1)
                 elif time_unit == 'D':
                     rounded_values = (rounded_stamps - reference) / pd.Timedelta(days=1)
-                
+
                 ds = ds.assign_coords(time=rounded_values)
                 ds.time.attrs.clear()
                 ds.time.attrs['units'] = f"{time_unit} since {ref_time_str}"
                 ds.time.attrs['calendar'] = 'standard'
                 ds.time.attrs['long_name'] = 'time'
-                
+
             elif time_format_detected == 'datetime64':
                 # Already in datetime format, just round
                 self.logger.info("Applying datetime64 time precision fix")
                 ds_decoded = xr.open_dataset(runoff_filepath, decode_times=True)
                 time_stamps = pd.to_datetime(ds_decoded.time.values)
                 rounded_stamps = time_stamps.round('h')
-                
+
                 # Keep original format but with rounded times
                 ds = ds_decoded.assign_coords(time=rounded_stamps)
                 ds_decoded.close()
-            
+
             # Save the corrected file safely using a temp file
             ds.load()
             temp_filepath = runoff_filepath.with_suffix('.tmp.nc')
-            
+
             # Ensure permissions are set on temp file after creation
             ds.to_netcdf(temp_filepath, format='NETCDF4')
             ds.close()
-            
+
             os.chmod(temp_filepath, 0o664)
             temp_filepath.rename(runoff_filepath)
-            
+
             self.logger.info("Time precision fixed successfully")
             return runoff_filepath
-            
+
         except Exception as e:
             self.logger.error(f"Error fixing time precision: {e}")
             self.logger.error(f"Traceback: {traceback.format_exc()}")
@@ -301,7 +301,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
         try:
             import xarray as xr
             self.logger.debug(f"Syncing control file dimensions for {netcdf_path}")
-            
+
             with xr.open_dataset(netcdf_path, decode_times=False) as ds:
                 dname = None
                 # Detect dimension name
@@ -323,20 +323,20 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                     vname = 'gru_id'
                 elif 'hru_id' in ds.variables:
                     vname = 'hru_id'
-                
+
                 if dname and not vname:
                      self.logger.warning(f"Could not find ID variable in {netcdf_path}")
                      # Try to find integer variable with same name as dim?
                      if dname in ds.variables:
                          vname = dname
-            
+
             if dname and vname:
                 self.logger.debug(f"Detected in NetCDF: dimension='{dname}', variable='{vname}'")
-                
+
                 # Read control file
                 with open(control_path, 'r') as f:
                     lines = f.readlines()
-                
+
                 new_lines = []
                 modified = False
                 for line in lines:
@@ -360,7 +360,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                             new_lines.append(line)
                     else:
                         new_lines.append(line)
-                
+
                 # Write back if modified
                 if modified:
                     self.logger.info(f"Updating control file to use dimension '{dname}' and variable '{vname}'")
@@ -370,7 +370,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                     self.logger.debug("Control file already matches NetCDF dimensions.")
             else:
                 self.logger.warning("Could not determine dimensions to sync.")
-                    
+
         except Exception as e:
             self.logger.error(f"Error syncing control file dimensions: {e}")
 
@@ -394,7 +394,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
         )
         settings_path = self.get_config_path('SETTINGS_MIZU_PATH', 'settings/mizuRoute/')
         control_file = self.config_dict.get('SETTINGS_MIZU_CONTROL_FILE')
-        
+
         # Sane defaults for control file if not specified
         if not control_file or control_file == 'default':
             mizu_from = self.config_dict.get('MIZU_FROM_MODEL', '').upper()
@@ -436,4 +436,3 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
         )
 
         return mizu_out_path
-

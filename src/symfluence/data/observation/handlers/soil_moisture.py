@@ -6,10 +6,9 @@ data for multivariate hydrological model calibration and validation.
 """
 
 import pandas as pd
-import numpy as np
 import xarray as xr
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 
@@ -60,7 +59,7 @@ class SMAPHandler(BaseObservationHandler):
     def process(self, input_path: Path) -> Path:
         """Process SMAP NetCDF data."""
         self.logger.info(f"Processing SMAP Soil Moisture for domain: {self.domain_name}")
-        
+
         nc_files = list(input_path.glob("*.nc"))
         if not nc_files:
             for pattern in ("*.h5", "*.hdf5"):
@@ -68,7 +67,7 @@ class SMAPHandler(BaseObservationHandler):
         if not nc_files:
             self.logger.warning("No SMAP NetCDF files found")
             return input_path
-            
+
         # Strategy: spatial average over bounding box if multiple pixels
         # For simplicity in this implementation, we take the mean of the first file
         results = []
@@ -108,18 +107,18 @@ class SMAPHandler(BaseObservationHandler):
 
                 if file_frames:
                     results.append(pd.concat(file_frames, axis=1))
-        
+
         if not results:
             self.logger.warning("No SMAP data could be extracted")
             return input_path
-            
+
         df = pd.concat(results).sort_index()
         if 'time' in df.columns:
             df = df.set_index('time')
         df = df.groupby(level=0).mean().sort_index()
         if self.start_date is not None and self.end_date is not None:
             df = df.loc[(df.index >= self.start_date) & (df.index <= self.end_date)]
-        
+
         output_dir = self.project_dir / "observations" / "soil_moisture" / "smap" / "processed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_smap_processed.csv"
@@ -128,7 +127,7 @@ class SMAPHandler(BaseObservationHandler):
         legacy_dir.mkdir(parents=True, exist_ok=True)
         legacy_file = legacy_dir / f"{self.domain_name}_smap_processed.csv"
         df.to_csv(legacy_file)
-        
+
         self.logger.info(f"SMAP processing complete: {output_file}")
         return output_file
 
@@ -372,7 +371,7 @@ class ESACCISMHandler(BaseObservationHandler):
                             target_lon -= 360.0
             except Exception:
                 self.logger.warning("Failed to parse bbox for ESA CCI SM subsetting")
-            
+
         results = []
         for f in nc_files:
             with xr.open_dataset(f) as ds:
@@ -400,11 +399,11 @@ class ESACCISMHandler(BaseObservationHandler):
                 mean_sm = sm.mean(dim=[d for d in sm.dims if d != 'time'])
                 df_ts = mean_sm.to_dataframe().reset_index()
                 results.append(df_ts)
-        
+
         if not results:
             self.logger.warning("No ESA CCI SM data could be extracted")
             return input_path
-            
+
         df = pd.concat(results).sort_values('time')
         df = df.rename(columns={'sm': 'soil_moisture'})
 
@@ -412,6 +411,6 @@ class ESACCISMHandler(BaseObservationHandler):
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_esa_processed.csv"
         df.to_csv(output_file, index=False)
-        
+
         self.logger.info(f"ESA CCI SM processing complete: {output_file}")
         return output_file

@@ -228,10 +228,10 @@ ALIAS_MAP = {
 def normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Normalize configuration keys using aliases and perform type coercion.
-    
+
     Args:
         config: Dictionary of configuration settings
-        
+
     Returns:
         New dictionary with normalized keys and coerced values
     """
@@ -245,13 +245,13 @@ def normalize_config(config: Dict[str, Any]) -> Dict[str, Any]:
 def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Validate configuration using Pydantic model.
-    
+
     Args:
         config: Dictionary of configuration settings
-        
+
     Returns:
         Validated configuration dictionary
-        
+
     Raises:
         ValueError: If configuration is invalid
     """

@@ -39,19 +39,19 @@ class SMAPAcquirer(BaseAcquisitionHandler):
 
     def download(self, output_dir: Path) -> Path:
         self.logger.info("Starting SMAP Soil Moisture acquisition via NSIDC THREDDS")
-        
+
         # NSIDC THREDDS NCSS endpoint
         thredds_base = self.config.get('SMAP_THREDDS_BASE', "https://n5eil01u.ecs.nsidc.org/thredds/ncss/grid")
         product = self.config.get('SMAP_PRODUCT', 'SMAP_L4_SM_gph_v4')
         if isinstance(product, str) and product.upper() == 'SPL4SMGP':
             product = 'SMAP_L4_SM_gph_v4'
-        
+
         lat_min, lat_max = sorted([self.bbox["lat_min"], self.bbox["lat_max"]])
         lon_min, lon_max = sorted([self.bbox["lon_min"], self.bbox["lon_max"]])
-        
+
         start_date = self.start_date.strftime("%Y-%m-%dT00:00:00Z")
         end_date = self.end_date.strftime("%Y-%m-%dT23:59:59Z")
-        
+
         output_dir.mkdir(parents=True, exist_ok=True)
         out_nc = output_dir / f"{self.domain_name}_SMAP_raw.nc"
 
@@ -68,7 +68,7 @@ class SMAPAcquirer(BaseAcquisitionHandler):
             "time_end": end_date,
             "accept": "netcdf4"
         }
-        
+
         # Construct URL for the specific product/version/date
         # Note: NSIDC structure is complex (YYYY.MM.DD directories).
         # For NCSS Grid, we often need the exact file path or an aggregation.
@@ -90,13 +90,13 @@ class SMAPAcquirer(BaseAcquisitionHandler):
         user, password = self._get_earthdata_credentials()
         if user and password:
             session.auth = (user, password)
-            
+
         last_error = None
         for url in candidate_urls:
             self.logger.info(f"Querying SMAP THREDDS: {url}")
             try:
                 response = session.get(url, params=params, stream=True, timeout=600)
-                
+
                 # Handle redirects for auth
                 if response.status_code == 401:
                     self.logger.error("Authentication failed. Please set EARTHDATA_USERNAME and EARTHDATA_PASSWORD or use a .netrc file.")
@@ -106,13 +106,13 @@ class SMAPAcquirer(BaseAcquisitionHandler):
                     self.logger.warning(f"SMAP THREDDS URL not found: {url}")
                     last_error = requests.HTTPError(f"404 Client Error: Not Found for url: {response.url}")
                     continue
-                    
+
                 response.raise_for_status()
-                
+
                 with open(out_nc, "wb") as f:
                     for chunk in response.iter_content(chunk_size=1024*1024):
                         f.write(chunk)
-                
+
                 self.logger.info(f"Successfully downloaded SMAP data to {out_nc}")
                 return out_nc
             except Exception as e:
@@ -169,8 +169,8 @@ class SMAPAcquirer(BaseAcquisitionHandler):
                 links = entry.get("links", [])
                 if use_opendap:
                     opendap_links = [
-                        l.get("href") for l in links
-                        if "service#" in l.get("rel", "") and "opendap" in l.get("href", "")
+                        link.get("href") for link in links
+                        if "service#" in link.get("rel", "") and "opendap" in link.get("href", "")
                     ]
                     if opendap_links:
                         attempts += 1
@@ -289,8 +289,8 @@ class SMAPAcquirer(BaseAcquisitionHandler):
             rows, cols = np.where(mask)
             y_slice = slice(int(rows.min()), int(rows.max()) + 1)
             x_slice = slice(int(cols.min()), int(cols.max()) + 1)
-            lat_vals = lat_grid[y_slice, x_slice]
-            lon_vals = lon_grid[y_slice, x_slice]
+            lat_grid[y_slice, x_slice]
+            lon_grid[y_slice, x_slice]
         else:
             self.logger.warning(f"OPeNDAP dataset missing cell_lat/cell_lon: {url}")
             return False
@@ -854,7 +854,7 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
     def download(self, output_dir: Path) -> Path:
         et_dir = output_dir / "et" / "fluxcom"
         et_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Option 1: Check for existing local files
         local_pattern = self.config.get('FLUXCOM_FILE_PATTERN', "*.nc")
         existing_files = list(et_dir.glob(local_pattern))

@@ -330,10 +330,10 @@ class DataProcessor:
     def read_results_file(self) -> pd.DataFrame:
         """
         Read simulation results and observed streamflow from standard results file.
-        
+
         Returns:
             DataFrame containing aligned simulation and observation data.
-            
+
         Raises:
             FileNotFoundError: If results file or observations file is missing.
             ValueError: If data is empty or invalid.
@@ -343,15 +343,15 @@ class DataProcessor:
             results_file = self.project_dir / "results" / f"{self.config.get('EXPERIMENT_ID')}_results.csv"
             if not results_file.exists():
                 raise FileNotFoundError(f"Results file not found: {results_file}")
-            
+
             # Read the CSV file
             sim_df = pd.read_csv(results_file)
-            
+
             # Check if the DataFrame is empty
             if sim_df.empty:
                 self.logger.error("Results file is empty")
                 raise ValueError("Results file contains no data")
-            
+
             # Convert time column to datetime and set as index
             if 'time' in sim_df.columns:
                 sim_df['time'] = pd.to_datetime(sim_df['time'])
@@ -372,7 +372,7 @@ class DataProcessor:
                     raise ValueError("Index cannot be converted to datetime format")
             else:
                 raise ValueError("No time or datetime column found in results file")
-            
+
             # Read observations
             obs_file_path = self.config.get('OBSERVATIONS_PATH')
             if obs_file_path == 'default' or obs_file_path is None:
@@ -386,39 +386,39 @@ class DataProcessor:
                 return sim_df
 
             obs_df = pd.read_csv(obs_file_path)
-            
+
             if obs_df.empty:
                 self.logger.warning("Observations file is empty")
                 return sim_df
-            
+
             # Process observations
             obs_df['datetime'] = pd.to_datetime(obs_df['datetime'], format='mixed', dayfirst=True)
             obs_df.set_index('datetime', inplace=True)
-            
+
             # Resample to daily if needed (assuming results are daily based on original logic)
             # Original logic resampled observations to daily. Let's keep that default but be mindful.
             obs_series = obs_df['discharge_cms'].resample('D').mean()
-            
+
             # Combine into single dataframe
             results_df = sim_df.copy()
             results_df['Observed'] = obs_series
-            
+
             # Skip first year (spin-up period) - preserving original logic
             if len(results_df.index) > 0:
                 start_time = results_df.index[0]
                 end_time = results_df.index[-1]
                 duration_days = (end_time - start_time).days
-                
+
                 if duration_days > 365:
                     first_year = results_df.index[0].year
                     start_date = pd.Timestamp(year=first_year + 1, month=1, day=1)
                     results_df = results_df[results_df.index >= start_date]
                 else:
                     self.logger.warning(f"Simulation duration ({duration_days} days) is short. Skipping first year removal to ensure data availability.")
-            
+
             self.logger.info(f"Data period: {results_df.index[0]} to {results_df.index[-1]}")
             return results_df
-            
+
         except Exception as e:
             self.logger.error(f"Error reading results: {str(e)}")
             raise

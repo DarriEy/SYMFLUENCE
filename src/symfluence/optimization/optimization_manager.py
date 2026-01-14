@@ -328,28 +328,28 @@ class OptimizationManager(BaseManager):
         )
 
         self.logger.info(f"Running optimization workflows: {optimization_methods}")
-        
+
         # Run iterative optimization (calibration)
         if 'iteration' in optimization_methods:
             calibration_results = self.calibrate_model()
             if calibration_results:
                 results['calibration'] = str(calibration_results)
-        
+
         # Check for deprecated methods and warn
         deprecated_methods = [
             'differentiable_parameter_emulation',
             'emulation'
         ]
-        
+
         for method in deprecated_methods:
             if method in optimization_methods:
                 self.logger.warning(
                     f"Optimization method '{method}' is deprecated and no longer supported. "
                     "Use gradient-based optimization (ADAM/LBFGS) via standard model optimizers instead."
                 )
-        
+
         return results
-    
+
     def calibrate_model(self) -> Optional[Path]:
         """Calibrate model(s) using configured optimization algorithm.
 
@@ -489,7 +489,7 @@ class OptimizationManager(BaseManager):
                 self.logger.info(f"Completed calibration for {len(results)} model(s)")
 
             return results[-1]
-            
+
         except Exception as e:
             self.logger.error(f"Error during model calibration: {str(e)}")
             import traceback
@@ -587,12 +587,12 @@ class OptimizationManager(BaseManager):
             import traceback
             self.logger.error(traceback.format_exc())
             return None
-    
-    
+
+
     def get_optimization_status(self) -> Dict[str, Any]:
         """
         Get status of optimization operations.
-        
+
         Returns:
             Dict[str, Any]: Dictionary containing optimization status information
         """
@@ -613,17 +613,17 @@ class OptimizationManager(BaseManager):
             'optimization_dir': str(self.project_dir / "optimization"),
             'results_exist': False,
         }
-        
+
         # Check for optimization results
         results_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
         status['results_exist'] = results_file.exists()
-        
+
         return status
-    
+
     def validate_optimization_configuration(self) -> Dict[str, bool]:
         """
         Validate optimization configuration settings.
-        
+
         Returns:
             Dict[str, bool]: Dictionary containing validation results
         """
@@ -633,7 +633,7 @@ class OptimizationManager(BaseManager):
             'parameters_defined': False,
             'metric_valid': False
         }
-        
+
         # Check algorithm
         algorithm = self._get_config_value(
             lambda: self.config.optimization.algorithm,
@@ -668,13 +668,13 @@ class OptimizationManager(BaseManager):
             ''
         )
         validation['metric_valid'] = metric in valid_metrics
-        
+
         return validation
-    
+
     def get_available_optimizers(self) -> Dict[str, str]:
         """
         Get list of available optimization algorithms.
-        
+
         Returns:
             Dict[str, str]: Dictionary mapping algorithm identifiers to their descriptions
         """
@@ -687,7 +687,7 @@ class OptimizationManager(BaseManager):
             'ASYNC-DDS': 'Asynchronous Dynamically Dimensioned Search',
             'POP-DDS': 'Population Dynamically Dimensioned Search',
         }
-    
+
     def _apply_parameter_transformations(self, params: Dict[str, float], settings_dir: Path) -> bool:
         """
         Applies transformations to parameters (e.g., soil depth multipliers).
@@ -702,29 +702,29 @@ class OptimizationManager(BaseManager):
         objective_handler = ObjectiveRegistry.get_objective('MULTIVARIATE', self.config, self.logger)
         if not objective_handler:
             return 1000.0
-            
+
         # 2. Use AnalysisManager to evaluate variables
         from symfluence.evaluation.analysis_manager import AnalysisManager
         am = AnalysisManager(self.config, self.logger)
         eval_results = am.run_multivariate_evaluation(sim_results)
-        
+
         # 3. Calculate scalar objective
         return objective_handler.calculate(eval_results)
 
     def load_optimization_results(self, filename: str = None) -> Optional[Dict]:
         """
         Load optimization results from file.
-        
+
         Args:
             filename (str, optional): Name of results file to load. If None, uses
                                     the default filename based on experiment_id.
-            
+
         Returns:
             Optional[Dict]: Dictionary with optimization results. Returns None if loading fails.
         """
         try:
             results_df = self.results_manager.load_optimization_results(filename)
-            
+
             if results_df is None:
                 return None
 
@@ -734,9 +734,9 @@ class OptimizationManager(BaseManager):
                 'best_iteration': results_df.iloc[0].to_dict(),
                 'columns': results_df.columns.tolist()
             }
-            
+
             return results
-            
+
         except Exception as e:
             self.logger.error(f"Error loading optimization results: {str(e)}")
             return None

@@ -74,64 +74,64 @@ class GNNPreprocessor(LSTMPreprocessor):
             Sets self.adj_matrix, self.node_mapping, self.hru_to_node, self.ordered_hru_ids.
         """
         self.logger.info("Loading river network graph structure")
-        
+
         # Path to river network shapefile
         # Assuming standard directory structure: data/domain/shapefiles/river_network/*.shp
         # Or using the config
         shapefile_dir = self.project_dir / 'shapefiles' / 'river_network'
         shapefiles = list(shapefile_dir.glob('*_riverNetwork_*.shp'))
-        
+
         if not shapefiles:
             raise FileNotFoundError(f"No river network shapefile found in {shapefile_dir}")
-        
+
         shp_path = shapefiles[0]
         self.logger.info(f"Reading shapefile: {shp_path}")
-        
+
         gdf = gpd.read_file(shp_path)
-        
+
         # Ensure we have required columns
         required_cols = ['LINKNO', 'DSLINKNO', 'GRU_ID'] # GRU_ID maps to HRU
         for col in required_cols:
             if col not in gdf.columns:
                 raise ValueError(f"Shapefile missing required column: {col}")
-        
+
         # Sort by LINKNO to have deterministic ordering
         gdf = gdf.sort_values('LINKNO').reset_index(drop=True)
-        
+
         nodes = gdf['LINKNO'].values
         n_nodes = len(nodes)
-        
+
         # Create mapping LINKNO -> Index
         self.node_mapping = {link: i for i, link in enumerate(nodes)}
-        
+
         # Create mapping GRU_ID (HRU) -> Index
         # Assuming 1-to-1 mapping between River Segments and Subbasins (HRUs)
-        self.hru_to_node = {row['GRU_ID']: self.node_mapping[row['LINKNO']] 
+        self.hru_to_node = {row['GRU_ID']: self.node_mapping[row['LINKNO']]
                             for _, row in gdf.iterrows()}
         self.ordered_hru_ids = [row['GRU_ID'] for _, row in gdf.iterrows()]
-        
+
         # Build Adjacency Indices
         # Flow is Upstream (j) -> Downstream (i)
         # So A_ij = 1 if j flows to i.
         rows = [] # Downstream (i)
         cols = [] # Upstream (j)
-        
+
         for _, row in gdf.iterrows():
             u_link = row['LINKNO']     # This is the upstream node (source of flow)
             d_link = row['DSLINKNO']   # This is the downstream node (destination)
-            
+
             # Map to indices
             if u_link in self.node_mapping and d_link in self.node_mapping:
                 u_idx = self.node_mapping[u_link]
                 d_idx = self.node_mapping[d_link]
-                
+
                 # Edge: u_idx -> d_idx
                 # In Adjacency matrix A:
                 # If we use A @ X (Row-normalized or standard agg), A_ij = 1 usually means j->i
                 # So row = destination (d_idx), col = source (u_idx)
                 rows.append(d_idx)
                 cols.append(u_idx)
-        
+
         indices = torch.LongTensor([rows, cols])
         values = torch.ones(len(rows))
 
@@ -139,13 +139,13 @@ class GNNPreprocessor(LSTMPreprocessor):
         if rows:
             row_counts = torch.bincount(indices[0], minlength=n_nodes).float()
             values = values / row_counts[indices[0]]
-        
+
         self.adj_matrix = torch.sparse_coo_tensor(
             indices, values, (n_nodes, n_nodes), dtype=torch.float32
         ).coalesce().to(self.device)
-        
+
         self.logger.info(f"Graph constructed with {n_nodes} nodes and {len(rows)} edges.")
-        
+
         assert self.adj_matrix is not None
         return self.adj_matrix
 
@@ -182,15 +182,15 @@ class GNNPreprocessor(LSTMPreprocessor):
             ValueError: If forcing data missing HRUs required by graph structure.
         """
         self.logger.info("Preprocessing data for GNN (Aligned with Graph Nodes)")
-        
+
         # 1. Ensure graph is loaded
         if not self.node_mapping:
             self.load_graph_structure()
-            
+
         # 2. Align DataFrames to common dates (Reuse parent logic manually or call it)
-        # Calling parent logic is tricky because it returns tensors. 
+        # Calling parent logic is tricky because it returns tensors.
         # We need the aligned DataFrames first. Let's replicate the alignment logic.
-        
+
         common_dates = forcing_df.index.get_level_values('time').unique().intersection(streamflow_df.index)
         if snow_df is not None and not snow_df.empty:
             common_dates = common_dates.intersection(snow_df.index)
@@ -199,105 +199,105 @@ class GNNPreprocessor(LSTMPreprocessor):
         streamflow_df = streamflow_df.loc[common_dates]
         if snow_df is not None and not snow_df.empty:
             snow_df = snow_df.loc[common_dates]
-            
+
         # 3. Reorder Forcing Data to match Graph Node Order
         # self.ordered_hru_ids contains the HRU IDs in the order of graph nodes (0..N-1)
-        
+
         # Pivot forcing to (Time, HRU, Feature)
         forcing_df = forcing_df.reset_index()
-        
+
         # Check if all graph HRUs are in forcing
         avail_hrus = set(forcing_df['hruId'].unique())
         missing = set(self.ordered_hru_ids) - avail_hrus
         if missing:
             raise ValueError(f"Forcing data missing HRUs required by graph: {missing}")
-        
+
         # Filter forcing to only graph HRUs
         forcing_df = forcing_df[forcing_df['hruId'].isin(self.ordered_hru_ids)]
-        
+
         # Sort/Pivot
         feature_columns = forcing_df.columns.drop(
             ['time', 'hruId', 'hru', 'latitude', 'longitude']
             if 'time' in forcing_df.columns and 'hruId' in forcing_df.columns else []
         )
-        
+
         # Reindex to ensure order: time (primary), hruId (secondary matching ordered_hru_ids)
         # Make hruId categorical with specific order
         forcing_df['hruId'] = pd.Categorical(forcing_df['hruId'], categories=self.ordered_hru_ids, ordered=True)
         forcing_df = forcing_df.sort_values(['time', 'hruId'])
-        
+
         # Now features_to_scale
         features_to_scale = forcing_df[feature_columns]
-        
+
         # Scale
         if fit_scalers:
             scaled_features = self.feature_scaler.fit_transform(features_to_scale)
         else:
             scaled_features = self.feature_scaler.transform(features_to_scale)
-        
+
         scaled_features = np.clip(scaled_features, -10, 10)
-        
+
         # 4. Prepare Targets
         # Streamflow is usually at the outlet.
         # We need to identify which node is the outlet or if we have distributed targets.
         # For training, we construct a target tensor (B, N, O).
         # Most nodes will have missing data (NaN) or 0 if not observed.
         # We will use a mask in the loss function, or just fill with 0 and ignore.
-        
+
         # Create full target array (Time, Nodes, Output)
         n_timesteps = len(common_dates)
         n_nodes = len(self.ordered_hru_ids)
-        
+
         if snow_df is not None and not snow_df.empty:
             self.output_size = 2
             self.target_names = ['streamflow', 'SWE']
         else:
             self.output_size = 1
             self.target_names = ['streamflow']
-            
+
         targets_full = np.zeros((n_timesteps, n_nodes, self.output_size))
-        
+
         # Find Outlet Node(s) - Assumed to be where streamflow_df data applies
         # We identify outlets as nodes that do not appear as sources (upstream) in the adjacency matrix.
-        
+
         # Recover adjacency indices
         adj_indices = self.adj_matrix.indices().cpu().numpy()
         sources = set(adj_indices[1]) # Nodes that flow to someone (upstream ends of edges)
         all_nodes = set(range(n_nodes))
         outlets = list(all_nodes - sources)
-        
+
         if not outlets:
             self.logger.warning("No outlet (sink) node found in graph! Circular or infinite?")
             # Fallback: Use the last node
             outlets = [n_nodes - 1]
-            
+
         self.logger.info(f"Identified outlet nodes (indices): {outlets}")
         self.outlet_indices = outlets
         self.outlet_hru_ids = [self.ordered_hru_ids[idx] for idx in outlets]
-        
+
         # Fill targets
         # streamflow_df is (Time, 1) or Series
         q_vals = streamflow_df['streamflow'].values
         if fit_scalers:
             self.target_scaler.fit(q_vals.reshape(-1, 1))
-        
+
         q_scaled = self.target_scaler.transform(q_vals.reshape(-1, 1)).flatten()
-        
+
         # Assign to outlet nodes
         for out_idx in outlets:
             targets_full[:, out_idx, 0] = q_scaled
-            
+
         # 5. Create Sequences (B, T, N, F)
         X, y = [], []
-        
+
         # scaled_features is (Time * HRU, Features). Reshape to (Time, HRU, Features)
         feat_reshaped = scaled_features.reshape(n_timesteps, n_nodes, -1)
-        
+
         for i in range(n_timesteps - self.lookback):
             X.append(feat_reshaped[i:(i + self.lookback)])
             y.append(targets_full[i + self.lookback]) # (N, O)
-            
+
         X_tensor = torch.FloatTensor(np.array(X)).to(self.device)
         y_tensor = torch.FloatTensor(np.array(y)).to(self.device)
-        
+
         return X_tensor, y_tensor, pd.DatetimeIndex(common_dates), forcing_df, self.ordered_hru_ids

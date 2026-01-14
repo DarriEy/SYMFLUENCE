@@ -28,21 +28,21 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         default_subpath="shapefiles/river_basins",
         default_name=f"{discretizer.domain_name}_riverBasins_{discretizer.delineation_suffix}.shp",
     )
-    
+
     dem_raster = discretizer._get_file_path(
         path_key="DEM_PATH",
         name_key="DEM_NAME",
         default_subpath="attributes/elevation/dem",
         default_name=f"domain_{discretizer.domain_name}_elv.tif"
     )
-    
+
     radiation_raster = discretizer._get_file_path(
         path_key="RADIATION_PATH",
         name_key="RADIATION_NAME",
         default_subpath="attributes/radiation",
         default_name="annual_radiation.tif",
     )
-    
+
     output_shapefile = discretizer._get_file_path(
         path_key="CATCHMENT_PATH",
         name_key="CATCHMENT_SHP_NAME",

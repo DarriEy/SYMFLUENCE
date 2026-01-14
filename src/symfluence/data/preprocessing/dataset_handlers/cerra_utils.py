@@ -8,7 +8,6 @@ CERRA (Copernicus European Regional Reanalysis) covers Europe at 5.5 km resoluti
 from pathlib import Path
 from typing import Dict, Tuple
 import xarray as xr
-import geopandas as gpd
 from shapely.geometry import Polygon
 import numpy as np
 
@@ -276,7 +275,7 @@ class CERRAHandler(BaseDatasetHandler):
                 # SPECIAL CASE: Single point forcing (1x1 grid)
                 if len(lats) == 1 and len(lons) == 1:
                     self.logger.info("Detected 1x1 CERRA grid. Creating catchment-covering polygon.")
-                    
+
                     # If we have the HRU shapefile, use it to ensure full coverage
                     poly_created = False
                     if hru_shapefile.exists():
@@ -284,12 +283,12 @@ class CERRAHandler(BaseDatasetHandler):
                             # Re-read or use existing if efficient (safest to re-read to be sure)
                             if 'hru_gdf' not in locals():
                                 hru_gdf = gpd.read_file(hru_shapefile)
-                            
+
                             minx, miny, maxx, maxy = hru_gdf.total_bounds
-                            
+
                             # Add a generous buffer (0.1 deg ~ 10km) to ensure full coverage
                             # This forces the single forcing point to map to ALL HRUs
-                            buffer = 0.1 
+                            buffer = 0.1
                             verts = [
                                 [minx - buffer, miny - buffer],
                                 [minx - buffer, maxy + buffer],
@@ -302,7 +301,7 @@ class CERRAHandler(BaseDatasetHandler):
                             poly_created = True
                         except Exception as e:
                             self.logger.warning(f"Failed to use HRU bounds for 1x1 forcing: {e}")
-                    
+
                     if not poly_created:
                         # Fallback to small box around point if HRU shapefile fails
                         self.logger.warning("Using default small box for 1x1 grid (may not intersect catchment)")

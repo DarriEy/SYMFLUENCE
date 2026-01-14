@@ -11,18 +11,11 @@ The handler processes 8-day composite ET data and converts it to daily
 values suitable for comparison with model outputs like SUMMA scalarTotalET.
 """
 import pandas as pd
-import numpy as np
 import xarray as xr
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Optional
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
-from .modis_utils import (
-    convert_cftime_to_datetime,
-    standardize_et_columns,
-    interpolate_8day_to_daily,
-    MODIS_ET_COLUMN_MAP,
-)
 
 
 @ObservationRegistry.register('MODIS_ET')

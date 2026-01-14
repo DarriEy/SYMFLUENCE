@@ -97,11 +97,11 @@ def base_config(tmp_path_factory, symfluence_code_dir):
 
     # Load template
     config = load_config_template(symfluence_code_dir)
-    
+
     # Use persistent data directory for caching attribute data
     data_root = Path(symfluence_code_dir).parent / "SYMFLUENCE_data_test_cache"
     data_root.mkdir(exist_ok=True)
-    
+
     _ensure_summa_binary(data_root, Path(symfluence_code_dir))
     _ensure_summa_binary(data_root, Path(symfluence_code_dir))
 
@@ -152,12 +152,12 @@ def prepared_project(base_config):
     # Check if attribute data already exists to avoid re-downloading
     domain_name = symfluence.config['DOMAIN_NAME']
     data_dir = Path(symfluence.config["SYMFLUENCE_DATA_DIR"]) / f"domain_{domain_name}"
-    
+
     # Check for existing attribute files
     dem_file = data_dir / "attributes" / "elevation" / f"domain_{domain_name}_elevation.tif"
     soil_file = data_dir / "attributes" / "soilclass" / f"domain_{domain_name}_soil_classes.tif"
     land_file = data_dir / "attributes" / "landclass" / f"domain_{domain_name}_land_classes.tif"
-    
+
     # Only acquire attributes if they don't exist
     if not (dem_file.exists() and soil_file.exists() and land_file.exists()):
         print("Acquiring cloud attributes (DEM, soil, land cover)...")

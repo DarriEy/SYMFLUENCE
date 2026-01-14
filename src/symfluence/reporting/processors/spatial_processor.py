@@ -30,12 +30,12 @@ class SpatialProcessor:
 
     def update_sim_reach_id(self, config_path: Optional[str] = None) -> Optional[int]:
         """
-        Update the SIM_REACH_ID in both the config object and YAML file by finding the 
+        Update the SIM_REACH_ID in both the config object and YAML file by finding the
         nearest river segment to the pour point.
-        
+
         Args:
             config_path: Either a path to the config file or None. If None, will only update the in-memory config.
-            
+
         Returns:
             The found reach ID, or None if failed.
         """
@@ -45,9 +45,9 @@ class SpatialProcessor:
             pour_point_name = self.config.get('POUR_POINT_SHP_NAME')
             if pour_point_name == 'default':
                 pour_point_name = f"{self.config.get('DOMAIN_NAME')}_pourPoint.shp"
-            
+
             pour_point_path = self._get_file_path('POUR_POINT_SHP_PATH', 'shapefiles/pour_point', pour_point_name)
-            
+
             if not pour_point_path.exists():
                 self.logger.error(f"Pour point shapefile not found: {pour_point_path}")
                 return None
@@ -60,7 +60,7 @@ class SpatialProcessor:
                 river_network_name = f"{self.config.get('DOMAIN_NAME')}_riverNetwork_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
 
             river_network_path = self._get_file_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network', river_network_name)
-            
+
             if not river_network_path.exists():
                 self.logger.error(f"River network shapefile not found: {river_network_path}")
                 return None
@@ -95,17 +95,17 @@ class SpatialProcessor:
                      if alt_col in nearest_segment:
                          seg_id_col = alt_col
                          break
-            
+
             reach_id = nearest_segment[seg_id_col]
 
             # Update the config object (only if it's a dict, not a frozen Pydantic model)
             if isinstance(self.config, dict):
                 self.config['SIM_REACH_ID'] = reach_id
-            
+
             # Update the YAML config file if a file path was provided
             if config_path is not None and isinstance(config_path, (str, Path)):
                 config_file_path = Path(config_path)
-                
+
                 if not config_file_path.exists():
                     self.logger.error(f"Config file not found at {config_file_path}")
                     return None
@@ -121,7 +121,7 @@ class SpatialProcessor:
                         config_lines[i] = f"SIM_REACH_ID: {reach_id}                                              # River reach ID used for streamflow evaluation and optimization\n"
                         updated = True
                         break
-                
+
                 if not updated:
                     # If SIM_REACH_ID line not found, add it in the Simulation settings section
                     for i, line in enumerate(config_lines):
@@ -129,7 +129,7 @@ class SpatialProcessor:
                             config_lines.insert(i + 1, f"SIM_REACH_ID: {reach_id}                                              # River reach ID used for streamflow evaluation and optimization\n")
                             updated = True
                             break
-                
+
                 if not updated:
                      # Append if section not found
                      config_lines.append(f"\nSIM_REACH_ID: {reach_id}\n")
@@ -141,7 +141,7 @@ class SpatialProcessor:
                 self.logger.info(f"Updated SIM_REACH_ID to {reach_id} in both config object and file: {config_file_path}")
             else:
                 self.logger.info(f"Updated SIM_REACH_ID to {reach_id} in config object only")
-            
+
             return reach_id
 
         except Exception as e:
@@ -152,12 +152,12 @@ class SpatialProcessor:
     def _get_file_path(self, file_type: str, file_def_path: str, file_name: str) -> Path:
         """
         Get absolute path for a file type, handling defaults.
-        
+
         Args:
             file_type: Config key for the file path (e.g. 'POUR_POINT_SHP_PATH')
             file_def_path: Default subdirectory relative to project dir
             file_name: Name of the file
-            
+
         Returns:
             Path object to the file
         """

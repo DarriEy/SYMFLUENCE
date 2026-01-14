@@ -31,7 +31,7 @@ class DataCleanupProcessor:
     def cleanup_and_checks(self):
         """Perform cleanup and checks on the MAF output."""
         self.logger.info("Performing cleanup and checks on MAF output")
-        
+
         # Define paths
         path_soil_type = self.project_dir / f'attributes/soil_class/domain_{self.domain_name}_stats_soil_classes.csv'
         path_landcover_type = self.project_dir / f'attributes/land_class/domain_{self.domain_name}_stats_NA_NALCMS_landcover_2020_30m.csv'
@@ -64,7 +64,7 @@ class DataCleanupProcessor:
         for col in landcover_type.columns:
             if col.startswith('frac_'):
                 landcover_type[col] = landcover_type[col].apply(lambda x: 0 if x < min_land_fraction else x)
-        
+
         for index, row in landcover_type.iterrows():
             frac_columns = [col for col in landcover_type.columns if col.startswith('frac_')]
             row_sum = row[frac_columns].sum()

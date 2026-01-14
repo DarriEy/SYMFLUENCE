@@ -7,7 +7,7 @@ outputs with support for multiple models, scenarios, and ensemble members.
 
 import datetime as dt
 import shutil
-from typing import List, Dict, Any
+from typing import Any
 from pathlib import Path
 import pandas as pd
 import xarray as xr
@@ -29,8 +29,8 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
     def download(self, output_dir: Path) -> Path:
         exp_start = self.start_date
         exp_end = self.end_date
-        start_date_str = exp_start.strftime("%Y-%m-%d")
-        end_date_str = exp_end.strftime("%Y-%m-%d")
+        exp_start.strftime("%Y-%m-%d")
+        exp_end.strftime("%Y-%m-%d")
         start_dt, end_dt = exp_start.date(), exp_end.date()
         bbox = self.bbox
         lat_min, lat_max = sorted([bbox["lat_min"], bbox["lat_max"]])

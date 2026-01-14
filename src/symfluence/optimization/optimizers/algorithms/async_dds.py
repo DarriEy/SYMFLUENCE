@@ -83,7 +83,7 @@ class AsyncDDSAlgorithm(OptimizationAlgorithm):
         # Initialize solution pool
         self.logger.info(f"Evaluating initial pool ({pool_size} solutions)...")
         initial_population = np.random.uniform(0, 1, (pool_size, n_params))
-        
+
         # Inject initial guess if provided
         initial_guess = kwargs.get('initial_guess')
         if initial_guess is not None:

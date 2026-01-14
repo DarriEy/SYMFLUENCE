@@ -97,7 +97,7 @@ class TestGetInstallPath:
     def test_custom_path(self, runner, temp_dir):
         """Test custom installation path from config."""
         custom_path = (temp_dir / 'custom_install').resolve()
-        
+
         # Re-init runner with custom config
         config = _create_config(temp_dir, {'TEST_INSTALL_PATH': str(custom_path)})
         runner = ConcreteModelRunner(config, runner.logger)
@@ -113,10 +113,10 @@ class TestGetInstallPath:
         """Test that None config value uses default path."""
         # By default the key is missing in base_config, which is effectively None/default behavior
         # But let's be explicit with None if possible, or just rely on absence
-        
+
         # In SymfluenceConfig, if key is not defined, it won't be in config_dict unless it's a model field
         # For TEST_INSTALL_PATH, it's an extra field.
-        
+
         result = runner.get_install_path(
             'TEST_INSTALL_PATH',
             'installs/test_model/bin'
@@ -371,7 +371,7 @@ class TestGetConfigPath:
     def test_custom_path(self, runner, temp_dir):
         """Test config path resolution with custom path."""
         custom_path = (temp_dir / 'custom_settings').resolve()
-        
+
         # Re-init
         config = _create_config(temp_dir, {'TEST_CONFIG_PATH': str(custom_path)})
         runner = ConcreteModelRunner(config, runner.logger)

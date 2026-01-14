@@ -171,12 +171,10 @@ class ShapefileProcessor:
         if new_hru_field in gdf.columns and gdf[new_hru_field].nunique() == len(gdf):
             self.logger.info(f"Using existing unique field: {new_hru_field}")
             gdf_updated = gdf.copy()
-            actual_field = new_hru_field
         else:
             self.logger.info(f"Creating new unique IDs in field: {new_hru_field}")
             gdf_updated = gdf.copy()
             gdf_updated[new_hru_field] = range(1, len(gdf_updated) + 1)
-            actual_field = new_hru_field
 
         output_path = shapefile_path.parent / f"{shapefile_path.stem}_unique_ids.shp"
         gdf_updated.to_file(output_path)

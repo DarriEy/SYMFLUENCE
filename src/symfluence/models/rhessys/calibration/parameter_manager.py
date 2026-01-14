@@ -65,7 +65,7 @@ class RHESSysParameterManager(BaseParameterManager):
         rhessys_params_str = config.get('RHESSYS_PARAMS_TO_CALIBRATE')
         if rhessys_params_str is None:
             rhessys_params_str = 'sat_to_gw_coeff,gw_loss_coeff,m,Ksat_0,porosity_0,soil_depth,snow_melt_Tcoef'
-            
+
         self.rhessys_params = [p.strip() for p in str(rhessys_params_str).split(',') if p.strip()]
 
         # Path to definition files

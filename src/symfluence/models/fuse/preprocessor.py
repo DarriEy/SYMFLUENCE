@@ -218,7 +218,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         ]
         if additional_dirs:
             dirs_to_create.extend(additional_dirs)
-            
+
         for dir_path in dirs_to_create:
             dir_path.mkdir(parents=True, exist_ok=True)
             self.logger.debug(f"Created directory: {dir_path}")
@@ -230,21 +230,21 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         """
         if source_dir:
             return super().copy_base_settings(source_dir, file_patterns)
-            
+
         self.logger.debug("Copying FUSE base settings")
 
         from symfluence.resources import get_base_settings_dir
         base_settings_path = get_base_settings_dir('FUSE')
         settings_path = self._get_default_path('SETTINGS_FUSE_PATH', 'settings/FUSE')
-        
+
         try:
             settings_path.mkdir(parents=True, exist_ok=True)
-            
+
             fuse_id = self._get_fuse_file_id()
             decision_file_path = None
             for file in os.listdir(base_settings_path):
                 source_file = base_settings_path / file
-                
+
                 # Handle the decisions file specially
                 if 'fuse_zDecisions_' in file:
                     # Create new filename with experiment ID
@@ -254,10 +254,10 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                     self.logger.debug(f"Renaming decisions file from {file} to {new_filename}")
                 else:
                     dest_file = settings_path / file
-                
+
                 copyfile(source_file, dest_file)
                 self.logger.debug(f"Copied {source_file} to {dest_file}")
-            
+
             if decision_file_path and decision_file_path.exists() and self.config_dict.get('FUSE_SNOW_MODEL'):
                 snow_model = self.config_dict.get('FUSE_SNOW_MODEL')
                 with open(decision_file_path, 'r') as f:
@@ -274,7 +274,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 self.logger.info(f"Updated FUSE snow model decision to {snow_model}")
 
             self.logger.info(f"FUSE base settings copied to {settings_path}")
-            
+
         except FileNotFoundError as e:
             self.logger.error(f"Source file or directory not found: {e}")
             raise
@@ -299,13 +299,13 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             # Get timestep configuration
             ts_config = self._get_timestep_config()
             self.logger.debug(f"Using {ts_config['time_label']} timestep (resample freq: {ts_config['resample_freq']})")
-            
+
             # Get spatial mode configuration
             spatial_mode = self.config_dict.get('FUSE_SPATIAL_MODE', 'lumped')
             subcatchment_dim = self.config_dict.get('FUSE_SUBCATCHMENT_DIM', 'longitude')
-            
+
             self.logger.debug(f"Preparing FUSE forcing data in {spatial_mode} mode")
-            
+
             # Read and process forcing data
             forcing_files = sorted(self.forcing_basin_path.glob('*.nc'))
             if not forcing_files:
@@ -315,7 +315,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             variable_handler = VariableHandler(config=self.config_dict, logger=self.logger,
                                             dataset='CFIF', model='FUSE')
             self.logger.debug(f"FUSE forcing_files count: {len(forcing_files)}")
-            
+
             t1 = time.time()
             # Open the forcing datasets
             if len(forcing_files) == 1:
@@ -323,15 +323,15 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             else:
                 ds = xr.open_mfdataset(forcing_files, data_vars='all', combine='nested', concat_dim='time').sortby('time')
             self.logger.info(f"PERF: Opening dataset took {time.time() - t1:.2f}s")
-            
+
             t2 = time.time()
             ds = variable_handler.process_forcing_data(ds)
             self.logger.info(f"PERF: process_forcing_data took {time.time() - t2:.2f}s")
-            
+
             t3 = time.time()
             ds = self.subset_to_simulation_time(ds, "Forcing")
             self.logger.info(f"PERF: subset_to_simulation_time took {time.time() - t3:.2f}s")
-            
+
             # Spatial organization based on mode BEFORE resampling
             t4 = time.time()
             if spatial_mode == 'lumped':
@@ -343,7 +343,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             else:
                 raise ValueError(f"Unknown FUSE spatial mode: {spatial_mode}")
             self.logger.info(f"PERF: Spatial prep ({spatial_mode}) took {time.time() - t4:.2f}s")
-            
+
             # Resample to target resolution AFTER spatial organization
             t5 = time.time()
             self.logger.debug(f"Resampling data to {ts_config['time_label']} resolution")
@@ -359,11 +359,11 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             time_window = self.get_simulation_time_window()
             obs_ds = self._load_streamflow_observations(spatial_mode, ts_config, time_window)
             self.logger.info(f"PERF: Loading observations took {time.time() - t6:.2f}s")
-            
+
             # Get PET method from config (default to 'oudin')
             pet_method = self.config_dict.get('PET_METHOD', 'oudin').lower()
             self.logger.debug(f"Using PET method: {pet_method}")
-            
+
             # Calculate PET for the correct spatial configuration
             t7 = time.time()
             if spatial_mode == 'lumped':
@@ -373,12 +373,12 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             else:
                 # For distributed modes, calculate PET after spatial organization and resampling
                 pet = self._calculate_distributed_pet(ds, spatial_mode, pet_method)
-            
+
             # Ensure PET is also at target resolution
             pet = pet.resample(time=ts_config['resample_freq']).mean()
             self.logger.debug(f"PET data resampled to {ts_config['time_label']} resolution")
             self.logger.info(f"PERF: PET calculation took {time.time() - t7:.2f}s")
-            
+
             # Create FUSE forcing dataset
             t8 = time.time()
             fuse_forcing = self._create_fuse_forcing_dataset(ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config)
@@ -412,37 +412,37 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             t10 = time.time()
             output_file = self.forcing_fuse_path / f"{self.domain_name}_input.nc"
             encoding = self._get_encoding_dict(fuse_forcing)
-            fuse_forcing.to_netcdf(output_file, unlimited_dims=['time'], 
+            fuse_forcing.to_netcdf(output_file, unlimited_dims=['time'],
                                 encoding=encoding, format='NETCDF4')
-            
+
             self.logger.info(f"PERF: Saving NetCDF took {time.time() - t10:.2f}s")
             self.logger.info(f"PERF: Total prepare_forcing_data took {time.time() - t0:.2f}s")
             self.logger.debug(f"FUSE forcing data saved: {output_file}")
             return output_file
-            
+
         except Exception as e:
             self.logger.error(f"Error preparing forcing data: {str(e)}")
             raise
-            
+
         except Exception as e:
             self.logger.error(f"Error preparing forcing data: {str(e)}")
             raise
-        
-            
+
+
     def _calculate_pet(self, temp_data: xr.DataArray, lat: float, method: str = 'oudin') -> xr.DataArray:
         """
         Calculate PET using the specified method.
-        
+
         Args:
             temp_data (xr.DataArray): Temperature data
             lat (float): Latitude of the catchment centroid
             method (str): PET method ('oudin', 'hamon', or 'hargreaves')
-            
+
         Returns:
             xr.DataArray: Calculated PET in mm/day
         """
         method = method.lower()
-        
+
         if method == 'oudin':
             return self.calculate_pet_oudin(temp_data, lat)
         elif method == 'hamon':
@@ -526,12 +526,11 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             t_copy = time.time()
             da_values = da_broadcasted.values.copy()
             self.logger.debug(f"PERF: [{name}] da.values copy took {time.time() - t_copy:.4f}s")
-            
+
             nan_mask = np.isnan(da_values)
 
             if np.any(nan_mask):
                 # Find subcatchments with all-NaN data
-                spatial_idx = 1 if subcatchment_dim == 'latitude' else 2  # Index in (time, lat, lon)
                 all_nan_mask = np.all(nan_mask, axis=0)  # Shape: (lat, lon) or similar
 
                 if np.any(all_nan_mask):
@@ -561,7 +560,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             # Ensure non-negative for precipitation (floating-point precision can cause tiny negative values)
             if name == 'precip':
                 da_values = np.maximum(da_values, 0.0)
-            
+
             self.logger.debug(f"PERF: [{name}] process_var total took {time.time() - pv_start:.4f}s")
             return xr.DataArray(da_values, dims=da_broadcasted.dims, coords=da_broadcasted.coords).astype('float32')
 
@@ -571,7 +570,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             'temp': (ds['temp'], 'temperature', 'degC', f'Mean {time_label} temperature'),
             'pet': (pet, 'pet', unit_str, f'Mean {time_label} pet')
         }
-        
+
         if obs_ds is not None:
             var_map['q_obs'] = (obs_ds['q_obs'], 'streamflow', unit_str, f'Mean observed {time_label} discharge')
         else:
@@ -580,7 +579,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             # Wrap in DataArray for process_var
             # (Note: _generate_distributed_synthetic_hydrograph returns numpy array)
             synthetic_q = xr.DataArray(
-                synthetic_q_vals, 
+                synthetic_q_vals,
                 coords={'time': ds.time}, # Use ds.time as reference
                 dims=['time', 'hru'] if len(synthetic_q_vals.shape) > 1 else ['time']
             )
@@ -592,7 +591,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             fuse_forcing[var_name] = process_var(da, var_name)
             fuse_forcing[var_name].attrs = {'units': units, 'long_name': long_name}
             encoding[var_name] = {'_FillValue': -9999.0, 'dtype': 'float32', 'zlib': False}
-        
+
         # Ensure coordinates also have strict encoding for FUSE compatibility
         for coord in fuse_forcing.coords:
             encoding[coord] = {'_FillValue': None, 'dtype': 'float64'}
@@ -651,10 +650,10 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         Returns:
             xr.Dataset: Complete FUSE forcing dataset ready for model input.
         """
-        
+
         if ts_config is None:
             ts_config = self._get_timestep_config()
-        
+
         if spatial_mode == 'lumped':
             return self._create_lumped_dataset(ds, pet, obs_ds, ts_config)
         else:
@@ -681,20 +680,20 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 where one spatial dimension contains subcatchment IDs and the other
                 contains the catchment centroid coordinate.
         """
-        
+
         if ts_config is None:
             ts_config = self._get_timestep_config()
-        
+
         # Get spatial information
         subcatchments = self._load_subcatchment_data()
-        
+
         # Get reference coordinates
         catchment = gpd.read_file(self.catchment_path)
         mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
-        
+
         # Convert to numeric time values for FUSE
         time_numeric = ((pd.to_datetime(ds.time.values) - pd.Timestamp('1970-01-01')).total_seconds() / 86400).values
-        
+
         # Create coordinate system
         # CRITICAL: Order must be time, lat, lon for FUSE to read correct dimensions
         if subcatchment_dim == 'latitude':
@@ -711,10 +710,10 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 'latitude': ('latitude', [float(mean_lat)])
             }
             spatial_dims = ('time', 'longitude', 'latitude')
-        
+
         # Create dataset
         fuse_forcing = xr.Dataset(coords=coords)
-        
+
         # Add coordinate attributes
         fuse_forcing.longitude.attrs = {
             'units': 'degreesE' if subcatchment_dim != 'longitude' else 'subcatchment_id',
@@ -728,10 +727,10 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             'units': 'days since 1970-01-01',
             'long_name': 'time'
         }
-        
+
         # Add data variables
         self._add_forcing_variables(fuse_forcing, ds, pet, obs_ds, spatial_dims, len(subcatchments), ts_config)
-        
+
         return fuse_forcing
 
 
@@ -743,7 +742,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
 
         # Define source and destination paths
         template_path = self.setup_dir / 'fm_catch.txt'
-        
+
         # Define the paths to replace
         fuse_id = self._get_fuse_file_id()
         settings = {
@@ -760,7 +759,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         start_time = datetime.strptime(self.config_dict.get('EXPERIMENT_TIME_START'), '%Y-%m-%d %H:%M')
         end_time = datetime.strptime(self.config_dict.get('EXPERIMENT_TIME_END'), '%Y-%m-%d %H:%M')
         forcing_file = self.forcing_fuse_path / f"{self.domain_name}_input.nc"
-        
+
         if hasattr(self, 'actual_start_time') and hasattr(self, 'actual_end_time'):
             self.logger.info(f"Using captured dates from preprocessing: {self.actual_start_time} to {self.actual_end_time}")
             start_time = self.actual_start_time
@@ -772,7 +771,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                     self.logger.info("Forcing file exists, attempting to read time range...")
                     with xr.open_dataset(forcing_file) as ds:
                         time_vals = pd.to_datetime(ds.time.values)
-                    
+
                     if len(time_vals) > 0:
                         start_time = time_vals.min().to_pydatetime()
                         end_time = time_vals.max().to_pydatetime()
@@ -803,7 +802,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             modified_lines = []
             for line in lines:
                 line_modified = line
-                
+
                 # Replace paths
                 for path_key, new_path in settings.items():
                     if path_key in line:
@@ -831,7 +830,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
                 f.writelines(modified_lines)
 
             self.logger.info(f"FUSE file manager created at: {template_path}")
-        
+
 
         except Exception as e:
             self.logger.error(f"Error creating FUSE file manager: {str(e)}")
@@ -876,7 +875,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
 
         self.logger.info("Updated FUSE input_info.txt for forcing timestep")
 
-        
+
 
     # Removed: _get_catchment_centroid() - now inherited from GeospatialUtilsMixin
 
@@ -939,11 +938,11 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         """
         if ts_config is None:
             ts_config = self._get_timestep_config()
-        
+
         # Get catchment centroid for coordinates
         catchment = gpd.read_file(self.catchment_path)
         mean_lon, mean_lat = self.calculate_catchment_centroid(catchment)
-        
+
         # Align all datasets to a common time period using xarray.align
         # First, ensure all have compatible time coordinates
         to_align = [ds, pet]
@@ -952,14 +951,14 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             if obs_ds.time.dtype.kind in ['i', 'u', 'f']:
                 obs_ds = obs_ds.assign_coords(time=pd.to_datetime('1970-01-01') + pd.to_timedelta(obs_ds.time.values, unit='D'))
             to_align.append(obs_ds)
-            
+
         # Join='inner' finds the overlapping period
         aligned = xr.align(*to_align, join='inner')
         ds_a, pet_a = aligned[0], aligned[1]
         obs_ds_a = aligned[2] if obs_ds is not None else None
-        
+
         self.logger.info(f"Aligned data to overlapping period: {ds_a.time.min().values} to {ds_a.time.max().values}")
-        
+
         # Create coordinates for FUSE
         time_numeric = ((pd.to_datetime(ds_a.time.values) - pd.Timestamp('1970-01-01')).total_seconds() / 86400).values
         # CRITICAL: Order must be time, lat, lon for FUSE to read correct dimensions
@@ -968,42 +967,42 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             'latitude': ('latitude', [float(mean_lat)]),
             'longitude': ('longitude', [float(mean_lon)])
         }
-        
+
         fuse_forcing = xr.Dataset(coords=coords)
         fuse_forcing.longitude.attrs = {'units': 'degreesE', 'long_name': 'longitude'}
         fuse_forcing.latitude.attrs = {'units': 'degreesN', 'long_name': 'latitude'}
         fuse_forcing.time.attrs = {'units': 'days since 1970-01-01', 'long_name': 'time'}
-        
+
         # Determine unit string for variables
         time_label = ts_config['time_label']
         unit_str = f"mm/{time_label.replace('-', ' ')}"
-        
+
         # Core meteorological variables
         var_map = {
             'precip': (ds_a['precip'], 'precipitation', unit_str, f'Mean {time_label} precipitation'),
             'temp': (ds_a['temp'], 'temperature', 'degC', f'Mean {time_label} temperature'),
             'pet': (pet_a, 'pet', unit_str, f'Mean {time_label} pet')
         }
-        
+
         if obs_ds_a is not None:
             var_map['q_obs'] = (obs_ds_a['q_obs'], 'streamflow', unit_str, f'Mean observed {time_label} discharge')
         else:
             synthetic_q_vals = self.generate_synthetic_hydrograph(ds_a, area_km2=100.0)
             synthetic_q = xr.DataArray(synthetic_q_vals, coords={'time': ds_a.time}, dims=['time'])
             var_map['q_obs'] = (synthetic_q, 'streamflow', unit_str, 'Synthetic discharge for optimization')
-            
+
         # Add variables with broadcasting
         for var_name, (da, _, units, long_name) in var_map.items():
             # Ensure da has same time coord type and values as fuse_forcing to avoid DTypePromotionError
             # Drop time first to ensure clean replacement of coordinate and index
             da_aligned = da.drop_vars('time').assign_coords(time=fuse_forcing.time)
-            
+
             # Broadcast to (time, lat, lon) where lat=1, lon=1
             fuse_forcing[var_name] = da_aligned.broadcast_like(fuse_forcing).fillna(-9999.0).astype('float32')
             fuse_forcing[var_name].attrs = {'units': units, 'long_name': long_name}
-            
+
         return fuse_forcing
-        
+
     def _map_hrus_to_subcatchments(self, ds, subcatchments):
         """Map HRU data to subcatchments - delegates to forcing processor"""
         return self.forcing_processor._map_hrus_to_subcatchments(ds, subcatchments)

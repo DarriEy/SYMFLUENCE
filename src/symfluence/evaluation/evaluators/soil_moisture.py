@@ -194,7 +194,7 @@ class SoilMoistureEvaluator(ModelEvaluator):
 
         self.use_quality_control = self.config_dict.get('SM_USE_QUALITY_CONTROL', True)
         self.min_valid_pixels = self.config_dict.get('SM_MIN_VALID_PIXELS', 10)
-    
+
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
         """Locate SUMMA output files containing soil moisture variables.
 
@@ -244,17 +244,17 @@ class SoilMoistureEvaluator(ModelEvaluator):
         except Exception as e:
             self.logger.error(f"Error extracting soil moisture data from {sim_file}: {str(e)}")
             raise
-    
+
     def _extract_point_soil_moisture(self, ds: xr.Dataset) -> pd.Series:
         if 'mLayerVolFracLiq' not in ds.variables:
             raise ValueError("mLayerVolFracLiq variable not found")
         soil_moisture_var = ds['mLayerVolFracLiq']
         layer_depths = ds['mLayerDepth']
-        
+
         # Collapse spatial dimensions but preserve layer dimension
         sim_xr = soil_moisture_var
         depths_xr = layer_depths
-        
+
         for dim in ['hru', 'gru']:
             if dim in sim_xr.dims:
                 if sim_xr.sizes[dim] == 1:
@@ -266,10 +266,10 @@ class SoilMoistureEvaluator(ModelEvaluator):
                     depths_xr = depths_xr.isel({dim: 0})
                 else:
                     depths_xr = depths_xr.mean(dim=dim)
-        
+
         target_layer_idx = self._find_target_layer(depths_xr)
         layer_dim = [dim for dim in sim_xr.dims if 'mid' in dim.lower() or 'layer' in dim.lower()][0]
-        
+
         # Select target layer and ensure no other spatial dims remain
         sim_xr = sim_xr.isel({layer_dim: target_layer_idx})
         non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
@@ -287,19 +287,19 @@ class SoilMoistureEvaluator(ModelEvaluator):
                 target_depth_m = float(self.target_depth)
             except (ValueError, TypeError):
                 return 0
-            
+
             if 'time' in layer_depths.dims:
                 depths_sample = layer_depths.isel(time=0).values
             else:
                 depths_sample = layer_depths.values
-            
+
             cumulative_depths = np.cumsum(depths_sample) - depths_sample / 2
             depth_differences = np.abs(cumulative_depths - target_depth_m)
             best_layer_idx = np.argmin(depth_differences)
             return int(best_layer_idx)
         except Exception:
             return 0
-    
+
     def _extract_smap_soil_moisture(self, ds: xr.Dataset) -> pd.Series:
         soil_moisture_var = ds['mLayerVolFracLiq']
         layer_depths = ds['mLayerDepth'] if 'mLayerDepth' in ds.variables else None
@@ -423,11 +423,11 @@ class SoilMoistureEvaluator(ModelEvaluator):
         weights /= weights.sum()
         weight_da = xr.DataArray(weights, dims=[layer_dim], coords={layer_dim: sim_xr[layer_dim]})
         return (sim_xr * weight_da).sum(dim=layer_dim)
-    
+
     def _extract_esa_soil_moisture(self, ds: xr.Dataset) -> pd.Series:
         soil_moisture_var = ds['mLayerVolFracLiq']
         layer_depths = ds['mLayerDepth'] if 'mLayerDepth' in ds.variables else None
-        
+
         # Collapse spatial dimensions
         sim_xr = soil_moisture_var
         for dim in ['hru', 'gru']:
@@ -436,7 +436,7 @@ class SoilMoistureEvaluator(ModelEvaluator):
                     sim_xr = sim_xr.isel({dim: 0})
                 else:
                     sim_xr = sim_xr.mean(dim=dim)
-        
+
         layer_dims = [dim for dim in sim_xr.dims if 'mid' in dim.lower() or 'layer' in dim.lower()]
         if not layer_dims:
             raise ValueError("Layer dimension not found in simulated soil moisture output")
@@ -508,20 +508,20 @@ class SoilMoistureEvaluator(ModelEvaluator):
                 if any(term in col.lower() for term in ['esa', 'soil_moisture', 'sm']):
                     return col
         return None
-    
+
     def _load_observed_data(self) -> Optional[pd.Series]:
         try:
             obs_path = self.get_observed_data_path()
             if not obs_path.exists():
                 return None
-            
+
             obs_df = pd.read_csv(obs_path)
             date_col = self._find_date_column(obs_df.columns)
             data_col = self._get_observed_data_column(obs_df.columns)
-            
+
             if not date_col or not data_col:
                 return None
-            
+
             if self.optimization_target == 'sm_esa':
                 obs_df['DateTime'] = pd.to_datetime(obs_df[date_col], errors='coerce')
                 if obs_df['DateTime'].isna().all():
@@ -532,20 +532,20 @@ class SoilMoistureEvaluator(ModelEvaluator):
                     )
             else:
                 obs_df['DateTime'] = pd.to_datetime(obs_df[date_col], errors='coerce')
-            
+
             obs_df = obs_df.dropna(subset=['DateTime'])
             obs_df.set_index('DateTime', inplace=True)
-            
+
             obs_series = pd.to_numeric(obs_df[data_col], errors='coerce')
-            
+
             if self.optimization_target == 'sm_smap' and self.use_quality_control:
                 if 'valid_px' in obs_df.columns:
                     valid_pixels = pd.to_numeric(obs_df['valid_px'], errors='coerce')
                     quality_mask = valid_pixels >= self.min_valid_pixels
                     obs_series = obs_series[quality_mask]
-            
+
             obs_series = obs_series.dropna()
-            
+
             if hasattr(self, 'temporal_aggregation') and self.temporal_aggregation == 'daily_mean':
                 obs_series = obs_series.resample('D').mean().dropna()
 

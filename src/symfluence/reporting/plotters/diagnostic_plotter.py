@@ -86,14 +86,14 @@ class DiagnosticPlotter(BasePlotter):
                 edgecolor='black',
                 linewidth=0.5
             )
-            
+
             # Add mean and median lines
             mean_val = np.mean(flat_data)
             median_val = np.median(flat_data)
-            
+
             ax1.axvline(mean_val, color='red', linestyle='--', label=f'Mean: {mean_val:.2f}')
             ax1.axvline(median_val, color='green', linestyle=':', label=f'Median: {median_val:.2f}')
-            
+
             self._apply_standard_styling(
                 ax1,
                 xlabel=f'{variable_name} Value',
@@ -110,7 +110,7 @@ class DiagnosticPlotter(BasePlotter):
                 boxprops=dict(facecolor=self.plot_config.COLOR_SIMULATED_SECONDARY, alpha=0.7),
                 medianprops=dict(color='black')
             )
-            
+
             self._apply_standard_styling(
                 ax2,
                 ylabel='Value',
@@ -163,20 +163,20 @@ class DiagnosticPlotter(BasePlotter):
                 extent = src.bounds
 
                 fig, ax = plt.subplots(figsize=self.plot_config.FIGURE_SIZE_MEDIUM)
-                
+
                 # Use a divergent colormap if appropriate, or sequential
                 cmap = 'viridis'
                 if 'temp' in variable_name.lower():
                     cmap = 'RdYlBu_r'
                 elif 'precip' in variable_name.lower():
                     cmap = 'Blues'
-                
+
                 im = ax.imshow(data, cmap=cmap, extent=[extent.left, extent.right, extent.bottom, extent.top])
-                
+
                 # Add colorbar
                 cbar = plt.colorbar(im, ax=ax)
                 cbar.set_label(variable_name)
-                
+
                 # Basic stats
                 valid_data = data.compressed()
                 if valid_data.size > 0:

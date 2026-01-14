@@ -226,7 +226,7 @@ class DomainManager(ConfigurableMixin):
         - geospatial.discretization.core.DomainDiscretizer: Discretization engine
         - geospatial.geofabric: Geofabric delineation backends
     """
-    
+
     def __init__(self, config: 'SymfluenceConfig', logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the Domain Manager.
@@ -258,7 +258,7 @@ class DomainManager(ConfigurableMixin):
         self.domain_discretizer = None  # Initialized when needed
         self.delineation_artifacts: Optional[DelineationArtifacts] = None
         self.discretization_artifacts: Optional[DiscretizationArtifacts] = None
-        
+
         # Create point domain shapefile if method is 'point'
         domain_method = self._get_config_value(
             lambda: self.config.domain.definition_method
@@ -277,13 +277,13 @@ class DomainManager(ConfigurableMixin):
             Path to the created shapefile or None if failed
         """
         return create_point_domain_shapefile(self.config, self.logger)
-    
+
     def define_domain(
         self,
     ) -> Tuple[Optional[Union[Path, Tuple[Path, Path]]], DelineationArtifacts]:
         """
         Define the domain using the configured method.
-        
+
         Returns:
             Tuple of the domain result and delineation artifacts
         """
@@ -291,24 +291,24 @@ class DomainManager(ConfigurableMixin):
             lambda: self.config.domain.definition_method
         )
         self.logger.debug(f"Domain definition workflow starting with: {domain_method}")
-        
+
         result, artifacts = self.domain_delineator.define_domain()
         self.delineation_artifacts = artifacts
-        
+
         if result:
             self.logger.info(f"Domain definition completed using method: {domain_method}")
-        
+
         self.logger.debug("Domain definition workflow finished")
 
         return result, artifacts
-    
+
 
     def discretize_domain(
         self,
     ) -> Tuple[Optional[Union[Path, dict]], DiscretizationArtifacts]:
         """
         Discretize the domain into HRUs or GRUs.
-        
+
         Returns:
             Tuple of HRU shapefile(s) and discretization artifacts
         """
@@ -321,37 +321,37 @@ class DomainManager(ConfigurableMixin):
             # Initialize discretizer if not already done
             if self.domain_discretizer is None:
                 self.domain_discretizer = DomainDiscretizationRunner(self.config, self.logger)
-            
+
             # Perform discretization
             hru_shapefile, artifacts = self.domain_discretizer.discretize_domain()
             self.discretization_artifacts = artifacts
-                        
+
             # Visualize the discretized domain
             self.visualize_discretized_domain()
-            
+
             return hru_shapefile, artifacts
-            
+
         except Exception as e:
             self.logger.error(f"Error during domain discretization: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
             raise
-    
+
     def visualize_domain(self) -> Optional[Path]:
         """
         Create visualization of the domain.
-        
+
         Returns:
             Path to the created plot or None if failed
         """
         if self.reporting_manager:
             return self.reporting_manager.visualize_domain()
         return None
-    
+
     def visualize_discretized_domain(self) -> Optional[Path]:
         """
         Create visualization of the discretized domain.
-        
+
         Returns:
             Path to the created plot or None if failed
         """
@@ -368,11 +368,11 @@ class DomainManager(ConfigurableMixin):
                 self.logger.info('Point scale model, not creating visualisation')
                 return None
         return None
-    
+
     def get_domain_info(self) -> Dict[str, Any]:
         """
         Get information about the current domain configuration.
-        
+
         Returns:
             Dictionary containing domain information
         """
@@ -395,23 +395,23 @@ class DomainManager(ConfigurableMixin):
             ),
             'project_dir': str(self.project_dir),
         }
-        
+
         # Add shapefile paths if they exist
         river_basins_path = self.project_dir / "shapefiles" / "river_basins"
         catchment_path = self.project_dir / "shapefiles" / "catchment"
-        
+
         if river_basins_path.exists():
             info['river_basins_path'] = str(river_basins_path)
-        
+
         if catchment_path.exists():
             info['catchment_path'] = str(catchment_path)
-        
+
         return info
-    
+
     def validate_domain_configuration(self) -> bool:
         """
         Validate the domain configuration settings.
-        
+
         Returns:
             True if configuration is valid, False otherwise
         """
@@ -437,7 +437,7 @@ class DomainManager(ConfigurableMixin):
         if domain_method not in valid_methods:
             self.logger.error(f"Invalid domain definition method: {domain_method}. Must be one of {valid_methods}")
             return False
-        
+
         # Validate bounding box format
         bbox = self._get_config_value(
             lambda: self.config.domain.bounding_box_coords,
@@ -447,11 +447,11 @@ class DomainManager(ConfigurableMixin):
         if len(bbox_parts) != 4:
             self.logger.error(f"Invalid bounding box format: {bbox}. Expected format: lat_max/lon_min/lat_min/lon_max")
             return False
-        
+
         try:
             # Check if values are valid floats
             lat_max, lon_min, lat_min, lon_max = map(float, bbox_parts)
-            
+
             # Basic validation of coordinates
             if lat_max <= lat_min:
                 self.logger.error(f"Invalid bounding box: lat_max ({lat_max}) must be greater than lat_min ({lat_min})")
@@ -459,10 +459,10 @@ class DomainManager(ConfigurableMixin):
             if lon_max <= lon_min:
                 self.logger.error(f"Invalid bounding box: lon_max ({lon_max}) must be greater than lon_min ({lon_min})")
                 return False
-                
+
         except ValueError:
             self.logger.error(f"Invalid bounding box values: {bbox}. All values must be numeric.")
             return False
-        
+
         self.logger.info("Domain configuration validation passed")
         return True

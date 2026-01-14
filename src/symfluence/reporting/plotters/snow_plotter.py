@@ -37,7 +37,7 @@ class SnowPlotter(BasePlotter):
         from matplotlib.gridspec import GridSpec  # type: ignore
 
         results = {'plot_file': '', 'individual_plots': [], 'metrics': {}}
-        
+
         try:
             # Load observation data
             # (Logic migrated from VisualizationReporter.plot_snow_simulations_vs_observations)
@@ -47,12 +47,12 @@ class SnowPlotter(BasePlotter):
                 return results
 
             snow_obs = pd.read_csv(snow_obs_path, parse_dates=['datetime'])
-            
+
             station_shp_path = Path(self.config.get('snow_station_shapefile_path', '')) / self.config.get('snow_station_shapefile_name', '')
             if not station_shp_path.exists():
                 self.logger.warning(f"Snow station shapefile not found: {station_shp_path}")
                 return results
-                
+
             station_gdf = gpd.read_file(station_shp_path)
             snow_obs['station_id'] = snow_obs['station_id'].astype(str)
             merged_obs = pd.merge(snow_obs, station_gdf, on='station_id')
@@ -64,7 +64,7 @@ class SnowPlotter(BasePlotter):
             n_hrus = len(unique_hrus)
 
             plot_dir = self._ensure_output_dir('snow')
-            
+
             # Create main figure
             fig_all = plt.figure(figsize=(20, 10 * n_hrus + 8))
             gs = GridSpec(n_hrus + 1, 1, height_ratios=[10] * n_hrus + [2])
@@ -94,7 +94,7 @@ class SnowPlotter(BasePlotter):
             # Save main plot
             main_plot_path = plot_dir / 'snow_comparison_all_hrus.png'
             results['plot_file'] = self._save_and_close(fig_all, main_plot_path)
-            
+
             return results
 
         except Exception as e:

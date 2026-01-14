@@ -48,4 +48,3 @@ jobs:
           name: site
           path: docs/_build/html
           if-no-files-found: ignore
-

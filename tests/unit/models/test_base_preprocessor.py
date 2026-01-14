@@ -67,7 +67,7 @@ class TestBaseModelPreProcessorInitialization:
         actual_config = preprocessor.config.to_dict(flatten=True)
         for key, value in config.items():
             assert actual_config[key] == value
-        
+
         assert preprocessor.domain_name == 'test_domain'
         assert preprocessor.data_dir == tmp_path
         assert preprocessor.project_dir == tmp_path / 'domain_test_domain'

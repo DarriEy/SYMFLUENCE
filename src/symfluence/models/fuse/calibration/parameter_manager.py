@@ -22,7 +22,7 @@ from symfluence.optimization.registry import OptimizerRegistry
 @OptimizerRegistry.register_parameter_manager('FUSE')
 class FUSEParameterManager(BaseParameterManager):
     """Handles FUSE parameter bounds, normalization, and file updates - FIXED VERSION"""
-    
+
     def __init__(self, config: Dict, logger: logging.Logger, fuse_settings_dir: Path):
         # Initialize base class
         super().__init__(config, logger, fuse_settings_dir)
@@ -37,7 +37,7 @@ class FUSEParameterManager(BaseParameterManager):
             # Provide sensible defaults if not specified
             self.logger.warning("SETTINGS_FUSE_PARAMS_TO_CALIBRATE not found in config. Using default FUSE parameters.")
             fuse_params_str = 'MAXWATR_1,MAXWATR_2,BASERTE,QB_POWR,TIMEDELAY,PERCRTE,FRACTEN,RTFRAC1,MBASE,MFMAX,MFMIN,PXTEMP,LAPSE'
-            
+
         self.fuse_params = [p.strip() for p in fuse_params_str.split(',') if p.strip()]
 
         # Path to FUSE parameter files
@@ -157,25 +157,25 @@ class FUSEParameterManager(BaseParameterManager):
         """Verify parameter file structure and fix indexing issues"""
         try:
             self.logger.debug("Verifying FUSE parameter file structure...")
-            
+
             # Check each parameter file
             for file_path in [self.para_def_path, self.para_sce_path, self.para_best_path]:
                 if file_path.exists():
                     self.logger.debug(f"Checking {file_path.name}")
-                    
+
                     with xr.open_dataset(file_path) as ds:
                         #self.logger.debug(f"  Dimensions: {dict(ds.dims)}")
                         #self.logger.debug(f"  Parameters available: {list(ds.data_vars.keys())}")
-                        
+
                         # Check if 'par' dimension exists and has correct size
                         if 'par' in ds.dims:
                             par_size = ds.sizes['par']
                             self.logger.debug(f"  Parameter dimension size: {par_size}")
-                            
+
                             if par_size == 0:
                                 self.logger.error(f"  ERROR: {file_path.name} has empty parameter dimension!")
                                 return False
-                            
+
                             # Verify that we can access parameter set 0
                             try:
                                 for param in self.fuse_params:
@@ -184,9 +184,9 @@ class FUSEParameterManager(BaseParameterManager):
                                         self.logger.debug(f"  {param}[0] = {test_value}")
                                     else:
                                         self.logger.warning(f"  Parameter {param} not found in {file_path.name}")
-                                        
+
                                 self.logger.debug(f"  ✓ {file_path.name} parameter indexing OK")
-                                
+
                             except Exception as e:
                                 self.logger.error(f"  ERROR: Cannot access parameter set 0 in {file_path.name}: {str(e)}")
                                 # Try to fix the file
@@ -199,50 +199,50 @@ class FUSEParameterManager(BaseParameterManager):
                             return False
                 else:
                     self.logger.warning(f"Parameter file {file_path.name} does not exist")
-            
+
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Error verifying parameter files: {str(e)}")
             return False
-    
+
     def _fix_parameter_file_indexing(self, file_path: Path) -> bool:
         """Fix parameter file indexing issues"""
         try:
             self.logger.info(f"Rebuilding parameter file: {file_path.name}")
-            
+
             # Create backup
             backup_path = file_path.with_suffix('.nc.backup')
             if file_path.exists() and not backup_path.exists():
                 import shutil
                 shutil.copy2(file_path, backup_path)
-            
+
             # Create new file with proper structure
             import netCDF4 as nc
             with nc.Dataset(file_path, 'w', format='NETCDF4') as ds:
                 # Create dimensions - CRITICAL: Use size 1, not unlimited
                 ds.createDimension('par', 1)
-                
+
                 # Create coordinate variable
                 par_var = ds.createVariable('par', 'i4', ('par',))
                 par_var[:] = [0]  # Set to 0-based indexing
-                
+
                 # Create parameter variables with default values
                 for param_name in self.fuse_params:
                     param_var = ds.createVariable(param_name, 'f8', ('par',))
                     default_val = self._get_default_parameter_value(param_name)
                     param_var[:] = [default_val]
-                    
+
                 # Ensure the file is properly closed and synced
                 ds.sync()
-            
+
             self.logger.info(f"Successfully rebuilt {file_path.name}")
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Failed to fix {file_path.name}: {str(e)}")
             return False
-    
+
     def _get_default_parameter_value(self, param_name: str) -> float:
         """Get default value for a parameter"""
         if param_name in self.param_bounds:
@@ -251,7 +251,7 @@ class FUSEParameterManager(BaseParameterManager):
         else:
             # Generic default for unknown parameters
             return 1.0
-    
+
     # Note: all_param_names property and get_parameter_bounds() are inherited from BaseParameterManager
 
     def update_parameter_file(self, params: Dict[str, float], use_best_file: bool = False) -> bool:
@@ -261,16 +261,16 @@ class FUSEParameterManager(BaseParameterManager):
             #if not self.verify_and_fix_parameter_files():
             #    self.logger.error("Cannot proceed - parameter files have structural issues")
             #    return False
-            
+
             # Choose which file to update
             target_file = self.param_file_path
-            
+
             if not target_file.exists():
                 self.logger.error(f"Parameter file does not exist: {target_file}")
                 return False
-            
+
             self.logger.debug(f"Updating parameter file: {target_file}")
-            
+
             # SAFE NetCDF writing with proper error handling
             try:
                 with nc.Dataset(target_file, 'r+') as ds:
@@ -278,12 +278,12 @@ class FUSEParameterManager(BaseParameterManager):
                     if 'par' not in ds.dimensions:
                         self.logger.error(f"Missing 'par' dimension in {target_file}")
                         return False
-                    
+
                     par_size = ds.dimensions['par'].size
                     if par_size == 0:
                         self.logger.error(f"Empty 'par' dimension in {target_file}")
                         return False
-                    
+
                     changed = 0
                     for p, v in params.items():
                         if p in ds.variables:
@@ -300,26 +300,26 @@ class FUSEParameterManager(BaseParameterManager):
                         else:
                             self.logger.error(f"[param write] {p} NOT FOUND in {target_file}")
                             return False
-                    
+
                     # Force sync to disk
                     ds.sync()
-                
+
                 if changed == 0:
                     self.logger.warning("[param write] No values changed - check parameter bounds or file structure")
                 else:
                     self.logger.debug(f"Successfully updated {changed} FUSE parameters in {target_file}")
 
-                
+
                 return True
-                
+
             except Exception as e:
                 self.logger.error(f"NetCDF error updating {target_file}: {str(e)}")
                 return False
-            
+
         except Exception as e:
             self.logger.error(f"Error updating parameter file: {str(e)}")
             return False
-    
+
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
         """Get initial parameter values from existing FUSE parameter file"""
         try:
@@ -327,11 +327,11 @@ class FUSEParameterManager(BaseParameterManager):
             #if not self.verify_and_fix_parameter_files():
             #    self.logger.warning("Parameter files need fixing - using default values")
             #    return self._get_default_initial_values()
-            
+
             if not self.param_file_path.exists():
                 self.logger.warning(f"FUSE parameter file not found: {self.param_file_path}")
                 return self._get_default_initial_values()
-            
+
             with xr.open_dataset(self.param_file_path) as ds:
                 params = {}
                 for param_name in self.fuse_params:
@@ -343,13 +343,13 @@ class FUSEParameterManager(BaseParameterManager):
                         # Use default value from bounds
                         bounds = self.param_bounds.get(param_name, {'min': 0.1, 'max': 10.0})
                         params[param_name] = (bounds['min'] + bounds['max']) / 2
-                
+
                 return params
-        
+
         except Exception as e:
             self.logger.error(f"Error reading initial parameters: {str(e)}")
             return self._get_default_initial_values()
-    
+
     def _get_default_initial_values(self) -> Dict[str, float]:
         """Get default initial parameter values"""
         params = {}

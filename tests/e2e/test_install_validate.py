@@ -258,7 +258,7 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
         wmfire_lib_name = config.get("WMFIRE_LIB", "libwmfire.dylib")
     else:
         wmfire_lib_name = config.get("WMFIRE_LIB", "libwmfire.so")
-        
+
     wmfire_path = wmfire_install_path / wmfire_lib_name
 
     if wmfire_path.exists():

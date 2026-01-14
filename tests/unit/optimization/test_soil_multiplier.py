@@ -14,13 +14,13 @@ def test_soil_depth_transformation(tmp_path):
         ds.createDimension('hru', 1)
         ds.createDimension('midToto', 6)
         ds.createDimension('ifcToto', 7)
-        
+
         depths = ds.createVariable('mLayerDepth', 'f8', ('midToto', 'hru'))
         heights = ds.createVariable('iLayerHeight', 'f8', ('ifcToto', 'hru'))
-        
+
         original_depth_values = np.array([0.1, 0.2, 0.3, 0.4, 1.0, 2.0])
         depths[:, 0] = original_depth_values
-        
+
         h_vals = np.zeros(7)
         for i in range(6):
             h_vals[i+1] = h_vals[i] + original_depth_values[i]
@@ -35,7 +35,7 @@ def test_soil_depth_transformation(tmp_path):
     # 3. Apply transformation
     params = {'total_soil_depth_multiplier': 1.5, 'shape_factor': 1.0}
     success = transformer.apply(params, tmp_path)
-    
+
     assert success is True
 
     # 4. Verify results
@@ -43,7 +43,7 @@ def test_soil_depth_transformation(tmp_path):
         new_depths = ds.variables['mLayerDepth'][:, 0]
         expected_depths = original_depth_values * 1.5
         assert np.allclose(new_depths, expected_depths)
-        
+
         new_heights = ds.variables['iLayerHeight'][:, 0]
         assert new_heights[-1] == pytest.approx(np.sum(expected_depths))
 
@@ -53,7 +53,7 @@ def test_transformation_manager(tmp_path):
 
     from symfluence.optimization.core.transformers import TransformationManager
 
-    
+
 
     coldstate_path = tmp_path / "coldState.nc"
 
@@ -79,7 +79,7 @@ def test_transformation_manager(tmp_path):
 
     success = mgr.transform({'total_soil_depth_multiplier': 2.0}, tmp_path)
 
-    
+
 
     assert success is True
 

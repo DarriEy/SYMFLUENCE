@@ -3,8 +3,8 @@ Configuration
 
 Overview
 --------
-All SYMFLUENCE workflows are driven by a single YAML configuration file.  
-This file defines domain setup, model selection, data sources, optimization strategy, and output behavior.  
+All SYMFLUENCE workflows are driven by a single YAML configuration file.
+This file defines domain setup, model selection, data sources, optimization strategy, and output behavior.
 Configurations are modular, validated at runtime, and fully reproducible.
 
 ---
@@ -13,13 +13,13 @@ Structure
 ---------
 Configurations are organized into logical blocks:
 
-1. **Global and Logging Settings** — Experiment metadata and runtime controls  
-2. **Geospatial Definition** — Domain delineation and discretization  
-3. **Data and Forcings** — Input datasets and acquisition options  
-4. **Model Configuration** — Model selection and parameters  
-5. **Routing** — Flow routing with mizuRoute  
-6. **Calibration and Optimization** — Parameter estimation and metrics  
-7. **Emulation** — Differentiable emulators for large-domain workflows  
+1. **Global and Logging Settings** — Experiment metadata and runtime controls
+2. **Geospatial Definition** — Domain delineation and discretization
+3. **Data and Forcings** — Input datasets and acquisition options
+4. **Model Configuration** — Model selection and parameters
+5. **Routing** — Flow routing with mizuRoute
+6. **Calibration and Optimization** — Parameter estimation and metrics
+7. **Emulation** — Differentiable emulators for large-domain workflows
 8. **Paths and Resources** — Custom paths, file structure, and parallelism
 
 ---
@@ -87,7 +87,7 @@ Forcing data and meteorological drivers are defined here.
    DATA_ACQUIRE: HPC                     # HPC | supplied | local
 
 Optional extensions:
-- **EM-Earth** integration for high-resolution precipitation/temperature downscaling  
+- **EM-Earth** integration for high-resolution precipitation/temperature downscaling
 - **Supplemental forcing** and derived variables (e.g., PET via Priestley–Taylor)
 
 ---
@@ -163,10 +163,10 @@ Define calibration period, optimization algorithms, and objective metrics.
    NUMBER_OF_ITERATIONS: 30
 
 Supported algorithms:
-- **DE** – Differential Evolution  
-- **DDS** – Dynamically Dimensioned Search  
-- **PSO** – Particle Swarm Optimization  
-- **NSGA-II** – Multi-objective optimization  
+- **DE** – Differential Evolution
+- **DDS** – Dynamically Dimensioned Search
+- **PSO** – Particle Swarm Optimization
+- **NSGA-II** – Multi-objective optimization
 
 ---
 

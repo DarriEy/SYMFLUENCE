@@ -15,4 +15,3 @@ Briefly describe what this PR does.
 - [ ] Documentation updated
 
 Closes #<issue-number>
-

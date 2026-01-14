@@ -363,10 +363,10 @@ def mock_evaluate_function():
 
 def _create_mock_worker(model_name):
     """Factory function to create mock worker functions for any model.
-    
+
     Args:
         model_name: Name of the model (SUMMA, FUSE, NGEN, etc.)
-    
+
     Returns:
         A worker function that simulates model evaluation.
     """

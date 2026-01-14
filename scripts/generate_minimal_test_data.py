@@ -78,7 +78,7 @@ def generate_domain_data(domain_name, forcing_dataset, output_root, source_data_
         'ATTRIBUTES_OUTPUT_DIR': 'default',
         'FORCING_PATH': 'default'
     }
-    
+
     if domain_name == 'ellioaar_iceland':
         config.update({
             'BOUNDING_BOX_COORDS': '64.13/-21.94/64.11/-21.96',

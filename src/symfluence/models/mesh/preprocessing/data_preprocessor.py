@@ -165,7 +165,7 @@ class MESHDataPreprocessor:
                 else:
                     gdf['GRU_ID'] = range(1, len(gdf) + 1)
                 needs_update = True
-            
+
             # Ensure it is integer type and has no NaNs
             if 'GRU_ID' in gdf.columns:
                 if len(gdf) == 1 and gdf['GRU_ID'].iloc[0] != 1:
@@ -220,7 +220,7 @@ class MESHDataPreprocessor:
                 else:
                     gdf[hru_col] = range(1, len(gdf) + 1)
                 needs_update = True
-            
+
             # Ensure it's not empty/NaN and matches lumped ID 1
             if len(gdf) == 1 and gdf[hru_col].iloc[0] != 1:
                 self.logger.info(f"Forcing lumped {hru_col} to 1 in {path.name}")
@@ -243,7 +243,7 @@ class MESHDataPreprocessor:
     def fix_missing_columns(self, shp_path: str, column_mapping: Dict[str, str]) -> None:
         """
         Ensure all columns required by meshflow exist in the shapefile.
-        
+
         Args:
             shp_path: Path to the shapefile
             column_mapping: Mapping of standard names to file-specific names
@@ -382,11 +382,11 @@ class MESHDataPreprocessor:
                     df[frac_col] = count_data[col] / row_totals.replace(0, 1)
                     df = df.drop(columns=[col])
 
-            # IMPORTANT: meshflow's digit-only stripping for columns means we MUST 
+            # IMPORTANT: meshflow's digit-only stripping for columns means we MUST
             # remove any column that is not 'GRU_ID' or starts with 'frac_'
             # otherwise a column named 'count' becomes '', which causes ValueError in int()
             cols_to_keep = ['GRU_ID'] + [col for col in df.columns if col.startswith('frac_')]
-            
+
             # Final check that we have columns to keep
             actual_cols_to_keep = [c for c in cols_to_keep if c in df.columns]
             df = df[actual_cols_to_keep]
@@ -427,12 +427,12 @@ class MESHDataPreprocessor:
 
         try:
             df = pd.read_csv(csv_path)
-            
+
             # MAF format expects columns like: GRU_ID, frac_1, frac_2, ...
             # where frac_* values sum to 1.0 for each row.
-            
+
             modified = False
-            
+
             # If we only have IGBP_x columns, convert to frac_x
             igbp_cols = [c for c in df.columns if c.startswith('IGBP_')]
             if igbp_cols:
@@ -443,7 +443,7 @@ class MESHDataPreprocessor:
                         total = df[igbp_cols].sum(axis=1).replace(0, 1)
                         df[new_col] = df[col] / total
                         modified = True
-            
+
             # If we have no frac_ columns but some numeric columns, try to guess
             frac_cols = [c for c in df.columns if c.startswith('frac_')]
             if not frac_cols:
@@ -453,7 +453,7 @@ class MESHDataPreprocessor:
                     self.logger.info(f"Guessing {other_cols[0]} is the primary GRU fraction")
                     df['frac_10'] = 1.0 # Default to grassland if unknown
                     modified = True
-            
+
             if modified:
                 df.to_csv(csv_path, index=False)
                 self.logger.info(f"Converted {csv_path} to MAF format")

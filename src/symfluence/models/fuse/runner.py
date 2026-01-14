@@ -10,7 +10,7 @@ import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import xarray as xr
@@ -226,13 +226,13 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
             bool: True if mizuRoute routing should be executed, False otherwise.
         """
         routing_integration = self.config_dict.get('FUSE_ROUTING_INTEGRATION', 'none')
-        
+
         if routing_integration == 'mizuRoute':
             if self.spatial_mode in ['semi_distributed', 'distributed']:
                 return True
             elif self.spatial_mode == 'lumped' and self.config_dict.get('ROUTING_DELINEATION') == 'river_network':
                 return True
-        
+
         return False
 
     def _execute_fuse_workflow(self) -> bool:
@@ -256,42 +256,42 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
     def _run_distributed_fuse(self) -> bool:
         """Run FUSE in distributed mode - always process the full dataset at once"""
         self.logger.debug("Running distributed FUSE workflow with full dataset")
-        
+
         try:
             # Run FUSE once with the complete distributed forcing file
             return self._run_multidimensional_fuse()
-                    
+
         except Exception as e:
             self.logger.error(f"Error in distributed FUSE execution: {str(e)}")
             return False
 
     def _run_multidimensional_fuse(self) -> bool:
         """Run FUSE once with the full distributed forcing file"""
-        
+
         try:
             self.logger.debug("Running FUSE with complete distributed forcing dataset")
-            
+
             # Run FUSE with the distributed forcing file (all HRUs at once)
             success = self._execute_fuse_distributed()
-            
+
             if success:
                 self.logger.debug("Distributed FUSE run completed successfully")
                 return True
             else:
                 self.logger.error("Distributed FUSE run failed")
                 return False
-                
+
         except Exception as e:
             self.logger.error(f"Error in multidimensional FUSE execution: {str(e)}")
             return False
 
     def _execute_fuse_distributed(self) -> bool:
         """Execute FUSE with the complete distributed forcing file"""
-        
+
         try:
             # Use the main file manager (points to distributed forcing file)
             control_file = self.setup_dir / 'fm_catch.txt'
-            
+
             # Run FUSE once for the entire distributed domain
             command = [
                 str(self.fuse_exe),
@@ -299,12 +299,12 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
                 self.domain_name,  # Use original domain name
                 "run_def"  # Run with default parameters
             ]
-            
+
             # Create log file
             log_file = self.output_path / 'fuse_distributed_run.log'
-            
+
             self.logger.debug(f"Executing distributed FUSE: {' '.join(command)}")
-            
+
             with open(log_file, 'w') as f:
                 result = subprocess.run(
                     command,
@@ -314,14 +314,14 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
                     text=True,
                     cwd=str(self.setup_dir)
                 )
-            
+
             if result.returncode == 0:
                 self.logger.debug("Distributed FUSE execution completed successfully")
                 return True
             else:
                 self.logger.error(f"FUSE failed with return code {result.returncode}")
                 return False
-                
+
         except subprocess.CalledProcessError as e:
             self.logger.error(f"FUSE execution failed: {str(e)}")
             return False
@@ -343,11 +343,11 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
         fuse_id = self._get_fuse_file_id()
         def_file = self.output_path / f"{self.domain_name}_{fuse_id}_runs_def.nc"
         best_file = self.output_path / f"{self.domain_name}_{fuse_id}_runs_best.nc"
-        
+
         if def_file.exists() and not best_file.exists():
             self.logger.info(f"Copying {def_file.name} to {best_file.name} for compatibility")
             shutil.copy2(def_file, best_file)
-        
+
         return best_file if best_file.exists() else def_file
 
     def _extract_subcatchment_forcing(self, subcat_id: int, index: int) -> Path:
@@ -521,14 +521,13 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
         self.config_dict['EXPERIMENT_ID_TEMP'] = self.experiment_id  # Backup
 
         # Set mizuRoute to look for FUSE output instead of SUMMA
-        mizuroute_input_file = f"{self.experiment_id}_fuse_runoff.nc"
 
     def _is_snow_optimization(self) -> bool:
         """Check if this is a snow optimization run by examining the forcing data."""
         try:
             # Check if q_obs contains only dummy values
             forcing_file = self.forcing_fuse_path / f"{self.domain_name}_input.nc"
-            
+
             if forcing_file.exists():
                 with xr.open_dataset(forcing_file) as ds:
                     if 'q_obs' in ds.variables:
@@ -536,14 +535,14 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
                         # If all values are -9999 or very close to it, it's dummy data
                         if np.all(np.abs(q_obs_values + 9999) < 0.1):
                             return True
-            
+
             # Also check optimization target from config
             optimization_target = self.config_dict.get('OPTIMIZATION_TARGET', 'streamflow')
             if optimization_target in ['swe', 'sca', 'snow_depth', 'snow']:
                 return True
-                
+
             return False
-            
+
         except Exception as e:
             self.logger.warning(f"Could not determine if snow optimization: {str(e)}")
             # Fall back to checking config
@@ -556,17 +555,17 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
             fuse_id = self._get_fuse_file_id()
             default_params = self.output_path / f"{self.domain_name}_{fuse_id}_para_def.nc"
             best_params = self.output_path / f"{self.domain_name}_{fuse_id}_para_sce.nc"
-            
+
             if default_params.exists():
                 import shutil
                 shutil.copy2(default_params, best_params)
                 self.logger.info("Copied default parameters to best parameters file for snow optimization")
             else:
                 self.logger.warning("Default parameter file not found - snow optimization may fail")
-                
+
         except Exception as e:
             self.logger.error(f"Error copying default to best parameters: {str(e)}")
-            
+
 
     def _execute_fuse(self, mode, para_file=None) -> bool:
         """
@@ -588,7 +587,7 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
             bool: True if execution was successful, False otherwise.
         """
         self.logger.debug("Executing FUSE model")
-        
+
         # Construct command
         fuse_fm = self.config_dict.get('SETTINGS_FUSE_FILEMANAGER')
         if fuse_fm == 'default':
@@ -605,7 +604,7 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
             # ADD THIS: Add parameter file for run_pre mode
         if mode == 'run_pre' and para_file:
             command.append(str(para_file))
-        
+
         # Create log file path
         log_file = self.get_log_path() / 'fuse_run.log'
 
@@ -626,9 +625,9 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
     def _process_outputs(self):
         """Process and organize FUSE output files."""
         self.logger.debug("Processing FUSE outputs")
-        
+
         output_dir = self.output_path / 'output'
-        
+
         # Read and process streamflow output
         q_file = output_dir / 'streamflow.nc'
         if q_file.exists():
@@ -638,12 +637,12 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
                 ds.attrs['domain'] = self.domain_name
                 ds.attrs['experiment_id'] = self.experiment_id
                 ds.attrs['creation_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                
+
                 # Save processed output
                 processed_file = self.output_path / f"{self.experiment_id}_streamflow.nc"
                 ds.to_netcdf(processed_file)
                 self.logger.debug(f"Processed streamflow output saved to: {processed_file}")
-        
+
         # Process state variables if they exist
         state_file = output_dir / 'states.nc'
         if state_file.exists():
@@ -653,7 +652,7 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
                 ds.attrs['domain'] = self.domain_name
                 ds.attrs['experiment_id'] = self.experiment_id
                 ds.attrs['creation_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                
+
                 # Save processed output
                 processed_file = self.output_path / f"{self.experiment_id}_states.nc"
                 ds.to_netcdf(processed_file)
@@ -663,13 +662,13 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
     def _run_lumped_fuse(self) -> bool:
         """Run FUSE in lumped mode using the original workflow"""
         self.logger.info("Running lumped FUSE workflow")
-        
+
         try:
             # Check if this is a snow optimization case
             if self._is_snow_optimization():
                 self.logger.info("Snow optimization detected - copying default to best parameters")
                 self._copy_default_to_best_params()
-            
+
             # Run FUSE with default parameters
             success = self._execute_fuse('run_def')
 
@@ -677,7 +676,7 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
             opt_methods = self.config_dict.get('OPTIMIZATION_METHODS', [])
             if isinstance(opt_methods, str):
                 opt_methods = opt_methods.split(',')
-            
+
             is_external_calibration = 'iteration' in [m.strip() for m in opt_methods]
 
             if is_external_calibration:
@@ -700,7 +699,7 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
             else:
                 self.logger.error("Lumped FUSE run failed")
                 return False
-                
+
         except Exception as e:
             self.logger.error(f"Error in lumped FUSE execution: {str(e)}")
             return False
@@ -708,16 +707,16 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
     def backup_run_files(self):
         """Backup important run files for reproducibility."""
         self.logger.info("Backing up run files")
-        
+
         backup_dir = self.output_path / 'run_settings'
         backup_dir.mkdir(exist_ok=True)
-        
+
         files_to_backup = [
             self.output_path / 'settings' / 'control.txt',
             self.output_path / 'settings' / 'structure.txt',
             self.output_path / 'settings' / 'params.txt'
         ]
-        
+
         for file in files_to_backup:
             if file.exists():
                 shutil.copy2(file, backup_dir / file.name)

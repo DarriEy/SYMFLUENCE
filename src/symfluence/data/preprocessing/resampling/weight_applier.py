@@ -11,7 +11,7 @@ import time
 import uuid
 import netCDF4 as nc4
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 from .weight_generator import _create_easymore_instance, _run_easmore_with_suppressed_output
 from .file_validator import FileValidator

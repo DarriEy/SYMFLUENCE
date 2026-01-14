@@ -94,7 +94,7 @@ class FUSEWorker(BaseWorker):
             True if successful
         """
         try:
-            config = kwargs.get('config', self.config)
+            kwargs.get('config', self.config)
 
             # Check for FUSE subdirectory (common in parallel setup)
             if (settings_dir / 'FUSE').exists():
@@ -243,7 +243,7 @@ class FUSEWorker(BaseWorker):
             # We use a short alias 'sim' for the domain ID to avoid Fortran string length limits
             # and create symlinks for the input files in the execution directory
             fuse_run_id = 'sim'
-            
+
             # Create symlinks for input files
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             domain_name = config.get('DOMAIN_NAME')
@@ -251,27 +251,27 @@ class FUSEWorker(BaseWorker):
             fuse_input_dir = project_dir / 'forcing' / 'FUSE_input'
             experiment_id = config.get('EXPERIMENT_ID', 'run_1')
             fuse_id = config.get('FUSE_FILE_ID', experiment_id)
-            
+
             # Define input files to symlink
             input_files = [
                 (fuse_input_dir / f"{domain_name}_input.nc", f"{fuse_run_id}_input.nc"),
                 (fuse_input_dir / f"{domain_name}_elev_bands.nc", f"{fuse_run_id}_elev_bands.nc")
             ]
-            
+
             # Also symlink the parameter file (para_def.nc) to match the short alias
             # The optimizer generates {domain_name}_{fuse_id}_para_def.nc in execution_cwd
             # FUSE with 'sim' alias will look for sim_{fuse_id}_para_def.nc
             param_file_src = execution_cwd / f"{domain_name}_{fuse_id}_para_def.nc"
             param_file_dst = f"{fuse_run_id}_{fuse_id}_para_def.nc"
             input_files.append((param_file_src, param_file_dst))
-            
+
             # Ensure configuration files are present (input_info.txt, fuse_zNumerix.txt, etc.)
             # These should have been copied by the optimizer, but if missing, symlink from main settings
             project_settings_dir = project_dir / 'settings' / 'FUSE'
             self.logger.debug(f"Checking for config files in: {project_settings_dir}")
-            
+
             config_files = ['input_info.txt', 'fuse_zNumerix.txt']
-            
+
             # Add decisions file to the list
             # Try to find the specific decisions file for this experiment
             decisions_file_name = f"fuse_zDecisions_{experiment_id}.txt"
@@ -297,7 +297,7 @@ class FUSEWorker(BaseWorker):
                         self.logger.warning(f"Restoring missing config file: {cfg_file}")
                     else:
                         self.logger.error(f"Source config file not found: {src_path}")
-            
+
             for src, link_name in input_files:
                 if src.exists():
                     link_path = execution_cwd / link_name
@@ -309,9 +309,9 @@ class FUSEWorker(BaseWorker):
                         self.logger.debug(f"Created symlink: {link_path} -> {src}")
                     except Exception as e:
                         self.logger.warning(f"Failed to create symlink {link_path}: {e}")
-            
+
             # Pass use_local_input=True to _update_file_manager
-            if not self._update_file_manager(filemanager_path, execution_cwd, fuse_output_dir, 
+            if not self._update_file_manager(filemanager_path, execution_cwd, fuse_output_dir,
                                           config=config, use_local_input=True):
                 return False
 
@@ -369,15 +369,15 @@ class FUSEWorker(BaseWorker):
             # Validate that FUSE actually produced output (FUSE can return 0 but fail silently)
             # Output will now use the short alias 'sim' and the FMODEL_ID from file manager
             fuse_id = config.get('FUSE_FILE_ID', config.get('EXPERIMENT_ID'))
-            
+
             # The output filename format is {domain_id}_{fmodel_id}_{suffix}
             # FUSE writes to execution_cwd because we set OUTPUT_PATH to ./
             local_output_filename = f"{fuse_run_id}_{fuse_id}_runs_def.nc"
             local_output_path = execution_cwd / local_output_filename
-            
+
             # Final destination
             final_output_path = fuse_output_dir / f"{domain_name}_{fuse_id}_runs_def.nc"
-            
+
             if local_output_path.exists():
                 try:
                     # Move to final destination and rename
@@ -692,7 +692,7 @@ class FUSEWorker(BaseWorker):
                 case_name = f"proc_{proc_id:02d}_{experiment_id}"
 
                 # Try to find the output file using glob pattern
-                mizu_output_pattern = mizuroute_dir / f"{case_name}.h.*.nc"
+                mizuroute_dir / f"{case_name}.h.*.nc"
                 mizu_output_files = list(mizuroute_dir.glob(f"{case_name}.h.*.nc"))
 
                 if mizu_output_files:
@@ -946,7 +946,7 @@ class FUSEWorker(BaseWorker):
             # to the process-specific settings directory
             # settings_dir structure: .../process_N/settings/FUSE/
             # mizuRoute settings are at: .../process_N/settings/mizuRoute/
-            
+
             # Try to get from kwargs first (set by BaseModelOptimizer)
             mizuroute_settings_dir = kwargs.get('mizuroute_settings_dir')
             if mizuroute_settings_dir:

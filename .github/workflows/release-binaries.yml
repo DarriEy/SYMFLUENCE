@@ -155,7 +155,7 @@ jobs:
           ./symfluence binary install
 
           echo "Build external tools completed successfully"
-          
+
           # Debug: Verify installation directory
           echo "Verifying installation directory:"
           ls -la "${{ env.SYMFLUENCE_DATA }}" || echo "SYMFLUENCE_DATA not found"

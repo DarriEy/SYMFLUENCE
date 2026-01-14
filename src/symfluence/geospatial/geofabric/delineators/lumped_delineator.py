@@ -77,7 +77,7 @@ class LumpedWatershedDelineator(BaseGeofabricDelineator):
         river_network_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Delineate watershed
-        watershed_path = self._delineate_with_taudem()
+        self._delineate_with_taudem()
 
         # Create river network shapefile from pour point
         self._create_river_network(pour_point_path, river_network_path)

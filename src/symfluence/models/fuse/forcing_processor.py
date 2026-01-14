@@ -204,7 +204,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
     def _prepare_distributed_forcing(self, ds: xr.Dataset) -> xr.Dataset:
         """Prepare fully distributed forcing data"""
         self.logger.info("Preparing distributed forcing data")
-        
+
         # Check target size from available catchment data to ensure alignment
         target_ids = self._load_subcatchment_data()
         n_target = len(target_ids)

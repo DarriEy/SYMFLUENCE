@@ -40,7 +40,7 @@ import logging
 import pandas as pd
 import xarray as xr
 from pathlib import Path
-from typing import cast, Any, List, Optional, TYPE_CHECKING
+from typing import cast, List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
@@ -180,7 +180,7 @@ class ETEvaluator(ModelEvaluator):
             f"Initialized ETEvaluator for {self.optimization_target.upper()} "
             f"evaluation using {self.obs_source.upper()} observations"
         )
-    
+
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
         """Locate SUMMA daily output files containing ET variables.
 
@@ -234,7 +234,7 @@ class ETEvaluator(ModelEvaluator):
         except Exception as e:
             self.logger.error(f"Error extracting ET data from {sim_file}: {str(e)}")
             raise
-    
+
     def _extract_et_data(self, ds: xr.Dataset) -> pd.Series:
         """Extract total evapotranspiration from SUMMA output.
 
@@ -270,7 +270,7 @@ class ETEvaluator(ModelEvaluator):
         """
         if 'scalarTotalET' in ds.variables:
             et_var = ds['scalarTotalET']
-            
+
             # Collapse spatial dimensions
             sim_xr = et_var
             for dim in ['hru', 'gru']:
@@ -279,20 +279,20 @@ class ETEvaluator(ModelEvaluator):
                         sim_xr = sim_xr.isel({dim: 0})
                     else:
                         sim_xr = sim_xr.mean(dim=dim)
-            
+
             # Handle any remaining non-time dimensions
             non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
             if non_time_dims:
                 sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-            
+
             sim_data = sim_xr.to_pandas()
-            
+
             # Convert units: SUMMA outputs kg m-2 s-1, convert to mm/day
             sim_data = self._convert_et_units(sim_data, from_unit='kg_m2_s', to_unit='mm_day')
             return sim_data
         else:
             return self._sum_et_components(ds)
-    
+
     def _sum_et_components(self, ds: xr.Dataset) -> pd.Series:
         """Sum individual ET component fluxes to compute total ET.
 
@@ -323,10 +323,9 @@ class ETEvaluator(ModelEvaluator):
             Exception: If spatial aggregation or unit conversion fails
         """
         try:
-            et_components: dict[str, Any] = {}
             component_vars = {
                 'canopy_transpiration': 'scalarCanopyTranspiration',
-                'canopy_evaporation': 'scalarCanopyEvaporation', 
+                'canopy_evaporation': 'scalarCanopyEvaporation',
                 'ground_evaporation': 'scalarGroundEvaporation',
                 'snow_sublimation': 'scalarSnowSublimation',
                 'canopy_sublimation': 'scalarCanopySublimation'
@@ -349,22 +348,22 @@ class ETEvaluator(ModelEvaluator):
                                 component_data = component_var
                     else:
                         component_data = component_var
-                    
+
                     if total_et is None:
                         total_et = component_data
                     else:
                         total_et = total_et + component_data
-            
+
             if total_et is None:
                 raise ValueError("No ET component variables found in SUMMA output")
-            
+
             sim_data = total_et.to_pandas()
             sim_data = self._convert_et_units(sim_data, from_unit='kg_m2_s', to_unit='mm_day')
             return sim_data
         except Exception as e:
             self.logger.error(f"Error summing ET components: {str(e)}")
             raise
-    
+
     def _extract_latent_heat_data(self, ds: xr.Dataset) -> pd.Series:
         """Extract latent heat flux from SUMMA output.
 
@@ -400,7 +399,7 @@ class ETEvaluator(ModelEvaluator):
         """
         if 'scalarLatHeatTotal' in ds.variables:
             lh_var = ds['scalarLatHeatTotal']
-            
+
             # Collapse spatial dimensions
             sim_xr = lh_var
             for dim in ['hru', 'gru']:
@@ -409,7 +408,7 @@ class ETEvaluator(ModelEvaluator):
                         sim_xr = sim_xr.isel({dim: 0})
                     else:
                         sim_xr = sim_xr.mean(dim=dim)
-            
+
             # Handle any remaining non-time dimensions
             non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
             if non_time_dims:
@@ -419,7 +418,7 @@ class ETEvaluator(ModelEvaluator):
             return sim_data
         else:
             raise ValueError("scalarLatHeatTotal not found in SUMMA output")
-    
+
     def _convert_et_units(self, et_data: pd.Series, from_unit: str, to_unit: str) -> pd.Series:
         """Convert evapotranspiration units.
 
@@ -453,7 +452,7 @@ class ETEvaluator(ModelEvaluator):
             return et_data
         else:
             return et_data
-    
+
     def get_observed_data_path(self) -> Path:
         """Resolve path to observed ET data based on source configuration.
 
@@ -544,7 +543,7 @@ class ETEvaluator(ModelEvaluator):
             / "processed"
             / f"{self.domain_name}_fluxnet_processed.csv"
         )
-    
+
     def _get_observed_data_column(self, columns: List[str]) -> Optional[str]:
         """Identify ET data column based on observation source and target.
 
@@ -579,7 +578,7 @@ class ETEvaluator(ModelEvaluator):
         Returns:
             str: Name of ET/latent heat column, or None if not found
         """
-        columns_lower = [c.lower() for c in columns]
+        [c.lower() for c in columns]
 
         if self.optimization_target == 'et':
             # MOD16 column names (highest priority for MOD16 source)
@@ -617,7 +616,7 @@ class ETEvaluator(ModelEvaluator):
                 return 'LE_F_MDS'
 
         return None
-    
+
     def _load_observed_data(self) -> Optional[pd.Series]:
         """Load observed ET with quality control and temporal aggregation.
 
@@ -818,7 +817,7 @@ class ETEvaluator(ModelEvaluator):
         except Exception as e:
             self.logger.warning(f"Could not acquire FLUXNET data: {e}")
             return None
-    
+
     def _apply_quality_control(self, obs_df: pd.DataFrame, obs_data: pd.Series, data_col: str) -> pd.Series:
         """Apply FluxNet quality control filtering (source-specific).
 

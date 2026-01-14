@@ -164,9 +164,9 @@ class SoilProcessor(BaseAttributeProcessor):
                     avg_silt += texture_results[silt_key] * weight / total_depth
 
             # Convert from g/kg to fraction (divide by 10)
-            sand_fraction = avg_sand / 1000
-            clay_fraction = avg_clay / 1000
-            silt_fraction = avg_silt / 1000
+            avg_sand / 1000
+            avg_clay / 1000
+            avg_silt / 1000
 
             # Calculate hydraulic properties using pedotransfer functions
 
@@ -219,9 +219,9 @@ class SoilProcessor(BaseAttributeProcessor):
                         avg_silt += texture_results[silt_key] * weight / total_depth
 
                 # Convert from g/kg to fraction (divide by 10)
-                sand_fraction = avg_sand / 1000
-                clay_fraction = avg_clay / 1000
-                silt_fraction = avg_silt / 1000
+                avg_sand / 1000
+                avg_clay / 1000
+                avg_silt / 1000
 
                 # Calculate hydraulic properties using pedotransfer functions
 

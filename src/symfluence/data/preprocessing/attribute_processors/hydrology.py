@@ -7,7 +7,6 @@ and river network characteristics.
 
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from typing import Dict, Any
 
 from .base import BaseAttributeProcessor

@@ -201,7 +201,7 @@ class CONUS404Handler(BaseDatasetHandler):
             sw_flux.name = "SWRadAtm"
             ds["SWRadAtm"] = sw_flux
         else:
-            sw = ds["SWRadAtm"]
+            ds["SWRadAtm"]
 
         ds["SWRadAtm"].attrs.update({
             "units": "W m-2",
@@ -217,7 +217,7 @@ class CONUS404Handler(BaseDatasetHandler):
             lw_flux.name = "LWRadAtm"
             ds["LWRadAtm"] = lw_flux
         else:
-            lw = ds["LWRadAtm"]
+            ds["LWRadAtm"]
 
 
         ds["LWRadAtm"].attrs.update({
@@ -241,21 +241,21 @@ class CONUS404Handler(BaseDatasetHandler):
 
         elif "RAINRATE" in ds:
             ds["pptrate"] = ds["RAINRATE"] # mm/s
-        
+
         elif "pptrate" in ds:
             # Handle case where pptrate is already present but in mm (accumulated per step)
             attrs = ds["pptrate"].attrs
             units = attrs.get("units", "")
             desc = attrs.get("description", "").lower()
             long_name = attrs.get("long_name", "").lower()
-            
+
             if units == "mm" and ("accumulated" in desc or "accumulated" in long_name):
                  self.logger.warning("Found 'pptrate' in mm (interval accumulated). Converting to rate mm/s.")
                  # Calculate dt
                  time_coord = "time"
                  dt = (ds[time_coord].diff(time_coord) / np.timedelta64(1, "s")).astype("float32")
                  dt = dt.reindex({time_coord: ds[time_coord]}, method="bfill")
-                 
+
                  # Convert mm/step -> mm/s
                  ds["pptrate"] = ds["pptrate"] / dt
 
@@ -510,7 +510,7 @@ class CONUS404Handler(BaseDatasetHandler):
                 parts = [float(v) for v in bbox_str.split("/")]
                 lat_min, lat_max = sorted([parts[0], parts[2]])
                 lon_min, lon_max = sorted([parts[1], parts[3]])
-                
+
                 # Add a small buffer (approx 10km) to ensure we cover the domain
                 # CONUS404 is ~4km resolution
                 buffer = 0.1  # degrees
@@ -518,7 +518,7 @@ class CONUS404Handler(BaseDatasetHandler):
                 lat_max += buffer
                 lon_min -= buffer
                 lon_max += buffer
-                
+
                 bbox = (lat_min, lat_max, lon_min, lon_max)
                 self.logger.info(f"Filtering CONUS404 grid by bbox (with buffer): {bbox}")
             except Exception as e:
@@ -538,12 +538,12 @@ class CONUS404Handler(BaseDatasetHandler):
                 # Optimization: Skip longitudes outside bbox
                 if bbox and not (bbox[2] <= float(center_lon) <= bbox[3]):
                     continue
-                    
+
                 for j, center_lat in enumerate(lat):
                     # Optimization: Skip latitudes outside bbox
                     if bbox and not (bbox[0] <= float(center_lat) <= bbox[1]):
                         continue
-                        
+
                     verts = [
                         [float(center_lon) - half_dlon, float(center_lat) - half_dlat],
                         [float(center_lon) - half_dlon, float(center_lat) + half_dlat],
@@ -563,7 +563,7 @@ class CONUS404Handler(BaseDatasetHandler):
 
             cell_count = 0
             filtered_count = 0
-            
+
             # Pre-calculate approximate grid spacing to speed up loop
             # Check center of domain or use a default if small
             mid_y, mid_x = ny // 2, nx // 2
@@ -578,12 +578,12 @@ class CONUS404Handler(BaseDatasetHandler):
                 for j in range(nx):
                     center_lat = float(lat[i, j])
                     center_lon = float(lon[i, j])
-                    
+
                     # Optimization: Skip cells outside bbox
                     if bbox and not (bbox[0] <= center_lat <= bbox[1] and bbox[2] <= center_lon <= bbox[3]):
                         filtered_count += 1
                         continue
-                    
+
                     # Robust local spacing calculation
                     # Try to use next neighbor, else previous neighbor, else default
                     if i < ny - 1:
@@ -592,7 +592,7 @@ class CONUS404Handler(BaseDatasetHandler):
                         dlat = abs(lat[i, j] - lat[i-1, j])
                     else:
                         dlat = default_dlat
-                    
+
                     if j < nx - 1:
                         dlon = abs(lon[i, j+1] - lon[i, j])
                     elif j > 0:
@@ -625,7 +625,7 @@ class CONUS404Handler(BaseDatasetHandler):
                     cell_count += 1
                     if cell_count % 5000 == 0:
                         self.logger.info(f"Created {cell_count} geometries (filtered {filtered_count} so far)")
-            
+
             self.logger.info(f"Finished grid processing. Created {len(geometries)} cells, skipped {filtered_count} cells.")
 
         if not geometries:

@@ -202,7 +202,7 @@ class GlacierAttributesManager:
 
         hru_id_col = self.config.get('CATCHMENT_SHP_HRUID', 'HRU_ID')
         num_hru = len(hru_ids)
-        num_gru = len(gru_ids)
+        len(gru_ids)
 
         # Determine available domain types from columns
         domain_cols = [c for c in shp_area.columns if c.startswith('domType_')]
@@ -410,7 +410,7 @@ class GlacierAttributesManager:
             # For now, estimate ice thickness as 10% of surface elevation (rough approximation)
             # Real calculation would need bed elevation raster
             if surf_data is not None:
-                gru_surf = surf_data[gru_mask]
+                surf_data[gru_mask]
                 # Estimate ice thickness ~ 50m average for glaciers (rough approximation)
                 # Better: use actual bed elevation if available
                 ice_thickness = np.where(rgi_data[gru_mask] > 0, 50.0, 0.0)  # 50m average
@@ -449,7 +449,7 @@ class GlacierAttributesManager:
         shutil.copy2(base_attributes_file, output_file)
 
         with nc4.Dataset(output_file, 'r+') as ds:
-            num_gru = len(ds.dimensions['gru'])
+            len(ds.dimensions['gru'])
 
             # nGlac = nGrid (number of glacier grids per GRU)
             if 'nGlac' not in ds.variables:

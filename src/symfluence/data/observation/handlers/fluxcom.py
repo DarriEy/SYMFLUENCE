@@ -6,10 +6,8 @@ evapotranspiration products for model validation and calibration.
 """
 
 import pandas as pd
-import numpy as np
 import xarray as xr
 from pathlib import Path
-from typing import Dict, Any, Optional
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 
@@ -42,34 +40,34 @@ class FLUXCOMETHandler(BaseObservationHandler):
     def process(self, input_path: Path) -> Path:
         """Process FLUXCOM ET NetCDF data."""
         self.logger.info(f"Processing FLUXCOM ET for domain: {self.domain_name}")
-        
+
         nc_files = list(input_path.glob("*.nc"))
         if not nc_files:
             self.logger.warning("No FLUXCOM ET NetCDF files found")
             return input_path
-            
+
         results = []
         for f in nc_files:
             with xr.open_dataset(f) as ds:
                 # FLUXCOM ET variable is usually 'ET'
                 if 'ET' not in ds.data_vars:
                     continue
-                
+
                 # Spatial average
                 mean_et = ds['ET'].mean(dim=[d for d in ds['ET'].dims if d != 'time'])
                 df_ts = mean_et.to_dataframe().reset_index()
                 results.append(df_ts)
-        
+
         if not results:
             self.logger.warning("No FLUXCOM ET data could be extracted")
             return input_path
-            
+
         df = pd.concat(results).sort_values('time').set_index('time')
-        
+
         output_dir = self.project_dir / "observations" / "et" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_fluxcom_et_processed.csv"
         df.to_csv(output_file)
-        
+
         self.logger.info(f"FLUXCOM ET processing complete: {output_file}")
         return output_file

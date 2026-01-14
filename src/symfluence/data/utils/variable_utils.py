@@ -488,13 +488,13 @@ class VariableStandardizer:
 class VariableHandler:
     """
     Handles variable name mapping and unit conversion between different datasets and models.
-    
+
     Attributes:
         variable_mappings (Dict): Dataset to model variable name mappings
         unit_registry (pint_xarray.UnitRegistry): Unit conversion registry
         logger (logging.Logger): SYMFLUENCE logger instance
     """
-    
+
     # Dataset variable name mappings
     DATASET_MAPPINGS = {
         'CFIF': {
@@ -592,7 +592,7 @@ class VariableHandler:
             'T2': {'standard_name': 'air_temperature', 'units': 'K'},
             'U10': {'standard_name': 'eastward_wind', 'units': 'm/s'},
             'V10': {'standard_name': 'northward_wind', 'units': 'm/s'},
-            'PREC_ACC_NC': {'standard_name': 'precipitation_flux', 'units': 'mm/hr'},  
+            'PREC_ACC_NC': {'standard_name': 'precipitation_flux', 'units': 'mm/hr'},
             'SWDOWN': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
             'GLW': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'}
         },
@@ -602,7 +602,7 @@ class VariableHandler:
             'T2': {'standard_name': 'air_temperature', 'units': 'K'},
             'U10': {'standard_name': 'eastward_wind', 'units': 'm/s'},
             'V10': {'standard_name': 'northward_wind', 'units': 'm/s'},
-            'PREC_ACC_NC': {'standard_name': 'precipitation_flux', 'units': 'mm/hr'},  
+            'PREC_ACC_NC': {'standard_name': 'precipitation_flux', 'units': 'mm/hr'},
             'SWDOWN': {'standard_name': 'surface_downwelling_shortwave_flux', 'units': 'W/m^2'},
             'GLW': {'standard_name': 'surface_downwelling_longwave_flux', 'units': 'W/m^2'}
         },
@@ -667,7 +667,7 @@ class VariableHandler:
             'P': {'standard_name': 'precipitation_flux', 'units': 'mm/day'},
             'E': {'standard_name': 'potential_evapotranspiration', 'units': 'mm/day', 'required': False},
             'T': {'standard_name': 'air_temperature', 'units': 'degC', 'required': False}
-        }, 
+        },
         'HYPE': {
             'Tair': {'standard_name': 'air_temperature', 'units': 'degC'},
             'Prec': {'standard_name': 'precipitation_flux', 'units': 'mm/day'},
@@ -716,7 +716,7 @@ class VariableHandler:
     def __init__(self, config: Dict[str, Any], logger: logging.Logger, dataset: str, model: str):
         """
         Initialize VariableHandler with configuration settings.
-        
+
         Args:
             config: SYMFLUENCE configuration dictionary
             logger: SYMFLUENCE logger instance
@@ -725,11 +725,11 @@ class VariableHandler:
         self.logger = logger
         self.dataset = dataset if dataset is not None else config.get('FORCING_DATASET')
         self.model = model if model is not None else config.get('HYDROLOGICAL_MODEL')
-        
+
         # Initialize pint for unit handling
         self.ureg: pint.UnitRegistry = pint.UnitRegistry()
         pint_xarray.setup_registry(self.ureg)
-        
+
         # Validate dataset and model are supported
         if self.dataset not in self.DATASET_MAPPINGS:
             self.logger.error(f"Unsupported dataset: {self.dataset}")
@@ -741,26 +741,26 @@ class VariableHandler:
     def get_dataset_variables(self, dataset: Optional[str] = None) -> str:
         """
         Get the forcing variable keys for a specified dataset as a comma-separated string.
-        
+
         Args:
             dataset (Optional[str]): Name of the dataset. If None, uses the instance's dataset.
-            
+
         Returns:
             str: Comma-separated string of variable keys for the specified dataset
-            
+
         Raises:
             ValueError: If the specified dataset is not supported
         """
         # Use instance dataset if none provided
         dataset_name = dataset if dataset is not None else self.dataset
-        
+
         # Check if dataset exists in mappings
         if dataset_name not in self.DATASET_MAPPINGS:
             self.logger.error(f"Unsupported dataset: {dataset_name}")
             raise ValueError(f"Unsupported dataset: {dataset_name}")
-        
+
         return ','.join(self.DATASET_MAPPINGS[dataset_name].keys())
-    
+
     def process_forcing_data(self, data: xr.Dataset) -> xr.Dataset:
         """Process forcing data by mapping variable names and converting units."""
         self.logger.debug("Starting forcing data unit processing")
@@ -793,11 +793,11 @@ class VariableHandler:
             # Rename variable
             if dataset_var in processed_data:
                 self.logger.debug(f"Processing {dataset_var} -> {model_var}")
-                
+
                 # Get units: prioritize metadata from the DataArray over hardcoded mapping
                 data_units = str(processed_data[dataset_var].attrs.get('units', '')).lower()
                 source_units = dataset_map[dataset_var]['units']
-                
+
                 # If metadata exists and looks different from our mapping, trust metadata
                 # BUT perform a range check for temperature to handle inconsistent files
                 if data_units and data_units != source_units.lower():
@@ -808,7 +808,7 @@ class VariableHandler:
                         actual_source_units = 'K'
                     else:
                         actual_source_units = data_units
-                    
+
                     if actual_source_units != source_units:
                         # Perform range check for temperature
                         if model_req['standard_name'] == 'air_temperature':
@@ -819,29 +819,29 @@ class VariableHandler:
                             elif temp_mean < 100 and actual_source_units == 'K':
                                 self.logger.warning(f"Metadata for {dataset_var} says 'K' but mean value is {temp_mean:.2f}. Assuming 'degC'.")
                                 actual_source_units = 'degC'
-                        
+
                         if actual_source_units != source_units:
                             self.logger.info(f"Using metadata units '{actual_source_units}' instead of mapping '{source_units}' for {dataset_var}")
                             source_units = actual_source_units
 
                 target_units = model_req['units']
-                
+
                 # Convert units if needed
                 if source_units != target_units:
                     self.logger.debug(f"Converting units for {dataset_var}: {source_units} -> {target_units}")
                     try:
                         processed_data[dataset_var] = self._convert_units(
-                            processed_data[dataset_var], 
-                            source_units, 
+                            processed_data[dataset_var],
+                            source_units,
                             target_units
                         )
                     except Exception as e:
                         self.logger.error(f"Unit conversion failed for {dataset_var}: {str(e)}")
                         raise
-                
+
                 # Rename after conversion
                 processed_data = processed_data.rename({dataset_var: model_var})
-        
+
         self.logger.debug("Forcing data unit processing completed")
         return processed_data
 
@@ -916,12 +916,12 @@ class VariableHandler:
     def _convert_units(self, data: xr.DataArray, from_units: str, to_units: str) -> xr.DataArray:
         """
         Convert variable units using pint-xarray.
-        
+
         Args:
             data: DataArray to convert
             from_units: Source units
             to_units: Target units
-            
+
         Returns:
             DataArray with converted units
         """
@@ -929,7 +929,7 @@ class VariableHandler:
         orig_from = from_units
         from_units = self._normalize_unit_string(from_units)
         to_units = self._normalize_unit_string(to_units)
-        
+
         try:
             # Special case for precipitation flux conversions (very common source of errors)
             # Handle various kg/m²/s formats: 'kg/m2/s', 'kg m-2 s-1', 'kilogram / meter ** 2 / second'
@@ -958,7 +958,7 @@ class VariableHandler:
                 # Manual fallbacks for common meteorological variables
                 f_low = from_units.lower()
                 t_low = to_units.lower()
-                
+
                 # Temperature: Kelvin to Celsius
                 if 'k' in f_low and 'c' in t_low and 'deg' in t_low:
                     return data - 273.15
@@ -974,7 +974,7 @@ class VariableHandler:
                 # Precipitation: kg/m2/s to mm/day
                 if ('kg' in f_low and 'm' in f_low and 's' in f_low) and 'mm' in t_low and 'day' in t_low:
                     return data * 86400.0
-                
+
                 raise pe
         except Exception as e:
             self.logger.error(f"Unit conversion failed: {orig_from} -> {to_units}: {str(e)}")
@@ -987,7 +987,7 @@ class VariableHandler:
             'dataset_mappings': self.DATASET_MAPPINGS,
             'model_requirements': self.MODEL_REQUIREMENTS
         }
-        
+
         try:
             with open(filepath, 'w') as f:
                 yaml.dump(mappings, f)
@@ -1003,7 +1003,7 @@ class VariableHandler:
         try:
             with open(filepath, 'r') as f:
                 mappings = yaml.safe_load(f)
-                
+
             cls.DATASET_MAPPINGS = mappings['dataset_mappings']
             cls.MODEL_REQUIREMENTS = mappings['model_requirements']
             logger.info("Variable mappings loaded successfully")

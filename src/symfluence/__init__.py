@@ -24,8 +24,8 @@ from .core.exceptions import (
 )
 
 __all__ = [
-    "SYMFLUENCE", 
-    "SymfluenceConfig", 
+    "SYMFLUENCE",
+    "SymfluenceConfig",
     "SYMFLUENCEError",
     "ConfigurationError",
     "ModelExecutionError",

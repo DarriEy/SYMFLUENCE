@@ -53,13 +53,13 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
             ngen_base / "cmake_build" / "ngen",
             ngen_base / "bin" / "ngen"
         ]
-        
+
         self.ngen_exe = None
         for cand in candidates:
             if cand.exists():
                 self.ngen_exe = cand
                 break
-        
+
         if self.ngen_exe is None:
             # Fallback to get_model_executable if none found
             self.ngen_exe = self.get_model_executable(
@@ -112,14 +112,14 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                 domain_name = self.config.domain.name
             else:
                 domain_name = self.config_dict.get('DOMAIN_NAME')
-            
+
             # Force GeoJSON on macOS due to widespread GPKG/SQLite mismatch issues in ngen builds
             import platform
             use_geojson = getattr(self, "_use_geojson_catchments", False)
             if platform.system() == "Darwin":
                 self.logger.info("Forcing GeoJSON catchments on macOS for stability")
                 use_geojson = True
-            
+
             if use_geojson:
                 catchment_file = self.ngen_setup_dir / f"{domain_name}_catchments.geojson"
             else:
@@ -170,7 +170,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                     install_path = self.config.model.ngen.install_path
                 else:
                     install_path = self.config_dict.get('NGEN_INSTALL_PATH', 'default')
-                
+
                 if install_path == 'default':
                     ngen_base = self.data_dir.parent / 'installs' / 'ngen'
                 else:
@@ -180,21 +180,21 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
 
                 # Try both ngen_base/extern and ngen_base/cmake_build/extern
                 lib_paths = []
-                for sub in ["extern/sloth/cmake_build", "extern/cfe/cmake_build", 
+                for sub in ["extern/sloth/cmake_build", "extern/cfe/cmake_build",
                             "extern/evapotranspiration/evapotranspiration/cmake_build",
                             "extern/noah-owp-modular/cmake_build"]:
                     p1 = ngen_base / sub
                     p2 = ngen_base / "cmake_build" / sub
                     if p1.exists(): lib_paths.append(str(p1.resolve()))
                     elif p2.exists(): lib_paths.append(str(p2.resolve()))
-                
+
                 # Add ngen build dir itself and brew libs
                 lib_paths.append(str(self.ngen_exe.parent.resolve()))
                 lib_paths.append("/opt/homebrew/lib")
 
                 # Set library path based on OS
                 lib_path_str = ':'.join(lib_paths)
-                
+
                 # Set both for safety, though only one might be used by the linker
                 for var in ['DYLD_LIBRARY_PATH', 'LD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH']:
                     existing_path = env.get(var, '')
@@ -227,14 +227,14 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
             except subprocess.CalledProcessError as e:
                 # On macOS, code -6 (SIGABRT) is common for GPKG issues if SQLite is missing/mismatched
                 is_likely_sqlite_issue = (e.returncode == -6)
-                
+
                 if not use_geojson and fallback_catchment_file.exists():
                     try:
                         log_text = log_file.read_text(errors='ignore')
                     except Exception:
                         log_text = ""
                     sqlite_error = "SQLite3 support required to read GeoPackage files"
-                    
+
                     if is_likely_sqlite_issue or sqlite_error in log_text:
                         self.logger.warning(
                             f"NGEN failed (code {e.returncode}); retrying with GeoJSON catchments"
@@ -261,21 +261,21 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                 self.logger.error(f"NextGen model run failed with error code {e.returncode}")
                 self.logger.error(f"Check log file: {log_file}")
                 return False
-    
+
     def _patch_realization_libraries(self, realization_file: Path):
         """Patch realization config to use absolute paths for libraries and init_configs."""
         import json
         try:
             with open(realization_file, 'r') as f:
                 data = json.load(f)
-            
+
             changed = False
             # Determine absolute ngen base directory
             if self.config and self.config.model.ngen:
                 install_path = self.config.model.ngen.install_path
             else:
                 install_path = self.config_dict.get('NGEN_INSTALL_PATH', 'default')
-            
+
             if install_path == 'default':
                 ngen_base = self.data_dir.parent / 'installs' / 'ngen'
             else:
@@ -288,7 +288,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                     if 'params' in formulation and 'modules' in formulation['params']:
                         for module in formulation['params']['modules']:
                             mod_params = module.get('params', {})
-                            
+
                             # 1. Patch library_file
                             if 'library_file' in mod_params:
                                 lib_path = mod_params['library_file']
@@ -301,14 +301,14 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                                     target_subpath = "extern/sloth/cmake_build"
                                 elif 'surface' in lib_path.lower() or 'noah' in lib_path.lower():
                                     target_subpath = "extern/noah-owp-modular/cmake_build"
-                                
+
                                 if target_subpath:
                                     filename = Path(lib_path).name
                                     # Try both ngen_base/extern and ngen_base/cmake_build/extern
                                     p1 = ngen_base / target_subpath
                                     p2 = ngen_base / "cmake_build" / target_subpath
                                     lib_dir = p1 if p1.exists() else p2
-                                    
+
                                     actual_lib = None
                                     if (lib_dir / filename).exists():
                                         actual_lib = lib_dir / filename
@@ -316,7 +316,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                                         candidates = list(lib_dir.glob(f"{filename.split('.')[0]}*.dylib"))
                                         if candidates:
                                             actual_lib = candidates[0]
-                                    
+
                                     if actual_lib:
                                         abs_lib_path = str(actual_lib.resolve())
                                         if mod_params['library_file'] != abs_lib_path:
@@ -333,7 +333,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                                     if 'PET' in mod_type_name or 'pet' in old_path.lower(): target_mod = 'PET'
                                     elif 'CFE' in mod_type_name or 'cfe' in old_path.lower(): target_mod = 'CFE'
                                     elif 'NOAH' in mod_type_name or 'noah' in old_path.lower() or '.input' in old_path.lower(): target_mod = 'NOAH'
-                                    
+
                                     if target_mod:
                                         filename = Path(old_path).name
                                         # Replace {{id}} template placeholder with actual catchment ID if present
@@ -355,7 +355,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                                             mod_params['init_config'] = new_path
                                             changed = True
                                             self.logger.debug(f"Patched {target_mod} init_config to {new_path}")
-            
+
             # 3. Patch forcing file pattern
             if 'global' in data and 'forcing' in data['global']:
                 forcing = data['global']['forcing']
@@ -381,7 +381,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                     data['output_root'] = isolated_output_dir
                     changed = True
                     self.logger.debug(f"Patched output_root to {isolated_output_dir}")
-            
+
             if changed:
                 with open(realization_file, 'w') as f:
                     json.dump(data, f, indent=2)

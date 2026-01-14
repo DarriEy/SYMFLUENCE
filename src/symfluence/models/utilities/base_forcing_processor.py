@@ -171,4 +171,3 @@ class BaseForcingProcessor(ABC, ConfigurableMixin):
         if output_path is not None:
             msg += f" -> {output_path}"
         self.logger.info(msg)
-

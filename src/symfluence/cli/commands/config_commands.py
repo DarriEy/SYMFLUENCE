@@ -131,7 +131,7 @@ class ConfigCommands(BaseCommand):
             # Try to initialize SYMFLUENCE to validate structure
             from symfluence.core import SYMFLUENCE
             try:
-                symfluence = SYMFLUENCE(config_path, debug_mode=args.debug)
+                SYMFLUENCE(config_path, debug_mode=args.debug)
                 BaseCommand._console.success("Configuration validated successfully")
                 return ExitCode.SUCCESS
             except Exception as e:

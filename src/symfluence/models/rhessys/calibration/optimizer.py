@@ -88,7 +88,7 @@ class RHESSysModelOptimizer(BaseModelOptimizer):
                 f"RHESSys definition files not found at {source_defs}. "
                 f"Ensure RHESSys model inputs are generated for this domain using 'configure_model'."
             )
-            
+
         self._copy_defs_to_parallel_dirs(source_defs)
 
         # Set default_sim_dir to first proc's sim directory

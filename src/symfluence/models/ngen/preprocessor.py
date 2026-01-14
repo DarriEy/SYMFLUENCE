@@ -109,7 +109,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             install_path = self.config.model.ngen.install_path
         else:
             install_path = self.config_dict.get('NGEN_INSTALL_PATH', 'default')
-        
+
         if install_path == 'default':
             ngen_base = self.data_dir.parent / 'installs' / 'ngen'
         else:
@@ -118,7 +118,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 ngen_base = p.parent
             else:
                 ngen_base = p
-        
+
         self.logger.info(f"Resolved NGEN_BASE to: {ngen_base}")
 
         # Check both ngen_base/extern and ngen_base/cmake_build/extern
@@ -135,7 +135,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             p1 = ngen_base / subpath / libname
             # Try extern under cmake_build
             p2 = ngen_base / "cmake_build" / subpath / libname
-            
+
             if p1.exists():
                 paths[name] = p1
             elif p2.exists():
@@ -145,7 +145,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 paths[name] = p1
 
         return paths
-    
+
     def _copy_noah_parameter_tables(self):
         """
         Copy Noah-OWP parameter tables from package data to domain settings.
@@ -165,7 +165,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         dest_param_dir = self.setup_dir / 'NOAH' / 'parameters'
         param_files = ['GENPARM.TBL', 'MPTABLE.TBL', 'SOILPARM.TBL']
-        
+
         for param_file in param_files:
             source_file = source_param_dir / param_file
             dest_file = dest_param_dir / param_file
@@ -224,7 +224,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             self._nexus_file,
             self._forcing_file
         )
-        
+
     def create_nexus_geojson(self) -> Path:
         """
         Create nexus GeoJSON from river network topology.
@@ -245,11 +245,11 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         river_network_file = self.get_river_network_path()
         if not river_network_file.exists():
             return self._create_simple_nexus()
-        
+
         river_gdf = gpd.read_file(river_network_file)
         seg_id_col = self.config_dict.get('RIVER_NETWORK_SHP_SEGID', 'LINKNO')
         downstream_col = self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID', 'DSLINKNO')
-        
+
         nexus_features = []
         for idx, row in river_gdf.iterrows():
             seg_id = row[seg_id_col]
@@ -259,13 +259,13 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             nexus_id = f"nex-{int(seg_id)}"
             nexus_type = "poi" if (downstream_id == 0 or pd.isna(downstream_id)) else "nexus"
             toid = "" if nexus_type == "poi" else f"wb-{int(downstream_id)}"
-            
+
             nexus_features.append({
                 "type": "Feature", "id": nexus_id,
                 "properties": {"toid": toid, "hl_id": None, "hl_uri": "NA", "type": nexus_type},
                 "geometry": {"type": "Point", "coordinates": list(endpoint)}
             })
-        
+
         nexus_file = self.setup_dir / "nexus.geojson"
         with open(nexus_file, 'w') as f:
             json.dump({"type": "FeatureCollection", "name": "nexus", "xy_coordinate_resolution": 1e-06, "features": nexus_features}, f, indent=2)
@@ -278,7 +278,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         catchment_utm = catchment_gdf.to_crs(catchment_gdf.estimate_utm_crs())
         centroid = catchment_utm.geometry.centroid.to_crs("EPSG:4326").iloc[0]
         catchment_id = str(catchment_gdf[self.hru_id_col].iloc[0])
-        
+
         nexus_file = self.setup_dir / "nexus.geojson"
         with open(nexus_file, 'w') as f:
             json.dump({"type": "FeatureCollection", "name": "nexus", "xy_coordinate_resolution": 1e-06, "features": [{

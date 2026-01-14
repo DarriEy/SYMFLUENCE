@@ -162,10 +162,10 @@ class ConfigurationUpdater:
             if len(parts) < 2:
                 updated_lines.append(line)
                 continue
-            
+
             # parts[0] is the key, parts[1] is the whitespace, parts[2] is the rest
             key = stripped.split()[0]
-            
+
             # Find the value part (ignoring comments)
             value_match = re.search(r"'(.*?)'", line)
             if not value_match and model_name.upper() != 'HYPE':
