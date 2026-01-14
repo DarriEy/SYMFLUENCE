@@ -6,7 +6,7 @@ Handles data loading and graph structure construction for the GNN model.
 """
 
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional, List, List
+from typing import Dict, Any, Tuple, Optional, List
 import pandas as pd
 import numpy as np
 import torch
