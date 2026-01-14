@@ -159,7 +159,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
             hru_id_field = self._get_config_value(lambda: self.config.domain.catchment_shp_hruid)
             case_name = f"{self.domain_name}_{self._get_config_value(lambda: self.config.forcing.dataset)}"
             remap_file = self.intersect_path / f"{case_name}_{hru_id_field}_remapping.csv"
-            
+
             if remap_file.exists():
                 self.logger.info(f"Intersected shapefile missing, falling back to remapping weights: {remap_file.name}")
                 intersect_csv = remap_file
@@ -269,13 +269,12 @@ class SummaForcingProcessor(BaseForcingProcessor):
         # Define column names and lapse rate
         gru_id = f'S_1_{self.gruId}'
         hru_id = f'S_1_{self.hruId}'
-        forcing_id = 'S_2_ID'
         catchment_elev = 'S_1_elev_m'
         forcing_elev = 'S_2_elev_m'
         weights = 'weight'
         # LAPSE_RATE: Handle both K/m (default 0.0065) and K/km (e.g. 6.5) units
         raw_lapse = float(self._get_config_value(lambda: self.config.forcing.lapse_rate))
-        
+
         # If the absolute value is small (< 0.1), assume it's already in K/m.
         # Otherwise, assume it's in K/km and convert to K/m.
         if abs(raw_lapse) < 0.1:
@@ -289,7 +288,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
         # but our formula: T_catch = T_force + lapse_rate * (Z_force - Z_catch)
         # If Z_force > Z_catch (forcing is higher/colder), and lapse_rate is positive:
         # T_catch = T_force + positive * positive = warmer. (CORRECT)
-        # If the user provided a negative lapse rate (e.g. -6.5 K/km), it would 
+        # If the user provided a negative lapse rate (e.g. -6.5 K/km), it would
         # result in T_catch being colder than T_force when catchment is lower.
         # We'll log a warning if it looks like a sign error.
         if raw_lapse < 0:
@@ -339,7 +338,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
                     # Log progress every 10 files or for small batches
                     if (i + 1) % 10 == 0 or batch_size <= 10:
-                        files_processed = batch_start + i + 1
+                        batch_start + i + 1
 
                 except Exception as e:
                     self.logger.error(f"Error processing file {file}: {str(e)}")
@@ -421,7 +420,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
             # Update precipitation units if present
             if 'pptrate' in dat:
-                # Handle cases where intermediate remapping (e.g. EASYMORE) 
+                # Handle cases where intermediate remapping (e.g. EASYMORE)
                 # might have converted to m/s but SUMMA expects kg m-2 s-1 (mm/s)
                 if dat.pptrate.attrs.get('units') == 'm s-1' and float(dat.pptrate.mean()) < 1e-6:
                     self.logger.info(f"File {file}: Converting pptrate from m s-1 to kg m-2 s-1 (x1000)")
@@ -433,7 +432,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 })
 
                 # Apply lapse rate correction efficiently if enabled
-            if self._get_config_value(lambda: self.config.forcing.apply_lapse_rate) == True:
+            if self._get_config_value(lambda: self.config.forcing.apply_lapse_rate):
                 # Get lapse values for the HRUs (vectorized operation)
                 hru_lapse_values = lapse_values.loc[dat['hruId'].values, 'lapse_values'].values
 
@@ -533,7 +532,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
             # Get time step from config
             time_step_seconds = int(self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600))
-            num_steps = len(pd_times)
+            len(pd_times)
 
             # Convert to SUMMA's expected format: seconds since 1990-01-01 00:00:00
             reference_date = pd.Timestamp('1990-01-01 00:00:00')
@@ -544,7 +543,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
             # Replace the time coordinate
             dataset = dataset.assign_coords(time=seconds_since_ref)
-            
+
             # Ensure time is monotonic
             dataset = dataset.sortby('time')
 
@@ -1032,7 +1031,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
         # Sort and deduplicate (prefer files with longer names which usually contain full timestamps)
         forcing_files.sort(key=lambda x: (extract_date(x), -len(x)))
-        
+
         unique_files = []
         seen_dates = set()
         for f in forcing_files:
@@ -1044,7 +1043,7 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 self.logger.warning(f"Skipping duplicate forcing file for date {date}: {f}")
 
         forcing_files = unique_files
-        
+
         self.logger.info(
             "Found %d unique %s forcing files for SUMMA",
             len(forcing_files),

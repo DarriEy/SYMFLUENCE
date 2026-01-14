@@ -16,7 +16,6 @@ from ..base import BaseModelPostProcessor
 # Optional R/rpy2 support - only needed for GR models
 try:
     import rpy2.robjects as robjects
-    from rpy2.robjects.packages import importr
     from rpy2.robjects import pandas2ri
     from rpy2.robjects.conversion import localconverter
     HAS_RPY2 = True
@@ -187,7 +186,7 @@ class GRPostprocessor(BaseModelPostProcessor):
         # Looking at original code:
         # q_cms = q_df['flow'] * area_km2 / UnitConversion.MM_DAY_TO_CMS
         # This implies the input was mm/day.
-        
+
         q_cms = self.convert_mm_per_day_to_cms(q_df['flow'])
 
         # Save using standard method

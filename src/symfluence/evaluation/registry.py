@@ -31,7 +31,7 @@ class EvaluationRegistry:
         var_type_upper = variable_type.upper()
         if var_type_upper not in cls._handlers:
             return None
-        
+
         handler_class = cls._handlers[var_type_upper]
         handler_logger = logger or logging.getLogger(handler_class.__name__)
         handler_project_dir = project_dir or Path(".")

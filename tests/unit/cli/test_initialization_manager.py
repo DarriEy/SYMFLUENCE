@@ -12,12 +12,12 @@ pytestmark = [pytest.mark.unit, pytest.mark.cli, pytest.mark.quick]
 @pytest.fixture
 def init_manager():
     """Create InitializationManager instance for testing.
-    
+
     Injects a capture-friendly Console instance.
     """
     import sys
     from symfluence.cli.console import Console, ConsoleConfig
-    
+
     # Configure console to use stdout/stderr which capsys captures
     console_config = ConsoleConfig(
         output_stream=sys.stdout,
@@ -26,7 +26,7 @@ def init_manager():
         show_progress=False
     )
     console = Console(console_config)
-    
+
     return InitializationManager(console=console)
 
 
@@ -96,7 +96,7 @@ class TestListPresets:
         """Test list_presets prints preset information."""
         import sys
         from symfluence.cli.console import Console, ConsoleConfig
-        
+
         init_manager._console = Console(ConsoleConfig(
             output_stream=sys.stdout,
             error_stream=sys.stderr,
@@ -118,7 +118,7 @@ class TestShowPreset:
         """Test show_preset displays preset information."""
         import sys
         from symfluence.cli.console import Console, ConsoleConfig
-        
+
         init_manager._console = Console(ConsoleConfig(
             output_stream=sys.stdout,
             error_stream=sys.stderr,
@@ -136,7 +136,7 @@ class TestShowPreset:
         """Test show_preset handles invalid preset name."""
         import sys
         from symfluence.cli.console import Console, ConsoleConfig
-        
+
         init_manager._console = Console(ConsoleConfig(
             output_stream=sys.stdout,
             error_stream=sys.stderr,

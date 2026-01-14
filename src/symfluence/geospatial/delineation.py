@@ -332,7 +332,7 @@ class DomainDelineator(PathResolverMixin):
         self.config = config
         self.logger = logger
         self.reporting_manager = reporting_manager
-        
+
         # properties from mixins: self.project_dir, self.domain_name, self.data_dir are available
 
         self.delineator = GeofabricDelineator(self.config, self.logger, self.reporting_manager)

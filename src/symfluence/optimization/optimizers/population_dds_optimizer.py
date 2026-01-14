@@ -123,7 +123,7 @@ class PopulationDDSOptimizer(BaseOptimizer):
         self.population: Optional[np.ndarray] = None
         self.population_scores: Optional[np.ndarray] = None
         self.current_generation = 0
-    
+
     def get_algorithm_name(self) -> str:
         """Return algorithm identifier for results and logging."""
         return "PopulationDDS"
@@ -133,7 +133,7 @@ class PopulationDDSOptimizer(BaseOptimizer):
         if config_pop_size: return config_pop_size
         param_count = len(self.parameter_manager.all_param_names)
         return max(10, min(3 * param_count, 50))
-    
+
     def _run_algorithm(self) -> Tuple[Dict, float, List]:
         self._initialize_population()
         while self.current_generation < self.max_iterations:
@@ -143,13 +143,13 @@ class PopulationDDSOptimizer(BaseOptimizer):
             self._record_generation_statistics(improvements, 0.0)
             self.current_generation += 1
         return self._extract_final_results()
-    
+
     def _initialize_population(self) -> None:
         self._ensure_reproducible_initialization()
         param_count = len(self.parameter_manager.all_param_names)
         self.population = np.random.random((self.population_size, param_count))
         self.population_scores = np.full(self.population_size, np.nan)
-        
+
         assert self.population is not None
         assert self.population_scores is not None
 
@@ -171,7 +171,8 @@ class PopulationDDSOptimizer(BaseOptimizer):
         param_count = len(self.parameter_manager.all_param_names)
         prob = 1.0 - np.log(self.current_generation * self.population_size + idx + 1) / np.log(self.max_iterations * self.population_size) if self.max_iterations > 1 else 0.5
         prob = max(prob, 1.0 / param_count)
-        trial = parent.copy(); variables = np.random.random(param_count) < prob
+        trial = parent.copy()
+        variables = np.random.random(param_count) < prob
         if not variables.any(): variables[np.random.randint(param_count)] = True
         for i in range(param_count):
             if variables[i]: trial[i] = np.clip(parent[i] + np.random.normal(0, self.dds_r), 0, 1)
@@ -190,7 +191,8 @@ class PopulationDDSOptimizer(BaseOptimizer):
                 self.population_scores[idx] = res['score']
                 improvements += 1
                 if res['score'] > self.best_score:
-                    self.best_score = res['score']; self.best_params = res['params'].copy()
+                    self.best_score = res['score']
+                    self.best_params = res['params'].copy()
         return improvements
 
     def _record_generation_statistics(self, improvements, duration):

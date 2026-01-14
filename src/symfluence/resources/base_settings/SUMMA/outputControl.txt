@@ -3,20 +3,20 @@
 ! -------------
 hruId
 latitude
-longitude     
+longitude
 !
 ! -----------
 !  forcings
 ! -----------
-pptrate            | 1  
-airtemp            | 1  
+pptrate            | 1
+airtemp            | 1
 !
 !
 ! -------------------
-!  model variables 
+!  model variables
 ! -------------------
-averageRoutedRunoff   | 1   
-scalarSWE             | 24  
+averageRoutedRunoff   | 1
+scalarSWE             | 24
 scalarGroundSnowFraction | 24
 scalarLatHeatTotal | 24
 scalarSenHeatTotal | 24
@@ -32,5 +32,3 @@ scalarTotalET | 24
 scalarCanopyWat | 24
 scalarTotalSoilWat | 24
 scalarAquiferStorage | 24
-
-

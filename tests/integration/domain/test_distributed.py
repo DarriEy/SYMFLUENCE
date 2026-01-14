@@ -30,17 +30,17 @@ def _copy_with_name_adaptation(src: Path, dst: Path, old_name: str, new_name: st
     if not src.exists():
         print(f"  Warning: Source path does not exist: {src}")
         return False
-    
+
     print(f"  Copying {src.name} to {dst.relative_to(dst.parents[2]) if len(dst.parts) > 3 else dst}")
     dst.parent.mkdir(parents=True, exist_ok=True)
-    
+
     if src.is_file():
         shutil.copy2(src, dst)
         files_to_check = [dst]
     else:
         shutil.copytree(src, dst, dirs_exist_ok=True)
         files_to_check = list(dst.rglob("*"))
-    
+
     # Sort files to ensure we don't rename a directory before its contents (though rglob handles this ok)
     # Actually, we only care about files for name adaptation in most cases
     for file in sorted(files_to_check, key=lambda x: len(str(x)), reverse=True):
@@ -181,7 +181,7 @@ def test_distributed_basin_workflow(config_path, example_data_bundle, model):
     # Step 2: Reuse data from the semi-distributed domain when available
     semi_dist_domain = "Bow_at_Banff_semi_distributed"
     semi_dist_data_dir = example_data_bundle / f"domain_{semi_dist_domain}"
-    
+
     # Fallback for v0.6.0 bundle structure
     if not semi_dist_data_dir.exists():
         semi_dist_data_dir = example_data_bundle / "domain_bow_banff_minimal"

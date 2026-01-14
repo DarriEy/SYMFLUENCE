@@ -31,7 +31,7 @@ class GRModelOptimizer(BaseModelOptimizer):
         self.data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = config.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        
+
         self.gr_setup_dir = self.project_dir / 'settings' / 'GR'
 
         super().__init__(config, logger, optimization_settings_dir, reporting_manager=reporting_manager)
@@ -108,7 +108,7 @@ class GRModelOptimizer(BaseModelOptimizer):
                 mizu_control = self.config.get('SETTINGS_MIZU_CONTROL_FILE')
                 if not mizu_control or mizu_control == 'default':
                     mizu_control = 'mizuRoute_control_GR.txt'
-                    
+
                 self.update_mizuroute_controls(
                     self.parallel_dirs,
                     'GR',
@@ -121,15 +121,15 @@ class GRModelOptimizer(BaseModelOptimizer):
         # Get best parameters from results if available
         best_result = self.get_best_result()
         best_params = best_result.get('params')
-        
+
         if not best_params:
             self.logger.warning("No best parameters found for final evaluation")
             return False
-            
+
         # Ensure mizuRoute paths are provided for isolation (matching worker behavior)
         mizuroute_dir = output_dir / 'mizuRoute'
         mizuroute_settings_dir = output_dir / 'settings' / 'mizuRoute'
-        
+
         return self.worker.run_model(
             self.config,
             self.gr_setup_dir,
@@ -138,7 +138,7 @@ class GRModelOptimizer(BaseModelOptimizer):
             mizuroute_dir=str(mizuroute_dir),
             mizuroute_settings_dir=str(mizuroute_settings_dir)
         )
-        
+
     def _update_file_manager_for_final_run(self) -> None:
         """GR doesn't use a file manager."""
         pass

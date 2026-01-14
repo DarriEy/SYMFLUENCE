@@ -134,7 +134,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             self.gr_setup_dir = self.settings_dir
         else:
             self.gr_setup_dir = self.project_dir / "settings" / "GR"
-            
+
         self.forcing_gr_path = self.project_dir / 'forcing' / 'GR_input'
 
     def _get_model_name(self) -> str:
@@ -183,10 +183,10 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
 
             if success:
                 self.logger.info("GR model run completed successfully")
-                
+
                 # Calculate and log metrics for the run
                 self._calculate_and_log_metrics()
-                
+
                 return self.output_path
             else:
                 self.logger.error("GR model run failed")
@@ -196,16 +196,16 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         """Calculate and log performance metrics for the model run."""
         try:
             from symfluence.evaluation.evaluators.gr_streamflow import GRStreamflowEvaluator
-            
+
             self.logger.info("Calculating performance metrics...")
-            
+
             # Initialize evaluator with correct project directory
             evaluator = GRStreamflowEvaluator(
-                self.config if hasattr(self, 'config') and self.config else self.config_dict, 
+                self.config if hasattr(self, 'config') and self.config else self.config_dict,
                 project_dir=self.project_dir,
                 logger=self.logger
             )
-            
+
             # Determine simulation directory
             # If routing was used, metrics should come from mizuRoute output
             if self.needs_routing:
@@ -219,13 +219,13 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
                     if not sim_dir.exists():
                         # Priority 3: Use sibling to output_path (standard project structure)
                         sim_dir = self.output_path.parent / 'mizuRoute'
-                    
+
                 if not sim_dir.exists():
                     self.logger.warning(f"MizuRoute simulation directory not found: {sim_dir}")
                     return
             else:
                 sim_dir = self.output_path
-                
+
             if not sim_dir.exists():
                 self.logger.warning(f"Simulation directory not found for metrics: {sim_dir}")
                 return
@@ -234,7 +234,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
 
             # Evaluate
             metrics = evaluator.evaluate(sim_dir)
-            
+
             if metrics and 'KGE' in metrics and not np.isnan(metrics['KGE']):
                 kge_val = metrics['KGE']
                 self.logger.info("=" * 40)
@@ -248,7 +248,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
                 self.logger.warning("Could not calculate performance metrics (possibly missing observations or alignment failure)")
                 if metrics:
                     self.logger.debug(f"Available metrics: {list(metrics.keys())}")
-                
+
         except Exception as e:
             self.logger.warning(f"Error calculating metrics: {e}")
             self.logger.debug("Traceback: ", exc_info=True)
@@ -316,7 +316,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
 
         try:
             # Initialize R environment
-            base = importr('base')
+            importr('base')
 
             # Install airGR if not already installed
             robjects.r('''
@@ -536,9 +536,9 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         # Add streamflow data (convert from mm/day to m/s for mizuRoute)
         # 1 mm/day = 1 / (1000 * 86400) m/s
         routing_var = self.mizu_routing_var or 'q_routed'
-            
+
         runoff_ms = results_df.values / (1000.0 * UnitConversion.SECONDS_PER_DAY)
-        
+
         ds_out[routing_var] = xr.DataArray(
             runoff_ms,
             dims=('time', 'gru'),
@@ -617,7 +617,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         # Ensure we have a control file name set
         if not self.mizu_control_file:
             self.config_dict['SETTINGS_MIZU_CONTROL_FILE'] = 'mizuRoute_control_GR.txt'
-        
+
         # Ensure HYDROLOGICAL_MODEL includes both if we're in this integrated step
         current_models = self.hydrological_model
         if 'MIZUROUTE' not in current_models.upper():
@@ -650,7 +650,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
         """
         try:
             # Initialize R environment
-            base = importr('base')
+            importr('base')
             skip_calibration = self._skip_calibration
             default_params = self.config_dict.get('GR_DEFAULT_PARAMS', [350, 0, 100, 1.7])
             if len(default_params) != 4:
@@ -659,8 +659,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             # Read DEM
             dem_path = self.project_dir / 'attributes' / 'elevation' / 'dem' / f"domain_{self.domain_name}_elv.tif"
             with rasterio.open(dem_path) as src:
-                dem = src.read(1)
-                transform = src.transform
+                src.read(1)
 
             # Read catchment and get centroid
             catchment = gpd.read_file(self.catchment_path / self.catchment_name)
@@ -833,7 +832,7 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
             '''
 
             # Execute the R script
-            result = robjects.r(r_script)
+            robjects.r(r_script)
             self.logger.info("R script executed successfully!")
             return True
 

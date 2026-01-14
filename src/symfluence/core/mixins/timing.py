@@ -6,7 +6,7 @@ Provides timing and profiling utilities.
 
 import time
 import logging
-from typing import ContextManager, Iterator
+from typing import Iterator
 from contextlib import contextmanager
 
 

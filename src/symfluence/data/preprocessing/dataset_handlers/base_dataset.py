@@ -15,9 +15,8 @@ New code should use CFIF names; legacy names are maintained for compatibility.
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, TYPE_CHECKING
+from typing import Dict, List, Tuple, Optional
 import xarray as xr
-import geopandas as gpd
 
 
 def _get_cfif_variable_attributes() -> Dict[str, Dict[str, str]]:

@@ -4,7 +4,7 @@
 """
 NextGen (ngen) Parameter Manager
 
-Handles ngen parameter bounds, normalization, denormalization, and 
+Handles ngen parameter bounds, normalization, denormalization, and
 configuration file updates for model calibration.
 
 Author: SYMFLUENCE Development Team
@@ -26,7 +26,7 @@ from symfluence.optimization.registry import OptimizerRegistry
 @OptimizerRegistry.register_parameter_manager('NGEN')
 class NgenParameterManager(BaseParameterManager):
     """Manages ngen calibration parameters across CFE, NOAH-OWP, and PET modules"""
-    
+
     def __init__(self, config: Dict, logger: logging.Logger, ngen_settings_dir: Path):
         """
         Initialize ngen parameter manager.
@@ -73,7 +73,7 @@ class NgenParameterManager(BaseParameterManager):
         # Default TBL mappings for NOAH (used if JSON or namelist overrides aren't available)
         # Format: de_param -> (tbl_file, variable_name, column_index_1_based or None for single value)
         # Note: For SOILPARM.TBL, column indices are: BB=2, MAXSMC=5, SATDK=8 (depending on version)
-        # In our case, based on cat SOILPARM.TBL: 
+        # In our case, based on cat SOILPARM.TBL:
         # 1-indexed: BB=2, DRYSMC=3, F11=4, MAXSMC=5, REFSMC=6, SATPSI=7, SATDK=8
         self.noah_tbl_map = {
             "refkdt": ("GENPARM.TBL", "REFKDT_DATA", None),
@@ -102,7 +102,7 @@ class NgenParameterManager(BaseParameterManager):
                     if '_' in res:
                         res = res.split('_')[0]
                     return res
-        
+
         # Fallback to NOAH directory
         if self.noah_dir.exists():
             candidates = list(self.noah_dir.glob("cat-*.input"))
@@ -114,7 +114,7 @@ class NgenParameterManager(BaseParameterManager):
                     if '.' in res:
                         res = res.split('.')[0]
                     return res
-                    
+
         return None
 
     # ========================================================================
@@ -158,51 +158,51 @@ class NgenParameterManager(BaseParameterManager):
     def get_initial_parameters(self) -> Dict[str, float]:
         """Get initial ngen parameters (midpoint of bounds)."""
         return self.get_default_parameters()
-    
+
     def _parse_modules_to_calibrate(self) -> List[str]:
         """Parse which ngen modules to calibrate from config"""
         modules_str = self.config.get('NGEN_MODULES_TO_CALIBRATE', 'CFE')
         if modules_str is None:
             modules_str = 'CFE'
         modules = [m.strip().upper() for m in modules_str.split(',') if m.strip()]
-        
+
         # Validate modules
         valid_modules = ['CFE', 'NOAH', 'PET']
         for module in modules:
             if module not in valid_modules:
                 self.logger.warning(f"Unknown module '{module}', skipping")
                 modules.remove(module)
-        
+
         return modules if modules else ['CFE']  # Default to CFE
-    
+
     def _parse_parameters_to_calibrate(self) -> Dict[str, List[str]]:
         """Parse parameters to calibrate for each module"""
         params = {}
-        
+
         # CFE parameters
         if 'CFE' in self.modules_to_calibrate:
-            cfe_params_str = self.config.get('NGEN_CFE_PARAMS_TO_CALIBRATE', 
+            cfe_params_str = self.config.get('NGEN_CFE_PARAMS_TO_CALIBRATE',
                                             'maxsmc,satdk,bb,slop')
             if cfe_params_str is None:
                 cfe_params_str = 'maxsmc,satdk,bb,slop'
             params['CFE'] = [p.strip() for p in cfe_params_str.split(',') if p.strip()]
-        
+
         # NOAH-OWP parameters
         if 'NOAH' in self.modules_to_calibrate:
-            noah_params_str = self.config.get('NGEN_NOAH_PARAMS_TO_CALIBRATE', 
+            noah_params_str = self.config.get('NGEN_NOAH_PARAMS_TO_CALIBRATE',
                                              'refkdt,slope,smcmax,dksat')
             if noah_params_str is None:
                 noah_params_str = 'refkdt,slope,smcmax,dksat'
             params['NOAH'] = [p.strip() for p in noah_params_str.split(',') if p.strip()]
-        
+
         # PET parameters
         if 'PET' in self.modules_to_calibrate:
-            pet_params_str = self.config.get('NGEN_PET_PARAMS_TO_CALIBRATE', 
+            pet_params_str = self.config.get('NGEN_PET_PARAMS_TO_CALIBRATE',
                                             'wind_speed_measurement_height_m')
             if pet_params_str is None:
                 pet_params_str = 'wind_speed_measurement_height_m'
             params['PET'] = [p.strip() for p in pet_params_str.split(',') if p.strip()]
-        
+
         return params
 
     # Note: Parameter bounds are now provided by the central ParameterBoundsRegistry
@@ -230,21 +230,21 @@ class NgenParameterManager(BaseParameterManager):
         """
         Validate that parameters were actually written to config file.
         Use this for debugging calibration issues.
-        
+
         Args:
             param_dict: Dictionary of parameters that should have been updated
             config_file_path: Path to the CFE BMI config file
-            
+
         Returns:
             True if all parameters found in file, False otherwise
         """
         if not config_file_path.exists():
             self.logger.error(f"Config file not found: {config_file_path}")
             return False
-        
+
         content = config_file_path.read_text()
         all_found = True
-        
+
         for param_name, expected_value in param_dict.items():
             # Check if parameter appears in file
             if param_name in content or param_name.replace('_', '.') in content:
@@ -252,17 +252,17 @@ class NgenParameterManager(BaseParameterManager):
             else:
                 self.logger.error(f"✗ Parameter {param_name} NOT found in config")
                 all_found = False
-        
+
         return all_found
 
     # Note: validate_parameters() is now inherited from BaseParameterManager
     def update_config_files(self, params: Dict[str, float]) -> bool:
         """
         Update ngen configuration files with new parameter values.
-        
+
         Args:
             params: Dictionary of parameters (with module.param naming)
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -275,30 +275,30 @@ class NgenParameterManager(BaseParameterManager):
                     if module not in module_params:
                         module_params[module] = {}
                     module_params[module][param] = value
-            
+
             # Update each module's config file
             success = True
             if 'CFE' in module_params:
                 success = success and self._update_cfe_config(module_params['CFE'])
-            
+
             if 'NOAH' in module_params:
                 success = success and self._update_noah_config(module_params['NOAH'])
-            
+
             if 'PET' in module_params:
                 success = success and self._update_pet_config(module_params['PET'])
-            
+
             return success
-            
+
         except Exception as e:
             self.logger.error(f"Error updating ngen config files: {e}")
             return False
-                
+
 
     def _update_cfe_config(self, params: Dict[str, float]) -> bool:
         """
         Update CFE configuration: prefer JSON, fallback to BMI .txt.
         Preserves units in [brackets] for BMI text files.
-        
+
         """
         try:
             # --- Preferred path: JSON file ---
@@ -347,17 +347,17 @@ class NgenParameterManager(BaseParameterManager):
                 "wltsmc": "soil_params.wltsmc",
                 "satpsi": "soil_params.satpsi",
                 "expon": "soil_params.expon",
-                
+
                 # Groundwater parameters (CRITICAL - these were missing!)
                 "Cgw": "Cgw",
                 "max_gw_storage": "max_gw_storage",
-                
+
                 # Routing parameters (CRITICAL - these were missing!)
                 "K_nash": "K_nash",
                 "K_lf": "K_lf",
                 "Kn": "K_nash",      # Alias
                 "Klf": "K_lf",       # Alias
-                
+
                 # Other CFE parameters
                 "alpha_fc": "alpha_fc",
                 "refkdt": "refkdt",
@@ -400,7 +400,7 @@ class NgenParameterManager(BaseParameterManager):
                 k, rhs = line.split("=", 1)
                 k = k.strip()
                 rhs_keep = rhs.rstrip("\n")
-                
+
                 # Update num_timesteps
                 if k == "num_timesteps":
                     lines[i] = f"num_timesteps={num_steps}"
@@ -436,7 +436,7 @@ class NgenParameterManager(BaseParameterManager):
 
 
 
-        
+
     def _update_noah_config(self, params: Dict[str, float]) -> bool:
         """
         Update NOAH configuration for calibration:
@@ -575,13 +575,13 @@ class NgenParameterManager(BaseParameterManager):
                     return False
                 lines = tbl_path.read_text().splitlines()
                 changed = False
-                
+
                 is_soil_tbl = "SOILPARM" in tbl_path.name
-                
+
                 for i, line in enumerate(lines):
                     if not line.strip() or line.strip().startswith("#") or line.strip().startswith("'"):
                         continue
-                    
+
                     parts = line.split()
                     if not parts: continue
 
@@ -627,7 +627,7 @@ class NgenParameterManager(BaseParameterManager):
                                         changed = True
                                         break
                                 if changed: break
-                
+
                 if changed:
                     tbl_path.write_text("\n".join(lines) + "\n")
                 return changed
@@ -653,7 +653,7 @@ class NgenParameterManager(BaseParameterManager):
             self.logger.error(f"Error updating NOAH config: {e}")
             return False
 
-        
+
     def _update_pet_config(self, params: Dict[str, float]) -> bool:
         """
         Update PET configuration:
@@ -668,7 +668,8 @@ class NgenParameterManager(BaseParameterManager):
                 up = 0
                 for k, v in params.items():
                     if k in cfg:
-                        cfg[k] = v; up += 1
+                        cfg[k] = v
+                        up += 1
                     else:
                         self.logger.warning(f"PET parameter {k} not in JSON config")
                 with open(self.pet_config, 'w') as f:
@@ -748,7 +749,7 @@ class NgenParameterManager(BaseParameterManager):
                 key = k.strip()
                 if not key:
                     continue
-                
+
                 # Update num_timesteps
                 if key == "num_timesteps":
                     lines[i] = f"num_timesteps={num_steps}"

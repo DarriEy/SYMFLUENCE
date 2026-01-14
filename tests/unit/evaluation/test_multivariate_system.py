@@ -28,16 +28,16 @@ def test_multivariate_objective_calculation():
         'OBJECTIVE_WEIGHTS': {'STREAMFLOW': 0.7, 'TWS': 0.3},
         'OBJECTIVE_METRICS': {'STREAMFLOW': 'kge', 'TWS': 'nse'}
     }
-    
+
     # Mock evaluation results
     eval_results = {
         'STREAMFLOW': {'kge': 0.8, 'nse': 0.75},
         'TWS': {'nse': 0.6, 'corr': 0.9}
     }
-    
+
     handler = ObjectiveRegistry.get_objective('MULTIVARIATE', config, None)
     assert handler is not None
-    
+
     # Expected: 0.7 * (1.0 - 0.8) + 0.3 * (1.0 - 0.6)
     # = 0.7 * 0.2 + 0.3 * 0.4
     # = 0.14 + 0.12 = 0.26
@@ -47,7 +47,7 @@ def test_multivariate_objective_calculation():
 def test_evaluator_alignment():
     """Test the base evaluator's time series alignment logic."""
     from symfluence.evaluation.base import BaseEvaluator
-    
+
     class MockEvaluator(BaseEvaluator):
         def calculate_metrics(self, sim, obs):  # pragma: no cover - simple stub
             return {}
@@ -66,21 +66,21 @@ def test_evaluator_alignment():
 
         def _get_observed_data_column(self, columns: List[str]) -> Optional[str]:
             return columns[0] if columns else None
-        
+
     config = {
         'EXPERIMENT_TIME_START': '2020-01-01 00:00',
         'EVALUATION_SPINUP_YEARS': 1
     }
-    
+
     evaluator = MockEvaluator(config, None)
-    
+
     # Create test data
     times = pd.date_range('2020-01-01', periods=24, freq='MS')
     sim = pd.Series(np.random.rand(24), index=times)
     obs = pd.Series(np.random.rand(24), index=times)
-    
+
     s_aligned, o_aligned = evaluator.align_series(sim, obs)
-    
+
     # Should start from 2021-01-01
     assert s_aligned.index[0] == pd.Timestamp('2021-01-01')
     assert len(s_aligned) == 12

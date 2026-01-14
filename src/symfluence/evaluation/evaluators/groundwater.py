@@ -101,7 +101,7 @@ class GroundwaterEvaluator(ModelEvaluator):
 
         self.variable_name = self.optimization_target
         self.grace_center = self.config_dict.get('GRACE_PROCESSING_CENTER', 'csr')
-    
+
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
         """Locate SUMMA output files containing groundwater storage variables.
 
@@ -116,11 +116,11 @@ class GroundwaterEvaluator(ModelEvaluator):
         """
         locator = OutputFileLocator(self.logger)
         return locator.find_groundwater_files(sim_dir)
-    
+
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
         # Sort files to try daily first
         sim_files.sort(key=lambda x: "day" in x.name, reverse=True)
-        
+
         for sim_file in sim_files:
             try:
                 self.logger.debug(f"Trying to extract groundwater from {sim_file.name}")
@@ -132,19 +132,19 @@ class GroundwaterEvaluator(ModelEvaluator):
                         data = self._extract_total_water_storage(ds)
                     else:
                         data = self._extract_groundwater_depth(ds)
-                    
+
                     if data is not None and not data.empty:
                         self.logger.info(f"Successfully extracted {len(data)} points from {sim_file.name}")
                         return data
             except Exception as e:
                 self.logger.warning(f"Failed to extract from {sim_file.name}: {e}")
-                
+
         raise ValueError(f"Could not extract groundwater data from any of {sim_files}")
-    
+
     def _extract_groundwater_depth(self, ds: xr.Dataset) -> pd.Series:
         if 'scalarTotalSoilWat' in ds.variables:
             gw_var = ds['scalarTotalSoilWat']
-            
+
             # Collapse spatial dimensions
             sim_xr = gw_var
             for dim in ['hru', 'gru']:
@@ -153,12 +153,12 @@ class GroundwaterEvaluator(ModelEvaluator):
                         sim_xr = sim_xr.isel({dim: 0})
                     else:
                         sim_xr = sim_xr.mean(dim=dim)
-            
+
             # Handle any remaining non-time dimensions
             non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
             if non_time_dims:
                 sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-                
+
             sim_data = cast(pd.Series, sim_xr.to_pandas())
 
             # Convert storage to depth-below-surface if comparing to GGMN
@@ -210,10 +210,10 @@ class GroundwaterEvaluator(ModelEvaluator):
                 storage_components['aquifer'] = ds['scalarAquiferStorage']
             if 'scalarCanopyWat' in ds.variables:
                 storage_components['canopy'] = ds['scalarCanopyWat']
-            
+
             if not storage_components:
                 raise ValueError("No water storage components found")
-            
+
             total_storage = None
             for component_name, component_data in storage_components.items():
                 # Collapse spatial dimensions for this component
@@ -224,23 +224,23 @@ class GroundwaterEvaluator(ModelEvaluator):
                             sim_xr = sim_xr.isel({dim: 0})
                         else:
                             sim_xr = sim_xr.mean(dim=dim)
-                
+
                 # Handle any remaining non-time dimensions
                 non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
                 if non_time_dims:
                     sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-                
+
                 if total_storage is None:
                     total_storage = sim_xr
                 else:
                     total_storage = total_storage + sim_xr
-            
+
             sim_data = total_storage.to_pandas()
             return self._convert_tws_units(sim_data)
         except Exception as e:
             self.logger.error(f"Error calculating TWS: {str(e)}")
             raise
-    
+
     def _convert_tws_units(self, tws_data: pd.Series) -> pd.Series:
         data_range = tws_data.max() - tws_data.min()
         if data_range > 1000:
@@ -248,7 +248,7 @@ class GroundwaterEvaluator(ModelEvaluator):
         elif data_range > 10:
             return tws_data * 100.0
         return tws_data
-    
+
     def get_observed_data_path(self) -> Path:
         if self.optimization_target == 'gw_depth':
             return self.project_dir / "observations" / "groundwater" / "depth" / "processed" / f"{self.domain_name}_gw_processed.csv"
@@ -278,31 +278,31 @@ class GroundwaterEvaluator(ModelEvaluator):
                 if 'grace' in col.lower() and 'tws' in col.lower():
                     return col
         return None
-    
+
     def _load_observed_data(self) -> Optional[pd.Series]:
         try:
             obs_path = self.get_observed_data_path()
             if not obs_path.exists():
                 return None
-            
+
             obs_df = pd.read_csv(obs_path)
             date_col = self._find_date_column(obs_df.columns)
             data_col = self._get_observed_data_column(obs_df.columns)
-            
+
             if not date_col or not data_col:
                 return None
-            
+
             if self.optimization_target == 'gw_depth':
                 obs_df['DateTime'] = pd.to_datetime(obs_df[date_col], errors='coerce')
             else:
                 obs_df['DateTime'] = pd.to_datetime(obs_df[date_col], format='%m/%d/%Y', errors='coerce')
-            
+
             obs_df = obs_df.dropna(subset=['DateTime'])
             obs_df.set_index('DateTime', inplace=True)
-            
+
             obs_series = pd.to_numeric(obs_df[data_col], errors='coerce')
             obs_series = obs_series.dropna()
-            
+
             if obs_series.index.tz is not None:
                 obs_series.index = obs_series.index.tz_convert('UTC').tz_localize(None)
 

@@ -229,13 +229,13 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                         task_data, str(summa_dir), str(mizuroute_dir),
                         task_data['config'], project_dir, logger
                     )
-                    
+
                     # Log extracted objectives
                     objective_names = task_data.get('objective_names', ['OBJ1', 'OBJ2'])
                     for i, val in enumerate(objectives):
                         name = objective_names[i] if i < len(objective_names) else f"OBJ{i+1}"
                         logger.info(f"Extracted {name}: {val}")
-                    
+
                     # Set primary score for backward compatibility
                     target_metric = task_data.get('target_metric', 'OBJ1')
                     score = objectives[0] if objectives else -1e6

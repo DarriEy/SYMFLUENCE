@@ -293,7 +293,7 @@ class ControlFileWriter(ConfigurableMixin):
         """Write runoff remapping section."""
         remap_file = mizu_config.get('remap_file', self._get_config_value(lambda: self.config.model.mizuroute.remap_file, default='runoff_remap.nc'))
         remap_flag = (
-            self._get_config_value(lambda: self.config.model.mizuroute.needs_remap, default=False) == True or
+            self._get_config_value(lambda: self.config.model.mizuroute.needs_remap, default=False) or
             self.needs_remap_lumped_distributed
         )
 

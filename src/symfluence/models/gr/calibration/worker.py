@@ -109,7 +109,7 @@ class GRWorker(BaseWorker):
             # WorkerTask passes params as a direct argument to run_model in newer BaseWorker
             # but let's be safe and check both kwargs and params if it were passed explicitly
             params = kwargs.get('params')
-            
+
             # If not in kwargs, it might be in task (if we're calling it from evaluate)
             # Actually, BaseWorker._evaluate_once calls run_model(task.config, task.settings_dir, task.output_dir, **task.additional_data)
             # So params is NOT passed by default in BaseWorker unless it's in additional_data.
@@ -118,18 +118,18 @@ class GRWorker(BaseWorker):
                 self.logger.info(f"Worker received params: {params}")
             else:
                 self.logger.warning("Worker run_model received NO params!")
-            
+
             # Create a runner instance
             # We use the config provided in the task and pass settings_dir for isolation
             runner = GRRunner(config, self.logger, settings_dir=settings_dir)
-            
+
             # Override output directory to the one provided for this worker
             runner.output_dir = output_dir
             runner.output_path = output_dir
-            
+
             # Execute GR
             success_path = runner.run_gr(params=params)
-            
+
             return success_path is not None
         except Exception as e:
             self.logger.error(f"Error running GR model in worker: {e}")
@@ -167,21 +167,21 @@ class GRWorker(BaseWorker):
         """
         try:
             from symfluence.optimization.calibration_targets import GRStreamflowTarget
-            
+
             # Resolve project directory
             data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
             domain_name = config.get('DOMAIN_NAME')
             project_dir = data_dir / f"domain_{domain_name}"
-            
+
             # Initialize target
             target = GRStreamflowTarget(config, project_dir, self.logger)
-            
+
             # Calculate metrics (handles period filtering and unit conversion internally)
             metrics = target.calculate_metrics(
                 output_dir,
                 calibration_only=True
             )
-            
+
             if metrics:
                 return metrics
             else:

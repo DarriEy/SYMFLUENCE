@@ -42,4 +42,3 @@ jobs:
           pip install mypy pandas-stubs types-PyYAML types-requests types-psutil
           # Run mypy on source directory
           mypy src/symfluence
-

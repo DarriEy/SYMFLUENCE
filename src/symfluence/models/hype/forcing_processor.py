@@ -74,14 +74,14 @@ class HYPEForcingProcessor(BaseForcingProcessor):
         """Execute the full HYPE forcing processing workflow."""
         self.logger.info("Merging HYPE forcing files...")
         merged_forcing_path = self._merge_forcing_files()
-        
+
         if not merged_forcing_path or not merged_forcing_path.exists():
             self.logger.error("Forcing merge failed, cannot proceed with daily conversion")
             return
 
         self.logger.info("Converting hourly forcing to HYPE daily observations...")
         self._convert_to_daily_obs(merged_forcing_path)
-        
+
         # Cleanup
         if merged_forcing_path.exists():
             merged_forcing_path.unlink()
@@ -94,13 +94,13 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             return None
 
         merged_forcing_path = self.cache_path / 'merged_forcing.nc'
-        
+
         # Try CDO first (faster for large datasets)
         try:
             cdo_obj = cdo.Cdo()
             # If initialization succeeded, try merging
             self.logger.info("Merging forcing files with CDO...")
-            
+
             # split the files in batches as cdo cannot mergetime long list of file names
             batch_size = 20
             if len(easymore_nc_files) < batch_size:
@@ -122,7 +122,7 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             for f in intermediate_files:
                 if f.exists():
                     f.unlink()
-            
+
             self.logger.info("CDO merge successful")
 
         except (AttributeError, Exception) as e:
@@ -139,15 +139,15 @@ class HYPEForcingProcessor(BaseForcingProcessor):
         # Handle time shift and calendar
         if not merged_forcing_path.exists():
             return None
-            
+
         with xr.open_dataset(merged_forcing_path) as forcing:
             forcing = forcing.convert_calendar('standard')
             if self.timeshift != 0:
                 forcing['time'] = forcing['time'] + pd.Timedelta(hours=self.timeshift)
-            
+
             tmp_path = merged_forcing_path.with_suffix('.nc.tmp')
             forcing.to_netcdf(tmp_path)
-            
+
         os.replace(tmp_path, merged_forcing_path)
         return merged_forcing_path
 

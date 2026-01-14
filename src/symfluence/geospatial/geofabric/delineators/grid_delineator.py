@@ -558,7 +558,7 @@ class GridDelineator(BaseGeofabricDelineator):
             segments = []
 
             # Create centroid lookup
-            centroid_lookup = {
+            {
                 int(row['GRU_ID']): row.geometry.centroid
                 for _, row in grid_gdf.iterrows()
             }

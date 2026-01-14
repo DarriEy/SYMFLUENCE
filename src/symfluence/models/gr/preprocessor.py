@@ -20,14 +20,9 @@ from ..utilities import ForcingDataProcessor
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 
 # Optional R/rpy2 support - only needed for GR models
-try:
-    import rpy2.robjects as robjects
-    from rpy2.robjects.packages import importr
-    from rpy2.robjects import pandas2ri
-    from rpy2.robjects.conversion import localconverter
-    HAS_RPY2 = True
-except (ImportError, ValueError):
-    HAS_RPY2 = False
+from importlib.util import find_spec
+
+HAS_RPY2 = find_spec("rpy2") is not None
 
 
 @ModelRegistry.register_preprocessor('GR')
@@ -252,7 +247,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             method_suffix = self._get_method_suffix()
             basin_name = f"{self.config_dict.get('DOMAIN_NAME')}_riverBasins_{method_suffix}.shp"
         basin_path = basin_dir / basin_name
-        
+
         if basin_path.exists():
             basin_gdf = gpd.read_file(basin_path)
             area_km2 = basin_gdf['GRU_area'].sum() / 1e6
@@ -362,13 +357,13 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         # Ensure catchment has proper CRS
         if catchment.crs is None:
             catchment.set_crs(epsg=4326, inplace=True)
-        
+
         # Get centroids for each HRU avoiding geographic CRS warning
         if catchment.crs.is_geographic:
             hru_centroids = catchment.to_crs(epsg=3857).geometry.centroid.to_crs(epsg=4326)
         else:
             hru_centroids = catchment.geometry.centroid.to_crs(epsg=4326)
-            
+
         hru_lats = hru_centroids.y.values
 
         # Calculate PET for each HRU using GR variable name 'T'

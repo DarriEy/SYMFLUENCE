@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 class BaseStructureEnsembleAnalyzer(ABC):
     """
     Base class for performing Structure Ensemble Analysis.
-    
+
     This class manages the workflow of:
     1. Generating combinations of model structure decisions.
     2. Iteratively updating model configuration.
@@ -29,11 +29,11 @@ class BaseStructureEnsembleAnalyzer(ABC):
     4. Calculating performance metrics for each combination.
     5. Analyzing results to identify the best model structure.
     """
-    
+
     def __init__(self, config: Any, logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the analyzer.
-        
+
         Args:
             config: Configuration dictionary or SymfluenceConfig instance.
             logger: Logger instance.
@@ -42,18 +42,18 @@ class BaseStructureEnsembleAnalyzer(ABC):
         self.config = config
         self.logger = logger
         self.reporting_manager = reporting_manager
-        
+
         # Support both typed config and dict config
         if hasattr(config, 'to_dict'):
             self.config_dict = config.to_dict(flatten=True)
         else:
             self.config_dict = config
-            
+
         self.data_dir = Path(self.config_dict.get('SYMFLUENCE_DATA_DIR'))
         self.domain_name = self.config_dict.get('DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.experiment_id = self.config_dict.get('EXPERIMENT_ID')
-        
+
         # Model-specific settings to be initialized by child classes
         self.decision_options = self._initialize_decision_options()
         self.output_folder = self._initialize_output_folder()
@@ -96,12 +96,12 @@ class BaseStructureEnsembleAnalyzer(ABC):
     def run_analysis(self) -> Path:
         """
         Main loop for running the ensemble analysis.
-        
+
         Returns:
             Path: Path to the master results file.
         """
         self.logger.info("Starting structure ensemble analysis")
-        
+
         combinations = self.generate_combinations()
         self.logger.info(f"Generated {len(combinations)} decision combinations")
 
@@ -111,17 +111,17 @@ class BaseStructureEnsembleAnalyzer(ABC):
         # Write header to master file
         with open(self.master_file, 'w', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['Iteration'] + list(self.decision_options.keys()) + 
+            writer.writerow(['Iteration'] + list(self.decision_options.keys()) +
                           ['kge', 'kgep', 'nse', 'mae', 'rmse'])
 
         for i, combination in enumerate(combinations, 1):
             self.logger.info(f"Running combination {i} of {len(combinations)}")
             self.update_model_decisions(combination)
-            
+
             try:
                 self.run_model()
                 metrics_res = self.calculate_performance_metrics()
-                
+
                 # metrics_res should be a dict containing 'kge', 'kgep', 'nse', 'mae', 'rmse'
                 row = [i] + list(combination) + [
                     metrics_res.get('kge', np.nan),
@@ -153,28 +153,28 @@ class BaseStructureEnsembleAnalyzer(ABC):
     def analyze_results(self, results_file: Path) -> Dict[str, Any]:
         """
         Analyze the results and identify the best performing combinations.
-        
+
         Args:
             results_file: Path to the results CSV file.
-            
+
         Returns:
             Dict: Dictionary of best combinations for each metric.
         """
         self.logger.info("Analyzing ensemble results")
-        
+
         if not results_file.exists():
             self.logger.error(f"Results file not found: {results_file}")
             return {}
 
         df = pd.read_csv(results_file)
-        
+
         # Filter out erroneous rows
         for col in ['kge', 'kgep', 'nse', 'mae', 'rmse']:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-        
+
         df = df.dropna(subset=['kge', 'nse'], how='all')
-        
+
         if df.empty:
             self.logger.warning("No valid results found to analyze.")
             return {}
@@ -186,13 +186,13 @@ class BaseStructureEnsembleAnalyzer(ABC):
         for metric in metrics_cols:
             if metric not in df.columns:
                 continue
-            
+
             try:
                 if metric in ['mae', 'rmse']:
                     best_row_idx = df[metric].idxmin()
                 else:
                     best_row_idx = df[metric].idxmax()
-                
+
                 best_row = df.loc[best_row_idx]
                 best_combinations[metric] = {
                     'score': float(best_row[metric]),
@@ -216,15 +216,15 @@ class BaseStructureEnsembleAnalyzer(ABC):
     def run_full_analysis(self) -> Tuple[Path, Dict[str, Any]]:
         """
         Run the complete analysis workflow.
-        
+
         Returns:
             Tuple[Path, Dict]: Results file path and best combinations dictionary.
         """
         results_file = self.run_analysis()
-        
+
         # Model-specific visualization
         self.visualize_results(results_file)
-        
+
         best_combinations = self.analyze_results(results_file)
         return results_file, best_combinations
 

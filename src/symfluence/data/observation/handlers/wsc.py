@@ -4,16 +4,12 @@ WSC Observation Handlers
 Provides handlers for Water Survey of Canada (WSC) streamflow data.
 Supports both local HYDAT SQLite database extraction and web API acquisition.
 """
-import logging
 import requests
 import pandas as pd
-import numpy as np
-import io
 from pathlib import Path
-from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Optional, List
 
-from symfluence.core.constants import UnitConversion, ModelDefaults
+from symfluence.core.constants import ModelDefaults
 from symfluence.core.exceptions import DataAcquisitionError
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
@@ -55,32 +51,32 @@ class WSCStreamflowHandler(BaseObservationHandler):
                 custom_raw = raw_dir / raw_name
                 if custom_raw.exists():
                     return custom_raw
-            
+
             if raw_file.exists():
                 return raw_file
-            
+
             self.logger.warning(f"WSC raw file not found: {raw_file}")
             return raw_file
 
     def _download_from_geomet(self, station_id: str, output_path: Path) -> Path:
         self.logger.debug(f"_download_from_geomet called for station {station_id}")
         self.logger.info(f"Downloading WSC streamflow data for station {station_id} via GeoMet API")
-        
+
         base_url = "https://api.weather.gc.ca/collections/hydrometric-daily-mean/items"
-        
+
         params = {
             'STATION_NUMBER': station_id,
             'f': 'json',
             'limit': 10000
         }
-        
+
         try:
             response = requests.get(base_url, params=params, timeout=60)
             response.raise_for_status()
-            
+
             data = response.json()
             features = data.get('features', [])
-            
+
             if not features:
                 self.logger.debug(f"No features found for station {station_id}")
                 raise DataAcquisitionError(f"No data found for WSC station {station_id} in GeoMet API")
@@ -89,7 +85,7 @@ class WSCStreamflowHandler(BaseObservationHandler):
             for feat in features:
                 props = feat.get('properties', {})
                 rows.append(props)
-            
+
             df = pd.DataFrame(rows)
             df.to_csv(output_path, index=False)
 
@@ -112,11 +108,11 @@ class WSCStreamflowHandler(BaseObservationHandler):
             raise FileNotFoundError(f"WSC raw data file not found: {input_path}")
 
         self.logger.info(f"Processing WSC streamflow data from {input_path}")
-        
+
         # Load the data
         try:
             df = pd.read_csv(input_path)
-        except Exception as e:
+        except Exception:
             # Try with '#' comments if it's a legacy RDB-like file
             df = pd.read_csv(input_path, comment='#')
 
@@ -133,7 +129,7 @@ class WSCStreamflowHandler(BaseObservationHandler):
         df[datetime_col] = pd.to_datetime(df[datetime_col], errors='coerce')
         df[discharge_col] = pd.to_numeric(df[discharge_col], errors='coerce')
         df = df.dropna(subset=[datetime_col, discharge_col])
-        
+
         df.set_index(datetime_col, inplace=True)
         df.sort_index(inplace=True)
 
@@ -149,9 +145,9 @@ class WSCStreamflowHandler(BaseObservationHandler):
         output_dir = self.project_dir / "observations" / "streamflow" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_streamflow_processed.csv"
-        
+
         resampled.to_csv(output_file, header=True, index_label='datetime')
-        
+
         self.logger.info(f"WSC streamflow processing complete: {output_file}")
         return output_file
 
@@ -164,12 +160,12 @@ class WSCStreamflowHandler(BaseObservationHandler):
         hydat_path = self.config.get('HYDAT_PATH')
         if hydat_path == 'default':
             hydat_path = str(self.project_dir.parent.parent / 'geospatial-data' / 'hydat' / 'Hydat.sqlite3')
-        
+
         if not Path(hydat_path).exists():
             raise FileNotFoundError(f"HYDAT database not found at: {hydat_path}")
 
         self.logger.info(f"Extracting WSC data from HYDAT: {hydat_path}")
-        
+
         conn = sqlite3.connect(hydat_path)
         query = "SELECT * FROM DLY_FLOWS WHERE STATION_NUMBER = ?"
         df_raw = pd.read_sql_query(query, conn, params=(station_id,))
@@ -199,11 +195,11 @@ class WSCStreamflowHandler(BaseObservationHandler):
         output_dir = self.project_dir / "observations" / "streamflow" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_streamflow_processed.csv"
-        
+
         resample_freq = self._get_resample_freq()
         resampled = df['discharge_cms'].resample(resample_freq).mean()
         resampled.to_csv(output_file, header=True, index_label='datetime')
-        
+
         return output_file
 
     def _find_col(self, columns: List[str], candidates: List[str]) -> Optional[str]:

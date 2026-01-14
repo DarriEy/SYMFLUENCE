@@ -386,7 +386,7 @@ class AnalysisPlotter(BasePlotter):
             for sim_name, sim_file in model_outputs:
                 try:
                     ds = xr.open_dataset(sim_file)
-                    
+
                     if lumped:
                         if 'averageRoutedRunoff' in ds:
                             runoff = ds['averageRoutedRunoff'].to_series()
@@ -423,12 +423,12 @@ class AnalysisPlotter(BasePlotter):
             for i, (sim_name, sim) in enumerate(sim_data):
                 color = self.plot_config.get_color_from_palette(i)
                 style = self.plot_config.get_line_style(i)
-                
+
                 # Align and calculate metrics
                 aligned_obs, aligned_sim = align_timeseries(
                     obs_data[0][1], sim, spinup_percent=spinup_percent
                 )
-                
+
                 if not aligned_sim.empty:
                     ax1.plot(
                         aligned_sim.index, aligned_sim,
@@ -533,31 +533,31 @@ class AnalysisPlotter(BasePlotter):
                     with xr.open_dataset(output_file) as ds:
                         # Get q_routed
                         sim_flow = ds['q_routed'].isel(param_set=0, latitude=0, longitude=0).to_series()
-                        
+
                         # Unit conversion (mm/day to cms)
                         basin_name = self.config.get('RIVER_BASINS_NAME', 'default')
                         if basin_name == 'default':
                             basin_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_delineate.shp"
-                        
+
                         basin_path = self.project_dir / 'shapefiles' / 'river_basins' / basin_name
                         if not basin_path.exists():
                             basin_path = Path(self.config.get('RIVER_BASINS_PATH', ''))
-                        
+
                         if basin_path.exists():
                             basin_gdf = gpd.read_file(basin_path)
                             area_km2 = basin_gdf['GRU_area'].sum() / 1e6
                             sim_flow = sim_flow * area_km2 / UnitConversion.MM_DAY_TO_CMS
-                        
+
                         if obs_dfs:
                             start_date = max(sim_flow.index.min(), obs_dfs[0].index.min())
                             end_date = min(sim_flow.index.max(), obs_dfs[0].index.max())
-                            
+
                             sim_plot = sim_flow.loc[start_date:end_date]
                             obs_plot = obs_dfs[0]['discharge_cms'].loc[start_date:end_date]
-                            
+
                             ax.plot(sim_plot.index, sim_plot, label='FUSE', color=self.plot_config.COLOR_SIMULATED_PRIMARY)
                             ax.plot(obs_plot.index, obs_plot, label='Observed', color=self.plot_config.COLOR_OBSERVED)
-                            
+
                             metrics = calculate_metrics(obs_plot.values, sim_plot.values)
                             self._add_metrics_text(ax, metrics)
 
@@ -590,7 +590,7 @@ class AnalysisPlotter(BasePlotter):
 
             plot_dir = self._ensure_output_dir('summa_outputs', experiment_id)
             ds = xr.open_dataset(summa_file)
-            
+
             hru_name = self.config.get('CATCHMENT_SHP_NAME', 'default')
             if hru_name == 'default':
                 hru_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
@@ -598,15 +598,15 @@ class AnalysisPlotter(BasePlotter):
             hru_gdf = gpd.read_file(hru_path) if hru_path.exists() else None
 
             skip_vars = {'hru', 'time', 'gru', 'dateId', 'latitude', 'longitude', 'hruId', 'gruId'}
-            
+
             for var_name in ds.data_vars:
                 if var_name in skip_vars or 'time' not in ds[var_name].dims:
                     continue
-                
+
                 fig = plt.figure(figsize=self.plot_config.FIGURE_SIZE_MEDIUM_TALL)
                 gs = gridspec.GridSpec(2, 1, height_ratios=[1.5, 1])
                 ax1, ax2 = fig.add_subplot(gs[0]), fig.add_subplot(gs[1])
-                
+
                 var_mean = ds[var_name].mean(dim='time').compute()
                 if hru_gdf is not None:
                     plot_gdf = hru_gdf.copy()
@@ -615,12 +615,12 @@ class AnalysisPlotter(BasePlotter):
                     vmin, vmax = np.percentile(var_mean.values, [2, 98])
                     plot_gdf.plot(column='value', ax=ax1, vmin=vmin, vmax=vmax, cmap='RdYlBu', legend=True)
                     ax1.set_axis_off()
-                
+
                 mean_ts = ds[var_name].mean(dim='hru').compute()
                 ax2.plot(mean_ts.time, mean_ts, color=self.plot_config.COLOR_SIMULATED_PRIMARY)
                 self._apply_standard_styling(ax2, xlabel='Date', ylabel=var_name, title=f'Mean Time Series: {var_name}', legend=False)
                 self._format_date_axis(ax2)
-                
+
                 plot_file = plot_dir / f'{var_name}.png'
                 self._save_and_close(fig, plot_file)
                 plot_paths[str(var_name)] = str(plot_file)
@@ -644,14 +644,14 @@ class AnalysisPlotter(BasePlotter):
                     self._add_metrics_text(ax1, calculate_metrics(merged['streamflow_cms_obs'].values, merged['streamflow_cms_sim'].values))
             self._apply_standard_styling(ax1, ylabel='Streamflow (cms)', title=f'NGEN Streamflow - {experiment_id}')
             self._format_date_axis(ax1, format_type='month')
-            
+
             exc_sim, flows_sim = calculate_flow_duration_curve(sim_df['streamflow_cms'].values)
             ax2.semilogy(exc_sim, flows_sim, label='NGEN Simulated', color=self.plot_config.COLOR_SIMULATED_PRIMARY)
             if obs_df is not None:
                 exc_obs, flows_obs = calculate_flow_duration_curve(obs_df['streamflow_cms'].values)
                 ax2.semilogy(exc_obs, flows_obs, label='Observed', color=self.plot_config.COLOR_OBSERVED)
             self._apply_standard_styling(ax2, xlabel='Exceedance Probability (%)', ylabel='Streamflow (cms)', title='Flow Duration Curve')
-            
+
             plot_file = self._ensure_output_dir('results') / f"ngen_streamflow_{experiment_id}.png"
             return self._save_and_close(fig, plot_file)
         except Exception as e:
@@ -675,7 +675,7 @@ class AnalysisPlotter(BasePlotter):
             self._add_metrics_text(ax1, calculate_metrics(obs_q.values, sim_q.values), label="Streamflow")
             self._apply_standard_styling(ax1, ylabel='Streamflow (m³/s)', title='Observed vs Simulated Streamflow')
             self._format_date_axis(ax1)
-            
+
             if use_snow and not obs_snow.empty and 'predicted_SWE' in results_df.columns:
                 ax2 = fig.add_subplot(gs[1])
                 sim_swe, obs_swe = results_df['predicted_SWE'], obs_snow.reindex(sim_dates)['snw']
@@ -716,34 +716,34 @@ class AnalysisPlotter(BasePlotter):
             plot_file = plot_dir / f'{experiment_id}_timeseries_comparison.png'
 
             fig, ax = plt.subplots(figsize=self.plot_config.FIGURE_SIZE_LARGE)
-            
+
             # Find models in columns
             models = [c.replace('_discharge_cms', '') for c in df.columns if '_discharge_cms' in c]
-            
+
             # Plot models
             for i, model in enumerate(models):
                 col = f"{model}_discharge_cms"
                 color = self.plot_config.get_color_from_palette(i)
                 style = self.plot_config.get_line_style(i)
-                
+
                 # Plot with KGE in label
                 metrics = calculate_metrics(df['Observed'].values, df[col].values)
                 kge = metrics.get('KGE', np.nan)
                 label = f'{model} (KGE: {kge:.3f})'
-                
+
                 ax.plot(df.index, df[col], label=label, color=color, linestyle=style, alpha=0.6)
 
             # Plot Observed on top
-            ax.plot(df.index, df['Observed'], color=self.plot_config.COLOR_OBSERVED, 
+            ax.plot(df.index, df['Observed'], color=self.plot_config.COLOR_OBSERVED,
                    label='Observed', linewidth=self.plot_config.LINE_WIDTH_OBSERVED, zorder=10)
 
             self._apply_standard_styling(
-                ax, ylabel='Discharge (m³/s)', 
+                ax, ylabel='Discharge (m³/s)',
                 title=f'Streamflow Comparison - {domain_name}',
                 legend=True
             )
             self._format_date_axis(ax)
-            
+
             plt.tight_layout()
             return self._save_and_close(fig, plot_file)
         except Exception as e:
@@ -769,28 +769,28 @@ class AnalysisPlotter(BasePlotter):
             for i, model in enumerate(models):
                 col = f"{model}_discharge_cms"
                 color = self.plot_config.get_color_from_palette(i)
-                
+
                 # Scatter plot
                 ax_scatter = fig.add_subplot(gs[i, 0])
                 ax_scatter.scatter(df['Observed'], df[col], alpha=0.5, s=10, color=color)
-                
+
                 # 1:1 line
                 max_val = max(df['Observed'].max(), df[col].max())
                 ax_scatter.plot([0, max_val], [0, max_val], 'k--', alpha=0.5)
-                
+
                 metrics = calculate_metrics(df['Observed'].values, df[col].values)
                 self._add_metrics_text(ax_scatter, metrics)
-                
+
                 self._apply_standard_styling(ax_scatter, xlabel='Observed', ylabel='Simulated', title=f'{model} - Scatter')
-                
+
                 # FDC
                 ax_fdc = fig.add_subplot(gs[i, 1])
                 exc_obs, f_obs = calculate_flow_duration_curve(df['Observed'].values)
                 exc_sim, f_sim = calculate_flow_duration_curve(df[col].values)
-                
+
                 ax_fdc.plot(exc_obs, f_obs, 'k-', label='Observed')
                 ax_fdc.plot(exc_sim, f_sim, color=color, label=model)
-                
+
                 ax_fdc.set_xscale('log')
                 ax_fdc.set_yscale('log')
                 self._apply_standard_styling(ax_fdc, xlabel='Exceedance', ylabel='Discharge', title=f'{model} - FDC', legend=True)

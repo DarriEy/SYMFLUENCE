@@ -22,16 +22,16 @@ except ImportError:
 
 
 def clean_geometry(
-    geometry: Union[Polygon, MultiPolygon, GeometryCollection], 
+    geometry: Union[Polygon, MultiPolygon, GeometryCollection],
     logger: Optional[logging.Logger] = None
 ) -> Optional[Union[Polygon, MultiPolygon]]:
     """
     Clean and validate geometries, ensuring only Polygon or MultiPolygon.
-    
+
     Args:
         geometry: Shapely geometry object
         logger: Optional logger for debug messages
-        
+
     Returns:
         Cleaned Polygon or MultiPolygon, or None if invalid/empty
     """

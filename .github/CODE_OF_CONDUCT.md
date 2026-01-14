@@ -8,4 +8,3 @@ All contributors are expected to:
 - Report unacceptable behavior by opening a confidential issue or contacting the maintainers.
 
 This Code of Conduct applies within project spaces and when representing the project in public.
-

@@ -126,8 +126,9 @@ class AsyncDDSOptimizer(BaseOptimizer):
         self.solution_pool: List[Tuple[np.ndarray, float, int, str]] = []
         self.pool_scores: List[float] = []
         self.batch_history: List[Dict[str, Any]] = []
-        self.total_evaluations = 0; self.stagnation_counter = 0
-    
+        self.total_evaluations = 0
+        self.stagnation_counter = 0
+
     def get_algorithm_name(self) -> str:
         """Return algorithm identifier for results and logging."""
         return "AsyncDDS_MPI"
@@ -136,7 +137,8 @@ class AsyncDDSOptimizer(BaseOptimizer):
         self.logger.info("Starting Asynchronous Parallel DDS")
         self.logger.info(f"  Stagnation limit: {self.stagnation_limit} batches")
         self._initialize_solution_pool()
-        batch_num = 0; start_time = time.time()
+        batch_num = 0
+        start_time = time.time()
         while batch_num < self.target_batches and self.stagnation_counter < self.stagnation_limit:
             tasks = self._generate_batch_from_pool(batch_num)
             if not tasks: break
@@ -145,7 +147,7 @@ class AsyncDDSOptimizer(BaseOptimizer):
             self._record_batch_statistics(batch_num, results, improvements, 0.0)
             batch_num += 1
         return self._extract_final_results(batch_num, time.time() - start_time)
-    
+
     def _run_sequential_batch(self, tasks):
         results = []
         for task in tasks:
@@ -160,15 +162,15 @@ class AsyncDDSOptimizer(BaseOptimizer):
         initial_solutions = []
         if initial_params: initial_solutions.append(np.clip(self.parameter_manager.normalize_parameters(initial_params), 0, 1))
         while len(initial_solutions) < self.pool_size: initial_solutions.append(np.random.random(param_count))
-        
+
         tasks = [{'individual_id': i, 'params': self.parameter_manager.denormalize_parameters(sol), 'proc_id': i % self.num_processes, 'evaluation_id': f"init_{i}"} for i, sol in enumerate(initial_solutions)]
         results = self._run_parallel_evaluations(tasks) if self.use_parallel else self._run_sequential_batch(tasks)
-        
+
         for res in results:
             if res.get('score') is not None:
                 self.solution_pool.append((self.parameter_manager.normalize_parameters(res['params']), res['score'], 0, 'init'))
                 self.pool_scores.append(res['score'])
-        
+
         if self.solution_pool:
             self._sort_pool()
             self.best_score = self.pool_scores[0]
@@ -192,7 +194,8 @@ class AsyncDDSOptimizer(BaseOptimizer):
         param_count = len(self.parameter_manager.all_param_names)
         prob = 1.0 - np.log(self.total_evaluations + 1) / np.log(self.total_target_evaluations) if self.total_target_evaluations > 1 else 0.5
         prob = max(prob, 1.0 / param_count)
-        trial = parent.copy(); variables = np.random.random(param_count) < prob
+        trial = parent.copy()
+        variables = np.random.random(param_count) < prob
         if not variables.any(): variables[np.random.randint(param_count)] = True
         for i in range(param_count):
             if variables[i]:
@@ -210,7 +213,8 @@ class AsyncDDSOptimizer(BaseOptimizer):
                     improvements += 1
         self._sort_pool()
         if len(self.solution_pool) > self.pool_size:
-            self.solution_pool = self.solution_pool[:self.pool_size]; self.pool_scores = self.pool_scores[:self.pool_size]
+            self.solution_pool = self.solution_pool[:self.pool_size]
+            self.pool_scores = self.pool_scores[:self.pool_size]
         if self.pool_scores and self.pool_scores[0] > self.best_score + self.convergence_threshold:
             # Significant improvement found - reset stagnation counter
             self.best_score = self.pool_scores[0]
@@ -227,7 +231,8 @@ class AsyncDDSOptimizer(BaseOptimizer):
 
     def _sort_pool(self):
         combined = sorted(zip(self.solution_pool, self.pool_scores), key=lambda x: x[1], reverse=True)
-        self.solution_pool = [x[0] for x in combined]; self.pool_scores = [x[1] for x in combined]
+        self.solution_pool = [x[0] for x in combined]
+        self.pool_scores = [x[1] for x in combined]
 
     def _record_batch_statistics(self, batch_num, results, improvements, duration):
         valid = [r['score'] for r in results if r['score'] is not None]

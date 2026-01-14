@@ -10,7 +10,7 @@ All registries use lowercase keys internally for consistency.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Type, Any, List, Optional, TypeVar, Generic
+from typing import Dict, Type, Any, List, TypeVar, Generic
 import logging
 
 

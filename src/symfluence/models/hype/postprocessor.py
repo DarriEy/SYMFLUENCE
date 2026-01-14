@@ -5,7 +5,7 @@ Handles output extraction, processing, and analysis for HYPE model outputs.
 """
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 import pandas as pd  # type: ignore
 
 from ..registry import ModelRegistry
@@ -108,5 +108,3 @@ class HYPEPostProcessor(BaseModelPostProcessor):
             self.logger.error(f"Error extracting streamflow: {str(e)}")
             self.logger.exception("Full traceback:")
             return None
-
-

@@ -7,7 +7,7 @@ ARCO (Google Cloud Zarr) and CDS (Copernicus Climate Data Store) pathways.
 
 import xarray as xr
 import numpy as np
-from typing import Dict, Optional, Union, Tuple
+from typing import Optional
 import logging
 
 # Valid ranges for ERA5 variables after processing

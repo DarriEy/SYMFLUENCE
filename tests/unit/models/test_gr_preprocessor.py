@@ -66,10 +66,10 @@ class TestGRPreProcessorModeDetection:
     def test_explicit_config_lumped(self, mock_logger, common_config_setup):
         """Test that explicit configuration for lumped mode is respected."""
         config, config_dict = common_config_setup
-        
+
         config_dict['DOMAIN_DEFINITION_METHOD'] = 'delineate'
         config_dict['GR_SPATIAL_MODE'] = 'lumped'
-        
+
         config.domain.definition_method = 'delineate'
         config.model.gr.spatial_mode = 'lumped'
         config.to_dict.return_value = config_dict
@@ -81,10 +81,10 @@ class TestGRPreProcessorModeDetection:
     def test_explicit_config_distributed(self, mock_logger, common_config_setup):
         """Test that explicit configuration for distributed mode is respected."""
         config, config_dict = common_config_setup
-        
+
         config_dict['DOMAIN_DEFINITION_METHOD'] = 'lumped'
         config_dict['GR_SPATIAL_MODE'] = 'distributed'
-        
+
         config.domain.definition_method = 'lumped'
         config.model.gr.spatial_mode = 'distributed'
         config.to_dict.return_value = config_dict
@@ -96,9 +96,9 @@ class TestGRPreProcessorModeDetection:
     def test_implicit_config_delineate(self, mock_logger, common_config_setup):
         """Test that mode defaults to distributed when delineating."""
         config, config_dict = common_config_setup
-        
+
         config_dict['DOMAIN_DEFINITION_METHOD'] = 'delineate'
-        
+
         config.domain.definition_method = 'delineate'
         config.model.gr.spatial_mode = None
         config.to_dict.return_value = config_dict
@@ -110,9 +110,9 @@ class TestGRPreProcessorModeDetection:
     def test_implicit_config_lumped(self, mock_logger, common_config_setup):
         """Test that mode defaults to lumped when not delineating."""
         config, config_dict = common_config_setup
-        
+
         config_dict['DOMAIN_DEFINITION_METHOD'] = 'lumped'
-        
+
         config.domain.definition_method = 'lumped'
         config.model.gr.spatial_mode = None
         config.to_dict.return_value = config_dict
@@ -120,13 +120,13 @@ class TestGRPreProcessorModeDetection:
         with patch('symfluence.models.gr.preprocessor.HAS_RPY2', True):
             preprocessor = GRPreProcessor(config, mock_logger)
             assert preprocessor.spatial_mode == 'lumped'
-        
+
     def test_missing_gr_config(self, mock_logger, common_config_setup):
         """Test behavior when GR config section is missing/None."""
         config, config_dict = common_config_setup
-        
+
         config_dict['DOMAIN_DEFINITION_METHOD'] = 'delineate'
-        
+
         config.domain.definition_method = 'delineate'
         config.model.gr = None # Simulate missing GR config
         config.to_dict.return_value = config_dict

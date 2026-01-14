@@ -9,9 +9,8 @@ duplicated in SUMMA, FUSE, NGEN, and GR preprocessors.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, Union, List
+from typing import Dict, Any, Optional, Tuple, Union
 
-import numpy as np
 import pandas as pd
 import xarray as xr
 

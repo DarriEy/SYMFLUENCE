@@ -102,7 +102,7 @@ class PSOOptimizer(BaseOptimizer):
         In Proceedings of the 1998 IEEE Congress on Evolutionary Computation
         (pp. 69-73). IEEE.
     """
-    
+
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """Initialize PSO optimizer.
 
@@ -138,7 +138,7 @@ class PSOOptimizer(BaseOptimizer):
         initial_params = self.parameter_manager.get_initial_parameters()
         self._initialize_swarm(initial_params)
         return self._run_pso_algorithm()
-    
+
     def _initialize_swarm(self, initial_params: Dict[str, np.ndarray]) -> None:
         """Initialize PSO swarm with random particles and seed initial particle.
 
@@ -172,7 +172,7 @@ class PSOOptimizer(BaseOptimizer):
         self._update_personal_bests()
         self._update_global_best()
         self._record_generation(0)
-    
+
     def _run_pso_algorithm(self) -> Tuple[Dict, float, List]:
         """Execute main PSO optimization loop.
 
@@ -215,7 +215,7 @@ class PSOOptimizer(BaseOptimizer):
             if self._update_global_best():
                 pass # New global best found
             self._record_generation(iteration)
-        
+
         assert self.global_best_position is not None
         self.best_score = self.global_best_score
         self.best_params = cast(Dict[Any, Any], self.parameter_manager.denormalize_parameters(self.global_best_position))
@@ -236,7 +236,7 @@ class PSOOptimizer(BaseOptimizer):
             cognitive = self.c1 * r1 * (self.personal_best_positions[i] - self.swarm_positions[i])
             social = self.c2 * r2 * (self.global_best_position - self.swarm_positions[i])
             self.swarm_velocities[i] = np.clip(self.current_inertia * self.swarm_velocities[i] + cognitive + social, -0.2, 0.2)
-    
+
     def _update_positions(self) -> None:
         """Update particle positions and apply reflecting boundary conditions.
 
@@ -284,7 +284,7 @@ class PSOOptimizer(BaseOptimizer):
                     self.swarm_positions[i, j] = 2.0 - self.swarm_positions[i, j]
                     self.swarm_velocities[i, j] = -self.swarm_velocities[i, j]
         self.swarm_positions = np.clip(self.swarm_positions, 0, 1)
-    
+
     def _evaluate_swarm(self) -> None:
         """Evaluate fitness of all particles in swarm.
 
@@ -326,7 +326,7 @@ class PSOOptimizer(BaseOptimizer):
         tasks = [{'individual_id': i, 'params': self.parameter_manager.denormalize_parameters(self.swarm_positions[i]), 'proc_id': i % self.num_processes, 'evaluation_id': f"pso_{i}"} for i in range(self.swarm_size)]
         results = self._run_parallel_evaluations(tasks)
         for res in results: self.swarm_scores[res['individual_id']] = res['score'] if res['score'] is not None else float('-inf')
-    
+
     def _update_personal_bests(self) -> int:
         """Update each particle's personal best position and score.
 
@@ -365,7 +365,7 @@ class PSOOptimizer(BaseOptimizer):
                 self.personal_best_positions[i] = self.swarm_positions[i].copy()  # type: ignore
                 improvements += 1
         return improvements
-    
+
     def _update_global_best(self) -> bool:
         """Update swarm's global best position and score if improved.
 

@@ -22,21 +22,21 @@ from symfluence.core.constants import UnitConversion
 class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
     """
     Structure Ensemble Analyzer for FUSE.
-    
+
     Coordinates multiple runs of FUSE with different model structure decisions
     and evaluates their performance against observations.
     """
-    
+
     def __init__(self, config: Any, logger: Any, reporting_manager: Optional[Any] = None):
         """
         Initialize the FUSE structure analyzer.
         """
         super().__init__(config, logger, reporting_manager)
-        
+
         # Initialize FuseRunner
         self.fuse_runner = FUSERunner(config, logger)
-        
-        self.model_decisions_path = (self.project_dir / "settings" / "FUSE" / 
+
+        self.model_decisions_path = (self.project_dir / "settings" / "FUSE" /
                                    f"fuse_zDecisions_{self.experiment_id}.txt")
 
         # Storage for simulation results (used for visualization)
@@ -60,7 +60,7 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         }
 
         config_options = self.config_dict.get('FUSE_DECISION_OPTIONS')
-        
+
         if config_options:
             self.logger.info("Using decision options from configuration")
             validated_options = {}
@@ -86,19 +86,19 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
     def update_model_decisions(self, combination: Tuple[str, ...]):
         """
         Update the FUSE model decisions file with a new combination.
-        
+
         Args:
             combination (Tuple[str, ...]): Tuple of decision values to use.
         """
         try:
             with open(self.model_decisions_path, 'r') as f:
                 lines = f.readlines()
-            
+
             # The decisions are in lines 2-10 (1-based indexing)
             decision_lines = range(1, 10)
             decision_keys = list(self.decision_options.keys())
             option_map = dict(zip(decision_keys, combination))
-            
+
             for line_idx in decision_lines:
                 line_parts = lines[line_idx].split()
                 if len(line_parts) >= 2:
@@ -107,10 +107,10 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
                         new_value = option_map[decision_key]
                         rest_of_line = ' '.join(line_parts[1:])
                         lines[line_idx] = f"{new_value:<10} {rest_of_line}\n"
-            
+
             with open(self.model_decisions_path, 'w') as f:
                 f.writelines(lines)
-                
+
         except Exception as e:
             self.logger.error(f"Error updating FUSE model decisions: {str(e)}")
             raise
@@ -122,7 +122,7 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
     def calculate_performance_metrics(self) -> Dict[str, float]:
         """
         Calculate performance metrics comparing simulated FUSE streamflow to observations.
-        
+
         Returns:
             Dict: Dictionary containing KGE, NSE, MAE, and RMSE.
         """
@@ -159,7 +159,7 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         # Calculate catchment area for unit conversion (mm/d to cms)
         if self.area_km2 is None:
             self.area_km2 = self._calculate_catchment_area()
-        
+
         # Convert units
         dfSim_cms = dfSim * self.area_km2 / UnitConversion.MM_DAY_TO_CMS
 
@@ -173,7 +173,7 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
 
         obs_vals = obs_aligned.values
         sim_vals = sim_aligned.values
-        
+
         if len(obs_vals) == 0:
             return {'kge': np.nan, 'kgep': np.nan, 'nse': np.nan, 'mae': np.nan, 'rmse': np.nan}
 
@@ -189,10 +189,10 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         """Read current decisions from the FUSE decisions file."""
         if not self.model_decisions_path.exists():
             return []
-            
+
         with open(self.model_decisions_path, 'r') as f:
             lines = f.readlines()
-        
+
         decisions = []
         for line in lines[1:10]:
             parts = line.strip().split()
@@ -205,13 +205,13 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         basin_name = self.config_dict.get('RIVER_BASINS_NAME', 'default')
         if basin_name == 'default':
             basin_name = f"{self.domain_name}_riverBasins_{self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')}.shp"
-        
+
         basin_path = self.config_dict.get('RIVER_BASINS_PATH')
         if not basin_path or basin_path == 'default':
             basin_path = self.project_dir / 'shapefiles' / 'river_basins' / basin_name
         else:
             basin_path = Path(basin_path)
-            
+
         if basin_path.exists():
             try:
                 basin_gdf = gpd.read_file(basin_path)
@@ -224,20 +224,20 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
                     return basin_gdf.geometry.area.sum() / 1e6
             except Exception as e:
                 self.logger.warning(f"Failed to calculate area from shapefile: {e}")
-        
+
         return 1.0 # Default fallback
 
     def visualize_results(self, results_file: Path):
         """Perform visualization of FUSE analysis results."""
         super().visualize_results(results_file)
-        
+
         if self.reporting_manager:
             self.logger.info("Generating FUSE hydrograph highlights")
             for metric in ['kge', 'nse', 'kgep']:
                 try:
                     self.reporting_manager.visualize_hydrographs_with_highlight(
-                        results_file, 
-                        self.simulation_results, 
+                        results_file,
+                        self.simulation_results,
                         self.observed_streamflow,
                         self.decision_options,
                         self.output_folder,

@@ -93,10 +93,10 @@ class FuseElevationBandManager:
                 data_var = next(iter(ds.data_vars.values()), None)
                 if data_var is None:
                     return None
-                
+
                 spatial_dims: List[Any] = []
                 spatial_coords: Dict[str, np.ndarray] = {}
-                
+
                 for dim in data_var.dims:
                     if dim == 'time':
                         continue
@@ -106,7 +106,7 @@ class FuseElevationBandManager:
                         spatial_coords[dim_str] = ds[dim].values
                     else:
                         spatial_coords[dim_str] = np.arange(ds.sizes[dim])
-                        
+
                 return spatial_dims, spatial_coords
         except Exception as e:
             self.logger.warning(f"Unable to read spatial info from {forcing_file}: {e}")
@@ -174,8 +174,8 @@ class FuseElevationBandManager:
             })
 
             # Use xarray broadcasting for cleaner and more efficient array creation
-            area_da = xr.DataArray(area_fractions, dims=['elevation_band'])
-            elev_da = xr.DataArray(elevations, dims=['elevation_band'])
+            xr.DataArray(area_fractions, dims=['elevation_band'])
+            xr.DataArray(elevations, dims=['elevation_band'])
 
             band_shape = (n_bands,) + tuple(len(spatial_coords[dim]) for dim in spatial_dims)
             band_dims = ['elevation_band'] + spatial_dims
@@ -189,7 +189,7 @@ class FuseElevationBandManager:
                     'units': '-'
                 }
             ).astype('float32')
-            
+
             ds['mean_elev'] = xr.DataArray(
                 np.broadcast_to(elevations.reshape(broadcast_shape), band_shape),
                 dims=band_dims,
@@ -199,7 +199,7 @@ class FuseElevationBandManager:
                     'standard_name': 'height_above_reference_ellipsoid'
                 }
             ).astype('float32')
-            
+
             ds['prec_frac'] = xr.DataArray(
                 np.broadcast_to(area_fractions.reshape(broadcast_shape), band_shape),
                 dims=band_dims,
@@ -211,7 +211,7 @@ class FuseElevationBandManager:
 
             # Save to file
             output_file = self.forcing_fuse_path / f"{self.domain_name}_elev_bands.nc"
-            
+
             # Use strict encoding for FUSE compatibility
             encoding = {
                 'area_frac': {'dtype': 'float32', '_FillValue': -9999.0, 'zlib': False},
@@ -221,7 +221,7 @@ class FuseElevationBandManager:
             }
             for dim in spatial_dims:
                 encoding[dim] = {'dtype': 'float64', '_FillValue': None}
-            
+
             ds.to_netcdf(output_file, encoding=encoding)
 
             self.logger.info(f"Created lumped elevation bands file with {n_bands} bands: {output_file}")
@@ -285,7 +285,7 @@ class FuseElevationBandManager:
                 else:
                     # Already projected, calculate centroid then convert to WGS84
                     centroids = catchment.geometry.centroid.to_crs(epsg=4326)
-                
+
                 latitudes = centroids.y.values
                 longitudes = centroids.x.values
 
@@ -325,7 +325,7 @@ class FuseElevationBandManager:
                     'units': '-'
                 }
             ).astype('float32')
-            
+
             ds['mean_elev'] = xr.DataArray(
                 np.broadcast_to(elevations.reshape(broadcast_shape), band_shape),
                 dims=band_dims,
@@ -335,7 +335,7 @@ class FuseElevationBandManager:
                     'standard_name': 'height_above_reference_ellipsoid'
                 }
             ).astype('float32')
-            
+
             ds['prec_frac'] = xr.DataArray(
                 np.broadcast_to(area_fractions.reshape(broadcast_shape), band_shape),
                 dims=band_dims,
@@ -347,7 +347,7 @@ class FuseElevationBandManager:
 
             # Save to file
             output_file = self.forcing_fuse_path / f"{self.domain_name}_elev_bands.nc"
-            
+
             # Use strict encoding for FUSE compatibility
             encoding = {
                 'area_frac': {'dtype': 'float32', '_FillValue': -9999.0, 'zlib': False},
@@ -357,7 +357,7 @@ class FuseElevationBandManager:
             }
             for dim in spatial_dims:
                 encoding[dim] = {'dtype': 'float64', '_FillValue': None}
-            
+
             ds.to_netcdf(output_file, encoding=encoding)
 
             self.logger.info(f"Created distributed elevation bands file with {n_hrus} HRUs: {output_file}")

@@ -6,7 +6,6 @@ with standardized output formatting for model calibration.
 """
 
 import csv
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any
 import pandas as pd # type: ignore
@@ -333,11 +332,11 @@ class ObservedDataProcessor:
             self.logger.error(f"No CSV files found in {self.streamflow_raw_path} for VI data.")
             return
         vi_file = vi_files[0] # Assuming the first CSV is the one we need
-        
+
         try:
-            vi_data = pd.read_csv(vi_file, 
-                                  sep=';', 
-                                  header=None, 
+            vi_data = pd.read_csv(vi_file,
+                                  sep=';',
+                                  header=None,
                                   names=['YYYY', 'MM', 'DD', 'qobs', 'qc_flag'],
                                   parse_dates={'datetime': ['YYYY', 'MM', 'DD']},
                                   na_values=['', 'NA', 'NaN'], # Explicitly list common NA values
@@ -352,7 +351,7 @@ class ObservedDataProcessor:
             # Example: Keep data where qc_flag is None or <= 100
             # reliable_data = vi_data[vi_data['qc_flag'].isna() | (vi_data['qc_flag'] <= 100)]
             # For now, we'll just use all data after conversion
-            
+
             # Filter out rows where discharge_cms could not be converted
             vi_data = vi_data.dropna(subset=['discharge_cms'])
 
@@ -369,61 +368,60 @@ class ObservedDataProcessor:
     def process_fluxnet_data(self):
         """
         Process FLUXNET data by copying relevant station files to the project directory.
-        
+
         This method:
         1. Checks if FLUXNET data acquisition is enabled in configuration
         2. Locates files containing the specified station ID
         3. Copies them to the project directory's observations/fluxnet folder
-        
+
         Returns:
             bool: True if successful, False otherwise
         """
         self.logger.info("Processing FLUXNET data")
-        
+
         # Check if FLUXNET processing is enabled
         if self.config.get('DOWNLOAD_FLUXNET') != 'true':
             self.logger.info("FLUXNET data processing is disabled in configuration")
             return False
-        
+
         try:
             # Get FLUXNET configuration parameters
             fluxnet_path_str = self.config.get('FLUXNET_PATH')
             station_id = self.config.get('FLUXNET_STATION')
-            
+
             if not fluxnet_path_str or not station_id:
                 self.logger.error("Missing FLUXNET_PATH or FLUXNET_STATION in configuration")
                 return False
-            
+
             fluxnet_path = Path(fluxnet_path_str)
-            
+
             # Create directory for FLUXNET data if it doesn't exist
             output_dir = self.project_dir / 'observations' / 'fluxnet'
             output_dir.mkdir(parents=True, exist_ok=True)
-            
+
             self.logger.info(f"Looking for FLUXNET files with station ID: {station_id} in {fluxnet_path}")
-            
+
             # Find files containing the station ID
             import shutil
-            import glob
-            
+
             # Check if the path exists
             if not fluxnet_path.exists():
                 self.logger.error(f"FLUXNET path does not exist: {fluxnet_path}")
                 return False
-                
+
             # Find all files in the directory (including subdirectories) that match the station ID
             matching_files = []
             # Use rglob for recursive search
             for file_path in fluxnet_path.rglob('*'):
                 if file_path.is_file() and station_id in file_path.name:
                     matching_files.append(file_path)
-                    
+
             if not matching_files:
                 self.logger.warning(f"No FLUXNET files found for station ID: {station_id} in {fluxnet_path}")
                 return False
-                
+
             self.logger.info(f"Found {len(matching_files)} FLUXNET files for station {station_id}")
-            
+
             # Copy files to the project directory
             for file_path in matching_files:
                 dest_file = output_dir / file_path.name
@@ -432,10 +430,10 @@ class ObservedDataProcessor:
                     self.logger.info(f"Copied {file_path.name} to {dest_file}")
                 except Exception as copy_e:
                     self.logger.error(f"Failed to copy {file_path.name}: {copy_e}")
-            
+
             self.logger.info(f"Successfully processed FLUXNET data for station {station_id}")
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Error processing FLUXNET data: {str(e)}")
             import traceback
@@ -445,61 +443,61 @@ class ObservedDataProcessor:
     def process_snotel_data(self):
         """
         Process SNOTEL snow water equivalent data.
-        
+
         This method:
         1. Checks if SNOTEL data download is enabled in configuration
         2. Finds the appropriate SNOTEL CSV file based on station ID
         3. Extracts date and SWE columns
         4. Saves processed data to project directory
-        
+
         Returns:
             bool: True if successful, False otherwise
         """
         self.logger.info("Processing SNOTEL data")
-        
+
         # Check if SNOTEL processing is enabled
         if self.config.get('DOWNLOAD_SNOTEL') != 'true':
             self.logger.info("SNOTEL data processing is disabled in configuration")
             return False
-        
+
         try:
             # Get SNOTEL configuration parameters
             snotel_path_str = self.config.get('SNOTEL_PATH')
             snotel_station_id = self.config.get('SNOTEL_STATION')
             domain_name = self.config.get('DOMAIN_NAME')
-            
+
             if not snotel_path_str or not snotel_station_id:
                 self.logger.error("Missing SNOTEL_PATH or SNOTEL_STATION in configuration")
                 return False
-            
+
             snotel_path = Path(snotel_path_str)
-            
+
             # Create directory for processed data if it doesn't exist
             project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{domain_name}"
             output_dir = project_dir / 'observations' / 'snow' / 'swe'
             output_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Define output file path
             output_file = output_dir / f"{domain_name}_swe_processed.csv"
-            
+
             # Find the appropriate SNOTEL file based on station ID
             snotel_file = None
-            
+
             # Search for files containing the station ID
             # Use rglob for recursive search
             for file in snotel_path.rglob(f'*{snotel_station_id}*.csv'):
                 snotel_file = file
                 break
-            
+
             if not snotel_file:
                 self.logger.error(f"No SNOTEL file found for station ID: {snotel_station_id} in {snotel_path}")
                 return False
-            
+
             self.logger.info(f"Found SNOTEL file: {snotel_file}")
-            
+
             # Read the SNOTEL data file
             import pandas as pd
-            
+
             # Read the data, skipping header rows until we find the actual data
             # Usually headers end when we find a line starting with "Date"
             header_line_num = -1
@@ -508,14 +506,14 @@ class ObservedDataProcessor:
                     if line.startswith('Date'):
                         header_line_num = i
                         break
-            
+
             if header_line_num == -1:
                 self.logger.error(f"Could not find header line starting with 'Date' in {snotel_file}")
                 return False
 
             # Read the data starting from the identified line
             df = pd.read_csv(snotel_file, skiprows=header_line_num)
-            
+
             # Extract just the Date and SWE columns
             # The column name might vary, so we'll try to identify it
             swe_column = None
@@ -523,16 +521,16 @@ class ObservedDataProcessor:
                 if 'Snow Water Equivalent' in col:
                     swe_column = col
                     break
-            
+
             if not swe_column:
                 self.logger.error("Could not find 'Snow Water Equivalent' column in SNOTEL data")
                 return False
-            
+
             # Create a new DataFrame with just Date and SWE
             processed_df = pd.DataFrame()
             processed_df['Date'] = df['Date']
             processed_df['SWE'] = df[swe_column]
-            
+
             # Try to parse dates with different formats
             try:
                 # Attempt to infer format first
@@ -542,7 +540,7 @@ class ObservedDataProcessor:
                 # Fallback to specific formats if inference fails
                 try:
                     processed_df['Date'] = pd.to_datetime(processed_df['Date'], format='%m/%d/%Y', errors='coerce') # MM/DD/YYYY
-                except (ValueError, TypeError) as format_error:
+                except (ValueError, TypeError):
                     try:
                         processed_df['Date'] = pd.to_datetime(processed_df['Date'], format='%Y-%m-%d', errors='coerce') # YYYY-MM-DD
                     except (ValueError, TypeError) as final_error:
@@ -551,19 +549,19 @@ class ObservedDataProcessor:
 
             # Ensure the Date column is formatted consistently (YYYY-MM-DD)
             processed_df['Date'] = processed_df['Date'].dt.strftime('%Y-%m-%d')
-            
+
             # Convert SWE to numeric, coercing errors to NaN
             processed_df['SWE'] = pd.to_numeric(processed_df['SWE'], errors='coerce')
-            
+
             # Drop rows with invalid dates or SWE values
             processed_df = processed_df.dropna(subset=['Date', 'SWE'])
-            
+
             # Save the processed data
             processed_df.to_csv(output_file, index=False)
-            
+
             self.logger.info(f"Processed SNOTEL data saved to {output_file}")
             return True
-        
+
         except FileNotFoundError:
             self.logger.error(f"SNOTEL file not found at {snotel_file}")
             return False
@@ -576,7 +574,7 @@ class ObservedDataProcessor:
     def _process_caravans_data(self):
         """
         Process CARAVANS streamflow data.
-        
+
         This function reads CARAVANS CSV data, processes it, and converts from mm/d to m³/s
         using the basin area from the shapefile.
         """
@@ -584,24 +582,24 @@ class ObservedDataProcessor:
         if not self.config.get('PROCESS_CARAVANS', False):
             self.logger.info("CARAVANS data processing is disabled in configuration")
             return
-        
+
         self.logger.info("Processing CARAVANS streamflow data")
-        
+
         try:
             # Determine input and output paths
             input_file_name = self.streamflow_raw_name
             if not input_file_name:
                 self.logger.error("STREAMFLOW_RAW_NAME not specified in config for CARAVANS data.")
                 return
-            
+
             input_file = self.streamflow_raw_path / input_file_name
             output_file = self.streamflow_processed_path / f'{self.domain_name}_streamflow_processed.csv'
-            
+
             # Ensure output directory exists
             output_file.parent.mkdir(parents=True, exist_ok=True)
-            
+
             self.logger.info(f"Reading CARAVANS data from: {input_file}")
-            
+
             # Read the CSV file
             try:
                 # Try reading with standard format
@@ -614,34 +612,34 @@ class ObservedDataProcessor:
                 except Exception as e2:
                     self.logger.error(f"Alternative parsing also failed: {e2}")
                     raise DataAcquisitionError(f"Could not parse CARAVANS data file: {input_file}")
-            
+
             # Identify date and discharge columns
             date_col_name = None
             discharge_col_name = None
-            
+
             for col in caravans_data.columns:
                 col_lower = col.lower()
                 if 'date' in col_lower and not date_col_name:
                     date_col_name = col
                 if ('discharge' in col_lower or 'flow' in col_lower or 'm3s' in col_lower or 'mm/d' in col_lower) and not discharge_col_name:
                     discharge_col_name = col
-            
+
             if not date_col_name:
                 self.logger.error("No date column identified in CARAVANS data. Please check column names.")
                 raise DataAcquisitionError("No date column found in CARAVANS data")
             if not discharge_col_name:
                 self.logger.error("No discharge column identified in CARAVANS data. Please check column names.")
                 raise DataAcquisitionError("No discharge column found in CARAVANS data")
-            
+
             self.logger.info(f"Using date column: '{date_col_name}', discharge column: '{discharge_col_name}'")
-            
+
             # Rename columns and select only necessary ones
             caravans_data = caravans_data.rename(columns={date_col_name: 'date', discharge_col_name: 'discharge_value'})
             caravans_data = caravans_data[['date', 'discharge_value']]
-            
+
             # Convert discharge to numeric, handling errors
             caravans_data['discharge_value'] = pd.to_numeric(caravans_data['discharge_value'], errors='coerce')
-            
+
             # Convert date to datetime
             try:
                 # Try parsing with common formats, prioritizing European format if applicable
@@ -649,32 +647,32 @@ class ObservedDataProcessor:
             except Exception as e:
                 self.logger.warning(f"Date parsing with dayfirst=True failed: {e}. Trying without.")
                 caravans_data['datetime'] = pd.to_datetime(caravans_data['date'], errors='coerce')
-            
+
             # Drop rows with invalid dates
             na_date_count = caravans_data['datetime'].isna().sum()
             if na_date_count > 0:
                 self.logger.warning(f"Dropping {na_date_count} rows with invalid date values")
                 caravans_data = caravans_data.dropna(subset=['datetime'])
-                
+
             # Set datetime as index
             caravans_data.set_index('datetime', inplace=True)
-            
+
             # Sort index
             caravans_data.sort_index(inplace=True)
-            
+
             # Now drop rows with NaN discharge values
             na_count = caravans_data['discharge_value'].isna().sum()
             if na_count > 0:
                 self.logger.warning(f"Dropping {na_count} rows with missing or non-numeric discharge values")
                 caravans_data = caravans_data.dropna(subset=['discharge_value'])
-            
+
             # Determine if discharge is in mm/d or m³/s based on column name or config
             discharge_unit = 'mm/d' # Default assumption
             if 'm3s' in discharge_col_name.lower() or 'cms' in discharge_col_name.lower():
                 discharge_unit = 'm³/s'
             elif 'cfs' in discharge_col_name.lower():
                 discharge_unit = 'cfs'
-            
+
             self.logger.info(f"Detected discharge unit: {discharge_unit}")
 
             # Convert discharge to m³/s if necessary
@@ -685,7 +683,7 @@ class ObservedDataProcessor:
                     subbasins_name = self.config.get('RIVER_BASINS_NAME')
                     if subbasins_name == 'default':
                         subbasins_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins.shp"
-                    
+
                     shapefile_path_str = self.config.get('RIVER_BASIN_SHP_PATH')
                     if shapefile_path_str:
                         shapefile_path = Path(shapefile_path_str)
@@ -699,14 +697,14 @@ class ObservedDataProcessor:
                                 self.logger.info(f"Using alternative shapefile: {shapefile_path}")
                             else:
                                 raise FileNotFoundError(f"Cannot find shapefile at {shapefile_path} or {alt_shapefile_path}")
-                    
+
                     # Read the shapefile
                     import geopandas as gpd
                     gdf = gpd.read_file(shapefile_path)
-                    
+
                     # Get area column from the shapefile
                     area_column = self.config.get('RIVER_BASIN_SHP_AREA', 'GRU_area')
-                    
+
                     # If area column not found, try alternative names
                     if area_column not in gdf.columns:
                         area_alternatives = ['GRU_area', 'area', 'Area', 'AREA', 'basin_area', 'HRU_area', 'catchment_area']
@@ -715,7 +713,7 @@ class ObservedDataProcessor:
                                 area_column = alt
                                 self.logger.info(f"Using alternative area column: {area_column}")
                                 break
-                        
+
                         # If still not found, calculate area from geometry
                         if area_column not in gdf.columns:
                             self.logger.warning("No area column found, calculating from geometry...")
@@ -727,15 +725,15 @@ class ObservedDataProcessor:
                                 gdf_projected = gdf.to_crs('+proj=aea +lat_1=20 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs')
                             else:
                                 gdf_projected = gdf # Assume it's already projected
-                            
+
                             gdf['calculated_area'] = gdf_projected.geometry.area
                             area_column = 'calculated_area'
                             # Area is now in square meters, convert to square km
                             gdf[area_column] = gdf[area_column] / 1e6
-                    
+
                     # Sum the areas to get total basin area in km²
                     basin_area_km2 = gdf[area_column].sum() # Assuming area is already in km² or m²
-                    
+
                     # Check units and convert if necessary (assuming area column might be in m²)
                     # If the sum is very large (e.g., > 1,000,000 km²), it might be in m²
                     if basin_area_km2 > 1000000:
@@ -752,16 +750,16 @@ class ObservedDataProcessor:
                     # Formula: m³/s = (mm/d × basin_area_km² × 1000) / SECONDS_PER_DAY
                     # 1000: convert km² to m²
                     # SECONDS_PER_DAY: seconds in a day (86400)
-                    
+
                     # Ensure basin_area_km2 is in km² for the formula
                     # If the area column was in m², we need to convert it first
                     if area_column == 'calculated_area' or 'm2' in area_column.lower(): # Heuristic check for m²
                         self.logger.info(f"Area column '{area_column}' seems to be in m², converting to km².")
                         basin_area_km2 = basin_area_km2 / 1e6
-                    
+
                     conversion_factor = (basin_area_km2 * 1000) / UnitConversion.SECONDS_PER_DAY
                     caravans_data['discharge_cms'] = caravans_data['discharge_value'] * conversion_factor
-                    
+
                     self.logger.info(f"Basin area: {basin_area_km2:.2f} km²")
                     self.logger.info(f"Converted discharge from mm/d to m³/s using conversion factor: {conversion_factor:.6f}")
 
@@ -791,18 +789,18 @@ class ObservedDataProcessor:
                 except Exception as idx_e:
                     self.logger.error(f"Final attempt to convert index to datetime failed: {idx_e}")
                     raise DataAcquisitionError("Failed to create a valid DatetimeIndex.")
-            
+
             self.logger.info(f"Data date range: {caravans_data.index.min()} to {caravans_data.index.max()}")
             self.logger.info(f"Number of records after processing: {len(caravans_data)}")
             self.logger.info(f"Min discharge: {caravans_data['discharge_cms'].min():.4f} m³/s")
             self.logger.info(f"Max discharge: {caravans_data['discharge_cms'].max():.4f} m³/s")
             self.logger.info(f"Mean discharge: {caravans_data['discharge_cms'].mean():.4f} m³/s")
-            
+
             # Resample and save the data
             self._resample_and_save(caravans_data['discharge_cms'])
-            
+
             self.logger.info("Successfully processed CARAVANS data")
-            
+
         except FileNotFoundError:
             self.logger.error(f"CARAVANS input file not found at {input_file}")
         except DataAcquisitionError as dae:
@@ -812,7 +810,7 @@ class ObservedDataProcessor:
             import traceback
             self.logger.error(traceback.format_exc())
             raise
-        
+
     def _process_wsc_data(self):
         self.logger.info("Processing WSC streamflow data from local file")
         try:
@@ -823,8 +821,8 @@ class ObservedDataProcessor:
 
             # Read the CSV file, handling comments and potential header issues
             # WSC RDB format often has comments starting with '#'
-            wsc_data = pd.read_csv(file_path, 
-                                   comment='#', 
+            wsc_data = pd.read_csv(file_path,
+                                   comment='#',
                                    low_memory=False)
 
             # Identify datetime and discharge columns
@@ -837,7 +835,7 @@ class ObservedDataProcessor:
                 if col in datetime_candidates:
                     datetime_col = col
                     break
-            
+
             # Common discharge column names
             discharge_candidates = ['Value', 'discharge', 'flow', 'discharge_cms']
             for col in wsc_data.columns:
@@ -862,17 +860,17 @@ class ObservedDataProcessor:
             if wsc_data[datetime_col].dt.tz is not None:
                 self.logger.info(f"Detected timezone '{wsc_data[datetime_col].dt.tz}' in WSC datetime. Converting to local time and removing tz info.")
                 wsc_data[datetime_col] = wsc_data[datetime_col].dt.tz_convert('America/Edmonton').dt.tz_localize(None)
-            
+
             # Convert discharge column to numeric
             wsc_data[discharge_col] = pd.to_numeric(wsc_data[discharge_col], errors='coerce')
-            
+
             # Drop rows with invalid datetime or discharge values
             wsc_data = wsc_data.dropna(subset=[datetime_col, discharge_col])
-            
+
             # Rename datetime column for consistency
             wsc_data.rename(columns={datetime_col: 'datetime'}, inplace=True)
             wsc_data.set_index('datetime', inplace=True)
-            
+
             # Rename discharge column to 'discharge_cms' for consistency
             wsc_data.rename(columns={discharge_col: 'discharge_cms'}, inplace=True)
 
@@ -888,23 +886,23 @@ class ObservedDataProcessor:
 
     def _resample_and_save(self, data):
         resample_freq = self.get_resample_freq()
-        
+
         # Ensure data is sorted by index before resampling
         data = data.sort_index()
 
         # Resample the data
         resampled_data = data.resample(resample_freq).mean()
-        
+
         # Interpolate missing values
         # Use time-based interpolation for potentially irregular time series
         # Limit interpolation to avoid excessive extrapolation
         resampled_data = resampled_data.interpolate(method='time', limit_direction='both', limit=30) # Limit interpolation to 30 periods
-        
+
         # Optionally, drop remaining NaNs if interpolation didn't fill everything
         # resampled_data = resampled_data.dropna()
 
         output_file = self.streamflow_processed_path / f'{self.domain_name}_streamflow_processed.csv'
-        
+
         # Ensure output directory exists
         output_file.parent.mkdir(parents=True, exist_ok=True)
 

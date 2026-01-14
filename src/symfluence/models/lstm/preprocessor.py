@@ -16,7 +16,7 @@ from sklearn.preprocessing import StandardScaler
 class LSTMPreprocessor:
     """
     Handles data preprocessing for the LSTM model.
-    
+
     Attributes:
         config (Dict[str, Any]): Configuration dictionary.
         logger (Any): Logger instance.
@@ -54,14 +54,14 @@ class LSTMPreprocessor:
         self.project_dir = project_dir
         self.device = device
         self.lookback = config.get('LSTM_LOOKBACK', config.get('FLASH_LOOKBACK', 30))
-        
+
         # Determine spatial mode
         domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
         if domain_method == 'delineate':
             self.spatial_mode = 'distributed'
         else:
             self.spatial_mode = 'lumped'
-        
+
         self.feature_scaler = StandardScaler()
         self.target_scaler = StandardScaler()
         self.output_size = 1
@@ -70,7 +70,7 @@ class LSTMPreprocessor:
     def load_data(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Load forcing, streamflow, and snow data from disk.
-        
+
         Returns:
             Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Forcing, streamflow, and snow dataframes.
         """
@@ -79,7 +79,7 @@ class LSTMPreprocessor:
         # Load forcing data
         forcing_path = self.project_dir / 'forcing' / 'basin_averaged_data'
         self.logger.info(f"Looking for forcing files in: {forcing_path}")
-        
+
         # Check if directory exists
         if not forcing_path.exists():
             self.logger.error(f"Forcing path does not exist: {forcing_path}")
@@ -110,7 +110,7 @@ class LSTMPreprocessor:
             self.project_dir / 'observations' / 'streamflow' / 'preprocessed' /
             f"{self.config_dict.get('DOMAIN_NAME')}_streamflow_processed.csv"
         )
-        
+
         if not streamflow_path.exists():
             # Fallback for legacy naming
             legacy_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / "Bow_at_Banff_lumped_streamflow_processed.csv"
@@ -125,7 +125,7 @@ class LSTMPreprocessor:
         # Load snow data
         snow_path = self.project_dir / 'observations' / 'snow' / 'preprocessed'
         snow_files = glob.glob(str(snow_path / f"{self.config_dict.get('DOMAIN_NAME')}_filtered_snow_observations.csv"))
-        
+
         if snow_files:
             snow_df = pd.concat([pd.read_csv(file, parse_dates=['datetime'], dayfirst=True) for file in snow_files])
             # Aggregate snow data across all stations
@@ -162,7 +162,7 @@ class LSTMPreprocessor:
 
         forcing_df = forcing_df.loc[pd.IndexSlice[start_date:end_date, :], :]
         streamflow_df = streamflow_df.loc[start_date:end_date]
-        
+
         self.logger.info(f"Loaded forcing data with shape: {forcing_df.shape}")
         self.logger.info(f"Loaded streamflow data with shape: {streamflow_df.shape}")
         if not snow_df.empty:
@@ -179,13 +179,13 @@ class LSTMPreprocessor:
     ) -> Tuple[torch.Tensor, torch.Tensor, pd.DatetimeIndex, pd.DataFrame, List[int]]:
         """
         Preprocess data for LSTM model (clean, scale, sequence).
-        
+
         Args:
             forcing_df: DataFrame containing forcing data.
             streamflow_df: DataFrame containing streamflow data.
             snow_df: Optional DataFrame containing snow data.
             fit_scalers: Whether to fit new scalers or use existing ones.
-            
+
         Returns:
             Tuple containing:
                 - X (torch.Tensor): Input sequences.
@@ -232,7 +232,7 @@ class LSTMPreprocessor:
             scaled_features = self.feature_scaler.fit_transform(features_to_scale)
         else:
             scaled_features = self.feature_scaler.transform(features_to_scale)
-            
+
         scaled_features = np.clip(scaled_features, -10, 10)
 
         # Prepare targets (streamflow and optionally snow)
@@ -263,17 +263,17 @@ class LSTMPreprocessor:
             scaled_targets = self.target_scaler.fit_transform(targets_to_scale)
         else:
             scaled_targets = self.target_scaler.transform(targets_to_scale)
-            
+
         scaled_targets = np.clip(scaled_targets, -10, 10)
 
         # Create sequences
         X, y = [], []
-        
+
         if self.spatial_mode == 'lumped':
             for i in range(len(scaled_features) - self.lookback):
                 X.append(scaled_features[i:(i + self.lookback)])
                 y.append(scaled_targets[i + self.lookback])
-            
+
             X_tensor = torch.FloatTensor(np.array(X)).to(self.device)
             y_tensor = torch.FloatTensor(np.array(y)).to(self.device)
         else:
@@ -283,11 +283,11 @@ class LSTMPreprocessor:
             n_features = len(feature_columns)
             feat_reshaped = scaled_features.reshape(n_timesteps, n_hrus, n_features)
             targ_reshaped = scaled_targets.reshape(n_timesteps, n_hrus, self.output_size)
-            
+
             for i in range(n_timesteps - self.lookback):
                 X.append(feat_reshaped[i:(i + self.lookback)]) # (lookback, hrus, features)
                 y.append(targ_reshaped[i + self.lookback])     # (hrus, output_size)
-            
+
             X_tensor = torch.FloatTensor(np.array(X)).to(self.device) # (B, T, N, F)
             y_tensor = torch.FloatTensor(np.array(y)).to(self.device) # (B, N, O)
 

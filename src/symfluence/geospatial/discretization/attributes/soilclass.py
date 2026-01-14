@@ -26,14 +26,14 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         default_subpath="shapefiles/river_basins",
         default_name=f"{discretizer.domain_name}_riverBasins_{discretizer.delineation_suffix}.shp",
     )
-    
+
     soil_raster = discretizer._get_file_path(
         path_key="SOIL_CLASS_PATH",
         name_key="SOIL_CLASS_NAME",
         default_subpath="attributes/soilclass",
         default_name=f"domain_{discretizer.domain_name}_soil_classes.tif",
     )
-    
+
     output_shapefile = discretizer._get_file_path(
         path_key="CATCHMENT_PATH",
         name_key="CATCHMENT_SHP_NAME",

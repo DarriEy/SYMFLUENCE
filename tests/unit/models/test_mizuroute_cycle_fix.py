@@ -10,9 +10,9 @@ class TestMizuRouteCycleFix(unittest.TestCase):
         self.config = {'DOMAIN_NAME': 'test_domain'}
         self.logger = logging.getLogger('test_logger')
         self.logger.setLevel(logging.DEBUG)
-        
+
         # Instantiate processor (mocking abstract methods if needed)
-        # Since we only test _fix_routing_cycles, we can instantiate directly 
+        # Since we only test _fix_routing_cycles, we can instantiate directly
         # provided we handle the __init__ dependencies
         MizuRoutePreProcessor.__init__ = lambda self, config, logger: None
         self.processor = MizuRoutePreProcessor(self.config, self.logger)
@@ -27,9 +27,9 @@ class TestMizuRouteCycleFix(unittest.TestCase):
         # Elevations: 1=100m, 2=90m, 3=95m
         # Node 2 is the lowest, so it should become the outlet (downSegId=0)
         elevations = np.array([100.0, 90.0, 95.0])
-        
+
         fixed_down = self.processor._fix_routing_cycles(seg_ids, down_seg_ids, elevations)
-        
+
         # Check that node 2 (index 1) now points to 0
         self.assertEqual(fixed_down[1], 0)
         # Others should remain unchanged
@@ -45,9 +45,9 @@ class TestMizuRouteCycleFix(unittest.TestCase):
         # Elevations: 1=100, 2=50, 4=150
         # Node 2 is lowest in cycle, should break
         elevations = np.array([100.0, 50.0, 150.0])
-        
+
         fixed_down = self.processor._fix_routing_cycles(seg_ids, down_seg_ids, elevations)
-        
+
         self.assertEqual(fixed_down[1], 0) # Node 2 breaks
         self.assertEqual(fixed_down[0], 2) # Node 1 still points to 2
         self.assertEqual(fixed_down[2], 1) # Node 4 still points to 1
@@ -62,12 +62,12 @@ class TestMizuRouteCycleFix(unittest.TestCase):
         # 1=100, 2=90 (break 2)
         # 3=50, 4=60 (break 3)
         elevations = np.array([100.0, 90.0, 50.0, 60.0])
-        
+
         fixed_down = self.processor._fix_routing_cycles(seg_ids, down_seg_ids, elevations)
-        
+
         self.assertEqual(fixed_down[1], 0) # Node 2 breaks
         self.assertEqual(fixed_down[2], 0) # Node 3 breaks
-        
+
         self.assertEqual(fixed_down[0], 2)
         self.assertEqual(fixed_down[3], 3) # Node 4 points to 3 (now outlet)
 
@@ -76,9 +76,9 @@ class TestMizuRouteCycleFix(unittest.TestCase):
         seg_ids = np.array([1, 2, 3])
         down_seg_ids = np.array([2, 3, 0])
         elevations = np.array([100.0, 90.0, 80.0])
-        
+
         fixed_down = self.processor._fix_routing_cycles(seg_ids, down_seg_ids, elevations)
-        
+
         np.testing.assert_array_equal(fixed_down, down_seg_ids)
 
 if __name__ == '__main__':

@@ -148,7 +148,7 @@ class NgenConfigGenerator:
         end_time = self.config.get('EXPERIMENT_TIME_END', '2000-12-31 23:00:00')
         if start_time == 'default': start_time = '2000-01-01 00:00:00'
         if end_time == 'default': end_time = '2000-12-31 23:00:00'
-        
+
         try:
             duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
             num_steps = int(duration.total_seconds() / 3600)
@@ -267,7 +267,7 @@ surface_water_partitioning_scheme=Schaake
         end_time = self.config.get('EXPERIMENT_TIME_END', '2000-12-31 23:00:00')
         if start_time == 'default': start_time = '2000-01-01 00:00:00'
         if end_time == 'default': end_time = '2000-12-31 23:00:00'
-        
+
         try:
             duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
             num_steps = int(duration.total_seconds() / 3600)

@@ -37,11 +37,11 @@ class DRouteRunner(BaseModelRunner, SpatialOrchestrator):
     def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
         super().__init__(config, logger, reporting_manager=reporting_manager)
         self.setup_dir = self.project_dir / "settings" / "dRoute"
-        
+
         # Load routing configuration
         self.routing_method = self.config_dict.get('DROUTE_METHOD', 'mc').lower()
         self.dt = float(self.config_dict.get('SETTINGS_MIZU_ROUTING_DT', 3600))
-        
+
         # Output paths
         self.experiment_id = self.config_dict.get('EXPERIMENT_ID')
         self.output_dir = self.project_dir / 'simulations' / self.experiment_id / 'dRoute'
@@ -67,16 +67,16 @@ class DRouteRunner(BaseModelRunner, SpatialOrchestrator):
                 from .preprocessor import DRoutePreProcessor
                 pre = DRoutePreProcessor(self.config_dict, self.logger)
                 pre.run_preprocessing()
-            
+
             with open(network_data_path, 'rb') as f:
                 network_data = pickle.load(f)
-            
+
             network = network_data['network']
             seg_areas = network_data['seg_areas']
             outlet_idx = network_data['outlet_idx']
             hru_to_seg_idx = network_data['hru_to_seg_idx']
-            hru_ids_topo = network_data['hru_ids']
-            
+            network_data['hru_ids']
+
             # 2. Identify input runoff file
             # We look for the runoff file produced by the source model
             from_model = self.config_dict.get('MIZU_FROM_MODEL', '').upper()
@@ -88,16 +88,16 @@ class DRouteRunner(BaseModelRunner, SpatialOrchestrator):
                     if m != 'DROUTE' and m != 'MIZUROUTE':
                         from_model = m
                         break
-            
+
             # Find input file based on model convention
             input_dir = self.project_dir / 'simulations' / self.experiment_id / from_model
-            
+
             # Special case for GR
             if from_model == 'GR':
                 input_file = input_dir / f"{self.domain_name}_{self.experiment_id}_runs_def.nc"
             else:
                 input_file = input_dir / f"{self.experiment_id}_timestep.nc"
-            
+
             if not input_file.exists():
                 # Try generic naming
                 input_file = input_dir / f"{from_model}_output.nc"
@@ -116,15 +116,15 @@ class DRouteRunner(BaseModelRunner, SpatialOrchestrator):
                         if var in ds.data_vars:
                             routing_var = var
                             break
-                
+
                 if routing_var not in ds.data_vars:
                     self.logger.error(f"Runoff variable {routing_var} not found in {input_file}")
                     return None
-                
+
                 runoff = ds[routing_var].values  # (time, gru)
                 gru_ids = ds['gruId'].values if 'gruId' in ds else ds['hruId'].values
                 times = ds['time'].values
-                
+
                 # Normalize time units to datetime if needed
                 if not np.issubdtype(times.dtype, np.datetime64):
                     time_units = ds['time'].attrs.get('units', 'seconds since 1970-01-01')
@@ -136,9 +136,9 @@ class DRouteRunner(BaseModelRunner, SpatialOrchestrator):
             n_timesteps = len(times)
             n_reaches = network.num_reaches()
             runoff_reordered = np.zeros((n_timesteps, n_reaches))
-            
+
             units = self.config_dict.get('SETTINGS_MIZU_ROUTING_UNITS', 'm/s')
-            
+
             for i, gru_id in enumerate(gru_ids):
                 gru_id_int = int(gru_id)
                 if gru_id_int in hru_to_seg_idx:
@@ -155,12 +155,12 @@ class DRouteRunner(BaseModelRunner, SpatialOrchestrator):
 
             # 4. Configure and run dRoute
             self.logger.info(f"Running dRoute simulation for {n_timesteps} timesteps")
-            
+
             # Setup router
             config = droute.RouterConfig()
             config.dt = self.dt
             config.enable_gradients = False
-            
+
             router_classes = {
                 'mc': droute.MuskingumCungeRouter,
                 'lag': droute.LagRouter,
@@ -168,31 +168,31 @@ class DRouteRunner(BaseModelRunner, SpatialOrchestrator):
                 'kwt': droute.SoftGatedKWT,
                 'diffusive': droute.DiffusiveWaveIFT,
             }
-            
+
             RouterClass = router_classes.get(self.routing_method, droute.MuskingumCungeRouter)
             router = RouterClass(network, config)
-            
+
             # Execute routing
             outlet_Q = np.zeros(n_timesteps)
             start_time = time.time()
-            
+
             for t in range(n_timesteps):
                 # Set lateral inflows
                 for r in range(n_reaches):
                     router.set_lateral_inflow(r, float(runoff_reordered[t, r]))
-                
+
                 # Route
                 router.route_timestep()
-                
+
                 # Get outlet discharge
                 outlet_Q[t] = router.get_discharge(outlet_idx)
-            
+
             elapsed = time.time() - start_time
             self.logger.info(f"dRoute simulation completed in {elapsed:.2f}s")
 
             # 5. Save results
             output_file = self.output_dir / f"{self.experiment_id}_dRoute_output.nc"
-            
+
             ds_out = xr.Dataset(
                 data_vars={
                     "routed_discharge": (["time"], outlet_Q)
@@ -207,10 +207,10 @@ class DRouteRunner(BaseModelRunner, SpatialOrchestrator):
                 }
             )
             ds_out.to_netcdf(output_file)
-            
+
             # Also save to standardized CSV for metrics
             self._save_to_standard_csv(times, outlet_Q)
-            
+
             return output_file
 
     def _save_to_standard_csv(self, times, discharge):

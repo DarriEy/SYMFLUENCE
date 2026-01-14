@@ -161,13 +161,18 @@ class NSGA2Optimizer(BaseOptimizer):
         if optimization_target == 'multivariate':
             self.multi_target_mode = True
 
-        if self.multi_target_mode: self._setup_multi_target_objectives()
+        if self.multi_target_mode:
+            self._setup_multi_target_objectives()
         else:
-            self.objectives = ['NSE', 'KGE']; self.objective_names = ['NSE', 'KGE']
+            self.objectives = ['NSE', 'KGE']
+            self.objective_names = ['NSE', 'KGE']
             calibration_target = cast(CalibrationTarget, self.calibration_target)
-            self.num_objectives = 2; self.primary_target = calibration_target
-            self.secondary_target = None; self.primary_metric = 'NSE'; self.secondary_metric = 'KGE'
-        
+            self.num_objectives = 2
+            self.primary_target = calibration_target
+            self.secondary_target = None
+            self.primary_metric = 'NSE'
+            self.secondary_metric = 'KGE'
+
         self.population: Optional[np.ndarray] = None
         self.population_objectives: Optional[np.ndarray] = None
         self.population_ranks: Optional[np.ndarray] = None
@@ -240,7 +245,7 @@ class NSGA2Optimizer(BaseOptimizer):
         if config_pop_size: return config_pop_size
         total_params = len(self.parameter_manager.all_param_names)
         return max(50, min(8 * total_params, 100))
-    
+
     def _run_algorithm(self) -> Tuple[Dict, float, List]:
         initial_params = self.parameter_manager.get_initial_parameters()
         self._initialize_population(initial_params)
@@ -257,7 +262,7 @@ class NSGA2Optimizer(BaseOptimizer):
         self._perform_nsga2_selection()
         self._update_representative_solution()
         self._record_generation(0)
-    
+
     def _run_nsga2_algorithm(self) -> Tuple[Dict, float, List]:
         assert self.population is not None
         assert self.population_objectives is not None
@@ -273,11 +278,11 @@ class NSGA2Optimizer(BaseOptimizer):
             self._perform_nsga2_selection()
             self._update_representative_solution()
             self._record_generation(generation)
-        
+
         assert self.best_params is not None
         assert self.best_score is not None
         return self.best_params, self.best_score, self.iteration_history
-    
+
     def _evaluate_population_multiobjective(self) -> None:
         assert self.population_objectives is not None
         assert self.population is not None
@@ -286,7 +291,7 @@ class NSGA2Optimizer(BaseOptimizer):
             for i in range(self.population_size):
                 if np.any(np.isnan(self.population_objectives[i])):
                     self.population_objectives[i] = self._evaluate_individual_multiobjective(self.population[i])
-    
+
     def _evaluate_individual_multiobjective(self, normalized_params: np.ndarray) -> np.ndarray:
         try:
             params = self.parameter_manager.denormalize_parameters(normalized_params)
@@ -312,7 +317,8 @@ class NSGA2Optimizer(BaseOptimizer):
                     self.summa_sim_dir,
                     mizuroute_dir=self.mizuroute_sim_dir
                 )
-                obj1 = self._extract_specific_metric(metrics, 'NSE'); obj2 = self._extract_specific_metric(metrics, 'KGE')
+                obj1 = self._extract_specific_metric(metrics, 'NSE')
+                obj2 = self._extract_specific_metric(metrics, 'KGE')
             return np.array([obj1 or -1.0, obj2 or -1.0])
         except Exception: return np.array([-1.0, -1.0])
 
@@ -389,7 +395,7 @@ class NSGA2Optimizer(BaseOptimizer):
             offspring[i] = self._polynomial_mutation(c1)
             if i + 1 < self.population_size: offspring[i + 1] = self._polynomial_mutation(c2)
         return offspring
-    
+
     def _tournament_selection(self) -> int:
         assert self.population_ranks is not None
         assert self.population_crowding_distances is not None
@@ -401,7 +407,7 @@ class NSGA2Optimizer(BaseOptimizer):
                  self.population_crowding_distances[candidate] > self.population_crowding_distances[best_idx])):
                 best_idx = candidate
         return best_idx
-    
+
     def _sbx_crossover(self, p1: np.ndarray, p2: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Simulated Binary Crossover (SBX) for continuous real-valued optimization.
 
@@ -456,7 +462,7 @@ class NSGA2Optimizer(BaseOptimizer):
                 beta = (2 * u)**(1/(self.eta_c+1)) if u <= 0.5 else (1/(2*(1-u)))**(1/(self.eta_c+1))
                 c1[i], c2[i] = 0.5*((1+beta)*p1[i]+(1-beta)*p2[i]), 0.5*((1-beta)*p1[i]+(1+beta)*p2[i])
         return np.clip(c1, 0, 1), np.clip(c2, 0, 1)
-    
+
     def _polynomial_mutation(self, individual: np.ndarray) -> np.ndarray:
         """Polynomial mutation for real-valued genetic algorithms.
 
@@ -517,7 +523,7 @@ class NSGA2Optimizer(BaseOptimizer):
                 delta = (2*u)**(1/(self.eta_m+1))-1 if u < 0.5 else 1-(2*(1-u))**(1/(self.eta_m+1))
                 mutated[i] = individual[i] + delta
         return np.clip(mutated, 0, 1)
-    
+
     def _environmental_selection(self, combined_population: np.ndarray, combined_objectives: np.ndarray) -> np.ndarray:
         fronts = self._non_dominated_sorting(combined_objectives)
         selected_indices: list[Any] = []
@@ -530,7 +536,7 @@ class NSGA2Optimizer(BaseOptimizer):
                 selected_indices.extend([x[0] for x in front_sorted[:remaining]])
                 break
         return np.array(selected_indices)
-    
+
     def _perform_nsga2_selection(self) -> None:
         assert self.population_objectives is not None
         fronts = self._non_dominated_sorting(self.population_objectives)
@@ -539,7 +545,7 @@ class NSGA2Optimizer(BaseOptimizer):
         self.population_crowding_distances = np.zeros(self.population_size)
         for front in fronts:
             if len(front) > 0: self.population_crowding_distances[front] = self._calculate_crowding_distance(self.population_objectives[front])
-    
+
     def _non_dominated_sorting(self, objectives: np.ndarray) -> List[List[int]]:
         """Perform fast non-dominated sorting to assign Pareto ranks.
 
@@ -595,7 +601,10 @@ class NSGA2Optimizer(BaseOptimizer):
             Example: [[3, 7, 9], [1, 4, 8, 12], [2, 5, 6, 10, 11]]
                      means 3 individuals in front 0, 4 in front 1, 5 in front 2
         """
-        n = len(objectives); domination_counts = np.zeros(n); dominated_solutions: list[list[int]] = [[] for _ in range(n)]; fronts: list[list[int]] = [[]]
+        n = len(objectives)
+        domination_counts = np.zeros(n)
+        dominated_solutions: list[list[int]] = [[] for _ in range(n)]
+        fronts: list[list[int]] = [[]]
         for i in range(n):
             for j in range(n):
                 if i != j:
@@ -609,9 +618,10 @@ class NSGA2Optimizer(BaseOptimizer):
                 for j in dominated_solutions[i]:
                     domination_counts[j] -= 1
                     if domination_counts[j] == 0: next_front.append(j)
-            current_front += 1; fronts.append(next_front)
+            current_front += 1
+            fronts.append(next_front)
         return fronts[:-1]
-        
+
     def _calculate_crowding_distance(self, front_fvals: np.ndarray) -> np.ndarray:
         """Calculate crowding distance for diversity preservation.
 
@@ -668,14 +678,21 @@ class NSGA2Optimizer(BaseOptimizer):
             Array of crowding distances: (n_solutions_in_front,)
             Each value ≥ 0, with boundary solutions = np.inf
         """
-        if front_fvals is None or len(front_fvals) == 0: return np.array([])
-        N, M = front_fvals.shape; distances = np.zeros(N, dtype=float)
-        if N <= 2: distances[:] = np.inf; return distances
+        if front_fvals is None or len(front_fvals) == 0:
+            return np.array([])
+        N, M = front_fvals.shape
+        distances = np.zeros(N, dtype=float)
+        if N <= 2:
+            distances[:] = np.inf
+            return distances
         for j in range(M):
             vals = front_fvals[:, j].astype(float)
-            if np.isnan(vals).any(): vals[np.isnan(vals)] = np.nanmedian(vals) or 0.0
-            order = np.argsort(vals); sorted_vals = vals[order]
-            distances[order[0]] = np.inf; distances[order[-1]] = np.inf
+            if np.isnan(vals).any():
+                vals[np.isnan(vals)] = np.nanmedian(vals) or 0.0
+            order = np.argsort(vals)
+            sorted_vals = vals[order]
+            distances[order[0]] = np.inf
+            distances[order[-1]] = np.inf
             obj_range = sorted_vals[-1] - sorted_vals[0]
             if obj_range > 0: distances[order[1:-1]] += (sorted_vals[2:] - sorted_vals[:-2]) / obj_range
         return distances
@@ -734,8 +751,9 @@ class NSGA2Optimizer(BaseOptimizer):
             self.best_params = self.parameter_manager.denormalize_parameters(self.population[best_idx])
             self.best_score = np.max(composite_scores)
         else:
-            self.best_params = None; self.best_score = -2.0
-        
+            self.best_params = None
+            self.best_score = -2.0
+
     def _record_generation(self, generation: int) -> None:
         assert self.population_objectives is not None
         valid_obj1 = self.population_objectives[:, 0][~np.isnan(self.population_objectives[:, 0])]

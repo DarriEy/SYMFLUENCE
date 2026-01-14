@@ -109,7 +109,7 @@ class ShapefileHelper:
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        gpd = _get_geopandas()
+        _get_geopandas()
         name = resolve_default_name(
             self.config,
             'RIVER_BASINS_NAME',

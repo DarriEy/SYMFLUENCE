@@ -17,8 +17,8 @@ from .model_executor import (
     ExecutionMode
 )
 from .spatial_orchestrator import (
-    SpatialOrchestrator, 
-    SpatialMode, 
+    SpatialOrchestrator,
+    SpatialMode,
     RoutingConfig,
     SpatialConfig,
     RoutingModel

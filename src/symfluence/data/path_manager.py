@@ -59,7 +59,7 @@ class PathManager(ConfigurableMixin):
         self._config = config
 
     # Standard subdirectories are now provided by ProjectContextMixin:
-    # project_shapefiles_dir, project_attributes_dir, project_forcing_dir, 
+    # project_shapefiles_dir, project_attributes_dir, project_forcing_dir,
     # project_observations_dir, project_simulations_dir, project_settings_dir, project_cache_dir
 
     @property
@@ -217,7 +217,7 @@ class PathManager(ConfigurableMixin):
             Resolved Path object
         """
         from symfluence.core.path_resolver import resolve_path
-        
+
         base_path = resolve_path(
             config=self.config_dict,
             config_key=config_key,
@@ -252,9 +252,9 @@ class PathManager(ConfigurableMixin):
             Full resolved path including filename
         """
         from symfluence.core.path_resolver import resolve_file_path
-        
+
         default_name = default_name_pattern.format(domain=self.domain_name) if default_name_pattern else 'default'
-        
+
         return resolve_file_path(
             config=self.config_dict,
             project_dir=self.project_dir,

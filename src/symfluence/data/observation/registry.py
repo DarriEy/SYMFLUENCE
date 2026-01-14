@@ -22,7 +22,6 @@ Example:
     >>> processed = handler.process(raw_data)
 """
 from typing import Dict, Type, Any, Union, TYPE_CHECKING
-from pathlib import Path
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

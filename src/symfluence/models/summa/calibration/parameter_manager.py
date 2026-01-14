@@ -102,22 +102,22 @@ class SUMMAParameterManager(BaseParameterManager):
     def denormalize_parameters(self, normalized_array: np.ndarray) -> Dict[str, Any]:
         """
         Denormalize parameters and enforce SUMMA-specific constraints.
-        
+
         Overrides base implementation to apply physical constraints (e.g., theta_sat > theta_res)
         that prevent model crashes.
         """
         # Call base implementation first to get raw denormalized values
         params = super().denormalize_parameters(normalized_array)
-        
+
         # Enforce constraints
         params = self._enforce_parameter_constraints(params)
-        
+
         return params
 
     def _enforce_parameter_constraints(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Enforce physical constraints between parameters to prevent SUMMA crashes.
-        
+
         Constraints enforced:
         1. theta_sat > theta_res (min gap 0.05)
         2. theta_sat > fieldCapacity (if known)
@@ -125,28 +125,28 @@ class SUMMAParameterManager(BaseParameterManager):
         4. critSoilTranspire > critSoilWilting
         """
         validated = params.copy()
-        
+
         # Helper to extract scalar for comparison
         def get_scalar(name, p_dict):
             if name not in p_dict: return None
             val = p_dict[name]
             if isinstance(val, np.ndarray):
                 # Handle scalar wrapped in array or full HRU array (assume homogeneous for check)
-                return float(val.flatten()[0]) 
+                return float(val.flatten()[0])
             return float(val)
 
         # Load defaults for context if not cached
         if not hasattr(self, '_cached_defaults'):
              self._cached_defaults = self._extract_default_parameters()
-        
+
         # Create a view of full parameter set (defaults + calibrated)
         full_params = self._cached_defaults.copy()
-        full_params.update(validated) 
-        
+        full_params.update(validated)
+
         # 1. Check theta_sat vs theta_res
         theta_sat = get_scalar('theta_sat', full_params)
         theta_res = get_scalar('theta_res', full_params)
-        
+
         if theta_sat is not None and theta_res is not None:
             min_gap = 0.05
             if theta_sat < (theta_res + min_gap):
@@ -169,7 +169,7 @@ class SUMMAParameterManager(BaseParameterManager):
                  if 'theta_sat' in validated:
                      new_val = fc + 0.01
                      validated['theta_sat'] = self._format_parameter_value('theta_sat', new_val)
-            
+
             # fc > theta_res
             if theta_res is not None and fc < (theta_res + 0.01):
                  if 'theta_res' in validated:
@@ -180,7 +180,7 @@ class SUMMAParameterManager(BaseParameterManager):
         # 3. Check soil stress parameters
         crit_trans = get_scalar('critSoilTranspire', full_params)
         crit_wilt = get_scalar('critSoilWilting', full_params)
-        
+
         if crit_trans is not None and crit_wilt is not None:
             if crit_trans < (crit_wilt + 0.01):
                 if 'critSoilTranspire' in validated:

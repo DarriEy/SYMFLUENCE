@@ -7,14 +7,12 @@ geospatial data, NetCDF files, and numeric parameters.
 
 from pathlib import Path
 from typing import Dict, List, Any, Union, Optional, Sequence
-from datetime import datetime
 import logging
 
 from symfluence.core.exceptions import (
     ConfigurationError,
     FileOperationError,
     ValidationError,
-    DataAcquisitionError,
     GeospatialError
 )
 
@@ -257,7 +255,6 @@ def validate_positive(
     Raises:
         ValidationError: If value is not positive/non-negative
     """
-    min_val = 0 if allow_zero else 0.0
     if allow_zero:
         if value < 0:
             raise ValidationError(f"{param_name} ({value}) must be non-negative in {context}")

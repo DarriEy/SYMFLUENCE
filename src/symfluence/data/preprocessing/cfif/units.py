@@ -13,7 +13,7 @@ Standard CFIF units (SI-based):
     - Wind speed: m s-1
 """
 
-from typing import Callable, Dict, Union, TYPE_CHECKING
+from typing import Dict, Union, TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:

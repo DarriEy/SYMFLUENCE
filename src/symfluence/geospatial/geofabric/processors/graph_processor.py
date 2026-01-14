@@ -48,12 +48,12 @@ class RiverGraphProcessor:
             Directed graph of the river network
         """
         G = nx.DiGraph()
-        
+
         # Determine flow direction handling
         # 'upstream': upstream_cols contain IDs of upstream segments (flow: upstream -> current)
         # 'downstream': upstream_cols contain IDs of downstream segments (flow: current -> downstream)
         direction = fabric_config.get('direction', 'upstream')
-        
+
         # Legacy support for NWS toCOMID
         if fabric_config.get('upstream_cols') == ['toCOMID']:
             direction = 'downstream'
@@ -68,13 +68,13 @@ class RiverGraphProcessor:
                 if linked_basin != fabric_config['upstream_default']:
                     if direction == 'downstream':
                         # Flow: current -> linked (downstream)
-                        # We want the graph edges to represent flow direction? 
+                        # We want the graph edges to represent flow direction?
                         # Usually river graphs are directed downstream.
                         # Wait, find_upstream_basins uses nx.ancestors.
                         # nx.ancestors(G, n) returns all nodes having a path to n.
                         # If edges are upstream -> downstream (A -> B), then ancestors of B includes A.
                         # So G should be directed A -> B (downstream).
-                        
+
                         # If direction is 'downstream' (current -> linked_basin),
                         # then we add edge (current, linked).
                         G.add_edge(current_basin, linked_basin)

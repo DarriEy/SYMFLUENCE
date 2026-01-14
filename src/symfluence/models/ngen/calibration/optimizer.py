@@ -87,7 +87,7 @@ class NgenModelOptimizer(BaseModelOptimizer):
         # Use algorithm-specific directory (matching base_model_optimizer pattern)
         algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
         base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
-        
+
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
             'NGEN',

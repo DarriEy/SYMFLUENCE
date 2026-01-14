@@ -85,7 +85,7 @@ class RHESSysClimateGenerator:
             return True
 
         # Initialize variable handler
-        var_handler = VariableHandler(self.config, self.logger, self.forcing_dataset, 'RHESSys')
+        VariableHandler(self.config, self.logger, self.forcing_dataset, 'RHESSys')
 
         # Get variable names from dataset
         precip_var = self._find_variable(ds, ['pr', 'precipitation', 'PREC', 'precip', 'pptrate'])
@@ -218,19 +218,19 @@ class RHESSysClimateGenerator:
     ) -> np.ndarray:
         """
         Process precipitation variable.
-        
-        Converts all source units to meters per timestep (hour) so that 
-        daily aggregation (sum) results in meters per day, which is what 
+
+        Converts all source units to meters per timestep (hour) so that
+        daily aggregation (sum) results in meters per day, which is what
         RHESSys expects in climate station files.
         """
         if precip_var:
             precip = self._basin_average(ds[precip_var])
             units = str(ds[precip_var].attrs.get('units', '')).lower()
-            
+
             # If it's a rate (e.g. kg/m2/s, mm/s, m/s)
             if 's-1' in units or 's^-1' in units or '/s' in units:
                 # If units are kg/m2/s or mm/s, they are effectively mm/s
-                # We also treat 'm s-1' as 'mm s-1' because meteorological 
+                # We also treat 'm s-1' as 'mm s-1' because meteorological
                 # precipitation rates are almost always in mm/s or kg/m2/s in NetCDF.
                 # True m/s would be 1000x larger than typical rain.
                 if 'kg' in units or 'mm' in units or 'm s-1' in units or 'm/s' in units:
@@ -247,7 +247,7 @@ class RHESSysClimateGenerator:
                 else:
                     # Assume m (already correct for hourly accumulation)
                     pass
-            
+
             return precip
         else:
             self.logger.warning("No precipitation variable found, using zeros")

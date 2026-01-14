@@ -3,7 +3,7 @@ MIZUROUTE Model Optimizer (Backward Compatibility)
 
 .. deprecated::
     This module has been moved to symfluence.models.mizuroute.calibration.optimizer
-    
+
     Please update imports to:
         from symfluence.models.mizuroute.calibration.optimizer import mizurouteModelOptimizer
 """

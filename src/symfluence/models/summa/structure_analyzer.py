@@ -118,7 +118,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
     def update_model_decisions(self, combination: Tuple[str, ...]):
         """
         Update the SUMMA modelDecisions.txt file with a new combination.
-        
+
         Args:
             combination (Tuple[str, ...]): Tuple of decision values to use.
         """
@@ -129,15 +129,15 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         decision_keys = list(self.decision_options.keys())
         with open(self.model_decisions_path, 'r') as f:
             lines = f.readlines()
-        
+
         option_map = dict(zip(decision_keys, combination))
-        
+
         for i, line in enumerate(lines):
             for option, value in option_map.items():
                 if line.strip().startswith(option):
                     # Maintain format: DecisionName  Value  ! Comment
                     lines[i] = f"{option.ljust(30)} {value.ljust(15)} ! {line.split('!')[-1].strip()}\n"
-        
+
         with open(self.model_decisions_path, 'w') as f:
             f.writelines(lines)
 
@@ -159,7 +159,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
     def calculate_performance_metrics(self) -> Dict[str, float]:
         """
         Calculate performance metrics comparing simulated routed runoff to observations.
-        
+
         Returns:
             Dict: Dictionary containing KGE, NSE, MAE, and RMSE.
         """
@@ -177,7 +177,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         # Load simulation results (mizuRoute output)
         sim_reach_ID = self.config_dict.get('SIM_REACH_ID')
         sim_path_config = self.config_dict.get('SIMULATIONS_PATH')
-        
+
         if sim_path_config == 'default' or not sim_path_config:
             # Construct default mizuRoute output path
             start_year = self.config_dict.get('EXPERIMENT_TIME_START', '1990').split('-')[0]
@@ -210,13 +210,13 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
                 ds_sel = ds.sel(seg=segment_index)
             else:
                 ds_sel = ds.isel(seg=0)
-            
+
             # Extract routed runoff
             var_name = 'IRFroutedRunoff' if 'IRFroutedRunoff' in ds_sel.variables else 'KWTroutedRunoff'
             if var_name not in ds_sel.variables:
                 # Fallback to any routed runoff variable
                 var_name = [v for v in ds_sel.variables if 'routedRunoff' in v][0]
-                
+
             sim_df = ds_sel[var_name].to_dataframe().reset_index()
             sim_df.set_index('time', inplace=True)
             sim_df.index = sim_df.index.round(freq='h')
@@ -225,10 +225,10 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
         # Align series
         obs_aligned = obs_series.reindex(sim_series.index).dropna()
         sim_aligned = sim_series.reindex(obs_aligned.index).dropna()
-        
+
         obs_vals = obs_aligned.values
         sim_vals = sim_aligned.values
-        
+
         if len(obs_vals) == 0:
             self.logger.warning("No overlapping data between observations and simulations")
             return {'kge': np.nan, 'kgep': np.nan, 'nse': np.nan, 'mae': np.nan, 'rmse': np.nan}

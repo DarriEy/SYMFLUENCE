@@ -35,7 +35,7 @@ class MESHParameterManager(BaseParameterManager):
         mesh_params_str = config.get('MESH_PARAMS_TO_CALIBRATE')
         if mesh_params_str is None:
             mesh_params_str = 'ZSNL,MANN,RCHARG,BASEFLW,DTMINUSR'
-            
+
         self.mesh_params = [p.strip() for p in str(mesh_params_str).split(',') if p.strip()]
 
         # Paths to parameter files
@@ -172,10 +172,10 @@ class MESHParameterManager(BaseParameterManager):
                     updated += 1
                     # Preserve the separator (space or =)
                     return content[match.start():match.start(2)].replace(match.group(2), "") + f"{value:.6f}"
-                
+
                 # Simpler replacement to avoid preservation complexity if it's tricky
                 content, n = re.subn(pattern, lambda m: m.group(1).decode('utf-8') + " " + f"{value:.6f}", content, count=1, flags=re.IGNORECASE)
-                
+
                 if n > 0:
                     updated += 1
                 else:

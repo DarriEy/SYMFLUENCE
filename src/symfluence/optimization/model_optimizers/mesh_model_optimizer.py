@@ -14,4 +14,3 @@ from symfluence.models.mesh.calibration.parameter_manager import MESHParameterMa
 from symfluence.models.mesh.calibration.worker import MESHWorker
 
 __all__ = ['MESHModelOptimizer', 'MESHParameterManager', 'MESHWorker']
-

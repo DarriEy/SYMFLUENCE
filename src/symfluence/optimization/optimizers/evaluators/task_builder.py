@@ -182,7 +182,7 @@ class TaskBuilder:
         if multiobjective:
             task_dict['multiobjective'] = True
             task_dict['objective_names'] = objective_names
-            
+
             # Add target types and metrics for multi-target optimization
             # Support both NSGA2_* keys and legacy OPTIMIZATION_TARGET* keys
             task_dict['multi_target_mode'] = True

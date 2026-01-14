@@ -20,40 +20,40 @@ def _deduplicate_output_control(output_control_path: Path, logger):
     """Ensure outputControl.txt doesn't have duplicate variables for the same frequency"""
     if not output_control_path.exists():
         return
-    
+
     try:
         with open(output_control_path, 'r') as f:
             lines = f.readlines()
-        
+
         seen_vars = {} # (var_name, frequency) -> True
         new_lines = []
         changed = False
-        
+
         for line in lines:
             trimmed = line.strip()
             # Skip comments, empty lines, and lines without frequency separator
             if not trimmed or trimmed.startswith('!') or '|' not in trimmed:
                 new_lines.append(line)
                 continue
-            
+
             parts = [p.strip() for p in trimmed.split('|')]
             var_name = parts[0]
             freq = parts[1] if len(parts) > 1 else '1'
-            
+
             key = (var_name, freq)
             if key in seen_vars:
                 logger.warning(f"Removing duplicate output request: {var_name} | {freq}")
                 changed = True
                 continue
-            
+
             seen_vars[key] = True
             new_lines.append(line)
-            
+
         if changed:
             with open(output_control_path, 'w') as f:
                 f.writelines(new_lines)
             logger.debug(f"Deduplicated {output_control_path.name}")
-            
+
     except Exception as e:
         logger.warning(f"Failed to deduplicate output control: {e}")
 
@@ -152,7 +152,7 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
                 if 'outputControlFile' in line and not line.strip().startswith('!'):
                     output_control_name = line.split("'")[1] if "'" in line else line.split()[1]
                     break
-            
+
             if output_control_name and summa_settings_dir:
                 _deduplicate_output_control(summa_settings_dir / output_control_name, logger)
 
@@ -182,7 +182,7 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
             f.write("=" * 50 + "\n")
             f.flush()
 
-            result = subprocess.run(
+            subprocess.run(
                 cmd,
                 stdout=f,
                 stderr=subprocess.STDOUT,
@@ -305,7 +305,7 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
             f.write("=" * 50 + "\n")
             f.flush()
 
-            result = subprocess.run(
+            subprocess.run(
                 cmd,
                 stdout=f,
                 stderr=subprocess.STDOUT,

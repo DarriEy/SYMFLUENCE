@@ -9,23 +9,16 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from pathlib import Path
-from typing import Dict, Any, Optional, List
 
-try:
+from importlib.util import find_spec
+
+HAS_GEO = find_spec("geopandas") is not None
+if HAS_GEO:
     import geopandas as gpd
-    import rasterio
-    from rasterio.mask import mask as rio_mask
-    from shapely.geometry import mapping
-    HAS_GEO = True
-except ImportError:
-    HAS_GEO = False
 
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 from .modis_utils import (
-    convert_cftime_to_datetime,
-    apply_modis_quality_filter,
-    extract_spatial_average,
     MODIS_FILL_VALUES,
     CLOUD_VALUE,
     VALID_SNOW_RANGE,

@@ -30,7 +30,7 @@ class PointDelineator(BaseGeofabricDelineator):
     def create_point_domain_shapefile(self) -> Optional[Path]:
         """
         Create a square basin shapefile from bounding box coordinates for point modeling.
-        
+
         Returns:
             Path to the created shapefile or None if failed
         """

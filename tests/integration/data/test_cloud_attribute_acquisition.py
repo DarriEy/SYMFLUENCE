@@ -41,7 +41,7 @@ def base_attr_config(symfluence_code_dir, symfluence_data_root):
     config["CALIBRATION_PERIOD"] = None
     config["EVALUATION_PERIOD"] = None
     config["SPINUP_PERIOD"] = None
-    
+
     # Disable all by default for single dataset testing
     config["DOWNLOAD_DEM"] = False
     config["DOWNLOAD_SOIL"] = False
@@ -55,10 +55,10 @@ def test_cloud_attribute_dem(tmp_path, base_attr_config):
     config = base_attr_config.copy()
     config["DOWNLOAD_DEM"] = True
     config["DOMAIN_NAME"] = "test_dem_only"
-    
+
     cfg_path = tmp_path / "test_config_dem.yaml"
     write_config(config, cfg_path)
-    
+
     symfluence = SYMFLUENCE(cfg_path)
     project_dir = Path(symfluence.managers["project"].setup_project())
     symfluence.managers["data"].acquire_attributes()

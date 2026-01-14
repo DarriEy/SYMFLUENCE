@@ -5,7 +5,6 @@ This module provides the ERA5-specific implementation for forcing data processin
 ERA5 uses regular lat/lon grids and typically doesn't require merging operations.
 """
 
-import os
 import shutil
 from pathlib import Path
 from typing import Dict, Tuple
@@ -22,7 +21,7 @@ from ...utils import VariableStandardizer
 @DatasetRegistry.register('era5_cds')
 class ERA5Handler(BaseDatasetHandler):
     """Handler for ERA5 (ECMWF Reanalysis v5) dataset."""
-    
+
     def get_variable_mapping(self) -> Dict[str, str]:
         """
         ERA5 variable name mapping to standard names.
@@ -34,7 +33,7 @@ class ERA5Handler(BaseDatasetHandler):
         """
         standardizer = VariableStandardizer(self.logger)
         return standardizer.get_rename_map('ERA5')
-    
+
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """
         Process ERA5 dataset with variable renaming if needed.
@@ -62,33 +61,33 @@ class ERA5Handler(BaseDatasetHandler):
         })
 
         return ds
-    
+
     def get_coordinate_names(self) -> Tuple[str, str]:
         """
         ERA5 uses standard latitude/longitude coordinates.
-        
+
         Returns:
             Tuple of ('latitude', 'longitude')
         """
         return ('latitude', 'longitude')
-    
+
     def needs_merging(self) -> bool:
         """
         ERA5 data needs 'merging' to ensure variable names are standardized.
         Even if not combining files, we use this step to rename vars (e.g. tp -> pptrate).
         """
         return True
-    
+
     def merge_forcings(self, raw_forcing_path: Path, merged_forcing_path: Path,
                       start_year: int, end_year: int) -> None:
         """
         Process raw ERA5 files to ensure variable names are standardized.
-        
+
         This step copies raw files to the merged path, applying variable renaming
         (e.g., tp -> pptrate) via process_dataset().
         """
         self.logger.info("Processing ERA5 files to standardize variables...")
-        
+
         raw_files = sorted(list(raw_forcing_path.glob('*.nc')))
         if not raw_files:
             self.logger.warning(f"No raw ERA5 files found in {raw_forcing_path}")
@@ -102,7 +101,7 @@ class ERA5Handler(BaseDatasetHandler):
             for raw_file in raw_files:
                 # Output filename matches input for simplicity in this case
                 output_file = merged_forcing_path / raw_file.name
-                
+
                 if output_file.exists():
                     self.logger.debug(f"File already processed: {output_file.name}")
                     continue
@@ -114,7 +113,7 @@ class ERA5Handler(BaseDatasetHandler):
                         # Apply standardization (renaming vars like tp->pptrate)
                         ds_processed = self.process_dataset(ds)
                         ds_processed.load() # Load into memory
-                    
+
                     # Clean attributes and encoding via base class method
                     ds_final = self.clean_variable_attributes(ds_processed)
 
@@ -122,25 +121,25 @@ class ERA5Handler(BaseDatasetHandler):
                     temp_output = temp_dir / raw_file.name
                     if temp_output.exists():
                         temp_output.unlink()
-                        
+
                     ds_final.to_netcdf(temp_output)
                     ds_final.close()
-                    
+
                     # Verify temp file exists
                     if not temp_output.exists():
                         raise FileNotFoundError(f"Failed to create temp file: {temp_output}")
-                    
+
                     self.logger.debug(f"Temp file created: {temp_output} ({temp_output.stat().st_size} bytes)")
-                    
+
                     # Move to final filename (copy then delete to be safe)
                     if output_file.exists():
                         output_file.unlink()
-                        
+
                     shutil.copy2(str(temp_output), str(output_file))
                     temp_output.unlink()
-                    
+
                     self.logger.debug(f"Successfully saved {output_file.name}")
-                        
+
                 except Exception as e:
                     self.logger.error(f"Failed to process {raw_file.name}: {e}")
                     raise
@@ -148,42 +147,42 @@ class ERA5Handler(BaseDatasetHandler):
             # Cleanup temp dir
             if temp_dir.exists():
                 shutil.rmtree(temp_dir, ignore_errors=True)
-        
+
         self.logger.info("ERA5 file processing complete.")
-    
+
     def create_shapefile(self, shapefile_path: Path, merged_forcing_path: Path,
                         dem_path: Path, elevation_calculator) -> Path:
         """
         Create ERA5 grid shapefile.
-        
+
         ERA5 uses a regular lat/lon grid (typically 0.25° resolution).
-        
+
         Args:
             shapefile_path: Directory where shapefile should be saved
             merged_forcing_path: Path to ERA5 data
             dem_path: Path to DEM for elevation calculation
             elevation_calculator: Function to calculate elevation statistics
-            
+
         Returns:
             Path to the created shapefile
         """
         self.logger.info("Creating ERA5 shapefile")
-        
+
         output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
-        
+
         try:
             # Find an .nc file in the forcing path
             forcing_files = list(merged_forcing_path.glob('*.nc'))
             if not forcing_files:
                 raise FileNotFoundError("No ERA5 forcing files found")
-            
+
             forcing_file = forcing_files[0]
             self.logger.info(f"Using ERA5 file: {forcing_file}")
-            
+
             # Set the dimension variable names
             source_name_lat = "latitude"
             source_name_lon = "longitude"
-            
+
             # Open the file and get the dimensions
             try:
                 with xr.open_dataset(forcing_file) as src:
@@ -203,23 +202,23 @@ class ERA5Handler(BaseDatasetHandler):
             except Exception as e:
                 self.logger.error(f"Error reading ERA5 dimensions: {str(e)}")
                 raise
-            
+
             # Find the grid spacing
             try:
                 half_dlat = abs(lat[1] - lat[0])/2 if len(lat) > 1 else 0.125
                 half_dlon = abs(lon[1] - lon[0])/2 if len(lon) > 1 else 0.125
-                
+
                 self.logger.info(f"ERA5 grid spacings: half_dlat={half_dlat}, half_dlon={half_dlon}")
             except Exception as e:
                 self.logger.error(f"Error calculating grid spacings: {str(e)}")
                 raise
-            
+
             # Create lists to store the data
             geometries = []
             ids = []
             lats = []
             lons = []
-            
+
             # Create grid cells
             try:
                 self.logger.info("Creating grid cell geometries")
@@ -253,12 +252,12 @@ class ERA5Handler(BaseDatasetHandler):
                             ids.append(i * len(lat) + j)
                             lats.append(float(center_lat))
                             lons.append(float(center_lon))
-                
+
                 self.logger.info(f"Created {len(geometries)} grid cell geometries")
             except Exception as e:
                 self.logger.error(f"Error creating grid cell geometries: {str(e)}")
                 raise
-            
+
             # Create the GeoDataFrame
             try:
                 self.logger.info("Creating GeoDataFrame")
@@ -268,30 +267,30 @@ class ERA5Handler(BaseDatasetHandler):
                     self.config.get('FORCING_SHAPE_LAT_NAME'): lats,
                     self.config.get('FORCING_SHAPE_LON_NAME'): lons,
                 }, crs='EPSG:4326')
-                
+
                 self.logger.info(f"GeoDataFrame created with {len(gdf)} rows")
             except Exception as e:
                 self.logger.error(f"Error creating GeoDataFrame: {str(e)}")
                 raise
-            
+
             # Calculate elevation using the safe method
             try:
                 self.logger.info("Calculating elevation values using safe method")
-                
+
                 if not Path(dem_path).exists():
                     self.logger.error(f"DEM file not found: {dem_path}")
                     raise FileNotFoundError(f"DEM file not found: {dem_path}")
-                
+
                 elevations = elevation_calculator(gdf, dem_path, batch_size=20)
                 gdf['elev_m'] = elevations
-                
+
                 self.logger.info("Elevation calculation complete")
             except Exception as e:
                 self.logger.error(f"Error calculating elevation: {str(e)}")
                 # Continue without elevation data rather than failing completely
                 gdf['elev_m'] = -9999
                 self.logger.warning("Using default elevation values due to calculation error")
-            
+
             # Save the shapefile
             try:
                 self.logger.info(f"Saving shapefile to: {output_shapefile}")
@@ -303,7 +302,7 @@ class ERA5Handler(BaseDatasetHandler):
                 import traceback
                 self.logger.error(traceback.format_exc())
                 raise
-                
+
         except Exception as e:
             self.logger.error(f"Error in create_era5_shapefile: {str(e)}")
             import traceback

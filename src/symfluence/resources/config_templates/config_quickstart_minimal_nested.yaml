@@ -28,7 +28,7 @@ system:
   # Root directory for all SYMFLUENCE data files
   # Must contain forcing data, observations, outputs, etc.
   data_dir: "/path/to/your/data/directory"
-  
+
   # Root directory for SYMFLUENCE code and executables
   # Must contain SUMMA, FUSE, and other model executables
   code_dir: "/path/to/your/code/directory"
@@ -43,15 +43,15 @@ domain:
   # Unique identifier for your watershed/modeling domain
   # Used in output filenames and logging
   name: "MyBasin"
-  
+
   # Unique identifier for this experiment/run
   # Allows multiple runs on same domain
   experiment_id: "run_001"
-  
+
   # Simulation time period (must include spin-up if needed)
   time_start: "2010-01-01 00:00"  # Format: YYYY-MM-DD HH:MM
   time_end: "2020-12-31 23:00"    # Format: YYYY-MM-DD HH:MM
-  
+
   # Domain definition method:
   #   lumped        - Single catchment, no discretization
   #   discretized   - Divide into smaller response units
@@ -60,7 +60,7 @@ domain:
   #   point         - Single point location
   #   delineate     - Auto-delineate from DEM at pour point
   definition_method: "lumped"
-  
+
   # Spatial discretization strategy (how to divide the domain):
   #   elevation     - Discretize by elevation bands
   #   aspect        - Discretize by slope aspect
@@ -154,7 +154,7 @@ model:
 #   # Pour point coordinates (required for point/delineate methods)
 #   # Format: "latitude/longitude"
 #   pour_point_coords: "51.1722/-115.5717"
-#   
+#
 #   # Bounding box (for regional domains)
 #   # Format: "north/west/south/east"
 #   bounding_box_coords: "60.0/-120.0/50.0/-110.0"
@@ -200,17 +200,17 @@ model:
 #   streamflow:
 #     download_usgs: false
 #     station_id: "USGS_STATION_ID"
-#   
+#
 #   snotel:
 #     download: false
 #     station: "SNOTEL_STATION_ID"
-#   
+#
 #   smap:
 #     download: false
-#   
+#
 #   grace:
 #     download: false
-#   
+#
 #   modis_snow:
 #     download: false
 
@@ -227,7 +227,7 @@ model:
 #   metric: "KGE"                             # KGE, NSE, RMSE, PBIAS, MAE
 #   iterations: 1000                          # Number of iterations
 #   population_size: 50                       # Population size
-#   
+#
 #   pso:
 #     swrmsize: 20                            # Swarm size
 #     cognitive_param: 1.5                    # Cognitive parameter

@@ -34,7 +34,7 @@ class HYPEParameterManager(BaseParameterManager):
         hype_params_str = config.get('HYPE_PARAMS_TO_CALIBRATE')
         if hype_params_str is None:
             hype_params_str = 'ttmp,cmlt,cevp,lp,epotdist,rrcs1,rrcs2,rcgrw,rivvel,damp'
-            
+
         self.hype_params = [p.strip() for p in str(hype_params_str).split(',') if p.strip()]
 
         # Path to par.txt file
@@ -156,7 +156,7 @@ class HYPEParameterManager(BaseParameterManager):
         # Critical fix: cevp=0.0 disables evapotranspiration entirely
         # This breaks lumped models by preventing water from leaving the system
         if 'cevp' in fixed_params and fixed_params['cevp'] <= 0.01:
-            bounds = self.param_bounds.get('cevp', {'min': 0.0, 'max': 1.0})
+            self.param_bounds.get('cevp', {'min': 0.0, 'max': 1.0})
             # Set to a reasonable initial value (60% of PET)
             fixed_params['cevp'] = 0.6
             self.logger.warning(

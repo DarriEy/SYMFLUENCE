@@ -91,16 +91,16 @@ class SensitivityAnalyzer:
         """
         self.logger.info(f"Performing sensitivity analysis using {metric} metric")
         parameter_columns = [col for col in samples.columns if col not in ['Iteration', 'Calib_RMSE', 'Calib_KGE', 'Calib_KGEp', 'Calib_NSE', 'Calib_MAE']]
-        
+
         if len(samples) < min_samples:
             self.logger.warning(f"Insufficient data for reliable sensitivity analysis. Have {len(samples)} samples, recommend at least {min_samples}.")
             return pd.Series([-999] * len(parameter_columns), index=parameter_columns)
 
         x = samples[parameter_columns].values
         y = samples[metric].values.reshape(-1, 1)
-        
+
         sensitivities = []
-        
+
         for i, param in tqdm(enumerate(parameter_columns), total=len(parameter_columns), desc="Calculating sensitivities"):
             try:
                 try:
@@ -111,18 +111,18 @@ class SensitivityAnalyzer:
                     return pd.Series([-999] * len(parameter_columns), index=parameter_columns)
                 except ValueError:
                     sensitivity_result = viscous(x, y, i, sensType='single')
-                
+
                 if isinstance(sensitivity_result, tuple):
                     sensitivity = sensitivity_result[0]
                 else:
                     sensitivity = sensitivity_result
-                
+
                 sensitivities.append(sensitivity)
                 self.logger.info(f"Successfully calculated sensitivity for {param}")
             except Exception as e:
                 self.logger.error(f"Error in sensitivity analysis for parameter {param}: {str(e)}")
                 sensitivities.append(-999)
-        
+
         self.logger.info("Sensitivity analysis completed")
         return pd.Series(sensitivities, index=parameter_columns)
 
@@ -142,24 +142,24 @@ class SensitivityAnalyzer:
         """
         self.logger.info(f"Performing Sobol analysis using {metric} metric")
         parameter_columns = [col for col in samples.columns if col not in ['Iteration', 'RMSE', 'KGE', 'KGEp', 'NSE', 'MAE']]
-        
+
         problem = {
             'num_vars': len(parameter_columns),
             'names': parameter_columns,
             'bounds': [[samples[col].min(), samples[col].max()] for col in parameter_columns]
         }
-        
+
         param_values = sobol_sample.sample(problem, 1024)
-        
+
         Y = np.zeros(param_values.shape[0])
         for i in range(param_values.shape[0]):
             interpolated_values = []
             for j, col in enumerate(parameter_columns):
-                interpolated_values.append(np.interp(param_values[i, j], 
-                                                     samples[col].sort_values().values, 
+                interpolated_values.append(np.interp(param_values[i, j],
+                                                     samples[col].sort_values().values,
                                                      samples[metric].values[samples[col].argsort()]))
             Y[i] = np.mean(interpolated_values)
-        
+
         Si = sobol.analyze(problem, Y)
 
         self.logger.info("Sobol analysis completed")
@@ -181,16 +181,16 @@ class SensitivityAnalyzer:
         """
         self.logger.info(f"Performing RBD-FAST analysis using {metric} metric")
         parameter_columns = [col for col in samples.columns if col not in ['Iteration', 'RMSE', 'KGE', 'KGEp', 'NSE', 'MAE']]
-        
+
         problem = {
             'num_vars': len(parameter_columns),
             'names': parameter_columns,
             'bounds': [[samples[col].min(), samples[col].max()] for col in parameter_columns]
         }
-        
+
         X = samples[parameter_columns].values
         Y = samples[metric].values
-        
+
         rbd_results = rbd_fast.analyze(problem, X, Y)
         self.logger.info("RBD-FAST analysis completed")
         return pd.Series(rbd_results['S1'], index=parameter_columns)
@@ -215,7 +215,7 @@ class SensitivityAnalyzer:
         for param in parameter_columns:
             corr, _ = spearmanr(samples[param], samples[metric])
             correlations.append(abs(corr))  # Use absolute value for sensitivity
-        self.logger.info("Correlation analysis completed") 
+        self.logger.info("Correlation analysis completed")
         return pd.Series(correlations, index=parameter_columns)
 
     def run_sensitivity_analysis(self, results_file):
@@ -233,14 +233,14 @@ class SensitivityAnalyzer:
             None. Results are saved to the output_folder as CSV files and plots.
         """
         self.logger.info("Starting sensitivity analysis")
-        
+
         results = self.read_calibration_results(results_file)
         self.logger.info(f"Read {len(results)} calibration results")
-        
+
         if len(results) < 10:
             self.logger.error("Error: Not enough data points for sensitivity analysis.")
             return
-        
+
         results_preprocessed = self.preprocess_data(results, metric='Calib_RMSE')
         self.logger.info("Data preprocessing completed")
 
@@ -256,28 +256,27 @@ class SensitivityAnalyzer:
             sensitivity = method(results_preprocessed, metric='Calib_RMSE')
             all_results[name] = sensitivity
             sensitivity.to_csv(self.output_folder / f'{name.lower()}_sensitivity.csv')
-            
+
             if self.reporting_manager:
                 self.reporting_manager.visualize_sensitivity_analysis(
-                    sensitivity, 
+                    sensitivity,
                     self.output_folder / f'{name.lower()}_sensitivity.png',
                     plot_type='single'
                 )
-            
+
             self.logger.info(f"Saved {name} sensitivity results and plot")
 
         comparison_df = pd.DataFrame(all_results)
         comparison_df.to_csv(self.output_folder / 'all_sensitivity_results.csv')
-        
+
         if self.reporting_manager:
             self.reporting_manager.visualize_sensitivity_analysis(
-                comparison_df, 
+                comparison_df,
                 self.output_folder / 'sensitivity_comparison.png',
                 plot_type='comparison'
             )
-            
+
         self.logger.info("Saved comparison of all sensitivity results")
 
         self.logger.info("Sensitivity analysis completed successfully")
         return comparison_df
-    

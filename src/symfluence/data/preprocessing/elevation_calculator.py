@@ -10,7 +10,7 @@ Extracted from ForcingResampler to improve testability and reduce coupling.
 """
 
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import List
 import logging
 
 import geopandas as gpd

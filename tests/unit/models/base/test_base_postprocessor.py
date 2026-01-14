@@ -125,7 +125,7 @@ class TestBaseModelPostProcessorInitialization:
             'SETTINGS_SUMMA_PATH': '/tmp/settings/SUMMA',
         }
         config = SymfluenceConfig(**config_data)
-        
+
         logger = Mock()
 
         processor = ConcretePostProcessor(config, logger)
@@ -432,21 +432,21 @@ class TestBaseModelPostProcessorCatchmentArea:
         # However, we overrode it with 'default'. Wait, SymfluenceConfig validation will fail if we use 'default'
         # because allowed values are 'lumped', 'discretized', etc.
         # But wait, in the test code: 'DOMAIN_DEFINITION_METHOD': 'default'
-        
+
         # SymfluenceConfig will raise ValueError: "DOMAIN_DEFINITION_METHOD must be one of ..."
         # So we should use a valid method like 'lumped' and ensure the file name matches what the code expects.
-        
+
         # The base_postprocessor uses:
         # river_name = f"{self.domain_name}_riverBasins_{method_suffix}.shp"
         # and _get_method_suffix() uses DOMAIN_DEFINITION_METHOD.
-        
+
         # Let's use 'lumped' which is valid.
-        
+
         # Re-create config with valid method
         config_dict['DOMAIN_DEFINITION_METHOD'] = 'lumped'
         config = _create_config(config_dict)
         processor = ConcretePostProcessor(config, logger)
-        
+
         # Re-define shapefile path using 'lumped'
         shapefile_path = shapefiles_dir / 'test_riverBasins_lumped.shp'
         gdf.to_file(shapefile_path)

@@ -54,7 +54,7 @@ class MESHWorker(BaseWorker):
             # Use MESHParameterManager from registry
             from symfluence.optimization.registry import OptimizerRegistry
             param_manager_cls = OptimizerRegistry.get_parameter_manager('MESH')
-            
+
             if param_manager_cls is None:
                 self.logger.error("MESHParameterManager not found in registry")
                 return False
@@ -62,7 +62,7 @@ class MESHWorker(BaseWorker):
             # settings_dir here is the isolated directory for this process
             self.logger.debug(f"Applying MESH parameters in {settings_dir}")
             param_manager = param_manager_cls(config, self.logger, settings_dir)
-            
+
             success = param_manager.update_model_files(params)
 
             if not success:
@@ -101,7 +101,7 @@ class MESHWorker(BaseWorker):
 
             # Determine where to run from (isolated or global)
             proc_forcing_dir = kwargs.get('proc_forcing_dir')
-            
+
             if proc_forcing_dir:
                 proc_forcing_path = Path(proc_forcing_dir)
                 self.logger.debug(f"Running MESH worker in isolated dir: {proc_forcing_path}")
@@ -176,7 +176,7 @@ class MESHWorker(BaseWorker):
                 self.logger.error(f"Streamflow column not found in {sim_file}")
                 return {'kge': self.penalty_score, 'error': 'Streamflow column not found'}
 
-            sim = sim_df[flow_col].values
+            sim_df[flow_col].values
 
             # Load observations
             domain_name = config.get('DOMAIN_NAME')

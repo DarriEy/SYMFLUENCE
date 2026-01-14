@@ -322,7 +322,7 @@ class UnifiedModelRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
 
             # Determine timeout
             timeout = self.schema.execution.default_timeout if self.schema else 3600
-            
+
             # Check for override in config
             timeout_key = f"{self.model_name}_TIMEOUT"
             if timeout_key in self.config_dict:

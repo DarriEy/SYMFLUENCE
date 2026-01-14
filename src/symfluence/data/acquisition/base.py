@@ -94,8 +94,8 @@ class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
             if file_path.suffix in ['.tif', '.nc']:
                 # Raster data
                 self.reporting_manager.visualize_spatial_coverage(
-                    file_path, 
-                    variable_name=file_path.stem, 
+                    file_path,
+                    variable_name=file_path.stem,
                     stage='acquisition'
                 )
             elif file_path.suffix == '.csv':
@@ -106,8 +106,8 @@ class BaseAcquisitionHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
                 for col in numeric_cols:
                     if 'id' not in col.lower() and 'date' not in col.lower():
                         self.reporting_manager.visualize_data_distribution(
-                            df[col], 
-                            variable_name=col, 
+                            df[col],
+                            variable_name=col,
                             stage='acquisition'
                         )
         except Exception as e:

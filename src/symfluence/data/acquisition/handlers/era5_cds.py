@@ -9,10 +9,8 @@ Uses mixins for:
 
 import xarray as xr
 import pandas as pd
-import numpy as np
 from pathlib import Path
-from typing import Dict, Any, List, Optional
-import logging
+from typing import Optional
 
 try:
     import cdsapi

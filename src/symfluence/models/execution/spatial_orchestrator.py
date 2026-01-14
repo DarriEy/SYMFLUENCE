@@ -39,8 +39,7 @@ import xarray as xr
 
 from symfluence.core.exceptions import (
     ModelExecutionError,
-    GeospatialError,
-    FileOperationError
+    GeospatialError
 )
 
 
@@ -244,7 +243,7 @@ class SpatialOrchestrator(ABC):
         # Add topology file if routing is configured
         if routing_model != RoutingModel.NONE:
             topology_file = self.config_dict.get('SETTINGS_MIZU_TOPOLOGY', 'topology.nc')
-            
+
             # Determine settings dir based on model
             if routing_model == RoutingModel.MIZUROUTE:
                 settings_subdir = 'mizuRoute'
@@ -579,7 +578,7 @@ class SpatialOrchestrator(ABC):
             Path to routed output, or None if routing fails
         """
         try:
-            from symfluence.models.mizuroute import MizuRouteRunner, MizuRoutePreProcessor
+            from symfluence.models.mizuroute import MizuRouteRunner
 
             # Create model-specific control file if requested
             if create_control_file and model_name:

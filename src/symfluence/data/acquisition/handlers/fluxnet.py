@@ -25,25 +25,19 @@ References:
 - FLUXNET2015: https://fluxnet.org/data/fluxnet2015-dataset/
 - ICOS: https://www.icos-cp.eu/
 """
-import logging
 import requests
 import zipfile
-import io
 import os
 import time
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List, Tuple, Union
+from typing import Dict, Any, Optional, List, Tuple
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 from .fluxnet_constants import (
-    LE_TO_ET_FACTOR,
-    LATENT_HEAT_VAPORIZATION,
     FLUXNET_VARIABLE_MAPPING,
     convert_le_to_et,
-    find_variable_in_dataframe,
 )
 
 

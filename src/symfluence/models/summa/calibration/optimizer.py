@@ -82,7 +82,7 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
         """Get path to SUMMA executable."""
         summa_install = self.config.get('SUMMA_INSTALL_PATH', 'default')
         summa_exe_name = self.config.get('SUMMA_EXE', 'summa_sundials.exe')
-        
+
         if summa_install == 'default':
             return self.data_dir / 'installs' / 'summa' / 'bin' / summa_exe_name
         return Path(summa_install) / summa_exe_name if Path(summa_install).is_dir() else Path(summa_install)

@@ -9,7 +9,6 @@ import pandas as pd
 import xarray as xr
 import s3fs
 from pathlib import Path
-from typing import Dict, Any
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 

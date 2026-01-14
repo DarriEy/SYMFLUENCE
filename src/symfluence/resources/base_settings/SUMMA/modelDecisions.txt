@@ -37,7 +37,7 @@ thCondSoil                      funcSoilWet     ! (27) choice of thermal conduct
 spatial_gw                      localColumn     ! (28) choice of method for the spatial representation of groundwater
 subRouting                      timeDlay        ! (29) choice of method for sub-grid routing
 infRateMax                      GreenAmpt
-nrgConserv			enthalpyForm 
+nrgConserv			enthalpyForm
 ! ***********************************************************************************************
 ! ***** description of the options available -- nothing below this point is read ****************
 ! ***********************************************************************************************

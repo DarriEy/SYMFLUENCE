@@ -4,13 +4,12 @@ GRACE Data Acquisition Handler
 Provides cloud acquisition for GRACE/GRACE-FO Terrestrial Water Storage anomaly data.
 Retrieves data from NASA PO.DAAC or similar cloud-hosted repositories.
 """
-import logging
 import os
 import netrc
 import requests
 import xarray as xr
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Optional, Tuple
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 
@@ -30,7 +29,7 @@ class GRACEAcquirer(BaseAcquisitionHandler):
 
         subset_enabled = self._parse_bool(self.config.get('GRACE_SUBSET', False))
         force_download = self._parse_bool(self.config.get('FORCE_DOWNLOAD', False))
-        
+
         datasets = {
             'jpl': {
                 'filename': 'GRCTellus.JPL.200204_202211.GLO.RL06M.MSCNv02CRI.nc',
@@ -45,15 +44,15 @@ class GRACEAcquirer(BaseAcquisitionHandler):
                 'url': 'https://earth.gsfc.nasa.gov/sites/default/files/geo/gsfc.glb_.200204_202505_rl06v2.0_obp-ice6gd_halfdegree.nc'
             }
         }
-        
+
         success_count = 0
         earthdata_auth = self._get_earthdata_auth()
-        
+
         for center, info in datasets.items():
             target_file = output_dir / info['filename']
             subset_file = target_file.with_name(f"{target_file.stem}_subset.nc")
             url = info['url']
-            
+
             if subset_enabled and center == 'jpl' and subset_file.exists() and not force_download:
                 self.logger.info(f"GRACE {center.upper()} subset already exists: {subset_file}")
                 success_count += 1
@@ -93,10 +92,10 @@ class GRACEAcquirer(BaseAcquisitionHandler):
             except Exception as e:
                 self.logger.error(f"Failed to download GRACE {center.upper()} data: {e}")
                 self.logger.warning(f"Please manually download the {center.upper()} Mascon NetCDF file and place it in the observation directory if automatic download fails.")
-        
+
         if success_count == 0:
             raise RuntimeError("Failed to acquire any GRACE data.")
-            
+
         return output_dir
 
     def _parse_bool(self, value: Any) -> bool:

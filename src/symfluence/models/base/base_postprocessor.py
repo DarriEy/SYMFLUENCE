@@ -352,7 +352,7 @@ class BaseModelPostProcessor(ABC, PathResolverMixin):
     def visualize_streamflow_results(self) -> None:
         """
         Create standardized streamflow plots using ReportingManager.
-        
+
         This method is called automatically after saving results.
         It delegates to reporting_manager.visualize_timeseries_results(),
         which handles:

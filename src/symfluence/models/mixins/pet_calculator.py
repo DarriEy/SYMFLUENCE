@@ -36,16 +36,16 @@ class PETCalculatorMixin:
     def _get_robust_temp_c(self, temp_data: xr.DataArray) -> xr.DataArray:
         """
         Helper to get temperature in Celsius with robust unit detection.
-        
+
         Args:
             temp_data: Input temperature DataArray
-            
+
         Returns:
             Temperature in Celsius
         """
         # Check metadata units attribute if available
         meta_units = str(temp_data.attrs.get('units', '')).lower()
-        
+
         # Convert to Celsius if needed based on metadata
         if 'k' in meta_units and 'c' not in meta_units:
             self.logger.info(f"Metadata indicates temperature is in Kelvin ({meta_units}), converting to Celsius")
@@ -85,7 +85,7 @@ class PETCalculatorMixin:
             self.logger.debug(f"Temperature in Celsius: Mean={temp_mean_C:.2f}°C")
             if temp_mean_C < -60 or temp_mean_C > 60:
                 raise ValueError(f"Unrealistic temperature after conversion: {temp_mean_C:.2f}°C")
-            
+
         return temp_C
 
     def calculate_pet_oudin(self, temp_data: xr.DataArray, lat: float) -> xr.DataArray:

@@ -3,14 +3,11 @@ USGS Observation Handlers
 
 Provides handlers for USGS streamflow and groundwater data.
 """
-import io
-import logging
 import requests
 import pandas as pd
-import numpy as np
 from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
+from datetime import datetime
+from typing import Optional, List
 
 from symfluence.core.constants import UnitConversion, ModelDefaults
 from symfluence.core.exceptions import DataAcquisitionError
@@ -78,7 +75,7 @@ class USGSStreamflowHandler(BaseObservationHandler):
     def _download_data(self, station_id: str, output_path: Path) -> Path:
         """Fetch discharge data from USGS API."""
         self.logger.info(f"Downloading USGS streamflow data for station {station_id}")
-        
+
         # Use experiment time range or defaults
         start_date = self.start_date.strftime("%Y-%m-%d")
         end_date = datetime.now().strftime("%Y-%m-%d")
@@ -86,21 +83,21 @@ class USGSStreamflowHandler(BaseObservationHandler):
 
         base_url = "https://nwis.waterservices.usgs.gov/nwis/iv/"
         url = f"{base_url}?site={station_id}&format=rdb&parameterCd={parameter_cd}&startDT={start_date}&endDT={end_date}"
-        
+
         try:
             response = requests.get(url, timeout=60)
             response.raise_for_status()
-            
+
             if 'No data available' in response.text:
                 raise DataAcquisitionError(f"USGS API returned no data for station {station_id}")
 
             with open(output_path, 'w') as f:
                 f.write(response.text)
-            
+
             self.logger.info(f"Successfully downloaded USGS data to {output_path}")
             return output_path
 
-        except Exception as e:
+        except Exception:
             # Attempt fallback strategy (Waterservices without nwis prefix)
             fallback_url = url.replace("nwis.waterservices.usgs.gov", "waterservices.usgs.gov")
             self.logger.info(f"Primary USGS download failed, trying fallback: {fallback_url}")
@@ -175,7 +172,7 @@ class USGSStreamflowHandler(BaseObservationHandler):
         df[datetime_col] = pd.to_datetime(df[datetime_col], errors='coerce')
         df[discharge_col] = pd.to_numeric(df[discharge_col], errors='coerce')
         df = df.dropna(subset=[datetime_col, discharge_col])
-        
+
         df.set_index(datetime_col, inplace=True)
         df.sort_index(inplace=True)
 
@@ -185,7 +182,7 @@ class USGSStreamflowHandler(BaseObservationHandler):
         # 4. Resample to target timestep
         resample_freq = self._get_resample_freq()
         resampled = df['discharge_cms'].resample(resample_freq).mean()
-        
+
         # Interpolate small gaps
         resampled = resampled.interpolate(method='time', limit_direction='both', limit=30)
 
@@ -193,9 +190,9 @@ class USGSStreamflowHandler(BaseObservationHandler):
         output_dir = self.project_dir / "observations" / "streamflow" / "preprocessed"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_streamflow_processed.csv"
-        
+
         resampled.to_csv(output_file, header=True, index_label='datetime')
-        
+
         self.logger.info(f"USGS streamflow processing complete: {output_file}")
         return output_file
 
@@ -243,32 +240,32 @@ class USGSGroundwaterHandler(BaseObservationHandler):
             raise ValueError("USGS_STATION or STATION_ID required for USGS groundwater acquisition")
 
         station_numeric = str(station_id).split('-')[-1] if '-' in str(station_id) else str(station_id)
-        
+
         raw_dir = self.project_dir / "observations" / "groundwater" / "raw_data"
         raw_dir.mkdir(parents=True, exist_ok=True)
         raw_file = raw_dir / f"usgs_gw_{station_numeric}_raw.json"
 
         # Try gwlevels endpoint first
         url = f"https://waterservices.usgs.gov/nwis/gwlevels/?format=json&sites={station_numeric}&agencyCd=USGS&siteStatus=all"
-        
+
         self.logger.info(f"Downloading USGS groundwater data: {url}")
         try:
             response = requests.get(url, timeout=60)
             response.raise_for_status()
-            
+
             # Check if we got data
             data = response.json()
             if 'value' in data and 'timeSeries' in data['value'] and data['value']['timeSeries']:
                 with open(raw_file, 'w') as f:
                     f.write(response.text)
                 return raw_file
-            
+
             # If gwlevels empty, try instantaneous values (iv)
             self.logger.info("gwlevels empty, trying 'iv' endpoint...")
             url_iv = f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites={station_numeric}&agencyCd=USGS&parameterCd=72019&siteStatus=all"
             response = requests.get(url_iv, timeout=60)
             response.raise_for_status()
-            
+
             data = response.json()
             if 'value' in data and 'timeSeries' in data['value'] and data['value']['timeSeries']:
                 with open(raw_file, 'w') as f:
@@ -280,17 +277,17 @@ class USGSGroundwaterHandler(BaseObservationHandler):
             url_dv = f"https://waterservices.usgs.gov/nwis/dv/?format=json&sites={station_numeric}&agencyCd=USGS&parameterCd=72019&siteStatus=all"
             response = requests.get(url_dv, timeout=60)
             response.raise_for_status()
-            
+
             data = response.json()
             if 'value' in data and 'timeSeries' in data['value'] and data['value']['timeSeries']:
                 with open(raw_file, 'w') as f:
                     f.write(response.text)
                 return raw_file
-            
+
             # If all fail to provide timeSeries
             self.logger.warning(f"No groundwater data found for station {station_numeric} in any endpoint (gwlevels, iv, dv).")
             raise DataAcquisitionError(f"No USGS groundwater data available for station {station_numeric}")
-            
+
         except Exception as e:
             self.logger.error(f"Failed to download USGS groundwater data: {e}")
             raise DataAcquisitionError(f"USGS groundwater acquisition failed: {e}")
@@ -312,7 +309,7 @@ class USGSGroundwaterHandler(BaseObservationHandler):
         if 'value' not in data or 'timeSeries' not in data['value']:
             self.logger.warning(f"No valid timeSeries found in USGS GW data: {input_path}")
             raise DataAcquisitionError("No timeSeries structure in USGS GW JSON")
-            
+
         time_series = data['value']['timeSeries']
         if not time_series:
             self.logger.warning("USGS GW timeSeries list is empty")
@@ -323,15 +320,15 @@ class USGSGroundwaterHandler(BaseObservationHandler):
             # Check for groundwater level parameter (72019) or name matches
             param_code = ts.get('variable', {}).get('parameterCode', '')
             param_name = ts.get('variable', {}).get('variableName', '').lower()
-            
+
             # 72019 is the standard parameter code for depth to water level
             is_gw_level = '72019' in param_code or 'depth to water level' in param_name or 'water level' in param_name
-            
+
             if not is_gw_level:
                 continue
-            
+
             unit_code = ts.get('variable', {}).get('unit', {}).get('unitCode', 'unknown')
-            
+
             # Extract values from the first available block
             for values_container in ts.get('values', []):
                 val_list = values_container.get('value', [])
@@ -352,7 +349,7 @@ class USGSGroundwaterHandler(BaseObservationHandler):
             'groundwater_level': values,
             'unit': units
         })
-        
+
         # Standardize to meters
         def to_meters(row):
             val, unit = row['groundwater_level'], row['unit'].lower()
@@ -367,7 +364,7 @@ class USGSGroundwaterHandler(BaseObservationHandler):
         output_dir = self.project_dir / "observations" / "groundwater"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = output_dir / f"{self.domain_name}_groundwater_processed.csv"
-        
+
         df[['groundwater_level']].to_csv(output_file)
         self.logger.info(f"USGS groundwater processing complete: {output_file}")
         return output_file

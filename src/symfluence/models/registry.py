@@ -120,7 +120,7 @@ References:
 """
 
 import logging
-from typing import Dict, Any, Type, Optional, Tuple, List
+from typing import Dict, Any, Type, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +237,7 @@ class ModelRegistry:
     def register_visualizer(cls, model_name):
         """
         Register a visualization function for a model.
-        
+
         The visualizer should be a callable with signature:
         (reporting_manager, config, project_dir, experiment_id, workflow)
         """

@@ -9,7 +9,7 @@ and interpolation functions.
 import numpy as np
 import pandas as pd
 import xarray as xr
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 # MODIS fill and invalid values
 MODIS_FILL_VALUES = {200, 201, 211, 237, 239, 250, 254, 255}

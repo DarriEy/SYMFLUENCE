@@ -282,13 +282,13 @@ class WorkerTask:
 
         # Config - could be nested or at top level
         config = task_data.get('config', {})
-        
+
         # Convert Pydantic model to dict if needed
         if hasattr(config, 'model_dump'):
             config = config.model_dump()
         elif hasattr(config, 'dict'):
             config = config.dict()
-            
+
         if not config:
             # Extract config keys from task_data itself
             config_keys = [
@@ -993,11 +993,11 @@ class BaseWorker(ABC):
         """
         # Get configured metric name
         metric_name = config.get('CALIBRATION_METRIC', 'KGE')
-        
+
         # Check for exact match first
         if metric_name in metrics:
             return metrics[metric_name]
-            
+
         # Check for Calib_ prefix
         calib_key = f"Calib_{metric_name}"
         if calib_key in metrics:

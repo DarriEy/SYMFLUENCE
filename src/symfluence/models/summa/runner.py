@@ -17,7 +17,7 @@ Author: SYMFLUENCE Development Team
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import geopandas as gpd
 import pandas as pd
@@ -405,7 +405,7 @@ class SummaRunner(UnifiedModelRunner):
             # Run IC simulation
             ic_log_file = log_path / f"{site_name}_IC.log"
             self.logger.debug(f"Writing IC logs to: {ic_log_file}")
-            
+
             ic_result = self.execute_subprocess(
                 command=[str(self.model_exe), '-m', ic_fm, '-r', 'e'],
                 log_file=ic_log_file,
@@ -429,7 +429,7 @@ class SummaRunner(UnifiedModelRunner):
             # Run main simulation
             main_log_file = log_path / f"{site_name}_main.log"
             self.logger.debug(f"Writing main logs to: {main_log_file}")
-            
+
             main_result = self.execute_subprocess(
                 command=[str(self.model_exe), '-m', main_fm],
                 log_file=main_log_file,

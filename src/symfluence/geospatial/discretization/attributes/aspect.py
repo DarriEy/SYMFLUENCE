@@ -44,14 +44,14 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         default_subpath="attributes/elevation/dem",
         default_name=f"domain_{discretizer.domain_name}_elv.tif"
     )
-    
+
     aspect_raster = discretizer._get_file_path(
-        path_key="ASPECT_PATH", 
-        name_key="ASPECT_NAME", 
-        default_subpath="attributes/aspect", 
+        path_key="ASPECT_PATH",
+        name_key="ASPECT_NAME",
+        default_subpath="attributes/aspect",
         default_name="aspect.tif"
     )
-    
+
     output_shapefile = discretizer._get_file_path(
         path_key="CATCHMENT_PATH",
         name_key="CATCHMENT_SHP_NAME",

@@ -181,7 +181,7 @@ class TWSEvaluator(ModelEvaluator):
             self.storage_vars = [v.strip() for v in storage_str.split(',') if v.strip()]
         else:
             self.storage_vars = self.DEFAULT_STORAGE_VARS.copy()
-    
+
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
         """Locate SUMMA output files containing water storage variables.
 
@@ -198,7 +198,7 @@ class TWSEvaluator(ModelEvaluator):
         # TWS needs the most recent file with storage components
         most_recent = locator.get_most_recent(sim_dir, 'tws')
         return [most_recent] if most_recent else []
-        
+
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
         """Extract and sum water storage components from SUMMA output files.
 
@@ -320,20 +320,20 @@ class TWSEvaluator(ModelEvaluator):
                                             np.where(np.isnan(data), total_tws, total_tws + data))
                 else:
                     self.logger.warning(f"Storage variable {var} not found in {output_file}")
-            
+
             if total_tws is None:
                 raise ValueError(f"No storage variables {self.storage_vars} found in {output_file}")
-            
+
             # Find time coordinate
             time_coord = None
             for var in ['time', 'Time', 'datetime']:
                 if var in ds.coords or var in ds.dims:
                     time_coord = pd.to_datetime(ds[var].values)
                     break
-            
+
             if time_coord is None:
                 raise ValueError("Could not extract time coordinate")
-            
+
             tws_series = pd.Series(total_tws.flatten(), index=time_coord, name='simulated_tws')
             tws_series = tws_series * self.unit_conversion
             ds.close()
@@ -341,7 +341,7 @@ class TWSEvaluator(ModelEvaluator):
         except Exception as e:
             self.logger.error(f"Error loading SUMMA output: {e}")
             raise
-    
+
     def get_observed_data_path(self) -> Path:
         """Resolve path to GRACE water storage anomaly observations.
 
@@ -437,7 +437,7 @@ class TWSEvaluator(ModelEvaluator):
             if fallback in columns:
                 return fallback
         return next((c for c in columns if 'grace' in c.lower() and 'anomaly' in c.lower()), None)
-    
+
     def needs_routing(self) -> bool:
         """Determine if water storage evaluation requires routing model.
 
@@ -694,24 +694,24 @@ class TWSEvaluator(ModelEvaluator):
         sim_files = self.get_simulation_files(sim_dir)
         if not sim_files:
             return {}
-        
+
         sim_tws = self.extract_simulated_data(sim_files)
-        
+
         obs_path = self.get_observed_data_path()
         if not obs_path.exists():
             return {}
-            
+
         obs_df = pd.read_csv(obs_path, index_col=0, parse_dates=True)
         col = self._get_observed_data_column(obs_df.columns)
         if not col:
             return {}
-        
+
         sim_monthly = sim_tws.resample('MS').mean()
         obs_monthly = obs_df[col].copy()
-        
+
         common_index = sim_monthly.index.intersection(obs_monthly.index)
         valid_mask = ~(sim_monthly.loc[common_index].isna() | obs_monthly.loc[common_index].isna())
-        
+
         sim_matched = sim_monthly.loc[common_index][valid_mask]
         obs_matched = obs_monthly.loc[common_index][valid_mask]
 

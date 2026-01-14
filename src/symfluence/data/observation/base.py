@@ -3,9 +3,8 @@ Base Observation Handler for SYMFLUENCE
 """
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any, Optional, Union, TYPE_CHECKING
+from typing import Dict, Any, Union, TYPE_CHECKING
 import pandas as pd
-import geopandas as gpd
 from symfluence.core import ConfigurableMixin
 from symfluence.geospatial.coordinate_utils import CoordinateUtilsMixin
 

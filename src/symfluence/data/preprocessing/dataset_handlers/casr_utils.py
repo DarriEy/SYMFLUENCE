@@ -8,7 +8,6 @@ grid structure, and shapefile creation.
 
 from pathlib import Path
 from typing import Dict, Tuple
-import time
 import xarray as xr
 import pandas as pd
 import geopandas as gpd
@@ -23,7 +22,7 @@ from ...utils import VariableStandardizer
 @DatasetRegistry.register('casr')
 class CASRHandler(BaseDatasetHandler):
     """Handler for CASR (Canadian Arctic System Reanalysis) dataset."""
-    
+
     def get_variable_mapping(self) -> Dict[str, str]:
         """
         CASR variable name mapping to standard names.
@@ -35,20 +34,20 @@ class CASRHandler(BaseDatasetHandler):
         """
         standardizer = VariableStandardizer(self.logger)
         return standardizer.get_rename_map('CASR')
-    
+
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """
         Process CASR dataset with variable renaming and unit conversions.
-        
+
         Unit conversions applied:
         - airpres: mb -> Pa (multiply by 100)
         - airtemp: °C -> K (add 273.15)
         - pptrate: m/hr -> m/s (multiply by 1000, divide by 3600)
         - windspd: knots -> m/s (multiply by 0.514444)
-        
+
         Args:
             ds: Input CASR dataset
-            
+
         Returns:
             Processed dataset with standardized variables and units
         """
@@ -56,106 +55,106 @@ class CASRHandler(BaseDatasetHandler):
         variable_mapping = self.get_variable_mapping()
         existing_vars = {old: new for old, new in variable_mapping.items() if old in ds.variables}
         ds = ds.rename(existing_vars)
-        
+
         # Apply unit conversions with clean attributes
         if 'airpres' in ds:
             ds['airpres'] = ds['airpres'] * 100
             ds['airpres'].attrs = {}
             ds['airpres'].attrs.update({
-                'units': 'Pa', 
-                'long_name': 'air pressure', 
+                'units': 'Pa',
+                'long_name': 'air pressure',
                 'standard_name': 'air_pressure'
             })
-        
+
         if 'airtemp' in ds:
             ds['airtemp'] = ds['airtemp'] + PhysicalConstants.KELVIN_OFFSET
             ds['airtemp'].attrs = {}
             ds['airtemp'].attrs.update({
-                'units': 'K', 
-                'long_name': 'air temperature', 
+                'units': 'K',
+                'long_name': 'air temperature',
                 'standard_name': 'air_temperature'
             })
-        
+
         if 'pptrate' in ds:
             ds['pptrate'] = ds['pptrate'] * 1000 / UnitConversion.SECONDS_PER_HOUR
             ds['pptrate'].attrs = {}
             ds['pptrate'].attrs.update({
-                'units': 'mm s-1', 
-                'long_name': 'precipitation rate', 
+                'units': 'mm s-1',
+                'long_name': 'precipitation rate',
                 'standard_name': 'precipitation_rate'
             })
-        
+
         if 'windspd' in ds:
             ds['windspd'] = ds['windspd'] * 0.514444
             ds['windspd'].attrs = {}
             ds['windspd'].attrs.update({
-                'units': 'm s-1', 
-                'long_name': 'wind speed', 
+                'units': 'm s-1',
+                'long_name': 'wind speed',
                 'standard_name': 'wind_speed'
             })
-        
+
         if 'windspd_u' in ds:
             ds['windspd_u'] = ds['windspd_u'] * 0.514444
             ds['windspd_u'].attrs = {}
             ds['windspd_u'].attrs.update({
-                'units': 'm s-1', 
-                'long_name': 'eastward wind', 
+                'units': 'm s-1',
+                'long_name': 'eastward wind',
                 'standard_name': 'eastward_wind'
             })
-        
+
         if 'windspd_v' in ds:
             ds['windspd_v'] = ds['windspd_v'] * 0.514444
             ds['windspd_v'].attrs = {}
             ds['windspd_v'].attrs.update({
-                'units': 'm s-1', 
-                'long_name': 'northward wind', 
+                'units': 'm s-1',
+                'long_name': 'northward wind',
                 'standard_name': 'northward_wind'
             })
-        
+
         # Radiation variables are already in W m**-2, just update attributes
         if 'LWRadAtm' in ds:
             ds['LWRadAtm'].attrs = {}
             ds['LWRadAtm'].attrs.update({
-                'long_name': 'downward longwave radiation at the surface', 
+                'long_name': 'downward longwave radiation at the surface',
                 'standard_name': 'surface_downwelling_longwave_flux_in_air'
             })
-        
+
         if 'SWRadAtm' in ds:
             ds['SWRadAtm'].attrs = {}
             ds['SWRadAtm'].attrs.update({
-                'long_name': 'downward shortwave radiation at the surface', 
+                'long_name': 'downward shortwave radiation at the surface',
                 'standard_name': 'surface_downwelling_shortwave_flux_in_air'
             })
-        
+
         if 'spechum' in ds:
             ds['spechum'].attrs = {}
             ds['spechum'].attrs.update({
-                'long_name': 'specific humidity', 
+                'long_name': 'specific humidity',
                 'standard_name': 'specific_humidity'
             })
-        
+
         return ds
-    
+
     def get_coordinate_names(self) -> Tuple[str, str]:
         """
         CASR uses rotated pole coordinates with auxiliary lat/lon.
-        
+
         Returns:
             Tuple of ('lat', 'lon') for auxiliary coordinates
         """
         return ('lat', 'lon')
-    
+
     def needs_merging(self) -> bool:
         """CASR requires merging of daily files into monthly files."""
         return True
-    
+
     def merge_forcings(self, raw_forcing_path: Path, merged_forcing_path: Path,
                       start_year: int, end_year: int) -> None:
         """
         Merge CASR forcing data files into monthly files.
-        
+
         Note: CASR files are all in the same directory, not organized by year.
-        
+
         Args:
             raw_forcing_path: Path to raw CASR data (all files in one directory)
             merged_forcing_path: Path where merged monthly files will be saved
@@ -163,44 +162,44 @@ class CASRHandler(BaseDatasetHandler):
             end_year: End year for processing
         """
         self.logger.info("Starting to merge CASR forcing data")
-        
+
         years = range(start_year - 1, end_year + 1)
         merged_forcing_path.mkdir(parents=True, exist_ok=True)
-        
+
         # Get all CASR files in the raw_data directory
         file_name_pattern = f"domain_{self.domain_name}_*.nc"
         all_casr_files = sorted(raw_forcing_path.glob(file_name_pattern))
-        
+
         if not all_casr_files:
             self.logger.warning(f"No CASR files found in {raw_forcing_path}")
             return
-        
+
         self.logger.info(f"Found {len(all_casr_files)} CASR files in {raw_forcing_path}")
-        
+
         for year in years:
             self.logger.debug(f"Processing CASR year {year}")
-            
+
             for month in range(1, 13):
                 self.logger.debug(f"Processing CASR {year}-{month:02d}")
-                
+
                 # Look for daily CASR files for this month
                 month_pattern = f"domain_{self.domain_name}_{year}{month:02d}"
                 daily_files = [f for f in all_casr_files if month_pattern in f.name]
-                
+
                 # Also look for the last file of the previous month to cover the start of this month
                 # (CASR files starting with YYYYMMDD12 contain data for the first 12 hours of the next day)
                 prev_month_date = pd.Timestamp(year, month, 1) - pd.Timedelta(days=1)
                 prev_pattern = f"domain_{self.domain_name}_{prev_month_date.strftime('%Y%m%d')}"
                 prev_files = [f for f in all_casr_files if prev_pattern in f.name]
-                
+
                 daily_files = sorted(list(set(daily_files + prev_files)))
-                
+
                 if not daily_files:
                     self.logger.debug(f"No CASR files found for {year}-{month:02d}")
                     continue
-                
+
                 self.logger.debug(f"Found {len(daily_files)} CASR files for {year}-{month:02d}")
-                
+
                 # Load datasets
                 datasets = []
                 for file in daily_files:
@@ -210,11 +209,11 @@ class CASRHandler(BaseDatasetHandler):
                         datasets.append(ds)
                     except Exception as e:
                         self.logger.error(f"Error opening CASR file {file}: {str(e)}")
-                
+
                 if not datasets:
                     self.logger.warning(f"No valid CASR datasets for {year}-{month:02d}")
                     continue
-                
+
                 # Process each dataset
                 processed_datasets = []
                 for ds in datasets:
@@ -223,44 +222,44 @@ class CASRHandler(BaseDatasetHandler):
                         processed_datasets.append(processed_ds)
                     except Exception as e:
                         self.logger.error(f"Error processing CASR dataset: {str(e)}")
-                
+
                 if not processed_datasets:
                     self.logger.warning(f"No processed CASR datasets for {year}-{month:02d}")
                     continue
-                
+
                 # Concatenate into monthly data
                 monthly_data = xr.concat(processed_datasets, dim="time", data_vars='all')
                 monthly_data = monthly_data.sortby("time")
                 monthly_data = monthly_data.drop_duplicates(dim='time')
-                
+
                 # Set up time range
                 start_time = pd.Timestamp(year, month, 1)
                 if month == 12:
                     end_time = pd.Timestamp(year + 1, 1, 1) - pd.Timedelta(hours=1)
                 else:
                     end_time = pd.Timestamp(year, month + 1, 1) - pd.Timedelta(hours=1)
-                
+
                 # Ensure complete hourly time series and fill gaps (CASR is 3-hourly)
                 expected_times = pd.date_range(start=start_time, end=end_time, freq='h')
                 monthly_data = monthly_data.reindex(time=expected_times)
                 monthly_data = monthly_data.interpolate_na(dim='time', method='linear')
                 monthly_data = monthly_data.ffill(dim='time').bfill(dim='time')
-                
+
                 # Set time encoding
                 monthly_data = self.setup_time_encoding(monthly_data)
-                
+
                 # Add metadata
                 monthly_data = self.add_metadata(
-                    monthly_data, 
+                    monthly_data,
                     'CASR data aggregated to monthly files and variables renamed for SUMMA compatibility'
                 )
-                
+
                 # Aggressively clean up variable attributes and encoding
                 for var_name in monthly_data.data_vars:
                     var = monthly_data[var_name]
                     var.attrs.clear()
                     var.encoding.clear()
-                    
+
                     # Set clean attributes based on variable name
                     if var_name == 'airpres':
                         var.attrs = {'units': 'Pa', 'long_name': 'air pressure', 'standard_name': 'air_pressure'}
@@ -280,106 +279,106 @@ class CASRHandler(BaseDatasetHandler):
                         var.attrs = {'units': 'W m-2', 'long_name': 'downward shortwave radiation at the surface', 'standard_name': 'surface_downwelling_shortwave_flux_in_air'}
                     elif var_name == 'spechum':
                         var.attrs = {'units': 'kg kg-1', 'long_name': 'specific humidity', 'standard_name': 'specific_humidity'}
-                    
+
                     # Consistently set missing values in encoding
                     var.encoding['missing_value'] = -999.0
                     var.encoding['_FillValue'] = -999.0
-                
+
                 # Save monthly file
                 output_file = merged_forcing_path / f"CASR_monthly_{year}{month:02d}.nc"
                 monthly_data.to_netcdf(output_file)
                 self.logger.debug(f"Saved CASR monthly file: {output_file}")
-                
+
                 # Clean up
                 for ds in datasets:
                     ds.close()
-        
+
         self.logger.info("CASR forcing data merging completed")
-    
+
     def create_shapefile(self, shapefile_path: Path, merged_forcing_path: Path,
                         dem_path: Path, elevation_calculator) -> Path:
         """
         Create CASR grid shapefile.
-        
+
         CASR uses a rotated pole grid similar to RDRS.
-        
+
         Args:
             shapefile_path: Directory where shapefile should be saved
             merged_forcing_path: Path to merged CASR data
             dem_path: Path to DEM for elevation calculation
             elevation_calculator: Function to calculate elevation statistics
-            
+
         Returns:
             Path to the created shapefile
         """
         self.logger.info("Creating CASR grid shapefile")
-        
+
         output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
-        
+
         try:
             # Find a CASR file to get grid information
             casr_files = list(merged_forcing_path.glob('*.nc'))
             if not casr_files:
                 raise FileNotFoundError("No CASR files found")
             casr_file = casr_files[0]
-            
+
             self.logger.info(f"Using CASR file for grid: {casr_file}")
-            
+
             # Read CASR data - similar structure to RDRS
             with xr.open_dataset(casr_file) as ds:
                 rlat, rlon = ds.rlat.values, ds.rlon.values
                 lat, lon = ds.lat.values, ds.lon.values
-            
+
             self.logger.info(f"CASR dimensions: rlat={rlat.shape}, rlon={rlon.shape}")
-            
+
             # Create grid cells
             geometries, ids, lats, lons = [], [], [], []
-            
+
             batch_size = 100
             total_cells = len(rlat) * len(rlon)
             num_batches = (total_cells + batch_size - 1) // batch_size
-            
+
             self.logger.info(f"Creating CASR grid cells in {num_batches} batches")
-            
+
             cell_count = 0
             for i in range(len(rlat)):
                 for j in range(len(rlon)):
                     # Create grid cell corners
-                    rlat_corners = [
-                        rlat[i], rlat[i], 
-                        rlat[i+1] if i+1 < len(rlat) else rlat[i], 
+                    [
+                        rlat[i], rlat[i],
+                        rlat[i+1] if i+1 < len(rlat) else rlat[i],
                         rlat[i+1] if i+1 < len(rlat) else rlat[i]
                     ]
-                    rlon_corners = [
-                        rlon[j], 
-                        rlon[j+1] if j+1 < len(rlon) else rlon[j], 
-                        rlon[j+1] if j+1 < len(rlon) else rlon[j], 
+                    [
+                        rlon[j],
+                        rlon[j+1] if j+1 < len(rlon) else rlon[j],
+                        rlon[j+1] if j+1 < len(rlon) else rlon[j],
                         rlon[j]
                     ]
-                    
+
                     # Get actual lat/lon corners
                     lat_corners = [
-                        lat[i,j], 
+                        lat[i,j],
                         lat[i, j+1] if j+1 < len(rlon) else lat[i,j],
                         lat[i+1, j+1] if i+1 < len(rlat) and j+1 < len(rlon) else lat[i,j],
                         lat[i+1, j] if i+1 < len(rlat) else lat[i,j]
                     ]
                     lon_corners = [
-                        lon[i,j], 
+                        lon[i,j],
                         lon[i, j+1] if j+1 < len(rlon) else lon[i,j],
                         lon[i+1, j+1] if i+1 < len(rlat) and j+1 < len(rlon) else lon[i,j],
                         lon[i+1, j] if i+1 < len(rlat) else lon[i,j]
                     ]
-                    
+
                     geometries.append(Polygon(zip(lon_corners, lat_corners)))
                     ids.append(i * len(rlon) + j)
                     lats.append(lat[i,j])
                     lons.append(lon[i,j])
-                    
+
                     cell_count += 1
                     if cell_count % batch_size == 0 or cell_count == total_cells:
                         self.logger.info(f"Created {cell_count}/{total_cells} CASR grid cells")
-            
+
             # Create GeoDataFrame
             gdf = gpd.GeoDataFrame({
                 'geometry': geometries,
@@ -387,12 +386,12 @@ class CASRHandler(BaseDatasetHandler):
                 self.config.get('FORCING_SHAPE_LAT_NAME'): lats,
                 self.config.get('FORCING_SHAPE_LON_NAME'): lons,
             }, crs='EPSG:4326')
-            
+
             # Calculate elevation
             self.logger.info("Calculating elevation values using safe method")
             elevations = elevation_calculator(gdf, dem_path, batch_size=50)
             gdf['elev_m'] = elevations
-            
+
             # Remove invalid elevation cells if requested
             if self.config.get('REMOVE_INVALID_ELEVATION_CELLS', False):
                 valid_count = len(gdf)
@@ -400,14 +399,14 @@ class CASRHandler(BaseDatasetHandler):
                 removed_count = valid_count - len(gdf)
                 if removed_count > 0:
                     self.logger.info(f"Removed {removed_count} cells with invalid elevation values")
-            
+
             # Save shapefile
             output_shapefile.parent.mkdir(parents=True, exist_ok=True)
             gdf.to_file(output_shapefile)
             self.logger.info(f"CASR shapefile created and saved to {output_shapefile}")
-            
+
             return output_shapefile
-            
+
         except Exception as e:
             self.logger.error(f"Error in create_casr_shapefile: {str(e)}")
             import traceback

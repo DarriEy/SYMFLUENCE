@@ -43,7 +43,7 @@ def discretize(discretizer: "DomainDiscretizer", attributes: List[str]):
     )
     if delineate_coastal:
         default_name = f"{discretizer.domain_name}_riverBasins_with_coastal.shp"
-        
+
     gru_shapefile = discretizer._get_file_path(
         path_key="RIVER_BASINS_PATH",
         name_key="RIVER_BASINS_NAME",

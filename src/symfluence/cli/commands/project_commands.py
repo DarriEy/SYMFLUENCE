@@ -168,7 +168,7 @@ class ProjectCommands(BaseCommand):
             init_manager = InitializationManager()
 
             # InitializationManager handles all output formatting
-            presets = init_manager.list_presets()
+            init_manager.list_presets()
 
             return ExitCode.SUCCESS
 

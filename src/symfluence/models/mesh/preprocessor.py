@@ -450,7 +450,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         # Ensure GRU_ID and hru_dim exist for meshflow joining and indexing
         main_id = self._meshflow_config.get('main_id', 'GRU_ID')
         hru_dim = self._meshflow_config.get('hru_dim', 'subbasin')
-        
+
         self.data_preprocessor.ensure_gru_id(str(cat_copy))
         self.data_preprocessor.ensure_hru_id(str(cat_copy), hru_dim, main_id)
         self.data_preprocessor.ensure_hru_id(str(riv_copy), hru_dim, main_id)

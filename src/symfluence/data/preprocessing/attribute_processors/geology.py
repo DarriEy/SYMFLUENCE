@@ -439,11 +439,9 @@ class GeologyProcessor(BaseAttributeProcessor):
                         unit_desc = str(unit.get(litho_column, '')).lower()
 
                         # Classify the unit into a category based on keywords
-                        classified = False
                         for category, keywords in rock_categories.items():
                             if any(keyword in unit_desc for keyword in keywords):
                                 litho_by_category[category] += area
-                                classified = True
                                 break
 
                     # Calculate percentages for rock categories
@@ -522,11 +520,9 @@ class GeologyProcessor(BaseAttributeProcessor):
                                 unit_desc = str(unit.get(litho_column, '')).lower()
 
                                 # Classify the unit into a category based on keywords
-                                classified = False
                                 for category, keywords in rock_categories.items():
                                     if any(keyword in unit_desc for keyword in keywords):
                                         litho_by_category[category] += area
-                                        classified = True
                                         break
 
                             # Calculate percentages for rock categories

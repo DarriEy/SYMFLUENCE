@@ -16,7 +16,6 @@ import logging
 
 import geopandas as gpd
 from shapely.affinity import translate
-from shapely.validation import make_valid
 
 
 class ShapefileManager:
@@ -104,7 +103,7 @@ class ShapefileManager:
                     self.logger.info(f"Using field '{actual_saved_field}' from WGS84 shapefile")
                     return wgs84_shapefile, actual_saved_field
                 # actual_hru_field is guaranteed to be str at this point due to earlier initialization
-                return wgs84_shapefile, actual_hru_field  
+                return wgs84_shapefile, actual_hru_field
 
             return wgs84_shapefile
 

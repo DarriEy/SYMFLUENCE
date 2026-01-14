@@ -162,7 +162,7 @@ class DataAcquisitionProcessor:
         self.domain_name = self.config.get('DOMAIN_NAME')
         self.project_dir = self.root_path / f"domain_{self.domain_name}"
         self.variable_handler = VariableHandler(self.config, self.logger, 'ERA5', 'SUMMA')
-        
+
 
     def prepare_maf_json(self) -> Path:
         """Prepare the JSON file for the Model Agnostic Framework."""
@@ -294,7 +294,7 @@ class DataAcquisitionProcessor:
 
 
         maf_script = self.root_path / "installs/MAF/02_model_agnostic_component/model-agnostic.sh"
-        
+
         #Run the MAF script
         try:
             subprocess.run([str(maf_script), str(json_path)], check=True)
@@ -303,7 +303,7 @@ class DataAcquisitionProcessor:
             self.logger.error(f"Error running Model Agnostic Framework: {e}")
             raise
         self.logger.info("Data acquisition process completed")
-    
+
     def _get_file_path(self, file_type, file_def_path, file_name):
         """
         Construct file paths based on configuration.

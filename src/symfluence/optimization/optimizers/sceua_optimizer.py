@@ -134,7 +134,7 @@ class SCEUAOptimizer(BaseOptimizer):
         SCE-UA global optimization method for calibrating watershed models.
         Journal of Hydrology, 158, 265-284.
     """
-    
+
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """Initialize SCE-UA optimizer (placeholder).
 

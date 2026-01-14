@@ -145,7 +145,7 @@ All notable changes to SYMFLUENCE are documented here.
 ## [0.5.3] - DEVELOP: 2025-11-15
 
 ### Added
-- Support for cloud acquisition of 
+- Support for cloud acquisition of
   - Copernicus DEM
   - MODIS land cover
   - Global USDA-NRCS soil texture class map
@@ -163,18 +163,18 @@ All notable changes to SYMFLUENCE are documented here.
 **This release marks the first fully reproducible SYMFLUENCE workflow with continuous integration.**
 
 ### Added
-- **End-to-End CI Pipeline (Example Notebook 2a Equivalent)**  
-  Integrated a comprehensive GitHub Actions workflow that builds, validates, and runs SYMFLUENCE automatically on every commit to `main`.  
-  - Compiles all hydrologic model dependencies (TauDEM, mizuRoute, FUSE, NGEN).  
-  - Validates MPI, NetCDF, GDAL, and HDF5 environments.  
-  - Executes key steps (`setup_project`, `create_pour_point`, `define_domain`, `discretize_domain`, `model_agnostic_preprocessing`, `run_model`, `calibrate_model`, `run_benchmarking`).  
-  - Confirms reproducible outputs under `SYMFLUENCE_DATA_DIR/domain_Bow_at_Banff`.  
-  - Runs both wrapper (`./symfluence`) and direct Python entrypoints equivalently.  
+- **End-to-End CI Pipeline (Example Notebook 2a Equivalent)**
+  Integrated a comprehensive GitHub Actions workflow that builds, validates, and runs SYMFLUENCE automatically on every commit to `main`.
+  - Compiles all hydrologic model dependencies (TauDEM, mizuRoute, FUSE, NGEN).
+  - Validates MPI, NetCDF, GDAL, and HDF5 environments.
+  - Executes key steps (`setup_project`, `create_pour_point`, `define_domain`, `discretize_domain`, `model_agnostic_preprocessing`, `run_model`, `calibrate_model`, `run_benchmarking`).
+  - Confirms reproducible outputs under `SYMFLUENCE_DATA_DIR/domain_Bow_at_Banff`.
+  - Runs both wrapper (`./symfluence`) and direct Python entrypoints equivalently.
 
 ### Changed
-- Updated `external_tools_config.py` to include automatic path resolution for TauDEM binaries (e.g., `moveoutletstostrms → moveoutletstostreams`).  
-- Expanded logging and run summaries for CI visibility.  
-- Protected `main` branch to require successful CI validation before merge.  
+- Updated `external_tools_config.py` to include automatic path resolution for TauDEM binaries (e.g., `moveoutletstostrms → moveoutletstostreams`).
+- Expanded logging and run summaries for CI visibility.
+- Protected `main` branch to require successful CI validation before merge.
 
 ### Notes
 This release formalizes SYMFLUENCE’s **reproducibility framework**, guaranteeing that all supported workflows can be rebuilt and validated automatically on clean systems.

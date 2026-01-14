@@ -26,13 +26,13 @@ Installation and Environment
 ----------------------------
 **Environment not found**
 - Ensure you installed using the built-in installer:
-  
+
   .. code-block:: bash
 
      ./symfluence --install
 
 - Activate environment:
-  
+
   .. code-block:: bash
 
      source .venv/bin/activate
@@ -44,7 +44,7 @@ Installation and Environment
 **Version conflicts**
 - Use Python 3.11. Other versions are not guaranteed to be supported.
 - Reinstall dependencies cleanly:
-  
+
   .. code-block:: bash
 
      rm -rf .venv

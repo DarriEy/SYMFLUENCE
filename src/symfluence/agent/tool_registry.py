@@ -55,7 +55,7 @@ class ToolRegistry:
     def _build_tool_definitions(self) -> List[Dict[str, Any]]:
         """
         Build all tool definitions from CLI manager.
-        
+
         Deprecated: Use get_tool_definitions() instead.
 
         Returns:
@@ -66,7 +66,7 @@ class ToolRegistry:
     def _build_workflow_step_tools(self) -> List[Dict[str, Any]]:
         """Build tool definitions for all workflow steps."""
         from symfluence.cli.commands.workflow_commands import WorkflowCommands
-        
+
         tools = []
 
         for step_name, description in WorkflowCommands.WORKFLOW_STEPS.items():

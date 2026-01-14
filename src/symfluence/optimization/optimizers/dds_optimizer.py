@@ -73,7 +73,7 @@ class DDSOptimizer(BaseOptimizer):
         algorithm for computationally efficient watershed model calibration,
         Water Resources Research, 43, W01413.
     """
-    
+
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """Initialize DDS optimizer.
 
@@ -103,36 +103,36 @@ class DDSOptimizer(BaseOptimizer):
         """
         initial_params = self.parameter_manager.get_initial_parameters()
         self._initialize_dds(initial_params)
-        
+
         if self.use_parallel and self.num_processes > 1:
             return self._run_multi_start_parallel_dds()
         else:
             return self._run_single_dds()
-    
+
     def _initialize_dds(self, initial_params: Dict[str, np.ndarray]) -> None:
         """Initialize DDS with a single solution"""
         param_count = len(self.parameter_manager.all_param_names)
         self.population = np.random.random((1, param_count))
         self.population_scores = np.full(1, np.nan, dtype=float)
-        
+
         assert self.population is not None
         assert self.population_scores is not None
 
         if initial_params:
             initial_normalized = self.parameter_manager.normalize_parameters(initial_params)
             self.population[0] = np.clip(initial_normalized, 0, 1)
-        
+
         self.population_scores[0] = self._evaluate_individual(self.population[0])
-        
+
         if not np.isnan(self.population_scores[0]):
             self.best_score = self.population_scores[0]
             self.best_params = self.parameter_manager.denormalize_parameters(self.population[0])
         else:
             self.best_score = float('-inf')
             self.best_params = initial_params
-        
+
         self._record_generation(0)
-    
+
     def _run_single_dds(self) -> Tuple[Dict, float, List]:
         """Run single-instance DDS algorithm (main optimization loop).
 
@@ -174,16 +174,16 @@ class DDSOptimizer(BaseOptimizer):
         current_solution = self.population[0].copy()
         current_score = self.population_scores[0]
         num_params = len(self.parameter_manager.all_param_names)
-        
+
         for iteration in range(1, self.max_iterations + 1):
             prob_select = 1.0 - np.log(iteration) / np.log(self.max_iterations) if self.max_iterations > 1 else 0.5
             prob_select = max(prob_select, 1.0 / num_params)
-            
+
             trial_solution = current_solution.copy()
             variables_to_perturb = np.random.random(num_params) < prob_select
             if not np.any(variables_to_perturb):
                 variables_to_perturb[np.random.randint(0, num_params)] = True
-            
+
             for i in range(num_params):
                 if variables_to_perturb[i]:
                     perturbation = np.random.normal(0, self.dds_r)
@@ -191,9 +191,9 @@ class DDSOptimizer(BaseOptimizer):
                     if trial_solution[i] < 0: trial_solution[i] = -trial_solution[i]
                     elif trial_solution[i] > 1: trial_solution[i] = 2.0 - trial_solution[i]
                     trial_solution[i] = np.clip(trial_solution[i], 0, 1)
-            
+
             trial_score = self._evaluate_individual(trial_solution)
-            
+
             improvement = False
             if trial_score > current_score:
                 current_solution = trial_solution.copy()
@@ -204,12 +204,12 @@ class DDSOptimizer(BaseOptimizer):
                 if trial_score > self.best_score:
                     self.best_score = trial_score
                     self.best_params = self.parameter_manager.denormalize_parameters(trial_solution)
-            
-            self._record_dds_generation(iteration, current_score, trial_score, improvement, 
+
+            self._record_dds_generation(iteration, current_score, trial_score, improvement,
                                       np.sum(variables_to_perturb), prob_select)
-        
+
         return self.best_params, self.best_score, self.iteration_history
-    
+
     def _run_multi_start_parallel_dds(self) -> Tuple[Dict, float, List]:
         """Multi-start parallel DDS"""
         num_starts = self.num_processes
@@ -278,7 +278,7 @@ class DDSOptimizer(BaseOptimizer):
         self.best_score = best_result['best_score']
         self.best_params = best_result['best_params']
         return self.best_params, self.best_score, self.iteration_history
-    
+
     def _prepare_dds_worker_data(self, task: Dict) -> Dict:
         """Prepare data for DDS instance worker"""
         proc_dirs = self.parallel_dirs[task['proc_id']] if hasattr(self, 'parallel_dirs') and task['proc_id'] < len(self.parallel_dirs) else {}
@@ -307,8 +307,8 @@ class DDSOptimizer(BaseOptimizer):
             'best_params': self.best_params.copy() if self.best_params else None,
             'valid_individuals': len(valid_scores)
         })
-    
-    def _record_dds_generation(self, iteration: int, current_score: float, trial_score: float, 
+
+    def _record_dds_generation(self, iteration: int, current_score: float, trial_score: float,
                               improvement: bool, num_perturbed: int, prob_select: float) -> None:
         self.iteration_history.append({
             'generation': iteration, 'algorithm': 'DDS', 'best_score': self.best_score,

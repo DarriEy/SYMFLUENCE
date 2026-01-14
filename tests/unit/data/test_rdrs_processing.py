@@ -25,9 +25,9 @@ def test_rdrs_v21_processing(rdrs_handler):
         },
         coords={'time': times}
     )
-    
+
     processed = rdrs_handler.process_dataset(ds)
-    
+
     assert processed.airtemp.values[0] == 10.0 + PhysicalConstants.KELVIN_OFFSET
     assert processed.airpres.values[0] == 1013.0 * 100
     assert processed.pptrate.values[0] == 1.0 / 3600.0
@@ -43,9 +43,9 @@ def test_rdrs_v31_processing(rdrs_handler):
         },
         coords={'time': times}
     )
-    
+
     processed = rdrs_handler.process_dataset(ds)
-    
+
     assert processed.airtemp.values[0] == 283.15
     assert processed.airpres.values[0] == 101325.0
     assert processed.pptrate.values[0] == 0.0001

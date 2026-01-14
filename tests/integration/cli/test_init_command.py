@@ -60,7 +60,7 @@ def _run_cli(args, *, cwd=None, env=None):
                 )
                 new_console = Console(new_config)
                 set_console(new_console)
-                
+
                 # Also update BaseCommand's reference if it cached it
                 from symfluence.cli.commands.base import BaseCommand
                 BaseCommand.set_console(new_console)

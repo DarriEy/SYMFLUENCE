@@ -167,10 +167,10 @@ class ElevationProcessor(BaseAttributeProcessor):
                 'circmean': calc_circmean
             }
 
-            try:
-                from scipy.stats import circstd
+            from importlib.util import find_spec
+            if find_spec("scipy"):
                 custom_stats['circstd'] = calc_circstd
-            except ImportError:
+            else:
                 self.logger.warning("scipy.stats.circstd not available, skipping circular std")
 
             zonal_out = zonal_stats(

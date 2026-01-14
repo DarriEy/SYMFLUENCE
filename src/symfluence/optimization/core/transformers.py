@@ -31,7 +31,7 @@ class ParameterTransformer:
 
 class SoilDepthTransformer(ParameterTransformer):
     """Handles transformation of soil depth parameters."""
-    
+
     SPECIAL_PARAMS = ['total_soil_depth_multiplier', 'total_mult', 'shape_factor']
 
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
@@ -57,7 +57,7 @@ class SoilDepthTransformer(ParameterTransformer):
         # Check if any special parameters are present
         if not any(p in params for p in self.SPECIAL_PARAMS):
             return True
-            
+
         try:
             coldstate_path = settings_dir / self.config.get('SETTINGS_SUMMA_COLDSTATE', 'coldState.nc')
             if not coldstate_path.exists():
@@ -67,7 +67,7 @@ class SoilDepthTransformer(ParameterTransformer):
             # Load original depths if not already loaded
             if self.original_depths is None:
                 self.original_depths = self._get_original_depths(coldstate_path)
-            
+
             if self.original_depths is None:
                 return False
 
@@ -75,15 +75,15 @@ class SoilDepthTransformer(ParameterTransformer):
             total_mult = params.get('total_soil_depth_multiplier')
             if total_mult is None:
                 total_mult = params.get('total_mult', 1.0)
-            
+
             shape_factor = params.get('shape_factor', 1.0)
-            
+
             if isinstance(total_mult, np.ndarray): total_mult = total_mult[0]
             if isinstance(shape_factor, np.ndarray): shape_factor = shape_factor[0]
 
             # Calculate new depths
             new_depths = self._calculate_new_depths(self.original_depths, total_mult, shape_factor)
-            
+
             # Calculate layer heights (cumulative sum)
             heights = np.zeros(len(new_depths) + 1)
             for i in range(len(new_depths)):
@@ -99,7 +99,7 @@ class SoilDepthTransformer(ParameterTransformer):
                 else:
                     self.logger.error("Required variables not found in coldState.nc")
                     return False
-            
+
             return True
 
         except Exception as e:
@@ -117,7 +117,7 @@ class SoilDepthTransformer(ParameterTransformer):
     def _calculate_new_depths(self, original: np.ndarray, total_mult: float, shape_factor: float) -> np.ndarray:
         n = len(original)
         idx = np.arange(n)
-        
+
         # Calculate shape weights (exponential stretching)
         if shape_factor > 1:
             w = np.exp(idx / (n - 1) * np.log(shape_factor))
@@ -125,10 +125,10 @@ class SoilDepthTransformer(ParameterTransformer):
             w = np.exp((n - 1 - idx) / (n - 1) * np.log(1 / shape_factor))
         else:
             w = np.ones(n)
-        
+
         # Normalize weights so they average to 1.0
         w /= w.mean()
-        
+
         # Apply multipliers
         return original * w * total_mult
 

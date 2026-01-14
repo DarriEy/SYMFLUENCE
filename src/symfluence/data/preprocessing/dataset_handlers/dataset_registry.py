@@ -5,9 +5,7 @@ Provides a central registry for dataset preprocessing handlers.
 Uses standardized BaseRegistry pattern with lowercase key normalization.
 """
 
-from typing import Dict, Type, Any, List
-from pathlib import Path
-import logging
+from typing import Dict, Type, List
 
 from symfluence.data.base_registry import BaseRegistry
 
@@ -47,12 +45,12 @@ class DatasetRegistry(BaseRegistry):
 
         # Dataset handlers typically expect (config, logger, project_dir)
         # and extra kwargs for forcing_timestep_seconds etc.
-        
+
         # If config is provided in args or kwargs, try to inject defaults
         config = kwargs.get('config')
         if not config and len(args) > 0:
             config = args[0]
-            
+
         if config:
             kwargs.setdefault("forcing_timestep_seconds", config.get("FORCING_TIME_STEP_SIZE", 3600))
 

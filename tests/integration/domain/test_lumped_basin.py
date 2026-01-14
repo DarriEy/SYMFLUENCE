@@ -47,7 +47,7 @@ def config_path(bow_domain, tmp_path, symfluence_code_dir):
     # Lumped basin settings
     config_dict['DOMAIN_DEFINITION_METHOD'] = 'lumped'
     config_dict['DOMAIN_DISCRETIZATION'] = 'GRUs'
-    
+
     # Handle different naming conventions in data bundles
     # River basins
     river_basins_name = f'{domain_name}_riverBasins_lumped.shp'
@@ -114,17 +114,17 @@ def _prune_raw_forcing(project_dir: Path, keep_glob: str) -> None:
     raw_dir = project_dir / "forcing" / "raw_data"
     if not raw_dir.exists():
         return
-    
+
     # Try multiple globs to support both old and new names
     candidates = sorted(raw_dir.glob(keep_glob))
     if not candidates:
         # Try a more generic pattern if the specific one fails
         if "ERA5" in keep_glob:
             candidates = sorted(raw_dir.glob("*ERA5*1month*.nc"))
-    
+
     if not candidates:
         return
-        
+
     keep = candidates[0]
     for path in raw_dir.glob("*.nc"):
         if path != keep:

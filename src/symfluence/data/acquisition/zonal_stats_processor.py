@@ -436,7 +436,7 @@ class DataPreProcessor:
 
         stats = zonal_stats(catchment_gdf, dem_data, affine=affine, stats=['mean'], nodata=nodata_value)
         result_df = pd.DataFrame(stats).rename(columns={'mean': 'elev_mean_new'})
-        
+
         if 'elev_mean' in catchment_gdf.columns:
             catchment_gdf['elev_mean'] = result_df['elev_mean_new']
         else:
@@ -507,7 +507,7 @@ class DataPreProcessor:
         intersect_path = self._get_file_path('INTERSECT_SOIL_PATH', 'shapefiles/catchment_intersection/with_soilgrids', intersect_soil_name)
         self.logger.info(f'processing landclasses: {soil_path}')
 
-        if not intersect_path.exists() or self.config.get('FORCE_RUN_ALL_STEPS') == True:
+        if not intersect_path.exists() or self.config.get('FORCE_RUN_ALL_STEPS'):
             intersect_path.parent.mkdir(parents=True, exist_ok=True)
 
             catchment_gdf = gpd.read_file(catchment_path)
@@ -519,15 +519,15 @@ class DataPreProcessor:
 
             stats = zonal_stats(catchment_gdf, soil_data, affine=affine, stats=['count'], categorical=True, nodata=nodata_value)
             result_df = pd.DataFrame(stats)
-            
+
             # Find the most common soil class (excluding 'count' column)
             soil_columns = [col for col in result_df.columns if col != 'count']
             most_common_soil = result_df[soil_columns].sum().idxmax()
-            
+
             # Fill NaN values with the most common soil class (fallback in case very small HRUs)
             if result_df.isna().any().any():
                 self.logger.warning("NaN values found in soil statistics. Filling with most common soil class. Please check HRU's size or use higher resolution land class raster")
-                result_df = result_df.fillna({col: (0 if col == 'count' else most_common_soil) for col in result_df.columns})            
+                result_df = result_df.fillna({col: (0 if col == 'count' else most_common_soil) for col in result_df.columns})
 
             def rename_column(x):
                 if x == 'count':
@@ -616,7 +616,7 @@ class DataPreProcessor:
         intersect_path = self._get_file_path('INTERSECT_LAND_PATH', 'shapefiles/catchment_intersection/with_landclass', intersect_name)
         self.logger.info(f'processing landclasses: {land_path}')
 
-        if not intersect_path.exists() or self.config.get('FORCE_RUN_ALL_STEPS') == True:
+        if not intersect_path.exists() or self.config.get('FORCE_RUN_ALL_STEPS'):
             intersect_path.parent.mkdir(parents=True, exist_ok=True)
 
             catchment_gdf = gpd.read_file(catchment_path)
@@ -628,11 +628,11 @@ class DataPreProcessor:
 
             stats = zonal_stats(catchment_gdf, land_data, affine=affine, stats=['count'], categorical=True, nodata=nodata_value)
             result_df = pd.DataFrame(stats)
-            
+
             # Find the most common land class (excluding 'count' column)
             land_columns = [col for col in result_df.columns if col != 'count']
             most_common_land = result_df[land_columns].sum().idxmax()
-            
+
             # Fill NaN values with the most common land class (fallback in case very small HRUs)
             if result_df.isna().any().any():
                 self.logger.warning("NaN values found in land statistics. Filling with most common land class. Please check HRU's size or use higher resolution land class raster")

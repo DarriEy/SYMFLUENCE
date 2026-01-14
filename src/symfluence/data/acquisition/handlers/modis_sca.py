@@ -9,18 +9,13 @@ References:
 - MYD10A1: https://nsidc.org/data/myd10a1
 - AppEEARS: https://appeears.earthdatacloud.nasa.gov/
 """
-import logging
 import requests
-import time
-import json
-import os
 import numpy as np
 import pandas as pd
 import xarray as xr
 from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List, Tuple
-from ..base import BaseAcquisitionHandler
+from datetime import datetime
+from typing import Dict, Optional, List
 from ..registry import AcquisitionRegistry
 from .appeears_base import BaseAppEEARSAcquirer
 

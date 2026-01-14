@@ -42,7 +42,7 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         default_subpath="attributes/landclass",
         default_name=f"domain_{discretizer.domain_name}_land_classes.tif",
     )
-    
+
     output_shapefile = discretizer._get_file_path(
         path_key="CATCHMENT_PATH",
         name_key="CATCHMENT_SHP_NAME",

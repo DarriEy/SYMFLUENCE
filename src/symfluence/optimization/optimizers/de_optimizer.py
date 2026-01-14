@@ -109,7 +109,7 @@ class DEOptimizer(BaseOptimizer):
         the State-of-the-Art. IEEE Transactions on Evolutionary Computation,
         15(1), 4-31.
     """
-    
+
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """Initialize DE optimizer.
 
@@ -162,7 +162,7 @@ class DEOptimizer(BaseOptimizer):
         if config_pop_size: return config_pop_size
         total_params = len(self.parameter_manager.all_param_names)
         return max(15, min(4 * total_params, 50))
-    
+
     def _run_algorithm(self) -> Tuple[Dict, float, List]:
         """Execute DE optimization algorithm.
 
@@ -178,7 +178,7 @@ class DEOptimizer(BaseOptimizer):
         initial_params = self.parameter_manager.get_initial_parameters()
         self._initialize_population(initial_params)
         return self._run_de_algorithm()
-    
+
     def _initialize_population(self, initial_params: Dict[str, np.ndarray]) -> None:
         """Initialize the DE population with random individuals.
 
@@ -202,22 +202,22 @@ class DEOptimizer(BaseOptimizer):
         param_count = len(self.parameter_manager.all_param_names)
         self.population = np.random.random((self.population_size, param_count))
         self.population_scores = np.full(self.population_size, np.nan)
-        
+
         assert self.population is not None
         assert self.population_scores is not None
 
         if initial_params:
             initial_normalized = self.parameter_manager.normalize_parameters(initial_params)
             self.population[0] = np.clip(initial_normalized, 0, 1)
-        
+
         self._evaluate_population()
         best_idx = np.nanargmax(self.population_scores)
         if not np.isnan(self.population_scores[best_idx]):
             self.best_score = self.population_scores[best_idx]
             self.best_params = self.parameter_manager.denormalize_parameters(self.population[best_idx])
-        
+
         self._record_generation(0)
-    
+
     def _run_de_algorithm(self) -> Tuple[Dict, float, List]:
         assert self.population is not None
         assert self.population_scores is not None
@@ -274,7 +274,7 @@ class DEOptimizer(BaseOptimizer):
 
             self._record_generation(generation)
         return self.best_params, self.best_score, self.iteration_history
-    
+
     def _create_trial_population(self) -> np.ndarray:
         """Create trial population using DE/rand/1/bin mutation and crossover.
 
@@ -318,7 +318,8 @@ class DEOptimizer(BaseOptimizer):
         trial_population = np.zeros_like(self.population)
         param_count = len(self.parameter_manager.all_param_names)
         for i in range(self.population_size):
-            candidates = list(range(self.population_size)); candidates.remove(i)
+            candidates = list(range(self.population_size))
+            candidates.remove(i)
             r1, r2, r3 = np.random.choice(candidates, 3, replace=False)
             mutant = np.clip(self.population[r1] + self.F * (self.population[r2] - self.population[r3]), 0, 1)
             trial = self.population[i].copy()
@@ -327,7 +328,7 @@ class DEOptimizer(BaseOptimizer):
                 if np.random.random() < self.CR or j == j_rand: trial[j] = mutant[j]
             trial_population[i] = trial
         return trial_population
-    
+
     def _evaluate_population(self) -> None:
         """Evaluate current population, skipping already-evaluated members.
 
@@ -410,7 +411,7 @@ class DEOptimizer(BaseOptimizer):
         scores = np.full(self.population_size, np.nan)
         for res in results: scores[res['individual_id']] = res['score'] if res['score'] is not None else float('-inf')
         return scores
-    
+
     def _record_generation(self, generation: int) -> None:
         """Record convergence metrics for this generation.
 

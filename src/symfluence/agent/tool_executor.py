@@ -77,14 +77,14 @@ class ToolExecutor:
             SYMFLUENCE instance
         """
         config_key = str(Path(config_path).absolute())
-        
+
         # Check cache (ignore debug_mode for cache hits, but update if requested)
         if config_key in self._sf_cache:
             sf = self._sf_cache[config_key]
             if debug_mode:
                 sf.debug_mode = True
             return sf
-            
+
         # Create new instance
         from symfluence.core import SYMFLUENCE
         sf = SYMFLUENCE(config_path, debug_mode=debug_mode)
@@ -103,7 +103,7 @@ class ToolExecutor:
             ToolResult with execution status and output
         """
         from symfluence.cli.commands.workflow_commands import WorkflowCommands
-        
+
         try:
             # Workflow step execution
             if tool_name in WorkflowCommands.WORKFLOW_STEPS:
@@ -166,7 +166,7 @@ class ToolExecutor:
         """
         from symfluence.cli.commands.workflow_commands import WorkflowCommands
         from argparse import Namespace
-        
+
         try:
             config_path = arguments.get('config_path')
             if not config_path:
@@ -189,7 +189,7 @@ class ToolExecutor:
                     visualise=arguments.get('visualise', False),
                     force_rerun=arguments.get('force_rerun', False)
                 )
-                
+
                 exit_code = WorkflowCommands.run_step(args)
 
                 output = captured_output.getvalue()
@@ -224,7 +224,7 @@ class ToolExecutor:
         """
         from symfluence.cli.commands.binary_commands import BinaryCommands
         from argparse import Namespace
-        
+
         try:
             old_stdout = sys.stdout
             sys.stdout = captured_output = io.StringIO()
@@ -234,7 +234,7 @@ class ToolExecutor:
                     debug=arguments.get('debug', False),
                     verbose=arguments.get('verbose', True)
                 )
-                
+
                 exit_code = 1
                 if operation == 'install_executables':
                     args.tools = arguments.get('tools', [])
@@ -279,7 +279,7 @@ class ToolExecutor:
         """
         from symfluence.cli.commands.config_commands import ConfigCommands
         from argparse import Namespace
-        
+
         try:
             old_stdout = sys.stdout
             sys.stdout = captured_output = io.StringIO()
@@ -288,7 +288,7 @@ class ToolExecutor:
                 args = Namespace(
                     debug=arguments.get('debug', False)
                 )
-                
+
                 exit_code = 1
                 if operation == 'list_config_templates':
                     exit_code = ConfigCommands.list_templates(args)
@@ -334,7 +334,7 @@ class ToolExecutor:
         """
         from symfluence.cli.commands.workflow_commands import WorkflowCommands
         from argparse import Namespace
-        
+
         try:
             old_stdout = sys.stdout
             sys.stdout = captured_output = io.StringIO()
@@ -345,7 +345,7 @@ class ToolExecutor:
                     config=arguments.get('config_path'),
                     visualise=False
                 )
-                
+
                 exit_code = 1
                 if operation == 'list_workflow_steps':
                     exit_code = WorkflowCommands.list_steps(args)
@@ -391,7 +391,7 @@ class ToolExecutor:
         """
         from symfluence.cli.commands.project_commands import ProjectCommands
         from argparse import Namespace
-        
+
         try:
             old_stdout = sys.stdout
             sys.stdout = captured_output = io.StringIO()
@@ -402,7 +402,7 @@ class ToolExecutor:
                 if arguments.get('bounding_box'):
                     b = arguments['bounding_box']
                     bbox = f"{b['lat_max']}/{b['lon_min']}/{b['lat_min']}/{b['lon_max']}"
-                
+
                 args = Namespace(
                     debug=arguments.get('debug', False),
                     coordinates=coords,
@@ -411,7 +411,7 @@ class ToolExecutor:
                     bounding_box_coords=bbox,
                     experiment_id=arguments.get('experiment_id')
                 )
-                
+
                 exit_code = ProjectCommands.pour_point(args)
 
                 output = captured_output.getvalue()
@@ -607,10 +607,10 @@ class ToolExecutor:
                         error="Tool registry not available",
                         exit_code=1
                     )
-                
+
                 tools_by_category = self.tool_registry.get_tools_by_category()
                 tools_info = "Available Tools:\n\n"
-                
+
                 for category, tools in tools_by_category.items():
                     tools_info += f"{category}:\n"
                     for tool in tools:

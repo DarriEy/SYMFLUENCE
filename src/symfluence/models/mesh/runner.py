@@ -184,7 +184,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
         shutil.copy2(self.mesh_exe, mesh_exe_dest)
         # Make sure it's executable
         mesh_exe_dest.chmod(0o755)
-        
+
         # Create results directory that MESH expects
         results_dir = self.forcing_mesh_path / 'results'
         results_dir.mkdir(parents=True, exist_ok=True)
@@ -241,13 +241,13 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
         """
         if not self.output_dir.exists():
             self.output_dir.mkdir(parents=True, exist_ok=True)
-            
+
         outputs_to_copy = [
             'MESH_output_streamflow.csv',
             'MESH_output_echo_print.txt',
             'MESH_output_echo_results.txt'
         ]
-        
+
         for out_file in outputs_to_copy:
             src = self.forcing_mesh_path / out_file
             if src.exists():

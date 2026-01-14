@@ -16,7 +16,7 @@ from typing import Dict, Any, Optional
 
 from ..registry import ObservationRegistry
 from ..base import BaseObservationHandler
-from ...acquisition.handlers.fluxnet_constants import convert_le_to_et, LE_TO_ET_FACTOR
+from ...acquisition.handlers.fluxnet_constants import convert_le_to_et
 
 
 @ObservationRegistry.register('FLUXNET')
@@ -124,7 +124,6 @@ class FLUXNETObservationHandler(BaseObservationHandler):
             df = pd.read_csv(raw_path, index_col=0, parse_dates=True)
 
             # Ensure required columns exist
-            required_cols = ['et_mm_day']
             et_col = None
 
             # Find ET column

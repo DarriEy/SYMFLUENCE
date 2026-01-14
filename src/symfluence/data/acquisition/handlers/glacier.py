@@ -6,11 +6,8 @@ and processes it into rasters for SUMMA glacier simulations.
 """
 
 import logging
-import zipfile
-import tempfile
-import shutil
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, List
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -213,7 +210,6 @@ class GlacierAcquirer(BaseAcquisitionHandler):
 
     def _download_single_region(self, region_id: int, cache_dir: Path) -> Optional[gpd.GeoDataFrame]:
         """Download RGI data for a single region."""
-        import pandas as pd
 
         # RGI 7.0 file naming: RGI2000-v7.0-G-01_alaska.zip (shapefile format)
         region_name = RGI_REGIONS[region_id]['name'].lower().replace(' ', '_').replace(' and ', '_')
@@ -318,7 +314,6 @@ class GlacierAcquirer(BaseAcquisitionHandler):
             )
             response.raise_for_status()
 
-            import json
             geojson_data = response.json()
 
             if not geojson_data.get('features'):

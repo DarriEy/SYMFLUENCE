@@ -191,7 +191,7 @@ def test_semi_distributed_basin_workflow(config_path, example_data_bundle, model
     # Step 2: Reuse data from the lumped example domain
     lumped_domain = "Bow_at_Banff_lumped"
     lumped_data_dir = example_data_bundle / f"domain_{lumped_domain}"
-    
+
     # Fallback for v0.6.0 bundle structure
     if not lumped_data_dir.exists():
         lumped_data_dir = example_data_bundle / "domain_bow_banff_minimal"

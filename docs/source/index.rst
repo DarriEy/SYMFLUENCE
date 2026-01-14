@@ -26,9 +26,9 @@ Overview
 Quick Start
 -----------
 
-- :doc:`installation` — Installation and environment setup  
-- :doc:`getting_started` — Your first project workflow  
-- :doc:`examples` — Tutorials and case studies  
+- :doc:`installation` — Installation and environment setup
+- :doc:`getting_started` — Your first project workflow
+- :doc:`examples` — Tutorials and case studies
 - `GitHub Repository <https://github.com/DarriEy/SYMFLUENCE>`_
 
 ---

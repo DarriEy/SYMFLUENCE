@@ -495,7 +495,7 @@ class ModelManager(BaseManager):
 
         self.logger.info("Model-specific preprocessing completed")
 
-        
+
 
     def run_models(self):
         """Execute models in resolved workflow order using registered runners.
@@ -900,9 +900,9 @@ class ModelManager(BaseManager):
         except Exception as e:
             self.logger.debug(f"Could not calculate baseline metrics: {e}")
 
-        
 
-        
+
+
 
     def visualize_outputs(self):
         """
@@ -942,7 +942,3 @@ class ModelManager(BaseManager):
                     self.logger.error(f"Error during {model} visualization: {str(e)}")
             else:
                 self.logger.info(f"Visualization for {model} not yet implemented or registered")
-
-        
-        
-    

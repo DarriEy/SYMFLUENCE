@@ -76,24 +76,24 @@ def copy_file(
     """
     src_path = Path(src)
     dst_path = Path(dst)
-    
+
     try:
         if not src_path.exists():
             raise FileNotFoundError(f"Source file not found: {src_path}")
-            
+
         # Ensure destination directory exists
         if dst_path.suffix: # Likely a file path
             ensure_dir(dst_path.parent, logger=logger)
         else: # Likely a directory path
             ensure_dir(dst_path, logger=logger)
-            
+
         copy_func = shutil.copy2 if preserve_metadata else shutil.copy
         result = Path(copy_func(str(src_path), str(dst_path)))
-        
+
         if logger:
             logger.debug(f"Copied {src_path.name} to {result}")
         return result
-        
+
     except Exception as e:
         raise FileOperationError(
             f"Failed to copy {src_path} to {dst_path}: {e}"
@@ -125,25 +125,25 @@ def copy_tree(
     """
     src_path = Path(src)
     dst_path = Path(dst)
-    
+
     try:
         if not src_path.exists():
             raise FileNotFoundError(f"Source directory not found: {src_path}")
-            
+
         ignore = shutil.ignore_patterns(*ignore_patterns) if ignore_patterns else None
-        
+
         # shutil.copytree handles the actual copy
         result = Path(shutil.copytree(
-            str(src_path), 
-            str(dst_path), 
+            str(src_path),
+            str(dst_path),
             dirs_exist_ok=dirs_exist_ok,
             ignore=ignore
         ))
-        
+
         if logger:
             logger.info(f"Copied directory tree from {src_path} to {dst_path}")
         return result
-        
+
     except Exception as e:
         raise FileOperationError(
             f"Failed to copy directory tree {src_path} to {dst_path}: {e}"
@@ -169,13 +169,13 @@ def safe_delete(
     del_path = Path(path)
     if not del_path.exists():
         return True
-        
+
     try:
         if del_path.is_file():
             del_path.unlink()
         else:
             shutil.rmtree(del_path)
-            
+
         if logger:
             logger.info(f"Deleted: {del_path}")
         return True

@@ -5,12 +5,9 @@ Provides access to the CONUS404 high-resolution (4km) regional climate
 dataset for the contiguous United States via the HyTEST data catalog.
 """
 
-import xarray as xr
-import pandas as pd
 import numpy as np
 import intake
 from pathlib import Path
-from typing import Dict, Any
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry
 from ...utils import VariableStandardizer, create_spatial_mask

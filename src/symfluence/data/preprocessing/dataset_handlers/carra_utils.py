@@ -8,9 +8,7 @@ CARRA uses a polar stereographic projection and requires special coordinate hand
 from pathlib import Path
 from typing import Dict, Tuple
 import xarray as xr
-import geopandas as gpd
 from shapely.geometry import Polygon
-import pyproj
 from pyproj import CRS, Transformer
 
 from .base_dataset import BaseDatasetHandler
@@ -21,7 +19,7 @@ from ...utils import VariableStandardizer
 @DatasetRegistry.register('carra')
 class CARRAHandler(BaseDatasetHandler):
     """Handler for CARRA (Copernicus Arctic Regional Reanalysis) dataset."""
-    
+
     def get_variable_mapping(self) -> Dict[str, str]:
         """
         CARRA variable name mapping to standard names.
@@ -33,7 +31,7 @@ class CARRAHandler(BaseDatasetHandler):
         """
         standardizer = VariableStandardizer(self.logger)
         return standardizer.get_rename_map('CARRA')
-    
+
     def process_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         """
         Process CARRA dataset with variable renaming if needed.
@@ -60,60 +58,60 @@ class CARRAHandler(BaseDatasetHandler):
         })
 
         return ds
-    
+
     def get_coordinate_names(self) -> Tuple[str, str]:
         """
         CARRA uses latitude/longitude coordinates.
-        
+
         Returns:
             Tuple of ('latitude', 'longitude')
         """
         return ('latitude', 'longitude')
-    
+
     def needs_merging(self) -> bool:
         """CARRA data typically doesn't require merging."""
         return False
-    
+
     def merge_forcings(self, raw_forcing_path: Path, merged_forcing_path: Path,
                       start_year: int, end_year: int) -> None:
         """
         CARRA typically doesn't require merging.
-        
+
         This method is a no-op for CARRA but is required by the interface.
         """
         self.logger.info("CARRA data does not require merging. Skipping merge step.")
         pass
-    
+
     def create_shapefile(self, shapefile_path: Path, merged_forcing_path: Path,
                         dem_path: Path, elevation_calculator) -> Path:
         """
         Create CARRA grid shapefile.
-        
+
         CARRA uses a polar stereographic projection which requires special handling.
         The grid is defined in stereographic coordinates but must be converted to lat/lon.
-        
+
         Args:
             shapefile_path: Directory where shapefile should be saved
             merged_forcing_path: Path to CARRA data
             dem_path: Path to DEM for elevation calculation
             elevation_calculator: Function to calculate elevation statistics
-            
+
         Returns:
             Path to the created shapefile
         """
         self.logger.info("Creating CARRA grid shapefile")
-        
+
         output_shapefile = shapefile_path / f"forcing_{self.config.get('FORCING_DATASET')}.shp"
-        
+
         try:
             # Find a processed CARRA file
             carra_files = list(merged_forcing_path.glob('*.nc'))
             if not carra_files:
                 raise FileNotFoundError("No processed CARRA files found")
             carra_file = carra_files[0]
-            
+
             self.logger.info(f"Using CARRA file: {carra_file}")
-            
+
             # Read CARRA data
             with xr.open_dataset(carra_file) as ds:
                 lats = ds.latitude.values
@@ -164,7 +162,6 @@ class CARRAHandler(BaseDatasetHandler):
 
             if is_regular_grid:
                 # Regular lat/lon grid - create rectangular cells directly
-                import numpy as np
 
                 # Calculate grid spacing
                 lat_spacing = abs(float(lats[1] - lats[0])) if len(lats) > 1 else 0.025
@@ -310,19 +307,19 @@ class CARRAHandler(BaseDatasetHandler):
                 self.config.get('FORCING_SHAPE_LAT_NAME'): center_lats,
                 self.config.get('FORCING_SHAPE_LON_NAME'): center_lons,
             }, crs='EPSG:4326')
-            
+
             # Calculate elevation using the safe method
             self.logger.info("Calculating elevation values using safe method")
             elevations = elevation_calculator(gdf, dem_path, batch_size=50)
             gdf['elev_m'] = elevations
-            
+
             # Save the shapefile
             self.logger.info(f"Saving CARRA shapefile to {output_shapefile}")
             gdf.to_file(output_shapefile)
             self.logger.info(f"CARRA grid shapefile created and saved to {output_shapefile}")
-            
+
             return output_shapefile
-            
+
         except Exception as e:
             self.logger.error(f"Error in create_carra_shapefile: {str(e)}")
             import traceback

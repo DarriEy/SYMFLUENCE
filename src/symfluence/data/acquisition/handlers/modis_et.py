@@ -15,18 +15,13 @@ Products provide 8-day composite values at 500m resolution:
 - PET_500m: Total Potential ET (kg/m²/8day)
 - ET_QC_500m: Quality Control flags
 """
-import logging
 import requests
-import time
-import json
-import os
 import numpy as np
 import pandas as pd
 import xarray as xr
 from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List, Tuple
-from ..base import BaseAcquisitionHandler
+from datetime import datetime
+from typing import Dict, Optional
 from ..registry import AcquisitionRegistry
 from .appeears_base import BaseAppEEARSAcquirer
 

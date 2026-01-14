@@ -17,7 +17,7 @@ We welcome all contributions — from bug fixes and documentation improvements t
    ```bash
    ./symfluence --install
    ```
-   This will create and manage a `.venv` automatically.  
+   This will create and manage a `.venv` automatically.
    If you prefer manual setup:
    ```bash
    python -m venv venv
@@ -168,11 +168,11 @@ Use concise, descriptive messages:
    git push origin feature/my-update
    ```
 
-3. **Open a Pull Request (PR)**  
+3. **Open a Pull Request (PR)**
    Include:
-   - **Description:** what and why  
-   - **Type:** new feature, fix, documentation, etc.  
-   - **Testing:** how it was verified  
+   - **Description:** what and why
+   - **Type:** new feature, fix, documentation, etc.
+   - **Testing:** how it was verified
    - **Related issues:** e.g., "Closes #42"
 
 Example:
@@ -195,7 +195,7 @@ Closes #117
 ---
 
 ## 5. Code Review
-All submissions are reviewed by maintainers. Expect constructive feedback — discussions help keep the codebase consistent and maintainable.  
+All submissions are reviewed by maintainers. Expect constructive feedback — discussions help keep the codebase consistent and maintainable.
 
 Please be responsive and open to suggestions.
 
@@ -203,10 +203,10 @@ Please be responsive and open to suggestions.
 
 ## 6. Reporting Issues
 When reporting, include:
-- **Description:** what went wrong  
-- **Steps to reproduce**  
-- **Expected vs actual behavior**  
-- **Environment:** OS, Python version, SYMFLUENCE commit/branch  
+- **Description:** what went wrong
+- **Steps to reproduce**
+- **Expected vs actual behavior**
+- **Environment:** OS, Python version, SYMFLUENCE commit/branch
 
 Example:
 ```
@@ -241,18 +241,18 @@ We value ideas for improvement. When proposing features:
 
 ## 8. Contribution Types
 We welcome:
-- Bug fixes  
-- Documentation updates  
-- Example projects or tutorials  
-- New model or data integrations  
-- Performance improvements  
+- Bug fixes
+- Documentation updates
+- Example projects or tutorials
+- New model or data integrations
+- Performance improvements
 - Visualization or reporting enhancements
 
 ---
 
 ## 9. Questions
 If you're unsure where to start:
-- Open a GitHub discussion or issue  
+- Open a GitHub discussion or issue
 - Review existing docs at [symfluence.readthedocs.io](https://symfluence.readthedocs.io)
 
 Thank you for helping improve SYMFLUENCE.

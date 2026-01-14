@@ -68,7 +68,7 @@ class TestSummaPathResolution:
         overrides = summa_config.to_dict(flatten=True)
         overrides['DEM_NAME'] = 'custom_dem.tif'
         custom_config = SymfluenceConfig(**overrides)
-        
+
         preprocessor = SummaPreProcessor(custom_config, mock_logger)
 
         assert preprocessor.dem_path.name == 'custom_dem.tif'
