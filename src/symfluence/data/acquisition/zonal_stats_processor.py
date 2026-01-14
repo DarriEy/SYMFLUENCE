@@ -168,8 +168,10 @@ import geopandas as gpd # type: ignore
 import rasterio # type: ignore
 from rasterstats import zonal_stats # type: ignore
 
+from symfluence.core.mixins import ConfigMixin
 
-class DataPreProcessor:
+
+class DataPreProcessor(ConfigMixin):
     """
     Compute zonal statistics from raster datasets within catchment boundaries.
 
@@ -343,10 +345,32 @@ class DataPreProcessor:
                 - DOMAIN_NAME: Domain identifier for file paths
             logger: Logger instance for diagnostic messages
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
-        self.root_path = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
+        self.root_path = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
         self.project_dir = self.root_path / f"domain_{self.domain_name}"
 
     def get_nodata_value(self, raster_path):
@@ -408,18 +432,18 @@ class DataPreProcessor:
             - Logs progress to logger
         """
         self.logger.info("Calculating elevation statistics")
-        subbasins_name = self.config.get('CATCHMENT_SHP_NAME')
+        subbasins_name = self._get_config_value(lambda: self.config.paths.catchment_name, dict_key='CATCHMENT_SHP_NAME')
         if subbasins_name == 'default':
-            subbasins_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
+            subbasins_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, dict_key='DOMAIN_DISCRETIZATION')}.shp"
 
         catchment_path = self._get_file_path('CATCHMENT_PATH', 'shapefiles/catchment', subbasins_name)
 
-        dem_name = self.config.get('DEM_NAME')
+        dem_name = self._get_config_value(lambda: self.config.paths.dem_name, dict_key='DEM_NAME')
         if dem_name == "default":
-            dem_name = f"domain_{self.config.get('DOMAIN_NAME')}_elv.tif"
+            dem_name = f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_elv.tif"
 
         dem_path = self._get_file_path('DEM_PATH', 'attributes/elevation/dem', dem_name)
-        dem_name = self.config.get('INTERSECT_DEM_NAME')
+        dem_name = self._get_config_value(lambda: self.config.paths.intersect_dem_name, dict_key='INTERSECT_DEM_NAME')
         if dem_name == 'default':
             dem_name = 'catchment_with_dem.shp'
         intersect_path = self._get_file_path('INTERSECT_DEM_PATH', 'shapefiles/catchment_intersection/with_dem', dem_name)
@@ -492,22 +516,22 @@ class DataPreProcessor:
             - Logs warnings if NaN values present (indicates potential resolution issues)
         """
         self.logger.info("Calculating soil statistics")
-        subbasins_name = self.config.get('CATCHMENT_SHP_NAME')
+        subbasins_name = self._get_config_value(lambda: self.config.paths.catchment_name, dict_key='CATCHMENT_SHP_NAME')
         if subbasins_name == 'default':
-            subbasins_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
+            subbasins_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, dict_key='DOMAIN_DISCRETIZATION')}.shp"
 
         catchment_path = self._get_file_path('CATCHMENT_PATH', 'shapefiles/catchment', subbasins_name)
-        soil_name = self.config.get('SOIL_CLASS_NAME')
+        soil_name = self._get_config_value(lambda: self.config.paths.soil_class_name, dict_key='SOIL_CLASS_NAME')
         if soil_name == 'default':
-            soil_name = f"domain_{self.config.get('DOMAIN_NAME')}_soil_classes.tif"
+            soil_name = f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_soil_classes.tif"
         soil_path = self._get_file_path('SOIL_CLASS_PATH', 'attributes/soilclass/', soil_name)
-        intersect_soil_name = self.config.get('INTERSECT_SOIL_NAME')
+        intersect_soil_name = self._get_config_value(lambda: self.config.paths.intersect_soil_name, dict_key='INTERSECT_SOIL_NAME')
         if intersect_soil_name == 'default':
             intersect_soil_name = 'catchment_with_soilclass.shp'
         intersect_path = self._get_file_path('INTERSECT_SOIL_PATH', 'shapefiles/catchment_intersection/with_soilgrids', intersect_soil_name)
         self.logger.info(f'processing landclasses: {soil_path}')
 
-        if not intersect_path.exists() or self.config.get('FORCE_RUN_ALL_STEPS'):
+        if not intersect_path.exists() or self._get_config_value(lambda: self.config.system.force_run_all_steps, dict_key='FORCE_RUN_ALL_STEPS'):
             intersect_path.parent.mkdir(parents=True, exist_ok=True)
 
             catchment_gdf = gpd.read_file(catchment_path)
@@ -601,22 +625,22 @@ class DataPreProcessor:
             - Logs warnings if NaN values present (indicates raster resolution mismatch)
         """
         self.logger.info("Calculating land statistics")
-        subbasins_name = self.config.get('CATCHMENT_SHP_NAME')
+        subbasins_name = self._get_config_value(lambda: self.config.paths.catchment_name, dict_key='CATCHMENT_SHP_NAME')
         if subbasins_name == 'default':
-            subbasins_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
+            subbasins_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, dict_key='DOMAIN_DISCRETIZATION')}.shp"
 
         catchment_path = self._get_file_path('CATCHMENT_PATH', 'shapefiles/catchment', subbasins_name)
-        land_name = self.config.get('LAND_CLASS_NAME')
+        land_name = self._get_config_value(lambda: self.config.domain.land_class_name, dict_key='LAND_CLASS_NAME')
         if land_name == 'default':
-            land_name = f"domain_{self.config.get('DOMAIN_NAME')}_land_classes.tif"
+            land_name = f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_land_classes.tif"
         land_path = self._get_file_path('LAND_CLASS_PATH', 'attributes/landclass/', land_name)
-        intersect_name = self.config.get('INTERSECT_LAND_NAME')
+        intersect_name = self._get_config_value(lambda: self.config.paths.intersect_land_name, dict_key='INTERSECT_LAND_NAME')
         if intersect_name == 'default':
             intersect_name = 'catchment_with_landclass.shp'
         intersect_path = self._get_file_path('INTERSECT_LAND_PATH', 'shapefiles/catchment_intersection/with_landclass', intersect_name)
         self.logger.info(f'processing landclasses: {land_path}')
 
-        if not intersect_path.exists() or self.config.get('FORCE_RUN_ALL_STEPS'):
+        if not intersect_path.exists() or self._get_config_value(lambda: self.config.system.force_run_all_steps, dict_key='FORCE_RUN_ALL_STEPS'):
             intersect_path.parent.mkdir(parents=True, exist_ok=True)
 
             catchment_gdf = gpd.read_file(catchment_path)

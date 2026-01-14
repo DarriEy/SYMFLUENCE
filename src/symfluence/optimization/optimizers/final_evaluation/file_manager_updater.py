@@ -9,8 +9,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from symfluence.core.mixins import ConfigMixin
 
-class FileManagerUpdater:
+
+class FileManagerUpdater(ConfigMixin):
     """
     Updates SUMMA file manager settings for final evaluation.
 
@@ -36,7 +38,29 @@ class FileManagerUpdater:
             logger: Optional logger instance
         """
         self.file_manager_path = file_manager_path
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger or logging.getLogger(__name__)
 
     def update_for_full_period(self) -> None:
@@ -46,8 +70,8 @@ class FileManagerUpdater:
             return
 
         try:
-            sim_start = self.config.get('EXPERIMENT_TIME_START')
-            sim_end = self.config.get('EXPERIMENT_TIME_END')
+            sim_start = self._get_config_value(lambda: self.config.domain.time_start, dict_key='EXPERIMENT_TIME_START')
+            sim_end = self._get_config_value(lambda: self.config.domain.time_end, dict_key='EXPERIMENT_TIME_END')
 
             if not sim_start or not sim_end:
                 self.logger.warning("Full experiment period not configured, using current settings")
@@ -116,8 +140,8 @@ class FileManagerUpdater:
             return
 
         try:
-            calib_start = self.config.get('CALIBRATION_START_DATE')
-            calib_end = self.config.get('CALIBRATION_END_DATE')
+            calib_start = self._get_config_value(lambda: self.config.domain.calibration_start_date, dict_key='CALIBRATION_START_DATE')
+            calib_end = self._get_config_value(lambda: self.config.domain.calibration_end_date, dict_key='CALIBRATION_END_DATE')
 
             if not calib_start or not calib_end:
                 return
@@ -153,7 +177,7 @@ class FileManagerUpdater:
             Adjusted end time string
         """
         try:
-            forcing_timestep_seconds = self.config.get('FORCING_TIME_STEP_SIZE', 3600)
+            forcing_timestep_seconds = self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE')
 
             if forcing_timestep_seconds >= 3600:  # Hourly or coarser
                 end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M')

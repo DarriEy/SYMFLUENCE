@@ -34,7 +34,7 @@ class RDRSAcquirer(BaseAcquisitionHandler):
         output_dir.mkdir(parents=True, exist_ok=True)
         final_file = output_dir / f"domain_{self.domain_name}_RDRS_{self.start_date.year}_{self.end_date.year}.nc"
 
-        if final_file.exists() and not self.config.get("FORCE_DOWNLOAD", False):
+        if final_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
             return final_file
 
         # Try S3 Zarr pathway first (much faster)
@@ -100,13 +100,13 @@ class RDRSAcquirer(BaseAcquisitionHandler):
     def _download_http(self, output_dir: Path, final_file: Path) -> Path:
         """Fallback HTTP download method."""
         # ... existing HTTP logic ...
-        version = self.config.get("RDRS_VERSION", "v3.1")
+        version = self.config_dict.get('RDRS_VERSION', "v3.1")
         if version == "v2.1":
             default_url = "https://hpfx.collab.science.gc.ca/~rlarocque/RDRS_v2.1/"
         else:
             default_url = "https://hpfx.collab.science.gc.ca/~rlarocque/RDRS_v3.1/"
 
-        base_url = self.config.get("RDRS_BASE_URL", default_url)
+        base_url = self.config_dict.get('RDRS_BASE_URL', default_url)
 
         # Generate list of hours
         date_range = pd.date_range(start=self.start_date, end=self.end_date, freq='h')

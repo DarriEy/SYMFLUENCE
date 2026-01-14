@@ -19,8 +19,10 @@ import numpy as np
 import rasterio
 import xarray as xr
 
+from symfluence.core.mixins import ConfigMixin
 
-class GlacierAttributesManager:
+
+class GlacierAttributesManager(ConfigMixin):
     """
     Manager for SUMMA glacier preprocessing.
 
@@ -67,7 +69,29 @@ class GlacierAttributesManager:
             dem_path: Path to DEM file for elevation data
             project_dir: Path to project directory (for shapefiles)
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.domain_name = domain_name
         self.dem_path = dem_path
@@ -200,7 +224,7 @@ class GlacierAttributesManager:
         shp_area = gpd.read_file(domain_type_shp)
         shp_elev = gpd.read_file(dem_domain_shp)
 
-        hru_id_col = self.config.get('CATCHMENT_SHP_HRUID', 'HRU_ID')
+        hru_id_col = self._get_config_value(lambda: self.config.paths.catchment_hruid, default='HRU_ID', dict_key='CATCHMENT_SHP_HRUID')
         num_hru = len(hru_ids)
         len(gru_ids)
 

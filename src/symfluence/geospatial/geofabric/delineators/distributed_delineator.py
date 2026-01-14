@@ -49,7 +49,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
         self.reporting_manager = reporting_manager
 
         # Stream delineation method
-        self.delineation_method = self.config.get('DELINEATION_METHOD', 'stream_threshold').lower()
+        self.delineation_method = self._get_config_value(lambda: self.config.domain.delineation.method, default='stream_threshold', dict_key='DELINEATION_METHOD').lower()
 
         # Validate method
         valid_methods = ['stream_threshold', 'curvature', 'slope_area', 'multi_scale']
@@ -134,13 +134,13 @@ class GeofabricDelineator(BaseGeofabricDelineator):
         Returns:
             Path to pour point shapefile
         """
-        pour_point_path = self.config.get('POUR_POINT_SHP_PATH')
+        pour_point_path = self._get_config_value(lambda: self.config.paths.pour_point_path, dict_key='POUR_POINT_SHP_PATH')
         if pour_point_path == 'default':
             pour_point_path = self.project_dir / "shapefiles" / "pour_point"
         else:
             pour_point_path = Path(pour_point_path)
 
-        if self.config.get('POUR_POINT_SHP_NAME') == "default":
+        if self._get_config_value(lambda: self.config.paths.pour_point_name, dict_key='POUR_POINT_SHP_NAME') == "default":
             pour_point_path = pour_point_path / f"{self.domain_name}_pourPoint.shp"
 
         if not pour_point_path.exists():
@@ -158,7 +158,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
         # Determine MPI command
         mpi_cmd = self.taudem.get_mpi_command()
         if mpi_cmd:
-            mpi_prefix = f"{mpi_cmd} -n {self.config.get('MPI_PROCESSES', 1)} "
+            mpi_prefix = f"{mpi_cmd} -n {self._get_config_value(lambda: self.config.system.mpi_processes, default=1, dict_key='MPI_PROCESSES')} "
         else:
             mpi_prefix = ""
 
@@ -217,7 +217,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
             subset_basins_path, subset_rivers_path = self._get_output_paths()
 
             # Subset by pour point if requested
-            if self.config.get('DELINEATE_BY_POURPOINT', True):
+            if self._get_config_value(lambda: self.config.domain.delineation.delineate_by_pourpoint, default=True, dict_key='DELINEATE_BY_POURPOINT'):
                 # Ensure CRS consistency
                 basins, rivers, pour_point = CRSUtils.ensure_crs_consistency(
                     basins, rivers, pour_point, self.logger
@@ -326,8 +326,8 @@ class GeofabricDelineator(BaseGeofabricDelineator):
         Returns:
             Tuple of (basins_path, rivers_path)
         """
-        subset_basins_path = self.config.get('OUTPUT_BASINS_PATH')
-        subset_rivers_path = self.config.get('OUTPUT_RIVERS_PATH')
+        subset_basins_path = self._get_config_value(lambda: self.config.paths.output_basins_path, dict_key='OUTPUT_BASINS_PATH')
+        subset_rivers_path = self._get_config_value(lambda: self.config.paths.output_rivers_path, dict_key='OUTPUT_RIVERS_PATH')
         # Use the delineator's own method name, not the config-based _get_method_suffix()
         # This prevents overwriting lumped basins when doing distributed routing delineation
         method_suffix = self._get_delineation_method_name()
@@ -335,12 +335,12 @@ class GeofabricDelineator(BaseGeofabricDelineator):
         if subset_basins_path == 'default':
             subset_basins_path = self.project_dir / "shapefiles" / "river_basins" / f"{self.domain_name}_riverBasins_{method_suffix}.shp"
         else:
-            subset_basins_path = Path(self.config.get('OUTPUT_BASINS_PATH'))
+            subset_basins_path = Path(self._get_config_value(lambda: self.config.paths.output_basins_path, dict_key='OUTPUT_BASINS_PATH'))
 
         if subset_rivers_path == 'default':
             subset_rivers_path = self.project_dir / "shapefiles" / "river_network" / f"{self.domain_name}_riverNetwork_{method_suffix}.shp"
         else:
-            subset_rivers_path = Path(self.config.get('OUTPUT_RIVERS_PATH'))
+            subset_rivers_path = Path(self._get_config_value(lambda: self.config.paths.output_rivers_path, dict_key='OUTPUT_RIVERS_PATH'))
 
         return subset_basins_path, subset_rivers_path
 

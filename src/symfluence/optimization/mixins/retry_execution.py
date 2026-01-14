@@ -13,6 +13,8 @@ import random
 from typing import Any, Callable, Optional
 from functools import wraps
 
+from symfluence.core.mixins import ConfigMixin
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,7 +44,7 @@ def is_transient_error(error: Exception) -> bool:
     return any(te in error_str for te in TRANSIENT_ERRORS)
 
 
-class RetryExecutionMixin:
+class RetryExecutionMixin(ConfigMixin):
     """
     Mixin class providing retry logic with exponential backoff.
 
@@ -63,22 +65,22 @@ class RetryExecutionMixin:
     @property
     def max_retries(self) -> int:
         """Maximum number of retry attempts."""
-        return self.config.get('WORKER_MAX_RETRIES', 3)
+        return self.config_dict.get('WORKER_MAX_RETRIES', 3)
 
     @property
     def base_delay(self) -> float:
         """Base delay for exponential backoff (seconds)."""
-        return self.config.get('WORKER_BASE_DELAY', 0.5)
+        return self.config_dict.get('WORKER_BASE_DELAY', 0.5)
 
     @property
     def max_delay(self) -> float:
         """Maximum delay between retries (seconds)."""
-        return self.config.get('WORKER_MAX_DELAY', 30.0)
+        return self.config_dict.get('WORKER_MAX_DELAY', 30.0)
 
     @property
     def jitter_factor(self) -> float:
         """Jitter factor for randomizing delays (0-1)."""
-        return self.config.get('WORKER_JITTER', 0.1)
+        return self.config_dict.get('WORKER_JITTER', 0.1)
 
     # =========================================================================
     # Retry logic

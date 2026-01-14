@@ -20,8 +20,8 @@ class SMHIStreamflowHandler(BaseObservationHandler):
     """
 
     def acquire(self) -> Path:
-        data_access = self.config.get('DATA_ACCESS', 'cloud').lower()
-        station_id = self.config.get('STATION_ID')
+        data_access = self._get_config_value(lambda: self.config.domain.data_access, default='cloud', dict_key='DATA_ACCESS').lower()
+        station_id = self._get_config_value(lambda: self.config.evaluation.streamflow.station_id, dict_key='STATION_ID')
 
         if not station_id:
             self.logger.error("Missing STATION_ID in configuration for SMHI streamflow")
@@ -128,7 +128,7 @@ class SMHIStreamflowHandler(BaseObservationHandler):
         return None
 
     def _get_resample_freq(self) -> str:
-        timestep_size = int(self.config.get('FORCING_TIME_STEP_SIZE', 3600))
+        timestep_size = int(self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE'))
         if timestep_size <= 10800:
             return 'h'
         elif timestep_size == ModelDefaults.DEFAULT_TIMESTEP_DAILY:

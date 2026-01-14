@@ -315,7 +315,7 @@ class RDRSHandler(BaseDatasetHandler):
             gdf['elev_m'] = elevations
 
             # Remove invalid elevation cells if requested
-            if self.config.get('REMOVE_INVALID_ELEVATION_CELLS', False):
+            if self.config_dict.get('REMOVE_INVALID_ELEVATION_CELLS', False):
                 valid_count = len(gdf)
                 gdf = gdf[gdf['elev_m'] != -9999].copy()
                 removed_count = valid_count - len(gdf)

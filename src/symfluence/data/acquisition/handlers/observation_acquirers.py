@@ -41,8 +41,8 @@ class SMAPAcquirer(BaseAcquisitionHandler):
         self.logger.info("Starting SMAP Soil Moisture acquisition via NSIDC THREDDS")
 
         # NSIDC THREDDS NCSS endpoint
-        thredds_base = self.config.get('SMAP_THREDDS_BASE', "https://n5eil01u.ecs.nsidc.org/thredds/ncss/grid")
-        product = self.config.get('SMAP_PRODUCT', 'SMAP_L4_SM_gph_v4')
+        thredds_base = self.config_dict.get('SMAP_THREDDS_BASE', "https://n5eil01u.ecs.nsidc.org/thredds/ncss/grid")
+        product = self._get_config_value(lambda: self.config.evaluation.smap.product, default='SMAP_L4_SM_gph_v4', dict_key='SMAP_PRODUCT')
         if isinstance(product, str) and product.upper() == 'SPL4SMGP':
             product = 'SMAP_L4_SM_gph_v4'
 
@@ -74,7 +74,7 @@ class SMAPAcquirer(BaseAcquisitionHandler):
         # For NCSS Grid, we often need the exact file path or an aggregation.
         # This implementation assumes an aggregated NCML exists or the user provides a direct OPeNDAP/NCSS URL.
         # If 'SMAP_THREDDS_URL' is provided, use it directly.
-        override_url = self.config.get('SMAP_THREDDS_URL')
+        override_url = self.config_dict.get('SMAP_THREDDS_URL')
         if override_url:
             candidate_urls = [override_url]
         else:
@@ -123,12 +123,12 @@ class SMAPAcquirer(BaseAcquisitionHandler):
 
     def _download_via_cmr(self, output_dir: Path) -> Path:
         """Fallback: download SMAP granules via CMR HTTPS links."""
-        cmr_short_name = self.config.get('SMAP_CMR_SHORT_NAME', self.config.get('SMAP_PRODUCT', 'SPL4SMGP'))
+        cmr_short_name = self.config_dict.get('SMAP_CMR_SHORT_NAME', self._get_config_value(lambda: self.config.evaluation.smap.product, default='SPL4SMGP', dict_key='SMAP_PRODUCT'))
         if isinstance(cmr_short_name, str) and cmr_short_name.upper().startswith('SMAP_L4_SM_GPH'):
             cmr_short_name = 'SPL4SMGP'
-        cmr_version = str(self.config.get('SMAP_CMR_VERSION', '008')).zfill(3)
-        max_granules = self.config.get('SMAP_MAX_GRANULES')
-        use_opendap = bool(self.config.get('SMAP_USE_OPENDAP', False))
+        cmr_version = str(self.config_dict.get('SMAP_CMR_VERSION', '008')).zfill(3)
+        max_granules = self._get_config_value(lambda: self.config.evaluation.smap.max_granules, dict_key='SMAP_MAX_GRANULES')
+        use_opendap = bool(self._get_config_value(lambda: self.config.evaluation.smap.use_opendap, default=False, dict_key='SMAP_USE_OPENDAP'))
 
         lat_min, lat_max = sorted([self.bbox["lat_min"], self.bbox["lat_max"]])
         lon_min, lon_max = sorted([self.bbox["lon_min"], self.bbox["lon_max"]])
@@ -199,7 +199,7 @@ class SMAPAcquirer(BaseAcquisitionHandler):
                         return output_dir
                     filename = href.split("/")[-1]
                     out_file = output_dir / filename
-                    if out_file.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+                    if out_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
                         downloaded += 1
                         continue
                     self.logger.info(f"Downloading SMAP granule: {filename}")
@@ -326,7 +326,7 @@ class SMAPAcquirer(BaseAcquisitionHandler):
 
         granule_id = url.rstrip("/").split("/")[-1].replace(".h5", "")
         out_file = output_dir / f"{granule_id}_subset.nc"
-        if out_file.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+        if out_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
             return True
         self.logger.info(f"Writing SMAP subset: {out_file.name}")
         ds_out = xr.Dataset(
@@ -370,16 +370,16 @@ class ISMNAcquirer(BaseAcquisitionHandler):
     def download(self, output_dir: Path) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        force_download = bool(self.config.get('FORCE_DOWNLOAD', False))
+        force_download = bool(self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'))
         if any(output_dir.glob("*.csv")) and not force_download:
             return output_dir
 
-        api_base = self.config.get('ISMN_API_BASE', 'https://ismn.earth/dataviewer').rstrip("/")
-        metadata_url = self.config.get('ISMN_METADATA_URL') or "https://ismn.earth/static/dataviewer/network_station_details.json"
-        variable_list_url = self.config.get('ISMN_VARIABLE_LIST_URL')
+        api_base = self._get_config_value(lambda: self.config.evaluation.ismn.api_base, default='https://ismn.earth/dataviewer', dict_key='ISMN_API_BASE').rstrip("/")
+        metadata_url = self._get_config_value(lambda: self.config.evaluation.ismn.metadata_url, dict_key='ISMN_METADATA_URL') or "https://ismn.earth/static/dataviewer/network_station_details.json"
+        variable_list_url = self._get_config_value(lambda: self.config.evaluation.ismn.variable_list_url, dict_key='ISMN_VARIABLE_LIST_URL')
         if not variable_list_url:
             variable_list_url = f"{api_base}/dataviewer_get_variable_list/"
-        data_template = self.config.get('ISMN_DATA_URL_TEMPLATE')
+        data_template = self._get_config_value(lambda: self.config.evaluation.ismn.data_url_template, dict_key='ISMN_DATA_URL_TEMPLATE')
         if not data_template:
             data_template = (
                 f"{api_base}/dataviewer_load_variable/"
@@ -491,8 +491,8 @@ class ISMNAcquirer(BaseAcquisitionHandler):
             netrc parsing may fail if .netrc doesn't exist or has permission issues.
             Silently returns None on any exception (non-fatal fallback).
         """
-        user = self.config.get("ISMN_USERNAME") or os.environ.get("ISMN_USERNAME")
-        password = self.config.get("ISMN_PASSWORD") or os.environ.get("ISMN_PASSWORD")
+        user = self.config_dict.get('ISMN_USERNAME') or os.environ.get("ISMN_USERNAME")
+        password = self.config_dict.get('ISMN_PASSWORD') or os.environ.get("ISMN_PASSWORD")
         if user and password:
             return (user, password)
 
@@ -662,11 +662,11 @@ class ISMNAcquirer(BaseAcquisitionHandler):
             lon_center,
         )
 
-        radius_km = self.config.get("ISMN_SEARCH_RADIUS_KM")
+        radius_km = self._get_config_value(lambda: self.config.evaluation.ismn.search_radius_km, dict_key='ISMN_SEARCH_RADIUS_KM')
         if radius_km:
             stations = stations[stations["distance_km"] <= float(radius_km)]
 
-        max_stations = int(self.config.get("ISMN_MAX_STATIONS", 3))
+        max_stations = int(self._get_config_value(lambda: self.config.evaluation.ismn.max_stations, default=3, dict_key='ISMN_MAX_STATIONS'))
         stations = stations.sort_values("distance_km").head(max_stations)
         return stations
 
@@ -810,18 +810,18 @@ class ESACCISMAcquirer(BaseAcquisitionHandler, RetryMixin, ChunkedDownloadMixin)
         out_file_tgz = self._output_dir / f"{self.domain_name}_ESA_CCI_SM_{year}{month:02d}.tar.gz"
 
         # Check for existing file
-        if out_file_zip.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+        if out_file_zip.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
             return out_file_zip
-        if out_file_tgz.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+        if out_file_tgz.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
             return out_file_tgz
 
         # Build CDS request
         request = {
-            'variable': [self.config.get('ESA_CCI_SM_VARIABLE', 'surface_soil_moisture_volumetric')],
-            'type_of_sensor': [self.config.get('ESA_CCI_SM_SENSOR', 'combined')],
-            'time_aggregation': [self.config.get('ESA_CCI_SM_TIME_AGGREGATION', 'daily')],
-            'type_of_record': [self.config.get('ESA_CCI_SM_RECORD_TYPE', 'cdr')],
-            'version': [self.config.get('ESA_CCI_SM_VERSION', 'v202312')],
+            'variable': [self.config_dict.get('ESA_CCI_SM_VARIABLE', 'surface_soil_moisture_volumetric')],
+            'type_of_sensor': [self.config_dict.get('ESA_CCI_SM_SENSOR', 'combined')],
+            'time_aggregation': [self.config_dict.get('ESA_CCI_SM_TIME_AGGREGATION', 'daily')],
+            'type_of_record': [self.config_dict.get('ESA_CCI_SM_RECORD_TYPE', 'cdr')],
+            'version': [self.config_dict.get('ESA_CCI_SM_VERSION', 'v202312')],
             'year': [str(year)],
             'month': [f"{month:02d}"],
             'day': [f"{d:02d}" for d in range(1, days_in_month + 1)],
@@ -856,14 +856,14 @@ class FLUXCOMETAcquirer(BaseAcquisitionHandler):
         et_dir.mkdir(parents=True, exist_ok=True)
 
         # Option 1: Check for existing local files
-        local_pattern = self.config.get('FLUXCOM_FILE_PATTERN', "*.nc")
+        local_pattern = self.config_dict.get('FLUXCOM_FILE_PATTERN', "*.nc")
         existing_files = list(et_dir.glob(local_pattern))
-        if existing_files and not self.config.get('FORCE_DOWNLOAD', False):
+        if existing_files and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
             self.logger.info(f"Found existing FLUXCOM files in {et_dir}")
             return et_dir
 
         # Option 2: Download from URL
-        download_url = self.config.get('FLUXCOM_DOWNLOAD_URL')
+        download_url = self.config_dict.get('FLUXCOM_DOWNLOAD_URL')
         if download_url:
             self.logger.info(f"Downloading FLUXCOM data from {download_url}")
             out_file = et_dir / "fluxcom_downloaded.nc" # Assuming single file or archive

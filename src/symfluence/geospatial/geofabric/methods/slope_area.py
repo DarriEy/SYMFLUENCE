@@ -11,8 +11,10 @@ Extracted from geofabric_utils.py (2026-01-01)
 from pathlib import Path
 from typing import Any, Dict
 
+from symfluence.core.mixins import ConfigMixin
 
-class SlopeAreaMethod:
+
+class SlopeAreaMethod(ConfigMixin):
     """
     Slope-area based stream identification.
 
@@ -32,7 +34,29 @@ class SlopeAreaMethod:
             interim_dir: Directory for interim TauDEM files
         """
         self.taudem = taudem_executor
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.interim_dir = interim_dir
         self.taudem_dir = taudem_executor.taudem_dir
@@ -46,12 +70,12 @@ class SlopeAreaMethod:
             pour_point_path: Path to the pour point shapefile
             mpi_prefix: MPI command prefix
         """
-        max_distance = self.config.get('MOVE_OUTLETS_MAX_DISTANCE', 200)
+        max_distance = self._get_config_value(lambda: self.config.domain.delineation.move_outlets_max_distance, default=200, dict_key='MOVE_OUTLETS_MAX_DISTANCE')
 
         # Get slope-area parameters from config
-        slope_area_threshold = self.config.get('SLOPE_AREA_THRESHOLD', 100.0)
-        slope_exponent = self.config.get('SLOPE_AREA_EXPONENT', 2.0)
-        area_exponent = self.config.get('AREA_EXPONENT', 1.0)
+        slope_area_threshold = self._get_config_value(lambda: self.config.domain.delineation.slope_area_threshold, default=100.0, dict_key='SLOPE_AREA_THRESHOLD')
+        slope_exponent = self._get_config_value(lambda: self.config.domain.delineation.slope_area_exponent, default=2.0, dict_key='SLOPE_AREA_EXPONENT')
+        area_exponent = self._get_config_value(lambda: self.config.domain.delineation.area_exponent, default=1.0, dict_key='AREA_EXPONENT')
 
         steps = [
             # D-infinity flow direction and slope

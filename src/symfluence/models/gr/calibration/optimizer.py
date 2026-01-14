@@ -60,13 +60,13 @@ class GRModelOptimizer(BaseModelOptimizer):
     def _check_routing_needed(self) -> bool:
         """Determine if routing is needed based on configuration."""
         # Use SpatialOrchestrator logic (checking if distributed mode and routing is enabled)
-        routing_integration = self.config.get('GR_ROUTING_INTEGRATION', 'none')
-        global_routing = self.config.get('ROUTING_MODEL', 'none')
-        spatial_mode = self.config.get('GR_SPATIAL_MODE', 'auto')
+        routing_integration = self._get_config_value(lambda: self.config.model.gr.routing_integration, default='none', dict_key='GR_ROUTING_INTEGRATION')
+        global_routing = self._get_config_value(lambda: self.config.model.routing_model, default='none', dict_key='ROUTING_MODEL')
+        spatial_mode = self._get_config_value(lambda: self.config.model.gr.spatial_mode, default='auto', dict_key='GR_SPATIAL_MODE')
 
         # Handle 'auto' mode - resolve from DOMAIN_DEFINITION_METHOD
         if spatial_mode in (None, 'auto', 'default'):
-            domain_method = self.config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+            domain_method = self._get_config_value(lambda: self.config.domain.definition_method, default='lumped', dict_key='DOMAIN_DEFINITION_METHOD')
             if domain_method == 'delineate':
                 spatial_mode = 'distributed'
             else:
@@ -80,7 +80,7 @@ class GRModelOptimizer(BaseModelOptimizer):
 
     def _setup_parallel_dirs(self) -> None:
         """Setup GR-specific parallel directories."""
-        algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
+        algorithm = self._get_config_value(lambda: self.config.optimization.algorithm, default='optimization', dict_key='ITERATIVE_OPTIMIZATION_ALGORITHM').lower()
         base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
@@ -105,7 +105,7 @@ class GRModelOptimizer(BaseModelOptimizer):
 
                 # Update mizuRoute control files with process-specific paths
                 # GR uses mizuRoute_control_GR.txt by default
-                mizu_control = self.config.get('SETTINGS_MIZU_CONTROL_FILE')
+                mizu_control = self._get_config_value(lambda: self.config.model.mizuroute.control_file, dict_key='SETTINGS_MIZU_CONTROL_FILE')
                 if not mizu_control or mizu_control == 'default':
                     mizu_control = 'mizuRoute_control_GR.txt'
 

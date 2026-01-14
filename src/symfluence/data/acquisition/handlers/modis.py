@@ -18,8 +18,8 @@ class MODISSnowAcquirer(BaseAcquisitionHandler):
         self.logger.info("Starting MODIS Snow Cover acquisition via THREDDS")
 
         # Configuration
-        product = self.config.get('MODIS_SNOW_PRODUCT', 'MOD10A1.006')
-        thredds_base = self.config.get('MODIS_THREDDS_BASE', "https://ds.nccs.nasa.gov/thredds/ncss/grid")
+        product = self._get_config_value(lambda: self.config.evaluation.modis_snow.product, default='MOD10A1.006', dict_key='MODIS_SNOW_PRODUCT')
+        thredds_base = self.config_dict.get('MODIS_THREDDS_BASE', "https://ds.nccs.nasa.gov/thredds/ncss/grid")
 
         # BBox
         lat_min, lat_max = sorted([self.bbox["lat_min"], self.bbox["lat_max"]])
@@ -32,13 +32,13 @@ class MODISSnowAcquirer(BaseAcquisitionHandler):
         output_dir.mkdir(parents=True, exist_ok=True)
         out_nc = output_dir / f"{self.domain_name}_{product}_raw.nc"
 
-        if out_nc.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+        if out_nc.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
             return out_nc
 
         # Construct NCSS query
         # Note: This path is an example and depends on the specific THREDDS server structure
         # For NCCS, we might need a more specific path if mirrored
-        dataset_path = self.config.get('MODIS_THREDDS_PATH', f"MODIS/{product}/aggregated.ncml")
+        dataset_path = self.config_dict.get('MODIS_THREDDS_PATH', f"MODIS/{product}/aggregated.ncml")
 
         params = {
             "var": "NDSI_Snow_Cover",  # Standard MOD10A1 variable

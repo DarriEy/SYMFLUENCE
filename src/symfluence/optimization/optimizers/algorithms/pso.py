@@ -62,10 +62,10 @@ class PSOAlgorithm(OptimizationAlgorithm):
         n_particles = self.population_size
 
         # PSO parameters
-        w = self.config.get('PSO_INERTIA', 0.7)  # Inertia weight
-        c1 = self.config.get('PSO_COGNITIVE', 1.5)  # Cognitive coefficient
-        c2 = self.config.get('PSO_SOCIAL', 1.5)  # Social coefficient
-        v_max = self.config.get('PSO_V_MAX', 0.2)  # Maximum velocity
+        w = self.config_dict.get('PSO_INERTIA', 0.7)  # Inertia weight
+        c1 = self.config_dict.get('PSO_COGNITIVE', 1.5)  # Cognitive coefficient
+        c2 = self.config_dict.get('PSO_SOCIAL', 1.5)  # Social coefficient
+        v_max = self.config_dict.get('PSO_V_MAX', 0.2)  # Maximum velocity
 
         # Initialize swarm
         self.logger.info(f"Evaluating initial population ({n_particles} particles)...")

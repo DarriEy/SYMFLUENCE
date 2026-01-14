@@ -23,11 +23,13 @@ from typing import TYPE_CHECKING, Any, Match
 import numpy as np
 import pandas as pd
 
+from symfluence.core.mixins import ConfigMixin
+
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
-class HYPEConfigManager:
+class HYPEConfigManager(ConfigMixin):
     """
     Manager for HYPE configuration and control files.
 
@@ -75,7 +77,29 @@ class HYPEConfigManager:
             output_path: Path to the HYPE settings directory where configuration
                 files will be written. Will be created if it doesn't exist.
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger if logger else logging.getLogger(__name__)
         self.output_path = Path(output_path)
 
@@ -163,7 +187,7 @@ class HYPEConfigManager:
             start_date = forcing_start
         else:
             start_date = pd.to_datetime(
-                self.config.get('EXPERIMENT_TIME_START', '2000-01-01')
+                self._get_config_value(lambda: self.config.domain.time_start, default='2000-01-01', dict_key='EXPERIMENT_TIME_START')
             )
 
         if experiment_end:
@@ -172,7 +196,7 @@ class HYPEConfigManager:
             end_date = forcing_end
         else:
             end_date = pd.to_datetime(
-                self.config.get('EXPERIMENT_TIME_END', '2000-12-31')
+                self._get_config_value(lambda: self.config.domain.time_end, default='2000-12-31', dict_key='EXPERIMENT_TIME_END')
             )
 
         # Ensure start_date is not before forcing starts

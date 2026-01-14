@@ -35,7 +35,7 @@ class TRouteModelOptimizer(BaseModelOptimizer):
         Updates parameters in the T-Route topology file (NetCDF).
         Supports updating Manning's n ('n', 'mannings_n').
         """
-        topology_name = self.config.get('SETTINGS_TROUTE_TOPOLOGY', 'troute_topology.nc')
+        topology_name = self.config_dict.get('SETTINGS_TROUTE_TOPOLOGY', 'troute_topology.nc')
         topology_path = self.preprocessor.setup_dir / topology_name
 
         if not topology_path.exists():
@@ -88,7 +88,7 @@ class TRouteModelOptimizer(BaseModelOptimizer):
         Returns:
             Dictionary of simulation outputs
         """
-        self.config.get('EXPERIMENT_ID')
+        self._get_config_value(lambda: self.config.domain.experiment_id, dict_key='EXPERIMENT_ID')
         output_dir = self.runner.get_experiment_output_dir()
 
         # T-Route output is typically in a channel output file

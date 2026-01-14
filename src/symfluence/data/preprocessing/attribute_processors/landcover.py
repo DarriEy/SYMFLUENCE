@@ -162,7 +162,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
             else:
                 # Distributed catchment
                 catchment = gpd.read_file(self.catchment_path)
-                hru_id_field = self.config.get('CATCHMENT_SHP_HRUID', 'HRU_ID')
+                hru_id_field = self._get_config_value(lambda: self.config.paths.catchment_hruid, default='HRU_ID', dict_key='CATCHMENT_SHP_HRUID')
 
                 for i, zonal_result in enumerate(zonal_out):
                     if i < len(catchment):
@@ -201,7 +201,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
         results: Dict[str, Any] = {}
 
         lai_path = Path("/work/comphyd_lab/data/_to-be-moved/NorthAmerica_geospatial/lai/monthly_average_2013_2023")
-        use_water_mask = self.config.get('USE_WATER_MASKED_LAI', True)
+        use_water_mask = self.config_dict.get('USE_WATER_MASKED_LAI', True)
 
         lai_folder = lai_path / ('monthly_lai_with_water_mask' if use_water_mask else 'monthly_lai_no_water_mask')
 
@@ -266,7 +266,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
                             monthly_lai_values.append((month, zonal_out[0]['mean'] * scale))
                 else:
                     catchment = gpd.read_file(self.catchment_path)
-                    hru_id_field = self.config.get('CATCHMENT_SHP_HRUID', 'HRU_ID')
+                    hru_id_field = self._get_config_value(lambda: self.config.paths.catchment_hruid, default='HRU_ID', dict_key='CATCHMENT_SHP_HRUID')
 
                     for i, zonal_result in enumerate(zonal_out):
                         if i < len(catchment):
@@ -356,7 +356,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
                                 results[f"forest.height_{year}_{stat}"] = zonal_out[0][stat]
                 else:
                     catchment = gpd.read_file(self.catchment_path)
-                    hru_id_field = self.config.get('CATCHMENT_SHP_HRUID', 'HRU_ID')
+                    hru_id_field = self._get_config_value(lambda: self.config.paths.catchment_hruid, default='HRU_ID', dict_key='CATCHMENT_SHP_HRUID')
 
                     for i, zonal_result in enumerate(zonal_out):
                         if i < len(catchment):

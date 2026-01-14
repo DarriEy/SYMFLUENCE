@@ -11,8 +11,10 @@ import geopandas as gpd
 from pathlib import Path
 from typing import List
 
+from symfluence.core.mixins import ConfigMixin
 
-class PointScaleForcingExtractor:
+
+class PointScaleForcingExtractor(ConfigMixin):
     """
     Extracts forcing data for point-scale or tiny grid domains.
 
@@ -36,7 +38,29 @@ class PointScaleForcingExtractor:
             dataset_handler: Dataset-specific handler for coordinate names
             logger: Optional logger instance
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.project_dir = project_dir
         self.dataset_handler = dataset_handler
         self.logger = logger or logging.getLogger(__name__)
@@ -118,7 +142,7 @@ class PointScaleForcingExtractor:
         intersect_path.mkdir(parents=True, exist_ok=True)
 
         # Create minimal intersection CSV
-        case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
+        case_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_{self._get_config_value(lambda: self.config.forcing.dataset, dict_key='FORCING_DATASET')}"
         intersect_csv = intersect_path / f"{case_name}_intersected_shapefile.csv"
 
         if not intersect_csv.exists():
@@ -127,7 +151,7 @@ class PointScaleForcingExtractor:
         # Process each file
         for file in forcing_files:
             output_file = output_filename_func(file)
-            if output_file.exists() and not self.config.get('FORCE_RUN_ALL_STEPS', False):
+            if output_file.exists() and not self._get_config_value(lambda: self.config.system.force_run_all_steps, default=False, dict_key='FORCE_RUN_ALL_STEPS'):
                 continue
 
             self._process_single_file(file, output_file, intersect_csv)
@@ -143,7 +167,7 @@ class PointScaleForcingExtractor:
 
         target_shp_path = catchment_path / catchment_name
         target_gdf = gpd.read_file(target_shp_path)
-        hru_id_field = self.config.get('CATCHMENT_SHP_HRUID')
+        hru_id_field = self._get_config_value(lambda: self.config.paths.catchment_hruid, dict_key='CATCHMENT_SHP_HRUID')
 
         hru_id_field_val = target_gdf[hru_id_field].values
         df_int = pd.DataFrame({
@@ -185,7 +209,7 @@ class PointScaleForcingExtractor:
             if intersect_csv.exists():
                 try:
                     df_int = pd.read_csv(intersect_csv)
-                    hru_ids = df_int[self.config.get('CATCHMENT_SHP_HRUID')].values.astype('int32')
+                    hru_ids = df_int[self._get_config_value(lambda: self.config.paths.catchment_hruid, dict_key='CATCHMENT_SHP_HRUID')].values.astype('int32')
                 except Exception:
                     pass
 

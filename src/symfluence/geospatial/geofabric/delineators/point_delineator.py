@@ -37,7 +37,7 @@ class PointDelineator(BaseGeofabricDelineator):
         try:
             self.logger.info("Creating point domain shapefile from bounding box coordinates")
 
-            bbox_coords = self.config.get("BOUNDING_BOX_COORDS", "")
+            bbox_coords = self._get_config_value(lambda: self.config.domain.bounding_box_coords, default="", dict_key='BOUNDING_BOX_COORDS')
             if not bbox_coords:
                 self.logger.error("BOUNDING_BOX_COORDS not found in configuration")
                 return None

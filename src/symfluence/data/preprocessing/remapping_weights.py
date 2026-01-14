@@ -27,6 +27,8 @@ from tqdm import tqdm
 
 from .shapefile_manager import ShapefileManager
 
+from symfluence.core.mixins import ConfigMixin
+
 # Suppress verbose easymore logging
 logging.getLogger('easymore').setLevel(logging.WARNING)
 
@@ -40,7 +42,7 @@ def _create_easymore_instance():
     raise AttributeError("easymore module does not expose an Easymore class")
 
 
-class RemappingWeightGenerator:
+class RemappingWeightGenerator(ConfigMixin):
     """
     Generates remapping weights for forcing data using EASYMORE.
 
@@ -64,7 +66,29 @@ class RemappingWeightGenerator:
             project_dir: Project directory path
             shapefile_manager: ShapefileManager instance for CRS handling
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.project_dir = project_dir
         self.shapefile_manager = shapefile_manager
@@ -92,7 +116,7 @@ class RemappingWeightGenerator:
         Returns:
             Tuple of (remap_file_path, detected_variables)
         """
-        case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
+        case_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_{self._get_config_value(lambda: self.config.forcing.dataset, dict_key='FORCING_DATASET')}"
         remap_file = output_dir / f"{case_name}_{hru_id_field}_remapping.csv"
 
         # Check if weights already exist
@@ -134,15 +158,15 @@ class RemappingWeightGenerator:
 
             # Source shapefile config
             esmr.source_shp = str(source_shapefile)
-            esmr.source_shp_lat = self.config.get('FORCING_SHAPE_LAT_NAME')
-            esmr.source_shp_lon = self.config.get('FORCING_SHAPE_LON_NAME')
-            esmr.source_shp_ID = self.config.get('FORCING_SHAPE_ID_NAME', 'ID')
+            esmr.source_shp_lat = self._get_config_value(lambda: self.config.forcing.shape_lat_name, dict_key='FORCING_SHAPE_LAT_NAME')
+            esmr.source_shp_lon = self._get_config_value(lambda: self.config.forcing.shape_lon_name, dict_key='FORCING_SHAPE_LON_NAME')
+            esmr.source_shp_ID = self.config_dict.get('FORCING_SHAPE_ID_NAME', 'ID')
 
             # Target shapefile config
             esmr.target_shp = str(target_for_easymore)
             esmr.target_shp_ID = hru_id_field
-            esmr.target_shp_lat = self.config.get('CATCHMENT_SHP_LAT')
-            esmr.target_shp_lon = self.config.get('CATCHMENT_SHP_LON')
+            esmr.target_shp_lat = self._get_config_value(lambda: self.config.paths.catchment_lat, dict_key='CATCHMENT_SHP_LAT')
+            esmr.target_shp_lon = self._get_config_value(lambda: self.config.paths.catchment_lon, dict_key='CATCHMENT_SHP_LON')
 
             # NetCDF config
             esmr.source_nc = str(sample_forcing_file)
@@ -299,7 +323,7 @@ class RemappingWeightGenerator:
         return detected_vars, source_resolution
 
 
-class RemappingWeightApplier:
+class RemappingWeightApplier(ConfigMixin):
     """
     Applies pre-computed remapping weights to forcing files.
 
@@ -373,7 +397,7 @@ class RemappingWeightApplier:
                 esmr = _create_easymore_instance()
 
                 esmr.author_name = 'SUMMA public workflow scripts'
-                esmr.case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
+                esmr.case_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_{self._get_config_value(lambda: self.config.forcing.dataset, dict_key='FORCING_DATASET')}"
 
                 var_lat, var_lon = self.dataset_handler.get_coordinate_names()
 
@@ -436,15 +460,15 @@ class RemappingWeightApplier:
         Returns:
             Expected output file path
         """
-        domain_name = self.config.get('DOMAIN_NAME')
-        forcing_dataset = self.config.get('FORCING_DATASET')
+        domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
+        forcing_dataset = self._get_config_value(lambda: self.config.forcing.dataset, dict_key='FORCING_DATASET')
         input_stem = input_file.stem
 
         if forcing_dataset.lower() in ('rdrs', 'casr'):
             output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
 
         elif forcing_dataset.lower() in ('carra', 'cerra'):
-            start_str = self.config.get('EXPERIMENT_TIME_START')
+            start_str = self._get_config_value(lambda: self.config.domain.time_start, dict_key='EXPERIMENT_TIME_START')
             try:
                 dt_start = datetime.strptime(start_str, "%Y-%m-%d %H:%M")
                 time_tag = dt_start.strftime("%Y-%m-%d-%H-%M-%S")
@@ -472,7 +496,7 @@ class RemappingWeightApplier:
         return self.output_dir / output_filename
 
 
-class BatchProcessor:
+class BatchProcessor(ConfigMixin):
     """
     Handles serial and parallel batch processing of forcing files.
     """

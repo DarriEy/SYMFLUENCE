@@ -16,8 +16,10 @@ from tqdm import tqdm
 
 from .file_validator import FileValidator
 
+from symfluence.core.mixins import ConfigMixin
 
-class FileProcessor:
+
+class FileProcessor(ConfigMixin):
     """
     Manages parallel and serial processing of forcing files.
 
@@ -38,7 +40,29 @@ class FileProcessor:
             output_dir: Output directory for processed files
             logger: Optional logger instance
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.output_dir = output_dir
         self.logger = logger or logging.getLogger(__name__)
         self.validator = FileValidator(self.logger)
@@ -53,8 +77,8 @@ class FileProcessor:
         Returns:
             Path: Expected output file path
         """
-        domain_name = self.config.get('DOMAIN_NAME')
-        forcing_dataset = self.config.get('FORCING_DATASET')
+        domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
+        forcing_dataset = self._get_config_value(lambda: self.config.forcing.dataset, dict_key='FORCING_DATASET')
         input_stem = input_file.stem
 
         # Try to extract a date from the filename

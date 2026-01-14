@@ -59,7 +59,7 @@ class DDSAlgorithm(OptimizationAlgorithm):
         self.logger.info(f"Starting DDS optimization with {n_params} parameters")
 
         # DDS perturbation range
-        r = self.config.get('DDS_R', 0.2)
+        r = self._get_config_value(lambda: self.config.optimization.dds.r, default=0.2, dict_key='DDS_R')
 
         # Initialize with random starting point
         x_best = np.random.uniform(0, 1, n_params)

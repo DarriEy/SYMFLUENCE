@@ -70,7 +70,7 @@ class LSTMModelOptimizer(BaseModelOptimizer):
 
     def _setup_parallel_dirs(self) -> None:
         """Setup parallel directories for LSTM."""
-        algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
+        algorithm = self._get_config_value(lambda: self.config.optimization.algorithm, default='optimization', dict_key='ITERATIVE_OPTIMIZATION_ALGORITHM').lower()
         base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
 
         self.parallel_dirs = self.setup_parallel_processing(

@@ -27,11 +27,11 @@ class EMEarthAcquirer(BaseAcquisitionHandler):
     def download(self, output_dir: Path) -> Path:
         self.logger.info("Downloading EM-Earth data from AWS S3")
         fs = s3fs.S3FileSystem(anon=True)
-        emearth_type = str(self.config.get("EM_EARTH_DATA_TYPE", "deterministic")).lower()
+        emearth_type = str(self._get_config_value(lambda: self.config.forcing.em_earth.data_type, default="deterministic", dict_key='EM_EARTH_DATA_TYPE')).lower()
         base_folder = "nc/deterministic_raw_daily" if emearth_type == "deterministic" else "nc/probabilistic_daily"
-        precip_var = self.config.get("EM_PRCP", "prcp")
+        precip_var = self._get_config_value(lambda: self.config.forcing.em_earth.prcp_var, default="prcp", dict_key='EM_PRCP')
         vars = [precip_var, "tmean", "trange", "tdew"]
-        region = str(self.config.get("EM_EARTH_REGION_FOLDER", "global"))
+        region = str(self.config_dict.get('EM_EARTH_REGION_FOLDER', "global"))
         use_region = region.lower() not in ("global", "")
         start_year, end_year = max(self.start_date.year, 1950), min(self.end_date.year, 2019)
         all_datasets = {}
@@ -55,7 +55,7 @@ class EMEarthAcquirer(BaseAcquisitionHandler):
         if not all_datasets: raise ValueError("No EM-Earth data downloaded")
         ds_final = xr.merge(list(all_datasets.values()))
         ds_final.attrs.update({"source": "EM-Earth", "bbox": str(self.bbox)})
-        save_dir = output_dir / "raw_data_em_earth" if self.config.get('SUPPLEMENT_FORCING', False) else output_dir
+        save_dir = output_dir / "raw_data_em_earth" if self._get_config_value(lambda: self.config.forcing.supplement, default=False, dict_key='SUPPLEMENT_FORCING') else output_dir
         save_dir.mkdir(parents=True, exist_ok=True)
         output_file = save_dir / f"{self.domain_name}_EM-Earth_{emearth_type}_{start_year}-{end_year}.nc"
         ds_final.to_netcdf(output_file)

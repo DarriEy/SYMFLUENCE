@@ -9,10 +9,11 @@ from typing import Dict, List, Callable
 import xarray as xr
 
 from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
+from symfluence.core.mixins import ConfigMixin
 
 
 @ForcingAdapterRegistry.register_adapter('FUSE')
-class FUSEForcingAdapter(ForcingAdapter):
+class FUSEForcingAdapter(ConfigMixin, ForcingAdapter):
     """
     Forcing adapter for FUSE model.
 
@@ -74,7 +75,7 @@ class FUSEForcingAdapter(ForcingAdapter):
             Dict of conversion functions
         """
         # Determine timestep for precipitation conversion
-        timestep_seconds = self.config.get('FORCING_TIME_STEP_SIZE', 86400)
+        timestep_seconds = self._get_config_value(lambda: self.config.forcing.time_step_size, default=86400, dict_key='FORCING_TIME_STEP_SIZE')
 
         return {
             'air_temperature': lambda x: x - 273.15,  # K to °C

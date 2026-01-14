@@ -259,7 +259,7 @@ class AcquisitionService(ConfigurableMixin):
                         self.logger.info(f"✓ FABDEM acquired: {elev_file}")
 
                     elif dem_source == 'nasadem':
-                        if self.config.get('NASADEM_LOCAL_DIR'):
+                        if self._get_config_value(lambda: self.config.data.geospatial.nasadem.local_dir, dict_key='NASADEM_LOCAL_DIR'):
                             self.logger.info("Acquiring NASADEM (30m) from local tiles")
                             elev_file = downloader.download_nasadem_local()
                             self.logger.info(f"✓ NASADEM acquired: {elev_file}")
@@ -427,8 +427,8 @@ class AcquisitionService(ConfigurableMixin):
         if dataset_key not in resolution_hours:
             return None
 
-        start = pd.to_datetime(self.config.get("EXPERIMENT_TIME_START"))
-        end = pd.to_datetime(self.config.get("EXPERIMENT_TIME_END"))
+        start = pd.to_datetime(self._get_config_value(lambda: self.config.domain.time_start, dict_key='EXPERIMENT_TIME_START'))
+        end = pd.to_datetime(self._get_config_value(lambda: self.config.domain.time_end, dict_key='EXPERIMENT_TIME_END'))
         if pd.isna(start) or pd.isna(end) or end < start:
             return None
 
@@ -458,7 +458,7 @@ class AcquisitionService(ConfigurableMixin):
 
         data_access = self._get_config_value(lambda: self.config.domain.data_access, default='MAF').upper()
         forcing_dataset = self._get_config_value(lambda: self.config.forcing.dataset, default='').upper()
-        if forcing_dataset in {"CARRA", "CERRA"} and not self.config.get("FORCING_TIME_STEP_SIZE"):
+        if forcing_dataset in {"CARRA", "CERRA"} and not self._get_config_value(lambda: self.config.forcing.time_step_size, dict_key='FORCING_TIME_STEP_SIZE'):
             self.config["FORCING_TIME_STEP_SIZE"] = 10800
             self.logger.info(
                 f"Defaulting FORCING_TIME_STEP_SIZE to 10800s for {forcing_dataset}"
@@ -477,16 +477,16 @@ class AcquisitionService(ConfigurableMixin):
             cache_root = self.data_dir / 'cache' / 'raw_forcing'
             cache = RawForcingCache(
                 cache_root=cache_root,
-                max_size_gb=self.config.get('FORCING_CACHE_SIZE_GB', 3.0),
-                ttl_days=self.config.get('FORCING_CACHE_TTL_DAYS', 30),
-                enable_checksum=self.config.get('FORCING_CACHE_CHECKSUM', True)
+                max_size_gb=self.config_dict.get('FORCING_CACHE_SIZE_GB', 3.0),
+                ttl_days=self.config_dict.get('FORCING_CACHE_TTL_DAYS', 30),
+                enable_checksum=self.config_dict.get('FORCING_CACHE_CHECKSUM', True)
             )
 
             # Generate cache key
             bbox = self._get_config_value(lambda: self.config.domain.bounding_box_coords)
             time_start = self._get_config_value(lambda: self.config.domain.time_start)
             time_end = self._get_config_value(lambda: self.config.domain.time_end)
-            variables = self.config.get('FORCING_VARIABLES')
+            variables = self._get_config_value(lambda: self.config.forcing.variables, dict_key='FORCING_VARIABLES')
 
             cache_key = cache.generate_cache_key(
                 dataset=forcing_dataset,
@@ -498,7 +498,7 @@ class AcquisitionService(ConfigurableMixin):
 
             # Check cache first
             cached_file = cache.get(cache_key)
-            if cached_file and not self.config.get('FORCE_DOWNLOAD', False):
+            if cached_file and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
                 expected_times = self._expected_forcing_times(forcing_dataset)
                 if expected_times is not None and not self._cached_forcing_has_expected_times(
                     cached_file, expected_times
@@ -509,7 +509,7 @@ class AcquisitionService(ConfigurableMixin):
                     )
                     cached_file = None
 
-            if cached_file and not self.config.get('FORCE_DOWNLOAD', False):
+            if cached_file and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
                 self.logger.info(f"✓ Using cached forcing data: {cache_key}")
                 # Copy from cache to project directory
                 import shutil
@@ -642,30 +642,30 @@ class AcquisitionService(ConfigurableMixin):
             additional_obs.append('LAMAH_ICE_STREAMFLOW')
 
         # Check for USGS Groundwater download
-        download_usgs_gw = self.config.get('DOWNLOAD_USGS_GW', False)
+        download_usgs_gw = self._get_config_value(lambda: self.config.evaluation.usgs_gw.download, default=False, dict_key='DOWNLOAD_USGS_GW')
         if isinstance(download_usgs_gw, str):
             download_usgs_gw = download_usgs_gw.lower() == 'true'
         if download_usgs_gw and 'USGS_GW' not in additional_obs:
             additional_obs.append('USGS_GW')
 
         # Check for MODIS Snow
-        if self.config.get('DOWNLOAD_MODIS_SNOW', False) and 'MODIS_SNOW' not in additional_obs:
+        if self._get_config_value(lambda: self.config.evaluation.modis_snow.download, default=False, dict_key='DOWNLOAD_MODIS_SNOW') and 'MODIS_SNOW' not in additional_obs:
             additional_obs.append('MODIS_SNOW')
 
         # Check for SNOTEL
-        download_snotel = self.config.get('DOWNLOAD_SNOTEL', False)
+        download_snotel = self._get_config_value(lambda: self.config.evaluation.snotel.download, default=False, dict_key='DOWNLOAD_SNOTEL')
         if isinstance(download_snotel, str):
             download_snotel = download_snotel.lower() == 'true'
         if download_snotel and 'SNOTEL' not in additional_obs:
             additional_obs.append('SNOTEL')
 
         # Check for GRACE
-        if self.config.get('DOWNLOAD_GRACE', False) and 'GRACE' not in additional_obs:
+        if self._get_config_value(lambda: self.config.evaluation.grace.download, default=False, dict_key='DOWNLOAD_GRACE') and 'GRACE' not in additional_obs:
             additional_obs.append('GRACE')
 
         # Check for MOD16 ET (based on ET_OBS_SOURCE or OPTIMIZATION_TARGET)
-        et_obs_source = str(self.config.get('ET_OBS_SOURCE', '')).lower()
-        optimization_target = str(self.config.get('OPTIMIZATION_TARGET', '')).lower()
+        et_obs_source = str(self.config_dict.get('ET_OBS_SOURCE', '')).lower()
+        optimization_target = str(self._get_config_value(lambda: self.config.optimization.target, default='', dict_key='OPTIMIZATION_TARGET')).lower()
         if et_obs_source in ('mod16', 'modis', 'modis_et', 'mod16a2'):
             if 'MODIS_ET' not in additional_obs and 'MOD16' not in additional_obs:
                 additional_obs.append('MODIS_ET')
@@ -675,12 +675,12 @@ class AcquisitionService(ConfigurableMixin):
                 additional_obs.append('MODIS_ET')
 
         # Check for FLUXNET data (based on config flags or ET_OBS_SOURCE)
-        if self.config.get('DOWNLOAD_FLUXNET', False) or et_obs_source == 'fluxnet':
+        if self._get_config_value(lambda: self.config.evaluation.fluxnet.download, default=False, dict_key='DOWNLOAD_FLUXNET') or et_obs_source == 'fluxnet':
             if 'FLUXNET' not in additional_obs and 'FLUXNET_ET' not in additional_obs:
                 additional_obs.append('FLUXNET_ET')
 
         # Check for multi-source ET (both FLUXNET and MOD16)
-        if self.config.get('MULTI_SOURCE_ET', False):
+        if self.config_dict.get('MULTI_SOURCE_ET', False):
             if 'FLUXNET_ET' not in additional_obs and 'FLUXNET' not in additional_obs:
                 additional_obs.append('FLUXNET_ET')
             if 'MODIS_ET' not in additional_obs and 'MOD16' not in additional_obs:
@@ -710,11 +710,9 @@ class AcquisitionService(ConfigurableMixin):
             em_earth_dir = self.project_dir / 'forcing' / 'raw_data_em_earth'
             em_earth_dir.mkdir(parents=True, exist_ok=True)
 
-            em_region = self.config.get('EM_EARTH_REGION', 'NorthAmerica')
-            em_earth_prcp_dir = self.config.get('EM_EARTH_PRCP_DIR',
-                f"/anvil/datasets/meteorological/EM-Earth/EM_Earth_v1/deterministic_hourly/prcp/{em_region}")
-            em_earth_tmean_dir = self.config.get('EM_EARTH_TMEAN_DIR',
-                f"/anvil/datasets/meteorological/EM-Earth/EM_Earth_v1/deterministic_hourly/tmean/{em_region}")
+            em_region = self.config_dict.get('EM_EARTH_REGION', 'NorthAmerica')
+            em_earth_prcp_dir = self._get_config_value(lambda: self.config.forcing.em_earth.prcp_dir, default=f"/anvil/datasets/meteorological/EM-Earth/EM_Earth_v1/deterministic_hourly/prcp/{em_region}", dict_key='EM_EARTH_PRCP_DIR')
+            em_earth_tmean_dir = self._get_config_value(lambda: self.config.forcing.em_earth.tmean_dir, default=f"/anvil/datasets/meteorological/EM-Earth/EM_Earth_v1/deterministic_hourly/tmean/{em_region}", dict_key='EM_EARTH_TMEAN_DIR')
 
             if not Path(em_earth_prcp_dir).exists():
                 raise FileNotFoundError(f"EM-Earth precipitation directory not found: {em_earth_prcp_dir}")
@@ -730,7 +728,7 @@ class AcquisitionService(ConfigurableMixin):
             self.logger.info(f"Watershed bounding box: {bbox}")
             self.logger.info(f"Watershed size: {lat_range:.4f}° x {lon_range:.4f}°")
 
-            min_bbox_size = self.config.get('EM_EARTH_MIN_BBOX_SIZE', 0.1)
+            min_bbox_size = self._get_config_value(lambda: self.config.forcing.em_earth.min_bbox_size, default=0.1, dict_key='EM_EARTH_MIN_BBOX_SIZE')
             if lat_range < min_bbox_size or lon_range < min_bbox_size:
                 self.logger.warning("Very small watershed detected. EM-Earth processing will use spatial averaging.")
 
@@ -802,7 +800,7 @@ class AcquisitionService(ConfigurableMixin):
 
     def _process_em_earth_month(self, year_month: str, prcp_dir: str, tmean_dir: str,
                                output_dir: Path, bbox: str) -> Optional[Path]:
-        em_region = self.config.get('EM_EARTH_REGION', 'NorthAmerica')
+        em_region = self.config_dict.get('EM_EARTH_REGION', 'NorthAmerica')
 
         prcp_pattern = f"EM_Earth_deterministic_hourly_{em_region}_{year_month}.nc"
         tmean_pattern = f"EM_Earth_deterministic_hourly_{em_region}_{year_month}.nc"
@@ -819,7 +817,7 @@ class AcquisitionService(ConfigurableMixin):
 
         output_file = output_dir / f"watershed_subset_{year_month}.nc"
 
-        if output_file.exists() and not self.config.get('FORCE_RUN_ALL_STEPS', False):
+        if output_file.exists() and not self._get_config_value(lambda: self.config.system.force_run_all_steps, default=False, dict_key='FORCE_RUN_ALL_STEPS'):
             self.logger.info(f"EM-Earth file already exists, skipping: {output_file}")
             return output_file
 

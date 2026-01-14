@@ -62,7 +62,8 @@ class ConfigMixin:
     def _get_config_value(
         self,
         typed_accessor: Callable[[], Any],
-        default: Any = None
+        default: Any = None,
+        dict_key: Optional[str] = None
     ) -> Any:
         """
         Get a configuration value from typed config with default fallback.
@@ -71,6 +72,8 @@ class ConfigMixin:
             typed_accessor: Callable that accesses the typed config value,
                            e.g., lambda: self.config.domain.name
             default: Default value if accessor fails or returns None
+            dict_key: Optional legacy dict key for backward compatibility
+                     with dict-based configs (e.g., 'DOMAIN_NAME')
 
         Returns:
             Configuration value or default
@@ -80,12 +83,30 @@ class ConfigMixin:
                 lambda: self.config.domain.name,
                 default='unnamed'
             )
+
+            # With backward compatibility for dict configs:
+            data_dir = self._get_config_value(
+                lambda: self.config.system.data_dir,
+                default='.',
+                dict_key='SYMFLUENCE_DATA_DIR'
+            )
         """
         try:
             value = typed_accessor()
-            return value if value is not None else default
+            if value is not None:
+                return value
         except (AttributeError, KeyError, TypeError):
-            return default
+            pass
+
+        # Fallback to dict access for backward compatibility
+        if dict_key is not None:
+            cfg = self.config
+            if isinstance(cfg, dict):
+                value = cfg.get(dict_key)
+                if value is not None:
+                    return value
+
+        return default
 
     # =========================================================================
     # Convenience Properties for Common Config Values

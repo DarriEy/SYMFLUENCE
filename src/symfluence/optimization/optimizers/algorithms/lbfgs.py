@@ -114,13 +114,13 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
             - best_params: Denormalized best parameters (dictionary)
         """
         # L-BFGS hyperparameters from config or kwargs
-        steps = kwargs.get('steps', self.config.get('LBFGS_STEPS', self.max_iterations))
-        lr = kwargs.get('lr', self.config.get('LBFGS_LR', 0.1))
-        history_size = kwargs.get('history_size', self.config.get('LBFGS_HISTORY_SIZE', 10))
+        steps = kwargs.get('steps', self.config_dict.get('LBFGS_STEPS', self.max_iterations))
+        lr = kwargs.get('lr', self.config_dict.get('LBFGS_LR', 0.1))
+        history_size = kwargs.get('history_size', self.config_dict.get('LBFGS_HISTORY_SIZE', 10))
         c1 = kwargs.get('c1', self.config.get('LBFGS_C1', 1e-4))  # Armijo condition
         c2 = kwargs.get('c2', self.config.get('LBFGS_C2', 0.9))   # Wolfe condition
-        gradient_epsilon = self.config.get('GRADIENT_EPSILON', 1e-4)
-        gradient_clip = self.config.get('GRADIENT_CLIP_VALUE', 1.0)
+        gradient_epsilon = self.config_dict.get('GRADIENT_EPSILON', 1e-4)
+        gradient_clip = self.config_dict.get('GRADIENT_CLIP_VALUE', 1.0)
 
         self.logger.info(f"Starting L-BFGS optimization with {n_params} parameters")
         self.logger.info(f"  Steps: {steps}, LR: {lr}, History size: {history_size}")

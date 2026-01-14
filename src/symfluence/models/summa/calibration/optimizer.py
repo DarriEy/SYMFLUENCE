@@ -80,8 +80,8 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
 
     def _get_summa_executable_path(self) -> Path:
         """Get path to SUMMA executable."""
-        summa_install = self.config.get('SUMMA_INSTALL_PATH', 'default')
-        summa_exe_name = self.config.get('SUMMA_EXE', 'summa_sundials.exe')
+        summa_install = self._get_config_value(lambda: self.config.model.summa.install_path, default='default', dict_key='SUMMA_INSTALL_PATH')
+        summa_exe_name = self._get_config_value(lambda: self.config.model.summa.exe, default='summa_sundials.exe', dict_key='SUMMA_EXE')
 
         if summa_install == 'default':
             return self.data_dir / 'installs' / 'summa' / 'bin' / summa_exe_name
@@ -89,20 +89,20 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
 
     def _get_mizuroute_executable_path(self) -> Path:
         """Get path to mizuRoute executable."""
-        mizu_install = self.config.get('MIZUROUTE_INSTALL_PATH', 'default')
+        mizu_install = self.config_dict.get('MIZUROUTE_INSTALL_PATH', 'default')
         if mizu_install == 'default':
             return self.data_dir / 'installs' / 'mizuroute' / 'bin' / 'mizuroute.exe'
         return Path(mizu_install)
 
     def _check_routing_needed(self) -> bool:
         """Determine if routing is needed based on configuration."""
-        calibration_var = self.config.get('CALIBRATION_VARIABLE', 'streamflow')
+        calibration_var = self._get_config_value(lambda: self.config.optimization.calibration_variable, default='streamflow', dict_key='CALIBRATION_VARIABLE')
 
         if calibration_var != 'streamflow':
             return False
 
-        domain_method = self.config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-        routing_delineation = self.config.get('ROUTING_DELINEATION', 'lumped')
+        domain_method = self._get_config_value(lambda: self.config.domain.definition_method, default='lumped', dict_key='DOMAIN_DEFINITION_METHOD')
+        routing_delineation = self._get_config_value(lambda: self.config.domain.delineation.routing, default='lumped', dict_key='ROUTING_DELINEATION')
 
         if domain_method not in ['point', 'lumped']:
             return True
@@ -127,7 +127,7 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
 
     def _get_final_file_manager_path(self) -> Path:
         """Get path to SUMMA file manager."""
-        summa_fm = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        summa_fm = self._get_config_value(lambda: self.config.model.summa.filemanager, default='fileManager.txt', dict_key='SETTINGS_SUMMA_FILEMANAGER')
         if summa_fm == 'default':
             summa_fm = 'fileManager.txt'
         return self.project_dir / 'settings' / 'SUMMA' / summa_fm
@@ -135,7 +135,7 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
     def _setup_parallel_dirs(self) -> None:
         """Setup SUMMA-specific parallel directories."""
         # Use algorithm-specific directory
-        algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
+        algorithm = self._get_config_value(lambda: self.config.optimization.algorithm, default='optimization', dict_key='ITERATIVE_OPTIMIZATION_ALGORITHM').lower()
         base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
 
         self.parallel_dirs = self.setup_parallel_processing(

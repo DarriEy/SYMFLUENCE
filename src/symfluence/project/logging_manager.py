@@ -16,6 +16,8 @@ import warnings
 import os
 import tempfile
 
+from symfluence.core.mixins import ConfigMixin
+
 # Suppress pyogrio field width warnings (non-fatal - data is still written)
 warnings.filterwarnings('ignore',
                        message='.*not successfully written.*field width.*',
@@ -49,7 +51,7 @@ def get_logger(name: str = "symfluence") -> logging.Logger:
     )
     return logger
 
-class LoggingManager:
+class LoggingManager(ConfigMixin):
     """
     Manages logging configuration and setup for the SYMFLUENCE framework.
 
@@ -99,10 +101,32 @@ class LoggingManager:
             PermissionError: If log directories cannot be created due to permissions
             OSError: If other file system operations fail
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.debug_mode = debug_mode
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
+        self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.log_dir = self.project_dir / f"_workLog_{self.domain_name}"
 
@@ -164,7 +188,7 @@ class LoggingManager:
         """
         # Get log level from config or parameter
         if log_level is None:
-            log_level = self.config.get('LOG_LEVEL', 'INFO')
+            log_level = self._get_config_value(lambda: self.config.system.log_level, default='INFO', dict_key='LOG_LEVEL')
 
         # Force DEBUG level if debug_mode is enabled
         if self.debug_mode:
@@ -247,7 +271,7 @@ class LoggingManager:
         if self.debug_mode:
             logger.info("DEBUG MODE: Enabled")
         logger.info(f"Domain: {self.domain_name}")
-        logger.info(f"Experiment ID: {self.config.get('EXPERIMENT_ID', 'N/A')}")
+        logger.info(f"Experiment ID: {self._get_config_value(lambda: self.config.domain.experiment_id, default='N/A', dict_key='EXPERIMENT_ID')}")
         logger.info(f"Log Level: {log_level}")
         logger.info(f"Log File: {log_file}" if file_handler else "Log File: disabled (no write access)")
         logger.info("=" * 60)
@@ -278,7 +302,8 @@ class LoggingManager:
         config_file = self.log_dir / f'config_{self.domain_name}_{current_time}.yaml'
 
         # Create a copy and mask sensitive information
-        config_to_log = self.config.copy()
+        # Use config_dict to get a mutable dict (config.copy() returns Pydantic model)
+        config_to_log = self.config_dict.copy()
 
         # Mask any potential sensitive fields (add as needed)
         sensitive_fields = ['PASSWORD', 'API_KEY', 'SECRET']
@@ -471,7 +496,7 @@ class LoggingManager:
         summary = {
             'timestamp': datetime.now().isoformat(),
             'domain': self.domain_name,
-            'experiment_id': self.config.get('EXPERIMENT_ID', 'N/A'),
+            'experiment_id': self._get_config_value(lambda: self.config.domain.experiment_id, default='N/A', dict_key='EXPERIMENT_ID'),
             'execution_time_seconds': execution_time,
             'steps_completed': steps_completed,
             'total_steps_completed': len(steps_completed),
@@ -482,10 +507,10 @@ class LoggingManager:
             'debug_mode': self.debug_mode,
             'status': status,
             'configuration': {
-                'hydrological_model': self.config.get('HYDROLOGICAL_MODEL'),
-                'domain_definition_method': self.config.get('DOMAIN_DEFINITION_METHOD'),
-                'optimization_algorithm': self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM'),
-                'force_run_all': self.config.get('FORCE_RUN_ALL_STEPS', False)
+                'hydrological_model': self._get_config_value(lambda: self.config.model.hydrological_model, dict_key='HYDROLOGICAL_MODEL'),
+                'domain_definition_method': self._get_config_value(lambda: self.config.domain.definition_method, dict_key='DOMAIN_DEFINITION_METHOD'),
+                'optimization_algorithm': self._get_config_value(lambda: self.config.optimization.algorithm, dict_key='ITERATIVE_OPTIMIZATION_ALGORITHM'),
+                'force_run_all': self._get_config_value(lambda: self.config.system.force_run_all_steps, default=False, dict_key='FORCE_RUN_ALL_STEPS')
             }
         }
 
@@ -570,7 +595,7 @@ class LoggingManager:
             log_files = sorted(self.log_dir.glob(f'{log_type}_{self.domain_name}_*.log'))
             return log_files[-1] if log_files else None
 
-    class EnhancedFormatter(logging.Formatter):
+    class EnhancedFormatter(ConfigMixin, logging.Formatter):
         """
         Enhanced formatter for console output with better visual formatting.
 
@@ -648,7 +673,7 @@ class LoggingManager:
                 # Format: "HH:MM:SS ● message"
                 return f"{record.asctime} {level_indicator} {message}"
 
-    class ConsoleFilter(logging.Filter):
+    class ConsoleFilter(ConfigMixin, logging.Filter):
         """
         Filter to reduce console output verbosity by excluding noisy debug messages.
 

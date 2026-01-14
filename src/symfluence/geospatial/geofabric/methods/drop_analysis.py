@@ -11,8 +11,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import numpy as np
 
+from symfluence.core.mixins import ConfigMixin
 
-class DropAnalysisMethod:
+
+class DropAnalysisMethod(ConfigMixin):
     """
     Drop analysis for objective threshold selection.
 
@@ -32,7 +34,29 @@ class DropAnalysisMethod:
             reporting_manager: ReportingManager instance
         """
         self.taudem = taudem_executor
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.interim_dir = interim_dir
         self.reporting_manager = reporting_manager
@@ -50,10 +74,10 @@ class DropAnalysisMethod:
             self.logger.info("Running drop analysis to optimize stream threshold")
 
             # Get parameters
-            min_threshold = self.config.get('DROP_ANALYSIS_MIN_THRESHOLD', 100)
-            max_threshold = self.config.get('DROP_ANALYSIS_MAX_THRESHOLD', 10000)
-            num_thresholds = self.config.get('DROP_ANALYSIS_NUM_THRESHOLDS', 10)
-            use_log_spacing = self.config.get('DROP_ANALYSIS_LOG_SPACING', True)
+            min_threshold = self._get_config_value(lambda: self.config.domain.delineation.drop_analysis_min_threshold, default=100, dict_key='DROP_ANALYSIS_MIN_THRESHOLD')
+            max_threshold = self._get_config_value(lambda: self.config.domain.delineation.drop_analysis_max_threshold, default=10000, dict_key='DROP_ANALYSIS_MAX_THRESHOLD')
+            num_thresholds = self._get_config_value(lambda: self.config.domain.delineation.drop_analysis_num_thresholds, default=10, dict_key='DROP_ANALYSIS_NUM_THRESHOLDS')
+            use_log_spacing = self._get_config_value(lambda: self.config.domain.delineation.drop_analysis_log_spacing, default=True, dict_key='DROP_ANALYSIS_LOG_SPACING')
 
             # Generate threshold values to test
             if use_log_spacing:

@@ -15,6 +15,7 @@ import calendar
 import pandas as pd
 import numpy as np
 from symfluence.core.constants import PhysicalConstants, UnitConversion
+from symfluence.core.mixins import ConfigMixin
 
 # Logic moved from DataManager
 def _perform_em_earth_remapping_logic(input_file: Path, output_file: Path, basin_shapefile: Path, config: Dict[str, Any]) -> bool:
@@ -171,16 +172,38 @@ def _remap_em_earth_worker(args):
         config
     )
 
-class EMEarthIntegrator:
+class EMEarthIntegrator(ConfigMixin):
     """
     Handles the integration of EM-Earth data into the forcing dataset.
     """
 
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
+        self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
     def integrate_em_earth_data(self):
@@ -224,9 +247,9 @@ class EMEarthIntegrator:
 
         try:
             # Get basin shapefile for remapping
-            subbasins_name = self.config.get('RIVER_BASINS_NAME')
+            subbasins_name = self._get_config_value(lambda: self.config.paths.river_basins_name, dict_key='RIVER_BASINS_NAME')
             if subbasins_name == 'default':
-                subbasins_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
+                subbasins_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_riverBasins_{self._get_config_value(lambda: self.config.domain.definition_method, dict_key='DOMAIN_DEFINITION_METHOD')}.shp"
 
             basin_shapefile = self.project_dir / "shapefiles/river_basins" / subbasins_name
 
@@ -249,7 +272,7 @@ class EMEarthIntegrator:
             files_to_process = []
             for em_file in em_earth_files:
                 output_file = remapped_dir / f"remapped_{em_file.name}"
-                if not output_file.exists() or self.config.get('FORCE_RUN_ALL_STEPS', False):
+                if not output_file.exists() or self._get_config_value(lambda: self.config.system.force_run_all_steps, default=False, dict_key='FORCE_RUN_ALL_STEPS'):
                     files_to_process.append(em_file)
 
             if not files_to_process:
@@ -259,7 +282,7 @@ class EMEarthIntegrator:
             self.logger.debug(f"Found {len(files_to_process)} EM-Earth files to remap")
 
             # Check if we should use parallel processing
-            num_processes = self.config.get('MPI_PROCESSES', 1)
+            num_processes = self._get_config_value(lambda: self.config.system.mpi_processes, default=1, dict_key='MPI_PROCESSES')
             use_parallel = num_processes > 1 and len(files_to_process) > 1
 
             if use_parallel:

@@ -67,8 +67,8 @@ class DEAlgorithm(OptimizationAlgorithm):
             )
 
         # DE parameters
-        F = self.config.get('DE_F', 0.8)  # Differential weight
-        CR = self.config.get('DE_CR', 0.9)  # Crossover probability
+        F = self.config_dict.get('DE_F', 0.8)  # Differential weight
+        CR = self.config_dict.get('DE_CR', 0.9)  # Crossover probability
 
         # Initialize population
         self.logger.info(f"Evaluating initial population ({pop_size} individuals)...")

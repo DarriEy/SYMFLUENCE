@@ -30,8 +30,9 @@ from pathlib import Path
 from typing import Dict
 
 from symfluence.data.acquisition.registry import AcquisitionRegistry
+from symfluence.core.mixins import ConfigMixin
 
-class CloudForcingDownloader:
+class CloudForcingDownloader(ConfigMixin):
     """Main entry point for cloud data acquisition using the AcquisitionRegistry.
 
     Provides a registry-based facade for downloading climate, weather, and
@@ -62,7 +63,29 @@ class CloudForcingDownloader:
             config: Configuration dict with FORCING_DATASET and SUPPLEMENT_FORCING keys
             logger: Logger instance for diagnostic messages
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.dataset_name = config.get('FORCING_DATASET', '').upper()
         self.supplement_data = config.get('SUPPLEMENT_FORCING', False)
@@ -126,7 +149,7 @@ class CloudForcingDownloader:
             Path: Location of downloaded soil class raster file.
         """
         handler = AcquisitionRegistry.get_handler('SOILGRIDS', self.config, self.logger)
-        return handler.download(Path(self.config.get('SYMFLUENCE_DATA_DIR')))
+        return handler.download(Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')))
 
     def download_global_soilclasses(self) -> Path:
         """Alias for download_soilgrids_soilclasses for backward compatibility.
@@ -148,7 +171,7 @@ class CloudForcingDownloader:
             Path: Location of downloaded land cover raster file.
         """
         handler = AcquisitionRegistry.get_handler('MODIS_LANDCOVER', self.config, self.logger)
-        return handler.download(Path(self.config.get('SYMFLUENCE_DATA_DIR')))
+        return handler.download(Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')))
 
     def download_usgs_landcover(self) -> Path:
         """Download USGS National Land Cover Database (NLCD) for domain.
@@ -163,7 +186,7 @@ class CloudForcingDownloader:
             ValueError: If domain is outside NLCD coverage area
         """
         handler = AcquisitionRegistry.get_handler('USGS_NLCD', self.config, self.logger)
-        return handler.download(Path(self.config.get('SYMFLUENCE_DATA_DIR')))
+        return handler.download(Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')))
 
     def download_copernicus_dem(self) -> Path:
         """Download Copernicus DEM 30m elevation data for domain.
@@ -175,7 +198,7 @@ class CloudForcingDownloader:
             Path: Location of downloaded elevation raster file.
         """
         handler = AcquisitionRegistry.get_handler('COPDEM30', self.config, self.logger)
-        return handler.download(Path(self.config.get('SYMFLUENCE_DATA_DIR')))
+        return handler.download(Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')))
 
     def download_fabdem(self) -> Path:
         """Download FABDEM (Forest And Buildings removed DEM) elevation data.
@@ -187,7 +210,7 @@ class CloudForcingDownloader:
             Path: Location of downloaded elevation raster file.
         """
         handler = AcquisitionRegistry.get_handler('FABDEM', self.config, self.logger)
-        return handler.download(Path(self.config.get('SYMFLUENCE_DATA_DIR')))
+        return handler.download(Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')))
 
     def download_nasadem_local(self) -> Path:
         """Download NASADEM elevation data for local use.
@@ -199,7 +222,7 @@ class CloudForcingDownloader:
             Path: Location of downloaded elevation raster file.
         """
         handler = AcquisitionRegistry.get_handler('NASADEM_LOCAL', self.config, self.logger)
-        return handler.download(Path(self.config.get('SYMFLUENCE_DATA_DIR')))
+        return handler.download(Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')))
 
     def download_glacier_data(self) -> Path:
         """Download glacier extent data from RGI (Randolph Glacier Inventory).
@@ -211,7 +234,7 @@ class CloudForcingDownloader:
             Path: Location of downloaded glacier shapefile.
         """
         handler = AcquisitionRegistry.get_handler('GLACIER', self.config, self.logger)
-        return handler.download(Path(self.config.get('SYMFLUENCE_DATA_DIR')))
+        return handler.download(Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')))
 
 
 def check_cloud_access_availability(dataset_name: str, logger) -> bool:

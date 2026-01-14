@@ -10,8 +10,10 @@ Extracted from geofabric_utils.py (2026-01-01)
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from symfluence.core.mixins import ConfigMixin
 
-class StreamThresholdMethod:
+
+class StreamThresholdMethod(ConfigMixin):
     """
     Threshold-based stream identification.
 
@@ -31,7 +33,29 @@ class StreamThresholdMethod:
             reporting_manager: ReportingManager instance
         """
         self.taudem = taudem_executor
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.interim_dir = interim_dir
         self.reporting_manager = reporting_manager
@@ -49,7 +73,7 @@ class StreamThresholdMethod:
             mpi_prefix: MPI command prefix
         """
         # Determine threshold
-        if self.config.get('USE_DROP_ANALYSIS', False):
+        if self._get_config_value(lambda: self.config.domain.delineation.use_drop_analysis, default=False, dict_key='USE_DROP_ANALYSIS'):
             from .drop_analysis import DropAnalysisMethod
             drop_analyzer = DropAnalysisMethod(
                 self.taudem, self.config, self.logger, self.interim_dir, self.reporting_manager
@@ -60,12 +84,12 @@ class StreamThresholdMethod:
                 threshold = optimal_threshold
                 self.logger.info(f"Using threshold from drop analysis: {threshold}")
             else:
-                threshold = self.config.get('STREAM_THRESHOLD', 10000)
+                threshold = self._get_config_value(lambda: self.config.domain.delineation.stream_threshold, default=10000, dict_key='STREAM_THRESHOLD')
                 self.logger.warning(f"Drop analysis failed. Using configured threshold: {threshold}")
         else:
-            threshold = self.config.get('STREAM_THRESHOLD', 10000)
+            threshold = self._get_config_value(lambda: self.config.domain.delineation.stream_threshold, default=10000, dict_key='STREAM_THRESHOLD')
 
-        max_distance = self.config.get('MOVE_OUTLETS_MAX_DISTANCE', 200)
+        max_distance = self._get_config_value(lambda: self.config.domain.delineation.move_outlets_max_distance, default=200, dict_key='MOVE_OUTLETS_MAX_DISTANCE')
 
         steps = [
             f"{mpi_prefix}{self.taudem_dir}/gridnet -p {self.interim_dir}/elv-fdir.tif -plen {self.interim_dir}/elv-plen.tif -tlen {self.interim_dir}/elv-tlen.tif -gord {self.interim_dir}/elv-gord.tif",

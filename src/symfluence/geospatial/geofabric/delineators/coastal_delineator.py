@@ -205,7 +205,7 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             self.logger.info(f"Combined river basins saved to: {combined_basins_path}")
 
             # Cleanup if requested
-            if self.config.get('CLEANUP_INTERMEDIATE_FILES', True):
+            if self._get_config_value(lambda: self.config.domain.delineation.cleanup_intermediate_files, default=True, dict_key='CLEANUP_INTERMEDIATE_FILES'):
                 shutil.rmtree(coastal_interim_dir, ignore_errors=True)
                 self.logger.info(f"Cleaned up coastal interim files: {coastal_interim_dir}")
 
@@ -232,20 +232,20 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
             self.logger.info(f"Creating point buffer shape for point-scale simulation at {self.domain_name}")
 
             # Get pour point coordinates
-            pour_point_coords = self.config.get('POUR_POINT_COORDS', '').split('/')
+            pour_point_coords = self._get_config_value(lambda: self.config.domain.pour_point_coords, default='', dict_key='POUR_POINT_COORDS').split('/')
             if len(pour_point_coords) != 2:
-                self.logger.error(f"Invalid pour point coordinates: {self.config.get('POUR_POINT_COORDS')}")
+                self.logger.error(f"Invalid pour point coordinates: {self._get_config_value(lambda: self.config.domain.pour_point_coords, dict_key='POUR_POINT_COORDS')}")
                 return None, None
 
             # Convert to floats
             try:
                 lat, lon = float(pour_point_coords[0]), float(pour_point_coords[1])
             except ValueError:
-                self.logger.error(f"Invalid pour point coordinates format: {self.config.get('POUR_POINT_COORDS')}")
+                self.logger.error(f"Invalid pour point coordinates format: {self._get_config_value(lambda: self.config.domain.pour_point_coords, dict_key='POUR_POINT_COORDS')}")
                 return None, None
 
             # Define buffer distance (0.01 degrees, approximately 1km at the equator)
-            buffer_dist = self.config.get('POINT_BUFFER_DISTANCE')
+            buffer_dist = self.config_dict.get('POINT_BUFFER_DISTANCE')
 
             # Create a square buffer around the point
             min_lon = lon - buffer_dist

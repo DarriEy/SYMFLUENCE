@@ -21,10 +21,11 @@ import re
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_ngen_bounds
 from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.mixins import ConfigMixin
 
 
 @OptimizerRegistry.register_parameter_manager('NGEN')
-class NgenParameterManager(BaseParameterManager):
+class NgenParameterManager(ConfigMixin, BaseParameterManager):
     """Manages ngen calibration parameters across CFE, NOAH-OWP, and PET modules"""
 
     def __init__(self, config: Dict, logger: logging.Logger, ngen_settings_dir: Path):
@@ -161,7 +162,7 @@ class NgenParameterManager(BaseParameterManager):
 
     def _parse_modules_to_calibrate(self) -> List[str]:
         """Parse which ngen modules to calibrate from config"""
-        modules_str = self.config.get('NGEN_MODULES_TO_CALIBRATE', 'CFE')
+        modules_str = self._get_config_value(lambda: self.config.model.ngen.modules_to_calibrate, default='CFE', dict_key='NGEN_MODULES_TO_CALIBRATE')
         if modules_str is None:
             modules_str = 'CFE'
         modules = [m.strip().upper() for m in modules_str.split(',') if m.strip()]
@@ -181,24 +182,21 @@ class NgenParameterManager(BaseParameterManager):
 
         # CFE parameters
         if 'CFE' in self.modules_to_calibrate:
-            cfe_params_str = self.config.get('NGEN_CFE_PARAMS_TO_CALIBRATE',
-                                            'maxsmc,satdk,bb,slop')
+            cfe_params_str = self._get_config_value(lambda: self.config.model.ngen.cfe_params_to_calibrate, default='maxsmc,satdk,bb,slop', dict_key='NGEN_CFE_PARAMS_TO_CALIBRATE')
             if cfe_params_str is None:
                 cfe_params_str = 'maxsmc,satdk,bb,slop'
             params['CFE'] = [p.strip() for p in cfe_params_str.split(',') if p.strip()]
 
         # NOAH-OWP parameters
         if 'NOAH' in self.modules_to_calibrate:
-            noah_params_str = self.config.get('NGEN_NOAH_PARAMS_TO_CALIBRATE',
-                                             'refkdt,slope,smcmax,dksat')
+            noah_params_str = self._get_config_value(lambda: self.config.model.ngen.noah_params_to_calibrate, default='refkdt,slope,smcmax,dksat', dict_key='NGEN_NOAH_PARAMS_TO_CALIBRATE')
             if noah_params_str is None:
                 noah_params_str = 'refkdt,slope,smcmax,dksat'
             params['NOAH'] = [p.strip() for p in noah_params_str.split(',') if p.strip()]
 
         # PET parameters
         if 'PET' in self.modules_to_calibrate:
-            pet_params_str = self.config.get('NGEN_PET_PARAMS_TO_CALIBRATE',
-                                            'wind_speed_measurement_height_m')
+            pet_params_str = self._get_config_value(lambda: self.config.model.ngen.pet_params_to_calibrate, default='wind_speed_measurement_height_m', dict_key='NGEN_PET_PARAMS_TO_CALIBRATE')
             if pet_params_str is None:
                 pet_params_str = 'wind_speed_measurement_height_m'
             params['PET'] = [p.strip() for p in pet_params_str.split(',') if p.strip()]
@@ -379,8 +377,8 @@ class NgenParameterManager(BaseParameterManager):
                 return f"{new_val:.8g}"
 
             # Determine num_timesteps from config
-            start_time = self.config.get('EXPERIMENT_TIME_START')
-            end_time = self.config.get('EXPERIMENT_TIME_END')
+            start_time = self._get_config_value(lambda: self.config.domain.time_start, dict_key='EXPERIMENT_TIME_START')
+            end_time = self._get_config_value(lambda: self.config.domain.time_end, dict_key='EXPERIMENT_TIME_END')
             if start_time and end_time:
                 try:
                     duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
@@ -700,8 +698,8 @@ class NgenParameterManager(BaseParameterManager):
             lines = path.read_text().splitlines()
 
             # Determine num_timesteps from config
-            start_time = self.config.get('EXPERIMENT_TIME_START')
-            end_time = self.config.get('EXPERIMENT_TIME_END')
+            start_time = self._get_config_value(lambda: self.config.domain.time_start, dict_key='EXPERIMENT_TIME_START')
+            end_time = self._get_config_value(lambda: self.config.domain.time_end, dict_key='EXPERIMENT_TIME_END')
             if start_time and end_time:
                 try:
                     duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)

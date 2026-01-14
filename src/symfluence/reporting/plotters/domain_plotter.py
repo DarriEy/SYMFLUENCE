@@ -48,7 +48,7 @@ class DomainPlotter(BasePlotter):
             pour_point_gdf = self._load_pour_point_shapefile()
 
             # Check if we need river network
-            domain_method = self.config.get('DOMAIN_DEFINITION_METHOD')
+            domain_method = self._get_config_value(lambda: self.config.domain.definition_method, dict_key='DOMAIN_DEFINITION_METHOD')
             load_river_network = domain_method not in ['lumped', 'point']
 
             river_gdf = None
@@ -107,7 +107,7 @@ class DomainPlotter(BasePlotter):
             self._add_north_arrow_spatial(ax)
 
             # Add title
-            domain_name = self.config.get('DOMAIN_NAME')
+            domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
             plt.title(
                 f'Delineated Domain: {domain_name}',
                 fontsize=self.plot_config.FONT_SIZE_TITLE,
@@ -174,7 +174,7 @@ class DomainPlotter(BasePlotter):
             hru_gdf = self._load_hru_shapefile(discretization_method)
 
             # Load river network and pour point
-            domain_method = self.config.get('DOMAIN_DEFINITION_METHOD')
+            domain_method = self._get_config_value(lambda: self.config.domain.definition_method, dict_key='DOMAIN_DEFINITION_METHOD')
             load_river_network = domain_method != 'lumped'
 
             river_gdf = None
@@ -327,11 +327,11 @@ class DomainPlotter(BasePlotter):
     def _load_catchment_shapefile(self) -> Any:
         """Load catchment/river basin shapefile."""
         import geopandas as gpd  # type: ignore
-        catchment_name = self.config.get('RIVER_BASINS_NAME')
+        catchment_name = self._get_config_value(lambda: self.config.paths.river_basins_name, dict_key='RIVER_BASINS_NAME')
         if catchment_name == 'default':
             catchment_name = (
-                f"{self.config.get('DOMAIN_NAME')}_riverBasins_"
-                f"{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp"
+                f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_riverBasins_"
+                f"{self._get_config_value(lambda: self.config.domain.definition_method, dict_key='DOMAIN_DEFINITION_METHOD')}.shp"
             )
         catchment_path = self._get_file_path(
             'RIVER_BASINS_PATH', 'shapefiles/river_basins', catchment_name
@@ -341,9 +341,9 @@ class DomainPlotter(BasePlotter):
     def _load_river_network_shapefile(self) -> Any:
         """Load river network shapefile."""
         import geopandas as gpd  # type: ignore
-        river_name = self.config.get('RIVER_NETWORK_SHP_NAME')
+        river_name = self._get_config_value(lambda: self.config.paths.river_network_name, dict_key='RIVER_NETWORK_SHP_NAME')
         if river_name == 'default':
-            river_name = f"{self.config.get('DOMAIN_NAME')}_riverNetwork_delineate.shp"
+            river_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_riverNetwork_delineate.shp"
         river_path = self._get_file_path(
             'RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network', river_name
         )
@@ -352,9 +352,9 @@ class DomainPlotter(BasePlotter):
     def _load_pour_point_shapefile(self) -> Any:
         """Load pour point shapefile."""
         import geopandas as gpd  # type: ignore
-        pour_point_name = self.config.get('POUR_POINT_SHP_NAME')
+        pour_point_name = self._get_config_value(lambda: self.config.paths.pour_point_name, dict_key='POUR_POINT_SHP_NAME')
         if pour_point_name == 'default':
-            pour_point_name = f"{self.config.get('DOMAIN_NAME')}_pourPoint.shp"
+            pour_point_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_pourPoint.shp"
         pour_point_path = self._get_file_path(
             'POUR_POINT_SHP_PATH', 'shapefiles/pour_point', pour_point_name
         )
@@ -363,10 +363,10 @@ class DomainPlotter(BasePlotter):
     def _load_hru_shapefile(self, discretization_method: str) -> Any:
         """Load HRU shapefile for discretized domain."""
         import geopandas as gpd  # type: ignore
-        catchment_name = self.config.get('CATCHMENT_SHP_NAME')
+        catchment_name = self._get_config_value(lambda: self.config.paths.catchment_name, dict_key='CATCHMENT_SHP_NAME')
         if catchment_name == 'default':
             catchment_name = (
-                f"{self.config.get('DOMAIN_NAME')}_HRUs_{discretization_method}.shp"
+                f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_HRUs_{discretization_method}.shp"
             )
         catchment_path = self._get_file_path(
             'CATCHMENT_PATH', 'shapefiles/catchment', catchment_name
@@ -510,7 +510,7 @@ class DomainPlotter(BasePlotter):
             elev_range = hru_gdf['elev_mean'].agg(['min', 'max'])
             min_elev = int(elev_range['min'])
             max_elev = int(elev_range['max'])
-            band_size = int(self.config.get('ELEVATION_BAND_SIZE', 400))
+            band_size = int(self._get_config_value(lambda: self.config.domain.elevation_band_size, default=400, dict_key='ELEVATION_BAND_SIZE'))
 
             legend_labels = []
             for cls in unique_classes:

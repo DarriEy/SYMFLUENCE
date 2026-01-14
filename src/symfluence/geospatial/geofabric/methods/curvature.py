@@ -10,8 +10,10 @@ Extracted from geofabric_utils.py (2026-01-01)
 from pathlib import Path
 from typing import Any, Dict
 
+from symfluence.core.mixins import ConfigMixin
 
-class CurvatureMethod:
+
+class CurvatureMethod(ConfigMixin):
     """
     Curvature-based stream identification using Peuker-Douglas algorithm.
 
@@ -31,7 +33,29 @@ class CurvatureMethod:
             interim_dir: Directory for interim TauDEM files
         """
         self.taudem = taudem_executor
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.interim_dir = interim_dir
         self.taudem_dir = taudem_executor.taudem_dir
@@ -45,8 +69,8 @@ class CurvatureMethod:
             pour_point_path: Path to the pour point shapefile
             mpi_prefix: MPI command prefix
         """
-        max_distance = self.config.get('MOVE_OUTLETS_MAX_DISTANCE', 200)
-        min_source_threshold = self.config.get('MIN_SOURCE_THRESHOLD', 100)
+        max_distance = self._get_config_value(lambda: self.config.domain.delineation.move_outlets_max_distance, default=200, dict_key='MOVE_OUTLETS_MAX_DISTANCE')
+        min_source_threshold = self._get_config_value(lambda: self.config.domain.delineation.min_source_threshold, default=100, dict_key='MIN_SOURCE_THRESHOLD')
 
         steps = [
             # D-Infinity slope

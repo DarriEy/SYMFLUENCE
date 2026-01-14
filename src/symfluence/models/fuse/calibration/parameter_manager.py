@@ -17,10 +17,11 @@ import logging
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_fuse_bounds
 from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.mixins import ConfigMixin
 
 
 @OptimizerRegistry.register_parameter_manager('FUSE')
-class FUSEParameterManager(BaseParameterManager):
+class FUSEParameterManager(ConfigMixin, BaseParameterManager):
     """Handles FUSE parameter bounds, normalization, and file updates - FIXED VERSION"""
 
     def __init__(self, config: Dict, logger: logging.Logger, fuse_settings_dir: Path):
@@ -45,7 +46,7 @@ class FUSEParameterManager(BaseParameterManager):
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.fuse_sim_dir = self.project_dir / 'simulations' / self.experiment_id / 'FUSE'
         self.fuse_setup_dir = self.project_dir / 'settings' / 'FUSE'
-        self.fuse_id = self.config.get('FUSE_FILE_ID', self.experiment_id)
+        self.fuse_id = self._get_config_value(lambda: self.config.model.fuse.file_id, default=self.experiment_id, dict_key='FUSE_FILE_ID')
 
         # Parameter file paths
         self.para_def_path = self.fuse_sim_dir / f"{self.domain_name}_{self.fuse_id}_para_def.nc"

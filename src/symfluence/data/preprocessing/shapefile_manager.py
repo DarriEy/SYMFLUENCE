@@ -17,8 +17,10 @@ import logging
 import geopandas as gpd
 from shapely.affinity import translate
 
+from symfluence.core.mixins import ConfigMixin
 
-class ShapefileManager:
+
+class ShapefileManager(ConfigMixin):
     """
     Manages shapefile CRS conversions and HRU ID uniqueness for forcing remapping.
     """
@@ -31,7 +33,29 @@ class ShapefileManager:
             config: Configuration dictionary
             logger: Logger instance
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
 
     def ensure_wgs84(
@@ -229,7 +253,7 @@ class ShapefileManager:
         """
         try:
             source_gdf = gpd.read_file(source_shapefile)
-            lon_field = self.config.get('FORCING_SHAPE_LON_NAME')
+            lon_field = self._get_config_value(lambda: self.config.forcing.shape_lon_name, dict_key='FORCING_SHAPE_LON_NAME')
 
             if lon_field not in source_gdf.columns:
                 return target_shapefile, False
@@ -254,7 +278,7 @@ class ShapefileManager:
                 lambda geom: translate(geom, xoff=360) if geom is not None else geom
             )
 
-            target_lon_field = self.config.get('CATCHMENT_SHP_LON')
+            target_lon_field = self._get_config_value(lambda: self.config.paths.catchment_lon, dict_key='CATCHMENT_SHP_LON')
             if target_lon_field in target_gdf.columns:
                 target_gdf[target_lon_field] = target_gdf[target_lon_field].apply(
                     lambda v: v + 360 if v < 0 else v

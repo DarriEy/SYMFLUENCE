@@ -11,8 +11,10 @@ from pathlib import Path
 from typing import Any, Dict, List
 import numpy as np
 
+from symfluence.core.mixins import ConfigMixin
 
-class MultiScaleMethod:
+
+class MultiScaleMethod(ConfigMixin):
     """
     Multi-scale hierarchical stream identification.
 
@@ -31,7 +33,29 @@ class MultiScaleMethod:
             interim_dir: Directory for interim TauDEM files
         """
         self.taudem = taudem_executor
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.interim_dir = interim_dir
         self.taudem_dir = taudem_executor.taudem_dir
@@ -45,10 +69,10 @@ class MultiScaleMethod:
             pour_point_path: Path to the pour point shapefile
             mpi_prefix: MPI command prefix
         """
-        max_distance = self.config.get('MOVE_OUTLETS_MAX_DISTANCE', 200)
+        max_distance = self._get_config_value(lambda: self.config.domain.delineation.move_outlets_max_distance, default=200, dict_key='MOVE_OUTLETS_MAX_DISTANCE')
 
         # Get multi-scale parameters
-        thresholds = self.config.get('MULTI_SCALE_THRESHOLDS', [10000, 5000, 2500, 1000, 500])
+        thresholds = self._get_config_value(lambda: self.config.domain.delineation.multi_scale_thresholds, default=[10000, 5000, 2500, 1000, 500], dict_key='MULTI_SCALE_THRESHOLDS')
         if isinstance(thresholds, str):
             thresholds = [int(x.strip()) for x in thresholds.split(',')]
 

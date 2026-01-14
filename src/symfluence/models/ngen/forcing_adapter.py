@@ -9,10 +9,11 @@ from typing import Dict, List, Callable
 import xarray as xr
 
 from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
+from symfluence.core.mixins import ConfigMixin
 
 
 @ForcingAdapterRegistry.register_adapter('NGEN')
-class NGENForcingAdapter(ForcingAdapter):
+class NGENForcingAdapter(ConfigMixin, ForcingAdapter):
     """
     Forcing adapter for NOAA NextGen framework.
 
@@ -89,7 +90,7 @@ class NGENForcingAdapter(ForcingAdapter):
             Dict of conversion functions
         """
         # Get timestep in seconds
-        timestep_seconds = self.config.get('FORCING_TIME_STEP_SIZE', 3600)
+        timestep_seconds = self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE')
 
         return {
             # Convert rate to accumulated: multiply by timestep

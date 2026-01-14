@@ -503,7 +503,7 @@ class CONUS404Handler(BaseDatasetHandler):
 
         # Parse bounding box if available to filter grid
         bbox = None
-        bbox_str = self.config.get("BOUNDING_BOX_COORDS")
+        bbox_str = self.config.get('BOUNDING_BOX_COORDS')
         if isinstance(bbox_str, str) and "/" in bbox_str:
             try:
                 # Format: lat_max/lon_min/lat_min/lon_max
@@ -637,8 +637,8 @@ class CONUS404Handler(BaseDatasetHandler):
             {
                 "geometry": geometries,
                 "ID": ids,
-                self.config.get("FORCING_SHAPE_LAT_NAME"): lats,
-                self.config.get("FORCING_SHAPE_LON_NAME"): lons,
+                self.config.get('FORCING_SHAPE_LAT_NAME'): lats,
+                self.config.get('FORCING_SHAPE_LON_NAME'): lons,
             },
             crs="EPSG:4326",
         )

@@ -16,8 +16,10 @@ from typing import Optional
 from .weight_generator import _create_easymore_instance, _run_easmore_with_suppressed_output
 from .file_validator import FileValidator
 
+from symfluence.core.mixins import ConfigMixin
 
-class RemappingWeightApplier:
+
+class RemappingWeightApplier(ConfigMixin):
     """
     Applies pre-computed EASYMORE remapping weights to forcing files.
 
@@ -43,7 +45,29 @@ class RemappingWeightApplier:
             dataset_handler: Dataset-specific handler
             logger: Optional logger instance
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.project_dir = project_dir
         self.output_dir = output_dir
         self.dataset_handler = dataset_handler
@@ -165,7 +189,7 @@ class RemappingWeightApplier:
         esmr = _create_easymore_instance()
 
         esmr.author_name = 'SUMMA public workflow scripts'
-        esmr.case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
+        esmr.case_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_{self._get_config_value(lambda: self.config.forcing.dataset, dict_key='FORCING_DATASET')}"
         esmr.correction_shp_lon = False
 
         # Use cached shapefile path
@@ -175,8 +199,8 @@ class RemappingWeightApplier:
 
         esmr.target_shp = str(self.cached_target_shp_wgs84)
         esmr.target_shp_ID = self.cached_hru_field
-        esmr.target_shp_lat = self.config.get('CATCHMENT_SHP_LAT')
-        esmr.target_shp_lon = self.config.get('CATCHMENT_SHP_LON')
+        esmr.target_shp_lat = self._get_config_value(lambda: self.config.paths.catchment_lat, dict_key='CATCHMENT_SHP_LAT')
+        esmr.target_shp_lon = self._get_config_value(lambda: self.config.paths.catchment_lon, dict_key='CATCHMENT_SHP_LON')
 
         # Coordinate variables
         var_lat, var_lon = self.dataset_handler.get_coordinate_names()
@@ -209,7 +233,7 @@ class RemappingWeightApplier:
 
         # EASYMORE 2.0: Provide NetCDF version if available
         remap_nc = remap_file.with_suffix('.nc')
-        case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
+        case_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_{self._get_config_value(lambda: self.config.forcing.dataset, dict_key='FORCING_DATASET')}"
         attr_nc = remap_file.parent / f"{case_name}_attributes.nc"
 
         if remap_nc.exists():

@@ -29,16 +29,16 @@ class GLEAMETHandler(BaseObservationHandler):
     """
 
     def acquire(self) -> Path:
-        et_dir = Path(self.config.get('GLEAM_ET_PATH', self.project_dir / "observations" / "et" / "gleam"))
+        et_dir = Path(self.config_dict.get('GLEAM_ET_PATH', self.project_dir / "observations" / "et" / "gleam"))
         et_dir.mkdir(parents=True, exist_ok=True)
 
-        download_url = self.config.get('GLEAM_ET_DOWNLOAD_URL')
+        download_url = self.config_dict.get('GLEAM_ET_DOWNLOAD_URL')
         if not download_url:
             return et_dir
 
         archive_name = Path(download_url).name
         target_path = et_dir / archive_name
-        force_download = bool(self.config.get('FORCE_DOWNLOAD', False))
+        force_download = bool(self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'))
 
         if target_path.exists() and not force_download:
             return et_dir
@@ -87,7 +87,7 @@ class GLEAMETHandler(BaseObservationHandler):
         df = pd.concat(series_list).sort_values('time').set_index('time')
 
         # Optional unit conversion to mm/day
-        conversion = self.config.get('ET_UNIT_CONVERSION')
+        conversion = self.config_dict.get('ET_UNIT_CONVERSION')
         if conversion is not None:
             try:
                 df = df * float(conversion)
@@ -112,7 +112,7 @@ class GLEAMETHandler(BaseObservationHandler):
                 zf.extractall(path=target_dir)
 
     def _select_et_variable(self, ds: xr.Dataset) -> Optional[str]:
-        preferred = self.config.get('ET_VARIABLE_NAME')
+        preferred = self.config_dict.get('ET_VARIABLE_NAME')
         if preferred and preferred in ds.data_vars:
             return preferred
 

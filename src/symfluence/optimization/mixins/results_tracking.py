@@ -13,10 +13,12 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
+from symfluence.core.mixins import ConfigMixin
+
 logger = logging.getLogger(__name__)
 
 
-class ResultsTrackingMixin:
+class ResultsTrackingMixin(ConfigMixin):
     """
     Mixin class providing results tracking and persistence for optimizers.
 
@@ -176,7 +178,7 @@ class ResultsTrackingMixin:
             Path to the saved results file
         """
         if experiment_id is None:
-            experiment_id = self.config.get('EXPERIMENT_ID', 'optimization')
+            experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='optimization', dict_key='EXPERIMENT_ID')
 
         # Create results dataframe
         df = self.get_iteration_history()
@@ -216,7 +218,7 @@ class ResultsTrackingMixin:
             Path to the saved parameters file
         """
         if experiment_id is None:
-            experiment_id = self.config.get('EXPERIMENT_ID', 'optimization')
+            experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='optimization', dict_key='EXPERIMENT_ID')
 
         if self._best_params is None:
             self.logger.warning("No best parameters to save")
@@ -346,7 +348,7 @@ class ResultsTrackingMixin:
             Path to the saved Pareto front file
         """
         if experiment_id is None:
-            experiment_id = self.config.get('EXPERIMENT_ID', 'optimization')
+            experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='optimization', dict_key='EXPERIMENT_ID')
 
         pareto_solutions = self.get_pareto_front()
 

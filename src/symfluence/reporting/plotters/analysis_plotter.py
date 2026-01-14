@@ -515,7 +515,7 @@ class AnalysisPlotter(BasePlotter):
 
         try:
             plot_dir = self._ensure_output_dir('results')
-            exp_id = self.config.get('EXPERIMENT_ID', 'FUSE')
+            exp_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='FUSE', dict_key='EXPERIMENT_ID')
             plot_filename = plot_dir / f"{exp_id}_FUSE_streamflow_comparison.png"
 
             fig, ax = plt.subplots(figsize=self.plot_config.FIGURE_SIZE_MEDIUM)
@@ -535,13 +535,13 @@ class AnalysisPlotter(BasePlotter):
                         sim_flow = ds['q_routed'].isel(param_set=0, latitude=0, longitude=0).to_series()
 
                         # Unit conversion (mm/day to cms)
-                        basin_name = self.config.get('RIVER_BASINS_NAME', 'default')
+                        basin_name = self._get_config_value(lambda: self.config.paths.river_basins_name, default='default', dict_key='RIVER_BASINS_NAME')
                         if basin_name == 'default':
-                            basin_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins_delineate.shp"
+                            basin_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_riverBasins_delineate.shp"
 
                         basin_path = self.project_dir / 'shapefiles' / 'river_basins' / basin_name
                         if not basin_path.exists():
-                            basin_path = Path(self.config.get('RIVER_BASINS_PATH', ''))
+                            basin_path = Path(self._get_config_value(lambda: self.config.paths.river_basins_path, default='', dict_key='RIVER_BASINS_PATH'))
 
                         if basin_path.exists():
                             basin_gdf = gpd.read_file(basin_path)
@@ -591,9 +591,9 @@ class AnalysisPlotter(BasePlotter):
             plot_dir = self._ensure_output_dir('summa_outputs', experiment_id)
             ds = xr.open_dataset(summa_file)
 
-            hru_name = self.config.get('CATCHMENT_SHP_NAME', 'default')
+            hru_name = self._get_config_value(lambda: self.config.paths.catchment_name, default='default', dict_key='CATCHMENT_SHP_NAME')
             if hru_name == 'default':
-                hru_name = f"{self.config.get('DOMAIN_NAME')}_HRUs_{self.config.get('DOMAIN_DISCRETIZATION')}.shp"
+                hru_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, dict_key='DOMAIN_DISCRETIZATION')}.shp"
             hru_path = self.project_dir / 'shapefiles' / 'catchment' / hru_name
             hru_gdf = gpd.read_file(hru_path) if hru_path.exists() else None
 

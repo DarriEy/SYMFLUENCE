@@ -21,10 +21,11 @@ from symfluence.optimization.core.parameter_bounds_registry import (
     get_mizuroute_bounds, get_depth_bounds
 )
 from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.mixins import ConfigMixin
 
 
 @OptimizerRegistry.register_parameter_manager('SUMMA')
-class SUMMAParameterManager(BaseParameterManager):
+class SUMMAParameterManager(ConfigMixin, BaseParameterManager):
     """
     Parameter manager for SUMMA model calibration.
 
@@ -300,7 +301,7 @@ class SUMMAParameterManager(BaseParameterManager):
                     self.logger.warning(f"Unknown mizuRoute parameter: {param}")
 
         # Config-level overrides (highest priority)
-        config_bounds = self.config.get('PARAMETER_BOUNDS', {})
+        config_bounds = self.config_dict.get('PARAMETER_BOUNDS', {})
         if config_bounds:
             self.logger.info(f"Applying {len(config_bounds)} parameter bound overrides from configuration")
             for param_name, limit_list in config_bounds.items():
@@ -359,7 +360,7 @@ class SUMMAParameterManager(BaseParameterManager):
 
     def _load_existing_optimized_parameters(self) -> Optional[Dict[str, np.ndarray]]:
         """Load existing optimized parameters from default settings."""
-        trial_params_path = self.config.get('SYMFLUENCE_DATA_DIR')
+        trial_params_path = self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')
         if trial_params_path == 'default':
             return None
 
@@ -480,7 +481,7 @@ class SUMMAParameterManager(BaseParameterManager):
     def _load_original_depths(self) -> Optional[np.ndarray]:
         """Load original soil depths from coldState.nc."""
         try:
-            coldstate_path = self.settings_dir / self.config.get('SETTINGS_SUMMA_COLDSTATE', 'coldState.nc')
+            coldstate_path = self.settings_dir / self._get_config_value(lambda: self.config.model.summa.coldstate, default='coldState.nc', dict_key='SETTINGS_SUMMA_COLDSTATE')
 
             if not coldstate_path.exists():
                 return None
@@ -514,7 +515,7 @@ class SUMMAParameterManager(BaseParameterManager):
                 heights[i + 1] = heights[i] + new_depths[i]
 
             # Update coldState.nc
-            coldstate_path = self.settings_dir / self.config.get('SETTINGS_SUMMA_COLDSTATE', 'coldState.nc')
+            coldstate_path = self.settings_dir / self._get_config_value(lambda: self.config.model.summa.coldstate, default='coldState.nc', dict_key='SETTINGS_SUMMA_COLDSTATE')
 
             with nc.Dataset(coldstate_path, 'r+') as ds:
                 if 'mLayerDepth' not in ds.variables or 'iLayerHeight' not in ds.variables:
@@ -604,7 +605,7 @@ class SUMMAParameterManager(BaseParameterManager):
     def _generate_trial_params_file(self, params: Dict[str, np.ndarray]) -> bool:
         """Generate trialParams.nc file with proper dimensions."""
         try:
-            trial_params_path = self.settings_dir / self.config.get('SETTINGS_SUMMA_TRIALPARAMS', 'trialParams.nc')
+            trial_params_path = self.settings_dir / self._get_config_value(lambda: self.config.model.summa.trialparams, default='trialParams.nc', dict_key='SETTINGS_SUMMA_TRIALPARAMS')
 
             # Get HRU and GRU counts from attributes
             with xr.open_dataset(self.attr_file_path) as ds:

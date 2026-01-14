@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
 import numpy as np
 
+from symfluence.core.mixins import ConfigMixin
+
 if TYPE_CHECKING:
     pass
 
@@ -35,7 +37,7 @@ def _ensure_flat_config(config: Any) -> Dict[str, Any]:
     return config
 
 
-class TaskBuilder:
+class TaskBuilder(ConfigMixin):
     """
     Builds task dictionaries for parallel model evaluations.
 
@@ -126,7 +128,7 @@ class TaskBuilder:
 
         # HYPE uses a separate output_dir for results (configured in info.txt resultdir)
         # Other models write directly to sim_dir
-        model_name = self.config.get('HYDROLOGICAL_MODEL', '').upper()
+        model_name = self._get_config_value(lambda: self.config.model.hydrological_model, default='', dict_key='HYDROLOGICAL_MODEL').upper()
         if model_name == 'HYPE':
             output_dir = dirs.get('output_dir', sim_dir)
         else:
@@ -141,7 +143,7 @@ class TaskBuilder:
         mizuroute_settings_dir = str(root_dir / 'settings' / 'mizuRoute') if dirs else ''
 
         # Get file manager path
-        file_manager_name = self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+        file_manager_name = self._get_config_value(lambda: self.config.model.summa.filemanager, default='fileManager.txt', dict_key='SETTINGS_SUMMA_FILEMANAGER')
         file_manager = str(settings_dir / file_manager_name)
 
         # Get original depths if available
@@ -162,7 +164,7 @@ class TaskBuilder:
             'evaluation_id': evaluation_id,
             'config': self.config,
             'target_metric': target_metric,
-            'calibration_variable': self.config.get('OPTIMIZATION_TARGET', self.config.get('CALIBRATION_VARIABLE', 'streamflow')),
+            'calibration_variable': self._get_config_value(lambda: self.config.optimization.target, default='streamflow', dict_key='OPTIMIZATION_TARGET'),
             'domain_name': self.domain_name,
             'project_dir': str(self.project_dir),
             'proc_settings_dir': str(settings_dir),
@@ -188,7 +190,7 @@ class TaskBuilder:
             task_dict['multi_target_mode'] = True
             task_dict['primary_target_type'] = self.config.get(
                 'NSGA2_PRIMARY_TARGET',
-                self.config.get('OPTIMIZATION_TARGET', 'streamflow')
+                self._get_config_value(lambda: self.config.optimization.target, default='streamflow', dict_key='OPTIMIZATION_TARGET')
             )
             task_dict['secondary_target_type'] = self.config.get(
                 'NSGA2_SECONDARY_TARGET',
@@ -196,7 +198,7 @@ class TaskBuilder:
             )
             task_dict['primary_metric'] = self.config.get(
                 'NSGA2_PRIMARY_METRIC',
-                self.config.get('OPTIMIZATION_METRIC', 'KGE')
+                self._get_config_value(lambda: self.config.optimization.metric, default='KGE', dict_key='OPTIMIZATION_METRIC')
             )
             task_dict['secondary_metric'] = self.config.get(
                 'NSGA2_SECONDARY_METRIC',

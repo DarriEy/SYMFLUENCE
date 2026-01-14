@@ -13,7 +13,9 @@ from SALib.sample import sobol as sobol_sample # type: ignore
 from scipy.stats import spearmanr  # type: ignore
 from tqdm import tqdm # type: ignore
 
-class SensitivityAnalyzer:
+from symfluence.core.mixins import ConfigMixin
+
+class SensitivityAnalyzer(ConfigMixin):
     """
     Performs parameter sensitivity analysis on calibration results.
 
@@ -38,11 +40,33 @@ class SensitivityAnalyzer:
             logger: Logger instance for status and debug messages.
             reporting_manager: Optional reporting manager for visualizations.
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.reporting_manager = reporting_manager
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
+        self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
         self.output_folder = self.project_dir / "reporting" / "sensitivity_analysis"
         self.output_folder.mkdir(parents=True, exist_ok=True)

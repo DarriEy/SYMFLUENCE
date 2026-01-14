@@ -74,8 +74,8 @@ class BaseAppEEARSAcquirer(BaseAcquisitionHandler):
             return username, password
 
         # 3. Try config file
-        username = self.config.get('EARTHDATA_USERNAME')
-        password = self.config.get('EARTHDATA_PASSWORD')
+        username = self.config_dict.get('EARTHDATA_USERNAME')
+        password = self.config_dict.get('EARTHDATA_PASSWORD')
         if username and password:
             self.logger.debug("Using Earthdata credentials from config file")
             return username, password
@@ -215,7 +215,7 @@ class BaseAppEEARSAcquirer(BaseAcquisitionHandler):
                 out_path = output_dir / f"{prefix}_{file_name}"
 
                 # Skip if already exists
-                if out_path.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+                if out_path.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
                     downloaded_files.append(out_path)
                     continue
 
