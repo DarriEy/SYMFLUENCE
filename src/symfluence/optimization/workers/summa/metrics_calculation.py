@@ -14,6 +14,14 @@ from typing import Dict, List, Optional, Any
 import numpy as np
 import pandas as pd
 
+from symfluence.evaluation.metrics import (
+    nse as calc_nse,
+    kge as calc_kge,
+    rmse as calc_rmse,
+    mae as calc_mae,
+    pbias as calc_pbias,
+)
+
 
 def resample_to_timestep(data: pd.Series, target_timestep: str, logger) -> pd.Series:
     """
@@ -585,28 +593,30 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
         if len(obs_valid) < 10:
             return None
 
-        # Calculate metrics
+        # Calculate metrics using centralized module
         try:
-            mean_obs = obs_valid.mean()
-            nse_num = ((obs_valid - sim_valid) ** 2).sum()
-            nse_den = ((obs_valid - mean_obs) ** 2).sum()
-            nse = 1 - (nse_num / nse_den) if nse_den > 0 else np.nan
+            # Use centralized metric functions for consistency
+            nse_val = calc_nse(obs_valid.values, sim_valid.values)
+            kge_result = calc_kge(obs_valid.values, sim_valid.values, return_components=True)
+            rmse_val = calc_rmse(obs_valid.values, sim_valid.values)
+            mae_val = calc_mae(obs_valid.values, sim_valid.values)
+            pbias_val = calc_pbias(obs_valid.values, sim_valid.values)
 
-            r = obs_valid.corr(sim_valid)
-            alpha = sim_valid.std() / obs_valid.std() if obs_valid.std() != 0 else np.nan
-            beta = sim_valid.mean() / mean_obs if mean_obs != 0 else np.nan
-            kge = 1 - np.sqrt((r - 1)**2 + (alpha - 1)**2 + (beta - 1)**2)
+            # Extract KGE components
+            kge_val = kge_result['KGE'] if isinstance(kge_result, dict) else kge_result
+            r_val = kge_result['r'] if isinstance(kge_result, dict) else obs_valid.corr(sim_valid)
+            alpha_val = kge_result['alpha'] if isinstance(kge_result, dict) else np.nan
+            beta_val = kge_result['beta'] if isinstance(kge_result, dict) else np.nan
 
-            rmse = np.sqrt(((obs_valid - sim_valid) ** 2).mean())
-            mae = (obs_valid - sim_valid).abs().mean()
-            pbias = 100 * (sim_valid.sum() - obs_valid.sum()) / obs_valid.sum() if obs_valid.sum() != 0 else np.nan
-
-            logger.debug(f"Final KGE = {kge:.4f} (obs_mean={mean_obs:.2f}, sim_mean={float(sim_valid.mean().item()):.2f})")
+            logger.debug(f"Final KGE = {kge_val:.4f} (obs_mean={obs_valid.mean():.2f}, sim_mean={float(sim_valid.mean().item()):.2f})")
 
             return {
-                'Calib_NSE': nse, 'Calib_KGE': kge, 'Calib_RMSE': rmse, 'Calib_MAE': mae, 'Calib_PBIAS': pbias,
-                'Calib_r': r, 'Calib_alpha': alpha, 'Calib_beta': beta, 'Calib_correlation': r,
-                'NSE': nse, 'KGE': kge, 'RMSE': rmse, 'MAE': mae, 'PBIAS': pbias, 'correlation': r
+                'Calib_NSE': nse_val, 'Calib_KGE': kge_val, 'Calib_RMSE': rmse_val,
+                'Calib_MAE': mae_val, 'Calib_PBIAS': pbias_val,
+                'Calib_r': r_val, 'Calib_alpha': alpha_val, 'Calib_beta': beta_val,
+                'Calib_correlation': r_val,
+                'NSE': nse_val, 'KGE': kge_val, 'RMSE': rmse_val, 'MAE': mae_val,
+                'PBIAS': pbias_val, 'correlation': r_val
             }
         except Exception:
             return None
