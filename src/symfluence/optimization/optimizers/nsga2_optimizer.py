@@ -7,10 +7,10 @@ with multiple objectives (e.g., streamflow, snow, ET simultaneously).
 
 import numpy as np
 import logging
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple, Optional, cast
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
 from symfluence.optimization.calibration_targets import (
-    StreamflowTarget, SnowTarget, GroundwaterTarget, ETTarget, SoilMoistureTarget, TWSTarget
+    StreamflowTarget, SnowTarget, GroundwaterTarget, ETTarget, SoilMoistureTarget, TWSTarget, CalibrationTarget
 )
 
 class NSGA2Optimizer(BaseOptimizer):
@@ -143,7 +143,9 @@ class NSGA2Optimizer(BaseOptimizer):
         Deb, K., & Agrawal, R. B. (1994). Simulated binary crossover for
         continuous search space. Complex Systems, 9, 1-15.
     """
-    
+
+    calibration_target: CalibrationTarget
+
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         super().__init__(config, logger)
         self.population_size = self._determine_population_size()
@@ -162,7 +164,8 @@ class NSGA2Optimizer(BaseOptimizer):
         if self.multi_target_mode: self._setup_multi_target_objectives()
         else:
             self.objectives = ['NSE', 'KGE']; self.objective_names = ['NSE', 'KGE']
-            self.num_objectives = 2; self.primary_target = self.calibration_target
+            calibration_target = cast(CalibrationTarget, self.calibration_target)
+            self.num_objectives = 2; self.primary_target = calibration_target
             self.secondary_target = None; self.primary_metric = 'NSE'; self.secondary_metric = 'KGE'
         
         self.population: Optional[np.ndarray] = None

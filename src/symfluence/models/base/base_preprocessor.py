@@ -85,8 +85,8 @@ class BaseModelPreProcessor(ABC, PathResolverMixin, ShapefileAccessMixin):
 
         # Model-specific paths (subclasses should set model_name)
         self.model_name = self._get_model_name()
-        self.setup_dir = self.project_dir / "settings" / self.model_name
-        self.forcing_dir = self.project_dir / "forcing" / f"{self.model_name}_input"
+        self.setup_dir: Path = self.project_dir / "settings" / self.model_name
+        self.forcing_dir: Path = self.project_dir / "forcing" / f"{self.model_name}_input"
 
         # Common forcing paths
         self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
