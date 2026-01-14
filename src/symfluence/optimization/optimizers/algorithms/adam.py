@@ -107,13 +107,13 @@ class AdamAlgorithm(OptimizationAlgorithm):
             - best_params: Denormalized best parameters (dictionary)
         """
         # Adam hyperparameters from config or kwargs
-        steps = kwargs.get('steps', self.config.get('ADAM_STEPS', self.max_iterations))
-        lr = kwargs.get('lr', self.config.get('ADAM_LR', 0.01))
+        steps = kwargs.get('steps', self.config_dict.get('ADAM_STEPS', self.max_iterations))
+        lr = kwargs.get('lr', self.config_dict.get('ADAM_LR', 0.01))
         beta1 = kwargs.get('beta1', self.config.get('ADAM_BETA1', 0.9))
         beta2 = kwargs.get('beta2', self.config.get('ADAM_BETA2', 0.999))
-        eps = kwargs.get('eps', self.config.get('ADAM_EPS', 1e-8))
-        gradient_epsilon = self.config.get('GRADIENT_EPSILON', 1e-4)
-        gradient_clip = self.config.get('GRADIENT_CLIP_VALUE', 1.0)
+        eps = kwargs.get('eps', self.config_dict.get('ADAM_EPS', 1e-8))
+        gradient_epsilon = self.config_dict.get('GRADIENT_EPSILON', 1e-4)
+        gradient_clip = self.config_dict.get('GRADIENT_CLIP_VALUE', 1.0)
 
         self.logger.info(f"Starting Adam optimization with {n_params} parameters")
         self.logger.info(f"  Steps: {steps}, LR: {lr}, Beta1: {beta1}, Beta2: {beta2}")

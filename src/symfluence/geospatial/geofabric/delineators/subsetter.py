@@ -64,7 +64,7 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
 
     def _get_delineation_method_name(self) -> str:
         """Return method name for output files."""
-        return f"subset_{self.config.get('GEOFABRIC_TYPE')}"
+        return f"subset_{self._get_config_value(lambda: self.config.domain.delineation.geofabric_type, dict_key='GEOFABRIC_TYPE')}"
 
     def subset_geofabric(self) -> Tuple[Optional[gpd.GeoDataFrame], Optional[gpd.GeoDataFrame]]:
         """
@@ -73,7 +73,7 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
         Returns:
             Tuple of (subset_basins, subset_rivers) GeoDataFrames
         """
-        hydrofabric_type = self.config.get('GEOFABRIC_TYPE').upper()
+        hydrofabric_type = self._get_config_value(lambda: self.config.domain.delineation.geofabric_type, dict_key='GEOFABRIC_TYPE').upper()
         if hydrofabric_type not in self.hydrofabric_types:
             self.logger.error(f"Unknown hydrofabric type: {hydrofabric_type}")
             return None, None
@@ -82,11 +82,11 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
 
         # Load data using shared utility
         basins = GeofabricIOUtils.load_geopandas(
-            Path(self.config.get('SOURCE_GEOFABRIC_BASINS_PATH')),
+            Path(self._get_config_value(lambda: self.config.paths.source_geofabric_basins_path, dict_key='SOURCE_GEOFABRIC_BASINS_PATH')),
             self.logger
         )
         rivers = GeofabricIOUtils.load_geopandas(
-            Path(self.config.get('SOURCE_GEOFABRIC_RIVERS_PATH')),
+            Path(self._get_config_value(lambda: self.config.paths.source_geofabric_rivers_path, dict_key='SOURCE_GEOFABRIC_RIVERS_PATH')),
             self.logger
         )
         pour_point = GeofabricIOUtils.load_geopandas(
@@ -177,20 +177,20 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
         """
         method_suffix = self._get_method_suffix()
 
-        if self.config.get('OUTPUT_BASINS_PATH') == 'default':
+        if self._get_config_value(lambda: self.config.paths.output_basins_path, dict_key='OUTPUT_BASINS_PATH') == 'default':
             basins_path = (
                 self.project_dir / "shapefiles" / "river_basins" /
                 f"{self.domain_name}_riverBasins_{method_suffix}.shp"
             )
         else:
-            basins_path = Path(self.config.get('OUTPUT_BASINS_PATH'))
+            basins_path = Path(self._get_config_value(lambda: self.config.paths.output_basins_path, dict_key='OUTPUT_BASINS_PATH'))
 
-        if self.config.get('OUTPUT_RIVERS_PATH') == 'default':
+        if self._get_config_value(lambda: self.config.paths.output_rivers_path, dict_key='OUTPUT_RIVERS_PATH') == 'default':
             rivers_path = (
                 self.project_dir / "shapefiles" / "river_network" /
                 f"{self.domain_name}_riverNetwork_{method_suffix}.shp"
             )
         else:
-            rivers_path = Path(self.config.get('OUTPUT_RIVERS_PATH'))
+            rivers_path = Path(self._get_config_value(lambda: self.config.paths.output_rivers_path, dict_key='OUTPUT_RIVERS_PATH'))
 
         return basins_path, rivers_path

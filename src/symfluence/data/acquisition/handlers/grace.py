@@ -27,8 +27,8 @@ class GRACEAcquirer(BaseAcquisitionHandler):
         self.logger.info("Starting GRACE data acquisition (JPL, CSR, GSFC)")
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        subset_enabled = self._parse_bool(self.config.get('GRACE_SUBSET', False))
-        force_download = self._parse_bool(self.config.get('FORCE_DOWNLOAD', False))
+        subset_enabled = self._parse_bool(self.config_dict.get('GRACE_SUBSET', False))
+        force_download = self._parse_bool(self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'))
 
         datasets = {
             'jpl': {

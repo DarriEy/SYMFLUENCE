@@ -11,8 +11,9 @@ import pandas as pd # type: ignore
 import numpy as np # type: ignore
 
 from symfluence.core.exceptions import DataAcquisitionError
+from symfluence.core.mixins import ConfigMixin
 
-class DataCleanupProcessor:
+class DataCleanupProcessor(ConfigMixin):
     """
     Validates and cleans MAF (Model-Agnostic Framework) output data.
 
@@ -22,10 +23,32 @@ class DataCleanupProcessor:
     """
 
     def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
-        self.root_path = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
+        self.root_path = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
         self.project_dir = self.root_path / f"domain_{self.domain_name}"
 
     def cleanup_and_checks(self):
@@ -56,11 +79,11 @@ class DataCleanupProcessor:
         # Process soil type
         majority_value = soil_type['majority'].replace(0, np.nan).mode().iloc[0]
         soil_type['majority'] = soil_type['majority'].replace(0, majority_value).fillna(majority_value)
-        if self.config.get('UNIFY_SOIL', False):
+        if self.config_dict.get('UNIFY_SOIL', False):
             soil_type['majority'] = majority_value
 
         # Process landcover
-        min_land_fraction = self.config.get('MINIMUM_LAND_FRACTION', 0.01)
+        min_land_fraction = self.config_dict.get('MINIMUM_LAND_FRACTION', 0.01)
         for col in landcover_type.columns:
             if col.startswith('frac_'):
                 landcover_type[col] = landcover_type[col].apply(lambda x: 0 if x < min_land_fraction else x)
@@ -72,7 +95,7 @@ class DataCleanupProcessor:
                 for col in frac_columns:
                     landcover_type.at[index, col] /= row_sum
 
-        num_land_cover = self.config.get('NUM_LAND_COVER', 20)
+        num_land_cover = self.config_dict.get('NUM_LAND_COVER', 20)
         missing_columns = [f"frac_{i}" for i in range(1, num_land_cover+1) if f"frac_{i}" not in landcover_type.columns]
         for col in missing_columns:
             landcover_type[col] = 0

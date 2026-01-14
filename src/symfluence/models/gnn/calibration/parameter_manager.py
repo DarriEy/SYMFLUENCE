@@ -11,10 +11,11 @@ from typing import Dict, Any, List
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.mixins import ConfigMixin
 
 
 @OptimizerRegistry.register_parameter_manager('ML')
-class MLParameterManager(BaseParameterManager):
+class MLParameterManager(ConfigMixin, BaseParameterManager):
     """
     Parameter manager for ML models using config-defined bounds.
     """
@@ -39,7 +40,7 @@ class MLParameterManager(BaseParameterManager):
         return params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        bounds = self.config.get(self.bounds_key) or self.config.get('PARAMETER_BOUNDS', {})
+        bounds = self.config.get(self.bounds_key) or self.config_dict.get('PARAMETER_BOUNDS', {})
         parsed_bounds: Dict[str, Dict[str, float]] = {}
 
         for param in self._get_parameter_names():

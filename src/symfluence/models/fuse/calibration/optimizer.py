@@ -95,24 +95,24 @@ class FUSEModelOptimizer(BaseModelOptimizer):
             True if mizuRoute routing should be used
         """
         # Check FUSE routing integration setting
-        routing_integration = self.config.get('FUSE_ROUTING_INTEGRATION', 'none')
+        routing_integration = self._get_config_value(lambda: self.config.model.fuse.routing_integration, default='none', dict_key='FUSE_ROUTING_INTEGRATION')
 
         # If 'default', inherit from ROUTING_MODEL
         if routing_integration == 'default':
-            routing_model = self.config.get('ROUTING_MODEL', 'none')
+            routing_model = self._get_config_value(lambda: self.config.model.routing_model, default='none', dict_key='ROUTING_MODEL')
             routing_integration = 'mizuRoute' if routing_model == 'mizuRoute' else routing_integration
 
         if routing_integration != 'mizuRoute':
             return False
 
         # Check calibration variable (only streamflow calibration uses routing)
-        calibration_var = self.config.get('CALIBRATION_VARIABLE', 'streamflow')
+        calibration_var = self._get_config_value(lambda: self.config.optimization.calibration_variable, default='streamflow', dict_key='CALIBRATION_VARIABLE')
         if calibration_var != 'streamflow':
             return False
 
         # Check spatial mode and routing delineation
-        spatial_mode = self.config.get('FUSE_SPATIAL_MODE', 'lumped')
-        routing_delineation = self.config.get('ROUTING_DELINEATION', 'lumped')
+        spatial_mode = self._get_config_value(lambda: self.config.model.fuse.spatial_mode, default='lumped', dict_key='FUSE_SPATIAL_MODE')
+        routing_delineation = self._get_config_value(lambda: self.config.domain.delineation.routing, default='lumped', dict_key='ROUTING_DELINEATION')
 
         # Distributed or semi-distributed modes need routing
         if spatial_mode in ['semi_distributed', 'distributed']:
@@ -160,7 +160,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
 
     def _get_final_file_manager_path(self) -> Path:
         """Get path to FUSE file manager."""
-        fuse_fm = self.config.get('SETTINGS_FUSE_FILEMANAGER', 'fm_catch.txt')
+        fuse_fm = self._get_config_value(lambda: self.config.model.fuse.filemanager, default='fm_catch.txt', dict_key='SETTINGS_FUSE_FILEMANAGER')
         if fuse_fm == 'default':
             fuse_fm = 'fm_catch.txt'
         return self.fuse_setup_dir / fuse_fm
@@ -168,7 +168,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
     def _setup_parallel_dirs(self) -> None:
         """Setup FUSE-specific parallel directories."""
         # Use algorithm-specific directory (consistent with SUMMA)
-        algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
+        algorithm = self._get_config_value(lambda: self.config.optimization.algorithm, default='optimization', dict_key='ITERATIVE_OPTIMIZATION_ALGORITHM').lower()
         base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
         self.parallel_dirs = self.setup_parallel_processing(
             base_dir,
@@ -183,7 +183,7 @@ class FUSEModelOptimizer(BaseModelOptimizer):
         # Copy parameter file to each parallel directory
         # This is critical for parallel workers to modify parameters in isolation
         # Use 'or' to treat None as "not set" and fallback to experiment_id
-        fuse_id = self.config.get('FUSE_FILE_ID') or self.experiment_id
+        fuse_id = self._get_config_value(lambda: self.config.model.fuse.file_id, dict_key='FUSE_FILE_ID') or self.experiment_id
         param_file = self.fuse_sim_dir / f"{self.domain_name}_{fuse_id}_para_def.nc"
 
         if param_file.exists():

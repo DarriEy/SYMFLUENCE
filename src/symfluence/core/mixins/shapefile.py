@@ -4,7 +4,57 @@ Shapefile access mixin for SYMFLUENCE modules.
 Provides standardized shapefile column name access from configuration.
 """
 
+from typing import Any
+
 from .config import ConfigMixin
+
+
+class ShapefileColumnProperty:
+    """
+    Descriptor for shapefile column properties.
+
+    Provides lazy access to configuration values with defaults,
+    reducing boilerplate for column name properties.
+    """
+
+    def __init__(self, config_accessor: str, default: str, doc: str):
+        """
+        Initialize the property descriptor.
+
+        Args:
+            config_accessor: Attribute path on config.paths (e.g., 'catchment_name')
+            default: Default value if config value is not set
+            doc: Documentation string for the property
+        """
+        self.config_accessor = config_accessor
+        self.default = default
+        self.__doc__ = doc
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self.name = name
+
+    def __get__(self, obj: Any, objtype: type = None) -> str:
+        if obj is None:
+            return self  # type: ignore
+        return obj._get_config_value(
+            lambda: getattr(obj.config.paths, self.config_accessor),
+            default=self.default
+        )
+
+
+def shapefile_column(config_attr: str, default: str, doc: str) -> ShapefileColumnProperty:
+    """
+    Factory function for creating shapefile column properties.
+
+    Args:
+        config_attr: Attribute name on config.paths
+        default: Default column name
+        doc: Property documentation
+
+    Returns:
+        ShapefileColumnProperty descriptor
+    """
+    return ShapefileColumnProperty(config_attr, default, doc)
 
 
 class ShapefileAccessMixin(ConfigMixin):
@@ -19,130 +69,85 @@ class ShapefileAccessMixin(ConfigMixin):
     # Catchment Shapefile Columns
     # =========================================================================
 
-    @property
-    def catchment_name_col(self) -> str:
-        """Name/ID column in catchment shapefile from config.paths.catchment_name."""
-        return self._get_config_value(
-            lambda: self.config.paths.catchment_name,
-            default='HRU_ID'
-        )
+    catchment_name_col = shapefile_column(
+        'catchment_name', 'HRU_ID',
+        "Name/ID column in catchment shapefile from config.paths.catchment_name."
+    )
 
-    @property
-    def catchment_hruid_col(self) -> str:
-        """HRU ID column in catchment shapefile from config.paths.catchment_hruid."""
-        return self._get_config_value(
-            lambda: self.config.paths.catchment_hruid,
-            default='HRU_ID'
-        )
+    catchment_hruid_col = shapefile_column(
+        'catchment_hruid', 'HRU_ID',
+        "HRU ID column in catchment shapefile from config.paths.catchment_hruid."
+    )
 
-    @property
-    def catchment_gruid_col(self) -> str:
-        """GRU ID column in catchment shapefile from config.paths.catchment_gruid."""
-        return self._get_config_value(
-            lambda: self.config.paths.catchment_gruid,
-            default='GRU_ID'
-        )
+    catchment_gruid_col = shapefile_column(
+        'catchment_gruid', 'GRU_ID',
+        "GRU ID column in catchment shapefile from config.paths.catchment_gruid."
+    )
 
-    @property
-    def catchment_area_col(self) -> str:
-        """Area column in catchment shapefile from config.paths.catchment_area."""
-        return self._get_config_value(
-            lambda: self.config.paths.catchment_area,
-            default='HRU_area'
-        )
+    catchment_area_col = shapefile_column(
+        'catchment_area', 'HRU_area',
+        "Area column in catchment shapefile from config.paths.catchment_area."
+    )
 
-    @property
-    def catchment_lat_col(self) -> str:
-        """Latitude column in catchment shapefile from config.paths.catchment_lat."""
-        return self._get_config_value(
-            lambda: self.config.paths.catchment_lat,
-            default='center_lat'
-        )
+    catchment_lat_col = shapefile_column(
+        'catchment_lat', 'center_lat',
+        "Latitude column in catchment shapefile from config.paths.catchment_lat."
+    )
 
-    @property
-    def catchment_lon_col(self) -> str:
-        """Longitude column in catchment shapefile from config.paths.catchment_lon."""
-        return self._get_config_value(
-            lambda: self.config.paths.catchment_lon,
-            default='center_lon'
-        )
+    catchment_lon_col = shapefile_column(
+        'catchment_lon', 'center_lon',
+        "Longitude column in catchment shapefile from config.paths.catchment_lon."
+    )
 
     # =========================================================================
     # River Network Shapefile Columns
     # =========================================================================
 
-    @property
-    def river_network_name_col(self) -> str:
-        """Name column in river network shapefile from config.paths.river_network_name."""
-        return self._get_config_value(
-            lambda: self.config.paths.river_network_name,
-            default='LINKNO'
-        )
+    river_network_name_col = shapefile_column(
+        'river_network_name', 'LINKNO',
+        "Name column in river network shapefile from config.paths.river_network_name."
+    )
 
-    @property
-    def river_segid_col(self) -> str:
-        """Segment ID column in river network from config.paths.river_network_segid."""
-        return self._get_config_value(
-            lambda: self.config.paths.river_network_segid,
-            default='LINKNO'
-        )
+    river_segid_col = shapefile_column(
+        'river_network_segid', 'LINKNO',
+        "Segment ID column in river network from config.paths.river_network_segid."
+    )
 
-    @property
-    def river_downsegid_col(self) -> str:
-        """Downstream segment ID column from config.paths.river_network_downsegid."""
-        return self._get_config_value(
-            lambda: self.config.paths.river_network_downsegid,
-            default='DSLINKNO'
-        )
+    river_downsegid_col = shapefile_column(
+        'river_network_downsegid', 'DSLINKNO',
+        "Downstream segment ID column from config.paths.river_network_downsegid."
+    )
 
-    @property
-    def river_length_col(self) -> str:
-        """Length column in river network from config.paths.river_network_length."""
-        return self._get_config_value(
-            lambda: self.config.paths.river_network_length,
-            default='Length'
-        )
+    river_length_col = shapefile_column(
+        'river_network_length', 'Length',
+        "Length column in river network from config.paths.river_network_length."
+    )
 
-    @property
-    def river_slope_col(self) -> str:
-        """Slope column in river network from config.paths.river_network_slope."""
-        return self._get_config_value(
-            lambda: self.config.paths.river_network_slope,
-            default='Slope'
-        )
+    river_slope_col = shapefile_column(
+        'river_network_slope', 'Slope',
+        "Slope column in river network from config.paths.river_network_slope."
+    )
 
     # =========================================================================
     # River Basin Shapefile Columns
     # =========================================================================
 
-    @property
-    def basin_name_col(self) -> str:
-        """Name column in river basins shapefile from config.paths.river_basins_name."""
-        return self._get_config_value(
-            lambda: self.config.paths.river_basins_name,
-            default='GRU_ID'
-        )
+    basin_name_col = shapefile_column(
+        'river_basins_name', 'GRU_ID',
+        "Name column in river basins shapefile from config.paths.river_basins_name."
+    )
 
-    @property
-    def basin_gruid_col(self) -> str:
-        """GRU ID column in river basins from config.paths.river_basin_rm_gruid."""
-        return self._get_config_value(
-            lambda: self.config.paths.river_basin_rm_gruid,
-            default='GRU_ID'
-        )
+    basin_gruid_col = shapefile_column(
+        'river_basin_rm_gruid', 'GRU_ID',
+        "GRU ID column in river basins from config.paths.river_basin_rm_gruid."
+    )
 
-    @property
-    def basin_hru_to_seg_col(self) -> str:
-        """HRU to segment mapping column from config.paths.river_basin_hru_to_seg."""
-        return self._get_config_value(
-            lambda: self.config.paths.river_basin_hru_to_seg,
-            default='gru_to_seg'
-        )
+    basin_hru_to_seg_col = shapefile_column(
+        'river_basin_hru_to_seg', 'gru_to_seg',
+        "HRU to segment mapping column from config.paths.river_basin_hru_to_seg."
+    )
 
-    @property
-    def basin_area_col(self) -> str:
-        """Area column in river basins from config.paths.river_basin_area."""
-        return self._get_config_value(
-            lambda: self.config.paths.river_basin_area,
-            default='GRU_area'
-        )
+    basin_area_col = shapefile_column(
+        'river_basin_area', 'GRU_area',
+        "Area column in river basins from config.paths.river_basin_area."
+    )

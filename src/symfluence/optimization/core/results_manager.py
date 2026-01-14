@@ -12,11 +12,35 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-class ResultsManager:
+from symfluence.core.mixins import ConfigMixin
+
+class ResultsManager(ConfigMixin):
     """Handles optimization results, history tracking, and visualization"""
 
     def __init__(self, config: Dict, logger: logging.Logger, output_dir: Path, reporting_manager: Optional[Any] = None):
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.output_dir = output_dir
         self.reporting_manager = reporting_manager
@@ -116,14 +140,14 @@ class ResultsManager:
             'algorithm': 'Differential Evolution',
             'domain_name': self.domain_name,
             'experiment_id': self.experiment_id,
-            'calibration_variable': self.config.get('CALIBRATION_VARIABLE', 'streamflow'),
-            'target_metric': self.config.get('OPTIMIZATION_METRIC', 'KGE'),
+            'calibration_variable': self._get_config_value(lambda: self.config.optimization.calibration_variable, default='streamflow', dict_key='CALIBRATION_VARIABLE'),
+            'target_metric': self._get_config_value(lambda: self.config.optimization.metric, default='KGE', dict_key='OPTIMIZATION_METRIC'),
             'best_score': best_score,
             'num_generations': num_generations,
-            'population_size': self.config.get('POPULATION_SIZE', 50),
-            'F': self.config.get('DE_SCALING_FACTOR', 0.5),
-            'CR': self.config.get('DE_CROSSOVER_RATE', 0.9),
-            'parallel_processes': self.config.get('MPI_PROCESSES', 1),
+            'population_size': self._get_config_value(lambda: self.config.optimization.population_size, default=50, dict_key='POPULATION_SIZE'),
+            'F': self._get_config_value(lambda: self.config.optimization.de.scaling_factor, default=0.5, dict_key='DE_SCALING_FACTOR'),
+            'CR': self._get_config_value(lambda: self.config.optimization.de.crossover_rate, default=0.9, dict_key='DE_CROSSOVER_RATE'),
+            'parallel_processes': self._get_config_value(lambda: self.config.system.mpi_processes, default=1, dict_key='MPI_PROCESSES'),
             'completed_at': datetime.now().isoformat()
         }
 
@@ -141,12 +165,12 @@ class ResultsManager:
         if not self.reporting_manager:
             return
 
-        calibration_variable = self.config.get("CALIBRATION_VARIABLE", "streamflow")
-        metric = self.config.get('OPTIMIZATION_METRIC', 'KGE')
+        calibration_variable = self._get_config_value(lambda: self.config.optimization.calibration_variable, default="streamflow", dict_key='CALIBRATION_VARIABLE')
+        metric = self._get_config_value(lambda: self.config.optimization.metric, default='KGE', dict_key='OPTIMIZATION_METRIC')
         self.reporting_manager.visualize_optimization_progress(history, self.output_dir, calibration_variable, metric)
 
         # Parameter evolution plots for depth parameters
-        if self.config.get('CALIBRATE_DEPTH', False):
+        if self._get_config_value(lambda: self.config.model.summa.calibrate_depth, default=False, dict_key='CALIBRATE_DEPTH'):
             self._create_depth_parameter_plots(history, self.output_dir)
 
     def _create_depth_parameter_plots(self, history: List[Dict], plots_dir: Path) -> None:

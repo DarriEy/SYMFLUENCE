@@ -16,8 +16,10 @@ import geopandas as gpd
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from symfluence.core.mixins import ConfigMixin
 
-class NgenConfigGenerator:
+
+class NgenConfigGenerator(ConfigMixin):
     """
     Generator for NGEN model configuration files.
 
@@ -50,7 +52,29 @@ class NgenConfigGenerator:
             setup_dir: Path to NGEN settings directory
             catchment_crs: Coordinate reference system for catchments
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.setup_dir = Path(setup_dir)
         self.catchment_crs = catchment_crs
@@ -144,8 +168,8 @@ class NgenConfigGenerator:
         params.update(overrides)
 
         # Calculate num_timesteps
-        start_time = self.config.get('EXPERIMENT_TIME_START', '2000-01-01 00:00:00')
-        end_time = self.config.get('EXPERIMENT_TIME_END', '2000-12-31 23:00:00')
+        start_time = self._get_config_value(lambda: self.config.domain.time_start, default='2000-01-01 00:00:00', dict_key='EXPERIMENT_TIME_START')
+        end_time = self._get_config_value(lambda: self.config.domain.time_end, default='2000-12-31 23:00:00', dict_key='EXPERIMENT_TIME_END')
         if start_time == 'default': start_time = '2000-01-01 00:00:00'
         if end_time == 'default': end_time = '2000-12-31 23:00:00'
 
@@ -216,7 +240,7 @@ surface_water_partitioning_scheme=Schaake
                 break
 
         # Get config-level PET settings
-        ngen_config = self.config.get('NGEN', {})
+        ngen_config = self.config_dict.get('NGEN', {})
         pet_config = ngen_config.get('PET', {})
 
         # Use config elevation if specified, otherwise catchment attribute, otherwise default
@@ -235,7 +259,7 @@ surface_water_partitioning_scheme=Schaake
 
         # Default parameters with intelligent defaults
         # Use forcing timestep for PET instead of hardcoded hourly
-        forcing_timestep = self.config.get('FORCING_TIME_STEP_SIZE', 3600)
+        forcing_timestep = self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE')
         try:
             forcing_timestep = int(forcing_timestep)
         except (ValueError, TypeError):
@@ -263,8 +287,8 @@ surface_water_partitioning_scheme=Schaake
         self.logger.info(f"  Momentum roughness: {params['momentum_roughness']:.2f} m")
 
         # Calculate num_timesteps
-        start_time = self.config.get('EXPERIMENT_TIME_START', '2000-01-01 00:00:00')
-        end_time = self.config.get('EXPERIMENT_TIME_END', '2000-12-31 23:00:00')
+        start_time = self._get_config_value(lambda: self.config.domain.time_start, default='2000-01-01 00:00:00', dict_key='EXPERIMENT_TIME_START')
+        end_time = self._get_config_value(lambda: self.config.domain.time_end, default='2000-12-31 23:00:00', dict_key='EXPERIMENT_TIME_END')
         if start_time == 'default': start_time = '2000-01-01 00:00:00'
         if end_time == 'default': end_time = '2000-12-31 23:00:00'
 
@@ -327,8 +351,8 @@ shortwave_radiation_provided=0
         centroid = self._get_wgs84_centroid(catchment_row)
 
         # Get simulation timing from config
-        start_time = self.config.get('EXPERIMENT_TIME_START', '2000-01-01 00:00:00')
-        end_time = self.config.get('EXPERIMENT_TIME_END', '2000-12-31 23:00:00')
+        start_time = self._get_config_value(lambda: self.config.domain.time_start, default='2000-01-01 00:00:00', dict_key='EXPERIMENT_TIME_START')
+        end_time = self._get_config_value(lambda: self.config.domain.time_end, default='2000-12-31 23:00:00', dict_key='EXPERIMENT_TIME_END')
 
         # Handle 'default' strings
         if start_time == 'default':
@@ -457,13 +481,13 @@ shortwave_radiation_provided=0
 
         lib_ext = ".dylib" if sys.platform == "darwin" else ".so"
 
-        forcing_provider = self.config.get("NGEN_FORCING_PROVIDER")
+        forcing_provider = self.config_dict.get('NGEN_FORCING_PROVIDER')
         if not forcing_provider:
             forcing_provider = "CsvPerFeature" if sys.platform == "darwin" else "NetCDF"
 
         # Handle simulation times
-        sim_start = self.config.get('EXPERIMENT_TIME_START', '2000-01-01 00:00:00')
-        sim_end = self.config.get('EXPERIMENT_TIME_END', '2000-12-31 23:00:00')
+        sim_start = self._get_config_value(lambda: self.config.domain.time_start, default='2000-01-01 00:00:00', dict_key='EXPERIMENT_TIME_START')
+        sim_end = self._get_config_value(lambda: self.config.domain.time_end, default='2000-12-31 23:00:00', dict_key='EXPERIMENT_TIME_END')
 
         if sim_start == 'default':
             sim_start = '2000-01-01 00:00:00'
@@ -474,7 +498,7 @@ shortwave_radiation_provided=0
         sim_end = pd.to_datetime(sim_end).strftime('%Y-%m-%d %H:%M:%S')
 
         # Get forcing timestep from config (default to 3600 if not specified)
-        forcing_timestep = self.config.get('FORCING_TIME_STEP_SIZE', 3600)
+        forcing_timestep = self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE')
         try:
             forcing_timestep = int(forcing_timestep)
             self.logger.info(f"Using forcing timestep: {forcing_timestep} seconds ({forcing_timestep/3600:.1f} hours)")
@@ -501,7 +525,7 @@ shortwave_radiation_provided=0
             lib_paths=lib_paths
         )
 
-        experiment_id = self.config.get('EXPERIMENT_ID', 'default_run')
+        experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='default_run', dict_key='EXPERIMENT_ID')
         output_root = str((project_dir / "simulations" / experiment_id / "NGEN").resolve())
 
         config = {

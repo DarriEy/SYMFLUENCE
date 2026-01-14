@@ -12,8 +12,10 @@ from typing import Dict
 from .base import BaseObjective
 from .registry import ObjectiveRegistry
 
+from symfluence.core.mixins import ConfigMixin
+
 @ObjectiveRegistry.register('MULTIVARIATE')
-class MultivariateObjective(BaseObjective):
+class MultivariateObjective(ConfigMixin, BaseObjective):
     """Weighted multi-variable objective function.
 
     Combines multiple variables and metrics into a single scalar objective
@@ -92,7 +94,7 @@ class MultivariateObjective(BaseObjective):
               scores (KGE, NSE, correlation range ~0-1)
         """
         # Get weights from config (default: streamflow only if not specified)
-        weights = self.config.get('OBJECTIVE_WEIGHTS', {'STREAMFLOW': 1.0})
+        weights = self.config_dict.get('OBJECTIVE_WEIGHTS', {'STREAMFLOW': 1.0})
 
         # Normalize weights to sum to 1.0. This ensures the objective value is
         # scale-independent: changing all weights by a constant factor doesn't
@@ -102,7 +104,7 @@ class MultivariateObjective(BaseObjective):
 
         # Primary metric per variable from config. These define which metric
         # is most important for each variable (e.g., KGE for streamflow, NSE for snow)
-        metrics = self.config.get('OBJECTIVE_METRICS', {
+        metrics = self.config_dict.get('OBJECTIVE_METRICS', {
             'STREAMFLOW': 'kge',
             'TWS': 'nse',
             'SCA': 'corr',

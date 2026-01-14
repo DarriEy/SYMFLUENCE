@@ -592,8 +592,8 @@ class BaseModelOptimizer(
         # Get target type from config (supports both typed and dict configs)
         target_type = self._get_config_value(
             lambda: self.config.optimization.target,
-            default=self.config.get('OPTIMIZATION_TARGET', 'streamflow')
-        ) if hasattr(self, '_get_config_value') else self.config.get('OPTIMIZATION_TARGET', 'streamflow')
+            default=self._get_config_value(lambda: self.config.optimization.target, default='streamflow', dict_key='OPTIMIZATION_TARGET')
+        ) if hasattr(self, '_get_config_value') else self._get_config_value(lambda: self.config.optimization.target, default='streamflow', dict_key='OPTIMIZATION_TARGET')
 
         target_type = str(target_type).lower()
 

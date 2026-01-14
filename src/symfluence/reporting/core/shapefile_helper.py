@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import logging
 
+from symfluence.core.mixins import ConfigMixin
+
 # Lazy import for geopandas
 _gpd = None
 
@@ -53,7 +55,7 @@ def resolve_default_name(
     return value
 
 
-class ShapefileHelper:
+class ShapefileHelper(ConfigMixin):
     """
     Helper for loading and caching shapefiles.
 
@@ -80,7 +82,29 @@ class ShapefileHelper:
             logger: Logger instance
             project_dir: Optional project directory override
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
 
         if project_dir is not None:
@@ -184,7 +208,7 @@ class ShapefileHelper:
         Returns:
             GeoDataFrame of HRUs, or None if not found
         """
-        method = discretization_method or self.config.get('DOMAIN_DISCRETIZATION', 'GRUs')
+        method = discretization_method or self._get_config_value(lambda: self.config.domain.discretization, default='GRUs', dict_key='DOMAIN_DISCRETIZATION')
         cache_key = f'hru_{method}'
 
         if cache_key in self._cache:
@@ -219,7 +243,7 @@ class ShapefileHelper:
             if basin_gdf is None:
                 return None
 
-            area_col = area_column or self.config.get('RIVER_BASIN_SHP_AREA', 'GRU_area')
+            area_col = area_column or self._get_config_value(lambda: self.config.paths.river_basin_area, default='GRU_area', dict_key='RIVER_BASIN_SHP_AREA')
 
             if area_col not in basin_gdf.columns:
                 self.logger.warning(f"Area column '{area_col}' not found in basin shapefile")

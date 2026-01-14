@@ -16,10 +16,11 @@ import logging
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_gr_bounds
 from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.mixins import ConfigMixin
 
 
 @OptimizerRegistry.register_parameter_manager('GR')
-class GRParameterManager(BaseParameterManager):
+class GRParameterManager(ConfigMixin, BaseParameterManager):
     """Handles GR parameter bounds, normalization, and configuration updates."""
 
     def __init__(self, config: Dict, logger: logging.Logger, gr_settings_dir: Path):
@@ -59,7 +60,7 @@ class GRParameterManager(BaseParameterManager):
     def get_initial_parameters(self) -> Optional[Dict[str, float]]:
         """Get initial parameter values from config or defaults."""
         # Check for explicit initial params in config
-        initial_params = self.config.get('GR_INITIAL_PARAMS', 'default')
+        initial_params = self.config_dict.get('GR_INITIAL_PARAMS', 'default')
 
         if initial_params == 'default':
             # Try to load from previous internal calibration if it exists
@@ -85,9 +86,9 @@ class GRParameterManager(BaseParameterManager):
     def _load_params_from_rdata(self) -> Optional[Dict[str, float]]:
         """Attempt to load parameters from GR_calib.Rdata in the simulation directory."""
         try:
-            data_dir = self.config.get('SYMFLUENCE_DATA_DIR')
-            domain = self.config.get('DOMAIN_NAME')
-            exp_id = self.config.get('EXPERIMENT_ID')
+            data_dir = self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')
+            domain = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
+            exp_id = self._get_config_value(lambda: self.config.domain.experiment_id, dict_key='EXPERIMENT_ID')
 
             if not all([data_dir, domain, exp_id]):
                 return None

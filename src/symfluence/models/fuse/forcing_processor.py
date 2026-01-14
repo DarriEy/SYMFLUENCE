@@ -112,8 +112,8 @@ class FuseForcingProcessor(BaseForcingProcessor):
             self.logger.debug(f"Using {ts_config['time_label']} timestep (resample freq: {ts_config['resample_freq']})")
 
             # Get spatial mode configuration
-            spatial_mode = self.config.get('FUSE_SPATIAL_MODE', 'lumped')
-            subcatchment_dim = self.config.get('FUSE_SUBCATCHMENT_DIM', 'longitude')
+            spatial_mode = self._get_config_value(lambda: self.config.model.fuse.spatial_mode, default='lumped', dict_key='FUSE_SPATIAL_MODE')
+            subcatchment_dim = self._get_config_value(lambda: self.config.model.fuse.subcatchment_dim, default='longitude', dict_key='FUSE_SUBCATCHMENT_DIM')
 
             self.logger.debug(f"Preparing FUSE forcing data in {spatial_mode} mode")
 
@@ -125,7 +125,7 @@ class FuseForcingProcessor(BaseForcingProcessor):
             variable_handler = VariableHandler(
                 config=self.config,
                 logger=self.logger,
-                dataset=self.config.get('FORCING_DATASET'),
+                dataset=self._get_config_value(lambda: self.config.forcing.dataset, dict_key='FORCING_DATASET'),
                 model='FUSE'
             )
             ds = xr.open_mfdataset(forcing_files, data_vars='all', combine='nested', concat_dim='time').sortby('time')

@@ -19,7 +19,7 @@ class FLUXCOMETHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         """Locate FLUXCOM ET data."""
-        et_path_cfg = self.config.get('FLUXCOM_ET_PATH')
+        et_path_cfg = self.config_dict.get('FLUXCOM_ET_PATH')
         if et_path_cfg and str(et_path_cfg).lower() != 'default':
             et_dir = Path(et_path_cfg)
             et_dir.mkdir(parents=True, exist_ok=True)

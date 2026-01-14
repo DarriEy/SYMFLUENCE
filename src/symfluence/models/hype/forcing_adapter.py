@@ -10,10 +10,11 @@ from typing import Dict, List, Callable
 import xarray as xr
 
 from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
+from symfluence.core.mixins import ConfigMixin
 
 
 @ForcingAdapterRegistry.register_adapter('HYPE')
-class HYPEForcingAdapter(ForcingAdapter):
+class HYPEForcingAdapter(ConfigMixin, ForcingAdapter):
     """
     Forcing adapter for HYPE model.
 
@@ -87,7 +88,7 @@ class HYPEForcingAdapter(ForcingAdapter):
             Dict of conversion functions
         """
         # Determine timestep from config
-        timestep_hours = self.config.get('FORCING_TIME_STEP_SIZE', 3600) / 3600
+        timestep_hours = self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE') / 3600
 
         # Precipitation: kg m-2 s-1 to mm/timestep
         # 1 kg m-2 s-1 = 1 mm/s = 3600 mm/hr
@@ -117,7 +118,7 @@ class HYPEForcingAdapter(ForcingAdapter):
 
         # HYPE typically expects daily data
         # If configured to aggregate to daily, do so here
-        if self.config.get('HYPE_AGGREGATE_TO_DAILY', False):
+        if self.config_dict.get('HYPE_AGGREGATE_TO_DAILY', False):
             ds = self._aggregate_to_daily(ds)
 
         return ds

@@ -8,13 +8,17 @@ Abstract base class for optimization algorithms using the Strategy pattern.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Callable, Optional
+from typing import Dict, Any, Callable, Optional, Union, TYPE_CHECKING
 import numpy as np
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.mixins import ConfigMixin
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 
-class OptimizationAlgorithm(ABC):
+class OptimizationAlgorithm(ConfigMixin, ABC):
     """
     Abstract base class for optimization algorithms.
 
@@ -23,21 +27,45 @@ class OptimizationAlgorithm(ABC):
     while maintaining a consistent interface.
     """
 
-    def __init__(self, config: Dict[str, Any], logger):
+    def __init__(self, config: Union['SymfluenceConfig', Dict[str, Any]], logger):
         """
         Initialize the algorithm.
 
         Args:
-            config: Configuration dictionary
+            config: SymfluenceConfig instance or dict (auto-converted)
             logger: Logger instance
         """
-        self.config = config
+        # Import here to avoid circular imports
+        from symfluence.core.config.models import SymfluenceConfig
+
+        # Auto-convert dict to typed config for backward compatibility
+        if isinstance(config, dict):
+            try:
+                self._config = SymfluenceConfig(**config)
+            except Exception:
+                # Fallback for partial configs (e.g., in tests)
+                self._config = config
+        else:
+            self._config = config
+
         self.logger = logger
 
-        # Common algorithm parameters
-        self.max_iterations = config.get('NUMBER_OF_ITERATIONS', 100)
-        self.population_size = config.get('POPULATION_SIZE', 30)
-        self.target_metric = config.get('OPTIMIZATION_METRIC', 'KGE')
+        # Common algorithm parameters - use _get_config_value for typed access
+        self.max_iterations = self._get_config_value(
+            lambda: self.config.optimization.iterations,
+            default=100,
+            dict_key='NUMBER_OF_ITERATIONS'
+        )
+        self.population_size = self._get_config_value(
+            lambda: self.config.optimization.population_size,
+            default=30,
+            dict_key='POPULATION_SIZE'
+        )
+        self.target_metric = self._get_config_value(
+            lambda: self.config.optimization.metric,
+            default='KGE',
+            dict_key='OPTIMIZATION_METRIC'
+        )
         self.penalty_score = ModelDefaults.PENALTY_SCORE
 
     @property

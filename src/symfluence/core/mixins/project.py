@@ -25,14 +25,11 @@ class ProjectContextMixin(ConfigMixin):
         if _data_dir is not None:
             return Path(_data_dir)
 
-        # Get from typed config
-        cfg = self.config
-        if cfg is not None:
-            if isinstance(cfg, dict):
-                return Path(cfg.get('SYMFLUENCE_DATA_DIR', '.'))
-            return cfg.system.data_dir
-
-        return Path('.')
+        return Path(self._get_config_value(
+            lambda: self.config.system.data_dir,
+            default='.',
+            dict_key='SYMFLUENCE_DATA_DIR'
+        ))
 
     @data_dir.setter
     def data_dir(self, value: Union[str, Path]) -> None:
@@ -52,14 +49,11 @@ class ProjectContextMixin(ConfigMixin):
         if _domain_name is not None:
             return _domain_name
 
-        # Get from typed config
-        cfg = self.config
-        if cfg is not None:
-            if isinstance(cfg, dict):
-                return cfg.get('DOMAIN_NAME', 'domain')
-            return cfg.domain.name
-
-        return 'domain'
+        return self._get_config_value(
+            lambda: self.config.domain.name,
+            default='domain',
+            dict_key='DOMAIN_NAME'
+        )
 
     @domain_name.setter
     def domain_name(self, value: str) -> None:

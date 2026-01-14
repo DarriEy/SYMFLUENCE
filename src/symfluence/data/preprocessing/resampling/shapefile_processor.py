@@ -11,8 +11,10 @@ from typing import Tuple, Union
 
 from .geometry_validator import GeometryValidator
 
+from symfluence.core.mixins import ConfigMixin
 
-class ShapefileProcessor:
+
+class ShapefileProcessor(ConfigMixin):
     """
     Processes shapefiles for EASYMORE remapping compatibility.
 
@@ -27,7 +29,29 @@ class ShapefileProcessor:
             config: Configuration dictionary
             logger: Optional logger instance
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger or logging.getLogger(__name__)
         self.geometry_validator = GeometryValidator(self.logger)
 
@@ -224,7 +248,7 @@ class ShapefileProcessor:
 
             # For target shapefiles, ensure unique HRU IDs first
             if is_target_shapefile:
-                hru_id_field = self.config.get('CATCHMENT_SHP_HRUID')
+                hru_id_field = self._get_config_value(lambda: self.config.paths.catchment_hruid, dict_key='CATCHMENT_SHP_HRUID')
                 shapefile_path, actual_hru_field = self.ensure_unique_hru_ids(
                     shapefile_path, hru_id_field
                 )

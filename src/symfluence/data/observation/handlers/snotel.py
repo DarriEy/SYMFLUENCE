@@ -22,11 +22,11 @@ class SNOTELHandler(BaseObservationHandler):
         """
         Acquire SNOTEL data from NRCS AWDB API.
         """
-        download_enabled = self.config.get('DOWNLOAD_SNOTEL', False)
+        download_enabled = self._get_config_value(lambda: self.config.evaluation.snotel.download, default=False, dict_key='DOWNLOAD_SNOTEL')
         if isinstance(download_enabled, str):
             download_enabled = download_enabled.lower() == 'true'
 
-        station_id = self.config.get('SNOTEL_STATION') or self.config.get('STATION_ID')
+        station_id = self._get_config_value(lambda: self.config.evaluation.snotel.station, dict_key='SNOTEL_STATION') or self._get_config_value(lambda: self.config.evaluation.streamflow.station_id, dict_key='STATION_ID')
 
         if not station_id:
             self.logger.error("Missing SNOTEL_STATION in configuration")
@@ -43,7 +43,7 @@ class SNOTELHandler(BaseObservationHandler):
                 return raw_file
 
             # Check for legacy path format
-            snotel_path = self.config.get('SNOTEL_PATH')
+            snotel_path = self._get_config_value(lambda: self.config.evaluation.snotel.path, dict_key='SNOTEL_PATH')
             if snotel_path and snotel_path != 'default':
                 matches = list(Path(snotel_path).rglob(f"*{station_id}*.csv"))
                 if matches:
@@ -59,7 +59,7 @@ class SNOTELHandler(BaseObservationHandler):
         self.logger.info(f"Downloading SNOTEL data for station {station_id}")
 
         # Determine state (Paradise is 679:WA:SNTL)
-        state = self.config.get('SNOTEL_STATE', 'WA')
+        state = self.config_dict.get('SNOTEL_STATE', 'WA')
 
         # Construct URL based on the reference notebook logic
         url_base = 'https://wcc.sc.egov.usda.gov/reportGenerator/view_csv/customSingleStationReport/daily/'

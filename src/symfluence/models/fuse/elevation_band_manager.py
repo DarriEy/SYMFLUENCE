@@ -12,8 +12,10 @@ import pandas as pd
 import xarray as xr
 import geopandas as gpd
 
+from symfluence.core.mixins import ConfigMixin
 
-class FuseElevationBandManager:
+
+class FuseElevationBandManager(ConfigMixin):
     """
     Manager for FUSE elevation band creation in lumped and distributed modes.
 
@@ -54,7 +56,29 @@ class FuseElevationBandManager:
             domain_name: Domain name for file naming
             calculate_catchment_centroid_callback: Callback to parent's calculate_catchment_centroid method
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.project_dir = Path(project_dir)
         self.forcing_fuse_path = Path(forcing_fuse_path)
@@ -72,7 +96,7 @@ class FuseElevationBandManager:
         Raises:
             ValueError: If unknown spatial mode specified
         """
-        spatial_mode = self.config.get('FUSE_SPATIAL_MODE', 'lumped')
+        spatial_mode = self._get_config_value(lambda: self.config.model.fuse.spatial_mode, default='lumped', dict_key='FUSE_SPATIAL_MODE')
 
         self.logger.info(f"Creating elevation bands for {spatial_mode} mode")
 
@@ -156,7 +180,7 @@ class FuseElevationBandManager:
                 }
 
             # Create simple elevation bands (e.g., 5 bands)
-            n_bands = self.config.get('FUSE_N_ELEVATION_BANDS', 5)
+            n_bands = self._get_config_value(lambda: self.config.model.fuse.n_elevation_bands, default=5, dict_key='FUSE_N_ELEVATION_BANDS')
             elevations = np.linspace(elev_min, elev_max, n_bands)
 
             # Equal area fractions for each band
@@ -299,7 +323,7 @@ class FuseElevationBandManager:
                     'longitude': np.array([longitudes.mean()])
                 }
 
-            n_bands = self.config.get('FUSE_N_ELEVATION_BANDS', 5)
+            n_bands = self._get_config_value(lambda: self.config.model.fuse.n_elevation_bands, default=5, dict_key='FUSE_N_ELEVATION_BANDS')
             elevations = np.linspace(elevations.min(), elevations.max(), n_bands)
             area_fractions = np.ones(n_bands) / n_bands
 

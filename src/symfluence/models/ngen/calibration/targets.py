@@ -53,7 +53,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             files = list(sim_dir.glob('**/nex-*_output.csv'))
 
         # Filter by CALIBRATION_NEXUS_ID if configured
-        target_nexus = self.config.get('CALIBRATION_NEXUS_ID')
+        target_nexus = self.config_dict.get('CALIBRATION_NEXUS_ID')
         if target_nexus:
             # Normalize ID (ensure it has nex- prefix if file has it)
             # Assuming config might say "nex-57" or just "57"
@@ -100,7 +100,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
         import xarray as xr
 
         # Get target nexus ID (outlet)
-        target_nexus = self.config.get('CALIBRATION_NEXUS_ID', 'nex-57')  # Default to outlet
+        target_nexus = self.config_dict.get('CALIBRATION_NEXUS_ID', 'nex-57')  # Default to outlet
 
         try:
             # Read t-route output (typically NetCDF with time and feature_id dimensions)
@@ -235,7 +235,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 nexus_id = nexus_file.stem.replace('_output', '')
 
                 # Check config to skip conversion
-                is_flow_already = self.config.get('NGEN_CSV_OUTPUT_IS_FLOW', False)
+                is_flow_already = self.config_dict.get('NGEN_CSV_OUTPUT_IS_FLOW', False)
 
                 if not is_flow_already and nexus_id in nexus_areas and nexus_areas[nexus_id] > 0:
                     area_m2 = nexus_areas[nexus_id] * 1e6  # km² to m²
@@ -302,7 +302,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             if output_dir is not None:
                 sim = Path(output_dir)
             else:
-                exp_id = experiment_id or self.config.get('EXPERIMENT_ID')
+                exp_id = experiment_id or self._get_config_value(lambda: self.config.domain.experiment_id, dict_key='EXPERIMENT_ID')
                 sim = self.project_dir / 'simulations' / exp_id / 'NGEN'
 
         # Use base class method with our specialized data extraction

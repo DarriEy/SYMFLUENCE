@@ -10,10 +10,12 @@ import logging
 import numpy as np
 from typing import Callable, Dict, List, Optional, Tuple
 
+from symfluence.core.mixins import ConfigMixin
+
 logger = logging.getLogger(__name__)
 
 
-class GradientOptimizationMixin:
+class GradientOptimizationMixin(ConfigMixin):
     """
     Mixin class providing gradient-based optimization via finite differences.
 
@@ -37,12 +39,12 @@ class GradientOptimizationMixin:
     @property
     def gradient_epsilon(self) -> float:
         """Epsilon for finite difference gradient computation."""
-        return self.config.get('GRADIENT_EPSILON', 1e-4)
+        return self.config_dict.get('GRADIENT_EPSILON', 1e-4)
 
     @property
     def gradient_clip_value(self) -> float:
         """Maximum gradient magnitude for clipping."""
-        return self.config.get('GRADIENT_CLIP_VALUE', 1.0)
+        return self.config_dict.get('GRADIENT_CLIP_VALUE', 1.0)
 
     # =========================================================================
     # Gradient computation

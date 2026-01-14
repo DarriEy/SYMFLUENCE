@@ -24,8 +24,10 @@ import logging
 import socket
 import hashlib
 
+from symfluence.core.mixins import ConfigMixin
 
-class LocalScratchManager:
+
+class LocalScratchManager(ConfigMixin):
     """
     Manages local scratch space for optimization on HPC systems with multi-node support.
 
@@ -49,7 +51,29 @@ class LocalScratchManager:
             algorithm_name: Name of optimization algorithm (for directory naming)
             mpi_rank: MPI rank of this process (None for serial execution)
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.project_dir = project_dir  # This is the ORIGINAL project dir
         self.algorithm_name = algorithm_name
@@ -103,7 +127,7 @@ class LocalScratchManager:
             True if scratch should be used, False otherwise
         """
         # Check config flag
-        use_scratch_config = self.config.get('USE_LOCAL_SCRATCH', False)
+        use_scratch_config = self._get_config_value(lambda: self.config.system.use_local_scratch, default=False, dict_key='USE_LOCAL_SCRATCH')
 
         if not use_scratch_config:
             return False
@@ -154,7 +178,7 @@ class LocalScratchManager:
         self.scratch_project_dir = self.scratch_data_dir / f"domain_{self.domain_name}"
 
         # Store original for reference
-        self.original_data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
+        self.original_data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
 
         self.logger.info(f"Rank {self.mpi_rank} on {self.node_name}:")
         self.logger.info(f"  Scratch root: {self.scratch_root}")
@@ -170,14 +194,14 @@ class LocalScratchManager:
             True if routing is needed, False otherwise
         """
         # Check routing delineation setting
-        routing_delineation = self.config.get('ROUTING_DELINEATION', 'lumped').lower()
+        routing_delineation = self._get_config_value(lambda: self.config.domain.delineation.routing, default='lumped', dict_key='ROUTING_DELINEATION').lower()
 
         # Skip routing for lumped or none
         if routing_delineation in ['lumped', 'none', 'off', 'false']:
             return False
 
         # Check domain definition method
-        domain_method = self.config.get('DOMAIN_DEFINITION_METHOD', 'lumped').lower()
+        domain_method = self._get_config_value(lambda: self.config.domain.definition_method, default='lumped', dict_key='DOMAIN_DEFINITION_METHOD').lower()
 
         # If domain is point or lumped, typically no routing needed
         if domain_method in ['point', 'lumped']:
@@ -459,7 +483,7 @@ class LocalScratchManager:
             }
         else:
             return {
-                'data_dir': self.original_data_dir if self.original_data_dir else Path(self.config.get('SYMFLUENCE_DATA_DIR')),
+                'data_dir': self.original_data_dir if self.original_data_dir else Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')),
                 'project_dir': self.original_project_dir,
                 'settings_dir': self.original_project_dir / "settings" / "SUMMA",
                 'mizuroute_settings_dir': self.original_project_dir / "settings" / "mizuRoute",
@@ -615,7 +639,7 @@ class LocalScratchManager:
         if self.use_scratch and self.scratch_data_dir:
             return self.scratch_data_dir
         else:
-            return self.original_data_dir if self.original_data_dir else Path(self.config.get('SYMFLUENCE_DATA_DIR'))
+            return self.original_data_dir if self.original_data_dir else Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
 
     def get_effective_project_dir(self) -> Path:
         """

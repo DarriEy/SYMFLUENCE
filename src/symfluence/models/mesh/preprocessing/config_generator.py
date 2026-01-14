@@ -13,8 +13,10 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.mixins import ConfigMixin
 
-class MESHConfigGenerator:
+
+class MESHConfigGenerator(ConfigMixin):
     """
     Generates MESH configuration files.
 
@@ -45,19 +47,41 @@ class MESHConfigGenerator:
         """
         self.forcing_dir = forcing_dir
         self.project_dir = project_dir
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger or logging.getLogger(__name__)
         self.get_simulation_time_window = time_window_func
         self.domain_name = config.get('DOMAIN_NAME', 'domain')
 
     def _get_spatial_mode(self) -> str:
         """Determine MESH spatial mode from configuration."""
-        spatial_mode = self.config.get('MESH_SPATIAL_MODE', 'auto')
+        spatial_mode = self._get_config_value(lambda: self.config.model.mesh.spatial_mode, default='auto', dict_key='MESH_SPATIAL_MODE')
 
         if spatial_mode != 'auto':
             return spatial_mode
 
-        domain_method = self.config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+        domain_method = self._get_config_value(lambda: self.config.domain.definition_method, default='lumped', dict_key='DOMAIN_DEFINITION_METHOD')
 
         if domain_method in ['point', 'lumped']:
             return 'lumped'
@@ -74,7 +98,7 @@ class MESHConfigGenerator:
 
         # Get simulation times
         time_window = self.get_simulation_time_window() if self.get_simulation_time_window else None
-        spinup_days = int(self.config.get('MESH_SPINUP_DAYS', 730))
+        spinup_days = int(self._get_config_value(lambda: self.config.model.mesh.spinup_days, default=730, dict_key='MESH_SPINUP_DAYS'))
 
         if time_window:
             from datetime import timedelta
@@ -224,7 +248,7 @@ METRICSSPINUP       {spinup_days}                       # Spinup days to exclude
         streamflow_path = self.forcing_dir / "MESH_input_streamflow.txt"
 
         time_window = self.get_simulation_time_window() if self.get_simulation_time_window else None
-        spinup_days = int(self.config.get('MESH_SPINUP_DAYS', 365))
+        spinup_days = int(self._get_config_value(lambda: self.config.model.mesh.spinup_days, default=365, dict_key='MESH_SPINUP_DAYS'))
 
         if time_window:
             from datetime import timedelta
@@ -246,7 +270,7 @@ METRICSSPINUP       {spinup_days}                       # Spinup days to exclude
         # Get observed data
         obs_data = self._load_observed_streamflow()
 
-        gauge_id = self.config.get('STREAMFLOW_STATION_ID', 'gauge1')
+        gauge_id = self._get_config_value(lambda: self.config.data.streamflow_station_id, default='gauge1', dict_key='STREAMFLOW_STATION_ID')
         if gauge_id == 'default':
             gauge_id = self.domain_name
 

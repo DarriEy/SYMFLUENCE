@@ -79,7 +79,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
 
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        station_id = self.config.get('FLUXNET_STATION')
+        station_id = self._get_config_value(lambda: self.config.evaluation.fluxnet.station, dict_key='FLUXNET_STATION')
         if not station_id:
             raise ValueError("FLUXNET_STATION must be specified in configuration")
 
@@ -88,7 +88,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
         # Output file path
         processed_file = output_dir / f"{self.domain_name}_FLUXNET_{station_id}.csv"
 
-        if processed_file.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+        if processed_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
             self.logger.info(f"Using existing FLUXNET file: {processed_file}")
             return processed_file
 
@@ -96,7 +96,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
         raw_data = None
 
         # 1. Check for pre-downloaded data
-        local_path = self.config.get('FLUXNET_PATH')
+        local_path = self._get_config_value(lambda: self.config.evaluation.fluxnet.path, dict_key='FLUXNET_PATH')
         if local_path:
             raw_data = self._load_local_data(Path(local_path), station_id)
 
@@ -154,8 +154,8 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
             return user_id, user_email
 
         # 2. Config file
-        user_id = self.config.get('AMERIFLUX_USER_ID')
-        user_email = self.config.get('AMERIFLUX_USER_EMAIL')
+        user_id = self.config_dict.get('AMERIFLUX_USER_ID')
+        user_email = self.config_dict.get('AMERIFLUX_USER_EMAIL')
         if user_id and user_email:
             return user_id, user_email
 
@@ -201,7 +201,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
             return None
 
         # Prefer FULLSET files, then daily, then half-hourly
-        resolution_pref = self.config.get('FLUXNET_TEMPORAL_RESOLUTION', 'DD')
+        resolution_pref = self.config_dict.get('FLUXNET_TEMPORAL_RESOLUTION', 'DD')
 
         best_file = None
         for f in matching_files:
@@ -259,7 +259,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
         self.logger.info(f"Downloading from AmeriFlux API: {station_id}")
 
         # Get data policy for the site
-        data_policy = self.config.get('AMERIFLUX_DATA_POLICY', 'CCBY4.0')
+        data_policy = self.config_dict.get('AMERIFLUX_DATA_POLICY', 'CCBY4.0')
 
         try:
             # First, check site availability and get correct data policy
@@ -275,7 +275,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
                 'site_ids': [station_id],
                 'data_product': 'BASE-BADM',
                 'data_policy': data_policy,
-                'intended_use': self.config.get('AMERIFLUX_INTENDED_USE', 'model'),
+                'intended_use': self.config_dict.get('AMERIFLUX_INTENDED_USE', 'model'),
                 'description': self.config.get(
                     'AMERIFLUX_DESCRIPTION',
                     f'Hydrological model calibration for {self.domain_name}'
@@ -581,12 +581,12 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
             self.logger.info("Converted LE (W/m²) to ET (mm/day)")
 
         # Apply quality filtering if requested
-        if self.config.get('FLUXNET_QC_FILTER', True):
+        if self.config_dict.get('FLUXNET_QC_FILTER', True):
             for var in ['LE', 'H', 'ET']:
                 qc_col = f'{var}_QC'
                 if qc_col in result.columns and var in result.columns:
                     # QC values: 0=measured, 1=good gap-fill, 2=medium, 3=poor
-                    max_qc = self.config.get('FLUXNET_MAX_QC', 1)
+                    max_qc = self.config_dict.get('FLUXNET_MAX_QC', 1)
                     mask = result[qc_col] > max_qc
                     result.loc[mask, var] = np.nan
                     self.logger.info(f"Applied QC filter to {var} (max QC={max_qc})")

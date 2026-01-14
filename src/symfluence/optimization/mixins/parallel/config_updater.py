@@ -10,8 +10,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from symfluence.core.mixins import ConfigMixin
 
-class ConfigurationUpdater:
+
+class ConfigurationUpdater(ConfigMixin):
     """
     Updates model configuration files for parallel execution.
 
@@ -27,7 +29,29 @@ class ConfigurationUpdater:
             config: Configuration dictionary
             logger: Optional logger instance
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger or logging.getLogger(__name__)
 
     def update_file_managers(
@@ -89,8 +113,8 @@ class ConfigurationUpdater:
 
     def _get_calibration_period(self) -> tuple:
         """Extract calibration period start and end from config."""
-        cal_period = self.config.get('CALIBRATION_PERIOD', '')
-        spinup_period = self.config.get('SPINUP_PERIOD', '')
+        cal_period = self._get_config_value(lambda: self.config.domain.calibration_period, default='', dict_key='CALIBRATION_PERIOD')
+        spinup_period = self._get_config_value(lambda: self.config.domain.spinup_period, default='', dict_key='SPINUP_PERIOD')
 
         cal_start = None
         cal_end = None
@@ -101,7 +125,7 @@ class ConfigurationUpdater:
                 cal_start = spinup_parts[0]
                 # Preserve time-of-day from EXPERIMENT_TIME_START to avoid
                 # SUMMA forcing misalignment (e.g., hourly forcing begins at 01:00)
-                exp_start = self.config.get('EXPERIMENT_TIME_START')
+                exp_start = self._get_config_value(lambda: self.config.domain.time_start, dict_key='EXPERIMENT_TIME_START')
                 if exp_start and isinstance(exp_start, str):
                     try:
                         exp_dt = datetime.strptime(exp_start, '%Y-%m-%d %H:%M')
@@ -126,7 +150,7 @@ class ConfigurationUpdater:
     def _adjust_end_time_for_forcing(self, cal_end: str) -> str:
         """Adjust end time to align with forcing timestep."""
         try:
-            forcing_timestep = self.config.get('FORCING_TIME_STEP_SIZE', 3600)
+            forcing_timestep = self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE')
             if forcing_timestep >= 3600:  # Hourly or coarser
                 end_dt = datetime.strptime(cal_end, '%Y-%m-%d')
                 forcing_hours = forcing_timestep / 3600
@@ -258,7 +282,7 @@ class ConfigurationUpdater:
         experiment_id: str
     ) -> Dict[str, str]:
         """Get model-specific mizuRoute configuration."""
-        dt_qsim = self.config.get('SETTINGS_MIZU_ROUTING_DT', '3600')
+        dt_qsim = self._get_config_value(lambda: self.config.model.mizuroute.routing_dt, default='3600', dict_key='SETTINGS_MIZU_ROUTING_DT')
         if dt_qsim in ('default', None, ''):
             dt_qsim = '3600'
 
@@ -275,14 +299,14 @@ class ConfigurationUpdater:
             fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
             vname_qsim = 'q_routed'
         elif model_upper == 'GR':
-            domain_name = self.config.get('DOMAIN_NAME')
+            domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
             fname_qsim = f"{domain_name}_{experiment_id}_runs_def.nc"
-            vname_qsim = self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+            vname_qsim = self._get_config_value(lambda: self.config.model.mizuroute.routing_var, default='q_routed', dict_key='SETTINGS_MIZU_ROUTING_VAR')
             if vname_qsim in ('default', None, ''):
                 vname_qsim = 'q_routed'
         elif model_upper == 'HYPE':
             fname_qsim = f'proc_{proc_id:02d}_{experiment_id}_timestep.nc'
-            vname_qsim = self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'q_routed')
+            vname_qsim = self._get_config_value(lambda: self.config.model.mizuroute.routing_var, default='q_routed', dict_key='SETTINGS_MIZU_ROUTING_VAR')
             if vname_qsim in ('default', None, ''):
                 vname_qsim = 'q_routed'
             # HYPE outputs daily data

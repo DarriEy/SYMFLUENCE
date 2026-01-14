@@ -181,6 +181,7 @@ import multiprocessing as mp
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Callable
 
+from symfluence.core.mixins import ConfigMixin
 from .parallel import (
     DirectoryManager,
     ConfigurationUpdater,
@@ -194,7 +195,7 @@ from .parallel import (
 logger = logging.getLogger(__name__)
 
 
-class ParallelExecutionMixin:
+class ParallelExecutionMixin(ConfigMixin):
     """Mixin providing unified parallel execution infrastructure for model optimizers.
 
     Orchestrates distributed model evaluations across multiple processes during calibration.
@@ -334,7 +335,18 @@ class ParallelExecutionMixin:
 
         >>> class MyOptimizer(ParallelExecutionMixin):
         ...     def __init__(self, config, logger, project_dir):
-        ...         self.config = config
+        ...         # Import here to avoid circular imports
+         from symfluence.core.config.models import SymfluenceConfig
+
+         # Auto-convert dict to typed config for backward compatibility
+         if isinstance(config, dict):
+             try:
+                 self._config = SymfluenceConfig(**config)
+             except Exception:
+                 # Fallback for partial configs (e.g., in tests)
+                 self._config = config
+         else:
+             self._config = config
         ...         self.logger = logger
         ...         self.project_dir = project_dir
         ...
@@ -458,7 +470,7 @@ class ParallelExecutionMixin:
     @property
     def num_processes(self) -> int:
         """Get number of processes to use for parallel execution."""
-        return max(1, self.config.get('MPI_PROCESSES', 1))
+        return max(1, self._get_config_value(lambda: self.config.system.mpi_processes, default=1, dict_key='MPI_PROCESSES'))
 
     @property
     def use_parallel(self) -> bool:

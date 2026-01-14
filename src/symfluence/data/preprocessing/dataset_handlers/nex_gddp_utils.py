@@ -504,8 +504,8 @@ class NEXGDDPCMIP6Handler(BaseDatasetHandler):
             {
                 "geometry": geometries,
                 "ID": ids,
-                self.config.get("FORCING_SHAPE_LAT_NAME"): lats,
-                self.config.get("FORCING_SHAPE_LON_NAME"): lons,
+                self.config.get('FORCING_SHAPE_LAT_NAME'): lats,
+                self.config.get('FORCING_SHAPE_LON_NAME'): lons,
             },
             crs="EPSG:4326",
         )

@@ -35,10 +35,10 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
         bbox = self.bbox
         lat_min, lat_max = sorted([bbox["lat_min"], bbox["lat_max"]])
         lon_min, lon_max = sorted([bbox["lon_min"], bbox["lon_max"]])
-        cfg_models = self.config.get("NEX_MODELS")
-        cfg_scenarios = self.config.get("NEX_SCENARIOS", ["historical"])
-        variables = self.config.get("NEX_VARIABLES", ["hurs", "huss", "pr", "rlds", "rsds", "sfcWind", "tas", "tasmax", "tasmin"])
-        cfg_members = self.config.get("NEX_ENSEMBLES", ["r1i1p1f1"])
+        cfg_models = self._get_config_value(lambda: self.config.forcing.nex.models, dict_key='NEX_MODELS')
+        cfg_scenarios = self._get_config_value(lambda: self.config.forcing.nex.scenarios, default=["historical"], dict_key='NEX_SCENARIOS')
+        variables = self._get_config_value(lambda: self.config.forcing.nex.variables, default=["hurs", "huss", "pr", "rlds", "rsds", "sfcWind", "tas", "tasmax", "tasmin"], dict_key='NEX_VARIABLES')
+        cfg_members = self._get_config_value(lambda: self.config.forcing.nex.ensembles, default=["r1i1p1f1"], dict_key='NEX_ENSEMBLES')
         if not cfg_models: raise ValueError("NEX_MODELS must be set.")
         ncss_base = "https://ds.nccs.nasa.gov/thredds/ncss/grid"
         cache_root = output_dir / "_nex_ncss_cache"
@@ -87,7 +87,7 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
             if "time" not in ds_m.dims or ds_m.sizes["time"] == 0: continue
             if "ensemble" in ds_m.dims: ds_m = ds_m.isel(ensemble=0, drop=True)
             if "airpres" not in ds_m:
-                p0, z_mean, H = 101325.0, float(self.config.get("DOMAIN_MEAN_ELEV_M", 0.0)), 8400.0
+                p0, z_mean, H = 101325.0, float(self.config_dict.get('DOMAIN_MEAN_ELEV_M', 0.0)), 8400.0
                 p_surf = p0 * np.exp(-z_mean / H)
                 ds_m["airpres"] = xr.full_like(ds_m["tas"], p_surf, dtype="float32").assign_attrs(long_name="synthetic surface air pressure", units="Pa")
             month_path = output_dir / f"NEXGDDP_all_{ms.year:04d}{ms.month:02d}.nc"

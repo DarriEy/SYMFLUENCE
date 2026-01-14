@@ -24,8 +24,8 @@ class LamahIceStreamflowHandler(BaseObservationHandler):
         STATION_ID: '13'
         LAMAH_ICE_PATH: '/path/to/lamah_ice'
         """
-        station_id = self.config.get('STATION_ID')
-        lamah_path_str = self.config.get('LAMAH_ICE_PATH')
+        station_id = self._get_config_value(lambda: self.config.evaluation.streamflow.station_id, dict_key='STATION_ID')
+        lamah_path_str = self._get_config_value(lambda: self.config.data.lamah_ice_path, dict_key='LAMAH_ICE_PATH')
 
         if not station_id:
             raise ValueError("STATION_ID required for LAMAH_ICE acquisition")
@@ -94,7 +94,7 @@ class LamahIceStreamflowHandler(BaseObservationHandler):
         return output_file
 
     def _get_resample_freq(self) -> str:
-        timestep_size = int(self.config.get('FORCING_TIME_STEP_SIZE', 3600))
+        timestep_size = int(self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE'))
         if timestep_size <= 10800:
             return 'h'
         elif timestep_size == ModelDefaults.DEFAULT_TIMESTEP_DAILY:

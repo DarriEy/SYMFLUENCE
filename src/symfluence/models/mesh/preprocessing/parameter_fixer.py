@@ -14,8 +14,10 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from symfluence.core.mixins import ConfigMixin
 
-class MESHParameterFixer:
+
+class MESHParameterFixer(ConfigMixin):
     """
     Fixes MESH parameter files for compatibility and stability.
 
@@ -48,7 +50,29 @@ class MESHParameterFixer:
         """
         self.forcing_dir = forcing_dir
         self.setup_dir = setup_dir
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger or logging.getLogger(__name__)
         self.get_simulation_time_window = time_window_func
         self._actual_spinup_days = None
@@ -436,7 +460,7 @@ class MESHParameterFixer:
                     return None
 
                 sums = gru.sum(sum_dim)
-                min_total = float(self.config.get('MESH_GRU_MIN_TOTAL', 0.02))
+                min_total = float(self._get_config_value(lambda: self.config.model.mesh.gru_min_total, default=0.02, dict_key='MESH_GRU_MIN_TOTAL'))
                 keep = sums > min_total
                 keep_mask = keep.values.tolist()
 
@@ -766,7 +790,7 @@ class MESHParameterFixer:
                 forcing_end = forcing_times[-1]
 
             # Calculate spinup
-            spinup_days = int(self.config.get('MESH_SPINUP_DAYS', 730))
+            spinup_days = int(self._get_config_value(lambda: self.config.model.mesh.spinup_days, default=730, dict_key='MESH_SPINUP_DAYS'))
             from datetime import timedelta
             requested_start = pd.Timestamp(analysis_start - timedelta(days=spinup_days))
 
@@ -827,8 +851,8 @@ class MESHParameterFixer:
                 return time_window
 
         # Fallback to calibration/evaluation periods
-        cal_period = self.config.get('CALIBRATION_PERIOD')
-        eval_period = self.config.get('EVALUATION_PERIOD')
+        cal_period = self._get_config_value(lambda: self.config.domain.calibration_period, dict_key='CALIBRATION_PERIOD')
+        eval_period = self._get_config_value(lambda: self.config.domain.evaluation_period, dict_key='EVALUATION_PERIOD')
 
         if cal_period:
             cal_parts = [p.strip() for p in str(cal_period).split(',')]

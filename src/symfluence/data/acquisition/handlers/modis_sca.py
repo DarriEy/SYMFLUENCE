@@ -20,6 +20,7 @@ from ..registry import AcquisitionRegistry
 from .appeears_base import BaseAppEEARSAcquirer
 
 
+
 @AcquisitionRegistry.register('MODIS_SCA')
 @AcquisitionRegistry.register('MODIS_SNOW_MERGED')
 class MODISSCAAcquirer(BaseAppEEARSAcquirer):
@@ -62,12 +63,12 @@ class MODISSCAAcquirer(BaseAppEEARSAcquirer):
         output_dir.mkdir(parents=True, exist_ok=True)
         merged_file = output_dir / f"{self.domain_name}_MODIS_SCA_merged.nc"
 
-        if merged_file.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+        if merged_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
             self.logger.info(f"Using existing merged SCA file: {merged_file}")
             return merged_file
 
         # Get products to download
-        products = self.config.get('MODIS_SCA_PRODUCTS', ['MOD10A1.061', 'MYD10A1.061'])
+        products = self._get_config_value(lambda: self.config.evaluation.modis_snow.products, default=['MOD10A1.061', 'MYD10A1.061'], dict_key='MODIS_SCA_PRODUCTS')
         if isinstance(products, str):
             products = [p.strip() for p in products.split(',')]
 
@@ -126,7 +127,7 @@ class MODISSCAAcquirer(BaseAppEEARSAcquirer):
 
         output_file = output_dir / f"{self.domain_name}_{product_name}_raw.nc"
 
-        if output_file.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+        if output_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
             self.logger.info(f"Using existing file: {output_file}")
             return output_file
 
@@ -266,8 +267,8 @@ class MODISSCAAcquirer(BaseAppEEARSAcquirer):
         """Merge Terra and Aqua products into combined daily SCA."""
         self.logger.info("Merging MOD10A1 and MYD10A1 products")
 
-        merge_strategy = self.config.get('MODIS_SCA_MERGE_STRATEGY', 'max').lower()
-        cloud_filter = self.config.get('MODIS_SCA_CLOUD_FILTER', True)
+        merge_strategy = self._get_config_value(lambda: self.config.evaluation.modis_snow.merge_strategy, default='max', dict_key='MODIS_SCA_MERGE_STRATEGY').lower()
+        cloud_filter = self._get_config_value(lambda: self.config.evaluation.modis_snow.cloud_filter, default=True, dict_key='MODIS_SCA_CLOUD_FILTER')
 
         datasets = {}
         for product, path in product_files.items():

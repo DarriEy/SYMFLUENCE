@@ -46,7 +46,7 @@ class FUSEPlotter(BasePlotter):
 
         try:
             plot_dir = self._ensure_output_dir('results')
-            exp_id = self.config.get('EXPERIMENT_ID', 'FUSE')
+            exp_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='FUSE', dict_key='EXPERIMENT_ID')
             plot_filename = plot_dir / f"{exp_id}_FUSE_streamflow_comparison.png"
 
             fig, ax = plt.subplots(figsize=self.plot_config.FIGURE_SIZE_MEDIUM)
@@ -73,7 +73,7 @@ class FUSEPlotter(BasePlotter):
 
                         basin_path = self.project_dir / 'shapefiles' / 'river_basins' / basin_name
                         if not basin_path.exists():
-                            basin_path = Path(self.config.get('RIVER_BASINS_PATH', ''))
+                            basin_path = Path(self._get_config_value(lambda: self.config.paths.river_basins_path, default='', dict_key='RIVER_BASINS_PATH'))
 
                         if basin_path.exists():
                             basin_gdf = gpd.read_file(basin_path)

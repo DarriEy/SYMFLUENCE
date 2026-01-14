@@ -14,6 +14,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional
 from symfluence.optimization.calibration_targets import CalibrationTarget
+from symfluence.core.mixins import ConfigMixin
 
 def fix_summa_time_precision(nc_file: Path):
     """
@@ -34,11 +35,33 @@ def fix_summa_time_precision(nc_file: Path):
     except Exception as e:
         logging.error(f"Error fixing SUMMA time precision: {str(e)}")
 
-class ModelExecutor:
+class ModelExecutor(ConfigMixin):
     """Handles SUMMA and mizuRoute execution with routing support"""
 
     def __init__(self, config: Dict, logger: logging.Logger, calibration_target: CalibrationTarget):
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.calibration_target = calibration_target
 
@@ -56,8 +79,8 @@ class ModelExecutor:
                     mizuroute_settings_dir = settings_dir.parent / "mizuRoute"
 
                 # Handle lumped-to-distributed conversion if needed
-                domain_method = self.config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-                routing_delineation = self.config.get('ROUTING_DELINEATION', 'lumped')
+                domain_method = self._get_config_value(lambda: self.config.domain.definition_method, default='lumped', dict_key='DOMAIN_DEFINITION_METHOD')
+                routing_delineation = self._get_config_value(lambda: self.config.domain.delineation.routing, default='lumped', dict_key='ROUTING_DELINEATION')
 
                 if domain_method == 'lumped' and routing_delineation == 'river_network':
                     if not self._convert_lumped_to_distributed(summa_dir, mizuroute_settings_dir):
@@ -76,15 +99,15 @@ class ModelExecutor:
         """Run SUMMA simulation"""
         try:
             # Get SUMMA executable
-            summa_path = self.config.get('SUMMA_INSTALL_PATH')
+            summa_path = self._get_config_value(lambda: self.config.model.summa.install_path, dict_key='SUMMA_INSTALL_PATH')
             if summa_path == 'default':
-                summa_path = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / 'installs' / 'summa' / 'bin'
+                summa_path = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')) / 'installs' / 'summa' / 'bin'
             else:
                 summa_path = Path(summa_path)
 
-            summa_exe_name = self.config.get('SUMMA_EXE', 'summa_sundials.exe')
+            summa_exe_name = self._get_config_value(lambda: self.config.model.summa.exe, default='summa_sundials.exe', dict_key='SUMMA_EXE')
             summa_exe = summa_path / summa_exe_name
-            file_manager = settings_dir / self.config.get('SETTINGS_SUMMA_FILEMANAGER', 'fileManager.txt')
+            file_manager = settings_dir / self._get_config_value(lambda: self.config.model.summa.filemanager, default='fileManager.txt', dict_key='SETTINGS_SUMMA_FILEMANAGER')
 
             if not summa_exe.exists():
                 self.logger.error(f"SUMMA executable not found: {summa_exe}")
@@ -122,14 +145,14 @@ class ModelExecutor:
         """Run mizuRoute simulation"""
         try:
             # Get mizuRoute executable
-            mizu_path = self.config.get('INSTALL_PATH_MIZUROUTE')
+            mizu_path = self._get_config_value(lambda: self.config.model.mizuroute.install_path, dict_key='INSTALL_PATH_MIZUROUTE')
             if mizu_path == 'default':
-                mizu_path = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / 'installs' / 'mizuRoute' / 'route' / 'bin'
+                mizu_path = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')) / 'installs' / 'mizuRoute' / 'route' / 'bin'
             else:
                 mizu_path = Path(mizu_path)
 
-            mizu_exe = mizu_path / self.config.get('EXE_NAME_MIZUROUTE', 'mizuroute.exe')
-            control_file = settings_dir / self.config.get('SETTINGS_MIZU_CONTROL_FILE', 'mizuroute.control')
+            mizu_exe = mizu_path / self._get_config_value(lambda: self.config.model.mizuroute.exe, default='mizuroute.exe', dict_key='EXE_NAME_MIZUROUTE')
+            control_file = settings_dir / self._get_config_value(lambda: self.config.model.mizuroute.control_file, default='mizuroute.control', dict_key='SETTINGS_MIZU_CONTROL_FILE')
 
             # 1) Find SUMMA timestep file actually produced for this run
             timestep_files = sorted((output_dir.parent / "SUMMA").glob("*_timestep.nc"))
@@ -193,7 +216,7 @@ class ModelExecutor:
         """Convert lumped SUMMA output for distributed routing"""
         try:
             # Load topology to get HRU information
-            topology_file = mizuroute_settings_dir / self.config.get('SETTINGS_MIZU_TOPOLOGY', 'topology.nc')
+            topology_file = mizuroute_settings_dir / self._get_config_value(lambda: self.config.model.mizuroute.topology, default='topology.nc', dict_key='SETTINGS_MIZU_TOPOLOGY')
 
             with xr.open_dataset(topology_file) as topo_ds:
                 # Handle multiple HRUs from delineated catchments
@@ -220,7 +243,7 @@ class ModelExecutor:
             # Load and convert SUMMA output
             with xr.open_dataset(summa_file, decode_times=False) as summa_ds:
                 # Find routing variable - handle 'default' config value
-                routing_var_config = self.config.get('SETTINGS_MIZU_ROUTING_VAR', 'averageRoutedRunoff')
+                routing_var_config = self._get_config_value(lambda: self.config.model.mizuroute.routing_var, default='averageRoutedRunoff', dict_key='SETTINGS_MIZU_ROUTING_VAR')
                 if routing_var_config in ('default', None, ''):
                     routing_var = 'averageRoutedRunoff'  # SUMMA default for routing
                 else:

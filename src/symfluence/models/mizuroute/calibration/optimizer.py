@@ -34,7 +34,7 @@ class MizuRouteModelOptimizer(BaseModelOptimizer):
         Updates parameters in the MizuRoute namelist file (param.nml).
         """
         settings_path = self.preprocessor.setup_dir
-        param_file_name = self.config.get('SETTINGS_MIZU_PARAMETERS', 'param.nml.default')
+        param_file_name = self._get_config_value(lambda: self.config.model.mizuroute.parameters, default='param.nml.default', dict_key='SETTINGS_MIZU_PARAMETERS')
         param_file = settings_path / param_file_name
 
         if not param_file.exists():
@@ -74,7 +74,7 @@ class MizuRouteModelOptimizer(BaseModelOptimizer):
         Returns:
             Dictionary of simulation outputs (e.g., streamflow series)
         """
-        experiment_id = self.config.get('EXPERIMENT_ID')
+        experiment_id = self._get_config_value(lambda: self.config.domain.experiment_id, dict_key='EXPERIMENT_ID')
         # MizuRoute output directory
         output_dir = self.runner.get_experiment_output_dir()
 
@@ -107,7 +107,7 @@ class MizuRouteModelOptimizer(BaseModelOptimizer):
             # Grid/Network routing: flow
 
             # Use configuration to find variable name if possible, else heuristics
-            routing_var = self.config.get('SETTINGS_MIZU_OUTPUT_VAR', 'KWTroutedRunoff')
+            routing_var = self._get_config_value(lambda: self.config.model.mizuroute.output_var, default='KWTroutedRunoff', dict_key='SETTINGS_MIZU_OUTPUT_VAR')
 
             if routing_var not in ds:
                 # Fallbacks
@@ -119,7 +119,7 @@ class MizuRouteModelOptimizer(BaseModelOptimizer):
             if routing_var in ds:
                 # Return time series for all segments/HRUs or aggregate
                 # For optimization, we typically need a specific gauge
-                # Use self.config.get('GAUGE_ID') or similar if implemented
+                # Use self.config_dict.get('GAUGE_ID') or similar if implemented
                 # For now, return the full dataset as pandas DataFrame (time x segment)
 
                 # Check for segment/hru dimension

@@ -67,7 +67,7 @@ class MESHModelOptimizer(BaseModelOptimizer):
 
     def _get_final_file_manager_path(self) -> Path:
         """Get path to MESH input file (similar to file manager)."""
-        mesh_input = self.config.get('SETTINGS_MESH_INPUT', 'MESH_input_run_options.ini')
+        mesh_input = self._get_config_value(lambda: self.config.model.mesh.input_file, default='MESH_input_run_options.ini', dict_key='SETTINGS_MESH_INPUT')
         if mesh_input == 'default':
             mesh_input = 'MESH_input_run_options.ini'
         return self.project_dir / 'settings' / 'MESH' / mesh_input

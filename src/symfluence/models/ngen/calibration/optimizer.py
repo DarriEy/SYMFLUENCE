@@ -77,7 +77,7 @@ class NgenModelOptimizer(BaseModelOptimizer):
 
     def _get_final_file_manager_path(self) -> Path:
         """Get path to NGEN realization file (similar to file manager)."""
-        ngen_realization = self.config.get('SETTINGS_NGEN_REALIZATION', 'realization.json')
+        ngen_realization = self.config_dict.get('SETTINGS_NGEN_REALIZATION', 'realization.json')
         if ngen_realization == 'default':
             ngen_realization = 'realization.json'
         return self.ngen_setup_dir / ngen_realization
@@ -85,7 +85,7 @@ class NgenModelOptimizer(BaseModelOptimizer):
     def _setup_parallel_dirs(self) -> None:
         """Setup NGEN-specific parallel directories."""
         # Use algorithm-specific directory (matching base_model_optimizer pattern)
-        algorithm = self.config.get('ITERATIVE_OPTIMIZATION_ALGORITHM', 'optimization').lower()
+        algorithm = self._get_config_value(lambda: self.config.optimization.algorithm, default='optimization', dict_key='ITERATIVE_OPTIMIZATION_ALGORITHM').lower()
         base_dir = self.project_dir / 'simulations' / f'run_{algorithm}'
 
         self.parallel_dirs = self.setup_parallel_processing(

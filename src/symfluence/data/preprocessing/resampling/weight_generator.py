@@ -16,6 +16,8 @@ from typing import Optional, Tuple
 
 from .shapefile_processor import ShapefileProcessor
 
+from symfluence.core.mixins import ConfigMixin
+
 
 def _create_easymore_instance():
     """Create an Easymore instance while suppressing initialization output."""
@@ -76,7 +78,7 @@ def _run_easmore_with_suppressed_output(esmr, logger):
         raise
 
 
-class RemappingWeightGenerator:
+class RemappingWeightGenerator(ConfigMixin):
     """
     Creates EASYMORE remapping weights from source to target shapefiles.
 
@@ -100,7 +102,29 @@ class RemappingWeightGenerator:
             dataset_handler: Dataset-specific handler
             logger: Optional logger instance
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.project_dir = project_dir
         self.dataset_handler = dataset_handler
         self.logger = logger or logging.getLogger(__name__)
@@ -138,7 +162,7 @@ class RemappingWeightGenerator:
             target_shp_wgs84, actual_hru_field = target_result
         else:
             target_shp_wgs84 = target_result
-            actual_hru_field = self.config.get('CATCHMENT_SHP_HRUID')
+            actual_hru_field = self._get_config_value(lambda: self.config.paths.catchment_hruid, dict_key='CATCHMENT_SHP_HRUID')
 
         # Cache for reuse during weight application
         self.cached_target_shp_wgs84 = target_shp_wgs84
@@ -146,7 +170,7 @@ class RemappingWeightGenerator:
         self.logger.debug(f"Cached target shapefile: {target_shp_wgs84}, HRU field: {actual_hru_field}")
 
         # Define remap file path
-        case_name = f"{self.config.get('DOMAIN_NAME')}_{self.config.get('FORCING_DATASET')}"
+        case_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_{self._get_config_value(lambda: self.config.forcing.dataset, dict_key='FORCING_DATASET')}"
         remap_file = intersect_path / f"{case_name}_{actual_hru_field}_remapping.csv"
         remap_nc = remap_file.with_suffix('.nc')
 
@@ -208,7 +232,7 @@ class RemappingWeightGenerator:
 
         try:
             source_gdf = gpd.read_file(source_shp_wgs84)
-            source_lon_field = self.config.get('FORCING_SHAPE_LON_NAME')
+            source_lon_field = self._get_config_value(lambda: self.config.forcing.shape_lon_name, dict_key='FORCING_SHAPE_LON_NAME')
 
             if source_lon_field in source_gdf.columns:
                 source_lon_max = float(source_gdf[source_lon_field].max())
@@ -225,7 +249,7 @@ class RemappingWeightGenerator:
                             lambda geom: translate(geom, xoff=360) if geom is not None else geom
                         )
 
-                        target_lon_field = self.config.get('CATCHMENT_SHP_LON')
+                        target_lon_field = self._get_config_value(lambda: self.config.paths.catchment_lon, dict_key='CATCHMENT_SHP_LON')
                         if target_lon_field in target_gdf.columns:
                             target_gdf[target_lon_field] = target_gdf[target_lon_field].apply(
                                 lambda v: v + 360 if v < 0 else v
@@ -262,14 +286,14 @@ class RemappingWeightGenerator:
 
         # Shapefile configuration
         esmr.source_shp = str(source_shp_wgs84)
-        esmr.source_shp_lat = self.config.get('FORCING_SHAPE_LAT_NAME')
-        esmr.source_shp_lon = self.config.get('FORCING_SHAPE_LON_NAME')
-        esmr.source_shp_ID = self.config.get('FORCING_SHAPE_ID_NAME', 'ID')
+        esmr.source_shp_lat = self._get_config_value(lambda: self.config.forcing.shape_lat_name, dict_key='FORCING_SHAPE_LAT_NAME')
+        esmr.source_shp_lon = self._get_config_value(lambda: self.config.forcing.shape_lon_name, dict_key='FORCING_SHAPE_LON_NAME')
+        esmr.source_shp_ID = self.config_dict.get('FORCING_SHAPE_ID_NAME', 'ID')
 
         esmr.target_shp = str(target_shp_for_easymore)
         esmr.target_shp_ID = actual_hru_field
-        esmr.target_shp_lat = self.config.get('CATCHMENT_SHP_LAT')
-        esmr.target_shp_lon = self.config.get('CATCHMENT_SHP_LON')
+        esmr.target_shp_lat = self._get_config_value(lambda: self.config.paths.catchment_lat, dict_key='CATCHMENT_SHP_LAT')
+        esmr.target_shp_lon = self._get_config_value(lambda: self.config.paths.catchment_lon, dict_key='CATCHMENT_SHP_LON')
 
         # NetCDF configuration
         var_lat, var_lon = self.dataset_handler.get_coordinate_names()

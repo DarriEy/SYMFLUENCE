@@ -119,7 +119,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
 
         # Check if already processed
         domain_type_file = glacier_dir / f"domain_{self.domain_name}_domain_type.tif"
-        if domain_type_file.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+        if domain_type_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
             self.logger.info(f"Glacier data already exists: {glacier_dir}")
             return glacier_dir
 
@@ -222,7 +222,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
 
         cached_file = cache_dir / filename.replace('.zip', '.shp')
 
-        if cached_file.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+        if cached_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
             self.logger.debug(f"Using cached RGI data: {cached_file}")
             return gpd.read_file(cached_file)
 
@@ -276,7 +276,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
                 return gpd.read_file(local_file)
 
         # Check for local RGI data in config-specified directory
-        local_rgi_dir = Path(self.config.get('RGI_LOCAL_DIR', ''))
+        local_rgi_dir = Path(self.config_dict.get('RGI_LOCAL_DIR', ''))
         if local_rgi_dir.exists():
             for pattern in [f"*{region_id:02d}*.shp", f"*{region_id:02d}*.gpkg"]:
                 for local_file in local_rgi_dir.glob(pattern):
@@ -332,7 +332,7 @@ class GlacierAcquirer(BaseAcquisitionHandler):
         self.logger.info("Creating glacier rasters")
 
         # Determine resolution and bounds
-        resolution = self.config.get('GLACIER_RASTER_RESOLUTION', self.DEFAULT_RESOLUTION)
+        resolution = self.config_dict.get('GLACIER_RASTER_RESOLUTION', self.DEFAULT_RESOLUTION)
 
         # Calculate raster dimensions
         width = int((self.bbox['lon_max'] - self.bbox['lon_min']) / resolution)

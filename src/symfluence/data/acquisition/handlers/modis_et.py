@@ -26,6 +26,7 @@ from ..registry import AcquisitionRegistry
 from .appeears_base import BaseAppEEARSAcquirer
 
 
+
 @AcquisitionRegistry.register('MOD16')
 @AcquisitionRegistry.register('MODIS_ET')
 @AcquisitionRegistry.register('MOD16A2')
@@ -67,7 +68,7 @@ class MOD16ETAcquirer(BaseAppEEARSAcquirer):
         output_dir.mkdir(parents=True, exist_ok=True)
         processed_file = output_dir / f"{self.domain_name}_MOD16_ET.nc"
 
-        if processed_file.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+        if processed_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
             self.logger.info(f"Using existing MOD16 ET file: {processed_file}")
             return processed_file
 
@@ -132,7 +133,7 @@ class MOD16ETAcquirer(BaseAppEEARSAcquirer):
 
         output_file = output_dir / f"{self.domain_name}_{product_name}_raw.nc"
 
-        if output_file.exists() and not self.config.get('FORCE_DOWNLOAD', False):
+        if output_file.exists() and not self._get_config_value(lambda: self.config.data.force_download, default=False, dict_key='FORCE_DOWNLOAD'):
             self.logger.info(f"Using existing file: {output_file}")
             return output_file
 

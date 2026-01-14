@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, Any
 import logging
 
+from symfluence.core.mixins import ConfigMixin
 from .attribute_processors import (
     ElevationProcessor,
     GeologyProcessor,
@@ -22,7 +23,7 @@ from .attribute_processors import (
 )
 
 
-class attributeProcessor:
+class attributeProcessor(ConfigMixin):
     """
     Backward-compatible attribute processor wrapper.
 
@@ -31,7 +32,29 @@ class attributeProcessor:
 
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """Initialize attribute processor with specialized sub-processors."""
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
 
         # Initialize specialized processors
@@ -138,7 +161,7 @@ class attributeProcessor:
             # Convert to DataFrame
             if all_results:
                 # Check if we have distributed HRUs
-                is_lumped = self.config.get('DOMAIN_DEFINITION_METHOD') == 'lumped'
+                is_lumped = self._get_config_value(lambda: self.config.domain.definition_method, dict_key='DOMAIN_DEFINITION_METHOD') == 'lumped'
 
                 if is_lumped:
                     # Single row for lumped catchment

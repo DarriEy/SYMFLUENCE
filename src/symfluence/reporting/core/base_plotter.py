@@ -11,9 +11,10 @@ from typing import Any, Dict, Optional, Tuple
 import logging
 
 from symfluence.reporting.config.plot_config import PlotConfig, DEFAULT_PLOT_CONFIG
+from symfluence.core.mixins import ConfigMixin
 
 
-class BasePlotter(ABC):
+class BasePlotter(ConfigMixin, ABC):
     """
     Abstract base class for all plot generators.
 
@@ -41,7 +42,29 @@ class BasePlotter(ABC):
             logger: Logger instance for messaging
             plot_config: Optional PlotConfig instance (uses default if not provided)
         """
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.plot_config = plot_config or DEFAULT_PLOT_CONFIG
 
@@ -50,7 +73,7 @@ class BasePlotter(ABC):
         self._mdates = None
 
         # Base project directory
-        self.project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}"
+        self.project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')) / f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}"
 
     def _setup_matplotlib(self) -> Tuple[Any, Any]:
         """

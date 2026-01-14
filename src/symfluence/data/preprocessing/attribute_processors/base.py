@@ -10,26 +10,53 @@ Provides shared infrastructure for all attribute processing modules including:
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union, TYPE_CHECKING
 import geopandas as gpd
 
+from symfluence.core.mixins import ConfigMixin
 
-class BaseAttributeProcessor:
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
+
+class BaseAttributeProcessor(ConfigMixin):
     """Base class for all attribute processors."""
 
-    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+    def __init__(self, config: Union['SymfluenceConfig', Dict[str, Any]], logger: logging.Logger):
         """
         Initialize base attribute processor.
 
         Args:
-            config: Configuration dictionary
+            config: SymfluenceConfig instance or dict (auto-converted)
             logger: Logger instance
         """
-        self.config = config
+        # Import here to avoid circular imports
+        from symfluence.core.config.models import SymfluenceConfig
+
+        # Auto-convert dict to typed config for backward compatibility
+        if isinstance(config, dict):
+            try:
+                self._config = SymfluenceConfig(**config)
+            except Exception:
+                # Fallback for partial configs (e.g., in tests)
+                self._config = config
+        else:
+            self._config = config
+
         self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
+
+        # Use ConfigMixin properties and methods with dict fallback
+        self.data_dir = Path(self._get_config_value(
+            lambda: self.config.system.data_dir,
+            dict_key='SYMFLUENCE_DATA_DIR'
+        ))
         self.logger.info(f'data dir: {self.data_dir}')
-        self.domain_name = self.config.get('DOMAIN_NAME')
+
+        # Get domain_name with dict fallback (set as instance attribute for subclass access)
+        self.domain_name = self._get_config_value(
+            lambda: self.config.domain.name,
+            dict_key='DOMAIN_NAME'
+        )
         self.logger.info(f'domain name: {self.domain_name}')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
@@ -46,10 +73,16 @@ class BaseAttributeProcessor:
         Returns:
             Path to catchment shapefile
         """
-        catchment_path = self.config.get('CATCHMENT_PATH')
+        catchment_path = self._get_config_value(
+            lambda: self.config.paths.catchment_path,
+            dict_key='CATCHMENT_PATH'
+        )
         self.logger.info(f'catchment path: {catchment_path}')
 
-        catchment_name = self.config.get('CATCHMENT_SHP_NAME')
+        catchment_name = self._get_config_value(
+            lambda: self.config.paths.catchment_shp_name,
+            dict_key='CATCHMENT_SHP_NAME'
+        )
         self.logger.info(f'catchment name: {catchment_name}')
 
         if catchment_path == 'default':
@@ -59,7 +92,10 @@ class BaseAttributeProcessor:
 
         if catchment_name == 'default':
             # Find the catchment shapefile based on domain discretization
-            discretization = self.config.get('DOMAIN_DISCRETIZATION')
+            discretization = self._get_config_value(
+                lambda: self.config.domain.discretization,
+                dict_key='DOMAIN_DISCRETIZATION'
+            )
             catchment_file = f"{self.domain_name}_HRUs_{discretization}.shp"
         else:
             catchment_file = catchment_name
@@ -77,7 +113,7 @@ class BaseAttributeProcessor:
         Returns:
             Resolved path
         """
-        path_value = self.config.get(config_key)
+        path_value = self.config_dict.get(config_key)
 
         if path_value == 'default' or path_value is None:
             return self.project_dir / default_subfolder
@@ -91,7 +127,10 @@ class BaseAttributeProcessor:
         Returns:
             True if lumped, False if distributed
         """
-        return self.config.get('DOMAIN_DEFINITION_METHOD') == 'lumped'
+        return self._get_config_value(
+            lambda: self.config.domain.definition_method,
+            dict_key='DOMAIN_DEFINITION_METHOD'
+        ) == 'lumped'
 
     def _get_hru_ids(self) -> Optional[list]:
         """
@@ -104,7 +143,11 @@ class BaseAttributeProcessor:
             return None
 
         catchment = gpd.read_file(self.catchment_path)
-        hru_id_field = self.config.get('CATCHMENT_SHP_HRUID', 'HRU_ID')
+        hru_id_field = self._get_config_value(
+            lambda: self.config.paths.catchment_hruid,
+            default='HRU_ID',
+            dict_key='CATCHMENT_SHP_HRUID'
+        )
 
         return catchment[hru_id_field].tolist()
 

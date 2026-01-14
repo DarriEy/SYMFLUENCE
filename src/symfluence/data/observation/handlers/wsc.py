@@ -22,9 +22,9 @@ class WSCStreamflowHandler(BaseObservationHandler):
 
     def acquire(self) -> Path:
         self.logger.debug("WSCStreamflowHandler.acquire called")
-        data_access = self.config.get('DATA_ACCESS', 'local')
-        download_enabled = self.config.get('DOWNLOAD_WSC_DATA', False)
-        station_id = self.config.get('STATION_ID')
+        data_access = self._get_config_value(lambda: self.config.domain.data_access, default='local', dict_key='DATA_ACCESS')
+        download_enabled = self._get_config_value(lambda: self.config.evaluation.streamflow.download_wsc, default=False, dict_key='DOWNLOAD_WSC_DATA')
+        station_id = self._get_config_value(lambda: self.config.evaluation.streamflow.station_id, dict_key='STATION_ID')
         self.logger.debug(f"WSC acquire - data_access={data_access}, download_enabled={download_enabled}, station_id={station_id}")
 
         if not station_id:
@@ -46,7 +46,7 @@ class WSCStreamflowHandler(BaseObservationHandler):
             self.logger.info(f"WSC local access: will attempt HYDAT extraction if {raw_file} not found")
             return raw_file
         else:
-            raw_name = self.config.get('STREAMFLOW_RAW_NAME')
+            raw_name = self._get_config_value(lambda: self.config.evaluation.streamflow.raw_name, dict_key='STREAMFLOW_RAW_NAME')
             if raw_name and raw_name != 'default':
                 custom_raw = raw_dir / raw_name
                 if custom_raw.exists():
@@ -102,7 +102,7 @@ class WSCStreamflowHandler(BaseObservationHandler):
         """
         if not input_path.exists():
             # Special case: check if we should try HYDAT extraction as a fallback
-            hydat_path = self.config.get('HYDAT_PATH')
+            hydat_path = self._get_config_value(lambda: self.config.evaluation.streamflow.hydat_path, dict_key='HYDAT_PATH')
             if hydat_path:
                 return self._process_from_hydat()
             raise FileNotFoundError(f"WSC raw data file not found: {input_path}")
@@ -156,8 +156,8 @@ class WSCStreamflowHandler(BaseObservationHandler):
         Legacy fallback: Extract from local HYDAT database.
         """
         import sqlite3
-        station_id = self.config.get('STATION_ID')
-        hydat_path = self.config.get('HYDAT_PATH')
+        station_id = self._get_config_value(lambda: self.config.evaluation.streamflow.station_id, dict_key='STATION_ID')
+        hydat_path = self._get_config_value(lambda: self.config.evaluation.streamflow.hydat_path, dict_key='HYDAT_PATH')
         if hydat_path == 'default':
             hydat_path = str(self.project_dir.parent.parent / 'geospatial-data' / 'hydat' / 'Hydat.sqlite3')
 
@@ -209,7 +209,7 @@ class WSCStreamflowHandler(BaseObservationHandler):
         return None
 
     def _get_resample_freq(self) -> str:
-        timestep_size = int(self.config.get('FORCING_TIME_STEP_SIZE', 3600))
+        timestep_size = int(self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE'))
         if timestep_size <= 10800:
             return 'h'
         elif timestep_size == ModelDefaults.DEFAULT_TIMESTEP_DAILY:

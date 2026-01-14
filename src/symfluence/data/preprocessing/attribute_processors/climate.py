@@ -90,7 +90,7 @@ class ClimateProcessor(BaseAttributeProcessor):
 
         is_lumped = self._is_lumped()
         catchment = None if is_lumped else gpd.read_file(self.catchment_path)
-        hru_id_field = self.config.get('CATCHMENT_SHP_HRUID', 'HRU_ID') if not is_lumped else None
+        hru_id_field = self._get_config_value(lambda: self.config.paths.catchment_hruid, default='HRU_ID', dict_key='CATCHMENT_SHP_HRUID') if not is_lumped else None
 
         # Process each climate variable
         for var, var_info in raw_variables.items():
@@ -369,7 +369,7 @@ class ClimateProcessor(BaseAttributeProcessor):
 
         is_lumped = self._is_lumped()
         catchment = None if is_lumped else gpd.read_file(self.catchment_path)
-        hru_id_field = self.config.get('CATCHMENT_SHP_HRUID', 'HRU_ID') if not is_lumped else None
+        hru_id_field = self._get_config_value(lambda: self.config.paths.catchment_hruid, default='HRU_ID', dict_key='CATCHMENT_SHP_HRUID') if not is_lumped else None
 
         # Process each derived product
         for product in derived_products:

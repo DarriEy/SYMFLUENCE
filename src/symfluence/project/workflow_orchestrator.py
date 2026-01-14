@@ -11,9 +11,11 @@ from typing import Dict, Any, List, Callable
 from datetime import datetime
 from dataclasses import dataclass
 
+from symfluence.core.mixins import ConfigMixin
+
 
 @dataclass
-class WorkflowStep:
+class WorkflowStep(ConfigMixin):
     """
     Represents a single step in the SYMFLUENCE workflow.
     """
@@ -24,7 +26,7 @@ class WorkflowStep:
     description: str
 
 
-class WorkflowOrchestrator:
+class WorkflowOrchestrator(ConfigMixin):
     """
     Orchestrates the SYMFLUENCE workflow execution and manages the step sequence.
 
@@ -73,7 +75,29 @@ class WorkflowOrchestrator:
             KeyError: If essential configuration values are missing
         """
         self.managers = managers
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
         self.logging_manager = logging_manager
         self.domain_name = config.get('DOMAIN_NAME')
@@ -98,12 +122,12 @@ class WorkflowOrchestrator:
         Returns:
             bool: True if at least one required observation type has been processed
         """
-        evaluation_data = self.config.get('EVALUATION_DATA', [])
-        self.config.get('ADDITIONAL_OBSERVATIONS', [])
+        evaluation_data = self._get_config_value(lambda: self.config.evaluation.evaluation_data, default=[], dict_key='EVALUATION_DATA')
+        self._get_config_value(lambda: self.config.data.additional_observations, default=[], dict_key='ADDITIONAL_OBSERVATIONS')
 
         # Check for snow data (SWE, SCA)
         if any(obs_type.upper() in ['SWE', 'SCA', 'SNOW'] for obs_type in evaluation_data) or \
-           self.config.get('DOWNLOAD_SNOTEL') or self.config.get('DOWNLOAD_MODIS_SNOW'):
+           self._get_config_value(lambda: self.config.evaluation.snotel.download, dict_key='DOWNLOAD_SNOTEL') or self._get_config_value(lambda: self.config.evaluation.modis_snow.download, dict_key='DOWNLOAD_MODIS_SNOW'):
             snow_file = self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_snow_processed.csv"
             if snow_file.exists():
                 return True
@@ -120,7 +144,7 @@ class WorkflowOrchestrator:
 
         # Check for streamflow data (default)
         if any(obs_type.upper() in ['STREAMFLOW', 'DISCHARGE'] for obs_type in evaluation_data) or \
-           self.config.get('DOWNLOAD_USGS_DATA') or self.config.get('DOWNLOAD_WSC_DATA'):
+           self._get_config_value(lambda: self.config.data.download_usgs_data, dict_key='DOWNLOAD_USGS_DATA') or self._get_config_value(lambda: self.config.evaluation.streamflow.download_wsc, dict_key='DOWNLOAD_WSC_DATA'):
             streamflow_file = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
             if streamflow_file.exists():
                 return True
@@ -151,8 +175,8 @@ class WorkflowOrchestrator:
         """
 
         # Get configured analyses
-        analyses = self.config.get('ANALYSES', [])
-        optimizations = self.config.get('OPTIMIZATION_METHODS', [])
+        analyses = self._get_config_value(lambda: self.config.evaluation.analyses, default=[], dict_key='ANALYSES')
+        optimizations = self._get_config_value(lambda: self.config.optimization.methods, default=[], dict_key='OPTIMIZATION_METHODS')
 
         return [
             # --- Project Initialization ---
@@ -186,7 +210,7 @@ class WorkflowOrchestrator:
                 cli_name="define_domain",
                 func=self.managers['domain'].define_domain,
                 check_func=lambda: (self.project_dir / "shapefiles" / "river_basins" /
-                        f"{self.domain_name}_riverBasins_{self.config.get('DOMAIN_DEFINITION_METHOD')}.shp").exists(),
+                        f"{self.domain_name}_riverBasins_{self._get_config_value(lambda: self.config.domain.definition_method, dict_key='DOMAIN_DEFINITION_METHOD')}.shp").exists(),
                 description="Defining hydrological domain boundaries"
             ),
             WorkflowStep(
@@ -194,7 +218,7 @@ class WorkflowOrchestrator:
                 cli_name="discretize_domain",
                 func=self.managers['domain'].discretize_domain,
                 check_func=lambda: (self.project_dir / "shapefiles" / "catchment" /
-                        f"{self.domain_name}_HRUs_{str(self.config.get('DOMAIN_DISCRETIZATION')).replace(',','_')}.shp").exists(),
+                        f"{self.domain_name}_HRUs_{str(self._get_config_value(lambda: self.config.domain.discretization, dict_key='DOMAIN_DISCRETIZATION')).replace(',','_')}.shp").exists(),
                 description="Discretizing domain into hydrological response units"
             ),
 
@@ -225,7 +249,7 @@ class WorkflowOrchestrator:
                 name="preprocess_models",
                 cli_name="model_specific_preprocessing",
                 func=self.managers['model'].preprocess_models,
-                check_func=lambda: any((self.project_dir / "settings").glob(f"*_{self.config.get('HYDROLOGICAL_MODEL', 'SUMMA')}*")),
+                check_func=lambda: any((self.project_dir / "settings").glob(f"*_{self._get_config_value(lambda: self.config.model.hydrological_model, default='SUMMA', dict_key='HYDROLOGICAL_MODEL')}*")),
                 description="Preprocessing model-specific input files"
             ),
             WorkflowStep(
@@ -233,7 +257,7 @@ class WorkflowOrchestrator:
                 cli_name="run_model",
                 func=self.managers['model'].run_models,
                 check_func=lambda: (self.project_dir / "simulations" /
-                        f"{self.experiment_id}_{self.config.get('HYDROLOGICAL_MODEL', 'SUMMA')}_output.nc").exists(),
+                        f"{self.experiment_id}_{self._get_config_value(lambda: self.config.model.hydrological_model, default='SUMMA', dict_key='HYDROLOGICAL_MODEL')}_output.nc").exists(),
                 description="Running hydrological model simulation"
             ),
             WorkflowStep(
@@ -394,7 +418,7 @@ class WorkflowOrchestrator:
                 failed_steps += 1
 
                 # Decide whether to continue or stop
-                if self.config.get('STOP_ON_ERROR', True):
+                if self._get_config_value(lambda: self.config.system.stop_on_error, default=True, dict_key='STOP_ON_ERROR'):
                     self.logger.error("Workflow stopped due to error (STOP_ON_ERROR=True)")
                     raise
                 else:
@@ -457,7 +481,7 @@ class WorkflowOrchestrator:
                 valid = False
 
         # Check for data directory
-        if not self.config.get('SYMFLUENCE_DATA_DIR'):
+        if not self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'):
             self.logger.error("Required configuration missing: SYMFLUENCE_DATA_DIR")
             valid = False
 

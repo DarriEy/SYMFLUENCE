@@ -13,11 +13,35 @@ import xarray as xr # type: ignore
 from datetime import datetime
 import json
 
-class Benchmarker:
+from symfluence.core.mixins import ConfigMixin
+
+class Benchmarker(ConfigMixin):
     def __init__(self, config: dict, logger):
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
-        self.project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}"
+        self.project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')) / f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}"
         self.evaluation_dir = self.project_dir / 'evaluation'
         self.evaluation_dir.mkdir(parents=True, exist_ok=True)
 
@@ -182,11 +206,11 @@ class Benchmarker:
             self.logger.error(f"Error saving benchmark results: {str(e)}")
             raise
 
-class BenchmarkPreprocessor:
+class BenchmarkPreprocessor(ConfigMixin):
     def __init__(self, config: dict, logger):
         self.config = config
         self.logger = logger
-        self.project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{self.config.get('DOMAIN_NAME')}"
+        self.project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')) / f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}"
 
     def preprocess_benchmark_data(self, start_date: str, end_date: str) -> pd.DataFrame:
         """
@@ -244,7 +268,7 @@ class BenchmarkPreprocessor:
 
     def _load_streamflow_data(self) -> pd.DataFrame:
         """Load and basic process streamflow data."""
-        streamflow_path = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.config.get('DOMAIN_NAME')}_streamflow_processed.csv"
+        streamflow_path = self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_streamflow_processed.csv"
         data = pd.read_csv(streamflow_path, parse_dates=['datetime'], index_col='datetime')
         # Ensure the index is sorted for a faster merge later on
         data.sort_index(inplace=True)

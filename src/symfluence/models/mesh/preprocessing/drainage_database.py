@@ -13,8 +13,10 @@ import numpy as np
 import xarray as xr
 import geopandas as gpd
 
+from symfluence.core.mixins import ConfigMixin
 
-class MESHDrainageDatabase:
+
+class MESHDrainageDatabase(ConfigMixin):
     """
     Manages MESH drainage database fixes and completeness.
 
@@ -51,7 +53,29 @@ class MESHDrainageDatabase:
         self.rivers_name = rivers_name
         self.catchment_path = catchment_path
         self.catchment_name = catchment_name
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger or logging.getLogger(__name__)
 
     @property
@@ -148,7 +172,7 @@ class MESHDrainageDatabase:
 
         # Build GRU_ID -> index mapping
         gru_to_idx = {int(gid): i for i, gid in enumerate(gru_ids)}
-        outlet_value = self.config.get('MESH_OUTLET_VALUE', -9999)
+        outlet_value = self._get_config_value(lambda: self.config.model.mesh.outlet_value, default=-9999, dict_key='MESH_OUTLET_VALUE')
 
         # Build downstream GRU mapping
         gru_to_ds_gru = {}

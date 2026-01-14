@@ -12,8 +12,9 @@ import pandas as pd # type: ignore
 
 from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import DataAcquisitionError
+from symfluence.core.mixins import ConfigMixin
 
-class ObservedDataProcessor:
+class ObservedDataProcessor(ConfigMixin):
     """Process and standardize observed hydrological data from multiple global providers.
 
     Central processor for observation data acquisition, unit conversion, temporal resampling,
@@ -276,17 +277,39 @@ class ObservedDataProcessor:
         - observation.registry: Registry for observation handler plugins
     """
     def __init__(self, config: Dict[str, Any], logger: Any):
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
-        self.data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR'))
-        self.domain_name = self.config.get('DOMAIN_NAME')
+        self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
+        self.domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-        self.forcing_time_step_size = int(self.config.get('FORCING_TIME_STEP_SIZE'))
-        self.data_provider = (self.config.get('STREAMFLOW_DATA_PROVIDER') or 'USGS').upper()
+        # Note: forcing_time_step_size is available via ConfigMixin property
+        self.data_provider = (self._get_config_value(lambda: self.config.data.streamflow_data_provider, dict_key='STREAMFLOW_DATA_PROVIDER') or 'USGS').upper()
 
         self.streamflow_raw_path = self._get_file_path('STREAMFLOW_RAW_PATH', 'observations/streamflow/raw_data', '')
         self.streamflow_processed_path = self._get_file_path('STREAMFLOW_PROCESSED_PATH', 'observations/streamflow/preprocessed', '')
-        self.streamflow_raw_name = self.config.get('STREAMFLOW_RAW_NAME')
+        self.streamflow_raw_name = self._get_config_value(lambda: self.config.evaluation.streamflow.raw_name, dict_key='STREAMFLOW_RAW_NAME')
 
     def _get_file_path(self, file_type, file_def_path, file_name):
         if self.config.get(f'{file_type}') == 'default':
@@ -306,7 +329,7 @@ class ObservedDataProcessor:
 
     def process_streamflow_data(self):
         try:
-            if self.config.get('PROCESS_CARAVANS', False):
+            if self.config_dict.get('PROCESS_CARAVANS', False):
                 self._process_caravans_data()
             elif self.data_provider == 'USGS':
                 self.logger.info("USGS streamflow data handled by formalized observation handler")
@@ -380,14 +403,14 @@ class ObservedDataProcessor:
         self.logger.info("Processing FLUXNET data")
 
         # Check if FLUXNET processing is enabled
-        if self.config.get('DOWNLOAD_FLUXNET') != 'true':
+        if self._get_config_value(lambda: self.config.evaluation.fluxnet.download, dict_key='DOWNLOAD_FLUXNET') != 'true':
             self.logger.info("FLUXNET data processing is disabled in configuration")
             return False
 
         try:
             # Get FLUXNET configuration parameters
-            fluxnet_path_str = self.config.get('FLUXNET_PATH')
-            station_id = self.config.get('FLUXNET_STATION')
+            fluxnet_path_str = self._get_config_value(lambda: self.config.evaluation.fluxnet.path, dict_key='FLUXNET_PATH')
+            station_id = self._get_config_value(lambda: self.config.evaluation.fluxnet.station, dict_key='FLUXNET_STATION')
 
             if not fluxnet_path_str or not station_id:
                 self.logger.error("Missing FLUXNET_PATH or FLUXNET_STATION in configuration")
@@ -456,15 +479,15 @@ class ObservedDataProcessor:
         self.logger.info("Processing SNOTEL data")
 
         # Check if SNOTEL processing is enabled
-        if self.config.get('DOWNLOAD_SNOTEL') != 'true':
+        if self._get_config_value(lambda: self.config.evaluation.snotel.download, dict_key='DOWNLOAD_SNOTEL') != 'true':
             self.logger.info("SNOTEL data processing is disabled in configuration")
             return False
 
         try:
             # Get SNOTEL configuration parameters
-            snotel_path_str = self.config.get('SNOTEL_PATH')
-            snotel_station_id = self.config.get('SNOTEL_STATION')
-            domain_name = self.config.get('DOMAIN_NAME')
+            snotel_path_str = self._get_config_value(lambda: self.config.evaluation.snotel.path, dict_key='SNOTEL_PATH')
+            snotel_station_id = self._get_config_value(lambda: self.config.evaluation.snotel.station, dict_key='SNOTEL_STATION')
+            domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
 
             if not snotel_path_str or not snotel_station_id:
                 self.logger.error("Missing SNOTEL_PATH or SNOTEL_STATION in configuration")
@@ -473,7 +496,7 @@ class ObservedDataProcessor:
             snotel_path = Path(snotel_path_str)
 
             # Create directory for processed data if it doesn't exist
-            project_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{domain_name}"
+            project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')) / f"domain_{domain_name}"
             output_dir = project_dir / 'observations' / 'snow' / 'swe'
             output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -579,7 +602,7 @@ class ObservedDataProcessor:
         using the basin area from the shapefile.
         """
         # Check if CARAVANS processing is enabled
-        if not self.config.get('PROCESS_CARAVANS', False):
+        if not self.config_dict.get('PROCESS_CARAVANS', False):
             self.logger.info("CARAVANS data processing is disabled in configuration")
             return
 
@@ -680,18 +703,18 @@ class ObservedDataProcessor:
                 # Get the basin area from the shapefile
                 try:
                     # Determine the shapefile path
-                    subbasins_name = self.config.get('RIVER_BASINS_NAME')
+                    subbasins_name = self._get_config_value(lambda: self.config.paths.river_basins_name, dict_key='RIVER_BASINS_NAME')
                     if subbasins_name == 'default':
-                        subbasins_name = f"{self.config.get('DOMAIN_NAME')}_riverBasins.shp"
+                        subbasins_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_riverBasins.shp"
 
-                    shapefile_path_str = self.config.get('RIVER_BASIN_SHP_PATH')
+                    shapefile_path_str = self.config_dict.get('RIVER_BASIN_SHP_PATH')
                     if shapefile_path_str:
                         shapefile_path = Path(shapefile_path_str)
                     else:
                         # Try default locations
                         shapefile_path = self.project_dir / "shapefiles/river_basins" / subbasins_name
                         if not shapefile_path.exists():
-                            alt_shapefile_path = self.project_dir / "shapefiles/catchment" / f"{self.config.get('DOMAIN_NAME')}_catchment.shp"
+                            alt_shapefile_path = self.project_dir / "shapefiles/catchment" / f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_catchment.shp"
                             if alt_shapefile_path.exists():
                                 shapefile_path = alt_shapefile_path
                                 self.logger.info(f"Using alternative shapefile: {shapefile_path}")
@@ -703,7 +726,7 @@ class ObservedDataProcessor:
                     gdf = gpd.read_file(shapefile_path)
 
                     # Get area column from the shapefile
-                    area_column = self.config.get('RIVER_BASIN_SHP_AREA', 'GRU_area')
+                    area_column = self._get_config_value(lambda: self.config.paths.river_basin_area, default='GRU_area', dict_key='RIVER_BASIN_SHP_AREA')
 
                     # If area column not found, try alternative names
                     if area_column not in gdf.columns:

@@ -13,6 +13,7 @@ from functools import cached_property
 
 # Config
 from symfluence.reporting.config.plot_config import PlotConfig, DEFAULT_PLOT_CONFIG
+from symfluence.core.mixins import ConfigMixin
 
 # Type hints only - actual imports are lazy
 if TYPE_CHECKING:
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
     from symfluence.reporting.plotters.diagnostic_plotter import DiagnosticPlotter
 
 
-class ReportingManager:
+class ReportingManager(ConfigMixin):
     """Central facade coordinating all visualization and reporting in SYMFLUENCE.
 
     Orchestrates diverse visualization workflows by delegating to specialized plotters
@@ -677,8 +678,8 @@ class ReportingManager:
             # Use new DataProcessor to read results
             df = self.data_processor.read_results_file()
 
-            exp_id = self.config.get('EXPERIMENT_ID', 'default')
-            domain_name = self.config.get('DOMAIN_NAME', 'unknown')
+            exp_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='default', dict_key='EXPERIMENT_ID')
+            domain_name = self._get_config_value(lambda: self.config.domain.name, default='unknown', dict_key='DOMAIN_NAME')
 
             self.analysis_plotter.plot_timeseries_results(df, exp_id, domain_name)
             self.analysis_plotter.plot_diagnostics(df, exp_id, domain_name)

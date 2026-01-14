@@ -11,10 +11,34 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import logging
 
-class ParameterTransformer:
+from symfluence.core.mixins import ConfigMixin
+
+class ParameterTransformer(ConfigMixin):
     """Base class for parameter transformers."""
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
-        self.config = config
+        # Import here to avoid circular imports
+
+        from symfluence.core.config.models import SymfluenceConfig
+
+
+
+        # Auto-convert dict to typed config for backward compatibility
+
+        if isinstance(config, dict):
+
+            try:
+
+                self._config = SymfluenceConfig(**config)
+
+            except Exception:
+
+                # Fallback for partial configs (e.g., in tests)
+
+                self._config = config
+
+        else:
+
+            self._config = config
         self.logger = logger
 
     def apply(self, params: Dict[str, Any], settings_dir: Path) -> bool:
@@ -59,7 +83,7 @@ class SoilDepthTransformer(ParameterTransformer):
             return True
 
         try:
-            coldstate_path = settings_dir / self.config.get('SETTINGS_SUMMA_COLDSTATE', 'coldState.nc')
+            coldstate_path = settings_dir / self._get_config_value(lambda: self.config.model.summa.coldstate, default='coldState.nc', dict_key='SETTINGS_SUMMA_COLDSTATE')
             if not coldstate_path.exists():
                 self.logger.error(f"coldState.nc not found at {coldstate_path}")
                 return False
@@ -132,7 +156,7 @@ class SoilDepthTransformer(ParameterTransformer):
         # Apply multipliers
         return original * w * total_mult
 
-class TransformationManager:
+class TransformationManager(ConfigMixin):
     """Orchestrates all parameter transformations."""
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         self.config = config
