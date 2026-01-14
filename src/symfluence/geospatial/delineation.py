@@ -84,7 +84,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 from symfluence.geospatial.geofabric import (
     GeofabricDelineator,
@@ -514,7 +514,7 @@ class DomainDelineator(PathResolverMixin):
             self.logger.error(traceback.format_exc())
             return None, None
 
-    def define_domain(self) -> Tuple[Optional[object], DelineationArtifacts]:
+    def define_domain(self) -> Tuple[Optional[Union[Path, Tuple[Path, Path]]], DelineationArtifacts]:
         """Define the spatial domain using the configured delineation method (main entry point).
 
         Central orchestration method that routes to the appropriate delineation workflow based on
@@ -744,7 +744,7 @@ class DomainDelineator(PathResolverMixin):
                 artifacts.river_basins_path = basins_path
                 artifacts.river_network_path = rivers_path
                 artifacts.pour_point_path = self._get_pour_point_path()
-                return result, artifacts
+                return result, artifacts  # type: ignore[return-value]
 
             # Method 3: LUMPED - Single-basin watershed delineation from pour point
             # Use case: Traditional lumped hydrological modeling with single HRU
@@ -785,7 +785,7 @@ class DomainDelineator(PathResolverMixin):
                         self.logger.error("Failed to create delineated catchments for lumped domain")
                         raise RuntimeError("Delineation of lumped domain failed")
 
-                return (river_network_path, river_basins_path), artifacts
+                return (river_network_path, river_basins_path), artifacts  # type: ignore[return-value]
 
             # Method 4: DELINEATE - Full watershed delineation using TauDEM and DEM
             # Use case: Detailed distributed modeling with subcatchment delineation
@@ -807,7 +807,7 @@ class DomainDelineator(PathResolverMixin):
                 artifacts.river_network_path = river_network_path
                 artifacts.river_basins_path = river_basins_path
                 artifacts.pour_point_path = self._get_pour_point_path()
-                return (river_network_path, river_basins_path), artifacts
+                return (river_network_path, river_basins_path), artifacts  # type: ignore[return-value]
 
             # Method 5: DISTRIBUTE - Grid-based distributed domain with D8 flow direction
             # Use case: Grid-based distributed modeling (e.g., VIC, MESH, CLM)
@@ -820,7 +820,7 @@ class DomainDelineator(PathResolverMixin):
                 # Store grid configuration in metadata for reference
                 artifacts.metadata['grid_cell_size'] = str(self._get_config_value(lambda: self.config.domain.grid_cell_size, default=1000.0))
                 artifacts.metadata['clip_to_watershed'] = str(self._get_config_value(lambda: self.config.domain.clip_grid_to_watershed, default=True))
-                return (river_network_path, river_basins_path), artifacts
+                return (river_network_path, river_basins_path), artifacts  # type: ignore[return-value]
 
             # Fallback: Unknown domain definition method - configuration error
             # Valid methods: point, subset, lumped, delineate, distribute

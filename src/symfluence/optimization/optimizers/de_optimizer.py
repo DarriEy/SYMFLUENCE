@@ -7,7 +7,7 @@ for mutation, effective for continuous optimization problems.
 
 import numpy as np
 import logging
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
 
 class DEOptimizer(BaseOptimizer):
@@ -131,8 +131,8 @@ class DEOptimizer(BaseOptimizer):
         self.population_size = self._determine_population_size()
         self.F = self._cfg('DE_SCALING_FACTOR', default=0.5)
         self.CR = self._cfg('DE_CROSSOVER_RATE', default=0.9)
-        self.population = None
-        self.population_scores = None
+        self.population: Optional[np.ndarray] = None
+        self.population_scores: Optional[np.ndarray] = None
 
     def get_algorithm_name(self) -> str:
         """Return algorithm name.
@@ -203,6 +203,9 @@ class DEOptimizer(BaseOptimizer):
         self.population = np.random.random((self.population_size, param_count))
         self.population_scores = np.full(self.population_size, np.nan)
         
+        assert self.population is not None
+        assert self.population_scores is not None
+
         if initial_params:
             initial_normalized = self.parameter_manager.normalize_parameters(initial_params)
             self.population[0] = np.clip(initial_normalized, 0, 1)
@@ -216,6 +219,9 @@ class DEOptimizer(BaseOptimizer):
         self._record_generation(0)
     
     def _run_de_algorithm(self) -> Tuple[Dict, float, List]:
+        assert self.population is not None
+        assert self.population_scores is not None
+
         """Execute main DE optimization loop.
 
         Main Generation Loop (generations 1 to max_iterations):
@@ -248,6 +254,10 @@ class DEOptimizer(BaseOptimizer):
             - best_score: Highest objective value achieved
             - iteration_history: Convergence records per generation
         """
+        assert self.population_scores is not None
+        assert self.best_score is not None
+        assert self.population is not None
+
         for generation in range(1, self.max_iterations + 1):
             trial_population = self._create_trial_population()
             trial_scores = self._evaluate_trial_population(trial_population)
@@ -304,6 +314,7 @@ class DEOptimizer(BaseOptimizer):
             Trial population: array shape (population_size, n_params)
             All values bounded to [0,1] via np.clip
         """
+        assert self.population is not None
         trial_population = np.zeros_like(self.population)
         param_count = len(self.parameter_manager.all_param_names)
         for i in range(self.population_size):
@@ -354,6 +365,9 @@ class DEOptimizer(BaseOptimizer):
 
         Subsequent calls do nothing (population scores are updated via selection).
         """
+        assert self.population is not None
+        assert self.population_scores is not None
+
         for i in range(self.population_size):
             if np.isnan(self.population_scores[i]):
                 self.population_scores[i] = self._evaluate_individual(self.population[i])
@@ -368,6 +382,9 @@ class DEOptimizer(BaseOptimizer):
         Typically used only on first generation; subsequent generations don't need
         this as population updates use selection in _run_de_algorithm.
         """
+        assert self.population is not None
+        assert self.population_scores is not None
+
         tasks = []
         for i in range(self.population_size):
             if np.isnan(self.population_scores[i]):
@@ -419,6 +436,7 @@ class DEOptimizer(BaseOptimizer):
             NaN scores (from model crashes) are excluded from mean calculation.
             If all individuals have NaN scores, mean_score is recorded as None.
         """
+        assert self.population_scores is not None
         valid_scores = self.population_scores[~np.isnan(self.population_scores)]
         self.iteration_history.append({
             'generation': generation, 'algorithm': 'DE', 'best_score': self.best_score,

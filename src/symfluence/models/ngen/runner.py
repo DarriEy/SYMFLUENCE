@@ -425,7 +425,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
             if len(moved_files) > 10:
                 self.logger.debug(f"  ... and {len(moved_files) - 10} more")
         else:
-            existing_outputs = []
+            existing_outputs: list[Any] = []
             for pattern in output_patterns:
                 existing_outputs.extend(output_dir.glob(pattern))
             if not existing_outputs:

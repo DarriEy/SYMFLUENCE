@@ -63,6 +63,7 @@ class LSTMWorker(BaseWorker):
             score = metrics.get(metric_name, self.penalty_score)
             
             return WorkerResult(
+                individual_id=task.individual_id,
                 score=score,
                 metrics=metrics,
                 params=task.params
@@ -72,18 +73,19 @@ class LSTMWorker(BaseWorker):
             self.logger.error(f"Error in LSTM evaluation: {e}")
             import traceback
             return WorkerResult(
+                individual_id=task.individual_id,
                 score=self.penalty_score,
                 error=traceback.format_exc(),
                 params=task.params
             )
 
-    def run_model(self, config: Dict[str, Any], settings_dir: Path, output_dir: Path, mode: str = 'run_def') -> bool:
+    def run_model(self, config: Dict[str, Any], settings_dir: Path, output_dir: Path, **kwargs: Any) -> bool:
         """Direct model execution hook."""
         runner = LSTMRunner(config, self.logger)
         runner.run_lstm()
         return True
 
-    def apply_parameters(self, params: Dict[str, float], settings_dir: Path, config: Optional[Dict[str, Any]] = None) -> bool:
+    def apply_parameters(self, params: Dict[str, float], settings_dir: Path, **kwargs: Any) -> bool:
         """Apply parameters to model configuration."""
         # For LSTM, we typically just pass parameters through config
         return True
@@ -93,7 +95,7 @@ class LSTMWorker(BaseWorker):
         output_dir: Path,
         config: Dict[str, Any],
         **kwargs
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """
         Calculate objective metrics from LSTM model outputs.
 
@@ -129,7 +131,7 @@ class LSTMWorker(BaseWorker):
             target = StreamflowTarget(config, project_dir, self.logger)
             metrics = target.calculate_metrics(sim_dir)
 
-            return metrics
+            return metrics or {'KGE': self.penalty_score}
 
         except Exception as e:
             self.logger.error(f"Error calculating LSTM metrics: {e}")

@@ -123,7 +123,9 @@ class AsyncDDSOptimizer(BaseOptimizer):
         self.stagnation_limit = self._cfg('DDS_STAGNATION_LIMIT', default=25)
         # Convergence threshold: consider converged if improvement < this
         self.convergence_threshold = self._cfg('DDS_CONVERGENCE_THRESHOLD', default=1e-4)
-        self.solution_pool = []; self.pool_scores = []; self.batch_history = []
+        self.solution_pool: List[Tuple[np.ndarray, float, int, str]] = []
+        self.pool_scores: List[float] = []
+        self.batch_history: List[Dict[str, Any]] = []
         self.total_evaluations = 0; self.stagnation_counter = 0
     
     def get_algorithm_name(self) -> str:

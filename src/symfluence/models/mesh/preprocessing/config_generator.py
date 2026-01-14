@@ -323,7 +323,7 @@ METRICSSPINUP       {spinup_days}                       # Spinup days to exclude
             if q_col is None:
                 return None
 
-            return df[q_col].values
+            return np.asarray(df[q_col].values)
 
         except Exception as e:
             self.logger.warning(f"Failed to load observed streamflow: {e}")

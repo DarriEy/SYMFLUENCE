@@ -6,7 +6,7 @@ of elevation bands for both lumped and distributed spatial configurations.
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -93,13 +93,20 @@ class FuseElevationBandManager:
                 data_var = next(iter(ds.data_vars.values()), None)
                 if data_var is None:
                     return None
-                spatial_dims = [dim for dim in data_var.dims if dim != 'time']
-                spatial_coords = {}
-                for dim in spatial_dims:
+                
+                spatial_dims: List[Any] = []
+                spatial_coords: Dict[str, np.ndarray] = {}
+                
+                for dim in data_var.dims:
+                    if dim == 'time':
+                        continue
+                    dim_str = str(dim)
+                    spatial_dims.append(dim_str)
                     if dim in ds.coords:
-                        spatial_coords[dim] = ds[dim].values
+                        spatial_coords[dim_str] = ds[dim].values
                     else:
-                        spatial_coords[dim] = np.arange(ds.sizes[dim])
+                        spatial_coords[dim_str] = np.arange(ds.sizes[dim])
+                        
                 return spatial_dims, spatial_coords
         except Exception as e:
             self.logger.warning(f"Unable to read spatial info from {forcing_file}: {e}")

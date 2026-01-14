@@ -4,10 +4,10 @@ Timing mixin for SYMFLUENCE modules.
 Provides timing and profiling utilities.
 """
 
-import logging
 import time
+import logging
+from typing import ContextManager, Iterator
 from contextlib import contextmanager
-from typing import ContextManager
 
 
 class TimingMixin:
@@ -18,9 +18,9 @@ class TimingMixin:
     """
 
     @contextmanager
-    def time_limit(self, task_name: str) -> ContextManager[None]:
+    def time_limit(self, task_name: str) -> Iterator[None]:
         """
-        Context manager to time a task and log the duration.
+        Context manager to limit the execution time of a task.
         """
         start_time = time.time()
         logger = getattr(self, 'logger', logging.getLogger(__name__))

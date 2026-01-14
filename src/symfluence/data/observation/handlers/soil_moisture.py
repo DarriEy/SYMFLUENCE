@@ -171,7 +171,7 @@ class ISMNHandler(BaseObservationHandler):
         """Process ISMN station data to a basin-average time series."""
         self.logger.info(f"Processing ISMN Soil Moisture for domain: {self.domain_name}")
 
-        files = []
+        files: list[Any] = []
         for pattern in ("*.csv", "*.txt", "*.dat"):
             files.extend(input_path.glob(pattern))
         if not files:
@@ -202,7 +202,7 @@ class ISMNHandler(BaseObservationHandler):
             depth_value = None
             if depth_col:
                 df['depth_m'] = pd.to_numeric(df[depth_col], errors='coerce')
-                df['depth_m'] = df['depth_m'].where(df['depth_m'].notna(), pd.NA)
+                df['depth_m'] = df['depth_m'].where(df['depth_m'].notna(), pd.NA)  # type: ignore[call-overload]
                 df['depth_m'] = df['depth_m'].apply(self._normalize_depth)
                 df = df.dropna(subset=['depth_m'])
                 if not df.empty:
@@ -256,7 +256,7 @@ class ISMNHandler(BaseObservationHandler):
             return pd.read_csv(path)
         except Exception:
             try:
-                return pd.read_csv(path, delim_whitespace=True)
+                return pd.read_csv(path, delim_whitespace=True)  # type: ignore[call-overload]
             except Exception as exc:
                 self.logger.warning(f"Skipping unreadable ISMN file {path.name}: {exc}")
                 return None

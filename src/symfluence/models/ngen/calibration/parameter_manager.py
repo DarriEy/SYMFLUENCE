@@ -268,7 +268,7 @@ class NgenParameterManager(BaseParameterManager):
         """
         try:
             # Group parameters by module
-            module_params = {}
+            module_params: Dict[str, Dict[str, float]] = {}
             for param_name, value in params.items():
                 if '.' in param_name:
                     module, param = param_name.split('.', 1)
@@ -659,10 +659,6 @@ class NgenParameterManager(BaseParameterManager):
         1) Prefer JSON if present.
         2) Fallback to PET BMI text file: PET/{{id}}_pet_config.txt (or the only *.txt).
         """
-        keymap = {
-                    "rain_snow_thresh": ("forcing", "rain_snow_thresh"),
-                    "ZREF"            : ("forcing", "ZREF"),
-                }
         try:
             # ---------- 1) JSON ----------
             if self.pet_config.exists():

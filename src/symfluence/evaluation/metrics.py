@@ -17,7 +17,7 @@ All functions handle NaN values automatically and support optional transformatio
 
 import numpy as np
 import pandas as pd
-from typing import Union, Dict, Tuple
+from typing import Union, Dict, Tuple, cast, Any
 from scipy import stats
 
 
@@ -633,20 +633,20 @@ def calculate_all_metrics(
         - beta: Bias ratio (KGE component)
     """
     # Get KGE with components
-    kge_result = kge(observed, simulated, transfo, return_components=True)
+    kge_result = cast(Dict[str, float], kge(observed, simulated, transfo, return_components=True))
 
     return {
-        'NSE': nse(observed, simulated, transfo),
-        'KGE': kge_result['KGE'],
-        'KGEp': kge_prime(observed, simulated, transfo),
-        'KGEnp': kge_np(observed, simulated, transfo),
-        'RMSE': rmse(observed, simulated, transfo),
-        'NRMSE': nrmse(observed, simulated, transfo),
-        'MAE': mae(observed, simulated, transfo),
-        'PBIAS': pbias(observed, simulated, transfo),
-        'bias': bias(observed, simulated, transfo),
-        'correlation': correlation(observed, simulated),
-        'r': kge_result['r'],
-        'alpha': kge_result['alpha'],
-        'beta': kge_result['beta']
+        'NSE': float(nse(observed, simulated, transfo)),
+        'KGE': float(kge_result['KGE']),
+        'KGEp': float(kge_prime(observed, simulated, transfo)),
+        'KGEnp': float(kge_np(observed, simulated, transfo)),
+        'RMSE': float(rmse(observed, simulated, transfo)),
+        'NRMSE': float(nrmse(observed, simulated, transfo)),
+        'MAE': float(mae(observed, simulated, transfo)),
+        'PBIAS': float(pbias(observed, simulated, transfo)),
+        'bias': float(bias(observed, simulated, transfo)),
+        'correlation': float(correlation(observed, simulated)),
+        'r': float(kge_result['r']),
+        'alpha': float(kge_result['alpha']),
+        'beta': float(kge_result['beta'])
     }

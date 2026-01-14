@@ -40,7 +40,7 @@ import logging
 import pandas as pd
 import xarray as xr
 from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
+from typing import cast, Any, List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
@@ -323,7 +323,7 @@ class ETEvaluator(ModelEvaluator):
             Exception: If spatial aggregation or unit conversion fails
         """
         try:
-            et_components = {}
+            et_components: dict[str, Any] = {}
             component_vars = {
                 'canopy_transpiration': 'scalarCanopyTranspiration',
                 'canopy_evaporation': 'scalarCanopyEvaporation', 
@@ -414,8 +414,8 @@ class ETEvaluator(ModelEvaluator):
             non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
             if non_time_dims:
                 sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-                
-            sim_data = sim_xr.to_pandas()
+
+            sim_data = cast(pd.Series, sim_xr.to_pandas())
             return sim_data
         else:
             raise ValueError("scalarLatHeatTotal not found in SUMMA output")

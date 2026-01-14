@@ -61,7 +61,7 @@ class ToolValidator(BaseService):
         """
         self._console.panel("Validating External Tool Binaries", style="blue")
 
-        validation_results = {
+        validation_results: Dict[str, Any] = {
             "valid_tools": [],
             "missing_tools": [],
             "failed_tools": [],

@@ -7,7 +7,7 @@ hydrological variables.
 """
 
 from pathlib import Path
-from typing import List, Dict
+from typing import cast, List, Dict
 import pandas as pd
 import xarray as xr
 
@@ -108,7 +108,7 @@ class GNNResultExtractor(ModelResultExtractor):
                                 # Select specific outlet
                                 var = var.isel({spatial_dims[0]: outlet_index})
 
-                    return var.to_pandas()
+                    return cast(pd.Series, var.to_pandas())
 
             raise ValueError(
                 f"No suitable variable found for '{variable_type}' in {output_file}. "

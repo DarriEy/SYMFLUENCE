@@ -3,7 +3,7 @@ Optimization configuration models.
 
 Contains configuration classes for calibration algorithms:
 PSOConfig, DEConfig, DDSConfig, SCEUAConfig, NSGA2Config, DPEConfig,
-LargeDomainConfig, EmulationConfig, and the parent OptimizationConfig.
+EmulationConfig, and the parent OptimizationConfig.
 """
 
 from typing import List, Optional, Dict, Union
@@ -98,29 +98,6 @@ class DPEConfig(BaseModel):
     gd_step_size: float = Field(default=0.1, alias='DPE_GD_STEP_SIZE')
 
 
-class LargeDomainConfig(BaseModel):
-    """Large domain emulation settings"""
-    model_config = FROZEN_CONFIG
-
-    enabled: bool = Field(default=True, alias='LARGE_DOMAIN_EMULATION_ENABLED')
-    emulator_setting: str = Field(default='SUMMA_AUTODIFF_FD', alias='EMULATOR_SETTING')
-    mode: str = Field(default='SUMMA_AUTODIFF', alias='LARGE_DOMAIN_EMULATOR_MODE')
-    optimizer: str = Field(default='Adam', alias='LARGE_DOMAIN_EMULATOR_OPTIMIZER')
-    training_epochs: int = Field(default=100, alias='LARGE_DOMAIN_TRAINING_EPOCHS')
-    parameter_ensemble_size: int = Field(default=1000, alias='LARGE_DOMAIN_PARAMETER_ENSEMBLE_SIZE')
-    batch_size: int = Field(default=32, alias='LARGE_DOMAIN_BATCH_SIZE')
-    validation_split: Optional[float] = Field(default=None, alias='LARGE_DOMAIN_VALIDATION_SPLIT')
-    pretrain_nn_head: bool = Field(default=True, alias='LARGE_DOMAIN_EMULATOR_PRETRAIN_NN_HEAD')
-    use_nn_head: bool = Field(default=True, alias='LARGE_DOMAIN_EMULATOR_USE_NN_HEAD')
-    training_samples: int = Field(default=500, alias='LARGE_DOMAIN_EMULATOR_TRAINING_SAMPLES')
-    epochs: int = Field(default=50, alias='LARGE_DOMAIN_EMULATOR_EPOCHS')
-    autodiff_steps: int = Field(default=100, alias='LARGE_DOMAIN_EMULATOR_AUTODIFF_STEPS')
-    streamflow_weight: float = Field(default=0.5, alias='LARGE_DOMAIN_EMULATOR_STREAMFLOW_WEIGHT')
-    smap_weight: float = Field(default=0.2, alias='LARGE_DOMAIN_EMULATOR_SMAP_WEIGHT')
-    grace_weight: float = Field(default=0.15, alias='LARGE_DOMAIN_EMULATOR_GRACE_WEIGHT')
-    modis_weight: float = Field(default=0.15, alias='LARGE_DOMAIN_EMULATOR_MODIS_WEIGHT')
-
-
 class EmulationConfig(BaseModel):
     """Model emulation settings"""
     model_config = FROZEN_CONFIG
@@ -166,7 +143,6 @@ class OptimizationConfig(BaseModel):
     sce_ua: Optional[SCEUAConfig] = Field(default_factory=SCEUAConfig)
     nsga2: Optional[NSGA2Config] = Field(default_factory=NSGA2Config)
     dpe: Optional[DPEConfig] = Field(default_factory=DPEConfig)
-    large_domain: Optional[LargeDomainConfig] = Field(default_factory=LargeDomainConfig)
     emulation: Optional[EmulationConfig] = Field(default_factory=EmulationConfig)
 
     @field_validator('methods', mode='before')

@@ -160,4 +160,7 @@ class HandlerRegistry(BaseRegistry[T]):
             Handler instance
         """
         handler_class = cls._get_handler_class(name)
-        return handler_class(config, logger, **kwargs)
+        # Cast to Any to allow calling constructor with standard args
+        # as Mypy doesn't know the exact signature of the registered Type[T]
+        from typing import cast
+        return cast(Any, handler_class)(config, logger, **kwargs)

@@ -239,7 +239,7 @@ class OptimizationManager(BaseManager):
         )
 
     @property
-    def optimizers(self) -> Dict[str, Any]:
+    def optimizers(self) -> Any:
         """Backward compatibility: expose registered optimizers/algorithms."""
         # Return a dict-like object that satisfies 'in' and '[]' for algorithms expected by tests
         class OptimizerMapper:
@@ -286,7 +286,6 @@ class OptimizationManager(BaseManager):
 
         Deprecated Methods (logged as warnings):
             - 'differentiable_parameter_emulation': Use gradient-based (ADAM/LBFGS) instead
-            - 'large_domain_emulator': No longer supported
             - 'emulation': Use model emulation libraries instead
 
         Returns:
@@ -339,7 +338,6 @@ class OptimizationManager(BaseManager):
         # Check for deprecated methods and warn
         deprecated_methods = [
             'differentiable_parameter_emulation',
-            'large_domain_emulator',
             'emulation'
         ]
         

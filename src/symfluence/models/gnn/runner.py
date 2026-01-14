@@ -99,11 +99,11 @@ class GNNRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
             self.logger,
             reporting_manager=self.reporting_manager
         )
-        
-        self.model = None
-        self.hru_ids = []
-        self.outlet_indices = []
-        self.outlet_hru_ids = []
+
+        self.model: Optional[GNNModel] = None
+        self.hru_ids: list[Any] = []
+        self.outlet_indices: list[Any] = []
+        self.outlet_hru_ids: list[Any] = []
 
     def _get_model_name(self) -> str:
         return "GNN"
@@ -271,6 +271,7 @@ class GNNRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
             - Updates self.model in-place via backpropagation
             - Logs epoch-wise training and validation loss
         """
+        assert self.model is not None
         self.logger.info(f"Training GNN with {epochs} epochs, batch_size: {batch_size}")
         
         train_size = int(0.8 * len(X))
@@ -392,6 +393,7 @@ class GNNRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
             - Batch size=50 for memory efficiency on large watersheds
             - Operates in eval mode with torch.no_grad() to disable gradients
         """
+        assert self.model is not None
         self.logger.info("Running GNN simulation")
         self.model.eval()
         

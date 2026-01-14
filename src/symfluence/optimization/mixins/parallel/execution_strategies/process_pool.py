@@ -6,7 +6,7 @@ Executes tasks using Python's ProcessPoolExecutor.
 
 import logging
 from concurrent.futures import ProcessPoolExecutor, BrokenExecutor
-from typing import List, Dict, Any, Callable
+from typing import List, Dict, Any, Callable, cast
 
 from .base import ExecutionStrategy
 
@@ -54,7 +54,7 @@ class ProcessPoolExecutionStrategy(ExecutionStrategy):
             # Fall back to sequential for single worker/task
             return [worker_func(task) for task in tasks]
 
-        results = [None] * len(tasks)
+        results: List[Dict[str, Any]] = cast(List[Any], [None] * len(tasks))
 
         try:
             # Use ProcessPoolExecutor.map to preserve order

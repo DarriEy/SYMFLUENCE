@@ -8,7 +8,7 @@ to HYPE-compatible daily observation formats.
 # Standard library imports
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 # Third-party imports
 import cdo
@@ -105,8 +105,8 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             batch_size = 20
             if len(easymore_nc_files) < batch_size:
                 batch_size = len(easymore_nc_files)
-            
-            files_split = np.array_split(easymore_nc_files, batch_size)
+
+            files_split: List[Any] = np.array_split(easymore_nc_files, batch_size)
             intermediate_files = []
 
             for i in tqdm(range(batch_size), desc="Merging forcing batches"):

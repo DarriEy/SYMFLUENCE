@@ -176,7 +176,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                             first_time = pd.to_datetime(time_values[0], unit='s', origin=ref_time_str)
                             time_unit = 's'
                         elif 'hour' in units_str:
-                            first_time = pd.to_datetime(time_values[0], unit='h', origin=ref_time_str)
+                            first_time = pd.to_datetime(time_values[0], unit='h', origin=ref_time_str)  # type: ignore[call-overload]
                             time_unit = 'h'
                         elif 'day' in units_str:
                             first_time = pd.to_datetime(time_values[0], unit='D', origin=ref_time_str)
@@ -246,7 +246,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                 self.logger.info(f"Applying generic time precision fix for format: {time_format_detected}")
                 ref_time_str = time_format_detected.split('generic_since_')[1]
                 
-                time_stamps = pd.to_datetime(time_values, unit=time_unit, origin=ref_time_str)
+                time_stamps = pd.to_datetime(time_values, unit=time_unit, origin=ref_time_str)  # type: ignore[call-overload]
                 rounded_stamps = time_stamps.round('h')
                 reference = pd.Timestamp(ref_time_str)
                 

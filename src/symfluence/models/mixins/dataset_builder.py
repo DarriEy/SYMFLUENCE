@@ -182,7 +182,7 @@ class DatasetBuilderMixin:
             Encoding dict suitable for ds.to_netcdf(encoding=...)
         """
         return {
-            var: {'_FillValue': fill_value, 'dtype': dtype}
+            str(var): {'_FillValue': fill_value, 'dtype': dtype}
             for var in ds.data_vars
         }
 
@@ -401,14 +401,15 @@ class DatasetBuilderMixin:
         """
         encoding = {}
         for var in ds.data_vars:
-            var_encoding = {
+            var_name = str(var)
+            var_encoding: Dict[str, Any] = {
                 '_FillValue': fill_value,
                 'dtype': dtype
             }
             if compression:
                 var_encoding['zlib'] = True
                 var_encoding['complevel'] = complevel
-            encoding[var] = var_encoding
+            encoding[var_name] = var_encoding
         return encoding
 
     def add_variable_with_spatial_dims(

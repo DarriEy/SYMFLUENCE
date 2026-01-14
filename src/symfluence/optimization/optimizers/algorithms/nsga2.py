@@ -196,7 +196,7 @@ class NSGA2Algorithm(OptimizationAlgorithm):
         pop_size = len(objectives)
         ranks = np.zeros(pop_size, dtype=int)
         domination_count = np.zeros(pop_size, dtype=int)
-        dominated_solutions = [[] for _ in range(pop_size)]
+        dominated_solutions: List[List[int]] = [[] for _ in range(pop_size)]
 
         # Find domination relationships
         for i in range(pop_size):
@@ -226,7 +226,7 @@ class NSGA2Algorithm(OptimizationAlgorithm):
 
     def _dominates(self, obj1: np.ndarray, obj2: np.ndarray) -> bool:
         """Check if obj1 dominates obj2 (maximization)."""
-        return np.all(obj1 >= obj2) and np.any(obj1 > obj2)
+        return bool(np.all(obj1 >= obj2)) and bool(np.any(obj1 > obj2))
 
     def _calculate_crowding_distance(
         self, objectives: np.ndarray, ranks: np.ndarray
@@ -286,7 +286,7 @@ class NSGA2Algorithm(OptimizationAlgorithm):
         ranks = self._fast_non_dominated_sort(objectives)
         crowding_distances = self._calculate_crowding_distance(objectives, ranks)
 
-        selected_indices = []
+        selected_indices: List[int] = []
         for rank in np.unique(ranks):
             rank_indices = np.where(ranks == rank)[0]
             if len(selected_indices) + len(rank_indices) <= target_size:

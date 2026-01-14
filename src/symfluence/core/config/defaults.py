@@ -75,28 +75,6 @@ class ConfigDefaults:
     RANDOM_SEED = 42
     LAPSE_RATE = -0.0065  # °C/m (standard atmospheric lapse rate)
 
-    # === Large Domain Emulator ===
-    LARGE_DOMAIN_EMULATOR_MODE = 'EMULATOR'
-    LARGE_DOMAIN_EMULATOR_HIDDEN_DIM = 512
-    LARGE_DOMAIN_EMULATOR_N_HEADS = 8
-    LARGE_DOMAIN_EMULATOR_N_LAYERS = 6
-    LARGE_DOMAIN_EMULATOR_DROPOUT = 0.1
-    LARGE_DOMAIN_EMULATOR_PRETRAIN_NN_HEAD = False
-    LARGE_DOMAIN_EMULATOR_BATCH_SIZE = 16
-    LARGE_DOMAIN_EMULATOR_LEARNING_RATE = 1e-4
-    LARGE_DOMAIN_EMULATOR_EPOCHS = 50
-    LARGE_DOMAIN_EMULATOR_VALIDATION_SPLIT = 0.2
-    LARGE_DOMAIN_EMULATOR_WINDOW_DAYS = 30
-    LARGE_DOMAIN_EMULATOR_TRAINING_SAMPLES = 500
-    LARGE_DOMAIN_EMULATOR_OPTIMIZATION_STEPS = 200
-    LARGE_DOMAIN_EMULATOR_OPTIMIZATION_LR = 1e-2
-    LARGE_DOMAIN_EMULATOR_FD_STEP = 1e-3
-    LARGE_DOMAIN_EMULATOR_FD_STEPS = 100
-    LARGE_DOMAIN_EMULATOR_FD_STEP_SIZE = 1e-1
-    LARGE_DOMAIN_EMULATOR_AUTODIFF_STEPS = 200
-    LARGE_DOMAIN_EMULATOR_AUTODIFF_LR = 1e-2
-    LARGE_DOMAIN_EMULATOR_USE_NN_HEAD = True
-
     # === Drop Analysis ===
     DROP_ANALYSIS_MIN_THRESHOLD = 100
     DROP_ANALYSIS_MAX_THRESHOLD = 10000
@@ -145,6 +123,10 @@ class ModelDefaults:
     All defaults are auto-generated from Pydantic models, eliminating the need
     for manual defaults classes, hardcoded dicts, or multi-layer registries.
     """
+
+    # Legacy attributes for backward compatibility
+    SUMMA: Dict[str, Any] = {}
+    FUSE: Dict[str, Any] = {}
 
     @classmethod
     def get_defaults_for_model(cls, model: str) -> Dict[str, Any]:

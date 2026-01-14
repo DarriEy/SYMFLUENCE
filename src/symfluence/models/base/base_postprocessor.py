@@ -12,7 +12,7 @@ Provides shared infrastructure for all model postprocessing modules including:
 from abc import ABC, abstractmethod
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, Union, TYPE_CHECKING
+from typing import Dict, Any, Optional, Union, TYPE_CHECKING, cast
 import pandas as pd
 import xarray as xr
 
@@ -427,7 +427,7 @@ class BaseModelPostProcessor(ABC, PathResolverMixin):
                 data = data.sel(**selection_kwargs)
 
         # Convert to pandas Series
-        series = data.to_pandas()
+        series = cast(pd.Series, data.to_pandas())
 
         ds.close()
         return series

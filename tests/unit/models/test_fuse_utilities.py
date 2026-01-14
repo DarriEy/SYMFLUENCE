@@ -42,7 +42,7 @@ class TestFuseUtilitiesBackwardCompatibility:
         # Note: We didn't create a re-export for this, so this test
         # documents that the old path is deprecated
         with pytest.raises(ImportError):
-            pass
+            from symfluence.optimization.utilities.fuse_utilities import FuseToMizurouteConverter
 
     def test_import_from_models_fuse_utilities(self):
         """Test new import path."""

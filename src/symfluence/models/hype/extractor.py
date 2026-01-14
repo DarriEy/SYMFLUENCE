@@ -7,7 +7,7 @@ use mizuRoute for routing.
 """
 
 from pathlib import Path
-from typing import List, Dict
+from typing import cast, List, Dict
 import pandas as pd
 
 from symfluence.models.base import ModelResultExtractor
@@ -75,10 +75,10 @@ class HYPEResultExtractor(ModelResultExtractor):
                         var = ds[var_name]
                         if 'seg' in var.dims:
                             outlet_idx = np.argmax(var.mean(dim='time').values)
-                            return var.isel(seg=outlet_idx).to_pandas()
+                            return cast(pd.Series, var.isel(seg=outlet_idx).to_pandas())
                         elif 'reachID' in var.dims:
                             outlet_idx = np.argmax(var.mean(dim='time').values)
-                            return var.isel(reachID=outlet_idx).to_pandas()
+                            return cast(pd.Series, var.isel(reachID=outlet_idx).to_pandas())
 
         raise ValueError(f"Could not extract {variable_type} from {output_file}")
 

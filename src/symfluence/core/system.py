@@ -110,9 +110,9 @@ class SYMFLUENCE:
     def run_workflow(self) -> None:
         """Execute the complete SYMFLUENCE workflow (CLI wrapper)."""
         start = datetime.now()
-        steps_completed = []
-        errors = []
-        warns = []
+        steps_completed: List[Any] = []
+        errors: List[Any] = []
+        warns: List[Any] = []
 
         try:
             self.logger.info("Starting complete SYMFLUENCE workflow execution")
@@ -157,9 +157,9 @@ class SYMFLUENCE:
             step_names: List of step names to execute (e.g., ['setup_project', 'calibrate_model'])
         """
         start = datetime.now()
-        steps_completed = []
-        errors = []
-        warns = []
+        steps_completed: List[Any] = []
+        errors: List[Any] = []
+        warns: List[Any] = []
 
         status = "completed"
 

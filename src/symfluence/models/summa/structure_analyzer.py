@@ -73,6 +73,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
             else:
                 self.logger.info("Routing (mizuRoute) is disabled for SUMMA structure analysis")
 
+        assert self._routing_needed is not None
         return self._routing_needed
 
     @property

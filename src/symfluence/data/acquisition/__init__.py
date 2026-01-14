@@ -14,18 +14,19 @@ via the AcquisitionRegistry and support various data sources including:
 """
 
 import sys as _sys
+from typing import Any
 
 # Fail-safe imports
 try:
     from .registry import AcquisitionRegistry
 except ImportError as _e:
-    AcquisitionRegistry = None
+    AcquisitionRegistry: Any = None  # type: ignore
     print(f"WARNING: Failed to import AcquisitionRegistry: {_e}", file=_sys.stderr)
 
 try:
     from . import handlers
 except ImportError as _e:
-    handlers = None
+    handlers: Any = None  # type: ignore
     print(f"WARNING: Failed to import acquisition handlers: {_e}", file=_sys.stderr)
 
 __all__ = ["AcquisitionRegistry"]

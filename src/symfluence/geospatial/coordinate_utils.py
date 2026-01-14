@@ -329,8 +329,8 @@ def convert_bbox_range(
     return {
         'lat_min': bbox['lat_min'],
         'lat_max': bbox['lat_max'],
-        'lon_min': normalize_longitude(bbox['lon_min'], to_range),
-        'lon_max': normalize_longitude(bbox['lon_max'], to_range)
+        'lon_min': float(normalize_longitude(bbox['lon_min'], to_range)),
+        'lon_max': float(normalize_longitude(bbox['lon_max'], to_range))
     }
 
 

@@ -39,21 +39,43 @@ class GNNWorker(BaseWorker):
             metric_name = eval_config.get('OPTIMIZATION_METRIC', 'KGE')
             score = metrics.get(metric_name, self.penalty_score)
 
-            return WorkerResult(score=score, metrics=metrics, params=task.params)
+            return WorkerResult(
+                individual_id=task.individual_id,
+                score=score,
+                metrics=metrics,
+                params=task.params
+            )
 
         except Exception as e:
             self.logger.error(f"Error in GNN evaluation: {e}")
             import traceback
             return WorkerResult(
+                individual_id=task.individual_id,
                 score=self.penalty_score,
                 error=traceback.format_exc(),
                 params=task.params
             )
 
-    def run_model(self, config: Dict[str, Any], settings_dir: Path, output_dir: Path, mode: str = 'run_def') -> bool:
+    def run_model(self, config: Dict[str, Any], settings_dir: Path, output_dir: Path, **kwargs: Any) -> bool:
         runner = GNNRunner(config, self.logger)
         runner.run_gnn()
         return True
 
-    def apply_parameters(self, params: Dict[str, float], settings_dir: Path, config: Optional[Dict[str, Any]] = None) -> bool:
+    def apply_parameters(self, params: Dict[str, float], settings_dir: Path, **kwargs: Any) -> bool:
         return True
+
+    def calculate_metrics(
+        self,
+        output_dir: Path,
+        config: Dict[str, Any],
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Calculate metrics for GNN model."""
+        from symfluence.optimization.calibration_targets import StreamflowTarget
+        target = StreamflowTarget(
+            config,
+            Path(config.get('SYMFLUENCE_DATA_DIR', '.')) / f"domain_{config.get('DOMAIN_NAME', '')}",
+            self.logger
+        )
+        metrics = target.calculate_metrics(output_dir)
+        return metrics or {'KGE': self.penalty_score}

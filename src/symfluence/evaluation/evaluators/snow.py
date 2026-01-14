@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 from pathlib import Path
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import cast, Any, Dict, List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
@@ -188,14 +188,14 @@ class SnowEvaluator(ModelEvaluator):
         if non_time_dims:
             sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
 
-        sim_data = sim_xr.to_pandas()
+        sim_data = cast(pd.Series, sim_xr.to_pandas())
 
         # DEBUG: Log extraction stats
         if len(sim_data) > 0:
             self.logger.debug(f"SWE extraction: min={sim_data.min():.3f}, max={sim_data.max():.3f}, mean={sim_data.mean():.3f} kg/m² (n={len(sim_data)})")
 
         return sim_data
-    
+
     def _extract_sca_data(self, ds: xr.Dataset) -> pd.Series:
         sca_vars = ['scalarGroundSnowFraction', 'scalarSWE']
         for var_name in sca_vars:
@@ -215,27 +215,29 @@ class SnowEvaluator(ModelEvaluator):
                 non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
                 if non_time_dims:
                     sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-                    
-                sim_data = sim_xr.to_pandas()
-                
+
+                sim_data = cast(pd.Series, sim_xr.to_pandas())
+
                 if var_name == 'scalarSWE':
                     swe_threshold = 1.0
                     sim_data = (sim_data > swe_threshold).astype(float)
-                
+
                 return sim_data
         raise ValueError("No suitable SCA variable found")
     
-    def calculate_metrics(self, simulated_data: pd.Series, calibration_only: bool = True, **kwargs) -> Dict[str, float]:
+    def calculate_metrics(self, sim: Any, obs: Optional[pd.Series] = None,
+                         mizuroute_dir: Optional[Path] = None,
+                         calibration_only: bool = True, **kwargs) -> Optional[Dict[str, float]]:
         """
         Calculate performance metrics for simulated snow data.
 
         Args:
-            simulated_data: Simulated snow series
+            sim: Either a Path to simulation directory or a pre-loaded pd.Series
+            obs: Optional pre-loaded pd.Series of observations. If None, loads from file.
+            mizuroute_dir: mizuRoute simulation directory (if needed and sim is Path)
             calibration_only: If True, only use calibration period
-
-        Returns:
-            Dictionary of metrics
         """
+        simulated_data = sim
         # Ensure we are using the correct target if provided in kwargs
         if 'target' in kwargs:
             self.optimization_target = kwargs['target'].lower()
@@ -244,8 +246,8 @@ class SnowEvaluator(ModelEvaluator):
         # Call base class with proper signature: sim, obs=None, mizuroute_dir=None, calibration_only=True
         return super().calculate_metrics(
             sim=simulated_data,
-            obs=None,  # Let base class load observations
-            mizuroute_dir=kwargs.get('mizuroute_dir'),
+            obs=obs,
+            mizuroute_dir=mizuroute_dir,
             calibration_only=calibration_only
         )
 

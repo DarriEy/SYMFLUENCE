@@ -12,7 +12,7 @@ import numpy as np
 from pathlib import Path
 from shutil import copyfile
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict, List, Optional
 import easymore
 import xarray as xr
 
@@ -368,7 +368,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         self.logger.info("mizuRoute spatial preprocessing completed")
 
 
-    def copy_base_settings(self):
+    def copy_base_settings(self, source_dir: Optional[Path] = None, file_patterns: Optional[List[str]] = None):
         """
         Copy mizuRoute base settings from package resources.
 
@@ -376,6 +376,9 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         settings) from symfluence resources to the setup directory, providing
         starting points that will be customized during preprocessing.
         """
+        if source_dir:
+            return super().copy_base_settings(source_dir, file_patterns)
+
         self.logger.info("Copying mizuRoute base settings")
         from symfluence.resources import get_base_settings_dir
         base_settings_path = get_base_settings_dir('mizuRoute')
@@ -1067,7 +1070,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         def visit(u):
             nonlocal cycles_found
             
-            stack = [(u, iter(adj.get(u, []) if u in adj and adj[u] != -1 else []))]
+            stack: list[tuple[Any, Any]] = [(u, iter(adj.get(u, []) if u in adj and adj[u] != -1 else []))]
             path_set.add(u)
             path_stack.append(u)
             visited.add(u)

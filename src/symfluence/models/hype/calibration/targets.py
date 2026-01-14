@@ -11,7 +11,7 @@ with automatic outlet subbasin selection.
 
 import pandas as pd
 from pathlib import Path
-from typing import List, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.evaluators import StreamflowEvaluator
 from symfluence.evaluation.output_file_locator import OutputFileLocator
@@ -79,9 +79,9 @@ class HYPEStreamflowTarget(StreamflowEvaluator):
         if sim_file.suffix == '.nc':
             return self._extract_mizuroute_streamflow(sim_file)
 
-        return self._extract_hype_streamflow(sim_file)
+        return self._extract_hype_streamflow(sim_file)  # type: ignore[return-value]
 
-    def _extract_hype_streamflow(self, sim_file: Path) -> pd.Series:
+    def _extract_hype_streamflow(self, sim_file: Path) -> Optional[pd.Series]:
         """Extract streamflow from HYPE timeCOUT.txt with automatic outlet selection.
 
         HYPE timeCOUT.txt contains discharge (m³/s) for all subbasins at each timestep.
@@ -116,8 +116,7 @@ class HYPEStreamflowTarget(StreamflowEvaluator):
             subbasin_cols = [col for col in df.columns if col not in ['DATE', 'time']]
 
             if len(subbasin_cols) == 0:
-                self.logger.error(f"No subbasin columns found in {sim_file}")
-                return None
+                raise ValueError(f"No subbasin columns found in {sim_file}")
 
             # Auto-select outlet subbasin (highest mean flow)
             if len(subbasin_cols) > 1:
@@ -142,7 +141,7 @@ class HYPEStreamflowTarget(StreamflowEvaluator):
             self.logger.error(f"Error extracting HYPE streamflow from {sim_file}: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
-            return None
+            raise
 
 
 __all__ = ['HYPEStreamflowTarget']

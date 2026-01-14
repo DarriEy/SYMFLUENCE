@@ -200,7 +200,7 @@ try:
 except ImportError:
     try:
         sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'utils' / 'data' / 'preprocessing'))
-        from dataset_handlers import DatasetRegistry
+        from dataset_handlers import DatasetRegistry  # type: ignore
     except ImportError as e:
         raise ImportError(
             f"Cannot import DatasetRegistry. Please ensure dataset handlers are installed. Error: {e}"

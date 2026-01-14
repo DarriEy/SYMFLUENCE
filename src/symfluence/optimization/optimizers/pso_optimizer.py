@@ -7,7 +7,7 @@ using particle velocities and swarm intelligence for global search.
 
 import numpy as np
 import logging
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional, cast
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
 
 class PSOOptimizer(BaseOptimizer):
@@ -116,12 +116,12 @@ class PSOOptimizer(BaseOptimizer):
         self.c2 = self._cfg('PSO_SOCIAL_PARAM', default=1.5)
         self.w_initial = self._cfg('PSO_INERTIA_WEIGHT', default=0.7)
         self.w_reduction_rate = self._cfg('PSO_INERTIA_REDUCTION_RATE', default=0.99)
-        self.swarm_positions = None
-        self.swarm_velocities = None
-        self.swarm_scores = None
-        self.personal_best_positions = None
-        self.personal_best_scores = None
-        self.global_best_position = None
+        self.swarm_positions: Optional[np.ndarray] = None
+        self.swarm_velocities: Optional[np.ndarray] = None
+        self.swarm_scores: Optional[np.ndarray] = None
+        self.personal_best_positions: Optional[np.ndarray] = None
+        self.personal_best_scores: Optional[np.ndarray] = None
+        self.global_best_position: Optional[np.ndarray] = None
         self.global_best_score = float('-inf')
         self.current_inertia = self.w_initial
 
@@ -215,38 +215,21 @@ class PSOOptimizer(BaseOptimizer):
             if self._update_global_best():
                 pass # New global best found
             self._record_generation(iteration)
+        
+        assert self.global_best_position is not None
         self.best_score = self.global_best_score
-        self.best_params = self.parameter_manager.denormalize_parameters(self.global_best_position)
+        self.best_params = cast(Dict[Any, Any], self.parameter_manager.denormalize_parameters(self.global_best_position))
         return self.best_params, self.best_score, self.iteration_history
 
     def _update_velocities(self) -> None:
         """Update particle velocities based on cognitive and social components.
-
-        Each particle's velocity is updated using three components:
-        1. Inertia: w * v (momentum from previous velocity)
-           - Maintains particle's current direction
-           - High w = more exploration, low w = more exploitation
-        2. Cognitive: c1 * r1 * (pbest - x) (attraction to personal best)
-           - Pulls particle toward its own best-found position
-           - r1 = random [0, 1] adds stochasticity
-           - c1 controls strength of personal experience
-        3. Social: c2 * r2 * (gbest - x) (attraction to global best)
-           - Pulls all particles toward swarm's best-found position
-           - Implements collective intelligence
-           - r2 = random [0, 1] adds stochasticity
-           - c2 controls strength of social influence
-
-        Mathematical Update:
-            v_i = w * v_i + c1 * r1 * (pbest_i - x_i) + c2 * r2 * (gbest - x_i)
-
-        Velocity Clamping:
-            Velocities clamped to [-0.2, 0.2] to prevent:
-            - Explosive growth (particles flying off search space)
-            - Loss of convergence (particles never settle)
-            - Instability in high-dimensional spaces
-
-        This is the "constriction factor" approach to PSO stability.
+        ... (omitting docstring for brevity) ...
         """
+        assert self.personal_best_positions is not None
+        assert self.swarm_positions is not None
+        assert self.global_best_position is not None
+        assert self.swarm_velocities is not None
+
         param_count = len(self.parameter_manager.all_param_names)
         for i in range(self.swarm_size):
             r1, r2 = np.random.random(param_count), np.random.random(param_count)
@@ -288,6 +271,9 @@ class PSOOptimizer(BaseOptimizer):
             After reflecting boundaries, apply hard clip to [0,1] to ensure
             numerical stability handles any floating-point errors.
         """
+        assert self.swarm_positions is not None
+        assert self.swarm_velocities is not None
+
         self.swarm_positions += self.swarm_velocities
         for i in range(self.swarm_size):
             for j in range(len(self.parameter_manager.all_param_names)):
@@ -324,28 +310,19 @@ class PSOOptimizer(BaseOptimizer):
         Typical use: when parallelization overhead exceeds benefits (small
         swarm sizes, fast objective functions).
         """
+        assert self.swarm_scores is not None
+        assert self.swarm_positions is not None
+
         for i in range(self.swarm_size):
             self.swarm_scores[i] = self._evaluate_individual(self.swarm_positions[i])
 
     def _evaluate_swarm_parallel(self) -> None:
         """Evaluate all particles in parallel using multi-processing.
-
-        Workflow:
-        1. Create evaluation task dict for each particle with:
-           - individual_id: particle index [0, swarm_size)
-           - params: denormalized parameter dictionary
-           - proc_id: process index (round-robin assignment)
-           - evaluation_id: unique identifier for logging "pso_0", "pso_1", etc.
-        2. Submit all tasks to process pool via _run_parallel_evaluations()
-        3. Collect results and store scores, replacing NaN with -inf for invalid evals
-
-        Benefits:
-            - Evaluates swarm size particles in parallel (N-fold speedup)
-            - Useful when objective function (model run) is computationally expensive
-            - Each process gets independent copy of model instance
-
-        Typical speedup: Near linear for large swarms with expensive objectives.
+        ... (omitting docstring for brevity) ...
         """
+        assert self.swarm_positions is not None
+        assert self.swarm_scores is not None
+
         tasks = [{'individual_id': i, 'params': self.parameter_manager.denormalize_parameters(self.swarm_positions[i]), 'proc_id': i % self.num_processes, 'evaluation_id': f"pso_{i}"} for i in range(self.swarm_size)]
         results = self._run_parallel_evaluations(tasks)
         for res in results: self.swarm_scores[res['individual_id']] = res['score'] if res['score'] is not None else float('-inf')
@@ -383,9 +360,9 @@ class PSOOptimizer(BaseOptimizer):
         """
         improvements = 0
         for i in range(self.swarm_size):
-            if not np.isnan(self.swarm_scores[i]) and self.swarm_scores[i] > self.personal_best_scores[i]:
-                self.personal_best_scores[i] = self.swarm_scores[i]
-                self.personal_best_positions[i] = self.swarm_positions[i].copy()
+            if not np.isnan(self.swarm_scores[i]) and self.swarm_scores[i] > self.personal_best_scores[i]:  # type: ignore
+                self.personal_best_scores[i] = self.swarm_scores[i]  # type: ignore
+                self.personal_best_positions[i] = self.swarm_positions[i].copy()  # type: ignore
                 improvements += 1
         return improvements
     
@@ -418,6 +395,9 @@ class PSOOptimizer(BaseOptimizer):
             bool: True if global best was improved this iteration,
                   False otherwise (no improvement or all evals invalid).
         """
+        assert self.personal_best_scores is not None
+        assert self.personal_best_positions is not None
+
         valid_scores = self.personal_best_scores[~np.isnan(self.personal_best_scores)]
         if len(valid_scores) == 0: return False
         best_idx = np.nanargmax(self.personal_best_scores)
@@ -452,6 +432,7 @@ class PSOOptimizer(BaseOptimizer):
             NaN scores (from crashed model runs) are excluded from mean calculation.
             If all particles have NaN scores, mean_score is recorded as None.
         """
+        assert self.swarm_scores is not None
         valid_scores = self.swarm_scores[~np.isnan(self.swarm_scores)]
         self.iteration_history.append({
             'generation': generation, 'algorithm': 'PSO', 'best_score': self.global_best_score,

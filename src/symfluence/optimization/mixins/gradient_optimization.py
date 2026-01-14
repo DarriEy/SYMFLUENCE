@@ -8,7 +8,7 @@ faster than population-based methods in some cases.
 
 import logging
 import numpy as np
-from typing import Dict, List, Optional, Callable, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -266,8 +266,8 @@ class GradientOptimizationMixin:
             x = initial_x.copy()
 
         # L-BFGS history
-        s_history = []  # Position differences
-        y_history = []  # Gradient differences
+        s_history: List[np.ndarray] = []  # Position differences
+        y_history: List[np.ndarray] = []  # Gradient differences
 
         # Track best
         best_x = x.copy()

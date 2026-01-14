@@ -369,7 +369,7 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             status = "EXISTS" if path.exists() else "MISSING"
             self.logger.info(f"Glacier file {gf}: {status}")
 
-    def copy_base_settings(self):
+    def copy_base_settings(self):  # type: ignore[override]
         """
         Copy SUMMA base settings from the source directory to the project's settings directory.
 
@@ -566,7 +566,7 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         if not forcing_files:
             return []
 
-        unique_times = set()
+        unique_times: set[datetime] = set()
         for forcing_file in forcing_files:
             try:
                 with xr.open_dataset(forcing_file) as ds:

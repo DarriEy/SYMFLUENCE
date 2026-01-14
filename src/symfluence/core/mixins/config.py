@@ -4,7 +4,7 @@ Configuration mixin for SYMFLUENCE modules.
 Provides standardized access to typed SymfluenceConfig configuration.
 """
 
-from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
+from typing import Any, Callable, Dict, Optional, TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -27,7 +27,7 @@ class ConfigMixin:
         Returns:
             SymfluenceConfig instance
         """
-        return getattr(self, '_config', None)
+        return cast('SymfluenceConfig', getattr(self, '_config', None))
 
     @config.setter
     def config(self, value: 'SymfluenceConfig') -> None:

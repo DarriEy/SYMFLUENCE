@@ -101,7 +101,7 @@ class GeospatialAcquirer(BaseAcquisitionHandler):
     """
     def download(self, output_dir: Path) -> Path:
         # This base class can be used if we want a unified entry point for geospatial
-        pass
+        raise NotImplementedError("Subclasses must implement the download method")
 
 @AcquisitionRegistry.register('SOILGRIDS')
 class SoilGridsAcquirer(BaseAcquisitionHandler, RetryMixin):

@@ -985,117 +985,85 @@ INERTIA_SCHEDULE: "LINEAR"
 #   Usage:      17
 ITERATIVE_OPTIMIZATION_ALGORITHM: "PSO"
 
-# LARGE_DOMAIN_BATCH_SIZE
 #   Type:        int
 #   Default:     32
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      2
-LARGE_DOMAIN_BATCH_SIZE: 32
 
-# LARGE_DOMAIN_EMULATION_ENABLED
 #   Type:        bool
 #   Default:     True
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      2
-LARGE_DOMAIN_EMULATION_ENABLED: true
 
-# LARGE_DOMAIN_EMULATOR_AUTODIFF_STEPS
 #   Type:        int
 #   Default:     100
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      3
-LARGE_DOMAIN_EMULATOR_AUTODIFF_STEPS: 100
 
-# LARGE_DOMAIN_EMULATOR_EPOCHS
 #   Type:        int
 #   Default:     50
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      3
-LARGE_DOMAIN_EMULATOR_EPOCHS: 50
 
-# LARGE_DOMAIN_EMULATOR_GRACE_WEIGHT
 #   Type:        float
 #   Default:     0.15
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      2
-LARGE_DOMAIN_EMULATOR_GRACE_WEIGHT: 0.15
 
-# LARGE_DOMAIN_EMULATOR_MODE
 #   Type:        str
 #   Default:     SUMMA_AUTODIFF
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      3
-LARGE_DOMAIN_EMULATOR_MODE: "SUMMA_AUTODIFF"
 
-# LARGE_DOMAIN_EMULATOR_MODIS_WEIGHT
 #   Type:        float
 #   Default:     0.15
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      2
-LARGE_DOMAIN_EMULATOR_MODIS_WEIGHT: 0.15
 
-# LARGE_DOMAIN_EMULATOR_OPTIMIZER
 #   Type:        str
 #   Default:     Adam
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      2
-LARGE_DOMAIN_EMULATOR_OPTIMIZER: "Adam"
 
-# LARGE_DOMAIN_EMULATOR_PRETRAIN_NN_HEAD
 #   Type:        bool
 #   Default:     True
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      3
-LARGE_DOMAIN_EMULATOR_PRETRAIN_NN_HEAD: true
 
-# LARGE_DOMAIN_EMULATOR_SMAP_WEIGHT
 #   Type:        float
 #   Default:     0.2
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      2
-LARGE_DOMAIN_EMULATOR_SMAP_WEIGHT: 0.2
 
-# LARGE_DOMAIN_EMULATOR_STREAMFLOW_WEIGHT
 #   Type:        float
 #   Default:     0.5
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      2
-LARGE_DOMAIN_EMULATOR_STREAMFLOW_WEIGHT: 0.5
 
-# LARGE_DOMAIN_EMULATOR_TRAINING_SAMPLES
 #   Type:        int
 #   Default:     500
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      3
-LARGE_DOMAIN_EMULATOR_TRAINING_SAMPLES: 500
 
-# LARGE_DOMAIN_EMULATOR_USE_NN_HEAD
 #   Type:        bool
 #   Default:     True
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      3
-LARGE_DOMAIN_EMULATOR_USE_NN_HEAD: true
 
-# LARGE_DOMAIN_PARAMETER_ENSEMBLE_SIZE
 #   Type:        int
 #   Default:     1000
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      2
-LARGE_DOMAIN_PARAMETER_ENSEMBLE_SIZE: 1000
 
-# LARGE_DOMAIN_TRAINING_EPOCHS
 #   Type:        int
 #   Default:     100
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      3
-LARGE_DOMAIN_TRAINING_EPOCHS: 100
 
-# LARGE_DOMAIN_VALIDATION_SPLIT
 #   Type:        float
 #   Default:     None
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      2
-LARGE_DOMAIN_VALIDATION_SPLIT: null
 
 # NSGA2_CROSSOVER_RATE
 #   Type:        float
@@ -1258,12 +1226,10 @@ PSO_SOCIAL_PARAM: 1.5
 #   Usage:      3
 SWRMSIZE: 20
 
-# EMULATOR_SETTING
 #   Type:        str
 #   Default:     SUMMA_AUTODIFF_FD
 #   Source:      LargeDomainConfig (optimization.py)
 #   Usage:      2
-EMULATOR_SETTING: "SUMMA_AUTODIFF_FD"
 
 # NUMBER_OF_COMPLEXES
 #   Type:        int

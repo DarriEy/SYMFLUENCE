@@ -7,7 +7,7 @@ Consolidates duplicate implementations from GR, FUSE, SUMMA, MESH, HYPE, and NGE
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Tuple, List, Optional, Union
+from typing import Dict, Any, Tuple, List, Optional, Union, cast
 import numpy as np
 import pandas as pd
 
@@ -90,7 +90,7 @@ class StreamflowMetrics:
             if resample_freq:
                 observed = observed.resample(resample_freq).mean()
 
-            return observed.values, observed.index
+            return np.asarray(observed.values), cast(pd.DatetimeIndex, observed.index)
 
         except Exception as e:
             logger.error(f"Error loading observations: {e}")

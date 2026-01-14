@@ -375,8 +375,8 @@ class SpatialOrchestrator(ABC):
                 'basin__TotalRunoff', 'qsim', 'runoff'
             ]
             # Also check for any variable starting with q_ or containing runoff
-            candidates.extend([v for v in source_ds.data_vars if v.lower().startswith('q_')])
-            candidates.extend([v for v in source_ds.data_vars if 'runoff' in v.lower()])
+            candidates.extend([str(v) for v in source_ds.data_vars if str(v).lower().startswith('q_')])
+            candidates.extend([str(v) for v in source_ds.data_vars if 'runoff' in str(v).lower()])
 
             source_var = next((v for v in candidates if v in source_ds.data_vars), None)
             if source_var is None:

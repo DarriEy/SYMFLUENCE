@@ -274,7 +274,7 @@ class RawForcingCache:
         total_size_gb = self.get_cache_size_gb()
 
         # Count by dataset
-        datasets = {}
+        datasets: Dict[str, int] = {}
         for meta_file in metadata_files:
             try:
                 with open(meta_file, "r") as f:

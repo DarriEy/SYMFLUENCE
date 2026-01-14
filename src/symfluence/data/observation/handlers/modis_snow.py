@@ -171,12 +171,12 @@ class MODISSnowHandler(BaseObservationHandler):
 
         for var in priority_vars:
             if var in ds.data_vars:
-                return var
+                return str(var)
 
         # Fall back to finding any snow-related variable
-        suitable_vars = [v for v in ds.data_vars if 'snow' in v.lower() or 'ndsi' in v.lower()]
+        suitable_vars = [v for v in ds.data_vars if 'snow' in str(v).lower() or 'ndsi' in str(v).lower()]
         if suitable_vars:
-            return suitable_vars[0]
+            return str(suitable_vars[0])
 
         raise ValueError(f"No snow variables found in dataset. Available: {list(ds.data_vars)}")
 

@@ -549,7 +549,8 @@ class TWSEvaluator(ModelEvaluator):
 
         return pd.Series(scaled.values, index=sim_series.index, name=sim_series.name)
 
-    def calculate_metrics(self, sim_dir: Path, mizuroute_dir: Optional[Path] = None,
+    def calculate_metrics(self, sim: Any, obs: Optional[pd.Series] = None,
+                         mizuroute_dir: Optional[Path] = None,
                          calibration_only: bool = True) -> Optional[Dict[str, float]]:
         """Calculate TWS performance metrics comparing SUMMA storage to GRACE anomalies.
 
@@ -560,44 +561,16 @@ class TWSEvaluator(ModelEvaluator):
         4. Apply optional signal processing: detrending, variability scaling
         5. Calculate performance metrics (KGE, RMSE, NSE, correlation, bias)
 
-        Special Handling for Glacierized Basins:
-            - Glacier mass loss creates long-term trend (>80% of variance)
-            - TWS_DETREND removes trend: r ≈ 0.30 → r ≈ 0.78
-            - Critical for proper seasonal calibration in mountain basins
-
-        Anomaly Calculation:
-            - GRACE provides direct anomalies (relative to 2004-2009 baseline)
-            - SUMMA provides absolute storage values
-            - Convert to anomaly: anomaly = storage - mean(storage_overlap)
-
-        Temporal Aggregation:
-            - SUMMA: Daily values → Monthly means via resample('MS').mean()
-            - GRACE: Already monthly anomalies
-            - Common overlap period used for baseline and metrics
-
-        Signal Processing (Configurable):
-            - TWS_DETREND: Remove linear trend from both series
-            - TWS_SCALE_TO_OBS: Scale model std dev to match obs
-
         Args:
-            sim_dir: Directory containing SUMMA simulation output
-            mizuroute_dir: Unused for TWS (not routed)
-            calibration_only: Unused for TWS (uses full overlap period)
-
-        Returns:
-            Optional[Dict[str, float]]: Performance metrics or None if calculation fails
-            - Keys: 'nse', 'rmse', 'mae', 'kge', 'kge_alpha', 'kge_beta', 'kge_gamma', 'pearson_r'
-
-        Raises:
-            None (logs errors, returns None for failed calculations)
-
-        Notes:
-            - Requires both simulated and observed data with overlapping dates
-            - Handles missing values (NaN) appropriately during overlap
-            - Logs detailed diagnostic info for debugging
+            sim: Path to simulation directory or pre-loaded pd.Series
+            obs: Optional pre-loaded pd.Series of observations. If None, loads from file.
+            mizuroute_dir: mizuRoute simulation directory (unused for TWS)
+            calibration_only: Whether to calculate only calibration metrics
         """
+        sim_dir = Path(sim) if isinstance(sim, (str, Path)) else None
+        if sim_dir is None:
+            raise ValueError("TWS evaluation requires simulation directory Path")
         try:
-            sim_dir = Path(sim_dir)
             self.logger.debug(f"[TWS] Starting metrics calculation for {sim_dir}")
 
             # Load simulated data (absolute storage)
@@ -698,7 +671,7 @@ class TWSEvaluator(ModelEvaluator):
             5. Comparison: Compare multiple GRACE processing centers
 
         Processing Applied:
-            - Temporal aggregation: Daily SUMMA → monthly means
+            - Temporal aggregation: Daily SUMMA to monthly means
             - Anomaly calculation: Relative to overlap period mean
             - Optional detrending: Remove linear trends
             - Optional scaling: Match model variability to observations

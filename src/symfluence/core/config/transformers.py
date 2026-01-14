@@ -478,25 +478,6 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'DPE_FD_STEP': ('optimization', 'dpe', 'fd_step'),
     'DPE_GD_STEP_SIZE': ('optimization', 'dpe', 'gd_step_size'),
 
-    # Optimization > Large Domain
-    'LARGE_DOMAIN_EMULATION_ENABLED': ('optimization', 'large_domain', 'enabled'),
-    'EMULATOR_SETTING': ('optimization', 'large_domain', 'emulator_setting'),
-    'LARGE_DOMAIN_EMULATOR_MODE': ('optimization', 'large_domain', 'mode'),
-    'LARGE_DOMAIN_EMULATOR_OPTIMIZER': ('optimization', 'large_domain', 'optimizer'),
-    'LARGE_DOMAIN_TRAINING_EPOCHS': ('optimization', 'large_domain', 'training_epochs'),
-    'LARGE_DOMAIN_PARAMETER_ENSEMBLE_SIZE': ('optimization', 'large_domain', 'parameter_ensemble_size'),
-    'LARGE_DOMAIN_BATCH_SIZE': ('optimization', 'large_domain', 'batch_size'),
-    'LARGE_DOMAIN_VALIDATION_SPLIT': ('optimization', 'large_domain', 'validation_split'),
-    'LARGE_DOMAIN_EMULATOR_PRETRAIN_NN_HEAD': ('optimization', 'large_domain', 'pretrain_nn_head'),
-    'LARGE_DOMAIN_EMULATOR_USE_NN_HEAD': ('optimization', 'large_domain', 'use_nn_head'),
-    'LARGE_DOMAIN_EMULATOR_TRAINING_SAMPLES': ('optimization', 'large_domain', 'training_samples'),
-    'LARGE_DOMAIN_EMULATOR_EPOCHS': ('optimization', 'large_domain', 'epochs'),
-    'LARGE_DOMAIN_EMULATOR_AUTODIFF_STEPS': ('optimization', 'large_domain', 'autodiff_steps'),
-    'LARGE_DOMAIN_EMULATOR_STREAMFLOW_WEIGHT': ('optimization', 'large_domain', 'streamflow_weight'),
-    'LARGE_DOMAIN_EMULATOR_SMAP_WEIGHT': ('optimization', 'large_domain', 'smap_weight'),
-    'LARGE_DOMAIN_EMULATOR_GRACE_WEIGHT': ('optimization', 'large_domain', 'grace_weight'),
-    'LARGE_DOMAIN_EMULATOR_MODIS_WEIGHT': ('optimization', 'large_domain', 'modis_weight'),
-
     # Optimization > Emulation
     'EMULATION_NUM_SAMPLES': ('optimization', 'emulation', 'num_samples'),
     'EMULATION_SEED': ('optimization', 'emulation', 'seed'),
@@ -716,7 +697,7 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
             'forcing': {'dataset': 'ERA5'}
         }
     """
-    nested = {
+    nested: Dict[str, Any] = {
         'system': {},
         'domain': {},
         'data': {},

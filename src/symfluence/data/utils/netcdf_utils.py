@@ -58,7 +58,8 @@ def create_netcdf_encoding(
     encoding: Dict[str, Dict[str, Any]] = {}
 
     # Handle data variables
-    for var_name in dataset.data_vars:
+    for var in dataset.data_vars:
+        var_name = str(var)
         var_encoding: Dict[str, Any] = {
             'dtype': dtype,
             '_FillValue': fill_value,
@@ -79,7 +80,8 @@ def create_netcdf_encoding(
         encoding[var_name] = var_encoding
 
     # Handle coordinates
-    for coord_name in dataset.coords:
+    for coord in dataset.coords:
+        coord_name = str(coord)
         if coord_name == 'time':
             encoding[coord_name] = {
                 'dtype': time_dtype,
@@ -99,10 +101,11 @@ def create_netcdf_encoding(
     # Apply custom encoding overrides
     if custom_encoding:
         for var_name, var_enc in custom_encoding.items():
-            if var_name in encoding:
-                encoding[var_name].update(var_enc)
+            str_var_name = str(var_name)
+            if str_var_name in encoding:
+                encoding[str_var_name].update(var_enc)
             else:
-                encoding[var_name] = var_enc
+                encoding[str_var_name] = var_enc
 
     return encoding
 
@@ -125,7 +128,8 @@ def create_minimal_encoding(
     """
     encoding: Dict[str, Dict[str, Any]] = {}
 
-    for var_name in dataset.data_vars:
+    for var in dataset.data_vars:
+        var_name = str(var)
         var_encoding: Dict[str, Any] = {}
 
         if not preserve_fill:

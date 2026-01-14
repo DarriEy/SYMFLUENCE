@@ -198,7 +198,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
             f"AMF_{station_id}_*.csv",
         ]
 
-        matching_files = []
+        matching_files: List[Path] = []
         for pattern in patterns:
             matching_files.extend(local_path.rglob(pattern))
 
@@ -235,6 +235,9 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
                     if csv_files:
                         with z.open(csv_files[0]) as f:
                             return pd.read_csv(f)
+                    else:
+                        self.logger.error(f"No CSV files found in ZIP: {best_file}")
+                        return None
             else:
                 return pd.read_csv(best_file)
         except Exception as e:
@@ -562,7 +565,7 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
         df = df.set_index('datetime').sort_index()
 
         # Filter to requested time period
-        df = df.loc[str(self.start_date):str(self.end_date)]
+        df = df.loc[pd.Timestamp(self.start_date):pd.Timestamp(self.end_date)]
 
         # Extract requested variables
         result = pd.DataFrame(index=df.index)

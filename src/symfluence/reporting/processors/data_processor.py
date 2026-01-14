@@ -7,7 +7,7 @@ handling various file formats and data transformations.
 
 import pandas as pd  # type: ignore
 from pathlib import Path
-from typing import List, Tuple, Dict, Any, Optional
+from typing import List, Tuple, Dict, Any, Optional, cast
 import logging
 
 from symfluence.reporting.core.shapefile_helper import ShapefileHelper
@@ -150,7 +150,7 @@ class DataProcessor:
         if not sim_data:
             self.logger.error("No simulation data could be loaded")
 
-        return sim_data
+        return cast(List[Tuple[str, pd.Series]], sim_data)
 
     def load_distributed_model_outputs(
         self,
@@ -199,7 +199,7 @@ class DataProcessor:
                     series = series.iloc[:, 0]
 
             self.logger.info(f"Loaded distributed model output ({len(series)} timesteps)")
-            return series
+            return cast(pd.Series, series)
 
         except Exception as e:
             self.logger.error(f"Could not read distributed model file {model_file}: {str(e)}")
@@ -242,7 +242,7 @@ class DataProcessor:
                 series = series.iloc[:, 0]
 
             self.logger.info(f"Loaded snow data ({len(series)} timesteps)")
-            return series
+            return cast(pd.Series, series)
 
         except Exception as e:
             self.logger.error(f"Could not read snow file {snow_file}: {str(e)}")

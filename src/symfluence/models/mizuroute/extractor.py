@@ -7,7 +7,7 @@ and routing variable names.
 """
 
 from pathlib import Path
-from typing import List, Dict
+from typing import cast, List, Dict
 import pandas as pd
 import xarray as xr
 import numpy as np
@@ -79,19 +79,19 @@ class MizuRouteResultExtractor(ModelResultExtractor):
                         # Older mizuRoute: segment-based
                         segment_means = var.mean(dim='time').values
                         outlet_seg_idx = np.argmax(segment_means)
-                        result = var.isel(seg=outlet_seg_idx).to_pandas()
+                        result = cast(pd.Series, var.isel(seg=outlet_seg_idx).to_pandas())
                         return result
 
                     elif 'reachID' in var.dims:
                         # Newer mizuRoute: reach-based
                         reach_means = var.mean(dim='time').values
                         outlet_reach_idx = np.argmax(reach_means)
-                        result = var.isel(reachID=outlet_reach_idx).to_pandas()
+                        result = cast(pd.Series, var.isel(reachID=outlet_reach_idx).to_pandas())
                         return result
 
                     else:
                         # No spatial dimension - use as-is
-                        return var.to_pandas()
+                        return cast(pd.Series, var.to_pandas())
 
             raise ValueError(
                 f"No suitable routed runoff variable found in {output_file}. "

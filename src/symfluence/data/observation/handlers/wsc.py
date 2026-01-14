@@ -25,11 +25,11 @@ class WSCStreamflowHandler(BaseObservationHandler):
     """
 
     def acquire(self) -> Path:
-        print("DEBUG: WSCStreamflowHandler.acquire called")
+        self.logger.debug("WSCStreamflowHandler.acquire called")
         data_access = self.config.get('DATA_ACCESS', 'local')
         download_enabled = self.config.get('DOWNLOAD_WSC_DATA', False)
         station_id = self.config.get('STATION_ID')
-        print(f"DEBUG: WSC acquire - data_access={data_access}, download_enabled={download_enabled}, station_id={station_id}")
+        self.logger.debug(f"WSC acquire - data_access={data_access}, download_enabled={download_enabled}, station_id={station_id}")
 
         if not station_id:
             self.logger.error("Missing STATION_ID in configuration for WSC streamflow")
@@ -41,10 +41,10 @@ class WSCStreamflowHandler(BaseObservationHandler):
 
         # Cloud pathway: Use WSC GeoMet API
         if data_access == 'cloud' and download_enabled:
-            print("DEBUG: Calling _download_from_geomet")
+            self.logger.debug("Calling _download_from_geomet")
             return self._download_from_geomet(station_id, raw_file)
-        
-        print("DEBUG: WSC acquire - Falling back to local/default pathway")
+
+        self.logger.debug("WSC acquire - Falling back to local/default pathway")
         # Local/Default pathway: Use HYDAT or existing raw files
         if download_enabled:
             self.logger.info(f"WSC local access: will attempt HYDAT extraction if {raw_file} not found")
@@ -63,7 +63,7 @@ class WSCStreamflowHandler(BaseObservationHandler):
             return raw_file
 
     def _download_from_geomet(self, station_id: str, output_path: Path) -> Path:
-        print(f"DEBUG: _download_from_geomet called for station {station_id}")
+        self.logger.debug(f"_download_from_geomet called for station {station_id}")
         self.logger.info(f"Downloading WSC streamflow data for station {station_id} via GeoMet API")
         
         base_url = "https://api.weather.gc.ca/collections/hydrometric-daily-mean/items"
@@ -82,7 +82,7 @@ class WSCStreamflowHandler(BaseObservationHandler):
             features = data.get('features', [])
             
             if not features:
-                print(f"DEBUG: No features found for station {station_id}")
+                self.logger.debug(f"No features found for station {station_id}")
                 raise DataAcquisitionError(f"No data found for WSC station {station_id} in GeoMet API")
 
             rows = []
@@ -92,13 +92,11 @@ class WSCStreamflowHandler(BaseObservationHandler):
             
             df = pd.DataFrame(rows)
             df.to_csv(output_path, index=False)
-            
-            print(f"DEBUG: Successfully downloaded {len(df)} records to {output_path}")
+
             self.logger.info(f"Successfully downloaded {len(df)} records to {output_path}")
             return output_path
 
         except Exception as e:
-            print(f"DEBUG: Error in _download_from_geomet: {e}")
             self.logger.error(f"Failed to download WSC data from GeoMet: {e}")
             raise DataAcquisitionError(f"Could not retrieve WSC data for station {station_id}") from e
 

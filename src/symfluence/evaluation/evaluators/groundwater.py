@@ -35,7 +35,7 @@ import logging
 import pandas as pd
 import xarray as xr
 from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
+from typing import cast, List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
@@ -159,14 +159,14 @@ class GroundwaterEvaluator(ModelEvaluator):
             if non_time_dims:
                 sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
                 
-            sim_data = sim_xr.to_pandas()
+            sim_data = cast(pd.Series, sim_xr.to_pandas())
 
             # Convert storage to depth-below-surface if comparing to GGMN
             # TotalSoilWat is in kg/m2 (mm). Convert to meters.
             sim_data_m = sim_data / 1000.0
 
             base_depth = float(self.config_dict.get('GW_BASE_DEPTH', 50.0))
-            gw_depth_sim = (base_depth - sim_data_m).abs()
+            gw_depth_sim = cast(pd.Series, (base_depth - sim_data_m).abs())
 
             # Auto-align: If the means are wildly different, shift the simulation to match the observation mean
             if self.config_dict.get('GW_AUTO_ALIGN', True):
@@ -187,9 +187,9 @@ class GroundwaterEvaluator(ModelEvaluator):
                     else:
                         sim_xr = sim_xr.mean(dim=dim)
 
-            sim_data = sim_xr.to_pandas()
+            sim_data = cast(pd.Series, sim_xr.to_pandas())
             base_depth = float(self.config_dict.get('GW_BASE_DEPTH', 50.0))
-            gw_depth_sim = (base_depth - sim_data).abs()
+            gw_depth_sim = cast(pd.Series, (base_depth - sim_data).abs())
 
             if self.config_dict.get('GW_AUTO_ALIGN', True):
                 obs = self._load_observed_data()

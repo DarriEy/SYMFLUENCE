@@ -28,7 +28,7 @@ Usage:
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pathlib import Path
 import numpy as np
 import logging
@@ -136,12 +136,12 @@ class BaseParameterManager(ABC):
         pass
 
     @abstractmethod
-    def get_initial_parameters(self) -> Dict[str, Any]:
+    def get_initial_parameters(self) -> Optional[Dict[str, Any]]:
         """
         Get initial parameter values from model defaults or existing files.
 
         Returns:
-            Dictionary of parameter values in model-native format.
+            Dictionary of parameter values in model-native format, or None if not found.
 
         Implementation notes:
             - SUMMA: Extract from existing trialParams.nc or parse defaults

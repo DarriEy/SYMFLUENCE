@@ -240,7 +240,7 @@ class HYPEWorker(BaseWorker):
         output_dir: Path,
         config: Dict[str, Any],
         **kwargs
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """
         Calculate metrics from HYPE output.
 

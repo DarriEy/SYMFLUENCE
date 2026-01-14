@@ -581,7 +581,8 @@ class AnalysisPlotter(BasePlotter):
         import xarray as xr  # type: ignore
         import geopandas as gpd  # type: ignore
 
-        plot_paths = {}
+        plot_paths: Dict[str, str] = {}
+
         try:
             summa_file = self.project_dir / "simulations" / experiment_id / "SUMMA" / f"{experiment_id}_day.nc"
             if not summa_file.exists():
@@ -622,7 +623,7 @@ class AnalysisPlotter(BasePlotter):
                 
                 plot_file = plot_dir / f'{var_name}.png'
                 self._save_and_close(fig, plot_file)
-                plot_paths[var_name] = str(plot_file)
+                plot_paths[str(var_name)] = str(plot_file)
             ds.close()
         except Exception as e:
             self.logger.error(f"Error in plot_summa_outputs: {str(e)}")

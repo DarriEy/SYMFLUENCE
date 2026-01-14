@@ -7,7 +7,7 @@ Processes simulation outputs from the NOAA NextGen Framework (ngen).
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelPostProcessor

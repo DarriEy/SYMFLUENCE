@@ -9,7 +9,7 @@ and land/soil classifications.
 # Standard library imports
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Union, TYPE_CHECKING
+from typing import Dict, Any, Union, TYPE_CHECKING, List, Tuple
 
 # Third-party imports
 import geopandas as gpd  # type: ignore
@@ -757,7 +757,7 @@ class SummaAttributesManager(ConfigurableMixin):
         do_downHRUindex = connect_hrus == 'yes'
 
         with nc4.Dataset(attribute_file, "r+") as att:
-            gru_data = {}
+            gru_data: Dict[int, List[Tuple[Any, float]]] = {}
             for idx in range(len(att['hruId'])):
                 hru_id = att['hruId'][idx]
                 gru_id = att['hru2gruId'][idx]

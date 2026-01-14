@@ -12,7 +12,7 @@ Handles climate data processing including:
 import os
 import pickle
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List
 import numpy as np
 import geopandas as gpd
 from rasterstats import zonal_stats
@@ -30,7 +30,7 @@ class ClimateProcessor(BaseAttributeProcessor):
         Returns:
             Dictionary of climate attributes
         """
-        results = {}
+        results: Dict[str, Any] = {}
 
         # Find WorldClim data path
         worldclim_path = self._get_data_path('ATTRIBUTES_WORLDCLIM_PATH', 'worldclim')
@@ -59,7 +59,7 @@ class ClimateProcessor(BaseAttributeProcessor):
         Returns:
             Dictionary of climate attributes
         """
-        results = {}
+        results: Dict[str, Any] = {}
 
         # Create cache directory
         cache_dir = self.project_dir / 'cache' / 'climate'
@@ -109,8 +109,8 @@ class ClimateProcessor(BaseAttributeProcessor):
                 self.logger.warning(f"No {var} files found in {var_path}")
                 continue
 
-            # Process monthly data
-            monthly_values = [] if is_lumped else [[] for _ in range(len(catchment))]
+            # Initialize monthly values container
+            monthly_values: List[List[float]] = [] if is_lumped else [[] for _ in range(len(catchment))]
             monthly_attributes = {}
 
             for month_file in monthly_files:
@@ -289,15 +289,15 @@ class ClimateProcessor(BaseAttributeProcessor):
 
     def _process_derived_climate_indices(self, worldclim_path: Path) -> Dict[str, Any]:
         """
-        Process derived climate indices from WorldClim.
+        Process derived climate indices.
 
         Args:
             worldclim_path: Path to WorldClim data
 
         Returns:
-            Dictionary of climate indices
+            Dictionary of climate attributes
         """
-        results = {}
+        results: Dict[str, Any] = {}
 
         # Create cache directory
         cache_dir = self.project_dir / 'cache' / 'climate'
@@ -412,7 +412,8 @@ class ClimateProcessor(BaseAttributeProcessor):
                                          results: Dict[str, Any], is_lumped: bool,
                                          catchment, hru_id_field: str):
         """Process monthly derived climate product."""
-        monthly_values = [] if is_lumped else [[] for _ in range(len(catchment))]
+        # container for monthly values
+        monthly_values: List[List[float]] = [] if is_lumped else [[] for _ in range(len(catchment))]
 
         for month_file in product_files:
             # Extract month number

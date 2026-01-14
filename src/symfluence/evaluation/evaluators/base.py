@@ -12,7 +12,7 @@ import pandas as pd
 import xarray as xr
 from pathlib import Path
 import logging
-from typing import Any, Dict, List, Tuple, Optional, TYPE_CHECKING
+from typing import cast, Any, Dict, List, Tuple, Optional, TYPE_CHECKING
 from abc import ABC, abstractmethod
 
 from symfluence.evaluation import metrics
@@ -64,8 +64,8 @@ class ModelEvaluator(ConfigurableMixin, ABC):
             lambda: self.config.domain.evaluation_period,
             default=''
         )
-        self.calibration_period = self._parse_date_range(calibration_period_str)
-        self.evaluation_period = self._parse_date_range(evaluation_period_str)
+        self.calibration_period: Tuple[Optional[pd.Timestamp], Optional[pd.Timestamp]] = self._parse_date_range(calibration_period_str)
+        self.evaluation_period: Tuple[Optional[pd.Timestamp], Optional[pd.Timestamp]] = self._parse_date_range(evaluation_period_str)
 
         # Parse calibration/evaluation timestep
         self.eval_timestep = self._get_config_value(
@@ -558,7 +558,7 @@ class ModelEvaluator(ConfigurableMixin, ABC):
             else:
                 result = result.isel({dim: 0})
 
-        return result.to_pandas()
+        return cast(pd.Series, result.to_pandas())
 
     def _find_date_column(self, columns: List[str]) -> Optional[str]:
         """

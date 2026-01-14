@@ -203,7 +203,7 @@ class BenchmarkPreprocessor:
         daily_data = self._process_to_daily(merged_data)
         
         # Filter data for the experiment run period
-        filtered_data = daily_data.loc[start_date:end_date]
+        filtered_data = daily_data.loc[pd.Timestamp(start_date):pd.Timestamp(end_date)]
         
         # Validate and save data
         self._validate_data(filtered_data)

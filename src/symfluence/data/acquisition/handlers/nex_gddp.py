@@ -43,7 +43,7 @@ class NEXGDDPCHandler(BaseAcquisitionHandler):
         ncss_base = "https://ds.nccs.nasa.gov/thredds/ncss/grid"
         cache_root = output_dir / "_nex_ncss_cache"
         cache_root.mkdir(parents=True, exist_ok=True)
-        ensemble_datasets = []
+        ensemble_datasets: list[Any] = []
         for model_name in cfg_models:
             for scenario_name in cfg_scenarios:
                 scenario_end_dt = min(end_dt, dt.date(2014, 12, 31)) if scenario_name == "historical" else end_dt

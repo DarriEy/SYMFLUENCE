@@ -536,7 +536,7 @@ class ObservedDataProcessor:
             # Try to parse dates with different formats
             try:
                 # Attempt to infer format first
-                processed_df['Date'] = pd.to_datetime(processed_df['Date'], infer_datetime_format=True, errors='coerce')
+                processed_df['Date'] = pd.to_datetime(processed_df['Date'], errors='coerce')
             except Exception as date_error:
                 self.logger.warning(f"Flexible date parsing failed: {str(date_error)}")
                 # Fallback to specific formats if inference fails
@@ -645,10 +645,10 @@ class ObservedDataProcessor:
             # Convert date to datetime
             try:
                 # Try parsing with common formats, prioritizing European format if applicable
-                caravans_data['datetime'] = pd.to_datetime(caravans_data['date'], dayfirst=True, infer_datetime_format=True, errors='coerce')
+                caravans_data['datetime'] = pd.to_datetime(caravans_data['date'], dayfirst=True, errors='coerce')
             except Exception as e:
                 self.logger.warning(f"Date parsing with dayfirst=True failed: {e}. Trying without.")
-                caravans_data['datetime'] = pd.to_datetime(caravans_data['date'], infer_datetime_format=True, errors='coerce')
+                caravans_data['datetime'] = pd.to_datetime(caravans_data['date'], errors='coerce')
             
             # Drop rows with invalid dates
             na_date_count = caravans_data['datetime'].isna().sum()

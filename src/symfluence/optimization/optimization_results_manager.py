@@ -5,11 +5,12 @@ Handles saving, loading, and querying of optimization trial results
 with CSV-based storage and score tracking.
 """
 
-import pandas as pd
 import numpy as np
-from pathlib import Path
-from typing import Dict, Any, Optional
+import pandas as pd
 import logging
+from typing import Dict, Any, Optional, List
+from pathlib import Path
+
 
 class OptimizationResultsManager:
     """Manages saving and loading of optimization results."""
@@ -44,7 +45,7 @@ class OptimizationResultsManager:
                 return None
             
             # Create DataFrame from best parameters
-            results_data = {}
+            results_data: Dict[str, List[Any]] = {}
             
             # First add iteration column
             results_data['iteration'] = [0]
@@ -96,7 +97,7 @@ class OptimizationResultsManager:
         
         try:
             # Extract iteration history data
-            history_data = {
+            history_data: Dict[str, List[Any]] = {
                 'iteration': [],
                 target_metric: [],
             }

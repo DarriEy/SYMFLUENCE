@@ -122,7 +122,7 @@ class DRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
             seg_id_to_idx = {int(seg_id): i for i, seg_id in enumerate(seg_ids)}
             
             # Build upstream connectivity map
-            upstream_map = {i: [] for i in range(n_segs)}
+            upstream_map: dict[int, list[int]] = {i: [] for i in range(n_segs)}
             for i, down_id in enumerate(down_seg_ids):
                 down_id_int = int(down_id)
                 if down_id_int in seg_id_to_idx:

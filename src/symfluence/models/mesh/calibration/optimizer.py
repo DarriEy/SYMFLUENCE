@@ -164,32 +164,3 @@ class MESHModelOptimizer(BaseModelOptimizer):
                 self.logger.debug(f"Updated MESH run options for process {proc_id}")
             except Exception as e:
                 self.logger.error(f"Failed to update MESH run options for process {proc_id}: {e}")
-
-    def _create_calibration_tasks(
-        self,
-        parameter_sets: list
-    ) -> list:
-        """
-        Create calibration tasks with MESH-specific paths.
-
-        Overrides base class to add proc_forcing_dir for MESH workers.
-
-        Args:
-            parameter_sets: List of parameter dictionaries to evaluate
-
-        Returns:
-            List of task dictionaries
-        """
-        # Call parent method to create base tasks
-        tasks = super()._create_calibration_tasks(parameter_sets)
-
-        # Add MESH-specific forcing directory paths
-        if self.parallel_dirs:
-            for task in tasks:
-                proc_id = task.get('proc_id', 0)
-                if proc_id in self.parallel_dirs:
-                    forcing_dir = self.parallel_dirs[proc_id].get('forcing_dir')
-                    if forcing_dir:
-                        task['proc_forcing_dir'] = str(forcing_dir)
-
-        return tasks

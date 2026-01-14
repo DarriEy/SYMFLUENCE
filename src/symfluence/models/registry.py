@@ -119,6 +119,11 @@ References:
     - Python decorators: PEP 318
 """
 
+import logging
+from typing import Dict, Any, Type, Optional, Tuple, List
+
+logger = logging.getLogger(__name__)
+
 
 class ModelRegistry:
     """Central registry for hydrological model components (Registry Pattern).
@@ -192,19 +197,19 @@ class ModelRegistry:
         optimization.model_optimizers: Depend on model components for calibration
     """
 
-    _preprocessors = {}
-    _runners = {}
-    _postprocessors = {}
-    _visualizers = {}
-    _runner_methods = {}
+    _preprocessors: Dict[str, Type] = {}
+    _runners: Dict[str, Type] = {}
+    _postprocessors: Dict[str, Type] = {}
+    _visualizers: Dict[str, Type] = {}
+    _runner_methods: Dict[str, str] = {}
     # Config management registries
-    _config_adapters = {}
-    _config_schemas = {}
-    _config_defaults = {}
-    _config_transformers = {}
-    _config_validators = {}
+    _config_adapters: Dict[str, Any] = {}
+    _config_schemas: Dict[str, Type] = {}
+    _config_defaults: Dict[str, Dict[str, Any]] = {}
+    _config_transformers: Dict[str, Dict[str, Tuple[str, ...]]] = {}
+    _config_validators: Dict[str, Any] = {}
     # Result extraction registry
-    _result_extractors = {}
+    _result_extractors: Dict[str, Any] = {}
 
     @classmethod
     def register_preprocessor(cls, model_name):

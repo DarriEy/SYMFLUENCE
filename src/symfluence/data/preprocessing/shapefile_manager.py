@@ -64,7 +64,7 @@ class ShapefileManager:
             self.logger.info(f"Checking CRS for {shapefile_path.name}: {current_crs}")
 
             # Handle unique HRU IDs if requested
-            actual_hru_field = hru_id_field
+            actual_hru_field = hru_id_field or 'hru_id'
             if ensure_unique_ids and hru_id_field:
                 shapefile_path, actual_hru_field = self.ensure_unique_hru_ids(
                     shapefile_path, hru_id_field
@@ -88,7 +88,7 @@ class ShapefileManager:
                     wgs84_shapefile, ensure_unique_ids, actual_hru_field
                 )
                 if existing is not None:
-                    return existing
+                    return existing  # type: ignore
 
             # Convert to WGS84
             self.logger.info(f"Converting {shapefile_path.name} from {current_crs} to WGS84")
@@ -103,7 +103,8 @@ class ShapefileManager:
                     actual_saved_field = possible_fields[0]
                     self.logger.info(f"Using field '{actual_saved_field}' from WGS84 shapefile")
                     return wgs84_shapefile, actual_saved_field
-                return wgs84_shapefile, actual_hru_field
+                # actual_hru_field is guaranteed to be str at this point due to earlier initialization
+                return wgs84_shapefile, actual_hru_field  
 
             return wgs84_shapefile
 

@@ -656,6 +656,13 @@ Optional steps:
                     exit_code=0
                 )
 
+            return ToolResult(
+                success=False,
+                output="",
+                error=f"Unknown meta operation: {operation}",
+                exit_code=1
+            )
+
         except Exception as e:
             return ToolResult(
                 success=False,

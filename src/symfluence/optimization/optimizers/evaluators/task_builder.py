@@ -149,19 +149,26 @@ class TaskBuilder:
         if hasattr(self.param_manager, 'original_depths') and self.param_manager.original_depths is not None:
             original_depths = self.param_manager.original_depths.tolist()
 
+        # Determine target metric
+        target_metric = self.target_metric
+        if multiobjective:
+            assert objective_names is not None
+            target_metric = objective_names[0]
+
         task_dict = {
             'individual_id': individual_id,
             'params': params,
             'proc_id': proc_id,
             'evaluation_id': evaluation_id,
             'config': self.config,
-            'target_metric': self.target_metric if not multiobjective else objective_names[0],
+            'target_metric': target_metric,
             'calibration_variable': self.config.get('OPTIMIZATION_TARGET', self.config.get('CALIBRATION_VARIABLE', 'streamflow')),
             'domain_name': self.domain_name,
             'project_dir': str(self.project_dir),
             'proc_settings_dir': str(settings_dir),
             'proc_output_dir': str(output_dir),
             'proc_sim_dir': str(sim_dir),
+            'proc_forcing_dir': str(dirs.get('forcing_dir', '')),
             'summa_settings_dir': str(settings_dir),
             'mizuroute_settings_dir': mizuroute_settings_dir,
             'summa_dir': str(sim_dir),

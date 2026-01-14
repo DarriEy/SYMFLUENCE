@@ -6,7 +6,7 @@ Handles data loading and graph structure construction for the GNN model.
 """
 
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional, List
+from typing import Dict, Any, Tuple, Optional, List, List
 import pandas as pd
 import numpy as np
 import torch
@@ -45,12 +45,12 @@ class GNNPreprocessor(LSTMPreprocessor):
             or process_data().
         """
         super().__init__(config, logger, project_dir, device)
-        self.adj_matrix = None
-        self.node_mapping = {} # LINKNO -> Index
-        self.hru_to_node = {} # HRU_ID -> Index
-        self.ordered_hru_ids = []
-        self.outlet_indices = []
-        self.outlet_hru_ids = []
+        self.adj_matrix: Optional[torch.Tensor] = None
+        self.node_mapping: Dict[int, int] = {} # LINKNO -> Index
+        self.hru_to_node: Dict[Any, int] = {} # HRU_ID -> Index
+        self.ordered_hru_ids: List[Any] = []
+        self.outlet_indices: List[int] = []
+        self.outlet_hru_ids: List[Any] = []
 
     def load_graph_structure(self) -> torch.Tensor:
         """
@@ -146,6 +146,7 @@ class GNNPreprocessor(LSTMPreprocessor):
         
         self.logger.info(f"Graph constructed with {n_nodes} nodes and {len(rows)} edges.")
         
+        assert self.adj_matrix is not None
         return self.adj_matrix
 
     def process_data(
