@@ -17,6 +17,12 @@ from ..registry import AcquisitionRegistry
 from .era5_cds import ERA5CDSAcquirer
 from .era5_processing import era5_to_summa_schema
 from symfluence.geospatial.coordinate_utils import BoundingBox, get_bbox_extent
+from symfluence.core.validation import (
+    validate_bounding_box,
+    validate_numeric_range,
+    validate_netcdf_variables
+)
+from symfluence.core.exceptions import ValidationError, DataAcquisitionError
 
 def has_cds_credentials() -> bool:
     """
@@ -210,6 +216,19 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
             lambda: self.config.forcing.era5.time_step_hours, default=1
         )
         step = int(step)
+
+        # Validate time step parameter
+        validate_numeric_range(
+            step, min_val=1, max_val=24,
+            param_name="time_step_hours",
+            context="ERA5 acquisition"
+        )
+        if 24 % step != 0:
+            self.logger.warning(
+                f"time_step_hours ({step}) does not divide evenly into 24 hours. "
+                "This may cause irregular time intervals in the output."
+            )
+
         era5_start = self.start_date - pd.Timedelta(hours=step)
         era5_end = self.end_date
 
@@ -222,10 +241,27 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
             current_month_start = (current_month_start.replace(day=28) + pd.Timedelta(days=4)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         default_vars = ["2m_temperature", "2m_dewpoint_temperature", "10m_u_component_of_wind", "10m_v_component_of_wind", "surface_pressure", "total_precipitation", "surface_solar_radiation_downwards", "surface_thermal_radiation_downwards"]
+        # Critical variables required for hydrological modeling
+        critical_vars = ["2m_temperature", "total_precipitation", "surface_pressure"]
+
         requested_vars = self._get_config_value(
             lambda: self.config.forcing.era5.variables, default=default_vars
         ) or default_vars
         available_vars = [v for v in requested_vars if v in ds.data_vars]
+
+        # Validate that at least critical variables are available
+        if not available_vars:
+            raise DataAcquisitionError(
+                f"No requested ERA5 variables available in dataset. "
+                f"Requested: {requested_vars}. Available: {list(ds.data_vars)}"
+            )
+
+        missing_critical = [v for v in critical_vars if v not in available_vars]
+        if missing_critical:
+            self.logger.warning(
+                f"ERA5 dataset missing critical forcing variables: {missing_critical}. "
+                "Hydrological model may produce incomplete results."
+            )
 
         output_dir.mkdir(parents=True, exist_ok=True)
         chunk_files = []
@@ -397,7 +433,17 @@ def _process_era5_chunk_threadsafe(
         cf = out_dir / f"domain_{dom}_ERA5_merged_{start.year}{start.month:02d}.nc"
         ds_chunk.to_netcdf(cf, encoding={v: {"zlib": True, "complevel": 1, "chunksizes": (min(168, ds_chunk.sizes["time"]), ds_chunk.sizes["latitude"], ds_chunk.sizes["longitude"])} for v in ds_chunk.data_vars})
         return idx, cf, "success"
-    except Exception as e: return idx, None, str(e)
+    except KeyError as e:
+        return idx, None, f"missing variable or dimension: {e}"
+    except ValueError as e:
+        return idx, None, f"data value error: {e}"
+    except (OSError, IOError) as e:
+        return idx, None, f"file I/O error: {e}"
+    except MemoryError as e:
+        return idx, None, f"memory error (chunk may be too large): {e}"
+    except Exception as e:
+        # Log unexpected errors with full type information for debugging
+        return idx, None, f"unexpected error ({type(e).__name__}): {e}"
 
 
 def _prepare_bbox_for_era5(ds: xr.Dataset, bbox: Dict[str, float], logger: logging.Logger) -> Dict[str, float]:
@@ -449,6 +495,9 @@ def _prepare_bbox_for_era5(ds: xr.Dataset, bbox: Dict[str, float], logger: loggi
         >>> result['lat_min']  # ~49.925 (expanded)
         >>> result['lon_min']  # 245.0 (normalized to 0-360)
     """
+    # Validate bounding box before processing
+    validate_bounding_box(bbox, context="ERA5 data acquisition", logger=logger)
+
     bbox_obj = BoundingBox(
         lat_min=float(bbox["lat_min"]),
         lat_max=float(bbox["lat_max"]),

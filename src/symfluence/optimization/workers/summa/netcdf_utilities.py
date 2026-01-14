@@ -8,15 +8,19 @@ This module contains functions for handling NetCDF time precision issues
 and converting SUMMA output formats for mizuRoute compatibility.
 """
 
+import logging
 import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
 import xarray as xr
+
+# Module-level logger for standalone function calls
+_logger = logging.getLogger(__name__)
 
 
 def fix_summa_time_precision_inplace(input_file: Path, logger=None) -> None:
@@ -65,18 +69,19 @@ def fix_summa_time_precision_inplace(input_file: Path, logger=None) -> None:
         fix_summa_time_precision(input_file, None)
 
 
-def fix_summa_time_precision(input_file, output_file=None):
+def fix_summa_time_precision(input_file, output_file=None, logger: Optional[logging.Logger] = None):
     """
     Round SUMMA time dimension to nearest hour to fix mizuRoute compatibility
     Fixed to handle timezone mismatch issues
     """
-    print(f"Opening {input_file}")
+    log = logger or _logger
+    log.debug(f"Opening {input_file}")
 
     try:
         # Open without decoding times to avoid conflicts
         ds = xr.open_dataset(input_file, decode_times=False)
 
-        print(f"Original time range: {ds.time.min().values} to {ds.time.max().values}")
+        log.debug(f"Original time range: {ds.time.min().values} to {ds.time.max().values}")
 
         # Convert to datetime, round, then convert back
         time_vals = ds.time.values
@@ -84,7 +89,7 @@ def fix_summa_time_precision(input_file, output_file=None):
         # First convert the time values to actual timestamps
         if 'units' in ds.time.attrs:
             time_units = ds.time.attrs['units']
-            print(f"Original time units: {time_units}")
+            log.debug(f"Original time units: {time_units}")
 
             # Parse the reference time
             if 'since' in time_units:
@@ -117,7 +122,7 @@ def fix_summa_time_precision(input_file, output_file=None):
 
         # Round to nearest hour
         rounded_timestamps = timestamps.round('h')
-        print(f"Rounded time range: {rounded_timestamps.min()} to {rounded_timestamps.max()}")
+        log.debug(f"Rounded time range: {rounded_timestamps.min()} to {rounded_timestamps.max()}")
 
         # FIX: Ensure both timestamps are timezone-naive for consistent calculation
         ref_time_calc = pd.Timestamp('1990-01-01')
@@ -125,7 +130,7 @@ def fix_summa_time_precision(input_file, output_file=None):
         # Remove timezone from rounded_timestamps if present
         if rounded_timestamps.tz is not None:
             rounded_timestamps = rounded_timestamps.tz_localize(None)
-            print("Removed timezone from rounded timestamps")
+            log.debug("Removed timezone from rounded timestamps")
 
         # Convert back to hours since reference time
         rounded_hours = (rounded_timestamps - ref_time_calc).total_seconds() / 3600.0
@@ -157,7 +162,7 @@ def fix_summa_time_precision(input_file, output_file=None):
 
         # Determine output path
         output_path = output_file if output_file else input_file
-        print(f"Saving to {output_path}")
+        log.debug(f"Saving to {output_path}")
 
         # Write to temporary file first, then move to final location
         temp_file = None
@@ -179,19 +184,19 @@ def fix_summa_time_precision(input_file, output_file=None):
             shutil.move(temp_file, output_path)
             temp_file = None  # Successfully moved
 
-            print("Done!")
+            log.debug("Time precision fix completed successfully")
 
         except Exception as e:
             # Clean up temp file if it exists
             if temp_file and os.path.exists(temp_file):
                 try:
                     os.unlink(temp_file)
-                except:
-                    pass
+                except OSError as cleanup_err:
+                    log.warning(f"Could not remove temp file {temp_file}: {cleanup_err}")
             raise e
 
     except Exception as e:
-        print(f"Error fixing time precision: {e}")
+        log.error(f"Error fixing time precision: {e}")
         raise
 
 
@@ -350,8 +355,8 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
             if temp_file and temp_file.exists():
                 try:
                     temp_file.unlink()
-                except:
-                    pass
+                except OSError as cleanup_err:
+                    logger.warning(f"Could not remove temp file {temp_file}: {cleanup_err}")
             raise e
 
     except Exception as e:

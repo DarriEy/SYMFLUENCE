@@ -13,11 +13,12 @@ Handles:
 Refactored from geofabric_utils.py (2026-01-01)
 """
 
+import shlex
 import subprocess
 import shutil
 import time
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 class TauDEMExecutor:
@@ -99,30 +100,39 @@ class TauDEMExecutor:
                 # Check if command already has MPI prefix to avoid double prefixing
                 has_mpi_prefix = any(cmd in command for cmd in ["mpirun", "srun"])
 
-                if run_cmd and "module load" in command:
-                    # Handle commands with module load specially
+                # Determine if shell execution is required
+                # module load is a shell function and requires shell=True
+                needs_shell = "module load" in command
+
+                if run_cmd and needs_shell:
+                    # Handle commands with module load specially - requires shell=True
+                    # Security note: module load commands require shell execution
+                    # as 'module' is a shell function, not an executable
                     parts = command.split(" && ")
                     if len(parts) == 2:
                         module_part = parts[0]
                         actual_cmd = parts[1]
                         if not has_mpi_prefix:
-                            full_command = f"{module_part} && {run_cmd} -n {self.mpi_processes} {actual_cmd}"
+                            full_command: Union[str, List[str]] = f"{module_part} && {run_cmd} -n {self.mpi_processes} {actual_cmd}"
                         else:
                             full_command = command
                     else:
                         full_command = command
                 elif run_cmd and not has_mpi_prefix:
-                    # Add MPI prefix for regular commands
-                    full_command = f"{run_cmd} -n {self.mpi_processes} {command}"
+                    # Add MPI prefix for regular commands - use list format
+                    full_command = [run_cmd, "-n", str(self.mpi_processes)] + shlex.split(command)
+                elif has_mpi_prefix:
+                    # Command already has MPI prefix - parse with shlex
+                    full_command = shlex.split(command)
                 else:
-                    # Command already has MPI prefix or no MPI launcher available
-                    full_command = command
+                    # No MPI launcher available - parse with shlex
+                    full_command = shlex.split(command)
 
                 self.logger.debug(f"Running command: {full_command}")
                 result = subprocess.run(
                     full_command,
                     check=True,
-                    shell=True,
+                    shell=needs_shell,
                     capture_output=True,
                     text=True
                 )

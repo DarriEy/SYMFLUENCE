@@ -99,11 +99,11 @@ class ModelExecutor:
             log_dir.mkdir(parents=True, exist_ok=True)
             
             # Run SUMMA
-            cmd = f"{summa_exe} -m {file_manager}"
+            cmd = [str(summa_exe), "-m", str(file_manager)]
             log_file = log_dir / f"summa_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-            
+
             with open(log_file, 'w') as f:
-                result = subprocess.run(cmd, shell=True, stdout=f, stderr=subprocess.STDOUT, 
+                result = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT,
                                       check=True, timeout=10800)
             
             return True
@@ -170,11 +170,11 @@ class ModelExecutor:
             log_dir.mkdir(parents=True, exist_ok=True)
             
             # Run mizuRoute
-            cmd = f"{mizu_exe} {control_file}"
+            cmd = [str(mizu_exe), str(control_file)]
             log_file = log_dir / f"mizuroute_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-            
+
             with open(log_file, 'w') as f:
-                result = subprocess.run(cmd, shell=True, stdout=f, stderr=subprocess.STDOUT, 
+                result = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT,
                                       check=True, timeout=1800, cwd=str(settings_dir))
             
             return True

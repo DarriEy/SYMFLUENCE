@@ -584,8 +584,8 @@ class CoastalWatershedDelineator(BaseGeofabricDelineator):
                 try:
                     # For newer geopandas versions
                     remaining_gdf = remaining_gdf.explode(index_parts=True).reset_index(drop=True)
-                except:
-                    # For older geopandas versions
+                except TypeError:
+                    # For older geopandas versions that don't support index_parts
                     remaining_gdf = remaining_gdf.explode().reset_index(drop=True)
 
                 # For each remaining polygon, find the nearest basin

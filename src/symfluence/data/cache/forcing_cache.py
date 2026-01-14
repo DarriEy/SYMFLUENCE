@@ -281,8 +281,12 @@ class RawForcingCache:
                     meta = json.load(f)
                     dataset = meta.get("dataset", "unknown")
                     datasets[dataset] = datasets.get(dataset, 0) + 1
-            except Exception:
-                pass
+            except json.JSONDecodeError as e:
+                logger.warning(f"Corrupted cache metadata (JSON error) at {meta_file}: {e}")
+            except (OSError, IOError) as e:
+                logger.warning(f"Could not read cache metadata at {meta_file}: {e}")
+            except Exception as e:
+                logger.warning(f"Unexpected error reading cache metadata at {meta_file}: {e}")
 
         return {
             "cache_root": str(self.cache_root),
@@ -356,8 +360,16 @@ class RawForcingCache:
                     cache_key = meta.get("cache_key")
                     created_at = datetime.fromisoformat(meta["created_at"])
                     entries.append((created_at, cache_key))
-            except Exception:
-                # Remove corrupted metadata
+            except json.JSONDecodeError as e:
+                logger.warning(f"Removing corrupted cache metadata (JSON error) at {meta_file}: {e}")
+                meta_file.unlink(missing_ok=True)
+            except KeyError as e:
+                logger.warning(f"Removing incomplete cache metadata (missing key {e}) at {meta_file}")
+                meta_file.unlink(missing_ok=True)
+            except (OSError, IOError) as e:
+                logger.warning(f"Could not read/remove cache metadata at {meta_file}: {e}")
+            except Exception as e:
+                logger.warning(f"Unexpected error processing cache metadata at {meta_file}: {e}")
                 meta_file.unlink(missing_ok=True)
 
         # Sort by age (oldest first)

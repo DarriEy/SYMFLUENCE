@@ -164,18 +164,19 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
             logger.warning(f"Failed to update file manager paths: {e}")
             # Continue anyway, hoping it works or fails later
 
-        # Build command
-        cmd = f"{summa_exe_str} -m {file_manager_str}"
+        # Build command as list to avoid shell=True security concerns
+        cmd = [summa_exe_str, "-m", file_manager_str]
+        cmd_str = " ".join(cmd)
 
-        logger.info(f"Executing SUMMA command: {cmd}")
+        logger.info(f"Executing SUMMA command: {cmd_str}")
         logger.debug(f"Working directory: {summa_dir}")
 
-        debug_info['commands_run'].append(f"SUMMA: {cmd}")
+        debug_info['commands_run'].append(f"SUMMA: {cmd_str}")
 
         # Run SUMMA
         with open(log_file, 'w') as f:
             f.write("SUMMA Execution Log\n")
-            f.write(f"Command: {cmd}\n")
+            f.write(f"Command: {cmd_str}\n")
             f.write(f"Working Directory: {summa_dir}\n")
             f.write(f"Environment: OMP_NUM_THREADS={env.get('OMP_NUM_THREADS', 'unset')}\n")
             f.write("=" * 50 + "\n")
@@ -183,7 +184,6 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
 
             result = subprocess.run(
                 cmd,
-                shell=True,
                 stdout=f,
                 stderr=subprocess.STDOUT,
                 check=True,
@@ -289,24 +289,24 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / f"mizuroute_worker_{os.getpid()}.log"
 
-        # Build command
-        cmd = f"{mizu_exe} {control_file}"
+        # Build command as list to avoid shell=True security concerns
+        cmd = [str(mizu_exe), str(control_file)]
+        cmd_str = " ".join(cmd)
 
-        logger.info(f"Executing mizuRoute command: {cmd}")
-        debug_info['commands_run'].append(f"mizuRoute: {cmd}")
+        logger.info(f"Executing mizuRoute command: {cmd_str}")
+        debug_info['commands_run'].append(f"mizuRoute: {cmd_str}")
         debug_info['mizuroute_log'] = str(log_file)
 
         # Run mizuRoute
         with open(log_file, 'w') as f:
             f.write("mizuRoute Execution Log\n")
-            f.write(f"Command: {cmd}\n")
+            f.write(f"Command: {cmd_str}\n")
             f.write(f"Working Directory: {control_file.parent}\n")
             f.write("=" * 50 + "\n")
             f.flush()
 
             result = subprocess.run(
                 cmd,
-                shell=True,
                 stdout=f,
                 stderr=subprocess.STDOUT,
                 check=True,

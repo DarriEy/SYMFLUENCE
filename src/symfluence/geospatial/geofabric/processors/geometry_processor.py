@@ -35,7 +35,8 @@ class GeometryProcessor:
             return None
         try:
             return geometry.buffer(0)
-        except:
+        except (ValueError, AttributeError, Exception) as e:
+            # Shapely geometry operations can raise various errors
             return None
 
     @staticmethod
@@ -52,7 +53,8 @@ class GeometryProcessor:
         """
         try:
             return geometry.simplify(tolerance, preserve_topology=True)
-        except:
+        except (ValueError, AttributeError, Exception):
+            # Return original geometry if simplification fails
             return geometry
 
     @staticmethod

@@ -29,12 +29,35 @@ logger = logging.getLogger(__name__)
 BBox = Dict[str, float]  # {'lat_min': ..., 'lat_max': ..., 'lon_min': ..., 'lon_max': ...}
 
 
-def validate_bbox(bbox: BBox) -> None:
-    """Validate bounding box has required keys."""
-    required = {'lat_min', 'lat_max', 'lon_min', 'lon_max'}
-    missing = required - set(bbox.keys())
-    if missing:
-        raise ValueError(f"Bounding box missing keys: {missing}")
+def validate_bbox(
+    bbox: BBox,
+    context: str = "spatial operation",
+    comprehensive: bool = True
+) -> BBox:
+    """
+    Validate bounding box has required keys and valid values.
+
+    Args:
+        bbox: Bounding box dictionary
+        context: Context for error messages
+        comprehensive: If True, validate ranges and warn about edge cases
+
+    Returns:
+        The validated bbox
+
+    Raises:
+        ValueError: If bbox is invalid
+    """
+    if comprehensive:
+        from symfluence.core.validation import validate_bounding_box
+        return validate_bounding_box(bbox, context=context, logger=logger)
+    else:
+        # Basic validation only (keys)
+        required = {'lat_min', 'lat_max', 'lon_min', 'lon_max'}
+        missing = required - set(bbox.keys())
+        if missing:
+            raise ValueError(f"Bounding box missing keys: {missing}")
+        return bbox
 
 
 # =============================================================================

@@ -297,8 +297,8 @@ def _generate_trial_params_worker(params: Dict, settings_dir: Path, logger, debu
                 if 'temp_path' in locals() and temp_path.exists():
                     try:
                         temp_path.unlink()
-                    except:
-                        pass
+                    except (OSError, PermissionError):
+                        pass  # Best-effort cleanup, non-critical
 
                 if attempt < max_retries - 1:
                     # Exponential backoff with jitter

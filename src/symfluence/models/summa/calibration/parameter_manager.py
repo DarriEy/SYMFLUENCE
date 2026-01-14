@@ -469,7 +469,8 @@ class SUMMAParameterManager(BaseParameterManager):
             with xr.open_dataset(self.attr_file_path) as ds:
                 num_hrus = ds.sizes.get('hru', 1)
             return np.full(num_hrus, value)
-        except:
+        except (OSError, IOError, KeyError) as e:
+            self.logger.debug(f"Could not read HRU count from attributes, using single value: {e}")
             return np.array([value])
 
     # ========================================================================

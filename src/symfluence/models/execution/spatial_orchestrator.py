@@ -26,6 +26,7 @@ Usage:
 """
 
 import shutil
+import subprocess
 import tempfile
 from abc import ABC
 from dataclasses import dataclass
@@ -35,6 +36,12 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import xarray as xr
+
+from symfluence.core.exceptions import (
+    ModelExecutionError,
+    GeospatialError,
+    FileOperationError
+)
 
 
 class SpatialMode(Enum):
@@ -530,8 +537,23 @@ class SpatialOrchestrator(ABC):
                 self.logger.warning(f"Unknown routing model: {routing.model}")
                 return model_output
 
-        except Exception as e:
+        except FileNotFoundError as e:
+            self.logger.error(f"Routing failed - required file not found: {e}")
+            return None
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Routing subprocess failed with exit code {e.returncode}: {e}")
+            return None
+        except (OSError, IOError) as e:
+            self.logger.error(f"Routing failed - I/O error: {e}")
+            return None
+        except ValueError as e:
+            self.logger.error(f"Routing failed - invalid data or configuration: {e}")
+            return None
+        except (ModelExecutionError, GeospatialError) as e:
             self.logger.error(f"Routing failed: {e}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Routing failed with unexpected error ({type(e).__name__}): {e}")
             return None
 
     def _run_mizuroute(
@@ -714,13 +736,28 @@ class SpatialOrchestrator(ABC):
 
         try:
             gdf = gpd.read_file(shapefile_path)
+            if gdf.empty:
+                self.logger.warning(f"Shapefile is empty: {shapefile_path}")
+                return 1
             gru_col = self.config_dict.get('CATCHMENT_SHP_GRUID', 'GRU_ID')
             if gru_col in gdf.columns:
                 return len(gdf[gru_col].unique())
             else:
                 return len(gdf)
+        except FileNotFoundError as e:
+            self.logger.error(f"Shapefile not found: {e}")
+            return 1
+        except (OSError, IOError) as e:
+            self.logger.error(f"Could not read shapefile (I/O error): {e}")
+            return 1
+        except ValueError as e:
+            self.logger.error(f"Invalid shapefile format: {e}")
+            return 1
+        except KeyError as e:
+            self.logger.error(f"Missing expected column in shapefile: {e}")
+            return 1
         except Exception as e:
-            self.logger.error(f"Error reading shapefile: {e}")
+            self.logger.error(f"Unexpected error reading shapefile ({type(e).__name__}): {e}")
             return 1
 
     def normalize_spatial_output(
