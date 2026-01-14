@@ -465,8 +465,8 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 dat['hruId'] = dat['hruId'].astype('int32')
 
             # Prepare encoding with time coordinate fix
-            encoding = {
-                var: {'zlib': True, 'complevel': 1, 'shuffle': True}
+            encoding: Dict[str, Any] = {
+                str(var): {'zlib': True, 'complevel': 1, 'shuffle': True}
                 for var in dat.data_vars
             }
 

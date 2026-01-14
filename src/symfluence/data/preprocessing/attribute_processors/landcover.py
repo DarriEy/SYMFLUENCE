@@ -59,7 +59,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
         Returns:
             Dict[str, Any]: Dictionary of land cover attributes
         """
-        results = {}
+        results: Dict[str, Any] = {}
 
         # Define path to GLCLU2019 data
         glclu_path = Path("/work/comphyd_lab/data/_to-be-moved/NorthAmerica_geospatial/glclu2019/raw")
@@ -201,7 +201,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
         Returns:
             Dict[str, Any]: Dictionary of LAI attributes
         """
-        results = {}
+        results: Dict[str, Any] = {}
 
         lai_path = Path("/work/comphyd_lab/data/_to-be-moved/NorthAmerica_geospatial/lai/monthly_average_2013_2023")
         use_water_mask = self.config.get('USE_WATER_MASKED_LAI', True)

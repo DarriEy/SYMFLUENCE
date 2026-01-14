@@ -63,7 +63,7 @@ def calculate_wind_speed(u: xr.DataArray, v: xr.DataArray) -> xr.DataArray:
     Returns:
         Wind speed magnitude (m/s)
     """
-    windspd = np.sqrt(u**2 + v**2).astype('float32')
+    windspd = ((u**2 + v**2)**0.5).astype('float32')
     windspd.attrs = SUMMA_VARIABLE_ATTRS['windspd']
     return windspd
 

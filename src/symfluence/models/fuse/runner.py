@@ -10,7 +10,7 @@ import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import xarray as xr
@@ -90,6 +90,7 @@ class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConv
                 logger=self.logger,
                 config=self.config  # Pass typed config
             )
+        assert self._subcatchment_processor is not None
         return self._subcatchment_processor
 
     def _get_fuse_file_id(self) -> str:

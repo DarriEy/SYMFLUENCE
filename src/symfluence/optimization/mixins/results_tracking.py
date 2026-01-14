@@ -161,7 +161,7 @@ class ResultsTrackingMixin:
         metric_name: str = 'KGE',
         experiment_id: Optional[str] = None,
         standard_filename: bool = False
-    ) -> Path:
+    ) -> Optional[Path]:
         """
         Save optimization results to a CSV file.
 
@@ -204,7 +204,7 @@ class ResultsTrackingMixin:
         self,
         algorithm: str,
         experiment_id: Optional[str] = None
-    ) -> Path:
+    ) -> Optional[Path]:
         """
         Save best parameters to a JSON file.
 
@@ -334,7 +334,7 @@ class ResultsTrackingMixin:
         self,
         algorithm: str,
         experiment_id: Optional[str] = None
-    ) -> Path:
+    ) -> Optional[Path]:
         """
         Save Pareto front to a CSV file.
 

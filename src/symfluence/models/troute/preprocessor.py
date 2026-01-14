@@ -8,9 +8,10 @@ import os
 import yaml
 import netCDF4 as nc4
 import geopandas as gpd
+from pathlib import Path
 from shutil import copyfile
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict, List, Optional
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelPreProcessor
@@ -42,10 +43,13 @@ class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         self.create_troute_yaml_config()
         self.logger.info("--- t-route Preprocessing Completed Successfully ---")
 
-    def copy_base_settings(self):
+    def copy_base_settings(self, source_dir: Optional[Path] = None, file_patterns: Optional[List[str]] = None):
         """Copies base settings for t-route from package data."""
         self.logger.info("Copying t-route base settings...")
         from symfluence.resources import get_base_settings_dir
+
+        if source_dir:
+            return super().copy_base_settings(source_dir, file_patterns)
 
         try:
             base_settings_path = get_base_settings_dir('troute')

@@ -7,7 +7,7 @@ hydrological variables based on meteorological forcings.
 """
 
 from pathlib import Path
-from typing import List, Dict
+from typing import cast, List, Dict
 import pandas as pd
 import xarray as xr
 
@@ -108,7 +108,7 @@ class LSTMResultExtractor(ModelResultExtractor):
                                 # Select specific HRU
                                 var = var.isel({spatial_dims[0]: hru_index})
 
-                    return var.to_pandas()
+                    return cast(pd.Series, var.to_pandas())
 
             raise ValueError(
                 f"No suitable variable found for '{variable_type}' in {output_file}. "

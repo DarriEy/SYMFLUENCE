@@ -297,7 +297,7 @@ class SUMMAWorker(BaseWorker):
         output_dir: Path,
         config: Dict[str, Any],
         **kwargs
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """
         Calculate metrics from SUMMA output.
 
@@ -342,7 +342,7 @@ class SUMMAWorker(BaseWorker):
         self,
         output_dir: Path,
         config: Dict[str, Any]
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """
         Calculate metrics directly from output files.
 

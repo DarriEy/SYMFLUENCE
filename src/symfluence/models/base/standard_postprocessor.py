@@ -16,7 +16,7 @@ Usage:
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import cast, Dict, Any, Optional
 import pandas as pd
 import xarray as xr
 
@@ -299,7 +299,7 @@ class RoutedModelPostprocessor(StandardModelPostprocessor):
                 ds_selected = ds.isel(seg=-1)
 
             # Extract routing variable
-            streamflow = ds_selected[self.routing_variable].to_pandas()
+            streamflow = cast(pd.Series, ds_selected[self.routing_variable].to_pandas())
 
             # Round index to hour for proper resampling
             if hasattr(streamflow.index, 'round'):

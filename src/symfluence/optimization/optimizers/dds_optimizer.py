@@ -7,7 +7,7 @@ calibration problems with many parameters and limited function evaluations.
 
 import numpy as np
 import logging
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
 
 class DDSOptimizer(BaseOptimizer):
@@ -86,8 +86,8 @@ class DDSOptimizer(BaseOptimizer):
             'DDS_R', default=0.2,
             typed=lambda: self._config.optimization.dds.r if self._config and self._config.optimization.dds else None
         )
-        self.population = None
-        self.population_scores = None
+        self.population: Optional[np.ndarray] = None
+        self.population_scores: Optional[np.ndarray] = None
 
     def get_algorithm_name(self) -> str:
         """Return algorithm name."""
@@ -115,6 +115,9 @@ class DDSOptimizer(BaseOptimizer):
         self.population = np.random.random((1, param_count))
         self.population_scores = np.full(1, np.nan, dtype=float)
         
+        assert self.population is not None
+        assert self.population_scores is not None
+
         if initial_params:
             initial_normalized = self.parameter_manager.normalize_parameters(initial_params)
             self.population[0] = np.clip(initial_normalized, 0, 1)
@@ -164,6 +167,10 @@ class DDSOptimizer(BaseOptimizer):
         Returns:
             Tuple of (best_params, best_score, iteration_history)
         """
+        assert self.population is not None
+        assert self.population_scores is not None
+        assert self.best_score is not None
+
         current_solution = self.population[0].copy()
         current_score = self.population_scores[0]
         num_params = len(self.parameter_manager.all_param_names)
@@ -293,6 +300,7 @@ class DDSOptimizer(BaseOptimizer):
         }
 
     def _record_generation(self, generation: int) -> None:
+        assert self.population_scores is not None
         valid_scores = self.population_scores[~np.isnan(self.population_scores)]
         self.iteration_history.append({
             'generation': generation, 'algorithm': 'DDS', 'best_score': self.best_score,

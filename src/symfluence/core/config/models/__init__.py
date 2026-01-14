@@ -59,7 +59,6 @@ from .optimization import (
     SCEUAConfig,
     NSGA2Config,
     DPEConfig,
-    LargeDomainConfig,
     EmulationConfig,
 )
 
@@ -122,7 +121,6 @@ __all__ = [
     "SCEUAConfig",
     "NSGA2Config",
     "DPEConfig",
-    "LargeDomainConfig",
     "EmulationConfig",
     # Evaluation
     "EvaluationConfig",

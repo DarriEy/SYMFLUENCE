@@ -57,12 +57,16 @@ class JobCommands(BaseCommand):
             if workflow_args:
                 BaseCommand._console.indent(f"Workflow command: symfluence {' '.join(workflow_args)}")
 
+            # Build execution plan
+            execution_plan = {
+                'config_file': BaseCommand.get_config_path(args),
+                'job_mode': 'workflow',
+                'job_steps': workflow_args,
+                'slurm_options': slurm_options
+            }
+
             # Submit the job
-            success = job_scheduler.submit_slurm_job(
-                config_path=BaseCommand.get_config_path(args),
-                workflow_command=workflow_args,
-                **slurm_options
-            )
+            success = job_scheduler.handle_slurm_job_submission(execution_plan)
 
             if success:
                 BaseCommand._console.success("SLURM job submitted successfully")

@@ -12,7 +12,7 @@ import pandas as pd
 import xarray as xr
 import geopandas as gpd
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any, Dict, List, Optional
 from shutil import copyfile
 
 from symfluence.models.registry import ModelRegistry
@@ -203,8 +203,10 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             ngen_dirs.extend(additional_dirs)
         super().create_directories(additional_dirs=ngen_dirs)
 
-    def copy_base_settings(self):
+    def copy_base_settings(self, source_dir: Optional[Path] = None, file_patterns: Optional[List[str]] = None):
         """Override to copy Noah-OWP parameter tables."""
+        if source_dir:
+            return super().copy_base_settings(source_dir, file_patterns)
         self._copy_noah_parameter_tables()
 
     def _prepare_forcing(self) -> None:
@@ -340,7 +342,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         features = []
         for _, row in geojson_gdf.iterrows():
             # Build properties dict, handling NaN values
-            props = {}
+            props: Dict[str, Any] = {}
             for k, v in row.drop('geometry').to_dict().items():
                 if isinstance(v, float) and np.isnan(v):
                     props[k] = None

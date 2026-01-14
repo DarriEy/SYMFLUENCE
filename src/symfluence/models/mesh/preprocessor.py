@@ -98,6 +98,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self._meshflow_config,
                 self.logger
             )
+        assert self._meshflow_manager is not None
         return self._meshflow_manager
 
     @property
@@ -118,6 +119,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self.config_dict,
                 self.logger
             )
+        assert self._drainage_database is not None
         return self._drainage_database
 
     @property
@@ -136,6 +138,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self.logger,
                 self.get_simulation_time_window
             )
+        assert self._parameter_fixer is not None
         return self._parameter_fixer
 
     @property
@@ -154,6 +157,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self.logger,
                 self.get_simulation_time_window
             )
+        assert self._config_generator is not None
         return self._config_generator
 
     @property
@@ -170,6 +174,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self._meshflow_config,
                 self.logger
             )
+        assert self._forcing_processor is not None
         return self._forcing_processor
 
     @property
@@ -187,6 +192,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self.config_dict,
                 self.logger
             )
+        assert self._data_preprocessor is not None
         return self._data_preprocessor
 
     def _get_spatial_mode(self) -> str:
@@ -422,6 +428,8 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         Raises:
             ModelExecutionError: If meshflow library is not available.
         """
+        assert self._meshflow_config is not None
+
         if not MESHFlowManager.is_available():
             from symfluence.core.exceptions import ModelExecutionError
             raise ModelExecutionError(

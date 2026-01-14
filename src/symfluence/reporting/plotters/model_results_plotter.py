@@ -124,7 +124,7 @@ class ModelResultsPlotter(BasePlotter):
         import xarray as xr  # type: ignore
         import geopandas as gpd  # type: ignore
 
-        plot_paths = {}
+        plot_paths: Dict[str, str] = {}
         try:
             summa_file = self.project_dir / "simulations" / experiment_id / "SUMMA" / f"{experiment_id}_day.nc"
             if not summa_file.exists():
@@ -167,7 +167,7 @@ class ModelResultsPlotter(BasePlotter):
 
                 plot_file = plot_dir / f'{var_name}.png'
                 self._save_and_close(fig, plot_file)
-                plot_paths[var_name] = str(plot_file)
+                plot_paths[str(var_name)] = str(plot_file)
 
             ds.close()
 
@@ -457,5 +457,6 @@ class ModelResultsPlotter(BasePlotter):
         Delegates based on provided kwargs.
         """
         if 'experiment_id' in kwargs:
-            return self.plot_summa_outputs(kwargs['experiment_id'])
+            results = self.plot_summa_outputs(kwargs['experiment_id'])
+            return str(list(results.values())[0]) if results else None
         return None

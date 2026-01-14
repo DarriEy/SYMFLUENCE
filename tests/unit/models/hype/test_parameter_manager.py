@@ -103,8 +103,8 @@ class TestHYPEParameterManager:
         # cmlt bounds: 1.0 to 15.0, midpoint should be 8.0
         assert abs(defaults['cmlt'] - 8.0) < 1e-6
 
-        # cevp bounds: 0.0 to 1.0, midpoint should be 0.5
-        assert abs(defaults['cevp'] - 0.5) < 1e-6
+        # cevp bounds: 0.1 to 1.0, midpoint should be 0.55
+        assert abs(defaults['cevp'] - 0.55) < 1e-6
 
     def test_update_par_file_creates_warning_if_missing(self, hype_config, logger, temp_dir, caplog):
         """Test that update_par_file handles missing file gracefully."""

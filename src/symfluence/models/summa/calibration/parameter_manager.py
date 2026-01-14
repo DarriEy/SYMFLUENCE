@@ -312,7 +312,7 @@ class SUMMAParameterManager(BaseParameterManager):
 
     def _parse_param_info_file(self, file_path: Path, param_names: List[str]) -> Dict[str, Dict[str, float]]:
         """Parse parameter bounds from a SUMMA parameter info file."""
-        bounds = {}
+        bounds: Dict[str, Dict[str, float]] = {}
 
         if not file_path.exists():
             self.logger.error(f"Parameter file not found: {file_path}")
@@ -401,7 +401,7 @@ class SUMMAParameterManager(BaseParameterManager):
 
     def _parse_defaults_from_file(self, file_path: Path, param_names: List[str]) -> Dict[str, np.ndarray]:
         """Parse default values from parameter info file."""
-        defaults = {}
+        defaults: Dict[str, np.ndarray] = {}
 
         if not file_path.exists():
             return defaults

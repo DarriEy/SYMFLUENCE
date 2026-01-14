@@ -9,7 +9,7 @@ in worker processes, supporting multi-target optimization.
 """
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Any
 
 import numpy as np
 import pandas as pd
@@ -105,7 +105,7 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
                     if 'HRUarea' in attrs.data_vars:
                         catchment_area_m2 = float(attrs['HRUarea'].values.sum())
                         if 0 < catchment_area_m2 < 1e12:  # Reasonable area check
-                            logger.warning(f"WORKER DEBUG: Using catchment area from SUMMA attributes: {catchment_area_m2:.0f} m²")
+                            logger.debug(f"Using catchment area from SUMMA attributes: {catchment_area_m2:.0f} m²")
                             return catchment_area_m2
                     else:
                         logger.debug("HRUarea not found in SUMMA attributes file")
@@ -180,7 +180,7 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
     return 1e6
 
 
-def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config: Dict, logger, project_dir: str = None) -> Dict:
+def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config: Dict, logger, project_dir: str = None) -> Optional[Dict[Any, Any]]:
     """
     Calculate metrics using proper CalibrationTarget classes.
 
@@ -272,7 +272,7 @@ def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config:
         return None
 
 
-def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, config: Dict, logger) -> Dict:
+def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, config: Dict, logger) -> Optional[Dict[Any, Any]]:
     """
     Calculate metrics inline without using CalibrationTarget classes (STREAMFLOW ONLY).
 
@@ -282,12 +282,11 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
     try:
         import xarray as xr
 
-        logger.warning("WORKER DEBUG: Starting inline metrics calculation")
         logger.debug("Starting inline metrics calculation")
-        logger.warning(f"WORKER DEBUG: SUMMA dir: {summa_dir}")
-        logger.warning(f"WORKER DEBUG: mizuRoute dir: {mizuroute_dir}")
-        logger.warning(f"WORKER DEBUG: SUMMA dir exists: {summa_dir.exists()}")
-        logger.warning(f"WORKER DEBUG: mizuRoute dir exists: {mizuroute_dir.exists() if mizuroute_dir else 'None'}")
+        logger.debug(f"SUMMA dir: {summa_dir}")
+        logger.debug(f"mizuRoute dir: {mizuroute_dir}")
+        logger.debug(f"SUMMA dir exists: {summa_dir.exists()}")
+        logger.debug(f"mizuRoute dir exists: {mizuroute_dir.exists() if mizuroute_dir else 'None'}")
 
         # Priority 1: Look for mizuRoute output files first (already in m³/s)
         sim_files = []
@@ -323,7 +322,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                     # Get the ACTUAL catchment area for unit conversion
                     try:
                         catchment_area = _get_catchment_area_worker(config, logger)
-                        logger.warning(f"WORKER DEBUG: Got catchment area = {catchment_area:.2e} m²")
+                        logger.debug(f"Got catchment area = {catchment_area:.2e} m²")
                     except Exception as e:
                         logger.debug(f"Error getting catchment area: {str(e)}")
                         catchment_area = 1e6  # Default fallback
@@ -333,11 +332,10 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
 
         # Check if we found any simulation files
         if not sim_files:
-            logger.warning("WORKER DEBUG: No simulation files found")
             logger.debug("No simulation files found")
             return None
 
-        logger.warning(f"WORKER DEBUG: Found {len(sim_files)} simulation files, use_mizuroute={use_mizuroute}")
+        logger.debug(f"Found {len(sim_files)} simulation files, use_mizuroute={use_mizuroute}")
 
         sim_file = sim_files[0]
         logger.debug(f"Using simulation file: {sim_file}")
@@ -375,7 +373,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                         else:
                             return None
 
-                        logger.warning(f"WORKER DEBUG: Extracted {routing_var} (mizuRoute), mean = {float(sim_data.mean().item()):.2f} m³/s")
+                        logger.debug(f"Extracted {routing_var} (mizuRoute), mean = {float(sim_data.mean().item()):.2f} m³/s")
 
                     except Exception as e:
                         logger.debug(f"Error extracting outlet segment from {routing_var}: {str(e)}")
@@ -470,23 +468,23 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                                         sim_data = var.to_pandas()
 
                                     # Convert units for SUMMA (m/s to m³/s) using ACTUAL catchment area
-                                    logger.warning(f"WORKER DEBUG: Converting {var_name} using catchment area = {catchment_area:.2e} m²")
-                                    logger.warning(f"WORKER DEBUG: Pre-conversion mean = {sim_data.mean():.2e}")
+                                    logger.debug(f"Converting {var_name} using catchment area = {catchment_area:.2e} m²")
+                                    logger.debug(f"Pre-conversion mean = {sim_data.mean():.2e}")
                                     sim_data = sim_data * catchment_area
-                                    logger.warning(f"WORKER DEBUG: Post-conversion mean = {float(sim_data.mean().item()):.2f} m³/s")
+                                    logger.debug(f"Post-conversion mean = {float(sim_data.mean().item()):.2f} m³/s")
 
                                 break
                             except Exception:
                                 continue
 
                     if sim_data is None:
-                        logger.warning("WORKER DEBUG: sim_data is None after trying all SUMMA variables")
+                        logger.debug("sim_data is None after trying all SUMMA variables")
                         return None
 
         except Exception as e:
-            logger.warning(f"WORKER DEBUG: Exception extracting simulated streamflow: {str(e)}")
+            logger.error(f"Exception extracting simulated streamflow: {str(e)}")
             import traceback
-            logger.warning(f"WORKER DEBUG: Traceback: {traceback.format_exc()}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
 
         # Load observed data
@@ -495,26 +493,26 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
             project_dir = Path(config.get('SYMFLUENCE_DATA_DIR')) / f"domain_{domain_name}"
             obs_path = project_dir / "observations" / "streamflow" / "preprocessed" / f"{domain_name}_streamflow_processed.csv"
 
-            logger.warning(f"WORKER DEBUG: Looking for observations at: {obs_path}")
+            logger.debug(f"Looking for observations at: {obs_path}")
             if not obs_path.exists():
-                logger.warning("WORKER DEBUG: Observation file does not exist")
+                logger.debug("Observation file does not exist")
                 return None
 
             obs_df = pd.read_csv(obs_path)
             date_col = next((col for col in obs_df.columns if any(term in col.lower() for term in ['date', 'time', 'datetime'])), None)
             flow_col = next((col for col in obs_df.columns if any(term in col.lower() for term in ['flow', 'discharge', 'q_', 'streamflow'])), None)
 
-            logger.warning(f"WORKER DEBUG: Found date_col={date_col}, flow_col={flow_col}")
+            logger.debug(f"Found date_col={date_col}, flow_col={flow_col}")
             if not date_col or not flow_col:
-                logger.warning("WORKER DEBUG: Missing date or flow column in observations")
+                logger.debug("Missing date or flow column in observations")
                 return None
 
             obs_df['DateTime'] = pd.to_datetime(obs_df[date_col])
             obs_df.set_index('DateTime', inplace=True)
             obs_data = obs_df[flow_col]
-            logger.warning(f"WORKER DEBUG: Loaded {len(obs_data)} observation points")
+            logger.debug(f"Loaded {len(obs_data)} observation points")
         except Exception as e:
-            logger.warning(f"WORKER DEBUG: Exception loading observations: {str(e)}")
+            logger.error(f"Exception loading observations: {str(e)}")
             return None
 
         # Filter to calibration period
@@ -535,8 +533,8 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                         sim_data.index = sim_data.index.round('h')
 
                     sim_mask = (sim_data.index >= start_date) & (sim_data.index <= end_date)
-                    sim_period = sim_data[sim_mask]
-                    logger.warning(f"WORKER DEBUG: After period filtering, sim_period mean = {float(sim_period.mean().item()):.2f}")
+                    sim_period = sim_data[sim_mask]  # type: ignore[index]
+                    logger.debug(f"After period filtering, sim_period mean = {float(sim_period.mean().item()):.2f}")
                 else:
                     obs_period = obs_data
                     sim_period = sim_data
@@ -558,15 +556,15 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
         if calibration_timestep != 'native':
             obs_period = resample_to_timestep(obs_period, calibration_timestep, logger)
             sim_period = resample_to_timestep(sim_period, calibration_timestep, logger)
-            logger.warning(f"WORKER DEBUG: After resampling, sim_period mean = {float(sim_period.mean().item()):.2f}")
+            logger.debug(f"After resampling, sim_period mean = {float(sim_period.mean().item()):.2f}")
 
         # Alignment
         common_idx = obs_period.index.intersection(sim_period.index)
-        logger.warning(f"WORKER DEBUG: obs_period has {len(obs_period)} points, sim_period has {len(sim_period)} points")
-        logger.warning(f"WORKER DEBUG: obs_period type: {type(obs_period)}, sim_period type: {type(sim_period)}")
-        logger.warning(f"WORKER DEBUG: Common index has {len(common_idx)} points")
+        logger.debug(f"obs_period has {len(obs_period)} points, sim_period has {len(sim_period)} points")
+        logger.debug(f"obs_period type: {type(obs_period)}, sim_period type: {type(sim_period)}")
+        logger.debug(f"Common index has {len(common_idx)} points")
         if len(common_idx) == 0:
-            logger.warning("WORKER DEBUG: No common timesteps between sim and obs")
+            logger.debug("No common timesteps between sim and obs")
             return None
 
         # Ensure we're working with Series
@@ -576,8 +574,8 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
             sim_period = sim_period.squeeze()
 
         obs_common = pd.to_numeric(obs_period.loc[common_idx], errors='coerce')
-        sim_common = pd.to_numeric(sim_period.loc[common_idx], errors='coerce')
-        logger.warning(f"WORKER DEBUG: After intersection, sim_common mean = {float(sim_common.mean().item()):.2f}")
+        sim_common = pd.to_numeric(sim_period.loc[common_idx], errors='coerce')  # type: ignore[call-overload]
+        logger.debug(f"After intersection, sim_common mean = {float(sim_common.mean().item()):.2f}")
 
         # Final cleaning
         valid = ~(obs_common.isna() | sim_common.isna() | (obs_common < -900) | (sim_common < -900))
@@ -603,7 +601,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
             mae = (obs_valid - sim_valid).abs().mean()
             pbias = 100 * (sim_valid.sum() - obs_valid.sum()) / obs_valid.sum() if obs_valid.sum() != 0 else np.nan
 
-            logger.warning(f"WORKER DEBUG: Final KGE = {kge:.4f} (obs_mean={mean_obs:.2f}, sim_mean={float(sim_valid.mean().item()):.2f})")
+            logger.debug(f"Final KGE = {kge:.4f} (obs_mean={mean_obs:.2f}, sim_mean={float(sim_valid.mean().item()):.2f})")
 
             return {
                 'Calib_NSE': nse, 'Calib_KGE': kge, 'Calib_RMSE': rmse, 'Calib_MAE': mae, 'Calib_PBIAS': pbias,
@@ -614,15 +612,15 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
             return None
 
     except ImportError as e:
-        logger.warning(f"WORKER DEBUG: Import error: {str(e)}")
+        logger.error(f"Import error: {str(e)}")
         return None
     except FileNotFoundError as e:
-        logger.warning(f"WORKER DEBUG: File not found error: {str(e)}")
+        logger.error(f"File not found error: {str(e)}")
         return None
     except Exception as e:
-        logger.warning(f"WORKER DEBUG: Error in inline metrics calculation: {str(e)}")
+        logger.error(f"Error in inline metrics calculation: {str(e)}")
         import traceback
-        logger.warning(f"WORKER DEBUG: Full traceback: {traceback.format_exc()}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         return None
 
 

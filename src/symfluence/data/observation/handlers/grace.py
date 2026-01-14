@@ -197,6 +197,6 @@ class GRACEHandler(BaseObservationHandler):
         return pd.to_datetime(ds.time.values)
 
     def _calculate_anomalies(self, ts: pd.Series) -> pd.Series:
-        baseline = ts.loc['2003-01-01':'2008-12-31']
+        baseline = ts.loc['2003-01-01':'2008-12-31']  # type: ignore[misc]
         mean = baseline.mean() if not baseline.empty else ts.mean()
         return ts - mean

@@ -6,7 +6,7 @@ Currently a placeholder; full implementation pending.
 """
 
 import logging
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, cast
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
 
 class SCEUAOptimizer(BaseOptimizer):
@@ -190,6 +190,8 @@ class SCEUAOptimizer(BaseOptimizer):
 
         # Get initial parameters as starting point
         best_params = self.parameter_manager.get_initial_parameters()
+        if best_params is None:
+            raise ValueError("Could not obtain initial parameters for SCE-UA")
 
         # Evaluate initial parameters to establish baseline
         norm_params = self.parameter_manager.normalize_parameters(best_params)
@@ -199,4 +201,4 @@ class SCEUAOptimizer(BaseOptimizer):
         history = [{'trial': 1, 'score': best_score, 'params': best_params,
                    'algorithm': 'SCE-UA', 'note': 'Placeholder implementation'}]
 
-        return best_params, best_score, history
+        return cast(Dict[Any, Any], best_params), best_score, cast(List[Any], history)

@@ -10,31 +10,32 @@ This module provides:
 """
 
 import sys as _sys
+from typing import Any
 
 # Fail-safe imports to allow partial loading
 try:
     from .forcing_resampler import ForcingResampler
 except ImportError as _e:
-    ForcingResampler = None
+    ForcingResampler: Any = None  # type: ignore
     print(f"WARNING: Failed to import ForcingResampler: {_e}", file=_sys.stderr)
 
 try:
     from .geospatial_statistics import GeospatialStatistics
 except ImportError as _e:
-    GeospatialStatistics = None
+    GeospatialStatistics: Any = None  # type: ignore
     print(f"WARNING: Failed to import GeospatialStatistics: {_e}", file=_sys.stderr)
 
 try:
     from .shapefile_manager import ShapefileManager
 except ImportError as _e:
-    ShapefileManager = None
+    ShapefileManager: Any = None  # type: ignore
     print(f"WARNING: Failed to import ShapefileManager: {_e}", file=_sys.stderr)
 
 try:
     from .elevation_calculator import ElevationCalculator, create_elevation_calculator
 except ImportError as _e:
-    ElevationCalculator = None
-    create_elevation_calculator = None
+    ElevationCalculator: Any = None  # type: ignore
+    create_elevation_calculator: Any = None  # type: ignore
     print(f"WARNING: Failed to import elevation_calculator: {_e}", file=_sys.stderr)
 
 try:
@@ -44,9 +45,9 @@ try:
         BatchProcessor,
     )
 except ImportError as _e:
-    RemappingWeightGenerator = None
-    RemappingWeightApplier = None
-    BatchProcessor = None
+    RemappingWeightGenerator: Any = None  # type: ignore
+    RemappingWeightApplier: Any = None  # type: ignore
+    BatchProcessor: Any = None  # type: ignore
     print(f"WARNING: Failed to import remapping_weights: {_e}", file=_sys.stderr)
 
 __all__ = [

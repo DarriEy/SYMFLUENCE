@@ -149,7 +149,7 @@ class NgenWorker(BaseWorker):
         output_dir: Path,
         config: Dict[str, Any],
         **kwargs
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """
         Calculate metrics from ngen output.
 
@@ -175,7 +175,7 @@ class NgenWorker(BaseWorker):
 
             # Calculate metrics using isolated output_dir
             # NgenStreamflowTarget needs to be aware of the isolated directory
-            metrics = target.calculate_metrics(experiment_id=experiment_id, output_dir=output_dir)
+            metrics = target.calculate_metrics(experiment_id=experiment_id, output_dir=output_dir)  # type: ignore[call-arg]
 
             # Normalize metric keys to lowercase
             return {k.lower(): float(v) for k, v in metrics.items()}
@@ -192,7 +192,7 @@ class NgenWorker(BaseWorker):
         self,
         output_dir: Path,
         config: Dict[str, Any]
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """
         Calculate metrics directly from ngen output files.
 

@@ -125,10 +125,10 @@ class GLEAMETHandler(BaseObservationHandler):
                 candidates.append(name)
 
         if candidates:
-            return candidates[0]
+            return str(candidates[0])
 
         if len(ds.data_vars) == 1:
-            return next(iter(ds.data_vars.keys()))
+            return str(next(iter(ds.data_vars.keys())))
 
         return None
 

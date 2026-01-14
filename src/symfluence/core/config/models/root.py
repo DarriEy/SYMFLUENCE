@@ -521,27 +521,6 @@ class SymfluenceConfig(BaseModel):
                 if not (0 <= self.optimization.dpe.iterate_convergence_tol <= 1):
                     errors.append(f"DPE_ITERATE_CONVERGENCE_TOL should be in [0, 1], got {self.optimization.dpe.iterate_convergence_tol}")
 
-        # Validate emulation settings
-        if self.optimization.large_domain and self.optimization.large_domain.enabled:
-            if self.optimization.large_domain.training_epochs < 1:
-                errors.append(f"LARGE_DOMAIN_TRAINING_EPOCHS must be >= 1, got {self.optimization.large_domain.training_epochs}")
-
-            # Validate objective weights sum to 1.0
-            total_weight = (
-                self.optimization.large_domain.streamflow_weight +
-                self.optimization.large_domain.smap_weight +
-                self.optimization.large_domain.grace_weight +
-                self.optimization.large_domain.modis_weight
-            )
-            if abs(total_weight - 1.0) > 0.01:
-                errors.append(
-                    f"Large domain emulator objective weights should sum to 1.0, got {total_weight:.3f}. "
-                    f"(Streamflow: {self.optimization.large_domain.streamflow_weight}, "
-                    f"SMAP: {self.optimization.large_domain.smap_weight}, "
-                    f"GRACE: {self.optimization.large_domain.grace_weight}, "
-                    f"MODIS: {self.optimization.large_domain.modis_weight})"
-                )
-
         if errors:
             raise ConfigurationError(
                 "Optimization configuration invalid:\n"

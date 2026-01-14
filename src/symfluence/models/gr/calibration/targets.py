@@ -12,7 +12,7 @@ unit conversions (mm/day → m³/s).
 import pandas as pd
 import xarray as xr
 from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
+from typing import cast, List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.evaluators import StreamflowEvaluator
 from symfluence.evaluation.output_file_locator import OutputFileLocator
@@ -189,7 +189,7 @@ class GRStreamflowTarget(StreamflowEvaluator):
                 self.logger.warning(f"Variable '{routing_var}' not found in {sim_file}. Trying fallback 'q_routed'.")
                 if 'q_routed' in ds.variables:
                     var = ds['q_routed']
-                    sim_data = var.mean(dim='gru').to_pandas()
+                    sim_data = cast(pd.Series, var.mean(dim='gru').to_pandas())
                     area_m2 = self._get_catchment_area()
                     return sim_data * area_m2 if 'm/s' in var.attrs.get('units', '').lower() else sim_data * (area_m2 / 1e6) / UnitConversion.MM_DAY_TO_CMS
 

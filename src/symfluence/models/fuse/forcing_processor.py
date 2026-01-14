@@ -378,11 +378,12 @@ class FuseForcingProcessor(BaseForcingProcessor):
 
         # Add coordinate-specific encoding (FUSE requires float64 for coords)
         for coord in fuse_forcing.coords:
-            if coord == 'time':
-                encoding[coord] = {'dtype': 'float64'}
-            elif coord in ['longitude', 'latitude', 'lon', 'lat']:
-                encoding[coord] = {'dtype': 'float64'}
+            coord_str = str(coord)
+            if coord_str == 'time':
+                encoding[coord_str] = {'dtype': 'float64'}
+            elif coord_str in ['longitude', 'latitude', 'lon', 'lat']:
+                encoding[coord_str] = {'dtype': 'float64'}
             else:
-                encoding[coord] = {'dtype': 'float32'}
+                encoding[coord_str] = {'dtype': 'float32'}
 
         return encoding

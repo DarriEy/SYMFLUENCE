@@ -4,7 +4,7 @@ NSGA-II Operators
 Provides genetic operators and selection mechanisms for NSGA-II.
 """
 
-from typing import Tuple
+from typing import List, Tuple
 import numpy as np
 
 
@@ -35,7 +35,7 @@ class NSGA2Operators:
         pop_size = len(objectives)
         ranks = np.zeros(pop_size, dtype=int)
         domination_count = np.zeros(pop_size, dtype=int)
-        dominated_solutions = [[] for _ in range(pop_size)]
+        dominated_solutions: List[List[int]] = [[] for _ in range(pop_size)]
 
         # Find domination relationships
         for i in range(pop_size):
@@ -75,7 +75,7 @@ class NSGA2Operators:
         Returns:
             True if obj1 dominates obj2
         """
-        return np.all(obj1 >= obj2) and np.any(obj1 > obj2)
+        return bool(np.all(obj1 >= obj2)) and bool(np.any(obj1 > obj2))
 
     @staticmethod
     def calculate_crowding_distance(
@@ -169,7 +169,7 @@ class NSGA2Operators:
         ranks = NSGA2Operators.fast_non_dominated_sort(objectives)
         crowding_distances = NSGA2Operators.calculate_crowding_distance(objectives, ranks)
 
-        selected_indices = []
+        selected_indices: List[int] = []
         for rank in np.unique(ranks):
             rank_indices = np.where(ranks == rank)[0]
             if len(selected_indices) + len(rank_indices) <= target_size:

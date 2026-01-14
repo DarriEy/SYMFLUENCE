@@ -25,20 +25,16 @@ class DatasetRegistry(BaseRegistry):
     @classmethod
     def get_handler(
         cls,
-        dataset_name: str,
-        config: Dict[str, Any],
-        logger: logging.Logger,
-        project_dir: Path,
+        name: str,
+        *args,
         **kwargs
     ):
         """
         Get an instance of the appropriate dataset handler.
 
         Args:
-            dataset_name: Name of the dataset (case-insensitive)
-            config: Configuration dictionary
-            logger: Logger instance
-            project_dir: Project directory path
+            name: Name of the dataset (case-insensitive)
+            *args: Positional arguments (config, logger, project_dir)
             **kwargs: Additional handler arguments
 
         Returns:
@@ -47,15 +43,20 @@ class DatasetRegistry(BaseRegistry):
         Raises:
             ValueError: If handler not found
         """
-        handler_class = cls._get_handler_class(dataset_name)
+        handler_class = cls._get_handler_class(name)
 
-        # Merge standard forcing parameters with any provided kwargs
-        handler_kwargs = {
-            "forcing_timestep_seconds": config.get("FORCING_TIME_STEP_SIZE", 3600),
-            **kwargs
-        }
+        # Dataset handlers typically expect (config, logger, project_dir)
+        # and extra kwargs for forcing_timestep_seconds etc.
+        
+        # If config is provided in args or kwargs, try to inject defaults
+        config = kwargs.get('config')
+        if not config and len(args) > 0:
+            config = args[0]
+            
+        if config:
+            kwargs.setdefault("forcing_timestep_seconds", config.get("FORCING_TIME_STEP_SIZE", 3600))
 
-        return handler_class(config, logger, project_dir, **handler_kwargs)
+        return handler_class(*args, **kwargs)
 
     @classmethod
     def list_datasets(cls) -> List[str]:

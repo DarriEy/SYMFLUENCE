@@ -140,7 +140,7 @@ class MESHForcingProcessor:
             if nc_file.exists():
                 try:
                     with xr.open_dataset(nc_file) as ds:
-                        rename_dict = {}
+                        rename_dict: Dict[Any, str] = {}
                         if 'N' in ds.dims:
                             rename_dict['N'] = 'subbasin'
                         elif 'subbasin' not in ds.dims and len(ds.dims) > 0:

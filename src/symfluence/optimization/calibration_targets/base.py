@@ -104,9 +104,9 @@ class MultivariateTarget(CalibrationTarget):
         """Multivariate target might need routing if streamflow is one of the components."""
         return 'STREAMFLOW' in [v.upper() for v in self.variables]
 
-    def evaluate(self, sim_dir: Path, **kwargs) -> float:
+    def evaluate_to_scalar(self, sim_dir: Path, **kwargs) -> float:
         """
-        Evaluate multiple variables and return a composite score.
+        Evaluate multiple variables and return a composite scalar score.
         """
         # 1. Extract simulated data for all requested variables
         sim_results = {}

@@ -27,7 +27,7 @@ class GeologyProcessor(BaseAttributeProcessor):
         Returns:
             Dictionary of geological attributes
         """
-        results = {}
+        results: Dict[str, Any] = {}
 
         # Process GLHYMPS data for permeability and porosity
         glhymps_results = self._process_glhymps_data()
@@ -50,7 +50,7 @@ class GeologyProcessor(BaseAttributeProcessor):
         Returns:
             Dict[str, Any]: Dictionary of hydrogeological attributes
         """
-        results = {}
+        results: Dict[str, Any] = {}
 
         # Define path to GLHYMPS data
         glhymps_path = Path("/work/comphyd_lab/data/_to-be-moved/NorthAmerica_geospatial/glhymps/raw/glhymps.shp")
@@ -326,7 +326,7 @@ class GeologyProcessor(BaseAttributeProcessor):
         Returns:
             Dict[str, Any]: Dictionary of lithology attributes
         """
-        results = {}
+        results: Dict[str, Any] = {}
 
         # Define path to geological map data
         # This could be GMNA (Geological Map of North America) or similar dataset

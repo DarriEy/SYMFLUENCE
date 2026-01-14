@@ -14,7 +14,7 @@ symfluence.evaluation.evaluators.
 import pandas as pd
 import xarray as xr
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, cast
 import logging
 import warnings
 
@@ -81,7 +81,7 @@ class FUSEStreamflowTarget(StreamflowEvaluator):
                 
                 # Assuming single parameter set, lat, lon for lumped
                 simulated = ds[sim_var].isel(param_set=0, latitude=0, longitude=0)
-                sim_df = simulated.to_pandas()
+                sim_df = cast(pd.Series, simulated.to_pandas())
                 
                 # Convert mm/day to cms: Q(cms) = Q(mm/day) * Area(km2) / 86.4
                 area_km2 = self._get_catchment_area()
@@ -130,4 +130,4 @@ class FUSESnowTarget(SnowEvaluator):
             else:
                 simulated = ds[sim_var].isel(param_set=0, latitude=0, longitude=0)
                 
-            return simulated.to_pandas()
+            return cast(pd.Series, simulated.to_pandas())

@@ -45,6 +45,13 @@ Quick Start
 
 .. toctree::
    :maxdepth: 2
+   :caption: AI Agent
+
+   agent_guide
+   agent_tools
+
+.. toctree::
+   :maxdepth: 2
    :caption: Hydrological Models
 
    models/model_summa

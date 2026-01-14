@@ -142,7 +142,7 @@ class GRWorker(BaseWorker):
         output_dir: Path,
         config: Dict[str, Any],
         **kwargs
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """
         Calculate performance metrics from GR model output.
 

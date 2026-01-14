@@ -10,7 +10,7 @@ import signal
 import logging
 import time
 import random
-from typing import Callable, Any, Optional
+from typing import Any, Callable, Dict, Optional
 from functools import wraps
 
 logger = logging.getLogger(__name__)
@@ -146,7 +146,9 @@ class RetryExecutionMixin:
 
                 time.sleep(delay)
 
-        raise last_exception
+        if last_exception is not None:
+            raise last_exception
+        raise Exception(f"Function {func.__name__} failed for unknown reasons")
 
     def _calculate_delay(self, attempt: int) -> float:
         """
@@ -319,7 +321,9 @@ def retry_on_io_error(
             delay = base_delay * (2 ** attempt) + random.uniform(0, 0.1)
             time.sleep(delay)
 
-    raise last_exception
+    if last_exception is not None:
+        raise last_exception
+    raise Exception(f"Function {func.__name__} failed for unknown reasons")
 
 
 def with_staggered_start(func: Callable, max_delay: float = 0.5) -> Callable:

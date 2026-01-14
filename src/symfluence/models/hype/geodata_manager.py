@@ -104,7 +104,7 @@ class HYPEGeoDataManager:
         self.logger = logger if logger else logging.getLogger(__name__)
         self.output_path = Path(output_path)
         self.geofabric_mapping = geofabric_mapping
-        self.ureg = pint.UnitRegistry()
+        self.ureg: pint.UnitRegistry = pint.UnitRegistry()
 
     def create_geofiles(
         self,

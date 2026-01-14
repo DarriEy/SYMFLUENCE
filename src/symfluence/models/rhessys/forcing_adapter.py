@@ -6,7 +6,7 @@ RHESSys (Regional Hydro-Ecologic Simulation System) requires meteorological
 forcing for ecohydrological simulations.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Callable
 from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
 
 
@@ -76,7 +76,7 @@ class RHESSysForcingAdapter(ForcingAdapter):
             'specific_humidity',  # For VPD calculation
         ]
 
-    def get_unit_conversions(self) -> Dict[str, callable]:
+    def get_unit_conversions(self) -> Dict[str, Callable]:
         """
         Get unit conversion functions for RHESSys.
 

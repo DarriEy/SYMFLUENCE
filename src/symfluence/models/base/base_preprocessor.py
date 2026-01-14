@@ -116,7 +116,7 @@ class BaseModelPreProcessor(ABC, PathResolverMixin, ShapefileAccessMixin):
         ]
         self.validate_config(required_keys, f"{self._get_model_name()} preprocessing")
 
-    def _get_file_path(self, file_type: str, path_key: str,
+    def _get_base_file_path(self, file_type: str, path_key: str,
                        name_key: str, default_name: str) -> Path:
         """
         Resolve complete file path from config or defaults.

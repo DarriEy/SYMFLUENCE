@@ -118,7 +118,10 @@ class MultiScaleMethod:
                 combined = np.logical_or(combined, arr > 0)
 
             # Convert back to integer
-            combined = combined.astype(profile['dtype'])
+            if profile is not None:
+                combined = combined.astype(profile['dtype'])
+            else:
+                combined = combined.astype(np.int32)
 
             # Write combined source grid
             output_path = self.interim_dir / "elv-src.tif"

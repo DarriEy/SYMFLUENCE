@@ -7,7 +7,7 @@ like metrics calculation, data alignment, and flow duration curves.
 
 import numpy as np  # type: ignore
 import pandas as pd  # type: ignore
-from typing import Dict, Tuple, Optional, Any
+from typing import Dict, Tuple, Optional, Any, cast
 
 from symfluence.evaluation.metrics import (
     kge, kge_prime, nse, mae, rmse, kge_np
@@ -64,10 +64,11 @@ def calculate_metrics(obs: np.ndarray, sim: np.ndarray) -> Dict[str, float]:
         }
 
     # Calculate metrics
+    from typing import cast
     return {
         'RMSE': rmse(obs_clean, sim_clean, transfo=1),
-        'KGE': kge(obs_clean, sim_clean, transfo=1),
-        'KGEp': kge_prime(obs_clean, sim_clean, transfo=1),
+        'KGE': cast(float, kge(obs_clean, sim_clean, transfo=1)),
+        'KGEp': cast(float, kge_prime(obs_clean, sim_clean, transfo=1)),
         'NSE': nse(obs_clean, sim_clean, transfo=1),
         'MAE': mae(obs_clean, sim_clean, transfo=1),
         'KGEnp': kge_np(obs_clean, sim_clean, transfo=1)
@@ -292,7 +293,7 @@ def resample_timeseries(
             f"Must be one of: {', '.join(agg_methods.keys())}"
         )
 
-    return series.resample(freq).apply(agg_methods[aggregation])
+    return cast(pd.Series, series.resample(freq).apply(agg_methods[aggregation]))
 
 
 def calculate_summary_statistics(data: np.ndarray) -> Dict[str, float]:

@@ -6,7 +6,7 @@ GR models (GR4J/GR5J/GR6J) can run in lumped (CSV) or distributed (NetCDF) modes
 """
 
 from pathlib import Path
-from typing import List, Dict
+from typing import cast, List, Dict
 import pandas as pd
 
 from symfluence.models.base import ModelResultExtractor
@@ -109,10 +109,10 @@ class GRResultExtractor(ModelResultExtractor):
                     var = ds[var_name]
                     if 'seg' in var.dims:
                         outlet_idx = np.argmax(var.mean(dim='time').values)
-                        return var.isel(seg=outlet_idx).to_pandas()
+                        return cast(pd.Series, var.isel(seg=outlet_idx).to_pandas())
                     elif 'reachID' in var.dims:
                         outlet_idx = np.argmax(var.mean(dim='time').values)
-                        return var.isel(reachID=outlet_idx).to_pandas()
+                        return cast(pd.Series, var.isel(reachID=outlet_idx).to_pandas())
 
             # Try GR-specific variables
             for var_name in self.get_variable_names('streamflow'):
@@ -123,7 +123,7 @@ class GRResultExtractor(ModelResultExtractor):
                         spatial_dims = [d for d in var.dims if d != 'time']
                         if spatial_dims:
                             var = var.isel({spatial_dims[0]: 0})
-                    return var.to_pandas()
+                    return cast(pd.Series, var.to_pandas())
 
         raise ValueError(f"No suitable streamflow variable found in {output_file}")
 

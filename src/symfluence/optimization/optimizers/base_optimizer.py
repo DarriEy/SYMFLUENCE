@@ -306,9 +306,9 @@ class BaseOptimizer(SUMMAOptimizerMixin, ABC, ConfigMixin):
         )
 
         # Algorithm state variables
-        self.best_params = None
-        self.best_score = float('-inf')
-        self.iteration_history = []
+        self.best_params: Dict[str, Any] = {}
+        self.best_score: float = float('-inf')
+        self.iteration_history: List[Dict[str, Any]] = []
 
         self.models_to_run = self._cfg(
             'HYDROLOGICAL_MODEL',
@@ -322,7 +322,7 @@ class BaseOptimizer(SUMMAOptimizerMixin, ABC, ConfigMixin):
             self.logger.info(f"Random seed set to: {self.random_seed}")
 
         # Parallel processing setup
-        self.parallel_dirs = []
+        self.parallel_dirs: list[Any] = []
         self._consecutive_parallel_failures = 0
         
         if self.use_parallel:

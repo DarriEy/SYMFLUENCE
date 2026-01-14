@@ -674,7 +674,13 @@ class ModelExecutor(ABC):
         Returns:
             ExecutionResult from final attempt
         """
-        last_result = None
+        # Initialize last_result to handle case where loop might not execute
+        last_result = ExecutionResult(
+            success=False,
+            return_code=-1,
+            error_message="Execution failed to start or all attempts failed",
+            metadata={'command': str(command)}
+        )
 
         for attempt in range(1, max_attempts + 1):
             self.logger.debug(f"Attempt {attempt}/{max_attempts}")

@@ -7,7 +7,7 @@ dimensions, and file patterns.
 """
 
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, cast
 import pandas as pd
 import xarray as xr
 
@@ -81,7 +81,7 @@ class SUMMAResultExtractor(ModelResultExtractor):
                         var = self._convert_streamflow_units(var, var_name)
                         var = self._aggregate_spatial_dimensions(var, kwargs.get('project_dir'))
                         # Apply catchment area scaling if needed
-                        result = var.to_pandas()
+                        result = cast(pd.Series, var.to_pandas())
                         catchment_area = kwargs.get('catchment_area')
                         if catchment_area is not None:
                             result = result * catchment_area
@@ -89,7 +89,7 @@ class SUMMAResultExtractor(ModelResultExtractor):
                     else:
                         # For other variables, handle spatial aggregation
                         var = self._aggregate_spatial_dimensions(var, kwargs.get('project_dir'))
-                        return var.to_pandas()
+                        return cast(pd.Series, var.to_pandas())
 
             raise ValueError(
                 f"No suitable variable found for '{variable_type}' in {output_file}. "

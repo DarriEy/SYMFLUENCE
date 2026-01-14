@@ -4,7 +4,7 @@ LSTM Model Postprocessor.
 Handles result saving, visualization, and metric calculation for the LSTM model.
 """
 
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, cast
 from pathlib import Path
 import pandas as pd
 import xarray as xr
@@ -183,10 +183,10 @@ class LSTMPostprocessor(BaseModelPostProcessor):
             return {}
 
         return {
-            'RMSE': rmse(obs_vals, sim_vals, transfo=1),
-            'KGE': kge(obs_vals, sim_vals, transfo=1),
-            'KGEp': kge_prime(obs_vals, sim_vals, transfo=1),
-            'NSE': nse(obs_vals, sim_vals, transfo=1),
-            'MAE': mae(obs_vals, sim_vals, transfo=1),
-            'KGEnp': kge_np(obs_vals, sim_vals, transfo=1)
+            'RMSE': cast(float, rmse(obs_vals, sim_vals, transfo=1)),
+            'KGE': cast(float, kge(obs_vals, sim_vals, transfo=1)),
+            'KGEp': cast(float, kge_prime(obs_vals, sim_vals, transfo=1)),
+            'NSE': cast(float, nse(obs_vals, sim_vals, transfo=1)),
+            'MAE': cast(float, mae(obs_vals, sim_vals, transfo=1)),
+            'KGEnp': cast(float, kge_np(obs_vals, sim_vals, transfo=1))
         }

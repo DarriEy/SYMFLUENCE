@@ -8,7 +8,7 @@ Uses the generalized pipeline pattern with manager classes for:
 - Geographic data file generation (HYPEGeoDataManager)
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, cast
 import pandas as pd
 
 from symfluence.models.hype.forcing_processor import HYPEForcingProcessor
@@ -189,12 +189,12 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.forcing_units = {
             'temperature': {
                 'in_varname': temp_in,
-                'in_units': dataset_map[temp_in]['units'],
+                'in_units': dataset_map[cast(str, temp_in)]['units'],
                 'out_units': 'degC'
             },
             'precipitation': {
                 'in_varname': precip_in,
-                'in_units': dataset_map[precip_in]['units'],
+                'in_units': dataset_map[cast(str, precip_in)]['units'],
                 'out_units': 'mm/day'
             },
         }

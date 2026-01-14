@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from shutil import copyfile
-from typing import Dict, Any
+from typing import Any, Dict, List, Optional
 
 import geopandas as gpd # type: ignore
 import numpy as np # type: ignore
@@ -210,32 +210,27 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         self.update_input_info()
         self.create_filemanager()
 
-    def create_directories(self):
+    def create_directories(self, additional_dirs: Optional[List[Path]] = None):
         """Create necessary directories for FUSE setup."""
         dirs_to_create = [
             self.setup_dir,
             self.forcing_fuse_path,
         ]
+        if additional_dirs:
+            dirs_to_create.extend(additional_dirs)
+            
         for dir_path in dirs_to_create:
             dir_path.mkdir(parents=True, exist_ok=True)
             self.logger.debug(f"Created directory: {dir_path}")
 
-    def copy_base_settings(self):
+    def copy_base_settings(self, source_dir: Optional[Path] = None, file_patterns: Optional[List[str]] = None):
         """
         Copy FUSE base settings from the source directory to the project's settings directory.
         Updates the model ID in the decisions file name to match the experiment ID.
-
-        This method performs the following steps:
-        1. Determines the source directory for base settings
-        2. Determines the destination directory for settings
-        3. Creates the destination directory if it doesn't exist
-        4. Copies all files from the source directory to the destination directory
-        5. Renames the decisions file with the appropriate experiment ID
-
-        Raises:
-            FileNotFoundError: If the source directory or any source file is not found.
-            PermissionError: If there are permission issues when creating directories or copying files.
         """
+        if source_dir:
+            return super().copy_base_settings(source_dir, file_patterns)
+            
         self.logger.debug("Copying FUSE base settings")
 
         from symfluence.resources import get_base_settings_dir
@@ -1021,7 +1016,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         """Create HRU-level data from catchment data - delegates to forcing processor"""
         return self.forcing_processor._create_distributed_from_catchment(ds)
 
-    def _get_file_path(self, file_type, file_def_path, file_name):
+    def _get_base_file_path(self, file_type, file_def_path, file_name):  # type: ignore[override]
         if self.config_dict.get(f'{file_type}') == 'default':
             return self.project_dir / file_def_path / file_name
         else:

@@ -822,7 +822,7 @@ class BaseWorker(ABC):
         output_dir: Path,
         config: Dict[str, Any],
         **kwargs
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """
         Calculate objective metrics from model outputs.
 
@@ -907,7 +907,9 @@ class BaseWorker(ABC):
                 )
                 time.sleep(delay)
 
-        raise last_error
+        if last_error is not None:
+            raise last_error
+        raise Exception("Evaluation failed for unknown reasons")
 
     def _evaluate_once(self, task: WorkerTask) -> WorkerResult:
         """

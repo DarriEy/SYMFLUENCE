@@ -265,11 +265,11 @@ class PathManager(ConfigurableMixin):
             logger=self.logger
         )
 
-    def ensure_dir(self, path: Path) -> Path:
+    def ensure_dir(self, path: Union[str, Path], parents: bool = True, exist_ok: bool = True) -> Path:
         """
         Ensure a directory exists (delegates to FileUtilsMixin).
         """
-        return super().ensure_dir(path)
+        return super().ensure_dir(path, parents=parents, exist_ok=exist_ok)
 
     def get_forcing_dataset_dir(self, dataset_name: str, raw: bool = True) -> Path:
         """
@@ -316,6 +316,7 @@ class PathManagerMixin:
         """Access the PathManager instance."""
         if self._paths is None:
             self._init_path_manager()
+        assert self._paths is not None
         return self._paths
 
     # Convenience properties that delegate to PathManager

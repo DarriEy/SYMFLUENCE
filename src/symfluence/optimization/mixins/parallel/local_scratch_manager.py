@@ -445,12 +445,12 @@ class LocalScratchManager:
         """
         if self.use_scratch:
             return {
-                'data_dir': self.scratch_data_dir,
-                'project_dir': self.scratch_project_dir,
-                'settings_dir': self.scratch_project_dir / "settings" / "SUMMA",
-                'mizuroute_settings_dir': self.scratch_project_dir / "settings" / "mizuRoute",
-                'forcing_dir': self.scratch_project_dir / "forcing" / "SUMMA_input",
-                'observations_dir': self.scratch_project_dir / "observations" / "streamflow" / "preprocessed",
+                'data_dir': self.scratch_data_dir or Path("/tmp/symfluence_data"),
+                'project_dir': self.scratch_project_dir or Path("/tmp/symfluence_project"),
+                'settings_dir': (self.scratch_project_dir or Path("/tmp/symfluence_project")) / "settings" / "SUMMA",
+                'mizuroute_settings_dir': (self.scratch_project_dir or Path("/tmp/symfluence_project")) / "settings" / "mizuRoute",
+                'forcing_dir': (self.scratch_project_dir or Path("/tmp/symfluence_project")) / "forcing" / "SUMMA_input",
+                'observations_dir': (self.scratch_project_dir or Path("/tmp/symfluence_project")) / "observations" / "streamflow" / "preprocessed",
             }
         else:
             return {
@@ -607,7 +607,7 @@ class LocalScratchManager:
         Returns:
             Path to use for SYMFLUENCE_DATA_DIR
         """
-        if self.use_scratch:
+        if self.use_scratch and self.scratch_data_dir:
             return self.scratch_data_dir
         else:
             return self.original_data_dir if self.original_data_dir else Path(self.config.get('SYMFLUENCE_DATA_DIR'))
@@ -619,7 +619,7 @@ class LocalScratchManager:
         Returns:
             Path to use for project operations
         """
-        if self.use_scratch:
+        if self.use_scratch and self.scratch_project_dir:
             return self.scratch_project_dir
         else:
             return self.original_project_dir

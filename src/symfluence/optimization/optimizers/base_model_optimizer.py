@@ -185,7 +185,7 @@ from ..mixins import (
     GradientOptimizationMixin
 )
 from ..workers.base_worker import BaseWorker
-from .algorithms import get_algorithm
+from .algorithms import get_algorithm, ALGORITHM_REGISTRY
 from .evaluators import TaskBuilder, PopulationEvaluator
 from .final_evaluation import FinalResultsSaver
 
@@ -399,7 +399,7 @@ class BaseModelOptimizer(
             self._set_random_seeds(int(self.random_seed))
 
         # Parallel processing state
-        self.parallel_dirs = {}
+        self.parallel_dirs: Dict[int, Dict[str, Any]] = {}
         self.default_sim_dir = self.results_dir  # Initialize with results_dir as fallback
         # Setup directories if MPI_PROCESSES is set, regardless of count (for isolation)
         mpi_processes = self._get_config_value(lambda: self.config.system.mpi_processes, default=1)
@@ -409,11 +409,14 @@ class BaseModelOptimizer(
         # Runtime config overrides (for algorithm-specific settings like Adam/LBFGS)
         self._runtime_overrides: Dict[str, Any] = {}
 
+        # Algorithm registry
+        self._registry = ALGORITHM_REGISTRY
+
         # Lazy-initialized components
-        self._task_builder = None
-        self._population_evaluator = None
-        self._final_evaluation_runner = None
-        self._results_saver = None
+        self._task_builder: Optional[TaskBuilder] = None
+        self._population_evaluator: Optional[PopulationEvaluator] = None
+        self._final_evaluation_runner: Optional[Any] = None
+        self._results_saver: Optional[FinalResultsSaver] = None
 
     # =========================================================================
     # Lazy-initialized component properties
@@ -437,6 +440,7 @@ class BaseModelOptimizer(
             )
             if hasattr(self, 'summa_exe_path'):
                 self._task_builder.set_summa_exe_path(self.summa_exe_path)
+        assert self._task_builder is not None
         return self._task_builder
 
     @property
@@ -452,6 +456,7 @@ class BaseModelOptimizer(
                 model_name=self._get_model_name(),
                 logger=self.logger
             )
+        assert self._population_evaluator is not None
         return self._population_evaluator
 
     @property
@@ -464,6 +469,7 @@ class BaseModelOptimizer(
                 domain_name=self.domain_name,
                 logger=self.logger
             )
+        assert self._results_saver is not None
         return self._results_saver
 
     def _visualize_progress(self, algorithm: str) -> None:
@@ -1170,10 +1176,13 @@ class BaseModelOptimizer(
             metrics = final_result.get('final_metrics', {})
             score = metrics.get(self.target_metric, self.DEFAULT_PENALTY_SCORE)
 
-        self.record_iteration(0, score, {})
-        self.update_best(score, {}, 0)
-        self.save_best_params(algorithm_name)
-        return self.save_results(algorithm_name, standard_filename=True)
+            self.record_iteration(0, score, {})
+            self.update_best(score, {}, 0)
+            self.save_best_params(algorithm_name)
+        # Save results
+        results_path = self.save_results(algorithm_name, standard_filename=True)
+        assert results_path is not None
+        return results_path
 
     def run_optimization(self, algorithm_name: str) -> Path:
         """Run optimization using a specified algorithm from the registry.
@@ -1196,35 +1205,11 @@ class BaseModelOptimizer(
             6. Generate progress visualizations
             7. Run final evaluation on best parameters
 
-        Special Handling:
-            - GR models: Uses initial parameter guess if available (else random init)
-            - NSGA-II: Adds evaluate_population_objectives() for multi-objective
-            - Adam/LBFGS: Runtime overrides (_runtime_overrides) passed to algorithm
-            - No parameters: Runs default evaluation only, no optimization
-
         Args:
-            algorithm_name: Algorithm name (case-insensitive):
-                - Single-objective: 'dds', 'pso', 'de', 'sce-ua', 'async_dds',
-                                   'adam', 'lbfgs'
-                - Multi-objective: 'nsga2', 'nsga-ii'
+            algorithm_name: Algorithm name (case-insensitive)
 
         Returns:
-            Path to results JSON file in results_dir/
-
-        Raises:
-            ValueError: If algorithm not found in registry
-            RuntimeError: If no parameters configured for model
-
-        Examples:
-            >>> # Run DDS optimization
-            >>> results_file = optimizer.run_optimization('dds')
-
-            >>> # Run multi-objective NSGA-II
-            >>> results_file = optimizer.run_optimization('nsga2')
-
-            >>> # Run gradient-based Adam with custom parameters
-            >>> optimizer._runtime_overrides = {'ADAM_STEPS': 200, 'ADAM_LR': 0.001}
-            >>> results_file = optimizer.run_optimization('adam')
+            Path to results JSON file
         """
         self.start_timing()
         self.logger.info(f"Starting {algorithm_name.upper()} optimization for {self._get_model_name()}")
@@ -1310,7 +1295,7 @@ class BaseModelOptimizer(
             if final_result:
                 self._save_final_evaluation_results(final_result, algorithm.name)
 
-        return results_path
+        return results_path  # type: ignore[return-value]
 
     # =========================================================================
     # Algorithm convenience methods - delegate to run_optimization()

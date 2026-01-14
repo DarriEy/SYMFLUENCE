@@ -101,9 +101,9 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
             self.logger,
             reporting_manager=self.reporting_manager
         )
-        
-        self.model = None
-        self.hru_ids = []
+
+        self.model: Optional[LSTMModel] = None
+        self.hru_ids: list[Any] = []
 
     def _get_model_name(self) -> str:
         return "LSTM"
@@ -291,6 +291,7 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
             Implements gradient clipping (max_norm=1.0) to prevent exploding
             gradients and uses ReduceLROnPlateau scheduler for adaptive learning.
         """
+        assert self.model is not None
         self.logger.info(
             f"Training LSTM model with {epochs} epochs, batch_size: {batch_size}, learning_rate: {learning_rate}"
         )
@@ -389,9 +390,11 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
     def _train_model_with_routing(self, X: torch.Tensor, obs_df: pd.DataFrame, common_dates: pd.DatetimeIndex, epochs: int, learning_rate: float):
         """
         Train LSTM through dRoute routing.
-        Uses dRoute's internal AD or numerical gradients to backpropagate 
+        Uses dRoute's internal AD or numerical gradients to backpropagate
         outlet streamflow error to individual HRU runoff predictions.
         """
+        assert self.model is not None
+
         if not HAS_DROUTE:
             raise ImportError("droute required for training through routing")
 
@@ -537,6 +540,7 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
             Uses batched DataLoader for memory-efficient inference.
             Predictions are clipped to handle numerical instabilities.
         """
+        assert self.model is not None
         self.logger.info(f"Running full simulation with LSTM model (mode={self.spatial_mode})")
         
         self._log_memory_usage()

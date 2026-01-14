@@ -6,7 +6,7 @@ Structural Errors) model outputs.
 """
 
 from pathlib import Path
-from typing import List, Dict
+from typing import cast, List, Dict
 import pandas as pd
 import xarray as xr
 
@@ -75,7 +75,7 @@ class FUSEResultExtractor(ModelResultExtractor):
 
                     # Convert units if needed
                     if variable_type == 'streamflow':
-                        result = var.to_pandas()
+                        result = cast(pd.Series, var.to_pandas())
                         # Convert mm/day to m³/s if catchment area provided
                         catchment_area = kwargs.get('catchment_area')
                         if catchment_area is not None:
@@ -83,7 +83,7 @@ class FUSEResultExtractor(ModelResultExtractor):
                             result = result * catchment_area / 1000 / 86400
                         return result
                     else:
-                        return var.to_pandas()
+                        return cast(pd.Series, var.to_pandas())
 
             raise ValueError(
                 f"No suitable variable found for '{variable_type}' in {output_file}. "

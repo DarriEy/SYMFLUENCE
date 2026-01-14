@@ -282,17 +282,21 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             combined.name = 'basin_total'
             return combined.sort_index()
 
-    def calculate_metrics(self, sim: Any = None, experiment_id: str = None, 
-                         output_dir: Optional[Path] = None, **kwargs) -> Dict[str, float]:
+    def calculate_metrics(self, sim: Any, obs: Optional[pd.Series] = None,
+                         mizuroute_dir: Optional[Path] = None,
+                         calibration_only: bool = True, **kwargs) -> Optional[Dict[str, float]]:
         """
         Standardized metrics calculation for NextGen.
         
         Args:
-            sim: Optional Path to simulation directory or pre-loaded pd.Series.
-                 If None, determined from experiment_id/output_dir.
-            experiment_id: Experiment identifier (legacy, uses config if None)
-            output_dir: Optional output directory (for parallel mode)
+            sim: Path to simulation directory or pre-loaded pd.Series.
+            obs: Optional pre-loaded pd.Series of observations.
+            mizuroute_dir: Optional mizuRoute directory (unused for NGEN).
+            calibration_only: Whether to calculate only calibration metrics.
         """
+        experiment_id = kwargs.get('experiment_id')
+        output_dir = kwargs.get('output_dir')
+
         if sim is None:
             # Determine simulation directory
             if output_dir is not None:
@@ -302,7 +306,12 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 sim = self.project_dir / 'simulations' / exp_id / 'NGEN'
             
         # Use base class method with our specialized data extraction
-        return super().calculate_metrics(sim=sim, **kwargs)
+        return super().calculate_metrics(
+            sim=sim,
+            obs=obs,
+            mizuroute_dir=mizuroute_dir,
+            calibration_only=calibration_only
+        )
 
     def _get_catchment_area(self) -> float:
         """Detailed catchment area calculation for NextGen."""

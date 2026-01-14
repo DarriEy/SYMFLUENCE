@@ -17,7 +17,7 @@ Author: SYMFLUENCE Development Team
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import geopandas as gpd
 import pandas as pd
@@ -329,7 +329,7 @@ class SummaRunner(UnifiedModelRunner):
         if merged_ds is not None:
             encoding = {'time': {'dtype': 'double', '_FillValue': None}}
             for var in merged_ds.data_vars:
-                encoding[var] = {'_FillValue': None}
+                encoding[str(var)] = {'_FillValue': None}
 
             merged_ds.to_netcdf(
                 output_file,

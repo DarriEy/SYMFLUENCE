@@ -340,7 +340,7 @@ class ForcingDataProcessor:
         if spatial_dims is None:
             # Auto-detect spatial dimensions
             possible_spatial = ['latitude', 'longitude', 'lat', 'lon', 'x', 'y', 'hru']
-            spatial_dims = [d for d in ds[variable].dims if d in possible_spatial]
+            spatial_dims = [str(d) for d in ds[variable].dims if str(d) in possible_spatial]
 
         if not spatial_dims:
             return ds[variable]
@@ -401,13 +401,14 @@ class ForcingDataProcessor:
         """
         encoding = {}
         for var in ds.data_vars:
-            var_encoding = {
+            var_name = str(var)
+            var_encoding: Dict[str, Any] = {
                 '_FillValue': fill_value,
                 'dtype': dtype
             }
             if compression:
                 var_encoding['zlib'] = True
                 var_encoding['complevel'] = complevel
-            encoding[var] = var_encoding
+            encoding[var_name] = var_encoding
 
         return encoding

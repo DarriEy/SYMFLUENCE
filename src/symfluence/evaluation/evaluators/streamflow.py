@@ -13,7 +13,7 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
+from typing import cast, List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
@@ -196,11 +196,11 @@ class StreamflowEvaluator(ModelEvaluator):
                     if 'seg' in var.dims:
                         segment_means = var.mean(dim='time').values
                         outlet_seg_idx = np.argmax(segment_means)
-                        result = var.isel(seg=outlet_seg_idx).to_pandas()
+                        result = cast(pd.Series, var.isel(seg=outlet_seg_idx).to_pandas())
                     elif 'reachID' in var.dims:
                         reach_means = var.mean(dim='time').values
                         outlet_reach_idx = np.argmax(reach_means)
-                        result = var.isel(reachID=outlet_reach_idx).to_pandas()
+                        result = cast(pd.Series, var.isel(reachID=outlet_reach_idx).to_pandas())
                     else:
                         continue
                     return result
@@ -287,7 +287,7 @@ class StreamflowEvaluator(ModelEvaluator):
                                             self.logger.debug(f"Performing area-weighted aggregation for {var_name} (HRU). Total area: {total_area:.1f} m²")
                                             # Calculate total discharge in m³/s: sum(runoff_i * area_i)
                                             weighted_runoff = (var * areas).sum(dim='hru')
-                                            return weighted_runoff.to_pandas()
+                                            return cast(pd.Series, weighted_runoff.to_pandas())
                                     
                                     # Handle GRU dimension
                                     elif 'gru' in var.dims and 'GRUarea' in attrs:
@@ -296,7 +296,7 @@ class StreamflowEvaluator(ModelEvaluator):
                                             total_area = float(areas.values.sum())
                                             self.logger.debug(f"Performing area-weighted aggregation for {var_name} (GRU). Total area: {total_area:.1f} m²")
                                             weighted_runoff = (var * areas).sum(dim='gru')
-                                            return weighted_runoff.to_pandas()
+                                            return cast(pd.Series, weighted_runoff.to_pandas())
                                             
                                     # Fallback if specific area variable missing but HRUarea available for GRU dim (common in lumped)
                                     elif 'gru' in var.dims and 'HRUarea' in attrs:
@@ -307,7 +307,7 @@ class StreamflowEvaluator(ModelEvaluator):
                                              self.logger.debug(f"Performing area-weighted aggregation for {var_name} (GRU using HRUarea). Total area: {total_area:.1f} m²")
                                              # Use values to avoid dimension mismatch and ensure reduction over 'gru'
                                              weighted_runoff = (var * areas.values).sum(dim='gru')
-                                             return weighted_runoff.to_pandas()
+                                             return cast(pd.Series, weighted_runoff.to_pandas())
 
                         except Exception as e:
                             self.logger.warning(f"Failed to perform area-weighted aggregation: {e}")
@@ -316,18 +316,18 @@ class StreamflowEvaluator(ModelEvaluator):
                     if len(var.shape) > 1:
                         self.logger.warning(f"Using first spatial unit for {var_name} (potential error for multi-unit basins)")
                         if 'hru' in var.dims:
-                            sim_data = var.isel(hru=0).to_pandas()
+                            sim_data = cast(pd.Series, var.isel(hru=0).to_pandas())
                         elif 'gru' in var.dims:
-                            sim_data = var.isel(gru=0).to_pandas()
+                            sim_data = cast(pd.Series, var.isel(gru=0).to_pandas())
                         else:
                             non_time_dims = [dim for dim in var.dims if dim != 'time']
                             if non_time_dims:
-                                sim_data = var.isel({non_time_dims[0]: 0}).to_pandas()
+                                sim_data = cast(pd.Series, var.isel({non_time_dims[0]: 0}).to_pandas())
                             else:
-                                sim_data = var.to_pandas()
+                                sim_data = cast(pd.Series, var.to_pandas())
                     else:
-                        sim_data = var.to_pandas()
-                    
+                        sim_data = cast(pd.Series, var.to_pandas())
+
                     catchment_area = self._get_catchment_area()
                     return sim_data * catchment_area
             raise ValueError("No suitable streamflow variable found in SUMMA output")

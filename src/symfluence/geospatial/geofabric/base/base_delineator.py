@@ -91,10 +91,10 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
         Returns:
             Path to TauDEM bin directory
         """
-        taudem_dir = self.config_dict.get('TAUDEM_DIR')
+        taudem_dir = self.config_dict.get('TAUDEM_DIR', 'default')
         if taudem_dir == "default":
             return str(self.data_dir / 'installs' / 'TauDEM' / 'bin')
-        return taudem_dir
+        return str(taudem_dir)
 
     def _set_taudem_path(self):
         """Add TauDEM directory to system PATH."""

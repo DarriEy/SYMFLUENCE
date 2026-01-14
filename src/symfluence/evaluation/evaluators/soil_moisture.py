@@ -39,7 +39,7 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
+from typing import cast, List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
@@ -275,10 +275,10 @@ class SoilMoistureEvaluator(ModelEvaluator):
         non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
         if non_time_dims:
             sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-            
-        sim_data = sim_xr.to_pandas()
+
+        sim_data = cast(pd.Series, sim_xr.to_pandas())
         return sim_data
-    
+
     def _find_target_layer(self, layer_depths: xr.DataArray) -> int:
         try:
             if self.target_depth == 'auto':
@@ -338,13 +338,13 @@ class SoilMoistureEvaluator(ModelEvaluator):
                 sim_xr = self._depth_weighted_mean(sim_xr, layer_depths, rootzone_depth, layer_dim)
         else:
             raise ValueError(f"Unknown SMAP layer: {self.smap_layer}")
-            
+
         # Ensure no other spatial dims remain
         non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
         if non_time_dims:
             sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-            
-        sim_data = sim_xr.to_pandas()
+
+        sim_data = cast(pd.Series, sim_xr.to_pandas())
         return sim_data
 
     def _depth_weighted_mean(
@@ -446,15 +446,15 @@ class SoilMoistureEvaluator(ModelEvaluator):
             sim_xr = sim_xr.isel({layer_dim: 0})
         else:
             sim_xr = self._depth_weighted_mean(sim_xr, layer_depths, self.esa_surface_depth, layer_dim)
-        
+
         # Ensure no other spatial dims remain
         non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
         if non_time_dims:
             sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-            
-        sim_data = sim_xr.to_pandas()
+
+        sim_data = cast(pd.Series, sim_xr.to_pandas())
         return sim_data
-    
+
     def get_observed_data_path(self) -> Path:
         if self.optimization_target == 'sm_point':
             return self.project_dir / "observations" / "soil_moisture" / "point" / "processed" / f"{self.domain_name}_sm_processed.csv"

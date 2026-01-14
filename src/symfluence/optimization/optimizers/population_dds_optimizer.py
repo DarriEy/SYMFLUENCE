@@ -53,7 +53,7 @@ References:
 
 import numpy as np
 import logging
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
 
 class PopulationDDSOptimizer(BaseOptimizer):
@@ -120,7 +120,9 @@ class PopulationDDSOptimizer(BaseOptimizer):
         super().__init__(config, logger)
         self.dds_r = self._cfg('DDS_R', default=0.2)
         self.population_size = self._determine_population_size()
-        self.population = None; self.population_scores = None; self.current_generation = 0
+        self.population: Optional[np.ndarray] = None
+        self.population_scores: Optional[np.ndarray] = None
+        self.current_generation = 0
     
     def get_algorithm_name(self) -> str:
         """Return algorithm identifier for results and logging."""
@@ -147,6 +149,10 @@ class PopulationDDSOptimizer(BaseOptimizer):
         param_count = len(self.parameter_manager.all_param_names)
         self.population = np.random.random((self.population_size, param_count))
         self.population_scores = np.full(self.population_size, np.nan)
+        
+        assert self.population is not None
+        assert self.population_scores is not None
+
         tasks = [{'individual_id': i, 'params': self.parameter_manager.denormalize_parameters(self.population[i]), 'proc_id': i % self.num_processes, 'evaluation_id': f"p_init_{i}"} for i in range(self.population_size)]
         results = self._run_parallel_evaluations(tasks)
         for res in results: self.population_scores[res['individual_id']] = res['score'] if res['score'] is not None else float('-inf')
@@ -154,6 +160,7 @@ class PopulationDDSOptimizer(BaseOptimizer):
         self.best_params = self.parameter_manager.denormalize_parameters(self.population[np.nanargmax(self.population_scores)])
 
     def _generate_population_trials(self) -> List[Dict]:
+        assert self.population is not None
         tasks = []
         for i in range(self.population_size):
             trial = self._generate_dds_trial(self.population[i], i)
@@ -171,6 +178,10 @@ class PopulationDDSOptimizer(BaseOptimizer):
         return trial
 
     def _update_population_with_trials(self, results):
+        assert self.population_scores is not None
+        assert self.population is not None
+        assert self.best_score is not None
+
         improvements = 0
         for res in results:
             idx = res['individual_id']
@@ -183,6 +194,7 @@ class PopulationDDSOptimizer(BaseOptimizer):
         return improvements
 
     def _record_generation_statistics(self, improvements, duration):
+        assert self.population_scores is not None
         valid = self.population_scores[~np.isnan(self.population_scores)]
         self.iteration_history.append({
             'generation': self.current_generation, 'algorithm': 'PopulationDDS', 'best_score': self.best_score,

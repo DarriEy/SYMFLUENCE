@@ -40,7 +40,7 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
                                    f"fuse_zDecisions_{self.experiment_id}.txt")
 
         # Storage for simulation results (used for visualization)
-        self.simulation_results = {}
+        self.simulation_results: dict[str, Any] = {}
         self.observed_streamflow = None
         self.area_km2 = None
 
@@ -165,7 +165,7 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
 
         # Cache for visualization
         current_combo = tuple(self.get_current_decisions())
-        self.simulation_results[current_combo] = dfSim_cms
+        self.simulation_results[str(current_combo)] = dfSim_cms
 
         # Align series
         obs_aligned = self.observed_streamflow.reindex(dfSim_cms.index).dropna()

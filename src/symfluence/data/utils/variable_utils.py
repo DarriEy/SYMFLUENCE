@@ -727,7 +727,7 @@ class VariableHandler:
         self.model = model if model is not None else config.get('HYDROLOGICAL_MODEL')
         
         # Initialize pint for unit handling
-        self.ureg = pint.UnitRegistry()
+        self.ureg: pint.UnitRegistry = pint.UnitRegistry()
         pint_xarray.setup_registry(self.ureg)
         
         # Validate dataset and model are supported

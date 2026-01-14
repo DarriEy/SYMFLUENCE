@@ -301,7 +301,7 @@ def _create_combined_attribute_hrus(
             continue
 
         # Create combined valid mask (pixels that are valid in all rasters)
-        combined_valid_mask = np.ones(common_shape, dtype=bool)
+        combined_valid_mask = np.full(common_shape, True, dtype=bool)  # type: ignore[type-var]
         for attr, data in raster_data.items():
             raster_array = data["data"]
             nodata_value = data["nodata"]
@@ -311,11 +311,11 @@ def _create_combined_attribute_hrus(
             else:
                 valid_mask = (
                     ~np.isnan(raster_array)
-                    if raster_array.dtype == np.float64
+                    if raster_array.dtype == np.float64 or raster_array.dtype == np.float32
                     else np.ones_like(raster_array, dtype=bool)
                 )
 
-            combined_valid_mask &= valid_mask
+            combined_valid_mask = np.logical_and(combined_valid_mask, valid_mask)
 
         if not np.any(combined_valid_mask):
             discretizer.logger.warning(f"No valid pixels found in GRU {gru_id}")

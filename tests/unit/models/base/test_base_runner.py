@@ -14,6 +14,7 @@ Tests for the shared model runner infrastructure including:
 import pytest
 from unittest.mock import Mock, patch
 import subprocess
+import logging
 
 from symfluence.models.base.base_runner import BaseModelRunner
 from symfluence.core.config.models import SymfluenceConfig
@@ -168,7 +169,7 @@ class TestExecuteModelSubprocess:
             )
 
             assert result.returncode == 0
-            mock_logger.info.assert_called_with("Model execution completed successfully")
+            mock_logger.log.assert_any_call(logging.INFO, "Model execution completed successfully")
 
     def test_custom_success_message(self, runner, temp_dir, mock_logger):
         """Test custom success message."""
@@ -186,7 +187,7 @@ class TestExecuteModelSubprocess:
                 success_message=custom_message
             )
 
-            mock_logger.info.assert_called_with(custom_message)
+            mock_logger.log.assert_any_call(logging.INFO, custom_message)
 
     def test_nonzero_return_code_with_check_false(self, runner, temp_dir, mock_logger):
         """Test non-zero return code when check=False."""

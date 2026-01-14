@@ -391,16 +391,16 @@ class SubcatchmentProcessor:
 
             encoding = {}
             for var in subcat_data.data_vars:
-                encoding[var] = {
+                encoding[str(var)] = {
                     '_FillValue': -9999.0,
                     'dtype': 'float32'
                 }
 
             for coord in subcat_data.coords:
                 if coord == 'time':
-                    encoding[coord] = {'dtype': 'float64'}
+                    encoding[str(coord)] = {'dtype': 'float64'}
                 else:
-                    encoding[coord] = {'dtype': 'float64'}
+                    encoding[str(coord)] = {'dtype': 'float64'}
 
             subcat_data.to_netcdf(
                 subcat_forcing_file,
@@ -539,7 +539,7 @@ class SubcatchmentProcessor:
         """
         self.logger.info(f"Combining outputs from {len(outputs)} subcatchments")
 
-        combined_outputs = {}
+        combined_outputs: Dict[Any, Any] = {}
 
         # Load and combine all subcatchment outputs
         for subcat_id, output_file in outputs:

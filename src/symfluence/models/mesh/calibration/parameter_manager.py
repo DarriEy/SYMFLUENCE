@@ -174,7 +174,7 @@ class MESHParameterManager(BaseParameterManager):
                     return content[match.start():match.start(2)].replace(match.group(2), "") + f"{value:.6f}"
                 
                 # Simpler replacement to avoid preservation complexity if it's tricky
-                content, n = re.subn(pattern, lambda m: f"{m.group(1)} {value:.6f}", content, count=1, flags=re.IGNORECASE)
+                content, n = re.subn(pattern, lambda m: m.group(1).decode('utf-8') + " " + f"{value:.6f}", content, count=1, flags=re.IGNORECASE)
                 
                 if n > 0:
                     updated += 1

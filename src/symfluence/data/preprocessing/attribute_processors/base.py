@@ -37,7 +37,7 @@ class BaseAttributeProcessor:
         self.catchment_path = self._get_catchment_path()
 
         # Initialize results dictionary
-        self.results = {}
+        self.results: Dict[str, Any] = {}
 
     def _get_catchment_path(self) -> Path:
         """
