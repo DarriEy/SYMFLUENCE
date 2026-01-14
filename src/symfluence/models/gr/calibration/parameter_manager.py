@@ -16,11 +16,10 @@ import logging
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_gr_bounds
 from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.core.mixins import ConfigMixin
 
 
 @OptimizerRegistry.register_parameter_manager('GR')
-class GRParameterManager(ConfigMixin, BaseParameterManager):
+class GRParameterManager(BaseParameterManager):
     """Handles GR parameter bounds, normalization, and configuration updates."""
 
     def __init__(self, config: Dict, logger: logging.Logger, gr_settings_dir: Path):

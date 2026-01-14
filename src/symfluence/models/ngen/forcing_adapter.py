@@ -9,11 +9,10 @@ from typing import Dict, List, Callable
 import xarray as xr
 
 from symfluence.models.adapters import ForcingAdapter, ForcingAdapterRegistry
-from symfluence.core.mixins import ConfigMixin
 
 
 @ForcingAdapterRegistry.register_adapter('NGEN')
-class NGENForcingAdapter(ConfigMixin, ForcingAdapter):
+class NGENForcingAdapter(ForcingAdapter):
     """
     Forcing adapter for NOAA NextGen framework.
 

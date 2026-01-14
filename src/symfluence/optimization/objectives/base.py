@@ -2,9 +2,13 @@
 Base Objective for SYMFLUENCE
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Dict, Any, Union, TYPE_CHECKING
+from symfluence.core.mixins import ConfigMixin
 
-class BaseObjective(ABC):
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
+class BaseObjective(ConfigMixin, ABC):
     """
     Abstract base class for optimization objective functions in SYMFLUENCE.
 
@@ -148,7 +152,7 @@ class BaseObjective(ABC):
         - evaluation.evaluators.base.BaseEvaluator: Produces evaluation_results input
         - optimization.optimizers.base_model_optimizer.BaseModelOptimizer: Consumes objectives
     """
-    def __init__(self, config: Dict[str, Any], logger):
+    def __init__(self, config: Union[Dict[str, Any], 'SymfluenceConfig'], logger):
         self.config = config
         self.logger = logger
 

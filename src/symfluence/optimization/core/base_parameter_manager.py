@@ -28,13 +28,17 @@ Usage:
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
 from pathlib import Path
 import numpy as np
 import logging
+from symfluence.core.mixins import ConfigMixin
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
 
 
-class BaseParameterManager(ABC):
+class BaseParameterManager(ConfigMixin, ABC):
     """
     Abstract base class for model parameter managers.
 
@@ -49,12 +53,12 @@ class BaseParameterManager(ABC):
         _param_bounds: Cached parameter bounds dictionary (lazy loaded)
     """
 
-    def __init__(self, config: Dict, logger: logging.Logger, settings_dir: Path):
+    def __init__(self, config: Union[Dict, 'SymfluenceConfig'], logger: logging.Logger, settings_dir: Path):
         """
         Initialize base parameter manager.
 
         Args:
-            config: Configuration dictionary containing domain and experiment settings
+            config: Configuration dictionary or SymfluenceConfig instance containing domain and experiment settings
             logger: Logger instance for diagnostic output
             settings_dir: Path to model-specific settings directory
         """
