@@ -284,6 +284,10 @@ class ToolInstaller(BaseService):
         try:
             combined_script = "\n".join(tool_info.get("build_commands", []))
 
+            # Security note: shell=True is required here because build_commands
+            # are multi-line shell scripts that may contain shell-specific syntax
+            # (pipes, redirects, environment variables, etc.). The build commands
+            # come from internal tool definitions, not user input.
             build_result = subprocess.run(
                 combined_script,
                 shell=True,

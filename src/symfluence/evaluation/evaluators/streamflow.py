@@ -157,7 +157,7 @@ class StreamflowEvaluator(ModelEvaluator):
             with xr.open_dataset(sim_file) as ds:
                 mizuroute_vars = ['IRFroutedRunoff', 'KWTroutedRunoff', 'dlayRunoff', 'reachID', 'seg']
                 return any(var in ds.variables or var in ds.dims for var in mizuroute_vars)
-        except:
+        except (OSError, IOError, ValueError):
             return False
 
     def _extract_mizuroute_streamflow(self, sim_file: Path) -> pd.Series:

@@ -151,7 +151,8 @@ class FuseForcingProcessor(BaseForcingProcessor):
             try:
                 ds['temp'] = ds['airtemp']
                 ds['pr'] = ds['pptrate']
-            except:
+            except KeyError:
+                # Variables may already have correct names or not exist
                 pass
 
             # Calculate PET for the correct spatial configuration

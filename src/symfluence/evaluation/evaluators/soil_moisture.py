@@ -478,8 +478,8 @@ class SoilMoistureEvaluator(ModelEvaluator):
                         try:
                             depth_str = col.split('_')[1]
                             depths.append((float(depth_str), col))
-                        except:
-                            continue
+                        except (IndexError, ValueError):
+                            continue  # Skip columns with unparseable depth
                     if depths:
                         depths.sort()
                         self.target_depth = str(depths[0][0])

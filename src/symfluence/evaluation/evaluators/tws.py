@@ -284,7 +284,7 @@ class TWSEvaluator(ModelEvaluator):
                     # If we find all variables, use this file
                     if len(matching_vars) == len(self.storage_vars):
                         break
-            except:
+            except (OSError, IOError, KeyError):
                 continue
 
         if best_file:

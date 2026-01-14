@@ -542,11 +542,11 @@ class ObservedDataProcessor:
                 # Fallback to specific formats if inference fails
                 try:
                     processed_df['Date'] = pd.to_datetime(processed_df['Date'], format='%m/%d/%Y', errors='coerce') # MM/DD/YYYY
-                except:
+                except (ValueError, TypeError) as format_error:
                     try:
                         processed_df['Date'] = pd.to_datetime(processed_df['Date'], format='%Y-%m-%d', errors='coerce') # YYYY-MM-DD
-                    except:
-                        self.logger.error("Could not parse Date column with known formats.")
+                    except (ValueError, TypeError) as final_error:
+                        self.logger.error(f"Could not parse Date column with known formats: {final_error}")
                         return False
 
             # Ensure the Date column is formatted consistently (YYYY-MM-DD)

@@ -110,7 +110,8 @@ class SoilDepthTransformer(ParameterTransformer):
         try:
             with nc.Dataset(path, 'r') as ds:
                 return ds.variables['mLayerDepth'][:, 0].copy()
-        except:
+        except (OSError, IOError, KeyError) as e:
+            self.logger.debug(f"Could not read mLayerDepth from {path}: {e}")
             return None
 
     def _calculate_new_depths(self, original: np.ndarray, total_mult: float, shape_factor: float) -> np.ndarray:

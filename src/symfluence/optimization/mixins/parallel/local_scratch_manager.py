@@ -17,6 +17,7 @@ Key improvements in this version:
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Dict, Any, Optional
 import logging
@@ -444,13 +445,17 @@ class LocalScratchManager:
             otherwise returns standard paths
         """
         if self.use_scratch:
+            # Use platform-independent temp directory as fallback
+            temp_base = Path(tempfile.gettempdir())
+            fallback_data_dir = temp_base / "symfluence_data"
+            fallback_project_dir = temp_base / "symfluence_project"
             return {
-                'data_dir': self.scratch_data_dir or Path("/tmp/symfluence_data"),
-                'project_dir': self.scratch_project_dir or Path("/tmp/symfluence_project"),
-                'settings_dir': (self.scratch_project_dir or Path("/tmp/symfluence_project")) / "settings" / "SUMMA",
-                'mizuroute_settings_dir': (self.scratch_project_dir or Path("/tmp/symfluence_project")) / "settings" / "mizuRoute",
-                'forcing_dir': (self.scratch_project_dir or Path("/tmp/symfluence_project")) / "forcing" / "SUMMA_input",
-                'observations_dir': (self.scratch_project_dir or Path("/tmp/symfluence_project")) / "observations" / "streamflow" / "preprocessed",
+                'data_dir': self.scratch_data_dir or fallback_data_dir,
+                'project_dir': self.scratch_project_dir or fallback_project_dir,
+                'settings_dir': (self.scratch_project_dir or fallback_project_dir) / "settings" / "SUMMA",
+                'mizuroute_settings_dir': (self.scratch_project_dir or fallback_project_dir) / "settings" / "mizuRoute",
+                'forcing_dir': (self.scratch_project_dir or fallback_project_dir) / "forcing" / "SUMMA_input",
+                'observations_dir': (self.scratch_project_dir or fallback_project_dir) / "observations" / "streamflow" / "preprocessed",
             }
         else:
             return {

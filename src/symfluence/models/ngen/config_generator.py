@@ -152,7 +152,7 @@ class NgenConfigGenerator:
         try:
             duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
             num_steps = int(duration.total_seconds() / 3600)
-        except:
+        except (ValueError, TypeError):
             num_steps = 1
 
         config_text = f"""forcing_file=BMI
@@ -271,7 +271,7 @@ surface_water_partitioning_scheme=Schaake
         try:
             duration = pd.to_datetime(end_time) - pd.to_datetime(start_time)
             num_steps = int(duration.total_seconds() / 3600)
-        except:
+        except (ValueError, TypeError):
             num_steps = 1
 
         config_text = f"""verbose=0

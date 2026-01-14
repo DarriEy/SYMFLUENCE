@@ -387,7 +387,8 @@ class NgenParameterManager(BaseParameterManager):
                     # ngen usually runs at hourly timestep unless configured otherwise
                     # We add 1 because ngen intervals are inclusive of start/end bounds
                     num_steps = int(duration.total_seconds() / 3600)
-                except:
+                except (ValueError, TypeError) as e:
+                    self.logger.debug(f"Could not parse time range, defaulting to 1 timestep: {e}")
                     num_steps = 1
             else:
                 num_steps = 1
@@ -559,14 +560,14 @@ class NgenParameterManager(BaseParameterManager):
                     input_candidates = list(self.noah_dir.glob(f"cat-{self.hydro_id}.input"))
                 if not input_candidates:
                     input_candidates = list(self.noah_dir.glob("*.input"))
-                
+
                 if input_candidates:
                     itxt = input_candidates[0].read_text()
                     m = re.search(r"isltyp\s*=\s*(\d+)", itxt)
                     if m:
                         isltyp = int(m.group(1))
-            except:
-                pass
+            except (OSError, IOError, ValueError) as e:
+                self.logger.debug(f"Could not read isltyp from input file, using default: {e}")
 
             # Implement minimal editor: update numeric for a row that starts with var name or index.
             def edit_tbl_value(tbl_path: Path, var: str, col: Optional[int], new_val: float) -> bool:
@@ -706,7 +707,8 @@ class NgenParameterManager(BaseParameterManager):
                     # ngen usually runs at hourly timestep unless configured otherwise
                     # We add 1 because ngen intervals are inclusive of start/end bounds
                     num_steps = int(duration.total_seconds() / 3600)
-                except:
+                except (ValueError, TypeError) as e:
+                    self.logger.debug(f"Could not parse time range, defaulting to 1 timestep: {e}")
                     num_steps = 1
             else:
                 num_steps = 1

@@ -90,8 +90,13 @@ class GDALProcessor:
             self.logger.warning(f"Direct polygonization failed: {str(e)}, trying command line method...")
             try:
                 # Second attempt: Using command line tool without MPI
-                command = f"gdal_polygonize.py -f 'ESRI Shapefile' {input_raster} {output_shapefile}"
-                subprocess.run(command, shell=True, check=True)
+                command = [
+                    "gdal_polygonize.py",
+                    "-f", "ESRI Shapefile",
+                    str(input_raster),
+                    str(output_shapefile)
+                ]
+                subprocess.run(command, check=True)
                 self.logger.info("Completed GDAL polygonization using command line method")
 
             except Exception as e:

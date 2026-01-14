@@ -200,8 +200,8 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                         needs_fix = (first_time != rounded_time)
                         ds_decoded.close()
                         time_format_detected = 'datetime64'
-                    except:
-                        self.logger.warning("Could not determine time format - skipping time precision fix")
+                    except (ValueError, TypeError, KeyError) as e:
+                        self.logger.warning(f"Could not determine time format - skipping time precision fix: {e}")
                         ds.close()
                         return runoff_filepath
             else:
@@ -213,8 +213,8 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                     needs_fix = (first_time != rounded_time)
                     ds_decoded.close()
                     time_format_detected = 'datetime64'
-                except:
-                    self.logger.warning("No time units and cannot decode times - skipping time precision fix")
+                except (ValueError, TypeError, KeyError) as e:
+                    self.logger.warning(f"No time units and cannot decode times - skipping time precision fix: {e}")
                     ds.close()
                     return runoff_filepath
             
@@ -426,13 +426,12 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
 
         # Run mizuRoute
         mizu_log_path.mkdir(parents=True, exist_ok=True)
-        mizu_command = f"{self.mizu_exe} {settings_path / control_file}"
-        self.logger.debug(f'Running mizuRoute with command: {mizu_command}')
+        mizu_command = [str(self.mizu_exe), str(settings_path / control_file)]
+        self.logger.debug(f'Running mizuRoute with command: {" ".join(mizu_command)}')
 
         self.execute_model_subprocess(
             mizu_command,
             mizu_log_path / mizu_log_name,
-            shell=True,
             success_message="mizuRoute run completed successfully"
         )
 

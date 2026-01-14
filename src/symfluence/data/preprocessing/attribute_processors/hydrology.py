@@ -133,8 +133,8 @@ class HydrologyProcessor(BaseAttributeProcessor):
                             result = minimize(objective, [2.6], bounds=[(0.5, 10.0)])
                             if result.success:
                                 results["budyko_w_parameter"] = result.x[0]
-                        except:
-                            pass
+                        except (ValueError, RuntimeError):
+                            pass  # Optimization may fail for certain data, non-critical
 
         except Exception as e:
             self.logger.error(f"Error calculating water balance: {str(e)}")
