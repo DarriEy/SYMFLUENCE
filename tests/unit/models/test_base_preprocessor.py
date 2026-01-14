@@ -166,8 +166,8 @@ class TestFilePathResolution:
     """Test file path resolution."""
 
     def test_get_file_path_with_defaults(self, preprocessor):
-        """Test _get_file_path with all defaults."""
-        result = preprocessor._get_file_path(
+        """Test _get_base_file_path with all defaults."""
+        result = preprocessor._get_base_file_path(
             'test_file',
             'FILE_PATH',
             'FILE_NAME',
@@ -178,16 +178,16 @@ class TestFilePathResolution:
         assert result == preprocessor.project_dir / 'default.txt'
 
     def test_get_file_path_with_custom_path(self, config, logger, tmp_path):
-        """Test _get_file_path with custom path."""
+        """Test _get_base_file_path with custom path."""
         custom_dir = tmp_path / 'custom'
         custom_dir.mkdir(exist_ok=True)
         config['FILE_PATH'] = str(custom_dir)
         config['FILE_NAME'] = 'custom_file.txt'
-        
+
         # Re-initialize since config is frozen
         proc = ConcretePreProcessor(config, logger)
 
-        result = proc._get_file_path(
+        result = proc._get_base_file_path(
             'test_file',
             'FILE_PATH',
             'FILE_NAME',
