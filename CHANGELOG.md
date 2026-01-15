@@ -1,21 +1,31 @@
 # Changelog
 
-All notable changes to SYMFLUENCE are documented here.
+All notable changes to SYMFLUENCE are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
-## [0.7.0] - 2025-12-31
 
-### BREAKING CHANGES: CLI Refactored to Subcommand Architecture
+## [Unreleased]
 
-**This is a major breaking change that completely refactors the CLI from a flat flag-based interface to a modern two-level subcommand architecture. All existing CLI commands will need to be updated.**
+### Planned
+- See [v0.7.0] for upcoming CLI changes
+
+---
+
+## [0.7.0] - Upcoming
+
+> **Breaking Change**: This release refactors the CLI to a subcommand architecture.
+> All existing CLI commands will need to be updated.
 
 ### Changed
 - **Complete CLI Refactor**
-  - Replaced 1,261-line `cli_argument_manager.py` with modular subcommand architecture
+  - Replaced flat flag-based interface with modern two-level subcommand architecture
   - New structure: `symfluence <category> <action>` instead of `symfluence --flag`
   - 7 command categories: workflow, project, binary, config, job, example, agent
-  - Eliminated complex mode detection logic - commands dispatch directly to handlers
-  - Archived old `cli_argument_manager.py` to `cli_argument_manager.py.old`
+  - Eliminated complex mode detection logic
+  - Archived old `cli_argument_manager.py` for reference
 
 - **New CLI Structure**
   ```bash
@@ -55,20 +65,12 @@ All notable changes to SYMFLUENCE are documented here.
 ### Added
 - New modular command structure in `src/symfluence/cli/`:
   - `argument_parser.py` - Main parser with subcommand structure
-  - `validators.py` - Validation utilities (coordinates, bounding boxes, config files)
-  - `commands/` directory with command handlers:
-    - `base.py` - Base command class with common utilities
-    - `workflow_commands.py` - Workflow execution handlers
-    - `project_commands.py` - Project initialization handlers
-    - `binary_commands.py` - Tool management handlers
-    - `config_commands.py` - Configuration handlers
-    - `job_commands.py` - SLURM job handlers
-    - `example_commands.py` - Notebook handlers
-    - `agent_commands.py` - AI agent handlers
+  - `validators.py` - Validation utilities
+  - `commands/` directory with category-specific handlers
 
 ### Migration Guide
 
-| Old Command (v0.6.0) | New Command (v0.7.0) |
+| Old Command (v0.6.x) | New Command (v0.7.0) |
 |----------------------|----------------------|
 | `symfluence --calibrate_model` | `symfluence workflow step calibrate_model` |
 | `symfluence --setup_project --create_pour_point` | `symfluence workflow steps setup_project create_pour_point` |
@@ -88,104 +90,88 @@ All notable changes to SYMFLUENCE are documented here.
 - Better help messages (`symfluence workflow --help` shows workflow-specific options)
 - Easier to extend with new commands
 - Industry-standard pattern (like git, docker, kubectl)
-- No mode detection ambiguity
-
-**For scripts/automation:** Update all CLI invocations to use the new subcommand syntax. No backward compatibility mode is provided.
 
 ---
+
 ## [0.6.0] - 2025-12-29
-
-### Major: Calibration Infrastructure & CLI Completion
-
-**This release completes the CLI orchestrator integration and adds comprehensive calibration infrastructure including observation data acquisition utilities.**
 
 ### Added
 - **Calibration Observation Data Utilities**
-  - `utils/data/observation/download_smhi_discharge.py` - Download discharge data from Swedish Meteorological Institute
-  - `utils/data/observation/prepare_streamflow_for_calibration.py` - Convert discharge CSV to calibration format
-  - `utils/calibration/setup_calibration.py` - Automated calibration setup with parameter bounds and observational data
+  - `download_smhi_discharge.py` - Download discharge data from Swedish Meteorological Institute
+  - `prepare_streamflow_for_calibration.py` - Convert discharge CSV to calibration format
+  - `setup_calibration.py` - Automated calibration setup with parameter bounds
   - Calibration demo tests for Elliðaár (Iceland) and Fyris (Sweden) basins
 
 - **CARRA/CERRA Data Processing Improvements**
   - Fixed CARRA longitude normalization in spatial subsetting
-  - Improved spatial subsetting for small basins
-  - Added `FORCING_TIME_STEP_SIZE` configuration support (10800s for CERRA)
-  - Added `FORCING_SHAPE_ID_NAME` configuration support with default 'ID'
+  - `FORCING_TIME_STEP_SIZE` configuration support (10800s for CERRA)
+  - `FORCING_SHAPE_ID_NAME` configuration support with default 'ID'
 
 ### Changed
-- **CLI Orchestrator Integration Completed**
-  - `src/symfluence/cli.py` now properly instantiates and executes the workflow orchestrator
-  - Full integration with SYMFLUENCE class for both full workflow and individual step execution
-  - Removed placeholder TODO and completed implementation
-
-- **Version Bump to 0.6.0**
-  - Updated all version references across codebase
-  - `symfluence_version.py`: 0.6.0
-  - `pyproject.toml`: 0.6.0
-  - `__init__.py`: 0.6.0 fallback
+- CLI orchestrator integration completed with full workflow execution support
+- Version bump to 0.6.0 across all version references
 
 ### Removed
-- **Deprecated CONFLUENCE Backward Compatibility**
+- **Deprecated CONFLUENCE backward compatibility**
   - Removed `CONFLUENCE.py` wrapper file
   - Removed `./confluence` shell script
   - Removed `CONFLUENCE_DATA_DIR` and `CONFLUENCE_CODE_DIR` configuration support
-  - Removed all backward compatibility warnings and migration notes from documentation
-  - Updated all documentation references to use SYMFLUENCE exclusively
+  - All documentation now uses SYMFLUENCE exclusively
 
 ### Fixed
 - CARRA spatial subsetting for small basin extents
 - EASYMORE remapping failures for CARRA datasets
 
-### Notes
-- Calibration utilities are complete but require manual execution before running calibration
-- Future releases may integrate observation data acquisition into the main workflow
-- All CONFLUENCE references have been removed; users must update configurations to use `SYMFLUENCE_DATA_DIR`
+---
+
+## [0.5.11] - 2025-12-15
+
+### Changed
+- Enhanced ngen outlet detection
+- Cleaned up technical debt
+
+### Fixed
+- Mypy type errors in config property inheritance
+- Completed typed config migration for base classes
+
+### Improved
+- Centralized evaluation metric logic
+- Improved linting and added ruff tests to pyproject.toml
 
 ---
-## [0.5.3] - DEVELOP: 2025-11-15
+
+## [0.5.3] - 2025-11-15
 
 ### Added
-- Support for cloud acquisition of
+- Support for cloud acquisition of:
   - Copernicus DEM
   - MODIS land cover
   - Global USDA-NRCS soil texture class map
-  - Forcing datasets ERA5, NEX-GDDP, CONUS404, AORC
-  - Agnostic pipeline for cloud based era5 matched
-  - Full cloud integraed workflow tested with ERA5
+  - Forcing datasets: ERA5, NEX-GDDP, CONUS404, AORC
+- Agnostic pipeline for cloud-based ERA5 matched workflows
+- Full cloud-integrated workflow tested with ERA5
+- Made MPI worker log generation optional
+- Initial t-route support (in progress)
 
-- made mpi_worker log generation optional
-- Working on t-route support
+---
 
 ## [0.5.2] - 2025-11-12
 
-### Major: Formal Initial Release with End-to-End CI Validation
-
-**This release marks the first fully reproducible SYMFLUENCE workflow with continuous integration.**
-
 ### Added
-- **End-to-End CI Pipeline (Example Notebook 2a Equivalent)**
-  Integrated a comprehensive GitHub Actions workflow that builds, validates, and runs SYMFLUENCE automatically on every commit to `main`.
-  - Compiles all hydrologic model dependencies (TauDEM, mizuRoute, FUSE, NGEN).
-  - Validates MPI, NetCDF, GDAL, and HDF5 environments.
-  - Executes key steps (`setup_project`, `create_pour_point`, `define_domain`, `discretize_domain`, `model_agnostic_preprocessing`, `run_model`, `calibrate_model`, `run_benchmarking`).
-  - Confirms reproducible outputs under `SYMFLUENCE_DATA_DIR/domain_Bow_at_Banff`.
-  - Runs both wrapper (`./symfluence`) and direct Python entrypoints equivalently.
+- **End-to-End CI Pipeline**
+  - Comprehensive GitHub Actions workflow for automated testing
+  - Compiles all hydrologic model dependencies (TauDEM, mizuRoute, FUSE, NGEN)
+  - Validates MPI, NetCDF, GDAL, and HDF5 environments
+  - Executes key workflow steps with reproducible outputs
+  - Protected `main` branch requiring successful CI validation
 
 ### Changed
-- Updated `external_tools_config.py` to include automatic path resolution for TauDEM binaries (e.g., `moveoutletstostrms → moveoutletstostreams`).
-- Expanded logging and run summaries for CI visibility.
-- Protected `main` branch to require successful CI validation before merge.
-
-### Notes
-This release formalizes SYMFLUENCE’s **reproducibility framework**, guaranteeing that all supported workflows can be rebuilt and validated automatically on clean systems.
+- Updated `external_tools_config.py` with automatic path resolution for TauDEM binaries
+- Expanded logging and run summaries for CI visibility
 
 ---
 
 ## [0.5.0] - 2025-01-09
-
-### Major: CONFLUENCE → SYMFLUENCE Rebranding
-
-**This is the rebranding release.** The project is now SYMFLUENCE (SYnergistic Modelling Framework for Linking and Unifying Earth-system Nexii for Computational Exploration).
 
 ### Added
 - Complete rebranding to SYMFLUENCE
@@ -197,29 +183,16 @@ This release formalizes SYMFLUENCE’s **reproducibility framework**, guaranteei
 - Main script: `CONFLUENCE.py` → `symfluence.py`
 - Shell command: `./confluence` → `./symfluence`
 - Config parameters: `CONFLUENCE_*` → `SYMFLUENCE_*`
-- Repository: github.com/DarriEy/CONFLUENCE → github.com/DarriEy/SYMFLUENCE
+- Repository: `DarriEy/CONFLUENCE` → `DarriEy/SYMFLUENCE`
 
 ### Deprecated
-- All CONFLUENCE naming (will be removed in v1.0.0)
-- Legacy names still work but show warnings
-
-### Migration
-```bash
-# Update command
-./confluence --install  # old (still works)
-./symfluence --install  # new
-
-# Update imports
-from CONFLUENCE import CONFLUENCE  # old (still works)
-from symfluence import SYMFLUENCE  # new
-
-# Update config
-CONFLUENCE_DATA_DIR → SYMFLUENCE_DATA_DIR
-```
+- All CONFLUENCE naming (removed in v0.6.0)
 
 ---
 
 ## Links
-- PyPI: [pypi.org/project/symfluence](https://pypi.org/project/symfluence)
-- Docs: [symfluence.readthedocs.io](https://symfluence.readthedocs.io)
-- GitHub: [github.com/DarriEy/SYMFLUENCE](https://github.com/DarriEy/SYMFLUENCE)
+
+- **PyPI**: [pypi.org/project/symfluence](https://pypi.org/project/symfluence)
+- **Documentation**: [symfluence.readthedocs.io](https://symfluence.readthedocs.io)
+- **GitHub**: [github.com/DarriEy/SYMFLUENCE](https://github.com/DarriEy/SYMFLUENCE)
+- **Issues**: [github.com/DarriEy/SYMFLUENCE/issues](https://github.com/DarriEy/SYMFLUENCE/issues)

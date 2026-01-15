@@ -250,7 +250,60 @@ We welcome:
 
 ---
 
-## 9. Questions
+## 9. API Stability and Versioning
+
+SYMFLUENCE follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (SemVer):
+
+```
+MAJOR.MINOR.PATCH (e.g., 1.2.3)
+```
+
+### Version Guarantees
+
+| Version Change | What It Means | Example |
+|----------------|---------------|---------|
+| **MAJOR** (1.x → 2.x) | Breaking changes to public API | Removing deprecated functions, changing return types |
+| **MINOR** (1.1 → 1.2) | New features, backward compatible | Adding new models, new CLI commands |
+| **PATCH** (1.1.1 → 1.1.2) | Bug fixes, backward compatible | Fixing calculation errors, typos |
+
+### Public API Definition
+
+The **public API** includes:
+- All classes and functions exported in `__all__` from top-level modules
+- CLI commands documented in `--help`
+- Configuration file format (YAML keys)
+- Python API: `SYMFLUENCE`, `SymfluenceConfig`, and exported exceptions
+
+The following are **not** part of the public API:
+- Internal modules (prefixed with `_` or in `internal/` directories)
+- Undocumented functions or classes
+- Debug/logging output format
+- Specific error message text
+
+### Pre-1.0 Stability
+
+While SYMFLUENCE is pre-1.0 (currently 0.x.x):
+- MINOR versions may include breaking changes (documented in CHANGELOG)
+- PATCH versions are always backward compatible
+- Deprecation warnings will be issued at least one MINOR version before removal
+
+### Deprecation Policy
+
+1. **Announce**: Deprecated features are marked with `warnings.warn()` and documented in CHANGELOG
+2. **Grace period**: Deprecated features remain functional for at least one MINOR release
+3. **Remove**: Removal is announced in CHANGELOG with migration guidance
+
+### For Contributors
+
+When making changes:
+- **Adding features**: Increment MINOR version
+- **Fixing bugs**: Increment PATCH version
+- **Breaking changes**: Increment MAJOR version (or MINOR if pre-1.0), document migration path
+- Always update `CHANGELOG.md` with your changes
+
+---
+
+## 10. Questions
 If you're unsure where to start:
 - Open a GitHub discussion or issue
 - Review existing docs at [symfluence.readthedocs.io](https://symfluence.readthedocs.io)
