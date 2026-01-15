@@ -229,12 +229,10 @@ class CDSRegionalReanalysisHandler(BaseAcquisitionHandler, ABC):
 
         finally:
             # Cleanup raw downloads for this month
-            # Temporarily keep first month's files for debugging
-            if year == 2015 and month == 1:
-                logging.info(f"DEBUG: Keeping raw files for inspection: {af}, {ff}")
-            else:
-                if af.exists(): af.unlink()
-                if ff.exists(): ff.unlink()
+            if af.exists():
+                af.unlink()
+            if ff.exists():
+                ff.unlink()
 
     def _download_and_process_year(self, year: int, output_dir: Path) -> Path:
         """Deprecated: Use _download_and_process_month instead."""
