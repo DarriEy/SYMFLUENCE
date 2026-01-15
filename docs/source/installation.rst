@@ -164,6 +164,150 @@ Verification
 
    ./symfluence --help
 
+Troubleshooting
+---------------
+
+GDAL Installation Issues
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+GDAL is the most common source of installation problems. Here are solutions for
+common scenarios:
+
+**macOS Apple Silicon (M1/M2/M3)**
+
+The ARM architecture requires special handling:
+
+.. code-block:: bash
+
+   # Option 1: Homebrew (recommended)
+   brew install gdal
+   pip install gdal==$(gdal-config --version)
+
+   # Option 2: Conda (if Homebrew fails)
+   conda create -n symfluence python=3.11
+   conda activate symfluence
+   conda install -c conda-forge gdal
+
+   # Verify architecture matches
+   file $(which gdalinfo)  # Should show "arm64"
+
+**Version Mismatch Errors**
+
+If you see ``gdal_config_error`` or version conflicts:
+
+.. code-block:: bash
+
+   # Check system GDAL version
+   gdal-config --version
+
+   # Install matching Python bindings
+   pip install gdal==$(gdal-config --version)
+
+   # If that fails, try conda-forge
+   conda install -c conda-forge gdal=$(gdal-config --version)
+
+**Windows**
+
+Native Windows installation is complex. Use conda-forge:
+
+.. code-block:: bash
+
+   # Create environment with all geospatial deps
+   conda create -n symfluence python=3.11
+   conda activate symfluence
+   conda install -c conda-forge gdal geopandas rasterio netcdf4 hdf5
+
+   # Then install symfluence
+   pip install symfluence
+
+**Linux Build Failures**
+
+If GDAL Python bindings fail to compile:
+
+.. code-block:: bash
+
+   # Ensure development headers are installed
+   sudo apt-get install -y libgdal-dev
+
+   # Set include paths
+   export CPLUS_INCLUDE_PATH=/usr/include/gdal
+   export C_INCLUDE_PATH=/usr/include/gdal
+
+   # Install with numpy pre-installed
+   pip install numpy
+   pip install gdal==$(gdal-config --version)
+
+NetCDF/HDF5 Issues
+~~~~~~~~~~~~~~~~~~
+
+**Missing libnetcdf or libhdf5**
+
+.. code-block:: bash
+
+   # Ubuntu/Debian
+   sudo apt-get install -y libnetcdf-dev libhdf5-dev
+
+   # macOS
+   brew install netcdf hdf5
+
+   # Verify
+   nc-config --version
+   h5cc -showconfig | head -5
+
+**HDF5 Version Conflicts**
+
+If you see HDF5 header/library version mismatches:
+
+.. code-block:: bash
+
+   # Force rebuild with system libraries
+   pip uninstall h5py
+   HDF5_DIR=/usr/local pip install --no-binary=h5py h5py
+
+rpy2/R Integration Issues
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**R Not Found**
+
+.. code-block:: bash
+
+   # Ensure R is in PATH
+   which R
+   R --version
+
+   # On macOS, you may need to link
+   export R_HOME=$(R RHOME)
+
+**rpy2 Compilation Errors**
+
+.. code-block:: bash
+
+   # Install R development headers
+   # Ubuntu
+   sudo apt-get install r-base-dev
+
+   # Then reinstall rpy2
+   pip install --force-reinstall rpy2
+
+Diagnostic Commands
+~~~~~~~~~~~~~~~~~~~
+
+Run these to diagnose issues:
+
+.. code-block:: bash
+
+   # Check all dependencies
+   symfluence binary doctor
+
+   # Verify Python environment
+   python -c "import gdal; print(gdal.__version__)"
+   python -c "import netCDF4; print(netCDF4.__version__)"
+   python -c "import rpy2; print(rpy2.__version__)"
+
+   # Check system libraries
+   ldconfig -p | grep -E "(gdal|netcdf|hdf5)"  # Linux
+   otool -L $(python -c "import gdal; print(gdal.__file__)")  # macOS
+
 Next Steps
 ----------
 - :doc:`getting_started` — your first run

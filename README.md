@@ -6,6 +6,8 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Documentation](https://img.shields.io/badge/docs-symfluence.org-brightgreen)](https://symfluence.readthedocs.io)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/DarriEy/SYMFLUENCE/ci.yml?branch=main)](https://github.com/DarriEy/SYMFLUENCE/actions)
+[![codecov](https://codecov.io/gh/DarriEy/SYMFLUENCE/graph/badge.svg)](https://codecov.io/gh/DarriEy/SYMFLUENCE)
+[![Tests](https://img.shields.io/badge/tests-99%20files-green)](tests/)
 
 ---
 
@@ -134,7 +136,28 @@ brew install r
 If you encounter GDAL installation issues:
 1. Ensure GDAL system library version matches the Python package version
 2. On Windows, prefer conda installation over pip for geospatial packages
-3. Run `symfluence --doctor` to diagnose system dependencies
+3. Run `symfluence binary doctor` to diagnose system dependencies
+
+**macOS Apple Silicon (M1/M2/M3):**
+```bash
+# Recommended: use Homebrew
+brew install gdal
+pip install gdal==$(gdal-config --version)
+
+# Alternative: use conda-forge
+conda install -c conda-forge gdal geopandas rasterio
+```
+
+**Windows:**
+```bash
+# Use conda-forge for all geospatial dependencies
+conda create -n symfluence python=3.11
+conda activate symfluence
+conda install -c conda-forge gdal geopandas rasterio netcdf4 hdf5
+pip install symfluence
+```
+
+For detailed troubleshooting, see the [installation guide](https://symfluence.readthedocs.io/en/latest/installation.html#troubleshooting)
 
 ---
 
