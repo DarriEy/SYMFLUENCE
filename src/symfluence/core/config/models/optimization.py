@@ -127,7 +127,6 @@ class OptimizationConfig(BaseModel):
     population_size: int = Field(default=50, alias='POPULATION_SIZE')
     final_evaluation_numerical_method: str = Field(default='ida', alias='FINAL_EVALUATION_NUMERICAL_METHOD')
     cleanup_parallel_dirs: bool = Field(default=True, alias='CLEANUP_PARALLEL_DIRS')
-    params_keep_trials: bool = Field(default=False, alias='PARAMS_KEEP_TRIALS')
 
     @field_validator('iterations')
     @classmethod
