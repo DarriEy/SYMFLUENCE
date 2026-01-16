@@ -412,6 +412,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'POPULATION_SIZE': ('optimization', 'population_size'),
     'FINAL_EVALUATION_NUMERICAL_METHOD': ('optimization', 'final_evaluation_numerical_method'),
     'CLEANUP_PARALLEL_DIRS': ('optimization', 'cleanup_parallel_dirs'),
+    'PARAMS_KEEP_TRIALS': ('optimization', 'params_keep_trials'),
 
     # Optimization > PSO
     'SWRMSIZE': ('optimization', 'pso', 'swrmsize'),
