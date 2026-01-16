@@ -91,7 +91,7 @@ class HYPEModelOptimizer(BaseModelOptimizer):
             self.parallel_dirs,
             'HYPE',
             self.experiment_id,
-            file_manager_name='info.txt'
+            self._get_config_value(lambda: self.config.model.hype.info_file, default='info.txt', dict_key='SETTINGS_HYPE_INFO')
         )
 
         # If routing needed, also copy and configure mizuRoute settings
