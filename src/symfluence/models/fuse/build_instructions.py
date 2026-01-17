@@ -82,22 +82,37 @@ FFLAGS_FIXED="-O2 -c -ffixed-form ${EXTRA_FLAGS}"
 echo "Pre-compiling sce_16plus.f..."
 ${FC} ${FFLAGS_FIXED} -o sce_16plus.o "FUSE_SRC/FUSE_SCE/sce_16plus.f" || { echo "Failed to compile sce_16plus.f"; exit 1; }
 
-# Pre-compile critical modules to ensure dependency ordering
-# fuse_fileManager must be compiled before fuse_driver
-echo "Pre-compiling critical FUSE modules..."
-for mod_file in FUSE_SRC/FUSE_HOOK/fuse_fileManager.f90; do
-    if [ -f "$mod_file" ]; then
-        ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$mod_file" || echo "Warning: Could not pre-compile $mod_file"
-    fi
-done
+# FUSE has complex Fortran module dependencies that the Makefile doesn't handle well.
+# Strategy: Run make multiple times - first pass builds modules, second pass links.
+# This is a common workaround for Makefiles with incomplete Fortran dependencies.
 
-# Build FUSE (use -j1 to avoid Fortran module dependency race conditions)
-echo "Building FUSE..."
+echo "Building FUSE (multi-pass for Fortran module dependencies)..."
+
+# First pass: Let make build what it can, ignoring errors
+# This typically builds the base modules that other files need
+echo "Pass 1: Building base modules..."
+make -j1 FC="${FC}" F_MASTER="${F_MASTER}" LIBS="${LIBS}" INCLUDES="${INCLUDES}" \
+     FFLAGS_NORMA="${FFLAGS_NORMA}" FFLAGS_FIXED="${FFLAGS_FIXED}" 2>&1 || true
+
+# Check what .mod files were created
+echo "Modules created after pass 1:"
+ls -la *.mod 2>/dev/null || echo "  (none in current dir)"
+ls -la objects/*.mod 2>/dev/null || echo "  (none in objects/)"
+
+# Second pass: Now that modules exist, dependent files can compile
+echo "Pass 2: Building dependent modules..."
+make -j1 FC="${FC}" F_MASTER="${F_MASTER}" LIBS="${LIBS}" INCLUDES="${INCLUDES}" \
+     FFLAGS_NORMA="${FFLAGS_NORMA}" FFLAGS_FIXED="${FFLAGS_FIXED}" 2>&1 || true
+
+# Third pass: Final link
+echo "Pass 3: Final build..."
 if make -j1 FC="${FC}" F_MASTER="${F_MASTER}" LIBS="${LIBS}" INCLUDES="${INCLUDES}" \
        FFLAGS_NORMA="${FFLAGS_NORMA}" FFLAGS_FIXED="${FFLAGS_FIXED}"; then
   echo "Build completed"
 else
   echo "Build failed - NetCDF lib: ${NETCDF_LIB_DIR}, HDF5 lib: ${HDF5_LIB_DIR}"
+  echo "Checking for partial build..."
+  ls -la *.exe fuse* 2>/dev/null || true
   exit 1
 fi
 
