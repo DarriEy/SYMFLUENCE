@@ -74,7 +74,10 @@ LIBS="-L${HDF5_LIB_DIR} -lhdf5 -lhdf5_hl -L${NETCDF_LIB_DIR} -lnetcdff -L${NETCD
 INCLUDES="-I${HDF5_INC_DIR} -I${NCDF_PATH}/include -I${NETCDF_C}/include"
 
 # Legacy compiler flags for old Fortran code
-EXTRA_FLAGS="-fallow-argument-mismatch -std=legacy"
+# -Wno-line-truncation: FUSE has some long lines that get truncated
+# -fallow-argument-mismatch: Legacy code has type mismatches
+# -std=legacy: Allow legacy Fortran constructs
+EXTRA_FLAGS="-fallow-argument-mismatch -std=legacy -Wno-line-truncation"
 FFLAGS_NORMA="-O3 -ffree-line-length-none -fmax-errors=0 -cpp ${EXTRA_FLAGS}"
 FFLAGS_FIXED="-O2 -c -ffixed-form ${EXTRA_FLAGS}"
 
@@ -105,26 +108,33 @@ else
     exit 1
 fi
 
-# 2. nrtype - depends on kinds_dmsl_kit_FUSE
+# 2. utilities_dmsl_kit_FUSE - depends on kinds_dmsl_kit_FUSE (used by fuse_fileManager)
+UTILITIES_SRC=$(find .. -name "utilities_dmsl_kit_FUSE.f90" 2>/dev/null | head -1)
+if [ -n "$UTILITIES_SRC" ]; then
+    echo "  2. Compiling: $UTILITIES_SRC"
+    ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$UTILITIES_SRC" || echo "Warning: utilities_dmsl_kit_FUSE compilation failed"
+fi
+
+# 3. nrtype - depends on kinds_dmsl_kit_FUSE
 NRTYPE_SRC=$(find .. -name "nrtype.f90" 2>/dev/null | head -1)
 if [ -n "$NRTYPE_SRC" ]; then
-    echo "  2. Compiling: $NRTYPE_SRC"
+    echo "  3. Compiling: $NRTYPE_SRC"
     ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$NRTYPE_SRC" || echo "Warning: nrtype compilation failed"
 fi
 
-# 3. Other base modules that fuse_fileManager might need
+# 4. Other base modules that fuse_fileManager might need
 for mod_name in "fuse_common" "data_type" "multiforce" "multistate"; do
     MOD_SRC=$(find .. -name "${mod_name}.f90" 2>/dev/null | head -1)
     if [ -n "$MOD_SRC" ]; then
-        echo "  3. Compiling: $MOD_SRC"
+        echo "  4. Compiling: $MOD_SRC"
         ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$MOD_SRC" 2>&1 || true
     fi
 done
 
-# 4. fuse_fileManager - depends on above modules
+# 5. fuse_fileManager - depends on above modules
 FILEMANAGER_SRC=$(find .. -name "fuse_fileManager.f90" 2>/dev/null | head -1)
 if [ -n "$FILEMANAGER_SRC" ]; then
-    echo "  4. Compiling: $FILEMANAGER_SRC"
+    echo "  5. Compiling: $FILEMANAGER_SRC"
     ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$FILEMANAGER_SRC" || echo "Warning: fuse_fileManager compilation failed"
 fi
 
@@ -135,6 +145,10 @@ ls -la *.mod 2>/dev/null || echo "  No .mod files in current directory"
 if [ ! -f "kinds_dmsl_kit_fuse.mod" ]; then
     echo "ERROR: kinds_dmsl_kit_fuse.mod not created"
     exit 1
+fi
+
+if [ ! -f "utilities_dmsl_kit_fuse.mod" ]; then
+    echo "WARNING: utilities_dmsl_kit_fuse.mod not created - fuse_fileManager may fail"
 fi
 
 if [ -f "fuse_filemanager.mod" ]; then
