@@ -83,53 +83,64 @@ echo "Pre-compiling sce_16plus.f..."
 ${FC} ${FFLAGS_FIXED} -o sce_16plus.o "FUSE_SRC/FUSE_SCE/sce_16plus.f" || { echo "Failed to compile sce_16plus.f"; exit 1; }
 
 # FUSE has complex Fortran module dependencies that the Makefile doesn't handle well.
-# The Makefile tries to compile fuse_driver.f90 before fuse_fileManager.f90,
-# but fuse_driver.f90 needs the fuse_filemanager.mod module file.
-# Solution: Manually compile the dependency modules BEFORE running make.
+# Dependency chain: kinds_dmsl_kit_FUSE -> nrtype -> fuse_fileManager -> fuse_driver
+# Solution: Manually compile modules in dependency order BEFORE running make.
 
 echo "Building FUSE (with manual module pre-compilation)..."
 
 # Create objects directory
 mkdir -p objects
 
-# Find and list all .f90 files that define modules needed by fuse_driver
-echo "Searching for fuse_fileManager source file..."
-FILEMANAGER_SRC=$(find ../build -name "fuse_fileManager.f90" -o -name "fuse_filemanager.f90" 2>/dev/null | head -1)
-if [ -z "$FILEMANAGER_SRC" ]; then
-    FILEMANAGER_SRC=$(find .. -name "fuse_fileManager.f90" -o -name "fuse_filemanager.f90" 2>/dev/null | head -1)
+# Compile modules in strict dependency order
+echo "Pre-compiling FUSE modules in dependency order..."
+
+# 1. kinds_dmsl_kit_FUSE - the base types module (no dependencies)
+KINDS_SRC=$(find .. -name "kinds_dmsl_kit_FUSE.f90" 2>/dev/null | head -1)
+if [ -n "$KINDS_SRC" ]; then
+    echo "  1. Compiling: $KINDS_SRC"
+    ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$KINDS_SRC" || { echo "Failed to compile kinds_dmsl_kit_FUSE"; exit 1; }
+else
+    echo "  ERROR: Could not find kinds_dmsl_kit_FUSE.f90"
+    find .. -name "*.f90" | xargs grep -l "module kinds_dmsl_kit" 2>/dev/null | head -5
+    exit 1
 fi
 
-if [ -n "$FILEMANAGER_SRC" ]; then
-    echo "Found: $FILEMANAGER_SRC"
+# 2. nrtype - depends on kinds_dmsl_kit_FUSE
+NRTYPE_SRC=$(find .. -name "nrtype.f90" 2>/dev/null | head -1)
+if [ -n "$NRTYPE_SRC" ]; then
+    echo "  2. Compiling: $NRTYPE_SRC"
+    ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$NRTYPE_SRC" || echo "Warning: nrtype compilation failed"
+fi
 
-    # fuse_fileManager may depend on other modules - find and compile them first
-    # Look for nrtype (basic types) and other base modules
-    echo "Looking for base module dependencies..."
-    for base_mod in "nrtype" "fuse_common" "data_type"; do
-        BASE_SRC=$(find .. -name "${base_mod}*.f90" 2>/dev/null | head -1)
-        if [ -n "$BASE_SRC" ]; then
-            echo "  Pre-compiling base module: $BASE_SRC"
-            ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$BASE_SRC" 2>&1 || true
-        fi
-    done
-
-    # Now compile fuse_fileManager
-    echo "Pre-compiling fuse_fileManager.f90..."
-    ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$FILEMANAGER_SRC" 2>&1
-
-    # Verify the .mod file was created
-    if [ -f "fuse_filemanager.mod" ]; then
-        echo "SUCCESS: fuse_filemanager.mod created"
-        ls -la *.mod 2>/dev/null
-    else
-        echo "WARNING: fuse_filemanager.mod not found in current directory"
-        echo "Searching for .mod files..."
-        find .. -name "*.mod" -newer "$FILEMANAGER_SRC" 2>/dev/null | head -10
+# 3. Other base modules that fuse_fileManager might need
+for mod_name in "fuse_common" "data_type" "multiforce" "multistate"; do
+    MOD_SRC=$(find .. -name "${mod_name}.f90" 2>/dev/null | head -1)
+    if [ -n "$MOD_SRC" ]; then
+        echo "  3. Compiling: $MOD_SRC"
+        ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$MOD_SRC" 2>&1 || true
     fi
+done
+
+# 4. fuse_fileManager - depends on above modules
+FILEMANAGER_SRC=$(find .. -name "fuse_fileManager.f90" 2>/dev/null | head -1)
+if [ -n "$FILEMANAGER_SRC" ]; then
+    echo "  4. Compiling: $FILEMANAGER_SRC"
+    ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$FILEMANAGER_SRC" || echo "Warning: fuse_fileManager compilation failed"
+fi
+
+# Verify key .mod files were created
+echo "Checking for required .mod files..."
+ls -la *.mod 2>/dev/null || echo "  No .mod files in current directory"
+
+if [ ! -f "kinds_dmsl_kit_fuse.mod" ]; then
+    echo "ERROR: kinds_dmsl_kit_fuse.mod not created"
+    exit 1
+fi
+
+if [ -f "fuse_filemanager.mod" ]; then
+    echo "SUCCESS: All required modules compiled"
 else
-    echo "WARNING: Could not find fuse_fileManager.f90"
-    echo "Listing FUSE source structure:"
-    find .. -type d -name "FUSE*" 2>/dev/null | head -10
+    echo "WARNING: fuse_filemanager.mod not found, build may fail"
 fi
 
 # Now run make - the module should exist
