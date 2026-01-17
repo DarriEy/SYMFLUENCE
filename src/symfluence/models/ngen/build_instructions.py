@@ -48,9 +48,18 @@ def get_ngen_build_instructions():
 set -e
 echo "Building ngen with full BMI support (C, C++, Fortran)..."
 
+# Ensure system tools are preferred (fix for 2i2c environments)
+export PATH="/usr/bin:$PATH"
+
+# Prevent any Makefile from being auto-triggered during git operations
+export MAKEFLAGS=""
+export MAKELEVEL=""
+
 # Detect venv Python - prefer VIRTUAL_ENV, otherwise use which python3
 if [ -n "$VIRTUAL_ENV" ]; then
   PYTHON_EXE="$VIRTUAL_ENV/bin/python3"
+elif [ -n "$CONDA_PREFIX" ]; then
+  PYTHON_EXE="$CONDA_PREFIX/bin/python3"
 else
   PYTHON_EXE=$(which python3)
 fi

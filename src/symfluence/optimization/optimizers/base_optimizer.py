@@ -42,7 +42,7 @@ from symfluence.optimization.calibration_targets import (
 from symfluence.optimization.workers.summa.error_logging import ErrorLogger
 from symfluence.models.summa.calibration.optimizer_mixin import SUMMAOptimizerMixin
 from symfluence.core.mixins import ConfigMixin
-from symfluence.core.profiling import get_profiler, ProfilerContext
+from symfluence.core.profiling import ProfilerContext
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig

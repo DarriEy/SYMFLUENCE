@@ -256,14 +256,14 @@ def create_process_monitor(pid: int, sample_interval: float = 0.5) -> ProcessIOM
 
     # macOS: Try psutil first, fall back if not available
     elif sys.platform == 'darwin':
-        try:
-            import psutil
+        from importlib.util import find_spec
+        if find_spec("psutil") is not None:
             logger.debug(f"Creating macOS process monitor (psutil) for PID {pid}")
             return MacOSProcessIOMonitor(pid, sample_interval)
-        except ImportError:
+        else:
             logger.info(
-                f"psutil not available on macOS - using fallback monitor. "
-                f"Install psutil for I/O metrics: pip install psutil"
+                "psutil not available on macOS - using fallback monitor. "
+                "Install psutil for I/O metrics: pip install psutil"
             )
             return FallbackProcessIOMonitor(pid, sample_interval)
 
@@ -304,7 +304,7 @@ def get_platform_capabilities() -> Dict[str, bool]:
             # Test if io_counters is available
             try:
                 p = psutil.Process()
-                io = p.io_counters()
+                p.io_counters()  # Test call - don't need the result
                 capabilities['io_bytes'] = True
                 capabilities['io_syscalls'] = True
                 capabilities['memory_tracking'] = True

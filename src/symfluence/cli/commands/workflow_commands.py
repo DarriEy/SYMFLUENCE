@@ -18,8 +18,6 @@ def _setup_profiling(args: Namespace):
         from symfluence.core.profiling import (
             enable_profiling,
             enable_system_profiling,
-            get_profiler,
-            get_system_profiler,
             setup_profiling_environment,
         )
         capture_stacks = getattr(args, 'profile_stacks', False)

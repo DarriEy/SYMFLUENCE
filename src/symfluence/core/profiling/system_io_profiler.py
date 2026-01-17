@@ -33,7 +33,7 @@ import subprocess
 import threading
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 from contextlib import contextmanager
 from collections import defaultdict
 from datetime import datetime
@@ -569,7 +569,7 @@ class _SubprocessProfiler:
                 stderr=None
             )
 
-        except subprocess.TimeoutExpired as e:
+        except subprocess.TimeoutExpired:
             self.stats.success = False
             self.stats.error_message = f"Timeout after {timeout}s"
             raise
