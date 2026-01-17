@@ -50,6 +50,17 @@ cd rhessys
 
 echo "GEOS_CFLAGS: $GEOS_CFLAGS, PROJ_CFLAGS: $PROJ_CFLAGS"
 
+# Force gcc compiler (RHESSys Makefile defaults to clang which may not be available)
+# Use system gcc if CC not already set
+if [ -z "$CC" ]; then
+    if [ -x /usr/bin/gcc ]; then
+        export CC=/usr/bin/gcc
+    else
+        export CC=$(command -v gcc || echo gcc)
+    fi
+fi
+echo "Using C compiler: $CC"
+
 # Apply patches for compiler compatibility
 perl -i.bak -pe 's/int\s+key_compare\s*\(\s*void\s*\*\s*e1\s*,\s*void\s*\*\s*e2\s*\)/int key_compare(const void *e1, const void *e2)/' util/key_compare.c
 perl -i.bak -pe 's/int\s+key_compare\s*\(\s*void\s*\*\s*,\s*void\s*\*\s*\)\s*;/int key_compare(const void *, const void *);/' util/sort_patch_layers.c
@@ -63,8 +74,8 @@ grep "const void \*e1" util/key_compare.c || { echo "Patching key_compare.c fail
 grep "const void \*" util/sort_patch_layers.c || { echo "Patching sort_patch_layers.c failed"; exit 1; }
 echo "Patches verified."
 
-# Build with detected flags
-make V=1 netcdf=T CMD_OPTS="-DCLIM_GRID_XY $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS"
+# Build with detected flags - explicitly pass CC to override Makefile's clang default
+make V=1 CC="$CC" netcdf=T CMD_OPTS="-DCLIM_GRID_XY $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS"
 
 mkdir -p ../bin
 mv rhessys* ../bin/rhessys || true
