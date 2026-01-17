@@ -84,6 +84,8 @@ _DEFAULT_TARGETS: Dict[str, Type[CalibrationTarget]] = {
     'soil_moisture': SoilMoistureTarget,
     'sm': SoilMoistureTarget,
     'tws': TWSTarget,
+    'stor_grace': TWSTarget,
+    'stor_mb': TWSTarget,
     'multivariate': MultivariateTarget,
 }
 
