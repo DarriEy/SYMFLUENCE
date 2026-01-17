@@ -258,8 +258,10 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         # Apply all fixes
         self.parameter_fixer.fix_run_options_var_names()
         self.parameter_fixer.fix_run_options_snow_params()
+        self.parameter_fixer.fix_run_options_output_dirs()
         self.parameter_fixer.fix_gru_count_mismatch()
         self.parameter_fixer.fix_hydrology_wf_r2()
+        self.parameter_fixer.fix_missing_hydrology_params()
         self.parameter_fixer.fix_class_initial_conditions()
         self.parameter_fixer.create_safe_forcing()
 
@@ -488,5 +490,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.parameter_fixer.fix_gru_count_mismatch()
         self.drainage_database.reorder_by_rank_and_normalize()
         # Do NOT call fix_gru_count_mismatch again - it would double-trim
+        self.parameter_fixer.fix_run_options_output_dirs()
         self.parameter_fixer.fix_hydrology_wf_r2()
+        self.parameter_fixer.fix_missing_hydrology_params()
         self.parameter_fixer.fix_class_initial_conditions()

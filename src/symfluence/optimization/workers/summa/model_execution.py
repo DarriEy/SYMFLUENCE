@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Dict
 
 from .netcdf_utilities import fix_summa_time_precision
+from symfluence.core.profiling import get_system_profiler
 
 
 def _deduplicate_output_control(output_control_path: Path, logger):
@@ -59,12 +60,20 @@ def _deduplicate_output_control(output_control_path: Path, logger):
 
 
 def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logger, debug_info: Dict, summa_settings_dir: Path = None) -> bool:
-    """SUMMA execution without log files to save disk space"""
+    """SUMMA execution with iteration-aware logging.
+
+    Log files include iteration number to prevent overwriting during calibration.
+    This enables post-hoc debugging of failed runs when PARAMS_KEEP_TRIALS is enabled.
+    """
     try:
         # Create log directory
         log_dir = summa_dir / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir / f"summa_worker_{os.getpid()}.log"
+
+        # Include iteration in log filename to prevent overwriting
+        iteration = debug_info.get('iteration', 0)
+        individual_id = debug_info.get('individual_id', 0)
+        log_file = log_dir / f"summa_worker_{os.getpid()}_iter{iteration:05d}_ind{individual_id:03d}.log"
 
         # Set environment for single-threaded execution
         env = os.environ.copy()
@@ -173,7 +182,9 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
 
         debug_info['commands_run'].append(f"SUMMA: {cmd_str}")
 
-        # Run SUMMA
+        # Run SUMMA with system-level I/O profiling
+        system_profiler = get_system_profiler()
+
         with open(log_file, 'w') as f:
             f.write("SUMMA Execution Log\n")
             f.write(f"Command: {cmd_str}\n")
@@ -182,14 +193,21 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
             f.write("=" * 50 + "\n")
             f.flush()
 
-            subprocess.run(
-                cmd,
-                stdout=f,
-                stderr=subprocess.STDOUT,
-                check=True,
+            # Profile SUMMA execution
+            with system_profiler.profile_subprocess(
+                command=cmd,
+                component='summa',
+                iteration=debug_info.get('iteration'),
+                cwd=summa_dir,
                 env=env,
-                cwd=str(summa_dir)
-            )
+                track_files=True,
+                output_dir=summa_dir
+            ) as proc:
+                proc.run(
+                    stdout=f,
+                    stderr=subprocess.STDOUT,
+                    check=True
+                )
 
         # Check if output files were created
         timestep_files = list(summa_dir.glob("*timestep.nc"))
@@ -284,10 +302,12 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
             f"mizuRoute control: {control_file}"
         ])
 
-        # Create log directory
+        # Create log directory with iteration-aware naming
         log_dir = mizuroute_dir / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir / f"mizuroute_worker_{os.getpid()}.log"
+        iteration = debug_info.get('iteration', 0)
+        individual_id = debug_info.get('individual_id', 0)
+        log_file = log_dir / f"mizuroute_worker_{os.getpid()}_iter{iteration:05d}_ind{individual_id:03d}.log"
 
         # Build command as list to avoid shell=True security concerns
         cmd = [str(mizu_exe), str(control_file)]
@@ -297,7 +317,9 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
         debug_info['commands_run'].append(f"mizuRoute: {cmd_str}")
         debug_info['mizuroute_log'] = str(log_file)
 
-        # Run mizuRoute
+        # Run mizuRoute with system-level I/O profiling
+        system_profiler = get_system_profiler()
+
         with open(log_file, 'w') as f:
             f.write("mizuRoute Execution Log\n")
             f.write(f"Command: {cmd_str}\n")
@@ -305,13 +327,20 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
             f.write("=" * 50 + "\n")
             f.flush()
 
-            subprocess.run(
-                cmd,
-                stdout=f,
-                stderr=subprocess.STDOUT,
-                check=True,
-                cwd=str(control_file.parent)
-            )
+            # Profile mizuRoute execution
+            with system_profiler.profile_subprocess(
+                command=cmd,
+                component='mizuroute',
+                iteration=debug_info.get('iteration'),
+                cwd=control_file.parent,
+                track_files=True,
+                output_dir=mizuroute_dir
+            ) as proc:
+                proc.run(
+                    stdout=f,
+                    stderr=subprocess.STDOUT,
+                    check=True
+                )
 
         # Check for output files
         nc_files = list(mizuroute_dir.glob("*.nc"))

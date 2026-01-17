@@ -85,6 +85,12 @@ class CLIParser:
                           help='Enable visualization during execution')
         parser.add_argument('--dry-run', action='store_true', dest='dry_run',
                           help='Show what would be executed without running')
+        parser.add_argument('--profile', action='store_true', dest='profile',
+                          help='Enable I/O profiling to diagnose IOPS bottlenecks')
+        parser.add_argument('--profile-output', type=str, dest='profile_output',
+                          help='Path for profiling report output (default: profile_report.json)')
+        parser.add_argument('--profile-stacks', action='store_true', dest='profile_stacks',
+                          help='Capture stack traces in profiling (expensive, for debugging)')
         return parser
 
     def _create_parser(self) -> argparse.ArgumentParser:

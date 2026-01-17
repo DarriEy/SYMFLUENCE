@@ -19,6 +19,9 @@ from symfluence.geospatial.coordinate_utils import CoordinateUtilsMixin
 
 from .system import SYMFLUENCE
 
+# Profiling module for IOPS diagnostics
+from .profiling import IOProfiler, ProfilerContext, get_profiler, profiling_enabled
+
 __all__ = [
     'SYMFLUENCE',
     'BaseManager',
@@ -43,4 +46,9 @@ __all__ = [
     'UnitConversion',
     'PhysicalConstants',
     'ModelDefaults',
+    # Profiling
+    'IOProfiler',
+    'ProfilerContext',
+    'get_profiler',
+    'profiling_enabled',
 ]

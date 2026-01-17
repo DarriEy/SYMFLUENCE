@@ -57,6 +57,13 @@ from .worker_safety import (
     _evaluate_parameters_worker_safe,
 )
 
+from .error_logging import (
+    ErrorLogger,
+    log_worker_failure,
+    init_worker_error_logger,
+    get_worker_error_logger,
+)
+
 __all__ = [
     # NetCDF utilities
     'fix_summa_time_precision',
@@ -85,4 +92,9 @@ __all__ = [
     '_denormalize_params_worker',
     # Worker safety
     '_evaluate_parameters_worker_safe',
+    # Error logging
+    'ErrorLogger',
+    'log_worker_failure',
+    'init_worker_error_logger',
+    'get_worker_error_logger',
 ]

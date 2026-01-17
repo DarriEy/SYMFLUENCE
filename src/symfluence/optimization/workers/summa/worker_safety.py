@@ -15,6 +15,7 @@ import random
 import gc
 import signal
 import traceback
+from pathlib import Path
 from typing import Dict
 
 import numpy as np
@@ -22,8 +23,44 @@ import numpy as np
 from .worker_orchestration import _evaluate_parameters_worker
 
 
-def _evaluate_parameters_worker_safe(task_data: Dict) -> Dict:
-    """Safe wrapper for parameter evaluation with error handling and retries"""
+def _export_worker_profile_data():
+    """Export profiling data from worker process to file.
+
+    Called in the finally block to ensure profile data is captured
+    even if the worker exits abnormally.
+    """
+    try:
+        from symfluence.core.profiling import get_profiler, get_profile_directory
+
+        profiler = get_profiler()
+        if not profiler.enabled or len(profiler._operations) == 0:
+            return
+
+        profile_dir = get_profile_directory()
+        if not profile_dir:
+            return
+
+        profile_dir = Path(profile_dir)
+        profile_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate unique filename with PID
+        pid = os.getpid()
+        profile_file = profile_dir / f"worker_profile_{pid}.json"
+
+        profiler.export_to_file(str(profile_file))
+    except Exception:
+        # Silently fail - don't want profiling to break workers
+        pass
+
+
+def _evaluate_parameters_worker_safe(task_data: Dict, skip_profile_export: bool = False) -> Dict:
+    """Safe wrapper for parameter evaluation with error handling and retries
+
+    Args:
+        task_data: Dictionary containing task parameters and configuration
+        skip_profile_export: If True, skip exporting profile data (used when
+            called from DDS worker which handles its own export)
+    """
     worker_seed = task_data.get('random_seed')
     if worker_seed is not None:
         random.seed(worker_seed)
@@ -119,5 +156,8 @@ def _evaluate_parameters_worker_safe(task_data: Dict) -> Dict:
         }
 
     finally:
+        # Export profiling data before cleanup (unless skipped for batch operations)
+        if not skip_profile_export:
+            _export_worker_profile_data()
         # Final cleanup
         gc.collect()

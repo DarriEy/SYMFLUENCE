@@ -128,6 +128,30 @@ class OptimizationConfig(BaseModel):
     final_evaluation_numerical_method: str = Field(default='ida', alias='FINAL_EVALUATION_NUMERICAL_METHOD')
     cleanup_parallel_dirs: bool = Field(default=True, alias='CLEANUP_PARALLEL_DIRS')
 
+    # Error logging and debugging options
+    params_keep_trials: bool = Field(
+        default=False,
+        alias='PARAMS_KEEP_TRIALS',
+        description="Convenience flag: enables ERROR_LOGGING_MODE='failures' to save "
+                    "parameter files and logs from failed runs for debugging"
+    )
+    error_logging_mode: str = Field(
+        default='none',
+        alias='ERROR_LOGGING_MODE',
+        description="Error artifact capture mode: 'none' (disabled), 'failures' "
+                    "(save artifacts from failed runs), 'all' (save all runs)"
+    )
+    stop_on_model_failure: bool = Field(
+        default=False,
+        alias='STOP_ON_MODEL_FAILURE',
+        description="Stop optimization immediately when a model run fails"
+    )
+    error_log_dir: str = Field(
+        default='error_logs',
+        alias='ERROR_LOG_DIR',
+        description="Subdirectory name for error artifacts within the output directory"
+    )
+
     @field_validator('iterations')
     @classmethod
     def validate_iterations(cls, v):

@@ -681,6 +681,92 @@ class MESHParameterFixer(ConfigMixin):
         except Exception as e:
             self.logger.warning(f"Failed to add WF_R2: {e}")
 
+    def fix_missing_hydrology_params(self) -> None:
+        """Ensure RCHARG, BASEFLW, and MANN are in the hydrology file as channel routing params."""
+        # Check if routing is enabled in run options
+        if self.run_options_path.exists():
+            with open(self.run_options_path, 'r') as f:
+                run_options_content = f.read()
+
+            # Skip adding routing parameters if RUNMODE is set to noroute
+            if re.search(r'RUNMODE\s+noroute', run_options_content):
+                self.logger.info("RUNMODE is 'noroute', skipping routing parameter additions")
+                return
+
+        if not self.hydro_path.exists():
+            self.logger.warning("Hydrology file not found, skipping parameter additions")
+            return
+
+        try:
+            with open(self.hydro_path, 'r') as f:
+                content = f.read()
+
+            params_to_add = []
+            if 'RCHARG' not in content:
+                params_to_add.append(('RCHARG', 0.5, 'Recharge fraction to groundwater'))
+            if 'BASEFLW' not in content:
+                params_to_add.append(('BASEFLW', 0.05, 'Baseflow rate'))
+            if 'MANN' not in content:
+                params_to_add.append(('MANN', 0.1, 'Manning roughness coefficient'))
+
+            if not params_to_add:
+                self.logger.debug("RCHARG, BASEFLW, and MANN already present")
+                return
+
+            lines = content.split('\n')
+            new_lines = []
+            params_added = False
+
+            for i, line in enumerate(lines):
+                # Find the channel routing parameters section and add after FLZ
+                if not params_added and line.strip().startswith('FLZ'):
+                    new_lines.append(line)
+                    # Add the parameters after FLZ
+                    for param_name, default_val, comment in params_to_add:
+                        param_line = f"{param_name}    {default_val:.3f}                                                # comment for line"
+                        new_lines.append(param_line)
+                        self.logger.info(f"Added {param_name} to hydrology file with default value {default_val}")
+                    params_added = True
+
+                    # Update the channel routing parameter count
+                    for j in range(len(new_lines) - len(params_to_add) - 2, -1, -1):
+                        if "Number of channel routing parameters" in new_lines[j]:
+                            match = re.match(r'\s*(\d+)', new_lines[j])
+                            if match:
+                                old_count = int(match.group(1))
+                                new_count = old_count + len(params_to_add)
+                                new_lines[j] = re.sub(r'^\s*\d+', f'       {new_count}', new_lines[j])
+                            break
+                    continue
+
+                new_lines.append(line)
+
+            with open(self.hydro_path, 'w') as f:
+                f.write('\n'.join(new_lines))
+
+        except Exception as e:
+            self.logger.warning(f"Failed to add missing hydrology parameters: {e}")
+
+    def fix_run_options_output_dirs(self) -> None:
+        """Fix output directory paths in run options file."""
+        run_options = self.forcing_dir / "MESH_input_run_options.ini"
+        if not run_options.exists():
+            return
+
+        try:
+            with open(run_options, 'r') as f:
+                content = f.read()
+
+            # Replace CLASSOUT with ./ for MESH 1.5 compatibility
+            if 'CLASSOUT' in content:
+                content = content.replace('CLASSOUT', './' + ' ' * 6)  # Pad to maintain alignment
+                with open(run_options, 'w') as f:
+                    f.write(content)
+                self.logger.info("Fixed output directory paths in run options")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to fix run options output dirs: {e}")
+
     def fix_class_initial_conditions(self) -> None:
         """Fix CLASS initial conditions for proper snow simulation."""
         if not self.class_file_path.exists():
@@ -811,7 +897,7 @@ class MESHParameterFixer(ConfigMixin):
 
             end_time_padded = min(end_time + timedelta(days=2), forcing_end)
 
-            # Subset and save
+            # Subset and save using netCDF4 directly for better compatibility
             with xr.open_dataset(forcing_nc) as ds:
                 if 'time' not in ds.dims:
                     return
@@ -833,7 +919,73 @@ class MESHParameterFixer(ConfigMixin):
                 n_timesteps = end_idx - start_idx
 
                 self.logger.info(f"Creating MESH_forcing_safe.nc with {n_timesteps} timesteps")
-                ds_safe.to_netcdf(safe_forcing_nc)
+
+                # Use netCDF4 directly to ensure proper encoding
+                from netCDF4 import Dataset as NC4Dataset
+                n_spatial = ds_safe.dims.get('subbasin', 1)
+
+                with NC4Dataset(safe_forcing_nc, 'w', format='NETCDF4') as ncfile:
+                    # Create dimensions
+                    ncfile.createDimension('time', None)  # unlimited
+                    ncfile.createDimension('subbasin', n_spatial)
+
+                    # Create coordinate variables
+                    var_time = ncfile.createVariable('time', 'f8', ('time',))
+                    var_time.standard_name = 'time'
+                    var_time.long_name = 'time'
+                    var_time.axis = 'T'
+                    var_time.units = 'hours since 1979-12-01'
+                    var_time.calendar = 'proleptic_gregorian'
+
+                    # Convert time to hours since reference
+                    reference = pd.Timestamp('1979-12-01')
+                    time_hours = np.array([
+                        (pd.Timestamp(t) - reference).total_seconds() / 3600.0
+                        for t in ds_safe['time'].values
+                    ])
+                    var_time[:] = time_hours
+
+                    var_n = ncfile.createVariable('subbasin', 'i4', ('subbasin',))
+                    var_n[:] = np.arange(1, n_spatial + 1)
+
+                    # Copy spatial coordinate variables if they exist
+                    for coord_var in ['lat', 'lon']:
+                        if coord_var in ds_safe:
+                            var = ncfile.createVariable(coord_var, 'f8', ('subbasin',))
+                            for attr in ds_safe[coord_var].attrs:
+                                var.setncattr(attr, ds_safe[coord_var].attrs[attr])
+                            var[:] = ds_safe[coord_var].values
+
+                    # Copy CRS if it exists
+                    if 'crs' in ds_safe:
+                        var_crs = ncfile.createVariable('crs', 'i4')
+                        for attr in ds_safe['crs'].attrs:
+                            var_crs.setncattr(attr, ds_safe['crs'].attrs[attr])
+
+                    # Copy forcing variables
+                    forcing_vars = ['PRES', 'QA', 'TA', 'UV', 'PRE', 'FSIN', 'FLIN']
+                    for var_name in forcing_vars:
+                        if var_name in ds_safe:
+                            var = ncfile.createVariable(
+                                var_name, 'f4', ('time', 'subbasin'),
+                                fill_value=-9999.0
+                            )
+                            # Copy attributes
+                            for attr in ds_safe[var_name].attrs:
+                                if attr != '_FillValue':
+                                    var.setncattr(attr, ds_safe[var_name].attrs[attr])
+                            var.missing_value = -9999.0
+
+                            # Copy data
+                            var[:] = ds_safe[var_name].values
+
+                    # Copy global attributes
+                    ncfile.author = "University of Calgary"
+                    ncfile.license = "GNU General Public License v3 (or any later version)"
+                    ncfile.purpose = "Create forcing .nc file for MESH"
+                    ncfile.Conventions = "CF-1.6"
+                    if 'history' in ds.attrs:
+                        ncfile.history = ds.attrs['history']
 
             # Update run options
             self._update_run_options_for_safe_forcing(start_time, end_time)
@@ -885,6 +1037,7 @@ class MESHParameterFixer(ConfigMixin):
 
         for line in lines:
             if 'fname=MESH_forcing' in line and 'fname=MESH_forcing_safe' not in line:
+                # Don't add .nc extension - MESH adds it automatically
                 line = line.replace('fname=MESH_forcing', 'fname=MESH_forcing_safe')
                 modified = True
 
