@@ -19,6 +19,42 @@ def get_common_build_environment() -> str:
     """
     return r'''
 set -e
+
+# ================================================================
+# 2i2c / JupyterHub Compiler Fix
+# ================================================================
+# Detect if conda's gcc is broken (common in 2i2c/JupyterHub environments)
+# and fall back to system compilers if so.
+detect_and_fix_compilers() {
+    local use_system_compilers=false
+
+    # Check for 2i2c environment indicators
+    if [ -d "/srv/conda/envs/notebook" ]; then
+        # Test if conda gcc can link a simple program
+        local test_file="/tmp/compiler_test_$$.c"
+        echo 'int main() { return 0; }' > "$test_file"
+
+        if [ -x "/srv/conda/envs/notebook/bin/gcc" ]; then
+            if ! /srv/conda/envs/notebook/bin/gcc "$test_file" -o /tmp/compiler_test_$$ 2>/dev/null; then
+                echo "2i2c: Conda gcc is broken, using system compilers"
+                use_system_compilers=true
+            fi
+        fi
+        rm -f "$test_file" /tmp/compiler_test_$$
+    fi
+
+    # Apply system compilers if needed
+    if [ "$use_system_compilers" = true ] || [ "${SYMFLUENCE_USE_SYSTEM_COMPILERS:-}" = "true" ]; then
+        [ -x /usr/bin/gcc ] && export CC=/usr/bin/gcc
+        [ -x /usr/bin/g++ ] && export CXX=/usr/bin/g++
+        echo "Using system compilers: CC=$CC, CXX=${CXX:-not set}"
+    fi
+}
+detect_and_fix_compilers
+
+# ================================================================
+# Fortran Compiler Detection
+# ================================================================
 # Compiler: force absolute path if possible to satisfy CMake/Makefile
 if [ -n "$FC" ] && [ -x "$FC" ]; then
     export FC="$FC"
@@ -29,6 +65,9 @@ else
 fi
 export FC_EXE="$FC"
 
+# ================================================================
+# Library Discovery
+# ================================================================
 # Discover libraries (fallback to /usr)
 export NETCDF="${NETCDF:-$(nc-config --prefix 2>/dev/null || echo /usr)}"
 export NETCDF_FORTRAN="${NETCDF_FORTRAN:-$(nf-config --prefix 2>/dev/null || echo /usr)}"

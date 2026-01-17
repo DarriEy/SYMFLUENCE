@@ -1,16 +1,10 @@
 # ================================================================================
-# Elliðaár Iceland E2E Test Configuration
-# Full 5-year SUMMA lumped model with 1000-iteration optimization
-# ================================================================================
-# Test validates complete workflow:
-# - Lumped basin delineation (Elliðaár, Reykjavik, Iceland)
-# - Cloud data acquisition (Copernicus DEM, MODIS, CARRA forcing, WSC streamflow)
-# - SUMMA preprocessing and execution
-# - 1000-iteration DDS optimization
+# Elliðaár Iceland - Quick Profiling Test Configuration
+# Minimal iterations for testing I/O profiling system
 # ================================================================================
 
 # Experiment metadata
-EXPERIMENT_ID: ellioaar_full_example
+EXPERIMENT_ID: ellioaar_profiling_test
 DOMAIN_NAME: ellioaar_iceland
 
 # Domain definition - Lumped basin
@@ -25,12 +19,12 @@ LUMPED_WATERSHED_METHOD: TauDEM
 GEOFABRIC_TYPE: na
 ROUTING_DELINEATION: lumped
 
-# Time periods (5 years total: 2015-2019)
-EXPERIMENT_TIME_START: '2015-01-01 00:00'
-EXPERIMENT_TIME_END: '2019-12-31 23:00'
-SPINUP_PERIOD: '2015-01-01, 2015-12-31'           # 1 year spinup
-CALIBRATION_PERIOD: '2016-01-01, 2017-12-31'       # 2 year calibration
-EVALUATION_PERIOD: '2018-01-01, 2019-12-31'        # 2 year evaluation
+# Time periods (shorter for quick test)
+EXPERIMENT_TIME_START: '2016-01-01 00:00'
+EXPERIMENT_TIME_END: '2017-12-31 23:00'
+SPINUP_PERIOD: '2016-01-01, 2016-06-30'           # 6 month spinup
+CALIBRATION_PERIOD: '2016-07-01, 2017-06-30'       # 1 year calibration
+EVALUATION_PERIOD: '2017-07-01, 2017-12-31'        # 6 month evaluation
 CALIBRATION_TIMESTEP: daily
 
 # Cloud data access
@@ -76,35 +70,22 @@ SETTINGS_SUMMA_FORCING_LIST: forcingFileList.txt
 # Routing
 ROUTING_MODEL: mizuRoute
 
-# Optimization configuration
+# SUMMA parameters to calibrate
+PARAMS_TO_CALIBRATE: k_soil,theta_sat,theta_res,vGn_alpha,vGn_n
+BASIN_PARAMS_TO_CALIBRATE: routingGammaShape,routingGammaScale
+CALIBRATE_DEPTH: false
+CALIBRATE_MIZUROUTE: false
+
+# Optimization configuration - MINIMAL for profiling test
 OPTIMIZATION_METHODS: ['iteration']
-ITERATIVE_OPTIMIZATION_ALGORITHM: ASYNC-DDS
+ITERATIVE_OPTIMIZATION_ALGORITHM: DDS
 OPTIMIZATION_METRIC: KGE
 OPTIMIZATION_TARGET: streamflow
 EVALUATION_DATA: ['streamflow']
-NUMBER_OF_ITERATIONS: 500  # Increased from 50 for full calibration (13 parameters)
+NUMBER_OF_ITERATIONS: 20  # Very small for quick profiling test
 
 # DDS algorithm settings
 DDS_R: 0.2
-ASYNC_DDS_POOL_SIZE: 10
-ASYNC_DDS_BATCH_SIZE: 10
-MAX_STAGNATION_BATCHES: 10
-
-# GR seeding - 'default' attempts to load from previous internal calibration
-GR_INITIAL_PARAMS: default
-
-# GR4J + CemaNeige parameters to calibrate (8 total)
-# GR4J core parameters:
-#   X1: Production store capacity (1-2000 mm)
-#   X2: Groundwater exchange coefficient (-10 to 10 mm/day)
-#   X3: Routing store capacity (1-300 mm)
-#   X4: Unit hydrograph time constant (0.5-4 days)
-# CemaNeige snow module parameters:
-#   CTG: Snow process parameter (0-1)
-#   Kf: Melt factor (0-10 mm/°C/day)
-#   Gratio: Thermal coefficient of snow pack (0.01-0.5)
-#   Albedo_diff: Albedo diffusion coefficient (0.1-1)
-GR_PARAMS_TO_CALIBRATE: X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff
 
 # Project paths
 SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE
@@ -112,11 +93,11 @@ SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data
 OUTPUT_DIR: default
 
 # Analysis and reporting
-ANALYSES: [benchmarking, attributes, visualization, optimization]
+ANALYSES: [optimization]
 
 # Other settings
-LOG_LEVEL: INFO
-RANDOM_SEED: null
+LOG_LEVEL: DEBUG
+RANDOM_SEED: 42
 FORCE_RUN_ALL_STEPS: false
-MPI_PROCESSES: 10
+MPI_PROCESSES: 4  # Small number for quick test
 SUPPLEMENT_FORCING: false

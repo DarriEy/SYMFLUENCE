@@ -20,6 +20,7 @@ from .parameter_application import _apply_parameters_worker
 from .model_execution import _run_summa_worker, _run_mizuroute_worker
 from .netcdf_utilities import _convert_lumped_to_distributed_worker
 from .metrics_calculation import _calculate_metrics_with_target, _calculate_multitarget_objectives
+from .error_logging import log_worker_failure
 
 
 def _evaluate_parameters_worker(task_data: Dict) -> Dict:
@@ -31,7 +32,9 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
         'stage': 'initialization',
         'files_checked': [],
         'commands_run': [],
-        'errors': []
+        'errors': [],
+        'iteration': task_data.get('iteration', 0),
+        'individual_id': task_data.get('individual_id', 0)
     }
 
     try:
@@ -157,6 +160,20 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
             error_msg = 'SUMMA simulation failed'
             logger.error(error_msg)
             eval_runtime = time.time() - eval_start_time
+
+            # Log failure artifacts if PARAMS_KEEP_TRIALS is enabled
+            log_worker_failure(
+                iteration=debug_info.get('iteration', 0),
+                params=params,
+                debug_info=debug_info,
+                settings_dir=summa_settings_dir,
+                summa_dir=summa_dir,
+                error_message=error_msg,
+                proc_id=proc_id,
+                individual_id=individual_id,
+                config=config
+            )
+
             return {
                 'individual_id': individual_id,
                 'params': params,
@@ -202,6 +219,20 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                 error_msg = 'mizuRoute simulation failed'
                 logger.error(error_msg)
                 eval_runtime = time.time() - eval_start_time
+
+                # Log failure artifacts if PARAMS_KEEP_TRIALS is enabled
+                log_worker_failure(
+                    iteration=debug_info.get('iteration', 0),
+                    params=params,
+                    debug_info=debug_info,
+                    settings_dir=summa_settings_dir,
+                    summa_dir=summa_dir,
+                    error_message=error_msg,
+                    proc_id=proc_id,
+                    individual_id=individual_id,
+                    config=config
+                )
+
                 return {
                     'individual_id': individual_id,
                     'params': params,

@@ -19,6 +19,8 @@ import numpy as np
 import netCDF4 as nc
 import xarray as xr
 
+from symfluence.core.profiling import get_profiler
+
 
 def _apply_parameters_worker(params: Dict, task_data: Dict, settings_dir: Path, logger, debug_info: Dict) -> bool:
     """Apply parameters consistently with sequential approach"""
@@ -76,6 +78,8 @@ def _apply_parameters_worker(params: Dict, task_data: Dict, settings_dir: Path, 
 
 def _update_soil_depths_worker(params: Dict, task_data: Dict, settings_dir: Path, logger, debug_info: Dict) -> bool:
     """Enhanced soil depth update with better error handling"""
+    profiler = get_profiler()
+
     try:
         original_depths_list = task_data.get('original_depths')
         if not original_depths_list:
@@ -126,17 +130,19 @@ def _update_soil_depths_worker(params: Dict, task_data: Dict, settings_dir: Path
 
         debug_info['files_checked'].append(f"coldState.nc: {coldstate_path}")
 
-        with nc.Dataset(coldstate_path, 'r+') as ds:
-            if 'mLayerDepth' not in ds.variables or 'iLayerHeight' not in ds.variables:
-                error_msg = "Required depth variables not found in coldState.nc"
-                logger.error(error_msg)
-                debug_info['errors'].append(error_msg)
-                return False
+        # Track coldState.nc write (secondary IOPS bottleneck)
+        with profiler.track_netcdf_write(str(coldstate_path), component="summa_worker"):
+            with nc.Dataset(coldstate_path, 'r+') as ds:
+                if 'mLayerDepth' not in ds.variables or 'iLayerHeight' not in ds.variables:
+                    error_msg = "Required depth variables not found in coldState.nc"
+                    logger.error(error_msg)
+                    debug_info['errors'].append(error_msg)
+                    return False
 
-            num_hrus = ds.dimensions['hru'].size
-            for h in range(num_hrus):
-                ds.variables['mLayerDepth'][:, h] = new_depths
-                ds.variables['iLayerHeight'][:, h] = heights
+                num_hrus = ds.dimensions['hru'].size
+                for h in range(num_hrus):
+                    ds.variables['mLayerDepth'][:, h] = new_depths
+                    ds.variables['iLayerHeight'][:, h] = heights
 
         logger.debug("Soil depths updated successfully")
         return True
@@ -150,6 +156,8 @@ def _update_soil_depths_worker(params: Dict, task_data: Dict, settings_dir: Path
 
 def _update_mizuroute_params_worker(params: Dict, task_data: Dict, logger, debug_info: Dict) -> bool:
     """Enhanced mizuRoute parameter update with better error handling"""
+    profiler = get_profiler()
+
     try:
         config = task_data['config']
         mizuroute_params = [p.strip() for p in config.get('MIZUROUTE_PARAMS_TO_CALIBRATE', '').split(',') if p.strip()]
@@ -163,8 +171,10 @@ def _update_mizuroute_params_worker(params: Dict, task_data: Dict, logger, debug
 
         debug_info['files_checked'].append(f"mizuRoute param file: {param_file}")
 
-        with open(param_file, 'r') as f:
-            content = f.read()
+        # Track file read
+        with profiler.track_file_read(str(param_file), component="summa_worker"):
+            with open(param_file, 'r') as f:
+                content = f.read()
 
         updated_content = content
         for param_name in mizuroute_params:
@@ -180,8 +190,10 @@ def _update_mizuroute_params_worker(params: Dict, task_data: Dict, logger, debug
                 updated_content = re.sub(pattern, replacement, updated_content)
                 logger.debug(f"Updated {param_name} = {param_value}")
 
-        with open(param_file, 'w') as f:
-            f.write(updated_content)
+        # Track file write
+        with profiler.track_file_write(str(param_file), size_bytes=len(updated_content), component="summa_worker"):
+            with open(param_file, 'w') as f:
+                f.write(updated_content)
 
         logger.debug("mizuRoute parameters updated successfully")
         return True
@@ -193,8 +205,84 @@ def _update_mizuroute_params_worker(params: Dict, task_data: Dict, logger, debug
         return False
 
 
+def _can_update_inplace(trial_params_path: Path, params: Dict, logger) -> bool:
+    """Check if we can update the trialParams file in-place.
+
+    Returns True if the file exists and contains all required parameters.
+    """
+    if not trial_params_path.exists():
+        return False
+
+    try:
+        with nc.Dataset(trial_params_path, 'r') as ds:
+            # Check if all parameters exist in the file
+            for param_name in params.keys():
+                if param_name not in ds.variables:
+                    logger.debug(f"Parameter {param_name} not in existing file, need full recreation")
+                    return False
+        return True
+    except Exception as e:
+        logger.debug(f"Cannot read existing trialParams for in-place update: {e}")
+        return False
+
+
+def _update_trial_params_inplace(trial_params_path: Path, params: Dict, logger, debug_info: Dict, profiler) -> bool:
+    """Update parameter values in-place in existing trialParams.nc file.
+
+    This is much faster than recreating the file because it only updates
+    the data values without recreating the file structure.
+    """
+    max_retries = 3
+    base_delay = 0.1
+
+    for attempt in range(max_retries):
+        try:
+            # Track the in-place update (should be faster than full write)
+            with profiler.track_netcdf_write(str(trial_params_path), component="summa_worker_inplace"):
+                with nc.Dataset(trial_params_path, 'r+') as ds:
+                    for param_name, param_values in params.items():
+                        if param_name in ds.variables:
+                            param_values_array = np.asarray(param_values)
+                            if param_values_array.ndim > 1:
+                                param_values_array = param_values_array.flatten()
+
+                            var = ds.variables[param_name]
+                            var_size = var.size
+
+                            if len(param_values_array) >= var_size:
+                                var[:] = param_values_array[:var_size]
+                            else:
+                                var[:] = param_values_array[0]
+
+                    # Sync to disk
+                    ds.sync()
+
+            logger.debug(f"Updated {len(params)} parameters in-place")
+            return True
+
+        except Exception as e:
+            if attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 0.1)
+                time.sleep(delay)
+                continue
+
+            error_msg = f"Failed in-place update after {max_retries} attempts: {e}"
+            logger.warning(error_msg)
+            debug_info['errors'].append(error_msg)
+            return False
+
+    return False
+
+
 def _generate_trial_params_worker(params: Dict, settings_dir: Path, logger, debug_info: Dict) -> bool:
-    """Enhanced trial parameters generation with better error handling and file locking"""
+    """Enhanced trial parameters generation with incremental updates to reduce IOPS.
+
+    If the trialParams.nc file exists with matching structure, this function
+    updates parameter values in-place rather than recreating the entire file.
+    This dramatically reduces IOPS during calibration.
+    """
+    profiler = get_profiler()
+
     try:
         if not params:
             logger.debug("No hydrological parameters to write")
@@ -211,6 +299,13 @@ def _generate_trial_params_worker(params: Dict, settings_dir: Path, logger, debu
 
         debug_info['files_checked'].append(f"attributes.nc: {attr_file_path}")
 
+        # Check if we can do an incremental update (file exists with right parameters)
+        can_update_inplace = _can_update_inplace(trial_params_path, params, logger)
+
+        if can_update_inplace:
+            return _update_trial_params_inplace(trial_params_path, params, logger, debug_info, profiler)
+
+        # Fall back to full file recreation if incremental update not possible
         # Add retry logic with file locking
         max_retries = 5
         base_delay = 0.1
@@ -227,56 +322,68 @@ def _generate_trial_params_worker(params: Dict, settings_dir: Path, logger, debu
                 basin_params = ['basin__aquiferBaseflowExp', 'basin__aquiferScaleFactor', 'basin__aquiferHydCond']
                 gru_level_params = routing_params + basin_params
 
-                with xr.open_dataset(attr_file_path) as ds:
-                    num_hrus = ds.sizes.get('hru', 1)
-                    num_grus = ds.sizes.get('gru', 1)
-                    hru_ids = ds['hruId'].values if 'hruId' in ds else np.arange(1, num_hrus + 1)
-                    gru_ids = ds['gruId'].values if 'gruId' in ds else np.array([1])
+                # Track attributes file read (I/O profiling)
+                with profiler.track_file_read(str(attr_file_path), component="summa_worker"):
+                    with xr.open_dataset(attr_file_path) as ds:
+                        num_hrus = ds.sizes.get('hru', 1)
+                        num_grus = ds.sizes.get('gru', 1)
+                        hru_ids = ds['hruId'].values if 'hruId' in ds else np.arange(1, num_hrus + 1)
+                        gru_ids = ds['gruId'].values if 'gruId' in ds else np.array([1])
 
                 logger.debug(f"Writing parameters for {num_hrus} HRUs, {num_grus} GRUs")
 
-                # Write to temporary file with exclusive access
-                with nc.Dataset(temp_path, 'w', format='NETCDF4') as output_ds:
-                    # Create dimensions
-                    output_ds.createDimension('hru', num_hrus)
-                    output_ds.createDimension('gru', num_grus)
+                # Track NetCDF write (PRIMARY IOPS BOTTLENECK)
+                with profiler.track_netcdf_write(str(trial_params_path), component="summa_worker"):
+                    # Write to temporary file with exclusive access and compression
+                    # Using zlib compression with shuffle filter to reduce file size and I/O
+                    with nc.Dataset(temp_path, 'w', format='NETCDF4') as output_ds:
+                        # Create dimensions
+                        output_ds.createDimension('hru', num_hrus)
+                        output_ds.createDimension('gru', num_grus)
 
-                    # Create coordinate variables
-                    hru_var = output_ds.createVariable('hruId', 'i4', ('hru',), fill_value=-9999)
-                    hru_var[:] = hru_ids
+                        # Compression settings: zlib level 4 is a good balance of speed/compression
+                        compress_opts = {'zlib': True, 'complevel': 4, 'shuffle': True}
 
-                    gru_var = output_ds.createVariable('gruId', 'i4', ('gru',), fill_value=-9999)
-                    gru_var[:] = gru_ids
+                        # Create coordinate variables (with compression)
+                        hru_var = output_ds.createVariable('hruId', 'i4', ('hru',),
+                                                          fill_value=-9999, **compress_opts)
+                        hru_var[:] = hru_ids
 
-                    # Add parameters
-                    for param_name, param_values in params.items():
-                        param_values_array = np.asarray(param_values)
+                        gru_var = output_ds.createVariable('gruId', 'i4', ('gru',),
+                                                          fill_value=-9999, **compress_opts)
+                        gru_var[:] = gru_ids
 
-                        if param_values_array.ndim > 1:
-                            param_values_array = param_values_array.flatten()
+                        # Add parameters with compression
+                        for param_name, param_values in params.items():
+                            param_values_array = np.asarray(param_values)
 
-                        if param_name in gru_level_params:
-                            # GRU-level parameters
-                            param_var = output_ds.createVariable(param_name, 'f8', ('gru',), fill_value=np.nan)
-                            param_var.long_name = f"Trial value for {param_name}"
+                            if param_values_array.ndim > 1:
+                                param_values_array = param_values_array.flatten()
 
-                            if len(param_values_array) >= num_grus:
-                                param_var[:] = param_values_array[:num_grus]
+                            if param_name in gru_level_params:
+                                # GRU-level parameters
+                                param_var = output_ds.createVariable(
+                                    param_name, 'f8', ('gru',), fill_value=np.nan, **compress_opts)
+                                param_var.long_name = f"Trial value for {param_name}"
+
+                                if len(param_values_array) >= num_grus:
+                                    param_var[:] = param_values_array[:num_grus]
+                                else:
+                                    param_var[:] = param_values_array[0]
                             else:
-                                param_var[:] = param_values_array[0]
-                        else:
-                            # HRU-level parameters
-                            param_var = output_ds.createVariable(param_name, 'f8', ('hru',), fill_value=np.nan)
-                            param_var.long_name = f"Trial value for {param_name}"
+                                # HRU-level parameters
+                                param_var = output_ds.createVariable(
+                                    param_name, 'f8', ('hru',), fill_value=np.nan, **compress_opts)
+                                param_var.long_name = f"Trial value for {param_name}"
 
-                            if len(param_values_array) == num_hrus:
-                                param_var[:] = param_values_array
-                            elif len(param_values_array) == 1:
-                                param_var[:] = param_values_array[0]
-                            else:
-                                param_var[:] = param_values_array[:num_hrus]
+                                if len(param_values_array) == num_hrus:
+                                    param_var[:] = param_values_array
+                                elif len(param_values_array) == 1:
+                                    param_var[:] = param_values_array[0]
+                                else:
+                                    param_var[:] = param_values_array[:num_hrus]
 
-                        logger.debug(f"Added parameter {param_name} with shape {param_var.shape}")
+                            logger.debug(f"Added parameter {param_name} with shape {param_var.shape}")
 
                 # Atomically move temporary file to final location
                 try:

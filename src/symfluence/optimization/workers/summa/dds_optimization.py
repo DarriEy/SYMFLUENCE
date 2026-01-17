@@ -8,13 +8,49 @@ This module contains the DDS (Dynamically Dimensioned Search) algorithm
 implementation for running within worker processes.
 """
 
+import os
 import logging
 import traceback
+from pathlib import Path
 from typing import Dict
 
 import numpy as np
 
 from .worker_safety import _evaluate_parameters_worker_safe
+
+
+def _export_worker_profile_data(worker_id: int = None):
+    """Export profiling data from worker process to file.
+
+    This function should be called at the end of worker tasks to ensure
+    profile data is captured even if atexit handlers don't run reliably
+    (e.g., with ProcessPoolExecutor on macOS).
+    """
+    try:
+        from symfluence.core.profiling import get_profiler, get_profile_directory
+
+        profiler = get_profiler()
+        if not profiler.enabled or len(profiler._operations) == 0:
+            return
+
+        profile_dir = get_profile_directory()
+        if not profile_dir:
+            return
+
+        profile_dir = Path(profile_dir)
+        profile_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate unique filename with PID and optional worker ID
+        pid = os.getpid()
+        if worker_id is not None:
+            profile_file = profile_dir / f"worker_profile_{pid}_{worker_id}.json"
+        else:
+            profile_file = profile_dir / f"worker_profile_{pid}.json"
+
+        profiler.export_to_file(str(profile_file))
+    except Exception:
+        # Silently fail - don't want profiling to break workers
+        pass
 
 
 def _run_dds_instance_worker(worker_data: Dict) -> Dict:
@@ -125,6 +161,9 @@ def _run_dds_instance_worker(worker_data: Dict) -> Dict:
 
         logger.info(f"DDS instance {start_id} completed: Best={best_score:.6f}, Evaluations={total_evaluations}")
 
+        # Export profiling data before returning
+        _export_worker_profile_data(worker_id=start_id)
+
         return {
             'start_id': start_id,
             'best_score': best_score,
@@ -136,6 +175,11 @@ def _run_dds_instance_worker(worker_data: Dict) -> Dict:
         }
 
     except Exception as e:
+        # Still export profiling data even on error
+        try:
+            _export_worker_profile_data(worker_id=worker_data['dds_task']['start_id'])
+        except Exception:
+            pass
         return {
             'start_id': worker_data['dds_task']['start_id'],
             'best_score': None,
@@ -168,8 +212,8 @@ def _evaluate_single_solution_worker(solution: np.ndarray, worker_data: Dict, lo
             'proc_id': 0
         }
 
-        # Use existing worker function
-        result = _evaluate_parameters_worker_safe(task_data)
+        # Use existing worker function (skip profile export since DDS handles it at end)
+        result = _evaluate_parameters_worker_safe(task_data, skip_profile_export=True)
 
         score = result.get('score')
         if score is None:

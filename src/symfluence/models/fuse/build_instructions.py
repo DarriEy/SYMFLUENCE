@@ -82,9 +82,18 @@ FFLAGS_FIXED="-O2 -c -ffixed-form ${EXTRA_FLAGS}"
 echo "Pre-compiling sce_16plus.f..."
 ${FC} ${FFLAGS_FIXED} -o sce_16plus.o "FUSE_SRC/FUSE_SCE/sce_16plus.f" || { echo "Failed to compile sce_16plus.f"; exit 1; }
 
-# Build FUSE
+# Pre-compile critical modules to ensure dependency ordering
+# fuse_fileManager must be compiled before fuse_driver
+echo "Pre-compiling critical FUSE modules..."
+for mod_file in FUSE_SRC/FUSE_HOOK/fuse_fileManager.f90; do
+    if [ -f "$mod_file" ]; then
+        ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$mod_file" || echo "Warning: Could not pre-compile $mod_file"
+    fi
+done
+
+# Build FUSE (use -j1 to avoid Fortran module dependency race conditions)
 echo "Building FUSE..."
-if make FC="${FC}" F_MASTER="${F_MASTER}" LIBS="${LIBS}" INCLUDES="${INCLUDES}" \
+if make -j1 FC="${FC}" F_MASTER="${F_MASTER}" LIBS="${LIBS}" INCLUDES="${INCLUDES}" \
        FFLAGS_NORMA="${FFLAGS_NORMA}" FFLAGS_FIXED="${FFLAGS_FIXED}"; then
   echo "Build completed"
 else

@@ -187,7 +187,9 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
 
         # Create results directory that MESH expects
         results_dir = self.forcing_mesh_path / 'results'
+        self.logger.info(f"Creating MESH results directory: {results_dir}")
         results_dir.mkdir(parents=True, exist_ok=True)
+        self.logger.info(f"Results directory exists: {results_dir.exists()}")
 
         cmd = [
             f'./{self.mesh_exe.name}'

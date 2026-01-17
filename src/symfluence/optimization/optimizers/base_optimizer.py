@@ -39,8 +39,10 @@ from symfluence.optimization.core import TransformationManager
 from symfluence.optimization.calibration_targets import (
     CalibrationTarget
 )
+from symfluence.optimization.workers.summa.error_logging import ErrorLogger
 from symfluence.models.summa.calibration.optimizer_mixin import SUMMAOptimizerMixin
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.profiling import get_profiler, ProfilerContext
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
@@ -327,6 +329,15 @@ class BaseOptimizer(SUMMAOptimizerMixin, ABC, ConfigMixin):
 
         if self.use_parallel:
             self._setup_parallel_processing()
+
+        # Setup profiling context for I/O tracking
+        self._profiler_ctx = ProfilerContext("base_optimizer")
+
+        # Initialize error logger for PARAMS_KEEP_TRIALS / error logging
+        self.error_logger = ErrorLogger(self.config_dict, self.output_dir, self.logger)
+        if self.error_logger.mode != 'none':
+            self.logger.info(f"Error logging initialized: mode={self.error_logger.mode}, "
+                           f"stop_on_failure={self.error_logger.stop_on_failure}")
 
     def _cfg(self, dict_key: str, default: Any = None, typed: Any = None) -> Any:
         """Get config value with typed config fallback to dict.
@@ -877,6 +888,7 @@ class BaseOptimizer(SUMMAOptimizerMixin, ABC, ConfigMixin):
                 'params': task['params'],
                 'proc_id': task['proc_id'],
                 'evaluation_id': task['evaluation_id'],
+                'iteration': task.get('iteration', 0),  # For error logging with iteration tracking
                 'multiobjective': task.get('multiobjective', False),
                 'objective_names': task.get('objective_names'),
                 'summa_exe': str(self._get_summa_exe_path()),
@@ -957,19 +969,25 @@ class BaseOptimizer(SUMMAOptimizerMixin, ABC, ConfigMixin):
             worker_script = work_dir / f'mpi_worker_{unique_id}.py'
 
             try:
-                with open(tasks_file, 'wb') as f:
-                    pickle.dump(batch_tasks, f)
+                # Track pickle write for MPI task passing (IOPS bottleneck)
+                with self._profiler_ctx.track_pickle_write(str(tasks_file)):
+                    with open(tasks_file, 'wb') as f:
+                        pickle.dump(batch_tasks, f)
 
-                self._create_mpi_worker_script(worker_script, tasks_file, work_dir)
-                os.chmod(worker_script, 0o755)
+                # Track worker script write
+                with self._profiler_ctx.track_file_write(str(worker_script)):
+                    self._create_mpi_worker_script(worker_script, tasks_file, work_dir)
+                    os.chmod(worker_script, 0o755)
 
                 mpi_cmd = ['mpirun', '-n', str(num_processes), sys.executable, str(worker_script), str(tasks_file), str(results_file)]
 
                 subprocess.run(mpi_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True, env=os.environ.copy())
 
                 if results_file.exists():
-                    with open(results_file, 'rb') as f:
-                        return pickle.load(f)
+                    # Track pickle read for MPI results
+                    with self._profiler_ctx.track_file_read(str(results_file)):
+                        with open(results_file, 'rb') as f:
+                            return pickle.load(f)
                     return []
                 else:
                     raise RuntimeError("MPI results file not created")
@@ -1254,10 +1272,16 @@ if __name__ == "__main__":
             if self.scratch_manager.use_scratch:
                 self.scratch_manager.stage_results_back()
 
+            # Log error summary if error logging was enabled
+            error_summary = self.error_logger.get_summary()
+            if error_summary['failure_count'] > 0:
+                self.logger.info(f"Error logging summary: {error_summary['failure_count']} failures logged to {error_summary['error_log_dir']}")
+
             return {
                 'best_parameters': best_params, 'best_score': best_score, 'history': history,
                 'final_result': final_result, 'algorithm': algorithm_name, 'duration': str(duration),
-                'output_dir': str(self.output_dir)
+                'output_dir': str(self.output_dir),
+                'error_summary': error_summary
             }
         finally:
             self._cleanup_parallel_processing()

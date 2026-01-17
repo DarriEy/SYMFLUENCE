@@ -128,7 +128,6 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
     def _get_final_file_manager_path(self) -> Path:
         """Get path to SUMMA file manager."""
         summa_fm = self._get_config_value(lambda: self.config.model.summa.filemanager, default='fileManager.txt', dict_key='SETTINGS_SUMMA_FILEMANAGER')
-        print(f"SUMMA file manager: {summa_fm}")
         if summa_fm == 'default':
             summa_fm = 'fileManager.txt'
         return self.project_dir / 'settings' / 'SUMMA' / summa_fm

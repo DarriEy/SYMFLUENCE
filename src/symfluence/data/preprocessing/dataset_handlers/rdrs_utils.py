@@ -69,7 +69,7 @@ class RDRSHandler(BaseDatasetHandler):
 
         if 'pptrate' in ds:
             # RDRS v2.1 uses mm/hr, but v3.1 might use kg/m2/s (which is mm/s)
-            # Check if it's already small enough to be m/s
+            # Check if it's already small enough to be mm/s
             if ds['pptrate'].max() > 0.1: # Probably mm/hr
                 ds['pptrate'] = ds['pptrate'] / UnitConversion.SECONDS_PER_HOUR
 
@@ -81,9 +81,9 @@ class RDRSHandler(BaseDatasetHandler):
                 ds['windspd'] = ds['windspd'] * 0.514444
 
         # Apply standard CF-compliant attributes (uses centralized definitions)
-        # RDRS precipitation is in m/s after conversion
+        # RDRS precipitation is in mm/s (or kg m-2 s-1, which is equivalent) after conversion
         ds = self.apply_standard_attributes(ds, overrides={
-            'pptrate': {'units': 'm s-1', 'standard_name': 'precipitation_rate'}
+            'pptrate': {'units': 'kg m-2 s-1', 'standard_name': 'precipitation_rate'}
         })
 
         return ds

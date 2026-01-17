@@ -212,6 +212,11 @@ class MESHForcingProcessor:
                 n_size = ds.dims[n_dim]
                 time_data = ds['time'].values if 'time' in ds else None
 
+                # Get coordinate variables once
+                lat_data = ds['lat'].values if 'lat' in ds else None
+                lon_data = ds['lon'].values if 'lon' in ds else None
+                has_crs = 'crs' in ds
+
                 for mesh_var, filename in MESHConfigDefaults.VAR_TO_FILE.items():
                     if mesh_var in ds:
                         var_path = self.forcing_dir / filename
@@ -221,13 +226,42 @@ class MESHForcingProcessor:
                             ncfile.createDimension('time', None)
                             ncfile.createDimension('subbasin', n_size)
 
+                            # Add CRS if available
+                            if has_crs:
+                                var_crs = ncfile.createVariable('crs', 'i4')
+                                for attr in ds['crs'].attrs:
+                                    var_crs.setncattr(attr, ds['crs'].attrs[attr])
+
+                            # Add spatial coordinates
+                            if lat_data is not None:
+                                var_lat = ncfile.createVariable('lat', 'f8', ('subbasin',))
+                                var_lat.standard_name = 'latitude'
+                                var_lat.long_name = 'latitude'
+                                var_lat.units = 'degrees_north'
+                                var_lat.axis = 'Y'
+                                var_lat[:] = lat_data
+
+                            if lon_data is not None:
+                                var_lon = ncfile.createVariable('lon', 'f8', ('subbasin',))
+                                var_lon.standard_name = 'longitude'
+                                var_lon.long_name = 'longitude'
+                                var_lon.units = 'degrees_east'
+                                var_lon.axis = 'X'
+                                var_lon[:] = lon_data
+
+                            # Add forcing variable
                             var = ncfile.createVariable(
                                 mesh_var, 'f4', ('time', 'subbasin'), fill_value=-9999.0
                             )
                             var.long_name = MESHConfigDefaults.get_var_long_name(mesh_var)
                             var.units = MESHConfigDefaults.get_var_units(mesh_var)
+                            if has_crs:
+                                var.grid_mapping = 'crs'
+                            if lat_data is not None and lon_data is not None:
+                                var.coordinates = 'lat lon'
                             var[:] = var_data
 
+                            # Add time coordinate
                             if time_data is not None:
                                 var_time = ncfile.createVariable('time', 'f8', ('time',))
                                 var_time.long_name = 'time'
@@ -242,6 +276,7 @@ class MESHForcingProcessor:
                                 ]
                                 var_time[:] = time_hours
 
+                            # Add subbasin coordinate
                             var_n = ncfile.createVariable('subbasin', 'i4', ('subbasin',))
                             var_n[:] = np.arange(1, n_size + 1)
 

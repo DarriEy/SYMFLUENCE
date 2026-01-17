@@ -53,6 +53,91 @@ detect_platform() {
 detect_platform
 
 # ----------------------------------------------------------------------
+# 2i2c / JupyterHub Cloud Detection
+# ----------------------------------------------------------------------
+IS_2I2C_ENVIRONMENT=false
+CONDA_ENV_PATH=""
+
+detect_2i2c_environment() {
+    # Detect if running in 2i2c JupyterHub or similar restricted cloud environment
+    # Indicators:
+    #   1. /srv/conda/envs/notebook exists (2i2c standard)
+    #   2. Home directory has limited quota (NFS mount)
+    #   3. System conda gcc is broken (missing libgcc)
+    #   4. User is 'jovyan' (JupyterHub default)
+
+    if [[ -d "/srv/conda/envs/notebook" ]]; then
+        IS_2I2C_ENVIRONMENT=true
+        print_info "Detected 2i2c/JupyterHub cloud environment"
+        return 0
+    fi
+
+    # Check for jovyan user with conda environment
+    if [[ "$(whoami)" == "jovyan" && -n "${CONDA_DEFAULT_ENV:-}" ]]; then
+        IS_2I2C_ENVIRONMENT=true
+        print_info "Detected JupyterHub environment (jovyan user)"
+        return 0
+    fi
+
+    return 1
+}
+
+setup_2i2c_conda_env() {
+    # Set up a conda environment for 2i2c that:
+    # 1. Uses /tmp for storage (overlay filesystem has space)
+    # 2. Installs GDAL and rpy2 via conda (pre-built, no compilation)
+    # 3. Sets system compilers to avoid broken conda gcc
+
+    local env_path="${1:-/tmp/symfluence}"
+
+    print_info "Setting up 2i2c-compatible conda environment at: $env_path"
+
+    # Check if conda is available
+    if ! command -v conda >/dev/null 2>&1; then
+        print_error "conda not found - required for 2i2c environment setup"
+        return 1
+    fi
+
+    # Create conda environment with pre-built packages
+    if [[ ! -d "$env_path" ]]; then
+        print_info "Creating conda environment with GDAL and rpy2..."
+        conda create -p "$env_path" python=3.11 gdal numpy rpy2 -c conda-forge -y || {
+            print_warning "Full conda env creation failed, trying minimal..."
+            conda create -p "$env_path" python=3.11 gdal numpy -c conda-forge -y || {
+                print_error "Failed to create conda environment"
+                return 1
+            }
+        }
+    else
+        print_info "Conda environment already exists at: $env_path"
+    fi
+
+    # Activate the environment
+    print_info "Activating conda environment..."
+    source "$(conda info --base)/etc/profile.d/conda.sh"
+    conda activate "$env_path" || {
+        print_error "Failed to activate conda environment"
+        return 1
+    }
+
+    # Force system compilers and linker (conda's gcc/ld is often broken in 2i2c)
+    # These are required for building external tools (SUMMA, FUSE, mizuRoute, etc.)
+    export CC=/usr/bin/gcc
+    export CXX=/usr/bin/g++
+    export LD=/usr/bin/ld
+    export PATH="/usr/bin:$PATH"
+    export SYMFLUENCE_USE_SYSTEM_COMPILERS=true
+    print_info "Set system compilers: CC=$CC, CXX=$CXX, LD=$LD"
+    print_info "Prepended /usr/bin to PATH for consistent library resolution"
+
+    CONDA_ENV_PATH="$env_path"
+    VENV_BIN_PATH="$env_path/bin"
+
+    print_success "2i2c conda environment ready"
+    return 0
+}
+
+# ----------------------------------------------------------------------
 # Configuration
 # ----------------------------------------------------------------------
 SCRIPT_NAME="symfluence"
@@ -765,9 +850,28 @@ main() {
             }
         fi
 
+        # Detect 2i2c/JupyterHub environment
+        detect_2i2c_environment || true
+
         # Create venv if needed, unless in a conda env or explicitly disabled
         local venv_path="${symfluence_dir}/venv"
-        if [[ -n "${CONDA_DEFAULT_ENV:-}" && "${CONDA_DEFAULT_ENV}" != "base" ]]; then
+
+        if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
+            # 2i2c environments need special handling:
+            # - Use /tmp for conda env (home often has quota limits)
+            # - Install GDAL/rpy2 via conda (avoid compilation issues)
+            # - Use system compilers (conda gcc often broken)
+            print_info "Using 2i2c-optimized installation path"
+            setup_2i2c_conda_env "/tmp/symfluence" || {
+                print_error "2i2c environment setup failed"
+                print_info "You may need to manually run:"
+                print_info "  conda create -p /tmp/symfluence python=3.11 gdal numpy -c conda-forge -y"
+                print_info "  conda activate /tmp/symfluence"
+                print_info "  pip install -e . --no-deps"
+                exit 1
+            }
+            python_cmd="python"
+        elif [[ -n "${CONDA_DEFAULT_ENV:-}" && "${CONDA_DEFAULT_ENV}" != "base" ]]; then
             print_info "Using active Conda environment: ${CONDA_DEFAULT_ENV}"
             VENV_BIN_PATH=$(dirname "$(which python)")
         elif [[ "${SYMFLUENCE_NO_VENV:-}" == "true" ]]; then
@@ -847,18 +951,31 @@ else:
         fi
 
         if [[ -f "$req_file" ]]; then
-            # Use enhanced installer that handles rpy2/GDAL specially
-            install_python_requirements "$req_file" "false" || {
-                print_error "Dependency installation failed"; exit 1;
-            }
+            if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
+                # 2i2c: GDAL and rpy2 already installed via conda, skip them in pip
+                print_info "Installing pip dependencies (excluding conda-provided packages)..."
+                local filtered_req="/tmp/requirements_filtered.txt"
+                grep -viE "^(gdal|rpy2)" "$req_file" > "$filtered_req" 2>/dev/null || cp "$req_file" "$filtered_req"
+                python -m pip install -r "$filtered_req" || {
+                    print_error "Dependency installation failed"; exit 1;
+                }
+                rm -f "$filtered_req"
+            else
+                # Use enhanced installer that handles rpy2/GDAL specially
+                install_python_requirements "$req_file" "false" || {
+                    print_error "Dependency installation failed"; exit 1;
+                }
+            fi
         else
             print_warning "requirements.txt not found - installing a minimal set..."
             $python_cmd -m pip install numpy pandas geopandas rasterio netCDF4 PyYAML shapely rasterstats psutil || {
                 print_error "Failed to install minimal dependencies"; exit 1;
             }
-            print_info "Attempting to install rpy2 (optional)..."
-            $python_cmd -m pip install rpy2 || print_warning "rpy2 installation failed (continuing)"
-            command -v gdal-config >/dev/null 2>&1 && install_gdal_python || true
+            if [[ "$IS_2I2C_ENVIRONMENT" != "true" ]]; then
+                print_info "Attempting to install rpy2 (optional)..."
+                $python_cmd -m pip install rpy2 || print_warning "rpy2 installation failed (continuing)"
+                command -v gdal-config >/dev/null 2>&1 && install_gdal_python || true
+            fi
         fi
 
         print_success "Python environment setup complete"
@@ -884,6 +1001,15 @@ else:
             print_error "CLI not found at expected path: ${venv_cli_base}${EXE_EXT}"
             exit 1
         fi
+        # Re-export 2i2c compiler settings before binary install (ensures they persist)
+        if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
+            print_info "Ensuring 2i2c compiler settings for binary builds..."
+            export CC=/usr/bin/gcc
+            export CXX=/usr/bin/g++
+            export LD=/usr/bin/ld
+            export PATH="/usr/bin:$PATH"
+        fi
+
         print_info "Installing external tools..."
         "$venv_cli" binary install || {
             print_error "External tools installation failed"
@@ -897,7 +1023,13 @@ else:
 
         echo ""
         print_success "Installation complete!"
-        print_info "To use SYMFLUENCE: source ${venv_path}/${VENV_ACTIVATE}"
+        if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
+            print_info "To use SYMFLUENCE: conda activate ${CONDA_ENV_PATH:-/tmp/symfluence}"
+            print_warning "Note: /tmp environment won't persist across server restarts"
+            print_info "Re-run './symfluence --install' after JupyterHub restarts"
+        else
+            print_info "To use SYMFLUENCE: source ${venv_path}/${VENV_ACTIVATE}"
+        fi
         exit 0
     fi
 

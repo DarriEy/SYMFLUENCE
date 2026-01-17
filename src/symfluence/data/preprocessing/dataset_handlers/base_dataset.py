@@ -15,8 +15,10 @@ New code should use CFIF names; legacy names are maintained for compatibility.
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any, Union
 import xarray as xr
+
+from symfluence.core.mixins.config import ConfigMixin
 
 
 def _get_cfif_variable_attributes() -> Dict[str, Dict[str, str]]:
@@ -200,7 +202,7 @@ def apply_cfif_variable_attributes(
     return ds
 
 
-class BaseDatasetHandler(ABC):
+class BaseDatasetHandler(ABC, ConfigMixin):
     """
     Abstract base class for dataset-specific forcing data handlers.
 
@@ -258,12 +260,12 @@ class BaseDatasetHandler(ABC):
         - CARRAHandler: Arctic regional reanalysis
     """
 
-    def __init__(self, config: Dict, logger, project_dir: Path, **kwargs):
+    def __init__(self, config: Any, logger: Any, project_dir: Path, **kwargs: Any) -> None:
         """
         Initialize the dataset handler.
 
         Args:
-            config: Configuration dictionary with domain and forcing settings
+            config: Configuration dictionary or SymfluenceConfig object
             logger: Logger instance for progress and error reporting
             project_dir: Path to project root directory
             **kwargs: Additional handler-specific parameters
@@ -272,7 +274,7 @@ class BaseDatasetHandler(ABC):
         self.config = config
         self.logger = logger
         self.project_dir = project_dir
-        self.domain_name = config['DOMAIN_NAME']
+        self.domain_name = self.config['DOMAIN_NAME']
         # Store extra kwargs like forcing_timestep_seconds if provided
         for key, value in kwargs.items():
             setattr(self, key, value)

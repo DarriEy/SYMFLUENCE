@@ -150,7 +150,8 @@ class ETEvaluator(ModelEvaluator):
         # Determine ET variable type from config
         self.optimization_target = self._get_config_value(
             lambda: self.config.optimization.target,
-            default='streamflow'
+            default='streamflow',
+            dict_key='OPTIMIZATION_TARGET'
         )
         if self.optimization_target not in ['et', 'latent_heat']:
             eval_var = self.config_dict.get('EVALUATION_VARIABLE', '')

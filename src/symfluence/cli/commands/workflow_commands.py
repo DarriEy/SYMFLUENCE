@@ -5,9 +5,149 @@ This module implements handlers for the workflow command category.
 """
 
 from argparse import Namespace
+from pathlib import Path
 
 from .base import BaseCommand
 from ..exit_codes import ExitCode
+
+
+def _setup_profiling(args: Namespace):
+    """Setup profiling if enabled via CLI flag."""
+    profile_enabled = getattr(args, 'profile', False)
+    if profile_enabled:
+        from symfluence.core.profiling import (
+            enable_profiling,
+            enable_system_profiling,
+            get_profiler,
+            get_system_profiler,
+            setup_profiling_environment,
+        )
+        capture_stacks = getattr(args, 'profile_stacks', False)
+
+        # Enable Python-level profiling
+        python_profiler = enable_profiling(capture_stack_traces=capture_stacks)
+
+        # Enable system-level profiling (external tools)
+        system_profiler = enable_system_profiling()
+
+        # Determine profile directory for cross-process profiling
+        output_path = getattr(args, 'profile_output', None)
+        if output_path is None:
+            config_path = BaseCommand.get_config_path(args)
+            if config_path:
+                output_dir = Path(config_path).parent
+            else:
+                output_dir = Path.cwd()
+        else:
+            output_dir = Path(output_path).parent
+
+        profile_dir = output_dir / '.symfluence_profiling'
+
+        # Set up environment variables so worker processes can profile
+        setup_profiling_environment(str(profile_dir), capture_stacks=capture_stacks)
+
+        BaseCommand._console.info("I/O profiling enabled (Python + System levels)")
+        BaseCommand._console.indent(f"Worker profile data: {profile_dir}")
+        if capture_stacks:
+            BaseCommand._console.indent("Stack trace capture enabled (this adds overhead)")
+
+        return (python_profiler, system_profiler)
+    return None
+
+
+def _finalize_profiling(args: Namespace, profilers):
+    """Generate profiling reports if profiling was enabled."""
+    if profilers is None:
+        return
+
+    # Unpack profilers (tuple of python_profiler, system_profiler)
+    if isinstance(profilers, tuple):
+        python_profiler, system_profiler = profilers
+    else:
+        # Backward compatibility - single profiler
+        python_profiler = profilers
+        system_profiler = None
+
+    try:
+        from symfluence.core.profiling import get_profile_directory
+
+        # Determine output path
+        output_path = getattr(args, 'profile_output', None)
+        if output_path is None:
+            config_path = BaseCommand.get_config_path(args)
+            if config_path:
+                output_dir = Path(config_path).parent
+            else:
+                output_dir = Path.cwd()
+            output_path = output_dir / 'profile_report.json'
+
+        # Aggregate worker profile data
+        profile_dir = get_profile_directory()
+        worker_files_count = 0
+        if profile_dir and python_profiler:
+            worker_files_count = python_profiler.aggregate_from_directory(profile_dir)
+            if worker_files_count > 0:
+                print(f"Aggregated profiling data from {worker_files_count} worker process(es)")
+
+            # Clean up the profile directory
+            try:
+                import shutil
+                profile_dir_path = Path(profile_dir)
+                if profile_dir_path.exists():
+                    shutil.rmtree(profile_dir_path)
+            except Exception:
+                pass
+
+        # Generate Python-level I/O reports
+        if python_profiler:
+            json_path = Path(output_path)
+            text_path = json_path.with_suffix('.txt')
+
+            python_profiler.generate_report(str(json_path), format='json')
+            python_profiler.generate_report(str(text_path), format='text')
+
+        # Generate System-level I/O reports
+        if system_profiler:
+            system_json_path = Path(output_path).parent / 'system_io_report.json'
+            system_text_path = system_json_path.with_suffix('.txt')
+
+            system_profiler.generate_report(str(system_json_path), format='json')
+            system_profiler.generate_report(str(system_text_path), format='text')
+
+        # Print combined summary
+        print("\n" + "=" * 80)
+        print("COMBINED I/O PROFILING SUMMARY")
+        print("=" * 80)
+
+        if python_profiler:
+            python_stats = python_profiler.get_statistics()
+            print("\nPython-Level I/O (NetCDF, Pickle, etc.):")
+            print(f"  Report: {Path(output_path)}")
+            print(f"  Text:   {Path(output_path).with_suffix('.txt')}")
+            print(f"  Worker processes: {worker_files_count}")
+            print(f"  Total operations: {python_stats['summary']['total_operations']:,}")
+            print(f"  Bytes written: {python_profiler._format_bytes(python_stats['summary']['total_bytes_written'])}")
+            print(f"  Average IOPS: {python_stats['summary']['average_iops']:.1f}")
+
+        if system_profiler:
+            system_stats = system_profiler.get_statistics()
+            print("\nSystem-Level I/O (SUMMA, mizuRoute, etc.):")
+            print(f"  Report: {Path(output_path).parent / 'system_io_report.json'}")
+            print(f"  Text:   {Path(output_path).parent / 'system_io_report.txt'}")
+            print(f"  Total subprocesses: {system_stats['summary']['total_operations']:,}")
+            print(f"  Read bytes: {system_profiler._format_bytes(system_stats['summary']['total_read_bytes'])}")
+            print(f"  Write bytes: {system_profiler._format_bytes(system_stats['summary']['total_write_bytes'])}")
+            print(f"  Read IOPS: {system_stats['summary']['average_read_iops']:.1f}")
+            print(f"  Write IOPS: {system_stats['summary']['average_write_iops']:.1f}")
+            print(f"  Total IOPS: {system_stats['summary']['average_total_iops']:.1f}")
+            print(f"  Peak IOPS: {system_stats['summary']['peak_iops']:.1f}")
+
+        print("=" * 80)
+
+    except Exception as e:
+        print(f"Error generating profiling report: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 class WorkflowCommands(BaseCommand):
@@ -44,9 +184,13 @@ class WorkflowCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
+        profiler = None
         try:
             # Import here to avoid circular dependencies
             from symfluence.core import SYMFLUENCE
+
+            # Setup profiling if enabled
+            profiler = _setup_profiling(args)
 
             config_path = BaseCommand.get_config_path(args)
 
@@ -75,6 +219,10 @@ class WorkflowCommands(BaseCommand):
                 traceback.print_exc()
             return ExitCode.WORKFLOW_ERROR
 
+        finally:
+            # Generate profiling report
+            _finalize_profiling(args, profiler)
+
     @staticmethod
     def run_step(args: Namespace) -> int:
         """
@@ -86,8 +234,12 @@ class WorkflowCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
+        profiler = None
         try:
             from symfluence.core import SYMFLUENCE
+
+            # Setup profiling if enabled
+            profiler = _setup_profiling(args)
 
             config_path = BaseCommand.get_config_path(args)
 
@@ -107,14 +259,18 @@ class WorkflowCommands(BaseCommand):
             symfluence.run_individual_steps([args.step_name])
 
             BaseCommand._console.success(f"Step '{args.step_name}' completed successfully")
-            return ExitCode.SUCCESS
+            exit_code = ExitCode.SUCCESS
 
         except Exception as e:
             BaseCommand._console.error(f"Step execution failed: {e}")
             if getattr(args, 'debug', False):
                 import traceback
                 traceback.print_exc()
-            return ExitCode.WORKFLOW_ERROR
+            exit_code = ExitCode.WORKFLOW_ERROR
+
+        # Generate profiling report (outside try/except to ensure execution)
+        _finalize_profiling(args, profiler)
+        return exit_code
 
     @staticmethod
     def run_steps(args: Namespace) -> int:
@@ -127,8 +283,12 @@ class WorkflowCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
+        profiler = None
         try:
             from symfluence.core import SYMFLUENCE
+
+            # Setup profiling if enabled
+            profiler = _setup_profiling(args)
 
             config_path = BaseCommand.get_config_path(args)
 
@@ -157,6 +317,10 @@ class WorkflowCommands(BaseCommand):
                 import traceback
                 traceback.print_exc()
             return ExitCode.WORKFLOW_ERROR
+
+        finally:
+            # Generate profiling report
+            _finalize_profiling(args, profiler)
 
     @staticmethod
     def status(args: Namespace) -> int:

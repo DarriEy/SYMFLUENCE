@@ -1,0 +1,42 @@
+================================================================================
+SYSTEM I/O PROFILING REPORT (External Tools)
+Generated: 2026-01-17T13:53:39.148591
+Platform: darwin (macos_psutil_limited)
+================================================================================
+
+SUMMARY
+----------------------------------------
+Profiling duration:       52.29 seconds
+Total subprocess calls:   22
+Total execution time:     44.67 seconds
+Total bytes read:         0.0 B
+Total bytes written:      0.0 B
+Read syscalls:            0
+Write syscalls:           0
+Average Read IOPS:        0.0
+Average Write IOPS:       0.0
+Average Total IOPS:       0.0
+Peak IOPS:                0.0
+
+BY COMPONENT
+----------------------------------------
+  summa:
+    Executions:       22
+    Read:             0.0 B
+    Written:          0.0 B
+    Avg Read IOPS:    0.0
+    Avg Write IOPS:   0.0
+    Files created:    22
+    Total time:       44.67s
+
+
+PLATFORM CAPABILITIES
+----------------------------------------
+  ✗ I/O byte tracking not available
+    → Install psutil for full metrics: pip install psutil
+  ✗ I/O syscall counting not available
+  ✓ Memory usage tracking available
+
+================================================================================
+END OF SYSTEM I/O REPORT
+================================================================================

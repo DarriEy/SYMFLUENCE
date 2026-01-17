@@ -147,6 +147,15 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
             time_values = ds.time.values
 
             self.logger.debug(f"Time units: {time_attrs.get('units', 'No units specified')}")
+
+            # Check if time_values is empty
+            if len(time_values) == 0:
+                self.logger.error(f"Time dimension in {runoff_filepath} is empty (no time values found)")
+                self.logger.error("This indicates the upstream model output is incomplete or corrupted")
+                self.logger.error("Please verify the model run completed successfully and produced valid output")
+                ds.close()
+                raise ValueError(f"Empty time dimension in model output: {runoff_filepath}")
+
             self.logger.debug(f"Time range: {time_values.min()} to {time_values.max()}")
 
             # Check if time precision fix is needed and determine format

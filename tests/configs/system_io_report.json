@@ -1,0 +1,27 @@
+{
+  "summary": {
+    "profiling_duration_seconds": 52.29336094856262,
+    "total_operations": 22,
+    "total_execution_time": 44.67319917678833,
+    "total_read_bytes": 0,
+    "total_write_bytes": 0,
+    "total_read_syscalls": 0,
+    "total_write_syscalls": 0,
+    "average_read_iops": 0.0,
+    "average_write_iops": 0.0,
+    "average_total_iops": 0.0,
+    "peak_iops": 0.0
+  },
+  "by_component": {
+    "summa": {
+      "count": 22,
+      "total_read_bytes": 0,
+      "total_write_bytes": 0,
+      "total_read_iops": 0.0,
+      "total_write_iops": 0.0,
+      "total_duration": 44.67319917678833,
+      "files_created": 22
+    }
+  },
+  "by_iteration": {}
+}

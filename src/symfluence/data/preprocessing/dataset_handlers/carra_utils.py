@@ -52,9 +52,9 @@ class CARRAHandler(BaseDatasetHandler):
             ds = ds.rename(existing_vars)
 
         # Apply standard CF-compliant attributes (uses centralized definitions)
-        # CARRA precipitation is in m/s, override the default
+        # CARRA precipitation follows ECMWF conventions: kg m-2 s-1 (equivalent to mm/s)
         ds = self.apply_standard_attributes(ds, overrides={
-            'pptrate': {'units': 'm s-1', 'standard_name': 'precipitation_rate'}
+            'pptrate': {'units': 'kg m-2 s-1', 'standard_name': 'precipitation_rate'}
         })
 
         return ds
