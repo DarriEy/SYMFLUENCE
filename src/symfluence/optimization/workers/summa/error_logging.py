@@ -19,7 +19,6 @@ Configuration Options:
 """
 
 import json
-import os
 import shutil
 from datetime import datetime
 from pathlib import Path

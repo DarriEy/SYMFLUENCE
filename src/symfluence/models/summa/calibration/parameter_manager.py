@@ -21,7 +21,7 @@ from symfluence.optimization.core.parameter_bounds_registry import (
     get_mizuroute_bounds, get_depth_bounds
 )
 from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.core.profiling import get_profiler, ProfilerContext
+from symfluence.core.profiling import ProfilerContext
 
 
 @OptimizerRegistry.register_parameter_manager('SUMMA')

@@ -48,6 +48,38 @@ class ToolInstaller(BaseService):
             self._external_tools = get_external_tools_definitions()
         return self._external_tools
 
+    def _get_clean_build_env(self) -> Dict[str, str]:
+        """
+        Get a clean environment for build processes.
+
+        Removes MAKE-related variables that can cause spurious make calls
+        during git submodule operations (common issue in 2i2c/JupyterHub).
+
+        Returns:
+            Clean environment dictionary for subprocess calls.
+        """
+        env = os.environ.copy()
+
+        # Remove MAKE-related variables that can trigger unwanted make calls
+        make_vars = ["MAKEFLAGS", "MAKELEVEL", "MAKE", "MFLAGS", "MAKEOVERRIDES"]
+        for var in make_vars:
+            env.pop(var, None)
+
+        # Ensure /usr/bin is first in PATH (fixes broken conda compilers in 2i2c)
+        if "/usr/bin" not in env.get("PATH", "").split(":")[0]:
+            env["PATH"] = "/usr/bin:" + env.get("PATH", "")
+
+        # Set system compilers if in 2i2c-like environment
+        if os.path.exists("/srv/conda/envs/notebook"):
+            if os.path.exists("/usr/bin/gcc"):
+                env["CC"] = "/usr/bin/gcc"
+            if os.path.exists("/usr/bin/g++"):
+                env["CXX"] = "/usr/bin/g++"
+            if os.path.exists("/usr/bin/ld"):
+                env["LD"] = "/usr/bin/ld"
+
+        return env
+
     def install(
         self,
         specific_tools: Optional[List[str]] = None,
@@ -250,7 +282,13 @@ class ToolInstaller(BaseService):
             else:
                 clone_cmd = ["git", "clone", repository_url, str(target_dir)]
 
-            subprocess.run(clone_cmd, capture_output=True, text=True, check=True)
+            subprocess.run(
+                clone_cmd,
+                capture_output=True,
+                text=True,
+                check=True,
+                env=self._get_clean_build_env(),
+            )
             self._console.success("Clone successful")
         else:
             self._console.indent("Creating installation directory")
@@ -295,6 +333,7 @@ class ToolInstaller(BaseService):
                 capture_output=True,
                 text=True,
                 executable="/bin/bash",
+                env=self._get_clean_build_env(),
             )
 
             # Show output for critical tools
