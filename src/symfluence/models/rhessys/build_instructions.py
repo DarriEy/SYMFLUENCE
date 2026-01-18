@@ -108,19 +108,24 @@ perl /tmp/rhessys_xy_patch.pl init/assign_base_station_xy.c
 
 # Fix construct_netcdf_grid.c - it uses non-existent struct members x, y, lat, lon
 # Replace with proj_x and proj_y which do exist in base_station_object
+# Use regex capture group to preserve any array index (0, i, idx, etc.)
 echo "Patching construct_netcdf_grid.c for missing struct members..."
-sed -i.bak 's/base_station\[0\]\.x/base_station[0].proj_x/g' init/construct_netcdf_grid.c
-sed -i.bak 's/base_station\[0\]\.y/base_station[0].proj_y/g' init/construct_netcdf_grid.c
-sed -i.bak 's/base_station\[0\]\.lat/base_station[0].proj_y/g' init/construct_netcdf_grid.c
-sed -i.bak 's/base_station\[0\]\.lon/base_station[0].proj_x/g' init/construct_netcdf_grid.c
+sed -i.bak 's/base_station\[\([^]]*\)\]\.x/base_station[\1].proj_x/g' init/construct_netcdf_grid.c
+sed -i.bak 's/base_station\[\([^]]*\)\]\.y/base_station[\1].proj_y/g' init/construct_netcdf_grid.c
+sed -i.bak 's/base_station\[\([^]]*\)\]\.lat/base_station[\1].proj_y/g' init/construct_netcdf_grid.c
+sed -i.bak 's/base_station\[\([^]]*\)\]\.lon/base_station[\1].proj_x/g' init/construct_netcdf_grid.c
 # Also fix proj_yearly_clim which should be yearly_clim
 sed -i.bak 's/\.proj_yearly_clim/.yearly_clim/g' init/construct_netcdf_grid.c
 echo "Patched construct_netcdf_grid.c"
 
-# Fix construct_netcdf_header.c - calc_resolution uses basestations[0].lon/lat
+# Fix construct_netcdf_header.c - calc_resolution uses basestations[idx].lon/lat
+# Use regex capture group to preserve any array index (0, i, station_idx, etc.)
 echo "Patching construct_netcdf_header.c for missing struct members..."
-sed -i.bak 's/basestations\[0\]\.lon/basestations[0].proj_x/g' init/construct_netcdf_header.c
-sed -i.bak 's/basestations\[0\]\.lat/basestations[0].proj_y/g' init/construct_netcdf_header.c
+sed -i.bak 's/basestations\[\([^]]*\)\]\.lon/basestations[\1].proj_x/g' init/construct_netcdf_header.c
+sed -i.bak 's/basestations\[\([^]]*\)\]\.lat/basestations[\1].proj_y/g' init/construct_netcdf_header.c
+# Also handle arrow operator access pattern (basestations[idx]->lon)
+sed -i.bak 's/basestations\[\([^]]*\)\]->lon/basestations[\1]->proj_x/g' init/construct_netcdf_header.c
+sed -i.bak 's/basestations\[\([^]]*\)\]->lat/basestations[\1]->proj_y/g' init/construct_netcdf_header.c
 echo "Patched construct_netcdf_header.c"
 
 # Verify patches

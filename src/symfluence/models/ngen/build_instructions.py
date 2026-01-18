@@ -261,7 +261,8 @@ if [ -d "extern/sloth" ]; then
   cd extern/sloth
   git submodule update --init --recursive || true
   rm -rf cmake_build && mkdir -p cmake_build
-  cmake -DCMAKE_BUILD_TYPE=Release -S . -B cmake_build
+  # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility with old googletest
+  cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build
   cmake --build cmake_build -j ${NCORES:-4}
   if [ -f cmake_build/libslothmodel.* ]; then
     echo "SLOTH built successfully"
@@ -277,7 +278,8 @@ if [ -d "extern/cfe" ]; then
   cd extern/cfe
   git submodule update --init --recursive || true
   rm -rf cmake_build && mkdir -p cmake_build
-  cmake -DCMAKE_BUILD_TYPE=Release -S . -B cmake_build
+  # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility
+  cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build
   cmake --build cmake_build -j ${NCORES:-4}
   if [ -f cmake_build/libcfebmi.* ]; then
     echo "CFE built successfully"
@@ -293,7 +295,8 @@ if [ -d "extern/evapotranspiration" ]; then
   cd extern/evapotranspiration/evapotranspiration
   git submodule update --init --recursive 2>/dev/null || true
   rm -rf cmake_build && mkdir -p cmake_build
-  cmake -DCMAKE_BUILD_TYPE=Release -S . -B cmake_build
+  # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility
+  cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build
   cmake --build cmake_build -j ${NCORES:-4}
   if [ -f cmake_build/libpetbmi.* ]; then
     echo "PET built successfully"
@@ -313,6 +316,8 @@ if [ -d "extern/iso_c_fortran_bmi" ] && [ -n "$FC" ]; then
 
   ISO_C_CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
   ISO_C_CMAKE_ARGS="$ISO_C_CMAKE_ARGS -DCMAKE_Fortran_COMPILER=$FC"
+  # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility
+  ISO_C_CMAKE_ARGS="$ISO_C_CMAKE_ARGS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
   cmake $ISO_C_CMAKE_ARGS -S . -B cmake_build
   cmake --build cmake_build -j ${NCORES:-4}
