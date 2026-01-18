@@ -72,8 +72,6 @@ perl -i.bak -pe 's/int\s+key_compare\s*\(\s*void\s*\*\s*e1\s*,\s*void\s*\*\s*e2\
 perl -i.bak -pe 's/int\s+key_compare\s*\(\s*void\s*\*\s*,\s*void\s*\*\s*\)\s*;/int key_compare(const void *, const void *);/' util/sort_patch_layers.c
 perl -i.bak -pe 's/(\s*)sort_patch_layers\(patch, \*rec\);/sort_patch_layers(patch, rec);/' util/sort_patch_layers.c
 perl -i.bak -pe 's/^\s*#define MAXSTR 200/\/\/#define MAXSTR 200/' include/rhessys_fire.h
-perl -i.bak -pe 's/(^)/#include \"rhessys.h\"\n#include <math.h>\n$1/' init/assign_base_station_xy.c
-perl -i.bak -pe 's/(#include <math.h>)/$1\n#define is_approximately(a, b, epsilon) (fabs((a) - (b)) < (epsilon))/' init/assign_base_station_xy.c
 
 # Verify patches
 grep "const void \*e1" util/key_compare.c || { echo "Patching key_compare.c failed"; exit 1; }
