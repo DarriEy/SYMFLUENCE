@@ -117,6 +117,12 @@ sed -i.bak 's/base_station\[0\]\.lon/base_station[0].proj_x/g' init/construct_ne
 sed -i.bak 's/\.proj_yearly_clim/.yearly_clim/g' init/construct_netcdf_grid.c
 echo "Patched construct_netcdf_grid.c"
 
+# Fix construct_netcdf_header.c - calc_resolution uses basestations[0].lon/lat
+echo "Patching construct_netcdf_header.c for missing struct members..."
+sed -i.bak 's/basestations\[0\]\.lon/basestations[0].proj_x/g' init/construct_netcdf_header.c
+sed -i.bak 's/basestations\[0\]\.lat/basestations[0].proj_y/g' init/construct_netcdf_header.c
+echo "Patched construct_netcdf_header.c"
+
 # Verify patches
 grep "const void \*e1" util/key_compare.c || { echo "Patching key_compare.c failed"; exit 1; }
 grep "const void \*" util/sort_patch_layers.c || { echo "Patching sort_patch_layers.c failed"; exit 1; }

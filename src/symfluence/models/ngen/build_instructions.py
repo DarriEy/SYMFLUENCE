@@ -338,6 +338,8 @@ if [ -d "extern/noah-owp-modular" ] && [ -n "$FC" ]; then
   NOAH_CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
   NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DCMAKE_Fortran_COMPILER=$FC"
   NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DNGEN_IS_MAIN_PROJECT=ON"
+  # Fix for newer CMake versions that require minimum version >= 3.5
+  NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
   if [ -n "$NETCDF_FORTRAN" ]; then
     NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DNETCDF_PATH=$NETCDF_FORTRAN"
