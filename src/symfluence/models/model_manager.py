@@ -465,18 +465,17 @@ class ModelManager(BaseManager):
                 if 'params' in sig.parameters:
                     kwargs['params'] = params
 
-                # Add LSTM-specific arguments if needed
-                if model == 'LSTM':
-                    if 'project_dir' in sig.parameters:
-                        kwargs['project_dir'] = self.project_dir
-                    if 'device' in sig.parameters:
-                        # Determine device - prefer GPU if available
-                        try:
-                            import torch
-                            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                        except ImportError:
-                            device = None
-                        kwargs['device'] = device
+                # Add project_dir and device if preprocessor needs them
+                if 'project_dir' in sig.parameters:
+                    kwargs['project_dir'] = self.project_dir
+                if 'device' in sig.parameters:
+                    # Determine device - prefer GPU if available
+                    try:
+                        import torch
+                        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                    except ImportError:
+                        device = None
+                    kwargs['device'] = device
 
                 preprocessor = preprocessor_class(self.config, self.logger, **kwargs)
 

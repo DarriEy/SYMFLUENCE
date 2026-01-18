@@ -99,17 +99,21 @@ setup_2i2c_conda_env() {
     fi
 
     # Create conda environment with pre-built packages
+    # Include cmake, compilers (for ABI compatibility), and openmpi (for TauDEM)
     if [[ ! -d "$env_path" ]]; then
-        print_info "Creating conda environment with GDAL and rpy2..."
-        conda create -p "$env_path" python=3.11 gdal numpy rpy2 -c conda-forge -y || {
+        print_info "Creating conda environment with GDAL, compilers, and build tools..."
+        conda create -p "$env_path" python=3.11 gdal numpy rpy2 cmake compilers openmpi -c conda-forge -y || {
             print_warning "Full conda env creation failed, trying minimal..."
-            conda create -p "$env_path" python=3.11 gdal numpy -c conda-forge -y || {
+            conda create -p "$env_path" python=3.11 gdal numpy cmake compilers openmpi -c conda-forge -y || {
                 print_error "Failed to create conda environment"
                 return 1
             }
         }
     else
         print_info "Conda environment already exists at: $env_path"
+        # Ensure cmake and compilers are installed in existing env
+        print_info "Ensuring build dependencies are installed..."
+        conda install -p "$env_path" cmake compilers openmpi -c conda-forge -y 2>/dev/null || true
     fi
 
     # Activate the environment
@@ -120,15 +124,24 @@ setup_2i2c_conda_env() {
         return 1
     }
 
-    # Force system compilers and linker (conda's gcc/ld is often broken in 2i2c)
-    # These are required for building external tools (SUMMA, FUSE, mizuRoute, etc.)
-    export CC=/usr/bin/gcc
-    export CXX=/usr/bin/g++
-    export LD=/usr/bin/ld
-    export PATH="/usr/bin:$PATH"
-    export SYMFLUENCE_USE_SYSTEM_COMPILERS=true
-    print_info "Set system compilers: CC=$CC, CXX=$CXX, LD=$LD"
-    print_info "Prepended /usr/bin to PATH for consistent library resolution"
+    # Use conda compilers for ABI compatibility with conda-forge libraries (GDAL, etc.)
+    # The conda compilers package provides GCC that matches the ABI of conda-forge builds
+    local conda_gcc="$env_path/bin/x86_64-conda-linux-gnu-gcc"
+    local conda_gxx="$env_path/bin/x86_64-conda-linux-gnu-g++"
+    if [[ -x "$conda_gcc" && -x "$conda_gxx" ]]; then
+        export CC="$conda_gcc"
+        export CXX="$conda_gxx"
+        print_info "Using conda compilers for ABI compatibility: CC=$CC"
+    else
+        # Fallback to system compilers if conda compilers not available
+        print_warning "Conda compilers not found, falling back to system compilers"
+        export CC=/usr/bin/gcc
+        export CXX=/usr/bin/g++
+        export SYMFLUENCE_USE_SYSTEM_COMPILERS=true
+    fi
+    # Ensure conda bin is first in PATH for cmake, mpicc, etc.
+    export PATH="$env_path/bin:$PATH"
+    print_info "Prepended conda bin to PATH for build tools"
 
     CONDA_ENV_PATH="$env_path"
     VENV_BIN_PATH="$env_path/bin"
@@ -1004,10 +1017,18 @@ else:
         # Re-export 2i2c compiler settings before binary install (ensures they persist)
         if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
             print_info "Ensuring 2i2c compiler settings for binary builds..."
-            export CC=/usr/bin/gcc
-            export CXX=/usr/bin/g++
-            export LD=/usr/bin/ld
-            export PATH="/usr/bin:$PATH"
+            local conda_gcc="${CONDA_ENV_PATH:-/tmp/symfluence}/bin/x86_64-conda-linux-gnu-gcc"
+            local conda_gxx="${CONDA_ENV_PATH:-/tmp/symfluence}/bin/x86_64-conda-linux-gnu-g++"
+            if [[ -x "$conda_gcc" && -x "$conda_gxx" ]]; then
+                export CC="$conda_gcc"
+                export CXX="$conda_gxx"
+                print_info "Using conda compilers: CC=$CC"
+            else
+                export CC=/usr/bin/gcc
+                export CXX=/usr/bin/g++
+                print_warning "Falling back to system compilers"
+            fi
+            export PATH="${CONDA_ENV_PATH:-/tmp/symfluence}/bin:$PATH"
         fi
 
         print_info "Installing external tools..."
