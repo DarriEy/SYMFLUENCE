@@ -69,6 +69,24 @@ cd build
 make clean 2>/dev/null || true
 export F_MASTER="$(cd .. && pwd)/"
 
+# Patch fuse_fileManager.f90 to fix the overly long line at line 141
+# The original line exceeds 132 characters and causes -Werror=line-truncation
+echo "Patching fuse_fileManager.f90 to fix long line..."
+FILEMANAGER_FILE="FUSE_SRC/FUSE_HOOK/fuse_fileManager.f90"
+if [ -f "$FILEMANAGER_FILE" ]; then
+    # Use perl to split the long line with Fortran continuation
+    perl -i.bak -pe "s|(message='This version of FUSE requires the file manager to follow the following format:  ')//trim\(fuseFileManagerHeader\)//(' not '//trim\(temp\))|\1\&\n               //trim(fuseFileManagerHeader)//\2|" "$FILEMANAGER_FILE"
+    # Verify the patch worked
+    if grep -q "format:  '&" "$FILEMANAGER_FILE"; then
+        echo "Successfully patched fuse_fileManager.f90"
+    else
+        echo "Warning: Patch may not have applied correctly"
+    fi
+else
+    echo "Warning: Could not find $FILEMANAGER_FILE to patch"
+    find .. -name "fuse_fileManager.f90" 2>/dev/null
+fi
+
 # Construct library and include paths
 LIBS="-L${HDF5_LIB_DIR} -lhdf5 -lhdf5_hl -L${NETCDF_LIB_DIR} -lnetcdff -L${NETCDF_C_LIB_DIR} -lnetcdf"
 INCLUDES="-I${HDF5_INC_DIR} -I${NCDF_PATH}/include -I${NETCDF_C}/include"
