@@ -115,9 +115,17 @@ echo "Building FUSE (with multi-pass module pre-compilation)..."
 mkdir -p objects
 
 # Find all Fortran source files that define modules
+# Note: We're in the build/ directory, source is at FUSE_SRC/
 echo "Finding all module-defining source files..."
-MODULE_SOURCES=$(find ../build/FUSE_SRC -name "*.f90" -exec grep -l "^[[:space:]]*module[[:space:]]" {} \; 2>/dev/null | sort -u)
-echo "Found $(echo "$MODULE_SOURCES" | wc -l | tr -d ' ') module files"
+MODULE_SOURCES=$(find FUSE_SRC -name "*.f90" -exec grep -l "^[[:space:]]*module[[:space:]]" {} \; 2>/dev/null | sort -u)
+NUM_MODULES=$(echo "$MODULE_SOURCES" | grep -c . || echo 0)
+echo "Found $NUM_MODULES module files"
+if [ "$NUM_MODULES" -eq 0 ]; then
+    echo "ERROR: No module files found in FUSE_SRC"
+    echo "Directory contents:"
+    ls -la FUSE_SRC/ 2>/dev/null || echo "FUSE_SRC not found"
+    exit 1
+fi
 
 # Multi-pass compilation: keep compiling until no new .mod files are created
 MAX_PASSES=10
@@ -161,7 +169,7 @@ echo "=== Verifying critical modules ==="
 
 # kinds_dmsl_kit_FUSE is the base
 if [ ! -f "kinds_dmsl_kit_fuse.mod" ]; then
-    KINDS_SRC=$(find .. -name "kinds_dmsl_kit_FUSE.f90" 2>/dev/null | head -1)
+    KINDS_SRC=$(find FUSE_SRC -name "kinds_dmsl_kit_FUSE.f90" 2>/dev/null | head -1)
     if [ -n "$KINDS_SRC" ]; then
         echo "Compiling kinds_dmsl_kit_FUSE (verbose)..."
         ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$KINDS_SRC" || { echo "FATAL: kinds_dmsl_kit_FUSE failed"; exit 1; }
@@ -170,7 +178,7 @@ fi
 
 # fuse_fileManager is required by fuse_driver
 if [ ! -f "fuse_filemanager.mod" ]; then
-    FILEMANAGER_SRC=$(find .. -name "fuse_fileManager.f90" 2>/dev/null | head -1)
+    FILEMANAGER_SRC=$(find FUSE_SRC -name "fuse_fileManager.f90" 2>/dev/null | head -1)
     if [ -n "$FILEMANAGER_SRC" ]; then
         echo "Compiling fuse_fileManager (verbose, showing errors)..."
         ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$FILEMANAGER_SRC" 2>&1 || echo "fuse_fileManager compilation failed - see errors above"
@@ -187,7 +195,7 @@ if [ ! -f "fuse_filemanager.mod" ]; then
     echo ""
     echo "WARNING: fuse_filemanager.mod still not created"
     echo "Checking what modules fuse_fileManager.f90 needs..."
-    FILEMANAGER_SRC=$(find .. -name "fuse_fileManager.f90" 2>/dev/null | head -1)
+    FILEMANAGER_SRC=$(find FUSE_SRC -name "fuse_fileManager.f90" 2>/dev/null | head -1)
     if [ -n "$FILEMANAGER_SRC" ]; then
         echo "USE statements in fuse_fileManager.f90:"
         grep -i "^[[:space:]]*use[[:space:]]" "$FILEMANAGER_SRC" | head -20
