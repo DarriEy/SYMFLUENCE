@@ -17,7 +17,8 @@ dynamic = ["version"]
 # Runtime dependencies with version constraints for stability
 dependencies = [
   # Core scientific stack - constrained to major versions
-  "numpy>=1.24.0,<3.0.0",
+  # NumPy 2.0+ required for ABI compatibility with compiled extensions
+  "numpy>=2.0.0,<3.0.0",
   "pandas>=2.0.0,<3.0.0",
   "scipy>=1.10.0,<2.0.0",
   "xarray>=2023.0.0,<2026.0.0",
