@@ -15,6 +15,7 @@ from symfluence.cli.services import (
     get_common_build_environment,
     get_geos_proj_detection,
     get_bison_detection_and_build,
+    get_flex_detection_and_build,
 )
 
 
@@ -32,6 +33,7 @@ def get_rhessys_build_instructions():
     common_env = get_common_build_environment()
     geos_proj_detect = get_geos_proj_detection()
     bison_detect = get_bison_detection_and_build()
+    flex_detect = get_flex_detection_and_build()
 
     return {
         'description': 'RHESSys - Regional Hydro-Ecologic Simulation System',
@@ -46,6 +48,7 @@ def get_rhessys_build_instructions():
             common_env,
             geos_proj_detect,
             bison_detect,
+            flex_detect,
             r'''
 set -e
 echo "Building RHESSys..."
