@@ -497,6 +497,85 @@ detect_or_build_bison
     '''.strip()
 
 
+def get_flex_detection_and_build() -> str:
+    """
+    Get reusable flex detection and build-from-source snippet.
+
+    Checks if flex (lexical analyzer generator) is available, and if not,
+    builds it from source in a local directory.
+
+    Returns:
+        Shell script snippet for flex detection and building.
+    """
+    return r'''
+# === Flex Detection and Build ===
+detect_or_build_flex() {
+    FLEX_FOUND=false
+
+    # Check if flex is already available
+    if command -v flex >/dev/null 2>&1; then
+        echo "Found flex: $(command -v flex)"
+        flex --version | head -1
+        FLEX_FOUND=true
+        return 0
+    fi
+
+    # If not found, build from source
+    echo "Flex not found system-wide, building from source..."
+
+    # Save original directory before building
+    FLEX_ORIGINAL_DIR="$(pwd)"
+
+    FLEX_VERSION="2.6.4"
+    FLEX_BUILD_DIR="${FLEX_ORIGINAL_DIR}/flex_build"
+    FLEX_INSTALL_DIR="${FLEX_ORIGINAL_DIR}/flex"
+
+    # Check if already built locally
+    if [ -x "${FLEX_INSTALL_DIR}/bin/flex" ]; then
+        echo "Using previously built flex at: ${FLEX_INSTALL_DIR}/bin/flex"
+        export PATH="${FLEX_INSTALL_DIR}/bin:$PATH"
+        flex --version | head -1
+        return 0
+    fi
+
+    # Download and build flex
+    mkdir -p "${FLEX_BUILD_DIR}"
+    cd "${FLEX_BUILD_DIR}"
+
+    if [ ! -f "flex-${FLEX_VERSION}.tar.gz" ]; then
+        echo "Downloading flex ${FLEX_VERSION}..."
+        wget -q "https://github.com/westes/flex/releases/download/v${FLEX_VERSION}/flex-${FLEX_VERSION}.tar.gz" \
+          || curl -fsSL -o "flex-${FLEX_VERSION}.tar.gz" "https://github.com/westes/flex/releases/download/v${FLEX_VERSION}/flex-${FLEX_VERSION}.tar.gz"
+    fi
+
+    if [ ! -d "flex-${FLEX_VERSION}" ]; then
+        echo "Extracting flex..."
+        tar -xzf "flex-${FLEX_VERSION}.tar.gz"
+    fi
+
+    cd "flex-${FLEX_VERSION}"
+    echo "Configuring flex..."
+    ./configure --prefix="${FLEX_INSTALL_DIR}"
+
+    echo "Building flex..."
+    make -j ${NCORES:-4}
+
+    echo "Installing flex to ${FLEX_INSTALL_DIR}..."
+    make install
+
+    # Return to original directory
+    cd "${FLEX_ORIGINAL_DIR}"
+
+    # Add to PATH
+    export PATH="${FLEX_INSTALL_DIR}/bin:$PATH"
+
+    echo "Flex built successfully"
+    flex --version | head -1
+}
+detect_or_build_flex
+    '''.strip()
+
+
 def get_all_snippets() -> Dict[str, str]:
     """
     Return all snippets as a dictionary for easy access.
@@ -512,4 +591,5 @@ def get_all_snippets() -> Dict[str, str]:
         'geos_proj_detect': get_geos_proj_detection(),
         'udunits2_detect_build': get_udunits2_detection_and_build(),
         'bison_detect_build': get_bison_detection_and_build(),
+        'flex_detect_build': get_flex_detection_and_build(),
     }
