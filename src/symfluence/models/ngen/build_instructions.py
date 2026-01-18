@@ -121,6 +121,8 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   # Also add to compiler flags as a fallback
   export CXXFLAGS="${CXXFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
   export CFLAGS="${CFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
+  # UDUNITS2 static library requires expat XML parser
+  export LDFLAGS="${LDFLAGS:-} -lexpat"
   echo "Using UDUNITS2 from: $UDUNITS2_DIR"
 fi
 
