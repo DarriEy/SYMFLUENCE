@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from symfluence.reporting.plotters.benchmark_plotter import BenchmarkPlotter
     from symfluence.reporting.plotters.snow_plotter import SnowPlotter
     from symfluence.reporting.plotters.diagnostic_plotter import DiagnosticPlotter
+    from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
 
 
 class ReportingManager(ConfigMixin):
@@ -364,6 +365,12 @@ class ReportingManager(ConfigMixin):
         """Lazy initialization of diagnostic plotter."""
         from symfluence.reporting.plotters.diagnostic_plotter import DiagnosticPlotter
         return DiagnosticPlotter(self.config, self.logger, self.plot_config)
+
+    @cached_property
+    def model_comparison_plotter(self) -> 'ModelComparisonPlotter':
+        """Lazy initialization of model comparison plotter."""
+        from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
+        return ModelComparisonPlotter(self.config, self.logger, self.plot_config)
 
     # =========================================================================
     # Public Methods
@@ -808,3 +815,57 @@ class ReportingManager(ConfigMixin):
         self.analysis_plotter.plot_drop_analysis(
             drop_data, optimal_threshold, project_dir
         )
+
+    def generate_model_comparison_overview(
+        self,
+        experiment_id: Optional[str] = None,
+        context: str = 'run_model'
+    ) -> Optional[str]:
+        """Generate model comparison overview for all models with valid output.
+
+        Creates a comprehensive multi-panel visualization comparing observed and
+        simulated streamflow across all models. Includes time series, flow duration
+        curves, scatter plots, performance metrics, monthly distributions, and
+        residual analysis.
+
+        Based on Camille Gautier's overview_model_comparison visualization.
+        Reference: https://github.com/camille-gautier/overview_model_comparison
+
+        Args:
+            experiment_id: Experiment ID for loading results. If None, uses
+                          config.domain.experiment_id.
+            context: Context for the comparison:
+                    - 'run_model': After model run (default title)
+                    - 'calibrate_model': After calibration (post-calibration title)
+
+        Returns:
+            Path to the saved overview plot, or None if:
+            - visualize flag is False
+            - no results data available
+            - plot generation failed
+
+        Note:
+            Automatically triggered at the end of run_model and calibrate_model
+            when the --visualize flag is enabled.
+        """
+        if not self.visualize:
+            return None
+
+        # Get experiment ID from config if not provided
+        if experiment_id is None:
+            experiment_id = self._get_config_value(
+                lambda: self.config.domain.experiment_id,
+                default='default',
+                dict_key='EXPERIMENT_ID'
+            )
+
+        self.logger.info(f"Generating model comparison overview for {experiment_id}...")
+
+        try:
+            return self.model_comparison_plotter.plot_model_comparison_overview(
+                experiment_id=experiment_id,
+                context=context
+            )
+        except Exception as e:
+            self.logger.error(f"Error generating model comparison overview: {str(e)}")
+            return None
