@@ -16,6 +16,7 @@ from symfluence.cli.services import (
     get_geos_proj_detection,
     get_bison_detection_and_build,
     get_flex_detection_and_build,
+    get_netcdf_detection,
 )
 
 
@@ -34,6 +35,7 @@ def get_rhessys_build_instructions():
     geos_proj_detect = get_geos_proj_detection()
     bison_detect = get_bison_detection_and_build()
     flex_detect = get_flex_detection_and_build()
+    netcdf_detect = get_netcdf_detection()
 
     return {
         'description': 'RHESSys - Regional Hydro-Ecologic Simulation System',
@@ -49,10 +51,37 @@ def get_rhessys_build_instructions():
             geos_proj_detect,
             bison_detect,
             flex_detect,
+            netcdf_detect,
             r'''
 set -e
 echo "Building RHESSys..."
 cd rhessys
+
+# Detect netcdf library location for linking
+NETCDF_LDFLAGS=""
+if [ -n "$NETCDF_C" ]; then
+    # Try nc-config first for accurate flags
+    if command -v nc-config >/dev/null 2>&1; then
+        NETCDF_LDFLAGS="$(nc-config --libs 2>/dev/null || echo "")"
+        echo "Using nc-config libs: $NETCDF_LDFLAGS"
+    fi
+    # Fallback to manual detection if nc-config didn't work
+    if [ -z "$NETCDF_LDFLAGS" ]; then
+        for libdir in "$NETCDF_C/lib" "$NETCDF_C/lib64" "$CONDA_PREFIX/lib"; do
+            if [ -f "$libdir/libnetcdf.so" ] || [ -f "$libdir/libnetcdf.a" ] || [ -f "$libdir/libnetcdf.dylib" ]; then
+                NETCDF_LDFLAGS="-L$libdir -lnetcdf"
+                echo "Found netcdf library in: $libdir"
+                break
+            fi
+        done
+    fi
+fi
+# Final fallback - just try -lnetcdf
+if [ -z "$NETCDF_LDFLAGS" ]; then
+    NETCDF_LDFLAGS="-lnetcdf"
+    echo "Using default netcdf linker flag: $NETCDF_LDFLAGS"
+fi
+echo "NETCDF_LDFLAGS: $NETCDF_LDFLAGS"
 
 echo "GEOS_CFLAGS: $GEOS_CFLAGS, PROJ_CFLAGS: $PROJ_CFLAGS"
 
@@ -193,7 +222,7 @@ grep -q "^rhessys: \$(OBJECTS)$" makefile && echo "Makefile patched successfully
 # IMPORTANT: Use CMD_OPTS for extra flags, NOT CFLAGS override - the makefile's CFLAGS
 # includes $(DEFINES) with -DLIU_NETCDF_READER which is required for is_approximately()
 COMPAT_FLAGS="-Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-error=implicit-function-declaration"
-make V=1 CC="$CC" netcdf=T CMD_OPTS="$COMPAT_FLAGS $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS"
+make V=1 CC="$CC" netcdf=T CMD_OPTS="$COMPAT_FLAGS $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS $NETCDF_LDFLAGS"
 
 mkdir -p ../bin
 # Try multiple possible locations for rhessys binary
