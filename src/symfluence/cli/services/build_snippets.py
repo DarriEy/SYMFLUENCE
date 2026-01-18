@@ -351,9 +351,12 @@ detect_or_build_udunits2() {
     if [ "$UDUNITS2_FOUND" = false ]; then
         echo "UDUNITS2 not found system-wide, building from source..."
 
+        # Save original directory before building
+        UDUNITS2_ORIGINAL_DIR="$(pwd)"
+
         UDUNITS2_VERSION="2.2.28"
-        UDUNITS2_BUILD_DIR="$(pwd)/udunits2_build"
-        UDUNITS2_INSTALL_DIR="$(pwd)/udunits2"
+        UDUNITS2_BUILD_DIR="${UDUNITS2_ORIGINAL_DIR}/udunits2_build"
+        UDUNITS2_INSTALL_DIR="${UDUNITS2_ORIGINAL_DIR}/udunits2"
 
         # Check if already built locally
         if [ -f "${UDUNITS2_INSTALL_DIR}/include/udunits2.h" ] && \
@@ -386,8 +389,7 @@ detect_or_build_udunits2() {
             make install
 
             # Return to original directory
-            cd - >/dev/null
-            cd - >/dev/null
+            cd "${UDUNITS2_ORIGINAL_DIR}"
 
             echo "UDUNITS2 built successfully"
         fi
