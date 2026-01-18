@@ -142,33 +142,23 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_INCLUDE_DIR=$UDUNITS2_INCLUDE_DIR"
   CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
 
-  # UDUNITS2 static library requires expat XML parser at link time
-  # ngen's CMake treats UDUNITS2_LIBRARY as a single path, not a CMake list,
-  # so we must add expat via CMAKE_CXX_STANDARD_LIBRARIES which appends to all link commands
-  EXPAT_LIB=""
-  if [ -f /usr/lib/x86_64-linux-gnu/libexpat.so ]; then
-    EXPAT_LIB="/usr/lib/x86_64-linux-gnu/libexpat.so"
-  elif [ -f /usr/lib/libexpat.so ]; then
-    EXPAT_LIB="/usr/lib/libexpat.so"
-  elif [ -f /usr/lib/x86_64-linux-gnu/libexpat.a ]; then
-    EXPAT_LIB="/usr/lib/x86_64-linux-gnu/libexpat.a"
-  else
-    EXPAT_LIB="-lexpat"
-  fi
-  # Add expat and any extra libs (like -lstdc++ for conda GCC 14)
-  # Note: Don't use quotes around the value - CMake parses it as a list
-  CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_STANDARD_LIBRARIES=$EXPAT_LIB;${EXTRA_LIBS:-}"
-
   # Also add to compiler flags
   export CXXFLAGS="${CXXFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
   export CFLAGS="${CFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
 
-  echo "Using UDUNITS2 from: $UDUNITS2_DIR (with expat: $EXPAT_LIB)"
-else
-  # Even without UDUNITS2, we may need extra libs for conda GCC
-  if [ -n "${EXTRA_LIBS:-}" ]; then
-    CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_STANDARD_LIBRARIES=${EXTRA_LIBS}"
-  fi
+  echo "Using UDUNITS2 from: $UDUNITS2_DIR"
+fi
+
+# Add extra linker flags for conda GCC 14 and expat (needed by UDUNITS2)
+# Use CMAKE_EXE_LINKER_FLAGS which properly handles space-separated flags
+EXTRA_LDFLAGS="${EXTRA_LIBS:-}"
+if [ -n "${UDUNITS2_LIBRARY:-}" ]; then
+  EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lexpat"
+fi
+if [ -n "$EXTRA_LDFLAGS" ]; then
+  CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_EXE_LINKER_FLAGS='$EXTRA_LDFLAGS'"
+  CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_SHARED_LINKER_FLAGS='$EXTRA_LDFLAGS'"
+  echo "Adding extra linker flags: $EXTRA_LDFLAGS"
 fi
 
 # Add Fortran support if compiler is available
@@ -226,9 +216,12 @@ else
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_ROOT=$UDUNITS2_DIR"
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_INCLUDE_DIR=$UDUNITS2_INCLUDE_DIR"
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
-    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_CXX_STANDARD_LIBRARIES=$EXPAT_LIB;${EXTRA_LIBS:-}"
-  elif [ -n "${EXTRA_LIBS:-}" ]; then
-    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_CXX_STANDARD_LIBRARIES=${EXTRA_LIBS}"
+  fi
+
+  # Add extra linker flags to fallback as well
+  if [ -n "$EXTRA_LDFLAGS" ]; then
+    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_EXE_LINKER_FLAGS='$EXTRA_LDFLAGS'"
+    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_SHARED_LINKER_FLAGS='$EXTRA_LDFLAGS'"
   fi
 
   # Keep Fortran in fallback if compiler is available
