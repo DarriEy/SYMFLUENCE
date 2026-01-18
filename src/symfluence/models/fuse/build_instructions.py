@@ -202,14 +202,42 @@ if [ ! -f "fuse_filemanager.mod" ]; then
     fi
 fi
 
+# Patch the Makefile to disable -Werror and fix compiler flags
+echo ""
+echo "=== Patching Makefile ==="
+if [ -f "Makefile" ]; then
+    # Remove -Werror flags that turn warnings into errors
+    sed -i.bak 's/-Werror[^ ]*//g' Makefile
+    # Add our permissive flags to FFLAGS if not already present
+    if ! grep -q "fallow-argument-mismatch" Makefile; then
+        sed -i 's/FFLAGS_NORMA\s*=/FFLAGS_NORMA = -fallow-argument-mismatch -std=legacy -Wno-error /' Makefile
+    fi
+    echo "Patched Makefile to remove -Werror"
+fi
+
+# Verify our pre-compiled .mod files exist before running make
+echo ""
+echo "=== Pre-make module check ==="
+MOD_COUNT=$(ls -1 *.mod 2>/dev/null | wc -l)
+echo "Found $MOD_COUNT .mod files before running make"
+if [ "$MOD_COUNT" -lt 10 ]; then
+    echo "WARNING: Expected more .mod files from multi-pass compilation"
+    echo "Attempting additional compilation pass with verbose output..."
+    for src in $(find FUSE_SRC -name "*.f90" | head -20); do
+        echo "  Trying: $src"
+        ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$src" 2>&1 | head -3 || true
+    done
+fi
+
 # Now run make - the module should exist
-echo "Running make..."
+echo ""
+echo "=== Running make ==="
 if make -j1 FC="${FC}" F_MASTER="${F_MASTER}" LIBS="${LIBS}" INCLUDES="${INCLUDES}" \
        FFLAGS_NORMA="${FFLAGS_NORMA}" FFLAGS_FIXED="${FFLAGS_FIXED}"; then
   echo "Build completed"
 else
   echo "Build failed - checking for .mod files..."
-  find . -name "*.mod" 2>/dev/null
+  ls -la *.mod 2>/dev/null | head -20
   echo "NetCDF lib: ${NETCDF_LIB_DIR}, HDF5 lib: ${HDF5_LIB_DIR}"
   exit 1
 fi
