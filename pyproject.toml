@@ -44,8 +44,6 @@ dependencies = [
   "plotly>=5.0.0,<6.0.0",
   "matplotlib>=3.7.0,<4.0.0",
   "contextily",
-  # R integration - version constrained for stability
-  "rpy2>=3.5.0,<4.0.0",
   # Cloud and data access
   "gcsfs>=2023.0.0",
   "intake-xarray",
@@ -73,6 +71,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# R integration (requires R and libgcc to be installed)
+r = [
+  "rpy2>=3.5.0,<4.0.0",
+]
 # Development tools
 dev = [
   "ruff>=0.1.0",
