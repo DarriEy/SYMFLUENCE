@@ -62,196 +62,146 @@ if command -v brew >/dev/null 2>&1; then
   [ -d "$HDF_PATH/lib" ] && export LDFLAGS="${LDFLAGS} -L${HDF_PATH}/lib"
 fi
 
-echo "Build environment: FC=${FC}, NCDF_PATH=${NCDF_PATH}, HDF_PATH=${HDF_PATH}"
+echo "=== FUSE Build Starting ==="
+echo "FC=${FC}, NCDF_PATH=${NCDF_PATH}, HDF_PATH=${HDF_PATH}"
 
-# Build FUSE
 cd build
-make clean 2>/dev/null || true
 export F_MASTER="$(cd .. && pwd)/"
-
-# Patch fuse_fileManager.f90 to fix the overly long line at line 141
-# The original line exceeds 132 characters and causes -Werror=line-truncation
-echo "Patching fuse_fileManager.f90 to fix long line..."
-FILEMANAGER_FILE="FUSE_SRC/FUSE_HOOK/fuse_fileManager.f90"
-if [ -f "$FILEMANAGER_FILE" ]; then
-    # Use perl to split the long line with Fortran continuation
-    perl -i.bak -pe "s|(message='This version of FUSE requires the file manager to follow the following format:  ')//trim\(fuseFileManagerHeader\)//(' not '//trim\(temp\))|\1\&\n               //trim(fuseFileManagerHeader)//\2|" "$FILEMANAGER_FILE"
-    # Verify the patch worked
-    if grep -q "format:  '&" "$FILEMANAGER_FILE"; then
-        echo "Successfully patched fuse_fileManager.f90"
-    else
-        echo "Warning: Patch may not have applied correctly"
-    fi
-else
-    echo "Warning: Could not find $FILEMANAGER_FILE to patch"
-    find .. -name "fuse_fileManager.f90" 2>/dev/null
-fi
 
 # Construct library and include paths
 LIBS="-L${HDF5_LIB_DIR} -lhdf5 -lhdf5_hl -L${NETCDF_LIB_DIR} -lnetcdff -L${NETCDF_C_LIB_DIR} -lnetcdf"
 INCLUDES="-I${HDF5_INC_DIR} -I${NCDF_PATH}/include -I${NETCDF_C}/include"
 
-# Legacy compiler flags for old Fortran code
-# -Wno-line-truncation: FUSE has some long lines that get truncated
-# -Wno-error=line-truncation: Don't treat line truncation as fatal error
-# -Wno-error: Don't treat any warnings as errors (Makefile may add -Werror)
-# -fallow-argument-mismatch: Legacy code has type mismatches
-# -std=legacy: Allow legacy Fortran constructs
-# -ffree-line-length-512: Allow lines up to 512 chars (more reliable than -none)
-EXTRA_FLAGS="-fallow-argument-mismatch -std=legacy -Wno-line-truncation -Wno-error=line-truncation -Wno-error"
-FFLAGS_NORMA="-O3 -ffree-line-length-512 -fmax-errors=0 -cpp ${EXTRA_FLAGS}"
-FFLAGS_FIXED="-O2 -c -ffixed-form ${EXTRA_FLAGS}"
+# =====================================================
+# STEP 1: Patch the Makefile FIRST (before any compilation)
+# =====================================================
+echo ""
+echo "=== Step 1: Patching Makefile ==="
+if [ -f "Makefile" ]; then
+    cp Makefile Makefile.original
 
-# Pre-compile sce_16plus.f to avoid broken Makefile rule
-echo "Pre-compiling sce_16plus.f..."
-${FC} ${FFLAGS_FIXED} -o sce_16plus.o "FUSE_SRC/FUSE_SCE/sce_16plus.f" || { echo "Failed to compile sce_16plus.f"; exit 1; }
+    # Create a completely new Makefile section with correct FFLAGS
+    # The sed replacements weren't working because of special characters
+    # Use a heredoc to create a flags override file and include it
+    cat > fflags_override.mk << 'MKEOF'
+# Override FFLAGS for FUSE build - disable -Werror and enable long lines
+override FFLAGS_NORMA = -O3 -ffree-line-length-none -fmax-errors=0 -cpp -fallow-argument-mismatch -std=legacy -Wno-error -Wno-line-truncation
+override FFLAGS_FIXED = -O2 -ffixed-form -fallow-argument-mismatch -std=legacy -Wno-error -Wno-line-truncation
+MKEOF
 
-# FUSE has complex Fortran module dependencies that the Makefile doesn't handle well.
-# Solution: Multi-pass compilation - keep compiling all module files until no new .mod files appear.
+    # Prepend the override to the Makefile
+    cat fflags_override.mk Makefile.original > Makefile
 
-echo "Building FUSE (with multi-pass module pre-compilation)..."
-
-# Create objects directory
-mkdir -p objects
-
-# Find all Fortran source files that define modules
-# Note: We're in the build/ directory, source is at FUSE_SRC/
-echo "Finding all module-defining source files..."
-MODULE_SOURCES=$(find FUSE_SRC -name "*.f90" -exec grep -l "^[[:space:]]*module[[:space:]]" {} \; 2>/dev/null | sort -u)
-NUM_MODULES=$(echo "$MODULE_SOURCES" | grep -c . || echo 0)
-echo "Found $NUM_MODULES module files"
-if [ "$NUM_MODULES" -eq 0 ]; then
-    echo "ERROR: No module files found in FUSE_SRC"
-    echo "Directory contents:"
-    ls -la FUSE_SRC/ 2>/dev/null || echo "FUSE_SRC not found"
+    echo "Makefile patched with override flags"
+    head -5 Makefile
+else
+    echo "ERROR: Makefile not found"
+    ls -la
     exit 1
 fi
 
-# Multi-pass compilation: keep compiling until no new .mod files are created
-MAX_PASSES=10
-PASS=1
-while [ $PASS -le $MAX_PASSES ]; do
-    echo ""
-    echo "=== Compilation pass $PASS ==="
-    MOD_COUNT_BEFORE=$(ls -1 *.mod 2>/dev/null | wc -l | tr -d ' ')
-
-    COMPILED=0
-    FAILED=0
-    for src in $MODULE_SOURCES; do
-        # Extract module name from file
-        basename_src=$(basename "$src")
-
-        # Try to compile, suppress errors (some will fail due to missing deps)
-        if ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$src" 2>/dev/null; then
-            COMPILED=$((COMPILED + 1))
-        else
-            FAILED=$((FAILED + 1))
-        fi
-    done
-
-    MOD_COUNT_AFTER=$(ls -1 *.mod 2>/dev/null | wc -l | tr -d ' ')
-    NEW_MODS=$((MOD_COUNT_AFTER - MOD_COUNT_BEFORE))
-
-    echo "Pass $PASS: Compiled=$COMPILED, Failed=$FAILED, New .mod files=$NEW_MODS, Total .mod files=$MOD_COUNT_AFTER"
-
-    # If no new .mod files were created, we're done
-    if [ $NEW_MODS -eq 0 ] && [ $PASS -gt 1 ]; then
-        echo "No new modules created - compilation stabilized"
-        break
-    fi
-
-    PASS=$((PASS + 1))
-done
-
-# Now specifically check and compile critical modules with verbose errors
+# =====================================================
+# STEP 2: Patch source files with long lines and MPI issues
+# =====================================================
 echo ""
-echo "=== Verifying critical modules ==="
+echo "=== Step 2: Patching source files ==="
 
-# kinds_dmsl_kit_FUSE is the base
-if [ ! -f "kinds_dmsl_kit_fuse.mod" ]; then
-    KINDS_SRC=$(find FUSE_SRC -name "kinds_dmsl_kit_FUSE.f90" 2>/dev/null | head -1)
-    if [ -n "$KINDS_SRC" ]; then
-        echo "Compiling kinds_dmsl_kit_FUSE (verbose)..."
-        ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$KINDS_SRC" || { echo "FATAL: kinds_dmsl_kit_FUSE failed"; exit 1; }
+# Function to break long lines in Fortran files
+# Finds lines > 120 chars and adds continuation
+fix_long_lines() {
+    local file="$1"
+    if [ -f "$file" ]; then
+        # Use perl to break lines longer than 120 characters at semicolons
+        perl -i.bak -pe 's/^(.{100,120});(.+)$/$1\n  $2/g' "$file"
+        echo "  Fixed long lines in: $file"
     fi
+}
+
+# Patch fuse_fileManager.f90 line 141
+FILEMANAGER_FILE="FUSE_SRC/FUSE_HOOK/fuse_fileManager.f90"
+if [ -f "$FILEMANAGER_FILE" ]; then
+    perl -i.bak -pe "s|(message='This version of FUSE requires the file manager to follow the following format:  ')//trim\(fuseFileManagerHeader\)//(' not '//trim\(temp\))|\1\&\n               //trim(fuseFileManagerHeader)//\2|" "$FILEMANAGER_FILE"
+    echo "  Patched fuse_fileManager.f90"
 fi
 
-# fuse_fileManager is required by fuse_driver
-if [ ! -f "fuse_filemanager.mod" ]; then
-    FILEMANAGER_SRC=$(find FUSE_SRC -name "fuse_fileManager.f90" 2>/dev/null | head -1)
-    if [ -n "$FILEMANAGER_SRC" ]; then
-        echo "Compiling fuse_fileManager (verbose, showing errors)..."
-        ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$FILEMANAGER_SRC" 2>&1 || echo "fuse_fileManager compilation failed - see errors above"
+# Patch force_info.f90 - multiple long lines
+FORCE_INFO_FILE="FUSE_SRC/FUSE_ENGINE/force_info.f90"
+if [ -f "$FORCE_INFO_FILE" ]; then
+    # Line 123 and 243 have long error messages - break at semicolons
+    perl -i.bak -pe 's/^(\s*if.*message=trim\(message\).*problem.*);(\s*return.*endif)/$1\n    $2/g' "$FORCE_INFO_FILE"
+    perl -i.bak -pe 's/^(\s*if.*message=trim\(message\).*expect.*);(\s*return.*endif)/$1\n    $2/g' "$FORCE_INFO_FILE"
+    echo "  Patched force_info.f90"
+fi
+
+# Patch get_time_indices.f90 - multiple long lines
+GET_TIME_FILE="FUSE_SRC/FUSE_ENGINE/get_time_indices.f90"
+if [ -f "$GET_TIME_FILE" ]; then
+    # Break long print statements at semicolons
+    perl -i.bak -pe 's/^(\s*print \*, .{80,});(stop;?)$/$1\n    $2/g' "$GET_TIME_FILE"
+    perl -i.bak -pe 's/^(\s*if.*print \*, .{60,});(\s*stop.*endif)/$1\n    $2/g' "$GET_TIME_FILE"
+    echo "  Patched get_time_indices.f90"
+fi
+
+# Handle MPI issue in get_gforce.f90 - comment out MPI use statements
+# This disables MPI support but allows non-MPI build
+GET_GFORCE_FILE="FUSE_SRC/FUSE_NETCDF/get_gforce.f90"
+if [ -f "$GET_GFORCE_FILE" ]; then
+    # Comment out 'use mpi' statements
+    perl -i.bak -pe 's/^(\s*)(use mpi)/$1!$2  ! Disabled - MPI not available/' "$GET_GFORCE_FILE"
+    # Comment out MPI-specific code blocks (between #ifdef __MPI__ and #endif/#else)
+    # The preprocessor directives are being treated as illegal, so we need to handle the code
+    perl -i.bak -pe 's/^#ifdef __MPI__/!DIR\$ IF .FALSE.  ! MPI disabled/' "$GET_GFORCE_FILE"
+    perl -i.bak -pe 's/^#else/!DIR\$ ELSE/' "$GET_GFORCE_FILE"
+    perl -i.bak -pe 's/^#endif/!DIR\$ ENDIF/' "$GET_GFORCE_FILE"
+    echo "  Patched get_gforce.f90 (disabled MPI)"
+fi
+
+# Also patch fuse_driver.f90 for MPI
+FUSE_DRIVER_FILE="FUSE_SRC/FUSE_DMSL/fuse_driver.f90"
+if [ -f "$FUSE_DRIVER_FILE" ]; then
+    perl -i.bak -pe 's/^#ifdef __MPI__/!DIR\$ IF .FALSE.  ! MPI disabled/' "$FUSE_DRIVER_FILE"
+    perl -i.bak -pe 's/^#else/!DIR\$ ELSE/' "$FUSE_DRIVER_FILE"
+    perl -i.bak -pe 's/^#endif/!DIR\$ ENDIF/' "$FUSE_DRIVER_FILE"
+    echo "  Patched fuse_driver.f90 (disabled MPI directives)"
+fi
+
+echo "Source patching complete"
+
+# =====================================================
+# STEP 3: Pre-compile fixed-form Fortran
+# =====================================================
+echo ""
+echo "=== Step 3: Pre-compile fixed-form Fortran ==="
+FFLAGS_FIXED="-O2 -c -ffixed-form -fallow-argument-mismatch -std=legacy -Wno-error"
+${FC} ${FFLAGS_FIXED} -o sce_16plus.o "FUSE_SRC/FUSE_SCE/sce_16plus.f" || echo "Warning: sce_16plus.f compilation issue"
+
+# =====================================================
+# STEP 4: Run make (with our patched Makefile)
+# =====================================================
+echo ""
+echo "=== Step 4: Running make ==="
+
+# Clean first
+make clean 2>/dev/null || true
+
+# Run make with explicit variables
+make -j1 FC="${FC}" F_MASTER="${F_MASTER}" LIBS="${LIBS}" INCLUDES="${INCLUDES}"
+
+# Check result
+if [ -f "fuse.exe" ] || [ -f "../bin/fuse.exe" ]; then
+    echo "Build successful!"
+    if [ -f "fuse.exe" ] && [ ! -f "../bin/fuse.exe" ]; then
+        mkdir -p ../bin && cp fuse.exe ../bin/
     fi
-fi
-
-# List all .mod files for debugging
-echo ""
-echo "Available .mod files:"
-ls -1 *.mod 2>/dev/null | head -30 || echo "  (none)"
-
-# Check critical modules
-if [ ! -f "fuse_filemanager.mod" ]; then
-    echo ""
-    echo "WARNING: fuse_filemanager.mod still not created"
-    echo "Checking what modules fuse_fileManager.f90 needs..."
-    FILEMANAGER_SRC=$(find FUSE_SRC -name "fuse_fileManager.f90" 2>/dev/null | head -1)
-    if [ -n "$FILEMANAGER_SRC" ]; then
-        echo "USE statements in fuse_fileManager.f90:"
-        grep -i "^[[:space:]]*use[[:space:]]" "$FILEMANAGER_SRC" | head -20
-    fi
-fi
-
-# Patch the Makefile to disable -Werror and fix compiler flags
-echo ""
-echo "=== Patching Makefile ==="
-if [ -f "Makefile" ]; then
-    # Remove -Werror flags that turn warnings into errors
-    sed -i.bak 's/-Werror[^ ]*//g' Makefile
-    # Add our permissive flags to FFLAGS if not already present
-    if ! grep -q "fallow-argument-mismatch" Makefile; then
-        sed -i 's/FFLAGS_NORMA\s*=/FFLAGS_NORMA = -fallow-argument-mismatch -std=legacy -Wno-error /' Makefile
-    fi
-    echo "Patched Makefile to remove -Werror"
-fi
-
-# Verify our pre-compiled .mod files exist before running make
-echo ""
-echo "=== Pre-make module check ==="
-MOD_COUNT=$(ls -1 *.mod 2>/dev/null | wc -l)
-echo "Found $MOD_COUNT .mod files before running make"
-if [ "$MOD_COUNT" -lt 10 ]; then
-    echo "WARNING: Expected more .mod files from multi-pass compilation"
-    echo "Attempting additional compilation pass with verbose output..."
-    for src in $(find FUSE_SRC -name "*.f90" | head -20); do
-        echo "  Trying: $src"
-        ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$src" 2>&1 | head -3 || true
-    done
-fi
-
-# Now run make - the module should exist
-echo ""
-echo "=== Running make ==="
-if make -j1 FC="${FC}" F_MASTER="${F_MASTER}" LIBS="${LIBS}" INCLUDES="${INCLUDES}" \
-       FFLAGS_NORMA="${FFLAGS_NORMA}" FFLAGS_FIXED="${FFLAGS_FIXED}"; then
-  echo "Build completed"
 else
-  echo "Build failed - checking for .mod files..."
-  ls -la *.mod 2>/dev/null | head -20
-  echo "NetCDF lib: ${NETCDF_LIB_DIR}, HDF5 lib: ${HDF5_LIB_DIR}"
-  exit 1
+    echo "Build failed - fuse.exe not found"
+    echo "Checking for partial build products..."
+    ls -la *.o 2>/dev/null | wc -l
+    ls -la *.mod 2>/dev/null | wc -l
+    exit 1
 fi
 
-# Stage binary
-if [ -f "../bin/fuse.exe" ]; then
-  echo "Binary at ../bin/fuse.exe"
-elif [ -f "fuse.exe" ]; then
-  mkdir -p ../bin && cp fuse.exe ../bin/
-  echo "Binary staged to ../bin/fuse.exe"
-else
-  echo "fuse.exe not found after build"
-  exit 1
-fi
+echo "=== FUSE Build Complete ==="
             '''.strip()
         ],
         'dependencies': [],
