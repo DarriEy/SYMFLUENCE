@@ -21,57 +21,116 @@ def get_common_build_environment() -> str:
 set -e
 
 # ================================================================
-# 2i2c / JupyterHub Compiler Fix
+# 2i2c / JupyterHub Compiler Configuration
 # ================================================================
-# Detect if conda's gcc is broken (common in 2i2c/JupyterHub environments)
-# and fall back to system compilers if so.
-detect_and_fix_compilers() {
-    local use_system_compilers=false
-
-    # Check for 2i2c environment indicators
-    if [ -d "/srv/conda/envs/notebook" ]; then
-        # Test if conda gcc can link a simple program
-        local test_file="/tmp/compiler_test_$$.c"
-        echo 'int main() { return 0; }' > "$test_file"
-
-        if [ -x "/srv/conda/envs/notebook/bin/gcc" ]; then
-            if ! /srv/conda/envs/notebook/bin/gcc "$test_file" -o /tmp/compiler_test_$$ 2>/dev/null; then
-                echo "2i2c: Conda gcc is broken, using system compilers"
-                use_system_compilers=true
-            fi
-        fi
-        rm -f "$test_file" /tmp/compiler_test_$$
+# Respect pre-configured compilers for ABI compatibility with conda libraries.
+# The symfluence shell script sets CC/CXX to conda compilers when available.
+configure_compilers() {
+    # If CC/CXX are already set to conda compilers, trust them
+    # (symfluence --install sets these for ABI compatibility)
+    if [ -n "$CC" ] && [[ "$CC" == *conda* ]]; then
+        echo "Using pre-configured conda compiler: CC=$CC"
+        [ -n "$CXX" ] && echo "  CXX=$CXX"
+        return 0
     fi
 
-    # Apply system compilers if needed
-    if [ "$use_system_compilers" = true ] || [ "${SYMFLUENCE_USE_SYSTEM_COMPILERS:-}" = "true" ]; then
+    # Only use system compilers if explicitly requested
+    if [ "${SYMFLUENCE_USE_SYSTEM_COMPILERS:-}" = "true" ]; then
         [ -x /usr/bin/gcc ] && export CC=/usr/bin/gcc
         [ -x /usr/bin/g++ ] && export CXX=/usr/bin/g++
-        echo "Using system compilers: CC=$CC, CXX=${CXX:-not set}"
+        echo "Using system compilers (requested via SYMFLUENCE_USE_SYSTEM_COMPILERS)"
+        echo "  CC=$CC, CXX=${CXX:-not set}"
+        return 0
+    fi
+
+    # If no compiler is set but we're in a conda env, try to find conda compilers
+    if [ -n "$CONDA_PREFIX" ] && [ -z "$CC" ]; then
+        local conda_gcc="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gcc"
+        local conda_gxx="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-g++"
+        if [ -x "$conda_gcc" ]; then
+            export CC="$conda_gcc"
+            [ -x "$conda_gxx" ] && export CXX="$conda_gxx"
+            echo "Auto-detected conda compilers: CC=$CC"
+        fi
+    fi
+
+    # Report current compiler configuration
+    if [ -n "$CC" ]; then
+        echo "Compiler configuration: CC=$CC"
+        [ -n "$CXX" ] && echo "  CXX=$CXX"
     fi
 }
-detect_and_fix_compilers
+configure_compilers
 
 # ================================================================
 # Fortran Compiler Detection
 # ================================================================
-# Compiler: force absolute path if possible to satisfy CMake/Makefile
-if [ -n "$FC" ] && [ -x "$FC" ]; then
-    export FC="$FC"
-elif command -v gfortran >/dev/null 2>&1; then
-    export FC="$(command -v gfortran)"
-else
+# Look for conda gfortran first (for ABI compatibility), then system gfortran
+configure_fortran() {
+    # Already set and valid
+    if [ -n "$FC" ] && [ -x "$FC" ]; then
+        echo "Using FC=$FC"
+        export FC_EXE="$FC"
+        return 0
+    fi
+
+    # Try conda gfortran first (from compilers package)
+    if [ -n "$CONDA_PREFIX" ]; then
+        local conda_fc="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gfortran"
+        if [ -x "$conda_fc" ]; then
+            export FC="$conda_fc"
+            export FC_EXE="$FC"
+            echo "Using conda Fortran compiler: FC=$FC"
+            return 0
+        fi
+    fi
+
+    # Fall back to system gfortran
+    if command -v gfortran >/dev/null 2>&1; then
+        export FC="$(command -v gfortran)"
+        export FC_EXE="$FC"
+        echo "Using system Fortran compiler: FC=$FC"
+        return 0
+    fi
+
+    # Last resort
     export FC="${FC:-gfortran}"
-fi
-export FC_EXE="$FC"
+    export FC_EXE="$FC"
+    echo "Warning: gfortran not found, set FC=$FC"
+}
+configure_fortran
 
 # ================================================================
 # Library Discovery
 # ================================================================
-# Discover libraries (fallback to /usr)
-export NETCDF="${NETCDF:-$(nc-config --prefix 2>/dev/null || echo /usr)}"
-export NETCDF_FORTRAN="${NETCDF_FORTRAN:-$(nf-config --prefix 2>/dev/null || echo /usr)}"
-export HDF5_ROOT="${HDF5_ROOT:-$(h5cc -showconfig 2>/dev/null | awk -F': ' "/Installation point/{print $2}" || echo /usr)}"
+# Discover libraries - prefer conda prefix if available
+configure_libraries() {
+    # NetCDF: prefer conda installation
+    if [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/bin/nc-config" ]; then
+        export NETCDF="$CONDA_PREFIX"
+        echo "Using conda NetCDF: $NETCDF"
+    else
+        export NETCDF="${NETCDF:-$(nc-config --prefix 2>/dev/null || echo /usr)}"
+    fi
+
+    # NetCDF-Fortran: prefer conda installation
+    if [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/bin/nf-config" ]; then
+        export NETCDF_FORTRAN="$CONDA_PREFIX"
+        echo "Using conda NetCDF-Fortran: $NETCDF_FORTRAN"
+    else
+        export NETCDF_FORTRAN="${NETCDF_FORTRAN:-$(nf-config --prefix 2>/dev/null || echo /usr)}"
+    fi
+
+    # HDF5: prefer conda installation
+    if [ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX/lib" ] && ls "$CONDA_PREFIX/lib"/libhdf5* >/dev/null 2>&1; then
+        export HDF5_ROOT="$CONDA_PREFIX"
+        echo "Using conda HDF5: $HDF5_ROOT"
+    else
+        export HDF5_ROOT="${HDF5_ROOT:-$(h5cc -showconfig 2>/dev/null | awk -F': ' "/Installation point/{print \$2}" || echo /usr)}"
+    fi
+}
+configure_libraries
+
 # Threads
 export NCORES="${NCORES:-4}"
     '''.strip()
@@ -82,7 +141,7 @@ def get_netcdf_detection() -> str:
     Get reusable NetCDF detection shell snippet.
 
     Sets NETCDF_FORTRAN and NETCDF_C environment variables.
-    Works on Linux (apt), macOS (Homebrew), and HPC systems.
+    Works on Linux (apt), macOS (Homebrew), conda environments, and HPC systems.
 
     Returns:
         Shell script snippet for NetCDF detection.
@@ -90,30 +149,49 @@ def get_netcdf_detection() -> str:
     return r'''
 # === NetCDF Detection (reusable snippet) ===
 detect_netcdf() {
-    # Try nf-config first (NetCDF Fortran config tool)
-    if command -v nf-config >/dev/null 2>&1; then
-        NETCDF_FORTRAN="$(nf-config --prefix)"
-        echo "Found nf-config, NetCDF-Fortran at: ${NETCDF_FORTRAN}"
-    elif [ -n "${NETCDF_FORTRAN}" ] && [ -d "${NETCDF_FORTRAN}/include" ]; then
-        echo "Using NETCDF_FORTRAN env var: ${NETCDF_FORTRAN}"
-    elif [ -n "${NETCDF}" ] && [ -d "${NETCDF}/include" ]; then
-        NETCDF_FORTRAN="${NETCDF}"
-        echo "Using NETCDF env var: ${NETCDF_FORTRAN}"
-    else
-        # Try common locations (Homebrew, system paths)
-        for try_path in /opt/homebrew/opt/netcdf-fortran /opt/homebrew/opt/netcdf \
-                        /usr/local/opt/netcdf-fortran /usr/local/opt/netcdf /usr/local /usr; do
-            if [ -d "$try_path/include" ]; then
-                NETCDF_FORTRAN="$try_path"
-                echo "Found NetCDF at: $try_path"
-                break
-            fi
-        done
+    # Check conda environment first (highest priority for ABI compatibility)
+    if [ -n "${CONDA_PREFIX}" ] && [ -f "${CONDA_PREFIX}/bin/nf-config" ]; then
+        NETCDF_FORTRAN="${CONDA_PREFIX}"
+        echo "Found conda NetCDF-Fortran at: ${NETCDF_FORTRAN}"
+    # Try nf-config (NetCDF Fortran config tool)
+    elif command -v nf-config >/dev/null 2>&1; then
+        local nf_prefix
+        nf_prefix="$(nf-config --prefix 2>/dev/null)"
+        if [ -n "$nf_prefix" ] && [ -d "$nf_prefix" ]; then
+            NETCDF_FORTRAN="$nf_prefix"
+            echo "Found nf-config, NetCDF-Fortran at: ${NETCDF_FORTRAN}"
+        fi
+    fi
+
+    # Fallback checks if not yet found
+    if [ -z "${NETCDF_FORTRAN}" ] || [ ! -d "${NETCDF_FORTRAN}/include" ]; then
+        if [ -n "${NETCDF_FORTRAN}" ] && [ -d "${NETCDF_FORTRAN}/include" ]; then
+            echo "Using NETCDF_FORTRAN env var: ${NETCDF_FORTRAN}"
+        elif [ -n "${NETCDF}" ] && [ -d "${NETCDF}/include" ]; then
+            NETCDF_FORTRAN="${NETCDF}"
+            echo "Using NETCDF env var: ${NETCDF_FORTRAN}"
+        else
+            # Try common locations (Homebrew, system paths)
+            for try_path in /opt/homebrew/opt/netcdf-fortran /opt/homebrew/opt/netcdf \
+                            /usr/local/opt/netcdf-fortran /usr/local/opt/netcdf /usr/local /usr; do
+                if [ -d "$try_path/include" ]; then
+                    NETCDF_FORTRAN="$try_path"
+                    echo "Found NetCDF at: $try_path"
+                    break
+                fi
+            done
+        fi
     fi
 
     # Find NetCDF C library (may be separate from Fortran on macOS)
-    if command -v nc-config >/dev/null 2>&1; then
-        NETCDF_C="$(nc-config --prefix)"
+    if [ -n "${CONDA_PREFIX}" ] && [ -f "${CONDA_PREFIX}/bin/nc-config" ]; then
+        NETCDF_C="${CONDA_PREFIX}"
+    elif command -v nc-config >/dev/null 2>&1; then
+        local nc_prefix
+        nc_prefix="$(nc-config --prefix 2>/dev/null)"
+        if [ -n "$nc_prefix" ] && [ -d "$nc_prefix" ]; then
+            NETCDF_C="$nc_prefix"
+        fi
     elif [ -d "/opt/homebrew/opt/netcdf" ]; then
         NETCDF_C="/opt/homebrew/opt/netcdf"
     else
@@ -121,6 +199,7 @@ detect_netcdf() {
     fi
 
     export NETCDF_FORTRAN NETCDF_C
+    echo "NetCDF detection complete: NETCDF_FORTRAN=${NETCDF_FORTRAN}, NETCDF_C=${NETCDF_C}"
 }
 detect_netcdf
     '''.strip()

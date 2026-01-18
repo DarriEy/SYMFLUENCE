@@ -50,9 +50,24 @@ mkdir -p ../bin
 F_MASTER_PATH="$(cd .. && pwd)"
 echo "F_MASTER: $F_MASTER_PATH/"
 
+# Ensure NetCDF paths are set, preferring conda installation
+if [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/bin/nf-config" ]; then
+    export NETCDF_FORTRAN="$CONDA_PREFIX"
+    export NETCDF_C="${NETCDF_C:-$CONDA_PREFIX}"
+    echo "Using conda NetCDF-Fortran at: $NETCDF_FORTRAN"
+fi
+
 # Validate NetCDF was detected
-if [ -z "${NETCDF_FORTRAN}" ]; then
+if [ -z "${NETCDF_FORTRAN}" ] || [ ! -d "${NETCDF_FORTRAN}/include" ]; then
     echo "ERROR: Could not find NetCDF installation"
+    echo "NETCDF_FORTRAN=${NETCDF_FORTRAN}"
+    echo "CONDA_PREFIX=${CONDA_PREFIX:-not set}"
+    if [ -n "$CONDA_PREFIX" ]; then
+        echo "Contents of CONDA_PREFIX/include:"
+        ls -la "$CONDA_PREFIX/include" 2>/dev/null | head -10 || true
+        echo "Contents of CONDA_PREFIX/bin/nf-config:"
+        ls -la "$CONDA_PREFIX/bin/nf-config" 2>/dev/null || echo "nf-config not found"
+    fi
     exit 1
 fi
 

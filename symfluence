@@ -99,21 +99,22 @@ setup_2i2c_conda_env() {
     fi
 
     # Create conda environment with pre-built packages
-    # Include cmake, compilers (for ABI compatibility), and openmpi (for TauDEM)
+    # Include cmake, compilers (for ABI compatibility), openmpi (for TauDEM),
+    # and netcdf-fortran (for SUMMA/mizuRoute/FUSE builds)
     if [[ ! -d "$env_path" ]]; then
         print_info "Creating conda environment with GDAL, compilers, and build tools..."
-        conda create -p "$env_path" python=3.11 gdal numpy rpy2 cmake compilers openmpi -c conda-forge -y || {
+        conda create -p "$env_path" python=3.11 gdal numpy rpy2 cmake compilers openmpi netcdf-fortran -c conda-forge -y || {
             print_warning "Full conda env creation failed, trying minimal..."
-            conda create -p "$env_path" python=3.11 gdal numpy cmake compilers openmpi -c conda-forge -y || {
+            conda create -p "$env_path" python=3.11 gdal numpy cmake compilers openmpi netcdf-fortran -c conda-forge -y || {
                 print_error "Failed to create conda environment"
                 return 1
             }
         }
     else
         print_info "Conda environment already exists at: $env_path"
-        # Ensure cmake and compilers are installed in existing env
+        # Ensure cmake, compilers, and netcdf-fortran are installed in existing env
         print_info "Ensuring build dependencies are installed..."
-        conda install -p "$env_path" cmake compilers openmpi -c conda-forge -y 2>/dev/null || true
+        conda install -p "$env_path" cmake compilers openmpi netcdf-fortran -c conda-forge -y 2>/dev/null || true
     fi
 
     # Activate the environment
@@ -128,6 +129,7 @@ setup_2i2c_conda_env() {
     # The conda compilers package provides GCC that matches the ABI of conda-forge builds
     local conda_gcc="$env_path/bin/x86_64-conda-linux-gnu-gcc"
     local conda_gxx="$env_path/bin/x86_64-conda-linux-gnu-g++"
+    local conda_fc="$env_path/bin/x86_64-conda-linux-gnu-gfortran"
     if [[ -x "$conda_gcc" && -x "$conda_gxx" ]]; then
         export CC="$conda_gcc"
         export CXX="$conda_gxx"
@@ -139,8 +141,15 @@ setup_2i2c_conda_env() {
         export CXX=/usr/bin/g++
         export SYMFLUENCE_USE_SYSTEM_COMPILERS=true
     fi
+    # Set Fortran compiler if available
+    if [[ -x "$conda_fc" ]]; then
+        export FC="$conda_fc"
+        print_info "Using conda Fortran compiler: FC=$FC"
+    fi
     # Ensure conda bin is first in PATH for cmake, mpicc, etc.
     export PATH="$env_path/bin:$PATH"
+    # Export CONDA_PREFIX so build scripts can find libraries
+    export CONDA_PREFIX="$env_path"
     print_info "Prepended conda bin to PATH for build tools"
 
     CONDA_ENV_PATH="$env_path"
@@ -1017,8 +1026,10 @@ else:
         # Re-export 2i2c compiler settings before binary install (ensures they persist)
         if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
             print_info "Ensuring 2i2c compiler settings for binary builds..."
-            local conda_gcc="${CONDA_ENV_PATH:-/tmp/symfluence}/bin/x86_64-conda-linux-gnu-gcc"
-            local conda_gxx="${CONDA_ENV_PATH:-/tmp/symfluence}/bin/x86_64-conda-linux-gnu-g++"
+            local conda_env="${CONDA_ENV_PATH:-/tmp/symfluence}"
+            local conda_gcc="${conda_env}/bin/x86_64-conda-linux-gnu-gcc"
+            local conda_gxx="${conda_env}/bin/x86_64-conda-linux-gnu-g++"
+            local conda_fc="${conda_env}/bin/x86_64-conda-linux-gnu-gfortran"
             if [[ -x "$conda_gcc" && -x "$conda_gxx" ]]; then
                 export CC="$conda_gcc"
                 export CXX="$conda_gxx"
@@ -1026,9 +1037,16 @@ else:
             else
                 export CC=/usr/bin/gcc
                 export CXX=/usr/bin/g++
+                export SYMFLUENCE_USE_SYSTEM_COMPILERS=true
                 print_warning "Falling back to system compilers"
             fi
-            export PATH="${CONDA_ENV_PATH:-/tmp/symfluence}/bin:$PATH"
+            if [[ -x "$conda_fc" ]]; then
+                export FC="$conda_fc"
+                print_info "Using conda Fortran: FC=$FC"
+            fi
+            export PATH="${conda_env}/bin:$PATH"
+            # Ensure CONDA_PREFIX is set for build scripts to find libraries
+            export CONDA_PREFIX="${conda_env}"
         fi
 
         print_info "Installing external tools..."
