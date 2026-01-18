@@ -80,17 +80,14 @@ grep "const void \*e1" util/key_compare.c || { echo "Patching key_compare.c fail
 grep "const void \*" util/sort_patch_layers.c || { echo "Patching sort_patch_layers.c failed"; exit 1; }
 echo "Patches verified."
 
+# Patch makefile to remove test dependency from rhessys target
+# This allows building without glib-2.0 which is required only for tests
+echo "Patching makefile to skip test dependency..."
+sed -i.bak 's/^rhessys: \$(OBJECTS) test$/rhessys: $(OBJECTS)/' makefile
+grep -q "^rhessys: \$(OBJECTS)$" makefile && echo "Makefile patched successfully" || echo "Warning: Makefile patch may not have applied"
+
 # Build with detected flags - explicitly pass CC to override Makefile's clang default
-# Note: May fail on tests if glib-2.0 is not available, but main binary should build
-make V=1 CC="$CC" netcdf=T CMD_OPTS="-DCLIM_GRID_XY $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS" || {
-    echo "Build had errors (likely tests), checking if main binary exists..."
-    if [ -f rhessys/rhessys ]; then
-        echo "Main rhessys binary found despite build errors"
-    else
-        echo "Main rhessys binary not found, build failed"
-        exit 1
-    fi
-}
+make V=1 CC="$CC" netcdf=T CMD_OPTS="-DCLIM_GRID_XY $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS"
 
 mkdir -p ../bin
 # Try multiple possible locations for rhessys binary
