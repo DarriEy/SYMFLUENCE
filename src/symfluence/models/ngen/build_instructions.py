@@ -113,6 +113,14 @@ fi
 
 rm -rf cmake_build
 
+# Debug: show environment
+echo "=== Environment Debug ==="
+echo "CONDA_PREFIX: ${CONDA_PREFIX:-not set}"
+echo "UDUNITS2_DIR: ${UDUNITS2_DIR:-not set}"
+echo "UDUNITS2_INCLUDE_DIR: ${UDUNITS2_INCLUDE_DIR:-not set}"
+echo "UDUNITS2_LIBRARY: ${UDUNITS2_LIBRARY:-not set}"
+echo "========================="
+
 # Build ngen with full BMI support including Fortran
 echo "Configuring ngen with BMI C, C++, and Fortran support..."
 CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"

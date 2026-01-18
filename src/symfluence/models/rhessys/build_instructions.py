@@ -87,7 +87,9 @@ sed -i.bak 's/^rhessys: \$(OBJECTS) test$/rhessys: $(OBJECTS)/' makefile
 grep -q "^rhessys: \$(OBJECTS)$" makefile && echo "Makefile patched successfully" || echo "Warning: Makefile patch may not have applied"
 
 # Build with detected flags - explicitly pass CC to override Makefile's clang default
-make V=1 CC="$CC" netcdf=T CMD_OPTS="-DCLIM_GRID_XY $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS"
+# Add -Wno-error flags for GCC 14 compatibility (newer GCC treats some warnings as errors)
+COMPAT_FLAGS="-Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-error=implicit-function-declaration"
+make V=1 CC="$CC" CFLAGS="$COMPAT_FLAGS" netcdf=T CMD_OPTS="-DCLIM_GRID_XY $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS"
 
 mkdir -p ../bin
 # Try multiple possible locations for rhessys binary
