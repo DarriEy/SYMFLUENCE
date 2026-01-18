@@ -73,6 +73,39 @@ perl -i.bak -pe 's/int\s+key_compare\s*\(\s*void\s*\*\s*,\s*void\s*\*\s*\)\s*;/i
 perl -i.bak -pe 's/(\s*)sort_patch_layers\(patch, \*rec\);/sort_patch_layers(patch, rec);/' util/sort_patch_layers.c
 perl -i.bak -pe 's/^\s*#define MAXSTR 200/\/\/#define MAXSTR 200/' include/rhessys_fire.h
 
+# Fix assign_base_station_xy.c - it uses is_approximately() which isn't defined,
+# and references station->lon/lat which don't exist in base_station_object struct.
+# Add math.h include and is_approximately macro at top of file, and comment out
+# the broken lon/lat condition.
+echo "Patching assign_base_station_xy.c for missing is_approximately and struct members..."
+cat > /tmp/rhessys_xy_patch.pl << 'PERLSCRIPT'
+use strict;
+use warnings;
+my $file = $ARGV[0];
+open(my $fh, '<', $file) or die "Cannot open $file: $!";
+my @lines = <$fh>;
+close($fh);
+
+my $content = join('', @lines);
+
+# Add math.h include and is_approximately macro after the includes block
+# Look for the last #include line and add after it
+unless ($content =~ /is_approximately/) {
+    $content =~ s/(#include[^\n]+\n)(?!#include)/
+        $1 . "#include <math.h>\n#define is_approximately(a, b, epsilon) (fabs((a) - (b)) < (epsilon))\n"/e;
+}
+
+# Comment out the broken lon/lat condition line
+# The pattern is: (is_approximately(x,station->lon, ... station->lat, ...)))
+$content =~ s/\(is_approximately\(x,station->lon,[^)]+\)\s*&&\s*is_approximately\(y,station->lat,[^)]+\)\)/1 \/* lon\/lat check disabled - members dont exist *\//g;
+
+open($fh, '>', $file) or die "Cannot write $file: $!";
+print $fh $content;
+close($fh);
+print "Patched $file\n";
+PERLSCRIPT
+perl /tmp/rhessys_xy_patch.pl init/assign_base_station_xy.c
+
 # Verify patches
 grep "const void \*e1" util/key_compare.c || { echo "Patching key_compare.c failed"; exit 1; }
 grep "const void \*" util/sort_patch_layers.c || { echo "Patching sort_patch_layers.c failed"; exit 1; }
