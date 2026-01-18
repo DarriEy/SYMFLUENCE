@@ -512,7 +512,16 @@ def get_bison_detection_and_build() -> str:
 detect_or_build_bison() {
     BISON_FOUND=false
 
-    # Check if bison is already available
+    # Check conda environment first (highest priority)
+    if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/bison" ]; then
+        echo "Found conda bison: $CONDA_PREFIX/bin/bison"
+        "$CONDA_PREFIX/bin/bison" --version | head -1
+        export PATH="$CONDA_PREFIX/bin:$PATH"
+        BISON_FOUND=true
+        return 0
+    fi
+
+    # Check if bison is already available in PATH
     if command -v bison >/dev/null 2>&1; then
         echo "Found bison: $(command -v bison)"
         bison --version | head -1
@@ -592,7 +601,24 @@ detect_or_build_flex() {
     FLEX_FOUND=false
     LIBFL_FOUND=false
 
-    # Check if flex binary is available
+    # Check conda environment first (highest priority)
+    if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/flex" ]; then
+        echo "Found conda flex: $CONDA_PREFIX/bin/flex"
+        "$CONDA_PREFIX/bin/flex" --version | head -1
+        export PATH="$CONDA_PREFIX/bin:$PATH"
+        FLEX_FOUND=true
+        # Conda flex package includes libfl
+        if [ -f "$CONDA_PREFIX/lib/libfl.a" ] || [ -f "$CONDA_PREFIX/lib/libfl.so" ]; then
+            echo "Found conda libfl"
+            LIBFL_FOUND=true
+            export FLEX_LIB_DIR="$CONDA_PREFIX/lib"
+            export LDFLAGS="${LDFLAGS:-} -L${FLEX_LIB_DIR}"
+            export LIBRARY_PATH="${FLEX_LIB_DIR}:${LIBRARY_PATH:-}"
+        fi
+        return 0
+    fi
+
+    # Check if flex binary is available in PATH
     if command -v flex >/dev/null 2>&1; then
         echo "Found flex: $(command -v flex)"
         flex --version | head -1
