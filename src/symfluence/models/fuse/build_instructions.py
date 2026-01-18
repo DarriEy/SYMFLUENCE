@@ -75,10 +75,13 @@ INCLUDES="-I${HDF5_INC_DIR} -I${NCDF_PATH}/include -I${NETCDF_C}/include"
 
 # Legacy compiler flags for old Fortran code
 # -Wno-line-truncation: FUSE has some long lines that get truncated
+# -Wno-error=line-truncation: Don't treat line truncation as fatal error
+# -Wno-error: Don't treat any warnings as errors (Makefile may add -Werror)
 # -fallow-argument-mismatch: Legacy code has type mismatches
 # -std=legacy: Allow legacy Fortran constructs
-EXTRA_FLAGS="-fallow-argument-mismatch -std=legacy -Wno-line-truncation"
-FFLAGS_NORMA="-O3 -ffree-line-length-none -fmax-errors=0 -cpp ${EXTRA_FLAGS}"
+# -ffree-line-length-512: Allow lines up to 512 chars (more reliable than -none)
+EXTRA_FLAGS="-fallow-argument-mismatch -std=legacy -Wno-line-truncation -Wno-error=line-truncation -Wno-error"
+FFLAGS_NORMA="-O3 -ffree-line-length-512 -fmax-errors=0 -cpp ${EXTRA_FLAGS}"
 FFLAGS_FIXED="-O2 -c -ffixed-form ${EXTRA_FLAGS}"
 
 # Pre-compile sce_16plus.f to avoid broken Makefile rule
