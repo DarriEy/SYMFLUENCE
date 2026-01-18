@@ -117,9 +117,11 @@ CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_CPP=ON"
 if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_ROOT=$UDUNITS2_DIR"
   CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_INCLUDE_DIR=$UDUNITS2_INCLUDE_DIR"
+  CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
 
   # UDUNITS2 static library requires expat XML parser at link time
-  # Find expat library path
+  # ngen's CMake treats UDUNITS2_LIBRARY as a single path, not a CMake list,
+  # so we must add expat via CMAKE_CXX_STANDARD_LIBRARIES which appends to all link commands
   EXPAT_LIB=""
   if [ -f /usr/lib/x86_64-linux-gnu/libexpat.so ]; then
     EXPAT_LIB="/usr/lib/x86_64-linux-gnu/libexpat.so"
@@ -127,28 +129,16 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
     EXPAT_LIB="/usr/lib/libexpat.so"
   elif [ -f /usr/lib/x86_64-linux-gnu/libexpat.a ]; then
     EXPAT_LIB="/usr/lib/x86_64-linux-gnu/libexpat.a"
-  fi
-
-  # Create a CMake initial cache file to properly set list variables
-  # This is the only reliable way to pass semicolon-separated lists to CMake
-  NGEN_CMAKE_CACHE="$(pwd)/ngen_cmake_cache.cmake"
-  echo "# Auto-generated CMake cache for UDUNITS2 with expat dependency" > "$NGEN_CMAKE_CACHE"
-  if [ -n "$EXPAT_LIB" ]; then
-    echo "set(UDUNITS2_LIBRARY \"${UDUNITS2_LIBRARY};${EXPAT_LIB}\" CACHE FILEPATH \"UDUNITS2 library with expat dependency\")" >> "$NGEN_CMAKE_CACHE"
-    echo "Created CMake cache file with UDUNITS2_LIBRARY=${UDUNITS2_LIBRARY};${EXPAT_LIB}"
   else
-    echo "set(UDUNITS2_LIBRARY \"${UDUNITS2_LIBRARY}\" CACHE FILEPATH \"UDUNITS2 library\")" >> "$NGEN_CMAKE_CACHE"
-    # Also set LDFLAGS as fallback
-    export LDFLAGS="${LDFLAGS:-} -lexpat"
-    echo "Expat library not found at expected paths, using -lexpat flag"
+    EXPAT_LIB="-lexpat"
   fi
-  CMAKE_ARGS="$CMAKE_ARGS -C $NGEN_CMAKE_CACHE"
+  CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_STANDARD_LIBRARIES=$EXPAT_LIB"
 
   # Also add to compiler flags
   export CXXFLAGS="${CXXFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
   export CFLAGS="${CFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
 
-  echo "Using UDUNITS2 from: $UDUNITS2_DIR (with expat: ${EXPAT_LIB:-system})"
+  echo "Using UDUNITS2 from: $UDUNITS2_DIR (with expat: $EXPAT_LIB)"
 fi
 
 # Add Fortran support if compiler is available
@@ -201,13 +191,12 @@ else
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_C=ON"
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_CPP=ON"
 
-  # Add UDUNITS2 paths to fallback as well (reuse the cache file created earlier)
+  # Add UDUNITS2 paths to fallback as well
   if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_ROOT=$UDUNITS2_DIR"
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_INCLUDE_DIR=$UDUNITS2_INCLUDE_DIR"
-    if [ -f "$NGEN_CMAKE_CACHE" ]; then
-      FALLBACK_ARGS="$FALLBACK_ARGS -C $NGEN_CMAKE_CACHE"
-    fi
+    FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
+    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_CXX_STANDARD_LIBRARIES=$EXPAT_LIB"
   fi
 
   # Keep Fortran in fallback if compiler is available
