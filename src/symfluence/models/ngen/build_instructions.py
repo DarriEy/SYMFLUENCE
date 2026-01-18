@@ -117,9 +117,10 @@ CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_CPP=ON"
 if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_ROOT=$UDUNITS2_DIR"
   CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_INCLUDE_DIR=$UDUNITS2_INCLUDE_DIR"
+  CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
 
-  # UDUNITS2 static library requires expat XML parser
-  # Find expat library and include it with UDUNITS2_LIBRARY
+  # UDUNITS2 static library requires expat XML parser at link time
+  # Add expat via CMAKE_EXE_LINKER_FLAGS (semicolons in -D args don't work as CMake lists)
   EXPAT_LIB=""
   if [ -f /usr/lib/x86_64-linux-gnu/libexpat.so ]; then
     EXPAT_LIB="/usr/lib/x86_64-linux-gnu/libexpat.so"
@@ -128,11 +129,9 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   elif [ -f /usr/lib/x86_64-linux-gnu/libexpat.a ]; then
     EXPAT_LIB="/usr/lib/x86_64-linux-gnu/libexpat.a"
   else
-    EXPAT_LIB="expat"
+    EXPAT_LIB="-lexpat"
   fi
-
-  # Pass both UDUNITS2 and expat libraries together (semicolon-separated for CMake list)
-  CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_LIBRARY=${UDUNITS2_LIBRARY};${EXPAT_LIB}"
+  CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_EXE_LINKER_FLAGS=${EXPAT_LIB}"
 
   # Also add to compiler flags as a fallback
   export CXXFLAGS="${CXXFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
@@ -195,7 +194,8 @@ else
   if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_ROOT=$UDUNITS2_DIR"
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_INCLUDE_DIR=$UDUNITS2_INCLUDE_DIR"
-    FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_LIBRARY=${UDUNITS2_LIBRARY};${EXPAT_LIB}"
+    FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
+    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_EXE_LINKER_FLAGS=${EXPAT_LIB}"
   fi
 
   # Keep Fortran in fallback if compiler is available
