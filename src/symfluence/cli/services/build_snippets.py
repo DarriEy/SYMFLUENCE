@@ -302,6 +302,120 @@ detect_geos_proj
     '''.strip()
 
 
+def get_udunits2_detection_and_build() -> str:
+    """
+    Get reusable UDUNITS2 detection and build-from-source snippet.
+
+    Sets UDUNITS2_DIR, UDUNITS2_INCLUDE_DIR, UDUNITS2_LIBRARY environment variables.
+    If UDUNITS2 is not found system-wide, builds it from source in a local directory.
+
+    Returns:
+        Shell script snippet for UDUNITS2 detection and building.
+    """
+    return r'''
+# === UDUNITS2 Detection and Build ===
+detect_or_build_udunits2() {
+    UDUNITS2_FOUND=false
+
+    # Try pkg-config first (system install)
+    if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists udunits2 2>/dev/null; then
+        UDUNITS2_DIR="$(pkg-config --variable=prefix udunits2)"
+        UDUNITS2_INCLUDE_DIR="$(pkg-config --variable=includedir udunits2)"
+        UDUNITS2_LIBRARY="$(pkg-config --variable=libdir udunits2)/libudunits2.so"
+        echo "Found UDUNITS2 via pkg-config at: ${UDUNITS2_DIR}"
+        UDUNITS2_FOUND=true
+    fi
+
+    # Try common system locations
+    if [ "$UDUNITS2_FOUND" = false ]; then
+        for try_path in /usr /usr/local /opt/udunits2 $HOME/.local; do
+            if [ -f "$try_path/include/udunits2.h" ] && \
+               ([ -f "$try_path/lib/libudunits2.so" ] || [ -f "$try_path/lib/libudunits2.dylib" ] || [ -f "$try_path/lib/libudunits2.a" ]); then
+                UDUNITS2_DIR="$try_path"
+                UDUNITS2_INCLUDE_DIR="$try_path/include"
+                if [ -f "$try_path/lib/libudunits2.so" ]; then
+                    UDUNITS2_LIBRARY="$try_path/lib/libudunits2.so"
+                elif [ -f "$try_path/lib/libudunits2.dylib" ]; then
+                    UDUNITS2_LIBRARY="$try_path/lib/libudunits2.dylib"
+                else
+                    UDUNITS2_LIBRARY="$try_path/lib/libudunits2.a"
+                fi
+                echo "Found UDUNITS2 at: $try_path"
+                UDUNITS2_FOUND=true
+                break
+            fi
+        done
+    fi
+
+    # If not found, build from source
+    if [ "$UDUNITS2_FOUND" = false ]; then
+        echo "UDUNITS2 not found system-wide, building from source..."
+
+        UDUNITS2_VERSION="2.2.28"
+        UDUNITS2_BUILD_DIR="$(pwd)/udunits2_build"
+        UDUNITS2_INSTALL_DIR="$(pwd)/udunits2"
+
+        # Check if already built locally
+        if [ -f "${UDUNITS2_INSTALL_DIR}/include/udunits2.h" ] && \
+           ([ -f "${UDUNITS2_INSTALL_DIR}/lib/libudunits2.so" ] || [ -f "${UDUNITS2_INSTALL_DIR}/lib/libudunits2.a" ]); then
+            echo "Using previously built UDUNITS2 at: ${UDUNITS2_INSTALL_DIR}"
+        else
+            # Download and build UDUNITS2
+            mkdir -p "${UDUNITS2_BUILD_DIR}"
+            cd "${UDUNITS2_BUILD_DIR}"
+
+            if [ ! -f "udunits-${UDUNITS2_VERSION}.tar.gz" ]; then
+                echo "Downloading UDUNITS2 ${UDUNITS2_VERSION}..."
+                wget -q "https://downloads.unidata.ucar.edu/udunits/${UDUNITS2_VERSION}/udunits-${UDUNITS2_VERSION}.tar.gz" \
+                  || curl -fsSL -o "udunits-${UDUNITS2_VERSION}.tar.gz" "https://downloads.unidata.ucar.edu/udunits/${UDUNITS2_VERSION}/udunits-${UDUNITS2_VERSION}.tar.gz"
+            fi
+
+            if [ ! -d "udunits-${UDUNITS2_VERSION}" ]; then
+                echo "Extracting UDUNITS2..."
+                tar -xzf "udunits-${UDUNITS2_VERSION}.tar.gz"
+            fi
+
+            cd "udunits-${UDUNITS2_VERSION}"
+            echo "Configuring UDUNITS2..."
+            ./configure --prefix="${UDUNITS2_INSTALL_DIR}" --disable-shared --enable-static
+
+            echo "Building UDUNITS2..."
+            make -j ${NCORES:-4}
+
+            echo "Installing UDUNITS2 to ${UDUNITS2_INSTALL_DIR}..."
+            make install
+
+            # Return to original directory
+            cd - >/dev/null
+            cd - >/dev/null
+
+            echo "UDUNITS2 built successfully"
+        fi
+
+        UDUNITS2_DIR="${UDUNITS2_INSTALL_DIR}"
+        UDUNITS2_INCLUDE_DIR="${UDUNITS2_INSTALL_DIR}/include"
+        if [ -f "${UDUNITS2_INSTALL_DIR}/lib/libudunits2.so" ]; then
+            UDUNITS2_LIBRARY="${UDUNITS2_INSTALL_DIR}/lib/libudunits2.so"
+        else
+            UDUNITS2_LIBRARY="${UDUNITS2_INSTALL_DIR}/lib/libudunits2.a"
+        fi
+    fi
+
+    export UDUNITS2_DIR UDUNITS2_INCLUDE_DIR UDUNITS2_LIBRARY
+
+    # Also set CMAKE-specific variables
+    export UDUNITS2_ROOT="$UDUNITS2_DIR"
+    export CMAKE_PREFIX_PATH="${UDUNITS2_DIR}:${CMAKE_PREFIX_PATH:-}"
+
+    echo "UDUNITS2 configuration:"
+    echo "  UDUNITS2_DIR: ${UDUNITS2_DIR}"
+    echo "  UDUNITS2_INCLUDE_DIR: ${UDUNITS2_INCLUDE_DIR}"
+    echo "  UDUNITS2_LIBRARY: ${UDUNITS2_LIBRARY}"
+}
+detect_or_build_udunits2
+    '''.strip()
+
+
 def get_all_snippets() -> Dict[str, str]:
     """
     Return all snippets as a dictionary for easy access.
@@ -315,4 +429,5 @@ def get_all_snippets() -> Dict[str, str]:
         'hdf5_detect': get_hdf5_detection(),
         'netcdf_lib_detect': get_netcdf_lib_detection(),
         'geos_proj_detect': get_geos_proj_detection(),
+        'udunits2_detect_build': get_udunits2_detection_and_build(),
     }

@@ -15,6 +15,7 @@ from symfluence.cli.services import BuildInstructionsRegistry
 from symfluence.cli.services import (
     get_common_build_environment,
     get_netcdf_detection,
+    get_udunits2_detection_and_build,
 )
 
 
@@ -31,6 +32,7 @@ def get_ngen_build_instructions():
     """
     common_env = get_common_build_environment()
     netcdf_detect = get_netcdf_detection()
+    udunits2_detect = get_udunits2_detection_and_build()
 
     return {
         'description': 'NextGen National Water Model Framework',
@@ -44,6 +46,7 @@ def get_ngen_build_instructions():
         'build_commands': [
             common_env,
             netcdf_detect,
+            udunits2_detect,
             r'''
 set -e
 echo "Building ngen with full BMI support (C, C++, Fortran)..."
