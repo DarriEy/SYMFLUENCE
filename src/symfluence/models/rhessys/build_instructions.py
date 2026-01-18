@@ -119,8 +119,10 @@ grep -q "^rhessys: \$(OBJECTS)$" makefile && echo "Makefile patched successfully
 
 # Build with detected flags - explicitly pass CC to override Makefile's clang default
 # Add -Wno-error flags for GCC 14 compatibility (newer GCC treats some warnings as errors)
+# Note: -DCLIM_GRID_XY is disabled because the RHESSys source has broken code paths
+# that reference non-existent struct members (x, y, lat, lon in base_station_object)
 COMPAT_FLAGS="-Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-error=implicit-function-declaration"
-make V=1 CC="$CC" CFLAGS="$COMPAT_FLAGS" netcdf=T CMD_OPTS="-DCLIM_GRID_XY $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS"
+make V=1 CC="$CC" CFLAGS="$COMPAT_FLAGS" netcdf=T CMD_OPTS="$GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS"
 
 mkdir -p ../bin
 # Try multiple possible locations for rhessys binary
