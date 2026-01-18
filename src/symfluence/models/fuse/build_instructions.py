@@ -73,27 +73,47 @@ LIBS="-L${HDF5_LIB_DIR} -lhdf5 -lhdf5_hl -L${NETCDF_LIB_DIR} -lnetcdff -L${NETCD
 INCLUDES="-I${HDF5_INC_DIR} -I${NCDF_PATH}/include -I${NETCDF_C}/include"
 
 # =====================================================
-# STEP 1: Patch the Makefile FIRST (before any compilation)
+# STEP 1: Patch the Makefile to use our compiler flags
 # =====================================================
 echo ""
 echo "=== Step 1: Patching Makefile ==="
 if [ -f "Makefile" ]; then
     cp Makefile Makefile.original
 
-    # Create a completely new Makefile section with correct FFLAGS
-    # The sed replacements weren't working because of special characters
-    # Use a heredoc to create a flags override file and include it
-    cat > fflags_override.mk << 'MKEOF'
+    # The FUSE Makefile has a 'compile' target that runs gfortran directly
+    # WITHOUT using FFLAGS_NORMA. We need to patch this rule.
+
+    # Define our flags
+    OUR_FFLAGS="-O3 -ffree-line-length-none -fmax-errors=0 -cpp -fallow-argument-mismatch -std=legacy -Wno-error -Wno-line-truncation"
+
+    # Method 1: Set FCFLAGS environment variable (gfortran picks this up)
+    export FCFLAGS="$OUR_FFLAGS"
+    export FFLAGS="$OUR_FFLAGS"
+
+    # Method 2: Patch the Makefile to add $(FFLAGS_NORMA) to the compile rule
+    # The compile rule looks like: $(FC) $(SOURCES) $(LIBS) $(INCLUDES) -o fuse.exe
+    # We need to add $(FFLAGS_NORMA) after $(FC)
+
+    # First, add our FFLAGS_NORMA definition at the top
+    cat > Makefile.patched << 'MKEOF'
 # Override FFLAGS for FUSE build - disable -Werror and enable long lines
-override FFLAGS_NORMA = -O3 -ffree-line-length-none -fmax-errors=0 -cpp -fallow-argument-mismatch -std=legacy -Wno-error -Wno-line-truncation
-override FFLAGS_FIXED = -O2 -ffixed-form -fallow-argument-mismatch -std=legacy -Wno-error -Wno-line-truncation
+FFLAGS_NORMA = -O3 -ffree-line-length-none -fmax-errors=0 -cpp -fallow-argument-mismatch -std=legacy -Wno-error -Wno-line-truncation
+FFLAGS_FIXED = -O2 -ffixed-form -fallow-argument-mismatch -std=legacy -Wno-error -Wno-line-truncation
 MKEOF
 
-    # Prepend the override to the Makefile
-    cat fflags_override.mk Makefile.original > Makefile
+    # Now patch the compile rule in the original Makefile
+    # The compile target has a line like: $(FC) $(F90FILES)... -o fuse.exe
+    # We need to add $(FFLAGS_NORMA) after $(FC)
+    sed 's/\$(FC) \$(F90FILES)/$(FC) $(FFLAGS_NORMA) $(F90FILES)/g' Makefile.original >> Makefile.patched
+    sed -i 's/\$(FC)  \$(F90FILES)/$(FC) $(FFLAGS_NORMA) $(F90FILES)/g' Makefile.patched
 
-    echo "Makefile patched with override flags"
-    head -5 Makefile
+    # Also handle case where FC is followed directly by source file paths
+    sed -i 's/\$(FC) \//$(FC) $(FFLAGS_NORMA) \//g' Makefile.patched
+
+    mv Makefile.patched Makefile
+
+    echo "Makefile patched - checking compile rule:"
+    grep -A2 "^compile:" Makefile || grep "fuse.exe" Makefile | head -3
 else
     echo "ERROR: Makefile not found"
     ls -la
