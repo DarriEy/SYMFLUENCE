@@ -26,13 +26,15 @@ from symfluence.core.exceptions import ModelExecutionError, symfluence_error_han
 from symfluence.core.constants import UnitConversion
 
 # Optional R/rpy2 support - only needed for GR models
+# Catch Exception broadly because rpy2 can raise RuntimeError, RRuntimeError,
+# or other exceptions when R is installed but broken (missing core packages)
 try:
     import rpy2.robjects as robjects
     from rpy2.robjects.packages import importr
     from rpy2.robjects import pandas2ri
     from rpy2.robjects.conversion import localconverter
     HAS_RPY2 = True
-except (ImportError, ValueError):
+except Exception:
     HAS_RPY2 = False
     robjects = None
     importr = None

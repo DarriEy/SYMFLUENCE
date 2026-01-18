@@ -488,6 +488,13 @@ class OptimizationManager(BaseManager):
             if len(results) > 1:
                 self.logger.info(f"Completed calibration for {len(results)} model(s)")
 
+            # Generate model comparison overview after calibration
+            if self.reporting_manager:
+                self.reporting_manager.generate_model_comparison_overview(
+                    experiment_id=self.experiment_id,
+                    context='calibrate_model'
+                )
+
             return results[-1]
 
         except Exception as e:

@@ -94,7 +94,9 @@ except ImportError as e:
 
 try:
     from . import gr
-except ImportError as e:
+except Exception as e:
+    # Catch Exception broadly because GR depends on rpy2 which can raise
+    # RuntimeError or RRuntimeError when R is installed but broken
     logger.warning(f"Could not import gr: {e}")
 
 try:

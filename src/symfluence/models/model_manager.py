@@ -670,6 +670,13 @@ class ModelManager(BaseManager):
         # Log baseline performance metrics after postprocessing
         self.log_baseline_performance()
 
+        # Generate model comparison overview (default visualization)
+        if self.reporting_manager:
+            self.reporting_manager.generate_model_comparison_overview(
+                experiment_id=self.experiment_id,
+                context='run_model'
+            )
+
     def log_baseline_performance(self):
         """Log baseline model performance metrics before calibration.
 
