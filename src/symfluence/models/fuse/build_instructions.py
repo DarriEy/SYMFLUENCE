@@ -121,68 +121,104 @@ else
 fi
 
 # =====================================================
-# STEP 2: Patch source files with long lines and MPI issues
+# STEP 2: Comprehensive source file patching
 # =====================================================
 echo ""
-echo "=== Step 2: Patching source files ==="
+echo "=== Step 2: Patching ALL source files with long lines ==="
 
-# Function to break long lines in Fortran files
-# Finds lines > 120 chars and adds continuation
-fix_long_lines() {
-    local file="$1"
-    if [ -f "$file" ]; then
-        # Use perl to break lines longer than 120 characters at semicolons
-        perl -i.bak -pe 's/^(.{100,120});(.+)$/$1\n  $2/g' "$file"
-        echo "  Fixed long lines in: $file"
-    fi
+# The FUSE codebase has many lines > 132 chars which gfortran truncates
+# This causes syntax errors. We need to break ALL long lines.
+
+# Create a perl script to fix long lines in Fortran files
+cat > fix_long_lines.pl << 'PERLEOF'
+#!/usr/bin/perl -i.bak
+use strict;
+use warnings;
+
+while (<>) {
+    # Skip comment lines
+    if (/^\s*!/) {
+        print;
+        next;
+    }
+
+    # If line is > 125 chars (leaving margin), try to break it
+    while (length($_) > 125 && !/^\s*!/) {
+        # Try to break at "; " (statement separator)
+        if (s/^(.{60,120});\s*(.+)$/$1\n   $2/) {
+            print "$1;\n";
+            $_ = "   $2";
+            next;
+        }
+        # Try to break at ")then; " pattern
+        if (s/^(.{60,120}\)then);\s*(.+)$/$1\n   $2/) {
+            print "$1;\n";
+            $_ = "   $2";
+            next;
+        }
+        # If we can't break it safely, just print and move on
+        last;
+    }
+    print;
 }
+PERLEOF
+chmod +x fix_long_lines.pl
 
-# Patch fuse_fileManager.f90 line 141
+# Apply to all .f90 files
+echo "  Fixing long lines in all Fortran files..."
+find FUSE_SRC -name "*.f90" -exec perl fix_long_lines.pl {} \;
+
+# Additional specific patches for known problematic files
+
+# Patch fuse_fileManager.f90 line 141 - very long string
 FILEMANAGER_FILE="FUSE_SRC/FUSE_HOOK/fuse_fileManager.f90"
 if [ -f "$FILEMANAGER_FILE" ]; then
-    perl -i.bak -pe "s|(message='This version of FUSE requires the file manager to follow the following format:  ')//trim\(fuseFileManagerHeader\)//(' not '//trim\(temp\))|\1\&\n               //trim(fuseFileManagerHeader)//\2|" "$FILEMANAGER_FILE"
+    perl -i -pe "s|(message='This version of FUSE requires the file manager to follow the following format:  ')//trim\(fuseFileManagerHeader\)//(' not '//trim\(temp\))|\1\&\n               //trim(fuseFileManagerHeader)//\2|" "$FILEMANAGER_FILE"
     echo "  Patched fuse_fileManager.f90"
 fi
 
-# Patch force_info.f90 - multiple long lines
-FORCE_INFO_FILE="FUSE_SRC/FUSE_ENGINE/force_info.f90"
-if [ -f "$FORCE_INFO_FILE" ]; then
-    # Line 123 and 243 have long error messages - break at semicolons
-    perl -i.bak -pe 's/^(\s*if.*message=trim\(message\).*problem.*);(\s*return.*endif)/$1\n    $2/g' "$FORCE_INFO_FILE"
-    perl -i.bak -pe 's/^(\s*if.*message=trim\(message\).*expect.*);(\s*return.*endif)/$1\n    $2/g' "$FORCE_INFO_FILE"
-    echo "  Patched force_info.f90"
-fi
-
-# Patch get_time_indices.f90 - multiple long lines
-GET_TIME_FILE="FUSE_SRC/FUSE_ENGINE/get_time_indices.f90"
-if [ -f "$GET_TIME_FILE" ]; then
-    # Break long print statements at semicolons
-    perl -i.bak -pe 's/^(\s*print \*, .{80,});(stop;?)$/$1\n    $2/g' "$GET_TIME_FILE"
-    perl -i.bak -pe 's/^(\s*if.*print \*, .{60,});(\s*stop.*endif)/$1\n    $2/g' "$GET_TIME_FILE"
-    echo "  Patched get_time_indices.f90"
-fi
-
-# Handle MPI issue in get_gforce.f90 - comment out MPI use statements
-# This disables MPI support but allows non-MPI build
+# Patch get_gforce.f90 - has many long lines AND MPI issues
 GET_GFORCE_FILE="FUSE_SRC/FUSE_NETCDF/get_gforce.f90"
 if [ -f "$GET_GFORCE_FILE" ]; then
-    # Comment out 'use mpi' statements
-    perl -i.bak -pe 's/^(\s*)(use mpi)/$1!$2  ! Disabled - MPI not available/' "$GET_GFORCE_FILE"
-    # Comment out MPI-specific code blocks (between #ifdef __MPI__ and #endif/#else)
-    # The preprocessor directives are being treated as illegal, so we need to handle the code
-    perl -i.bak -pe 's/^#ifdef __MPI__/!DIR\$ IF .FALSE.  ! MPI disabled/' "$GET_GFORCE_FILE"
-    perl -i.bak -pe 's/^#else/!DIR\$ ELSE/' "$GET_GFORCE_FILE"
-    perl -i.bak -pe 's/^#endif/!DIR\$ ENDIF/' "$GET_GFORCE_FILE"
-    echo "  Patched get_gforce.f90 (disabled MPI)"
+    # Break specific long lines that the generic script might miss
+    # Line 375: nf90_get_var call
+    perl -i -pe 's/(ierr = nf90_get_var\(ncid_forc, ncid_var\(ivar\), gTemp, start=\(\/1,startSpat2,iTim\/\), count=\(\/nSpat1,nSpat2,1\/\)\));/$1\n   /g' "$GET_GFORCE_FILE"
+
+    # Lines 379-381: if statements with assignments
+    perl -i -pe 's/(if\(trim\(cVec\(iVar\)%vname\) == trim\(vname_\w+\) \)then); (gForce.*)/$1\n    $2/g' "$GET_GFORCE_FILE"
+
+    # Line 483: another nf90_get_var call
+    perl -i -pe 's/(ierr = nf90_get_var\(ncid_forc, ncid_var\(ivar\), gTemp, start=\(\/1,startSpat2,itim_start\/\), count=\(\/nSpat1,nSpat2,numtim\/\)\));/$1\n   /g' "$GET_GFORCE_FILE"
+
+    # Comment out 'use mpi' - MPI not available
+    perl -i -pe 's/^(\s*)(use mpi\s*)$/$1!$2  ! Disabled - MPI not available\n/' "$GET_GFORCE_FILE"
+
+    # Replace preprocessor directives with Fortran comments
+    perl -i -pe 's/^#ifdef __MPI__/! MPI DISABLED: ifdef __MPI__/' "$GET_GFORCE_FILE"
+    perl -i -pe 's/^#else/! MPI DISABLED: else/' "$GET_GFORCE_FILE"
+    perl -i -pe 's/^#endif/! MPI DISABLED: endif/' "$GET_GFORCE_FILE"
+
+    echo "  Patched get_gforce.f90 (long lines + MPI)"
 fi
 
-# Also patch fuse_driver.f90 for MPI
+# Patch fuse_driver.f90 for MPI preprocessor directives
 FUSE_DRIVER_FILE="FUSE_SRC/FUSE_DMSL/fuse_driver.f90"
 if [ -f "$FUSE_DRIVER_FILE" ]; then
-    perl -i.bak -pe 's/^#ifdef __MPI__/!DIR\$ IF .FALSE.  ! MPI disabled/' "$FUSE_DRIVER_FILE"
-    perl -i.bak -pe 's/^#else/!DIR\$ ELSE/' "$FUSE_DRIVER_FILE"
-    perl -i.bak -pe 's/^#endif/!DIR\$ ENDIF/' "$FUSE_DRIVER_FILE"
-    echo "  Patched fuse_driver.f90 (disabled MPI directives)"
+    perl -i -pe 's/^#ifdef __MPI__/! MPI DISABLED: ifdef __MPI__/' "$FUSE_DRIVER_FILE"
+    perl -i -pe 's/^#else/! MPI DISABLED: else/' "$FUSE_DRIVER_FILE"
+    perl -i -pe 's/^#endif/! MPI DISABLED: endif/' "$FUSE_DRIVER_FILE"
+    echo "  Patched fuse_driver.f90 (MPI directives)"
+fi
+
+# Verify patches - check for remaining long lines
+echo ""
+echo "  Checking for remaining long lines (>130 chars)..."
+LONG_LINES=$(find FUSE_SRC -name "*.f90" -exec awk 'length > 130 {print FILENAME": line "NR": "length" chars"}' {} \; | head -10)
+if [ -n "$LONG_LINES" ]; then
+    echo "  WARNING: Some long lines remain:"
+    echo "$LONG_LINES"
+else
+    echo "  All source files have lines <= 130 chars"
 fi
 
 echo "Source patching complete"
