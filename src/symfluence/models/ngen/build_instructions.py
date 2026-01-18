@@ -58,6 +58,14 @@ export PATH="/usr/bin:$PATH"
 export MAKEFLAGS=""
 export MAKELEVEL=""
 
+# Fix for conda GCC 14: ensure libstdc++ is found
+# GCC 14 from conda-forge requires explicit library path for C++ runtime
+if [ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX/lib" ]; then
+    export LIBRARY_PATH="${CONDA_PREFIX}/lib:${LIBRARY_PATH:-}"
+    export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
+    echo "Added conda lib to library paths: $CONDA_PREFIX/lib"
+fi
+
 # Detect venv Python - prefer VIRTUAL_ENV, otherwise use which python3
 if [ -n "$VIRTUAL_ENV" ]; then
   PYTHON_EXE="$VIRTUAL_ENV/bin/python3"
@@ -113,6 +121,13 @@ CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_SQLITE3=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_C=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_CPP=ON"
 
+# Fix for conda GCC 14: explicitly link libstdc++ to resolve __cxa_call_terminate
+# This is needed because conda's GCC uses a separate libstdc++ that may not be auto-linked
+if [ -n "$CONDA_PREFIX" ]; then
+    EXTRA_LIBS="-lstdc++"
+    echo "Adding -lstdc++ for conda GCC 14 compatibility"
+fi
+
 # Add UDUNITS2 paths if available (from detection/build snippet)
 if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_ROOT=$UDUNITS2_DIR"
@@ -132,13 +147,19 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   else
     EXPAT_LIB="-lexpat"
   fi
-  CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_STANDARD_LIBRARIES=$EXPAT_LIB"
+  # Add expat and any extra libs (like -lstdc++ for conda GCC 14)
+  CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_STANDARD_LIBRARIES=\"$EXPAT_LIB ${EXTRA_LIBS:-}\""
 
   # Also add to compiler flags
   export CXXFLAGS="${CXXFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
   export CFLAGS="${CFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
 
   echo "Using UDUNITS2 from: $UDUNITS2_DIR (with expat: $EXPAT_LIB)"
+else
+  # Even without UDUNITS2, we may need extra libs for conda GCC
+  if [ -n "${EXTRA_LIBS:-}" ]; then
+    CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_STANDARD_LIBRARIES=\"${EXTRA_LIBS}\""
+  fi
 fi
 
 # Add Fortran support if compiler is available
@@ -196,7 +217,9 @@ else
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_ROOT=$UDUNITS2_DIR"
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_INCLUDE_DIR=$UDUNITS2_INCLUDE_DIR"
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
-    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_CXX_STANDARD_LIBRARIES=$EXPAT_LIB"
+    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_CXX_STANDARD_LIBRARIES=\"$EXPAT_LIB ${EXTRA_LIBS:-}\""
+  elif [ -n "${EXTRA_LIBS:-}" ]; then
+    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_CXX_STANDARD_LIBRARIES=\"${EXTRA_LIBS}\""
   fi
 
   # Keep Fortran in fallback if compiler is available
