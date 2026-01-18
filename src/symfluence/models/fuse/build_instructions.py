@@ -119,41 +119,95 @@ export FC="$WRAPPER_DIR/gfortran"
 echo "FC set to: $FC"
 
 # =====================================================
-# STEP 2: Minimal source patching (MPI only)
+# STEP 2: Disable MPI code blocks entirely
 # =====================================================
 echo ""
-echo "=== Step 2: Patching MPI-related code ==="
+echo "=== Step 2: Disabling MPI code ==="
 
-# DO NOT use automated line-breaking - it corrupts the code!
-# The gfortran wrapper will handle long lines with -ffree-line-length-none
+# The gfortran wrapper handles long lines with -ffree-line-length-none
+# Here we need to completely disable MPI code since MPI is not installed.
+# Simply commenting out #ifdef doesn't work - we need to comment out
+# ALL lines between #ifdef __MPI__ and #endif/#else
 
-# Only patch MPI-related code since MPI is not available
+# Create a perl script to comment out MPI blocks
+cat > disable_mpi.pl << 'PERLEOF'
+#!/usr/bin/perl -i
+use strict;
+use warnings;
 
-# Patch get_gforce.f90 - comment out MPI
+my $in_mpi_block = 0;
+my $in_else_block = 0;
+
+while (<>) {
+    # Start of MPI block
+    if (/^#ifdef __MPI__/) {
+        print "! MPI DISABLED: $_";
+        $in_mpi_block = 1;
+        $in_else_block = 0;
+        next;
+    }
+
+    # #else - switch to non-MPI code (stop commenting)
+    if (/^#else/ && $in_mpi_block) {
+        print "! MPI DISABLED: $_";
+        $in_mpi_block = 0;
+        $in_else_block = 1;
+        next;
+    }
+
+    # #endif - end of block
+    if (/^#endif/ && ($in_mpi_block || $in_else_block)) {
+        print "! MPI DISABLED: $_";
+        $in_mpi_block = 0;
+        $in_else_block = 0;
+        next;
+    }
+
+    # Inside MPI block - comment out the line
+    if ($in_mpi_block) {
+        # Don't double-comment already commented lines
+        if (/^\s*!/) {
+            print;
+        } else {
+            print "! MPI DISABLED: $_";
+        }
+        next;
+    }
+
+    # Inside else block (non-MPI code) - keep as is
+    # Or outside any block - keep as is
+    print;
+}
+PERLEOF
+chmod +x disable_mpi.pl
+
+# Apply to files with MPI code
 GET_GFORCE_FILE="FUSE_SRC/FUSE_NETCDF/get_gforce.f90"
 if [ -f "$GET_GFORCE_FILE" ]; then
-    # Comment out 'use mpi' statement
-    sed -i 's/^\([[:space:]]*\)use mpi$/\1! use mpi  ! Disabled - MPI not available/' "$GET_GFORCE_FILE"
-
-    # Replace C preprocessor directives with Fortran comments
-    # These cause "Illegal preprocessor directive" warnings
-    sed -i 's/^#ifdef __MPI__/! MPI DISABLED: ifdef __MPI__/' "$GET_GFORCE_FILE"
-    sed -i 's/^#else$/! MPI DISABLED: else/' "$GET_GFORCE_FILE"
-    sed -i 's/^#endif$/! MPI DISABLED: endif/' "$GET_GFORCE_FILE"
-
-    echo "  Patched get_gforce.f90 (disabled MPI)"
+    perl disable_mpi.pl "$GET_GFORCE_FILE"
+    # Also comment out standalone 'use mpi' if any
+    sed -i 's/^\([[:space:]]*\)use mpi[[:space:]]*$/\1! use mpi  ! MPI not available/' "$GET_GFORCE_FILE"
+    echo "  Disabled MPI in get_gforce.f90"
 fi
 
-# Patch fuse_driver.f90 - same MPI preprocessor directives
 FUSE_DRIVER_FILE="FUSE_SRC/FUSE_DMSL/fuse_driver.f90"
 if [ -f "$FUSE_DRIVER_FILE" ]; then
-    sed -i 's/^#ifdef __MPI__/! MPI DISABLED: ifdef __MPI__/' "$FUSE_DRIVER_FILE"
-    sed -i 's/^#else$/! MPI DISABLED: else/' "$FUSE_DRIVER_FILE"
-    sed -i 's/^#endif$/! MPI DISABLED: endif/' "$FUSE_DRIVER_FILE"
-    echo "  Patched fuse_driver.f90 (disabled MPI directives)"
+    perl disable_mpi.pl "$FUSE_DRIVER_FILE"
+    echo "  Disabled MPI in fuse_driver.f90"
 fi
 
-echo "MPI patching complete - long lines handled by gfortran wrapper"
+# Verify MPI is disabled
+echo "  Checking for remaining MPI references..."
+MPI_REFS=$(grep -r "MPI_COMM_WORLD\|call MPI_" FUSE_SRC --include="*.f90" | grep -v "^[[:space:]]*!" | grep -v "MPI DISABLED" | head -5)
+if [ -n "$MPI_REFS" ]; then
+    echo "  WARNING: Some MPI references remain:"
+    echo "$MPI_REFS"
+else
+    echo "  All MPI code disabled"
+fi
+
+rm -f disable_mpi.pl
+echo "MPI disabling complete"
 
 # =====================================================
 # STEP 3: Pre-compile fixed-form Fortran
