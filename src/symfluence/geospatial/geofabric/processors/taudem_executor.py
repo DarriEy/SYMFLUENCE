@@ -48,6 +48,14 @@ class TauDEMExecutor:
         # Add TauDEM to PATH
         os.environ['PATH'] = f"{os.environ['PATH']}:{taudem_dir}"
 
+        # Ensure LD_LIBRARY_PATH includes conda libs for TauDEM's GDAL dependency
+        conda_prefix = os.environ.get('CONDA_PREFIX', '')
+        if conda_prefix:
+            conda_lib = os.path.join(conda_prefix, 'lib')
+            current_ld_path = os.environ.get('LD_LIBRARY_PATH', '')
+            if conda_lib not in current_ld_path:
+                os.environ['LD_LIBRARY_PATH'] = f"{conda_lib}:{current_ld_path}" if current_ld_path else conda_lib
+
     def _get_mpi_command(self) -> Optional[str]:
         """
         Detect available MPI launcher.
@@ -120,7 +128,11 @@ class TauDEMExecutor:
                         full_command = command
                 elif run_cmd and not has_mpi_prefix:
                     # Add MPI prefix for regular commands - use list format
-                    full_command = [run_cmd, "-n", str(self.mpi_processes)] + shlex.split(command)
+                    # Use -x to export LD_LIBRARY_PATH to MPI child processes
+                    if run_cmd == "mpirun":
+                        full_command = [run_cmd, "-x", "LD_LIBRARY_PATH", "-n", str(self.mpi_processes)] + shlex.split(command)
+                    else:
+                        full_command = [run_cmd, "-n", str(self.mpi_processes)] + shlex.split(command)
                 elif has_mpi_prefix:
                     # Command already has MPI prefix - parse with shlex
                     full_command = shlex.split(command)
