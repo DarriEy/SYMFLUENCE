@@ -65,18 +65,35 @@ class ToolInstaller(BaseService):
         for var in make_vars:
             env.pop(var, None)
 
-        # Ensure /usr/bin is first in PATH (fixes broken conda compilers in 2i2c)
-        if "/usr/bin" not in env.get("PATH", "").split(":")[0]:
-            env["PATH"] = "/usr/bin:" + env.get("PATH", "")
+        # Check if conda compilers are available (required for ABI compatibility
+        # with conda-forge libraries like GDAL built with GCC 13+)
+        conda_prefix = env.get("CONDA_PREFIX", "")
+        conda_gcc = os.path.join(conda_prefix, "bin", "x86_64-conda-linux-gnu-gcc")
+        conda_gxx = os.path.join(conda_prefix, "bin", "x86_64-conda-linux-gnu-g++")
 
-        # Set system compilers if in 2i2c-like environment
-        if os.path.exists("/srv/conda/envs/notebook"):
+        if conda_prefix and os.path.exists(conda_gcc) and os.path.exists(conda_gxx):
+            # Use conda compilers for ABI compatibility with conda libraries
+            env["CC"] = conda_gcc
+            env["CXX"] = conda_gxx
+            # Ensure conda bin is first in PATH
+            conda_bin = os.path.join(conda_prefix, "bin")
+            if conda_bin not in env.get("PATH", "").split(":")[0]:
+                env["PATH"] = conda_bin + ":" + env.get("PATH", "")
+        elif os.path.exists("/srv/conda/envs/notebook"):
+            # 2i2c environment without conda compilers - try system compilers
+            # but warn that this may fail if conda GDAL needs newer ABI
+            if "/usr/bin" not in env.get("PATH", "").split(":")[0]:
+                env["PATH"] = "/usr/bin:" + env.get("PATH", "")
             if os.path.exists("/usr/bin/gcc"):
                 env["CC"] = "/usr/bin/gcc"
             if os.path.exists("/usr/bin/g++"):
                 env["CXX"] = "/usr/bin/g++"
             if os.path.exists("/usr/bin/ld"):
                 env["LD"] = "/usr/bin/ld"
+        else:
+            # Non-2i2c environment - ensure /usr/bin is accessible
+            if "/usr/bin" not in env.get("PATH", "").split(":")[0]:
+                env["PATH"] = "/usr/bin:" + env.get("PATH", "")
 
         return env
 
