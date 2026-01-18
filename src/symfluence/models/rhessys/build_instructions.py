@@ -81,11 +81,36 @@ grep "const void \*" util/sort_patch_layers.c || { echo "Patching sort_patch_lay
 echo "Patches verified."
 
 # Build with detected flags - explicitly pass CC to override Makefile's clang default
-make V=1 CC="$CC" netcdf=T CMD_OPTS="-DCLIM_GRID_XY $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS"
+# Note: May fail on tests if glib-2.0 is not available, but main binary should build
+make V=1 CC="$CC" netcdf=T CMD_OPTS="-DCLIM_GRID_XY $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS" || {
+    echo "Build had errors (likely tests), checking if main binary exists..."
+    if [ -f rhessys/rhessys ]; then
+        echo "Main rhessys binary found despite build errors"
+    else
+        echo "Main rhessys binary not found, build failed"
+        exit 1
+    fi
+}
 
 mkdir -p ../bin
-mv rhessys* ../bin/rhessys || true
+# Try multiple possible locations for rhessys binary
+if [ -f rhessys/rhessys ]; then
+    mv rhessys/rhessys ../bin/rhessys
+elif [ -f rhessys ]; then
+    mv rhessys ../bin/rhessys
+else
+    # Pattern match for rhessys*
+    mv rhessys* ../bin/rhessys 2>/dev/null || true
+fi
+
+# Verify binary exists
+if [ ! -f ../bin/rhessys ]; then
+    echo "ERROR: rhessys binary not found after build"
+    exit 1
+fi
+
 chmod +x ../bin/rhessys
+echo "RHESSys binary successfully built at ../bin/rhessys"
             '''.strip()
         ],
         'dependencies': ['gdal-config', 'proj', 'geos-config'],
