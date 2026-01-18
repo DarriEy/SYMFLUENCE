@@ -511,17 +511,40 @@ def get_flex_detection_and_build() -> str:
 # === Flex Detection and Build ===
 detect_or_build_flex() {
     FLEX_FOUND=false
+    LIBFL_FOUND=false
 
-    # Check if flex is already available
+    # Check if flex binary is available
     if command -v flex >/dev/null 2>&1; then
         echo "Found flex: $(command -v flex)"
         flex --version | head -1
         FLEX_FOUND=true
-        return 0
+
+        # Check if libfl is available for linking
+        # Try multiple methods to find libfl
+        if ldconfig -p 2>/dev/null | grep -q libfl; then
+            echo "System libfl found via ldconfig"
+            LIBFL_FOUND=true
+        elif [ -f /usr/lib/libfl.a ] || [ -f /usr/lib/x86_64-linux-gnu/libfl.a ] || [ -f /usr/lib64/libfl.a ]; then
+            echo "System libfl.a found"
+            LIBFL_FOUND=true
+        elif [ -f /usr/lib/libfl.so ] || [ -f /usr/lib/x86_64-linux-gnu/libfl.so ] || [ -f /usr/lib64/libfl.so ]; then
+            echo "System libfl.so found"
+            LIBFL_FOUND=true
+        fi
+
+        if [ "$LIBFL_FOUND" = "true" ]; then
+            return 0
+        else
+            echo "Warning: flex found but libfl not found - will build flex from source for the library"
+        fi
     fi
 
-    # If not found, build from source
-    echo "Flex not found system-wide, building from source..."
+    # If flex or libfl not found, build from source
+    if [ "$FLEX_FOUND" = "true" ]; then
+        echo "Building flex from source to get libfl library..."
+    else
+        echo "Flex not found system-wide, building from source..."
+    fi
 
     # Save original directory before building
     FLEX_ORIGINAL_DIR="$(pwd)"
@@ -534,6 +557,12 @@ detect_or_build_flex() {
     if [ -x "${FLEX_INSTALL_DIR}/bin/flex" ]; then
         echo "Using previously built flex at: ${FLEX_INSTALL_DIR}/bin/flex"
         export PATH="${FLEX_INSTALL_DIR}/bin:$PATH"
+        # Export library path for linking (LIBRARY_PATH is used by gcc at link time)
+        export FLEX_LIB_DIR="${FLEX_INSTALL_DIR}/lib"
+        export LDFLAGS="${LDFLAGS} -L${FLEX_LIB_DIR}"
+        export LIBRARY_PATH="${FLEX_LIB_DIR}:${LIBRARY_PATH}"
+        export LD_LIBRARY_PATH="${FLEX_LIB_DIR}:${LD_LIBRARY_PATH}"
+        echo "FLEX_LIB_DIR set to: ${FLEX_LIB_DIR}"
         flex --version | head -1
         return 0
     fi
@@ -568,6 +597,12 @@ detect_or_build_flex() {
 
     # Add to PATH
     export PATH="${FLEX_INSTALL_DIR}/bin:$PATH"
+    # Export library path for linking (LIBRARY_PATH is used by gcc at link time)
+    export FLEX_LIB_DIR="${FLEX_INSTALL_DIR}/lib"
+    export LDFLAGS="${LDFLAGS} -L${FLEX_LIB_DIR}"
+    export LIBRARY_PATH="${FLEX_LIB_DIR}:${LIBRARY_PATH}"
+    export LD_LIBRARY_PATH="${FLEX_LIB_DIR}:${LD_LIBRARY_PATH}"
+    echo "FLEX_LIB_DIR set to: ${FLEX_LIB_DIR}"
 
     echo "Flex built successfully"
     flex --version | head -1
