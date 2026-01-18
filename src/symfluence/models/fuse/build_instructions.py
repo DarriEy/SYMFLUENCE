@@ -85,22 +85,46 @@ echo "=== Step 1: Creating gfortran wrapper ==="
 WRAPPER_DIR="$(pwd)/wrapper"
 mkdir -p "$WRAPPER_DIR"
 
-# Create the wrapper script
-cat > "$WRAPPER_DIR/gfortran" << 'WRAPEOF'
+# Save original FC before we override it with the wrapper
+ORIG_FC="${FC:-}"
+
+# Create the wrapper script with the real compiler path embedded
+cat > "$WRAPPER_DIR/gfortran" << WRAPEOF
 #!/bin/bash
 # Wrapper for gfortran that adds required flags for FUSE compilation
 # These flags allow long lines and disable -Werror
 
 EXTRA_FLAGS="-ffree-line-length-none -fallow-argument-mismatch -std=legacy -Wno-error -Wno-line-truncation"
 
-# Find the real gfortran
-REAL_GFORTRAN="/usr/bin/gfortran"
-if [ ! -x "$REAL_GFORTRAN" ]; then
-    REAL_GFORTRAN=$(which gfortran 2>/dev/null | grep -v wrapper | head -1)
+# Find the real gfortran - check in order of preference:
+# 1. Original FC if it was set (e.g., conda gfortran)
+# 2. Conda gfortran in CONDA_PREFIX
+# 3. System gfortran
+REAL_GFORTRAN=""
+
+# Try the original FC first (set by symfluence for conda environments)
+if [ -n "${ORIG_FC}" ] && [ -x "${ORIG_FC}" ]; then
+    REAL_GFORTRAN="${ORIG_FC}"
+# Try conda gfortran
+elif [ -n "\${CONDA_PREFIX}" ] && [ -x "\${CONDA_PREFIX}/bin/x86_64-conda-linux-gnu-gfortran" ]; then
+    REAL_GFORTRAN="\${CONDA_PREFIX}/bin/x86_64-conda-linux-gnu-gfortran"
+elif [ -n "\${CONDA_PREFIX}" ] && [ -x "\${CONDA_PREFIX}/bin/gfortran" ]; then
+    REAL_GFORTRAN="\${CONDA_PREFIX}/bin/gfortran"
+# Fall back to system gfortran
+elif [ -x "/usr/bin/gfortran" ]; then
+    REAL_GFORTRAN="/usr/bin/gfortran"
+else
+    # Last resort - try to find any gfortran not in wrapper dir
+    REAL_GFORTRAN=\$(which -a gfortran 2>/dev/null | grep -v wrapper | head -1)
+fi
+
+if [ -z "\$REAL_GFORTRAN" ] || [ ! -x "\$REAL_GFORTRAN" ]; then
+    echo "Error: Cannot find real gfortran compiler" >&2
+    exit 1
 fi
 
 # Call the real gfortran with our extra flags
-exec "$REAL_GFORTRAN" $EXTRA_FLAGS "$@"
+exec "\$REAL_GFORTRAN" \$EXTRA_FLAGS "\$@"
 WRAPEOF
 
 chmod +x "$WRAPPER_DIR/gfortran"

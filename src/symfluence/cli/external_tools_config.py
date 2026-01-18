@@ -109,9 +109,9 @@ cmake --build . --target install -j ${NCORES:-4}
         'test_command': None,
         'verify_install': {
             'file_paths': [
-                'lib64/libsundials_core.a',
-                'lib/libsundials_core.a',
-                'include/sundials/sundials_config.h'
+                'install/sundials/lib64/libsundials_core.a',
+                'install/sundials/lib/libsundials_core.a',
+                'install/sundials/include/sundials/sundials_config.h'
             ],
             'check_type': 'exists_any'
         },
