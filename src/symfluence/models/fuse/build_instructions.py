@@ -86,75 +86,91 @@ echo "Pre-compiling sce_16plus.f..."
 ${FC} ${FFLAGS_FIXED} -o sce_16plus.o "FUSE_SRC/FUSE_SCE/sce_16plus.f" || { echo "Failed to compile sce_16plus.f"; exit 1; }
 
 # FUSE has complex Fortran module dependencies that the Makefile doesn't handle well.
-# Dependency chain: kinds_dmsl_kit_FUSE -> nrtype -> fuse_fileManager -> fuse_driver
-# Solution: Manually compile modules in dependency order BEFORE running make.
+# Solution: Multi-pass compilation - keep compiling all module files until no new .mod files appear.
 
-echo "Building FUSE (with manual module pre-compilation)..."
+echo "Building FUSE (with multi-pass module pre-compilation)..."
 
 # Create objects directory
 mkdir -p objects
 
-# Compile modules in strict dependency order
-echo "Pre-compiling FUSE modules in dependency order..."
+# Find all Fortran source files that define modules
+echo "Finding all module-defining source files..."
+MODULE_SOURCES=$(find ../build/FUSE_SRC -name "*.f90" -exec grep -l "^[[:space:]]*module[[:space:]]" {} \; 2>/dev/null | sort -u)
+echo "Found $(echo "$MODULE_SOURCES" | wc -l | tr -d ' ') module files"
 
-# 1. kinds_dmsl_kit_FUSE - the base types module (no dependencies)
-KINDS_SRC=$(find .. -name "kinds_dmsl_kit_FUSE.f90" 2>/dev/null | head -1)
-if [ -n "$KINDS_SRC" ]; then
-    echo "  1. Compiling: $KINDS_SRC"
-    ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$KINDS_SRC" || { echo "Failed to compile kinds_dmsl_kit_FUSE"; exit 1; }
-else
-    echo "  ERROR: Could not find kinds_dmsl_kit_FUSE.f90"
-    find .. -name "*.f90" | xargs grep -l "module kinds_dmsl_kit" 2>/dev/null | head -5
-    exit 1
-fi
+# Multi-pass compilation: keep compiling until no new .mod files are created
+MAX_PASSES=10
+PASS=1
+while [ $PASS -le $MAX_PASSES ]; do
+    echo ""
+    echo "=== Compilation pass $PASS ==="
+    MOD_COUNT_BEFORE=$(ls -1 *.mod 2>/dev/null | wc -l | tr -d ' ')
 
-# 2. utilities_dmsl_kit_FUSE - depends on kinds_dmsl_kit_FUSE (used by fuse_fileManager)
-UTILITIES_SRC=$(find .. -name "utilities_dmsl_kit_FUSE.f90" 2>/dev/null | head -1)
-if [ -n "$UTILITIES_SRC" ]; then
-    echo "  2. Compiling: $UTILITIES_SRC"
-    ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$UTILITIES_SRC" || echo "Warning: utilities_dmsl_kit_FUSE compilation failed"
-fi
+    COMPILED=0
+    FAILED=0
+    for src in $MODULE_SOURCES; do
+        # Extract module name from file
+        basename_src=$(basename "$src")
 
-# 3. nrtype - depends on kinds_dmsl_kit_FUSE
-NRTYPE_SRC=$(find .. -name "nrtype.f90" 2>/dev/null | head -1)
-if [ -n "$NRTYPE_SRC" ]; then
-    echo "  3. Compiling: $NRTYPE_SRC"
-    ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$NRTYPE_SRC" || echo "Warning: nrtype compilation failed"
-fi
+        # Try to compile, suppress errors (some will fail due to missing deps)
+        if ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$src" 2>/dev/null; then
+            COMPILED=$((COMPILED + 1))
+        else
+            FAILED=$((FAILED + 1))
+        fi
+    done
 
-# 4. Other base modules that fuse_fileManager might need
-for mod_name in "fuse_common" "data_type" "multiforce" "multistate"; do
-    MOD_SRC=$(find .. -name "${mod_name}.f90" 2>/dev/null | head -1)
-    if [ -n "$MOD_SRC" ]; then
-        echo "  4. Compiling: $MOD_SRC"
-        ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$MOD_SRC" 2>&1 || true
+    MOD_COUNT_AFTER=$(ls -1 *.mod 2>/dev/null | wc -l | tr -d ' ')
+    NEW_MODS=$((MOD_COUNT_AFTER - MOD_COUNT_BEFORE))
+
+    echo "Pass $PASS: Compiled=$COMPILED, Failed=$FAILED, New .mod files=$NEW_MODS, Total .mod files=$MOD_COUNT_AFTER"
+
+    # If no new .mod files were created, we're done
+    if [ $NEW_MODS -eq 0 ] && [ $PASS -gt 1 ]; then
+        echo "No new modules created - compilation stabilized"
+        break
     fi
+
+    PASS=$((PASS + 1))
 done
 
-# 5. fuse_fileManager - depends on above modules
-FILEMANAGER_SRC=$(find .. -name "fuse_fileManager.f90" 2>/dev/null | head -1)
-if [ -n "$FILEMANAGER_SRC" ]; then
-    echo "  5. Compiling: $FILEMANAGER_SRC"
-    ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$FILEMANAGER_SRC" || echo "Warning: fuse_fileManager compilation failed"
-fi
+# Now specifically check and compile critical modules with verbose errors
+echo ""
+echo "=== Verifying critical modules ==="
 
-# Verify key .mod files were created
-echo "Checking for required .mod files..."
-ls -la *.mod 2>/dev/null || echo "  No .mod files in current directory"
-
+# kinds_dmsl_kit_FUSE is the base
 if [ ! -f "kinds_dmsl_kit_fuse.mod" ]; then
-    echo "ERROR: kinds_dmsl_kit_fuse.mod not created"
-    exit 1
+    KINDS_SRC=$(find .. -name "kinds_dmsl_kit_FUSE.f90" 2>/dev/null | head -1)
+    if [ -n "$KINDS_SRC" ]; then
+        echo "Compiling kinds_dmsl_kit_FUSE (verbose)..."
+        ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$KINDS_SRC" || { echo "FATAL: kinds_dmsl_kit_FUSE failed"; exit 1; }
+    fi
 fi
 
-if [ ! -f "utilities_dmsl_kit_fuse.mod" ]; then
-    echo "WARNING: utilities_dmsl_kit_fuse.mod not created - fuse_fileManager may fail"
+# fuse_fileManager is required by fuse_driver
+if [ ! -f "fuse_filemanager.mod" ]; then
+    FILEMANAGER_SRC=$(find .. -name "fuse_fileManager.f90" 2>/dev/null | head -1)
+    if [ -n "$FILEMANAGER_SRC" ]; then
+        echo "Compiling fuse_fileManager (verbose, showing errors)..."
+        ${FC} ${FFLAGS_NORMA} ${INCLUDES} -c "$FILEMANAGER_SRC" 2>&1 || echo "fuse_fileManager compilation failed - see errors above"
+    fi
 fi
 
-if [ -f "fuse_filemanager.mod" ]; then
-    echo "SUCCESS: All required modules compiled"
-else
-    echo "WARNING: fuse_filemanager.mod not found, build may fail"
+# List all .mod files for debugging
+echo ""
+echo "Available .mod files:"
+ls -1 *.mod 2>/dev/null | head -30 || echo "  (none)"
+
+# Check critical modules
+if [ ! -f "fuse_filemanager.mod" ]; then
+    echo ""
+    echo "WARNING: fuse_filemanager.mod still not created"
+    echo "Checking what modules fuse_fileManager.f90 needs..."
+    FILEMANAGER_SRC=$(find .. -name "fuse_fileManager.f90" 2>/dev/null | head -1)
+    if [ -n "$FILEMANAGER_SRC" ]; then
+        echo "USE statements in fuse_fileManager.f90:"
+        grep -i "^[[:space:]]*use[[:space:]]" "$FILEMANAGER_SRC" | head -20
+    fi
 fi
 
 # Now run make - the module should exist
