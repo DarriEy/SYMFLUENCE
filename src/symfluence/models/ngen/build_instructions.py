@@ -150,15 +150,15 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
 fi
 
 # Add extra linker flags for conda GCC 14 and expat (needed by UDUNITS2)
-# Use CMAKE_EXE_LINKER_FLAGS which properly handles space-separated flags
+# Set via LDFLAGS environment variable which CMake picks up automatically
+# This avoids complex quoting issues with CMAKE_EXE_LINKER_FLAGS
 EXTRA_LDFLAGS="${EXTRA_LIBS:-}"
 if [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lexpat"
 fi
 if [ -n "$EXTRA_LDFLAGS" ]; then
-  CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_EXE_LINKER_FLAGS=\"$EXTRA_LDFLAGS\""
-  CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_SHARED_LINKER_FLAGS=\"$EXTRA_LDFLAGS\""
-  echo "Adding extra linker flags: $EXTRA_LDFLAGS"
+  export LDFLAGS="${LDFLAGS:-} $EXTRA_LDFLAGS"
+  echo "Adding extra linker flags via LDFLAGS: $EXTRA_LDFLAGS"
 fi
 
 # Add Fortran support if compiler is available
@@ -218,11 +218,7 @@ else
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
   fi
 
-  # Add extra linker flags to fallback as well
-  if [ -n "$EXTRA_LDFLAGS" ]; then
-    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_EXE_LINKER_FLAGS=\"$EXTRA_LDFLAGS\""
-    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_SHARED_LINKER_FLAGS=\"$EXTRA_LDFLAGS\""
-  fi
+  # LDFLAGS is already set in environment, no need to pass to fallback args
 
   # Keep Fortran in fallback if compiler is available
   if [ -n "$FC" ]; then

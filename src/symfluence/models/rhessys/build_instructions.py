@@ -113,6 +113,8 @@ sed -i.bak 's/base_station\[0\]\.x/base_station[0].proj_x/g' init/construct_netc
 sed -i.bak 's/base_station\[0\]\.y/base_station[0].proj_y/g' init/construct_netcdf_grid.c
 sed -i.bak 's/base_station\[0\]\.lat/base_station[0].proj_y/g' init/construct_netcdf_grid.c
 sed -i.bak 's/base_station\[0\]\.lon/base_station[0].proj_x/g' init/construct_netcdf_grid.c
+# Also fix proj_yearly_clim which should be yearly_clim
+sed -i.bak 's/\.proj_yearly_clim/.yearly_clim/g' init/construct_netcdf_grid.c
 echo "Patched construct_netcdf_grid.c"
 
 # Verify patches
