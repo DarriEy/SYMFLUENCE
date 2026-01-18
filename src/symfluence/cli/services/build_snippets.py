@@ -418,6 +418,85 @@ detect_or_build_udunits2
     '''.strip()
 
 
+def get_bison_detection_and_build() -> str:
+    """
+    Get reusable bison detection and build-from-source snippet.
+
+    Checks if bison (parser generator) is available, and if not, builds it
+    from source in a local directory.
+
+    Returns:
+        Shell script snippet for bison detection and building.
+    """
+    return r'''
+# === Bison Detection and Build ===
+detect_or_build_bison() {
+    BISON_FOUND=false
+
+    # Check if bison is already available
+    if command -v bison >/dev/null 2>&1; then
+        echo "Found bison: $(command -v bison)"
+        bison --version | head -1
+        BISON_FOUND=true
+        return 0
+    fi
+
+    # If not found, build from source
+    echo "Bison not found system-wide, building from source..."
+
+    # Save original directory before building
+    BISON_ORIGINAL_DIR="$(pwd)"
+
+    BISON_VERSION="3.8.2"
+    BISON_BUILD_DIR="${BISON_ORIGINAL_DIR}/bison_build"
+    BISON_INSTALL_DIR="${BISON_ORIGINAL_DIR}/bison"
+
+    # Check if already built locally
+    if [ -x "${BISON_INSTALL_DIR}/bin/bison" ]; then
+        echo "Using previously built bison at: ${BISON_INSTALL_DIR}/bin/bison"
+        export PATH="${BISON_INSTALL_DIR}/bin:$PATH"
+        bison --version | head -1
+        return 0
+    fi
+
+    # Download and build bison
+    mkdir -p "${BISON_BUILD_DIR}"
+    cd "${BISON_BUILD_DIR}"
+
+    if [ ! -f "bison-${BISON_VERSION}.tar.xz" ]; then
+        echo "Downloading bison ${BISON_VERSION}..."
+        wget -q "https://ftp.gnu.org/gnu/bison/bison-${BISON_VERSION}.tar.xz" \
+          || curl -fsSL -o "bison-${BISON_VERSION}.tar.xz" "https://ftp.gnu.org/gnu/bison/bison-${BISON_VERSION}.tar.xz"
+    fi
+
+    if [ ! -d "bison-${BISON_VERSION}" ]; then
+        echo "Extracting bison..."
+        tar -xJf "bison-${BISON_VERSION}.tar.xz"
+    fi
+
+    cd "bison-${BISON_VERSION}"
+    echo "Configuring bison..."
+    ./configure --prefix="${BISON_INSTALL_DIR}"
+
+    echo "Building bison..."
+    make -j ${NCORES:-4}
+
+    echo "Installing bison to ${BISON_INSTALL_DIR}..."
+    make install
+
+    # Return to original directory
+    cd "${BISON_ORIGINAL_DIR}"
+
+    # Add to PATH
+    export PATH="${BISON_INSTALL_DIR}/bin:$PATH"
+
+    echo "Bison built successfully"
+    bison --version | head -1
+}
+detect_or_build_bison
+    '''.strip()
+
+
 def get_all_snippets() -> Dict[str, str]:
     """
     Return all snippets as a dictionary for easy access.
@@ -432,4 +511,5 @@ def get_all_snippets() -> Dict[str, str]:
         'netcdf_lib_detect': get_netcdf_lib_detection(),
         'geos_proj_detect': get_geos_proj_detection(),
         'udunits2_detect_build': get_udunits2_detection_and_build(),
+        'bison_detect_build': get_bison_detection_and_build(),
     }
