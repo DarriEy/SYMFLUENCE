@@ -121,8 +121,8 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   # Also add to compiler flags as a fallback
   export CXXFLAGS="${CXXFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
   export CFLAGS="${CFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
-  # UDUNITS2 static library requires expat XML parser
-  export LDFLAGS="${LDFLAGS:-} -lexpat"
+  # UDUNITS2 static library requires expat XML parser - add via CMake linker flags
+  CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_EXE_LINKER_FLAGS=-lexpat"
   echo "Using UDUNITS2 from: $UDUNITS2_DIR"
 fi
 
@@ -181,6 +181,7 @@ else
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_ROOT=$UDUNITS2_DIR"
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_INCLUDE_DIR=$UDUNITS2_INCLUDE_DIR"
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
+    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_EXE_LINKER_FLAGS=-lexpat"
   fi
 
   # Keep Fortran in fallback if compiler is available
