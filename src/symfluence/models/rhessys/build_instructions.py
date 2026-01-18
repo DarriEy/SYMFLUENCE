@@ -106,6 +106,15 @@ print "Patched $file\n";
 PERLSCRIPT
 perl /tmp/rhessys_xy_patch.pl init/assign_base_station_xy.c
 
+# Fix construct_netcdf_grid.c - it uses non-existent struct members x, y, lat, lon
+# Replace with proj_x and proj_y which do exist in base_station_object
+echo "Patching construct_netcdf_grid.c for missing struct members..."
+sed -i.bak 's/base_station\[0\]\.x/base_station[0].proj_x/g' init/construct_netcdf_grid.c
+sed -i.bak 's/base_station\[0\]\.y/base_station[0].proj_y/g' init/construct_netcdf_grid.c
+sed -i.bak 's/base_station\[0\]\.lat/base_station[0].proj_y/g' init/construct_netcdf_grid.c
+sed -i.bak 's/base_station\[0\]\.lon/base_station[0].proj_x/g' init/construct_netcdf_grid.c
+echo "Patched construct_netcdf_grid.c"
+
 # Verify patches
 grep "const void \*e1" util/key_compare.c || { echo "Patching key_compare.c failed"; exit 1; }
 grep "const void \*" util/sort_patch_layers.c || { echo "Patching sort_patch_layers.c failed"; exit 1; }
