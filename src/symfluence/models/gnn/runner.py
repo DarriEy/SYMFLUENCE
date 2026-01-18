@@ -347,13 +347,19 @@ class GNNRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
                 total_loss += loss.item() * batch_X.size(0)
                 total_samples += batch_X.size(0)
 
-            # Validation
+            # Validation (batched to avoid OOM)
             self.model.eval()
             with torch.no_grad():
-                val_out = self.model(X_val)
-                val_target = y_val[:, :, 0:1]
-                val_loss_raw = criterion(val_out, val_target)
-                val_loss = (val_loss_raw * mask.view(1, -1, 1)).sum() / (mask.sum() * X_val.size(0) + 1e-6)
+                val_loss_sum = 0.0
+                val_batch_size = min(batch_size * 4, 256)  # Larger batches OK for inference
+                for j in range(0, X_val.size(0), val_batch_size):
+                    val_batch_X = X_val[j:j + val_batch_size]
+                    val_batch_y = y_val[j:j + val_batch_size]
+                    val_out = self.model(val_batch_X)
+                    val_target = val_batch_y[:, :, 0:1]
+                    val_loss_raw = criterion(val_out, val_target)
+                    val_loss_sum += (val_loss_raw * mask.view(1, -1, 1)).sum().item()
+                val_loss = val_loss_sum / (mask.sum().item() * X_val.size(0) + 1e-6)
 
             if (epoch + 1) % 10 == 0:
                 avg_train_loss = total_loss / max(total_samples, 1)
