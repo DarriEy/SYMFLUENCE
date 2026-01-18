@@ -100,12 +100,13 @@ setup_2i2c_conda_env() {
 
     # Create conda environment with pre-built packages
     # Include cmake, compilers (for ABI compatibility), openmpi (for TauDEM),
-    # netcdf-fortran (for SUMMA/mizuRoute/FUSE builds), and m4/flex/bison (for rhessys)
+    # netcdf-fortran (for SUMMA/mizuRoute/FUSE builds), m4/flex/bison (for rhessys),
+    # and udunits2/expat (for ngen)
     if [[ ! -d "$env_path" ]]; then
         print_info "Creating conda environment with GDAL, compilers, and build tools..."
-        conda create -p "$env_path" python=3.11 gdal numpy rpy2 cmake compilers openmpi netcdf-fortran m4 flex bison -c conda-forge -y || {
+        conda create -p "$env_path" python=3.11 gdal numpy rpy2 cmake compilers openmpi netcdf-fortran m4 flex bison udunits2 expat -c conda-forge -y || {
             print_warning "Full conda env creation failed, trying minimal..."
-            conda create -p "$env_path" python=3.11 gdal numpy cmake compilers openmpi netcdf-fortran m4 flex bison -c conda-forge -y || {
+            conda create -p "$env_path" python=3.11 gdal numpy cmake compilers openmpi netcdf-fortran m4 flex bison udunits2 expat -c conda-forge -y || {
                 print_error "Failed to create conda environment"
                 return 1
             }
@@ -114,7 +115,7 @@ setup_2i2c_conda_env() {
         print_info "Conda environment already exists at: $env_path"
         # Ensure cmake, compilers, netcdf-fortran, and build tools are installed in existing env
         print_info "Ensuring build dependencies are installed..."
-        conda install -p "$env_path" cmake compilers openmpi netcdf-fortran m4 flex bison -c conda-forge -y 2>/dev/null || true
+        conda install -p "$env_path" cmake compilers openmpi netcdf-fortran m4 flex bison udunits2 expat -c conda-forge -y 2>/dev/null || true
     fi
 
     # Activate the environment
