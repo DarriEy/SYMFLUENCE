@@ -73,155 +73,87 @@ LIBS="-L${HDF5_LIB_DIR} -lhdf5 -lhdf5_hl -L${NETCDF_LIB_DIR} -lnetcdff -L${NETCD
 INCLUDES="-I${HDF5_INC_DIR} -I${NCDF_PATH}/include -I${NETCDF_C}/include"
 
 # =====================================================
-# STEP 1: Patch the Makefile to use our compiler flags
+# STEP 1: Create a gfortran wrapper to force compiler flags
 # =====================================================
 echo ""
-echo "=== Step 1: Patching Makefile ==="
-if [ -f "Makefile" ]; then
-    cp Makefile Makefile.original
+echo "=== Step 1: Creating gfortran wrapper ==="
 
-    # The FUSE Makefile has a 'compile' target that runs gfortran directly
-    # WITHOUT using FFLAGS_NORMA. We need to patch this rule.
+# The FUSE Makefile doesn't pass FFLAGS to the compile step.
+# Solution: Create a wrapper script that intercepts gfortran calls
+# and adds our required flags.
 
-    # Define our flags
-    OUR_FFLAGS="-O3 -ffree-line-length-none -fmax-errors=0 -cpp -fallow-argument-mismatch -std=legacy -Wno-error -Wno-line-truncation"
+WRAPPER_DIR="$(pwd)/wrapper"
+mkdir -p "$WRAPPER_DIR"
 
-    # Method 1: Set FCFLAGS environment variable (gfortran picks this up)
-    export FCFLAGS="$OUR_FFLAGS"
-    export FFLAGS="$OUR_FFLAGS"
+# Create the wrapper script
+cat > "$WRAPPER_DIR/gfortran" << 'WRAPEOF'
+#!/bin/bash
+# Wrapper for gfortran that adds required flags for FUSE compilation
+# These flags allow long lines and disable -Werror
 
-    # Method 2: Patch the Makefile to add $(FFLAGS_NORMA) to the compile rule
-    # The compile rule looks like: $(FC) $(SOURCES) $(LIBS) $(INCLUDES) -o fuse.exe
-    # We need to add $(FFLAGS_NORMA) after $(FC)
+EXTRA_FLAGS="-ffree-line-length-none -fallow-argument-mismatch -std=legacy -Wno-error -Wno-line-truncation"
 
-    # First, add our FFLAGS_NORMA definition at the top
-    cat > Makefile.patched << 'MKEOF'
-# Override FFLAGS for FUSE build - disable -Werror and enable long lines
-FFLAGS_NORMA = -O3 -ffree-line-length-none -fmax-errors=0 -cpp -fallow-argument-mismatch -std=legacy -Wno-error -Wno-line-truncation
-FFLAGS_FIXED = -O2 -ffixed-form -fallow-argument-mismatch -std=legacy -Wno-error -Wno-line-truncation
-MKEOF
-
-    # Now patch the compile rule in the original Makefile
-    # The compile target has a line like: $(FC) $(F90FILES)... -o fuse.exe
-    # We need to add $(FFLAGS_NORMA) after $(FC)
-    sed 's/\$(FC) \$(F90FILES)/$(FC) $(FFLAGS_NORMA) $(F90FILES)/g' Makefile.original >> Makefile.patched
-    sed -i 's/\$(FC)  \$(F90FILES)/$(FC) $(FFLAGS_NORMA) $(F90FILES)/g' Makefile.patched
-
-    # Also handle case where FC is followed directly by source file paths
-    sed -i 's/\$(FC) \//$(FC) $(FFLAGS_NORMA) \//g' Makefile.patched
-
-    mv Makefile.patched Makefile
-
-    echo "Makefile patched - checking compile rule:"
-    grep -A2 "^compile:" Makefile || grep "fuse.exe" Makefile | head -3
-else
-    echo "ERROR: Makefile not found"
-    ls -la
-    exit 1
+# Find the real gfortran
+REAL_GFORTRAN="/usr/bin/gfortran"
+if [ ! -x "$REAL_GFORTRAN" ]; then
+    REAL_GFORTRAN=$(which gfortran 2>/dev/null | grep -v wrapper | head -1)
 fi
 
+# Call the real gfortran with our extra flags
+exec "$REAL_GFORTRAN" $EXTRA_FLAGS "$@"
+WRAPEOF
+
+chmod +x "$WRAPPER_DIR/gfortran"
+echo "Created gfortran wrapper at: $WRAPPER_DIR/gfortran"
+
+# Put our wrapper first in PATH so make uses it
+export PATH="$WRAPPER_DIR:$PATH"
+echo "PATH updated: $WRAPPER_DIR is first"
+
+# Verify the wrapper works
+echo "Testing wrapper..."
+"$WRAPPER_DIR/gfortran" --version | head -1
+
+# Also set FC to use our wrapper explicitly
+export FC="$WRAPPER_DIR/gfortran"
+echo "FC set to: $FC"
+
 # =====================================================
-# STEP 2: Comprehensive source file patching
+# STEP 2: Minimal source patching (MPI only)
 # =====================================================
 echo ""
-echo "=== Step 2: Patching ALL source files with long lines ==="
+echo "=== Step 2: Patching MPI-related code ==="
 
-# The FUSE codebase has many lines > 132 chars which gfortran truncates
-# This causes syntax errors. We need to break ALL long lines.
+# DO NOT use automated line-breaking - it corrupts the code!
+# The gfortran wrapper will handle long lines with -ffree-line-length-none
 
-# Create a perl script to fix long lines in Fortran files
-cat > fix_long_lines.pl << 'PERLEOF'
-#!/usr/bin/perl -i.bak
-use strict;
-use warnings;
+# Only patch MPI-related code since MPI is not available
 
-while (<>) {
-    # Skip comment lines
-    if (/^\s*!/) {
-        print;
-        next;
-    }
-
-    # If line is > 125 chars (leaving margin), try to break it
-    while (length($_) > 125 && !/^\s*!/) {
-        # Try to break at "; " (statement separator)
-        if (s/^(.{60,120});\s*(.+)$/$1\n   $2/) {
-            print "$1;\n";
-            $_ = "   $2";
-            next;
-        }
-        # Try to break at ")then; " pattern
-        if (s/^(.{60,120}\)then);\s*(.+)$/$1\n   $2/) {
-            print "$1;\n";
-            $_ = "   $2";
-            next;
-        }
-        # If we can't break it safely, just print and move on
-        last;
-    }
-    print;
-}
-PERLEOF
-chmod +x fix_long_lines.pl
-
-# Apply to all .f90 files
-echo "  Fixing long lines in all Fortran files..."
-find FUSE_SRC -name "*.f90" -exec perl fix_long_lines.pl {} \;
-
-# Additional specific patches for known problematic files
-
-# Patch fuse_fileManager.f90 line 141 - very long string
-FILEMANAGER_FILE="FUSE_SRC/FUSE_HOOK/fuse_fileManager.f90"
-if [ -f "$FILEMANAGER_FILE" ]; then
-    perl -i -pe "s|(message='This version of FUSE requires the file manager to follow the following format:  ')//trim\(fuseFileManagerHeader\)//(' not '//trim\(temp\))|\1\&\n               //trim(fuseFileManagerHeader)//\2|" "$FILEMANAGER_FILE"
-    echo "  Patched fuse_fileManager.f90"
-fi
-
-# Patch get_gforce.f90 - has many long lines AND MPI issues
+# Patch get_gforce.f90 - comment out MPI
 GET_GFORCE_FILE="FUSE_SRC/FUSE_NETCDF/get_gforce.f90"
 if [ -f "$GET_GFORCE_FILE" ]; then
-    # Break specific long lines that the generic script might miss
-    # Line 375: nf90_get_var call
-    perl -i -pe 's/(ierr = nf90_get_var\(ncid_forc, ncid_var\(ivar\), gTemp, start=\(\/1,startSpat2,iTim\/\), count=\(\/nSpat1,nSpat2,1\/\)\));/$1\n   /g' "$GET_GFORCE_FILE"
+    # Comment out 'use mpi' statement
+    sed -i 's/^\([[:space:]]*\)use mpi$/\1! use mpi  ! Disabled - MPI not available/' "$GET_GFORCE_FILE"
 
-    # Lines 379-381: if statements with assignments
-    perl -i -pe 's/(if\(trim\(cVec\(iVar\)%vname\) == trim\(vname_\w+\) \)then); (gForce.*)/$1\n    $2/g' "$GET_GFORCE_FILE"
+    # Replace C preprocessor directives with Fortran comments
+    # These cause "Illegal preprocessor directive" warnings
+    sed -i 's/^#ifdef __MPI__/! MPI DISABLED: ifdef __MPI__/' "$GET_GFORCE_FILE"
+    sed -i 's/^#else$/! MPI DISABLED: else/' "$GET_GFORCE_FILE"
+    sed -i 's/^#endif$/! MPI DISABLED: endif/' "$GET_GFORCE_FILE"
 
-    # Line 483: another nf90_get_var call
-    perl -i -pe 's/(ierr = nf90_get_var\(ncid_forc, ncid_var\(ivar\), gTemp, start=\(\/1,startSpat2,itim_start\/\), count=\(\/nSpat1,nSpat2,numtim\/\)\));/$1\n   /g' "$GET_GFORCE_FILE"
-
-    # Comment out 'use mpi' - MPI not available
-    perl -i -pe 's/^(\s*)(use mpi\s*)$/$1!$2  ! Disabled - MPI not available\n/' "$GET_GFORCE_FILE"
-
-    # Replace preprocessor directives with Fortran comments
-    perl -i -pe 's/^#ifdef __MPI__/! MPI DISABLED: ifdef __MPI__/' "$GET_GFORCE_FILE"
-    perl -i -pe 's/^#else/! MPI DISABLED: else/' "$GET_GFORCE_FILE"
-    perl -i -pe 's/^#endif/! MPI DISABLED: endif/' "$GET_GFORCE_FILE"
-
-    echo "  Patched get_gforce.f90 (long lines + MPI)"
+    echo "  Patched get_gforce.f90 (disabled MPI)"
 fi
 
-# Patch fuse_driver.f90 for MPI preprocessor directives
+# Patch fuse_driver.f90 - same MPI preprocessor directives
 FUSE_DRIVER_FILE="FUSE_SRC/FUSE_DMSL/fuse_driver.f90"
 if [ -f "$FUSE_DRIVER_FILE" ]; then
-    perl -i -pe 's/^#ifdef __MPI__/! MPI DISABLED: ifdef __MPI__/' "$FUSE_DRIVER_FILE"
-    perl -i -pe 's/^#else/! MPI DISABLED: else/' "$FUSE_DRIVER_FILE"
-    perl -i -pe 's/^#endif/! MPI DISABLED: endif/' "$FUSE_DRIVER_FILE"
-    echo "  Patched fuse_driver.f90 (MPI directives)"
+    sed -i 's/^#ifdef __MPI__/! MPI DISABLED: ifdef __MPI__/' "$FUSE_DRIVER_FILE"
+    sed -i 's/^#else$/! MPI DISABLED: else/' "$FUSE_DRIVER_FILE"
+    sed -i 's/^#endif$/! MPI DISABLED: endif/' "$FUSE_DRIVER_FILE"
+    echo "  Patched fuse_driver.f90 (disabled MPI directives)"
 fi
 
-# Verify patches - check for remaining long lines
-echo ""
-echo "  Checking for remaining long lines (>130 chars)..."
-LONG_LINES=$(find FUSE_SRC -name "*.f90" -exec awk 'length > 130 {print FILENAME": line "NR": "length" chars"}' {} \; | head -10)
-if [ -n "$LONG_LINES" ]; then
-    echo "  WARNING: Some long lines remain:"
-    echo "$LONG_LINES"
-else
-    echo "  All source files have lines <= 130 chars"
-fi
-
-echo "Source patching complete"
+echo "MPI patching complete - long lines handled by gfortran wrapper"
 
 # =====================================================
 # STEP 3: Pre-compile fixed-form Fortran
