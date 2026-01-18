@@ -396,8 +396,23 @@ def get_udunits2_detection_and_build() -> str:
 detect_or_build_udunits2() {
     UDUNITS2_FOUND=false
 
-    # Try pkg-config first (system install)
-    if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists udunits2 2>/dev/null; then
+    # Check conda environment first (highest priority)
+    if [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/include/udunits2.h" ]; then
+        UDUNITS2_DIR="$CONDA_PREFIX"
+        UDUNITS2_INCLUDE_DIR="$CONDA_PREFIX/include"
+        if [ -f "$CONDA_PREFIX/lib/libudunits2.so" ]; then
+            UDUNITS2_LIBRARY="$CONDA_PREFIX/lib/libudunits2.so"
+        elif [ -f "$CONDA_PREFIX/lib/libudunits2.dylib" ]; then
+            UDUNITS2_LIBRARY="$CONDA_PREFIX/lib/libudunits2.dylib"
+        else
+            UDUNITS2_LIBRARY="$CONDA_PREFIX/lib/libudunits2.a"
+        fi
+        echo "Found conda UDUNITS2 at: ${UDUNITS2_DIR}"
+        UDUNITS2_FOUND=true
+    fi
+
+    # Try pkg-config (system install)
+    if [ "$UDUNITS2_FOUND" = false ] && command -v pkg-config >/dev/null 2>&1 && pkg-config --exists udunits2 2>/dev/null; then
         UDUNITS2_DIR="$(pkg-config --variable=prefix udunits2)"
         UDUNITS2_INCLUDE_DIR="$(pkg-config --variable=includedir udunits2)"
         UDUNITS2_LIBRARY="$(pkg-config --variable=libdir udunits2)/libudunits2.so"
