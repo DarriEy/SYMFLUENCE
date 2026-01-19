@@ -141,6 +141,29 @@ class OptimizationConfig(BaseModel):
     final_evaluation_numerical_method: str = Field(default='ida', alias='FINAL_EVALUATION_NUMERICAL_METHOD')
     cleanup_parallel_dirs: bool = Field(default=True, alias='CLEANUP_PARALLEL_DIRS')
 
+    # Gradient-based optimization settings (Adam, L-BFGS)
+    gradient_mode: Literal['auto', 'native', 'finite_difference'] = Field(
+        default='auto',
+        alias='GRADIENT_MODE',
+        description="Gradient computation method for Adam/L-BFGS: "
+                    "'auto' uses native gradients if available (e.g., JAX autodiff for HBV), "
+                    "'native' requires native gradients (error if unavailable), "
+                    "'finite_difference' always uses FD (useful for comparison)"
+    )
+    gradient_epsilon: float = Field(
+        default=1e-4,
+        alias='GRADIENT_EPSILON',
+        gt=0,
+        le=0.1,
+        description="Perturbation size for finite-difference gradient approximation"
+    )
+    gradient_clip_value: float = Field(
+        default=1.0,
+        alias='GRADIENT_CLIP_VALUE',
+        gt=0,
+        description="Maximum gradient L2 norm (prevents exploding gradients)"
+    )
+
     @field_validator('algorithm', mode='before')
     @classmethod
     def normalize_algorithm(cls, v):

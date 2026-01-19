@@ -41,7 +41,7 @@ def hype_config(temp_dir):
         'HYDROLOGICAL_MODEL': 'HYPE',
         'HYPE_PARAMS_TO_CALIBRATE': 'ttmp,cmlt,cevp',
         'OPTIMIZATION_TARGET': 'streamflow',
-        'OPTIMIZATION_METRIC': 'kge',
+        'OPTIMIZATION_METRIC': 'KGE',
     }
 
 
@@ -61,7 +61,7 @@ def mesh_config(temp_dir):
         'HYDROLOGICAL_MODEL': 'MESH',
         'MESH_PARAMS_TO_CALIBRATE': 'ZSNL,MANN',
         'OPTIMIZATION_TARGET': 'streamflow',
-        'OPTIMIZATION_METRIC': 'kge',
+        'OPTIMIZATION_METRIC': 'KGE',
     }
 
 

@@ -31,8 +31,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from ..base import BaseModelRunner
 from ..execution import (
-    ModelExecutor,
-    SpatialOrchestrator,
+    UnifiedModelExecutor,
     ExecutionResult,
     SlurmJobConfig,
     ExecutionMode,
@@ -70,7 +69,7 @@ class ModelRunResult:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-class UnifiedModelRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
+class UnifiedModelRunner(BaseModelRunner, UnifiedModelExecutor):
     """
     Base class for hydrological model runners using the unified framework.
 

@@ -250,6 +250,16 @@ class StreamflowEvaluator(ModelEvaluator):
             ValueError: If no suitable streamflow variable found
         """
         with xr.open_dataset(sim_file) as ds:
+            # Check for pre-computed streamflow first (e.g., HBV, GR models output in m³/s)
+            if 'streamflow' in ds.variables:
+                var = ds['streamflow']
+                units = var.attrs.get('units', 'unknown')
+                self.logger.debug(f"Found pre-computed streamflow variable with units: '{units}'")
+                # If already in m³/s, return directly (no unit conversion needed)
+                if 'm3/s' in units or 'm³/s' in units or 'm^3/s' in units:
+                    return cast(pd.Series, var.to_pandas())
+                # Otherwise fall through to standard processing
+
             streamflow_vars = ['averageRoutedRunoff', 'basin__TotalRunoff', 'scalarTotalRunoff']
             for var_name in streamflow_vars:
                 if var_name in ds.variables:

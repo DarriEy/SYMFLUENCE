@@ -104,17 +104,36 @@ def is_rdrs_s3_available():
 
 
 def is_em_earth_s3_available():
-    """Check if EM-Earth S3 bucket is accessible."""
+    """Check if EM-Earth S3 bucket is accessible and files can be read.
+
+    Note: The bucket may allow directory listing but deny file access,
+    so we need to actually try to read a file to verify access.
+    """
     if "em_earth" in _cloud_availability_cache:
         return _cloud_availability_cache["em_earth"]
 
     try:
         import s3fs
         fs = s3fs.S3FileSystem(anon=True)
-        # Check if the EM-Earth bucket is accessible
-        result = fs.exists("emearth/nc/deterministic_raw_daily/prcp")
-        _cloud_availability_cache["em_earth"] = result
-        return result
+        # Check if the EM-Earth bucket directory is accessible
+        if not fs.exists("emearth/nc/deterministic_raw_daily/prcp"):
+            _cloud_availability_cache["em_earth"] = False
+            return False
+
+        # List files and try to actually read one (directory listing may work
+        # even when file access is denied)
+        files = fs.ls("emearth/nc/deterministic_raw_daily/prcp/")
+        if not files:
+            _cloud_availability_cache["em_earth"] = False
+            return False
+
+        # Try to open the first file to verify read access
+        with fs.open(files[0], 'rb') as f:
+            # Read just the first few bytes to verify access
+            f.read(100)
+
+        _cloud_availability_cache["em_earth"] = True
+        return True
     except Exception:
         _cloud_availability_cache["em_earth"] = False
         return False

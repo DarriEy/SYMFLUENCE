@@ -109,6 +109,11 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import rhessys: {e}")
 
+try:
+    from . import hbv
+except ImportError as e:
+    logger.warning(f"Could not import hbv: {e}")
+
 
 __all__ = [
     # Core

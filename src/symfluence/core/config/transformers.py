@@ -8,17 +8,60 @@ This module handles conversion between flat and hierarchical configuration forma
 Key functions:
 - transform_flat_to_nested(): Convert flat dict to nested structure for Pydantic models
 - flatten_nested_config(): Convert SymfluenceConfig instance back to flat dict for backward compatibility
+
+Phase 2 Addition (Configuration Key Standardization):
+- Standardized naming for MizuRoute keys (MIZUROUTE_INSTALL_PATH, MIZUROUTE_EXE)
+- Deprecation warnings for legacy keys (INSTALL_PATH_MIZUROUTE, EXE_NAME_MIZUROUTE)
 """
 
 from typing import Dict, Any, Tuple, TYPE_CHECKING, Optional
 from pathlib import Path
 import threading
 import logging
+import warnings
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 logger = logging.getLogger(__name__)
+
+
+# ========================================
+# DEPRECATED KEY MAPPING (Phase 2)
+# ========================================
+
+# Maps deprecated keys to their standardized replacements
+# Used to emit warnings when deprecated keys are encountered
+DEPRECATED_KEYS: Dict[str, str] = {
+    # MizuRoute legacy naming (inverted: INSTALL_PATH_MIZUROUTE -> MIZUROUTE_INSTALL_PATH)
+    'INSTALL_PATH_MIZUROUTE': 'MIZUROUTE_INSTALL_PATH',
+    'EXE_NAME_MIZUROUTE': 'MIZUROUTE_EXE',
+}
+
+
+def _warn_deprecated_keys(flat_config: Dict[str, Any]) -> None:
+    """
+    Warn about deprecated configuration keys.
+
+    Checks the flat configuration dictionary for any deprecated keys and
+    emits deprecation warnings with guidance on the new key names.
+
+    Args:
+        flat_config: Flat configuration dictionary with uppercase keys
+    """
+    for old_key, new_key in DEPRECATED_KEYS.items():
+        if old_key in flat_config:
+            logger.warning(
+                f"Configuration key '{old_key}' is deprecated, use '{new_key}' instead. "
+                f"Support will be removed in v2.0."
+            )
+            # Also emit a Python DeprecationWarning for programmatic detection
+            warnings.warn(
+                f"Config key '{old_key}' is deprecated, use '{new_key}' instead. "
+                f"This key will be removed in SYMFLUENCE v2.0.",
+                DeprecationWarning,
+                stacklevel=3
+            )
 
 # Global cache for auto-generated mapping (thread-safe)
 _AUTO_GENERATED_MAP: Optional[Dict[str, Tuple[str, ...]]] = None
@@ -285,6 +328,39 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'SETTINGS_GR_CONTROL': ('model', 'gr', 'control'),
     'GR_PARAMS_TO_CALIBRATE': ('model', 'gr', 'params_to_calibrate'),
 
+    # Model > HBV
+    'HBV_SPATIAL_MODE': ('model', 'hbv', 'spatial_mode'),
+    'HBV_ROUTING_INTEGRATION': ('model', 'hbv', 'routing_integration'),
+    'HBV_BACKEND': ('model', 'hbv', 'backend'),
+    'HBV_USE_GPU': ('model', 'hbv', 'use_gpu'),
+    'HBV_JIT_COMPILE': ('model', 'hbv', 'jit_compile'),
+    'HBV_WARMUP_DAYS': ('model', 'hbv', 'warmup_days'),
+    'HBV_PARAMS_TO_CALIBRATE': ('model', 'hbv', 'params_to_calibrate'),
+    'HBV_USE_GRADIENT_CALIBRATION': ('model', 'hbv', 'use_gradient_calibration'),
+    'HBV_CALIBRATION_METRIC': ('model', 'hbv', 'calibration_metric'),
+    'HBV_INITIAL_SNOW': ('model', 'hbv', 'initial_snow'),
+    'HBV_INITIAL_SM': ('model', 'hbv', 'initial_sm'),
+    'HBV_INITIAL_SUZ': ('model', 'hbv', 'initial_suz'),
+    'HBV_INITIAL_SLZ': ('model', 'hbv', 'initial_slz'),
+    'HBV_PET_METHOD': ('model', 'hbv', 'pet_method'),
+    'HBV_LATITUDE': ('model', 'hbv', 'latitude'),
+    'HBV_SAVE_STATES': ('model', 'hbv', 'save_states'),
+    'HBV_OUTPUT_FREQUENCY': ('model', 'hbv', 'output_frequency'),
+    'HBV_DEFAULT_TT': ('model', 'hbv', 'default_tt'),
+    'HBV_DEFAULT_CFMAX': ('model', 'hbv', 'default_cfmax'),
+    'HBV_DEFAULT_SFCF': ('model', 'hbv', 'default_sfcf'),
+    'HBV_DEFAULT_CFR': ('model', 'hbv', 'default_cfr'),
+    'HBV_DEFAULT_CWH': ('model', 'hbv', 'default_cwh'),
+    'HBV_DEFAULT_FC': ('model', 'hbv', 'default_fc'),
+    'HBV_DEFAULT_LP': ('model', 'hbv', 'default_lp'),
+    'HBV_DEFAULT_BETA': ('model', 'hbv', 'default_beta'),
+    'HBV_DEFAULT_K0': ('model', 'hbv', 'default_k0'),
+    'HBV_DEFAULT_K1': ('model', 'hbv', 'default_k1'),
+    'HBV_DEFAULT_K2': ('model', 'hbv', 'default_k2'),
+    'HBV_DEFAULT_UZL': ('model', 'hbv', 'default_uzl'),
+    'HBV_DEFAULT_PERC': ('model', 'hbv', 'default_perc'),
+    'HBV_DEFAULT_MAXBAS': ('model', 'hbv', 'default_maxbas'),
+
     # Model > HYPE
     'HYPE_INSTALL_PATH': ('model', 'hype', 'install_path'),
     'HYPE_EXE': ('model', 'hype', 'exe'),
@@ -330,7 +406,11 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'MESH_SPINUP_DAYS': ('model', 'mesh', 'spinup_days'),
     'MESH_GRU_MIN_TOTAL': ('model', 'mesh', 'gru_min_total'),
 
-    # Model > mizuRoute
+    # Model > mizuRoute - STANDARD NAMING (preferred)
+    'MIZUROUTE_INSTALL_PATH': ('model', 'mizuroute', 'install_path'),
+    'MIZUROUTE_EXE': ('model', 'mizuroute', 'exe'),
+
+    # Model > mizuRoute - LEGACY ALIASES (deprecated, will be removed in v2.0)
     'INSTALL_PATH_MIZUROUTE': ('model', 'mizuroute', 'install_path'),
     'EXE_NAME_MIZUROUTE': ('model', 'mizuroute', 'exe'),
     'SETTINGS_MIZU_PATH': ('model', 'mizuroute', 'settings_path'),
@@ -416,6 +496,9 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'ERROR_LOGGING_MODE': ('optimization', 'error_logging_mode'),
     'PARAMS_KEEP_TRIALS': ('optimization', 'params_keep_trials'),
     'STOP_ON_MODEL_FAILURE': ('optimization', 'stop_on_model_failure'),
+    'GRADIENT_MODE': ('optimization', 'gradient_mode'),
+    'GRADIENT_EPSILON': ('optimization', 'gradient_epsilon'),
+    'GRADIENT_CLIP_VALUE': ('optimization', 'gradient_clip_value'),
 
     # Optimization > PSO
     'SWRMSIZE': ('optimization', 'pso', 'swrmsize'),
@@ -701,6 +784,9 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
     Auto-generated mapping is available via get_flat_to_nested_map() for validation.
     In Phase 4, this will switch to use auto-generated mapping exclusively.
 
+    PHASE 2 ADDITION: Emits deprecation warnings for legacy config keys
+    (e.g., INSTALL_PATH_MIZUROUTE -> MIZUROUTE_INSTALL_PATH).
+
     Args:
         flat_config: Flat configuration dictionary with uppercase keys
 
@@ -716,6 +802,9 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
             'forcing': {'dataset': 'ERA5'}
         }
     """
+    # Check for deprecated keys and emit warnings
+    _warn_deprecated_keys(flat_config)
+
     nested: Dict[str, Any] = {
         'system': {},
         'domain': {},

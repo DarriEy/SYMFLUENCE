@@ -827,7 +827,6 @@ class AnalysisPlotter(BasePlotter):
         from matplotlib.patches import Patch  # type: ignore
         import matplotlib.dates as mdates  # type: ignore
         import xarray as xr  # type: ignore
-        import geopandas as gpd  # type: ignore
         from symfluence.reporting.core.plot_utils import calculate_metrics
 
         plot_paths: Dict[str, str] = {}
@@ -835,7 +834,6 @@ class AnalysisPlotter(BasePlotter):
         # Professional color palette
         COLOR_OBS = '#2c3e50'       # Dark blue-gray for observations
         COLOR_SIM = '#e74c3c'       # Professional red for simulations
-        COLOR_GRID = '#ecf0f1'      # Light gray for grid
         COLOR_ACCENT = '#3498db'    # Blue accent
 
         # Define observation loaders for supported variables
@@ -860,25 +858,20 @@ class AnalysisPlotter(BasePlotter):
                 dict_key='DOMAIN_NAME'
             )
 
-            hru_name = self._get_config_value(lambda: self.config.paths.catchment_name, default='default', dict_key='CATCHMENT_SHP_NAME')
-            if hru_name == 'default':
-                hru_name = f"{domain_name}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, dict_key='DOMAIN_DISCRETIZATION')}.shp"
-            hru_path = self.project_dir / 'shapefiles' / 'catchment' / hru_name
-            hru_gdf = gpd.read_file(hru_path) if hru_path.exists() else None
-
             skip_vars = {'hru', 'time', 'gru', 'dateId', 'latitude', 'longitude', 'hruId', 'gruId'}
 
             for var_name in ds.data_vars:
-                if var_name in skip_vars or 'time' not in ds[var_name].dims:
+                var_name_str = str(var_name)
+                if var_name_str in skip_vars or 'time' not in ds[var_name].dims:
                     continue
 
                 # Get display info for this variable
-                var_info = self._get_variable_display_info(var_name)
+                var_info = self._get_variable_display_info(var_name_str)
 
                 # Check if we have observations for this variable
                 obs_data = None
-                if var_name in obs_loaders:
-                    obs_data = obs_loaders[var_name]()
+                if var_name_str in obs_loaders:
+                    obs_data = obs_loaders[var_name_str]()
 
                 # Determine figure layout based on whether we have observations
                 has_obs = obs_data is not None and len(obs_data) > 0
@@ -1105,8 +1098,8 @@ class AnalysisPlotter(BasePlotter):
                             median.set_linewidth(1.5)
 
                         # Simulated boxplots
-                        sim_data_monthly = [sim_monthly.get_group(m).values
-                                           if m in sim_monthly.groups else [] for m in months]
+                        sim_data_monthly: List[Any] = [sim_monthly.get_group(m).values
+                                                       if m in sim_monthly.groups else [] for m in months]
                         bp_sim = ax_monthly.boxplot(sim_data_monthly, positions=positions_sim,
                                                    widths=0.35, patch_artist=True,
                                                    showfliers=False)

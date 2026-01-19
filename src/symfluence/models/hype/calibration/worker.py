@@ -285,9 +285,14 @@ class HYPEWorker(BaseWorker):
                 subbasin_means = sim_df[subbasin_cols].mean()
                 outlet_col = subbasin_means.idxmax()
                 sim_series = sim_df[outlet_col]
+                self.logger.info(
+                    f"Auto-selected outlet '{outlet_col}' from {len(subbasin_cols)} subbasins "
+                    f"(highest mean discharge: {subbasin_means[outlet_col]:.3f} m³/s)"
+                )
             else:
                 outlet_col = subbasin_cols[0]
                 sim_series = pd.to_numeric(sim_df[outlet_col], errors='coerce')
+                self.logger.debug(f"Using single outlet column: {outlet_col}")
 
             # Load observations
             # Handle both flat config dict and nested Pydantic model config
@@ -349,16 +354,38 @@ class HYPEWorker(BaseWorker):
             # Find common dates
             common_idx = sim_series.index.intersection(obs_daily.index)
             if len(common_idx) == 0:
+                self.logger.error(
+                    f"No common dates between simulation ({sim_series.index.min()} to {sim_series.index.max()}) "
+                    f"and observations ({obs_daily.index.min()} to {obs_daily.index.max()})"
+                )
                 return {'kge': self.penalty_score, 'error': 'No common dates between sim and obs'}
+
+            self.logger.info(f"Calculating metrics using {len(common_idx)} common timesteps")
 
             # Get the discharge column from observations
             obs_col = obs_daily.columns[0] if len(obs_daily.columns) > 0 else 'discharge_cms'
             obs_aligned = obs_daily.loc[common_idx, obs_col].values.flatten() if obs_col in obs_daily.columns else obs_daily.loc[common_idx].values.flatten()
             sim_aligned = sim_series.loc[common_idx].values.flatten()
 
+            # Check for NaN values in aligned data
+            obs_nan_count = pd.isna(obs_aligned).sum()
+            sim_nan_count = pd.isna(sim_aligned).sum()
+            if obs_nan_count > 0 or sim_nan_count > 0:
+                self.logger.warning(
+                    f"NaN values detected: {obs_nan_count} in observations, {sim_nan_count} in simulation. "
+                    f"Removing NaN pairs for metric calculation."
+                )
+                # Remove NaN pairs
+                valid_mask = ~(pd.isna(obs_aligned) | pd.isna(sim_aligned))
+                obs_aligned = obs_aligned[valid_mask]
+                sim_aligned = sim_aligned[valid_mask]
+
+                if len(obs_aligned) == 0:
+                    return {'kge': self.penalty_score, 'error': 'All data pairs contain NaN'}
+
             # Check for all-zero simulations (model didn't produce discharge)
             if sim_aligned.sum() == 0:
-                self.logger.debug("HYPE simulation produced zero discharge")
+                self.logger.warning("HYPE simulation produced zero discharge - check model parameters")
                 return {'kge': self.penalty_score, 'error': 'Zero discharge from model'}
 
             kge_val = kge(obs_aligned, sim_aligned, transfo=1)
@@ -402,7 +429,46 @@ def _evaluate_hype_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any
     Returns:
         Result dictionary
     """
-    worker = HYPEWorker()
-    task = WorkerTask.from_legacy_dict(task_data)
-    result = worker.evaluate(task)
-    return result.to_legacy_dict()
+    import os
+    import sys
+    import signal
+    import random
+    import time
+    import traceback
+
+    from symfluence.core.constants import ModelDefaults
+
+    # Set up signal handler for clean termination
+    def signal_handler(signum, frame):
+        sys.exit(1)
+
+    try:
+        signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGINT, signal_handler)
+    except ValueError:
+        pass  # Signal handling not available in this context
+
+    # Force single-threaded execution for parallel workers
+    os.environ.update({
+        'OMP_NUM_THREADS': '1',
+        'MKL_NUM_THREADS': '1',
+        'OPENBLAS_NUM_THREADS': '1',
+    })
+
+    # Add small random delay to prevent file system contention
+    initial_delay = random.uniform(0.1, 0.5)
+    time.sleep(initial_delay)
+
+    try:
+        worker = HYPEWorker(config=task_data.get('config'))
+        task = WorkerTask.from_legacy_dict(task_data)
+        result = worker.evaluate(task)
+        return result.to_legacy_dict()
+    except Exception as e:
+        return {
+            'individual_id': task_data.get('individual_id', -1),
+            'params': task_data.get('params', {}),
+            'score': ModelDefaults.PENALTY_SCORE,
+            'error': f'Critical HYPE worker exception: {str(e)}\n{traceback.format_exc()}',
+            'proc_id': task_data.get('proc_id', -1)
+        }

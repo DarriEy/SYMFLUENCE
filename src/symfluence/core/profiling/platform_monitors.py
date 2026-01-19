@@ -14,7 +14,7 @@ import sys
 import time
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Dict, List, Optional, Any
 from abc import ABC, abstractmethod
 
 
@@ -31,7 +31,7 @@ class ProcessIOMonitor(ABC):
         """
         self.pid = pid
         self.sample_interval = sample_interval
-        self.samples = []
+        self.samples: List[Dict[str, Any]] = []
         self.running = False
         self.logger = logging.getLogger(__name__)
 
@@ -273,7 +273,7 @@ def create_process_monitor(pid: int, sample_interval: float = 0.5) -> ProcessIOM
         return FallbackProcessIOMonitor(pid, sample_interval)
 
 
-def get_platform_capabilities() -> Dict[str, bool]:
+def get_platform_capabilities() -> Dict[str, Any]:
     """
     Check what I/O monitoring capabilities are available on this platform.
 

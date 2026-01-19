@@ -7,6 +7,7 @@ Uses shared utilities for time window management and forcing data processing.
 
 import sys
 import json
+import yaml
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -567,3 +568,216 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         config_gen = NgenConfigGenerator(self.config_dict, self.logger, self.setup_dir, getattr(self, 'catchment_crs', None))
         config_gen.set_module_availability(cfe=self._include_cfe, pet=self._include_pet, noah=self._include_noah, sloth=self._include_sloth)
         config_gen.generate_realization_config(forcing_file, self.project_dir, lib_paths=self._ngen_lib_paths)
+
+        # Generate t-route config if routing is enabled
+        if self.config_dict.get('NGEN_RUN_TROUTE', True):
+            self._generate_troute_config(nexus_file)
+
+    def _generate_troute_config(self, nexus_file: Path):
+        """
+        Generate t-route configuration for NGEN routing.
+
+        Creates troute_config.yaml with network topology and forcing parameters
+        suitable for routing NGEN nexus outputs. Handles both lumped (single
+        catchment) and distributed (multi-catchment) domains.
+
+        Args:
+            nexus_file: Path to nexus GeoJSON file for determining network size.
+        """
+        self.logger.info("Generating t-route configuration for NGEN routing")
+
+        # Load nexus to determine if this is a lumped or distributed domain
+        with open(nexus_file, 'r') as f:
+            nexus_data = json.load(f)
+        num_nexuses = len(nexus_data.get('features', []))
+
+        # For lumped domains (single nexus), t-route is optional but we still create config
+        if num_nexuses == 1:
+            self.logger.info("Lumped domain detected (single nexus). T-route will pass through single outlet.")
+
+        # Get time parameters
+        start_time = self.config_dict.get('EXPERIMENT_TIME_START', '2000-01-01 00:00')
+        end_time = self.config_dict.get('EXPERIMENT_TIME_END', '2000-12-31 23:00')
+        time_step_seconds = self.config_dict.get('FORCING_TIME_STEP_SIZE', 3600)
+
+        # Calculate number of timesteps
+        start_dt = pd.to_datetime(start_time)
+        end_dt = pd.to_datetime(end_time)
+        total_seconds = (end_dt - start_dt).total_seconds() + time_step_seconds
+        nts = int(total_seconds / time_step_seconds)
+
+        # Determine output directory for NGEN (where nex-*.csv files will be)
+        experiment_id = self.config_dict.get('EXPERIMENT_ID', 'default_run')
+        ngen_output_dir = self.project_dir / 'simulations' / experiment_id / 'NGEN'
+        troute_output_dir = ngen_output_dir / 'troute_output'
+
+        # Check if we have a river network for distributed routing
+        river_network_file = self.get_river_network_path()
+        has_network = river_network_file.exists()
+
+        # Create topology file for distributed domains
+        topology_file = None
+        if has_network and num_nexuses > 1:
+            topology_file = self._create_troute_topology()
+
+        # Build t-route config
+        troute_config = {
+            'log_parameters': {
+                'showtiming': True,
+                'log_level': 'INFO'
+            },
+            'network_topology_parameters': {
+                'supernetwork_parameters': {
+                    'title_string': f'NGEN routing for {self.domain_name}',
+                    'columns': {
+                        'key': 'id',
+                        'downstream': 'toid',
+                        'mainstem': 'mainstem'
+                    }
+                }
+            },
+            'compute_parameters': {
+                'restart_parameters': {
+                    'start_datetime': str(start_dt)
+                },
+                'forcing_parameters': {
+                    'nts': nts,
+                    'max_loop_size': 24,
+                    'dt': time_step_seconds,
+                    'qts_subdivisions': 1,
+                    'qlat_input_folder': str(ngen_output_dir),
+                    'qlat_file_pattern_filter': 'nex-*',
+                    'binary_nexus_file_folder': None,
+                    'coastal_boundary_input_file': None
+                },
+                'data_assimilation_parameters': {
+                    'usgs_timeslices_folder': None,
+                    'usace_timeslices_folder': None,
+                    'reservoir_da': None
+                }
+            },
+            'output_parameters': {
+                'stream_output': {
+                    'stream_output_directory': str(troute_output_dir),
+                    'stream_output_time': 1,
+                    'stream_output_type': '.csv',
+                    'stream_output_internal_frequency': time_step_seconds
+                }
+            }
+        }
+
+        # Add topology file if available
+        if topology_file:
+            troute_config['network_topology_parameters']['supernetwork_parameters']['geo_file_path'] = str(topology_file)
+        else:
+            # For lumped domains or missing network, use nexus file as simple network
+            troute_config['network_topology_parameters']['supernetwork_parameters']['geo_file_path'] = str(nexus_file)
+
+        # Write config file
+        troute_config_file = self.setup_dir / 'troute_config.yaml'
+        with open(troute_config_file, 'w') as f:
+            yaml.dump(troute_config, f, default_flow_style=False, sort_keys=False, indent=2)
+
+        self.logger.info(f"T-route config created: {troute_config_file}")
+        return troute_config_file
+
+    def _create_troute_topology(self) -> Optional[Path]:
+        """
+        Create t-route network topology file from river network shapefile.
+
+        Returns:
+            Path to topology NetCDF file, or None if creation failed.
+        """
+        try:
+            import netCDF4 as nc4
+            from datetime import datetime
+        except ImportError:
+            self.logger.warning("netCDF4 not available, skipping topology file creation")
+            return None
+
+        self.logger.info("Creating t-route network topology file")
+        river_network_file = self.get_river_network_path()
+
+        if not river_network_file.exists():
+            self.logger.warning(f"River network not found: {river_network_file}")
+            return None
+
+        try:
+            river_gdf = gpd.read_file(river_network_file)
+        except Exception as e:
+            self.logger.warning(f"Failed to read river network: {e}")
+            return None
+
+        seg_id_col = self.config_dict.get('RIVER_NETWORK_SHP_SEGID', 'LINKNO')
+        downstream_col = self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID', 'DSLINKNO')
+        length_col = self.config_dict.get('RIVER_NETWORK_SHP_LENGTH', 'Length')
+        slope_col = self.config_dict.get('RIVER_NETWORK_SHP_SLOPE', 'Slope')
+
+        topology_file = self.setup_dir / 'troute_topology.nc'
+
+        with nc4.Dataset(topology_file, 'w', format='NETCDF4') as ncid:
+            ncid.setncattr('Author', 'Created by SYMFLUENCE for t-route NGEN routing')
+            ncid.setncattr('History', f'Created {datetime.now().strftime("%Y/%m/%d %H:%M:%S")}')
+            ncid.setncattr('Conventions', 'CF-1.6')
+
+            # Create dimension
+            ncid.createDimension('link', len(river_gdf))
+
+            # Segment IDs (comid)
+            var = ncid.createVariable('comid', 'i4', ('link',))
+            var[:] = river_gdf[seg_id_col].values
+            var.long_name = 'Unique segment ID'
+
+            # Downstream IDs (to_node)
+            var = ncid.createVariable('to_node', 'i4', ('link',))
+            var[:] = river_gdf[downstream_col].values
+            var.long_name = 'Downstream segment ID'
+
+            # Length
+            if length_col in river_gdf.columns:
+                var = ncid.createVariable('length', 'f8', ('link',))
+                var[:] = river_gdf[length_col].values
+                var.long_name = 'Segment length'
+                var.units = 'meters'
+
+            # Slope
+            if slope_col in river_gdf.columns:
+                var = ncid.createVariable('slope', 'f8', ('link',))
+                var[:] = river_gdf[slope_col].values
+                var.long_name = 'Segment slope'
+                var.units = 'm/m'
+
+            # Manning's n (default value)
+            var = ncid.createVariable('n', 'f8', ('link',))
+            var[:] = [0.035] * len(river_gdf)
+            var.long_name = 'Manning roughness coefficient'
+
+            # Coordinates from segment centroids
+            centroids = river_gdf.geometry.centroid.to_crs('EPSG:4326')
+            var = ncid.createVariable('lat', 'f8', ('link',))
+            var[:] = centroids.y.values
+            var.long_name = 'Latitude of segment midpoint'
+            var.units = 'degrees_north'
+
+            var = ncid.createVariable('lon', 'f8', ('link',))
+            var[:] = centroids.x.values
+            var.long_name = 'Longitude of segment midpoint'
+            var.units = 'degrees_east'
+
+        self.logger.info(f"T-route topology file created: {topology_file}")
+        return topology_file
+
+    def get_river_network_path(self) -> Path:
+        """Get path to river network shapefile."""
+        river_path = self.config_dict.get('RIVER_NETWORK_SHP_PATH', 'default')
+        if river_path == 'default':
+            river_path = self.project_dir / 'shapefiles' / 'river_network'
+        else:
+            river_path = Path(river_path)
+
+        river_name = self.config_dict.get('RIVER_NETWORK_SHP_NAME', 'default')
+        if river_name == 'default':
+            domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'delineate')
+            river_name = f"{self.domain_name}_riverNetwork_{domain_method}.shp"
+
+        return river_path / river_name

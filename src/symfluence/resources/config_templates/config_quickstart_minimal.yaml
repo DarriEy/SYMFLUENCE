@@ -156,7 +156,7 @@ SETTINGS_SUMMA_PATH: "default"
 
 # Routing model (optional, recommended for spatial models)
 # ROUTING_MODEL: "mizuRoute"
-# INSTALL_PATH_MIZUROUTE: "/path/to/mizuroute"
+# MIZUROUTE_INSTALL_PATH: "/path/to/mizuroute"
 
 
 ## ============================================================================

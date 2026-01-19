@@ -16,6 +16,7 @@ from typing import Dict, Any, Optional, List
 from ..base import BaseModelRunner
 from ..execution import ModelExecutor
 from ..registry import ModelRegistry
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
 
 @ModelRegistry.register_runner('MESH', method_name='run_mesh')
@@ -104,16 +105,17 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
         Returns:
             Optional[Path]: Path to the output directory if successful, None otherwise.
 
-        Raises:
-            Exception: Re-raised if a non-subprocess error occurs.
-
         Note:
             MESH executable is temporarily copied to the forcing directory for
             execution and removed after successful completion.
         """
         self.logger.info("Starting MESH model run")
 
-        try:
+        with symfluence_error_handler(
+            "MESH model execution",
+            self.logger,
+            error_type=ModelExecutionError
+        ):
             # Create run command
             cmd = self._create_run_command()
 
@@ -160,13 +162,6 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
                          for line in last_lines:
                              self.logger.error(f"  {line.strip()}")
                 return None
-
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"MESH execution failed: {str(e)}")
-            return None
-        except Exception as e:
-            self.logger.error(f"Error running MESH: {str(e)}")
-            raise
 
     def _create_run_command(self) -> List[str]:
         """

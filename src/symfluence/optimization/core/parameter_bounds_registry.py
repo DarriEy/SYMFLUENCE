@@ -309,6 +309,33 @@ class ParameterBoundsRegistry:
         'Albedo_diff': ParameterInfo(0.001, 1.0, '-', 'Albedo diffusion coefficient', 'snow'),
     }
 
+    # ========================================================================
+    # HBV-96 PARAMETERS
+    # ========================================================================
+    HBV_PARAMS: Dict[str, ParameterInfo] = {
+        # Snow parameters
+        'tt': ParameterInfo(-3.0, 3.0, '°C', 'Threshold temperature for snow/rain', 'snow'),
+        'cfmax': ParameterInfo(1.0, 10.0, 'mm/°C/day', 'Degree-day factor for snowmelt', 'snow'),
+        'sfcf': ParameterInfo(0.5, 1.5, '-', 'Snowfall correction factor', 'snow'),
+        'cfr': ParameterInfo(0.0, 0.1, '-', 'Refreezing coefficient', 'snow'),
+        'cwh': ParameterInfo(0.0, 0.2, '-', 'Snow water holding capacity', 'snow'),
+
+        # Soil parameters
+        'fc': ParameterInfo(50.0, 700.0, 'mm', 'Field capacity / max soil moisture', 'soil'),
+        'lp': ParameterInfo(0.3, 1.0, '-', 'ET reduction threshold (fraction of FC)', 'soil'),
+        'beta': ParameterInfo(1.0, 6.0, '-', 'Shape coefficient for soil routine', 'soil'),
+
+        # Response/baseflow parameters
+        'k0': ParameterInfo(0.05, 0.99, '1/day', 'Fast recession coefficient', 'baseflow'),
+        'k1': ParameterInfo(0.01, 0.5, '1/day', 'Slow recession coefficient', 'baseflow'),
+        'k2': ParameterInfo(0.0001, 0.1, '1/day', 'Baseflow recession coefficient', 'baseflow'),
+        'uzl': ParameterInfo(0.0, 100.0, 'mm', 'Upper zone threshold for fast flow', 'baseflow'),
+        'perc': ParameterInfo(0.0, 10.0, 'mm/day', 'Maximum percolation rate', 'baseflow'),
+
+        # Routing parameters
+        'maxbas': ParameterInfo(1.0, 7.0, 'days', 'Triangular routing function length', 'routing'),
+    }
+
     def __init__(self):
         """Initialize registry with all parameter categories combined."""
         self._all_params: Dict[str, ParameterInfo] = {}
@@ -322,6 +349,7 @@ class ParameterBoundsRegistry:
         self._all_params.update(self.MESH_PARAMS)
         self._all_params.update(self.RHESSYS_PARAMS)
         self._all_params.update(self.GR_PARAMS)
+        self._all_params.update(self.HBV_PARAMS)
 
     def get_bounds(self, param_name: str) -> Optional[Dict[str, float]]:
         """
@@ -577,3 +605,23 @@ def get_rhessys_bounds() -> Dict[str, Dict[str, float]]:
         'n_routing_power',
     ]
     return get_registry().get_bounds_for_params(rhessys_params)
+
+
+def get_hbv_bounds() -> Dict[str, Dict[str, float]]:
+    """
+    Get all HBV-96 parameter bounds.
+
+    Returns:
+        Dictionary mapping HBV param_name -> {'min': float, 'max': float}
+    """
+    hbv_params = [
+        # Snow
+        'tt', 'cfmax', 'sfcf', 'cfr', 'cwh',
+        # Soil
+        'fc', 'lp', 'beta',
+        # Response/baseflow
+        'k0', 'k1', 'k2', 'uzl', 'perc',
+        # Routing
+        'maxbas',
+    ]
+    return get_registry().get_bounds_for_params(hbv_params)

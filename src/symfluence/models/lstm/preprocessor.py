@@ -5,31 +5,51 @@ Handles data loading, cleaning, normalization, and tensor conversion for the LST
 """
 
 import glob
+import logging
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional, List
+from typing import Dict, Any, Tuple, Optional, List, Union, TYPE_CHECKING
 import pandas as pd
 import numpy as np
 import xarray as xr
 import torch
 from sklearn.preprocessing import StandardScaler
 
-class LSTMPreprocessor:
+from symfluence.models.base import BaseModelPreProcessor
+from symfluence.models.registry import ModelRegistry
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
+
+@ModelRegistry.register_preprocessor('LSTM')
+class LSTMPreprocessor(BaseModelPreProcessor):
     """
     Handles data preprocessing for the LSTM model.
 
+    Extends BaseModelPreProcessor to provide standard path resolution and
+    configuration access while adding ML-specific functionality like data
+    scaling and sequence creation.
+
     Attributes:
-        config (Dict[str, Any]): Configuration dictionary.
-        logger (Any): Logger instance.
-        project_dir (Path): Project directory path.
-        lookback (int): Number of time steps to look back.
-        device (torch.device): Device to use for tensors.
-        feature_scaler (StandardScaler): Scaler for input features.
-        target_scaler (StandardScaler): Scaler for target variables.
-        output_size (int): Number of output variables.
-        target_names (List[str]): Names of target variables.
+        config: SymfluenceConfig instance or dict
+        logger: Logger instance
+        project_dir: Path to project directory
+        lookback: Number of time steps to look back
+        device: PyTorch device for tensor allocation
+        feature_scaler: StandardScaler for input features
+        target_scaler: StandardScaler for target variables
+        output_size: Number of output variables
+        target_names: Names of target variables
+        spatial_mode: 'lumped' or 'distributed' based on domain method
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any, project_dir: Path, device: torch.device):
+    def __init__(
+        self,
+        config: Union['SymfluenceConfig', Dict[str, Any]],
+        logger: logging.Logger,
+        project_dir: Optional[Path] = None,
+        device: Optional[torch.device] = None
+    ):
         """
         Initialize the LSTM preprocessor.
 
@@ -37,35 +57,64 @@ class LSTMPreprocessor:
         mode detection for distributed vs lumped operation.
 
         Args:
-            config: Configuration dictionary containing LSTM hyperparameters
-                (lookback window, use_snow flag) and domain settings.
+            config: SymfluenceConfig instance or configuration dictionary
+                containing LSTM hyperparameters (lookback window, use_snow flag)
+                and domain settings.
             logger: Logger instance for status messages.
-            project_dir: Path to project directory containing forcing,
-                observations, and model subdirectories.
-            device: PyTorch device for tensor allocation (CPU or CUDA).
+            project_dir: Optional path to project directory. If provided,
+                overrides the path derived from config. Kept for backward
+                compatibility with existing callers.
+            device: Optional PyTorch device for tensor allocation (CPU or CUDA).
+                Defaults to CPU if not provided.
 
         Note:
             The lookback window determines how many historical timesteps
             the LSTM uses for each prediction. Default is 30 timesteps.
         """
-        self.config = config
-        self.config_dict = config # Alias for compatibility
-        self.logger = logger
-        self.project_dir = project_dir
-        self.device = device
-        self.lookback = config.get('LSTM_LOOKBACK', config.get('FLASH_LOOKBACK', 30))
+        # Call parent init for path resolution and config access
+        super().__init__(config, logger)
 
-        # Determine spatial mode
-        domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
-        if domain_method == 'delineate':
-            self.spatial_mode = 'distributed'
-        else:
-            self.spatial_mode = 'lumped'
+        # Override project_dir if explicitly provided (backward compatibility)
+        if project_dir is not None:
+            self.project_dir = project_dir
 
+        # ML-specific setup
+        self.device = device if device is not None else torch.device('cpu')
+        self.lookback = self.config_dict.get('LSTM_LOOKBACK', self.config_dict.get('FLASH_LOOKBACK', 30))
+
+        # Use inherited domain_definition_method from mixin
+        self.spatial_mode = 'distributed' if self.domain_definition_method == 'delineate' else 'lumped'
+
+        # Scalers for normalization
         self.feature_scaler = StandardScaler()
         self.target_scaler = StandardScaler()
         self.output_size = 1
         self.target_names = ['streamflow']
+
+    def _get_model_name(self) -> str:
+        """Return the model name."""
+        return "LSTM"
+
+    def run_preprocessing(self) -> bool:
+        """
+        Run LSTM preprocessing.
+
+        For ML models, data loading happens during training, so this method
+        just logs the status and returns success.
+
+        Returns:
+            True indicating preprocessing is ready
+        """
+        self.logger.info("LSTM preprocessing - data loaded during training")
+        return True
+
+    def _prepare_forcing(self) -> None:
+        """No-op for ML models - forcing handled in load_data()."""
+        pass
+
+    def _create_model_configs(self) -> None:
+        """No-op for ML models - no config files needed."""
+        pass
 
     def load_data(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """

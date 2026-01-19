@@ -19,7 +19,7 @@ import rasterio.mask
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
 from ..mixins import OutputConverterMixin
-from ..execution import ModelExecutor, SpatialOrchestrator
+from ..execution import UnifiedModelExecutor
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
@@ -43,7 +43,7 @@ except Exception:
 
 
 @ModelRegistry.register_runner('GR', method_name='run_gr')
-class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConverterMixin, MizuRouteConfigMixin):
+class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, MizuRouteConfigMixin):
     """
     Runner class for the GR family of models (initially GR4J).
     Handles model execution, state management, and output processing.

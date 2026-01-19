@@ -43,7 +43,6 @@ def _ensure_thread_safety():
     This function must be called before any EASYMORE operations to prevent
     segmentation faults caused by HDF5 library thread-safety issues.
     """
-    import os
 
     # Ensure HDF5 file locking is disabled (critical for thread safety)
     os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'

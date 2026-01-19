@@ -7,6 +7,7 @@ Provides shared infrastructure for all model execution modules including:
 - Directory creation for outputs and logs
 - Common experiment structure
 - Settings file backup utilities
+- Spatial mode validation (Phase 3)
 """
 
 from abc import ABC, abstractmethod
@@ -18,12 +19,17 @@ import os
 
 from symfluence.core.path_resolver import PathResolverMixin
 from symfluence.core.mixins import ShapefileAccessMixin
+from symfluence.models.mixins import ModelComponentMixin
+from symfluence.models.spatial_modes import (
+    get_spatial_mode_from_config,
+    validate_spatial_mode
+)
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 
-class BaseModelRunner(ABC, PathResolverMixin, ShapefileAccessMixin):
+class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAccessMixin):
     """
     Abstract base class for all model runners.
 
@@ -109,37 +115,22 @@ class BaseModelRunner(ABC, PathResolverMixin, ShapefileAccessMixin):
         Raises:
             ConfigurationError: If required configuration keys are missing
         """
-        # Import here to avoid circular imports at module level
-        from symfluence.core.config.models import SymfluenceConfig
+        # Common initialization via mixin
+        self._init_model_component(config, logger, reporting_manager)
 
-        # Auto-convert dict to typed config for backward compatibility
-        if isinstance(config, dict):
-            self._config = SymfluenceConfig(**config)
-        else:
-            self._config = config
-
-        self.logger = logger
-        self.reporting_manager = reporting_manager
-
-        # Validate required configuration keys
-        self._validate_required_config()
-
-        # Base paths - direct typed access
-        self.data_dir = self.config.system.data_dir
+        # Runner-specific: code_dir handling
         self.code_dir = self._get_config_value(
             lambda: self.config.system.code_dir,
             default=None
         )
         if self.code_dir:
             self.code_dir = Path(self.code_dir)
-        self.domain_name = self.config.domain.name
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-
-        # Model-specific initialization
-        self.model_name = self._get_model_name()
 
         # Allow subclasses to perform custom setup before output dir creation
         self._setup_model_specific_paths()
+
+        # Validate spatial mode compatibility (Phase 3)
+        self._validate_spatial_mode()
 
         # Create output directory if configured to do so
         if self._should_create_output_dir():
@@ -202,6 +193,57 @@ class BaseModelRunner(ABC, PathResolverMixin, ShapefileAccessMixin):
             required_keys,
             f"{self._get_model_name()} runner initialization"
         )
+
+    def _validate_spatial_mode(self) -> None:
+        """
+        Validate spatial mode compatibility for this model.
+
+        Called during initialization to ensure the model supports the configured
+        spatial mode and that routing is properly configured if required.
+
+        Phase 3 Addition: Centralized spatial mode validation across all models.
+
+        Logs warnings for suboptimal configurations but does not raise exceptions
+        by default to maintain backward compatibility.
+        """
+        try:
+            # Get current spatial mode from config
+            spatial_mode = get_spatial_mode_from_config(self.config_dict)
+
+            # Check if routing is configured
+            routing_model = self.config_dict.get('ROUTING_MODEL', 'none')
+            has_routing = routing_model and routing_model.lower() not in ('none', 'default', '')
+
+            # Validate against model capabilities
+            is_valid, message = validate_spatial_mode(
+                self.model_name,
+                spatial_mode,
+                has_routing_configured=has_routing
+            )
+
+            if message:
+                if is_valid:
+                    # It's a warning, not an error
+                    self.logger.warning(f"Spatial mode validation: {message}")
+                else:
+                    # Configuration is invalid
+                    self.logger.error(f"Spatial mode validation error: {message}")
+                    # Don't raise to maintain backward compatibility
+                    # Subclasses can override to raise if needed
+
+        except Exception as e:
+            # Don't let validation failures prevent model initialization
+            self.logger.debug(f"Spatial mode validation skipped: {e}")
+
+    def _has_routing_configured(self) -> bool:
+        """
+        Check if a routing model is configured.
+
+        Returns:
+            True if routing model is configured, False otherwise
+        """
+        routing_model = self.config_dict.get('ROUTING_MODEL', 'none')
+        return routing_model and routing_model.lower() not in ('none', 'default', '')
 
     @abstractmethod
     def _get_model_name(self) -> str:
@@ -392,7 +434,8 @@ class BaseModelRunner(ABC, PathResolverMixin, ShapefileAccessMixin):
         default_exe_name: Optional[str] = None,
         typed_exe_accessor: Optional[Any] = None,
         relative_to: str = 'data_dir',
-        must_exist: bool = False
+        must_exist: bool = False,
+        candidates: Optional[List[str]] = None
     ) -> Path:
         """
         Resolve complete model executable path (install dir + exe name).
@@ -410,6 +453,10 @@ class BaseModelRunner(ABC, PathResolverMixin, ShapefileAccessMixin):
             typed_exe_accessor: Optional lambda for typed config exe name
             relative_to: Base directory ('data_dir' or 'project_dir')
             must_exist: If True, raise FileNotFoundError if executable doesn't exist
+            candidates: Optional list of subdirectory candidates to try.
+                        The method tries each candidate in order and returns
+                        the first existing path. Use '' for the root install dir.
+                        e.g., ['', 'cmake_build', 'bin'] for NGEN
 
         Returns:
             Complete path to model executable
@@ -434,6 +481,15 @@ class BaseModelRunner(ABC, PathResolverMixin, ShapefileAccessMixin):
             ...     'sa_mesh',
             ...     typed_exe_accessor=lambda: self.config.model.mesh.exe if self.config.model.mesh else None
             ... )
+
+            >>> # With candidates (search multiple subdirectories)
+            >>> self.ngen_exe = self.get_model_executable(
+            ...     'NGEN_INSTALL_PATH',
+            ...     'installs/ngen',
+            ...     default_exe_name='ngen',
+            ...     candidates=['', 'cmake_build', 'bin'],
+            ...     must_exist=True
+            ... )
         """
         # Get installation directory
         install_dir = self.get_install_path(
@@ -451,16 +507,42 @@ class BaseModelRunner(ABC, PathResolverMixin, ShapefileAccessMixin):
         else:
             exe_name = default_exe_name
 
-        # Combine into full path
-        exe_path = install_dir / exe_name
+        # Handle candidates: try each subdirectory in order
+        if candidates:
+            for candidate in candidates:
+                if candidate:
+                    candidate_path = install_dir / candidate / exe_name
+                else:
+                    candidate_path = install_dir / exe_name
+
+                if candidate_path.exists():
+                    self.logger.debug(f"Found executable at: {candidate_path}")
+                    return candidate_path
+
+            # No candidate found - use first candidate (or root) as default path for error message
+            exe_path = install_dir / (candidates[0] if candidates[0] else '') / exe_name
+        else:
+            # Standard behavior - combine into full path
+            exe_path = install_dir / exe_name
 
         # Optional validation
         if must_exist and not exe_path.exists():
-            raise FileNotFoundError(
-                f"Model executable not found: {exe_path}\n"
-                f"Install path key: {install_path_key}\n"
-                f"Exe name key: {exe_name_key}"
-            )
+            if candidates:
+                searched_paths = [
+                    str(install_dir / (c if c else '') / exe_name)
+                    for c in candidates
+                ]
+                raise FileNotFoundError(
+                    f"Model executable not found in any candidate location.\n"
+                    f"Searched paths:\n  " + "\n  ".join(searched_paths) + "\n"
+                    f"Install path key: {install_path_key}"
+                )
+            else:
+                raise FileNotFoundError(
+                    f"Model executable not found: {exe_path}\n"
+                    f"Install path key: {install_path_key}\n"
+                    f"Exe name key: {exe_name_key}"
+                )
 
         return exe_path
 

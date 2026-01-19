@@ -38,36 +38,15 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
         else:
             self.ngen_setup_dir = self.project_dir / "settings" / "NGEN"
 
-        # Determine absolute ngen base directory
-        install_path = self.config_dict.get('NGEN_INSTALL_PATH', 'default')
-        if install_path == 'default':
-            ngen_base = self.data_dir.parent / 'installs' / 'ngen'
-        else:
-            p = Path(install_path)
-            if p.name == 'cmake_build': ngen_base = p.parent
-            else: ngen_base = p
-
-        # Try both root/ngen, root/cmake_build/ngen, root/bin/ngen
-        candidates = [
-            ngen_base / "ngen",
-            ngen_base / "cmake_build" / "ngen",
-            ngen_base / "bin" / "ngen"
-        ]
-
-        self.ngen_exe = None
-        for cand in candidates:
-            if cand.exists():
-                self.ngen_exe = cand
-                break
-
-        if self.ngen_exe is None:
-            # Fallback to get_model_executable if none found
-            self.ngen_exe = self.get_model_executable(
-                install_path_key='NGEN_INSTALL_PATH',
-                default_install_subpath='installs/ngen/cmake_build',
-                exe_name_key=None,
-                default_exe_name='ngen'
-            )
+        # Use enhanced get_model_executable with candidates for multi-location search
+        # Search order: root, cmake_build, bin subdirectories
+        self.ngen_exe = self.get_model_executable(
+            install_path_key='NGEN_INSTALL_PATH',
+            default_install_subpath='installs/ngen',
+            default_exe_name='ngen',
+            candidates=['', 'cmake_build', 'bin'],
+            must_exist=True
+        )
 
     def _get_model_name(self) -> str:
         """Return model name for NextGen."""
@@ -159,10 +138,22 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                 # Setup environment for NGEN execution
                 env = os.environ.copy()
 
-                # Remove PYTHONPATH to avoid version mismatches
-                # NGEN is linked to the Homebrew Python, not the venv
+                # Remove Python environment variables to avoid version mismatches
+                # NGEN is linked to the system/Homebrew Python, not the venv
+                # NumPy version mismatch between build and runtime causes SIGABRT
                 env.pop('PYTHONPATH', None)
                 env.pop('PYTHONHOME', None)
+                env.pop('VIRTUAL_ENV', None)
+
+                # Remove virtual environment from PATH so NGEN finds system Python
+                # This prevents NumPy version mismatch errors
+                if 'PATH' in env:
+                    path_parts = env['PATH'].split(':')
+                    # Filter out venv bin directories
+                    filtered_parts = [p for p in path_parts if '/venv' not in p.lower()
+                                      and '/.venv' not in p.lower()
+                                      and '/envs/' not in p.lower()]
+                    env['PATH'] = ':'.join(filtered_parts)
 
                 # Ensure library paths are set for BMI modules
                 # This is especially important for MPI/multiprocessing workers
@@ -443,6 +434,8 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
         Returns:
             True if routing succeeded, False otherwise
         """
+        import json
+
         try:
             # Check if ngen_routing is available
             from ngen_routing.ngen_main import ngen_main
@@ -454,7 +447,27 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
         troute_config = self.ngen_setup_dir / "troute_config.yaml"
         if not troute_config.exists():
             self.logger.warning(f"T-Route config not found: {troute_config}. Skipping routing.")
+            self.logger.info("Run NGEN preprocessing to generate troute_config.yaml")
             return False
+
+        # Check if this is a lumped domain (single nexus) - routing is optional
+        nexus_file = self.ngen_setup_dir / "nexus.geojson"
+        is_lumped = False
+        if nexus_file.exists():
+            try:
+                with open(nexus_file, 'r') as f:
+                    nexus_data = json.load(f)
+                num_nexuses = len(nexus_data.get('features', []))
+                if num_nexuses == 1:
+                    is_lumped = True
+                    self.logger.info("Lumped domain detected (single nexus). Nexus output is equivalent to routed flow.")
+            except Exception:
+                pass
+
+        # For lumped domains, we can skip routing and use nexus output directly
+        if is_lumped:
+            self.logger.info("Skipping t-route for lumped domain - nex-*.csv output is already at the outlet.")
+            return True  # Return True since flow is already at outlet
 
         # Create troute output directory
         troute_output_dir = output_dir / "troute_output"

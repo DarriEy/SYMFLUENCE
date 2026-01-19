@@ -1,12 +1,12 @@
-
 """
 GNN Model Preprocessor.
 
 Handles data loading and graph structure construction for the GNN model.
 """
 
+import logging
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional, List
+from typing import Dict, Any, Tuple, Optional, List, Union, TYPE_CHECKING
 import pandas as pd
 import numpy as np
 import torch
@@ -14,6 +14,10 @@ import geopandas as gpd
 
 # Import LSTM Preprocessor to inherit/reuse data loading logic
 from ..lstm.preprocessor import LSTMPreprocessor
+
+if TYPE_CHECKING:
+    from symfluence.core.config.models import SymfluenceConfig
+
 
 class GNNPreprocessor(LSTMPreprocessor):
     """
@@ -29,16 +33,25 @@ class GNNPreprocessor(LSTMPreprocessor):
     4. Identifies outlet nodes for target assignment
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any, project_dir: Path, device: torch.device):
+    def __init__(
+        self,
+        config: Union['SymfluenceConfig', Dict[str, Any]],
+        logger: logging.Logger,
+        project_dir: Optional[Path] = None,
+        device: Optional[torch.device] = None
+    ):
         """
         Initialize the GNN preprocessor.
 
         Args:
-            config: Configuration dictionary containing GNN model settings,
-                lookback window, and feature scaling parameters.
+            config: SymfluenceConfig instance or configuration dictionary
+                containing GNN model settings, lookback window, and feature
+                scaling parameters.
             logger: Logger instance for status messages.
-            project_dir: Path to project directory containing shapefiles.
-            device: PyTorch device for tensor allocation (CPU or CUDA).
+            project_dir: Optional path to project directory containing shapefiles.
+                If provided, overrides the path derived from config.
+            device: Optional PyTorch device for tensor allocation (CPU or CUDA).
+                Defaults to CPU if not provided.
 
         Note:
             Graph structure is loaded lazily on first call to load_graph_structure()
@@ -46,11 +59,15 @@ class GNNPreprocessor(LSTMPreprocessor):
         """
         super().__init__(config, logger, project_dir, device)
         self.adj_matrix: Optional[torch.Tensor] = None
-        self.node_mapping: Dict[int, int] = {} # LINKNO -> Index
-        self.hru_to_node: Dict[Any, int] = {} # HRU_ID -> Index
+        self.node_mapping: Dict[int, int] = {}  # LINKNO -> Index
+        self.hru_to_node: Dict[Any, int] = {}  # HRU_ID -> Index
         self.ordered_hru_ids: List[Any] = []
         self.outlet_indices: List[int] = []
         self.outlet_hru_ids: List[Any] = []
+
+    def _get_model_name(self) -> str:
+        """Return the model name."""
+        return "GNN"
 
     def load_graph_structure(self) -> torch.Tensor:
         """

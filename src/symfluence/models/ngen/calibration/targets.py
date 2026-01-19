@@ -282,7 +282,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             combined.name = 'basin_total'
             return combined.sort_index()
 
-    def calculate_metrics(self, sim: Any, obs: Optional[pd.Series] = None,
+    def calculate_metrics(self, sim: Optional[Any] = None, obs: Optional[pd.Series] = None,
                          mizuroute_dir: Optional[Path] = None,
                          calibration_only: bool = True, **kwargs) -> Optional[Dict[str, float]]:
         """
