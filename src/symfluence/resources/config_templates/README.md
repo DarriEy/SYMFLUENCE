@@ -7,14 +7,15 @@ Choose the appropriate template based on your use case.
 
 ```
 config_templates/
-├── config_template_comprehensive.yaml   # Reference: ALL options documented
-├── config_template.yaml                 # Standard: Common options with docs
-├── config_quickstart_minimal.yaml       # Quickstart: Flat key style
-├── config_quickstart_minimal_nested.yaml # Quickstart: Nested style
-├── camelsspat_template.yaml             # CAMELS-SPAT dataset preset
-├── fluxnet_template.yaml                # FLUXNET dataset preset
-├── norswe_template.yaml                 # NorSWE dataset preset
-└── examples/                            # Tutorial-specific configs
+├── config_template_comprehensive.yaml        # Reference: ALL options (flat style)
+├── config_template_comprehensive_nested.yaml # Reference: ALL options (nested style)
+├── config_template.yaml                      # Standard: Common options with docs
+├── config_quickstart_minimal.yaml            # Quickstart: Flat key style
+├── config_quickstart_minimal_nested.yaml     # Quickstart: Nested style
+├── camelsspat_template.yaml                  # CAMELS-SPAT dataset preset
+├── fluxnet_template.yaml                     # FLUXNET dataset preset
+├── norswe_template.yaml                      # NorSWE dataset preset
+└── examples/                                 # Tutorial-specific configs
 ```
 
 ## Which Template Should I Use?
@@ -29,12 +30,23 @@ config_templates/
 
 ### Reference and Documentation
 
-| Template | Use When |
-|----------|----------|
-| `config_template_comprehensive.yaml` | Looking up ALL available options with full documentation |
+| Template | Style | Use When |
+|----------|-------|----------|
+| `config_template_comprehensive.yaml` | Flat | Looking up ALL options with UPPERCASE keys |
+| `config_template_comprehensive_nested.yaml` | Nested | Looking up ALL options organized by hydrological workflow |
 
-This is the **authoritative reference** - every configuration option is documented here
-with type hints, defaults, and descriptions.
+These are the **authoritative references** - every configuration option is documented
+with type hints, defaults, and descriptions. The nested version follows hydrological
+modeling best practices:
+
+1. **System** - Infrastructure (paths, logging, execution)
+2. **Domain** - Watershed definition (extent, timing, discretization)
+3. **Data** - Geospatial inputs (DEM, soils, landcover)
+4. **Forcing** - Meteorological drivers (ERA5, RDRS, etc.)
+5. **Model** - Process representation (SUMMA, FUSE, GR, etc.)
+6. **Optimization** - Parameter calibration (PSO, DE, DDS, etc.)
+7. **Evaluation** - Model assessment (streamflow, snow, ET, etc.)
+8. **Paths** - File/directory locations
 
 ### Dataset-Specific Presets
 

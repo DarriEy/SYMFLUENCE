@@ -10,6 +10,35 @@ import os
 import sys
 import tempfile
 
+# ============================================================================
+# GDAL exception mode configuration
+# Must be set BEFORE any GDAL operations to avoid FutureWarning about
+# exception mode in GDAL 4.0
+# ============================================================================
+try:
+    from osgeo import gdal
+    gdal.UseExceptions()
+except ImportError:
+    pass  # GDAL not installed
+
+# ============================================================================
+# CRITICAL: HDF5/netCDF4 thread safety fix
+# Must be set BEFORE any HDF5/netCDF4/xarray imports occur.
+# The netCDF4/HDF5 libraries are not thread-safe by default, and tqdm's
+# background monitor thread can cause segmentation faults when running
+# concurrently with netCDF file operations.
+# ============================================================================
+os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
+
+# Disable tqdm monitor thread to prevent segfaults with netCDF4/HDF5
+# This must be done before tqdm is imported anywhere
+import tqdm
+tqdm.tqdm.monitor_interval = 0
+# Also disable the existing monitor if already started
+if tqdm.tqdm.monitor is not None:
+    tqdm.tqdm.monitor.exit()
+    tqdm.tqdm.monitor = None
+
 import pytest
 
 os.environ.setdefault("MPLBACKEND", "Agg")
@@ -82,6 +111,7 @@ pytest_plugins = [
     "fixtures.data_fixtures",
     "fixtures.domain_fixtures",
     "fixtures.model_fixtures",
+    "fixtures.real_data_fixtures",
 ]
 
 def pytest_addoption(parser):
@@ -231,3 +261,22 @@ def forcing_cache_manager(symfluence_data_root):
     print("=" * 40)
 
     return cache
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """
+    Clean up rpy2 embedded R to prevent logging errors on shutdown.
+
+    rpy2 tries to log "Embedded R ended." when shutting down, but by that point
+    the logging streams may be closed, causing a ValueError. We suppress the
+    rpy2 logger before pytest fully exits.
+    """
+    import logging
+
+    # Suppress rpy2 logging to avoid "I/O operation on closed file" errors
+    rpy2_logger = logging.getLogger('rpy2')
+    rpy2_logger.setLevel(logging.CRITICAL + 1)  # Effectively disable all logging
+
+    # Also suppress the embedded R interface logger
+    rpy2_embedded_logger = logging.getLogger('rpy2.rinterface_lib.embedded')
+    rpy2_embedded_logger.setLevel(logging.CRITICAL + 1)

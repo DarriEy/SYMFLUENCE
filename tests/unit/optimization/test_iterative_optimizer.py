@@ -90,6 +90,12 @@ def mock_optimizer_base():
         self.model_executor = MagicMock()
         self.results_manager = MagicMock()
 
+        # Mock error logger
+        self.error_logger = MagicMock()
+        self.error_logger.mode = 'none'
+        self.error_logger.stop_on_failure = False
+        self.error_logger.get_summary.return_value = {'failure_count': 0}
+
         self.max_iterations = config.get('NUMBER_OF_ITERATIONS', 100)
         self.target_metric = config.get('OPTIMIZATION_METRIC', 'KGE')
         self.best_params = None

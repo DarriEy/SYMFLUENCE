@@ -84,7 +84,7 @@ class SUMMAWorker(BaseWorker):
         """
         try:
             # Import existing function
-            from symfluence.optimization.workers.summa_parallel_workers import _apply_parameters_worker
+            from symfluence.optimization.workers.summa import _apply_parameters_worker
 
             # Build task_data for legacy function, propagating all kwargs
             task_data = kwargs.get('task_data', {}).copy() if kwargs.get('task_data') else kwargs.copy()
@@ -179,7 +179,7 @@ class SUMMAWorker(BaseWorker):
         """
         try:
             # Import existing functions
-            from symfluence.optimization.workers.summa_parallel_workers import _run_summa_worker, _run_mizuroute_worker
+            from symfluence.optimization.workers.summa import _run_summa_worker, _run_mizuroute_worker
 
             summa_exe = Path(config.get('SUMMA_INSTALL_PATH', 'default'))
             if str(summa_exe) == 'default':
@@ -217,15 +217,19 @@ class SUMMAWorker(BaseWorker):
 
             # Run routing if needed
             if self.needs_routing(config):
-                mizuroute_dir = sim_dir / 'mizuRoute' if sim_dir else output_dir / 'mizuRoute'
+                # mizuRoute output should be alongside SUMMA, not inside it
+                # e.g., /run_1/mizuRoute not /run_1/SUMMA/mizuRoute
+                mizuroute_dir = sim_dir.parent / 'mizuRoute' if sim_dir else output_dir.parent / 'mizuRoute'
                 mizuroute_dir.mkdir(parents=True, exist_ok=True)
 
                 # Propagate all kwargs into task_data for legacy compatibility
                 task_data = kwargs.copy()
+                mizuroute_settings_dir = settings_dir.parent / 'mizuRoute'
                 task_data.update({
                     'config': config,
                     'summa_dir': str(summa_dir),
                     'mizuroute_dir': str(mizuroute_dir),
+                    'mizuroute_settings_dir': str(mizuroute_settings_dir),
                 })
 
                 routing_success = _run_mizuroute_worker(
@@ -233,8 +237,9 @@ class SUMMAWorker(BaseWorker):
                 )
 
                 if not routing_success:
-                    self.logger.warning("Routing failed, but SUMMA succeeded")
-                    # Continue - routing failure may be acceptable for some workflows
+                    # Routing is required for non-lumped domains - this is a failure
+                    self.logger.error("Routing failed for semi-distributed/distributed domain - cannot calculate streamflow metrics")
+                    return False
 
             return True
 
@@ -311,7 +316,7 @@ class SUMMAWorker(BaseWorker):
         """
         try:
             # Import existing function
-            from symfluence.optimization.workers.summa_parallel_workers import _calculate_metrics_with_target
+            from symfluence.optimization.workers.summa import _calculate_metrics_with_target
 
             # Resolve mizuroute_dir if needed
             mizuroute_dir = kwargs.get('mizuroute_dir')
@@ -436,7 +441,7 @@ class SUMMAWorker(BaseWorker):
         """
         try:
             # Use existing safe wrapper for full functionality
-            from symfluence.optimization.workers.summa_parallel_workers import _evaluate_parameters_worker_safe
+            from symfluence.optimization.workers.summa import _evaluate_parameters_worker_safe
             return _evaluate_parameters_worker_safe(task_data)
 
         except ImportError:

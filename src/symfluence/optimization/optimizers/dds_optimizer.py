@@ -238,7 +238,7 @@ class DDSOptimizer(BaseOptimizer):
             dds_tasks.append(task)
 
         from concurrent.futures import ProcessPoolExecutor, as_completed, BrokenProcessPool
-        from symfluence.optimization.workers.summa_parallel_workers import _run_dds_instance_worker
+        from symfluence.optimization.workers.summa import _run_dds_instance_worker
 
         results = []
         try:

@@ -131,6 +131,24 @@ def mock_forcing_data(setup_test_directories, base_config):
     }
 
 
+@pytest.fixture(scope="session")
+def forcing_data_dir(bow_test_data):
+    """Real forcing data directory from test data."""
+    return bow_test_data / "forcing" / "raw_data"
+
+
+@pytest.fixture(scope="session")
+def attribute_data_dir(bow_test_data):
+    """Real attribute data directory from test data."""
+    return bow_test_data / "attributes"
+
+
+@pytest.fixture(scope="session")
+def observation_data_dir(bow_test_data):
+    """Real observation data directory from test data."""
+    return bow_test_data / "observations"
+
+
 @pytest.fixture
 def mock_shapefile_data(setup_test_directories, base_config):
     """Create mock shapefile directory structure."""

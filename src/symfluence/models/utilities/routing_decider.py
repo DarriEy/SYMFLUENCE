@@ -118,7 +118,15 @@ class RoutingDecider:
             diagnostics['reason'] = 'routing_model_explicitly_none'
             return False, diagnostics
 
-        # If explicitly set to mizuroute, enable routing
+        # Check for point mode BEFORE enabling routing based on ROUTING_MODEL
+        # Point-scale simulations never need routing regardless of ROUTING_MODEL setting
+        domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped').lower()
+        if domain_method == 'point':
+            diagnostics['reason'] = 'point_scale_no_routing_needed'
+            diagnostics['checks']['domain_method'] = domain_method
+            return False, diagnostics
+
+        # If explicitly set to mizuroute, enable routing (for non-point domains)
         if routing_model in ['mizuroute', 'mizu_route', 'mizu']:
             diagnostics['reason'] = 'routing_model_is_mizuroute'
             return True, diagnostics
@@ -134,15 +142,15 @@ class RoutingDecider:
                 return True, diagnostics
 
         # 3. Spatial configuration check (The primary driver)
-        domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped').lower()
+        # Note: domain_method already extracted above for point check
         routing_delineation = config.get('ROUTING_DELINEATION', 'lumped').lower()
 
         diagnostics['checks']['domain_method'] = domain_method
         diagnostics['checks']['routing_delineation'] = routing_delineation
 
-        # If it's a lumped/point domain AND lumped routing, mizuRoute is NOT needed
-        # because the hydrological model already provides the basin-scale output.
-        if domain_method in ['point', 'lumped'] and routing_delineation == 'lumped':
+        # If it's a lumped domain AND lumped routing, mizuRoute is NOT needed
+        # (point mode already handled above)
+        if domain_method == 'lumped' and routing_delineation == 'lumped':
             diagnostics['reason'] = 'lumped_domain_with_lumped_routing'
             return False, diagnostics
 

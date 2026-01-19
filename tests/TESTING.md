@@ -4,6 +4,41 @@
 
 SYMFLUENCE uses a comprehensive testing strategy with multiple test levels to ensure code quality and functionality across all components.
 
+## Testing Philosophy
+
+### Real Data Over Mocks
+- **File I/O tests** use real data from `tests/data/domain_Bow_at_Banff/` (~5MB)
+- **Algorithm tests** may still use synthetic data or mocks for isolation
+- **Cloud API tests** remain mocked for network isolation
+
+### Test Tiers
+1. **Unit tests** - Fast, isolated function tests (may use real data fixtures)
+2. **Integration tests** - Module interaction tests using local Bow domain data
+3. **E2E tests** - Single validation test (`test_install_validate.py`) for binary validation, smoke tests, and calibration
+
+### Test Data Available
+```
+tests/data/domain_Bow_at_Banff/
+├── attributes/
+│   ├── elevation/dem/domain_Bow_at_Banff_elv.tif (3.4 MB)
+│   ├── landclass/domain_Bow_at_Banff_land_classes.tif (478 KB)
+│   └── soilclass/domain_Bow_at_Banff_soil_classes.tif (28 KB)
+├── forcing/raw_data/
+│   └── domain_Bow_at_Banff_ERA5_merged_200401.nc (737 KB, Jan 2004)
+└── observations/streamflow/preprocessed/
+    └── Bow_at_Banff_streamflow_processed.csv (253 KB, full 2004)
+```
+
+### Real Data Fixtures
+Available in `tests/fixtures/real_data_fixtures.py`:
+- `test_data_root` - Root directory for all test data
+- `bow_test_data` - Complete Bow at Banff test domain
+- `real_forcing_nc` - Real ERA5 forcing NetCDF
+- `real_dem_tif` - Real DEM GeoTIFF
+- `real_landclass_tif` - Real land classification GeoTIFF
+- `real_soilclass_tif` - Real soil classification GeoTIFF
+- `real_streamflow_csv` - Real streamflow observations
+
 ## CI Workflows
 
 ### 1. CI - Lint Only (`.github/workflows/ci.yml`)

@@ -6,6 +6,7 @@ This test runs a quick calibration demo for both Elliðaár and Fyris catchments
 using observational discharge data.
 """
 
+import platform
 import shutil
 
 import pytest
@@ -14,12 +15,18 @@ from pathlib import Path
 from symfluence import SYMFLUENCE
 
 
+# Skip tests on macOS ARM due to known HDF5/netCDF4 segfault issues with easymore
+_MACOS_ARM_SKIP = pytest.mark.skipif(
+    platform.system() == 'Darwin' and platform.machine() == 'arm64',
+    reason="Skipped on macOS ARM due to HDF5/netCDF4 segfault in easymore with CARRA data"
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.calibration, pytest.mark.requires_data, pytest.mark.slow]
 
 @pytest.mark.slow
 @pytest.mark.calibration
 @pytest.mark.requires_data
+@_MACOS_ARM_SKIP
 def test_ellioaar_calibration(ellioaar_domain):
     """Run calibration demo for Elliðaár, Iceland."""
     print("\n" + "="*80)
@@ -102,6 +109,7 @@ def test_ellioaar_calibration(ellioaar_domain):
 @pytest.mark.slow
 @pytest.mark.calibration
 @pytest.mark.requires_data
+@_MACOS_ARM_SKIP
 def test_fyris_calibration(fyris_domain):
     """Run calibration demo for Fyris, Uppsala."""
     print("\n" + "="*80)

@@ -474,10 +474,19 @@ SETTINGS_MIZU_NEEDS_REMAP: false
 SETTINGS_MIZU_OUTPUT_FREQ: "single"
 
 # SETTINGS_MIZU_OUTPUT_VARS
-#   Type:        int
+#   Description: mizuRoute routing scheme (route_opt). Controls how runoff is routed through the river network.
+#   Options:
+#     0 = accumRunoff   - Instantaneous upstream accumulation (no routing delays, NOT recommended for evaluation)
+#     1 = IRF-UH        - Impulse Response Function with Unit Hydrograph (RECOMMENDED for most applications)
+#     2 = IRF-KW        - IRF combined with Kinematic Wave
+#     3 = KW-IRF        - Kinematic Wave combined with IRF
+#     4 = MC-IRF        - Muskingum-Cunge combined with IRF
+#   Note: Option 1 (IRF-UH) produces 'IRFroutedRunoff' output variable which is used for model evaluation.
+#         Option 0 only produces 'sumUpstreamRunoff' which lacks proper routing delays.
+#   Type:        str
 #   Default:     1
 #   Source:      MizuRouteConfig (model_configs.py)
-#   Usage:      3
+#   Usage:       3
 SETTINGS_MIZU_OUTPUT_VARS: 1
 
 # SETTINGS_MIZU_PARAMETERS
@@ -503,10 +512,10 @@ SETTINGS_MIZU_REMAP: "routing_remap.nc"
 
 # SETTINGS_MIZU_ROUTING_DT
 #   Type:        int
-#   Default:     86400
+#   Default:     3600
 #   Source:      MizuRouteConfig (model_configs.py)
 #   Usage:      6
-SETTINGS_MIZU_ROUTING_DT: 86400
+SETTINGS_MIZU_ROUTING_DT: 3600
 
 # SETTINGS_MIZU_ROUTING_UNITS
 #   Type:        str
@@ -517,10 +526,10 @@ SETTINGS_MIZU_ROUTING_UNITS: "m/s"
 
 # SETTINGS_MIZU_ROUTING_VAR
 #   Type:        str
-#   Default:     q_routed
+#   Default:     averageRoutedRunoff
 #   Source:      MizuRouteConfig (model_configs.py)
 #   Usage:      15
-SETTINGS_MIZU_ROUTING_VAR: "q_routed"
+SETTINGS_MIZU_ROUTING_VAR: "averageRoutedRunoff"
 
 # SETTINGS_MIZU_TOPOLOGY
 #   Type:        str
@@ -1163,6 +1172,34 @@ CALIBRATION_VARIABLE: "streamflow"
 #   Usage:      1
 CLEANUP_PARALLEL_DIRS: true
 
+# ERROR_LOG_DIR
+#   Type:        str
+#   Default:     error_logs
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Directory for error logs during optimization
+ERROR_LOG_DIR: "error_logs"
+
+# ERROR_LOGGING_MODE
+#   Type:        str
+#   Default:     none
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Error logging mode: 'none', 'file', or 'database'
+ERROR_LOGGING_MODE: "none"
+
+# PARAMS_KEEP_TRIALS
+#   Type:        bool
+#   Default:     false
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Whether to keep trial parameter files after optimization
+PARAMS_KEEP_TRIALS: false
+
+# STOP_ON_MODEL_FAILURE
+#   Type:        bool
+#   Default:     false
+#   Source:      OptimizationConfig (optimization.py)
+#   Usage:      Whether to stop optimization on model failure
+STOP_ON_MODEL_FAILURE: false
+
 # FINAL_EVALUATION_NUMERICAL_METHOD
 #   Type:        str
 #   Default:     be
@@ -1585,9 +1622,52 @@ STREAMFLOW_STATION_ID: null
 # LAMAH_ICE_PATH
 #   Type:        str
 #   Default:     None
-#   Source:      DataConfig (data.py)
+#   Source:      LAMAHICEConfig (evaluation.py)
 #   Usage:      1
 LAMAH_ICE_PATH: null
+
+# LAMAH_ICE_STATION_ID
+#   Type:        str
+#   Default:     None
+#   Source:      LAMAHICEConfig (evaluation.py)
+#   Usage:      LamaH-Ice station identifier for Iceland basins
+LAMAH_ICE_STATION_ID: null
+
+# ========================================
+# SMHI (Swedish Meteorological and Hydrological Institute)
+# ========================================
+
+# SMHI_STATION_ID
+#   Type:        str
+#   Default:     None
+#   Source:      SMHIConfig (evaluation.py)
+#   Usage:      SMHI station identifier for Swedish streamflow data
+SMHI_STATION_ID: null
+
+# SMHI_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      SMHIConfig (evaluation.py)
+#   Usage:      Path to SMHI data directory
+SMHI_PATH: default
+
+# ========================================
+# Glacier Data (RGI)
+# ========================================
+
+# GLACIER_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      GlacierConfig (evaluation.py)
+#   Usage:      Path to glacier data directory
+GLACIER_PATH: default
+
+# GLACIER_SOURCE
+#   Type:        str
+#   Default:     RGI
+#   Source:      GlacierConfig (evaluation.py)
+#   Usage:      Glacier data source (e.g., RGI for Randolph Glacier Inventory)
+GLACIER_SOURCE: RGI
 
 # ========================================
 # ISMN (International Soil Moisture Network)

@@ -141,7 +141,7 @@ def fyris_domain(example_data_bundle):
 
 
 @pytest.fixture(scope="session")
-def bow_domain(example_data_bundle):
+def bow_domain(example_data_bundle, symfluence_code_dir):
     """
     Bow at Banff test domain (ERA5 forcing).
 
@@ -149,9 +149,19 @@ def bow_domain(example_data_bundle):
     Uses ERA5 (global reanalysis) forcing data.
     Includes streamflow observations.
 
+    Prefers local tests/data/ over downloaded bundle for faster tests.
+    Integration tests will run the full workflow to create shapefiles from raw data.
+
     Returns:
-        Path: Path to domain_bow_banff_minimal directory
+        Path: Path to domain directory
     """
+    # Prefer local test data (faster, no network required)
+    tests_dir = symfluence_code_dir / "tests"
+    local_data = tests_dir / "data" / "domain_Bow_at_Banff"
+    if local_data.exists():
+        return local_data
+
+    # Fallback to downloaded bundle for backwards compatibility
     domain_path = example_data_bundle / "domain_bow_banff_minimal"
     if not domain_path.exists():
         pytest.skip(f"Bow domain not found in {example_data_bundle}")

@@ -321,6 +321,23 @@ class SpatialOrchestrator(ABC):
         if not input_file.exists():
             raise FileNotFoundError(f"Input file not found: {input_file}")
 
+        # If input_file is a directory, find the actual output file
+        if input_file.is_dir():
+            self.logger.debug(f"Input is a directory, searching for output file in: {input_file}")
+            # Look for timestep or day output files (prefer timestep for higher temporal resolution)
+            candidates = list(input_file.glob("*_timestep.nc"))
+            if not candidates:
+                candidates = list(input_file.glob("*_day.nc"))
+            if not candidates:
+                candidates = list(input_file.glob("*.nc"))
+
+            if not candidates:
+                raise FileNotFoundError(f"No NetCDF output files found in directory: {input_file}")
+
+            # Use most recently modified file
+            input_file = max(candidates, key=lambda f: f.stat().st_mtime)
+            self.logger.info(f"Using output file: {input_file}")
+
         if routing_config is None:
             routing_config = RoutingConfig()
 
@@ -393,9 +410,9 @@ class SpatialOrchestrator(ABC):
         self.logger.debug(f"Using source variable: {source_var}")
 
         # Determine spatial dimension structure
-        lat_len = source_ds.dims.get('latitude', 0)
-        lon_len = source_ds.dims.get('longitude', 0)
-        gru_len = source_ds.dims.get('gru', 0)
+        lat_len = source_ds.sizes.get('latitude', 0)
+        lon_len = source_ds.sizes.get('longitude', 0)
+        gru_len = source_ds.sizes.get('gru', 0)
 
         # Get the data and identify spatial axis
         data = source_ds[source_var]

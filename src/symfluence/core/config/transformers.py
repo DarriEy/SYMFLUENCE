@@ -128,18 +128,18 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # ========== DATA CONFIGURATION ==========
     'ADDITIONAL_OBSERVATIONS': ('data', 'additional_observations'),
     # Note: SUPPLEMENT_FORCING mapped to ('forcing', 'supplement') in Forcing section
-    'FORCE_DOWNLOAD': ('data', 'force_download'),
+    # Note: FORCE_DOWNLOAD removed (unused field)
     'STREAMFLOW_DATA_PROVIDER': ('data', 'streamflow_data_provider'),
     'USGS_SITE_CODE': ('data', 'usgs_site_code'),
     'DOWNLOAD_USGS_DATA': ('data', 'download_usgs_data'),
     # Note: DOWNLOAD_USGS_GW mapped to ('evaluation', 'usgs_gw', 'download') in Evaluation section
     # Note: DOWNLOAD_MODIS_SNOW mapped to ('evaluation', 'modis_snow', 'download') in Evaluation section
     # Note: DOWNLOAD_SNOTEL mapped to ('evaluation', 'snotel', 'download') in Evaluation section
-    'DOWNLOAD_SMHI_DATA': ('data', 'download_smhi_data'),
-    'DOWNLOAD_LAMAH_ICE_DATA': ('data', 'download_lamah_ice_data'),
+    # Note: DOWNLOAD_SMHI_DATA mapped to ('evaluation', 'smhi', 'download') in Evaluation section
+    # Note: DOWNLOAD_LAMAH_ICE_DATA mapped to ('evaluation', 'lamah_ice', 'download') in Evaluation section
+    # Note: DOWNLOAD_GLACIER_DATA mapped to ('evaluation', 'glacier', 'download') in Evaluation section
+    # Note: LAMAH_ICE_PATH mapped to ('evaluation', 'lamah_ice', 'path') in Evaluation section
     'DOWNLOAD_ISMN': ('data', 'download_ismn'),
-    'DOWNLOAD_GLACIER_DATA': ('data', 'download_glacier_data'),
-    'LAMAH_ICE_PATH': ('data', 'lamah_ice_path'),
     'STREAMFLOW_STATION_ID': ('data', 'streamflow_station_id'),
     'ELEV_CHUNK_SIZE': ('data', 'elev_chunk_size'),
     'ELEV_TILE_TARGET': ('data', 'elev_tile_target'),
@@ -412,6 +412,10 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'POPULATION_SIZE': ('optimization', 'population_size'),
     'FINAL_EVALUATION_NUMERICAL_METHOD': ('optimization', 'final_evaluation_numerical_method'),
     'CLEANUP_PARALLEL_DIRS': ('optimization', 'cleanup_parallel_dirs'),
+    'ERROR_LOG_DIR': ('optimization', 'error_log_dir'),
+    'ERROR_LOGGING_MODE': ('optimization', 'error_logging_mode'),
+    'PARAMS_KEEP_TRIALS': ('optimization', 'params_keep_trials'),
+    'STOP_ON_MODEL_FAILURE': ('optimization', 'stop_on_model_failure'),
 
     # Optimization > PSO
     'SWRMSIZE': ('optimization', 'pso', 'swrmsize'),
@@ -561,6 +565,21 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'MODIS_ET_PRODUCT': ('evaluation', 'modis_et', 'product'),
     'MODIS_ET_PATH': ('evaluation', 'modis_et', 'path'),
     'MOD16_ET_DIR': ('evaluation', 'modis_et', 'data_dir'),
+
+    # Evaluation > SMHI
+    'DOWNLOAD_SMHI_DATA': ('evaluation', 'smhi', 'download'),
+    'SMHI_STATION_ID': ('evaluation', 'smhi', 'station_id'),
+    'SMHI_PATH': ('evaluation', 'smhi', 'path'),
+
+    # Evaluation > LAMAH-ICE
+    'DOWNLOAD_LAMAH_ICE_DATA': ('evaluation', 'lamah_ice', 'download'),
+    'LAMAH_ICE_PATH': ('evaluation', 'lamah_ice', 'path'),
+    'LAMAH_ICE_STATION_ID': ('evaluation', 'lamah_ice', 'station_id'),
+
+    # Evaluation > Glacier
+    'DOWNLOAD_GLACIER_DATA': ('evaluation', 'glacier', 'download'),
+    'GLACIER_PATH': ('evaluation', 'glacier', 'path'),
+    'GLACIER_SOURCE': ('evaluation', 'glacier', 'source'),
 
     # Evaluation > Attributes
     'ATTRIBUTES_DATA_DIR': ('evaluation', 'attributes', 'data_dir'),

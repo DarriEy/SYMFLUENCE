@@ -31,7 +31,12 @@ from abc import ABC, abstractmethod
 
 import warnings
 
-from symfluence.optimization.core.parameter_manager import ParameterManager
+# Lazy import to avoid circular dependency
+# SUMMAParameterManager is imported at runtime when needed
+def _get_parameter_manager():
+    from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
+    return SUMMAParameterManager
+
 from symfluence.optimization.core.model_executor import ModelExecutor
 from symfluence.optimization.core.results_manager import ResultsManager
 from symfluence.optimization.mixins.parallel import LocalScratchManager
@@ -288,7 +293,8 @@ class BaseOptimizer(SUMMAOptimizerMixin, ABC, ConfigMixin):
         else:
             self.output_dir = self.project_dir / "optimization" / f"{self.algorithm_name}_{self.experiment_id}"
 
-        # Initialize component managers
+        # Initialize component managers (lazy import to avoid circular dependency)
+        ParameterManager = _get_parameter_manager()
         self.parameter_manager = ParameterManager(config, logger, self.optimization_settings_dir)
         self.transformation_manager = TransformationManager(config, logger)
         self._setup_optimization_directories()
@@ -1014,7 +1020,7 @@ logger = logging.getLogger(__name__)
 
 sys.path.append(r"{Path(__file__).parent.parent.parent.parent.parent}") # Add src path
 
-from symfluence.optimization.workers.summa_parallel_workers import _evaluate_parameters_worker_safe
+from symfluence.optimization.workers.summa import _evaluate_parameters_worker_safe
 
 def main():
     comm = MPI.COMM_WORLD
@@ -1229,6 +1235,7 @@ if __name__ == "__main__":
             if not default_settings_dir.exists(): return False
             hydrological_params = {k: v for k, v in best_params.items() if k not in ['total_mult', 'shape_factor']}
             if hydrological_params:
+                ParameterManager = _get_parameter_manager()
                 param_manager = ParameterManager(self.config, self.logger, default_settings_dir)
                 param_manager._generate_trial_params_file(hydrological_params)
             return True

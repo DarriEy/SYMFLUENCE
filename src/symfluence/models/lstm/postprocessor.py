@@ -66,6 +66,13 @@ class LSTMPostprocessor(BaseModelPostProcessor):
         is_distributed = hru_ids is not None and len(hru_ids) > 1
 
         if not is_distributed:
+            # Handle case where results may have MultiIndex from distributed mode with single HRU
+            if isinstance(results.index, pd.MultiIndex):
+                # Flatten MultiIndex to just time
+                results = results.reset_index(level='hruId', drop=True)
+                if results.index.duplicated().any():
+                    results = results[~results.index.duplicated(keep='first')]
+
             # Initialize dataset dictionary with streamflow
             data_vars = {
                 "predicted_streamflow": (["time"], results['predicted_streamflow'].values)
@@ -75,11 +82,16 @@ class LSTMPostprocessor(BaseModelPostProcessor):
             if use_snow and 'predicted_SWE' in results.columns:
                 data_vars["scalarSWE"] = (["time"], results['predicted_SWE'].values)
 
+            # Get time coordinate - ensure it's a simple DatetimeIndex, not MultiIndex
+            time_coord = results.index
+            if hasattr(time_coord, 'name') and time_coord.name == 'time':
+                time_coord = pd.DatetimeIndex(time_coord, name=None)
+
             # Create xarray Dataset
             ds = xr.Dataset(
                 data_vars,
                 coords={
-                    "time": results.index
+                    "time": time_coord
                 }
             )
 

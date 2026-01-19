@@ -26,7 +26,7 @@ class SystemConfig(BaseModel):
     log_to_file: bool = Field(default=True, alias='LOG_TO_FILE')
     log_format: str = Field(default='detailed', alias='LOG_FORMAT')
     force_run_all_steps: bool = Field(default=False, alias='FORCE_RUN_ALL_STEPS')
-    force_download: bool = Field(default=False, alias='FORCE_DOWNLOAD')
+    # Note: force_download removed (unused field)
     use_local_scratch: bool = Field(default=False, alias='USE_LOCAL_SCRATCH')
     random_seed: Optional[int] = Field(default=None, alias='RANDOM_SEED')
     stop_on_error: bool = Field(default=True, alias='STOP_ON_ERROR')

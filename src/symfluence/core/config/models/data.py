@@ -78,8 +78,8 @@ class DataConfig(BaseModel):
 
     # High-level acquisition flags
     additional_observations: Optional[List[str]] = Field(default=None, alias='ADDITIONAL_OBSERVATIONS')
-    supplement_forcing: bool = Field(default=False, alias='SUPPLEMENT_FORCING')
-    force_download: bool = Field(default=False, alias='FORCE_DOWNLOAD')
+    # Note: supplement_forcing moved to ForcingConfig.supplement
+    # Note: force_download removed (unused)
 
     # Streamflow provider
     streamflow_data_provider: Optional[str] = Field(default=None, alias='STREAMFLOW_DATA_PROVIDER')
@@ -89,17 +89,15 @@ class DataConfig(BaseModel):
     download_usgs_data: bool = Field(default=False, alias='DOWNLOAD_USGS_DATA')
     streamflow_station_id: Optional[str] = Field(default=None, alias='STREAMFLOW_STATION_ID')
 
-    # Acquisition flags for specific datasets
-    download_usgs_gw: bool = Field(default=False, alias='DOWNLOAD_USGS_GW')
-    download_modis_snow: bool = Field(default=False, alias='DOWNLOAD_MODIS_SNOW')
-    download_snotel: bool = Field(default=False, alias='DOWNLOAD_SNOTEL')
-    download_smhi_data: bool = Field(default=False, alias='DOWNLOAD_SMHI_DATA')
-    download_lamah_ice_data: bool = Field(default=False, alias='DOWNLOAD_LAMAH_ICE_DATA')
+    # Note: Dataset download flags consolidated to EvaluationConfig sections:
+    # - download_usgs_gw -> evaluation.usgs_gw.download
+    # - download_modis_snow -> evaluation.modis_snow.download
+    # - download_snotel -> evaluation.snotel.download
+    # - download_smhi_data -> evaluation.smhi.download
+    # - download_lamah_ice_data -> evaluation.lamah_ice.download
+    # - download_glacier_data -> evaluation.glacier.download
+    # - lamah_ice_path -> evaluation.lamah_ice.path
     download_ismn: bool = Field(default=False, alias='DOWNLOAD_ISMN')
-    download_glacier_data: bool = Field(default=False, alias='DOWNLOAD_GLACIER_DATA')
-
-    # Dataset-specific paths
-    lamah_ice_path: Optional[str] = Field(default=None, alias='LAMAH_ICE_PATH')
 
     # Geospatial processing settings
     elev_chunk_size: int = Field(default=10_000, alias='ELEV_CHUNK_SIZE')
