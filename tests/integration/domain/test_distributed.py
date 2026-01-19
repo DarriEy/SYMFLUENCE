@@ -74,20 +74,20 @@ def config_path(example_data_bundle, tmp_path, symfluence_code_dir):
     config["DOMAIN_DISCRETIZATION"] = "elevation"
     config["ELEVATION_BAND_SIZE"] = 1600  # Reduced spatial resolution (was 800)
 
-    # Optimized: 6-hour test window for minimal testing
+    # Optimized: 3-day test window (need sufficient data points for KGE calculation)
     config["EXPERIMENT_TIME_START"] = "2004-01-01 00:00"
-    config["EXPERIMENT_TIME_END"] = "2004-01-01 06:00"
-    config["CALIBRATION_PERIOD"] = "2004-01-01 01:00, 2004-01-01 05:00"
-    config["EVALUATION_PERIOD"] = "2004-01-01 01:00, 2004-01-01 05:00"
-    config["SPINUP_PERIOD"] = "2004-01-01 00:00, 2004-01-01 01:00"
+    config["EXPERIMENT_TIME_END"] = "2004-01-03 23:00"
+    config["CALIBRATION_PERIOD"] = "2004-01-01 12:00, 2004-01-03 00:00"
+    config["EVALUATION_PERIOD"] = "2004-01-03 00:00, 2004-01-03 23:00"
+    config["SPINUP_PERIOD"] = "2004-01-01 00:00, 2004-01-01 12:00"
 
     # Streamflow
     config["STATION_ID"] = "05BB001"
     config["DOWNLOAD_WSC_DATA"] = False
 
-    # Minimal calibration for testing (optimized: 1 iteration, seed that produces valid params)
-    config["NUMBER_OF_ITERATIONS"] = 1
-    config["RANDOM_SEED"] = 999  # Seed that produces valid parameter sets
+    # Calibration settings - use 3 iterations to verify algorithm actually runs
+    config["NUMBER_OF_ITERATIONS"] = 3
+    config["RANDOM_SEED"] = 42
 
     # Save config
     cfg_path = tmp_path / "test_config.yaml"
@@ -287,6 +287,36 @@ def test_distributed_basin_workflow(config_path, example_data_bundle, model):
     # Step 8: Calibrate model
     results_file = symfluence.managers["optimization"].calibrate_model()
     assert results_file is not None, "Calibration should produce results"
+
+    # Validate calibration results - ensure we actually ran with real data
+    import pandas as pd
+    import math
+
+    assert results_file.exists(), f"Results file should exist on disk: {results_file}"
+
+    results_df = pd.read_csv(results_file)
+    assert len(results_df) >= 3, f"Should have at least 3 calibration iterations, got {len(results_df)}"
+
+    # Check required columns exist
+    assert 'iteration' in results_df.columns, "Results should have 'iteration' column"
+    assert 'score' in results_df.columns, "Results should have 'score' column"
+
+    # Validate scores are real numbers (not NaN or inf)
+    scores = results_df['score'].values
+    for i, score in enumerate(scores):
+        assert not math.isnan(score), f"Score at iteration {i} should not be NaN"
+        assert not math.isinf(score), f"Score at iteration {i} should not be infinite"
+        # KGE ranges from -inf to 1; use lenient threshold for integration tests
+        # with short windows where routing may fail and scores can be very poor
+        assert score > -10000, f"Score at iteration {i} seems unreasonably low: {score}"
+
+    # Verify we have parameter columns (model-specific)
+    param_cols = [c for c in results_df.columns if c not in ['iteration', 'score', 'elapsed_time']]
+    assert len(param_cols) > 0, "Results should contain parameter columns"
+
+    # Verify observations were actually used by checking optimization directory
+    opt_dir = project_dir / "optimization"
+    assert opt_dir.exists(), "Optimization directory should exist"
 
 
 if __name__ == "__main__":

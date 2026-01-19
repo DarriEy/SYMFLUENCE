@@ -325,7 +325,7 @@ class DataManager(BaseManager):
 
             # Check for USGS Groundwater download and ensure it's in additional_obs
             download_usgs_gw = self._get_config_value(
-                lambda: self.config.data.download_usgs_gw,
+                lambda: self.config.evaluation.usgs_gw.download,
                 False
             )
             if isinstance(download_usgs_gw, str):
@@ -336,7 +336,7 @@ class DataManager(BaseManager):
 
             # Check for MODIS Snow and ensure it's in additional_obs
             download_modis_snow = self._get_config_value(
-                lambda: self.config.data.download_modis_snow,
+                lambda: self.config.evaluation.modis_snow.download,
                 False
             )
             if download_modis_snow and 'MODIS_SNOW' not in additional_obs:
@@ -344,7 +344,7 @@ class DataManager(BaseManager):
 
             # Check for SNOTEL download and ensure it's in additional_obs
             download_snotel = self._get_config_value(
-                lambda: self.config.data.download_snotel,
+                lambda: self.config.evaluation.snotel.download,
                 False
             )
             if isinstance(download_snotel, str):
@@ -453,7 +453,7 @@ class DataManager(BaseManager):
 
             # Integrate EM-Earth data if supplementation is enabled
             supplement_forcing = self._get_config_value(
-                lambda: self.config.data.supplement_forcing,
+                lambda: self.config.forcing.supplement,
                 False
             )
             if supplement_forcing:
@@ -495,7 +495,7 @@ class DataManager(BaseManager):
         status['landclass_exists'] = (self.project_dir / 'attributes' / 'landclass').exists()
 
         supplement_forcing = self._get_config_value(
-            lambda: self.config.data.supplement_forcing,
+            lambda: self.config.forcing.supplement,
             False
         )
         if supplement_forcing:

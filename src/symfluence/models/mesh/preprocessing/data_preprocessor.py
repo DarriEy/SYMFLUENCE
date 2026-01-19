@@ -97,6 +97,89 @@ class MESHDataPreprocessor:
         except Exception as e:
             self.logger.warning(f"Failed to sanitize shapefile {path}: {e}")
 
+    def fix_network_topology_fields(self, shp_path: str) -> None:
+        """
+        Fix network topology fields to ensure they contain unique scalar integer values.
+
+        Meshflow's extract_rank_next function requires LINKNO and DSLINKNO to be
+        scalar integers with LINKNO being unique. This method ensures:
+        1. Values are not arrays/sequences
+        2. LINKNO values are unique (reassigns if duplicates found)
+        3. DSLINKNO references are updated to match new LINKNO values
+
+        Args:
+            shp_path: Path to river network shapefile.
+        """
+        if not shp_path:
+            return
+
+        path = Path(shp_path)
+        if not path.exists():
+            return
+
+        try:
+            import numpy as np
+            gdf = gpd.read_file(path)
+            modified = False
+
+            for col in ['LINKNO', 'DSLINKNO', 'GRU_ID', 'NGRU']:
+                if col not in gdf.columns:
+                    continue
+
+                # Check if any values are array-like
+                def to_scalar(val):
+                    if val is None:
+                        return -9999
+                    if hasattr(val, '__iter__') and not isinstance(val, (str, bytes)):
+                        # It's a sequence - take first element or -9999 if empty
+                        try:
+                            arr = np.asarray(val)
+                            if arr.size == 0:
+                                return -9999
+                            return int(arr.flat[0])
+                        except (TypeError, ValueError):
+                            return -9999
+                    try:
+                        return int(val)
+                    except (TypeError, ValueError):
+                        return -9999
+
+                original_dtype = gdf[col].dtype
+                gdf[col] = gdf[col].apply(to_scalar)
+
+                if gdf[col].dtype != original_dtype or gdf[col].isna().any():
+                    modified = True
+                    self.logger.info(f"Fixed {col} values in {path.name} to be scalar integers")
+
+            # Check for duplicate LINKNO values (meshflow requires unique segment IDs)
+            if 'LINKNO' in gdf.columns:
+                duplicates = gdf['LINKNO'].duplicated()
+                if duplicates.any():
+                    n_dups = duplicates.sum()
+                    self.logger.warning(f"Found {n_dups} duplicate LINKNO values in {path.name}")
+
+                    # Create mapping from old to new unique IDs
+                    old_linknos = gdf['LINKNO'].copy()
+                    gdf['LINKNO'] = np.arange(1, len(gdf) + 1)
+
+                    # Update DSLINKNO references
+                    if 'DSLINKNO' in gdf.columns:
+                        old_to_new = dict(zip(old_linknos, gdf['LINKNO']))
+                        # Map DSLINKNO to new values, keeping outlet values (-9999, 0, etc)
+                        gdf['DSLINKNO'] = gdf['DSLINKNO'].apply(
+                            lambda x: old_to_new.get(x, x) if x in old_to_new else x
+                        )
+
+                    modified = True
+                    self.logger.info(f"Reassigned LINKNO values to unique integers 1-{len(gdf)}")
+
+            if modified:
+                gdf.to_file(path)
+                self.logger.info(f"Saved topology-fixed shapefile: {path.name}")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to fix network topology fields: {e}")
+
     def fix_outlet_segment(self, shp_path: str, outlet_value: int = 0) -> None:
         """
         Fix outlet segment in river network shapefile.

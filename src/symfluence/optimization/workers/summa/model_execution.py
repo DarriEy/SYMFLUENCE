@@ -17,6 +17,42 @@ from .netcdf_utilities import fix_summa_time_precision
 from symfluence.core.profiling import get_system_profiler
 
 
+def _cleanup_stale_output_files(output_dir: Path, logger) -> None:
+    """Remove stale output files from previous iterations to prevent metric calculation errors.
+
+    This is critical for calibration: if routing fails, we don't want metrics to be
+    calculated from old output files from previous iterations.
+
+    Args:
+        output_dir: Directory containing model output files
+        logger: Logger instance
+    """
+    if not output_dir.exists():
+        return
+
+    # Patterns to clean up (SUMMA and mizuRoute output files)
+    cleanup_patterns = [
+        "*.nc",           # All NetCDF files (SUMMA timestep, day, mizuRoute output)
+        "*_restart_*.nc", # Restart files
+        "runinfo.txt",    # SUMMA run info
+    ]
+
+    files_removed = 0
+    for pattern in cleanup_patterns:
+        for file_path in output_dir.glob(pattern):
+            # Skip if it's a directory
+            if file_path.is_dir():
+                continue
+            try:
+                file_path.unlink()
+                files_removed += 1
+            except Exception as e:
+                logger.warning(f"Could not remove stale file {file_path}: {e}")
+
+    if files_removed > 0:
+        logger.debug(f"Cleaned up {files_removed} stale output files from {output_dir}")
+
+
 def _deduplicate_output_control(output_control_path: Path, logger):
     """Ensure outputControl.txt doesn't have duplicate variables for the same frequency"""
     if not output_control_path.exists():
@@ -69,6 +105,10 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
         # Create log directory
         log_dir = summa_dir / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
+
+        # Clean up stale output files from previous iterations
+        # This prevents metrics being calculated from old files if current run fails
+        _cleanup_stale_output_files(summa_dir, logger)
 
         # Include iteration in log filename to prevent overwriting
         iteration = debug_info.get('iteration', 0)
@@ -248,6 +288,9 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
 def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_info: Dict, summa_dir: Path = None) -> bool:
     """Updated mizuRoute worker with fixed time precision handling"""
     try:
+        # Clean up stale mizuRoute output files from previous iterations
+        _cleanup_stale_output_files(mizuroute_dir, logger)
+
         # Verify SUMMA output exists first
         if summa_dir is None:
             summa_dir = Path(task_data['summa_dir'])

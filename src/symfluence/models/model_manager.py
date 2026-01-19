@@ -948,3 +948,12 @@ class ModelManager(BaseManager):
                     self.logger.error(f"Error during {model} visualization: {str(e)}")
             else:
                 self.logger.info(f"Visualization for {model} not yet implemented or registered")
+
+        # Generate Camille's model comparison overview (auto-detects outputs)
+        try:
+            self.reporting_manager.generate_model_comparison_overview(
+                experiment_id=self.experiment_id,
+                context='run_model'
+            )
+        except Exception as e:
+            self.logger.warning(f"Could not generate model comparison overview: {str(e)}")

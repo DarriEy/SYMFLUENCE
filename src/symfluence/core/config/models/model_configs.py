@@ -6,10 +6,13 @@ SUMMAConfig, FUSEConfig, GRConfig, HYPEConfig, NGENConfig, MESHConfig,
 MizuRouteConfig, LSTMConfig, and the parent ModelConfig.
 """
 
-from typing import List, Optional, Dict, Union
+from typing import List, Literal, Optional, Dict, Union
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .base import FROZEN_CONFIG
+
+# Spatial mode types for hydrological models
+SpatialModeType = Literal['lumped', 'semi_distributed', 'distributed', 'auto']
 
 
 class SUMMAConfig(BaseModel):
@@ -31,7 +34,7 @@ class SUMMAConfig(BaseModel):
     trialparam_n: int = Field(default=0, alias='SETTINGS_SUMMA_TRIALPARAM_N')
     trialparam_1: Optional[str] = Field(default=None, alias='SETTINGS_SUMMA_TRIALPARAM_1')
     use_parallel: bool = Field(default=False, alias='SETTINGS_SUMMA_USE_PARALLEL_SUMMA')
-    cpus_per_task: int = Field(default=32, alias='SETTINGS_SUMMA_CPUS_PER_TASK')
+    cpus_per_task: int = Field(default=32, alias='SETTINGS_SUMMA_CPUS_PER_TASK', ge=1, le=256)
     time_limit: str = Field(default='01:00:00', alias='SETTINGS_SUMMA_TIME_LIMIT')
     mem: Union[int, str] = Field(default='5G', alias='SETTINGS_SUMMA_MEM')  # SLURM-style memory spec like "12G"
     gru_count: int = Field(default=85, alias='SETTINGS_SUMMA_GRU_COUNT')
@@ -57,7 +60,7 @@ class SUMMAConfig(BaseModel):
     glacier_attributes: str = Field(default='attributes_glac.nc', alias='SETTINGS_SUMMA_GLACIER_ATTRIBUTES')
     glacier_coldstate: str = Field(default='coldState_glac.nc', alias='SETTINGS_SUMMA_GLACIER_COLDSTATE')
     # Execution settings
-    timeout: int = Field(default=7200, alias='SUMMA_TIMEOUT')  # seconds
+    timeout: int = Field(default=7200, alias='SUMMA_TIMEOUT', ge=60, le=86400)  # seconds (1min to 24hr)
 
 
 class FUSEConfig(BaseModel):
@@ -69,7 +72,7 @@ class FUSEConfig(BaseModel):
     routing_integration: str = Field(default='default', alias='FUSE_ROUTING_INTEGRATION')
     settings_path: str = Field(default='default', alias='SETTINGS_FUSE_PATH')
     filemanager: str = Field(default='default', alias='SETTINGS_FUSE_FILEMANAGER')
-    spatial_mode: str = Field(default='lumped', alias='FUSE_SPATIAL_MODE')
+    spatial_mode: SpatialModeType = Field(default='lumped', alias='FUSE_SPATIAL_MODE')
     subcatchment_dim: str = Field(default='longitude', alias='FUSE_SUBCATCHMENT_DIM')
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_FUSE')
     params_to_calibrate: str = Field(
@@ -79,8 +82,8 @@ class FUSEConfig(BaseModel):
     decision_options: Optional[Dict[str, List[str]]] = Field(default_factory=dict, alias='FUSE_DECISION_OPTIONS')
     # Additional FUSE settings
     file_id: Optional[str] = Field(default=None, alias='FUSE_FILE_ID')
-    n_elevation_bands: int = Field(default=1, alias='FUSE_N_ELEVATION_BANDS')
-    timeout: int = Field(default=3600, alias='FUSE_TIMEOUT')  # seconds
+    n_elevation_bands: int = Field(default=1, alias='FUSE_N_ELEVATION_BANDS', ge=1)
+    timeout: int = Field(default=3600, alias='FUSE_TIMEOUT', ge=60, le=86400)  # seconds (1min to 24hr)
 
 
 class GRConfig(BaseModel):
@@ -89,7 +92,7 @@ class GRConfig(BaseModel):
 
     install_path: str = Field(default='default', alias='GR_INSTALL_PATH')
     exe: str = Field(default='GR.r', alias='GR_EXE')
-    spatial_mode: str = Field(default='auto', alias='GR_SPATIAL_MODE')
+    spatial_mode: SpatialModeType = Field(default='auto', alias='GR_SPATIAL_MODE')
     routing_integration: str = Field(default='none', alias='GR_ROUTING_INTEGRATION')
     settings_path: str = Field(default='default', alias='SETTINGS_GR_PATH')
     control: str = Field(default='default', alias='SETTINGS_GR_CONTROL')
@@ -142,7 +145,7 @@ class MESHConfig(BaseModel):
 
     install_path: str = Field(default='default', alias='MESH_INSTALL_PATH')
     exe: str = Field(default='mesh.exe', alias='MESH_EXE')
-    spatial_mode: str = Field(default='auto', alias='MESH_SPATIAL_MODE')  # 'auto', 'lumped', or 'distributed'
+    spatial_mode: SpatialModeType = Field(default='auto', alias='MESH_SPATIAL_MODE')
     settings_path: str = Field(default='default', alias='SETTINGS_MESH_PATH')
     experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_MESH')
     forcing_path: str = Field(default='default', alias='MESH_FORCING_PATH')
@@ -180,9 +183,9 @@ class MizuRouteConfig(BaseModel):
     exe: str = Field(default='mizuRoute.exe', alias='EXE_NAME_MIZUROUTE')
     settings_path: str = Field(default='default', alias='SETTINGS_MIZU_PATH')
     within_basin: int = Field(default=0, alias='SETTINGS_MIZU_WITHIN_BASIN')
-    routing_dt: int = Field(default=86400, alias='SETTINGS_MIZU_ROUTING_DT')
+    routing_dt: int = Field(default=3600, alias='SETTINGS_MIZU_ROUTING_DT')
     routing_units: str = Field(default='m/s', alias='SETTINGS_MIZU_ROUTING_UNITS')
-    routing_var: str = Field(default='q_routed', alias='SETTINGS_MIZU_ROUTING_VAR')
+    routing_var: str = Field(default='averageRoutedRunoff', alias='SETTINGS_MIZU_ROUTING_VAR')
     output_freq: str = Field(default='single', alias='SETTINGS_MIZU_OUTPUT_FREQ')
     output_vars: str = Field(default='1', alias='SETTINGS_MIZU_OUTPUT_VARS')
     make_outlet: str = Field(default='n/a', alias='SETTINGS_MIZU_MAKE_OUTLET')
@@ -204,7 +207,7 @@ class MizuRouteConfig(BaseModel):
         alias='MIZUROUTE_PARAMS_TO_CALIBRATE'
     )
     calibrate: bool = Field(default=False, alias='CALIBRATE_MIZUROUTE')
-    timeout: int = Field(default=3600, alias='MIZUROUTE_TIMEOUT')  # seconds
+    timeout: int = Field(default=3600, alias='MIZUROUTE_TIMEOUT', ge=60, le=86400)  # seconds (1min to 24hr)
 
     @field_validator('output_vars', mode='before')
     @classmethod
@@ -220,15 +223,15 @@ class LSTMConfig(BaseModel):
     model_config = FROZEN_CONFIG
 
     load: bool = Field(default=False, alias='LSTM_LOAD')
-    hidden_size: int = Field(default=128, alias='LSTM_HIDDEN_SIZE')
-    num_layers: int = Field(default=3, alias='LSTM_NUM_LAYERS')
-    epochs: int = Field(default=300, alias='LSTM_EPOCHS')
-    batch_size: int = Field(default=64, alias='LSTM_BATCH_SIZE')
-    learning_rate: float = Field(default=0.001, alias='LSTM_LEARNING_RATE')
-    learning_patience: int = Field(default=30, alias='LSTM_LEARNING_PATIENCE')
-    lookback: int = Field(default=700, alias='LSTM_LOOKBACK')
-    dropout: float = Field(default=0.2, alias='LSTM_DROPOUT')
-    l2_regularization: float = Field(default=1e-6, alias='LSTM_L2_REGULARIZATION')
+    hidden_size: int = Field(default=128, alias='LSTM_HIDDEN_SIZE', ge=8, le=2048)
+    num_layers: int = Field(default=3, alias='LSTM_NUM_LAYERS', ge=1, le=10)
+    epochs: int = Field(default=300, alias='LSTM_EPOCHS', ge=1, le=10000)
+    batch_size: int = Field(default=64, alias='LSTM_BATCH_SIZE', ge=1, le=4096)
+    learning_rate: float = Field(default=0.001, alias='LSTM_LEARNING_RATE', gt=0, le=1.0)
+    learning_patience: int = Field(default=30, alias='LSTM_LEARNING_PATIENCE', ge=1)
+    lookback: int = Field(default=700, alias='LSTM_LOOKBACK', ge=1)
+    dropout: float = Field(default=0.2, alias='LSTM_DROPOUT', ge=0, le=0.9)
+    l2_regularization: float = Field(default=1e-6, alias='LSTM_L2_REGULARIZATION', ge=0)
     use_attention: bool = Field(default=True, alias='LSTM_USE_ATTENTION')
     use_snow: bool = Field(default=False, alias='LSTM_USE_SNOW')
     train_through_routing: bool = Field(default=False, alias='LSTM_TRAIN_THROUGH_ROUTING')
@@ -258,7 +261,7 @@ class RHESSysConfig(BaseModel):
     use_vmfire: bool = Field(default=False, alias='RHESSYS_USE_VMFIRE')
     vmfire_install_path: str = Field(default='installs/wmfire/lib', alias='VMFIRE_INSTALL_PATH')
     # Execution settings
-    timeout: int = Field(default=7200, alias='RHESSYS_TIMEOUT')  # seconds
+    timeout: int = Field(default=7200, alias='RHESSYS_TIMEOUT', ge=60, le=86400)  # seconds (1min to 24hr)
 
 
 class GNNConfig(BaseModel):
@@ -266,14 +269,14 @@ class GNNConfig(BaseModel):
     model_config = FROZEN_CONFIG
 
     load: bool = Field(default=False, alias='GNN_LOAD')
-    hidden_size: int = Field(default=128, alias='GNN_HIDDEN_SIZE')
-    num_layers: int = Field(default=3, alias='GNN_NUM_LAYERS')
-    epochs: int = Field(default=300, alias='GNN_EPOCHS')
-    batch_size: int = Field(default=64, alias='GNN_BATCH_SIZE')
-    learning_rate: float = Field(default=0.001, alias='GNN_LEARNING_RATE')
-    learning_patience: int = Field(default=30, alias='GNN_LEARNING_PATIENCE')
-    dropout: float = Field(default=0.2, alias='GNN_DROPOUT')
-    l2_regularization: float = Field(default=1e-6, alias='GNN_L2_REGULARIZATION')
+    hidden_size: int = Field(default=128, alias='GNN_HIDDEN_SIZE', ge=8, le=2048)
+    num_layers: int = Field(default=3, alias='GNN_NUM_LAYERS', ge=1, le=10)
+    epochs: int = Field(default=300, alias='GNN_EPOCHS', ge=1, le=10000)
+    batch_size: int = Field(default=64, alias='GNN_BATCH_SIZE', ge=1, le=4096)
+    learning_rate: float = Field(default=0.001, alias='GNN_LEARNING_RATE', gt=0, le=1.0)
+    learning_patience: int = Field(default=30, alias='GNN_LEARNING_PATIENCE', ge=1)
+    dropout: float = Field(default=0.2, alias='GNN_DROPOUT', ge=0, le=0.9)
+    l2_regularization: float = Field(default=1e-6, alias='GNN_L2_REGULARIZATION', ge=0)
     params_to_calibrate: str = Field(
         default='precip_mult,temp_offset,routing_velocity',
         alias='GNN_PARAMS_TO_CALIBRATE'
@@ -309,43 +312,47 @@ class ModelConfig(BaseModel):
             return ",".join(str(i).strip() for i in v)
         return v
 
-    @model_validator(mode='after')
-    def auto_populate_model_configs(self):
+    @model_validator(mode='before')
+    @classmethod
+    def auto_populate_model_configs(cls, values):
         """Auto-populate model-specific configs when model is selected."""
+        if not isinstance(values, dict):
+            return values
+
+        # Get hydrological_model from values (check both alias and field name)
+        hydrological_model = values.get('HYDROLOGICAL_MODEL') or values.get('hydrological_model')
+        if not hydrological_model:
+            return values
+
         # Parse models from hydrological_model string
-        if isinstance(self.hydrological_model, str):
-            models = [m.strip().upper() for m in self.hydrological_model.split(',')]
+        if isinstance(hydrological_model, list):
+            models = [str(m).strip().upper() for m in hydrological_model]
         else:
-            models = [str(self.hydrological_model).upper()]
+            models = [m.strip().upper() for m in str(hydrological_model).split(',')]
 
         # Auto-create model configs if not already set
-        # We use model_copy to create a new instance with updated fields (required for frozen models)
-        updates = {}
-
-        if 'SUMMA' in models and self.summa is None:
-            updates['summa'] = SUMMAConfig()
-        if 'FUSE' in models and self.fuse is None:
-            updates['fuse'] = FUSEConfig()
-        if 'GR' in models and self.gr is None:
-            updates['gr'] = GRConfig()
-        if 'HYPE' in models and self.hype is None:
-            updates['hype'] = HYPEConfig()
-        if 'NGEN' in models and self.ngen is None:
-            updates['ngen'] = NGENConfig()
-        if 'MESH' in models and self.mesh is None:
-            updates['mesh'] = MESHConfig()
-        if 'LSTM' in models and self.lstm is None:
-            updates['lstm'] = LSTMConfig()
-        if 'RHESSYS' in models and self.rhessys is None:
-            updates['rhessys'] = RHESSysConfig()
-        if 'GNN' in models and self.gnn is None:
-            updates['gnn'] = GNNConfig()
+        if 'SUMMA' in models and values.get('summa') is None:
+            values['summa'] = SUMMAConfig()
+        if 'FUSE' in models and values.get('fuse') is None:
+            values['fuse'] = FUSEConfig()
+        if 'GR' in models and values.get('gr') is None:
+            values['gr'] = GRConfig()
+        if 'HYPE' in models and values.get('hype') is None:
+            values['hype'] = HYPEConfig()
+        if 'NGEN' in models and values.get('ngen') is None:
+            values['ngen'] = NGENConfig()
+        if 'MESH' in models and values.get('mesh') is None:
+            values['mesh'] = MESHConfig()
+        if 'LSTM' in models and values.get('lstm') is None:
+            values['lstm'] = LSTMConfig()
+        if 'RHESSYS' in models and values.get('rhessys') is None:
+            values['rhessys'] = RHESSysConfig()
+        if 'GNN' in models and values.get('gnn') is None:
+            values['gnn'] = GNNConfig()
 
         # Auto-create routing model config if needed
-        if self.routing_model and self.routing_model.upper() == 'MIZUROUTE' and self.mizuroute is None:
-            updates['mizuroute'] = MizuRouteConfig()
+        routing_model = values.get('ROUTING_MODEL') or values.get('routing_model')
+        if routing_model and str(routing_model).upper() == 'MIZUROUTE' and values.get('mizuroute') is None:
+            values['mizuroute'] = MizuRouteConfig()
 
-        # Apply updates if any
-        if updates:
-            return self.model_copy(update=updates)
-        return self
+        return values

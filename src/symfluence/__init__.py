@@ -22,8 +22,28 @@ For CLI usage:
     $ symfluence --help
 """
 # src/symfluence/__init__.py
-import logging
+
+# ============================================================================
+# CRITICAL: HDF5/netCDF4 thread safety fix
+# Must be set BEFORE any HDF5/netCDF4/xarray imports occur.
+# The netCDF4/HDF5 libraries are not thread-safe by default, and tqdm's
+# background monitor thread can cause segmentation faults when running
+# concurrently with netCDF file operations (e.g., in easymore remapping).
+# ============================================================================
 import os
+os.environ.setdefault('HDF5_USE_FILE_LOCKING', 'FALSE')
+
+# Disable tqdm monitor thread to prevent segfaults with netCDF4/HDF5
+try:
+    import tqdm
+    tqdm.tqdm.monitor_interval = 0
+    if tqdm.tqdm.monitor is not None:
+        tqdm.tqdm.monitor.exit()
+        tqdm.tqdm.monitor = None
+except ImportError:
+    pass
+
+import logging
 import warnings
 
 try:

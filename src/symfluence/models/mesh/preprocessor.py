@@ -449,6 +449,10 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.data_preprocessor.sanitize_shapefile(str(riv_copy))
         self.data_preprocessor.sanitize_shapefile(str(cat_copy))
 
+        # Fix network topology fields to ensure scalar values (required by meshflow)
+        self.data_preprocessor.fix_network_topology_fields(str(riv_copy))
+        self.data_preprocessor.fix_network_topology_fields(str(cat_copy))
+
         # Ensure GRU_ID and hru_dim exist for meshflow joining and indexing
         main_id = self._meshflow_config.get('main_id', 'GRU_ID')
         hru_dim = self._meshflow_config.get('hru_dim', 'subbasin')

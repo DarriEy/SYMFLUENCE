@@ -869,3 +869,166 @@ class ReportingManager(ConfigMixin):
         except Exception as e:
             self.logger.error(f"Error generating model comparison overview: {str(e)}")
             return None
+
+    def visualize_calibration_results(
+        self,
+        experiment_id: Optional[str] = None,
+        calibration_target: Optional[str] = None
+    ) -> Dict[str, str]:
+        """
+        Generate comprehensive post-calibration visualizations.
+
+        Creates visualizations appropriate for the calibration target:
+        - Optimization progress/convergence plot
+        - Model performance comparison (obs vs sim with metrics)
+
+        Automatically detects the calibration target from config if not specified:
+        - 'streamflow'/'q' -> Streamflow comparison (Camille's model comparison)
+        - 'swe'/'snow' -> SWE comparison (scalarSWE plot with observations)
+        - 'et'/'evapotranspiration' -> Energy flux comparison (LE/H plots)
+
+        Args:
+            experiment_id: Experiment ID. If None, uses config value.
+            calibration_target: Target variable being calibrated. If None,
+                               auto-detected from config.optimization.target.
+
+        Returns:
+            Dictionary mapping plot names to file paths:
+            - 'optimization_progress': Convergence plot (if history exists)
+            - 'model_comparison': Main comparison plot
+            - 'scalarSWE': SWE plot (for snow calibration)
+            - 'scalarLatHeatTotal': LE plot (for ET calibration)
+            - 'scalarSenHeatTotal': H plot (for ET calibration)
+
+        Example:
+            >>> # After calibration
+            >>> plot_paths = reporting_manager.visualize_calibration_results(
+            ...     experiment_id='run_1'
+            ... )
+            >>> for name, path in plot_paths.items():
+            ...     print(f"{name}: {path}")
+        """
+        import json
+        plot_paths: Dict[str, str] = {}
+
+        if not self.visualize:
+            return plot_paths
+
+        # Get experiment ID from config if not provided
+        if experiment_id is None:
+            experiment_id = self._get_config_value(
+                lambda: self.config.domain.experiment_id,
+                default='default',
+                dict_key='EXPERIMENT_ID'
+            )
+
+        # Get calibration target from config if not provided
+        if calibration_target is None:
+            calibration_target = self._get_config_value(
+                lambda: self.config.optimization.target,
+                default='streamflow',
+                dict_key='OPTIMIZATION_TARGET'
+            )
+        calibration_target = str(calibration_target).lower()
+
+        self.logger.info(f"Generating post-calibration visualizations for {experiment_id} (target: {calibration_target})")
+
+        # 1. Generate optimization progress plot (if history exists)
+        try:
+            opt_dir = self.project_dir / "optimization"
+            history_files = list(opt_dir.glob(f"*history*.json")) + list(opt_dir.glob(f"*history*.csv"))
+
+            if history_files:
+                # Try to load history from JSON first
+                history = []
+                for hf in history_files:
+                    if hf.suffix == '.json':
+                        try:
+                            with open(hf) as f:
+                                data = json.load(f)
+                                if isinstance(data, list):
+                                    history = data
+                                    break
+                                elif isinstance(data, dict) and 'history' in data:
+                                    history = data['history']
+                                    break
+                        except Exception:
+                            continue
+
+                if history:
+                    metric = self._get_config_value(
+                        lambda: self.config.optimization.metric,
+                        default='KGE',
+                        dict_key='OPTIMIZATION_METRIC'
+                    )
+                    progress_plot = self.optimization_plotter.plot_optimization_progress(
+                        history, opt_dir, calibration_target, metric
+                    )
+                    if progress_plot:
+                        plot_paths['optimization_progress'] = progress_plot
+        except Exception as e:
+            self.logger.warning(f"Could not generate optimization progress plot: {e}")
+
+        # 2. Generate appropriate model comparison based on calibration target
+        try:
+            if calibration_target in ('streamflow', 'q', 'discharge', 'runoff'):
+                # Streamflow calibration -> Camille's model comparison overview
+                comparison_plot = self.generate_model_comparison_overview(
+                    experiment_id=experiment_id,
+                    context='calibrate_model'
+                )
+                if comparison_plot:
+                    plot_paths['model_comparison'] = comparison_plot
+
+                # Also generate default vs calibrated comparison
+                try:
+                    default_vs_calibrated_plot = self.model_comparison_plotter.plot_default_vs_calibrated_comparison(
+                        experiment_id=experiment_id
+                    )
+                    if default_vs_calibrated_plot:
+                        plot_paths['default_vs_calibrated'] = default_vs_calibrated_plot
+                except Exception as e:
+                    self.logger.warning(f"Could not generate default vs calibrated comparison: {e}")
+
+            elif calibration_target in ('swe', 'snow', 'snow_water_equivalent'):
+                # SWE calibration -> SUMMA outputs with SWE observations
+                summa_plots = self.visualize_summa_outputs(experiment_id)
+                if 'scalarSWE' in summa_plots:
+                    plot_paths['scalarSWE'] = summa_plots['scalarSWE']
+                    plot_paths['model_comparison'] = summa_plots['scalarSWE']
+                # Include other snow-related variables if present
+                for var in ['scalarSnowDepth', 'scalarSnowfall']:
+                    if var in summa_plots:
+                        plot_paths[var] = summa_plots[var]
+
+            elif calibration_target in ('et', 'evapotranspiration', 'latent_heat', 'le'):
+                # ET/energy flux calibration -> SUMMA outputs with energy observations
+                summa_plots = self.visualize_summa_outputs(experiment_id)
+                if 'scalarLatHeatTotal' in summa_plots:
+                    plot_paths['scalarLatHeatTotal'] = summa_plots['scalarLatHeatTotal']
+                    plot_paths['model_comparison'] = summa_plots['scalarLatHeatTotal']
+                if 'scalarSenHeatTotal' in summa_plots:
+                    plot_paths['scalarSenHeatTotal'] = summa_plots['scalarSenHeatTotal']
+                # Include ET-related variables if present
+                for var in ['scalarCanopyEvaporation', 'scalarGroundEvaporation', 'scalarTotalET']:
+                    if var in summa_plots:
+                        plot_paths[var] = summa_plots[var]
+
+            else:
+                # Unknown target - try both streamflow and SUMMA outputs
+                self.logger.info(f"Unknown calibration target '{calibration_target}', generating all available plots")
+                comparison_plot = self.generate_model_comparison_overview(
+                    experiment_id=experiment_id,
+                    context='calibrate_model'
+                )
+                if comparison_plot:
+                    plot_paths['model_comparison'] = comparison_plot
+
+                summa_plots = self.visualize_summa_outputs(experiment_id)
+                plot_paths.update(summa_plots)
+
+        except Exception as e:
+            self.logger.error(f"Error generating calibration comparison plots: {e}")
+
+        self.logger.info(f"Generated {len(plot_paths)} calibration visualization(s)")
+        return plot_paths

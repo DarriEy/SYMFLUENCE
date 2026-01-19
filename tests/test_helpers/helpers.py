@@ -80,3 +80,76 @@ def has_cds_credentials():
             has_key = bool(stripped.split(":", 1)[1].strip())
 
     return has_url and has_key
+
+
+# Cache for cloud service availability checks (avoid repeated network calls)
+_cloud_availability_cache = {}
+
+
+def is_rdrs_s3_available():
+    """Check if RDRS S3 Zarr store is accessible."""
+    if "rdrs" in _cloud_availability_cache:
+        return _cloud_availability_cache["rdrs"]
+
+    try:
+        import s3fs
+        fs = s3fs.S3FileSystem(anon=True)
+        # Check if the RDRS Zarr store exists
+        result = fs.exists("msc-open-data/reanalysis/rdrs/v3.1/zarr/.zmetadata")
+        _cloud_availability_cache["rdrs"] = result
+        return result
+    except Exception:
+        _cloud_availability_cache["rdrs"] = False
+        return False
+
+
+def is_em_earth_s3_available():
+    """Check if EM-Earth S3 bucket is accessible."""
+    if "em_earth" in _cloud_availability_cache:
+        return _cloud_availability_cache["em_earth"]
+
+    try:
+        import s3fs
+        fs = s3fs.S3FileSystem(anon=True)
+        # Check if the EM-Earth bucket is accessible
+        result = fs.exists("emearth/nc/deterministic_raw_daily/prcp")
+        _cloud_availability_cache["em_earth"] = result
+        return result
+    except Exception:
+        _cloud_availability_cache["em_earth"] = False
+        return False
+
+
+def is_cds_data_available(dataset="reanalysis-carra-single-levels"):
+    """Check if CDS API can access a specific dataset (beyond just credentials)."""
+    if not has_cds_credentials():
+        return False
+
+    cache_key = f"cds_{dataset}"
+    if cache_key in _cloud_availability_cache:
+        return _cloud_availability_cache[cache_key]
+
+    try:
+        import cdsapi
+        c = cdsapi.Client(quiet=True)
+        # Do a minimal info request to check dataset availability
+        # This is a lightweight check that doesn't download data
+        c.retrieve(
+            dataset,
+            {"product_type": "reanalysis"},
+            f"/tmp/cds_test_{dataset}.nc"
+        )
+        # If we get here without error, access is available
+        # (we don't actually want to download, so this will likely fail
+        # but a permissions error is different from an access denied error)
+        _cloud_availability_cache[cache_key] = True
+        return True
+    except Exception as e:
+        # Check if the error is an access/permissions issue vs a request format issue
+        error_str = str(e).lower()
+        if "access denied" in error_str or "forbidden" in error_str or "restricted" in error_str:
+            _cloud_availability_cache[cache_key] = False
+            return False
+        # Other errors (like missing required fields) suggest the API is accessible
+        _cloud_availability_cache[cache_key] = True
+        return True

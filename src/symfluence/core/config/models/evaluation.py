@@ -6,10 +6,13 @@ StreamflowConfig, SNOTELConfig, FluxNetConfig, USGSGWConfig, SMAPConfig,
 GRACEConfig, MODISSnowConfig, AttributesConfig, and the parent EvaluationConfig.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Literal, Optional, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG
+
+# Supported merge strategies for multi-source data
+MergeStrategyType = Literal['max', 'min', 'mean', 'priority']
 
 
 class StreamflowConfig(BaseModel):
@@ -106,7 +109,7 @@ class MODISSnowConfig(BaseModel):
     # Merged SCA settings (MOD10A1 + MYD10A1)
     merge: bool = Field(default=True, alias='MODIS_SCA_MERGE')
     products: list = Field(default=['MOD10A1.061', 'MYD10A1.061'], alias='MODIS_SCA_PRODUCTS')
-    merge_strategy: str = Field(default='max', alias='MODIS_SCA_MERGE_STRATEGY')
+    merge_strategy: MergeStrategyType = Field(default='max', alias='MODIS_SCA_MERGE_STRATEGY')
     cloud_filter: bool = Field(default=True, alias='MODIS_SCA_CLOUD_FILTER')
     min_valid_ratio: float = Field(default=0.1, alias='MODIS_SCA_MIN_VALID_RATIO')
     normalize: bool = Field(default=True, alias='MODIS_SCA_NORMALIZE')
@@ -143,6 +146,33 @@ class AttributesConfig(BaseModel):
     output_dir: str = Field(default='default', alias='ATTRIBUTES_OUTPUT_DIR')
 
 
+class SMHIConfig(BaseModel):
+    """SMHI (Swedish Meteorological and Hydrological Institute) streamflow data settings"""
+    model_config = FROZEN_CONFIG
+
+    download: bool = Field(default=False, alias='DOWNLOAD_SMHI_DATA')
+    station_id: Optional[str] = Field(default=None, alias='SMHI_STATION_ID')
+    path: str = Field(default='default', alias='SMHI_PATH')
+
+
+class LAMAHICEConfig(BaseModel):
+    """LamaH-Ice (Iceland basins) streamflow data settings"""
+    model_config = FROZEN_CONFIG
+
+    download: bool = Field(default=False, alias='DOWNLOAD_LAMAH_ICE_DATA')
+    path: Optional[str] = Field(default=None, alias='LAMAH_ICE_PATH')
+    station_id: Optional[str] = Field(default=None, alias='LAMAH_ICE_STATION_ID')
+
+
+class GlacierConfig(BaseModel):
+    """Glacier observation data settings"""
+    model_config = FROZEN_CONFIG
+
+    download: bool = Field(default=False, alias='DOWNLOAD_GLACIER_DATA')
+    path: str = Field(default='default', alias='GLACIER_PATH')
+    source: str = Field(default='RGI', alias='GLACIER_SOURCE')
+
+
 class EvaluationConfig(BaseModel):
     """Evaluation data and analysis configuration"""
     model_config = FROZEN_CONFIG
@@ -162,6 +192,9 @@ class EvaluationConfig(BaseModel):
     modis_snow: Optional[MODISSnowConfig] = Field(default_factory=MODISSnowConfig)
     modis_et: Optional[MODISETConfig] = Field(default_factory=MODISETConfig)
     attributes: Optional[AttributesConfig] = Field(default_factory=AttributesConfig)
+    smhi: Optional[SMHIConfig] = Field(default_factory=SMHIConfig)
+    lamah_ice: Optional[LAMAHICEConfig] = Field(default_factory=LAMAHICEConfig)
+    glacier: Optional[GlacierConfig] = Field(default_factory=GlacierConfig)
     hru_gauge_mapping: Optional[Dict[str, Any]] = Field(default_factory=dict, alias='HRU_GAUGE_MAPPING')
 
     @field_validator('evaluation_data', 'analyses', mode='before')

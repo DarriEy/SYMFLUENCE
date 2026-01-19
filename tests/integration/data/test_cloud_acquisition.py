@@ -15,7 +15,10 @@ import traceback
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
-from test_helpers.helpers import has_cds_credentials, load_config_template, write_config
+from test_helpers.helpers import (
+    has_cds_credentials, load_config_template, write_config,
+    is_rdrs_s3_available, is_em_earth_s3_available, is_cds_data_available
+)
 
 
 
@@ -233,8 +236,8 @@ FORCING_CASES = [
     },
     {
         "dataset": "CARRA",
-        "start": "2010-01-01 01:00",
-        "end": "2010-01-01 03:00",  # 3 hours starting at 01:00
+        "start": "2010-01-01 00:00",
+        "end": "2010-01-01 06:00",  # 6 hours (2 timesteps for 3-hourly data)
         "expect_glob": "*CARRA*.nc",
         "domain_override": {
             "DOMAIN_NAME": "ellioaar_iceland",
@@ -270,8 +273,8 @@ FORCING_CASES = [
     {
         "dataset": "EM_EARTH",
         "start": "2010-01-01 00:00",
-        "end": "2010-01-01 01:00",  # Just 1 hour
-        "expect_glob": "*EM_EARTH_*.nc",
+        "end": "2010-01-03 00:00",  # 2 days (EM-Earth is daily data)
+        "expect_glob": "*EM-Earth_*.nc",
     },
 ]
 
@@ -414,15 +417,15 @@ def test_cloud_forcing_acquisition(prepared_project, case):
         pytest.skip(f"Skipping {case['dataset']} test: CDS API credentials not found in ~/.cdsapirc")
 
     # Skip CARRA if CDS API access is restricted (external service issue)
-    if case["dataset"] == "CARRA":
+    if case["dataset"] == "CARRA" and not is_cds_data_available("reanalysis-carra-single-levels"):
         pytest.skip("Skipping CARRA test: CDS API reanalysis data access currently restricted")
 
     # Skip RDRS if S3 access is restricted (external service issue)
-    if case["dataset"] == "RDRS":
+    if case["dataset"] == "RDRS" and not is_rdrs_s3_available():
         pytest.skip("Skipping RDRS test: S3 Zarr store access restricted (external data source unavailable)")
 
     # Skip EM_EARTH if S3 access is restricted
-    if case["dataset"] == "EM_EARTH":
+    if case["dataset"] == "EM_EARTH" and not is_em_earth_s3_available():
         pytest.skip("Skipping EM_EARTH test: S3 bucket access restricted (anonymous access not available)")
 
     cfg_path, project_dir = prepared_project

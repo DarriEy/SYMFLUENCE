@@ -244,6 +244,34 @@ def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config:
             logger.warning(f"Unknown optimization target '{optimization_target}', defaulting to streamflow")
             target = StreamflowTarget(config, project_dir, logger)
 
+        # Validate mizuRoute output exists when routing is required for streamflow
+        if optimization_target in ['streamflow', 'flow', 'discharge']:
+            domain_method = config.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+            routing_delineation = config.get('ROUTING_DELINEATION', 'lumped')
+
+            # Check if routing is required (non-lumped domain or river_network routing)
+            needs_routing = (
+                domain_method not in ['point', 'lumped'] or
+                (domain_method == 'lumped' and routing_delineation == 'river_network')
+            )
+
+            if needs_routing:
+                if mizuroute_dir is None:
+                    logger.error("Routing required but mizuroute_dir is None")
+                    return None
+
+                mizuroute_dir_path = PathType(mizuroute_dir) if not isinstance(mizuroute_dir, PathType) else mizuroute_dir
+                mizu_files = list(mizuroute_dir_path.glob("*.nc")) if mizuroute_dir_path.exists() else []
+
+                if not mizu_files:
+                    logger.error(
+                        f"Routing required for {domain_method} domain but no mizuRoute output files found in {mizuroute_dir}. "
+                        "Cannot calculate streamflow metrics without routed output."
+                    )
+                    return None
+
+                logger.debug(f"Found {len(mizu_files)} mizuRoute output files for metrics calculation")
+
         # Calculate metrics using the target
         logger.debug(f"Calculating metrics from {summa_dir}")
 
@@ -254,11 +282,14 @@ def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config:
             with xr.open_dataset(day_files[0]) as ds:
                 if 'scalarSWE' in ds:
                     swe_raw = ds['scalarSWE']
-                    logger.debug(
-                        "WORKER DIAG SWE in file: min=%.3f, max=%.3f kg/m²",
-                        float(swe_raw.min()),
-                        float(swe_raw.max()),
-                    )
+                    if swe_raw.size > 0:
+                        logger.debug(
+                            "WORKER DIAG SWE in file: min=%.3f, max=%.3f kg/m²",
+                            float(swe_raw.min()),
+                            float(swe_raw.max()),
+                        )
+                    else:
+                        logger.debug("WORKER DIAG SWE in file: array is empty")
 
         metrics = target.calculate_metrics(
             summa_dir,

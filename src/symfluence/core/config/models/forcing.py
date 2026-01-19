@@ -4,10 +4,19 @@ Forcing configuration models.
 Contains NexConfig, EMEarthConfig, and ForcingConfig for meteorological forcing data.
 """
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG
+
+# Supported forcing dataset types
+ForcingDatasetType = Literal[
+    'NLDAS', 'NLDAS2', 'NEX-GDDP', 'ERA5', 'EM-EARTH', 'RDRS', 'CARRA', 'CERRA',
+    'MSWEP', 'AORC', 'CONUS404', 'HRRR', 'local'
+]
+
+# Supported PET calculation methods
+PETMethodType = Literal['oudin', 'hargreaves', 'priestley_taylor', 'penman', 'fao56']
 
 
 class NexConfig(BaseModel):
@@ -73,17 +82,17 @@ class ForcingConfig(BaseModel):
     model_config = FROZEN_CONFIG
 
     # Required dataset
-    dataset: str = Field(alias='FORCING_DATASET')
+    dataset: ForcingDatasetType = Field(alias='FORCING_DATASET')
 
     # Forcing settings
-    time_step_size: int = Field(default=3600, alias='FORCING_TIME_STEP_SIZE')
+    time_step_size: int = Field(default=3600, alias='FORCING_TIME_STEP_SIZE', ge=60, le=86400)
     variables: str = Field(default='default', alias='FORCING_VARIABLES')
-    measurement_height: float = Field(default=2.0, alias='FORCING_MEASUREMENT_HEIGHT')
+    measurement_height: float = Field(default=2.0, alias='FORCING_MEASUREMENT_HEIGHT', gt=0)
     apply_lapse_rate: bool = Field(default=True, alias='APPLY_LAPSE_RATE')
     lapse_rate: float = Field(default=0.0065, alias='LAPSE_RATE')
     shape_lat_name: str = Field(default='lat', alias='FORCING_SHAPE_LAT_NAME')
     shape_lon_name: str = Field(default='lon', alias='FORCING_SHAPE_LON_NAME')
-    pet_method: str = Field(default='oudin', alias='PET_METHOD')
+    pet_method: PETMethodType = Field(default='oudin', alias='PET_METHOD')
     supplement: bool = Field(default=False, alias='SUPPLEMENT_FORCING')
 
     # ERA5-specific settings (legacy, prefer using era5 subsection)

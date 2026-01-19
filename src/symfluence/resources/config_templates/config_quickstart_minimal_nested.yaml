@@ -272,7 +272,8 @@ model:
 #    3. Run: python run_symfluence.py my_config.yaml
 #
 #  For more information:
-#    - config_template_comprehensive.yaml (all 364 available options)
+#    - config_template_comprehensive_nested.yaml (all 406+ options, nested style)
+#    - config_template_comprehensive.yaml (all 406+ options, flat style)
 #    - config_quickstart_minimal.yaml (legacy flat style)
 #    - CONFIG_AUDIT_REPORT.md (detailed documentation)
 #
