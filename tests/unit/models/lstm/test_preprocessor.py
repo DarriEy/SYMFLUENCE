@@ -42,8 +42,9 @@ class TestLSTMPreprocessorInitialization:
         mock_device = MagicMock()
         mock_torch.device.return_value = mock_device
 
-        # Use flat config dict with LSTM_LOOKBACK key as preprocessor expects
-        config_dict = {'LSTM_LOOKBACK': lstm_config.model.lstm.lookback}
+        # Use full config dict - preprocessor now inherits from BaseModelPreProcessor
+        # which requires proper config for path resolution
+        config_dict = lstm_config.model_dump()
         project_dir = setup_lstm_directories['domain_dir']
 
         preprocessor = LSTMPreprocessor(config_dict, mock_logger, project_dir, mock_device)

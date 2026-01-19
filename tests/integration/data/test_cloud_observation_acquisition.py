@@ -186,8 +186,8 @@ def test_provo_usgs_full_e2e(tmp_path):
         'OPTIMIZATION_METHODS': ['iteration'],
         'OPTIMIZATION_TARGET': 'streamflow',
         'ITERATIVE_OPTIMIZATION_ALGORITHM': 'DE',
-        'NUMBER_OF_ITERATIONS': 1,
-        'POPULATION_SIZE': 1,
+        'NUMBER_OF_ITERATIONS': 2,
+        'POPULATION_SIZE': 2,
         'OPTIMIZATION_METRIC': 'KGE'
     }
 
@@ -256,8 +256,8 @@ def test_wsc_geomet_full_e2e(tmp_path):
         'OPTIMIZATION_METHODS': ['iteration'],
         'OPTIMIZATION_TARGET': 'streamflow',
         'ITERATIVE_OPTIMIZATION_ALGORITHM': 'DE',
-        'NUMBER_OF_ITERATIONS': 1,
-        'POPULATION_SIZE': 1,
+        'NUMBER_OF_ITERATIONS': 2,
+        'POPULATION_SIZE': 2,
         'OPTIMIZATION_METRIC': 'KGE'
     }
 
@@ -325,8 +325,8 @@ def test_usgs_gw_full_e2e(tmp_path):
         'OPTIMIZATION_METHODS': ['iteration'],
         'OPTIMIZATION_TARGET': 'streamflow',
         'ITERATIVE_OPTIMIZATION_ALGORITHM': 'DE',
-        'NUMBER_OF_ITERATIONS': 1,
-        'POPULATION_SIZE': 1,
+        'NUMBER_OF_ITERATIONS': 2,
+        'POPULATION_SIZE': 2,
         'OPTIMIZATION_METRIC': 'KGE'
     }
 

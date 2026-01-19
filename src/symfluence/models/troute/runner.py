@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.execution import ModelExecutor
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
 
 @ModelRegistry.register_runner('TROUTE', method_name='run_troute')
@@ -55,7 +56,11 @@ class TRouteRunner(BaseModelRunner, ModelExecutor):
         command = [sys.executable, "-m", "nwm_routing", str(config_filepath)]
         self.logger.info(f'Executing t-route command: {" ".join(command)}')
 
-        try:
+        with symfluence_error_handler(
+            "t-route model execution",
+            self.logger,
+            error_type=ModelExecutionError
+        ):
             self.execute_model_subprocess(
                 command,
                 log_file_path,
@@ -63,12 +68,6 @@ class TRouteRunner(BaseModelRunner, ModelExecutor):
             )
             self.logger.info("--- t-route Run Finished ---")
             return troute_out_path
-        except subprocess.CalledProcessError:
-            self.logger.error(f"t-route run failed. See full log for details: {log_file_path}")
-            if log_file_path.exists():
-                with open(log_file_path, 'r') as f:
-                    self.logger.error("--- t-route Log Output ---\n" + f.read())
-            raise
 
     def _prepare_runoff_file(self):
         """

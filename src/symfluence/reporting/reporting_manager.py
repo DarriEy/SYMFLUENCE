@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from symfluence.reporting.plotters.snow_plotter import SnowPlotter
     from symfluence.reporting.plotters.diagnostic_plotter import DiagnosticPlotter
     from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
+    from symfluence.reporting.plotters.forcing_comparison_plotter import ForcingComparisonPlotter
 
 
 class ReportingManager(ConfigMixin):
@@ -372,6 +373,12 @@ class ReportingManager(ConfigMixin):
         from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
         return ModelComparisonPlotter(self.config, self.logger, self.plot_config)
 
+    @cached_property
+    def forcing_comparison_plotter(self) -> 'ForcingComparisonPlotter':
+        """Lazy initialization of forcing comparison plotter."""
+        from symfluence.reporting.plotters.forcing_comparison_plotter import ForcingComparisonPlotter
+        return ForcingComparisonPlotter(self.config, self.logger, self.plot_config)
+
     # =========================================================================
     # Public Methods
     # =========================================================================
@@ -391,6 +398,44 @@ class ReportingManager(ConfigMixin):
         if not self.visualize:
             return
         self.diagnostic_plotter.plot_spatial_coverage(raster_path, variable_name, stage)
+
+    def visualize_forcing_comparison(
+        self,
+        raw_forcing_file: Path,
+        remapped_forcing_file: Path,
+        forcing_grid_shp: Path,
+        hru_shp: Path,
+        variable: str = 'pptrate',
+        time_index: int = 0
+    ) -> Optional[str]:
+        """
+        Visualize raw vs. remapped forcing data comparison.
+
+        Creates a side-by-side map visualization comparing raw gridded forcing
+        data with HRU-remapped forcing data.
+
+        Args:
+            raw_forcing_file: Path to raw NetCDF forcing file
+            remapped_forcing_file: Path to remapped NetCDF forcing file
+            forcing_grid_shp: Path to forcing grid shapefile
+            hru_shp: Path to HRU/catchment shapefile
+            variable: Variable to visualize (default: 'pptrate')
+            time_index: Time index to visualize (default: 0)
+
+        Returns:
+            Path to saved plot, or None if visualization is disabled or failed
+        """
+        if not self.visualize:
+            return None
+        self.logger.info("Creating raw vs. remapped forcing comparison visualization...")
+        return self.forcing_comparison_plotter.plot_raw_vs_remapped(
+            raw_forcing_file=raw_forcing_file,
+            remapped_forcing_file=remapped_forcing_file,
+            forcing_grid_shp=forcing_grid_shp,
+            hru_shp=hru_shp,
+            variable=variable,
+            time_index=time_index
+        )
 
     def is_visualization_enabled(self) -> bool:
         """Check if visualization is enabled."""
@@ -936,7 +981,7 @@ class ReportingManager(ConfigMixin):
         # 1. Generate optimization progress plot (if history exists)
         try:
             opt_dir = self.project_dir / "optimization"
-            history_files = list(opt_dir.glob(f"*history*.json")) + list(opt_dir.glob(f"*history*.csv"))
+            history_files = list(opt_dir.glob("*history*.json")) + list(opt_dir.glob("*history*.csv"))
 
             if history_files:
                 # Try to load history from JSON first

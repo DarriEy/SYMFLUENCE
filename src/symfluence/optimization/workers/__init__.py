@@ -33,6 +33,7 @@ def __getattr__(name):
     worker_mapping = {
         'FUSEWorker': '.fuse_worker',
         'GRWorker': '.gr_worker',
+        'HBVWorker': '.hbv_worker',
         'HYPEWorker': '.hype_worker',
         'MESHWorker': '.mesh_worker',
         'NgenWorker': '.ngen_worker',
@@ -55,6 +56,7 @@ __all__ = [
     'WorkerResult',
     'FUSEWorker',
     'GRWorker',
+    'HBVWorker',
     'HYPEWorker',
     'MESHWorker',
     'NgenWorker',

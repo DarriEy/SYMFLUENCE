@@ -345,12 +345,12 @@ def _generate_trial_params_worker(params: Dict, settings_dir: Path, logger, debu
                         compress_opts = {'zlib': True, 'complevel': 4, 'shuffle': True}
 
                         # Create coordinate variables (with compression)
-                        hru_var = output_ds.createVariable('hruId', 'i4', ('hru',),
-                                                          fill_value=-9999, **compress_opts)
+                        hru_var = output_ds.createVariable(  # type: ignore[call-overload]
+                            'hruId', 'i4', ('hru',), fill_value=-9999, **compress_opts)
                         hru_var[:] = hru_ids
 
-                        gru_var = output_ds.createVariable('gruId', 'i4', ('gru',),
-                                                          fill_value=-9999, **compress_opts)
+                        gru_var = output_ds.createVariable(  # type: ignore[call-overload]
+                            'gruId', 'i4', ('gru',), fill_value=-9999, **compress_opts)
                         gru_var[:] = gru_ids
 
                         # Add parameters with compression
@@ -362,7 +362,7 @@ def _generate_trial_params_worker(params: Dict, settings_dir: Path, logger, debu
 
                             if param_name in gru_level_params:
                                 # GRU-level parameters
-                                param_var = output_ds.createVariable(
+                                param_var = output_ds.createVariable(  # type: ignore[call-overload]
                                     param_name, 'f8', ('gru',), fill_value=np.nan, **compress_opts)
                                 param_var.long_name = f"Trial value for {param_name}"
 
@@ -372,7 +372,7 @@ def _generate_trial_params_worker(params: Dict, settings_dir: Path, logger, debu
                                     param_var[:] = param_values_array[0]
                             else:
                                 # HRU-level parameters
-                                param_var = output_ds.createVariable(
+                                param_var = output_ds.createVariable(  # type: ignore[call-overload]
                                     param_name, 'f8', ('hru',), fill_value=np.nan, **compress_opts)
                                 param_var.long_name = f"Trial value for {param_name}"
 

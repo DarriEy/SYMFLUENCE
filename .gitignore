@@ -118,3 +118,6 @@ cover/*.nc
 # Docs build artifacts
 docs/_build/
 config_template.yaml
+
+# Benchmark results (auto-generated)
+benchmark_results/

@@ -197,7 +197,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 import numpy as np
 
 from symfluence.core.constants import ModelDefaults
@@ -1108,4 +1108,103 @@ class BaseWorker(ABC):
         """
         raise NotImplementedError(
             "Subclasses must implement evaluate_worker_function"
+        )
+
+    # =========================================================================
+    # Native Gradient Support (Optional)
+    # =========================================================================
+
+    def supports_native_gradients(self) -> bool:
+        """
+        Check if this worker supports native gradient computation.
+
+        Native gradients (e.g., via JAX autodiff) can be significantly more
+        efficient than finite-difference gradients for gradient-based optimization.
+        When supported, gradient computation requires only ~2 model evaluations
+        (forward + backward pass) instead of 2N+1 evaluations for N parameters.
+
+        Override this method in subclasses that implement autodiff-capable models.
+
+        Returns:
+            True if compute_gradient() and evaluate_with_gradient() are available
+            and functional. Default: False (use finite differences).
+
+        Example:
+            >>> class HBVWorker(BaseWorker):
+            ...     def supports_native_gradients(self) -> bool:
+            ...         return HAS_JAX  # True if JAX is installed
+        """
+        return False
+
+    def compute_gradient(
+        self,
+        params: Dict[str, float],
+        metric: str = 'kge'
+    ) -> Optional[Dict[str, float]]:
+        """
+        Compute gradient of loss with respect to parameters using native method.
+
+        This method should be overridden by workers that support autodiff
+        (e.g., JAX, PyTorch). The gradient is computed for the loss function
+        (negative of the objective metric), so for maximizing KGE, gradients
+        point in the direction of decreasing KGE (increasing loss).
+
+        Args:
+            params: Dictionary mapping parameter names to current values
+            metric: Objective metric to compute gradient for ('kge', 'nse', etc.)
+
+        Returns:
+            Dictionary mapping parameter names to gradient values (d(loss)/d(param)),
+            or None if native gradients are not supported.
+
+        Note:
+            - Gradients are for the LOSS (negative metric), not the metric itself
+            - For maximization problems, negate the gradient for gradient ascent
+            - Returns None by default; override in autodiff-capable workers
+
+        Example:
+            >>> worker = HBVWorker(config, logger)
+            >>> if worker.supports_native_gradients():
+            ...     grads = worker.compute_gradient({'fc': 250.0, 'k1': 0.1}, 'kge')
+            ...     print(grads)  # {'fc': -0.001, 'k1': 0.05, ...}
+        """
+        return None
+
+    def evaluate_with_gradient(
+        self,
+        params: Dict[str, float],
+        metric: str = 'kge'
+    ) -> Tuple[float, Optional[Dict[str, float]]]:
+        """
+        Evaluate loss and compute gradient in a single pass.
+
+        This is more efficient than calling evaluate + compute_gradient separately
+        when using autodiff, as the forward pass computation can be shared.
+        Uses jax.value_and_grad or torch.autograd for efficient computation.
+
+        Args:
+            params: Dictionary mapping parameter names to current values
+            metric: Objective metric ('kge', 'nse', etc.)
+
+        Returns:
+            Tuple of (loss_value, gradient_dict):
+            - loss_value: Scalar loss (negative of metric, for minimization)
+            - gradient_dict: Dictionary mapping parameter names to gradients,
+              or None if native gradients not supported
+
+        Note:
+            - Returns (loss, None) by default; override in autodiff-capable workers
+            - loss is NEGATIVE of metric (e.g., -KGE) for minimization
+            - Subclasses should use value_and_grad for efficiency
+
+        Example:
+            >>> worker = HBVWorker(config, logger)
+            >>> loss, grads = worker.evaluate_with_gradient({'fc': 250.0}, 'kge')
+            >>> print(f"Loss: {loss}, Gradients: {grads}")
+        """
+        # Default implementation: not supported
+        # Subclasses override with actual autodiff implementation
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support native gradients. "
+            "Override evaluate_with_gradient() or use finite differences."
         )

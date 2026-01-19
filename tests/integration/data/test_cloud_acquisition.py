@@ -192,12 +192,7 @@ FORCING_CASES = [
         "end": "2010-01-01 01:00",  # Just 1 hour
         "expect_glob": ["ERA5_*.nc", "*ERA5_merged_*.nc", "*ERA5_CDS_*.nc"],  # CDS pathway also produces ERA5_CDS files
     },
-    {
-        "dataset": "ERA5_CDS",
-        "start": "2010-01-01 00:00",
-        "end": "2010-01-01 01:00",  # Just 1 hour
-        "expect_glob": ["*ERA5_CDS_*.nc"],
-    },
+    # ERA5_CDS removed - not a valid ForcingDatasetType. Use ERA5 with ERA5_USE_CDS=True instead.
     {
         "dataset": "AORC",
         "start": "2010-01-01 00:00",
@@ -271,7 +266,7 @@ FORCING_CASES = [
         },
     },
     {
-        "dataset": "EM_EARTH",
+        "dataset": "EM-EARTH",
         "start": "2010-01-01 00:00",
         "end": "2010-01-03 00:00",  # 2 days (EM-Earth is daily data)
         "expect_glob": "*EM-Earth_*.nc",
@@ -310,12 +305,10 @@ def _run_case_logic(cfg_path: Path, project_dir: Path, case: dict) -> None:
         data_root = Path(config["SYMFLUENCE_DATA_DIR"])
         project_dir = data_root / f"domain_{config['DOMAIN_NAME']}"
 
-        # Setup new domain if needed
-        symfluence_temp = SYMFLUENCE(cfg_path)
-        # Save updated config first
+        # Save updated config first (before initializing SYMFLUENCE)
         write_config(config, cfg_path)
 
-        # Re-initialize with new domain
+        # Setup new domain if needed
         symfluence_temp = SYMFLUENCE(cfg_path)
         # Check if domain is fully set up (HRUs file exists)
         domain_name = config["DOMAIN_NAME"]
@@ -424,9 +417,9 @@ def test_cloud_forcing_acquisition(prepared_project, case):
     if case["dataset"] == "RDRS" and not is_rdrs_s3_available():
         pytest.skip("Skipping RDRS test: S3 Zarr store access restricted (external data source unavailable)")
 
-    # Skip EM_EARTH if S3 access is restricted
-    if case["dataset"] == "EM_EARTH" and not is_em_earth_s3_available():
-        pytest.skip("Skipping EM_EARTH test: S3 bucket access restricted (anonymous access not available)")
+    # Skip EM-EARTH if S3 access is restricted
+    if case["dataset"] == "EM-EARTH" and not is_em_earth_s3_available():
+        pytest.skip("Skipping EM-EARTH test: S3 bucket access restricted (anonymous access not available)")
 
     cfg_path, project_dir = prepared_project
 

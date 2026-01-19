@@ -25,7 +25,7 @@ except ImportError:
 
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
-from ..execution import ModelExecutor, SpatialOrchestrator, RoutingModel
+from ..execution import UnifiedModelExecutor, RoutingModel
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.core.exceptions import (
     ModelExecutionError,
@@ -38,7 +38,7 @@ from .postprocessor import LSTMPostprocessor
 
 
 @ModelRegistry.register_runner('LSTM', method_name='run_lstm')
-class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteConfigMixin):
+class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin):
     """
     LSTM: Flow and Snow Hydrological LSTM Runner.
 

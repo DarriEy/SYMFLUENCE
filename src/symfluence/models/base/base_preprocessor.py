@@ -20,6 +20,7 @@ import xarray as xr
 
 from symfluence.core.path_resolver import PathResolverMixin
 from symfluence.core.mixins import ShapefileAccessMixin
+from symfluence.models.mixins import ModelComponentMixin
 from symfluence.core.constants import UnitConversion, ModelDefaults
 from symfluence.core.exceptions import (
     ModelExecutionError,
@@ -30,7 +31,7 @@ if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 
-class BaseModelPreProcessor(ABC, PathResolverMixin, ShapefileAccessMixin):
+class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAccessMixin):
     """
     Abstract base class for all model preprocessors.
 
@@ -64,27 +65,10 @@ class BaseModelPreProcessor(ABC, PathResolverMixin, ShapefileAccessMixin):
         Raises:
             ConfigurationError: If required configuration keys are missing
         """
-        # Import here to avoid circular imports at module level
-        from symfluence.core.config.models import SymfluenceConfig
+        # Common initialization via mixin (no reporting_manager for preprocessor)
+        self._init_model_component(config, logger)
 
-        # Auto-convert dict to typed config for backward compatibility
-        if isinstance(config, dict):
-            self._config = SymfluenceConfig(**config)
-        else:
-            self._config = config
-
-        self.logger = logger
-
-        # Validate required configuration keys
-        self._validate_required_config()
-
-        # Base paths - direct typed access
-        self.data_dir = self.config.system.data_dir
-        self.domain_name = self.config.domain.name
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-
-        # Model-specific paths (subclasses should set model_name)
-        self.model_name = self._get_model_name()
+        # Preprocessor-specific paths
         self.setup_dir: Path = self.project_dir / "settings" / self.model_name
         self.forcing_dir: Path = self.project_dir / "forcing" / f"{self.model_name}_input"
 

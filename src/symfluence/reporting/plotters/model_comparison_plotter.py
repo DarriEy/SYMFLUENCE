@@ -719,7 +719,7 @@ class ModelComparisonPlotter(BasePlotter):
         Returns:
             Dict mapping model names to their metrics dicts
         """
-        metrics_dict = {}
+        metrics_dict: Dict[str, Dict[str, float]] = {}
 
         if obs_series is None:
             return metrics_dict

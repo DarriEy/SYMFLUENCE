@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelRunner
 from symfluence.models.execution import ModelExecutor
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
 
 @ModelRegistry.register_runner('MIZUROUTE', method_name='run_mizuroute')
@@ -391,57 +392,83 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
         and handles any errors that occur during the run.
         """
         self.logger.debug("Starting mizuRoute run")
-        runoff_path = self.fix_time_precision()
 
-        # Set up paths and filenames
-        self.mizu_exe = self.get_model_executable(
-            install_path_key='INSTALL_PATH_MIZUROUTE',
-            default_install_subpath='installs/mizuRoute/route/bin',
-            exe_name_key='EXE_NAME_MIZUROUTE',
-            default_exe_name='mizuroute.exe',
-            must_exist=True
-        )
-        settings_path = self.get_config_path('SETTINGS_MIZU_PATH', 'settings/mizuRoute/')
-        control_file = self.config_dict.get('SETTINGS_MIZU_CONTROL_FILE')
+        with symfluence_error_handler(
+            "mizuRoute model execution",
+            self.logger,
+            error_type=ModelExecutionError
+        ):
+            runoff_path = self.fix_time_precision()
 
-        # Sane defaults for control file if not specified
-        if not control_file or control_file == 'default':
-            mizu_from = self.config_dict.get('MIZU_FROM_MODEL', '').upper()
-            if mizu_from == 'GR':
-                control_file = 'mizuRoute_control_GR.txt'
-            elif mizu_from == 'FUSE':
-                control_file = 'mizuRoute_control_FUSE.txt'
-            else:
-                control_file = 'mizuroute.control'
-            self.logger.debug(f"Using default mizuRoute control file: {control_file}")
+            # Set up paths and filenames
+            # Use standardized keys first, with fallback to legacy keys for backward compatibility
+            # Phase 2: MIZUROUTE_INSTALL_PATH is the new standard, INSTALL_PATH_MIZUROUTE is deprecated
+            install_path_key = 'MIZUROUTE_INSTALL_PATH'
+            exe_name_key = 'MIZUROUTE_EXE'
 
-        # Sync control file dimensions with actual runoff file
-        if runoff_path and runoff_path.exists():
-            control_path = settings_path / control_file
-            if control_path.exists():
-                self.sync_control_file_dimensions(control_path, runoff_path)
-            else:
-                self.logger.warning(f"Control file not found at {control_path}, skipping dimension sync")
+            # Check if using legacy keys and log a warning
+            if self.config_dict.get('INSTALL_PATH_MIZUROUTE') and not self.config_dict.get('MIZUROUTE_INSTALL_PATH'):
+                self.logger.warning(
+                    "Using deprecated config key 'INSTALL_PATH_MIZUROUTE'. "
+                    "Please update to 'MIZUROUTE_INSTALL_PATH'. Support will be removed in v2.0."
+                )
+                install_path_key = 'INSTALL_PATH_MIZUROUTE'
 
-        experiment_id = self.config_dict.get('EXPERIMENT_ID')
-        mizu_log_path = self.get_config_path('EXPERIMENT_LOG_MIZUROUTE', f"simulations/{experiment_id}/mizuRoute/mizuRoute_logs/")
-        mizu_log_name = "mizuRoute_log.txt"
+            if self.config_dict.get('EXE_NAME_MIZUROUTE') and not self.config_dict.get('MIZUROUTE_EXE'):
+                self.logger.warning(
+                    "Using deprecated config key 'EXE_NAME_MIZUROUTE'. "
+                    "Please update to 'MIZUROUTE_EXE'. Support will be removed in v2.0."
+                )
+                exe_name_key = 'EXE_NAME_MIZUROUTE'
 
-        mizu_out_path = self.get_config_path('EXPERIMENT_OUTPUT_MIZUROUTE', f"simulations/{experiment_id}/mizuRoute/")
+            self.mizu_exe = self.get_model_executable(
+                install_path_key=install_path_key,
+                default_install_subpath='installs/mizuRoute/route/bin',
+                exe_name_key=exe_name_key,
+                default_exe_name='mizuroute.exe',
+                must_exist=True
+            )
+            settings_path = self.get_config_path('SETTINGS_MIZU_PATH', 'settings/mizuRoute/')
+            control_file = self.config_dict.get('SETTINGS_MIZU_CONTROL_FILE')
 
-        # Backup settings if required
-        if self.config_dict.get('EXPERIMENT_BACKUP_SETTINGS') == 'yes':
-            self.backup_settings(settings_path, backup_subdir="run_settings")
+            # Sane defaults for control file if not specified
+            if not control_file or control_file == 'default':
+                mizu_from = self.config_dict.get('MIZU_FROM_MODEL', '').upper()
+                if mizu_from == 'GR':
+                    control_file = 'mizuRoute_control_GR.txt'
+                elif mizu_from == 'FUSE':
+                    control_file = 'mizuRoute_control_FUSE.txt'
+                else:
+                    control_file = 'mizuroute.control'
+                self.logger.debug(f"Using default mizuRoute control file: {control_file}")
 
-        # Run mizuRoute
-        mizu_log_path.mkdir(parents=True, exist_ok=True)
-        mizu_command = [str(self.mizu_exe), str(settings_path / control_file)]
-        self.logger.debug(f'Running mizuRoute with command: {" ".join(mizu_command)}')
+            # Sync control file dimensions with actual runoff file
+            if runoff_path and runoff_path.exists():
+                control_path = settings_path / control_file
+                if control_path.exists():
+                    self.sync_control_file_dimensions(control_path, runoff_path)
+                else:
+                    self.logger.warning(f"Control file not found at {control_path}, skipping dimension sync")
 
-        self.execute_model_subprocess(
-            mizu_command,
-            mizu_log_path / mizu_log_name,
-            success_message="mizuRoute run completed successfully"
-        )
+            experiment_id = self.config_dict.get('EXPERIMENT_ID')
+            mizu_log_path = self.get_config_path('EXPERIMENT_LOG_MIZUROUTE', f"simulations/{experiment_id}/mizuRoute/mizuRoute_logs/")
+            mizu_log_name = "mizuRoute_log.txt"
 
-        return mizu_out_path
+            mizu_out_path = self.get_config_path('EXPERIMENT_OUTPUT_MIZUROUTE', f"simulations/{experiment_id}/mizuRoute/")
+
+            # Backup settings if required
+            if self.config_dict.get('EXPERIMENT_BACKUP_SETTINGS') == 'yes':
+                self.backup_settings(settings_path, backup_subdir="run_settings")
+
+            # Run mizuRoute
+            mizu_log_path.mkdir(parents=True, exist_ok=True)
+            mizu_command = [str(self.mizu_exe), str(settings_path / control_file)]
+            self.logger.debug(f'Running mizuRoute with command: {" ".join(mizu_command)}')
+
+            self.execute_model_subprocess(
+                mizu_command,
+                mizu_log_path / mizu_log_name,
+                success_message="mizuRoute run completed successfully"
+            )
+
+            return mizu_out_path

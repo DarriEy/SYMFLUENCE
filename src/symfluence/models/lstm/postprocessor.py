@@ -2,6 +2,7 @@
 LSTM Model Postprocessor.
 
 Handles result saving, visualization, and metric calculation for the LSTM model.
+Migrated to extend StandardModelPostprocessor for extract_streamflow (Phase 1.4).
 """
 
 from typing import Dict, Optional, List, cast
@@ -11,17 +12,34 @@ import xarray as xr
 import numpy as np
 
 from symfluence.models.registry import ModelRegistry
-from symfluence.models.base import BaseModelPostProcessor
+from symfluence.models.base import StandardModelPostprocessor
 from symfluence.evaluation.metrics import (
     kge, kge_prime, nse, mae, rmse, kge_np
 )
 
+
 @ModelRegistry.register_postprocessor('LSTM')
-class LSTMPostprocessor(BaseModelPostProcessor):
+class LSTMPostprocessor(StandardModelPostprocessor):
     """
     Handles postprocessing for the LSTM model.
-    Inherits from BaseModelPostProcessor to use standardized results saving and plotting.
+
+    Extends StandardModelPostprocessor for standard streamflow extraction,
+    while keeping custom save_results() for LSTM's dual-mode output format.
+
+    Attributes:
+        model_name: "LSTM"
+        output_file_pattern: "{experiment}_LSTM_output.nc"
+        streamflow_variable: "predicted_streamflow"
+        streamflow_unit: "cms"
     """
+
+    # Model identification
+    model_name = "LSTM"
+
+    # NetCDF output configuration
+    output_file_pattern = "{experiment}_LSTM_output.nc"
+    streamflow_variable = "predicted_streamflow"
+    streamflow_unit = "cms"
 
     def _get_model_name(self) -> str:
         return "LSTM"
@@ -33,28 +51,52 @@ class LSTMPostprocessor(BaseModelPostProcessor):
         For LSTM, results are typically passed directly to save_results by the runner.
         This method is implemented to satisfy the abstract base class and can be used
         if we need to reload from the NetCDF file.
+
+        Returns:
+            Optional[Path]: Path to saved streamflow CSV, or None if extraction fails
         """
         try:
             output_file = self.sim_dir / f"{self.experiment_id}_LSTM_output.nc"
             if not output_file.exists():
+                self.logger.warning(f"LSTM output file not found: {output_file}")
                 return None
 
             ds = xr.open_dataset(output_file)
-            if 'predicted_streamflow' in ds:
-                return self.save_streamflow_to_results(ds['predicted_streamflow'].to_series())
+            if self.streamflow_variable in ds:
+                streamflow = ds[self.streamflow_variable].to_series()
+                ds.close()
+                return self.save_streamflow_to_results(streamflow)
+
+            ds.close()
+            self.logger.warning(
+                f"Variable '{self.streamflow_variable}' not found in {output_file}"
+            )
             return None
+
         except Exception as e:
             self.logger.error(f"Error extracting LSTM streamflow: {str(e)}")
             return None
 
-    def save_results(self, results: pd.DataFrame, use_snow: bool, hru_ids: Optional[List[int]] = None):
+    def save_results(
+        self,
+        results: pd.DataFrame,
+        use_snow: bool,
+        hru_ids: Optional[List[int]] = None
+    ):
         """
         Save LSTM model results to disk as NetCDF and CSV (for standardization).
 
+        Handles both lumped and distributed modes with appropriate output formats:
+        - Lumped mode: Simple time series output
+        - Distributed mode: Multi-HRU output with gruId dimension for routing
+
         Args:
-            results (pd.DataFrame): Simulation results dataframe.
-            use_snow (bool): Whether snow was simulated.
-            hru_ids (List[int]): Optional list of HRU IDs for distributed mode.
+            results: Simulation results dataframe with predicted_streamflow column
+            use_snow: Whether snow was simulated (adds scalarSWE variable)
+            hru_ids: Optional list of HRU IDs for distributed mode
+
+        Returns:
+            Path to saved NetCDF file
         """
         self.logger.info("Saving LSTM model results")
 
@@ -107,13 +149,14 @@ class LSTMPostprocessor(BaseModelPostProcessor):
         else:
             # Distributed mode: Unflatten results to (time, gru)
             # results index is [time, hruId]
-            pivot_df = results.reset_index().pivot(index='time', columns='hruId', values='predicted_streamflow')
+            pivot_df = results.reset_index().pivot(
+                index='time', columns='hruId', values='predicted_streamflow'
+            )
 
             # Reorder columns to match hru_ids
             pivot_df = pivot_df[hru_ids]
 
             n_hrus = len(hru_ids)
-            len(pivot_df)
 
             # Create Dataset compatible with mizuRoute/dRoute
             ds = xr.Dataset(
@@ -131,20 +174,22 @@ class LSTMPostprocessor(BaseModelPostProcessor):
                 routing_var = 'averageRoutedRunoff'
 
             ds[routing_var] = (['time', 'gru'], pivot_df.values)
-            ds[routing_var].attrs['units'] = 'm3 s-1' # Default LSTM output is CMS
+            ds[routing_var].attrs['units'] = 'm3 s-1'  # Default LSTM output is CMS
             ds[routing_var].attrs['long_name'] = 'LSTM runoff'
 
             # Add SWE if enabled
             if use_snow and 'predicted_SWE' in results.columns:
-                swe_pivot = results.reset_index().pivot(index='time', columns='hruId', values='predicted_SWE')
+                swe_pivot = results.reset_index().pivot(
+                    index='time', columns='hruId', values='predicted_SWE'
+                )
                 swe_pivot = swe_pivot[hru_ids]
                 ds['scalarSWE'] = (['time', 'gru'], swe_pivot.values)
                 ds.scalarSWE.attrs['units'] = 'mm'
 
-            # Also save outlet prediction if available (e.g. sum of HRUs or if model predicts at outlet)
-            # For now, just save the average as a fallback standardized result
+            # Also save outlet prediction if available
+            # For now, just save the sum as a fallback standardized result
             self.save_streamflow_to_results(
-                pivot_df.sum(axis=1), # Simple sum as placeholder
+                pivot_df.sum(axis=1),  # Simple sum as placeholder
                 model_column_name=f"{self.model_name}_sum_discharge_cms"
             )
 
@@ -173,8 +218,8 @@ class LSTMPostprocessor(BaseModelPostProcessor):
         before calculation.
 
         Args:
-            obs: Observed streamflow series (m³/s).
-            sim: Simulated streamflow series (m³/s).
+            obs: Observed streamflow series (m^3/s)
+            sim: Simulated streamflow series (m^3/s)
 
         Returns:
             dict: Dictionary of metric names to values including:

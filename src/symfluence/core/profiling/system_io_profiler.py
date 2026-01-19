@@ -216,7 +216,7 @@ class SystemIOProfiler:
             total_duration = time.time() - self._start_time
 
             # Aggregate by component
-            by_component = defaultdict(lambda: {
+            by_component: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
                 'count': 0,
                 'total_read_bytes': 0,
                 'total_write_bytes': 0,
@@ -227,7 +227,7 @@ class SystemIOProfiler:
             })
 
             # Aggregate by iteration
-            by_iteration = defaultdict(lambda: {
+            by_iteration: Dict[int, Dict[str, Any]] = defaultdict(lambda: {
                 'read_bytes': 0,
                 'write_bytes': 0,
                 'read_iops': 0.0,

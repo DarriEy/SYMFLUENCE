@@ -18,12 +18,10 @@ Authentication:
 
 import re
 import requests
-import pandas as pd
 import numpy as np
 import netCDF4 as nc
 from pathlib import Path
 import xarray as xr
-import os
 
 from ..base import BaseAcquisitionHandler
 from ..registry import AcquisitionRegistry

@@ -2,8 +2,7 @@
 FUSE Runner Module
 
 Refactored to use the Unified Model Execution Framework:
-- ModelExecutor: For subprocess execution
-- SpatialOrchestrator: For routing integration and spatial mode handling
+- UnifiedModelExecutor: Combined execution and spatial orchestration
 """
 
 import shutil
@@ -17,7 +16,7 @@ import xarray as xr
 
 from ..base import BaseModelRunner
 from ..mixins import OutputConverterMixin
-from ..execution import ModelExecutor, SpatialOrchestrator
+from ..execution import UnifiedModelExecutor
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from ..registry import ModelRegistry
 from .subcatchment_processor import SubcatchmentProcessor
@@ -28,7 +27,7 @@ from symfluence.core.exceptions import (
 
 
 @ModelRegistry.register_runner('FUSE', method_name='run_fuse')
-class FUSERunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConverterMixin, MizuRouteConfigMixin):
+class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, MizuRouteConfigMixin):
     """
     Runner class for the FUSE (Framework for Understanding Structural Errors) model.
     Handles model execution, output processing, and file management.

@@ -102,6 +102,50 @@ class GRConfig(BaseModel):
     )
 
 
+class HBVConfig(BaseModel):
+    """HBV-96 hydrological model configuration"""
+    model_config = FROZEN_CONFIG
+
+    spatial_mode: SpatialModeType = Field(default='auto', alias='HBV_SPATIAL_MODE')
+    routing_integration: str = Field(default='none', alias='HBV_ROUTING_INTEGRATION')
+    backend: Literal['jax', 'numpy'] = Field(default='jax', alias='HBV_BACKEND')
+    use_gpu: bool = Field(default=False, alias='HBV_USE_GPU')
+    jit_compile: bool = Field(default=True, alias='HBV_JIT_COMPILE')
+    warmup_days: int = Field(default=365, alias='HBV_WARMUP_DAYS', ge=0)
+    params_to_calibrate: str = Field(
+        default='tt,cfmax,fc,lp,beta,k0,k1,k2,uzl,perc,maxbas',
+        alias='HBV_PARAMS_TO_CALIBRATE'
+    )
+    use_gradient_calibration: bool = Field(default=True, alias='HBV_USE_GRADIENT_CALIBRATION')
+    calibration_metric: Literal['KGE', 'NSE'] = Field(default='KGE', alias='HBV_CALIBRATION_METRIC')
+    # Initial state values
+    initial_snow: float = Field(default=0.0, alias='HBV_INITIAL_SNOW', ge=0.0)
+    initial_sm: float = Field(default=150.0, alias='HBV_INITIAL_SM', ge=0.0)
+    initial_suz: float = Field(default=10.0, alias='HBV_INITIAL_SUZ', ge=0.0)
+    initial_slz: float = Field(default=10.0, alias='HBV_INITIAL_SLZ', ge=0.0)
+    # PET configuration
+    pet_method: Literal['input', 'hamon', 'thornthwaite'] = Field(default='input', alias='HBV_PET_METHOD')
+    latitude: Optional[float] = Field(default=None, alias='HBV_LATITUDE', ge=-90.0, le=90.0)
+    # Output configuration
+    save_states: bool = Field(default=False, alias='HBV_SAVE_STATES')
+    output_frequency: Literal['daily', 'timestep'] = Field(default='daily', alias='HBV_OUTPUT_FREQUENCY')
+    # Default parameter values
+    default_tt: float = Field(default=0.0, alias='HBV_DEFAULT_TT')
+    default_cfmax: float = Field(default=3.5, alias='HBV_DEFAULT_CFMAX')
+    default_sfcf: float = Field(default=0.9, alias='HBV_DEFAULT_SFCF')
+    default_cfr: float = Field(default=0.05, alias='HBV_DEFAULT_CFR')
+    default_cwh: float = Field(default=0.1, alias='HBV_DEFAULT_CWH')
+    default_fc: float = Field(default=250.0, alias='HBV_DEFAULT_FC')
+    default_lp: float = Field(default=0.7, alias='HBV_DEFAULT_LP')
+    default_beta: float = Field(default=2.5, alias='HBV_DEFAULT_BETA')
+    default_k0: float = Field(default=0.3, alias='HBV_DEFAULT_K0')
+    default_k1: float = Field(default=0.1, alias='HBV_DEFAULT_K1')
+    default_k2: float = Field(default=0.01, alias='HBV_DEFAULT_K2')
+    default_uzl: float = Field(default=30.0, alias='HBV_DEFAULT_UZL')
+    default_perc: float = Field(default=2.5, alias='HBV_DEFAULT_PERC')
+    default_maxbas: float = Field(default=2.5, alias='HBV_DEFAULT_MAXBAS')
+
+
 class HYPEConfig(BaseModel):
     """HYPE hydrological model configuration"""
     model_config = FROZEN_CONFIG
@@ -296,6 +340,7 @@ class ModelConfig(BaseModel):
     summa: Optional[SUMMAConfig] = Field(default=None)
     fuse: Optional[FUSEConfig] = Field(default=None)
     gr: Optional[GRConfig] = Field(default=None)
+    hbv: Optional[HBVConfig] = Field(default=None)
     hype: Optional[HYPEConfig] = Field(default=None)
     ngen: Optional[NGENConfig] = Field(default=None)
     mesh: Optional[MESHConfig] = Field(default=None)
@@ -337,6 +382,8 @@ class ModelConfig(BaseModel):
             values['fuse'] = FUSEConfig()
         if 'GR' in models and values.get('gr') is None:
             values['gr'] = GRConfig()
+        if 'HBV' in models and values.get('hbv') is None:
+            values['hbv'] = HBVConfig()
         if 'HYPE' in models and values.get('hype') is None:
             values['hype'] = HYPEConfig()
         if 'NGEN' in models and values.get('ngen') is None:

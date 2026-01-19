@@ -172,7 +172,7 @@ import numpy as np
 import pandas as pd
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, Union, Tuple, Callable, TYPE_CHECKING
 from datetime import datetime
 
 from symfluence.core import ConfigurableMixin
@@ -1003,6 +1003,112 @@ class BaseModelOptimizer(
         """
         return self.population_evaluator.evaluate_solution(normalized_params, proc_id)
 
+    def _create_gradient_callback(self) -> Optional[Callable]:
+        """
+        Create native gradient callback if worker supports autodiff.
+
+        This enables gradient-based optimizers (Adam, L-BFGS) to use native
+        gradients from autodiff-capable models (e.g., HBV with JAX) instead
+        of finite differences, providing ~N times speedup where N is parameter count.
+
+        The callback handles:
+        1. Denormalization: [0,1] normalized space → physical parameters
+        2. Worker gradient computation via evaluate_with_gradient()
+        3. Gradient chain rule: transform from physical to normalized space
+
+        Returns:
+            Callable with signature (x_normalized: np.ndarray) -> Tuple[loss, gradient]
+            where loss is the objective value (for minimization) and gradient is
+            in normalized [0,1] space. Returns None if worker doesn't support
+            native gradients.
+
+        Note:
+            The returned callback computes gradients for MINIMIZATION (loss).
+            The optimization algorithms handle the sign conversion for maximization.
+        """
+        # Check if worker supports native gradients
+        if not hasattr(self, 'worker') or self.worker is None:
+            return None
+
+        if not hasattr(self.worker, 'supports_native_gradients'):
+            return None
+
+        if not self.worker.supports_native_gradients():
+            return None
+
+        # Get calibration metric from config
+        metric = self._get_config_value(
+            lambda: self.config.optimization.metric,
+            default='kge',
+            dict_key='CALIBRATION_METRIC'
+        ).lower()
+
+        # Get parameter names and bounds for gradient transformation
+        param_names = self.param_manager.all_param_names
+        bounds = self.param_manager.get_parameter_bounds()
+
+        # Compute scale factors for gradient chain rule
+        # d(loss)/d(x_norm) = d(loss)/d(x_phys) * d(x_phys)/d(x_norm)
+        # where d(x_phys)/d(x_norm) = (upper - lower) for linear scaling
+        scale_factors = np.array([
+            bounds[name]['max'] - bounds[name]['min']
+            for name in param_names
+        ])
+
+        def gradient_callback(x_normalized: np.ndarray) -> Tuple[float, np.ndarray]:
+            """
+            Compute loss and gradient for normalized parameters.
+
+            Args:
+                x_normalized: Parameters in [0,1] normalized space
+
+            Returns:
+                Tuple of (loss, gradient_normalized) where:
+                - loss: Scalar loss value (negative of metric, for minimization)
+                - gradient_normalized: Gradient in normalized [0,1] space
+            """
+            # Denormalize to physical parameters
+            params_dict = self.param_manager.denormalize_parameters(x_normalized)
+
+            # Call worker's evaluate_with_gradient
+            loss, grad_dict = self.worker.evaluate_with_gradient(params_dict, metric)
+
+            if grad_dict is None:
+                raise RuntimeError(
+                    f"Worker returned None gradient despite supporting native gradients. "
+                    f"Check {self.worker.__class__.__name__}.evaluate_with_gradient() implementation."
+                )
+
+            # Convert gradient dict to array (same order as param_names)
+            grad_physical = np.array([grad_dict[name] for name in param_names])
+
+            # Transform gradient from physical to normalized space via chain rule
+            grad_normalized = grad_physical * scale_factors
+
+            return loss, grad_normalized
+
+        self.logger.info(
+            f"Native gradient callback created for {self._get_model_name()} "
+            f"({len(param_names)} parameters)"
+        )
+        return gradient_callback
+
+    def _get_gradient_mode(self) -> str:
+        """
+        Get gradient computation mode from configuration.
+
+        Returns:
+            One of: 'auto', 'native', 'finite_difference'
+            - 'auto': Use native gradients if available, else finite differences
+            - 'native': Require native gradients (error if unavailable)
+            - 'finite_difference': Always use FD (useful for comparison/debugging)
+        """
+        return self._get_config_value(
+            lambda: self.config.optimization.gradient_mode,
+            default='auto',
+            dict_key='GRADIENT_MODE'
+        )
+
     def _evaluate_population(
         self,
         population: np.ndarray,
@@ -1269,6 +1375,25 @@ class BaseModelOptimizer(
             kwargs['multiobjective'] = bool(self._get_config_value(
                 lambda: self.config.optimization.nsga2.multi_target, default=False
             ))
+
+        # For gradient-based algorithms (Adam, L-BFGS), add native gradient support
+        if algorithm_name.lower() in ['adam', 'lbfgs']:
+            gradient_callback = self._create_gradient_callback()
+            gradient_mode = self._get_gradient_mode()
+
+            if gradient_callback is not None:
+                kwargs['compute_gradient'] = gradient_callback
+                self.logger.info(
+                    f"Native gradient support enabled for {algorithm_name.upper()} "
+                    f"(mode: {gradient_mode})"
+                )
+            else:
+                self.logger.info(
+                    f"Using finite-difference gradients for {algorithm_name.upper()} "
+                    f"(native gradients not available for {self._get_model_name()})"
+                )
+
+            kwargs['gradient_mode'] = gradient_mode
 
         # Run the algorithm
         result = algorithm.optimize(

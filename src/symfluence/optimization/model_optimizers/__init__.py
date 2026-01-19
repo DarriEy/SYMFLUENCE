@@ -26,6 +26,7 @@ def _register_optimizers():
         'summa',
         'fuse',
         'gr',
+        'hbv',
         'hype',
         'mesh',
         'gnn',

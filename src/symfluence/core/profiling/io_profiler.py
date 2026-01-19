@@ -584,7 +584,7 @@ class IOProfiler:
                     }
                     for path, count in path_counts.items()
                 ],
-                key=lambda x: x['operation_count'],
+                key=lambda x: x['operation_count'],  # type: ignore[return-value]
                 reverse=True
             )[:20]  # Top 20 hotspots
 

@@ -180,6 +180,7 @@ import logging
 import multiprocessing as mp
 import warnings
 from pathlib import Path
+from typing import Tuple
 
 import geopandas as gpd
 
@@ -195,6 +196,87 @@ from .resampling import (
 )
 
 from symfluence.data.preprocessing.dataset_handlers import DatasetRegistry
+
+
+class _ParallelWorker:
+    """Picklable worker class for parallel file processing.
+
+    This class can be pickled because it only stores simple types (paths as strings,
+    config dict) rather than complex objects like loggers or dataset handlers.
+    """
+
+    def __init__(
+        self,
+        config_dict: dict,
+        project_dir: str,
+        output_dir: str,
+        forcing_dataset: str,
+        remap_file: str,
+        cached_target_shp_wgs84: str,
+        cached_hru_field: str,
+        domain_name: str,
+    ):
+        self.config_dict = config_dict
+        self.project_dir = Path(project_dir)
+        self.output_dir = Path(output_dir)
+        self.forcing_dataset = forcing_dataset
+        self.remap_file = Path(remap_file)
+        self.cached_target_shp_wgs84 = Path(cached_target_shp_wgs84)
+        self.cached_hru_field = cached_hru_field
+        self.domain_name = domain_name
+
+        # These will be initialized per-worker
+        self._weight_applier = None
+        self._file_processor = None
+        self._logger = None
+
+    def _init_worker_components(self):
+        """Initialize components in the worker process."""
+        if self._weight_applier is not None:
+            return
+
+        # Create a minimal logger for the worker
+        self._logger = logging.getLogger(f"forcing_worker_{mp.current_process().pid}")
+        self._logger.setLevel(logging.WARNING)  # Reduce noise in parallel workers
+
+        # Initialize dataset handler
+        from symfluence.data.preprocessing.dataset_handlers import DatasetRegistry
+        dataset_handler = DatasetRegistry.get_handler(
+            self.forcing_dataset,
+            self.config_dict,
+            self._logger,
+            self.project_dir
+        )
+
+        # Initialize weight applier
+        self._weight_applier = RemappingWeightApplier(
+            self.config_dict,
+            self.project_dir,
+            self.output_dir,
+            dataset_handler,
+            self._logger
+        )
+        self._weight_applier.set_shapefile_cache(
+            self.cached_target_shp_wgs84,
+            self.cached_hru_field
+        )
+
+        # Initialize file processor
+        self._file_processor = FileProcessor(
+            self.config_dict,
+            self.output_dir,
+            self._logger
+        )
+
+    def __call__(self, args: Tuple[str, int]) -> bool:
+        """Process a single file. Called by pool.map()."""
+        file_path, worker_id = args
+        file = Path(file_path)
+
+        self._init_worker_components()
+
+        output_file = self._file_processor.determine_output_filename(file)
+        return self._weight_applier.apply_weights(file, self.remap_file, output_file, worker_id)
 
 # Suppress verbose easmore logging
 logging.getLogger('easymore').setLevel(logging.WARNING)
@@ -496,9 +578,56 @@ class ForcingResampler(PathResolverMixin):
         return self.file_processor.process_serial(files, process_func)
 
     def _process_files_parallel(self, files, num_cpus, remap_file):
-        """Process files in parallel mode."""
-        def process_func(file, worker_id):
-            output_file = self.file_processor.determine_output_filename(file)
-            return self.weight_applier.apply_weights(file, remap_file, output_file, worker_id)
+        """Process files in parallel mode using picklable worker."""
+        # Create a picklable worker with all necessary configuration
+        worker = _ParallelWorker(
+            config_dict=self.config.to_dict(flatten=True) if hasattr(self.config, 'to_dict') else dict(self.config),
+            project_dir=str(self.project_dir),
+            output_dir=str(self.forcing_basin_path),
+            forcing_dataset=self.forcing_dataset,
+            remap_file=str(remap_file),
+            cached_target_shp_wgs84=str(self.weight_generator.cached_target_shp_wgs84),
+            cached_hru_field=self.weight_generator.cached_hru_field,
+            domain_name=self._get_config_value(lambda: self.config.domain.name),
+        )
 
-        return self.file_processor.process_parallel(files, num_cpus, process_func)
+        return self._run_parallel_with_worker(files, num_cpus, worker)
+
+    def _run_parallel_with_worker(self, files, num_cpus, worker):
+        """Run parallel processing with picklable worker."""
+        from tqdm import tqdm
+        import gc
+
+        batch_size = min(10, len(files))
+        total_batches = (len(files) + batch_size - 1) // batch_size
+
+        self.logger.debug(f"Processing {total_batches} batches of up to {batch_size} files each")
+
+        success_count = 0
+
+        with tqdm(total=len(files), desc="Remapping forcing files", unit="file") as pbar:
+            for batch_num in range(total_batches):
+                start_idx = batch_num * batch_size
+                end_idx = min(start_idx + batch_size, len(files))
+                batch_files = files[start_idx:end_idx]
+
+                try:
+                    with mp.Pool(processes=num_cpus) as pool:
+                        worker_args = [
+                            (str(file), i % num_cpus)
+                            for i, file in enumerate(batch_files)
+                        ]
+                        results = pool.map(worker, worker_args)
+
+                    batch_success = sum(1 for r in results if r)
+                    success_count += batch_success
+                    pbar.update(len(batch_files))
+
+                except Exception as e:
+                    self.logger.error(f"Error processing batch {batch_num+1}: {str(e)}")
+                    pbar.update(len(batch_files))
+
+                gc.collect()
+
+        self.logger.debug(f"Parallel processing complete: {success_count}/{len(files)} successful")
+        return success_count

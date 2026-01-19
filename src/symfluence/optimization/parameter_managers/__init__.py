@@ -31,6 +31,7 @@ def _register_parameter_managers():
         'summa',
         'fuse',
         'gr',
+        'hbv',
         'hype',
         'mesh',
         'rhessys',
@@ -53,6 +54,7 @@ _register_parameter_managers()
 # Re-export for backward compatibility
 from .fuse_parameter_manager import FUSEParameterManager
 from .gr_parameter_manager import GRParameterManager
+from .hbv_parameter_manager import HBVParameterManager
 from .hype_parameter_manager import HYPEParameterManager
 from .mesh_parameter_manager import MESHParameterManager
 from .ngen_parameter_manager import NgenParameterManager
@@ -63,6 +65,7 @@ from .ml_parameter_manager import MLParameterManager
 __all__ = [
     'FUSEParameterManager',
     'GRParameterManager',
+    'HBVParameterManager',
     'HYPEParameterManager',
     'MESHParameterManager',
     'NgenParameterManager',
