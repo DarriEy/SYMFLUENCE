@@ -181,6 +181,10 @@ ignore = [
 # Init files often have unused imports for re-export
 "**/__init__.py" = ["F401", "F403"]
 
+[tool.bandit]
+exclude_dirs = ["tests", "examples", "venv", ".venv"]
+skips = ["B101"]  # Allow assert statements
+
 [tool.mypy]
 python_version = "3.11"
 show_error_codes = true
