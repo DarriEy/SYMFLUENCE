@@ -49,6 +49,7 @@ def get_ngen_build_instructions():
             udunits2_detect,
             r'''
 set -e
+set -o pipefail  # Make pipelines return exit code of failed command, not just last command
 echo "Building ngen with full BMI support (C, C++, Fortran)..."
 
 # Ensure system tools are preferred (fix for 2i2c environments)
