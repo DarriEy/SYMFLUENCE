@@ -476,19 +476,45 @@ detect_or_build_udunits2() {
 
             # UDUNITS2 requires EXPAT for XML parsing
             EXPAT_FLAGS=""
-            # Try loading expat module on HPC systems
-            if command -v module >/dev/null 2>&1; then
-                module load expat 2>/dev/null && echo "Loaded expat module" || true
-            fi
+            EXPAT_FOUND=false
+
             # Check for expat in common locations
             for expat_path in "$CONDA_PREFIX" /usr /usr/local; do
                 if [ -n "$expat_path" ] && [ -f "$expat_path/include/expat.h" ]; then
                     echo "Found EXPAT at: $expat_path"
                     EXPAT_FLAGS="CPPFLAGS=-I$expat_path/include LDFLAGS=-L$expat_path/lib"
                     export LD_LIBRARY_PATH="$expat_path/lib:${LD_LIBRARY_PATH:-}"
+                    EXPAT_FOUND=true
                     break
                 fi
             done
+
+            # If EXPAT not found, build it from source
+            if [ "$EXPAT_FOUND" = false ]; then
+                echo "EXPAT not found, building from source..."
+                EXPAT_VERSION="2.5.0"
+                EXPAT_INSTALL_DIR="${UDUNITS2_ORIGINAL_DIR}/expat"
+
+                if [ ! -f "${EXPAT_INSTALL_DIR}/lib/libexpat.a" ]; then
+                    mkdir -p expat_build && cd expat_build
+                    if [ ! -f "expat-${EXPAT_VERSION}.tar.gz" ]; then
+                        wget -q "https://github.com/libexpat/libexpat/releases/download/R_2_5_0/expat-${EXPAT_VERSION}.tar.gz" \
+                          || curl -fsSL -o "expat-${EXPAT_VERSION}.tar.gz" "https://github.com/libexpat/libexpat/releases/download/R_2_5_0/expat-${EXPAT_VERSION}.tar.gz"
+                    fi
+                    tar -xzf "expat-${EXPAT_VERSION}.tar.gz"
+                    cd "expat-${EXPAT_VERSION}"
+                    ./configure --prefix="${EXPAT_INSTALL_DIR}" --disable-shared --enable-static
+                    make -j ${NCORES:-4}
+                    make install
+                    cd ../..
+                    echo "EXPAT built successfully"
+                else
+                    echo "Using previously built EXPAT at: ${EXPAT_INSTALL_DIR}"
+                fi
+
+                EXPAT_FLAGS="CPPFLAGS=-I${EXPAT_INSTALL_DIR}/include LDFLAGS=-L${EXPAT_INSTALL_DIR}/lib"
+                export LD_LIBRARY_PATH="${EXPAT_INSTALL_DIR}/lib:${LD_LIBRARY_PATH:-}"
+            fi
 
             echo "Configuring UDUNITS2..."
             ./configure --prefix="${UDUNITS2_INSTALL_DIR}" --disable-shared --enable-static $EXPAT_FLAGS
