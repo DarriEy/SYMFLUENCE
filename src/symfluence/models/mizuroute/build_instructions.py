@@ -77,7 +77,7 @@ perl -i -pe "s|^FC\s*=.*$|FC = gnu|" Makefile
 perl -i -pe "s|^FC_EXE\s*=.*$|FC_EXE = ${FC:-gfortran}|" Makefile
 perl -i -pe "s|^EXE\s*=.*$|EXE = mizuRoute.exe|" Makefile
 perl -i -pe "s|^F_MASTER\s*=.*$|F_MASTER = $F_MASTER_PATH/|" Makefile
-perl -i -pe "s|^\s*NCDF_PATH\s*=.*$| NCDF_PATH = ${NETCDF_FORTRAN}|" Makefile
+perl -i -pe "s|^\s*NCDF_PATH\s*=.*$|NCDF_PATH = ${NETCDF_FORTRAN}|" Makefile
 perl -i -pe "s|^isOpenMP\s*=.*$|isOpenMP = no|" Makefile
 
 # Fix LIBNETCDF for separate C/Fortran libs (e.g., macOS Homebrew)
