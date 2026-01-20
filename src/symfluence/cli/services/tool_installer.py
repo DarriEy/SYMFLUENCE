@@ -141,7 +141,11 @@ class ToolInstaller(BaseService):
 
         # Determine which tools to install
         if specific_tools is None:
-            tools_to_install = list(self.external_tools.keys())
+            # Install all non-optional tools by default
+            tools_to_install = [
+                name for name, info in self.external_tools.items()
+                if not info.get('optional', False)
+            ]
         else:
             tools_to_install = []
             for tool in specific_tools:
@@ -343,7 +347,7 @@ class ToolInstaller(BaseService):
             # are multi-line shell scripts that may contain shell-specific syntax
             # (pipes, redirects, environment variables, etc.). The build commands
             # come from internal tool definitions, not user input.
-            build_result = subprocess.run(
+            build_result = subprocess.run(  # nosec B602
                 combined_script,
                 shell=True,
                 check=True,

@@ -336,6 +336,7 @@ fi
             'check_type': 'python_module'
         },
         'order': 15,
+        'optional': True,  # Not installed by default with --install
         'notes': [
             'Requires PyTorch for gradient computation',
             'Enzyme AD is optional but recommended for accurate gradients',

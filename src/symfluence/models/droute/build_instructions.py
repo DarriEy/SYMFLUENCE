@@ -30,7 +30,7 @@ def get_droute_build_instructions():
         'config_exe_key': 'DROUTE_EXE',
         'default_path_suffix': 'installs/droute/bin',
         'default_exe': 'droute',
-        'repository': 'https://github.com/your-org/droute.git',
+        'repository': 'https://github.com/DarriEy/dRoute.git',
         'branch': 'main',
         'install_dir': 'droute',
         'build_commands': [
@@ -111,6 +111,7 @@ echo "=== Build complete ==="
             'check_type': 'python_module'
         },
         'order': 4,
+        'optional': True,  # Not installed by default with --install
         'notes': '''
 dRoute build options:
 - DROUTE_BUILD_PYTHON: Enable Python bindings (requires pybind11)
