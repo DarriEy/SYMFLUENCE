@@ -55,11 +55,19 @@ echo "Building ngen with full BMI support (C, C++, Fortran)..."
 export PATH="/usr/bin:$PATH"
 
 # Prevent any Makefile from being auto-triggered during git operations
+# Debug: show what MAKEFLAGS contains
+echo "DEBUG: MAKEFLAGS before clearing: '${MAKEFLAGS:-}'"
+echo "DEBUG: MAKELEVEL before clearing: '${MAKELEVEL:-}'"
+
 # Must unset ALL make-related variables to prevent spurious make calls
 unset MAKEFLAGS MAKELEVEL MAKE MFLAGS MAKEOVERRIDES GNUMAKEFLAGS 2>/dev/null || true
 export MAKEFLAGS=""
 export MAKELEVEL=""
 export MFLAGS=""
+
+# Disable git hooks that might trigger make
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_SYSTEM=/dev/null
 
 # Fix for conda GCC 14: ensure libstdc++ is found
 # GCC 14 from conda-forge requires explicit library path for C++ runtime
