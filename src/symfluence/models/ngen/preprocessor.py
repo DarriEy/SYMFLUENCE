@@ -477,8 +477,8 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             if not parent.exists():
                 try:
                     parent.mkdir(exist_ok=True)
-                except Exception:
-                    pass
+                except OSError:
+                    pass  # Parent may have been created by another process
 
         self.forcing_dir.mkdir(parents=True, exist_ok=True)
 
@@ -685,17 +685,22 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         """
         Create t-route network topology file from river network shapefile.
 
+        Creates a complete topology file with all channel geometry parameters
+        required by T-Route for Muskingum-Cunge routing. Channel geometry
+        is estimated using hydraulic geometry relationships based on drainage area.
+
         Returns:
             Path to topology NetCDF file, or None if creation failed.
         """
         try:
             import netCDF4 as nc4
             from datetime import datetime
+            import numpy as np
         except ImportError:
             self.logger.warning("netCDF4 not available, skipping topology file creation")
             return None
 
-        self.logger.info("Creating t-route network topology file")
+        self.logger.info("Creating t-route network topology file with channel geometry")
         river_network_file = self.get_river_network_path()
 
         if not river_network_file.exists():
@@ -713,15 +718,24 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         length_col = self.config_dict.get('RIVER_NETWORK_SHP_LENGTH', 'Length')
         slope_col = self.config_dict.get('RIVER_NETWORK_SHP_SLOPE', 'Slope')
 
+        # Get drainage area column (try common names)
+        drainage_area_col = None
+        for col_name in ['DSContArea', 'TotDASqKm', 'drainage_area', 'DAREA', 'AreaSqKm']:
+            if col_name in river_gdf.columns:
+                drainage_area_col = col_name
+                break
+
         topology_file = self.setup_dir / 'troute_topology.nc'
+        n_segments = len(river_gdf)
 
         with nc4.Dataset(topology_file, 'w', format='NETCDF4') as ncid:
             ncid.setncattr('Author', 'Created by SYMFLUENCE for t-route NGEN routing')
             ncid.setncattr('History', f'Created {datetime.now().strftime("%Y/%m/%d %H:%M:%S")}')
             ncid.setncattr('Conventions', 'CF-1.6')
+            ncid.setncattr('Description', 'T-Route topology with estimated channel geometry')
 
             # Create dimension
-            ncid.createDimension('link', len(river_gdf))
+            ncid.createDimension('link', n_segments)
 
             # Segment IDs (comid)
             var = ncid.createVariable('comid', 'i4', ('link',))
@@ -734,23 +748,128 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             var.long_name = 'Downstream segment ID'
 
             # Length
+            lengths = np.zeros(n_segments)
             if length_col in river_gdf.columns:
-                var = ncid.createVariable('length', 'f8', ('link',))
-                var[:] = river_gdf[length_col].values
-                var.long_name = 'Segment length'
-                var.units = 'meters'
+                lengths = river_gdf[length_col].values
+            else:
+                # Estimate from geometry
+                lengths = river_gdf.geometry.length.values
+            var = ncid.createVariable('length', 'f8', ('link',))
+            var[:] = lengths
+            var.long_name = 'Segment length'
+            var.units = 'meters'
 
             # Slope
+            slopes = np.zeros(n_segments)
             if slope_col in river_gdf.columns:
-                var = ncid.createVariable('slope', 'f8', ('link',))
-                var[:] = river_gdf[slope_col].values
-                var.long_name = 'Segment slope'
-                var.units = 'm/m'
+                slopes = river_gdf[slope_col].values
+            else:
+                slopes = np.full(n_segments, 0.001)  # Default 0.1% slope
+            # Ensure minimum slope for numerical stability
+            slopes = np.maximum(slopes, 0.0001)
+            var = ncid.createVariable('slope', 'f8', ('link',))
+            var[:] = slopes
+            var.long_name = 'Segment slope'
+            var.units = 'm/m'
 
-            # Manning's n (default value)
+            # Manning's n for channel
             var = ncid.createVariable('n', 'f8', ('link',))
-            var[:] = [0.035] * len(river_gdf)
-            var.long_name = 'Manning roughness coefficient'
+            var[:] = np.full(n_segments, 0.035)  # Typical natural channel
+            var.long_name = 'Manning roughness coefficient for channel'
+
+            # === Channel Geometry Estimation ===
+            # Use hydraulic geometry relationships based on drainage area
+            # Based on Leopold & Maddock (1953) type relationships
+
+            # Get drainage area in km² for hydraulic geometry calculations
+            if drainage_area_col:
+                # Check if area is in m² or km²
+                drainage_areas_m2 = river_gdf[drainage_area_col].values
+                # If values are very large, assume m² and convert to km²
+                if np.median(drainage_areas_m2) > 10000:
+                    drainage_areas_km2 = drainage_areas_m2 / 1e6
+                else:
+                    drainage_areas_km2 = drainage_areas_m2
+                self.logger.debug(f"Using drainage area from column '{drainage_area_col}'")
+            else:
+                # Estimate from stream order or use default
+                self.logger.warning("No drainage area column found. Using default estimates.")
+                drainage_areas_km2 = np.full(n_segments, 100.0)  # Default 100 km²
+
+            # Ensure minimum drainage area
+            drainage_areas_km2 = np.maximum(drainage_areas_km2, 1.0)
+
+            # Bankfull width estimation: W = a * A^b
+            # Regional coefficients vary, using typical values for mountain/foothill streams
+            # W_bankfull ≈ 3.0 * A^0.5 (A in km², W in m)
+            width_coef = self.config_dict.get('TROUTE_WIDTH_COEF', 3.0)
+            width_exp = self.config_dict.get('TROUTE_WIDTH_EXP', 0.5)
+            bankfull_widths = width_coef * np.power(drainage_areas_km2, width_exp)
+            bankfull_widths = np.clip(bankfull_widths, 2.0, 500.0)  # Reasonable bounds
+
+            # Bankfull depth estimation: D = c * A^d
+            # D_bankfull ≈ 0.3 * A^0.4 (A in km², D in m)
+            depth_coef = self.config_dict.get('TROUTE_DEPTH_COEF', 0.3)
+            depth_exp = self.config_dict.get('TROUTE_DEPTH_EXP', 0.4)
+            bankfull_depths = depth_coef * np.power(drainage_areas_km2, depth_exp)
+            bankfull_depths = np.clip(bankfull_depths, 0.3, 20.0)  # Reasonable bounds
+
+            # Bottom width (bw) - for trapezoidal channel, bw ≈ 0.5 * tw
+            bottom_widths = 0.5 * bankfull_widths
+            var = ncid.createVariable('bw', 'f8', ('link',))
+            var[:] = bottom_widths
+            var.long_name = 'Bottom width of channel'
+            var.units = 'meters'
+
+            # Top width (tw) - bankfull width
+            var = ncid.createVariable('tw', 'f8', ('link',))
+            var[:] = bankfull_widths
+            var.long_name = 'Top width of channel at bankfull'
+            var.units = 'meters'
+
+            # Compound channel top width (twcc) - floodplain width
+            # Typically 3-5x channel width for natural channels
+            compound_widths = 3.0 * bankfull_widths
+            var = ncid.createVariable('twcc', 'f8', ('link',))
+            var[:] = compound_widths
+            var.long_name = 'Top width of compound channel (floodplain)'
+            var.units = 'meters'
+
+            # Manning's n for compound channel (ncc)
+            # Higher than channel n due to vegetation on floodplain
+            var = ncid.createVariable('ncc', 'f8', ('link',))
+            var[:] = np.full(n_segments, 0.08)  # Typical floodplain roughness
+            var.long_name = 'Manning roughness coefficient for compound channel'
+
+            # Cross-section area (cs) - trapezoidal channel
+            # A = 0.5 * (bw + tw) * depth
+            cross_section_areas = 0.5 * (bottom_widths + bankfull_widths) * bankfull_depths
+            var = ncid.createVariable('cs', 'f8', ('link',))
+            var[:] = cross_section_areas
+            var.long_name = 'Cross-section area at bankfull'
+            var.units = 'meters^2'
+
+            # Muskingum K (travel time through segment)
+            # K = L / V, where V is estimated from Manning equation
+            # V = (1/n) * R^(2/3) * S^(1/2)
+            # Using hydraulic radius R ≈ A/P ≈ depth * 0.7 for trapezoidal
+            hydraulic_radius = bankfull_depths * 0.7
+            manning_n = 0.035
+            velocities = (1.0 / manning_n) * np.power(hydraulic_radius, 2.0/3.0) * np.sqrt(slopes)
+            velocities = np.clip(velocities, 0.1, 5.0)  # Reasonable velocity bounds m/s
+            muskingum_k = lengths / velocities / 3600.0  # Convert to hours
+            muskingum_k = np.clip(muskingum_k, 0.5, 100.0)  # Reasonable K bounds (hours)
+            var = ncid.createVariable('musk', 'f8', ('link',))
+            var[:] = muskingum_k
+            var.long_name = 'Muskingum K parameter (travel time)'
+            var.units = 'hours'
+
+            # Muskingum X (weighting factor)
+            # Typically 0.0-0.5, with 0.2 being common for natural channels
+            # Lower X = more storage, higher X = more translation
+            var = ncid.createVariable('musx', 'f8', ('link',))
+            var[:] = np.full(n_segments, 0.2)  # Typical value for natural channels
+            var.long_name = 'Muskingum X parameter (weighting factor)'
 
             # Coordinates from segment centroids
             centroids = river_gdf.geometry.centroid.to_crs('EPSG:4326')
@@ -764,7 +883,11 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             var.long_name = 'Longitude of segment midpoint'
             var.units = 'degrees_east'
 
-        self.logger.info(f"T-route topology file created: {topology_file}")
+        self.logger.info(f"T-route topology file created with channel geometry: {topology_file}")
+        self.logger.debug(f"  Segments: {n_segments}")
+        self.logger.debug(f"  Drainage area range: {drainage_areas_km2.min():.1f} - {drainage_areas_km2.max():.1f} km²")
+        self.logger.debug(f"  Width range: {bankfull_widths.min():.1f} - {bankfull_widths.max():.1f} m")
+        self.logger.debug(f"  Depth range: {bankfull_depths.min():.2f} - {bankfull_depths.max():.2f} m")
         return topology_file
 
     def get_river_network_path(self) -> Path:
