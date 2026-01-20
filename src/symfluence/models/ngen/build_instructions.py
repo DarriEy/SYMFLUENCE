@@ -91,17 +91,18 @@ export BOOST_ROOT="$(pwd)/boost_1_79_0"
 export CXX=${CXX:-g++}
 
 # Initialize ALL submodules needed for full BMI support
+# Use env -u to ensure MAKE variables don't leak into git subprocess
 echo "Initializing submodules for ngen and external BMI modules..."
-git submodule update --init --recursive -- test/googletest extern/pybind11 || true
-git submodule update --init --recursive -- extern/cfe extern/evapotranspiration extern/sloth extern/noah-owp-modular || true
+env -u MAKEFLAGS -u MAKELEVEL -u MAKE -u MFLAGS git submodule update --init --recursive -- test/googletest extern/pybind11 || true
+env -u MAKEFLAGS -u MAKELEVEL -u MAKE -u MFLAGS git submodule update --init --recursive -- extern/cfe extern/evapotranspiration extern/sloth extern/noah-owp-modular || true
 
 # Initialize t-route submodule for routing support
 echo "Initializing t-route submodule for routing..."
-git submodule update --init --recursive -- extern/t-route || true
+env -u MAKEFLAGS -u MAKELEVEL -u MAKE -u MFLAGS git submodule update --init --recursive -- extern/t-route || true
 
 # Initialize iso_c_fortran_bmi for Fortran BMI support (required for NOAH-OWP)
 echo "Initializing iso_c_fortran_bmi submodule..."
-git submodule update --init --recursive -- extern/iso_c_fortran_bmi || true
+env -u MAKEFLAGS -u MAKELEVEL -u MAKE -u MFLAGS git submodule update --init --recursive -- extern/iso_c_fortran_bmi || true
 
 # Verify Fortran compiler
 echo "Checking Fortran compiler..."
