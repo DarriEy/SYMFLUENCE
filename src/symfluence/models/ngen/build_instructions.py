@@ -282,7 +282,7 @@ echo "Building external BMI modules..."
 if [ -d "extern/sloth" ]; then
   echo "Building SLOTH..."
   cd extern/sloth
-  git submodule update --init --recursive || true
+  git_clean submodule update --init --recursive || true
   rm -rf cmake_build && mkdir -p cmake_build
   # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility with old googletest
   cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build
@@ -299,7 +299,7 @@ fi
 if [ -d "extern/cfe" ]; then
   echo "Building CFE..."
   cd extern/cfe
-  git submodule update --init --recursive || true
+  git_clean submodule update --init --recursive || true
   rm -rf cmake_build && mkdir -p cmake_build
   # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility
   cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build
@@ -316,7 +316,7 @@ fi
 if [ -d "extern/evapotranspiration" ]; then
   echo "Building PET (evapotranspiration)..."
   cd extern/evapotranspiration/evapotranspiration
-  git submodule update --init --recursive 2>/dev/null || true
+  git_clean submodule update --init --recursive 2>/dev/null || true
   rm -rf cmake_build && mkdir -p cmake_build
   # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility
   cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build
@@ -334,7 +334,7 @@ fi
 if [ -d "extern/iso_c_fortran_bmi" ] && [ -n "$FC" ]; then
   echo "Building iso_c_fortran_bmi (C wrapper for Fortran BMI)..."
   cd extern/iso_c_fortran_bmi
-  git submodule update --init --recursive || true
+  git_clean submodule update --init --recursive || true
   rm -rf cmake_build && mkdir -p cmake_build
 
   ISO_C_CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
@@ -357,7 +357,7 @@ fi
 if [ -d "extern/noah-owp-modular" ] && [ -n "$FC" ]; then
   echo "Building NOAH-OWP-Modular (Fortran)..."
   cd extern/noah-owp-modular
-  git submodule update --init --recursive || true
+  git_clean submodule update --init --recursive || true
   rm -rf cmake_build && mkdir -p cmake_build
 
   # Configure with NGEN support
