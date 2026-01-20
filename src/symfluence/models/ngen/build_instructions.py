@@ -100,8 +100,9 @@ export CXX=${CXX:-g++}
 
 # Initialize ALL submodules needed for full BMI support
 # Create a clean git wrapper to prevent MAKEFLAGS from triggering spurious make calls
+# Also disable git hooks which may trigger make
 git_clean() {
-    MAKEFLAGS= MAKELEVEL= MAKE= MFLAGS= GNUMAKEFLAGS= git "$@"
+    MAKEFLAGS= MAKELEVEL= MAKE= MFLAGS= GNUMAKEFLAGS= git -c core.hooksPath=/dev/null "$@"
 }
 
 echo "Initializing submodules for ngen and external BMI modules..."
