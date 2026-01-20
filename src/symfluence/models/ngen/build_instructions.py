@@ -109,8 +109,13 @@ git_clean submodule update --init --recursive -- test/googletest extern/pybind11
 git_clean submodule update --init --recursive -- extern/cfe extern/evapotranspiration extern/sloth extern/noah-owp-modular || true
 
 # Initialize t-route submodule for routing support
+# Note: t-route triggers spurious make calls on some HPC systems, skip if it fails
 echo "Initializing t-route submodule for routing..."
-git_clean submodule update --init --recursive -- extern/t-route || true
+if ! git_clean submodule update --init -- extern/t-route 2>&1; then
+    echo "WARNING: t-route submodule init failed, routing will be disabled"
+fi
+# Don't recursively init t-route submodules as they may trigger make
+# git_clean submodule update --init --recursive -- extern/t-route || true
 
 # Initialize iso_c_fortran_bmi for Fortran BMI support (required for NOAH-OWP)
 echo "Initializing iso_c_fortran_bmi submodule..."
