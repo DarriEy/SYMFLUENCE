@@ -5,7 +5,6 @@ Manages the execution of the t-route routing model.
 Refactored to use the Unified Model Execution Framework.
 """
 
-import subprocess
 import sys
 import xarray as xr
 from typing import Dict, Any, Optional

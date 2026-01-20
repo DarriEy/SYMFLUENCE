@@ -7,7 +7,7 @@ with HRU-remapped forcing data.
 
 import numpy as np
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 import traceback
 
 from symfluence.reporting.core.base_plotter import BasePlotter
@@ -80,7 +80,6 @@ class ForcingComparisonPlotter(BasePlotter):
         import geopandas as gpd
         from matplotlib.gridspec import GridSpec
         from matplotlib.colors import Normalize
-        from mpl_toolkits.axes_grid1 import make_axes_locatable
 
         try:
             # Check for point-scale domain (skip visualization)
@@ -330,7 +329,6 @@ class ForcingComparisonPlotter(BasePlotter):
         Returns:
             GeoDataFrame with 'value' column, or None if failed
         """
-        import geopandas as gpd
 
         try:
             # Get coordinates from dataset

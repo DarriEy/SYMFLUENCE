@@ -853,7 +853,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                     nexus_gdf.to_file(gpkg_file, layer='nexus', driver='GPKG', mode='a')
 
                 self.logger.info(f"T-route hydrofabric GeoPackage created: {gpkg_file}")
-                self.logger.debug(f"  Layers: flowpaths, flowpath_attributes, divides" +
+                self.logger.debug("  Layers: flowpaths, flowpath_attributes, divides" +
                                   (", nexus" if nexus_file.exists() else ""))
             else:
                 self.logger.warning(f"Catchments file not found: {catchments_file}. Using GeoJSON only.")

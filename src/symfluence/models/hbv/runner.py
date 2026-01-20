@@ -7,7 +7,6 @@ Supports both lumped and distributed spatial modes with optional mizuRoute routi
 
 from typing import Dict, Any, Optional, Tuple, Callable
 from pathlib import Path
-import warnings
 import logging
 
 import numpy as np
@@ -285,7 +284,7 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin):
         try:
             # Import model functions
             from .model import (
-                simulate, create_params_from_dict, create_initial_state,
+                simulate, create_initial_state,
                 HAS_JAX as MODEL_HAS_JAX
             )
 
@@ -349,7 +348,7 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin):
 
         try:
             from .model import (
-                simulate, create_params_from_dict, create_initial_state,
+                simulate, create_initial_state,
                 HAS_JAX as MODEL_HAS_JAX
             )
 

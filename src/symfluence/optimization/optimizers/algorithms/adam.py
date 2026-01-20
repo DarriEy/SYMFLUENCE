@@ -21,7 +21,7 @@ References:
     In Proceedings of the 3rd International Conference on Learning Representations (ICLR).
 """
 
-from typing import Dict, Any, Callable, Optional, Tuple
+from typing import Dict, Any, Callable, Optional
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm, NativeGradientCallback
@@ -145,7 +145,7 @@ class AdamAlgorithm(OptimizationAlgorithm):
         self.logger.info(f"  Steps: {steps}, LR: {lr}, Beta1: {beta1}, Beta2: {beta2}")
         self.logger.info(f"  Gradient method: {gradient_method}")
         if use_native:
-            self.logger.info(f"  Using native gradients (~2 evals/step)")
+            self.logger.info("  Using native gradients (~2 evals/step)")
         else:
             self.logger.info(f"  Using finite differences ({2*n_params + 1} evals/step)")
 

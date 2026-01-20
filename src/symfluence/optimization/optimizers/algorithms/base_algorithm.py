@@ -8,7 +8,7 @@ Abstract base class for optimization algorithms using the Strategy pattern.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Callable, Optional, Union, Tuple, List, TYPE_CHECKING
+from typing import Dict, Any, Callable, Optional, Union, Tuple, TYPE_CHECKING
 import numpy as np
 
 from symfluence.core.constants import ModelDefaults
