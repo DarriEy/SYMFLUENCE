@@ -321,6 +321,15 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         # Get GRU mapping
         gru_mapping = MESHConfigDefaults.get_gru_mapping_for_classes(detected_gru_classes)
 
+        # Filter landcover_classes to only include detected classes
+        # This prevents meshflow NGRU dimension mismatch errors
+        all_landcover_classes = _get_config_value('MESH_LANDCOVER_CLASSES', MESHConfigDefaults.LANDCOVER_CLASSES)
+        if detected_gru_classes:
+            landcover_classes = {k: v for k, v in all_landcover_classes.items() if k in detected_gru_classes}
+            self.logger.info(f"Filtered landcover_classes to detected classes: {list(landcover_classes.keys())}")
+        else:
+            landcover_classes = all_landcover_classes
+
         # Build settings
         default_settings = MESHConfigDefaults.get_default_settings(
             forcing_start_date, sim_start_date, sim_end_date, gru_mapping
@@ -337,7 +346,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             'forcing_to_units': _get_config_value('MESH_FORCING_TO_UNITS', MESHConfigDefaults.FORCING_TO_UNITS),
             'main_id': _get_config_value('MESH_MAIN_ID', 'GRU_ID'),
             'ds_main_id': _get_config_value('MESH_DS_MAIN_ID', 'DSLINKNO'),
-            'landcover_classes': _get_config_value('MESH_LANDCOVER_CLASSES', MESHConfigDefaults.LANDCOVER_CLASSES),
+            'landcover_classes': landcover_classes,
             'ddb_vars': _get_config_value('MESH_DDB_VARS', MESHConfigDefaults.DDB_VARS),
             'ddb_units': _get_config_value('MESH_DDB_UNITS', MESHConfigDefaults.DDB_UNITS),
             'ddb_to_units': _get_config_value('MESH_DDB_TO_UNITS', MESHConfigDefaults.DDB_UNITS),
@@ -471,7 +480,10 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         # Prepare landcover
         landcover_path = self._meshflow_config.get('landcover', '')
         if landcover_path and Path(landcover_path).exists():
-            sanitized = self.data_preprocessor.sanitize_landcover_stats(landcover_path)
+            # Pass catchment path to expand landcover to match all catchment GRU_IDs
+            sanitized = self.data_preprocessor.sanitize_landcover_stats(
+                landcover_path, catchment_path=str(cat_copy)
+            )
             self.data_preprocessor.convert_landcover_to_maf(sanitized)
             self._meshflow_config['landcover'] = sanitized
 

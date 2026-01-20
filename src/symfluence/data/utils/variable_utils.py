@@ -820,6 +820,22 @@ class VariableHandler:
                                 self.logger.warning(f"Metadata for {dataset_var} says 'K' but mean value is {temp_mean:.2f}. Assuming 'degC'.")
                                 actual_source_units = 'degC'
 
+                        # Perform range check for precipitation flux
+                        # Common issue: metadata says 'm/s' or 'm s-1' but values are actually in mm/s
+                        if model_req['standard_name'] == 'precipitation_flux':
+                            precip_max = float(processed_data[dataset_var].max())
+                            actual_lower = actual_source_units.lower().replace(' ', '')
+                            # Check if metadata claims m/s but values look like mm/s
+                            # Max precip rate of 0.01 m/s = 864 mm/day (extremely high)
+                            # Typical max hourly precip: 50 mm/h = 0.014 mm/s
+                            if ('m/s' in actual_lower or 'ms-1' in actual_lower or 'm s-1' in actual_source_units.lower()) and 'mm' not in actual_lower:
+                                if precip_max < 0.1:  # If max < 0.1 m/s, likely mm/s
+                                    self.logger.warning(
+                                        f"Metadata for {dataset_var} says '{actual_source_units}' but max value is {precip_max:.6f}. "
+                                        f"This looks like mm/s, not m/s. Using 'mm/s' to avoid ~1000x conversion error."
+                                    )
+                                    actual_source_units = 'mm/s'
+
                         if actual_source_units != source_units:
                             self.logger.info(f"Using metadata units '{actual_source_units}' instead of mapping '{source_units}' for {dataset_var}")
                             source_units = actual_source_units

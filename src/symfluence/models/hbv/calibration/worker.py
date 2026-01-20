@@ -152,10 +152,10 @@ class HBVWorker(BaseWorker):
         })
 
         # Save CSV
-        csv_path = output_dir / f"{domain_name}_hbv_output.csv"
+        csv_path = output_dir / f"{domain_name}_hbv_streamflow.csv"
         results_df.to_csv(csv_path, index=False)
 
-        # Create NetCDF
+        # Create NetCDF - use "streamflow" in filename so OutputFileLocator can find it
         ds = xr.Dataset(
             {
                 'streamflow': (['time'], streamflow_cms.astype(np.float32)),
@@ -166,7 +166,7 @@ class HBVWorker(BaseWorker):
         ds['streamflow'].attrs = {'units': 'm3/s', 'long_name': 'Streamflow'}
         ds['runoff'].attrs = {'units': 'mm/day', 'long_name': 'Runoff'}
 
-        nc_path = output_dir / f"{domain_name}_hbv_output.nc"
+        nc_path = output_dir / f"{domain_name}_hbv_streamflow.nc"
         ds.to_netcdf(nc_path)
         ds.close()
 
@@ -491,7 +491,7 @@ class HBVWorker(BaseWorker):
 
         try:
             from symfluence.models.hbv.model import (
-                kge_loss, nse_loss, create_params_from_dict
+                kge_loss, nse_loss
             )
 
             precip = jnp.array(self._forcing['precip'])
@@ -675,8 +675,9 @@ def _evaluate_hbv_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any]
         'OPENBLAS_NUM_THREADS': '1',
     })
 
-    # Small random delay to prevent contention
-    time.sleep(random.uniform(0.05, 0.2))
+    # Small random delay to prevent process contention when spawning parallel workers
+    # Not used for security/cryptographic purposes - just jitter to reduce race conditions
+    time.sleep(random.uniform(0.05, 0.2))  # nosec B311
 
     try:
         worker = HBVWorker(config=task_data.get('config'))

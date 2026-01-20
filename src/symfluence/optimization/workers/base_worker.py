@@ -991,8 +991,12 @@ class BaseWorker(ABC):
         Returns:
             Primary score for optimization
         """
-        # Get configured metric name
-        metric_name = config.get('CALIBRATION_METRIC', 'KGE')
+        # Get configured metric name - check OPTIMIZATION_METRIC first, then CALIBRATION_METRIC
+        # This ensures consistency with gradient-based optimization which uses optimization.metric
+        metric_name = config.get(
+            'OPTIMIZATION_METRIC',
+            config.get('CALIBRATION_METRIC', 'KGE')
+        )
 
         # Check for exact match first
         if metric_name in metrics:

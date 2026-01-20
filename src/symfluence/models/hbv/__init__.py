@@ -6,33 +6,35 @@ A native JAX-based implementation of the HBV-96 hydrological model, enabling:
 - JIT compilation for fast execution
 - Vectorization (vmap) for ensemble runs
 - GPU acceleration when available
+- Distributed modeling with graph-based Muskingum-Cunge routing
 
 Components:
     - HBVPreprocessor: Prepares forcing data (P, T, PET)
     - HBVRunner: Executes model simulations
     - HBVPostprocessor: Extracts streamflow results
     - HBVWorker: Handles calibration with gradient support
+    - DistributedHBV: Semi-distributed HBV with river network routing
 
 Usage:
+    # Standard workflow
     from symfluence.models.hbv import HBVPreprocessor, HBVRunner, HBVPostprocessor
 
-    # Preprocessing
     preprocessor = HBVPreprocessor(config, logger)
     preprocessor.run_preprocessing()
 
-    # Simulation
     runner = HBVRunner(config, logger)
     output_path = runner.run_hbv()
 
-    # Post-processing
-    postprocessor = HBVPostprocessor(config, logger, sim_dir=output_path)
-    results_path = postprocessor.extract_streamflow()
+    # Distributed HBV with routing
+    from symfluence.models.hbv import DistributedHBV, create_synthetic_network
 
-Core Model Functions (for direct use):
-    from symfluence.models.hbv.model import simulate, PARAM_BOUNDS, DEFAULT_PARAMS
+    network = create_synthetic_network(n_nodes=5, topology='fishbone')
+    model = DistributedHBV(network)
+    outlet_flow, state = model.simulate(precip, temp, pet)
 
-    # Run simulation
-    runoff, final_state = simulate(precip, temp, pet, params=my_params)
+    # Gradient-based calibration
+    grad_fn = model.get_gradient_function(precip, temp, pet, obs)
+    gradients = grad_fn(params_array)
 
 References:
     Lindström, G., Johansson, B., Persson, M., Gardelin, M., & Bergström, S. (1997).
@@ -64,6 +66,34 @@ from .model import (
 
 # Calibration support
 from .calibration import HBVWorker, HBVParameterManager, get_hbv_calibration_bounds
+
+# Distributed HBV with routing
+from .network import RiverNetwork, NetworkBuilder, create_synthetic_network
+from .routing import (
+    RoutingParams,
+    RoutingState,
+    compute_muskingum_params,
+    route_reach_step,
+    runoff_mm_to_cms,
+)
+from .distributed import (
+    DistributedHBV,
+    DistributedHBVState,
+    DistributedHBVParams,
+    calibrate_distributed_hbv,
+    calibrate_distributed_hbv_adam,
+    load_distributed_hbv_from_config,
+)
+
+# Optimizers for gradient-based calibration
+from .optimizers import (
+    AdamW,
+    CosineAnnealingWarmRestarts,
+    CosineDecay,
+    EMA,
+    CalibrationResult,
+    EXTENDED_PARAM_BOUNDS,
+)
 
 # Register config adapter with ModelRegistry
 from symfluence.models.registry import ModelRegistry
@@ -98,4 +128,28 @@ __all__ = [
     'HBVWorker',
     'HBVParameterManager',
     'get_hbv_calibration_bounds',
+
+    # Distributed HBV with routing
+    'DistributedHBV',
+    'DistributedHBVState',
+    'DistributedHBVParams',
+    'calibrate_distributed_hbv',
+    'calibrate_distributed_hbv_adam',
+    'load_distributed_hbv_from_config',
+    'RiverNetwork',
+    'NetworkBuilder',
+    'create_synthetic_network',
+    'RoutingParams',
+    'RoutingState',
+    'compute_muskingum_params',
+    'route_reach_step',
+    'runoff_mm_to_cms',
+
+    # Optimizers
+    'AdamW',
+    'CosineAnnealingWarmRestarts',
+    'CosineDecay',
+    'EMA',
+    'CalibrationResult',
+    'EXTENDED_PARAM_BOUNDS',
 ]
