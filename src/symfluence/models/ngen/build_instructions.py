@@ -91,18 +91,22 @@ export BOOST_ROOT="$(pwd)/boost_1_79_0"
 export CXX=${CXX:-g++}
 
 # Initialize ALL submodules needed for full BMI support
-# Use env -u to ensure MAKE variables don't leak into git subprocess
+# Create a clean git wrapper to prevent MAKEFLAGS from triggering spurious make calls
+git_clean() {
+    MAKEFLAGS= MAKELEVEL= MAKE= MFLAGS= GNUMAKEFLAGS= git "$@"
+}
+
 echo "Initializing submodules for ngen and external BMI modules..."
-env -u MAKEFLAGS -u MAKELEVEL -u MAKE -u MFLAGS git submodule update --init --recursive -- test/googletest extern/pybind11 || true
-env -u MAKEFLAGS -u MAKELEVEL -u MAKE -u MFLAGS git submodule update --init --recursive -- extern/cfe extern/evapotranspiration extern/sloth extern/noah-owp-modular || true
+git_clean submodule update --init --recursive -- test/googletest extern/pybind11 || true
+git_clean submodule update --init --recursive -- extern/cfe extern/evapotranspiration extern/sloth extern/noah-owp-modular || true
 
 # Initialize t-route submodule for routing support
 echo "Initializing t-route submodule for routing..."
-env -u MAKEFLAGS -u MAKELEVEL -u MAKE -u MFLAGS git submodule update --init --recursive -- extern/t-route || true
+git_clean submodule update --init --recursive -- extern/t-route || true
 
 # Initialize iso_c_fortran_bmi for Fortran BMI support (required for NOAH-OWP)
 echo "Initializing iso_c_fortran_bmi submodule..."
-env -u MAKEFLAGS -u MAKELEVEL -u MAKE -u MFLAGS git submodule update --init --recursive -- extern/iso_c_fortran_bmi || true
+git_clean submodule update --init --recursive -- extern/iso_c_fortran_bmi || true
 
 # Verify Fortran compiler
 echo "Checking Fortran compiler..."
