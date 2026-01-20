@@ -138,10 +138,28 @@ set -e
 
 # On Compute Canada HPC, OpenMPI has broken Level Zero dependency through hwloc.
 # Using mpicc as CC causes cmake compiler test to fail.
-# Solution: Use regular gcc/g++ and let cmake FindMPI handle MPI separately.
+# Solution: Use regular gcc/g++ and let cmake FindMPI handle MPI separately,
+# but we still need Level Zero in library path for MPI linking to work.
 CMAKE_MPI_FLAGS=""
 if [ -d "/cvmfs/soft.computecanada.ca" ]; then
     echo "Detected Compute Canada HPC environment"
+
+    # Find Level Zero library for MPI linking
+    for ze_path in \
+        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.13.5/lib64 \
+        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.14.0/lib64 \
+        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.15.1/lib64 \
+        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.16.1/lib64 \
+        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/level-zero/1.13.5/lib64 \
+        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/level-zero/1.14.0/lib64; do
+        if [ -f "$ze_path/libze_loader.so.1" ] || [ -f "$ze_path/libze_loader.so" ]; then
+            echo "Found Intel Level Zero at: $ze_path"
+            export LD_LIBRARY_PATH="${ze_path}:${LD_LIBRARY_PATH:-}"
+            export LIBRARY_PATH="${ze_path}:${LIBRARY_PATH:-}"
+            break
+        fi
+    done
+
     # Don't use mpicc as CC - it has broken hwloc->level-zero dependency
     # Instead, find MPI root and let cmake's FindMPI module handle it
     MPI_ROOT=$(dirname $(dirname $(which mpicc 2>/dev/null))) || true
