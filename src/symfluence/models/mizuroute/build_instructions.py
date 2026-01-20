@@ -80,10 +80,14 @@ perl -i -pe "s|^F_MASTER\s*=.*$|F_MASTER = $F_MASTER_PATH/|" Makefile
 perl -i -pe "s|^\s*NCDF_PATH\s*=.*$|NCDF_PATH = ${NETCDF_FORTRAN}|" Makefile
 perl -i -pe "s|^isOpenMP\s*=.*$|isOpenMP = no|" Makefile
 
-# Fix LIBNETCDF for separate C/Fortran libs (e.g., macOS Homebrew)
+# Fix LIBNETCDF for separate C/Fortran libs (e.g., macOS Homebrew, HPC with separate installs)
+# Note: LIBNETCDF in mizuRoute is a multi-line definition with backslash continuation,
+# so we must also remove the orphaned continuation line after replacement.
 if [ "${NETCDF_C}" != "${NETCDF_FORTRAN}" ]; then
     echo "Fixing LIBNETCDF for separate C/Fortran paths"
     perl -i -pe "s|^LIBNETCDF\s*=.*$|LIBNETCDF = -L${NETCDF_FORTRAN}/lib -lnetcdff -L${NETCDF_C}/lib -lnetcdf|" Makefile
+    # Remove the orphaned continuation line (starts with whitespace, contains -L and NCDF_PATH)
+    perl -i -ne "print unless /^\s+-L.*NCDF_PATH/" Makefile
 fi
 
 # Build
