@@ -373,10 +373,18 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
 
                 all_runoff[:, hru_idx] = np.array(runoff)
 
-            # If routing enabled, run Muskingum-Cunge routing
+            # If routing enabled, warn user about current limitations
             if self.enable_routing:
-                self.logger.info("Routing not yet implemented for jFUSE distributed mode")
-                # TODO: Implement routing when jFUSE supports CoupledModel
+                self.logger.warning(
+                    "Internal routing is not yet implemented for jFUSE distributed mode. "
+                    "The HRU runoff has been saved but NOT routed. "
+                    "For streamflow routing, please use mizuRoute as an external routing model "
+                    "by setting ROUTING_MODEL='mizuRoute' in your configuration. "
+                    "See documentation for mizuRoute integration details."
+                )
+                # Note: Internal Muskingum-Cunge routing (like HBV) could be added here
+                # once jFUSE library supports CoupledModel interface. For now, users
+                # should use the external mizuRoute routing workflow.
 
             # Save distributed results
             self._save_distributed_results(all_runoff, time_index, hru_ids)

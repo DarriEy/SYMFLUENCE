@@ -319,28 +319,34 @@ def get_platform_capabilities() -> Dict[str, Any]:
     return capabilities
 
 
-def print_platform_capabilities():
-    """Print available platform capabilities (for debugging)."""
+logger = logging.getLogger(__name__)
+
+
+def log_platform_capabilities():
+    """Log available platform capabilities for diagnostics."""
     caps = get_platform_capabilities()
 
-    print("System I/O Profiling Capabilities:")
-    print(f"  Platform: {caps['platform']}")
-    print(f"  Monitor Type: {caps['monitor_type']}")
-    print(f"  I/O Bytes Tracking: {'✓' if caps['io_bytes'] else '✗'}")
-    print(f"  I/O Syscalls Tracking: {'✓' if caps['io_syscalls'] else '✗'}")
-    print(f"  Memory Tracking: {'✓' if caps['memory_tracking'] else '✗'}")
+    logger.info("System I/O Profiling Capabilities:")
+    logger.info(f"  Platform: {caps['platform']}")
+    logger.info(f"  Monitor Type: {caps['monitor_type']}")
+    logger.info(f"  I/O Bytes Tracking: {'available' if caps['io_bytes'] else 'unavailable'}")
+    logger.info(f"  I/O Syscalls Tracking: {'available' if caps['io_syscalls'] else 'unavailable'}")
+    logger.info(f"  Memory Tracking: {'available' if caps['memory_tracking'] else 'unavailable'}")
 
     if not caps['io_bytes']:
         if sys.platform == 'darwin':
-            print("\nTo enable I/O tracking on macOS:")
-            print("  pip install psutil")
+            logger.info("To enable I/O tracking on macOS: pip install psutil")
         elif sys.platform.startswith('win'):
-            print("\nWindows I/O tracking requires psutil:")
-            print("  pip install psutil")
+            logger.info("Windows I/O tracking requires psutil: pip install psutil")
         else:
-            print("\nFull I/O tracking not available on this platform")
+            logger.info("Full I/O tracking not available on this platform")
+
+
+# Backward compatibility alias
+print_platform_capabilities = log_platform_capabilities
 
 
 if __name__ == '__main__':
-    # Self-test
-    print_platform_capabilities()
+    # Self-test with console output
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    log_platform_capabilities()

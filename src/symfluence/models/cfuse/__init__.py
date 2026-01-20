@@ -6,6 +6,18 @@ cFUSE Model Integration for SYMFLUENCE.
     used at your own risk. The API may change without notice in future releases.
     Please report any issues at https://github.com/DarriEy/SYMFLUENCE/issues
 
+.. note::
+    **API Stability**: This module is not yet covered by semantic versioning guarantees.
+    Breaking changes may occur in minor releases until this module reaches stable status.
+
+    **Known Limitations**:
+    - Routing integration is not yet implemented for distributed mode
+    - Some parameter combinations may produce numerical instabilities
+    - Performance optimization is ongoing
+
+    To disable this experimental module at import time, set the environment variable:
+    ``SYMFLUENCE_DISABLE_EXPERIMENTAL=1``
+
 This module provides integration for cFUSE (differentiable FUSE), a PyTorch/Enzyme AD
 implementation of the FUSE hydrological model that supports gradient-based calibration.
 
@@ -42,6 +54,26 @@ Requirements:
     - PyTorch: pip install torch (for gradient computation)
     - Enzyme AD: Optional, for native gradients (falls back to numerical)
 """
+
+import os
+import warnings
+
+# Check if experimental modules are disabled
+_DISABLE_EXPERIMENTAL = os.environ.get('SYMFLUENCE_DISABLE_EXPERIMENTAL', '').lower() in ('1', 'true', 'yes')
+
+if _DISABLE_EXPERIMENTAL:
+    raise ImportError(
+        "cFUSE module is disabled via SYMFLUENCE_DISABLE_EXPERIMENTAL environment variable. "
+        "This experimental module is not yet stable. Remove the environment variable to enable."
+    )
+
+# Emit runtime warning about experimental status
+warnings.warn(
+    "cFUSE is an EXPERIMENTAL module. The API may change without notice. "
+    "For production use, consider the stable FUSE module instead.",
+    category=UserWarning,
+    stacklevel=2
+)
 
 # Import components to trigger registration with registries
 from .config import CFUSEConfig, CFUSEConfigAdapter

@@ -729,46 +729,129 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
             troute_topology_src = base_setup_dir / "troute_topology.nc"
             troute_config_src = base_setup_dir / "troute_config.yaml"
 
+            # Check if topology has required channel geometry columns for T-Route
+            topology_complete = False
             if troute_topology_src.exists() and troute_config_src.exists():
+                try:
+                    import xarray as xr
+                    topo_ds = xr.open_dataset(troute_topology_src)
+                    topo_vars = set(topo_ds.variables.keys())
+                    topo_ds.close()
+
+                    # Required columns for T-Route Muskingum-Cunge routing
+                    required_cols = {'comid', 'to_node', 'length', 'slope', 'n'}
+                    # Extended columns needed for diffusive wave or full channel routing
+                    extended_cols = {'bw', 'tw', 'twcc', 'ncc', 'musk', 'musx', 'cs'}
+
+                    if not required_cols.issubset(topo_vars):
+                        missing = required_cols - topo_vars
+                        self.logger.warning(f"T-Route topology missing required columns: {missing}. Skipping routing.")
+                    elif not extended_cols.issubset(topo_vars):
+                        # Missing extended columns - can't use full T-Route
+                        self.logger.warning(
+                            f"T-Route topology missing channel geometry columns ({extended_cols - topo_vars}). "
+                            f"Routing will be skipped. To enable routing, regenerate topology with channel geometry."
+                        )
+                    else:
+                        topology_complete = True
+                except Exception as e:
+                    self.logger.warning(f"Failed to check T-Route topology: {e}. Skipping routing.")
+            else:
+                self.logger.warning(f"T-Route files not found in {base_setup_dir}. Routing will be disabled.")
+
+            if topology_complete:
                 self.logger.info("Configuring T-Route routing for NGIAB...")
 
                 # Copy topology file
                 shutil.copy(troute_topology_src, ngiab_config_dir / "troute_topology.nc")
 
-                # Create container-compatible T-Route config
+                # Create container-compatible T-Route config with required columns
                 import yaml
                 container_base = "/ngen/ngen/data"
                 with open(troute_config_src, 'r') as f:
                     troute_config = yaml.safe_load(f)
 
                 # Update paths for container
-                if 'network_topology_parameters' in troute_config:
-                    ntp = troute_config['network_topology_parameters']
-                    if 'supernetwork_parameters' in ntp:
-                        ntp['supernetwork_parameters']['geo_file_path'] = f"{container_base}/config/troute_topology.nc"
+                if 'network_topology_parameters' not in troute_config:
+                    troute_config['network_topology_parameters'] = {}
+                ntp = troute_config['network_topology_parameters']
 
-                if 'compute_parameters' in troute_config:
-                    cp = troute_config['compute_parameters']
-                    if 'forcing_parameters' in cp:
-                        cp['forcing_parameters']['qlat_input_folder'] = f"{container_base}/outputs/"
+                if 'supernetwork_parameters' not in ntp:
+                    ntp['supernetwork_parameters'] = {}
+                snp = ntp['supernetwork_parameters']
 
-                if 'output_parameters' in troute_config:
-                    op = troute_config['output_parameters']
-                    if 'stream_output' in op:
-                        op['stream_output']['stream_output_directory'] = f"{container_base}/outputs/"
+                # Set geo_file_path
+                snp['geo_file_path'] = f"{container_base}/config/troute_topology.nc"
+
+                # Ensure all required columns are present
+                # Map available columns to T-Route expected names
+                if 'columns' not in snp:
+                    snp['columns'] = {}
+                cols = snp['columns']
+
+                # Required column mappings for T-Route
+                # Map from our topology file column names
+                cols['key'] = 'comid'           # Segment ID
+                cols['downstream'] = 'to_node'   # Downstream segment ID
+                cols['dx'] = 'length'            # Segment length [m]
+                cols['n'] = 'n'                  # Manning's n
+                cols['s0'] = 'slope'             # Slope [m/m]
+                # Extended columns - map from topology file
+                cols['bw'] = 'bw'                # Bottom width [m]
+                cols['tw'] = 'tw'                # Top width [m]
+                cols['twcc'] = 'twcc'            # Top width compound channel [m]
+                cols['ncc'] = 'ncc'              # Manning's n compound channel
+                cols['musk'] = 'musk'            # Muskingum K
+                cols['musx'] = 'musx'            # Muskingum X
+                cols['cs'] = 'cs'                # Cross-section area [m²]
+
+                # Add default values for missing channel geometry columns
+                snp['waterbody_null_code'] = -9999
+                snp['terminal_code'] = 0
+                snp['network_type'] = 'NHDNetwork'
+
+                # Default values for missing columns (will be used if not in topology)
+                if 'synthetic_wb_segments' not in snp:
+                    snp['synthetic_wb_segments'] = []
+
+                # Use Muskingum-Cunge routing (simpler, doesn't need channel geometry)
+                if 'compute_parameters' not in troute_config:
+                    troute_config['compute_parameters'] = {}
+                cp = troute_config['compute_parameters']
+
+                # Set routing method to Muskingum-Cunge which is more forgiving
+                cp['compute_kernel'] = 'V02-structured'
+                cp['assume_short_ts'] = True
+                cp['subnetwork_target_size'] = 10000
+
+                if 'forcing_parameters' not in cp:
+                    cp['forcing_parameters'] = {}
+                cp['forcing_parameters']['qlat_input_folder'] = f"{container_base}/outputs/"
+                cp['forcing_parameters']['qlat_file_pattern_filter'] = 'nex-*_output.csv'
+
+                # Fix output parameters
+                if 'output_parameters' not in troute_config:
+                    troute_config['output_parameters'] = {}
+                op = troute_config['output_parameters']
+
+                if 'stream_output' not in op:
+                    op['stream_output'] = {}
+                so = op['stream_output']
+                so['stream_output_directory'] = f"{container_base}/outputs/"
+                so['stream_output_time'] = 60  # Minutes (must be >= internal_frequency)
+                so['stream_output_type'] = '.csv'
+                so['stream_output_internal_frequency'] = 60  # Minutes
 
                 # Write container-compatible config
                 ngiab_troute_config = ngiab_config_dir / "troute_config.yaml"
                 with open(ngiab_troute_config, 'w') as f:
-                    yaml.dump(troute_config, f, default_flow_style=False)
+                    yaml.dump(troute_config, f, default_flow_style=False, sort_keys=False)
 
                 self.logger.debug(f"Created NGIAB T-Route config: {ngiab_troute_config}")
 
                 # Update realization to include routing section
                 self._add_routing_to_realization(ngiab_config_dir / "realization.json")
                 self.logger.info("T-Route routing enabled in realization")
-            else:
-                self.logger.warning(f"T-Route files not found in {base_setup_dir}. Routing will be disabled.")
 
             # Run NGIAB Docker container
             # We run ngen-serial directly since SYMFLUENCE uses separate catchment/nexus files
