@@ -137,7 +137,8 @@ cmake --build . --target install -j ${NCORES:-4}
 set -e
 
 # On Compute Canada HPC, OpenMPI has broken Level Zero dependency through hwloc.
-# Solution: Find Level Zero dynamically and add to library path.
+# The Level Zero library doesn't exist but hwloc was built with it enabled.
+# Solution: Use --allow-shlib-undefined to ignore missing symbols in shared libs.
 CMAKE_MPI_FLAGS=""
 if [ -d "/cvmfs/soft.computecanada.ca" ]; then
     echo "Detected Compute Canada HPC environment"
@@ -146,33 +147,15 @@ if [ -d "/cvmfs/soft.computecanada.ca" ]; then
     export CC=gcc
     export CXX=g++
 
-    # Find Level Zero library dynamically by checking MPI library dependencies
-    MPI_LIB=$(dirname $(which mpicc 2>/dev/null))/../lib/libmpi.so || true
-    if [ -f "$MPI_LIB" ]; then
-        # Extract the path where libze_loader.so.1 should be from ldd output
-        ZE_PATH=$(ldd "$MPI_LIB" 2>/dev/null | grep "libze_loader" | grep "not found" > /dev/null && \
-            # If not found, try to locate it via the module system
-            (module show level-zero 2>&1 | grep -oP 'LD_LIBRARY_PATH[^:]*:\K[^"]+' | head -1) || \
-            # Or extract from ldd if it IS found
-            (ldd "$MPI_LIB" 2>/dev/null | grep "libze_loader" | awk '{print $3}' | xargs dirname 2>/dev/null) \
-        ) || true
-        if [ -n "$ZE_PATH" ] && [ -d "$ZE_PATH" ]; then
-            echo "Found Level Zero at: $ZE_PATH"
-            export LD_LIBRARY_PATH="${ZE_PATH}:${LD_LIBRARY_PATH:-}"
-            export LIBRARY_PATH="${ZE_PATH}:${LIBRARY_PATH:-}"
-        fi
-    fi
-
-    # If module system available, try loading level-zero
-    if command -v module &>/dev/null; then
-        module load level-zero 2>/dev/null && echo "Loaded level-zero module" || true
-    fi
+    # Tell linker to allow undefined symbols in shared libraries
+    # This works around the missing libze_loader.so that hwloc wants
+    export LDFLAGS="-Wl,--allow-shlib-undefined ${LDFLAGS:-}"
 
     # Tell cmake where MPI is
     MPI_ROOT=$(dirname $(dirname $(which mpicc 2>/dev/null))) || true
     if [ -n "$MPI_ROOT" ] && [ -d "$MPI_ROOT" ]; then
         echo "Found MPI at: $MPI_ROOT"
-        CMAKE_MPI_FLAGS="-DMPI_HOME=$MPI_ROOT"
+        CMAKE_MPI_FLAGS="-DMPI_HOME=$MPI_ROOT -DCMAKE_EXE_LINKER_FLAGS=-Wl,--allow-shlib-undefined -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--allow-shlib-undefined"
     fi
 else
     # On other systems, mpicc/mpicxx as CC/CXX works fine
