@@ -473,8 +473,25 @@ detect_or_build_udunits2() {
             fi
 
             cd "udunits-${UDUNITS2_VERSION}"
+
+            # UDUNITS2 requires EXPAT for XML parsing
+            EXPAT_FLAGS=""
+            # Try loading expat module on HPC systems
+            if command -v module >/dev/null 2>&1; then
+                module load expat 2>/dev/null && echo "Loaded expat module" || true
+            fi
+            # Check for expat in common locations
+            for expat_path in "$CONDA_PREFIX" /usr /usr/local; do
+                if [ -n "$expat_path" ] && [ -f "$expat_path/include/expat.h" ]; then
+                    echo "Found EXPAT at: $expat_path"
+                    EXPAT_FLAGS="CPPFLAGS=-I$expat_path/include LDFLAGS=-L$expat_path/lib"
+                    export LD_LIBRARY_PATH="$expat_path/lib:${LD_LIBRARY_PATH:-}"
+                    break
+                fi
+            done
+
             echo "Configuring UDUNITS2..."
-            ./configure --prefix="${UDUNITS2_INSTALL_DIR}" --disable-shared --enable-static
+            ./configure --prefix="${UDUNITS2_INSTALL_DIR}" --disable-shared --enable-static $EXPAT_FLAGS
 
             echo "Building UDUNITS2..."
             make -j ${NCORES:-4}
