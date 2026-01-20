@@ -176,6 +176,10 @@ cmake --build . --target moveoutletstostreams gagewatershed -j 2 || true
 echo "Staging executables..."
 mkdir -p ../bin
 
+# Debug: show what was built
+echo "Files in build directory:"
+find . -type f -executable 2>/dev/null | head -20 || find . -type f -perm +111 2>/dev/null | head -20 || ls -la
+
 # List of expected TauDEM tools (superset — some may not exist on older commits)
 tools="pitremove d8flowdir d8converge dinfconverge dinfflowdir aread8 areadinf threshold
        streamnet slopearea gridnet peukerdouglas lengtharea moveoutletstostreams gagewatershed"
@@ -183,18 +187,26 @@ tools="pitremove d8flowdir d8converge dinfconverge dinfflowdir aread8 areadinf t
 copied=0
 for exe in $tools;
   do
-  # Find anywhere under build tree and copy if executable
-  p="$(find . -type f -perm -111 -name "$exe" | head -n1 || true)"
-  if [ -n "$p" ]; then
+  # Find anywhere under build tree and copy if executable (try multiple find syntaxes)
+  p="$(find . -type f -executable -name "$exe" 2>/dev/null | head -n1)" || \
+  p="$(find . -type f -perm +111 -name "$exe" 2>/dev/null | head -n1)" || \
+  p="$(find . -type f -name "$exe" 2>/dev/null | head -n1)" || true
+  if [ -n "$p" ] && [ -f "$p" ]; then
     cp -f "$p" ../bin/
+    chmod +x ../bin/$exe
     copied=$((copied+1))
+    echo "  Copied: $exe"
   fi
 done
 
+echo "Copied $copied executables"
+
 # Final sanity
 ls -la ../bin/ || true
-if [ ! -x "../bin/pitremove" ] || [ ! -x "../bin/streamnet" ]; then
+if [ ! -f "../bin/pitremove" ] || [ ! -f "../bin/streamnet" ]; then
   echo "TauDEM stage failed: core binaries missing" >&2
+  echo "Build directory contents:"
+  find . -name "pitremove" -o -name "streamnet" 2>/dev/null || true
   exit 1
 fi
 echo "TauDEM executables staged"
