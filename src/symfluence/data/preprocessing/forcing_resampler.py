@@ -310,10 +310,11 @@ class ForcingResampler(PathResolverMixin):
 
         self.dem_path = self._get_default_path('DEM_PATH', f"attributes/elevation/dem/{dem_name}")
         self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
-        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
+        # Use backward-compatible catchment path resolution
         self.catchment_name = self._get_config_value(lambda: self.config.paths.catchment_shp_name)
         if self.catchment_name == 'default' or self.catchment_name is None:
             self.catchment_name = f"{self._get_config_value(lambda: self.config.domain.name)}_HRUs_{str(self._get_config_value(lambda: self.config.domain.discretization)).replace(',','_')}.shp"
+        # Note: catchment_path will be resolved dynamically using _get_catchment_file_path()
         self.merged_forcing_path = self._get_default_path('FORCING_PATH', 'forcing/raw_data')
 
         # Initialize dataset-specific handler
@@ -501,11 +502,13 @@ class ForcingResampler(PathResolverMixin):
             self.logger.warning("No forcing files found to process")
             return
 
+        # Use backward-compatible catchment path resolution
+        catchment_file_path = self._get_catchment_file_path(self.catchment_name)
+
         self.point_scale_extractor.process(
             forcing_files=forcing_files,
             output_dir=self.forcing_basin_path,
-            catchment_path=self.catchment_path,
-            catchment_name=self.catchment_name,
+            catchment_file_path=catchment_file_path,
             output_filename_func=self.file_processor.determine_output_filename
         )
 
@@ -525,7 +528,8 @@ class ForcingResampler(PathResolverMixin):
 
         # STEP 1: Create remapping weights once
         source_shp_path = self.project_dir / 'shapefiles' / 'forcing' / f"forcing_{self._get_config_value(lambda: self.config.forcing.dataset)}.shp"
-        target_shp_path = self.catchment_path / self.catchment_name
+        # Use backward-compatible catchment path resolution
+        target_shp_path = self._get_catchment_file_path(self.catchment_name)
 
         remap_file = self.weight_generator.create_weights(
             sample_forcing_file=forcing_files[0],
@@ -547,7 +551,7 @@ class ForcingResampler(PathResolverMixin):
             return
 
         # STEP 3: Apply remapping weights
-        requested_cpus = int(self._get_config_value(lambda: self.config.system.mpi_processes, default=1))
+        requested_cpus = int(self._get_config_value(lambda: self.config.system.num_processes, default=1))
         max_available_cpus = mp.cpu_count()
         use_parallel = requested_cpus > 1 and max_available_cpus > 1
 

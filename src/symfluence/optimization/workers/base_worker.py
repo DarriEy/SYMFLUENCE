@@ -294,7 +294,7 @@ class WorkerTask:
             config_keys = [
                 'EXPERIMENT_ID', 'DOMAIN_NAME', 'ROOT_PATH', 'HYDROLOGICAL_MODEL',
                 'ROUTING_MODEL', 'CALIBRATION_METRIC', 'CALIBRATION_PERIOD',
-                'EVALUATION_PERIOD', 'MPI_PROCESSES', 'DOMAIN_DEFINITION_METHOD'
+                'EVALUATION_PERIOD', 'NUM_PROCESSES', 'DOMAIN_DEFINITION_METHOD'
             ]
             config = {k: task_data[k] for k in config_keys if k in task_data}
 
@@ -574,7 +574,7 @@ class BaseWorker(ABC):
     Attributes:
 
         config (Dict[str, Any]): Configuration dictionary with:
-            - MPI_PROCESSES: Number of parallel processes
+            - NUM_PROCESSES: Number of parallel processes
             - CALIBRATION_METRIC: Primary objective metric name (default 'KGE')
             - PENALTY_SCORE: Score for failed evaluations (default -999.0)
             - WORKER_MAX_RETRIES: Max retry attempts (default 3)

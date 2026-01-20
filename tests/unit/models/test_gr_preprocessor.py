@@ -34,6 +34,8 @@ class TestGRPreProcessorModeDetection:
         config_dict = {
             'SYMFLUENCE_DATA_DIR': str(tmp_path),
             'DOMAIN_NAME': 'test_domain',
+            'EXPERIMENT_ID': 'run_1',
+            'SUB_GRID_DISCRETIZATION': 'lumped',
             'FORCING_DATASET': 'test_forcing',
             'FORCING_TIME_STEP_SIZE': 86400,
         }
@@ -46,6 +48,9 @@ class TestGRPreProcessorModeDetection:
 
         config.domain = Mock()
         config.domain.name = 'test_domain'
+        config.domain.discretization = 'lumped'
+        config.domain.experiment_id = 'run_1'
+        config.domain.definition_method = 'lumped'
 
         config.forcing = Mock()
         config.forcing.dataset = 'test_forcing'

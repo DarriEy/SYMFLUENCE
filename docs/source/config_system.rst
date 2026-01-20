@@ -256,8 +256,9 @@ Eight fields are mandatory:
    EXPERIMENT_TIME_END: "2018-12-31 23:00"
 
    # Spatial configuration
-   DOMAIN_DEFINITION_METHOD: subset
-   DOMAIN_DISCRETIZATION: GRUs
+   DOMAIN_DEFINITION_METHOD: semidistributed
+   SUBSET_FROM_GEOFABRIC: true
+   SUB_GRID_DISCRETIZATION: GRUs
 
    # Model selection
    HYDROLOGICAL_MODEL: SUMMA
@@ -289,7 +290,7 @@ Certain fields have restricted values:
    # ERA5, ERA5-Land, RDRS, CARRA, AORC, CONUS404, HRRR, ...
 
    # DOMAIN_DEFINITION_METHOD must be one of:
-   # lumped, subset, TBL, delineate
+   # point, lumped, semidistributed, distributed
 
 Error Messages
 --------------
@@ -423,8 +424,9 @@ Example Configuration
    EVALUATION_PERIOD: "2020-01-01,2020-12-31"
 
    # --- Spatial Configuration ---
-   DOMAIN_DEFINITION_METHOD: subset
-   DOMAIN_DISCRETIZATION: GRUs
+   DOMAIN_DEFINITION_METHOD: semidistributed
+   SUBSET_FROM_GEOFABRIC: true
+   SUB_GRID_DISCRETIZATION: GRUs
 
    # --- Model Selection ---
    HYDROLOGICAL_MODEL: SUMMA

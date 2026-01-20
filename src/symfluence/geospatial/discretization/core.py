@@ -47,8 +47,10 @@ class DomainDiscretizer(PathResolverMixin):
         self.config = config
         self.logger = logger
 
-        # Standard paths from ProjectContextMixin
-        self.catchment_dir = self.ensure_dir(self.project_shapefiles_dir / "catchment")
+        # Standard paths from ProjectContextMixin - use new organized path
+        self.catchment_dir = self.ensure_dir(
+            self.project_shapefiles_dir / "catchment" / self.domain_definition_method / self.experiment_id
+        )
 
         self.dem_path = self._get_file_path(
             path_key="DEM_PATH",
@@ -57,18 +59,43 @@ class DomainDiscretizer(PathResolverMixin):
             default_name=f"domain_{self.domain_name}_elv.tif"
         )
 
-        delineation_method = self.domain_definition_method
+        # Determine the delineation suffix for finding river basin shapefiles.
+        # Uses _get_method_suffix() from PathResolverMixin for consistency with
+        # the delineator classes that create these shapefiles.
+        self.delineation_suffix = self._get_method_suffix()
 
-        if delineation_method == "delineate":
-            self.delineation_suffix = "delineate"
-        elif delineation_method == "lumped":
-            self.delineation_suffix = "lumped"
-        elif delineation_method == "subset":
-            geofabric_type = self._get_config_value(
-                lambda: self.config.domain.delineation.geofabric_type,
-                default='na'
-            )
-            self.delineation_suffix = f"subset_{geofabric_type}"
+    def _get_catchment_subpath(self, filename: Optional[str] = None) -> str:
+        """
+        Get the catchment shapefile subpath with backward compatibility.
+
+        The new path structure includes domain_definition_method and experiment_id:
+            shapefiles/catchment/{domain_definition_method}/{experiment_id}/
+
+        For backward compatibility:
+            - If a file with the given filename exists at the old path (shapefiles/catchment/),
+              returns the old path
+            - Otherwise returns the new organized path
+
+        Args:
+            filename: Optional filename to check for backward compatibility.
+                     If provided, checks if file exists at old path.
+
+        Returns:
+            Subpath string relative to project_dir
+        """
+        old_subpath = "shapefiles/catchment"
+        new_subpath = f"shapefiles/catchment/{self.domain_definition_method}/{self.experiment_id}"
+
+        # Check for backward compatibility if filename provided
+        if filename:
+            old_path = self.project_dir / old_subpath / filename
+            if old_path.exists():
+                self.logger.debug(
+                    f"Using legacy catchment path for backward compatibility: {old_path}"
+                )
+                return old_subpath
+
+        return new_subpath
 
     def sort_catchment_shape(self):
         """
@@ -103,7 +130,9 @@ class DomainDiscretizer(PathResolverMixin):
         self.hruId = self.config_dict.get("CATCHMENT_SHP_HRUID")
 
         if self.catchment_path == "default":
-            self.catchment_path = self.project_dir / "shapefiles" / "catchment"
+            # Use backward-compatible path resolution
+            catchment_subpath = self._get_catchment_subpath(self.catchment_name)
+            self.catchment_path = self.project_dir / catchment_subpath
         else:
             self.catchment_path = Path(self.catchment_path)
 
@@ -180,7 +209,7 @@ class DomainDiscretizer(PathResolverMixin):
             - Files saved to: {project_dir}/shapefiles/catchment/{domain_name}_HRUs_{method}.shp
 
         Example:
-            For DOMAIN_DISCRETIZATION="elevation,landclass", creates HRUs by:
+            For SUB_GRID_DISCRETIZATION="elevation,landclass", creates HRUs by:
             1. Dividing catchment into elevation bands
             2. Within each elevation band, subdividing by land cover class
             3. Merging small HRUs below MIN_HRU_SIZE threshold
@@ -791,8 +820,10 @@ class DomainDiscretizationRunner:
                 self.logger.warning(f"Delineated river basins not found at {delineated_basins_path}")
                 return None
 
-            # Create output path for delineated catchments
-            catchment_delineated_path = project_dir / "shapefiles" / "catchment" / f"{domain_name}_catchment_delineated.shp"
+            # Create output path for delineated catchments with backward compatibility
+            filename = f"{domain_name}_catchment_delineated.shp"
+            catchment_subpath = self.discretizer._get_catchment_subpath(filename)
+            catchment_delineated_path = project_dir / catchment_subpath / filename
             catchment_delineated_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Read the delineated river basins

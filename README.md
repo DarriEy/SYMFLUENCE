@@ -174,7 +174,7 @@ symfluence workflow run --config my_config.yaml
 symfluence workflow steps setup_project calibrate_model
 
 # Define domain from pour point
-symfluence project pour-point 51.1722/-115.5717 --domain-name MyDomain --definition delineate
+symfluence project pour-point 51.1722/-115.5717 --domain-name MyDomain --definition semidistributed
 
 # Check workflow status
 symfluence workflow status

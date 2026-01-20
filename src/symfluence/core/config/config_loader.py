@@ -68,7 +68,7 @@ Required Configuration Fields:
 
     Spatial:
         - DOMAIN_DEFINITION_METHOD: Delineation method (lumped/TBL/distribute)
-        - DOMAIN_DISCRETIZATION: Discretization approach (lumped/elevation/...)
+        - SUB_GRID_DISCRETIZATION: Discretization approach (lumped/elevation/...)
 
     Model:
         - HYDROLOGICAL_MODEL: Model name (SUMMA/FUSE/GR/...)
@@ -263,7 +263,7 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         'EXPERIMENT_TIME_START',
         'EXPERIMENT_TIME_END',
         'DOMAIN_DEFINITION_METHOD',
-        'DOMAIN_DISCRETIZATION',
+        'SUB_GRID_DISCRETIZATION',
         'HYDROLOGICAL_MODEL',
         'FORCING_DATASET',
     ]

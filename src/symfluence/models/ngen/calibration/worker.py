@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from pydantic import BaseModel as PydanticBaseModel
 from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 
@@ -120,7 +121,11 @@ class NgenWorker(BaseWorker):
         """
         try:
             # Check for parallel mode keys
-            parallel_config = config.copy()
+            # Handle both Pydantic models and dicts
+            if isinstance(config, PydanticBaseModel):
+                parallel_config = dict(config.model_dump())
+            else:
+                parallel_config = dict(config)
 
             # Ensure runner uses isolated directories
             parallel_config['_ngen_output_dir'] = str(output_dir)

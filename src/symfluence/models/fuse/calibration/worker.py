@@ -677,7 +677,7 @@ class FUSEWorker(BaseWorker):
                 return {'kge': self.penalty_score}
 
             # Read observations
-            df_obs = pd.read_csv(obs_file_path, index_col='datetime', parse_dates=True)
+            df_obs = pd.read_csv(obs_file_path, index_col='datetime', parse_dates=True, dayfirst=True)
             observed_streamflow = df_obs['discharge_cms'].resample('D').mean()
 
             # Check if routing was used - prioritize routed output over direct FUSE output

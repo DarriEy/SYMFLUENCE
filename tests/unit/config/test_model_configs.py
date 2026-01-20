@@ -536,7 +536,7 @@ class TestIntegrationWithSymfluenceConfig:
             'EXPERIMENT_TIME_START': '2020-01-01 00:00',
             'EXPERIMENT_TIME_END': '2020-12-31 23:00',
             'DOMAIN_DEFINITION_METHOD': 'lumped',
-            'DOMAIN_DISCRETIZATION': 'GRUs',
+            'SUB_GRID_DISCRETIZATION': 'GRUs',
             'HYDROLOGICAL_MODEL': 'SUMMA',
             'FORCING_DATASET': 'ERA5',
         }

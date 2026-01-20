@@ -398,7 +398,7 @@ Basic SUMMA Workflow
    HYDROLOGICAL_MODEL: SUMMA
 
    # Spatial discretization
-   DOMAIN_DEFINITION_METHOD: delineate
+   DOMAIN_DEFINITION_METHOD: semidistributed
    POUR_POINT_COORDS: [-115.0, 51.0]
    DISCRETIZATION:
      elevation_bands:

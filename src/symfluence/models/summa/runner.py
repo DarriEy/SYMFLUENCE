@@ -251,7 +251,7 @@ class SummaRunner(UnifiedModelRunner):
         if subbasins_name == 'default':
             subbasins_name = (
                 f"{self.domain_name}_HRUs_"
-                f"{self.config_dict.get('DOMAIN_DISCRETIZATION')}.shp"
+                f"{self.config_dict.get('SUB_GRID_DISCRETIZATION')}.shp"
             )
 
         shapefile = self.project_dir / "shapefiles" / "catchment" / subbasins_name

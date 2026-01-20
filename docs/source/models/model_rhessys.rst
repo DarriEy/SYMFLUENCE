@@ -408,7 +408,7 @@ Hydrology-focused application:
    HYDROLOGICAL_MODEL: RHESSys
 
    # Domain
-   DOMAIN_DEFINITION_METHOD: delineate
+   DOMAIN_DEFINITION_METHOD: semidistributed
    POUR_POINT_COORDS: [-120.5, 44.2]  # Oregon Cascades
 
    # Forcing

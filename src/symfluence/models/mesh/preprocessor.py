@@ -206,7 +206,8 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         if domain_method in ['point', 'lumped']:
             return 'lumped'
-        elif domain_method in ['delineate', 'semi_distributed', 'distributed']:
+        elif domain_method in ['delineate', 'semidistributed', 'semi_distributed', 'distributed']:
+            # Note: 'delineate' is auto-mapped to 'semidistributed' for backward compatibility
             return 'distributed'
 
         return 'lumped'

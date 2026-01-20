@@ -108,7 +108,7 @@ Key parameters to set:
    # Domain definition
    DOMAIN_NAME: "Bow_at_Banff"
    POUR_POINT_COORDS: "51.1722/-115.5717"
-   DOMAIN_DEFINITION_METHOD: "delineate"
+   DOMAIN_DEFINITION_METHOD: "semidistributed"
 
    # Time period (start small for testing)
    EXPERIMENT_TIME_START: "2018-01-01"

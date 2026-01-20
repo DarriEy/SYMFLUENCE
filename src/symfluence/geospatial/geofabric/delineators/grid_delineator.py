@@ -59,6 +59,8 @@ class GridDelineator(BaseGeofabricDelineator):
         # Grid-specific configuration
         self.grid_cell_size = config.get('GRID_CELL_SIZE', 1000.0)  # meters
         self.clip_to_watershed = config.get('CLIP_GRID_TO_WATERSHED', True)
+        self.grid_source = config.get('GRID_SOURCE', 'generate')
+        self.native_grid_dataset = config.get('NATIVE_GRID_DATASET', 'era5')
 
         # Specific paths for grid delineation
         self.output_dir = self.project_dir / "shapefiles/tempdir"
@@ -69,8 +71,14 @@ class GridDelineator(BaseGeofabricDelineator):
         self.gdal = GDALProcessor(logger)
 
     def _get_delineation_method_name(self) -> str:
-        """Return method name for output files."""
-        return "distribute"
+        """Return method name for output files.
+
+        Encodes grid configuration in the suffix:
+        - generate mode: distributed_{cellsize}m
+        - native mode: distributed_native_{dataset}
+        - subset mode: distributed_subset_{geofabric}
+        """
+        return self._get_method_suffix()
 
     def create_grid_domain(self) -> Tuple[Optional[Path], Optional[Path]]:
         """
@@ -311,7 +319,7 @@ class GridDelineator(BaseGeofabricDelineator):
 
             # Get MPI command if available
             mpi_cmd = self.taudem.get_mpi_command()
-            mpi_prefix = f"{mpi_cmd} -n {self.mpi_processes} " if mpi_cmd else ""
+            mpi_prefix = f"{mpi_cmd} -n {self.num_processes} " if mpi_cmd else ""
 
             # TauDEM processing steps
             fel_path = self.interim_dir / "elv-fel.tif"
@@ -595,3 +603,82 @@ class GridDelineator(BaseGeofabricDelineator):
                 columns=['LINKNO', 'DSLINKNO', 'Length', 'Slope', 'GRU_ID', 'geometry'],
                 crs=grid_gdf.crs
             )
+
+    def _create_native_grid(self) -> Optional[gpd.GeoDataFrame]:
+        """
+        Create grid matching native forcing data resolution.
+
+        Reads forcing file metadata to determine grid structure and creates
+        polygons matching the forcing data grid cells.
+
+        Returns:
+            GeoDataFrame with grid cells matching native forcing resolution,
+            or None if forcing data cannot be read.
+
+        Note:
+            This is a stub implementation. Full implementation requires reading
+            the forcing netCDF file to extract lat/lon grid coordinates.
+        """
+        self.logger.info(f"Creating native grid from dataset: {self.native_grid_dataset}")
+
+        # TODO: Implementation would read forcing netCDF to get grid structure
+        # For now, log that this feature is not yet implemented
+        self.logger.warning(
+            f"Native grid creation for '{self.native_grid_dataset}' is not yet implemented. "
+            "Use grid_source='generate' with explicit grid_cell_size instead."
+        )
+        return None
+
+    def _subset_grid_from_geofabric(
+        self,
+        geofabric_basins: gpd.GeoDataFrame
+    ) -> Optional[gpd.GeoDataFrame]:
+        """
+        Create grid cells that intersect with geofabric basins.
+
+        Args:
+            geofabric_basins: GeoDataFrame with basin polygons from geofabric
+
+        Returns:
+            GeoDataFrame with grid cells clipped to geofabric extent
+        """
+        try:
+            self.logger.info("Subsetting grid from geofabric basins")
+
+            # Create full grid from bounding box of geofabric
+            full_grid = self._create_grid_from_bbox()
+            if full_grid is None:
+                return None
+
+            # Ensure same CRS
+            if geofabric_basins.crs != full_grid.crs:
+                geofabric_basins = geofabric_basins.to_crs(full_grid.crs)
+
+            # Clip grid to geofabric extent
+            clipped = gpd.overlay(full_grid, geofabric_basins[['geometry']], how='intersection')
+
+            if len(clipped) == 0:
+                self.logger.warning("No grid cells intersect geofabric basins")
+                return None
+
+            # Recalculate areas
+            utm_crs = clipped.estimate_utm_crs()
+            clipped_utm = clipped.to_crs(utm_crs)
+            clipped['GRU_area'] = clipped_utm.geometry.area
+
+            # Remove slivers
+            min_area = 0.1 * (self.grid_cell_size ** 2)
+            clipped = clipped[clipped['GRU_area'] >= min_area]
+
+            # Reassign IDs
+            clipped = clipped.reset_index(drop=True)
+            clipped['GRU_ID'] = range(1, len(clipped) + 1)
+
+            self.logger.info(f"Created {len(clipped)} grid cells from geofabric subset")
+            return clipped
+
+        except Exception as e:
+            self.logger.error(f"Error subsetting grid from geofabric: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return None

@@ -742,7 +742,7 @@ class SpatialOrchestrator(ABC):
         if shapefile_path is None:
             catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME', 'default')
             if catchment_name == 'default':
-                discretization = self.config_dict.get('DOMAIN_DISCRETIZATION', 'catchment')
+                discretization = self.config_dict.get('SUB_GRID_DISCRETIZATION', 'catchment')
                 catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
             shapefile_path = self.project_dir / 'shapefiles' / 'catchment' / catchment_name
 

@@ -115,7 +115,7 @@ def base_config(tmp_path_factory, symfluence_code_dir):
     # Paradise point-scale setup (small bbox for high-resolution datasets like AORC/HRRR)
     config["DOMAIN_NAME"] = "paradise_cloud"
     config["DOMAIN_DEFINITION_METHOD"] = "point"
-    config["DOMAIN_DISCRETIZATION"] = "GRUs"
+    config["SUB_GRID_DISCRETIZATION"] = "GRUs"
     config["BOUNDING_BOX_COORDS"] = "46.79/-121.76/46.77/-121.74"  # Small 0.02° x 0.02° box (~2km x 2km)
     config["POUR_POINT_COORDS"] = "46.78/-121.75"
 

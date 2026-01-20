@@ -50,12 +50,14 @@ EXPERIMENT_TIME_START: "2010-01-01 00:00"
 EXPERIMENT_TIME_END: "2020-12-31 23:00"
 
 # Domain definition method:
-#   - lumped        (single catchment, no discretization)
-#   - discretized   (divide into smaller units)
-#   - distributed   (grid-based representation)
-#   - subset        (subset of larger domain)
-#   - point         (single point/pixel)
-#   - delineate     (delineate from DEM at pour point)
+#   - point            (single point/pixel for FLUXNET sites)
+#   - lumped           (single catchment, no spatial discretization)
+#   - semidistributed  (subcatchment delineation from DEM via TauDEM)
+#   - distributed      (grid-based representation with D8 routing)
+#
+# Additional options:
+#   - SUBSET_FROM_GEOFABRIC: true  (extract from existing geofabric instead of delineating)
+#   - GRID_SOURCE: generate/native (for distributed: generate grid or match forcing resolution)
 DOMAIN_DEFINITION_METHOD: "lumped"
 
 # Domain discretization strategy:
@@ -66,7 +68,7 @@ DOMAIN_DEFINITION_METHOD: "lumped"
 #   - radiation     (discretize by radiation zones)
 #   - grus          (pre-defined geographic response units)
 #   - combined      (e.g., "elevation,landclass" - comma-separated)
-DOMAIN_DISCRETIZATION: "elevation"
+SUB_GRID_DISCRETIZATION: "elevation"
 
 
 ## ============================================================================
@@ -116,7 +118,7 @@ HYDROLOGICAL_MODEL: "SUMMA"
 # EVALUATION_PERIOD: "2016-01-01, 2020-12-31"
 
 # Number of MPI processes for parallel execution
-# MPI_PROCESSES: 4
+# NUM_PROCESSES: 4
 
 # Enable debug mode (verbose output)
 # DEBUG_MODE: false
@@ -130,7 +132,7 @@ HYDROLOGICAL_MODEL: "SUMMA"
 ## ============================================================================
 ## Uncomment if using point location or delineation method
 
-# Pour point coordinates (for point-based or delineate methods)
+# Pour point coordinates (for lumped/semidistributed methods)
 # Format: "latitude/longitude" (e.g., "51.1722/-115.5717")
 # POUR_POINT_COORDS: "51.1722/-115.5717"
 

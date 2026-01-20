@@ -27,7 +27,9 @@ class ConfigDefaults:
     """Default configuration values for SYMFLUENCE"""
 
     # === System Settings ===
-    MPI_PROCESSES = 1
+    NUM_PROCESSES = 1
+    # Note: MPI_PROCESSES is a backward compatibility alias, not a separate default.
+    # The alias mapping is in transformers.py FLAT_TO_NESTED_MAP.
     DEBUG_MODE = False
     LOG_LEVEL = 'INFO'
     LOG_TO_FILE = True

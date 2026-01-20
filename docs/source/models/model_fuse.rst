@@ -486,7 +486,7 @@ For snow-dominated basins:
    FUSE_N_ELEVATION_BANDS: 7
 
    # Delineate domain
-   DOMAIN_DEFINITION_METHOD: delineate
+   DOMAIN_DEFINITION_METHOD: semidistributed
    POUR_POINT_COORDS: [-120.5, 48.3]
 
    # Create elevation discretization

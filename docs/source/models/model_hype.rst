@@ -363,7 +363,7 @@ Basic HYPE Workflow
    HYDROLOGICAL_MODEL: HYPE
 
    # Domain definition
-   DOMAIN_DEFINITION_METHOD: delineate
+   DOMAIN_DEFINITION_METHOD: semidistributed
    POUR_POINT_COORDS: [15.5, 59.2]  # Sweden
 
    # Spatial discretization

@@ -151,7 +151,7 @@ class StreamflowMetrics:
             catchment_path = Path(catchment_path)
 
         # Resolve catchment filename
-        discretization = config.get('DOMAIN_DISCRETIZATION', 'elevation')
+        discretization = config.get('SUB_GRID_DISCRETIZATION', 'elevation')
         catchment_name = config.get('CATCHMENT_SHP_NAME', 'default')
         if catchment_name == 'default' or not catchment_name:
             catchment_name = f"{domain_name}_HRUs_{discretization}.shp"

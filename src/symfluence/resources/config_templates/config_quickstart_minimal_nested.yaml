@@ -53,12 +53,14 @@ domain:
   time_end: "2020-12-31 23:00"    # Format: YYYY-MM-DD HH:MM
 
   # Domain definition method:
-  #   lumped        - Single catchment, no discretization
-  #   discretized   - Divide into smaller response units
-  #   distributed   - Grid-based spatial representation
-  #   subset        - Subset of larger pre-defined domain
-  #   point         - Single point location
-  #   delineate     - Auto-delineate from DEM at pour point
+  #   point            - Single point location (FLUXNET sites)
+  #   lumped           - Single catchment, no spatial discretization
+  #   semidistributed  - Subcatchment delineation from DEM via TauDEM
+  #   distributed      - Grid-based spatial representation with D8 routing
+  #
+  # Additional options:
+  #   subset_from_geofabric: true  - Extract from existing geofabric
+  #   grid_source: generate/native - For distributed: create grid or match forcing
   definition_method: "lumped"
 
   # Spatial discretization strategy (how to divide the domain):
@@ -138,7 +140,7 @@ model:
 
 # System execution settings (optional)
 # system:
-#   mpi_processes: 4                # Number of parallel processes
+#   num_processes: 4                # Number of parallel processes
 #   debug_mode: false               # Verbose debugging output
 #   log_level: "INFO"               # Log detail: DEBUG, INFO, WARNING, ERROR
 #   random_seed: 42                 # For reproducibility

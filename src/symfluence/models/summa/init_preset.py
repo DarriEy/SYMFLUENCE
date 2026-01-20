@@ -17,12 +17,12 @@ def summa_basic_preset():
         'settings': {
             # Global settings
             'EXPERIMENT_ID': 'run_1',
-            'MPI_PROCESSES': 1,
+            'NUM_PROCESSES': 1,
             'FORCE_RUN_ALL_STEPS': False,
 
             # Geospatial settings
             'DOMAIN_DEFINITION_METHOD': 'delineate',
-            'DOMAIN_DISCRETIZATION': 'GRUs',
+            'SUB_GRID_DISCRETIZATION': 'GRUs',
             'ROUTING_DELINEATION': 'distributed',
             'GEOFABRIC_TYPE': 'TDX',
             'STREAM_THRESHOLD': 1000,

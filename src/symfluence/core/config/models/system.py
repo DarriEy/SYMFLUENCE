@@ -1,18 +1,18 @@
 """
 System configuration model.
 
-Contains SystemConfig for system-level settings: paths, logging, MPI, debugging.
+Contains SystemConfig for system-level settings: paths, logging, parallelism, debugging.
 """
 
 from typing import Optional, Literal
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, AliasChoices
 
 from .base import FROZEN_CONFIG
 
 
 class SystemConfig(BaseModel):
-    """System-level configuration: paths, logging, MPI, debugging"""
+    """System-level configuration: paths, logging, parallelism, debugging"""
     model_config = FROZEN_CONFIG
 
     # Required paths
@@ -20,7 +20,7 @@ class SystemConfig(BaseModel):
     code_dir: Path = Field(alias='SYMFLUENCE_CODE_DIR')
 
     # System settings
-    mpi_processes: int = Field(default=1, alias='MPI_PROCESSES')
+    num_processes: int = Field(default=1, validation_alias=AliasChoices('NUM_PROCESSES', 'MPI_PROCESSES'))
     debug_mode: bool = Field(default=False, alias='DEBUG_MODE')
     log_level: Literal['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'] = Field(default='INFO', alias='LOG_LEVEL')
     log_to_file: bool = Field(default=True, alias='LOG_TO_FILE')
@@ -37,7 +37,7 @@ class SystemConfig(BaseModel):
         """Expand and resolve paths"""
         return Path(v).expanduser().resolve()
 
-    @field_validator('mpi_processes')
+    @field_validator('num_processes')
     @classmethod
     def validate_positive_integers(cls, v, info):
         """Ensure positive integers"""

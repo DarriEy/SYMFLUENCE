@@ -2,6 +2,19 @@
 HBV Model Guide
 =========================================
 
+.. warning::
+   **EXPERIMENTAL MODULE** - The HBV model is in active development and should be
+   used at your own risk. The API may change without notice in future releases.
+   Please report any issues at https://github.com/DarriEy/SYMFLUENCE/issues
+
+   **Known Limitations:**
+
+   - Distributed routing integration is still in development
+   - Some parameter combinations may produce numerical instabilities
+   - GPU acceleration requires JAX with CUDA/ROCm support
+
+   To disable this module at import time, set: ``SYMFLUENCE_DISABLE_EXPERIMENTAL=1``
+
 .. contents:: Table of Contents
    :local:
    :depth: 2
@@ -250,7 +263,7 @@ Per-HRU simulation with optional mizuRoute routing:
    HBV_SPATIAL_MODE: distributed
 
    # Requires HRU discretization
-   DOMAIN_DEFINITION_METHOD: delineate
+   DOMAIN_DEFINITION_METHOD: semidistributed
 
    # Optional routing
    ROUTING_MODEL: mizuRoute
@@ -533,7 +546,7 @@ Distributed with Routing
 
    # Distributed mode
    HBV_SPATIAL_MODE: distributed
-   DOMAIN_DEFINITION_METHOD: delineate
+   DOMAIN_DEFINITION_METHOD: semidistributed
    POUR_POINT_COORDS: [-118.5, 49.2]
 
    # Enable routing
