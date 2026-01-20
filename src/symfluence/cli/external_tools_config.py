@@ -140,6 +140,30 @@ set -e
 export CC=mpicc
 export CXX=mpicxx
 
+# On HPC systems (e.g., Compute Canada), OpenMPI may be linked against Intel Level Zero
+# through hwloc. We need to find and add libze_loader.so to LD_LIBRARY_PATH.
+if [ -d "/cvmfs/soft.computecanada.ca" ]; then
+    echo "Detected Compute Canada HPC environment"
+    # Search for libze_loader.so.1 in common locations
+    ZE_LOADER=$(find /cvmfs/soft.computecanada.ca/easybuild/software -name "libze_loader.so.1" 2>/dev/null | head -1 || true)
+    if [ -n "$ZE_LOADER" ]; then
+        ZE_LOADER_DIR=$(dirname "$ZE_LOADER")
+        echo "Found Intel Level Zero at: $ZE_LOADER_DIR"
+        export LD_LIBRARY_PATH="${ZE_LOADER_DIR}:${LD_LIBRARY_PATH:-}"
+    else
+        echo "Warning: libze_loader.so.1 not found, MPI linking may fail"
+        # Try loading intel-oneapi module path as fallback
+        for oneapi_path in /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/*/lib \
+                          /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/level-zero/*/lib; do
+            if [ -d "$oneapi_path" ]; then
+                echo "Adding Level Zero path: $oneapi_path"
+                export LD_LIBRARY_PATH="${oneapi_path}:${LD_LIBRARY_PATH:-}"
+                break
+            fi
+        done
+    fi
+fi
+
 rm -rf build && mkdir -p build
 cd build
 
