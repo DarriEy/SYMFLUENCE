@@ -183,7 +183,15 @@ ignore = [
 
 [tool.bandit]
 exclude_dirs = ["tests", "examples", "venv", ".venv"]
-skips = ["B101"]  # Allow assert statements
+skips = [
+    "B101",  # Allow assert statements
+    "B110",  # try_except_pass - used for optional error handling
+    "B112",  # try_except_continue - used for optional error handling in loops
+    "B311",  # random - not used for security/cryptographic purposes
+    "B404",  # subprocess import - required for external model execution
+    "B603",  # subprocess calls - required for external model execution
+    "B607",  # partial paths - safe for known system commands
+]
 
 [tool.mypy]
 python_version = "3.11"

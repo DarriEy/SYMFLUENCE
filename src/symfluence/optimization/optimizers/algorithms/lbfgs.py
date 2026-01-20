@@ -157,7 +157,7 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
         self.logger.info(f"  Steps: {steps}, LR: {lr}, History size: {history_size}")
         self.logger.info(f"  Gradient method: {gradient_method}")
         if use_native:
-            self.logger.info(f"  Using native gradients (~2 evals/step)")
+            self.logger.info("  Using native gradients (~2 evals/step)")
         else:
             self.logger.info(f"  Using finite differences ({2*n_params + 1} evals/step)")
 

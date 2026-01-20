@@ -533,8 +533,8 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
                     for c in candidates
                 ]
                 raise FileNotFoundError(
-                    f"Model executable not found in any candidate location.\n"
-                    f"Searched paths:\n  " + "\n  ".join(searched_paths) + "\n"
+                    "Model executable not found in any candidate location.\n"
+                    "Searched paths:\n  " + "\n  ".join(searched_paths) + "\n"
                     f"Install path key: {install_path_key}"
                 )
             else:
@@ -593,7 +593,7 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
             # Execute subprocess
             self.logger.debug(f"Executing command: {' '.join(command)}")
             with open(log_file, 'w') as f:
-                result = subprocess.run(
+                result = subprocess.run(  # nosec B602 - shell mode for trusted model executables
                     command,
                     check=check,
                     stdout=f,

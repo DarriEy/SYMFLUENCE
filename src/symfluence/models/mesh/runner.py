@@ -7,7 +7,6 @@ Refactored to use the Unified Model Execution Framework.
 
 import os
 import shutil
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path

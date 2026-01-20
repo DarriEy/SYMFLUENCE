@@ -8,7 +8,6 @@ Refactored to use the Unified Model Execution Framework.
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-import subprocess
 import logging
 
 from ..registry import ModelRegistry
