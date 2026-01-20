@@ -141,7 +141,7 @@ export CC=mpicc
 export CXX=mpicxx
 
 # On HPC systems (e.g., Compute Canada), OpenMPI may be linked against Intel Level Zero
-# through hwloc. We need to add libze_loader.so to LD_LIBRARY_PATH.
+# through hwloc. We need to add libze_loader.so to library paths for BOTH link-time and run-time.
 # Use direct path checks instead of find (CVMFS is very slow with find).
 if [ -d "/cvmfs/soft.computecanada.ca" ]; then
     echo "Detected Compute Canada HPC environment"
@@ -151,19 +151,27 @@ if [ -d "/cvmfs/soft.computecanada.ca" ]; then
         /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.13.5/lib64 \
         /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.14.0/lib64 \
         /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.15.1/lib64 \
+        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.16.1/lib64 \
         /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/level-zero/1.13.5/lib64 \
         /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/level-zero/1.14.0/lib64 \
         /cvmfs/soft.computecanada.ca/easybuild/software/2020/Core/intel/2023.2.1/compiler/lib \
         /cvmfs/soft.computecanada.ca/easybuild/software/2020/Core/intel/2022.1.0/compiler/lib; do
         if [ -f "$ze_path/libze_loader.so.1" ] || [ -f "$ze_path/libze_loader.so" ]; then
             echo "Found Intel Level Zero at: $ze_path"
+            # LD_LIBRARY_PATH for runtime, LIBRARY_PATH for link-time
             export LD_LIBRARY_PATH="${ze_path}:${LD_LIBRARY_PATH:-}"
+            export LIBRARY_PATH="${ze_path}:${LIBRARY_PATH:-}"
+            # Also set LDFLAGS for linker to find and embed rpath
+            export LDFLAGS="-L${ze_path} -Wl,-rpath,${ze_path} ${LDFLAGS:-}"
             ZE_FOUND=true
             break
         fi
     done
     if [ "$ZE_FOUND" = "false" ]; then
         echo "Warning: libze_loader.so not found in known paths, MPI linking may fail"
+        echo "Available level-zero versions:"
+        ls -d /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/*/ 2>/dev/null || echo "  none found in x86-64-v4"
+        ls -d /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/level-zero/*/ 2>/dev/null || echo "  none found in x86-64-v3"
     fi
 fi
 
