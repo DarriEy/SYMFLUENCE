@@ -136,13 +136,9 @@ cmake --build . --target install -j ${NCORES:-4}
 # Build TauDEM from GitHub repository
 set -e
 
-# Use OpenMPI compiler wrappers so CMake/FindMPI can auto-detect everything
-export CC=mpicc
-export CXX=mpicxx
-
 # On HPC systems (e.g., Compute Canada), OpenMPI may be linked against Intel Level Zero
-# through hwloc. We need to add libze_loader.so to library paths for BOTH link-time and run-time.
-# Use direct path checks instead of find (CVMFS is very slow with find).
+# through hwloc. We need to add libze_loader.so to library paths and pass to cmake.
+CMAKE_EXTRA_FLAGS=""
 if [ -d "/cvmfs/soft.computecanada.ca" ]; then
     echo "Detected Compute Canada HPC environment"
     ZE_FOUND=false
@@ -158,11 +154,9 @@ if [ -d "/cvmfs/soft.computecanada.ca" ]; then
         /cvmfs/soft.computecanada.ca/easybuild/software/2020/Core/intel/2022.1.0/compiler/lib; do
         if [ -f "$ze_path/libze_loader.so.1" ] || [ -f "$ze_path/libze_loader.so" ]; then
             echo "Found Intel Level Zero at: $ze_path"
-            # LD_LIBRARY_PATH for runtime, LIBRARY_PATH for link-time
             export LD_LIBRARY_PATH="${ze_path}:${LD_LIBRARY_PATH:-}"
-            export LIBRARY_PATH="${ze_path}:${LIBRARY_PATH:-}"
-            # Also set LDFLAGS for linker to find and embed rpath
-            export LDFLAGS="-L${ze_path} -Wl,-rpath,${ze_path} ${LDFLAGS:-}"
+            # Pass linker flags via cmake to handle mpicc wrapper
+            CMAKE_EXTRA_FLAGS="-DCMAKE_EXE_LINKER_FLAGS=-L${ze_path}\ -Wl,-rpath-link,${ze_path}"
             ZE_FOUND=true
             break
         fi
@@ -175,11 +169,15 @@ if [ -d "/cvmfs/soft.computecanada.ca" ]; then
     fi
 fi
 
+# Use OpenMPI compiler wrappers so CMake/FindMPI can auto-detect everything
+export CC=mpicc
+export CXX=mpicxx
+
 rm -rf build && mkdir -p build
 cd build
 
-# Let CMake find MPI and GDAL
-cmake -S .. -B . -DCMAKE_BUILD_TYPE=Release
+# Let CMake find MPI and GDAL, pass extra linker flags if needed
+cmake -S .. -B . -DCMAKE_BUILD_TYPE=Release $CMAKE_EXTRA_FLAGS
 
 # Build everything plus the two tools that sometimes get skipped by default
 cmake --build . -j 2
