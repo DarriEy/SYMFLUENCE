@@ -136,48 +136,33 @@ cmake --build . --target install -j ${NCORES:-4}
 # Build TauDEM from GitHub repository
 set -e
 
-# On HPC systems (e.g., Compute Canada), OpenMPI may be linked against Intel Level Zero
-# through hwloc. We need to add libze_loader.so to library paths.
-# Use OMPI_LDFLAGS which mpicc respects (CMAKE_EXE_LINKER_FLAGS doesn't help with compiler test)
+# On Compute Canada HPC, OpenMPI has broken Level Zero dependency through hwloc.
+# Using mpicc as CC causes cmake compiler test to fail.
+# Solution: Use regular gcc/g++ and let cmake FindMPI handle MPI separately.
+CMAKE_MPI_FLAGS=""
 if [ -d "/cvmfs/soft.computecanada.ca" ]; then
     echo "Detected Compute Canada HPC environment"
-    ZE_FOUND=false
-    # Check known Level Zero library paths (most common first)
-    for ze_path in \
-        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.13.5/lib64 \
-        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.14.0/lib64 \
-        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.15.1/lib64 \
-        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.16.1/lib64 \
-        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/level-zero/1.13.5/lib64 \
-        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/level-zero/1.14.0/lib64 \
-        /cvmfs/soft.computecanada.ca/easybuild/software/2020/Core/intel/2023.2.1/compiler/lib \
-        /cvmfs/soft.computecanada.ca/easybuild/software/2020/Core/intel/2022.1.0/compiler/lib; do
-        if [ -f "$ze_path/libze_loader.so.1" ] || [ -f "$ze_path/libze_loader.so" ]; then
-            echo "Found Intel Level Zero at: $ze_path"
-            export LD_LIBRARY_PATH="${ze_path}:${LD_LIBRARY_PATH:-}"
-            # OMPI_LDFLAGS is respected by mpicc wrapper for linking
-            export OMPI_LDFLAGS="-L${ze_path} -Wl,-rpath-link,${ze_path} ${OMPI_LDFLAGS:-}"
-            ZE_FOUND=true
-            break
-        fi
-    done
-    if [ "$ZE_FOUND" = "false" ]; then
-        echo "Warning: libze_loader.so not found in known paths, MPI linking may fail"
-        echo "Available level-zero versions:"
-        ls -d /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/*/ 2>/dev/null || echo "  none found in x86-64-v4"
-        ls -d /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/level-zero/*/ 2>/dev/null || echo "  none found in x86-64-v3"
+    # Don't use mpicc as CC - it has broken hwloc->level-zero dependency
+    # Instead, find MPI root and let cmake's FindMPI module handle it
+    MPI_ROOT=$(dirname $(dirname $(which mpicc 2>/dev/null))) || true
+    if [ -n "$MPI_ROOT" ] && [ -d "$MPI_ROOT" ]; then
+        echo "Found MPI at: $MPI_ROOT"
+        CMAKE_MPI_FLAGS="-DMPI_HOME=$MPI_ROOT"
     fi
+    # Use system gcc/g++ which don't have the broken dependency chain
+    export CC=gcc
+    export CXX=g++
+else
+    # On other systems, mpicc/mpicxx as CC/CXX works fine
+    export CC=mpicc
+    export CXX=mpicxx
 fi
-
-# Use OpenMPI compiler wrappers so CMake/FindMPI can auto-detect everything
-export CC=mpicc
-export CXX=mpicxx
 
 rm -rf build && mkdir -p build
 cd build
 
 # Let CMake find MPI and GDAL
-cmake -S .. -B . -DCMAKE_BUILD_TYPE=Release
+cmake -S .. -B . -DCMAKE_BUILD_TYPE=Release $CMAKE_MPI_FLAGS
 
 # Build everything plus the two tools that sometimes get skipped by default
 cmake --build . -j 2
