@@ -137,39 +137,43 @@ cmake --build . --target install -j ${NCORES:-4}
 set -e
 
 # On Compute Canada HPC, OpenMPI has broken Level Zero dependency through hwloc.
-# Using mpicc as CC causes cmake compiler test to fail.
-# Solution: Use regular gcc/g++ and let cmake FindMPI handle MPI separately,
-# but we still need Level Zero in library path for MPI linking to work.
+# Solution: Find Level Zero dynamically and add to library path.
 CMAKE_MPI_FLAGS=""
 if [ -d "/cvmfs/soft.computecanada.ca" ]; then
     echo "Detected Compute Canada HPC environment"
 
-    # Find Level Zero library for MPI linking
-    for ze_path in \
-        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.13.5/lib64 \
-        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.14.0/lib64 \
-        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.15.1/lib64 \
-        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/level-zero/1.16.1/lib64 \
-        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/level-zero/1.13.5/lib64 \
-        /cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/level-zero/1.14.0/lib64; do
-        if [ -f "$ze_path/libze_loader.so.1" ] || [ -f "$ze_path/libze_loader.so" ]; then
-            echo "Found Intel Level Zero at: $ze_path"
-            export LD_LIBRARY_PATH="${ze_path}:${LD_LIBRARY_PATH:-}"
-            export LIBRARY_PATH="${ze_path}:${LIBRARY_PATH:-}"
-            break
-        fi
-    done
+    # Use system gcc/g++ to avoid broken mpicc dependency chain
+    export CC=gcc
+    export CXX=g++
 
-    # Don't use mpicc as CC - it has broken hwloc->level-zero dependency
-    # Instead, find MPI root and let cmake's FindMPI module handle it
+    # Find Level Zero library dynamically by checking MPI library dependencies
+    MPI_LIB=$(dirname $(which mpicc 2>/dev/null))/../lib/libmpi.so || true
+    if [ -f "$MPI_LIB" ]; then
+        # Extract the path where libze_loader.so.1 should be from ldd output
+        ZE_PATH=$(ldd "$MPI_LIB" 2>/dev/null | grep "libze_loader" | grep "not found" > /dev/null && \
+            # If not found, try to locate it via the module system
+            (module show level-zero 2>&1 | grep -oP 'LD_LIBRARY_PATH[^:]*:\K[^"]+' | head -1) || \
+            # Or extract from ldd if it IS found
+            (ldd "$MPI_LIB" 2>/dev/null | grep "libze_loader" | awk '{print $3}' | xargs dirname 2>/dev/null) \
+        ) || true
+        if [ -n "$ZE_PATH" ] && [ -d "$ZE_PATH" ]; then
+            echo "Found Level Zero at: $ZE_PATH"
+            export LD_LIBRARY_PATH="${ZE_PATH}:${LD_LIBRARY_PATH:-}"
+            export LIBRARY_PATH="${ZE_PATH}:${LIBRARY_PATH:-}"
+        fi
+    fi
+
+    # If module system available, try loading level-zero
+    if command -v module &>/dev/null; then
+        module load level-zero 2>/dev/null && echo "Loaded level-zero module" || true
+    fi
+
+    # Tell cmake where MPI is
     MPI_ROOT=$(dirname $(dirname $(which mpicc 2>/dev/null))) || true
     if [ -n "$MPI_ROOT" ] && [ -d "$MPI_ROOT" ]; then
         echo "Found MPI at: $MPI_ROOT"
         CMAKE_MPI_FLAGS="-DMPI_HOME=$MPI_ROOT"
     fi
-    # Use system gcc/g++ which don't have the broken dependency chain
-    export CC=gcc
-    export CXX=g++
 else
     # On other systems, mpicc/mpicxx as CC/CXX works fine
     export CC=mpicc
