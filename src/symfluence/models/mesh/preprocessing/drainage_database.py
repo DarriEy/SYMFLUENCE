@@ -513,9 +513,25 @@ class MESHDrainageDatabase(ConfigMixin):
                         if coord in ds.coords:
                             ds = ds.reset_coords(coord)
 
-                        # Re-create as clean 1D variable on subbasin
-                        val = ds[coord].values.flatten()[0]
-                        ds[coord] = (target_n_dim, np.full(n_size, val, dtype=np.float64), {
+                        # Re-create as clean 1D variable on subbasin, preserving all values
+                        vals = ds[coord].values.flatten()
+                        if len(vals) >= n_size:
+                            # Use the first n_size values (handles case where we have enough)
+                            coord_vals = vals[:n_size].astype(np.float64)
+                        elif len(vals) == 1:
+                            # Single value - broadcast to all subbasins (legacy behavior)
+                            coord_vals = np.full(n_size, vals[0], dtype=np.float64)
+                        else:
+                            # Fewer values than needed - pad with last value
+                            coord_vals = np.zeros(n_size, dtype=np.float64)
+                            coord_vals[:len(vals)] = vals
+                            coord_vals[len(vals):] = vals[-1]
+                            self.logger.warning(
+                                f"Lat/lon array has {len(vals)} values but need {n_size}, "
+                                f"padding with last value"
+                            )
+
+                        ds[coord] = (target_n_dim, coord_vals, {
                             'units': 'degrees_north' if coord == 'lat' else 'degrees_east',
                             'long_name': 'latitude' if coord == 'lat' else 'longitude',
                             'standard_name': 'latitude' if coord == 'lat' else 'longitude',

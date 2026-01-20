@@ -1036,11 +1036,12 @@ class BaseModelOptimizer(
         if not self.worker.supports_native_gradients():
             return None
 
-        # Get calibration metric from config
-        metric = self._get_config_value(
-            lambda: self.config.optimization.metric,
-            default='kge',
-            dict_key='CALIBRATION_METRIC'
+        # Get optimization metric from config
+        # Uses OPTIMIZATION_METRIC first, then CALIBRATION_METRIC, matching _extract_primary_score
+        # in base_worker.py to ensure FD and native gradient paths optimize the same objective
+        metric = self.config_dict.get(
+            'OPTIMIZATION_METRIC',
+            self.config_dict.get('CALIBRATION_METRIC', 'KGE')
         ).lower()
 
         # Get parameter names and bounds for gradient transformation

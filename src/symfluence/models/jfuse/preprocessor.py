@@ -1,7 +1,7 @@
 """
-HBV Model Preprocessor.
+jFUSE Model Preprocessor.
 
-Prepares forcing data (precipitation, temperature, PET) for HBV-96 model execution.
+Prepares forcing data (precipitation, temperature, PET) for jFUSE model execution.
 Supports both lumped and distributed modes.
 """
 
@@ -19,18 +19,18 @@ from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.constants import UnitConversion
 
 
-@ModelRegistry.register_preprocessor('HBV')
-class HBVPreprocessor(BaseModelPreProcessor):
+@ModelRegistry.register_preprocessor('JFUSE')
+class JFUSEPreprocessor(BaseModelPreProcessor):
     """
-    Preprocessor for HBV-96 model.
+    Preprocessor for jFUSE model.
 
     Prepares forcing data including:
     - Precipitation (mm/day)
-    - Temperature (°C)
+    - Temperature (degC)
     - Potential evapotranspiration (mm/day)
 
     Supports lumped mode (single time series) and distributed mode
-    (per-HRU time series for mizuRoute integration).
+    (per-HRU time series for routing integration).
     """
 
     def __init__(
@@ -40,7 +40,7 @@ class HBVPreprocessor(BaseModelPreProcessor):
         params: Optional[Dict[str, float]] = None
     ):
         """
-        Initialize HBV preprocessor.
+        Initialize jFUSE preprocessor.
 
         Args:
             config: Configuration dictionary or SymfluenceConfig object
@@ -51,14 +51,14 @@ class HBVPreprocessor(BaseModelPreProcessor):
 
         self.params = params or {}
 
-        # HBV-specific paths
-        self.hbv_setup_dir = self.setup_dir
-        self.hbv_forcing_dir = self.forcing_dir
-        self.hbv_results_dir = self.project_dir / 'simulations' / self.experiment_id / 'HBV'
+        # jFUSE-specific paths
+        self.jfuse_setup_dir = self.setup_dir
+        self.jfuse_forcing_dir = self.forcing_dir
+        self.jfuse_results_dir = self.project_dir / 'simulations' / self.experiment_id / 'JFUSE'
 
         # Determine spatial mode
         configured_mode = self._get_config_value(
-            lambda: self.config.model.hbv.spatial_mode if self.config.model and self.config.model.hbv else None,
+            lambda: self.config.model.jfuse.spatial_mode if self.config.model and hasattr(self.config.model, 'jfuse') and self.config.model.jfuse else None,
             'auto'
         )
 
@@ -70,37 +70,44 @@ class HBVPreprocessor(BaseModelPreProcessor):
         else:
             self.spatial_mode = configured_mode
 
-        # PET method configuration
-        self.pet_method = self._get_config_value(
-            lambda: self.config.model.hbv.pet_method if self.config.model and self.config.model.hbv else None,
-            'input'
+        # Enable routing
+        self.enable_routing = self._get_config_value(
+            lambda: self.config.model.jfuse.enable_routing if self.config.model and hasattr(self.config.model, 'jfuse') and self.config.model.jfuse else None,
+            False
         )
 
-        self.latitude = self._get_config_value(
-            lambda: self.config.model.hbv.latitude if self.config.model and self.config.model.hbv else None,
-            None
+        # Timestep configuration
+        self.timestep_days = self._get_config_value(
+            lambda: self.config.model.jfuse.timestep_days if self.config.model and hasattr(self.config.model, 'jfuse') and self.config.model.jfuse else None,
+            1.0
         )
 
-        # Timestep configuration (1=hourly, 24=daily)
-        self.timestep_hours = self._get_config_value(
-            lambda: self.config.model.hbv.timestep_hours if self.config.model and self.config.model.hbv else None,
-            24
+        # Model structure
+        self.model_config_name = self._get_config_value(
+            lambda: self.config.model.jfuse.model_config_name if self.config.model and hasattr(self.config.model, 'jfuse') and self.config.model.jfuse else None,
+            'prms'
+        )
+
+        # Snow enabled
+        self.enable_snow = self._get_config_value(
+            lambda: self.config.model.jfuse.enable_snow if self.config.model and hasattr(self.config.model, 'jfuse') and self.config.model.jfuse else None,
+            True
         )
 
     def _get_model_name(self) -> str:
-        """Return model name for HBV."""
-        return "HBV"
+        """Return model name for jFUSE."""
+        return "JFUSE"
 
     def run_preprocessing(self) -> bool:
         """
-        Run HBV preprocessing workflow.
+        Run jFUSE preprocessing workflow.
 
-        Creates forcing data files in the appropriate format for HBV model execution.
+        Creates forcing data files in the appropriate format for jFUSE model execution.
 
         Returns:
             True if preprocessing completed successfully.
         """
-        self.logger.info(f"Starting HBV preprocessing in {self.spatial_mode} mode")
+        self.logger.info(f"Starting jFUSE preprocessing in {self.spatial_mode} mode")
 
         # Create directories
         self.create_directories()
@@ -112,31 +119,28 @@ class HBVPreprocessor(BaseModelPreProcessor):
             success = self._prepare_distributed_forcing()
 
         if success:
-            self.logger.info("HBV preprocessing completed successfully")
+            self.logger.info("jFUSE preprocessing completed successfully")
         else:
-            self.logger.error("HBV preprocessing failed")
+            self.logger.error("jFUSE preprocessing failed")
 
         return success
 
     def _prepare_lumped_forcing(self) -> bool:
         """
-        Prepare forcing data for lumped HBV simulation.
+        Prepare forcing data for lumped jFUSE simulation.
 
         Creates a single time series for the entire catchment.
 
         Returns:
             True if successful.
         """
-        self.logger.info("Preparing lumped forcing data for HBV")
+        self.logger.info("Preparing lumped forcing data for jFUSE")
 
         try:
             # Load basin-averaged forcing
             forcing_ds = self._load_basin_averaged_forcing()
             if forcing_ds is None:
                 return False
-
-            # Get timestep configuration
-            timestep_config = self.get_timestep_config()
 
             # Extract variables
             time = pd.to_datetime(forcing_ds.time.values)
@@ -156,18 +160,15 @@ class HBVPreprocessor(BaseModelPreProcessor):
                 return False
 
             # Convert precipitation units if needed
-            # Check if units indicate mm/s (common in SUMMA/ERA5 forcing)
             precip_units = forcing_ds[precip_var_name].attrs.get('units', '').lower()
             if 'mm s' in precip_units or 'mm/s' in precip_units or 's-1' in precip_units:
-                # Convert mm/s to mm/timestep (hourly = 3600s)
-                timestep_seconds = timestep_config.get('time_step_size', 3600)
-                precip = precip * timestep_seconds
-                self.logger.info(f"Converted precipitation from mm/s to mm/timestep (×{timestep_seconds})")
+                # Convert mm/s to mm/day
+                precip = precip * UnitConversion.SECONDS_PER_DAY
+                self.logger.info("Converted precipitation from mm/s to mm/day")
             elif np.nanmean(precip) < 0.01 and np.nanmax(precip) < 0.1:
                 # Heuristic: if values are very small, likely mm/s not converted
-                timestep_seconds = timestep_config.get('time_step_size', 3600)
-                precip = precip * timestep_seconds
-                self.logger.info(f"Precipitation values appear to be in mm/s, converting to mm/timestep (×{timestep_seconds})")
+                precip = precip * UnitConversion.SECONDS_PER_DAY
+                self.logger.info("Precipitation values appear to be in mm/s, converting to mm/day")
 
             # Temperature (check various naming conventions)
             temp_vars = ['temp', 'tas', 'airtemp', 'tair', 'temperature', 'tmean']
@@ -190,49 +191,29 @@ class HBVPreprocessor(BaseModelPreProcessor):
             if pet is None:
                 return False
 
-            # Handle temporal resolution based on timestep_hours config
-            if timestep_config['time_label'] == 'hourly' and self.timestep_hours == 24:
-                # Default behavior: resample hourly data to daily for daily HBV
-                self.logger.info("Resampling hourly data to daily (HBV_TIMESTEP_HOURS=24)")
+            # Handle temporal resolution
+            timestep_config = self.get_timestep_config()
+            if timestep_config['time_label'] == 'hourly':
+                # Resample hourly data to daily for jFUSE
+                self.logger.info("Resampling hourly data to daily for jFUSE")
                 forcing_df = pd.DataFrame({
                     'time': time,
-                    'pr': precip.flatten(),
+                    'precip': precip.flatten(),
                     'temp': temp.flatten(),
                     'pet': pet.flatten()
                 }).set_index('time')
 
-                # Resample: sum for precip, mean for temperature
-                # PET: Hamon formula gives daily values, so use mean (same value all hours)
                 forcing_df = forcing_df.resample('D').agg({
-                    'pr': 'sum',
+                    'precip': 'sum',
                     'temp': 'mean',
-                    'pet': 'mean'  # Hamon gives daily PET, not hourly increments
+                    'pet': 'mean'
                 })
                 forcing_df = forcing_df.reset_index()
-            elif timestep_config['time_label'] == 'hourly' and self.timestep_hours < 24:
-                # Sub-daily mode: preserve hourly resolution
-                self.logger.info(f"Preserving hourly resolution for sub-daily HBV (HBV_TIMESTEP_HOURS={self.timestep_hours})")
-
-                # For hourly PET, distribute daily PET across hours or recalculate
-                # Hamon gives daily values, so we divide by 24 for hourly increments
-                if self.pet_method in ('hamon', 'thornthwaite') or np.allclose(pet[::24], pet[1:24]):
-                    self.logger.info("Distributing daily PET across hourly timesteps")
-                    # PET was calculated at daily resolution, distribute to hourly
-                    pet_hourly = pet / 24.0
-                else:
-                    pet_hourly = pet.flatten()
-
-                forcing_df = pd.DataFrame({
-                    'time': time,
-                    'pr': precip.flatten(),  # Already in mm/hour
-                    'temp': temp.flatten(),
-                    'pet': pet_hourly
-                })
             else:
                 # Daily input data
                 forcing_df = pd.DataFrame({
                     'time': time,
-                    'pr': precip.flatten(),
+                    'precip': precip.flatten(),
                     'temp': temp.flatten(),
                     'pet': pet.flatten()
                 })
@@ -248,7 +229,7 @@ class HBVPreprocessor(BaseModelPreProcessor):
                 ]
 
             # Save forcing file
-            output_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing.csv"
+            output_file = self.jfuse_forcing_dir / f"{self.domain_name}_jfuse_forcing.csv"
             forcing_df.to_csv(output_file, index=False)
             self.logger.info(f"Saved lumped forcing to: {output_file}")
 
@@ -268,14 +249,14 @@ class HBVPreprocessor(BaseModelPreProcessor):
 
     def _prepare_distributed_forcing(self) -> bool:
         """
-        Prepare forcing data for distributed HBV simulation.
+        Prepare forcing data for distributed jFUSE simulation.
 
-        Creates per-HRU time series for mizuRoute integration.
+        Creates per-HRU time series for routing integration.
 
         Returns:
             True if successful.
         """
-        self.logger.info("Preparing distributed forcing data for HBV")
+        self.logger.info("Preparing distributed forcing data for jFUSE")
 
         try:
             # Load gridded forcing
@@ -295,19 +276,13 @@ class HBVPreprocessor(BaseModelPreProcessor):
             n_hrus = len(catchment)
             self.logger.info(f"Processing forcing for {n_hrus} HRUs")
 
-            # Get timestep configuration
-            timestep_config = self.get_timestep_config()
-
             # Extract time coordinate
             time = pd.to_datetime(forcing_ds.time.values)
 
             # Initialize arrays for HRU data
             hru_ids = catchment[self.hru_id_col].values if self.hru_id_col in catchment.columns else np.arange(n_hrus) + 1
 
-            # For distributed mode, we need to extract forcing for each HRU
-            # This depends on how the forcing data is structured
-            # Typically: (time, hru) or (time, lat, lon)
-
+            # For distributed mode, extract forcing for each HRU
             if 'hru' in forcing_ds.dims:
                 # Forcing already per-HRU
                 precip = forcing_ds['pr'].values if 'pr' in forcing_ds else forcing_ds['precip'].values
@@ -322,33 +297,16 @@ class HBVPreprocessor(BaseModelPreProcessor):
             if np.nanmean(temp) > 100:
                 temp = temp - 273.15
 
-            # Handle temporal resolution based on timestep_hours config
-            if timestep_config['time_label'] == 'hourly' and self.timestep_hours == 24:
-                # Default behavior: resample hourly to daily for daily HBV
-                self.logger.info("Resampling hourly data to daily for HBV (HBV_TIMESTEP_HOURS=24)")
+            # Handle temporal resolution (resample to daily if hourly)
+            timestep_config = self.get_timestep_config()
+            if timestep_config['time_label'] == 'hourly':
+                self.logger.info("Resampling hourly data to daily for jFUSE")
                 precip, temp, pet, time = self._resample_to_daily(precip, temp, pet, time)
-            elif timestep_config['time_label'] == 'hourly' and self.timestep_hours < 24:
-                # Sub-daily mode: preserve hourly resolution
-                self.logger.info(f"Preserving hourly resolution for distributed HBV (HBV_TIMESTEP_HOURS={self.timestep_hours})")
-                # PET from Hamon is daily, distribute to hourly
-                if pet.ndim == 2 and np.allclose(pet[::24, :], pet[1:24, :], equal_nan=True):
-                    self.logger.info("Distributing daily PET across hourly timesteps")
-                    pet = pet / 24.0
-
-            # Determine units based on timestep
-            if self.timestep_hours == 24:
-                pr_units = 'mm/day'
-                pet_units = 'mm/day'
-                timestep_label = 'daily'
-            else:
-                pr_units = f'mm/{self.timestep_hours}h'
-                pet_units = f'mm/{self.timestep_hours}h'
-                timestep_label = f'{self.timestep_hours}-hourly'
 
             # Create xarray Dataset for distributed forcing
             ds = xr.Dataset(
                 data_vars={
-                    'pr': (['time', 'hru'], precip),
+                    'precip': (['time', 'hru'], precip),
                     'temp': (['time', 'hru'], temp),
                     'pet': (['time', 'hru'], pet),
                     'hru_id': (['hru'], hru_ids.astype(np.int32)),
@@ -358,15 +316,15 @@ class HBVPreprocessor(BaseModelPreProcessor):
                     'hru': np.arange(n_hrus),
                 },
                 attrs={
-                    'model': 'HBV-96',
+                    'model': 'jFUSE',
                     'spatial_mode': 'distributed',
                     'domain': self.domain_name,
                     'n_hrus': n_hrus,
-                    'timestep_hours': self.timestep_hours,
-                    'timestep_label': timestep_label,
-                    'units_pr': pr_units,
+                    'model_config': self.model_config_name,
+                    'enable_routing': self.enable_routing,
+                    'units_precip': 'mm/day',
                     'units_temp': 'degC',
-                    'units_pet': pet_units,
+                    'units_pet': 'mm/day',
                 }
             )
 
@@ -377,7 +335,7 @@ class HBVPreprocessor(BaseModelPreProcessor):
                 ds = ds.sel(time=slice(start_time, end_time))
 
             # Save distributed forcing
-            output_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_distributed.nc"
+            output_file = self.jfuse_forcing_dir / f"{self.domain_name}_jfuse_forcing_distributed.nc"
             encoding = create_netcdf_encoding(ds, compression=True)
             ds.to_netcdf(output_file, encoding=encoding)
             self.logger.info(f"Saved distributed forcing to: {output_file}")
@@ -396,19 +354,15 @@ class HBVPreprocessor(BaseModelPreProcessor):
     def _load_basin_averaged_forcing(self) -> Optional[xr.Dataset]:
         """Load basin-averaged forcing data using ForcingDataProcessor."""
         try:
-            # Use shared ForcingDataProcessor for loading (handles multi-file data)
             fdp = ForcingDataProcessor(self.config, self.logger)
 
-            # Try forcing_basin_path first (from base class)
             if hasattr(self, 'forcing_basin_path') and self.forcing_basin_path.exists():
                 self.logger.info(f"Loading basin-averaged forcing from: {self.forcing_basin_path}")
                 ds = fdp.load_forcing_data(self.forcing_basin_path)
                 if ds is not None:
-                    # Subset to simulation time window
                     ds = self.subset_to_simulation_time(ds, "Forcing")
                     return ds
 
-            # Fall back to merged forcing
             return self._load_merged_forcing()
 
         except Exception as e:
@@ -445,7 +399,7 @@ class HBVPreprocessor(BaseModelPreProcessor):
 
         Args:
             ds: Forcing dataset
-            temp: Temperature array (°C)
+            temp: Temperature array (degC)
             time: Time index
 
         Returns:
@@ -456,19 +410,12 @@ class HBVPreprocessor(BaseModelPreProcessor):
             if var in ds:
                 self.logger.info(f"Using PET from forcing data (variable: {var})")
                 pet = ds[var].values
-                # Convert if needed (some datasets have mm/s or kg/m2/s)
-                if np.nanmean(np.abs(pet)) < 0.01:  # Likely mm/s or similar
+                if np.nanmean(np.abs(pet)) < 0.01:  # Likely mm/s
                     pet = pet * UnitConversion.SECONDS_PER_DAY
                 return pet.flatten() if pet.ndim > 1 else pet
 
-        # Calculate PET if not in forcing
-        if self.pet_method == 'hamon':
-            return self._calculate_hamon_pet(temp.flatten(), time)
-        elif self.pet_method == 'thornthwaite':
-            return self._calculate_thornthwaite_pet(temp.flatten(), time)
-        else:
-            self.logger.warning("No PET found in forcing and pet_method='input'. Using Hamon method.")
-            return self._calculate_hamon_pet(temp.flatten(), time)
+        # Calculate PET using Hamon method
+        return self._calculate_hamon_pet(temp.flatten(), time)
 
     def _get_pet_distributed(
         self,
@@ -485,10 +432,8 @@ class HBVPreprocessor(BaseModelPreProcessor):
                 return pet
 
         # Calculate PET for each HRU using catchment-mean temperature
-        mean_temp = np.nanmean(temp, axis=1)  # Average across HRUs for PET calc
+        mean_temp = np.nanmean(temp, axis=1)
         pet_1d = self._calculate_hamon_pet(mean_temp, time)
-
-        # Broadcast to all HRUs
         return np.broadcast_to(pet_1d[:, np.newaxis], temp.shape)
 
     def _calculate_hamon_pet(
@@ -499,10 +444,8 @@ class HBVPreprocessor(BaseModelPreProcessor):
         """
         Calculate PET using Hamon method.
 
-        Simple temperature-based PET that requires only temperature and day length.
-
         Args:
-            temp: Daily mean temperature (°C)
+            temp: Daily mean temperature (degC)
             time: Time index for day length calculation
 
         Returns:
@@ -511,20 +454,16 @@ class HBVPreprocessor(BaseModelPreProcessor):
         self.logger.info("Calculating PET using Hamon method")
 
         # Get latitude for day length calculation
-        if self.latitude is None:
-            # Try to get from catchment centroid
-            try:
-                import geopandas as gpd
-                catchment = gpd.read_file(self.get_catchment_path())
-                centroid = catchment.to_crs(epsg=4326).union_all().centroid
-                lat = centroid.y
-            except Exception:
-                lat = 45.0  # Default mid-latitude
-                self.logger.warning(f"Using default latitude {lat}° for PET calculation")
-        else:
-            lat = self.latitude
+        try:
+            import geopandas as gpd
+            catchment = gpd.read_file(self.get_catchment_path())
+            centroid = catchment.to_crs(epsg=4326).union_all().centroid
+            lat = centroid.y
+        except Exception:
+            lat = 45.0  # Default mid-latitude
+            self.logger.warning(f"Using default latitude {lat} for PET calculation")
 
-        # Calculate day length (convert to numpy array if pandas Index/Series)
+        # Calculate day length
         day_of_year = np.asarray(time.dayofyear)
         lat_rad = np.deg2rad(lat)
 
@@ -533,7 +472,7 @@ class HBVPreprocessor(BaseModelPreProcessor):
 
         # Sunset hour angle
         sunset_angle = np.arccos(-np.tan(lat_rad) * np.tan(decl))
-        sunset_angle = np.clip(sunset_angle, 0, np.pi)  # Handle polar regions
+        sunset_angle = np.clip(sunset_angle, 0, np.pi)
 
         # Day length in hours
         day_length = 24 / np.pi * sunset_angle
@@ -542,67 +481,10 @@ class HBVPreprocessor(BaseModelPreProcessor):
         es = 0.6108 * np.exp(17.27 * temp / (temp + 237.3))
 
         # Hamon PET (mm/day)
-        # PET = 0.165 * D * es / (T + 273.3) * 216.7
-        # Simplified: PET = k * D^2 * es / (T + 273.3)
         pet = 0.55 * (day_length / 12) ** 2 * es
-
-        # Ensure non-negative
         pet = np.maximum(pet, 0.0)
 
         return pet
-
-    def _calculate_thornthwaite_pet(
-        self,
-        temp: np.ndarray,
-        time: pd.DatetimeIndex
-    ) -> np.ndarray:
-        """
-        Calculate PET using Thornthwaite method.
-
-        Monthly temperature-based method with day length correction.
-
-        Args:
-            temp: Daily mean temperature (°C)
-            time: Time index
-
-        Returns:
-            PET array (mm/day)
-        """
-        self.logger.info("Calculating PET using Thornthwaite method")
-
-        # Monthly average temperature
-        df = pd.DataFrame({'temp': temp}, index=time)
-        monthly_temp = df.resample('ME').mean()
-
-        # Heat index (sum of monthly indices)
-        monthly_temp_pos = np.maximum(monthly_temp['temp'].values, 0)
-        heat_index = np.sum((monthly_temp_pos / 5) ** 1.514)
-
-        # Exponent
-        a = 6.75e-7 * heat_index ** 3 - 7.71e-5 * heat_index ** 2 + 1.79e-2 * heat_index + 0.492
-
-        # Calculate daily PET
-        pet = np.zeros_like(temp)
-        for i, t in enumerate(temp):
-            if t > 0:
-                pet[i] = 16 * ((10 * t / heat_index) ** a)
-            else:
-                pet[i] = 0
-
-        # Day length correction (approximate)
-        day_of_year = time.dayofyear
-        lat = self.latitude if self.latitude else 45.0
-        lat_rad = np.deg2rad(lat)
-        decl = 0.409 * np.sin(2 * np.pi / 365 * day_of_year - 1.39)
-        sunset_angle = np.arccos(-np.tan(lat_rad) * np.tan(decl))
-        sunset_angle = np.clip(sunset_angle, 0, np.pi)
-        day_length = 24 / np.pi * sunset_angle
-        correction = day_length / 12.0
-
-        # Convert from mm/month to mm/day and apply correction
-        pet = pet / 30 * correction
-
-        return np.maximum(pet, 0.0)
 
     def _spatially_average_to_hrus(
         self,
@@ -704,24 +586,23 @@ class HBVPreprocessor(BaseModelPreProcessor):
         time: pd.DatetimeIndex
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, pd.DatetimeIndex]:
         """Resample hourly data to daily."""
-        # Create DataFrames for resampling
         n_hrus = precip.shape[1] if precip.ndim > 1 else 1
 
         if n_hrus == 1:
             df = pd.DataFrame({
-                'pr': precip.flatten(),
+                'precip': precip.flatten(),
                 'temp': temp.flatten(),
                 'pet': pet.flatten()
             }, index=time)
 
             df_daily = df.resample('D').agg({
-                'pr': 'sum',
+                'precip': 'sum',
                 'temp': 'mean',
-                'pet': 'mean'  # Hamon gives daily PET, not hourly increments
+                'pet': 'mean'
             })
 
             return (
-                df_daily['pr'].values[:, np.newaxis],
+                df_daily['precip'].values[:, np.newaxis],
                 df_daily['temp'].values[:, np.newaxis],
                 df_daily['pet'].values[:, np.newaxis],
                 df_daily.index
@@ -734,18 +615,18 @@ class HBVPreprocessor(BaseModelPreProcessor):
 
             for i in range(n_hrus):
                 df = pd.DataFrame({
-                    'pr': precip[:, i],
+                    'precip': precip[:, i],
                     'temp': temp[:, i],
                     'pet': pet[:, i]
                 }, index=time)
 
                 df_daily = df.resample('D').agg({
-                    'pr': 'sum',
+                    'precip': 'sum',
                     'temp': 'mean',
-                    'pet': 'mean'  # Hamon gives daily PET, not hourly increments
+                    'pet': 'mean'
                 })
 
-                precip_daily.append(df_daily['pr'].values)
+                precip_daily.append(df_daily['precip'].values)
                 temp_daily.append(df_daily['temp'].values)
                 pet_daily.append(df_daily['pet'].values)
 
@@ -758,19 +639,9 @@ class HBVPreprocessor(BaseModelPreProcessor):
 
     def _save_forcing_netcdf(self, forcing_df: pd.DataFrame, mode: str) -> None:
         """Save forcing as NetCDF file."""
-        # Determine units based on timestep
-        if self.timestep_hours == 24:
-            pr_units = 'mm/day'
-            pet_units = 'mm/day'
-            timestep_label = 'daily'
-        else:
-            pr_units = f'mm/{self.timestep_hours}h'
-            pet_units = f'mm/{self.timestep_hours}h'
-            timestep_label = f'{self.timestep_hours}-hourly'
-
         ds = xr.Dataset(
             data_vars={
-                'pr': (['time'], forcing_df['pr'].values),
+                'precip': (['time'], forcing_df['precip'].values),
                 'temp': (['time'], forcing_df['temp'].values),
                 'pet': (['time'], forcing_df['pet'].values),
             },
@@ -778,21 +649,21 @@ class HBVPreprocessor(BaseModelPreProcessor):
                 'time': pd.to_datetime(forcing_df['time']) if 'time' in forcing_df.columns else forcing_df.index,
             },
             attrs={
-                'model': 'HBV-96',
+                'model': 'jFUSE',
                 'spatial_mode': mode,
                 'domain': self.domain_name,
-                'timestep_hours': self.timestep_hours,
-                'timestep_label': timestep_label,
-                'units_pr': pr_units,
+                'model_config': self.model_config_name,
+                'enable_snow': self.enable_snow,
+                'units_precip': 'mm/day',
                 'units_temp': 'degC',
-                'units_pet': pet_units,
+                'units_pet': 'mm/day',
             }
         )
 
-        output_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing.nc"
+        output_file = self.jfuse_forcing_dir / f"{self.domain_name}_jfuse_forcing.nc"
         encoding = create_netcdf_encoding(ds, compression=True)
         ds.to_netcdf(output_file, encoding=encoding)
-        self.logger.info(f"Saved forcing NetCDF to: {output_file} (timestep: {timestep_label})")
+        self.logger.info(f"Saved forcing NetCDF to: {output_file}")
 
     def _prepare_observations(self) -> None:
         """Prepare observation data for validation/calibration."""
@@ -802,9 +673,8 @@ class HBVPreprocessor(BaseModelPreProcessor):
         if obs_file.exists():
             self.logger.info(f"Observations available at: {obs_file}")
 
-            # Copy to HBV output dir for easy access
             obs_df = pd.read_csv(obs_file)
-            output_obs = self.hbv_forcing_dir / f"{self.domain_name}_observations.csv"
+            output_obs = self.jfuse_forcing_dir / f"{self.domain_name}_observations.csv"
             obs_df.to_csv(output_obs, index=False)
         else:
             self.logger.warning(f"No observation file found at: {obs_file}")
@@ -818,9 +688,9 @@ class HBVPreprocessor(BaseModelPreProcessor):
             forcing_dict contains 'precip', 'temp', 'pet' arrays
         """
         if self.spatial_mode == 'distributed':
-            forcing_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_distributed.nc"
+            forcing_file = self.jfuse_forcing_dir / f"{self.domain_name}_jfuse_forcing_distributed.nc"
         else:
-            forcing_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing.nc"
+            forcing_file = self.jfuse_forcing_dir / f"{self.domain_name}_jfuse_forcing.nc"
 
         if not forcing_file.exists():
             raise FileNotFoundError(f"Forcing file not found: {forcing_file}")
@@ -828,14 +698,14 @@ class HBVPreprocessor(BaseModelPreProcessor):
         ds = xr.open_dataset(forcing_file)
 
         forcing = {
-            'precip': ds['pr'].values,
+            'precip': ds['precip'].values,
             'temp': ds['temp'].values,
             'pet': ds['pet'].values,
             'time': pd.to_datetime(ds.time.values),
         }
 
         # Load observations if available
-        obs_file = self.hbv_forcing_dir / f"{self.domain_name}_observations.csv"
+        obs_file = self.jfuse_forcing_dir / f"{self.domain_name}_observations.csv"
         if obs_file.exists():
             obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
             observations = obs_df.iloc[:, 0].values

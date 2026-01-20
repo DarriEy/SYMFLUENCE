@@ -121,3 +121,5 @@ config_template.yaml
 
 # Benchmark results (auto-generated)
 benchmark_results/
+plots/
+results/

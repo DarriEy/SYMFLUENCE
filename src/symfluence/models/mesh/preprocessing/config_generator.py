@@ -110,22 +110,32 @@ class MESHConfigGenerator(ConfigMixin):
             end_time = pd.Timestamp("2004-01-05 23:00")
 
         # Use 'nc_subbasin' for both DDB and Forcing in MESH 1.5 when using dimension 'subbasin'
-        shd_flag = 'nc_subbasin'
+        shd_flag = 'nc_subbasin pad_outlets'
         forcing_flag = 'nc_subbasin'
+
+        # Get RUNMODE from config (default to 'wf_route' for routing support)
+        runmode = self._get_config_value(lambda: self.config.model.mesh.runmode, default='wf_route', dict_key='MESH_RUNMODE')
+
+        # Set streamflow output based on routing mode
+        if runmode == 'noroute':
+            streamflow_flag = 'none'
+        else:
+            streamflow_flag = 'csv'
 
         content = f"""MESH input run options file                             # comment line 1                                | *
 ##### Control Flags #####                               # comment line 2                                | *
 ----#                                                   # comment line 3                                | *
-   14                                                   # Number of control flags                       | I5
+   15                                                   # Number of control flags                       | I5
 SHDFILEFLAG         {shd_flag}                          # Drainage database format
 BASINFORCINGFLAG    {forcing_flag}                      # Forcing file format
-RUNMODE             noroute                             # Run mode (noroute = CLASS-only, following meshflow)
+RUNMODE             {runmode}                           # Run mode (wf_route = WATFLOOD routing, noroute = CLASS-only)
 INPUTPARAMSFORMFLAG ini                                 # Parameter file format (ini = .ini files)
 RESUMEFLAG          off                                 # Resume from state (off=No)
 SAVERESUMEFLAG      off                                 # Save final state (off=No)
 TIMESTEPFLAG        60                                  # Time step in minutes (default 60)
 OUTFIELDSFLAG       default                             # Output fields (all, none, default)
 BASINRUNOFFFLAG     ts                                  # Runoff output format (ts = time series)
+STREAMFLOWOUTFLAG   {streamflow_flag}                   # Streamflow output (csv when routing enabled)
 LOCATIONFLAG        1                                   # Centroid location
 PBSMFLAG            off                                 # Blowing snow (off)
 BASEFLOWFLAG        wf_lzs                              # Baseflow formulation
@@ -220,8 +230,8 @@ METRICSSPINUP       {spinup_days}                       # Spinup days to exclude
             from meshflow.utility import DEFAULT_HYDROLOGY_PARAMS
             with open(DEFAULT_HYDROLOGY_PARAMS, 'r') as f:
                 json.load(f)
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug(f"Could not load meshflow default hydrology params: {e}")
 
         hydro_path = self.forcing_dir / "MESH_parameters_hydrology.ini"
 

@@ -114,6 +114,11 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import hbv: {e}")
 
+try:
+    from . import jfuse
+except ImportError as e:
+    logger.warning(f"Could not import jfuse: {e}")
+
 
 __all__ = [
     # Core

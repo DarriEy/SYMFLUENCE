@@ -615,14 +615,23 @@ class NgenParameterManager(BaseParameterManager):
                                     changed = True
                                     break
                             else:
-                                # Some GENPARM items have values on the same or next line
-                                # If it's SLOPE_DATA, it's usually a list of values
-                                # For simplicity, if col is specified, we try to find it in following lines
-                                for j in range(i+1, min(i+10, len(lines))):
-                                    if lines[j].strip() and not lines[j].strip().startswith("'"):
-                                        lines[j] = f"{new_val:.8g}"
+                                # SLOPE_DATA format: first line after label is COUNT, then values
+                                # e.g., SLOPE_DATA / 9 / 0.1 / 0.6 / ...
+                                # col=1 means first slope value (skip count line)
+                                if var == "SLOPE_DATA":
+                                    # i+1 is the count line, i+2 onwards are values
+                                    # col is 1-indexed, so target line is i + 1 + col
+                                    target_line = i + 1 + col
+                                    if target_line < len(lines):
+                                        lines[target_line] = f"{new_val:.8g}"
                                         changed = True
-                                        break
+                                else:
+                                    # Other GENPARM items with column indices
+                                    for j in range(i+1, min(i+10, len(lines))):
+                                        if lines[j].strip() and not lines[j].strip().startswith("'"):
+                                            lines[j] = f"{new_val:.8g}"
+                                            changed = True
+                                            break
                                 if changed: break
 
                 if changed:

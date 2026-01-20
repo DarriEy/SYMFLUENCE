@@ -128,11 +128,11 @@ domain:
   # ---------------------------------------------------------------------------
   # How the domain is defined:
   #   lumped       - Single catchment, no internal discretization
-  #   discretized  - Divide into smaller response units
+  #   discretized  - Divide into smaller response units (removed)
   #   distributed  - Grid-based spatial representation
-  #   subset       - Subset of larger pre-defined domain
+  #   subset       - Subset of larger pre-defined domain (make into sub config)
   #   point        - Single point location (tower sites, etc.)
-  #   delineate    - Auto-delineate from DEM at pour point
+  #   delineate    - Auto-delineate from DEM at pour point.  (Semi-distributed)
   definition_method: "lumped"
 
   # ---------------------------------------------------------------------------

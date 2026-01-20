@@ -303,6 +303,7 @@ def _import_model_build_instructions() -> None:
     model_modules = [
         'symfluence.models.summa.build_instructions',
         'symfluence.models.fuse.build_instructions',
+        'symfluence.models.cfuse.build_instructions',
         'symfluence.models.mizuroute.build_instructions',
         'symfluence.models.troute.build_instructions',
         'symfluence.models.ngen.build_instructions',
