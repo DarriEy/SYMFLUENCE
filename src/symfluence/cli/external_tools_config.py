@@ -137,8 +137,8 @@ cmake --build . --target install -j ${NCORES:-4}
 set -e
 
 # On HPC systems (e.g., Compute Canada), OpenMPI may be linked against Intel Level Zero
-# through hwloc. We need to add libze_loader.so to library paths and pass to cmake.
-CMAKE_EXTRA_FLAGS=""
+# through hwloc. We need to add libze_loader.so to library paths.
+# Use OMPI_LDFLAGS which mpicc respects (CMAKE_EXE_LINKER_FLAGS doesn't help with compiler test)
 if [ -d "/cvmfs/soft.computecanada.ca" ]; then
     echo "Detected Compute Canada HPC environment"
     ZE_FOUND=false
@@ -155,8 +155,8 @@ if [ -d "/cvmfs/soft.computecanada.ca" ]; then
         if [ -f "$ze_path/libze_loader.so.1" ] || [ -f "$ze_path/libze_loader.so" ]; then
             echo "Found Intel Level Zero at: $ze_path"
             export LD_LIBRARY_PATH="${ze_path}:${LD_LIBRARY_PATH:-}"
-            # Pass linker flags via cmake to handle mpicc wrapper
-            CMAKE_EXTRA_FLAGS="-DCMAKE_EXE_LINKER_FLAGS=-L${ze_path}\ -Wl,-rpath-link,${ze_path}"
+            # OMPI_LDFLAGS is respected by mpicc wrapper for linking
+            export OMPI_LDFLAGS="-L${ze_path} -Wl,-rpath-link,${ze_path} ${OMPI_LDFLAGS:-}"
             ZE_FOUND=true
             break
         fi
@@ -176,8 +176,8 @@ export CXX=mpicxx
 rm -rf build && mkdir -p build
 cd build
 
-# Let CMake find MPI and GDAL, pass extra linker flags if needed
-cmake -S .. -B . -DCMAKE_BUILD_TYPE=Release $CMAKE_EXTRA_FLAGS
+# Let CMake find MPI and GDAL
+cmake -S .. -B . -DCMAKE_BUILD_TYPE=Release
 
 # Build everything plus the two tools that sometimes get skipped by default
 cmake --build . -j 2
