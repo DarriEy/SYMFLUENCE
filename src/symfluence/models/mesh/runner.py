@@ -60,12 +60,10 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
             typed_exe_accessor=lambda: self.typed_config.model.mesh.exe if (self.typed_config and self.typed_config.model.mesh) else None
         )
 
-        # Catchment paths (now has PathResolverMixin via BaseModelRunner)
-        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
-        if self.catchment_name == 'default':
-            discretization = self.config_dict.get('DOMAIN_DISCRETIZATION')
-            self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
+        # Catchment paths (use backward-compatible path resolution)
+        catchment_file = self._get_catchment_file_path()
+        self.catchment_path = catchment_file.parent
+        self.catchment_name = catchment_file.name
 
         # MESH-specific paths
         self.mesh_setup_dir = self.project_dir / "settings" / "MESH"

@@ -184,7 +184,7 @@ class ObservationLoaderMixin:
             raise DataAcquisitionError(f"Could not identify discharge column. Columns: {list(df.columns)}")
 
         # Parse datetime and drop timezone to avoid tz-aware/naive comparisons
-        times = pd.to_datetime(df[datetime_col], utc=True, errors='coerce').dt.tz_convert(None)
+        times = pd.to_datetime(df[datetime_col], utc=True, errors='coerce', dayfirst=True).dt.tz_convert(None)
 
         # Create series
         series = pd.Series(
@@ -364,14 +364,28 @@ class ObservationLoaderMixin:
         return None
 
     def _get_catchment_path(self) -> Optional[Path]:
-        """Get catchment shapefile path (subclass can override)."""
+        """Get catchment shapefile path with backward compatibility (subclass can override)."""
+        # Use backward-compatible path resolution if available
+        if hasattr(self, '_get_catchment_file_path'):
+            catchment_path = self._get_catchment_file_path()
+            return catchment_path if catchment_path.exists() else None
+
+        # Fallback for classes without PathResolverMixin
         catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
         if catchment_name == 'default' or catchment_name is None:
-            discretization = self.config_dict.get('DOMAIN_DISCRETIZATION')
+            discretization = self.config_dict.get('SUB_GRID_DISCRETIZATION')
             catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
 
-        catchment_path = self.project_dir / 'shapefiles' / 'catchment' / catchment_name
-        return catchment_path if catchment_path.exists() else None
+        # Check old path first
+        old_path = self.project_dir / 'shapefiles' / 'catchment' / catchment_name
+        if old_path.exists():
+            return old_path
+
+        # Check new organized path
+        definition_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'lumped')
+        experiment_id = self.config_dict.get('EXPERIMENT_ID', 'run_1')
+        new_path = self.project_dir / 'shapefiles' / 'catchment' / definition_method / experiment_id / catchment_name
+        return new_path if new_path.exists() else None
 
     def _format_output(
         self,

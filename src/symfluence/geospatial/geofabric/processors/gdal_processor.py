@@ -96,11 +96,30 @@ class GDALProcessor:
                     str(input_raster),
                     str(output_shapefile)
                 ]
-                subprocess.run(command, check=True)
+                subprocess.run(
+                    command,
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
                 self.logger.info("Completed GDAL polygonization using command line method")
 
-            except Exception as e:
-                self.logger.error(f"All polygonization attempts failed: {str(e)}")
+            except subprocess.CalledProcessError as cmd_err:
+                error_msg = f"gdal_polygonize.py failed with exit code {cmd_err.returncode}"
+                if cmd_err.stderr:
+                    error_msg += f"\nstderr: {cmd_err.stderr}"
+                if cmd_err.stdout:
+                    error_msg += f"\nstdout: {cmd_err.stdout}"
+                self.logger.error(error_msg)
+                raise RuntimeError(error_msg) from cmd_err
+            except FileNotFoundError:
+                self.logger.error("gdal_polygonize.py not found in PATH")
+                raise RuntimeError(
+                    "gdal_polygonize.py not found. Ensure GDAL is installed and in PATH. "
+                    "On macOS, try: brew install gdal"
+                )
+            except Exception as fallback_err:
+                self.logger.error(f"All polygonization attempts failed: {str(fallback_err)}")
                 raise
 
     def raster_to_polygon(self, raster_path: Path, output_shp_path: Path):

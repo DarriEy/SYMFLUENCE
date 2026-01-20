@@ -50,7 +50,7 @@ def resolve_default_name(
         value = pattern.format(
             domain=config.get('DOMAIN_NAME', 'domain'),
             method=config.get('DOMAIN_DEFINITION_METHOD', 'lumped'),
-            discretization=config.get('DOMAIN_DISCRETIZATION', 'GRUs')
+            discretization=config.get('SUB_GRID_DISCRETIZATION', 'GRUs')
         )
     return value
 
@@ -208,7 +208,7 @@ class ShapefileHelper(ConfigMixin):
         Returns:
             GeoDataFrame of HRUs, or None if not found
         """
-        method = discretization_method or self._get_config_value(lambda: self.config.domain.discretization, default='GRUs', dict_key='DOMAIN_DISCRETIZATION')
+        method = discretization_method or self._get_config_value(lambda: self.config.domain.discretization, default='GRUs', dict_key='SUB_GRID_DISCRETIZATION')
         cache_key = f'hru_{method}'
 
         if cache_key in self._cache:

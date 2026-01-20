@@ -11,7 +11,7 @@ def mock_config(tmp_path):
         'SYMFLUENCE_CODE_DIR': str(tmp_path / 'code'),
         'DOMAIN_NAME': 'test_domain',
         'DOMAIN_DEFINITION_METHOD': 'subset',
-        'DOMAIN_DISCRETIZATION': 'GRU',
+        'SUB_GRID_DISCRETIZATION': 'GRU',
         'EXPERIMENT_ID': 'test',
         'EXPERIMENT_TIME_START': '2020-01-01 00:00',
         'EXPERIMENT_TIME_END': '2020-01-02 00:00',

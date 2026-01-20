@@ -91,7 +91,7 @@ class HBVWorker(BaseWorker):
         try:
             import geopandas as gpd
             domain_name = config.get('DOMAIN_NAME', '')
-            discretization = config.get('DOMAIN_DISCRETIZATION', 'GRUs')
+            discretization = config.get('SUB_GRID_DISCRETIZATION', 'GRUs')
             catchment_path = project_dir / 'shapefiles' / 'catchment' / f"{domain_name}_HRUs_{discretization}.shp"
             if catchment_path.exists():
                 gdf = gpd.read_file(catchment_path)

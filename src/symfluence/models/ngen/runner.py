@@ -726,48 +726,178 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                 self.logger.warning(f"Forcing directory not found: {forcing_src}")
 
             # Copy and configure T-Route files for routing
+            # Try NetCDF first (NHDNetwork - most reliable), then GeoPackage/GeoJSON (HYFeaturesNetwork)
+            domain_name = self.config_dict.get('DOMAIN_NAME', 'domain')
+            troute_gpkg_src = base_setup_dir / f"{domain_name}_hydrofabric_troute.gpkg"
+            troute_flowlines_src = base_setup_dir / "troute_flowlines.geojson"
             troute_topology_src = base_setup_dir / "troute_topology.nc"
             troute_config_src = base_setup_dir / "troute_config.yaml"
 
             # Check if topology has required channel geometry columns for T-Route
             topology_complete = False
+            use_gpkg = False
+            use_geojson = False
+            use_netcdf = False
+
+            # First try NetCDF topology with NHDNetwork (most reliable)
             if troute_topology_src.exists() and troute_config_src.exists():
                 try:
                     import xarray as xr
-                    topo_ds = xr.open_dataset(troute_topology_src)
+                    topo_ds = xr.open_dataset(troute_topology_src, decode_timedelta=False)
                     topo_vars = set(topo_ds.variables.keys())
                     topo_ds.close()
 
-                    # Required columns for T-Route Muskingum-Cunge routing
                     required_cols = {'comid', 'to_node', 'length', 'slope', 'n'}
-                    # Extended columns needed for diffusive wave or full channel routing
                     extended_cols = {'bw', 'tw', 'twcc', 'ncc', 'musk', 'musx', 'cs'}
 
                     if not required_cols.issubset(topo_vars):
                         missing = required_cols - topo_vars
-                        self.logger.warning(f"T-Route topology missing required columns: {missing}. Skipping routing.")
+                        self.logger.debug(f"NetCDF topology missing required columns: {missing}. Trying GeoPackage.")
                     elif not extended_cols.issubset(topo_vars):
-                        # Missing extended columns - can't use full T-Route
-                        self.logger.warning(
-                            f"T-Route topology missing channel geometry columns ({extended_cols - topo_vars}). "
-                            f"Routing will be skipped. To enable routing, regenerate topology with channel geometry."
-                        )
+                        self.logger.debug(f"NetCDF topology missing channel geometry columns: {extended_cols - topo_vars}. Trying GeoPackage.")
                     else:
                         topology_complete = True
+                        use_netcdf = True
+                        self.logger.info("Using NetCDF topology for T-Route NHDNetwork")
                 except Exception as e:
-                    self.logger.warning(f"Failed to check T-Route topology: {e}. Skipping routing.")
-            else:
+                    self.logger.debug(f"NetCDF topology check failed: {e}. Trying GeoPackage.")
+
+            # Fall back to hydrofabric GeoPackage with HYFeaturesNetwork
+            if not topology_complete and troute_gpkg_src.exists() and troute_config_src.exists():
+                try:
+                    import fiona
+                    layers = fiona.listlayers(troute_gpkg_src)
+                    # T-Route HYFeaturesNetwork expects 'flowpaths' and 'flowpath_attributes' layers
+                    if 'flowpaths' in layers and 'flowpath_attributes' in layers:
+                        import geopandas as gpd
+                        import pandas as pd
+                        flowpaths_gdf = gpd.read_file(troute_gpkg_src, layer='flowpaths')
+                        # Read attributes from sqlite table
+                        import sqlite3
+                        conn = sqlite3.connect(troute_gpkg_src)
+                        attrs_df = pd.read_sql("SELECT * FROM flowpath_attributes", conn)
+                        conn.close()
+                        # Check required columns across both tables
+                        all_cols = set(flowpaths_gdf.columns) | set(attrs_df.columns)
+                        required_cols = {'id', 'toid', 'lengthkm', 'So', 'n'}
+                        if required_cols.issubset(all_cols):
+                            topology_complete = True
+                            use_gpkg = True
+                            self.logger.debug(f"Using hydrofabric GeoPackage for T-Route HYFeaturesNetwork (layers: {layers})")
+                    elif 'flowlines' in layers:
+                        # Legacy format - single flowlines layer
+                        import geopandas as gpd
+                        flowlines_gdf = gpd.read_file(troute_gpkg_src, layer='flowlines')
+                        required_cols = {'id', 'toid', 'lengthkm', 'So', 'n'}
+                        if required_cols.issubset(set(flowlines_gdf.columns)):
+                            topology_complete = True
+                            use_gpkg = True
+                            self.logger.debug("Using hydrofabric GeoPackage (legacy flowlines layer)")
+                except Exception as e:
+                    self.logger.debug(f"GeoPackage check failed: {e}. Trying GeoJSON.")
+
+            # Fall back to GeoJSON flowlines
+            if not topology_complete and troute_flowlines_src.exists() and troute_config_src.exists():
+                try:
+                    import geopandas as gpd
+                    flowlines_gdf = gpd.read_file(troute_flowlines_src)
+                    required_cols = {'id', 'toid', 'lengthkm', 'So', 'n'}
+                    available_cols = set(flowlines_gdf.columns)
+
+                    if required_cols.issubset(available_cols):
+                        topology_complete = True
+                        use_geojson = True
+                        self.logger.debug("Using GeoJSON flowlines for T-Route HYFeaturesNetwork")
+                    else:
+                        missing = required_cols - available_cols
+                        self.logger.warning(f"T-Route flowlines missing required columns: {missing}. Skipping routing.")
+                except Exception as e:
+                    self.logger.warning(f"Failed to read T-Route flowlines: {e}. Skipping routing.")
+
+            if not topology_complete and not troute_flowlines_src.exists() and not troute_topology_src.exists():
                 self.logger.warning(f"T-Route files not found in {base_setup_dir}. Routing will be disabled.")
 
             if topology_complete:
                 self.logger.info("Configuring T-Route routing for NGIAB...")
 
-                # Copy topology file
-                shutil.copy(troute_topology_src, ngiab_config_dir / "troute_topology.nc")
-
-                # Create container-compatible T-Route config with required columns
+                # Copy topology file (GeoPackage, GeoJSON, or NetCDF)
                 import yaml
                 container_base = "/ngen/ngen/data"
+
+                if use_gpkg:
+                    # Copy hydrofabric GeoPackage
+                    topology_dest = ngiab_config_dir / f"{domain_name}_hydrofabric_troute.gpkg"
+                    shutil.copy(troute_gpkg_src, topology_dest)
+                    geo_file_path = f"{container_base}/config/{domain_name}_hydrofabric_troute.gpkg"
+                    network_type = 'HYFeaturesNetwork'
+                    # HYFeaturesNetwork column mappings for GeoPackage
+                    columns = {
+                        'key': 'id',              # Segment ID (wb-XX format)
+                        'downstream': 'toid',      # Downstream segment ID
+                        'dx': 'lengthkm',          # Segment length [km]
+                        'n': 'n',                  # Manning's n
+                        's0': 'So',                # Slope [m/m]
+                        'bw': 'BtmWdth',           # Bottom width [m]
+                        'tw': 'TopWdth',           # Top width [m]
+                        'twcc': 'TopWdthCC',       # Top width compound channel [m]
+                        'ncc': 'nCC',              # Manning's n compound channel
+                        'musk': 'MusK',            # Muskingum K
+                        'musx': 'MusX',            # Muskingum X
+                        'cs': 'Cs',                # Cross-section area [m²]
+                        'alt': 'alt',              # Altitude
+                    }
+                elif use_geojson:
+                    # Copy GeoJSON flowlines
+                    topology_dest = ngiab_config_dir / "troute_flowlines.geojson"
+                    shutil.copy(troute_flowlines_src, topology_dest)
+                    geo_file_path = f"{container_base}/config/troute_flowlines.geojson"
+                    network_type = 'HYFeaturesNetwork'
+                    # HYFeaturesNetwork column mappings
+                    columns = {
+                        'key': 'id',              # Segment ID (wb-XX format)
+                        'downstream': 'toid',      # Downstream segment ID
+                        'dx': 'lengthkm',          # Segment length [km]
+                        'n': 'n',                  # Manning's n
+                        's0': 'So',                # Slope [m/m]
+                        'bw': 'BtmWdth',           # Bottom width [m]
+                        'tw': 'TopWdth',           # Top width [m]
+                        'twcc': 'TopWdthCC',       # Top width compound channel [m]
+                        'ncc': 'nCC',              # Manning's n compound channel
+                        'musk': 'MusK',            # Muskingum K
+                        'musx': 'MusX',            # Muskingum X
+                        'cs': 'Cs',                # Cross-section area [m²]
+                        'alt': 'alt',              # Altitude
+                    }
+                elif use_netcdf:
+                    # Copy NetCDF topology
+                    topology_dest = ngiab_config_dir / "troute_topology.nc"
+                    shutil.copy(troute_topology_src, topology_dest)
+                    geo_file_path = f"{container_base}/config/troute_topology.nc"
+                    network_type = 'NHDNetwork'
+                    # NHDNetwork column mappings (must include ALL columns to override defaults)
+                    columns = {
+                        'key': 'comid',           # Segment ID
+                        'downstream': 'to_node',   # Downstream segment ID
+                        'dx': 'length',            # Segment length [m]
+                        'n': 'n',                  # Manning's n
+                        's0': 'slope',             # Slope [m/m]
+                        'bw': 'bw',                # Bottom width [m]
+                        'tw': 'tw',                # Top width [m]
+                        'twcc': 'twcc',            # Top width compound channel [m]
+                        'ncc': 'ncc',              # Manning's n compound channel
+                        'musk': 'musk',            # Muskingum K
+                        'musx': 'musx',            # Muskingum X
+                        'cs': 'ChSlp',             # Channel side slope (not cross-section)
+                        'alt': 'alt',              # Altitude
+                        'waterbody': 'waterbody',  # Waterbody ID (-9999 for none)
+                        'gages': 'gages',          # Gage IDs (empty string for none)
+                    }
+                else:
+                    self.logger.warning("No valid topology format selected. Skipping T-Route.")
+                    topology_complete = False
+
+            if topology_complete:
+                # Load and modify T-Route config
                 with open(troute_config_src, 'r') as f:
                     troute_config = yaml.safe_load(f)
 
@@ -780,39 +910,37 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                     ntp['supernetwork_parameters'] = {}
                 snp = ntp['supernetwork_parameters']
 
-                # Set geo_file_path
-                snp['geo_file_path'] = f"{container_base}/config/troute_topology.nc"
+                # Set geo_file_path and columns
+                snp['geo_file_path'] = geo_file_path
+                snp['columns'] = columns
 
-                # Ensure all required columns are present
-                # Map available columns to T-Route expected names
-                if 'columns' not in snp:
-                    snp['columns'] = {}
-                cols = snp['columns']
-
-                # Required column mappings for T-Route
-                # Map from our topology file column names
-                cols['key'] = 'comid'           # Segment ID
-                cols['downstream'] = 'to_node'   # Downstream segment ID
-                cols['dx'] = 'length'            # Segment length [m]
-                cols['n'] = 'n'                  # Manning's n
-                cols['s0'] = 'slope'             # Slope [m/m]
-                # Extended columns - map from topology file
-                cols['bw'] = 'bw'                # Bottom width [m]
-                cols['tw'] = 'tw'                # Top width [m]
-                cols['twcc'] = 'twcc'            # Top width compound channel [m]
-                cols['ncc'] = 'ncc'              # Manning's n compound channel
-                cols['musk'] = 'musk'            # Muskingum K
-                cols['musx'] = 'musx'            # Muskingum X
-                cols['cs'] = 'cs'                # Cross-section area [m²]
-
-                # Add default values for missing channel geometry columns
+                # Add default values
                 snp['waterbody_null_code'] = -9999
                 snp['terminal_code'] = 0
-                snp['network_type'] = 'NHDNetwork'
+                # Set both network_type (for class selection) and geo_file_type (for file format)
+                snp['network_type'] = network_type
+                snp['geo_file_type'] = network_type
 
                 # Default values for missing columns (will be used if not in topology)
                 if 'synthetic_wb_segments' not in snp:
                     snp['synthetic_wb_segments'] = []
+
+                # Add waterbody_parameters (required by HYFeaturesNetwork even if no waterbodies)
+                if 'network_topology_parameters' in troute_config:
+                    if 'waterbody_parameters' not in troute_config['network_topology_parameters']:
+                        troute_config['network_topology_parameters']['waterbody_parameters'] = {
+                            'break_network_at_waterbodies': False,
+                            'level_pool': {
+                                'level_pool_waterbody_parameter_file_path': None,
+                            },
+                        }
+
+                # Add preprocessing_parameters (required even if not using preprocessed data)
+                if 'network_topology_parameters' in troute_config:
+                    if 'preprocessing_parameters' not in troute_config['network_topology_parameters']:
+                        troute_config['network_topology_parameters']['preprocessing_parameters'] = {
+                            'use_preprocessed_data': False,
+                        }
 
                 # Use Muskingum-Cunge routing (simpler, doesn't need channel geometry)
                 if 'compute_parameters' not in troute_config:
@@ -823,11 +951,19 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                 cp['compute_kernel'] = 'V02-structured'
                 cp['assume_short_ts'] = True
                 cp['subnetwork_target_size'] = 10000
+                cp['parallel_compute_method'] = 'serial'
+                cp['cpu_pool'] = 1
 
                 if 'forcing_parameters' not in cp:
                     cp['forcing_parameters'] = {}
                 cp['forcing_parameters']['qlat_input_folder'] = f"{container_base}/outputs/"
                 cp['forcing_parameters']['qlat_file_pattern_filter'] = 'nex-*_output.csv'
+
+                # Add hybrid_parameters (required even if not using hybrid routing)
+                if 'hybrid_parameters' not in cp:
+                    cp['hybrid_parameters'] = {
+                        'run_hybrid_routing': False,
+                    }
 
                 # Fix output parameters
                 if 'output_parameters' not in troute_config:

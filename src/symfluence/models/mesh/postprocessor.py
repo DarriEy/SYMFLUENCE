@@ -64,10 +64,10 @@ class MESHPostProcessor(StandardModelPostprocessor):
         self.mesh_setup_dir = self.project_dir / "settings" / "MESH"
         self.forcing_basin_path = self.project_dir / 'forcing' / 'basin_averaged_data'
         self.forcing_mesh_path = self.project_dir / 'forcing' / 'MESH_input'
-        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
-        if self.catchment_name == 'default':
-            self.catchment_name = f"{self.domain_name}_HRUs_{self.config_dict.get('DOMAIN_DISCRETIZATION')}.shp"
+        # Catchment paths (use backward-compatible path resolution)
+        catchment_file = self._get_catchment_file_path()
+        self.catchment_path = catchment_file.parent
+        self.catchment_name = catchment_file.name
 
     def _get_output_dir(self) -> Path:
         """

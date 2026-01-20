@@ -25,7 +25,7 @@ class TestBasicValidation:
             'EXPERIMENT_TIME_START': '2020-01-01 00:00',
             'EXPERIMENT_TIME_END': '2020-12-31 23:00',
             'DOMAIN_DEFINITION_METHOD': 'lumped',
-            'DOMAIN_DISCRETIZATION': 'GRUs',
+            'SUB_GRID_DISCRETIZATION': 'GRUs',
             'HYDROLOGICAL_MODEL': 'SUMMA',
             'FORCING_DATASET': 'ERA5',
         }
@@ -43,7 +43,7 @@ class TestBasicValidation:
             'EXPERIMENT_TIME_START': '2020-01-01 00:00',
             'EXPERIMENT_TIME_END': '2020-12-31 23:00',
             'DOMAIN_DEFINITION_METHOD': 'lumped',
-            'DOMAIN_DISCRETIZATION': 'GRUs',
+            'SUB_GRID_DISCRETIZATION': 'GRUs',
             'HYDROLOGICAL_MODEL': 'SUMMA',
             'FORCING_DATASET': 'ERA5',
         }
@@ -61,7 +61,7 @@ class TestBasicValidation:
             'EXPERIMENT_TIME_START': '2020-01-01 00:00',
             'EXPERIMENT_TIME_END': '2020-12-31 23:00',
             'DOMAIN_DEFINITION_METHOD': 'invalid_method',  # Invalid literal
-            'DOMAIN_DISCRETIZATION': 'GRUs',
+            'SUB_GRID_DISCRETIZATION': 'GRUs',
             'HYDROLOGICAL_MODEL': 'SUMMA',
             'FORCING_DATASET': 'ERA5',
         }
@@ -79,12 +79,12 @@ class TestBasicValidation:
             'EXPERIMENT_TIME_START': '2020-01-01 00:00',
             'EXPERIMENT_TIME_END': '2020-12-31 23:00',
             'DOMAIN_DEFINITION_METHOD': 'lumped',
-            'DOMAIN_DISCRETIZATION': 'GRUs',
+            'SUB_GRID_DISCRETIZATION': 'GRUs',
             'HYDROLOGICAL_MODEL': 'SUMMA',
             'FORCING_DATASET': 'ERA5',
         }
         model = SymfluenceConfig(**config)
-        assert model.MPI_PROCESSES == 1
+        assert model.NUM_PROCESSES == 1
         assert model.LOG_LEVEL == 'INFO'
         assert model.STREAM_THRESHOLD == 5000.0
         assert model.PET_METHOD == 'oudin'
@@ -142,7 +142,7 @@ class TestFieldValidators:
     def test_positive_integer_validation(self):
         """Test that certain integers must be positive"""
         config = self._get_minimal_config()
-        config['MPI_PROCESSES'] = 0  # Invalid, must be >= 1
+        config['NUM_PROCESSES'] = 0  # Invalid, must be >= 1
         with pytest.raises(ValidationError) as exc_info:
             SymfluenceConfig(**config)
         assert 'at least 1' in str(exc_info.value).lower()
@@ -158,7 +158,7 @@ class TestFieldValidators:
             'EXPERIMENT_TIME_START': '2020-01-01 00:00',
             'EXPERIMENT_TIME_END': '2020-12-31 23:00',
             'DOMAIN_DEFINITION_METHOD': 'lumped',
-            'DOMAIN_DISCRETIZATION': 'GRUs',
+            'SUB_GRID_DISCRETIZATION': 'GRUs',
             'HYDROLOGICAL_MODEL': 'SUMMA',
             'FORCING_DATASET': 'ERA5',
         }
@@ -280,7 +280,7 @@ class TestCrossFieldValidation:
             'EXPERIMENT_TIME_START': '2020-01-01 00:00',
             'EXPERIMENT_TIME_END': '2020-12-31 23:00',
             'DOMAIN_DEFINITION_METHOD': 'lumped',
-            'DOMAIN_DISCRETIZATION': 'GRUs',
+            'SUB_GRID_DISCRETIZATION': 'GRUs',
             'HYDROLOGICAL_MODEL': 'SUMMA',
             'FORCING_DATASET': 'ERA5',
         }
@@ -328,7 +328,7 @@ class TestHelperMethods:
             'EXPERIMENT_TIME_START': '2020-01-01 00:00',
             'EXPERIMENT_TIME_END': '2020-12-31 23:00',
             'DOMAIN_DEFINITION_METHOD': 'lumped',
-            'DOMAIN_DISCRETIZATION': 'GRUs',
+            'SUB_GRID_DISCRETIZATION': 'GRUs',
             'HYDROLOGICAL_MODEL': 'SUMMA',
             'FORCING_DATASET': 'ERA5',
         }

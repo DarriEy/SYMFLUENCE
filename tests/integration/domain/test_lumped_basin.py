@@ -77,12 +77,12 @@ def config_path(bow_domain, tmp_path, symfluence_code_dir):
     config_dict['EXPERIMENT_ID'] = f'test_{tmp_path.name}'
     config_dict['POUR_POINT_COORDS'] = '51.1722/-115.5717'
 
-    # Use delineate method to create watershed from DEM (raw data workflow)
+    # Use semidistributed method to create watershed from DEM via TauDEM (raw data workflow)
     # Use very high stream threshold to get a single basin (lumped)
-    config_dict['DOMAIN_DEFINITION_METHOD'] = 'delineate'
+    config_dict['DOMAIN_DEFINITION_METHOD'] = 'semidistributed'
     config_dict['DELINEATION_METHOD'] = 'stream_threshold'
     config_dict['STREAM_THRESHOLD'] = 100000  # Very high threshold = single basin
-    config_dict['DOMAIN_DISCRETIZATION'] = 'GRUs'
+    config_dict['SUB_GRID_DISCRETIZATION'] = 'GRUs'
 
     # DO NOT set RIVER_BASINS_NAME etc - leave as "default" so delineation runs
     # The workflow will create shapefiles with its own naming convention
@@ -258,7 +258,8 @@ def test_lumped_basin_workflow(config_path, model, symfluence_data_root, setup_i
 
     # Step 4: Define domain (watershed delineation) - creates shapefiles from raw DEM data
     watershed_path, delineation_artifacts = symfluence.managers['domain'].define_domain()
-    assert delineation_artifacts.method == "delineate", "Delineation method should be 'delineate'"
+    # Note: 'delineate' in config is normalized to 'semidistributed' for backward compatibility
+    assert delineation_artifacts.method == "semidistributed", "Delineation method should be 'semidistributed'"
 
     # Step 5: Discretize domain
     hru_path, discretization_artifacts = symfluence.managers['domain'].discretize_domain()

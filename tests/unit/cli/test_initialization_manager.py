@@ -65,7 +65,7 @@ def sample_config():
         'DOMAIN_DEFINITION_METHOD': 'lumped',
         'HYDROLOGICAL_MODEL': 'FUSE',
         'FORCING_DATASET': 'ERA5',
-        'MPI_PROCESSES': 1
+        'NUM_PROCESSES': 1
     }
 
 
@@ -192,7 +192,7 @@ class TestParseCliOverrides:
         overrides = {'discretization': 'GRUs'}
         result = init_manager._parse_cli_overrides(overrides)
 
-        assert result['DOMAIN_DISCRETIZATION'] == 'GRUs'
+        assert result['SUB_GRID_DISCRETIZATION'] == 'GRUs'
 
     def test_parse_cli_overrides_definition_method(self, init_manager):
         """Test parsing definition method override."""
@@ -253,7 +253,7 @@ class TestApplySmartDefaults:
         config = {}
         init_manager._apply_smart_defaults(config)
 
-        assert config['MPI_PROCESSES'] == 1
+        assert config['NUM_PROCESSES'] == 1
         assert config['FORCE_RUN_ALL_STEPS'] is False
         assert config['DATA_ACCESS'] == 'cloud'
 
@@ -262,12 +262,12 @@ class TestApplySmartDefaults:
         config = {
             'HYDROLOGICAL_MODEL': 'FUSE',
             'FUSE_SPATIAL_MODE': 'distributed',
-            'MPI_PROCESSES': 4
+            'NUM_PROCESSES': 4
         }
         init_manager._apply_smart_defaults(config)
 
         assert config['FUSE_SPATIAL_MODE'] == 'distributed'  # Preserved
-        assert config['MPI_PROCESSES'] == 4  # Preserved
+        assert config['NUM_PROCESSES'] == 4  # Preserved
         assert config['ROUTING_MODEL'] == 'none'  # Added
 
 

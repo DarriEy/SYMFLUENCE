@@ -210,19 +210,18 @@ class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, Shapefi
 
     def get_catchment_path(self) -> Path:
         """
-        Get path to catchment shapefile.
+        Get path to catchment shapefile with backward compatibility.
+
+        Checks for existing file in the legacy location first, then returns
+        the new organized path if not found.
+
+        The new path structure:
+            shapefiles/catchment/{domain_definition_method}/{experiment_id}/
 
         Returns:
             Path to catchment shapefile
         """
-        catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
-
-        if catchment_name == 'default' or catchment_name is None:
-            discretization = self.config_dict.get('DOMAIN_DISCRETIZATION')
-            catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
-
-        return catchment_path / catchment_name
+        return self._get_catchment_file_path()
 
     def get_river_network_path(self) -> Path:
         """

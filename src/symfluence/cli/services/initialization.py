@@ -115,7 +115,7 @@ class InitializationService(BaseService):
         if "HYDROLOGICAL_MODEL" in settings:
             model = settings["HYDROLOGICAL_MODEL"]
             spatial_mode = settings.get(
-                "FUSE_SPATIAL_MODE", settings.get("DOMAIN_DISCRETIZATION", "N/A")
+                "FUSE_SPATIAL_MODE", settings.get("SUB_GRID_DISCRETIZATION", "N/A")
             )
             self._console.indent(f"Model: {model} ({spatial_mode})")
         if "FORCING_DATASET" in settings:
@@ -126,8 +126,8 @@ class InitializationService(BaseService):
             )
         if "DOMAIN_DEFINITION_METHOD" in settings:
             self._console.indent(f"Domain Definition: {settings['DOMAIN_DEFINITION_METHOD']}")
-        if "DOMAIN_DISCRETIZATION" in settings:
-            self._console.indent(f"Discretization: {settings['DOMAIN_DISCRETIZATION']}")
+        if "SUB_GRID_DISCRETIZATION" in settings:
+            self._console.indent(f"Discretization: {settings['SUB_GRID_DISCRETIZATION']}")
 
         # Show calibration info
         if "SETTINGS_FUSE_PARAMS_TO_CALIBRATE" in settings:
@@ -354,10 +354,10 @@ class InitializationService(BaseService):
             "EXPERIMENT_TIME_START": "2010-01-01 00:00",
             "EXPERIMENT_TIME_END": "2020-12-31 23:00",
             "DOMAIN_DEFINITION_METHOD": "lumped",
-            "DOMAIN_DISCRETIZATION": "lumped",
+            "SUB_GRID_DISCRETIZATION": "lumped",
             "HYDROLOGICAL_MODEL": "FUSE",
             "FORCING_DATASET": "ERA5",
-            "MPI_PROCESSES": 1,
+            "NUM_PROCESSES": 1,
         }
 
     def _parse_cli_overrides(self, cli_overrides: Dict[str, Any]) -> Dict[str, Any]:
@@ -391,7 +391,7 @@ class InitializationService(BaseService):
             config["FORCING_DATASET"] = cli_overrides["forcing"]
 
         if cli_overrides.get("discretization"):
-            config["DOMAIN_DISCRETIZATION"] = cli_overrides["discretization"]
+            config["SUB_GRID_DISCRETIZATION"] = cli_overrides["discretization"]
 
         if cli_overrides.get("definition_method"):
             config["DOMAIN_DEFINITION_METHOD"] = cli_overrides["definition_method"]
@@ -420,8 +420,8 @@ class InitializationService(BaseService):
                     config[key] = value
 
         # Set other common defaults
-        if "MPI_PROCESSES" not in config:
-            config["MPI_PROCESSES"] = 1
+        if "NUM_PROCESSES" not in config:
+            config["NUM_PROCESSES"] = 1
 
         if "FORCE_RUN_ALL_STEPS" not in config:
             config["FORCE_RUN_ALL_STEPS"] = False

@@ -25,7 +25,7 @@ def base_attr_config(symfluence_code_dir, symfluence_data_root):
 
     config["DOMAIN_NAME"] = "paradise_cloud_attrs"
     config["DOMAIN_DEFINITION_METHOD"] = "point"
-    config["DOMAIN_DISCRETIZATION"] = "GRUs"
+    config["SUB_GRID_DISCRETIZATION"] = "GRUs"
     config["BOUNDING_BOX_COORDS"] = "47.2/-122.4/46.3/-121.3"
     config["POUR_POINT_COORDS"] = "46.78/-121.75"
 

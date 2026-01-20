@@ -223,7 +223,7 @@ class WorkflowOrchestrator(ConfigMixin):
                 cli_name="discretize_domain",
                 func=self.managers['domain'].discretize_domain,
                 check_func=lambda: (self.project_dir / "shapefiles" / "catchment" /
-                        f"{self.domain_name}_HRUs_{str(self._get_config_value(lambda: self.config.domain.discretization, dict_key='DOMAIN_DISCRETIZATION')).replace(',','_')}.shp").exists(),
+                        f"{self.domain_name}_HRUs_{str(self._get_config_value(lambda: self.config.domain.discretization, dict_key='SUB_GRID_DISCRETIZATION')).replace(',','_')}.shp").exists(),
                 description="Discretizing domain into hydrological response units"
             ),
 
@@ -477,7 +477,7 @@ class WorkflowOrchestrator(ConfigMixin):
             'EXPERIMENT_ID',
             'HYDROLOGICAL_MODEL',
             'DOMAIN_DEFINITION_METHOD',
-            'DOMAIN_DISCRETIZATION'
+            'SUB_GRID_DISCRETIZATION'
         ]
 
         for key in required_config:

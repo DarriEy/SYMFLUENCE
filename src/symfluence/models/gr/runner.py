@@ -124,12 +124,10 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
 
     def _setup_model_specific_paths(self) -> None:
         """Set up GR-specific paths."""
-        # Catchment paths (uses PathResolverMixin from base)
-        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.catchment_name_col
-        if self.catchment_name == 'default':
-            discretization = self.domain_discretization
-            self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
+        # Catchment paths (use backward-compatible path resolution)
+        catchment_file = self._get_catchment_file_path()
+        self.catchment_path = catchment_file.parent
+        self.catchment_name = catchment_file.name
 
         # GR setup and forcing paths
         if hasattr(self, 'settings_dir') and self.settings_dir:

@@ -324,7 +324,7 @@ class HYPEWorker(BaseWorker):
                 self.logger.error(f"Observations file not found at {obs_file} (domain_name={domain_name})")
                 return {'kge': self.penalty_score, 'error': 'Observations not found'}
 
-            obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
+            obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True, dayfirst=True)
 
             # HYPE outputs daily data, observations may be hourly
             # Resample observations to daily mean if they are sub-daily

@@ -94,7 +94,7 @@ class BaseAttributeProcessor(ConfigMixin):
             # Find the catchment shapefile based on domain discretization
             discretization = self._get_config_value(
                 lambda: self.config.domain.discretization,
-                dict_key='DOMAIN_DISCRETIZATION'
+                dict_key='SUB_GRID_DISCRETIZATION'
             )
             catchment_file = f"{self.domain_name}_HRUs_{discretization}.shp"
         else:

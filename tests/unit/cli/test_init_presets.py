@@ -146,7 +146,7 @@ class TestPresetContent:
         assert settings['DOMAIN_NAME'] == 'provo_river'
         assert settings['HYDROLOGICAL_MODEL'] == 'FUSE'
         assert settings['FORCING_DATASET'] == 'ERA5'
-        assert settings['DOMAIN_DISCRETIZATION'] == 'lumped'
+        assert settings['SUB_GRID_DISCRETIZATION'] == 'lumped'
 
         # Check FUSE decisions exist
         assert 'fuse_decisions' in preset
@@ -161,7 +161,7 @@ class TestPresetContent:
         # Check key settings
         assert settings['HYDROLOGICAL_MODEL'] == 'SUMMA'
         assert settings['ROUTING_MODEL'] == 'mizuRoute'
-        assert settings['DOMAIN_DISCRETIZATION'] == 'GRUs'
+        assert settings['SUB_GRID_DISCRETIZATION'] == 'GRUs'
 
         # Check SUMMA decisions exist
         assert 'summa_decisions' in preset
@@ -174,7 +174,7 @@ class TestPresetContent:
         # Check key settings
         assert settings['HYDROLOGICAL_MODEL'] == 'FUSE'
         assert settings['FUSE_SPATIAL_MODE'] == 'lumped'
-        assert settings['DOMAIN_DISCRETIZATION'] == 'lumped'
+        assert settings['SUB_GRID_DISCRETIZATION'] == 'lumped'
 
         # Check FUSE decisions exist
         assert 'fuse_decisions' in preset

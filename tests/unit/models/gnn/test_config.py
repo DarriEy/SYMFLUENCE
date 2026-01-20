@@ -51,7 +51,7 @@ class TestGNNConfigValidation:
             'EXPERIMENT_TIME_START': '2020-01-01 00:00',
             'EXPERIMENT_TIME_END': '2020-12-31 23:00',
             'DOMAIN_DEFINITION_METHOD': 'delineate',
-            'DOMAIN_DISCRETIZATION': 'GRUs',
+            'SUB_GRID_DISCRETIZATION': 'GRUs',
             'HYDROLOGICAL_MODEL': 'GNN',
             'FORCING_DATASET': 'ERA5',
             'GNN_HIDDEN_SIZE': 128,
@@ -64,4 +64,5 @@ class TestGNNConfigValidation:
     def test_gnn_requires_distributed_domain(self, gnn_config):
         """Test that GNN is typically used with distributed domain."""
         # GNN benefits from spatial structure
-        assert gnn_config.domain.definition_method == 'delineate'
+        # Note: 'delineate' is auto-mapped to 'semidistributed' for backward compatibility
+        assert gnn_config.domain.definition_method in ('semidistributed', 'distributed', 'delineate')

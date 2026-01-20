@@ -1,6 +1,24 @@
 """
 HBV-96 Hydrological Model for SYMFLUENCE.
 
+.. warning::
+    **EXPERIMENTAL MODULE** - This module is in active development and should be
+    used at your own risk. The API may change without notice in future releases.
+    Please report any issues at https://github.com/DarriEy/SYMFLUENCE/issues
+
+.. note::
+    **API Stability**: This module is not yet covered by semantic versioning guarantees.
+    Breaking changes may occur in minor releases until this module reaches stable status.
+
+    **Known Limitations**:
+    - Distributed routing integration is still in development
+    - Some parameter combinations may produce numerical instabilities
+    - GPU acceleration requires JAX with CUDA/ROCm support
+    - Performance optimization is ongoing
+
+    To disable this experimental module at import time, set the environment variable:
+    ``SYMFLUENCE_DISABLE_EXPERIMENTAL=1``
+
 A native JAX-based implementation of the HBV-96 hydrological model, enabling:
 - Automatic differentiation for gradient-based calibration
 - JIT compilation for fast execution
@@ -41,6 +59,26 @@ References:
     Development and test of the distributed HBV-96 hydrological model.
     Journal of Hydrology, 201(1-4), 272-288.
 """
+
+import os
+import warnings
+
+# Check if experimental modules are disabled
+_DISABLE_EXPERIMENTAL = os.environ.get('SYMFLUENCE_DISABLE_EXPERIMENTAL', '').lower() in ('1', 'true', 'yes')
+
+if _DISABLE_EXPERIMENTAL:
+    raise ImportError(
+        "HBV module is disabled via SYMFLUENCE_DISABLE_EXPERIMENTAL environment variable. "
+        "This experimental module is not yet stable. Remove the environment variable to enable."
+    )
+
+# Emit runtime warning about experimental status
+warnings.warn(
+    "HBV is an EXPERIMENTAL module. The API may change without notice. "
+    "For production use, consider using SUMMA or FUSE instead.",
+    category=UserWarning,
+    stacklevel=2
+)
 
 # Register model components with ModelRegistry via imports
 from .config import HBVConfig, HBVConfigAdapter

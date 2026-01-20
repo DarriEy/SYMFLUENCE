@@ -32,7 +32,7 @@ def test_normalize_config_type_coercion():
     raw = {
         "DOWNLOAD_SNOTEL": "true",
         "FORCE_RUN_ALL_STEPS": "False",
-        "MPI_PROCESSES": "4",
+        "NUM_PROCESSES": "4",
         "LAPSE_RATE": "0.0065",
         "NEX_MODELS": "ACCESS-CM2,GFDL-ESM4",
         "MULTI_SCALE_THRESHOLDS": "10000,5000,2500",
@@ -41,7 +41,7 @@ def test_normalize_config_type_coercion():
     normalized = normalize_config(raw)
     assert normalized["DOWNLOAD_SNOTEL"] is True
     assert normalized["FORCE_RUN_ALL_STEPS"] is False
-    assert normalized["MPI_PROCESSES"] == 4
+    assert normalized["NUM_PROCESSES"] == 4
     assert normalized["LAPSE_RATE"] == 0.0065
     assert normalized["NEX_MODELS"] == ["ACCESS-CM2", "GFDL-ESM4"]
     assert normalized["MULTI_SCALE_THRESHOLDS"] == ["10000", "5000", "2500"]

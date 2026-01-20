@@ -32,7 +32,7 @@ def config(tmp_path):
         'FORCING_DATASET': 'ERA5',
         'HYDROLOGICAL_MODEL': 'TEST',
         'DOMAIN_NAME': 'test_domain',
-        'DOMAIN_DISCRETIZATION': 'lumped',
+        'SUB_GRID_DISCRETIZATION': 'lumped',
         'DOMAIN_DEFINITION_METHOD': 'lumped',
         'CATCHMENT_PATH': 'default',
         'CATCHMENT_SHP_NAME': 'default',
@@ -114,9 +114,15 @@ class TestPathResolution:
         assert result == custom_path
 
     def test_get_catchment_path_default(self, preprocessor):
-        """Test get_catchment_path with defaults."""
+        """Test get_catchment_path with defaults.
+
+        Note: The path structure includes domain_definition_method and experiment_id
+        for uniqueness: shapefiles/catchment/{method}/{experiment_id}/{filename}.shp
+        """
         result = preprocessor.get_catchment_path()
-        expected = preprocessor.project_dir / 'shapefiles' / 'catchment' / 'test_domain_HRUs_lumped.shp'
+        # New path structure includes definition method and experiment id
+        expected = (preprocessor.project_dir / 'shapefiles' / 'catchment' /
+                   'lumped' / 'test_experiment' / 'test_domain_HRUs_lumped.shp')
         assert result == expected
 
     def test_get_river_network_path_default(self, preprocessor):

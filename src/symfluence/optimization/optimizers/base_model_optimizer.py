@@ -154,7 +154,7 @@ Configuration Parameters:
     System:
         system.data_dir: Root data directory
         system.random_seed: Random seed for reproducibility
-        system.mpi_processes: Number of parallel processes
+        system.num_processes: Number of parallel processes
 
 References:
     - Tolson, B. A., & Shoemaker, C. A. (2007). Dynamically dimensioned search
@@ -401,9 +401,9 @@ class BaseModelOptimizer(
         # Parallel processing state
         self.parallel_dirs: Dict[int, Dict[str, Any]] = {}
         self.default_sim_dir = self.results_dir  # Initialize with results_dir as fallback
-        # Setup directories if MPI_PROCESSES is set, regardless of count (for isolation)
-        mpi_processes = self._get_config_value(lambda: self.config.system.mpi_processes, default=1)
-        if mpi_processes >= 1:
+        # Setup directories if NUM_PROCESSES is set, regardless of count (for isolation)
+        num_processes = self._get_config_value(lambda: self.config.system.num_processes, default=1)
+        if num_processes >= 1:
             self._setup_parallel_dirs()
 
         # Runtime config overrides (for algorithm-specific settings like Adam/LBFGS)

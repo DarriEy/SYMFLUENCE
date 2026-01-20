@@ -262,6 +262,80 @@ class MizuRouteConfig(BaseModel):
         return str(v)
 
 
+class DRouteConfig(BaseModel):
+    """dRoute routing model configuration (EXPERIMENTAL)
+
+    dRoute is a C++ river routing library with Python bindings that offers:
+    - Multiple routing methods (Muskingum-Cunge, IRF, Lag, Diffusive Wave, KWT)
+    - Native automatic differentiation for gradient-based calibration
+    - mizuRoute-compatible network topology format
+    """
+    model_config = FROZEN_CONFIG
+
+    # Execution settings
+    execution_mode: Literal['python', 'subprocess'] = Field(
+        default='python',
+        alias='DROUTE_EXECUTION_MODE',
+        description='Execution mode: python API (preferred) or subprocess fallback'
+    )
+    install_path: str = Field(default='default', alias='DROUTE_INSTALL_PATH')
+    exe: str = Field(default='droute', alias='DROUTE_EXE')
+    settings_path: str = Field(default='default', alias='SETTINGS_DROUTE_PATH')
+
+    # Routing configuration
+    routing_method: Literal['muskingum_cunge', 'irf', 'lag', 'diffusive_wave', 'kwt'] = Field(
+        default='muskingum_cunge',
+        alias='DROUTE_ROUTING_METHOD',
+        description='Routing scheme to use'
+    )
+    routing_dt: int = Field(
+        default=3600,
+        alias='DROUTE_ROUTING_DT',
+        ge=60,
+        le=86400,
+        description='Routing timestep in seconds'
+    )
+
+    # Gradient/AD settings
+    enable_gradients: bool = Field(
+        default=False,
+        alias='DROUTE_ENABLE_GRADIENTS',
+        description='Enable automatic differentiation for gradient-based calibration'
+    )
+    ad_backend: Literal['codipack', 'enzyme'] = Field(
+        default='codipack',
+        alias='DROUTE_AD_BACKEND',
+        description='AD backend (requires dRoute compiled with AD support)'
+    )
+
+    # Topology configuration
+    topology_file: str = Field(default='topology.nc', alias='DROUTE_TOPOLOGY_FILE')
+    topology_format: Literal['netcdf', 'geojson', 'csv'] = Field(
+        default='netcdf',
+        alias='DROUTE_TOPOLOGY_FORMAT'
+    )
+    config_file: str = Field(default='droute_config.yaml', alias='DROUTE_CONFIG_FILE')
+
+    # Integration settings
+    from_model: str = Field(
+        default='default',
+        alias='DROUTE_FROM_MODEL',
+        description='Source model for runoff input (SUMMA, FUSE, GR, etc.)'
+    )
+
+    # Output settings
+    experiment_output: str = Field(default='default', alias='EXPERIMENT_OUTPUT_DROUTE')
+    experiment_log: str = Field(default='default', alias='EXPERIMENT_LOG_DROUTE')
+
+    # Calibration settings
+    params_to_calibrate: str = Field(
+        default='velocity,diffusivity',
+        alias='DROUTE_PARAMS_TO_CALIBRATE'
+    )
+    calibrate: bool = Field(default=False, alias='CALIBRATE_DROUTE')
+    timeout: int = Field(default=3600, alias='DROUTE_TIMEOUT', ge=60, le=86400)
+
+
 class LSTMConfig(BaseModel):
     """LSTM neural network emulator configuration"""
     model_config = FROZEN_CONFIG
@@ -345,6 +419,7 @@ class ModelConfig(BaseModel):
     ngen: Optional[NGENConfig] = Field(default=None)
     mesh: Optional[MESHConfig] = Field(default=None)
     mizuroute: Optional[MizuRouteConfig] = Field(default=None)
+    droute: Optional[DRouteConfig] = Field(default=None)
     lstm: Optional[LSTMConfig] = Field(default=None, alias='lstm')
     rhessys: Optional[RHESSysConfig] = Field(default=None)
     gnn: Optional[GNNConfig] = Field(default=None)
@@ -399,7 +474,11 @@ class ModelConfig(BaseModel):
 
         # Auto-create routing model config if needed
         routing_model = values.get('ROUTING_MODEL') or values.get('routing_model')
-        if routing_model and str(routing_model).upper() == 'MIZUROUTE' and values.get('mizuroute') is None:
-            values['mizuroute'] = MizuRouteConfig()
+        if routing_model:
+            routing_upper = str(routing_model).upper()
+            if routing_upper == 'MIZUROUTE' and values.get('mizuroute') is None:
+                values['mizuroute'] = MizuRouteConfig()
+            elif routing_upper == 'DROUTE' and values.get('droute') is None:
+                values['droute'] = DRouteConfig()
 
         return values

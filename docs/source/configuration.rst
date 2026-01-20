@@ -36,7 +36,7 @@ Define experiment identifiers, paths, and computational options.
    EXPERIMENT_ID: "baseline_01"
    EXPERIMENT_TIME_START: "2018-01-01"
    EXPERIMENT_TIME_END: "2019-12-31"
-   MPI_PROCESSES: 40
+   NUM_PROCESSES: 40
    LOG_LEVEL: INFO
    LOG_TO_FILE: True
    LOG_FORMAT: detailed
@@ -50,20 +50,31 @@ Configure watershed delineation, thresholds, and HRU discretization.
 .. code-block:: yaml
 
    POUR_POINT_COORDS: 51.17/-115.57
-   DOMAIN_DEFINITION_METHOD: delineate    # delineate | subset | lumped
-   GEOFABRIC_TYPE: TDX                    # TDX | MERIT | NWS
+   DOMAIN_DEFINITION_METHOD: semidistributed  # point | lumped | semidistributed | distributed
+   SUBSET_FROM_GEOFABRIC: false               # Extract from existing geofabric
+   GEOFABRIC_TYPE: TDX                        # TDX | MERIT | NWS (required if subset)
+   GRID_SOURCE: generate                      # generate | native (for distributed)
    STREAM_THRESHOLD: 7500
    MULTI_SCALE_THRESHOLDS: [2500, 7500, 15000]
    USE_DROP_ANALYSIS: True
    DROP_ANALYSIS_NUM_THRESHOLDS: 5
    DELINEATE_COASTAL_WATERSHEDS: False
-   DOMAIN_DISCRETIZATION: elevation
+   SUB_GRID_DISCRETIZATION: elevation
    ELEVATION_BAND_SIZE: 400
    MIN_HRU_SIZE: 5
    RADIATION_CLASS_NUMBER: 8
    ASPECT_CLASS_NUMBER: 4
 
 These parameters control how the domain is delineated and discretized before model setup.
+
+**Definition Methods:**
+
+- ``point``: Single point/pixel for FLUXNET sites
+- ``lumped``: Single catchment, no spatial discretization
+- ``semidistributed``: Subcatchment delineation from DEM via TauDEM
+- ``distributed``: Grid-based representation with D8 routing
+
+Set ``SUBSET_FROM_GEOFABRIC: true`` to extract from existing geofabric instead of delineating.
 
 ---
 
@@ -229,7 +240,7 @@ Global Parameters
      - string
      - optional
      - Spinup period as "YYYY-MM-DD,YYYY-MM-DD"
-   * - MPI_PROCESSES
+   * - NUM_PROCESSES
      - integer
      - 1
      - Number of MPI processes for parallel execution
@@ -287,8 +298,20 @@ Domain Definition Parameters
      - Bounding box as "lat_max/lon_min/lat_min/lon_max"
    * - DOMAIN_DEFINITION_METHOD
      - string
-     - "delineate"
-     - Method for domain definition (delineate, subset, lumped)
+     - "semidistributed"
+     - Method for domain definition (point, lumped, semidistributed, distributed)
+   * - SUBSET_FROM_GEOFABRIC
+     - boolean
+     - False
+     - Extract domain from existing geofabric instead of delineating
+   * - GRID_SOURCE
+     - string
+     - "generate"
+     - Grid creation method for distributed (generate, native)
+   * - NATIVE_GRID_DATASET
+     - string
+     - "era5"
+     - Dataset identifier for native grid source
    * - GEOFABRIC_TYPE
      - string
      - "TDX"
@@ -313,7 +336,7 @@ Domain Definition Parameters
      - boolean
      - False
      - Allow delineation of coastal watersheds
-   * - DOMAIN_DISCRETIZATION
+   * - SUB_GRID_DISCRETIZATION
      - string
      - "lumped"
      - Discretization method (lumped, elevation, radiation, combined)

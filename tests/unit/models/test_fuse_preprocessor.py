@@ -208,8 +208,13 @@ class TestFUSECatchmentPath:
         """Test that FUSE uses base class get_catchment_path."""
         preprocessor = FUSEPreProcessor(fuse_config, mock_logger)
 
-        # Should use base class method
-        expected = preprocessor.project_dir / 'shapefiles' / 'catchment' / f"{fuse_config.domain.name}_HRUs_{fuse_config.domain.discretization}.shp"
+        # Should use base class method with new organized path structure
+        # Path now includes definition_method and experiment_id for organization
+        expected = (
+            preprocessor.project_dir / 'shapefiles' / 'catchment' /
+            fuse_config.domain.definition_method / fuse_config.domain.experiment_id /
+            f"{fuse_config.domain.name}_HRUs_{fuse_config.domain.discretization}.shp"
+        )
         assert preprocessor.catchment_path == expected
 
 

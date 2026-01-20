@@ -140,8 +140,63 @@ class PathManager(ConfigurableMixin):
 
         Contains the main catchment/basin shapefile used for spatial subsetting.
         Typical files: catchment.shp, catchment_dissolved.shp
+
+        Note: For new projects, catchment shapefiles are organized by
+        domain_definition_method and experiment_id. Use get_catchment_dir()
+        for backward-compatible path resolution.
         """
         return self.shapefiles_dir / 'catchment'
+
+    def get_catchment_dir(self, filename: Optional[str] = None) -> Path:
+        """
+        Get the catchment directory with backward compatibility.
+
+        For new projects, returns the organized path:
+            shapefiles/catchment/{domain_definition_method}/{experiment_id}/
+
+        For backward compatibility, if a file exists at the old path
+        (shapefiles/catchment/), returns the old path.
+
+        Args:
+            filename: Optional filename to check for backward compatibility.
+                     If provided, checks if file exists at old path.
+
+        Returns:
+            Path to the catchment directory
+        """
+        old_dir = self.shapefiles_dir / 'catchment'
+        new_dir = self.shapefiles_dir / 'catchment' / self.domain_definition_method / self.experiment_id
+
+        # Check for backward compatibility if filename provided
+        if filename:
+            old_path = old_dir / filename
+            if old_path.exists():
+                return old_dir
+
+        return new_dir
+
+    def resolve_catchment_file(
+        self,
+        filename: str,
+        create_dir: bool = False
+    ) -> Path:
+        """
+        Resolve a catchment shapefile path with backward compatibility.
+
+        Checks for existing file in the old location first, then returns
+        the new organized path if not found.
+
+        Args:
+            filename: The catchment shapefile name
+            create_dir: If True, create the directory if it doesn't exist
+
+        Returns:
+            Full path to the catchment shapefile
+        """
+        catchment_dir = self.get_catchment_dir(filename)
+        if create_dir:
+            catchment_dir.mkdir(parents=True, exist_ok=True)
+        return catchment_dir / filename
 
     @property
     def forcing_shapefile_dir(self) -> Path:

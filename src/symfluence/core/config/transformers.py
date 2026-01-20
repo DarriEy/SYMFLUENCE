@@ -38,6 +38,17 @@ DEPRECATED_KEYS: Dict[str, str] = {
     'EXE_NAME_MIZUROUTE': 'MIZUROUTE_EXE',
 }
 
+# Canonical keys for nested paths with multiple aliases
+# When flattening config back to flat format, use these keys (not the aliases)
+# Format: nested_path_tuple -> canonical_flat_key
+CANONICAL_KEYS: Dict[Tuple[str, ...], str] = {
+    ('system', 'num_processes'): 'NUM_PROCESSES',  # Prefer over MPI_PROCESSES
+    ('optimization', 'nsga2', 'secondary_target'): 'NSGA2_SECONDARY_TARGET',
+    ('optimization', 'nsga2', 'secondary_metric'): 'NSGA2_SECONDARY_METRIC',
+    ('model', 'mizuroute', 'install_path'): 'MIZUROUTE_INSTALL_PATH',
+    ('model', 'mizuroute', 'exe'): 'MIZUROUTE_EXE',
+}
+
 
 def _warn_deprecated_keys(flat_config: Dict[str, Any]) -> None:
     """
@@ -127,7 +138,8 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # ========== SYSTEM CONFIGURATION ==========
     'SYMFLUENCE_DATA_DIR': ('system', 'data_dir'),
     'SYMFLUENCE_CODE_DIR': ('system', 'code_dir'),
-    'MPI_PROCESSES': ('system', 'mpi_processes'),
+    'NUM_PROCESSES': ('system', 'num_processes'),
+    'MPI_PROCESSES': ('system', 'num_processes'),  # Backward compatibility alias
     'DEBUG_MODE': ('system', 'debug_mode'),
     'LOG_LEVEL': ('system', 'log_level'),
     'LOG_TO_FILE': ('system', 'log_to_file'),
@@ -149,7 +161,10 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'EVALUATION_PERIOD': ('domain', 'evaluation_period'),
     'SPINUP_PERIOD': ('domain', 'spinup_period'),
     'DOMAIN_DEFINITION_METHOD': ('domain', 'definition_method'),
-    'DOMAIN_DISCRETIZATION': ('domain', 'discretization'),
+    'SUB_GRID_DISCRETIZATION': ('domain', 'discretization'),
+    'SUBSET_FROM_GEOFABRIC': ('domain', 'subset_from_geofabric'),
+    'GRID_SOURCE': ('domain', 'grid_source'),
+    'NATIVE_GRID_DATASET': ('domain', 'native_grid_dataset'),
     'POUR_POINT_COORDS': ('domain', 'pour_point_coords'),
     'BOUNDING_BOX_COORDS': ('domain', 'bounding_box_coords'),
     'MIN_GRU_SIZE': ('domain', 'min_gru_size'),
@@ -436,6 +451,25 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'MIZUROUTE_PARAMS_TO_CALIBRATE': ('model', 'mizuroute', 'params_to_calibrate'),
     'CALIBRATE_MIZUROUTE': ('model', 'mizuroute', 'calibrate'),
     'MIZUROUTE_TIMEOUT': ('model', 'mizuroute', 'timeout'),
+
+    # Model > dRoute (experimental C++ routing library)
+    'DROUTE_EXECUTION_MODE': ('model', 'droute', 'execution_mode'),
+    'DROUTE_INSTALL_PATH': ('model', 'droute', 'install_path'),
+    'DROUTE_EXE': ('model', 'droute', 'exe'),
+    'SETTINGS_DROUTE_PATH': ('model', 'droute', 'settings_path'),
+    'DROUTE_ROUTING_METHOD': ('model', 'droute', 'routing_method'),
+    'DROUTE_ROUTING_DT': ('model', 'droute', 'routing_dt'),
+    'DROUTE_ENABLE_GRADIENTS': ('model', 'droute', 'enable_gradients'),
+    'DROUTE_AD_BACKEND': ('model', 'droute', 'ad_backend'),
+    'DROUTE_TOPOLOGY_FILE': ('model', 'droute', 'topology_file'),
+    'DROUTE_TOPOLOGY_FORMAT': ('model', 'droute', 'topology_format'),
+    'DROUTE_CONFIG_FILE': ('model', 'droute', 'config_file'),
+    'DROUTE_FROM_MODEL': ('model', 'droute', 'from_model'),
+    'EXPERIMENT_OUTPUT_DROUTE': ('model', 'droute', 'experiment_output'),
+    'EXPERIMENT_LOG_DROUTE': ('model', 'droute', 'experiment_log'),
+    'DROUTE_PARAMS_TO_CALIBRATE': ('model', 'droute', 'params_to_calibrate'),
+    'CALIBRATE_DROUTE': ('model', 'droute', 'calibrate'),
+    'DROUTE_TIMEOUT': ('model', 'droute', 'timeout'),
 
     # Model > LSTM
     'LSTM_LOAD': ('model', 'lstm', 'load'),
@@ -832,11 +866,30 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
             # If ModelRegistry not available or model not registered, just use base mapping
             pass
 
-    # Apply mapping
+    # Build reverse map: nested_path -> list of flat keys that map to it
+    # This helps identify when multiple flat keys (canonical + deprecated) map to same path
+    path_to_keys: Dict[Tuple[str, ...], list] = {}
+    for flat_key in flat_config.keys():
+        if flat_key in combined_mapping:
+            path = combined_mapping[flat_key]
+            path_to_keys.setdefault(path, []).append(flat_key)
+
+    # Apply mapping, preferring canonical keys over deprecated aliases
+    processed_paths: set = set()
     for flat_key, value in flat_config.items():
         if flat_key in combined_mapping:
             path = combined_mapping[flat_key]
+
+            # If multiple keys map to this path, use the canonical key's value
+            keys_for_path = path_to_keys.get(path, [flat_key])
+            if len(keys_for_path) > 1 and path in CANONICAL_KEYS:
+                canonical_key = CANONICAL_KEYS[path]
+                if flat_key != canonical_key and canonical_key in flat_config:
+                    # Skip this deprecated key, canonical key will be used
+                    continue
+
             _set_nested_value(nested, path, value)
+            processed_paths.add(path)
         else:
             # Unknown keys stored in _extra (Pydantic extra='allow' will handle)
             nested.setdefault('_extra', {})[flat_key] = value
@@ -867,7 +920,15 @@ def flatten_nested_config(config: 'SymfluenceConfig') -> Dict[str, Any]:
     flat = {}
 
     # Create reverse mapping (nested path -> flat key)
-    nested_to_flat = {v: k for k, v in FLAT_TO_NESTED_MAP.items()}
+    # Use CANONICAL_KEYS for paths with multiple aliases to ensure consistent output
+    nested_to_flat = {}
+    for flat_key, nested_path in FLAT_TO_NESTED_MAP.items():
+        # Only set if not already set, OR if this is the canonical key for this path
+        if nested_path not in nested_to_flat:
+            nested_to_flat[nested_path] = flat_key
+        elif nested_path in CANONICAL_KEYS and CANONICAL_KEYS[nested_path] == flat_key:
+            # Override with canonical key
+            nested_to_flat[nested_path] = flat_key
 
     def _flatten_section(section_name: str, section_obj: Any, prefix: Tuple[str, ...] = ()) -> None:
         """Recursively flatten a config section"""

@@ -51,7 +51,7 @@ system:
   # ---------------------------------------------------------------------------
   # Number of MPI processes for parallel model execution
   # Set > 1 for distributed domain runs or ensemble simulations
-  mpi_processes: 1
+  num_processes: 1
 
   # ---------------------------------------------------------------------------
   # Logging Configuration
@@ -127,13 +127,26 @@ domain:
   # Spatial Definition Method (REQUIRED)
   # ---------------------------------------------------------------------------
   # How the domain is defined:
-  #   lumped       - Single catchment, no internal discretization
-  #   discretized  - Divide into smaller response units (removed)
-  #   distributed  - Grid-based spatial representation
-  #   subset       - Subset of larger pre-defined domain (make into sub config)
-  #   point        - Single point location (tower sites, etc.)
-  #   delineate    - Auto-delineate from DEM at pour point.  (Semi-distributed)
+  #   point            - Single point location (FLUXNET sites, tower sites)
+  #   lumped           - Single catchment, no spatial discretization
+  #   semidistributed  - Subcatchment delineation from DEM via TauDEM
+  #   distributed      - Grid-based representation with D8 routing
+  #
+  # Legacy values (auto-mapped for backwards compatibility):
+  #   delineate -> semidistributed, distribute -> distributed
   definition_method: "lumped"
+
+  # Extract domain from existing geofabric instead of delineating
+  # Requires geofabric_type to be set in delineation section
+  subset_from_geofabric: false
+
+  # Grid creation method for distributed domain
+  #   generate - Create grid from bounding box with grid_cell_size
+  #   native   - Match forcing data resolution (e.g., ERA5 grid)
+  grid_source: "generate"
+
+  # Dataset identifier for native grid source (only when grid_source='native')
+  native_grid_dataset: "era5"
 
   # ---------------------------------------------------------------------------
   # Discretization Strategy (REQUIRED)
@@ -171,7 +184,7 @@ domain:
   # ---------------------------------------------------------------------------
   # Spatial Coordinates
   # ---------------------------------------------------------------------------
-  # Pour point coordinates for point/delineate methods
+  # Pour point coordinates for lumped/semidistributed methods
   # Format: "latitude/longitude"
   pour_point_coords: null
 
@@ -206,7 +219,7 @@ domain:
   # ---------------------------------------------------------------------------
   # Delineation Configuration
   # ---------------------------------------------------------------------------
-  # Settings for automatic watershed delineation (when definition_method="delineate")
+  # Settings for automatic watershed delineation (when definition_method="semidistributed")
   delineation:
     # Delineation method: stream_threshold, multi_scale, slope_area
     method: "stream_threshold"

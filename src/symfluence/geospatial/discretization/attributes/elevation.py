@@ -44,11 +44,13 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         default_name=f"domain_{discretizer.domain_name}_elv.tif"
     )
 
+    # Use backward-compatible catchment subpath
+    default_name = f"{discretizer.domain_name}_HRUs_elevation.shp"
     output_shapefile = discretizer._get_file_path(
         path_key="CATCHMENT_PATH",
         name_key="CATCHMENT_SHP_NAME",
-        default_subpath="shapefiles/catchment",
-        default_name=f"{discretizer.domain_name}_HRUs_elevation.shp",
+        default_subpath=discretizer._get_catchment_subpath(default_name),
+        default_name=default_name,
     )
 
     elevation_band_size = float(discretizer._get_config_value(

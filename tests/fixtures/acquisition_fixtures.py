@@ -92,7 +92,7 @@ class MockConfigFactory:
             "SYMFLUENCE_CODE_DIR": "/tmp/symfluence_code",
             "EXPERIMENT_ID": "test_run",
             "DOMAIN_DEFINITION_METHOD": "lumped",
-            "DOMAIN_DISCRETIZATION": "lumped",
+            "SUB_GRID_DISCRETIZATION": "lumped",
             "HYDROLOGICAL_MODEL": "SUMMA",
         }
 

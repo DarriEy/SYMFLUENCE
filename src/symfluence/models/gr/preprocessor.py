@@ -122,18 +122,10 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         # GR-specific paths
         self.forcing_gr_path = self.project_dir / 'forcing' / 'GR_input'
 
-        # GR-specific catchment configuration
-        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-
-        # Use typed config accessor
-        self.catchment_name = self._get_config_value(
-            lambda: self.config.paths.catchment_name
-        )
-        if self.catchment_name == 'default' or self.catchment_name is None:
-            discretization = self._get_config_value(
-                lambda: self.config.domain.discretization
-            )
-            self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
+        # GR-specific catchment configuration (use backward-compatible path resolution)
+        catchment_file = self._get_catchment_file_path()
+        self.catchment_path = catchment_file.parent
+        self.catchment_name = catchment_file.name
 
         # Resolve spatial mode
         # 1. Check for explicit configuration
@@ -230,7 +222,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         # Read observations
         if obs_path.exists():
             obs_df = pd.read_csv(obs_path)
-            obs_df['time'] = pd.to_datetime(obs_df['datetime'])
+            obs_df['time'] = pd.to_datetime(obs_df['datetime'], dayfirst=True)
             obs_df = obs_df.drop('datetime', axis=1)
             obs_df.set_index('time', inplace=True)
             obs_df.index = obs_df.index.tz_localize(None)
@@ -330,7 +322,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
 
         if obs_path.exists():
             obs_df = pd.read_csv(obs_path)
-            obs_df['time'] = pd.to_datetime(obs_df['datetime'])
+            obs_df['time'] = pd.to_datetime(obs_df['datetime'], dayfirst=True)
             obs_df = obs_df.drop('datetime', axis=1)
             obs_df.set_index('time', inplace=True)
             obs_df.index = obs_df.index.tz_localize(None)

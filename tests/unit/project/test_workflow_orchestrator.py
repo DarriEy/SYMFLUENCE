@@ -27,7 +27,7 @@ class TestWorkflowOrchestrator:
             'SYMFLUENCE_DATA_DIR': '/tmp/data',
             'HYDROLOGICAL_MODEL': 'SUMMA',
             'DOMAIN_DEFINITION_METHOD': 'lumped',
-            'DOMAIN_DISCRETIZATION': 'lumped'
+            'SUB_GRID_DISCRETIZATION': 'lumped'
         }
 
     @pytest.fixture

@@ -67,7 +67,7 @@ class GRACEHandler(BaseObservationHandler):
 
         catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME', f"{self.domain_name}_catchment.shp")
         if catchment_name == 'default' or not catchment_name:
-            catchment_name = f"{self.domain_name}_HRUs_{self.config_dict.get('DOMAIN_DISCRETIZATION', 'GRUs')}.shp"
+            catchment_name = f"{self.domain_name}_HRUs_{self.config_dict.get('SUB_GRID_DISCRETIZATION', 'GRUs')}.shp"
 
         basin_shp = catchment_path / catchment_name
         if not basin_shp.exists():
@@ -147,7 +147,10 @@ class GRACEHandler(BaseObservationHandler):
         return files
 
     def _extract_for_basin(self, ds: xr.Dataset, gdf: gpd.GeoDataFrame, name: str, area: float) -> Optional[pd.Series]:
-        centroid = gdf.dissolve().centroid.iloc[0]
+        # Project to UTM for accurate centroid, then get coordinates in geographic CRS
+        dissolved = gdf.dissolve()
+        utm_crs = dissolved.estimate_utm_crs()
+        centroid = dissolved.to_crs(utm_crs).centroid.to_crs(gdf.crs).iloc[0]
 
         # Adaptive strategy
         if area <= self.STRATEGY_CONFIG['medium_basin_threshold']:

@@ -321,7 +321,7 @@ def from_minimal_factory(
 
         # Required domain settings (user should override, but provide safe defaults)
         'DOMAIN_DEFINITION_METHOD': overrides.get('DOMAIN_DEFINITION_METHOD', 'lumped'),
-        'DOMAIN_DISCRETIZATION': overrides.get('DOMAIN_DISCRETIZATION', 'lumped'),
+        'SUB_GRID_DISCRETIZATION': overrides.get('SUB_GRID_DISCRETIZATION', 'lumped'),
 
         # Required time settings (user MUST override these)
         'EXPERIMENT_TIME_START': overrides.get('EXPERIMENT_TIME_START', '2010-01-01 00:00'),

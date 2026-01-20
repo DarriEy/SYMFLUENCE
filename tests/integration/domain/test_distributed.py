@@ -71,7 +71,7 @@ def config_path(example_data_bundle, tmp_path, symfluence_code_dir):
     # Elevation-based discretization - optimized for faster testing
     config["DOMAIN_DEFINITION_METHOD"] = "delineate"
     config["STREAM_THRESHOLD"] = 20000  # Reduced spatial resolution (was 10000)
-    config["DOMAIN_DISCRETIZATION"] = "elevation"
+    config["SUB_GRID_DISCRETIZATION"] = "elevation"
     config["ELEVATION_BAND_SIZE"] = 1600  # Reduced spatial resolution (was 800)
 
     # Optimized: 3-day test window (need sufficient data points for KGE calculation)
@@ -233,28 +233,32 @@ def test_distributed_basin_workflow(config_path, example_data_bundle, model):
 
     # Step 3: Define domain (watershed delineation)
     watershed_path, delineation_artifacts = symfluence.managers["domain"].define_domain()
+    # Note: 'delineate' is auto-mapped to 'semidistributed' for backward compatibility
+    expected_methods = {'delineate', 'semidistributed'}  # Accept both for backward compat
     assert (
-        delineation_artifacts.method == config["DOMAIN_DEFINITION_METHOD"]
-    ), "Delineation method mismatch"
+        delineation_artifacts.method in expected_methods
+    ), f"Delineation method mismatch: got {delineation_artifacts.method}, expected one of {expected_methods}"
     # watershed_path can be None for workflows that use existing data
 
     # Step 4: Discretize domain (elevation bands)
     hru_path, discretization_artifacts = symfluence.managers["domain"].discretize_domain()
     assert (
-        discretization_artifacts.method == config["DOMAIN_DISCRETIZATION"]
+        discretization_artifacts.method == config["SUB_GRID_DISCRETIZATION"]
     ), "Discretization method mismatch"
 
     # Verify geospatial artifacts (02c)
+    # Note: File suffix now uses normalized method name (semidistributed, not delineate)
+    method_suffix = delineation_artifacts.method  # Use actual method for path consistency
     shapefile_dir = project_dir / "shapefiles"
     river_basins_path = delineation_artifacts.river_basins_path or (
         shapefile_dir
         / "river_basins"
-        / f"{config['DOMAIN_NAME']}_riverBasins_delineate.shp"
+        / f"{config['DOMAIN_NAME']}_riverBasins_{method_suffix}.shp"
     )
     river_network_path = delineation_artifacts.river_network_path or (
         shapefile_dir
         / "river_network"
-        / f"{config['DOMAIN_NAME']}_riverNetwork_delineate.shp"
+        / f"{config['DOMAIN_NAME']}_riverNetwork_{method_suffix}.shp"
     )
     hrus_path = (
         discretization_artifacts.hru_paths

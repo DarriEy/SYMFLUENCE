@@ -466,7 +466,7 @@ Route distributed FUSE output:
 
    # Distributed FUSE
    FUSE_SPATIAL_MODE: distributed
-   DOMAIN_DEFINITION_METHOD: delineate
+   DOMAIN_DEFINITION_METHOD: semidistributed
    POUR_POINT_COORDS: [-120.0, 45.0]
 
    # Enable mizuRoute
@@ -505,7 +505,7 @@ For large domains (e.g., CONUS, Europe):
    MIZUROUTE_METHOD: IRF
 
    # Parallel execution
-   MPI_PROCESSES: 256
+   NUM_PROCESSES: 256
 
    # Daily output sufficient for large scale
    MIZUROUTE_OUTPUT_FREQ: daily

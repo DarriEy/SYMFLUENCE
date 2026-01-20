@@ -91,13 +91,13 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
     print(f"  SUMMA version output: {result.stdout.strip() or result.stderr.strip()}")
 
     # Check for mizuRoute - use configured path
-    mizu_install_path = config.get("INSTALL_PATH_MIZUROUTE", "default")
+    mizu_install_path = config.get("MIZUROUTE_INSTALL_PATH", "default")
     if mizu_install_path == "default":
         mizu_install_path = data_dir / "installs" / "mizuRoute" / "route" / "bin"
     else:
         mizu_install_path = Path(mizu_install_path)
 
-    mizu_exe = config.get("EXE_NAME_MIZUROUTE", "mizuRoute.exe")
+    mizu_exe = config.get("MIZUROUTE_EXE", "mizuRoute.exe")
 
     # Try PATH first, then fall back to configured location
     mizu_in_path = shutil.which(mizu_exe)
@@ -377,7 +377,7 @@ def test_quick_workflow_summa_only(
     # Model settings
     config["HYDROLOGICAL_MODEL"] = "SUMMA"
     config["ROUTING_MODEL"] = "mizuRoute"
-    config["DOMAIN_DISCRETIZATION"] = "GRUs"
+    config["SUB_GRID_DISCRETIZATION"] = "GRUs"
     config["POUR_POINT_COORDS"] = "51.1722/-115.5717"
 
     # Delineation settings - run full workflow from raw data
@@ -499,7 +499,7 @@ def test_full_workflow_1month(
     config["HYDROLOGICAL_MODEL"] = model
     config["FORCING_DATASET"] = "ERA5"
     config["ROUTING_MODEL"] = "mizuRoute"
-    config["DOMAIN_DISCRETIZATION"] = "GRUs"
+    config["SUB_GRID_DISCRETIZATION"] = "GRUs"
     config["POUR_POINT_COORDS"] = "51.1722/-115.5717"
 
     # Delineation settings - run full workflow from raw data
@@ -589,7 +589,7 @@ def test_calibration_workflow(tmp_path, symfluence_code_dir, symfluence_data_roo
     config["HYDROLOGICAL_MODEL"] = "SUMMA"
     config["ROUTING_MODEL"] = "mizuRoute"
     config["FORCING_DATASET"] = "ERA5"
-    config["DOMAIN_DISCRETIZATION"] = "GRUs"
+    config["SUB_GRID_DISCRETIZATION"] = "GRUs"
     config["POUR_POINT_COORDS"] = "51.1722/-115.5717"
 
     # Delineation settings

@@ -74,7 +74,7 @@ class SymfluenceConfig(BaseModel):
         EXPERIMENT_TIME_START='2010-01-01 00:00',
         EXPERIMENT_TIME_END='2020-12-31 23:00',
         DOMAIN_DEFINITION_METHOD='lumped',
-        DOMAIN_DISCRETIZATION='lumped'
+        SUB_GRID_DISCRETIZATION='lumped'
     ))
     data: DataConfig = Field(default_factory=DataConfig)
     forcing: ForcingConfig = Field(default_factory=lambda: ForcingConfig(FORCING_DATASET='ERA5'))
@@ -110,7 +110,7 @@ class SymfluenceConfig(BaseModel):
             'EXPERIMENT_TIME_START',
             'EXPERIMENT_TIME_END',
             'DOMAIN_DEFINITION_METHOD',
-            'DOMAIN_DISCRETIZATION',
+            'SUB_GRID_DISCRETIZATION',
             'HYDROLOGICAL_MODEL',
             'FORCING_DATASET',
         }
@@ -118,6 +118,7 @@ class SymfluenceConfig(BaseModel):
         if 'DOMAIN_DEFINITION_METHOD' in values:
             allowed_definition_methods = {
                 'lumped',
+                'semidistributed',
                 'discretized',
                 'distributed',
                 'distribute',
@@ -376,8 +377,8 @@ class SymfluenceConfig(BaseModel):
                 routing_model = self.model.routing_model.upper()
                 if routing_model == 'MIZUROUTE' and self.model.mizuroute:
                     mizu_required = {
-                        'EXE_NAME_MIZUROUTE': self.model.mizuroute.exe,
-                        'INSTALL_PATH_MIZUROUTE': self.model.mizuroute.install_path,
+                        'MIZUROUTE_EXE': self.model.mizuroute.exe,
+                        'MIZUROUTE_INSTALL_PATH': self.model.mizuroute.install_path,
                     }
                     for field, value in mizu_required.items():
                         if is_unset(value):

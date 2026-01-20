@@ -37,7 +37,7 @@ def _create_config(overrides):
         'EXPERIMENT_TIME_START': '2020-01-01 00:00',
         'EXPERIMENT_TIME_END': '2020-01-02 00:00',
         'DOMAIN_DEFINITION_METHOD': 'lumped',
-        'DOMAIN_DISCRETIZATION': 'lumped',
+        'SUB_GRID_DISCRETIZATION': 'lumped',
         'HYDROLOGICAL_MODEL': 'SUMMA',
         'FORCING_DATASET': 'ERA5',
         # Add required SUMMA fields for config validation
@@ -117,7 +117,7 @@ class TestBaseModelPostProcessorInitialization:
             'EXPERIMENT_TIME_START': '2020-01-01 00:00',
             'EXPERIMENT_TIME_END': '2020-01-02 00:00',
             'DOMAIN_DEFINITION_METHOD': 'lumped',
-            'DOMAIN_DISCRETIZATION': 'lumped',
+            'SUB_GRID_DISCRETIZATION': 'lumped',
             'HYDROLOGICAL_MODEL': 'SUMMA',
             'FORCING_DATASET': 'ERA5',
             # Add required SUMMA fields for config validation

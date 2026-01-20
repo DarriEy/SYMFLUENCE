@@ -79,12 +79,12 @@ LOG_LEVEL: "INFO"
 #   Usage:      3
 LOG_TO_FILE: true
 
-# MPI_PROCESSES
+# NUM_PROCESSES
 #   Type:        int
 #   Default:     1
 #   Source:      SystemConfig (system.py)
 #   Usage:      20
-MPI_PROCESSES: 1
+NUM_PROCESSES: 1
 
 # RANDOM_SEED
 #   Type:        int
@@ -609,7 +609,134 @@ CALIBRATE_MIZUROUTE: false
 MIZUROUTE_TIMEOUT: 3600
 
 
-# 14. LSTM Emulator Configuration
+# 14. dRoute Configuration (EXPERIMENTAL)
+# ================================================================================
+# dRoute is a C++ river routing library with Python bindings that offers:
+# - Multiple routing methods (Muskingum-Cunge, IRF, Lag, Diffusive Wave, KWT)
+# - Native automatic differentiation for gradient-based calibration
+# - mizuRoute-compatible network topology format
+
+# DROUTE_EXECUTION_MODE
+#   Type:        Literal['python', 'subprocess']
+#   Default:     python
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Execution mode - python API (preferred) or subprocess fallback
+DROUTE_EXECUTION_MODE: "python"
+
+# DROUTE_INSTALL_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Path to dRoute installation directory
+DROUTE_INSTALL_PATH: "default"
+
+# DROUTE_EXE
+#   Type:        str
+#   Default:     droute
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: dRoute executable name
+DROUTE_EXE: "droute"
+
+# SETTINGS_DROUTE_PATH
+#   Type:        str
+#   Default:     default
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Path to dRoute settings directory
+SETTINGS_DROUTE_PATH: "default"
+
+# DROUTE_ROUTING_METHOD
+#   Type:        Literal['muskingum_cunge', 'irf', 'lag', 'diffusive_wave', 'kwt']
+#   Default:     muskingum_cunge
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Routing scheme to use
+DROUTE_ROUTING_METHOD: "muskingum_cunge"
+
+# DROUTE_ROUTING_DT
+#   Type:        int
+#   Default:     3600
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Routing timestep in seconds (60-86400)
+DROUTE_ROUTING_DT: 3600
+
+# DROUTE_ENABLE_GRADIENTS
+#   Type:        bool
+#   Default:     false
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Enable automatic differentiation for gradient-based calibration
+DROUTE_ENABLE_GRADIENTS: false
+
+# DROUTE_AD_BACKEND
+#   Type:        Literal['codipack', 'enzyme']
+#   Default:     codipack
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: AD backend (requires dRoute compiled with AD support)
+DROUTE_AD_BACKEND: "codipack"
+
+# DROUTE_TOPOLOGY_FILE
+#   Type:        str
+#   Default:     topology.nc
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Network topology filename
+DROUTE_TOPOLOGY_FILE: "topology.nc"
+
+# DROUTE_TOPOLOGY_FORMAT
+#   Type:        Literal['netcdf', 'geojson', 'csv']
+#   Default:     netcdf
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Format of topology file
+DROUTE_TOPOLOGY_FORMAT: "netcdf"
+
+# DROUTE_CONFIG_FILE
+#   Type:        str
+#   Default:     droute_config.yaml
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: dRoute configuration filename
+DROUTE_CONFIG_FILE: "droute_config.yaml"
+
+# DROUTE_FROM_MODEL
+#   Type:        str
+#   Default:     default
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Source model for runoff input (SUMMA, FUSE, GR, etc.)
+DROUTE_FROM_MODEL: "default"
+
+# EXPERIMENT_OUTPUT_DROUTE
+#   Type:        str
+#   Default:     default
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Path for dRoute experiment output
+EXPERIMENT_OUTPUT_DROUTE: "default"
+
+# EXPERIMENT_LOG_DROUTE
+#   Type:        str
+#   Default:     default
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Path for dRoute experiment logs
+EXPERIMENT_LOG_DROUTE: "default"
+
+# DROUTE_PARAMS_TO_CALIBRATE
+#   Type:        str
+#   Default:     velocity,diffusivity
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Comma-separated list of dRoute parameters to calibrate
+DROUTE_PARAMS_TO_CALIBRATE: "velocity,diffusivity"
+
+# CALIBRATE_DROUTE
+#   Type:        bool
+#   Default:     false
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Enable dRoute calibration
+CALIBRATE_DROUTE: false
+
+# DROUTE_TIMEOUT
+#   Type:        int
+#   Default:     3600
+#   Source:      DRouteConfig (model_configs.py)
+#   Description: Maximum execution time in seconds (60-86400)
+DROUTE_TIMEOUT: 3600
+
+
+# 15. LSTM Emulator Configuration
 # ================================================================================
 
 # LSTM_BATCH_SIZE
@@ -2262,19 +2389,37 @@ CALIBRATION_START_DATE: null
 #   Usage:      3
 CALIBRATION_END_DATE: null
 
-# DOMAIN_DEFINITION_METHOD
-#   Type:        Literal['lumped', 'discretized', 'distributed', 'subset', 'point', 'delineate'
+# DOMAIN_DEFINITION_METHOD - Spatial domain method (point/lumped/semidistributed/distributed)
+#   Legacy: delineate->semidistributed, distribute->distributed, subset/discretized->semidistributed
+#   Type:        Literal['point', 'lumped', 'semidistributed', 'distributed']
 #   Default:     None
 #   Source:      DomainConfig (domain.py)
-#   Usage:      75
 DOMAIN_DEFINITION_METHOD: "lumped"
 
-# DOMAIN_DISCRETIZATION
+# SUBSET_FROM_GEOFABRIC - Extract domain from existing geofabric (requires GEOFABRIC_TYPE)
+#   Type:        bool
+#   Default:     false
+#   Source:      DomainConfig (domain.py)
+SUBSET_FROM_GEOFABRIC: false
+
+# GRID_SOURCE - Grid creation method for distributed domain (generate/native)
+#   Type:        Literal['generate', 'native']
+#   Default:     generate
+#   Source:      DomainConfig (domain.py)
+GRID_SOURCE: "generate"
+
+# NATIVE_GRID_DATASET - Dataset identifier when GRID_SOURCE='native' (e.g., era5)
+#   Type:        str
+#   Default:     era5
+#   Source:      DomainConfig (domain.py)
+NATIVE_GRID_DATASET: "era5"
+
+# SUB_GRID_DISCRETIZATION
 #   Type:        str
 #   Default:     None
 #   Source:      DomainConfig (domain.py)
 #   Usage:      46
-DOMAIN_DISCRETIZATION: "elevation"
+SUB_GRID_DISCRETIZATION: "elevation"
 
 # DOMAIN_NAME
 #   Type:        str

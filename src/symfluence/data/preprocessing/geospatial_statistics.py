@@ -422,9 +422,7 @@ class GeospatialStatistics(ConfigurableMixin):
         self.paths = PathManager(config)
         self.project_dir = self.paths.project_dir
 
-        # Resolve paths using PathManager
-        self.catchment_path = self.paths.resolve('CATCHMENT_PATH', 'shapefiles/catchment')
-
+        # Resolve paths using PathManager with backward compatibility
         self.catchment_name = self._get_config_value(
             lambda: self.config.paths.catchment_name, default='default'
         )
@@ -433,6 +431,9 @@ class GeospatialStatistics(ConfigurableMixin):
                 lambda: self.config.domain.discretization, default=''
             )).replace(',', '_')
             self.catchment_name = f"{self.paths.domain_name}_HRUs_{discretization}.shp"
+
+        # Use backward-compatible catchment path resolution
+        self.catchment_path = self.paths.get_catchment_dir(self.catchment_name)
 
         dem_name = self._get_config_value(lambda: self.config.paths.dem_name, default='default')
         if dem_name == "default":

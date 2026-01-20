@@ -41,7 +41,7 @@ class TauDEMExecutor:
         self.config = config
         self.logger = logger
         self.taudem_dir = taudem_dir
-        self.mpi_processes = config.get('MPI_PROCESSES', 1)
+        self.num_processes = config.get('NUM_PROCESSES', 1)
         self.max_retries = config.get('MAX_RETRIES', 3)
         self.retry_delay = config.get('RETRY_DELAY', 5)
 
@@ -121,7 +121,7 @@ class TauDEMExecutor:
                         module_part = parts[0]
                         actual_cmd = parts[1]
                         if not has_mpi_prefix:
-                            full_command: Union[str, List[str]] = f"{module_part} && {run_cmd} -n {self.mpi_processes} {actual_cmd}"
+                            full_command: Union[str, List[str]] = f"{module_part} && {run_cmd} -n {self.num_processes} {actual_cmd}"
                         else:
                             full_command = command
                     else:
@@ -130,9 +130,9 @@ class TauDEMExecutor:
                     # Add MPI prefix for regular commands - use list format
                     # Use -x to export LD_LIBRARY_PATH to MPI child processes
                     if run_cmd == "mpirun":
-                        full_command = [run_cmd, "-x", "LD_LIBRARY_PATH", "-n", str(self.mpi_processes)] + shlex.split(command)
+                        full_command = [run_cmd, "-x", "LD_LIBRARY_PATH", "-n", str(self.num_processes)] + shlex.split(command)
                     else:
-                        full_command = [run_cmd, "-n", str(self.mpi_processes)] + shlex.split(command)
+                        full_command = [run_cmd, "-n", str(self.num_processes)] + shlex.split(command)
                 elif has_mpi_prefix:
                     # Command already has MPI prefix - parse with shlex
                     full_command = shlex.split(command)

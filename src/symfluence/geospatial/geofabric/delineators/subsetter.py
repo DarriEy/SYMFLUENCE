@@ -63,8 +63,11 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
         self.graph = RiverGraphProcessor()
 
     def _get_delineation_method_name(self) -> str:
-        """Return method name for output files."""
-        return f"subset_{self._get_config_value(lambda: self.config.domain.delineation.geofabric_type, dict_key='GEOFABRIC_TYPE')}"
+        """Return method name for output files.
+
+        Uses the new naming convention based on definition_method and subset_from_geofabric.
+        """
+        return self._get_method_suffix()
 
     def subset_geofabric(self) -> Tuple[Optional[gpd.GeoDataFrame], Optional[gpd.GeoDataFrame]]:
         """
@@ -167,6 +170,43 @@ class GeofabricSubsetter(BaseGeofabricDelineator):
             rivers_metric = rivers.to_crs('epsg:3763')
             rivers['Length'] = rivers_metric.geometry.length
             rivers.rename(columns={'slope': 'Slope'}, inplace=True)
+
+    def aggregate_to_lumped(
+        self,
+        basins: gpd.GeoDataFrame,
+        preserve_path: Path
+    ) -> gpd.GeoDataFrame:
+        """
+        Aggregate subset basins to single lumped polygon.
+
+        This method dissolves multiple subset basins into a single polygon,
+        preserving the original basins for use in remap files.
+
+        Args:
+            basins: Subset basins GeoDataFrame
+            preserve_path: Path to save original (unaggregated) basins
+
+        Returns:
+            GeoDataFrame with single dissolved polygon
+        """
+        # Save original basins for remap files
+        basins.to_file(preserve_path)
+        self.logger.info(f"Preserved original basins to: {preserve_path}")
+
+        # Dissolve to single polygon
+        dissolved = basins.dissolve()
+
+        # Set lumped attributes
+        dissolved = dissolved.reset_index(drop=True)
+        dissolved['GRU_ID'] = 1
+        dissolved['gru_to_seg'] = 1
+
+        # Calculate area in metric CRS
+        dissolved_metric = dissolved.to_crs('EPSG:3763')
+        dissolved['GRU_area'] = dissolved_metric.geometry.area.values[0]
+
+        self.logger.info(f"Aggregated {len(basins)} basins to single lumped polygon")
+        return dissolved
 
     def _get_output_paths(self) -> Tuple[Path, Path]:
         """
