@@ -69,7 +69,7 @@ def _get_model_config(structure: str) -> dict:
     structure_lower = structure.lower()
     if structure_lower in configs:
         return configs[structure_lower].to_dict()
-    return VIC_CONFIG.to_dict()
+    return PRMS_CONFIG.to_dict()  # Default to PRMS for better gradient support
 
 
 @ModelRegistry.register_runner('CFUSE', method_name='run_cfuse')
@@ -131,14 +131,15 @@ class CFUSERunner(BaseModelRunner, UnifiedModelExecutor):
         else:
             self.spatial_mode = configured_mode
 
-        # Model structure configuration
+        # Model structure configuration - default to prms for better gradient support
         self.model_structure = self._get_config_value(
             lambda: self.config.model.cfuse.model_structure if self.config.model and hasattr(self.config.model, 'cfuse') and self.config.model.cfuse else None,
-            'vic'
+            'prms'
         )
 
-        # Get model configuration dictionary
-        self.config_dict = _get_model_config(self.model_structure)
+        # Get model configuration dictionary (use _model_config to avoid conflict
+        # with the read-only config_dict property from ConfigMixin)
+        self._model_config = _get_model_config(self.model_structure)
 
         # Snow configuration
         self.enable_snow = self._get_config_value(
@@ -146,7 +147,7 @@ class CFUSERunner(BaseModelRunner, UnifiedModelExecutor):
             True
         )
         if self.enable_snow:
-            self.config_dict['enable_snow'] = True
+            self._model_config['enable_snow'] = True
 
         # Routing configuration
         self.enable_routing = self._get_config_value(
@@ -185,7 +186,7 @@ class CFUSERunner(BaseModelRunner, UnifiedModelExecutor):
         self._n_states = 10  # Default
         if HAS_CFUSE_CORE:
             try:
-                self._n_states = cfuse_core.get_num_active_states(self.config_dict)
+                self._n_states = cfuse_core.get_num_active_states(self._model_config)
             except Exception as e:
                 self.logger.debug(f"Could not get state count from cfuse_core, using default: {e}")
 
@@ -274,6 +275,10 @@ class CFUSERunner(BaseModelRunner, UnifiedModelExecutor):
         Returns:
             Path to output directory if successful, None otherwise.
         """
+        # Emit experimental warning on first use
+        from symfluence.models.cfuse import _warn_experimental
+        _warn_experimental()
+
         if not HAS_CFUSE_CORE:
             self.logger.error("cFUSE core not installed. Cannot run model.")
             return None
@@ -338,7 +343,7 @@ class CFUSERunner(BaseModelRunner, UnifiedModelExecutor):
                 initial_states,
                 forcing_array,
                 params_array,
-                self.config_dict,
+                self._model_config,
                 float(self.timestep_days)
             )
 
@@ -398,7 +403,7 @@ class CFUSERunner(BaseModelRunner, UnifiedModelExecutor):
                 initial_states,
                 forcing_array,
                 params_array,
-                self.config_dict,
+                self._model_config,
                 float(self.timestep_days)
             )
 
@@ -654,7 +659,7 @@ class CFUSERunner(BaseModelRunner, UnifiedModelExecutor):
                 initial_states,
                 forcing_array,
                 params_array,
-                self.config_dict,
+                self._model_config,
                 float(self.timestep_days)
             )
 

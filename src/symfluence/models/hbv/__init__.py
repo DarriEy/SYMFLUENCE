@@ -72,13 +72,21 @@ if _DISABLE_EXPERIMENTAL:
         "This experimental module is not yet stable. Remove the environment variable to enable."
     )
 
-# Emit runtime warning about experimental status
-warnings.warn(
-    "HBV is an EXPERIMENTAL module. The API may change without notice. "
-    "For production use, consider using SUMMA or FUSE instead.",
-    category=UserWarning,
-    stacklevel=2
-)
+# Deferred warning - only shown when module is actually used
+_EXPERIMENTAL_WARNING_SHOWN = False
+
+
+def _warn_experimental():
+    """Emit experimental warning on first actual use."""
+    global _EXPERIMENTAL_WARNING_SHOWN
+    if not _EXPERIMENTAL_WARNING_SHOWN:
+        warnings.warn(
+            "HBV is an EXPERIMENTAL module. The API may change without notice. "
+            "For production use, consider using SUMMA or FUSE instead.",
+            category=UserWarning,
+            stacklevel=3
+        )
+        _EXPERIMENTAL_WARNING_SHOWN = True
 
 # Register model components with ModelRegistry via imports
 from .config import HBVConfig, HBVConfigAdapter

@@ -171,9 +171,26 @@ class HYPEGeoDataManager:
         # Calculate centroids in projected CRS
         centroids = self._get_projected_centroids(cat)
 
+        # Calculate area from geometry using equal-area projection (more reliable than stored attributes)
+        # This addresses issues where stored area attributes may not match actual geometry
+        geometry_area_m2 = self._calculate_geometry_area(cat)
+
+        # Check for significant mismatch between stored and calculated area
+        if area_info['in_varname'] in cat.columns:
+            stored_area = cat[area_info['in_varname']].values * self.ureg(area_info['in_units']).to('m^2').magnitude
+            area_ratio = geometry_area_m2 / stored_area
+            if abs(area_ratio.mean() - 1.0) > 0.1:  # More than 10% difference
+                self.logger.warning(
+                    f"Significant area mismatch detected: stored area attribute differs from geometry by "
+                    f"{(area_ratio.mean() - 1.0) * 100:.1f}%. Using geometry-calculated area for accuracy."
+                )
+
+        # Convert to output units
+        area_values = geometry_area_m2 * self.ureg('m^2').to(area_info['out_units']).magnitude
+
         cat_props = pd.DataFrame({
             basin_id_col: cat[basin_id_col],
-            'area': cat[area_info['in_varname']].values * self.ureg(area_info['in_units']).to(area_info['out_units']).magnitude,
+            'area': area_values,
             'latitude': centroids.y,
             'longitude': centroids.x
         }).set_index(basin_id_col)
@@ -237,6 +254,48 @@ class HYPEGeoDataManager:
             return centroids_proj.to_crs(original_crs)
         else:
             return gdf.geometry.centroid
+
+    def _calculate_geometry_area(self, gdf: gpd.GeoDataFrame) -> np.ndarray:
+        """
+        Calculate area from geometry using an equal-area projection.
+
+        This method calculates the true geodetic area of each polygon by projecting
+        to an appropriate equal-area coordinate system. This is more reliable than
+        using stored area attributes, which may have been calculated incorrectly or
+        in a different CRS.
+
+        Args:
+            gdf: GeoDataFrame with polygon geometries
+
+        Returns:
+            numpy array of area values in square meters (m²)
+
+        Note:
+            Uses an Albers Equal Area projection centered on the data extent
+            for accurate area calculations regardless of input CRS.
+        """
+        if gdf.crs is None:
+            self.logger.warning("GeoDataFrame has no CRS, assuming EPSG:4326")
+            gdf = gdf.set_crs(epsg=4326)
+
+        # Get centroid of all geometries for projection center
+        bounds = gdf.total_bounds  # [minx, miny, maxx, maxy]
+        center_lon = (bounds[0] + bounds[2]) / 2
+        center_lat = (bounds[1] + bounds[3]) / 2
+
+        # Create Albers Equal Area projection centered on the data
+        # This ensures accurate area calculations regardless of location
+        aea_proj = f"+proj=aea +lat_1={bounds[1]} +lat_2={bounds[3]} +lat_0={center_lat} +lon_0={center_lon} +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
+
+        try:
+            gdf_projected = gdf.to_crs(aea_proj)
+            areas = gdf_projected.geometry.area.values
+        except Exception as e:
+            self.logger.warning(f"Equal-area projection failed ({e}), falling back to EPSG:3857")
+            gdf_projected = gdf.to_crs(epsg=3857)
+            areas = gdf_projected.geometry.area.values
+
+        return areas
 
     def _load_gis_stats(
         self,

@@ -137,8 +137,10 @@ class JFUSEParameterManager(BaseParameterManager):
 
         # Parse jFUSE parameters to calibrate from config
         jfuse_params_str = config.get('JFUSE_PARAMS_TO_CALIBRATE')
-        if jfuse_params_str is None:
-            jfuse_params_str = 'S1_max,S2_max,ku,ki,ks,n,v,Ac_max,T_melt,melt_rate'
+        # Handle None, empty string, or 'default' as signal to use default parameter list
+        if jfuse_params_str is None or jfuse_params_str == '' or jfuse_params_str == 'default':
+            # Default 14 parameters with non-zero gradients for prms_gradient config
+            jfuse_params_str = 'S1_max,S2_max,ku,ki,ks,n,Ac_max,b,f_rchr,T_rain,T_melt,MFMAX,MFMIN,smooth_frac'
 
         self.jfuse_params = [p.strip() for p in str(jfuse_params_str).split(',') if p.strip()]
 
@@ -150,6 +152,17 @@ class JFUSEParameterManager(BaseParameterManager):
         self.all_bounds = PARAM_BOUNDS.copy()
         self.defaults = DEFAULT_PARAMS.copy()
         self.calibration_params = self.jfuse_params
+
+        # Apply custom bounds from config if provided
+        custom_bounds = config.get('JFUSE_PARAM_BOUNDS', {})
+        if custom_bounds:
+            for param_name, bounds in custom_bounds.items():
+                if isinstance(bounds, (list, tuple)) and len(bounds) == 2:
+                    self.all_bounds[param_name] = (bounds[0], bounds[1])
+                    self.logger.info(f"Custom bounds for {param_name}: {bounds}")
+                elif isinstance(bounds, dict) and 'min' in bounds and 'max' in bounds:
+                    self.all_bounds[param_name] = (bounds['min'], bounds['max'])
+                    self.logger.info(f"Custom bounds for {param_name}: [{bounds['min']}, {bounds['max']}]")
 
     def _validate_params(self) -> None:
         """Validate that calibration parameters exist in bounds."""
@@ -169,11 +182,11 @@ class JFUSEParameterManager(BaseParameterManager):
         return self.jfuse_params
 
     def _load_parameter_bounds(self) -> Dict[str, Dict[str, float]]:
-        """Return jFUSE parameter bounds."""
+        """Return jFUSE parameter bounds (including custom bounds from config)."""
         return {
-            name: {'min': PARAM_BOUNDS[name][0], 'max': PARAM_BOUNDS[name][1]}
+            name: {'min': self.all_bounds[name][0], 'max': self.all_bounds[name][1]}
             for name in self.jfuse_params
-            if name in PARAM_BOUNDS
+            if name in self.all_bounds
         }
 
     def update_model_files(self, params: Dict[str, float]) -> bool:

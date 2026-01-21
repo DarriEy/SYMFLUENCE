@@ -223,6 +223,9 @@ class HBVWorker(BaseWorker):
             obs_file = project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{domain_name}_streamflow_processed.csv"
             if obs_file.exists():
                 obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
+                # Ensure the index is a proper DatetimeIndex (parse_dates may fail silently)
+                if not isinstance(obs_df.index, pd.DatetimeIndex):
+                    obs_df.index = pd.to_datetime(obs_df.index)
                 obs_cms = obs_df.iloc[:, 0]  # Observations in m³/s as Series
 
                 # Get catchment area for unit conversion

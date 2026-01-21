@@ -151,8 +151,10 @@ class CFUSEParameterManager(BaseParameterManager):
 
         # Parse cFUSE parameters to calibrate from config
         cfuse_params_str = config.get('CFUSE_PARAMS_TO_CALIBRATE')
-        if cfuse_params_str is None:
-            cfuse_params_str = 'S1_max,S2_max,ku,ki,ks,n,v,Ac_max,T_melt,melt_rate'
+        # Handle None, empty string, or 'default' as signal to use default parameter list
+        if cfuse_params_str is None or cfuse_params_str == '' or cfuse_params_str == 'default':
+            # Default 14 parameters aligned with jFUSE for consistency
+            cfuse_params_str = 'S1_max,S2_max,ku,ki,ks,n,Ac_max,b,f_rchr,T_rain,T_melt,MFMAX,MFMIN,smooth_frac'
 
         self.cfuse_params = [p.strip() for p in str(cfuse_params_str).split(',') if p.strip()]
 

@@ -566,6 +566,68 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
             self.logger.error(f"Error copying default to best parameters: {str(e)}")
 
 
+    def _update_filemanager_for_run(self) -> bool:
+        """
+        Update file manager with current experiment settings before running FUSE.
+
+        Ensures OUTPUT_PATH and FMODEL_ID match the current experiment configuration,
+        allowing the same preprocessed setup to be used for different experiment runs.
+
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        try:
+            fuse_fm = self.config_dict.get('SETTINGS_FUSE_FILEMANAGER', 'fm_catch.txt')
+            if fuse_fm == 'default':
+                fuse_fm = 'fm_catch.txt'
+            fm_path = self.project_dir / 'settings' / 'FUSE' / fuse_fm
+
+            if not fm_path.exists():
+                self.logger.warning(f"File manager not found: {fm_path}")
+                return False
+
+            # Read current file manager
+            with open(fm_path, 'r') as f:
+                lines = f.readlines()
+
+            # Get current settings
+            fuse_id = self.config_dict.get('FUSE_FILE_ID', self.experiment_id)
+            output_path = str(self.output_path) + '/'
+
+            # Find actual decisions file
+            settings_dir = self.project_dir / 'settings' / 'FUSE'
+            decisions_file = f"fuse_zDecisions_{fuse_id}.txt"
+            if not (settings_dir / decisions_file).exists():
+                # Find any decisions file
+                decisions = list(settings_dir.glob("fuse_zDecisions_*.txt"))
+                if decisions:
+                    decisions_file = decisions[0].name
+                    self.logger.debug(f"Using available decisions file: {decisions_file}")
+
+            # Update relevant lines
+            updated_lines = []
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith("'") and 'OUTPUT_PATH' in line:
+                    updated_lines.append(f"'{output_path}'       ! OUTPUT_PATH\n")
+                elif stripped.startswith("'") and 'FMODEL_ID' in line:
+                    updated_lines.append(f"'{fuse_id}'                            ! FMODEL_ID          = string defining FUSE model, only used to name output files\n")
+                elif stripped.startswith("'") and 'M_DECISIONS' in line:
+                    updated_lines.append(f"'{decisions_file}'        ! M_DECISIONS        = definition of model decisions\n")
+                else:
+                    updated_lines.append(line)
+
+            # Write updated file manager
+            with open(fm_path, 'w') as f:
+                f.writelines(updated_lines)
+
+            self.logger.debug(f"Updated file manager: OUTPUT_PATH={output_path}, FMODEL_ID={fuse_id}, M_DECISIONS={decisions_file}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Failed to update file manager: {e}")
+            return False
+
     def _execute_fuse(self, mode, para_file=None) -> bool:
         """
         Execute the FUSE model with specified run mode.
@@ -585,6 +647,9 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
         Returns:
             bool: True if execution was successful, False otherwise.
         """
+        # Update file manager with current experiment settings
+        self._update_filemanager_for_run()
+
         self.logger.debug("Executing FUSE model")
 
         # Construct command
@@ -671,24 +736,24 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
             # Run FUSE with default parameters
             success = self._execute_fuse('run_def')
 
-            # Check if external optimization is enabled
-            opt_methods = self.config_dict.get('OPTIMIZATION_METHODS', [])
-            if isinstance(opt_methods, str):
-                opt_methods = opt_methods.split(',')
+            # Check if FUSE internal calibration should run (independent of external optimization)
+            run_internal_calibration = self._get_config_value(
+                lambda: self.config.model.fuse.run_internal_calibration if self.config.model and self.config.model.fuse else None,
+                self.config_dict.get('FUSE_RUN_INTERNAL_CALIBRATION', True)
+            )
 
-            is_external_calibration = 'iteration' in [m.strip() for m in opt_methods]
-
-            if is_external_calibration:
-                self.logger.info("External optimization enabled - skipping FUSE internal calibration (calib_sce)")
-            else:
+            if run_internal_calibration:
                 try:
-                    # Run FUSE and calibrate with sce
+                    # Run FUSE internal SCE-UA calibration as benchmark
+                    self.logger.info("Running FUSE internal calibration (calib_sce) as benchmark")
                     success = self._execute_fuse('calib_sce')
 
-                    # Run FUSE with best parameters
+                    # Run FUSE with best parameters from internal calibration
                     success = self._execute_fuse('run_best')
                 except (subprocess.CalledProcessError, OSError, RuntimeError) as e:
                     self.logger.warning(f'FUSE internal calibration failed: {e}')
+            else:
+                self.logger.info("FUSE internal calibration disabled (FUSE_RUN_INTERNAL_CALIBRATION=false)")
 
             if success:
                 # Ensure the expected output file exists

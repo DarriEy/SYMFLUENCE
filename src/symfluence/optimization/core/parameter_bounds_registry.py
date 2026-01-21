@@ -200,37 +200,90 @@ class ParameterBoundsRegistry:
     # HYPE PARAMETERS
     # ========================================================================
     HYPE_PARAMS: Dict[str, ParameterInfo] = {
-        # Snow parameters
-        'ttmp': ParameterInfo(-3.0, 3.0, '°C', 'Snowmelt threshold temperature', 'snow'),
-        'cmlt': ParameterInfo(1.0, 15.0, 'mm/°C/day', 'Snowmelt degree-day coefficient', 'snow'),
-        'ttpi': ParameterInfo(0.5, 3.0, '°C', 'Temperature interval for mixed precipitation', 'snow'),
+        # ==== SNOW PARAMETERS ====
+        # Threshold temperature for snowmelt - critical for timing of spring melt
+        'ttmp': ParameterInfo(-5.0, 5.0, '°C', 'Snowmelt threshold temperature', 'snow'),
+        # Degree-day melt factor - controls snowmelt rate; expanded for alpine basins
+        'cmlt': ParameterInfo(0.5, 20.0, 'mm/°C/day', 'Snowmelt degree-day coefficient', 'snow'),
+        # Temperature interval for rain/snow partition
+        'ttpi': ParameterInfo(0.5, 4.0, '°C', 'Temperature interval for mixed precipitation', 'snow'),
+        # Snow refreeze capacity (fraction of melt factor)
         'cmrefr': ParameterInfo(0.0, 0.5, '-', 'Snow refreeze capacity', 'snow'),
+        # Fresh snow density - affects snow accumulation and SWE
+        'sdnsnew': ParameterInfo(0.05, 0.25, 'kg/dm³', 'Fresh snow density', 'snow'),
+        # Snow densification rate
+        'snowdensdt': ParameterInfo(0.0005, 0.005, '1/day', 'Snow densification parameter', 'snow'),
+        # Fractional snow cover efficiency for reducing melt/evap
+        'fsceff': ParameterInfo(0.5, 1.0, '-', 'Fractional snow cover efficiency', 'snow'),
 
-        # Evapotranspiration parameters
-        'cevp': ParameterInfo(0.1, 1.0, '-', 'Evaporation coefficient', 'et'),
+        # ==== EVAPOTRANSPIRATION PARAMETERS ====
+        # ET coefficient - CRITICAL: expanded to allow higher ET for water balance
+        'cevp': ParameterInfo(0.1, 2.0, '-', 'Evapotranspiration coefficient (expanded for alpine)', 'et'),
+        # Soil moisture threshold for ET reduction
         'lp': ParameterInfo(0.3, 1.0, '-', 'Threshold for ET reduction', 'et'),
-        'epotdist': ParameterInfo(1.0, 10.0, '-', 'PET depth dependency coefficient', 'et'),
+        # PET depth dependency - controls root water uptake distribution
+        'epotdist': ParameterInfo(1.0, 15.0, '-', 'PET depth dependency coefficient', 'et'),
+        # Fraction of PET used for snow sublimation - important in alpine/cold regions
+        'fepotsnow': ParameterInfo(0.0, 1.0, '-', 'Fraction of PET for snow sublimation', 'et'),
+        # Soil temperature threshold for transpiration
+        'ttrig': ParameterInfo(-5.0, 5.0, '°C', 'Soil temperature threshold for transpiration', 'et'),
+        # Soil temperature response function coefficients
+        'treda': ParameterInfo(0.5, 1.0, '-', 'Soil temp response coefficient A', 'et'),
+        'tredb': ParameterInfo(0.1, 0.8, '-', 'Soil temp response coefficient B', 'et'),
 
-        # Soil hydraulic parameters
-        'rrcs1': ParameterInfo(0.01, 1.0, '1/day', 'Recession coefficient upper layer', 'soil'),
-        'rrcs2': ParameterInfo(0.001, 0.5, '1/day', 'Recession coefficient lower layer', 'soil'),
-        'rrcs3': ParameterInfo(0.0, 0.2, '1/°', 'Recession slope dependence', 'soil'),
+        # ==== SOIL HYDRAULIC PARAMETERS ====
+        # Recession coefficient upper soil layer - controls fast response
+        'rrcs1': ParameterInfo(0.001, 1.0, '1/day', 'Recession coefficient upper layer', 'soil'),
+        # Recession coefficient lower soil layer - controls slow response
+        'rrcs2': ParameterInfo(0.0001, 0.5, '1/day', 'Recession coefficient lower layer', 'soil'),
+        # Recession slope dependence
+        'rrcs3': ParameterInfo(0.0, 0.3, '1/°', 'Recession slope dependence', 'soil'),
+        # Wilting point - minimum soil water content for ET
         'wcwp': ParameterInfo(0.01, 0.3, '-', 'Wilting point water content', 'soil'),
-        'wcfc': ParameterInfo(0.1, 0.5, '-', 'Field capacity', 'soil'),
-        'wcep': ParameterInfo(0.1, 0.6, '-', 'Effective porosity', 'soil'),
+        # Field capacity - soil water holding capacity
+        'wcfc': ParameterInfo(0.1, 0.6, '-', 'Field capacity', 'soil'),
+        # Effective porosity - maximum soil water storage
+        'wcep': ParameterInfo(0.2, 0.7, '-', 'Effective porosity', 'soil'),
+        # Surface runoff coefficient
         'srrcs': ParameterInfo(0.0, 0.5, '1/day', 'Surface runoff coefficient', 'soil'),
+        # Frozen soil infiltration parameter
+        'bfroznsoil': ParameterInfo(1.0, 10.0, '-', 'Frozen soil infiltration parameter', 'soil'),
+        # Saturated matric potential (log scale)
+        'logsatmp': ParameterInfo(0.5, 3.0, 'log(cm)', 'Saturated matric potential', 'soil'),
+        # Cosby B parameter for soil water retention
+        'bcosby': ParameterInfo(4.0, 15.0, '-', 'Cosby B parameter', 'soil'),
+        # Frost depth parameter
+        'sfrost': ParameterInfo(0.5, 3.0, 'cm/°C', 'Frost depth parameter', 'soil'),
 
-        # Groundwater parameters
-        'rcgrw': ParameterInfo(0.0001, 0.5, '1/day', 'Regional groundwater recession coefficient', 'baseflow'),
+        # ==== GROUNDWATER PARAMETERS ====
+        # Regional GW recession - CRITICAL for baseflow and water balance
+        'rcgrw': ParameterInfo(0.00001, 1.0, '1/day', 'Regional groundwater recession coefficient', 'baseflow'),
+        # Deep groundwater loss coefficient (if model supports it)
+        'deepperc': ParameterInfo(0.0, 0.5, 'mm/day', 'Deep percolation loss rate', 'baseflow'),
 
-        # Routing parameters
-        'rivvel': ParameterInfo(0.5, 20.0, 'm/s', 'River flow velocity', 'routing'),
+        # ==== SOIL TEMPERATURE PARAMETERS ====
+        # Deep soil temperature memory
+        'deepmem': ParameterInfo(100.0, 2000.0, 'days', 'Deep soil temperature memory', 'soil'),
+        # Upper soil temperature memory
+        'surfmem': ParameterInfo(5.0, 50.0, 'days', 'Upper soil temperature memory', 'soil'),
+        # Depth relation for soil temp memory
+        'depthrel': ParameterInfo(0.5, 3.0, '-', 'Depth relation for soil temperature', 'soil'),
+
+        # ==== ROUTING PARAMETERS ====
+        # River flow velocity
+        'rivvel': ParameterInfo(0.2, 30.0, 'm/s', 'River flow velocity', 'routing'),
+        # River damping fraction
         'damp': ParameterInfo(0.0, 1.0, '-', 'River damping fraction', 'routing'),
-        'qmean': ParameterInfo(50.0, 500.0, 'mm/yr', 'Initial mean flow', 'routing'),
+        # Initial mean flow estimate
+        'qmean': ParameterInfo(10.0, 1000.0, 'mm/yr', 'Initial mean flow', 'routing'),
 
-        # Lake parameters
-        'ilratk': ParameterInfo(0.1, 500.0, '-', 'Internal lake rating curve coefficient', 'routing'),
+        # ==== LAKE PARAMETERS ====
+        # Internal lake rating curve coefficient
+        'ilratk': ParameterInfo(0.1, 1000.0, '-', 'Internal lake rating curve coefficient', 'routing'),
+        # Internal lake rating curve exponent
         'ilratp': ParameterInfo(1.0, 10.0, '-', 'Internal lake rating curve exponent', 'routing'),
+        # Internal lake depth
+        'illdepth': ParameterInfo(0.1, 2.0, 'm', 'Internal lake depth', 'routing'),
     }
 
     # ========================================================================
@@ -548,12 +601,21 @@ def get_hype_bounds() -> Dict[str, Dict[str, float]]:
         Dictionary mapping HYPE param_name -> {'min': float, 'max': float}
     """
     hype_params = [
-        'ttmp', 'cmlt', 'ttpi', 'cmrefr',  # Snow
-        'cevp', 'lp', 'epotdist',  # ET
-        'rrcs1', 'rrcs2', 'rrcs3', 'wcwp', 'wcfc', 'wcep', 'srrcs',  # Soil
-        'rcgrw',  # Groundwater
-        'rivvel', 'damp', 'qmean',  # Routing
-        'ilratk', 'ilratp',  # Lakes
+        # Snow parameters
+        'ttmp', 'cmlt', 'ttpi', 'cmrefr', 'sdnsnew', 'snowdensdt', 'fsceff',
+        # Evapotranspiration parameters
+        'cevp', 'lp', 'epotdist', 'fepotsnow', 'ttrig', 'treda', 'tredb',
+        # Soil hydraulic parameters
+        'rrcs1', 'rrcs2', 'rrcs3', 'wcwp', 'wcfc', 'wcep', 'srrcs',
+        'bfroznsoil', 'logsatmp', 'bcosby', 'sfrost',
+        # Groundwater parameters
+        'rcgrw', 'deepperc',
+        # Soil temperature parameters
+        'deepmem', 'surfmem', 'depthrel',
+        # Routing parameters
+        'rivvel', 'damp', 'qmean',
+        # Lake parameters
+        'ilratk', 'ilratp', 'illdepth',
     ]
     return get_registry().get_bounds_for_params(hype_params)
 

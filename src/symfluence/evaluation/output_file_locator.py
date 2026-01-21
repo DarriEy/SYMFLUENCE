@@ -71,6 +71,14 @@ class OutputFileLocator:
         'mizuRoute': {
             'patterns': ['mizuRoute/*.nc', '*.h.*.nc', 'mizuRoute/**/*.nc'],
         },
+        'JFUSE': {
+            'streamflow': [],
+            'patterns': ['*_jfuse_output.nc', '*_jfuse_output.csv'],
+        },
+        'CFUSE': {
+            'streamflow': [],
+            'patterns': ['*_cfuse_output.nc', '*_cfuse_output.csv'],
+        },
     }
 
     def __init__(self, logger: Optional[logging.Logger] = None):

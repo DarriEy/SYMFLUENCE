@@ -77,24 +77,69 @@ class FUSEWorker(BaseWorker):
         **kwargs
     ) -> bool:
         """
-        Apply parameters to FUSE constraints file.
+        Apply parameters to FUSE para_def.nc file directly.
 
-        FUSE's run_def mode regenerates para_def.nc from the constraints file,
-        so we must modify the constraints file to change parameter values.
-
-        FUSE uses Fortran fixed-width format: (L1,1X,I1,1X,3(F9.3,1X),...)
-        The default value column starts at position 4 and is exactly 9 characters.
+        FUSE's run_def mode reads parameters from para_def.nc, so we must
+        update this file directly for calibration to work. We also update
+        the constraints file for consistency.
 
         Args:
             params: Parameter values to apply
             settings_dir: FUSE settings directory
-            **kwargs: Must include 'config' for path resolution
+            **kwargs: Must include 'config' and 'sim_dir' for path resolution
 
         Returns:
             True if successful
         """
+
         try:
-            kwargs.get('config', self.config)
+            config = kwargs.get('config', self.config)
+            _sim_dir = kwargs.get('sim_dir')  # noqa: F841
+
+            # Log parameters being applied at DEBUG level to reduce spam
+            self.logger.debug(f"APPLY_PARAMS: Applying {len(params)} parameters to {settings_dir}")
+            for p, v in list(params.items())[:5]:  # Log first 5 params
+                self.logger.debug(f"  PARAM: {p} = {v:.4f}")
+
+            # =====================================================================
+            # CRITICAL: Update para_def.nc directly for run_def mode
+            # FUSE reads parameters from para_def.nc, not from constraints file
+            # =====================================================================
+
+            # Determine para_def.nc location
+            domain_name = config.get('DOMAIN_NAME')
+            experiment_id = config.get('EXPERIMENT_ID', 'run_1')
+            fuse_id = config.get('FUSE_FILE_ID', experiment_id)
+
+            # para_def.nc is in the SETTINGS directory, not the simulation output directory
+            # Check for FUSE subdirectory (common in parallel setup)
+            if (settings_dir / 'FUSE').exists():
+                fuse_settings_for_para = settings_dir / 'FUSE'
+            else:
+                fuse_settings_for_para = settings_dir
+
+            para_def_path = fuse_settings_for_para / f"{domain_name}_{fuse_id}_para_def.nc"
+
+            # Fallback to project-level path if not found in settings
+            if not para_def_path.exists():
+                data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+                project_dir = data_dir / f"domain_{domain_name}"
+                para_def_path = project_dir / 'simulations' / experiment_id / 'FUSE' / f"{domain_name}_{fuse_id}_para_def.nc"
+
+            if para_def_path.exists():
+                # Update para_def.nc directly
+                params_updated_nc = self._update_para_def_nc(para_def_path, params)
+                if params_updated_nc:
+                    self.logger.debug(f"APPLY_PARAMS: Updated {len(params_updated_nc)} params in {para_def_path.name}")
+                else:
+                    self.logger.warning(f"APPLY_PARAMS: No params updated in {para_def_path.name}")
+            else:
+                self.logger.warning(f"APPLY_PARAMS: para_def.nc not found at {para_def_path}, will try constraints file")
+
+            # =====================================================================
+            # Also update constraints file for consistency (and for FUSE modes that
+            # regenerate para_def.nc from constraints)
+            # =====================================================================
 
             # Check for FUSE subdirectory (common in parallel setup)
             if (settings_dir / 'FUSE').exists():
@@ -105,15 +150,85 @@ class FUSEWorker(BaseWorker):
             # Find the constraints file in settings_dir
             constraints_file = fuse_settings_dir / 'fuse_zConstraints_snow.txt'
 
-            # Log parameters being applied at DEBUG level to reduce spam
-            self.logger.debug(f"APPLY_PARAMS: Applying {len(params)} parameters to {constraints_file}")
-            for p, v in list(params.items())[:5]:  # Log first 5 params
-                self.logger.debug(f"  PARAM: {p} = {v:.4f}")
+            if constraints_file.exists():
+                params_updated_txt = self._update_constraints_file(constraints_file, params)
+                if params_updated_txt:
+                    self.logger.debug(f"APPLY_PARAMS: Updated {len(params_updated_txt)} params in constraints file")
 
-            if not constraints_file.exists():
-                self.logger.error(f"FUSE constraints file not found: {constraints_file}")
-                return False
+            return True
 
+        except Exception as e:
+            self.logger.error(f"Error applying FUSE parameters: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return False
+
+    def _update_para_def_nc(self, para_def_path: Path, params: Dict[str, float]) -> set:
+        """
+        Update FUSE para_def.nc file with new parameter values.
+
+        Args:
+            para_def_path: Path to para_def.nc file
+            params: Parameter values to apply
+
+        Returns:
+            Set of parameter names that were updated
+        """
+        import netCDF4 as nc
+
+        params_updated = set()
+
+        try:
+            with nc.Dataset(para_def_path, 'r+') as ds:
+                # Verify the file structure
+                if 'par' not in ds.dimensions:
+                    self.logger.error(f"Missing 'par' dimension in {para_def_path}")
+                    return params_updated
+
+                par_size = ds.dimensions['par'].size
+                if par_size == 0:
+                    self.logger.error(f"Empty 'par' dimension in {para_def_path}")
+                    return params_updated
+
+                for param_name, value in params.items():
+                    if param_name in ds.variables:
+                        try:
+                            # Always use index 0 for single parameter set
+                            before = float(ds.variables[param_name][0])
+                            ds.variables[param_name][0] = float(value)
+                            after = float(ds.variables[param_name][0])
+                            self.logger.debug(f"  NC: {param_name}: {before:.4f} -> {after:.4f}")
+                            params_updated.add(param_name)
+                        except Exception as e:
+                            self.logger.warning(f"Error updating {param_name} in NetCDF: {e}")
+                    else:
+                        self.logger.debug(f"  NC: {param_name} not in file (may be structure param)")
+
+                # Force sync to disk
+                ds.sync()
+
+        except Exception as e:
+            self.logger.error(f"Error updating {para_def_path}: {e}")
+
+        return params_updated
+
+    def _update_constraints_file(self, constraints_file: Path, params: Dict[str, float]) -> set:
+        """
+        Update FUSE constraints file with new parameter default values.
+
+        FUSE uses Fortran fixed-width format: (L1,1X,I1,1X,3(F9.3,1X),...)
+        The default value column starts at position 4 and is exactly 9 characters.
+
+        Args:
+            constraints_file: Path to constraints file
+            params: Parameter values to apply
+
+        Returns:
+            Set of parameter names that were updated
+        """
+        params_updated = set()
+
+        try:
             # Read the constraints file
             with open(constraints_file, 'r') as f:
                 lines = f.readlines()
@@ -124,7 +239,6 @@ class FUSEWorker(BaseWorker):
             DEFAULT_VALUE_WIDTH = 9
 
             updated_lines = []
-            params_updated = set()
 
             for line in lines:
                 # Skip header line (starts with '(') and comment lines
@@ -138,10 +252,9 @@ class FUSEWorker(BaseWorker):
                 for param_name, value in params.items():
                     # Match exact parameter name (avoid partial matches)
                     parts = line.split()
-                    if len(parts) >= 13 and param_name in parts:
-                        # Verify this is the parameter we want (check parameter name column)
-                        param_col_idx = 13  # Parameter name is typically at index 13 in parts
-                        if parts[param_col_idx] == param_name or param_name in parts:
+                    if len(parts) >= 14 and param_name in parts:
+                        # Parameter name is at index 13 in parts
+                        if parts[13] == param_name:
                             # Format value to exactly 9 characters (F9.3 format)
                             new_value = f"{value:9.3f}"
 
@@ -165,21 +278,10 @@ class FUSEWorker(BaseWorker):
             with open(constraints_file, 'w') as f:
                 f.writelines(updated_lines)
 
-            # Log which parameters were updated at DEBUG level to reduce spam
-            if params_updated:
-                self.logger.debug(f"APPLY_PARAMS: Successfully updated {len(params_updated)} params: {params_updated}")
-            else:
-                self.logger.warning("APPLY_PARAMS: NO parameters were updated!")
-
-            missing = set(params.keys()) - params_updated
-            if missing:
-                self.logger.warning(f"APPLY_PARAMS: Parameters not found in constraints file: {missing}")
-
-            return True
-
         except Exception as e:
-            self.logger.error(f"Error applying FUSE parameters: {e}")
-            return False
+            self.logger.warning(f"Error updating constraints file: {e}")
+
+        return params_updated
 
     def run_model(
         self,
@@ -274,17 +376,18 @@ class FUSEWorker(BaseWorker):
 
             # Add decisions file to the list
             # Try to find the specific decisions file for this experiment
-            decisions_file_name = f"fuse_zDecisions_{experiment_id}.txt"
-            if (project_settings_dir / decisions_file_name).exists():
-                config_files.append(decisions_file_name)
+            actual_decisions_file = f"fuse_zDecisions_{experiment_id}.txt"
+            if (project_settings_dir / actual_decisions_file).exists():
+                config_files.append(actual_decisions_file)
             else:
-                self.logger.warning(f"Decisions file {decisions_file_name} not found in {project_settings_dir}")
+                self.logger.warning(f"Decisions file {actual_decisions_file} not found in {project_settings_dir}")
                 # Fallback: find any decisions file
                 try:
                     decisions = list(project_settings_dir.glob("fuse_zDecisions_*.txt"))
                     if decisions:
-                        config_files.append(decisions[0].name)
-                        self.logger.warning(f"Using fallback decisions file: {decisions[0].name}")
+                        actual_decisions_file = decisions[0].name
+                        config_files.append(actual_decisions_file)
+                        self.logger.warning(f"Using fallback decisions file: {actual_decisions_file}")
                 except Exception as e:
                     self.logger.warning(f"Error searching for decisions files: {e}")
 
@@ -310,9 +413,10 @@ class FUSEWorker(BaseWorker):
                     except Exception as e:
                         self.logger.warning(f"Failed to create symlink {link_path}: {e}")
 
-            # Pass use_local_input=True to _update_file_manager
+            # Pass use_local_input=True and actual decisions file to _update_file_manager
             if not self._update_file_manager(filemanager_path, execution_cwd, fuse_output_dir,
-                                          config=config, use_local_input=True):
+                                          config=config, use_local_input=True,
+                                          decisions_file=actual_decisions_file):
                 return False
 
             # List files in execution directory at DEBUG level to reduce spam
@@ -453,7 +557,7 @@ class FUSEWorker(BaseWorker):
 
     def _update_file_manager(self, filemanager_path: Path, settings_dir: Path, output_dir: Path,
                               experiment_id: str = None, config: Dict[str, Any] = None,
-                              use_local_input: bool = False) -> bool:
+                              use_local_input: bool = False, decisions_file: str = None) -> bool:
         """
         Update FUSE file manager with isolated paths for parallel execution.
 
@@ -464,6 +568,7 @@ class FUSEWorker(BaseWorker):
             experiment_id: Experiment ID to use for FMODEL_ID and decisions file
             config: Configuration dictionary
             use_local_input: If True, set INPUT_PATH to ./ and expect files to be symlinked
+            decisions_file: Actual decisions filename to use (if known from pre-check)
 
         Returns:
             True if successful
@@ -601,16 +706,18 @@ class FUSEWorker(BaseWorker):
                 elif stripped.startswith("'") and 'OUTPUT_PATH' in line:
                     updated_lines.append(f"'{output_path_str}'       ! OUTPUT_PATH\n")
                 elif stripped.startswith("'") and 'M_DECISIONS' in line:
-                    # Update decisions file to match experiment_id
-                    decisions_file = f"fuse_zDecisions_{experiment_id}.txt"
-                    # Check if file exists, if not use what's available
-                    if not (execution_cwd / decisions_file).exists():
-                        # Find any decisions file
-                        decisions_files = list(execution_cwd.glob('fuse_zDecisions_*.txt'))
-                        if decisions_files:
-                            decisions_file = decisions_files[0].name
-                            self.logger.debug(f"Using available decisions file: {decisions_file}")
-                    updated_lines.append(f"'{decisions_file}'        ! M_DECISIONS        = definition of model decisions\n")
+                    # Use the passed decisions_file if provided, otherwise try to find one
+                    actual_decisions = decisions_file
+                    if not actual_decisions:
+                        actual_decisions = f"fuse_zDecisions_{experiment_id}.txt"
+                        # Check if file exists, if not use what's available
+                        if not (execution_cwd / actual_decisions).exists():
+                            # Find any decisions file
+                            found_files = list(execution_cwd.glob('fuse_zDecisions_*.txt'))
+                            if found_files:
+                                actual_decisions = found_files[0].name
+                                self.logger.debug(f"Using available decisions file: {actual_decisions}")
+                    updated_lines.append(f"'{actual_decisions}'        ! M_DECISIONS        = definition of model decisions\n")
                 elif stripped.startswith("'") and 'FMODEL_ID' in line:
                     # Update FMODEL_ID to match fuse_id (used in output filename)
                     updated_lines.append(f"'{fuse_id}'                            ! FMODEL_ID          = string defining FUSE model, only used to name output files\n")
@@ -678,6 +785,16 @@ class FUSEWorker(BaseWorker):
 
             # Read observations
             df_obs = pd.read_csv(obs_file_path, index_col='datetime', parse_dates=True, dayfirst=True)
+
+            # Ensure DatetimeIndex for resampling (fallback if parse_dates failed)
+            if not isinstance(df_obs.index, pd.DatetimeIndex):
+                try:
+                    df_obs.index = pd.to_datetime(df_obs.index)
+                    self.logger.debug("Converted observation index to DatetimeIndex")
+                except Exception as e:
+                    self.logger.error(f"Failed to convert observation time index to DatetimeIndex: {e}")
+                    return {'kge': self.penalty_score}
+
             observed_streamflow = df_obs['discharge_cms'].resample('D').mean()
 
             # Check if routing was used - prioritize routed output over direct FUSE output
@@ -752,7 +869,8 @@ class FUSEWorker(BaseWorker):
                 self.logger.debug("Using FUSE output for metrics calculation")
 
             # Read simulations
-            with xr.open_dataset(sim_file_path, decode_timedelta=True) as ds:
+            # Explicitly decode times to ensure proper DatetimeIndex conversion
+            with xr.open_dataset(sim_file_path, decode_times=True, decode_timedelta=True) as ds:
                 if use_routed_output:
                     # mizuRoute output is already in m³/s
                     if 'IRFroutedRunoff' in ds.variables:
@@ -764,6 +882,10 @@ class FUSEWorker(BaseWorker):
                         return {'kge': self.penalty_score}
 
                     simulated_streamflow = simulated.to_pandas()
+
+                    # Ensure DatetimeIndex for resampling (fallback if xarray decoding failed)
+                    if not isinstance(simulated_streamflow.index, pd.DatetimeIndex):
+                        simulated_streamflow.index = pd.to_datetime(simulated_streamflow.index)
 
                     # mizuRoute output is already in m³/s, no conversion needed
                     # Just resample to daily if needed
@@ -817,6 +939,15 @@ class FUSEWorker(BaseWorker):
                         # Convert FUSE output from mm/day to cms
                         # Q(cms) = Q(mm/day) * Area(km2) / 86.4
                         simulated_streamflow = simulated_streamflow * area_km2 / UnitConversion.MM_DAY_TO_CMS
+
+            # Ensure simulated_streamflow has a DatetimeIndex (fallback if xarray decoding failed)
+            if not isinstance(simulated_streamflow.index, pd.DatetimeIndex):
+                try:
+                    simulated_streamflow.index = pd.to_datetime(simulated_streamflow.index)
+                    self.logger.debug("Converted simulated streamflow index to DatetimeIndex")
+                except Exception as e:
+                    self.logger.error(f"Failed to convert time index to DatetimeIndex: {e}")
+                    return {'kge': self.penalty_score}
 
             # Align time series
             common_index = observed_streamflow.index.intersection(simulated_streamflow.index)

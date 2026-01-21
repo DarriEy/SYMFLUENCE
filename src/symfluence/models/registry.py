@@ -248,23 +248,43 @@ class ModelRegistry:
 
     @classmethod
     def get_preprocessor(cls, model_name):
-        return cls._preprocessors.get(model_name)
+        # Try exact match first, then uppercase for case-insensitive lookup
+        result = cls._preprocessors.get(model_name)
+        if result is None:
+            result = cls._preprocessors.get(model_name.upper())
+        return result
 
     @classmethod
     def get_runner(cls, model_name):
-        return cls._runners.get(model_name)
+        # Try exact match first, then uppercase for case-insensitive lookup
+        result = cls._runners.get(model_name)
+        if result is None:
+            result = cls._runners.get(model_name.upper())
+        return result
 
     @classmethod
     def get_postprocessor(cls, model_name):
-        return cls._postprocessors.get(model_name)
+        # Try exact match first, then uppercase for case-insensitive lookup
+        result = cls._postprocessors.get(model_name)
+        if result is None:
+            result = cls._postprocessors.get(model_name.upper())
+        return result
 
     @classmethod
     def get_visualizer(cls, model_name):
-        return cls._visualizers.get(model_name)
+        # Try exact match first, then uppercase for case-insensitive lookup
+        result = cls._visualizers.get(model_name)
+        if result is None:
+            result = cls._visualizers.get(model_name.upper())
+        return result
 
     @classmethod
     def get_runner_method(cls, model_name):
-        return cls._runner_methods.get(model_name, "run")
+        # Try exact match first, then uppercase for case-insensitive lookup
+        result = cls._runner_methods.get(model_name)
+        if result is None:
+            result = cls._runner_methods.get(model_name.upper())
+        return result if result is not None else "run"
 
     @classmethod
     def list_models(cls):

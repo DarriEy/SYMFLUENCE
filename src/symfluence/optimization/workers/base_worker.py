@@ -922,14 +922,16 @@ class BaseWorker(ABC):
             WorkerResult from evaluation
         """
         # Step 1: Apply parameters
-        # Note: proc_output_dir must be passed explicitly because it's excluded
-        # from additional_data (since it's a primary field in WorkerTask)
+        # Note: proc_output_dir, sim_dir, proc_id must be passed explicitly because
+        # they're excluded from additional_data (since they're primary fields in WorkerTask)
         if not self.apply_parameters(
             task.params,
             task.settings_dir,
             config=task.config,
             proc_output_dir=task.output_dir,
             output_dir=task.output_dir,
+            sim_dir=task.sim_dir,
+            proc_id=task.proc_id,
             **task.additional_data
         ):
             return WorkerResult.failure(

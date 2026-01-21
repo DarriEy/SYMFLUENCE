@@ -326,6 +326,10 @@ class HYPEWorker(BaseWorker):
 
             obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True, dayfirst=True)
 
+            # Ensure the index is a proper DatetimeIndex (parse_dates may fail silently)
+            if not isinstance(obs_df.index, pd.DatetimeIndex):
+                obs_df.index = pd.to_datetime(obs_df.index)
+
             # HYPE outputs daily data, observations may be hourly
             # Resample observations to daily mean if they are sub-daily
             obs_freq = pd.infer_freq(obs_df.index[:10])
@@ -360,12 +364,21 @@ class HYPEWorker(BaseWorker):
                 )
                 return {'kge': self.penalty_score, 'error': 'No common dates between sim and obs'}
 
-            self.logger.info(f"Calculating metrics using {len(common_idx)} common timesteps")
+            self.logger.debug(f"Calculating metrics using {len(common_idx)} common timesteps")
 
             # Get the discharge column from observations
             obs_col = obs_daily.columns[0] if len(obs_daily.columns) > 0 else 'discharge_cms'
             obs_aligned = obs_daily.loc[common_idx, obs_col].values.flatten() if obs_col in obs_daily.columns else obs_daily.loc[common_idx].values.flatten()
             sim_aligned = sim_series.loc[common_idx].values.flatten()
+
+            # Log diagnostic statistics for debugging bias issues
+            mean_obs = float(obs_aligned[~pd.isna(obs_aligned)].mean()) if len(obs_aligned) > 0 else 0.0
+            mean_sim = float(sim_aligned[~pd.isna(sim_aligned)].mean()) if len(sim_aligned) > 0 else 0.0
+            self.logger.debug(
+                f"Calibration diagnostics | mean_obs: {mean_obs:.3f} m³/s | mean_sim: {mean_sim:.3f} m³/s | "
+                f"bias_ratio: {mean_sim/mean_obs:.3f}" if mean_obs != 0 else
+                f"Calibration diagnostics | mean_obs: {mean_obs:.3f} m³/s | mean_sim: {mean_sim:.3f} m³/s | bias_ratio: N/A"
+            )
 
             # Check for NaN values in aligned data
             obs_nan_count = pd.isna(obs_aligned).sum()

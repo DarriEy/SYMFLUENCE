@@ -84,6 +84,7 @@ class FUSEConfig(BaseModel):
     file_id: Optional[str] = Field(default=None, alias='FUSE_FILE_ID')
     n_elevation_bands: int = Field(default=1, alias='FUSE_N_ELEVATION_BANDS', ge=1)
     timeout: int = Field(default=3600, alias='FUSE_TIMEOUT', ge=60, le=86400)  # seconds (1min to 24hr)
+    run_internal_calibration: bool = Field(default=True, alias='FUSE_RUN_INTERNAL_CALIBRATION')
 
 
 class GRConfig(BaseModel):

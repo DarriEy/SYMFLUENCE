@@ -222,6 +222,8 @@ ALIAS_MAP = {
     # Legacy CONFLUENCE naming (backwards compatibility)
     "CONFLUENCE_DATA_DIR": "SYMFLUENCE_DATA_DIR",
     "CONFLUENCE_CODE_DIR": "SYMFLUENCE_CODE_DIR",
+    # Legacy domain discretization naming
+    "DOMAIN_DISCRETIZATION": "SUB_GRID_DISCRETIZATION",
 }
 
 

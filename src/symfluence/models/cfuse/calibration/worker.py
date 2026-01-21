@@ -76,7 +76,7 @@ def _get_model_config(structure: str) -> dict:
     structure_lower = structure.lower()
     if structure_lower in configs:
         return configs[structure_lower].to_dict()
-    return VIC_CONFIG.to_dict()  # Default
+    return PRMS_CONFIG.to_dict()  # Default to PRMS for better gradient support
 
 
 @OptimizerRegistry.register_worker('CFUSE')
@@ -116,7 +116,7 @@ class CFUSEWorker(BaseWorker):
             self.logger.warning("PyTorch not installed. Gradient computation will be unavailable.")
 
         # Model configuration
-        self.model_structure = self.config.get('CFUSE_MODEL_STRUCTURE', 'vic')
+        self.model_structure = self.config.get('CFUSE_MODEL_STRUCTURE', 'prms')
         self.enable_snow = self.config.get('CFUSE_ENABLE_SNOW', True)
         self.warmup_days = int(self.config.get('CFUSE_WARMUP_DAYS', 365))
         self.spatial_mode = self.config.get('CFUSE_SPATIAL_MODE', 'lumped')
@@ -151,6 +151,7 @@ class CFUSEWorker(BaseWorker):
         # Cache for simulation results
         self._last_params = None
         self._last_runoff = None
+        self._cached_catchment_area = None  # Cache for unit conversion
 
         # Get number of states from core if available
         if HAS_CFUSE_CORE:
@@ -335,9 +336,10 @@ class CFUSEWorker(BaseWorker):
             if forcing_dir.exists():
                 return forcing_dir
 
-        root_path = Path(self.config.get('ROOT_PATH', '.'))
+        # Fall back to config-based path using SYMFLUENCE_DATA_DIR
+        data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', self.config.get('ROOT_PATH', '.')))
         domain_name = self.config.get('DOMAIN_NAME', 'domain')
-        return root_path / domain_name / 'forcing' / 'CFUSE_input'
+        return data_dir / f"domain_{domain_name}" / 'forcing' / 'CFUSE_input'
 
     def _params_to_array(self, params: Dict[str, float]) -> np.ndarray:
         """Convert parameter dict to array in correct order."""
@@ -447,9 +449,12 @@ class CFUSEWorker(BaseWorker):
                 float(self.timestep_days)
             )
 
-            # Handle warmup
+            # Handle warmup - also adjust time index
+            time_index = self._time_index
             if self.warmup_days > 0 and len(runoff) > self.warmup_days:
                 runoff = runoff[self.warmup_days:]
+                if time_index is not None and len(time_index) > self.warmup_days:
+                    time_index = time_index[self.warmup_days:]
 
             # Store result
             if self._n_hrus == 1:
@@ -457,6 +462,10 @@ class CFUSEWorker(BaseWorker):
             else:
                 self._last_runoff = runoff  # [time, hrus]
             self._last_params = params
+
+            # Save output files for final evaluation (required for calibration target)
+            if output_dir is not None:
+                self._save_output_files(output_dir, time_index)
 
             return True
 
@@ -492,12 +501,16 @@ class CFUSEWorker(BaseWorker):
             return {'error': 'No observations'}
 
         try:
-            sim = self._last_runoff
+            runoff = self._last_runoff
             if self._n_hrus > 1:
                 # Sum across HRUs for total catchment runoff
-                sim = np.sum(sim, axis=1)
+                runoff = np.sum(runoff, axis=1)
 
-            # Get observations
+            # Convert runoff from mm/day to m³/s for comparison with observations
+            catchment_area_m2 = self._get_cached_catchment_area()
+            sim = runoff * catchment_area_m2 / (1000.0 * 86400.0)
+
+            # Get observations (in m³/s)
             if HAS_TORCH and isinstance(self._observations, torch.Tensor):
                 obs = self._observations.cpu().numpy()
             else:
@@ -541,6 +554,136 @@ class CFUSEWorker(BaseWorker):
         except Exception as e:
             self.logger.error(f"Metric calculation failed: {e}")
             return {'error': str(e)}
+
+    def _save_output_files(self, output_dir: Path, time_index: pd.DatetimeIndex) -> None:
+        """
+        Save simulation results to output files for final evaluation.
+
+        This is critical for the calibration target to find and evaluate
+        cFUSE outputs during final evaluation (otherwise it may find
+        and incorrectly use SUMMA or other model outputs).
+
+        Args:
+            output_dir: Directory to save output files
+            time_index: Time index for the results (after warmup removal)
+        """
+        if self._last_runoff is None:
+            self.logger.warning("No runoff data to save")
+            return
+
+        try:
+            output_dir = Path(output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Get domain name from config
+            domain_name = self.config.get('DOMAIN_NAME', 'domain')
+
+            # Get catchment area for unit conversion
+            catchment_area_m2 = self._get_catchment_area_for_output()
+
+            # Get runoff (mm/day)
+            runoff = self._last_runoff
+            if self._n_hrus > 1:
+                runoff = np.sum(runoff, axis=1)  # Sum across HRUs
+
+            # Convert mm/day to m3/s: runoff_mm * area_m2 / (1000 mm/m * 86400 s/day)
+            streamflow_cms = runoff * catchment_area_m2 / (1000.0 * 86400.0)
+
+            # Ensure time_index length matches runoff
+            if time_index is not None and len(time_index) != len(runoff):
+                self.logger.warning(
+                    f"Time index length ({len(time_index)}) != runoff length ({len(runoff)}). "
+                    "Creating synthetic time index."
+                )
+                time_index = pd.date_range(start='2000-01-01', periods=len(runoff), freq='D')
+
+            if time_index is None:
+                time_index = pd.date_range(start='2000-01-01', periods=len(runoff), freq='D')
+
+            # Save CSV
+            results_df = pd.DataFrame({
+                'datetime': time_index,
+                'streamflow_mm_day': runoff,
+                'streamflow_cms': streamflow_cms,
+            })
+            csv_file = output_dir / f"{domain_name}_cfuse_output.csv"
+            results_df.to_csv(csv_file, index=False)
+            self.logger.debug(f"Saved cFUSE output to: {csv_file}")
+
+            # Save NetCDF with proper variable names for evaluator detection
+            ds = xr.Dataset(
+                data_vars={
+                    'streamflow': (['time'], streamflow_cms),
+                    'runoff': (['time'], runoff),
+                },
+                coords={
+                    'time': time_index,
+                },
+                attrs={
+                    'model': 'cFUSE',
+                    'spatial_mode': self.spatial_mode,
+                    'catchment_area_m2': catchment_area_m2,
+                }
+            )
+            ds['streamflow'].attrs = {'units': 'm3/s', 'long_name': 'Streamflow'}
+            ds['runoff'].attrs = {'units': 'mm/day', 'long_name': 'Runoff depth'}
+
+            nc_file = output_dir / f"{domain_name}_cfuse_output.nc"
+            ds.to_netcdf(nc_file)
+            self.logger.debug(f"Saved cFUSE NetCDF to: {nc_file}")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to save cFUSE output files: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+
+    def _get_catchment_area_for_output(self) -> float:
+        """Get catchment area in m2 for unit conversion."""
+        # Try config values
+        area_m2 = self.config.get('CATCHMENT_AREA_M2')
+        if area_m2:
+            return float(area_m2)
+
+        area_km2 = self.config.get('CATCHMENT_AREA_KM2')
+        if area_km2:
+            return float(area_km2) * 1e6
+
+        # Try to get from shapefile
+        try:
+            import geopandas as gpd
+            data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', self.config.get('ROOT_PATH', '.')))
+            domain_name = self.config.get('DOMAIN_NAME', 'domain')
+            catchment_dir = data_dir / f"domain_{domain_name}" / 'shapefiles' / 'catchment'
+
+            if catchment_dir.exists():
+                shp_files = list(catchment_dir.glob("*.shp"))
+                if shp_files:
+                    gdf = gpd.read_file(shp_files[0])
+                    area_cols = [c for c in gdf.columns if 'area' in c.lower()]
+                    if area_cols:
+                        total_area = gdf[area_cols[0]].sum()
+                        self.logger.debug(f"Using catchment area from shapefile: {total_area/1e6:.2f} km2")
+                        return float(total_area)
+        except Exception as e:
+            self.logger.debug(f"Could not get area from shapefile: {e}")
+
+        # Default fallback
+        self.logger.warning("Could not determine catchment area, using default 1000 km2")
+        return 1000.0 * 1e6
+
+    def _get_cached_catchment_area(self) -> float:
+        """
+        Get cached catchment area for unit conversion during optimization.
+
+        Caches the area to avoid repeated file reads during calibration
+        (which may run 1000+ evaluations).
+
+        Returns:
+            Catchment area in m2
+        """
+        if self._cached_catchment_area is None:
+            self._cached_catchment_area = self._get_catchment_area_for_output()
+        return self._cached_catchment_area
 
     # =========================================================================
     # Native Gradient Methods
@@ -799,7 +942,12 @@ class CFUSEWorker(BaseWorker):
             else:
                 runoff = runoff.flatten()
 
-            # Get observations
+            # Convert runoff from mm/day to m³/s for comparison with observations
+            # Observations are in m³/s from the preprocessed streamflow file
+            catchment_area_m2 = self._get_cached_catchment_area()
+            streamflow_cms = runoff * catchment_area_m2 / (1000.0 * 86400.0)
+
+            # Get observations (in m³/s)
             if HAS_TORCH and isinstance(self._observations, torch.Tensor):
                 obs = self._observations.cpu().numpy()
             else:
@@ -809,8 +957,8 @@ class CFUSEWorker(BaseWorker):
                 return self.penalty_score
 
             # Align and filter
-            min_len = min(len(runoff), len(obs))
-            sim = runoff[:min_len]
+            min_len = min(len(streamflow_cms), len(obs))
+            sim = streamflow_cms[:min_len]
             obs_arr = obs[:min_len]
 
             valid_mask = ~(np.isnan(sim) | np.isnan(obs_arr))

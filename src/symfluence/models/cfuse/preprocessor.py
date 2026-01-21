@@ -159,14 +159,14 @@ class CFUSEPreprocessor(BaseModelPreProcessor):
                 self.logger.error(f"Precipitation variable not found. Available: {list(forcing_ds.data_vars)}")
                 return False
 
-            # Convert precipitation units if needed
+            # Check precipitation units - will convert AFTER resampling for hourly data
             precip_units = forcing_ds[precip_var_name].attrs.get('units', '').lower()
-            if 'mm s' in precip_units or 'mm/s' in precip_units or 's-1' in precip_units:
-                precip = precip * UnitConversion.SECONDS_PER_DAY
-                self.logger.info("Converted precipitation from mm/s to mm/day")
-            elif np.nanmean(precip) < 0.01 and np.nanmax(precip) < 0.1:
-                precip = precip * UnitConversion.SECONDS_PER_DAY
-                self.logger.info("Precipitation values appear to be in mm/s, converting to mm/day")
+            precip_in_mm_per_s = (
+                'mm s' in precip_units or 'mm/s' in precip_units or 's-1' in precip_units or
+                (np.nanmean(precip) < 0.01 and np.nanmax(precip) < 0.1)
+            )
+            if precip_in_mm_per_s:
+                self.logger.info(f"Precipitation units detected as mm/s (mean={np.nanmean(precip):.6f})")
 
             # Temperature (check various naming conventions)
             temp_vars = ['temp', 'tas', 'airtemp', 'tair', 'temperature', 'tmean']
@@ -193,6 +193,9 @@ class CFUSEPreprocessor(BaseModelPreProcessor):
             timestep_config = self.get_timestep_config()
             if timestep_config['time_label'] == 'hourly':
                 # Resample hourly data to daily for cFUSE
+                # IMPORTANT: For precipitation in mm/s, we need to:
+                # 1. Take the MEAN rate over the day (not sum!)
+                # 2. Then convert mean mm/s to mm/day by multiplying by 86400
                 self.logger.info("Resampling hourly data to daily for cFUSE")
                 forcing_df = pd.DataFrame({
                     'time': time,
@@ -202,13 +205,22 @@ class CFUSEPreprocessor(BaseModelPreProcessor):
                 }).set_index('time')
 
                 forcing_df = forcing_df.resample('D').agg({
-                    'precip': 'sum',
+                    'precip': 'mean',  # Take mean rate, then convert to daily total
                     'temp': 'mean',
                     'pet': 'mean'
                 })
                 forcing_df = forcing_df.reset_index()
+
+                # Now convert mean precipitation rate to daily total
+                if precip_in_mm_per_s:
+                    forcing_df['precip'] = forcing_df['precip'] * UnitConversion.SECONDS_PER_DAY
+                    self.logger.info(f"Converted mean precip rate to mm/day (mean={forcing_df['precip'].mean():.2f} mm/day)")
             else:
-                # Daily input data
+                # Daily input data - convert units directly
+                if precip_in_mm_per_s:
+                    precip = precip * UnitConversion.SECONDS_PER_DAY
+                    self.logger.info("Converted precipitation from mm/s to mm/day")
+
                 forcing_df = pd.DataFrame({
                     'time': time,
                     'precip': precip.flatten(),
@@ -319,7 +331,7 @@ class CFUSEPreprocessor(BaseModelPreProcessor):
                     'domain': self.domain_name,
                     'n_hrus': n_hrus,
                     'model_structure': self.model_structure,
-                    'enable_routing': self.enable_routing,
+                    'enable_routing': int(self.enable_routing),  # Convert bool to int for NetCDF compatibility
                     'units_precip': 'mm/day',
                     'units_temp': 'degC',
                     'units_pet': 'mm/day',
@@ -651,7 +663,7 @@ class CFUSEPreprocessor(BaseModelPreProcessor):
                 'spatial_mode': mode,
                 'domain': self.domain_name,
                 'model_structure': self.model_structure,
-                'enable_snow': self.enable_snow,
+                'enable_snow': int(self.enable_snow),  # Convert bool to int for NetCDF compatibility
                 'units_precip': 'mm/day',
                 'units_temp': 'degC',
                 'units_pet': 'mm/day',
@@ -664,16 +676,40 @@ class CFUSEPreprocessor(BaseModelPreProcessor):
         self.logger.info(f"Saved forcing NetCDF to: {output_file}")
 
     def _prepare_observations(self) -> None:
-        """Prepare observation data for validation/calibration."""
+        """Prepare observation data for validation/calibration.
+
+        Resamples observations to daily resolution to match cFUSE model output
+        and subsets to the simulation time window.
+        """
         obs_dir = self.project_dir / 'observations' / 'streamflow' / 'preprocessed'
         obs_file = obs_dir / f"{self.domain_name}_streamflow_processed.csv"
 
         if obs_file.exists():
-            self.logger.info(f"Observations available at: {obs_file}")
+            self.logger.info(f"Loading observations from: {obs_file}")
 
-            obs_df = pd.read_csv(obs_file)
+            obs_df = pd.read_csv(obs_file, parse_dates=['datetime'])
+            obs_df = obs_df.set_index('datetime')
+
+            # Check if observations are sub-daily (hourly)
+            if len(obs_df) > 1:
+                time_diff = (obs_df.index[1] - obs_df.index[0]).total_seconds()
+                if time_diff < 86400:  # Less than 1 day = sub-daily data
+                    self.logger.info(f"Resampling sub-daily observations (dt={time_diff}s) to daily mean")
+                    obs_df = obs_df.resample('D').mean()
+
+            # Subset to simulation time window
+            time_window = self.get_simulation_time_window()
+            if time_window:
+                start_time, end_time = time_window
+                obs_df = obs_df.loc[start_time:end_time]
+                self.logger.info(f"Subset observations to {start_time} - {end_time}: {len(obs_df)} days")
+
+            # Reset index for saving
+            obs_df = obs_df.reset_index()
+
             output_obs = self.cfuse_forcing_dir / f"{self.domain_name}_observations.csv"
             obs_df.to_csv(output_obs, index=False)
+            self.logger.info(f"Saved {len(obs_df)} daily observations to: {output_obs}")
         else:
             self.logger.warning(f"No observation file found at: {obs_file}")
 

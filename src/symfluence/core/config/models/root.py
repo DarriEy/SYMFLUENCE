@@ -464,7 +464,13 @@ class SymfluenceConfig(BaseModel):
         valid_algorithms = [
             'PSO', 'DE', 'DDS', 'ASYNC-DDS', 'ASYNCDDS', 'ASYNC_DDS',
             'SCE-UA', 'SCEUA', 'NSGA-II', 'NSGA2',
-            'ADAM', 'LBFGS', 'GD', 'SGD'
+            'ADAM', 'LBFGS', 'CMA-ES', 'CMAES', 'DREAM', 'GLUE',
+            'BASIN-HOPPING', 'BASINHOPPING', 'BH',
+            'NELDER-MEAD', 'NELDERMEAD', 'NM', 'SIMPLEX', 'GA',
+            'BAYESIAN-OPT', 'BAYESIAN_OPT', 'BAYESIAN', 'BO',
+            'MOEAD', 'MOEA-D', 'MOEA_D',
+            'SIMULATED-ANNEALING', 'SIMULATED_ANNEALING', 'SA', 'ANNEALING',
+            'ABC', 'ABC-SMC', 'ABC_SMC', 'APPROXIMATE-BAYESIAN'
         ]
         if self.optimization.algorithm not in valid_algorithms:
             errors.append(
@@ -511,16 +517,6 @@ class SymfluenceConfig(BaseModel):
                 errors.append(f"NSGA2_CROSSOVER_RATE should be in [0, 1], got {self.optimization.nsga2.crossover_rate}")
             if not (0 <= self.optimization.nsga2.mutation_rate <= 1):
                 errors.append(f"NSGA2_MUTATION_RATE should be in [0, 1], got {self.optimization.nsga2.mutation_rate}")
-
-        # Validate DPE settings if differentiable optimization is used
-        if 'differentiable' in optimization_methods or 'emulator' in optimization_methods:
-            if self.optimization.dpe:
-                if self.optimization.dpe.learning_rate <= 0:
-                    errors.append(f"DPE_LEARNING_RATE must be > 0, got {self.optimization.dpe.learning_rate}")
-                if self.optimization.dpe.epochs < 1:
-                    errors.append(f"DPE_EPOCHS must be >= 1, got {self.optimization.dpe.epochs}")
-                if not (0 <= self.optimization.dpe.iterate_convergence_tol <= 1):
-                    errors.append(f"DPE_ITERATE_CONVERGENCE_TOL should be in [0, 1], got {self.optimization.dpe.iterate_convergence_tol}")
 
         if errors:
             raise ConfigurationError(

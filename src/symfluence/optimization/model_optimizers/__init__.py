@@ -33,7 +33,9 @@ def _register_optimizers():
         'lstm',
         'rhessys',
         'mizuroute',
-        'troute'
+        'troute',
+        'jfuse',
+        'cfuse',
     ]
 
     for model in models:

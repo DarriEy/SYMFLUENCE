@@ -182,6 +182,14 @@ class JFUSEPreprocessor(BaseModelPreProcessor):
                 self.logger.error(f"Temperature variable not found. Available: {list(forcing_ds.data_vars)}")
                 return False
 
+            # Spatially average multi-dimensional data to 1D time series (lumped mode)
+            if temp.ndim > 1:
+                temp = np.nanmean(temp, axis=tuple(range(1, temp.ndim)))
+                self.logger.info(f"Spatially averaged temperature to shape: {temp.shape}")
+            if precip.ndim > 1:
+                precip = np.nanmean(precip, axis=tuple(range(1, precip.ndim)))
+                self.logger.info(f"Spatially averaged precipitation to shape: {precip.shape}")
+
             # Convert temperature from K to C if needed
             if np.nanmean(temp) > 100:  # Likely Kelvin
                 temp = temp - 273.15
@@ -321,7 +329,7 @@ class JFUSEPreprocessor(BaseModelPreProcessor):
                     'domain': self.domain_name,
                     'n_hrus': n_hrus,
                     'model_config': self.model_config_name,
-                    'enable_routing': self.enable_routing,
+                    'enable_routing': int(self.enable_routing),  # Convert bool to int for NetCDF
                     'units_precip': 'mm/day',
                     'units_temp': 'degC',
                     'units_pet': 'mm/day',
@@ -470,8 +478,10 @@ class JFUSEPreprocessor(BaseModelPreProcessor):
         # Solar declination
         decl = 0.409 * np.sin(2 * np.pi / 365 * day_of_year - 1.39)
 
-        # Sunset hour angle
-        sunset_angle = np.arccos(-np.tan(lat_rad) * np.tan(decl))
+        # Sunset hour angle (clip argument to [-1, 1] to prevent NaN from arccos)
+        cos_arg = -np.tan(lat_rad) * np.tan(decl)
+        cos_arg = np.clip(cos_arg, -1.0, 1.0)
+        sunset_angle = np.arccos(cos_arg)
         sunset_angle = np.clip(sunset_angle, 0, np.pi)
 
         # Day length in hours
@@ -653,7 +663,7 @@ class JFUSEPreprocessor(BaseModelPreProcessor):
                 'spatial_mode': mode,
                 'domain': self.domain_name,
                 'model_config': self.model_config_name,
-                'enable_snow': self.enable_snow,
+                'enable_snow': int(self.enable_snow),  # Convert bool to int for NetCDF
                 'units_precip': 'mm/day',
                 'units_temp': 'degC',
                 'units_pet': 'mm/day',

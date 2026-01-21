@@ -43,7 +43,8 @@ class HBVParameterManager(BaseParameterManager):
 
         # Parse HBV parameters to calibrate from config
         hbv_params_str = config.get('HBV_PARAMS_TO_CALIBRATE')
-        if hbv_params_str is None:
+        # Handle None, empty string, or 'default' as signal to use default parameter list
+        if hbv_params_str is None or hbv_params_str == '' or hbv_params_str == 'default':
             hbv_params_str = 'tt,cfmax,fc,lp,beta,k0,k1,k2,uzl,perc,maxbas'
 
         self.hbv_params = [p.strip() for p in str(hbv_params_str).split(',') if p.strip()]
