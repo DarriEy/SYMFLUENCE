@@ -173,23 +173,34 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
 fi
 
 # Add extra linker flags for conda GCC 14 and expat (needed by UDUNITS2)
-# Set via LDFLAGS environment variable which CMake picks up automatically
-# This avoids complex quoting issues with CMAKE_EXE_LINKER_FLAGS
+# LDFLAGS environment variable alone doesn't work reliably with CMake
+# We need to pass flags via both LDFLAGS and CMAKE_EXE_LINKER_FLAGS
 EXTRA_LDFLAGS="${EXTRA_LIBS:-}"
+CMAKE_LINKER_FLAGS=""
 if [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   # Include expat library path if available (set by UDUNITS2 detection)
   if [ -n "${EXPAT_LIB_DIR:-}" ] && [ -d "${EXPAT_LIB_DIR}" ]; then
     EXTRA_LDFLAGS="$EXTRA_LDFLAGS -L${EXPAT_LIB_DIR} -lexpat"
+    CMAKE_LINKER_FLAGS="-L${EXPAT_LIB_DIR} -lexpat"
+    # Also add to LIBRARY_PATH so the linker can find it
+    export LIBRARY_PATH="${EXPAT_LIB_DIR}:${LIBRARY_PATH:-}"
     echo "Using EXPAT from: ${EXPAT_LIB_DIR}"
   else
     # Fallback: just add -lexpat and hope it's in standard paths
     EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lexpat"
+    CMAKE_LINKER_FLAGS="-lexpat"
     echo "WARNING: EXPAT_LIB_DIR not set, using system expat"
   fi
 fi
 if [ -n "$EXTRA_LDFLAGS" ]; then
   export LDFLAGS="${LDFLAGS:-} $EXTRA_LDFLAGS"
   echo "Adding extra linker flags via LDFLAGS: $EXTRA_LDFLAGS"
+fi
+# Pass linker flags directly to CMake (required for final link stage)
+if [ -n "$CMAKE_LINKER_FLAGS" ]; then
+  CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_EXE_LINKER_FLAGS=$CMAKE_LINKER_FLAGS"
+  CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_SHARED_LINKER_FLAGS=$CMAKE_LINKER_FLAGS"
+  echo "Adding CMake linker flags: $CMAKE_LINKER_FLAGS"
 fi
 
 # Add Fortran support if compiler is available
@@ -249,7 +260,11 @@ else
     FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
   fi
 
-  # LDFLAGS is already set in environment, no need to pass to fallback args
+  # Add linker flags for expat to fallback as well
+  if [ -n "$CMAKE_LINKER_FLAGS" ]; then
+    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_EXE_LINKER_FLAGS=$CMAKE_LINKER_FLAGS"
+    FALLBACK_ARGS="$FALLBACK_ARGS -DCMAKE_SHARED_LINKER_FLAGS=$CMAKE_LINKER_FLAGS"
+  fi
 
   # Keep Fortran in fallback if compiler is available
   if [ -n "$FC" ]; then
