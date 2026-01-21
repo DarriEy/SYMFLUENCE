@@ -381,17 +381,55 @@ def get_geos_proj_detection() -> str:
 detect_geos_proj() {
     GEOS_CFLAGS="" GEOS_LDFLAGS="" PROJ_CFLAGS="" PROJ_LDFLAGS=""
 
-    # Try pkg-config first
-    if command -v pkg-config >/dev/null 2>&1; then
-        if pkg-config --exists geos 2>/dev/null; then
-            GEOS_CFLAGS="$(pkg-config --cflags geos)"
-            GEOS_LDFLAGS="$(pkg-config --libs geos)"
-            echo "GEOS found via pkg-config"
+    # Check HPC module environment variables first (EasyBuild)
+    if [ -n "$EBROOTGEOS" ] && [ -d "$EBROOTGEOS" ]; then
+        GEOS_CFLAGS="-I${EBROOTGEOS}/include"
+        for libdir in "$EBROOTGEOS/lib64" "$EBROOTGEOS/lib"; do
+            if [ -f "$libdir/libgeos_c.so" ] || [ -f "$libdir/libgeos_c.a" ]; then
+                GEOS_LDFLAGS="-L$libdir -lgeos_c"
+                break
+            fi
+        done
+        echo "GEOS found via HPC module at: $EBROOTGEOS"
+    fi
+
+    if [ -n "$EBROOTPROJ" ] && [ -d "$EBROOTPROJ" ]; then
+        PROJ_CFLAGS="-I${EBROOTPROJ}/include"
+        for libdir in "$EBROOTPROJ/lib64" "$EBROOTPROJ/lib"; do
+            if [ -f "$libdir/libproj.so" ] || [ -f "$libdir/libproj.a" ]; then
+                PROJ_LDFLAGS="-L$libdir -lproj"
+                break
+            fi
+        done
+        echo "PROJ found via HPC module at: $EBROOTPROJ"
+    fi
+
+    # Try geos-config tool (more reliable than pkg-config on HPC)
+    if [ -z "$GEOS_CFLAGS" ] && command -v geos-config >/dev/null 2>&1; then
+        GEOS_CFLAGS="$(geos-config --cflags 2>/dev/null || true)"
+        GEOS_LDFLAGS="$(geos-config --clibs 2>/dev/null || true)"
+        if [ -n "$GEOS_CFLAGS" ]; then
+            echo "GEOS found via geos-config"
         fi
-        if pkg-config --exists proj 2>/dev/null; then
-            PROJ_CFLAGS="$(pkg-config --cflags proj)"
-            PROJ_LDFLAGS="$(pkg-config --libs proj)"
-            echo "PROJ found via pkg-config"
+    fi
+
+    # Try pkg-config (but catch errors for broken dependencies)
+    if command -v pkg-config >/dev/null 2>&1; then
+        if [ -z "$GEOS_CFLAGS" ] && pkg-config --exists geos 2>/dev/null; then
+            GEOS_CFLAGS="$(pkg-config --cflags geos 2>/dev/null || true)"
+            GEOS_LDFLAGS="$(pkg-config --libs geos 2>/dev/null || true)"
+            if [ -n "$GEOS_CFLAGS" ]; then
+                echo "GEOS found via pkg-config"
+            fi
+        fi
+        # Note: pkg-config for proj often fails on HPC due to missing deps (sqlite3, libtiff, libcurl)
+        # Only try if PROJ not already found and suppress errors
+        if [ -z "$PROJ_CFLAGS" ]; then
+            PROJ_CFLAGS="$(pkg-config --cflags proj 2>/dev/null || true)"
+            PROJ_LDFLAGS="$(pkg-config --libs proj 2>/dev/null || true)"
+            if [ -n "$PROJ_CFLAGS" ]; then
+                echo "PROJ found via pkg-config"
+            fi
         fi
     fi
 
@@ -458,6 +496,7 @@ def get_udunits2_detection_and_build() -> str:
 detect_or_build_udunits2() {
     UDUNITS2_FOUND=false
     EXPAT_LIB_DIR=""
+    UDUNITS2_FROM_HPC_MODULE=false
 
     # Check HPC environment variables first (e.g., Compute Canada module system)
     if [ -n "$EBROOTUDUNITS" ] && [ -f "$EBROOTUDUNITS/include/udunits2.h" ]; then
@@ -472,7 +511,8 @@ detect_or_build_udunits2() {
         fi
         echo "Found HPC module UDUNITS2 at: ${UDUNITS2_DIR}"
         UDUNITS2_FOUND=true
-        # HPC systems typically have expat in the same module or system-wide
+        UDUNITS2_FROM_HPC_MODULE=true
+        # HPC module handles expat dependency via rpath - no need to add -lexpat
         if [ -n "$EBROOTEXPAT" ]; then
             EXPAT_LIB_DIR="$EBROOTEXPAT/lib"
         fi
@@ -639,13 +679,14 @@ detect_or_build_udunits2() {
         fi
     fi
 
-    export UDUNITS2_DIR UDUNITS2_INCLUDE_DIR UDUNITS2_LIBRARY
+    export UDUNITS2_DIR UDUNITS2_INCLUDE_DIR UDUNITS2_LIBRARY UDUNITS2_FROM_HPC_MODULE
 
     # Also set CMAKE-specific variables
     export UDUNITS2_ROOT="$UDUNITS2_DIR"
     export CMAKE_PREFIX_PATH="${UDUNITS2_DIR}:${CMAKE_PREFIX_PATH:-}"
 
     # Export EXPAT library path for downstream builds (needed by CMake when linking -lexpat)
+    # Only needed when building UDUNITS2 from source (HPC modules handle expat via rpath)
     if [ -n "$EXPAT_LIB_DIR" ] && [ -d "$EXPAT_LIB_DIR" ]; then
         export EXPAT_LIB_DIR
         export LIBRARY_PATH="${EXPAT_LIB_DIR}:${LIBRARY_PATH:-}"
@@ -657,6 +698,7 @@ detect_or_build_udunits2() {
     echo "  UDUNITS2_DIR: ${UDUNITS2_DIR}"
     echo "  UDUNITS2_INCLUDE_DIR: ${UDUNITS2_INCLUDE_DIR}"
     echo "  UDUNITS2_LIBRARY: ${UDUNITS2_LIBRARY}"
+    echo "  UDUNITS2_FROM_HPC_MODULE: ${UDUNITS2_FROM_HPC_MODULE}"
 }
 detect_or_build_udunits2
     '''.strip()
