@@ -2,18 +2,25 @@
 Optimization configuration models.
 
 Contains configuration classes for calibration algorithms:
-PSOConfig, DEConfig, DDSConfig, SCEUAConfig, NSGA2Config, DPEConfig,
+PSOConfig, DEConfig, DDSConfig, SCEUAConfig, NSGA2Config,
 EmulationConfig, and the parent OptimizationConfig.
 """
 
-from typing import List, Literal, Optional, Dict, Union
+from typing import List, Literal, Optional, Union
 from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG
 
 # Supported optimization algorithms
 OptimizationAlgorithmType = Literal[
-    'PSO', 'DE', 'DDS', 'ASYNC-DDS', 'SCE-UA', 'NSGA-II', 'DPE', 'GA'
+    'PSO', 'DE', 'DDS', 'ASYNC-DDS', 'SCE-UA', 'NSGA-II',
+    'ADAM', 'LBFGS', 'CMA-ES', 'CMAES', 'DREAM', 'GLUE',
+    'BASIN-HOPPING', 'BASINHOPPING', 'BH',
+    'NELDER-MEAD', 'NELDERMEAD', 'NM', 'SIMPLEX', 'GA',
+    'BAYESIAN-OPT', 'BAYESIAN_OPT', 'BAYESIAN', 'BO',
+    'MOEAD', 'MOEA-D', 'MOEA_D',
+    'SIMULATED-ANNEALING', 'SIMULATED_ANNEALING', 'SA', 'ANNEALING',
+    'ABC', 'ABC-SMC', 'ABC_SMC', 'APPROXIMATE-BAYESIAN'
 ]
 
 # Supported optimization metrics
@@ -81,34 +88,118 @@ class NSGA2Config(BaseModel):
     eta_m: int = Field(default=20, alias='NSGA2_ETA_M', ge=1)
 
 
-class DPEConfig(BaseModel):
-    """Differentiable Parameter Estimation settings"""
+class ABCConfig(BaseModel):
+    """Approximate Bayesian Computation (ABC-SMC) algorithm settings.
+
+    ABC-SMC uses Sequential Monte Carlo to efficiently sample from the
+    approximate posterior distribution when the likelihood is intractable.
+
+    Reference:
+        Beaumont, M.A., Cornuet, J.M., Marin, J.M., and Robert, C.P. (2009).
+        Adaptive approximate Bayesian computation. Biometrika, 96(4), 983-990.
+    """
     model_config = FROZEN_CONFIG
 
-    training_cache: str = Field(default='default', alias='DPE_TRAINING_CACHE')
-    hidden_dims: Optional[List[int]] = Field(default_factory=lambda: [256, 128, 64], alias='DPE_HIDDEN_DIMS')
-    training_samples: int = Field(default=500, alias='DPE_TRAINING_SAMPLES', ge=1)
-    validation_samples: int = Field(default=100, alias='DPE_VALIDATION_SAMPLES', ge=1)
-    epochs: int = Field(default=300, alias='DPE_EPOCHS', ge=1, le=10000)
-    learning_rate: float = Field(default=1e-3, alias='DPE_LEARNING_RATE', gt=0, le=1.0)
-    optimization_lr: float = Field(default=1e-2, alias='DPE_OPTIMIZATION_LR', gt=0, le=1.0)
-    optimization_steps: int = Field(default=200, alias='DPE_OPTIMIZATION_STEPS', ge=1)
-    optimizer: str = Field(default='ADAM', alias='DPE_OPTIMIZER')
-    objective_weights: Optional[Dict[str, float]] = Field(default_factory=lambda: {'KGE': 1.0}, alias='DPE_OBJECTIVE_WEIGHTS')
-    emulator_iterate: bool = Field(default=True, alias='DPE_EMULATOR_ITERATE')
-    iterate_max_iterations: int = Field(default=5, alias='DPE_ITERATE_MAX_ITERATIONS', ge=1)
-    iterate_samples_per_cycle: int = Field(default=100, alias='DPE_ITERATE_SAMPLES_PER_CYCLE', ge=1)
-    iterate_sampling_radius: float = Field(default=0.1, alias='DPE_ITERATE_SAMPLING_RADIUS', gt=0, le=1.0)
-    iterate_convergence_tol: float = Field(default=1e-4, alias='DPE_ITERATE_CONVERGENCE_TOL', gt=0)
-    iterate_min_improvement: float = Field(default=1e-6, alias='DPE_ITERATE_MIN_IMPROVEMENT', ge=0)
-    iterate_sampling_method: str = Field(default='gaussian', alias='DPE_ITERATE_SAMPLING_METHOD')
-    use_nn_head: bool = Field(default=True, alias='DPE_USE_NN_HEAD')
-    pretrain_nn_head: bool = Field(default=False, alias='DPE_PRETRAIN_NN_HEAD')
-    use_sundials: bool = Field(default=True, alias='DPE_USE_SUNDIALS')
-    autodiff_steps: int = Field(default=100, alias='DPE_AUTODIFF_STEPS', ge=1)
-    autodiff_lr: float = Field(default=0.001, alias='DPE_AUTODIFF_LR', gt=0, le=1.0)
-    fd_step: float = Field(default=0.005, alias='DPE_FD_STEP', gt=0)
-    gd_step_size: float = Field(default=0.1, alias='DPE_GD_STEP_SIZE', gt=0, le=1.0)
+    # Population settings
+    n_particles: int = Field(
+        default=100,
+        alias='ABC_PARTICLES',
+        ge=10,
+        le=10000,
+        description="Number of particles in the population. More particles = better posterior "
+                    "approximation but higher computational cost. Recommend 100-500 for hydrology."
+    )
+
+    # Tolerance schedule
+    n_generations: int = Field(
+        default=20,
+        alias='ABC_GENERATIONS',
+        ge=3,
+        le=100,
+        description="Maximum number of SMC generations. Each generation reduces the tolerance."
+    )
+    initial_tolerance: float = Field(
+        default=0.5,
+        alias='ABC_INITIAL_TOLERANCE',
+        gt=0,
+        le=10.0,
+        description="Initial acceptance tolerance (distance threshold). For KGE, this is (1-KGE), "
+                    "so 0.5 means accepting KGE >= 0.5."
+    )
+    final_tolerance: float = Field(
+        default=0.05,
+        alias='ABC_FINAL_TOLERANCE',
+        gt=0,
+        le=1.0,
+        description="Target final tolerance. For KGE, 0.05 means targeting KGE >= 0.95."
+    )
+    tolerance_quantile: float = Field(
+        default=0.75,
+        alias='ABC_TOLERANCE_QUANTILE',
+        gt=0.1,
+        le=0.95,
+        description="Quantile of accepted distances for adaptive tolerance schedule. "
+                    "Higher values (0.7-0.9) give more gradual tolerance decrease."
+    )
+    tolerance_decay: float = Field(
+        default=0.9,
+        alias='ABC_TOLERANCE_DECAY',
+        gt=0.5,
+        le=0.99,
+        description="Maximum tolerance reduction per generation (geometric decay factor). "
+                    "Values closer to 1.0 give slower, more stable convergence."
+    )
+
+    # Perturbation kernel settings
+    perturbation_scale: float = Field(
+        default=2.0,
+        alias='ABC_PERTURBATION_SCALE',
+        gt=0,
+        le=10.0,
+        description="Scaling factor for perturbation kernel bandwidth. Higher = more exploration."
+    )
+    kernel_type: Literal['gaussian', 'uniform', 'component_wise'] = Field(
+        default='component_wise',
+        alias='ABC_KERNEL_TYPE',
+        description="Type of perturbation kernel: 'gaussian' (full covariance), "
+                    "'uniform' (box kernel), 'component_wise' (independent Gaussians)."
+    )
+    use_olcm: bool = Field(
+        default=True,
+        alias='ABC_USE_OLCM',
+        description="Use Optimal Local Covariance Matrix adaptation for perturbation kernel."
+    )
+
+    # Acceptance settings
+    min_acceptance_rate: float = Field(
+        default=0.05,
+        alias='ABC_MIN_ACCEPTANCE_RATE',
+        gt=0.001,
+        le=0.5,
+        description="Minimum acceptance rate before stopping. Lower allows more generations."
+    )
+    min_ess_ratio: float = Field(
+        default=0.5,
+        alias='ABC_MIN_ESS_RATIO',
+        gt=0.1,
+        le=1.0,
+        description="Minimum effective sample size ratio before resampling."
+    )
+
+    # Convergence settings
+    convergence_threshold: float = Field(
+        default=0.001,
+        alias='ABC_CONVERGENCE_THRESHOLD',
+        gt=0,
+        le=0.1,
+        description="Stop if tolerance improvement < this fraction."
+    )
+    min_generations: int = Field(
+        default=5,
+        alias='ABC_MIN_GENERATIONS',
+        ge=1,
+        description="Minimum generations to run before checking convergence."
+    )
 
 
 class EmulationConfig(BaseModel):
@@ -210,7 +301,7 @@ class OptimizationConfig(BaseModel):
     dds: Optional[DDSConfig] = Field(default_factory=DDSConfig)
     sce_ua: Optional[SCEUAConfig] = Field(default_factory=SCEUAConfig)
     nsga2: Optional[NSGA2Config] = Field(default_factory=NSGA2Config)
-    dpe: Optional[DPEConfig] = Field(default_factory=DPEConfig)
+    abc: Optional[ABCConfig] = Field(default_factory=ABCConfig)
     emulation: Optional[EmulationConfig] = Field(default_factory=EmulationConfig)
 
     @field_validator('methods', mode='before')

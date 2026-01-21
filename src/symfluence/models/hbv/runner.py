@@ -243,6 +243,10 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin):
         Returns:
             Path to output directory if successful, None otherwise.
         """
+        # Emit experimental warning on first use
+        from symfluence.models.hbv import _warn_experimental
+        _warn_experimental()
+
         self.logger.info(f"Starting HBV model run in {self.spatial_mode} mode (backend: {self.backend})")
 
         # Store provided parameters

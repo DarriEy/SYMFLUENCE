@@ -26,14 +26,86 @@ from symfluence.core.constants import UnitConversion
 # Lazy jFUSE and JAX import
 try:
     import jfuse
-    from jfuse import FUSEModel, ModelConfig, PARAM_BOUNDS
+    import equinox as eqx
+    from jfuse import FUSEModel, ModelConfig, PARAM_BOUNDS, create_fuse_model, Parameters
+    from jfuse import PRMS_CONFIG, SACRAMENTO_CONFIG, TOPMODEL_CONFIG, VIC_CONFIG
+    from jfuse import (
+        BaseflowType, UpperLayerArch, LowerLayerArch,
+        PercolationType, SurfaceRunoffType, EvaporationType, InterflowType
+    )
+    from jfuse.fuse.config import SnowType, RoutingType, RainfallErrorType
     HAS_JFUSE = True
+    HAS_EQUINOX = True
+
+    # Custom config optimized for gradient-based calibration (ADAM/LBFGS)
+    # Uses NONLINEAR baseflow to enable gradients for ks, S2_max, and n
+    # Uses UZ_PARETO surface runoff to enable gradients for S1_max
+    # Working parameters (14): S1_max, S2_max, ku, ki, ks, n, Ac_max, b, f_rchr,
+    #                          T_rain, T_melt, MFMAX, MFMIN, smooth_frac
+    PRMS_GRADIENT_CONFIG = ModelConfig(
+        upper_arch=UpperLayerArch.TENSION2_FREE,     # PRMS-style 3-state upper layer
+        lower_arch=LowerLayerArch.SINGLE_NOEVAP,     # Single lower reservoir
+        baseflow=BaseflowType.NONLINEAR,             # qb = ks*S2_max*(S2/S2_max)^(1+n)
+        percolation=PercolationType.FREE_STORAGE,    # From free storage
+        surface_runoff=SurfaceRunoffType.UZ_PARETO,  # Pareto - activates S1_max gradient
+        evaporation=EvaporationType.SEQUENTIAL,
+        interflow=InterflowType.LINEAR,              # Uses ki
+        snow=SnowType.TEMP_INDEX,
+        routing=RoutingType.NONE,
+        rainfall_error=RainfallErrorType.ADDITIVE,
+    )
+
+    # Maximum gradient config - Sacramento-based architecture for most parameters
+    # This configuration activates the MAXIMUM number of calibratable parameters:
+    # Active parameters (21):
+    #   Storage: S1_max, S2_max, f_tens (derived), f_rchr, f_base
+    #   Evaporation: r1 (ROOT_WEIGHT)
+    #   Percolation: ku, alpha, psi (LOWER_DEMAND)
+    #   Lower layer: kappa (TENSION_2RESERV)
+    #   Interflow: ki (LINEAR)
+    #   Baseflow: v_A, v_B (PARALLEL_LINEAR)
+    #   Surface runoff: Ac_max, b (UZ_PARETO)
+    #   Snow: T_rain, T_melt, MFMAX, MFMIN
+    #   Overflow: smooth_frac
+    # NOT active (mutually exclusive or unused):
+    #   c (needs TOTAL_STORAGE percolation), ks, n, v (different baseflow types)
+    #   chi (needs LZ_GAMMA), lam, mu_t, lapse_rate, opg (not used in lumped mode)
+    MAX_GRADIENT_CONFIG = ModelConfig(
+        upper_arch=UpperLayerArch.TENSION2_FREE,      # f_tens, f_rchr, smooth_frac
+        lower_arch=LowerLayerArch.TENSION_2RESERV,    # f_base, kappa, lower evap
+        baseflow=BaseflowType.PARALLEL_LINEAR,        # v_A, v_B (forced by TENSION_2RESERV)
+        percolation=PercolationType.LOWER_DEMAND,     # ku, alpha, psi
+        surface_runoff=SurfaceRunoffType.UZ_PARETO,   # Ac_max, b, S1_max
+        evaporation=EvaporationType.ROOT_WEIGHT,      # r1
+        interflow=InterflowType.LINEAR,               # ki
+        snow=SnowType.TEMP_INDEX,                     # T_rain, T_melt, MFMAX, MFMIN
+        routing=RoutingType.NONE,
+        rainfall_error=RainfallErrorType.ADDITIVE,
+    )
+
+    # Map config names to predefined configs
+    JFUSE_CONFIGS = {
+        'prms': PRMS_CONFIG,
+        'prms_gradient': PRMS_GRADIENT_CONFIG,       # Optimized for gradient-based calibration
+        'max_gradient': MAX_GRADIENT_CONFIG,         # Maximum parameter coverage
+        'sacramento': SACRAMENTO_CONFIG,
+        'topmodel': TOPMODEL_CONFIG,
+        'vic': VIC_CONFIG,
+    }
 except ImportError:
     HAS_JFUSE = False
+    HAS_EQUINOX = False
     jfuse = None
+    eqx = None
     FUSEModel = None
     ModelConfig = None
     PARAM_BOUNDS = {}
+    JFUSE_CONFIGS = {}
+    SnowType = None
+    create_fuse_model = None
+    Parameters = None
+    PRMS_GRADIENT_CONFIG = None
+    MAX_GRADIENT_CONFIG = None
 
 try:
     import jax
@@ -104,10 +176,10 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
         else:
             self.spatial_mode = configured_mode
 
-        # Model structure configuration
+        # Model structure configuration - default to prms_gradient for full gradient support
         self.model_config_name = self._get_config_value(
             lambda: self.config.model.jfuse.model_config_name if self.config.model and hasattr(self.config.model, 'jfuse') and self.config.model.jfuse else None,
-            'prms'
+            'prms_gradient'
         )
 
         # Snow configuration
@@ -207,6 +279,49 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
         self.logger.warning("Could not determine catchment area, using default 1000 km2")
         return 1000.0 * 1e6
 
+    def _get_model_config(self) -> 'ModelConfig':
+        """Get the jFUSE ModelConfig based on configuration settings."""
+        if not HAS_JFUSE:
+            raise ImportError("jFUSE not installed")
+
+        # Get base config from predefined configs
+        config_name = self.model_config_name.lower()
+        if config_name not in JFUSE_CONFIGS:
+            self.logger.warning(f"Unknown config '{config_name}', falling back to 'prms_gradient'")
+            config_name = 'prms_gradient'
+
+        base_config = JFUSE_CONFIGS[config_name]
+
+        # Modify snow setting if needed
+        if not self.enable_snow:
+            base_config = base_config._replace(snow=SnowType.NONE)
+
+        return base_config
+
+    def _dict_to_params(self, param_dict: Dict[str, float], n_hrus: int = 1) -> 'Parameters':
+        """
+        Convert a parameter dictionary to a jFUSE Parameters object.
+
+        Args:
+            param_dict: Dictionary mapping parameter names to values
+            n_hrus: Number of HRUs
+
+        Returns:
+            jFUSE Parameters object
+        """
+        if not HAS_JFUSE or not HAS_EQUINOX:
+            raise ImportError("jFUSE and equinox required")
+
+        # Start with default parameters
+        params = Parameters.default(n_hrus=n_hrus)
+
+        # Update each parameter from the dict
+        for name, value in param_dict.items():
+            if hasattr(params, name):
+                params = eqx.tree_at(lambda p: getattr(p, name), params, jnp.array(float(value)))
+
+        return params
+
     def _get_default_params(self) -> Dict[str, float]:
         """Get default jFUSE parameters."""
         if not HAS_JFUSE:
@@ -241,6 +356,10 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
         Returns:
             Path to output directory if successful, None otherwise.
         """
+        # Emit experimental warning on first use
+        from symfluence.models.jfuse import _warn_experimental
+        _warn_experimental()
+
         if not HAS_JFUSE:
             self.logger.error("jFUSE not installed. Cannot run model.")
             return None
@@ -287,29 +406,27 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
             pet = forcing['pet'].flatten()
             time_index = forcing['time']
 
-            # Get parameters
-            params = self._external_params if self._external_params else self._get_default_params()
+            # Get parameters - convert dict to Parameters object
+            param_dict = self._external_params if self._external_params else self._get_default_params()
+            params = self._dict_to_params(param_dict, n_hrus=1)
 
-            # Create jFUSE model
-            model_config = ModelConfig(
-                model_name=self.model_config_name,
-                enable_snow=self.enable_snow,
-            )
-            model = FUSEModel(model_config)
+            # Create jFUSE model - use custom config if available, otherwise use create_fuse_model
+            config_name = self.model_config_name.lower()
+            if config_name in JFUSE_CONFIGS and JFUSE_CONFIGS[config_name] is not None:
+                model = FUSEModel(JFUSE_CONFIGS[config_name], n_hrus=1)
+            else:
+                model = create_fuse_model(config_name, n_hrus=1)
 
             # Convert to JAX arrays
             precip_jax = jnp.array(precip)
             temp_jax = jnp.array(temp)
             pet_jax = jnp.array(pet)
 
-            # Run simulation
+            # Run simulation - jfuse expects forcing tuple as (precip, pet, temp)
             self.logger.info(f"Running simulation for {len(precip)} timesteps")
 
-            runoff, final_state = model.simulate(
-                precip_jax, temp_jax, pet_jax,
-                params=params,
-                warmup_steps=self.warmup_days,
-            )
+            forcing_tuple = (precip_jax, pet_jax, temp_jax)
+            runoff, final_state = model.simulate(forcing_tuple, params)
 
             # Convert output to numpy
             runoff = np.array(runoff)
@@ -347,15 +464,16 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
             n_times, n_hrus = precip.shape
             self.logger.info(f"Running simulation for {n_times} timesteps x {n_hrus} HRUs")
 
-            # Get parameters
-            params = self._external_params if self._external_params else self._get_default_params()
+            # Get parameters - convert dict to Parameters object
+            param_dict = self._external_params if self._external_params else self._get_default_params()
+            params = self._dict_to_params(param_dict, n_hrus=1)
 
-            # Create jFUSE model
-            model_config = ModelConfig(
-                model_name=self.model_config_name,
-                enable_snow=self.enable_snow,
-            )
-            model = FUSEModel(model_config)
+            # Create jFUSE model - use custom config if available, otherwise use create_fuse_model
+            config_name = self.model_config_name.lower()
+            if config_name in JFUSE_CONFIGS and JFUSE_CONFIGS[config_name] is not None:
+                model = FUSEModel(JFUSE_CONFIGS[config_name], n_hrus=1)
+            else:
+                model = create_fuse_model(config_name, n_hrus=1)
 
             # Run simulation for each HRU
             all_runoff = np.zeros((n_times, n_hrus))
@@ -365,11 +483,9 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
                 hru_temp = jnp.array(temp[:, hru_idx])
                 hru_pet = jnp.array(pet[:, hru_idx])
 
-                runoff, _ = model.simulate(
-                    hru_precip, hru_temp, hru_pet,
-                    params=params,
-                    warmup_steps=self.warmup_days,
-                )
+                # jfuse expects forcing tuple as (precip, pet, temp)
+                forcing_tuple = (hru_precip, hru_pet, hru_temp)
+                runoff, _ = model.simulate(forcing_tuple, params)
 
                 all_runoff[:, hru_idx] = np.array(runoff)
 
@@ -645,17 +761,26 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
 
         obs = jnp.array(obs)
 
-        model_config = ModelConfig(
-            model_name=self.model_config_name,
-            enable_snow=self.enable_snow,
-        )
-        model = FUSEModel(model_config)
+        # Create jFUSE model - use custom config if available
+        config_name = self.model_config_name.lower()
+        if config_name in JFUSE_CONFIGS and JFUSE_CONFIGS[config_name] is not None:
+            model = FUSEModel(JFUSE_CONFIGS[config_name], n_hrus=1)
+        else:
+            model = create_fuse_model(config_name, n_hrus=1)
+        _default_params = Parameters.default(n_hrus=1)  # noqa: F841
+        warmup_days = self.warmup_days
+
+        # Forcing tuple (precip, pet, temp)
+        forcing_tuple = (precip, pet, temp)
 
         def loss_fn(params):
-            runoff, _ = model.simulate(precip, temp, pet, params=params, warmup_steps=self.warmup_days)
+            runoff, _ = model.simulate(forcing_tuple, params)
+            # Handle warmup by slicing the outputs
+            runoff_eval = runoff[warmup_days:]
+            obs_eval = obs[warmup_days:]
             if metric.lower() == 'nse':
-                return -jfuse.nse(obs[self.warmup_days:], runoff)
-            return -jfuse.kge(obs[self.warmup_days:], runoff)
+                return -jfuse.nse(obs_eval, runoff_eval)
+            return -jfuse.kge(obs_eval, runoff_eval)
 
         return jax.grad(loss_fn)
 
@@ -688,17 +813,21 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
         temp = jnp.array(forcing['temp'].flatten())
         pet = jnp.array(forcing['pet'].flatten())
 
-        model_config = ModelConfig(
-            model_name=self.model_config_name,
-            enable_snow=self.enable_snow,
-        )
-        model = FUSEModel(model_config)
+        # Create model and convert params dict to Parameters object
+        config_name = self.model_config_name.lower()
+        if config_name in JFUSE_CONFIGS and JFUSE_CONFIGS[config_name] is not None:
+            model = FUSEModel(JFUSE_CONFIGS[config_name], n_hrus=1)
+        else:
+            model = create_fuse_model(config_name, n_hrus=1)
+        params_obj = self._dict_to_params(params, n_hrus=1)
 
-        runoff, _ = model.simulate(precip, temp, pet, params=params, warmup_steps=self.warmup_days)
+        # Run simulation - jfuse expects forcing tuple as (precip, pet, temp)
+        forcing_tuple = (precip, pet, temp)
+        runoff, _ = model.simulate(forcing_tuple, params_obj)
         runoff = np.array(runoff)
 
-        # Skip warmup for observations
-        sim = runoff
+        # Skip warmup for both simulation and observations
+        sim = runoff[self.warmup_days:] if len(runoff) > self.warmup_days else runoff
         obs_arr = obs[self.warmup_days:] if len(obs) > self.warmup_days else obs
 
         # Align lengths

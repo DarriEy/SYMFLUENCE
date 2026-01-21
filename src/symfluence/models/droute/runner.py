@@ -111,6 +111,10 @@ class DRouteRunner(BaseModelRunner, ModelExecutor, DRouteConfigMixin):
         Returns:
             Path to output directory
         """
+        # Emit experimental warning on first use
+        from symfluence.models.droute import _warn_experimental
+        _warn_experimental()
+
         self.logger.info("Starting dRoute run")
 
         with symfluence_error_handler(

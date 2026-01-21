@@ -170,6 +170,9 @@ def from_file_factory(
         # Transform flat dict to nested structure
         nested_config = transform_flat_to_nested(config_dict)
 
+    # Filter out None values so Pydantic can use field defaults
+    nested_config = _filter_none_values(nested_config)
+
     # Validate and create
     if validate:
         try:
@@ -184,6 +187,31 @@ def from_file_factory(
         instance = cls.model_construct(**nested_config)
         object.__setattr__(instance, '_source_file', path)
         return instance
+
+
+def _filter_none_values(d: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Recursively filter out None values from a nested dictionary.
+
+    This allows Pydantic to use field defaults when config explicitly sets null.
+
+    Args:
+        d: Dictionary potentially containing None values
+
+    Returns:
+        New dictionary with None values removed at all levels
+    """
+    result = {}
+    for key, value in d.items():
+        if value is None:
+            continue
+        if isinstance(value, dict):
+            filtered = _filter_none_values(value)
+            if filtered:  # Only include non-empty dicts
+                result[key] = filtered
+        else:
+            result[key] = value
+    return result
 
 
 def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:

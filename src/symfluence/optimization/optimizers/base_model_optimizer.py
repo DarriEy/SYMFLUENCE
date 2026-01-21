@@ -82,12 +82,12 @@ Final Evaluation:
     6. Restores settings to optimization configuration for reproducibility
 
 Supported Algorithms (via registry):
-    - Single-objective: DDS, PSO, DE, SCE-UA, ASYNC_DDS, ADAM, LBFGS
+    - Single-objective: DDS, PSO, DE, SCE-UA, ASYNC_DDS, ADAM, LBFGS, CMA-ES, DREAM, GLUE, BASIN-HOPPING, NELDER-MEAD
     - Multi-objective: NSGA-II
 
     Algorithm selection by calling:
     run_dds(), run_pso(), run_de(), run_sce(), run_async_dds(), run_nsga2(),
-    run_adam(), run_lbfgs()
+    run_adam(), run_lbfgs(), run_cmaes(), run_dream(), run_glue(), run_basin_hopping(), run_nelder_mead()
 
     Or directly via: run_optimization('algorithm_name')
 
@@ -235,7 +235,7 @@ class BaseModelOptimizer(
             - Convergence detection (gradient norm < threshold)
 
     Algorithm Selection:
-        All algorithms (DDS, PSO, DE, SCE-UA, ASYNC_DDS, NSGA-II, ADAM, LBFGS)
+        All algorithms (DDS, PSO, DE, SCE-UA, ASYNC_DDS, NSGA-II, ADAM, LBFGS, CMA-ES, DREAM, GLUE, BASIN-HOPPING)
         retrieved from algorithms.py registry. Delegates to algorithm.optimize()
         with unified callback interface. See run_optimization() for details.
 
@@ -861,8 +861,8 @@ class BaseModelOptimizer(
             "{ALGORITHM} {iter}/{max_iter} ({%}%) | Best: {best:.4f} | [optional fields] | Elapsed: {time}"
 
         Algorithm-Specific Metrics:
-            - Single-objective (DDS, PSO, DE): Reports best score and iteration count
-            - Population-based (GA, PSO, DE): Additionally reports improved individuals
+            - Single-objective (DDS, PSO, DE, CMA-ES): Reports best score and iteration count
+            - Population-based (PSO, DE, CMA-ES): Additionally reports improved individuals
             - Multi-objective (NSGA-II): Reports objectives separately
             - Gradient-based (Adam, LBFGS): Reports gradient norm or step size
 
@@ -1450,6 +1450,46 @@ class BaseModelOptimizer(
     def run_nsga2(self) -> Path:
         """Run NSGA-II multi-objective optimization."""
         return self.run_optimization('nsga2')
+
+    def run_cmaes(self) -> Path:
+        """Run CMA-ES (Covariance Matrix Adaptation Evolution Strategy) optimization."""
+        return self.run_optimization('cmaes')
+
+    def run_dream(self) -> Path:
+        """Run DREAM (DiffeRential Evolution Adaptive Metropolis) optimization."""
+        return self.run_optimization('dream')
+
+    def run_glue(self) -> Path:
+        """Run GLUE (Generalized Likelihood Uncertainty Estimation) analysis."""
+        return self.run_optimization('glue')
+
+    def run_basin_hopping(self) -> Path:
+        """Run Basin Hopping global optimization."""
+        return self.run_optimization('basin_hopping')
+
+    def run_nelder_mead(self) -> Path:
+        """Run Nelder-Mead simplex optimization."""
+        return self.run_optimization('nelder_mead')
+
+    def run_ga(self) -> Path:
+        """Run Genetic Algorithm (GA) optimization."""
+        return self.run_optimization('ga')
+
+    def run_bayesian_opt(self) -> Path:
+        """Run Bayesian Optimization with Gaussian Process surrogate."""
+        return self.run_optimization('bayesian_opt')
+
+    def run_moead(self) -> Path:
+        """Run MOEA/D (Multi-Objective Evolutionary Algorithm based on Decomposition)."""
+        return self.run_optimization('moead')
+
+    def run_simulated_annealing(self) -> Path:
+        """Run Simulated Annealing optimization."""
+        return self.run_optimization('simulated_annealing')
+
+    def run_abc(self) -> Path:
+        """Run Approximate Bayesian Computation (ABC-SMC) for likelihood-free inference."""
+        return self.run_optimization('abc')
 
     def run_adam(self, steps: int = 100, lr: float = 0.01) -> Path:
         """

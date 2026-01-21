@@ -971,49 +971,6 @@ optimization:
     eta_m: 20
 
   # ---------------------------------------------------------------------------
-  # DPE Configuration
-  # ---------------------------------------------------------------------------
-  # Differentiable Parameter Estimation (gradient-based with emulators)
-  dpe:
-    # Training samples for emulator
-    training_samples: 500
-    validation_samples: 100
-    training_cache: default
-
-    # Neural network settings
-    use_nn_head: true
-    pretrain_nn_head: false
-    hidden_dims: [128, 128]
-    epochs: 300
-    learning_rate: "1e-3"
-    optimizer: "ADAM"
-
-    # Optimization settings
-    optimization_steps: 200
-    optimization_lr: "1e-2"
-    gd_step_size: 0.1
-
-    # Finite difference settings
-    fd_step: 0.005
-
-    # Auto-differentiation settings
-    autodiff_steps: 100
-    autodiff_lr: 0.001
-    use_sundials: true
-
-    # Iterative refinement
-    emulator_iterate: true
-    iterate_max_iterations: 5
-    iterate_samples_per_cycle: 100
-    iterate_sampling_method: "gaussian"
-    iterate_sampling_radius: 0.1
-    iterate_convergence_tol: "1e-4"
-    iterate_min_improvement: "1e-6"
-
-    # Multi-objective weights
-    objective_weights: {}
-
-  # ---------------------------------------------------------------------------
   # Emulation Configuration
   # ---------------------------------------------------------------------------
   # Settings for surrogate model construction

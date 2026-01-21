@@ -11,7 +11,7 @@ from .base import FROZEN_CONFIG
 
 # Supported forcing dataset types
 ForcingDatasetType = Literal[
-    'NLDAS', 'NLDAS2', 'NEX-GDDP', 'ERA5', 'EM-EARTH', 'RDRS', 'CARRA', 'CERRA',
+    'NLDAS', 'NLDAS2', 'NEX-GDDP', 'ERA5', 'EM-EARTH', 'RDRS', 'CASR', 'CARRA', 'CERRA',
     'MSWEP', 'AORC', 'CONUS404', 'HRRR', 'local'
 ]
 

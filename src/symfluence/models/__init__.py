@@ -119,6 +119,11 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import jfuse: {e}")
 
+try:
+    from . import cfuse
+except ImportError as e:
+    logger.warning(f"Could not import cfuse: {e}")
+
 
 __all__ = [
     # Core
