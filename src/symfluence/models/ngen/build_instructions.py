@@ -172,12 +172,11 @@ if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
   echo "Using UDUNITS2 from: $UDUNITS2_DIR"
 fi
 
-# Add extra linker flags for conda GCC 14 and expat (needed by UDUNITS2)
-# LDFLAGS environment variable alone doesn't work reliably with CMake
-# We set LIBRARY_PATH and let CMake find expat automatically
+# Add extra linker flags for conda GCC 14 and expat (needed by locally-built UDUNITS2)
+# HPC module UDUNITS2 handles expat dependency via rpath, so we skip -lexpat in that case
 EXTRA_LDFLAGS="${EXTRA_LIBS:-}"
-if [ -n "${UDUNITS2_LIBRARY:-}" ]; then
-  # Include expat library path if available (set by UDUNITS2 detection)
+if [ -n "${UDUNITS2_LIBRARY:-}" ] && [ "${UDUNITS2_FROM_HPC_MODULE:-false}" != "true" ]; then
+  # Only add expat for locally-built UDUNITS2 (not HPC modules which handle deps via rpath)
   if [ -n "${EXPAT_LIB_DIR:-}" ] && [ -d "${EXPAT_LIB_DIR}" ]; then
     EXTRA_LDFLAGS="$EXTRA_LDFLAGS -L${EXPAT_LIB_DIR} -lexpat"
     # Add to LIBRARY_PATH so the linker can find it during build
@@ -187,10 +186,12 @@ if [ -n "${UDUNITS2_LIBRARY:-}" ]; then
     export CMAKE_PREFIX_PATH="${EXPAT_LIB_DIR%/lib}:${CMAKE_PREFIX_PATH:-}"
     echo "Using EXPAT from: ${EXPAT_LIB_DIR}"
   else
-    # Fallback: just add -lexpat and hope it's in standard paths
+    # Fallback for non-HPC: add -lexpat and hope it's in standard paths
     EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lexpat"
     echo "WARNING: EXPAT_LIB_DIR not set, using system expat"
   fi
+elif [ "${UDUNITS2_FROM_HPC_MODULE:-false}" = "true" ]; then
+  echo "Using HPC module UDUNITS2 - expat dependency handled via module rpath"
 fi
 if [ -n "$EXTRA_LDFLAGS" ]; then
   export LDFLAGS="${LDFLAGS:-} $EXTRA_LDFLAGS"
