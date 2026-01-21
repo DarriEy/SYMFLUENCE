@@ -21,6 +21,47 @@ def get_common_build_environment() -> str:
 set -e
 
 # ================================================================
+# HPC Environment Detection and Guidance
+# ================================================================
+detect_hpc_environment() {
+    HPC_DETECTED=false
+    HPC_NAME=""
+
+    # Check for common HPC indicators
+    if [ -d "/cvmfs/soft.computecanada.ca" ] || [ -n "${CC_CLUSTER:-}" ]; then
+        HPC_DETECTED=true
+        HPC_NAME="Compute Canada / Digital Research Alliance"
+    elif [ -n "${NERSC_HOST:-}" ]; then
+        HPC_DETECTED=true
+        HPC_NAME="NERSC"
+    elif [ -n "${TACC_SYSTEM:-}" ]; then
+        HPC_DETECTED=true
+        HPC_NAME="TACC"
+    elif [ -n "${PBS_O_HOST:-}" ] || [ -n "${SLURM_CLUSTER_NAME:-}" ]; then
+        HPC_DETECTED=true
+        HPC_NAME="HPC Cluster"
+    fi
+
+    if [ "$HPC_DETECTED" = true ]; then
+        echo "=================================================="
+        echo "HPC Environment Detected: $HPC_NAME"
+        echo "=================================================="
+        echo ""
+        echo "For successful builds, ensure required modules are loaded."
+        echo "Example for Compute Canada:"
+        echo "  module load StdEnv/2023"
+        echo "  module load gcc/12.3 cmake/3.27.7"
+        echo "  module load netcdf/4.9.2 expat udunits/2.2.28"
+        echo "  module load geos proj"
+        echo ""
+        echo "Current loaded modules (if available):"
+        module list 2>/dev/null || echo "  (module command not available)"
+        echo ""
+    fi
+}
+detect_hpc_environment
+
+# ================================================================
 # 2i2c / JupyterHub Compiler Configuration
 # ================================================================
 # Respect pre-configured compilers for ABI compatibility with conda libraries.
@@ -149,8 +190,23 @@ def get_netcdf_detection() -> str:
     return r'''
 # === NetCDF Detection (reusable snippet) ===
 detect_netcdf() {
-    # Check conda environment first (highest priority for ABI compatibility)
-    if [ -n "${CONDA_PREFIX}" ] && [ -f "${CONDA_PREFIX}/bin/nf-config" ]; then
+    # Check HPC module environment variables first (Compute Canada, NERSC, etc.)
+    # EBROOTNETCDF is set by EasyBuild module system
+    # NETCDF_ROOT, NETCDF_DIR are common HPC conventions
+    if [ -n "${EBROOTNETCDFMINFORTRAN:-}" ] && [ -d "${EBROOTNETCDFMINFORTRAN}/include" ]; then
+        NETCDF_FORTRAN="${EBROOTNETCDFMINFORTRAN}"
+        echo "Found HPC module NetCDF-Fortran at: ${NETCDF_FORTRAN}"
+    elif [ -n "${EBROOTNETCDF:-}" ] && [ -d "${EBROOTNETCDF}/include" ]; then
+        NETCDF_FORTRAN="${EBROOTNETCDF}"
+        echo "Found HPC module NetCDF at: ${NETCDF_FORTRAN}"
+    elif [ -n "${NETCDF_ROOT:-}" ] && [ -d "${NETCDF_ROOT}/include" ]; then
+        NETCDF_FORTRAN="${NETCDF_ROOT}"
+        echo "Found NetCDF via NETCDF_ROOT at: ${NETCDF_FORTRAN}"
+    elif [ -n "${NETCDF_DIR:-}" ] && [ -d "${NETCDF_DIR}/include" ]; then
+        NETCDF_FORTRAN="${NETCDF_DIR}"
+        echo "Found NetCDF via NETCDF_DIR at: ${NETCDF_FORTRAN}"
+    # Check conda environment (second priority for ABI compatibility)
+    elif [ -n "${CONDA_PREFIX}" ] && [ -f "${CONDA_PREFIX}/bin/nf-config" ]; then
         NETCDF_FORTRAN="${CONDA_PREFIX}"
         echo "Found conda NetCDF-Fortran at: ${NETCDF_FORTRAN}"
     # Try nf-config (NetCDF Fortran config tool)
@@ -184,7 +240,13 @@ detect_netcdf() {
     fi
 
     # Find NetCDF C library (may be separate from Fortran on macOS)
-    if [ -n "${CONDA_PREFIX}" ] && [ -f "${CONDA_PREFIX}/bin/nc-config" ]; then
+    if [ -n "${EBROOTNETCDF:-}" ] && [ -d "${EBROOTNETCDF}/lib" ]; then
+        NETCDF_C="${EBROOTNETCDF}"
+    elif [ -n "${NETCDF_ROOT:-}" ] && [ -d "${NETCDF_ROOT}/lib" ]; then
+        NETCDF_C="${NETCDF_ROOT}"
+    elif [ -n "${NETCDF_DIR:-}" ] && [ -d "${NETCDF_DIR}/lib" ]; then
+        NETCDF_C="${NETCDF_DIR}"
+    elif [ -n "${CONDA_PREFIX}" ] && [ -f "${CONDA_PREFIX}/bin/nc-config" ]; then
         NETCDF_C="${CONDA_PREFIX}"
     elif command -v nc-config >/dev/null 2>&1; then
         local nc_prefix
@@ -199,7 +261,7 @@ detect_netcdf() {
     fi
 
     export NETCDF_FORTRAN NETCDF_C
-    echo "NetCDF detection complete: NETCDF_FORTRAN=${NETCDF_FORTRAN}, NETCDF_C=${NETCDF_C}"
+    echo "NetCDF detection complete: NETCDF_FORTRAN=${NETCDF_FORTRAN:-not found}, NETCDF_C=${NETCDF_C:-not found}"
 }
 detect_netcdf
     '''.strip()
@@ -395,9 +457,29 @@ def get_udunits2_detection_and_build() -> str:
 # === UDUNITS2 Detection and Build ===
 detect_or_build_udunits2() {
     UDUNITS2_FOUND=false
+    EXPAT_LIB_DIR=""
 
-    # Check conda environment first (highest priority)
-    if [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/include/udunits2.h" ]; then
+    # Check HPC environment variables first (e.g., Compute Canada module system)
+    if [ -n "$EBROOTUDUNITS" ] && [ -f "$EBROOTUDUNITS/include/udunits2.h" ]; then
+        UDUNITS2_DIR="$EBROOTUDUNITS"
+        UDUNITS2_INCLUDE_DIR="$EBROOTUDUNITS/include"
+        if [ -f "$EBROOTUDUNITS/lib/libudunits2.so" ]; then
+            UDUNITS2_LIBRARY="$EBROOTUDUNITS/lib/libudunits2.so"
+        elif [ -f "$EBROOTUDUNITS/lib64/libudunits2.so" ]; then
+            UDUNITS2_LIBRARY="$EBROOTUDUNITS/lib64/libudunits2.so"
+        else
+            UDUNITS2_LIBRARY="$EBROOTUDUNITS/lib/libudunits2.a"
+        fi
+        echo "Found HPC module UDUNITS2 at: ${UDUNITS2_DIR}"
+        UDUNITS2_FOUND=true
+        # HPC systems typically have expat in the same module or system-wide
+        if [ -n "$EBROOTEXPAT" ]; then
+            EXPAT_LIB_DIR="$EBROOTEXPAT/lib"
+        fi
+    fi
+
+    # Check conda environment (second priority)
+    if [ "$UDUNITS2_FOUND" = false ] && [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/include/udunits2.h" ]; then
         UDUNITS2_DIR="$CONDA_PREFIX"
         UDUNITS2_INCLUDE_DIR="$CONDA_PREFIX/include"
         if [ -f "$CONDA_PREFIX/lib/libudunits2.so" ]; then
@@ -407,6 +489,7 @@ detect_or_build_udunits2() {
         else
             UDUNITS2_LIBRARY="$CONDA_PREFIX/lib/libudunits2.a"
         fi
+        EXPAT_LIB_DIR="$CONDA_PREFIX/lib"
         echo "Found conda UDUNITS2 at: ${UDUNITS2_DIR}"
         UDUNITS2_FOUND=true
     fi
@@ -415,7 +498,9 @@ detect_or_build_udunits2() {
     if [ "$UDUNITS2_FOUND" = false ] && command -v pkg-config >/dev/null 2>&1 && pkg-config --exists udunits2 2>/dev/null; then
         UDUNITS2_DIR="$(pkg-config --variable=prefix udunits2)"
         UDUNITS2_INCLUDE_DIR="$(pkg-config --variable=includedir udunits2)"
-        UDUNITS2_LIBRARY="$(pkg-config --variable=libdir udunits2)/libudunits2.so"
+        local udunits2_libdir="$(pkg-config --variable=libdir udunits2)"
+        UDUNITS2_LIBRARY="${udunits2_libdir}/libudunits2.so"
+        EXPAT_LIB_DIR="${udunits2_libdir}"
         echo "Found UDUNITS2 via pkg-config at: ${UDUNITS2_DIR}"
         UDUNITS2_FOUND=true
     fi
@@ -434,6 +519,7 @@ detect_or_build_udunits2() {
                 else
                     UDUNITS2_LIBRARY="$try_path/lib/libudunits2.a"
                 fi
+                EXPAT_LIB_DIR="$try_path/lib"
                 echo "Found UDUNITS2 at: $try_path"
                 UDUNITS2_FOUND=true
                 break
@@ -478,16 +564,28 @@ detect_or_build_udunits2() {
             EXPAT_FLAGS=""
             EXPAT_FOUND=false
 
+            # Check HPC expat module first
+            if [ -n "$EBROOTEXPAT" ] && [ -f "$EBROOTEXPAT/include/expat.h" ]; then
+                echo "Found HPC module EXPAT at: $EBROOTEXPAT"
+                EXPAT_FLAGS="CPPFLAGS=-I$EBROOTEXPAT/include LDFLAGS=-L$EBROOTEXPAT/lib"
+                EXPAT_LIB_DIR="$EBROOTEXPAT/lib"
+                export LD_LIBRARY_PATH="$EBROOTEXPAT/lib:${LD_LIBRARY_PATH:-}"
+                EXPAT_FOUND=true
+            fi
+
             # Check for expat in common locations
-            for expat_path in "$CONDA_PREFIX" /usr /usr/local; do
-                if [ -n "$expat_path" ] && [ -f "$expat_path/include/expat.h" ]; then
-                    echo "Found EXPAT at: $expat_path"
-                    EXPAT_FLAGS="CPPFLAGS=-I$expat_path/include LDFLAGS=-L$expat_path/lib"
-                    export LD_LIBRARY_PATH="$expat_path/lib:${LD_LIBRARY_PATH:-}"
-                    EXPAT_FOUND=true
-                    break
-                fi
-            done
+            if [ "$EXPAT_FOUND" = false ]; then
+                for expat_path in "$CONDA_PREFIX" /usr /usr/local; do
+                    if [ -n "$expat_path" ] && [ -f "$expat_path/include/expat.h" ]; then
+                        echo "Found EXPAT at: $expat_path"
+                        EXPAT_FLAGS="CPPFLAGS=-I$expat_path/include LDFLAGS=-L$expat_path/lib"
+                        EXPAT_LIB_DIR="$expat_path/lib"
+                        export LD_LIBRARY_PATH="$expat_path/lib:${LD_LIBRARY_PATH:-}"
+                        EXPAT_FOUND=true
+                        break
+                    fi
+                done
+            fi
 
             # If EXPAT not found, build it from source
             if [ "$EXPAT_FOUND" = false ]; then
@@ -513,6 +611,7 @@ detect_or_build_udunits2() {
                 fi
 
                 EXPAT_FLAGS="CPPFLAGS=-I${EXPAT_INSTALL_DIR}/include LDFLAGS=-L${EXPAT_INSTALL_DIR}/lib"
+                EXPAT_LIB_DIR="${EXPAT_INSTALL_DIR}/lib"
                 export LD_LIBRARY_PATH="${EXPAT_INSTALL_DIR}/lib:${LD_LIBRARY_PATH:-}"
             fi
 
@@ -545,6 +644,14 @@ detect_or_build_udunits2() {
     # Also set CMAKE-specific variables
     export UDUNITS2_ROOT="$UDUNITS2_DIR"
     export CMAKE_PREFIX_PATH="${UDUNITS2_DIR}:${CMAKE_PREFIX_PATH:-}"
+
+    # Export EXPAT library path for downstream builds (needed by CMake when linking -lexpat)
+    if [ -n "$EXPAT_LIB_DIR" ] && [ -d "$EXPAT_LIB_DIR" ]; then
+        export EXPAT_LIB_DIR
+        export LIBRARY_PATH="${EXPAT_LIB_DIR}:${LIBRARY_PATH:-}"
+        export LD_LIBRARY_PATH="${EXPAT_LIB_DIR}:${LD_LIBRARY_PATH:-}"
+        echo "  EXPAT_LIB_DIR: ${EXPAT_LIB_DIR}"
+    fi
 
     echo "UDUNITS2 configuration:"
     echo "  UDUNITS2_DIR: ${UDUNITS2_DIR}"
