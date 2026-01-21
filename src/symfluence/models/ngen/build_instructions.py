@@ -177,7 +177,15 @@ fi
 # This avoids complex quoting issues with CMAKE_EXE_LINKER_FLAGS
 EXTRA_LDFLAGS="${EXTRA_LIBS:-}"
 if [ -n "${UDUNITS2_LIBRARY:-}" ]; then
-  EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lexpat"
+  # Include expat library path if available (set by UDUNITS2 detection)
+  if [ -n "${EXPAT_LIB_DIR:-}" ] && [ -d "${EXPAT_LIB_DIR}" ]; then
+    EXTRA_LDFLAGS="$EXTRA_LDFLAGS -L${EXPAT_LIB_DIR} -lexpat"
+    echo "Using EXPAT from: ${EXPAT_LIB_DIR}"
+  else
+    # Fallback: just add -lexpat and hope it's in standard paths
+    EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lexpat"
+    echo "WARNING: EXPAT_LIB_DIR not set, using system expat"
+  fi
 fi
 if [ -n "$EXTRA_LDFLAGS" ]; then
   export LDFLAGS="${LDFLAGS:-} $EXTRA_LDFLAGS"

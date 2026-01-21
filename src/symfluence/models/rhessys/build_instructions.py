@@ -59,27 +59,43 @@ cd rhessys
 
 # Detect netcdf library location for linking
 NETCDF_LDFLAGS=""
-if [ -n "$NETCDF_C" ]; then
-    # Try nc-config first for accurate flags
-    if command -v nc-config >/dev/null 2>&1; then
-        NETCDF_LDFLAGS="$(nc-config --libs 2>/dev/null || echo "")"
+
+# Check HPC environment variables first (EasyBuild module system)
+if [ -n "${EBROOTNETCDF:-}" ]; then
+    for libdir in "$EBROOTNETCDF/lib64" "$EBROOTNETCDF/lib"; do
+        if [ -f "$libdir/libnetcdf.so" ] || [ -f "$libdir/libnetcdf.a" ]; then
+            NETCDF_LDFLAGS="-L$libdir -lnetcdf"
+            echo "Found HPC module netcdf library in: $libdir"
+            break
+        fi
+    done
+fi
+
+# Try nc-config if available and NETCDF_LDFLAGS not yet set
+if [ -z "$NETCDF_LDFLAGS" ] && command -v nc-config >/dev/null 2>&1; then
+    NETCDF_LDFLAGS="$(nc-config --libs 2>/dev/null || echo "")"
+    if [ -n "$NETCDF_LDFLAGS" ]; then
         echo "Using nc-config libs: $NETCDF_LDFLAGS"
     fi
-    # Fallback to manual detection if nc-config didn't work
-    if [ -z "$NETCDF_LDFLAGS" ]; then
-        for libdir in "$NETCDF_C/lib" "$NETCDF_C/lib64" "$CONDA_PREFIX/lib"; do
-            if [ -f "$libdir/libnetcdf.so" ] || [ -f "$libdir/libnetcdf.a" ] || [ -f "$libdir/libnetcdf.dylib" ]; then
-                NETCDF_LDFLAGS="-L$libdir -lnetcdf"
-                echo "Found netcdf library in: $libdir"
-                break
-            fi
-        done
-    fi
 fi
+
+# Fallback to manual detection if nc-config didn't work
+if [ -z "$NETCDF_LDFLAGS" ] && [ -n "$NETCDF_C" ]; then
+    for libdir in "$NETCDF_C/lib64" "$NETCDF_C/lib" "$CONDA_PREFIX/lib"; do
+        if [ -n "$libdir" ] && ([ -f "$libdir/libnetcdf.so" ] || [ -f "$libdir/libnetcdf.a" ] || [ -f "$libdir/libnetcdf.dylib" ]); then
+            NETCDF_LDFLAGS="-L$libdir -lnetcdf"
+            echo "Found netcdf library in: $libdir"
+            break
+        fi
+    done
+fi
+
 # Final fallback - just try -lnetcdf
 if [ -z "$NETCDF_LDFLAGS" ]; then
     NETCDF_LDFLAGS="-lnetcdf"
-    echo "Using default netcdf linker flag: $NETCDF_LDFLAGS"
+    echo "WARNING: NetCDF library path not found. Using default: $NETCDF_LDFLAGS"
+    echo "On HPC systems, ensure you have loaded the netcdf module:"
+    echo "  module load netcdf  # or netcdf-c"
 fi
 echo "NETCDF_LDFLAGS: $NETCDF_LDFLAGS"
 
