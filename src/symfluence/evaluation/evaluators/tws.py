@@ -24,7 +24,7 @@ Water Storage Components (SUMMA):
     - Canopy water: scalarCanopyWat (mm)
     - Soil water: scalarTotalSoilWat (mm)
     - Groundwater: scalarAquiferStorage (m → mm via ×1000)
-    - Glacier mass (optional): glacMass4AreaChange (kg/m² → mm)
+    - Glacier ice mass change (optional): scalarGlceWE (kg/m² → mm)
 
 Configuration:
     TWS_GRACE_COLUMN: GRACE data column name (default: 'grace_jpl_anomaly')
@@ -84,12 +84,12 @@ class TWSEvaluator(ModelEvaluator):
         - scalarCanopyWat: mm (water depth)
         - scalarTotalSoilWat: mm (water depth)
         - scalarAquiferStorage: m → mm (multiply by 1000.0)
-        - glacMass4AreaChange: kg/m² → mm (glacier mass only in timestep files)
+        - scalarIceWE: kg/m² → mm (multiply by 1.0, density=1000 kg/m³)
 
     File Search Strategy:
         1. Prefer daily NetCDF files (*_day.nc) for most storage variables
         2. Check original file from get_simulation_files()
-        3. Search for timestep files (*_timestep.nc) for glacier mass
+        3. Search for timestep files (*_timestep.nc) for more storage variables
         4. Select file with maximum matching variables
 
     Metrics Calculation:
@@ -139,7 +139,7 @@ class TWSEvaluator(ModelEvaluator):
             TWS_UNIT_CONVERSION: Scaling factor for model storage (default: 1.0)
             TWS_STORAGE_COMPONENTS: Comma-separated SUMMA storage variables
                 - Default: 'scalarSWE, scalarCanopyWat, scalarTotalSoilWat, scalarAquiferStorage'
-                - Can include glacier mass: 'glacMass4AreaChange'
+                - Can include glacier mass change: 'scalarGlceWE'
             TWS_DETREND: Remove linear trend from both sim and obs (default: False)
                 - Critical for glacierized basins (glacier mass loss trend obscures seasonal signal)
                 - Improves correlation from ~0.3 to ~0.8 for glacier domains
@@ -186,7 +186,7 @@ class TWSEvaluator(ModelEvaluator):
         """Locate SUMMA output files containing water storage variables.
 
         Searches for NetCDF files containing any of the configured storage
-        components (SWE, canopy water, soil water, aquifer storage, glacier mass).
+        components (SWE, canopy water, soil water, aquifer storage, glacier mass change).
 
         Args:
             sim_dir: Directory containing SUMMA simulation output files
@@ -210,7 +210,7 @@ class TWSEvaluator(ModelEvaluator):
             1. Start with provided sim_files[0] (typically daily output)
             2. Search output directory for alternative files:
                - Daily files (*_day.nc): Preferred for most storage variables
-               - Timestep files (*_timestep.nc): Often contain glacier mass
+               - Timestep files (*_timestep.nc): Look for more storage variables
             3. Test each file for availability of storage variables
             4. Select file(s) with maximum matching variables
             5. If no single file has all vars, try combining vars from multiple files
@@ -234,6 +234,7 @@ class TWSEvaluator(ModelEvaluator):
         Unit Conversions:
             - scalarSWE: kg/m² → mm (density ≈ 1, so 1 kg/m² ≈ 1 mm)
             - scalarAquiferStorage: m → mm (×1000)
+            - scalarGlceWE: kg/m² → mm (density ≈ 1, so 1 kg/m² ≈ 1 mm)
             - Others: Already mm (canopy, soil water depth)
 
         Args:
@@ -255,7 +256,6 @@ class TWSEvaluator(ModelEvaluator):
         output_file = sim_files[0]
 
         # Try to find a file with storage variables
-        # For glacier mode, glacMass4AreaChange is often only in timestep files
         output_dir = output_file.parent
         potential_files = [
             output_file,  # Original file
@@ -264,7 +264,7 @@ class TWSEvaluator(ModelEvaluator):
         for f in output_dir.glob('*_day.nc'):
             if f not in potential_files:
                 potential_files.insert(0, f)  # Prefer daily files
-        # Also check timestep files for glacier variables like glacMass4AreaChange
+        # Also check timestep files
         for f in output_dir.glob('*timestep.nc'):
             if f not in potential_files:
                 potential_files.append(f)

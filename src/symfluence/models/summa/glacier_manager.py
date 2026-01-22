@@ -686,6 +686,7 @@ class GlacierAttributesManager(ConfigMixin):
             'scalarCanairTemp': 283.16,
             'scalarCanopyTemp': 283.16,
             'glacMass4AreaChange': 0.0,
+            'scalarGlceWE': 0.0,
             'dt_init': 3600.0,
         }
 
