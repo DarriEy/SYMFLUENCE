@@ -121,15 +121,46 @@ fi
 
 # Use FLEX_LIB_DIR if set by flex_detect snippet
 if [ -z "$FLEX_LDFLAGS" ] && [ -n "${FLEX_LIB_DIR:-}" ] && [ -d "${FLEX_LIB_DIR}" ]; then
-    FLEX_LDFLAGS="-L${FLEX_LIB_DIR} -lfl"
-    echo "FLEX_LDFLAGS: $FLEX_LDFLAGS"
+    if [ -f "${FLEX_LIB_DIR}/libfl.a" ] || [ -f "${FLEX_LIB_DIR}/libfl.so" ]; then
+        FLEX_LDFLAGS="-L${FLEX_LIB_DIR} -lfl"
+        echo "FLEX_LDFLAGS: $FLEX_LDFLAGS (from FLEX_LIB_DIR)"
+    fi
 fi
 
-# Fallback - just try -lfl and hope it's in the library path
+# Check if flex was built locally in the install directory (one level up from rhessys source)
+if [ -z "$FLEX_LDFLAGS" ]; then
+    for flexlib in "../flex/lib" "../../flex/lib"; do
+        if [ -f "$flexlib/libfl.a" ] || [ -f "$flexlib/libfl.so" ]; then
+            # Convert to absolute path
+            FLEX_LIB_ABS=$(cd "$flexlib" && pwd)
+            FLEX_LDFLAGS="-L${FLEX_LIB_ABS} -lfl"
+            echo "Found locally-built flex library at: $FLEX_LIB_ABS"
+            export LIBRARY_PATH="${FLEX_LIB_ABS}:${LIBRARY_PATH:-}"
+            export LD_LIBRARY_PATH="${FLEX_LIB_ABS}:${LD_LIBRARY_PATH:-}"
+            break
+        fi
+    done
+fi
+
+# Search common system paths for libfl
+if [ -z "$FLEX_LDFLAGS" ]; then
+    for libdir in /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu /lib64 /lib; do
+        if [ -f "$libdir/libfl.a" ] || [ -f "$libdir/libfl.so" ]; then
+            FLEX_LDFLAGS="-L$libdir -lfl"
+            echo "Found system flex library in: $libdir"
+            break
+        fi
+    done
+fi
+
+# Final fallback - just try -lfl (might work if it's in standard paths)
 if [ -z "$FLEX_LDFLAGS" ]; then
     FLEX_LDFLAGS="-lfl"
-    echo "FLEX_LDFLAGS: $FLEX_LDFLAGS (using default path)"
+    echo "WARNING: libfl not found in expected locations. Trying default -lfl"
+    echo "If linking fails, ensure flex-devel is installed or load the flex module"
 fi
+
+echo "FLEX_LDFLAGS: $FLEX_LDFLAGS"
 
 echo "GEOS_CFLAGS: $GEOS_CFLAGS, PROJ_CFLAGS: $PROJ_CFLAGS"
 
