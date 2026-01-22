@@ -26,6 +26,16 @@ from .async_dds import AsyncDDSAlgorithm
 from .nsga2 import NSGA2Algorithm
 from .adam import AdamAlgorithm
 from .lbfgs import LBFGSAlgorithm
+from .cmaes import CMAESAlgorithm
+from .dream import DREAMAlgorithm
+from .glue import GLUEAlgorithm
+from .basin_hopping import BasinHoppingAlgorithm
+from .nelder_mead import NelderMeadAlgorithm
+from .ga import GAAlgorithm
+from .bayesian_optimization import BayesianOptimizationAlgorithm
+from .moead import MOEADAlgorithm
+from .simulated_annealing import SimulatedAnnealingAlgorithm
+from .abc import ABCAlgorithm
 
 
 # Algorithm registry mapping names to classes
@@ -43,6 +53,31 @@ ALGORITHM_REGISTRY: Dict[str, Type[OptimizationAlgorithm]] = {
     'adam': AdamAlgorithm,
     'lbfgs': LBFGSAlgorithm,
     'l-bfgs': LBFGSAlgorithm,  # Alternative name
+    'cmaes': CMAESAlgorithm,
+    'cma-es': CMAESAlgorithm,  # Alternative name
+    'dream': DREAMAlgorithm,
+    'glue': GLUEAlgorithm,
+    'basin_hopping': BasinHoppingAlgorithm,
+    'basinhopping': BasinHoppingAlgorithm,  # Alternative name
+    'bh': BasinHoppingAlgorithm,  # Short alias
+    'nelder_mead': NelderMeadAlgorithm,
+    'neldermead': NelderMeadAlgorithm,  # Alternative name
+    'nelder-mead': NelderMeadAlgorithm,  # Alternative name
+    'nm': NelderMeadAlgorithm,  # Short alias
+    'simplex': NelderMeadAlgorithm,  # Alternative name
+    'ga': GAAlgorithm,
+    'bayesian_opt': BayesianOptimizationAlgorithm,
+    'bayesian': BayesianOptimizationAlgorithm,  # Alternative name
+    'bo': BayesianOptimizationAlgorithm,  # Short alias
+    'moead': MOEADAlgorithm,
+    'moea_d': MOEADAlgorithm,  # Alternative name
+    'moea-d': MOEADAlgorithm,  # Alternative name
+    'simulated_annealing': SimulatedAnnealingAlgorithm,
+    'sa': SimulatedAnnealingAlgorithm,  # Short alias
+    'annealing': SimulatedAnnealingAlgorithm,  # Alternative name
+    'abc': ABCAlgorithm,
+    'abc_smc': ABCAlgorithm,  # Alternative name
+    'approximate_bayesian': ABCAlgorithm,  # Alternative name
 }
 
 
@@ -87,7 +122,7 @@ def list_algorithms() -> list:
         Sorted list of primary algorithm names
     """
     # Return only primary names (not aliases)
-    primary_names = ['dds', 'pso', 'de', 'sce-ua', 'async_dds', 'nsga2', 'adam', 'lbfgs']
+    primary_names = ['dds', 'pso', 'de', 'sce-ua', 'async_dds', 'nsga2', 'adam', 'lbfgs', 'cmaes', 'dream', 'glue', 'basin_hopping', 'nelder_mead', 'ga', 'bayesian_opt', 'moead', 'simulated_annealing', 'abc']
     return sorted(primary_names)
 
 
@@ -103,6 +138,16 @@ __all__ = [
     'NSGA2Algorithm',
     'AdamAlgorithm',
     'LBFGSAlgorithm',
+    'CMAESAlgorithm',
+    'DREAMAlgorithm',
+    'GLUEAlgorithm',
+    'BasinHoppingAlgorithm',
+    'NelderMeadAlgorithm',
+    'GAAlgorithm',
+    'BayesianOptimizationAlgorithm',
+    'MOEADAlgorithm',
+    'SimulatedAnnealingAlgorithm',
+    'ABCAlgorithm',
     # Factory functions
     'get_algorithm',
     'list_algorithms',

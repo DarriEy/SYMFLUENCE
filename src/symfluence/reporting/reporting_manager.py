@@ -26,6 +26,8 @@ if TYPE_CHECKING:
     from symfluence.reporting.plotters.benchmark_plotter import BenchmarkPlotter
     from symfluence.reporting.plotters.snow_plotter import SnowPlotter
     from symfluence.reporting.plotters.diagnostic_plotter import DiagnosticPlotter
+    from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
+    from symfluence.reporting.plotters.forcing_comparison_plotter import ForcingComparisonPlotter
 
 
 class ReportingManager(ConfigMixin):
@@ -365,6 +367,18 @@ class ReportingManager(ConfigMixin):
         from symfluence.reporting.plotters.diagnostic_plotter import DiagnosticPlotter
         return DiagnosticPlotter(self.config, self.logger, self.plot_config)
 
+    @cached_property
+    def model_comparison_plotter(self) -> 'ModelComparisonPlotter':
+        """Lazy initialization of model comparison plotter."""
+        from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
+        return ModelComparisonPlotter(self.config, self.logger, self.plot_config)
+
+    @cached_property
+    def forcing_comparison_plotter(self) -> 'ForcingComparisonPlotter':
+        """Lazy initialization of forcing comparison plotter."""
+        from symfluence.reporting.plotters.forcing_comparison_plotter import ForcingComparisonPlotter
+        return ForcingComparisonPlotter(self.config, self.logger, self.plot_config)
+
     # =========================================================================
     # Public Methods
     # =========================================================================
@@ -384,6 +398,44 @@ class ReportingManager(ConfigMixin):
         if not self.visualize:
             return
         self.diagnostic_plotter.plot_spatial_coverage(raster_path, variable_name, stage)
+
+    def visualize_forcing_comparison(
+        self,
+        raw_forcing_file: Path,
+        remapped_forcing_file: Path,
+        forcing_grid_shp: Path,
+        hru_shp: Path,
+        variable: str = 'pptrate',
+        time_index: int = 0
+    ) -> Optional[str]:
+        """
+        Visualize raw vs. remapped forcing data comparison.
+
+        Creates a side-by-side map visualization comparing raw gridded forcing
+        data with HRU-remapped forcing data.
+
+        Args:
+            raw_forcing_file: Path to raw NetCDF forcing file
+            remapped_forcing_file: Path to remapped NetCDF forcing file
+            forcing_grid_shp: Path to forcing grid shapefile
+            hru_shp: Path to HRU/catchment shapefile
+            variable: Variable to visualize (default: 'pptrate')
+            time_index: Time index to visualize (default: 0)
+
+        Returns:
+            Path to saved plot, or None if visualization is disabled or failed
+        """
+        if not self.visualize:
+            return None
+        self.logger.info("Creating raw vs. remapped forcing comparison visualization...")
+        return self.forcing_comparison_plotter.plot_raw_vs_remapped(
+            raw_forcing_file=raw_forcing_file,
+            remapped_forcing_file=remapped_forcing_file,
+            forcing_grid_shp=forcing_grid_shp,
+            hru_shp=hru_shp,
+            variable=variable,
+            time_index=time_index
+        )
 
     def is_visualization_enabled(self) -> bool:
         """Check if visualization is enabled."""
@@ -808,3 +860,220 @@ class ReportingManager(ConfigMixin):
         self.analysis_plotter.plot_drop_analysis(
             drop_data, optimal_threshold, project_dir
         )
+
+    def generate_model_comparison_overview(
+        self,
+        experiment_id: Optional[str] = None,
+        context: str = 'run_model'
+    ) -> Optional[str]:
+        """Generate model comparison overview for all models with valid output.
+
+        Creates a comprehensive multi-panel visualization comparing observed and
+        simulated streamflow across all models. Includes time series, flow duration
+        curves, scatter plots, performance metrics, monthly distributions, and
+        residual analysis.
+
+        Based on Camille Gautier's overview_model_comparison visualization.
+        Reference: https://github.com/camille-gautier/overview_model_comparison
+
+        Args:
+            experiment_id: Experiment ID for loading results. If None, uses
+                          config.domain.experiment_id.
+            context: Context for the comparison:
+                    - 'run_model': After model run (default title)
+                    - 'calibrate_model': After calibration (post-calibration title)
+
+        Returns:
+            Path to the saved overview plot, or None if:
+            - visualize flag is False
+            - no results data available
+            - plot generation failed
+
+        Note:
+            Automatically triggered at the end of run_model and calibrate_model
+            when the --visualize flag is enabled.
+        """
+        if not self.visualize:
+            return None
+
+        # Get experiment ID from config if not provided
+        if experiment_id is None:
+            experiment_id = self._get_config_value(
+                lambda: self.config.domain.experiment_id,
+                default='default',
+                dict_key='EXPERIMENT_ID'
+            )
+
+        self.logger.info(f"Generating model comparison overview for {experiment_id}...")
+
+        try:
+            return self.model_comparison_plotter.plot_model_comparison_overview(
+                experiment_id=experiment_id,
+                context=context
+            )
+        except Exception as e:
+            self.logger.error(f"Error generating model comparison overview: {str(e)}")
+            return None
+
+    def visualize_calibration_results(
+        self,
+        experiment_id: Optional[str] = None,
+        calibration_target: Optional[str] = None
+    ) -> Dict[str, str]:
+        """
+        Generate comprehensive post-calibration visualizations.
+
+        Creates visualizations appropriate for the calibration target:
+        - Optimization progress/convergence plot
+        - Model performance comparison (obs vs sim with metrics)
+
+        Automatically detects the calibration target from config if not specified:
+        - 'streamflow'/'q' -> Streamflow comparison (Camille's model comparison)
+        - 'swe'/'snow' -> SWE comparison (scalarSWE plot with observations)
+        - 'et'/'evapotranspiration' -> Energy flux comparison (LE/H plots)
+
+        Args:
+            experiment_id: Experiment ID. If None, uses config value.
+            calibration_target: Target variable being calibrated. If None,
+                               auto-detected from config.optimization.target.
+
+        Returns:
+            Dictionary mapping plot names to file paths:
+            - 'optimization_progress': Convergence plot (if history exists)
+            - 'model_comparison': Main comparison plot
+            - 'scalarSWE': SWE plot (for snow calibration)
+            - 'scalarLatHeatTotal': LE plot (for ET calibration)
+            - 'scalarSenHeatTotal': H plot (for ET calibration)
+
+        Example:
+            >>> # After calibration
+            >>> plot_paths = reporting_manager.visualize_calibration_results(
+            ...     experiment_id='run_1'
+            ... )
+            >>> for name, path in plot_paths.items():
+            ...     print(f"{name}: {path}")
+        """
+        import json
+        plot_paths: Dict[str, str] = {}
+
+        if not self.visualize:
+            return plot_paths
+
+        # Get experiment ID from config if not provided
+        if experiment_id is None:
+            experiment_id = self._get_config_value(
+                lambda: self.config.domain.experiment_id,
+                default='default',
+                dict_key='EXPERIMENT_ID'
+            )
+
+        # Get calibration target from config if not provided
+        if calibration_target is None:
+            calibration_target = self._get_config_value(
+                lambda: self.config.optimization.target,
+                default='streamflow',
+                dict_key='OPTIMIZATION_TARGET'
+            )
+        calibration_target = str(calibration_target).lower()
+
+        self.logger.info(f"Generating post-calibration visualizations for {experiment_id} (target: {calibration_target})")
+
+        # 1. Generate optimization progress plot (if history exists)
+        try:
+            opt_dir = self.project_dir / "optimization"
+            history_files = list(opt_dir.glob("*history*.json")) + list(opt_dir.glob("*history*.csv"))
+
+            if history_files:
+                # Try to load history from JSON first
+                history = []
+                for hf in history_files:
+                    if hf.suffix == '.json':
+                        try:
+                            with open(hf) as f:
+                                data = json.load(f)
+                                if isinstance(data, list):
+                                    history = data
+                                    break
+                                elif isinstance(data, dict) and 'history' in data:
+                                    history = data['history']
+                                    break
+                        except Exception:
+                            continue
+
+                if history:
+                    metric = self._get_config_value(
+                        lambda: self.config.optimization.metric,
+                        default='KGE',
+                        dict_key='OPTIMIZATION_METRIC'
+                    )
+                    progress_plot = self.optimization_plotter.plot_optimization_progress(
+                        history, opt_dir, calibration_target, metric
+                    )
+                    if progress_plot:
+                        plot_paths['optimization_progress'] = progress_plot
+        except Exception as e:
+            self.logger.warning(f"Could not generate optimization progress plot: {e}")
+
+        # 2. Generate appropriate model comparison based on calibration target
+        try:
+            if calibration_target in ('streamflow', 'q', 'discharge', 'runoff'):
+                # Streamflow calibration -> Camille's model comparison overview
+                comparison_plot = self.generate_model_comparison_overview(
+                    experiment_id=experiment_id,
+                    context='calibrate_model'
+                )
+                if comparison_plot:
+                    plot_paths['model_comparison'] = comparison_plot
+
+                # Also generate default vs calibrated comparison
+                try:
+                    default_vs_calibrated_plot = self.model_comparison_plotter.plot_default_vs_calibrated_comparison(
+                        experiment_id=experiment_id
+                    )
+                    if default_vs_calibrated_plot:
+                        plot_paths['default_vs_calibrated'] = default_vs_calibrated_plot
+                except Exception as e:
+                    self.logger.warning(f"Could not generate default vs calibrated comparison: {e}")
+
+            elif calibration_target in ('swe', 'snow', 'snow_water_equivalent'):
+                # SWE calibration -> SUMMA outputs with SWE observations
+                summa_plots = self.visualize_summa_outputs(experiment_id)
+                if 'scalarSWE' in summa_plots:
+                    plot_paths['scalarSWE'] = summa_plots['scalarSWE']
+                    plot_paths['model_comparison'] = summa_plots['scalarSWE']
+                # Include other snow-related variables if present
+                for var in ['scalarSnowDepth', 'scalarSnowfall']:
+                    if var in summa_plots:
+                        plot_paths[var] = summa_plots[var]
+
+            elif calibration_target in ('et', 'evapotranspiration', 'latent_heat', 'le'):
+                # ET/energy flux calibration -> SUMMA outputs with energy observations
+                summa_plots = self.visualize_summa_outputs(experiment_id)
+                if 'scalarLatHeatTotal' in summa_plots:
+                    plot_paths['scalarLatHeatTotal'] = summa_plots['scalarLatHeatTotal']
+                    plot_paths['model_comparison'] = summa_plots['scalarLatHeatTotal']
+                if 'scalarSenHeatTotal' in summa_plots:
+                    plot_paths['scalarSenHeatTotal'] = summa_plots['scalarSenHeatTotal']
+                # Include ET-related variables if present
+                for var in ['scalarCanopyEvaporation', 'scalarGroundEvaporation', 'scalarTotalET']:
+                    if var in summa_plots:
+                        plot_paths[var] = summa_plots[var]
+
+            else:
+                # Unknown target - try both streamflow and SUMMA outputs
+                self.logger.info(f"Unknown calibration target '{calibration_target}', generating all available plots")
+                comparison_plot = self.generate_model_comparison_overview(
+                    experiment_id=experiment_id,
+                    context='calibrate_model'
+                )
+                if comparison_plot:
+                    plot_paths['model_comparison'] = comparison_plot
+
+                summa_plots = self.visualize_summa_outputs(experiment_id)
+                plot_paths.update(summa_plots)
+
+        except Exception as e:
+            self.logger.error(f"Error generating calibration comparison plots: {e}")
+
+        self.logger.info(f"Generated {len(plot_paths)} calibration visualization(s)")
+        return plot_paths

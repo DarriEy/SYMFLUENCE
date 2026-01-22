@@ -52,11 +52,13 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         default_name="aspect.tif"
     )
 
+    # Use backward-compatible catchment subpath
+    default_name = f"{discretizer.domain_name}_HRUs_aspect.shp"
     output_shapefile = discretizer._get_file_path(
         path_key="CATCHMENT_PATH",
         name_key="CATCHMENT_SHP_NAME",
-        default_subpath="shapefiles/catchment",
-        default_name=f"{discretizer.domain_name}_HRUs_aspect.shp",
+        default_subpath=discretizer._get_catchment_subpath(default_name),
+        default_name=default_name,
     )
 
     aspect_class_number = int(discretizer._get_config_value(

@@ -591,7 +591,7 @@ jobs:
           SYMFLUENCE_DATA_DIR: "${{ env.SYMFLUENCE_DATA }}"
           DOMAIN_NAME: "${{ env.DOMAIN }}"
           DOMAIN_DEFINITION_METHOD: "${{ env.DOMAIN_DEF }}"
-          DOMAIN_DISCRETIZATION: lumped
+          SUB_GRID_DISCRETIZATION: lumped
           EXPERIMENT_ID: ci_test_001
           EXPERIMENT_TIME_START: 2004-01-01 01:00
           EXPERIMENT_TIME_END: 2004-01-31 23:00

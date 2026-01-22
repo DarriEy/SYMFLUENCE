@@ -21,6 +21,7 @@ from symfluence.optimization.core.parameter_bounds_registry import (
     get_mizuroute_bounds, get_depth_bounds
 )
 from symfluence.optimization.registry import OptimizerRegistry
+from symfluence.core.profiling import ProfilerContext
 
 
 @OptimizerRegistry.register_parameter_manager('SUMMA')
@@ -62,6 +63,9 @@ class SUMMAParameterManager(BaseParameterManager):
         """
         # Initialize base class
         super().__init__(config, logger, optimization_settings_dir)
+
+        # Setup profiling context
+        self._profiler_ctx = ProfilerContext("summa_parameter_manager")
 
         # Parse parameter lists from config
         local_params_raw = config.get('PARAMS_TO_CALIBRATE') or ''
@@ -516,14 +520,16 @@ class SUMMAParameterManager(BaseParameterManager):
             # Update coldState.nc
             coldstate_path = self.settings_dir / self._get_config_value(lambda: self.config.model.summa.coldstate, default='coldState.nc', dict_key='SETTINGS_SUMMA_COLDSTATE')
 
-            with nc.Dataset(coldstate_path, 'r+') as ds:
-                if 'mLayerDepth' not in ds.variables or 'iLayerHeight' not in ds.variables:
-                    return False
+            # Track NetCDF read-modify-write operation (secondary IOPS bottleneck)
+            with self._profiler_ctx.track_netcdf_write(str(coldstate_path)):
+                with nc.Dataset(coldstate_path, 'r+') as ds:
+                    if 'mLayerDepth' not in ds.variables or 'iLayerHeight' not in ds.variables:
+                        return False
 
-                num_hrus = ds.dimensions['hru'].size
-                for h in range(num_hrus):
-                    ds.variables['mLayerDepth'][:, h] = new_depths
-                    ds.variables['iLayerHeight'][:, h] = heights
+                    num_hrus = ds.dimensions['hru'].size
+                    for h in range(num_hrus):
+                        ds.variables['mLayerDepth'][:, h] = new_depths
+                        ds.variables['iLayerHeight'][:, h] = heights
 
             return True
 
@@ -569,9 +575,10 @@ class SUMMAParameterManager(BaseParameterManager):
             if not param_file.exists():
                 return True  # Skip if file doesn't exist
 
-            # Read file
-            with open(param_file, 'r') as f:
-                content = f.read()
+            # Track file read operation
+            with self._profiler_ctx.track_file_read(str(param_file)):
+                with open(param_file, 'r') as f:
+                    content = f.read()
 
             # Update parameters
             updated_content = content
@@ -587,9 +594,10 @@ class SUMMAParameterManager(BaseParameterManager):
 
                     updated_content = re.sub(pattern, replacement, updated_content)
 
-            # Write updated file
-            with open(param_file, 'w') as f:
-                f.write(updated_content)
+            # Track file write operation
+            with self._profiler_ctx.track_file_write(str(param_file), size_bytes=len(updated_content)):
+                with open(param_file, 'w') as f:
+                    f.write(updated_content)
 
             return True
 
@@ -607,63 +615,66 @@ class SUMMAParameterManager(BaseParameterManager):
             trial_params_path = self.settings_dir / self._get_config_value(lambda: self.config.model.summa.trialparams, default='trialParams.nc', dict_key='SETTINGS_SUMMA_TRIALPARAMS')
 
             # Get HRU and GRU counts from attributes
-            with xr.open_dataset(self.attr_file_path) as ds:
-                num_hrus = ds.sizes.get('hru', 1)
-                num_grus = ds.sizes.get('gru', 1)
+            with self._profiler_ctx.track_file_read(str(self.attr_file_path)):
+                with xr.open_dataset(self.attr_file_path) as ds:
+                    num_hrus = ds.sizes.get('hru', 1)
+                    num_grus = ds.sizes.get('gru', 1)
 
-                # Get original hruId values
-                if 'hruId' in ds.variables:
-                    original_hru_ids = ds.variables['hruId'][:].copy()
-                else:
-                    original_hru_ids = np.arange(1, num_hrus + 1)
-                    self.logger.warning(f"hruId not found in attributes.nc, using sequential IDs 1 to {num_hrus}")
+                    # Get original hruId values
+                    if 'hruId' in ds.variables:
+                        original_hru_ids = ds.variables['hruId'][:].copy()
+                    else:
+                        original_hru_ids = np.arange(1, num_hrus + 1)
+                        self.logger.warning(f"hruId not found in attributes.nc, using sequential IDs 1 to {num_hrus}")
 
-                # Get original gruId values
-                if 'gruId' in ds.variables:
-                    original_gru_ids = ds.variables['gruId'][:].copy()
-                else:
-                    original_gru_ids = np.arange(1, num_grus + 1)
-                    self.logger.warning(f"gruId not found in attributes.nc, using sequential IDs 1 to {num_grus}")
+                    # Get original gruId values
+                    if 'gruId' in ds.variables:
+                        original_gru_ids = ds.variables['gruId'][:].copy()
+                    else:
+                        original_gru_ids = np.arange(1, num_grus + 1)
+                        self.logger.warning(f"gruId not found in attributes.nc, using sequential IDs 1 to {num_grus}")
 
             # Define parameter levels
             routing_params = ['routingGammaShape', 'routingGammaScale']
 
-            with nc.Dataset(trial_params_path, 'w', format='NETCDF4') as output_ds:
-                # Create dimensions
-                output_ds.createDimension('hru', num_hrus)
-                output_ds.createDimension('gru', num_grus)
+            # Track NetCDF write operation (primary IOPS bottleneck)
+            with self._profiler_ctx.track_netcdf_write(str(trial_params_path)):
+                with nc.Dataset(trial_params_path, 'w', format='NETCDF4') as output_ds:
+                    # Create dimensions
+                    output_ds.createDimension('hru', num_hrus)
+                    output_ds.createDimension('gru', num_grus)
 
-                # Create coordinate variables with ORIGINAL ID values
-                hru_var = output_ds.createVariable('hruId', 'i4', ('hru',), fill_value=-9999)
-                hru_var[:] = original_hru_ids
+                    # Create coordinate variables with ORIGINAL ID values
+                    hru_var = output_ds.createVariable('hruId', 'i4', ('hru',), fill_value=-9999)
+                    hru_var[:] = original_hru_ids
 
-                gru_var = output_ds.createVariable('gruId', 'i4', ('gru',), fill_value=-9999)
-                gru_var[:] = original_gru_ids
+                    gru_var = output_ds.createVariable('gruId', 'i4', ('gru',), fill_value=-9999)
+                    gru_var[:] = original_gru_ids
 
-                # Add parameters
-                for param_name, param_values in params.items():
-                    param_values_array = np.asarray(param_values)
+                    # Add parameters
+                    for param_name, param_values in params.items():
+                        param_values_array = np.asarray(param_values)
 
-                    if param_name in routing_params or param_name in self.basin_params:
-                        # GRU-level parameters
-                        param_var = output_ds.createVariable(param_name, 'f8', ('gru',), fill_value=np.nan)
-                        param_var.long_name = f"Trial value for {param_name}"
+                        if param_name in routing_params or param_name in self.basin_params:
+                            # GRU-level parameters
+                            param_var = output_ds.createVariable(param_name, 'f8', ('gru',), fill_value=np.nan)
+                            param_var.long_name = f"Trial value for {param_name}"
 
-                        if len(param_values_array) == 1:
-                            param_var[:] = param_values_array[0]
+                            if len(param_values_array) == 1:
+                                param_var[:] = param_values_array[0]
+                            else:
+                                param_var[:] = param_values_array[:num_grus]
                         else:
-                            param_var[:] = param_values_array[:num_grus]
-                    else:
-                        # HRU-level parameters
-                        param_var = output_ds.createVariable(param_name, 'f8', ('hru',), fill_value=np.nan)
-                        param_var.long_name = f"Trial value for {param_name}"
+                            # HRU-level parameters
+                            param_var = output_ds.createVariable(param_name, 'f8', ('hru',), fill_value=np.nan)
+                            param_var.long_name = f"Trial value for {param_name}"
 
-                        if len(param_values_array) == num_hrus:
-                            param_var[:] = param_values_array
-                        elif len(param_values_array) == 1:
-                            param_var[:] = param_values_array[0]
-                        else:
-                            param_var[:] = param_values_array[:num_hrus]
+                            if len(param_values_array) == num_hrus:
+                                param_var[:] = param_values_array
+                            elif len(param_values_array) == 1:
+                                param_var[:] = param_values_array[0]
+                            else:
+                                param_var[:] = param_values_array[:num_hrus]
 
             return True
 

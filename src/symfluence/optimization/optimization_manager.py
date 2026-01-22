@@ -488,6 +488,13 @@ class OptimizationManager(BaseManager):
             if len(results) > 1:
                 self.logger.info(f"Completed calibration for {len(results)} model(s)")
 
+            # Generate model comparison overview after calibration
+            if self.reporting_manager:
+                self.reporting_manager.generate_model_comparison_overview(
+                    experiment_id=self.experiment_id,
+                    context='calibrate_model'
+                )
+
             return results[-1]
 
         except Exception as e:
@@ -562,6 +569,33 @@ class OptimizationManager(BaseManager):
                         0.1
                     )
                 ),
+                'CMA-ES': optimizer.run_cmaes,
+                'CMAES': optimizer.run_cmaes,
+                'DREAM': optimizer.run_dream,
+                'GLUE': optimizer.run_glue,
+                'BASIN-HOPPING': optimizer.run_basin_hopping,
+                'BASINHOPPING': optimizer.run_basin_hopping,
+                'BH': optimizer.run_basin_hopping,
+                'NELDER-MEAD': optimizer.run_nelder_mead,
+                'NELDERMEAD': optimizer.run_nelder_mead,
+                'NM': optimizer.run_nelder_mead,
+                'SIMPLEX': optimizer.run_nelder_mead,
+                'GA': optimizer.run_ga,
+                'BAYESIAN-OPT': optimizer.run_bayesian_opt,
+                'BAYESIAN_OPT': optimizer.run_bayesian_opt,
+                'BAYESIAN': optimizer.run_bayesian_opt,
+                'BO': optimizer.run_bayesian_opt,
+                'MOEAD': optimizer.run_moead,
+                'MOEA-D': optimizer.run_moead,
+                'MOEA_D': optimizer.run_moead,
+                'SIMULATED-ANNEALING': optimizer.run_simulated_annealing,
+                'SIMULATED_ANNEALING': optimizer.run_simulated_annealing,
+                'SA': optimizer.run_simulated_annealing,
+                'ANNEALING': optimizer.run_simulated_annealing,
+                'ABC': optimizer.run_abc,
+                'ABC-SMC': optimizer.run_abc,
+                'ABC_SMC': optimizer.run_abc,
+                'APPROXIMATE-BAYESIAN': optimizer.run_abc,
             }
 
             # Get algorithm method
@@ -639,7 +673,7 @@ class OptimizationManager(BaseManager):
             lambda: self.config.optimization.algorithm,
             ''
         )
-        supported_algorithms = ['DDS', 'ASYNC-DDS', 'ASYNCDDS', 'ASYNC_DDS', 'PSO', 'SCE-UA', 'DE', 'ADAM', 'LBFGS', 'NSGA-II']
+        supported_algorithms = ['DDS', 'ASYNC-DDS', 'ASYNCDDS', 'ASYNC_DDS', 'PSO', 'SCE-UA', 'DE', 'ADAM', 'LBFGS', 'NSGA-II', 'CMA-ES', 'CMAES', 'DREAM', 'GLUE', 'BASIN-HOPPING', 'BASINHOPPING', 'BH', 'NELDER-MEAD', 'NELDERMEAD', 'NM', 'SIMPLEX', 'GA', 'BAYESIAN-OPT', 'BAYESIAN_OPT', 'BAYESIAN', 'BO', 'MOEAD', 'MOEA-D', 'MOEA_D', 'SIMULATED-ANNEALING', 'SIMULATED_ANNEALING', 'SA', 'ANNEALING', 'ABC', 'ABC-SMC', 'ABC_SMC', 'APPROXIMATE-BAYESIAN']
         validation['algorithm_valid'] = algorithm in supported_algorithms
 
         # Check model support

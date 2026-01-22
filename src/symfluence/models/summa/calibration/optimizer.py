@@ -128,7 +128,6 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
     def _get_final_file_manager_path(self) -> Path:
         """Get path to SUMMA file manager."""
         summa_fm = self._get_config_value(lambda: self.config.model.summa.filemanager, default='fileManager.txt', dict_key='SETTINGS_SUMMA_FILEMANAGER')
-        print(f"SUMMA file manager: {summa_fm}")
         if summa_fm == 'default':
             summa_fm = 'fileManager.txt'
         return self.project_dir / 'settings' / 'SUMMA' / summa_fm
@@ -144,6 +143,21 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
             'SUMMA',
             self.experiment_id
         )
+
+        # Add SUMMA-specific directory aliases expected by workers
+        # DirectoryManager creates generic keys (sim_dir, settings_dir), but workers expect
+        # model-specific keys (summa_dir, mizuroute_dir, etc.)
+        for proc_id, dirs in self.parallel_dirs.items():
+            # SUMMA directories (aliases for generic names)
+            dirs['summa_dir'] = dirs['sim_dir']
+            dirs['summa_settings_dir'] = dirs['settings_dir']
+
+            # mizuRoute directories (sibling to SUMMA directories)
+            dirs['mizuroute_dir'] = dirs['sim_dir'].parent / 'mizuRoute'
+            dirs['mizuroute_settings_dir'] = dirs['root'] / 'settings' / 'mizuRoute'
+
+            # Create mizuRoute output directory
+            dirs['mizuroute_dir'].mkdir(parents=True, exist_ok=True)
 
         # Copy SUMMA settings to each parallel directory
         source_settings = self.project_dir / 'settings' / 'SUMMA'
@@ -163,7 +177,7 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
             mizu_settings = self.project_dir / 'settings' / 'mizuRoute'
             if mizu_settings.exists():
                 for proc_id, dirs in self.parallel_dirs.items():
-                    mizu_dest = dirs['root'] / 'settings' / 'mizuRoute'
+                    mizu_dest = dirs['mizuroute_settings_dir']
                     mizu_dest.mkdir(parents=True, exist_ok=True)
                     for item in mizu_settings.iterdir():
                         if item.is_file():

@@ -132,7 +132,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
     Configuration Dependencies:
         Required:
             - DOMAIN_NAME: Basin identifier
-            - DOMAIN_DISCRETIZATION: Domain definition method (lumped/TBL/distribute)
+            - SUB_GRID_DISCRETIZATION: Domain definition method (lumped/TBL/distribute)
             - RIVER_NETWORK_SHP_PATH: Path to river network shapefile
             - RIVER_NETWORK_SHP_NAME: River network shapefile name
             - RIVER_BASINS_PATH: Path to river basin shapefile
@@ -247,7 +247,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
     Example:
         >>> config = {
         ...     'DOMAIN_NAME': 'bow_river',
-        ...     'DOMAIN_DISCRETIZATION': 'lumped',
+        ...     'SUB_GRID_DISCRETIZATION': 'lumped',
         ...     'RIVER_NETWORK_SHP_PATH': './shapefiles/river_network',
         ...     'RIVER_NETWORK_SHP_NAME': 'bow_river_riverNetwork_lumped.shp',
         ...     'RIVER_BASINS_PATH': './shapefiles/river_basins',
@@ -944,7 +944,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         hm_catchment_path = Path(self.config_dict.get('CATCHMENT_PATH'))
         hm_catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
         if hm_catchment_name == 'default':
-            hm_catchment_name = f"{self.domain_name}_HRUs_{self.config_dict.get('DOMAIN_DISCRETIZATION')}.shp"
+            hm_catchment_name = f"{self.domain_name}_HRUs_{self.config_dict.get('SUB_GRID_DISCRETIZATION')}.shp"
 
         rm_catchment_path = Path(self.config_dict.get('RIVER_BASINS_PATH'))
         rm_catchment_name = self.config_dict.get('RIVER_BASINS_NAME')

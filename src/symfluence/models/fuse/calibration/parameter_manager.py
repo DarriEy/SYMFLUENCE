@@ -33,9 +33,10 @@ class FUSEParameterManager(BaseParameterManager):
 
         # Parse FUSE parameters to calibrate
         fuse_params_str = config.get('SETTINGS_FUSE_PARAMS_TO_CALIBRATE')
-        if fuse_params_str is None:
+        # Handle None, empty string, or 'default' as signal to use default parameter list
+        if fuse_params_str is None or fuse_params_str == '' or fuse_params_str == 'default':
             # Provide sensible defaults if not specified
-            self.logger.warning("SETTINGS_FUSE_PARAMS_TO_CALIBRATE not found in config. Using default FUSE parameters.")
+            self.logger.info("Using default FUSE calibration parameters.")
             fuse_params_str = 'MAXWATR_1,MAXWATR_2,BASERTE,QB_POWR,TIMEDELAY,PERCRTE,FRACTEN,RTFRAC1,MBASE,MFMAX,MFMIN,PXTEMP,LAPSE'
 
         self.fuse_params = [p.strip() for p in fuse_params_str.split(',') if p.strip()]

@@ -361,7 +361,7 @@ class TestQuickstartTemplates:
             'EXPERIMENT_TIME_START',
             'EXPERIMENT_TIME_END',
             'DOMAIN_DEFINITION_METHOD',
-            'DOMAIN_DISCRETIZATION',
+            'SUB_GRID_DISCRETIZATION',
             'FORCING_DATASET',
             'HYDROLOGICAL_MODEL',
         ]

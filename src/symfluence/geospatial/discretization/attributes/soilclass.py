@@ -34,11 +34,13 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         default_name=f"domain_{discretizer.domain_name}_soil_classes.tif",
     )
 
+    # Use backward-compatible catchment subpath
+    default_name = f"{discretizer.domain_name}_HRUs_soilclass.shp"
     output_shapefile = discretizer._get_file_path(
         path_key="CATCHMENT_PATH",
         name_key="CATCHMENT_SHP_NAME",
-        default_subpath="shapefiles/catchment",
-        default_name=f"{discretizer.domain_name}_HRUs_soilclass.shp",
+        default_subpath=discretizer._get_catchment_subpath(default_name),
+        default_name=default_name,
     )
 
     gru_gdf, soil_classes = discretizer._read_and_prepare_data(

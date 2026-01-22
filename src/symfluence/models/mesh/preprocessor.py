@@ -206,7 +206,8 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         if domain_method in ['point', 'lumped']:
             return 'lumped'
-        elif domain_method in ['delineate', 'semi_distributed', 'distributed']:
+        elif domain_method in ['delineate', 'semidistributed', 'semi_distributed', 'distributed']:
+            # Note: 'delineate' is auto-mapped to 'semidistributed' for backward compatibility
             return 'distributed'
 
         return 'lumped'
@@ -258,8 +259,10 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         # Apply all fixes
         self.parameter_fixer.fix_run_options_var_names()
         self.parameter_fixer.fix_run_options_snow_params()
+        self.parameter_fixer.fix_run_options_output_dirs()
         self.parameter_fixer.fix_gru_count_mismatch()
         self.parameter_fixer.fix_hydrology_wf_r2()
+        self.parameter_fixer.fix_missing_hydrology_params()
         self.parameter_fixer.fix_class_initial_conditions()
         self.parameter_fixer.create_safe_forcing()
 
@@ -319,6 +322,15 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         # Get GRU mapping
         gru_mapping = MESHConfigDefaults.get_gru_mapping_for_classes(detected_gru_classes)
 
+        # Filter landcover_classes to only include detected classes
+        # This prevents meshflow NGRU dimension mismatch errors
+        all_landcover_classes = _get_config_value('MESH_LANDCOVER_CLASSES', MESHConfigDefaults.LANDCOVER_CLASSES)
+        if detected_gru_classes:
+            landcover_classes = {k: v for k, v in all_landcover_classes.items() if k in detected_gru_classes}
+            self.logger.info(f"Filtered landcover_classes to detected classes: {list(landcover_classes.keys())}")
+        else:
+            landcover_classes = all_landcover_classes
+
         # Build settings
         default_settings = MESHConfigDefaults.get_default_settings(
             forcing_start_date, sim_start_date, sim_end_date, gru_mapping
@@ -335,7 +347,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             'forcing_to_units': _get_config_value('MESH_FORCING_TO_UNITS', MESHConfigDefaults.FORCING_TO_UNITS),
             'main_id': _get_config_value('MESH_MAIN_ID', 'GRU_ID'),
             'ds_main_id': _get_config_value('MESH_DS_MAIN_ID', 'DSLINKNO'),
-            'landcover_classes': _get_config_value('MESH_LANDCOVER_CLASSES', MESHConfigDefaults.LANDCOVER_CLASSES),
+            'landcover_classes': landcover_classes,
             'ddb_vars': _get_config_value('MESH_DDB_VARS', MESHConfigDefaults.DDB_VARS),
             'ddb_units': _get_config_value('MESH_DDB_UNITS', MESHConfigDefaults.DDB_UNITS),
             'ddb_to_units': _get_config_value('MESH_DDB_TO_UNITS', MESHConfigDefaults.DDB_UNITS),
@@ -447,6 +459,10 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.data_preprocessor.sanitize_shapefile(str(riv_copy))
         self.data_preprocessor.sanitize_shapefile(str(cat_copy))
 
+        # Fix network topology fields to ensure scalar values (required by meshflow)
+        self.data_preprocessor.fix_network_topology_fields(str(riv_copy))
+        self.data_preprocessor.fix_network_topology_fields(str(cat_copy))
+
         # Ensure GRU_ID and hru_dim exist for meshflow joining and indexing
         main_id = self._meshflow_config.get('main_id', 'GRU_ID')
         hru_dim = self._meshflow_config.get('hru_dim', 'subbasin')
@@ -465,7 +481,10 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         # Prepare landcover
         landcover_path = self._meshflow_config.get('landcover', '')
         if landcover_path and Path(landcover_path).exists():
-            sanitized = self.data_preprocessor.sanitize_landcover_stats(landcover_path)
+            # Pass catchment path to expand landcover to match all catchment GRU_IDs
+            sanitized = self.data_preprocessor.sanitize_landcover_stats(
+                landcover_path, catchment_path=str(cat_copy)
+            )
             self.data_preprocessor.convert_landcover_to_maf(sanitized)
             self._meshflow_config['landcover'] = sanitized
 
@@ -488,5 +507,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.parameter_fixer.fix_gru_count_mismatch()
         self.drainage_database.reorder_by_rank_and_normalize()
         # Do NOT call fix_gru_count_mismatch again - it would double-trim
+        self.parameter_fixer.fix_run_options_output_dirs()
         self.parameter_fixer.fix_hydrology_wf_r2()
+        self.parameter_fixer.fix_missing_hydrology_params()
         self.parameter_fixer.fix_class_initial_conditions()

@@ -31,7 +31,7 @@ def base_config(temp_dir):
         'EXPERIMENT_TIME_START': '2020-01-01 00:00',
         'EXPERIMENT_TIME_END': '2020-01-02 00:00',
         'DOMAIN_DEFINITION_METHOD': 'lumped',
-        'DOMAIN_DISCRETIZATION': 'GRUs',
+        'SUB_GRID_DISCRETIZATION': 'GRUs',
         'HYDROLOGICAL_MODEL': 'SUMMA',
         'FORCING_DATASET': 'ERA5',
         'FORCING_TIME_STEP_SIZE': 3600,
@@ -50,7 +50,7 @@ def summa_config(temp_dir):
         'EXPERIMENT_TIME_START': '2020-01-01 00:00',
         'EXPERIMENT_TIME_END': '2020-01-02 00:00',
         'DOMAIN_DEFINITION_METHOD': 'lumped',
-        'DOMAIN_DISCRETIZATION': 'GRUs',
+        'SUB_GRID_DISCRETIZATION': 'GRUs',
         'HYDROLOGICAL_MODEL': 'SUMMA',
         'FORCING_DATASET': 'ERA5',
         'FORCING_TIME_STEP_SIZE': 3600,
@@ -77,7 +77,7 @@ def fuse_config(temp_dir):
         'EXPERIMENT_TIME_START': '2020-01-01 00:00',
         'EXPERIMENT_TIME_END': '2020-01-02 00:00',
         'DOMAIN_DEFINITION_METHOD': 'lumped',
-        'DOMAIN_DISCRETIZATION': 'GRUs',
+        'SUB_GRID_DISCRETIZATION': 'GRUs',
         'HYDROLOGICAL_MODEL': 'FUSE',
         'FORCING_DATASET': 'ERA5',
         'FORCING_TIME_STEP_SIZE': 3600,
@@ -129,6 +129,24 @@ def mock_forcing_data(setup_test_directories, base_config):
         'forcing_dir': forcing_dir,
         'forcing_file': forcing_file,
     }
+
+
+@pytest.fixture(scope="session")
+def forcing_data_dir(bow_test_data):
+    """Real forcing data directory from test data."""
+    return bow_test_data / "forcing" / "raw_data"
+
+
+@pytest.fixture(scope="session")
+def attribute_data_dir(bow_test_data):
+    """Real attribute data directory from test data."""
+    return bow_test_data / "attributes"
+
+
+@pytest.fixture(scope="session")
+def observation_data_dir(bow_test_data):
+    """Real observation data directory from test data."""
+    return bow_test_data / "observations"
 
 
 @pytest.fixture

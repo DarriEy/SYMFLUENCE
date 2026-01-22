@@ -53,7 +53,7 @@ def base_optimization_config(tmp_path):
         'SYMFLUENCE_CODE_DIR': str(tmp_path / 'code'),
         'DOMAIN_NAME': 'test_catchment',
         'DOMAIN_DEFINITION_METHOD': 'subset',
-        'DOMAIN_DISCRETIZATION': 'GRU',
+        'SUB_GRID_DISCRETIZATION': 'GRU',
         'EXPERIMENT_ID': 'test_optimization',
         'HYDROLOGICAL_MODEL': 'SUMMA',
         'FORCING_DATASET': 'ERA5',

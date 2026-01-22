@@ -19,20 +19,159 @@ def get_common_build_environment() -> str:
     """
     return r'''
 set -e
-# Compiler: force absolute path if possible to satisfy CMake/Makefile
-if [ -n "$FC" ] && [ -x "$FC" ]; then
-    export FC="$FC"
-elif command -v gfortran >/dev/null 2>&1; then
-    export FC="$(command -v gfortran)"
-else
-    export FC="${FC:-gfortran}"
-fi
-export FC_EXE="$FC"
 
-# Discover libraries (fallback to /usr)
-export NETCDF="${NETCDF:-$(nc-config --prefix 2>/dev/null || echo /usr)}"
-export NETCDF_FORTRAN="${NETCDF_FORTRAN:-$(nf-config --prefix 2>/dev/null || echo /usr)}"
-export HDF5_ROOT="${HDF5_ROOT:-$(h5cc -showconfig 2>/dev/null | awk -F': ' "/Installation point/{print $2}" || echo /usr)}"
+# ================================================================
+# HPC Environment Detection and Guidance
+# ================================================================
+detect_hpc_environment() {
+    HPC_DETECTED=false
+    HPC_NAME=""
+
+    # Check for common HPC indicators
+    if [ -d "/cvmfs/soft.computecanada.ca" ] || [ -n "${CC_CLUSTER:-}" ]; then
+        HPC_DETECTED=true
+        HPC_NAME="Compute Canada / Digital Research Alliance"
+    elif [ -n "${NERSC_HOST:-}" ]; then
+        HPC_DETECTED=true
+        HPC_NAME="NERSC"
+    elif [ -n "${TACC_SYSTEM:-}" ]; then
+        HPC_DETECTED=true
+        HPC_NAME="TACC"
+    elif [ -n "${PBS_O_HOST:-}" ] || [ -n "${SLURM_CLUSTER_NAME:-}" ]; then
+        HPC_DETECTED=true
+        HPC_NAME="HPC Cluster"
+    fi
+
+    if [ "$HPC_DETECTED" = true ]; then
+        echo "=================================================="
+        echo "HPC Environment Detected: $HPC_NAME"
+        echo "=================================================="
+        echo ""
+        echo "For successful builds, ensure required modules are loaded."
+        echo "Example for Compute Canada:"
+        echo "  module load StdEnv/2023"
+        echo "  module load gcc/12.3 cmake/3.27.7"
+        echo "  module load netcdf/4.9.2 expat udunits/2.2.28"
+        echo "  module load geos proj"
+        echo ""
+        echo "Current loaded modules (if available):"
+        module list 2>/dev/null || echo "  (module command not available)"
+        echo ""
+    fi
+}
+detect_hpc_environment
+
+# ================================================================
+# 2i2c / JupyterHub Compiler Configuration
+# ================================================================
+# Respect pre-configured compilers for ABI compatibility with conda libraries.
+# The symfluence shell script sets CC/CXX to conda compilers when available.
+configure_compilers() {
+    # If CC/CXX are already set to conda compilers, trust them
+    # (symfluence --install sets these for ABI compatibility)
+    if [ -n "$CC" ] && [[ "$CC" == *conda* ]]; then
+        echo "Using pre-configured conda compiler: CC=$CC"
+        [ -n "$CXX" ] && echo "  CXX=$CXX"
+        return 0
+    fi
+
+    # Only use system compilers if explicitly requested
+    if [ "${SYMFLUENCE_USE_SYSTEM_COMPILERS:-}" = "true" ]; then
+        [ -x /usr/bin/gcc ] && export CC=/usr/bin/gcc
+        [ -x /usr/bin/g++ ] && export CXX=/usr/bin/g++
+        echo "Using system compilers (requested via SYMFLUENCE_USE_SYSTEM_COMPILERS)"
+        echo "  CC=$CC, CXX=${CXX:-not set}"
+        return 0
+    fi
+
+    # If no compiler is set but we're in a conda env, try to find conda compilers
+    if [ -n "$CONDA_PREFIX" ] && [ -z "$CC" ]; then
+        local conda_gcc="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gcc"
+        local conda_gxx="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-g++"
+        if [ -x "$conda_gcc" ]; then
+            export CC="$conda_gcc"
+            [ -x "$conda_gxx" ] && export CXX="$conda_gxx"
+            echo "Auto-detected conda compilers: CC=$CC"
+        fi
+    fi
+
+    # Report current compiler configuration
+    if [ -n "$CC" ]; then
+        echo "Compiler configuration: CC=$CC"
+        [ -n "$CXX" ] && echo "  CXX=$CXX"
+    fi
+}
+configure_compilers
+
+# ================================================================
+# Fortran Compiler Detection
+# ================================================================
+# Look for conda gfortran first (for ABI compatibility), then system gfortran
+configure_fortran() {
+    # Already set and valid
+    if [ -n "$FC" ] && [ -x "$FC" ]; then
+        echo "Using FC=$FC"
+        export FC_EXE="$FC"
+        return 0
+    fi
+
+    # Try conda gfortran first (from compilers package)
+    if [ -n "$CONDA_PREFIX" ]; then
+        local conda_fc="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gfortran"
+        if [ -x "$conda_fc" ]; then
+            export FC="$conda_fc"
+            export FC_EXE="$FC"
+            echo "Using conda Fortran compiler: FC=$FC"
+            return 0
+        fi
+    fi
+
+    # Fall back to system gfortran
+    if command -v gfortran >/dev/null 2>&1; then
+        export FC="$(command -v gfortran)"
+        export FC_EXE="$FC"
+        echo "Using system Fortran compiler: FC=$FC"
+        return 0
+    fi
+
+    # Last resort
+    export FC="${FC:-gfortran}"
+    export FC_EXE="$FC"
+    echo "Warning: gfortran not found, set FC=$FC"
+}
+configure_fortran
+
+# ================================================================
+# Library Discovery
+# ================================================================
+# Discover libraries - prefer conda prefix if available
+configure_libraries() {
+    # NetCDF: prefer conda installation
+    if [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/bin/nc-config" ]; then
+        export NETCDF="$CONDA_PREFIX"
+        echo "Using conda NetCDF: $NETCDF"
+    else
+        export NETCDF="${NETCDF:-$(nc-config --prefix 2>/dev/null || echo /usr)}"
+    fi
+
+    # NetCDF-Fortran: prefer conda installation
+    if [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/bin/nf-config" ]; then
+        export NETCDF_FORTRAN="$CONDA_PREFIX"
+        echo "Using conda NetCDF-Fortran: $NETCDF_FORTRAN"
+    else
+        export NETCDF_FORTRAN="${NETCDF_FORTRAN:-$(nf-config --prefix 2>/dev/null || echo /usr)}"
+    fi
+
+    # HDF5: prefer conda installation
+    if [ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX/lib" ] && ls "$CONDA_PREFIX/lib"/libhdf5* >/dev/null 2>&1; then
+        export HDF5_ROOT="$CONDA_PREFIX"
+        echo "Using conda HDF5: $HDF5_ROOT"
+    else
+        export HDF5_ROOT="${HDF5_ROOT:-$(h5cc -showconfig 2>/dev/null | awk -F': ' "/Installation point/{print \$2}" || echo /usr)}"
+    fi
+}
+configure_libraries
+
 # Threads
 export NCORES="${NCORES:-4}"
     '''.strip()
@@ -43,7 +182,7 @@ def get_netcdf_detection() -> str:
     Get reusable NetCDF detection shell snippet.
 
     Sets NETCDF_FORTRAN and NETCDF_C environment variables.
-    Works on Linux (apt), macOS (Homebrew), and HPC systems.
+    Works on Linux (apt), macOS (Homebrew), conda environments, and HPC systems.
 
     Returns:
         Shell script snippet for NetCDF detection.
@@ -51,30 +190,70 @@ def get_netcdf_detection() -> str:
     return r'''
 # === NetCDF Detection (reusable snippet) ===
 detect_netcdf() {
-    # Try nf-config first (NetCDF Fortran config tool)
-    if command -v nf-config >/dev/null 2>&1; then
-        NETCDF_FORTRAN="$(nf-config --prefix)"
-        echo "Found nf-config, NetCDF-Fortran at: ${NETCDF_FORTRAN}"
-    elif [ -n "${NETCDF_FORTRAN}" ] && [ -d "${NETCDF_FORTRAN}/include" ]; then
-        echo "Using NETCDF_FORTRAN env var: ${NETCDF_FORTRAN}"
-    elif [ -n "${NETCDF}" ] && [ -d "${NETCDF}/include" ]; then
-        NETCDF_FORTRAN="${NETCDF}"
-        echo "Using NETCDF env var: ${NETCDF_FORTRAN}"
-    else
-        # Try common locations (Homebrew, system paths)
-        for try_path in /opt/homebrew/opt/netcdf-fortran /opt/homebrew/opt/netcdf \
-                        /usr/local/opt/netcdf-fortran /usr/local/opt/netcdf /usr/local /usr; do
-            if [ -d "$try_path/include" ]; then
-                NETCDF_FORTRAN="$try_path"
-                echo "Found NetCDF at: $try_path"
-                break
-            fi
-        done
+    # Check HPC module environment variables first (Compute Canada, NERSC, etc.)
+    # EBROOTNETCDF is set by EasyBuild module system
+    # NETCDF_ROOT, NETCDF_DIR are common HPC conventions
+    if [ -n "${EBROOTNETCDFMINFORTRAN:-}" ] && [ -d "${EBROOTNETCDFMINFORTRAN}/include" ]; then
+        NETCDF_FORTRAN="${EBROOTNETCDFMINFORTRAN}"
+        echo "Found HPC module NetCDF-Fortran at: ${NETCDF_FORTRAN}"
+    elif [ -n "${EBROOTNETCDF:-}" ] && [ -d "${EBROOTNETCDF}/include" ]; then
+        NETCDF_FORTRAN="${EBROOTNETCDF}"
+        echo "Found HPC module NetCDF at: ${NETCDF_FORTRAN}"
+    elif [ -n "${NETCDF_ROOT:-}" ] && [ -d "${NETCDF_ROOT}/include" ]; then
+        NETCDF_FORTRAN="${NETCDF_ROOT}"
+        echo "Found NetCDF via NETCDF_ROOT at: ${NETCDF_FORTRAN}"
+    elif [ -n "${NETCDF_DIR:-}" ] && [ -d "${NETCDF_DIR}/include" ]; then
+        NETCDF_FORTRAN="${NETCDF_DIR}"
+        echo "Found NetCDF via NETCDF_DIR at: ${NETCDF_FORTRAN}"
+    # Check conda environment (second priority for ABI compatibility)
+    elif [ -n "${CONDA_PREFIX}" ] && [ -f "${CONDA_PREFIX}/bin/nf-config" ]; then
+        NETCDF_FORTRAN="${CONDA_PREFIX}"
+        echo "Found conda NetCDF-Fortran at: ${NETCDF_FORTRAN}"
+    # Try nf-config (NetCDF Fortran config tool)
+    elif command -v nf-config >/dev/null 2>&1; then
+        local nf_prefix
+        nf_prefix="$(nf-config --prefix 2>/dev/null)"
+        if [ -n "$nf_prefix" ] && [ -d "$nf_prefix" ]; then
+            NETCDF_FORTRAN="$nf_prefix"
+            echo "Found nf-config, NetCDF-Fortran at: ${NETCDF_FORTRAN}"
+        fi
+    fi
+
+    # Fallback checks if not yet found
+    if [ -z "${NETCDF_FORTRAN}" ] || [ ! -d "${NETCDF_FORTRAN}/include" ]; then
+        if [ -n "${NETCDF_FORTRAN}" ] && [ -d "${NETCDF_FORTRAN}/include" ]; then
+            echo "Using NETCDF_FORTRAN env var: ${NETCDF_FORTRAN}"
+        elif [ -n "${NETCDF}" ] && [ -d "${NETCDF}/include" ]; then
+            NETCDF_FORTRAN="${NETCDF}"
+            echo "Using NETCDF env var: ${NETCDF_FORTRAN}"
+        else
+            # Try common locations (Homebrew, system paths)
+            for try_path in /opt/homebrew/opt/netcdf-fortran /opt/homebrew/opt/netcdf \
+                            /usr/local/opt/netcdf-fortran /usr/local/opt/netcdf /usr/local /usr; do
+                if [ -d "$try_path/include" ]; then
+                    NETCDF_FORTRAN="$try_path"
+                    echo "Found NetCDF at: $try_path"
+                    break
+                fi
+            done
+        fi
     fi
 
     # Find NetCDF C library (may be separate from Fortran on macOS)
-    if command -v nc-config >/dev/null 2>&1; then
-        NETCDF_C="$(nc-config --prefix)"
+    if [ -n "${EBROOTNETCDF:-}" ] && [ -d "${EBROOTNETCDF}/lib" ]; then
+        NETCDF_C="${EBROOTNETCDF}"
+    elif [ -n "${NETCDF_ROOT:-}" ] && [ -d "${NETCDF_ROOT}/lib" ]; then
+        NETCDF_C="${NETCDF_ROOT}"
+    elif [ -n "${NETCDF_DIR:-}" ] && [ -d "${NETCDF_DIR}/lib" ]; then
+        NETCDF_C="${NETCDF_DIR}"
+    elif [ -n "${CONDA_PREFIX}" ] && [ -f "${CONDA_PREFIX}/bin/nc-config" ]; then
+        NETCDF_C="${CONDA_PREFIX}"
+    elif command -v nc-config >/dev/null 2>&1; then
+        local nc_prefix
+        nc_prefix="$(nc-config --prefix 2>/dev/null)"
+        if [ -n "$nc_prefix" ] && [ -d "$nc_prefix" ]; then
+            NETCDF_C="$nc_prefix"
+        fi
     elif [ -d "/opt/homebrew/opt/netcdf" ]; then
         NETCDF_C="/opt/homebrew/opt/netcdf"
     else
@@ -82,6 +261,7 @@ detect_netcdf() {
     fi
 
     export NETCDF_FORTRAN NETCDF_C
+    echo "NetCDF detection complete: NETCDF_FORTRAN=${NETCDF_FORTRAN:-not found}, NETCDF_C=${NETCDF_C:-not found}"
 }
 detect_netcdf
     '''.strip()
@@ -201,17 +381,55 @@ def get_geos_proj_detection() -> str:
 detect_geos_proj() {
     GEOS_CFLAGS="" GEOS_LDFLAGS="" PROJ_CFLAGS="" PROJ_LDFLAGS=""
 
-    # Try pkg-config first
-    if command -v pkg-config >/dev/null 2>&1; then
-        if pkg-config --exists geos 2>/dev/null; then
-            GEOS_CFLAGS="$(pkg-config --cflags geos)"
-            GEOS_LDFLAGS="$(pkg-config --libs geos)"
-            echo "GEOS found via pkg-config"
+    # Check HPC module environment variables first (EasyBuild)
+    if [ -n "$EBROOTGEOS" ] && [ -d "$EBROOTGEOS" ]; then
+        GEOS_CFLAGS="-I${EBROOTGEOS}/include"
+        for libdir in "$EBROOTGEOS/lib64" "$EBROOTGEOS/lib"; do
+            if [ -f "$libdir/libgeos_c.so" ] || [ -f "$libdir/libgeos_c.a" ]; then
+                GEOS_LDFLAGS="-L$libdir -lgeos_c"
+                break
+            fi
+        done
+        echo "GEOS found via HPC module at: $EBROOTGEOS"
+    fi
+
+    if [ -n "$EBROOTPROJ" ] && [ -d "$EBROOTPROJ" ]; then
+        PROJ_CFLAGS="-I${EBROOTPROJ}/include"
+        for libdir in "$EBROOTPROJ/lib64" "$EBROOTPROJ/lib"; do
+            if [ -f "$libdir/libproj.so" ] || [ -f "$libdir/libproj.a" ]; then
+                PROJ_LDFLAGS="-L$libdir -lproj"
+                break
+            fi
+        done
+        echo "PROJ found via HPC module at: $EBROOTPROJ"
+    fi
+
+    # Try geos-config tool (more reliable than pkg-config on HPC)
+    if [ -z "$GEOS_CFLAGS" ] && command -v geos-config >/dev/null 2>&1; then
+        GEOS_CFLAGS="$(geos-config --cflags 2>/dev/null || true)"
+        GEOS_LDFLAGS="$(geos-config --clibs 2>/dev/null || true)"
+        if [ -n "$GEOS_CFLAGS" ]; then
+            echo "GEOS found via geos-config"
         fi
-        if pkg-config --exists proj 2>/dev/null; then
-            PROJ_CFLAGS="$(pkg-config --cflags proj)"
-            PROJ_LDFLAGS="$(pkg-config --libs proj)"
-            echo "PROJ found via pkg-config"
+    fi
+
+    # Try pkg-config (but catch errors for broken dependencies)
+    if command -v pkg-config >/dev/null 2>&1; then
+        if [ -z "$GEOS_CFLAGS" ] && pkg-config --exists geos 2>/dev/null; then
+            GEOS_CFLAGS="$(pkg-config --cflags geos 2>/dev/null || true)"
+            GEOS_LDFLAGS="$(pkg-config --libs geos 2>/dev/null || true)"
+            if [ -n "$GEOS_CFLAGS" ]; then
+                echo "GEOS found via pkg-config"
+            fi
+        fi
+        # Note: pkg-config for proj often fails on HPC due to missing deps (sqlite3, libtiff, libcurl)
+        # Only try if PROJ not already found and suppress errors
+        if [ -z "$PROJ_CFLAGS" ]; then
+            PROJ_CFLAGS="$(pkg-config --cflags proj 2>/dev/null || true)"
+            PROJ_LDFLAGS="$(pkg-config --libs proj 2>/dev/null || true)"
+            if [ -n "$PROJ_CFLAGS" ]; then
+                echo "PROJ found via pkg-config"
+            fi
         fi
     fi
 
@@ -263,6 +481,448 @@ detect_geos_proj
     '''.strip()
 
 
+def get_udunits2_detection_and_build() -> str:
+    """
+    Get reusable UDUNITS2 detection and build-from-source snippet.
+
+    Sets UDUNITS2_DIR, UDUNITS2_INCLUDE_DIR, UDUNITS2_LIBRARY environment variables.
+    If UDUNITS2 is not found system-wide, builds it from source in a local directory.
+
+    Returns:
+        Shell script snippet for UDUNITS2 detection and building.
+    """
+    return r'''
+# === UDUNITS2 Detection and Build ===
+detect_or_build_udunits2() {
+    UDUNITS2_FOUND=false
+    EXPAT_LIB_DIR=""
+    UDUNITS2_FROM_HPC_MODULE=false
+
+    # Check HPC environment variables first (e.g., Compute Canada module system)
+    if [ -n "$EBROOTUDUNITS" ] && [ -f "$EBROOTUDUNITS/include/udunits2.h" ]; then
+        UDUNITS2_DIR="$EBROOTUDUNITS"
+        UDUNITS2_INCLUDE_DIR="$EBROOTUDUNITS/include"
+        if [ -f "$EBROOTUDUNITS/lib/libudunits2.so" ]; then
+            UDUNITS2_LIBRARY="$EBROOTUDUNITS/lib/libudunits2.so"
+        elif [ -f "$EBROOTUDUNITS/lib64/libudunits2.so" ]; then
+            UDUNITS2_LIBRARY="$EBROOTUDUNITS/lib64/libudunits2.so"
+        else
+            UDUNITS2_LIBRARY="$EBROOTUDUNITS/lib/libudunits2.a"
+        fi
+        echo "Found HPC module UDUNITS2 at: ${UDUNITS2_DIR}"
+        UDUNITS2_FOUND=true
+        UDUNITS2_FROM_HPC_MODULE=true
+        # HPC module handles expat dependency via rpath - no need to add -lexpat
+        if [ -n "$EBROOTEXPAT" ]; then
+            EXPAT_LIB_DIR="$EBROOTEXPAT/lib"
+        fi
+    fi
+
+    # Check conda environment (second priority)
+    if [ "$UDUNITS2_FOUND" = false ] && [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/include/udunits2.h" ]; then
+        UDUNITS2_DIR="$CONDA_PREFIX"
+        UDUNITS2_INCLUDE_DIR="$CONDA_PREFIX/include"
+        if [ -f "$CONDA_PREFIX/lib/libudunits2.so" ]; then
+            UDUNITS2_LIBRARY="$CONDA_PREFIX/lib/libudunits2.so"
+        elif [ -f "$CONDA_PREFIX/lib/libudunits2.dylib" ]; then
+            UDUNITS2_LIBRARY="$CONDA_PREFIX/lib/libudunits2.dylib"
+        else
+            UDUNITS2_LIBRARY="$CONDA_PREFIX/lib/libudunits2.a"
+        fi
+        EXPAT_LIB_DIR="$CONDA_PREFIX/lib"
+        echo "Found conda UDUNITS2 at: ${UDUNITS2_DIR}"
+        UDUNITS2_FOUND=true
+    fi
+
+    # Try pkg-config (system install)
+    if [ "$UDUNITS2_FOUND" = false ] && command -v pkg-config >/dev/null 2>&1 && pkg-config --exists udunits2 2>/dev/null; then
+        UDUNITS2_DIR="$(pkg-config --variable=prefix udunits2)"
+        UDUNITS2_INCLUDE_DIR="$(pkg-config --variable=includedir udunits2)"
+        local udunits2_libdir="$(pkg-config --variable=libdir udunits2)"
+        UDUNITS2_LIBRARY="${udunits2_libdir}/libudunits2.so"
+        EXPAT_LIB_DIR="${udunits2_libdir}"
+        echo "Found UDUNITS2 via pkg-config at: ${UDUNITS2_DIR}"
+        UDUNITS2_FOUND=true
+    fi
+
+    # Try common system locations
+    if [ "$UDUNITS2_FOUND" = false ]; then
+        for try_path in /usr /usr/local /opt/udunits2 $HOME/.local; do
+            if [ -f "$try_path/include/udunits2.h" ] && \
+               ([ -f "$try_path/lib/libudunits2.so" ] || [ -f "$try_path/lib/libudunits2.dylib" ] || [ -f "$try_path/lib/libudunits2.a" ]); then
+                UDUNITS2_DIR="$try_path"
+                UDUNITS2_INCLUDE_DIR="$try_path/include"
+                if [ -f "$try_path/lib/libudunits2.so" ]; then
+                    UDUNITS2_LIBRARY="$try_path/lib/libudunits2.so"
+                elif [ -f "$try_path/lib/libudunits2.dylib" ]; then
+                    UDUNITS2_LIBRARY="$try_path/lib/libudunits2.dylib"
+                else
+                    UDUNITS2_LIBRARY="$try_path/lib/libudunits2.a"
+                fi
+                EXPAT_LIB_DIR="$try_path/lib"
+                echo "Found UDUNITS2 at: $try_path"
+                UDUNITS2_FOUND=true
+                break
+            fi
+        done
+    fi
+
+    # If not found, build from source
+    if [ "$UDUNITS2_FOUND" = false ]; then
+        echo "UDUNITS2 not found system-wide, building from source..."
+
+        # Save original directory before building
+        UDUNITS2_ORIGINAL_DIR="$(pwd)"
+
+        UDUNITS2_VERSION="2.2.28"
+        UDUNITS2_BUILD_DIR="${UDUNITS2_ORIGINAL_DIR}/udunits2_build"
+        UDUNITS2_INSTALL_DIR="${UDUNITS2_ORIGINAL_DIR}/udunits2"
+
+        # Check if already built locally
+        if [ -f "${UDUNITS2_INSTALL_DIR}/include/udunits2.h" ] && \
+           ([ -f "${UDUNITS2_INSTALL_DIR}/lib/libudunits2.so" ] || [ -f "${UDUNITS2_INSTALL_DIR}/lib/libudunits2.a" ]); then
+            echo "Using previously built UDUNITS2 at: ${UDUNITS2_INSTALL_DIR}"
+        else
+            # Download and build UDUNITS2
+            mkdir -p "${UDUNITS2_BUILD_DIR}"
+            cd "${UDUNITS2_BUILD_DIR}"
+
+            if [ ! -f "udunits-${UDUNITS2_VERSION}.tar.gz" ]; then
+                echo "Downloading UDUNITS2 ${UDUNITS2_VERSION}..."
+                wget -q "https://downloads.unidata.ucar.edu/udunits/${UDUNITS2_VERSION}/udunits-${UDUNITS2_VERSION}.tar.gz" \
+                  || curl -fsSL -o "udunits-${UDUNITS2_VERSION}.tar.gz" "https://downloads.unidata.ucar.edu/udunits/${UDUNITS2_VERSION}/udunits-${UDUNITS2_VERSION}.tar.gz"
+            fi
+
+            if [ ! -d "udunits-${UDUNITS2_VERSION}" ]; then
+                echo "Extracting UDUNITS2..."
+                tar -xzf "udunits-${UDUNITS2_VERSION}.tar.gz"
+            fi
+
+            cd "udunits-${UDUNITS2_VERSION}"
+
+            # UDUNITS2 requires EXPAT for XML parsing
+            EXPAT_FLAGS=""
+            EXPAT_FOUND=false
+
+            # Check HPC expat module first
+            if [ -n "$EBROOTEXPAT" ] && [ -f "$EBROOTEXPAT/include/expat.h" ]; then
+                echo "Found HPC module EXPAT at: $EBROOTEXPAT"
+                EXPAT_FLAGS="CPPFLAGS=-I$EBROOTEXPAT/include LDFLAGS=-L$EBROOTEXPAT/lib"
+                EXPAT_LIB_DIR="$EBROOTEXPAT/lib"
+                export LD_LIBRARY_PATH="$EBROOTEXPAT/lib:${LD_LIBRARY_PATH:-}"
+                EXPAT_FOUND=true
+            fi
+
+            # Check for expat in common locations
+            if [ "$EXPAT_FOUND" = false ]; then
+                for expat_path in "$CONDA_PREFIX" /usr /usr/local; do
+                    if [ -n "$expat_path" ] && [ -f "$expat_path/include/expat.h" ]; then
+                        echo "Found EXPAT at: $expat_path"
+                        EXPAT_FLAGS="CPPFLAGS=-I$expat_path/include LDFLAGS=-L$expat_path/lib"
+                        EXPAT_LIB_DIR="$expat_path/lib"
+                        export LD_LIBRARY_PATH="$expat_path/lib:${LD_LIBRARY_PATH:-}"
+                        EXPAT_FOUND=true
+                        break
+                    fi
+                done
+            fi
+
+            # If EXPAT not found, build it from source
+            if [ "$EXPAT_FOUND" = false ]; then
+                echo "EXPAT not found, building from source..."
+                EXPAT_VERSION="2.5.0"
+                EXPAT_INSTALL_DIR="${UDUNITS2_ORIGINAL_DIR}/expat"
+
+                if [ ! -f "${EXPAT_INSTALL_DIR}/lib/libexpat.a" ]; then
+                    mkdir -p expat_build && cd expat_build
+                    if [ ! -f "expat-${EXPAT_VERSION}.tar.gz" ]; then
+                        wget -q "https://github.com/libexpat/libexpat/releases/download/R_2_5_0/expat-${EXPAT_VERSION}.tar.gz" \
+                          || curl -fsSL -o "expat-${EXPAT_VERSION}.tar.gz" "https://github.com/libexpat/libexpat/releases/download/R_2_5_0/expat-${EXPAT_VERSION}.tar.gz"
+                    fi
+                    tar -xzf "expat-${EXPAT_VERSION}.tar.gz"
+                    cd "expat-${EXPAT_VERSION}"
+                    ./configure --prefix="${EXPAT_INSTALL_DIR}" --disable-shared --enable-static
+                    make -j ${NCORES:-4}
+                    make install
+                    cd ../..
+                    echo "EXPAT built successfully"
+                else
+                    echo "Using previously built EXPAT at: ${EXPAT_INSTALL_DIR}"
+                fi
+
+                EXPAT_FLAGS="CPPFLAGS=-I${EXPAT_INSTALL_DIR}/include LDFLAGS=-L${EXPAT_INSTALL_DIR}/lib"
+                EXPAT_LIB_DIR="${EXPAT_INSTALL_DIR}/lib"
+                export LD_LIBRARY_PATH="${EXPAT_INSTALL_DIR}/lib:${LD_LIBRARY_PATH:-}"
+            fi
+
+            echo "Configuring UDUNITS2..."
+            ./configure --prefix="${UDUNITS2_INSTALL_DIR}" --disable-shared --enable-static $EXPAT_FLAGS
+
+            echo "Building UDUNITS2..."
+            make -j ${NCORES:-4}
+
+            echo "Installing UDUNITS2 to ${UDUNITS2_INSTALL_DIR}..."
+            make install
+
+            # Return to original directory
+            cd "${UDUNITS2_ORIGINAL_DIR}"
+
+            echo "UDUNITS2 built successfully"
+        fi
+
+        UDUNITS2_DIR="${UDUNITS2_INSTALL_DIR}"
+        UDUNITS2_INCLUDE_DIR="${UDUNITS2_INSTALL_DIR}/include"
+        if [ -f "${UDUNITS2_INSTALL_DIR}/lib/libudunits2.so" ]; then
+            UDUNITS2_LIBRARY="${UDUNITS2_INSTALL_DIR}/lib/libudunits2.so"
+        else
+            UDUNITS2_LIBRARY="${UDUNITS2_INSTALL_DIR}/lib/libudunits2.a"
+        fi
+    fi
+
+    export UDUNITS2_DIR UDUNITS2_INCLUDE_DIR UDUNITS2_LIBRARY UDUNITS2_FROM_HPC_MODULE
+
+    # Also set CMAKE-specific variables
+    export UDUNITS2_ROOT="$UDUNITS2_DIR"
+    export CMAKE_PREFIX_PATH="${UDUNITS2_DIR}:${CMAKE_PREFIX_PATH:-}"
+
+    # Export EXPAT library path for downstream builds (needed by CMake when linking -lexpat)
+    # Only needed when building UDUNITS2 from source (HPC modules handle expat via rpath)
+    if [ -n "$EXPAT_LIB_DIR" ] && [ -d "$EXPAT_LIB_DIR" ]; then
+        export EXPAT_LIB_DIR
+        export LIBRARY_PATH="${EXPAT_LIB_DIR}:${LIBRARY_PATH:-}"
+        export LD_LIBRARY_PATH="${EXPAT_LIB_DIR}:${LD_LIBRARY_PATH:-}"
+        echo "  EXPAT_LIB_DIR: ${EXPAT_LIB_DIR}"
+    fi
+
+    echo "UDUNITS2 configuration:"
+    echo "  UDUNITS2_DIR: ${UDUNITS2_DIR}"
+    echo "  UDUNITS2_INCLUDE_DIR: ${UDUNITS2_INCLUDE_DIR}"
+    echo "  UDUNITS2_LIBRARY: ${UDUNITS2_LIBRARY}"
+    echo "  UDUNITS2_FROM_HPC_MODULE: ${UDUNITS2_FROM_HPC_MODULE}"
+}
+detect_or_build_udunits2
+    '''.strip()
+
+
+def get_bison_detection_and_build() -> str:
+    """
+    Get reusable bison detection and build-from-source snippet.
+
+    Checks if bison (parser generator) is available, and if not, builds it
+    from source in a local directory.
+
+    Returns:
+        Shell script snippet for bison detection and building.
+    """
+    return r'''
+# === Bison Detection and Build ===
+detect_or_build_bison() {
+    BISON_FOUND=false
+
+    # Check conda environment first (highest priority)
+    if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/bison" ]; then
+        echo "Found conda bison: $CONDA_PREFIX/bin/bison"
+        "$CONDA_PREFIX/bin/bison" --version | head -1
+        export PATH="$CONDA_PREFIX/bin:$PATH"
+        BISON_FOUND=true
+        return 0
+    fi
+
+    # Check if bison is already available in PATH
+    if command -v bison >/dev/null 2>&1; then
+        echo "Found bison: $(command -v bison)"
+        bison --version | head -1
+        BISON_FOUND=true
+        return 0
+    fi
+
+    # If not found, build from source
+    echo "Bison not found system-wide, building from source..."
+
+    # Save original directory before building
+    BISON_ORIGINAL_DIR="$(pwd)"
+
+    BISON_VERSION="3.8.2"
+    BISON_BUILD_DIR="${BISON_ORIGINAL_DIR}/bison_build"
+    BISON_INSTALL_DIR="${BISON_ORIGINAL_DIR}/bison"
+
+    # Check if already built locally
+    if [ -x "${BISON_INSTALL_DIR}/bin/bison" ]; then
+        echo "Using previously built bison at: ${BISON_INSTALL_DIR}/bin/bison"
+        export PATH="${BISON_INSTALL_DIR}/bin:$PATH"
+        bison --version | head -1
+        return 0
+    fi
+
+    # Download and build bison
+    mkdir -p "${BISON_BUILD_DIR}"
+    cd "${BISON_BUILD_DIR}"
+
+    if [ ! -f "bison-${BISON_VERSION}.tar.xz" ]; then
+        echo "Downloading bison ${BISON_VERSION}..."
+        wget -q "https://ftp.gnu.org/gnu/bison/bison-${BISON_VERSION}.tar.xz" \
+          || curl -fsSL -o "bison-${BISON_VERSION}.tar.xz" "https://ftp.gnu.org/gnu/bison/bison-${BISON_VERSION}.tar.xz"
+    fi
+
+    if [ ! -d "bison-${BISON_VERSION}" ]; then
+        echo "Extracting bison..."
+        tar -xJf "bison-${BISON_VERSION}.tar.xz"
+    fi
+
+    cd "bison-${BISON_VERSION}"
+    echo "Configuring bison..."
+    ./configure --prefix="${BISON_INSTALL_DIR}"
+
+    echo "Building bison..."
+    make -j ${NCORES:-4}
+
+    echo "Installing bison to ${BISON_INSTALL_DIR}..."
+    make install
+
+    # Return to original directory
+    cd "${BISON_ORIGINAL_DIR}"
+
+    # Add to PATH
+    export PATH="${BISON_INSTALL_DIR}/bin:$PATH"
+
+    echo "Bison built successfully"
+    bison --version | head -1
+}
+detect_or_build_bison
+    '''.strip()
+
+
+def get_flex_detection_and_build() -> str:
+    """
+    Get reusable flex detection and build-from-source snippet.
+
+    Checks if flex (lexical analyzer generator) is available, and if not,
+    builds it from source in a local directory.
+
+    Returns:
+        Shell script snippet for flex detection and building.
+    """
+    return r'''
+# === Flex Detection and Build ===
+detect_or_build_flex() {
+    FLEX_FOUND=false
+    LIBFL_FOUND=false
+
+    # Check conda environment first (highest priority)
+    if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/flex" ]; then
+        echo "Found conda flex: $CONDA_PREFIX/bin/flex"
+        "$CONDA_PREFIX/bin/flex" --version | head -1
+        export PATH="$CONDA_PREFIX/bin:$PATH"
+        FLEX_FOUND=true
+        # Conda flex package includes libfl
+        if [ -f "$CONDA_PREFIX/lib/libfl.a" ] || [ -f "$CONDA_PREFIX/lib/libfl.so" ]; then
+            echo "Found conda libfl"
+            LIBFL_FOUND=true
+            export FLEX_LIB_DIR="$CONDA_PREFIX/lib"
+            export LDFLAGS="${LDFLAGS:-} -L${FLEX_LIB_DIR}"
+            export LIBRARY_PATH="${FLEX_LIB_DIR}:${LIBRARY_PATH:-}"
+        fi
+        return 0
+    fi
+
+    # Check if flex binary is available in PATH
+    if command -v flex >/dev/null 2>&1; then
+        echo "Found flex: $(command -v flex)"
+        flex --version | head -1
+        FLEX_FOUND=true
+
+        # Check if libfl is available for linking
+        # Try multiple methods to find libfl
+        if ldconfig -p 2>/dev/null | grep -q libfl; then
+            echo "System libfl found via ldconfig"
+            LIBFL_FOUND=true
+        elif [ -f /usr/lib/libfl.a ] || [ -f /usr/lib/x86_64-linux-gnu/libfl.a ] || [ -f /usr/lib64/libfl.a ]; then
+            echo "System libfl.a found"
+            LIBFL_FOUND=true
+        elif [ -f /usr/lib/libfl.so ] || [ -f /usr/lib/x86_64-linux-gnu/libfl.so ] || [ -f /usr/lib64/libfl.so ]; then
+            echo "System libfl.so found"
+            LIBFL_FOUND=true
+        fi
+
+        if [ "$LIBFL_FOUND" = "true" ]; then
+            return 0
+        else
+            echo "Warning: flex found but libfl not found - will build flex from source for the library"
+        fi
+    fi
+
+    # If flex or libfl not found, build from source
+    if [ "$FLEX_FOUND" = "true" ]; then
+        echo "Building flex from source to get libfl library..."
+    else
+        echo "Flex not found system-wide, building from source..."
+    fi
+
+    # Save original directory before building
+    FLEX_ORIGINAL_DIR="$(pwd)"
+
+    FLEX_VERSION="2.6.4"
+    FLEX_BUILD_DIR="${FLEX_ORIGINAL_DIR}/flex_build"
+    FLEX_INSTALL_DIR="${FLEX_ORIGINAL_DIR}/flex"
+
+    # Check if already built locally
+    if [ -x "${FLEX_INSTALL_DIR}/bin/flex" ]; then
+        echo "Using previously built flex at: ${FLEX_INSTALL_DIR}/bin/flex"
+        export PATH="${FLEX_INSTALL_DIR}/bin:$PATH"
+        # Export library path for linking (LIBRARY_PATH is used by gcc at link time)
+        export FLEX_LIB_DIR="${FLEX_INSTALL_DIR}/lib"
+        export LDFLAGS="${LDFLAGS} -L${FLEX_LIB_DIR}"
+        export LIBRARY_PATH="${FLEX_LIB_DIR}:${LIBRARY_PATH}"
+        export LD_LIBRARY_PATH="${FLEX_LIB_DIR}:${LD_LIBRARY_PATH}"
+        echo "FLEX_LIB_DIR set to: ${FLEX_LIB_DIR}"
+        flex --version | head -1
+        return 0
+    fi
+
+    # Download and build flex
+    mkdir -p "${FLEX_BUILD_DIR}"
+    cd "${FLEX_BUILD_DIR}"
+
+    if [ ! -f "flex-${FLEX_VERSION}.tar.gz" ]; then
+        echo "Downloading flex ${FLEX_VERSION}..."
+        wget -q "https://github.com/westes/flex/releases/download/v${FLEX_VERSION}/flex-${FLEX_VERSION}.tar.gz" \
+          || curl -fsSL -o "flex-${FLEX_VERSION}.tar.gz" "https://github.com/westes/flex/releases/download/v${FLEX_VERSION}/flex-${FLEX_VERSION}.tar.gz"
+    fi
+
+    if [ ! -d "flex-${FLEX_VERSION}" ]; then
+        echo "Extracting flex..."
+        tar -xzf "flex-${FLEX_VERSION}.tar.gz"
+    fi
+
+    cd "flex-${FLEX_VERSION}"
+    echo "Configuring flex..."
+    ./configure --prefix="${FLEX_INSTALL_DIR}"
+
+    echo "Building flex..."
+    make -j ${NCORES:-4}
+
+    echo "Installing flex to ${FLEX_INSTALL_DIR}..."
+    make install
+
+    # Return to original directory
+    cd "${FLEX_ORIGINAL_DIR}"
+
+    # Add to PATH
+    export PATH="${FLEX_INSTALL_DIR}/bin:$PATH"
+    # Export library path for linking (LIBRARY_PATH is used by gcc at link time)
+    export FLEX_LIB_DIR="${FLEX_INSTALL_DIR}/lib"
+    export LDFLAGS="${LDFLAGS} -L${FLEX_LIB_DIR}"
+    export LIBRARY_PATH="${FLEX_LIB_DIR}:${LIBRARY_PATH}"
+    export LD_LIBRARY_PATH="${FLEX_LIB_DIR}:${LD_LIBRARY_PATH}"
+    echo "FLEX_LIB_DIR set to: ${FLEX_LIB_DIR}"
+
+    echo "Flex built successfully"
+    flex --version | head -1
+}
+detect_or_build_flex
+    '''.strip()
+
+
 def get_all_snippets() -> Dict[str, str]:
     """
     Return all snippets as a dictionary for easy access.
@@ -276,4 +936,7 @@ def get_all_snippets() -> Dict[str, str]:
         'hdf5_detect': get_hdf5_detection(),
         'netcdf_lib_detect': get_netcdf_lib_detection(),
         'geos_proj_detect': get_geos_proj_detection(),
+        'udunits2_detect_build': get_udunits2_detection_and_build(),
+        'bison_detect_build': get_bison_detection_and_build(),
+        'flex_detect_build': get_flex_detection_and_build(),
     }

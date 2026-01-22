@@ -75,10 +75,10 @@ class TestAlgorithmSelection:
 
     def test_unsupported_algorithm(self, base_optimization_config, test_logger):
         """Test handling of unsupported algorithm."""
-        from symfluence.core.exceptions import ConfigurationError
+        from pydantic import ValidationError
 
-        # SymfluenceConfig validates algorithms at creation time
-        with pytest.raises(ConfigurationError):
+        # SymfluenceConfig validates algorithms at creation time using Literal types
+        with pytest.raises(ValidationError):
             config = create_config_with_overrides(
                 base_optimization_config,
                 ITERATIVE_OPTIMIZATION_ALGORITHM='UNSUPPORTED_ALG'

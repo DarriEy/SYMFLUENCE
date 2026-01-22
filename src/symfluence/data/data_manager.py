@@ -5,7 +5,8 @@ Coordinates all data acquisition and preprocessing operations through
 specialized services for forcing data, observations, and attribute processing.
 """
 
-from typing import Dict, Any, TYPE_CHECKING
+from typing import Dict, Any, Optional, TYPE_CHECKING
+from pathlib import Path
 
 import pandas as pd
 
@@ -325,7 +326,7 @@ class DataManager(BaseManager):
 
             # Check for USGS Groundwater download and ensure it's in additional_obs
             download_usgs_gw = self._get_config_value(
-                lambda: self.config.data.download_usgs_gw,
+                lambda: self.config.evaluation.usgs_gw.download,
                 False
             )
             if isinstance(download_usgs_gw, str):
@@ -336,7 +337,7 @@ class DataManager(BaseManager):
 
             # Check for MODIS Snow and ensure it's in additional_obs
             download_modis_snow = self._get_config_value(
-                lambda: self.config.data.download_modis_snow,
+                lambda: self.config.evaluation.modis_snow.download,
                 False
             )
             if download_modis_snow and 'MODIS_SNOW' not in additional_obs:
@@ -344,7 +345,7 @@ class DataManager(BaseManager):
 
             # Check for SNOTEL download and ensure it's in additional_obs
             download_snotel = self._get_config_value(
-                lambda: self.config.data.download_snotel,
+                lambda: self.config.evaluation.snotel.download,
                 False
             )
             if isinstance(download_snotel, str):
@@ -451,9 +452,15 @@ class DataManager(BaseManager):
                 except Exception as e:
                     self.logger.warning(f"Failed to visualize preprocessed forcing: {e}")
 
+                # Visualize raw vs remapped forcing comparison
+                try:
+                    self._visualize_forcing_comparison(basin_averaged_data)
+                except Exception as e:
+                    self.logger.warning(f"Failed to visualize forcing comparison: {e}")
+
             # Integrate EM-Earth data if supplementation is enabled
             supplement_forcing = self._get_config_value(
-                lambda: self.config.data.supplement_forcing,
+                lambda: self.config.forcing.supplement,
                 False
             )
             if supplement_forcing:
@@ -480,6 +487,130 @@ class DataManager(BaseManager):
                 all_exist = False
         return all_exist
 
+    def _visualize_forcing_comparison(self, basin_averaged_data: Path) -> None:
+        """
+        Visualize raw vs. remapped forcing comparison.
+
+        Args:
+            basin_averaged_data: Path to basin averaged data directory
+        """
+        if not self.reporting_manager:
+            return
+
+        # Find remapped file (basin averaged)
+        remapped_files = list(basin_averaged_data.glob("*.nc"))
+        if not remapped_files:
+            self.logger.debug("No remapped forcing files found for comparison visualization")
+            return
+        remapped_forcing_file = remapped_files[0]
+
+        # Find raw forcing file (check merged_data first, then raw_data)
+        raw_forcing_dir = self.project_dir / 'forcing' / 'merged_data'
+        if not raw_forcing_dir.exists() or not list(raw_forcing_dir.glob("*.nc")):
+            raw_forcing_dir = self.project_dir / 'forcing' / 'raw_data'
+
+        raw_files = list(raw_forcing_dir.glob("*.nc")) if raw_forcing_dir.exists() else []
+        if not raw_files:
+            self.logger.debug("No raw forcing files found for comparison visualization")
+            return
+        raw_forcing_file = raw_files[0]
+
+        # Find forcing grid shapefile
+        forcing_grid_shp = self._find_forcing_shapefile()
+        if forcing_grid_shp is None:
+            self.logger.debug("Forcing grid shapefile not found for comparison visualization")
+            return
+
+        # Find HRU shapefile
+        hru_shp = self._find_hru_shapefile()
+        if hru_shp is None:
+            self.logger.debug("HRU shapefile not found for comparison visualization")
+            return
+
+        # Call visualization
+        self.reporting_manager.visualize_forcing_comparison(
+            raw_forcing_file=raw_forcing_file,
+            remapped_forcing_file=remapped_forcing_file,
+            forcing_grid_shp=forcing_grid_shp,
+            hru_shp=hru_shp
+        )
+
+    def _find_hru_shapefile(self) -> Optional[Path]:
+        """
+        Find the HRU/catchment shapefile.
+
+        Returns:
+            Path to HRU shapefile, or None if not found
+        """
+        catchment_dir = self.project_dir / 'shapefiles' / 'catchment'
+        if not catchment_dir.exists():
+            return None
+
+        # Try to find HRU shapefile based on common naming patterns
+        domain_name = self._get_config_value(
+            lambda: self.config.domain.name,
+            'domain'
+        )
+
+        # Try explicit config value first
+        catchment_name = self._get_config_value(
+            lambda: self.config.paths.catchment_name,
+            'default'
+        )
+        if catchment_name != 'default':
+            explicit_path = catchment_dir / catchment_name
+            if explicit_path.exists():
+                return explicit_path
+
+        # Search for HRU shapefiles with common patterns
+        patterns = [
+            f"{domain_name}_HRUs_*.shp",
+            f"{domain_name}_catchment*.shp",
+            "*HRU*.shp",
+            "*catchment*.shp",
+            "*.shp"  # Fallback to any shapefile
+        ]
+
+        for pattern in patterns:
+            matches = list(catchment_dir.glob(pattern))
+            if matches:
+                return matches[0]
+
+        return None
+
+    def _find_forcing_shapefile(self) -> Optional[Path]:
+        """
+        Find the forcing grid shapefile.
+
+        Returns:
+            Path to forcing shapefile, or None if not found
+        """
+        forcing_shp_dir = self.project_dir / 'shapefiles' / 'forcing'
+        if not forcing_shp_dir.exists():
+            return None
+
+        # Try explicit config value first
+        forcing_dataset = self._get_config_value(
+            lambda: self.config.forcing.dataset,
+            'ERA5'
+        )
+        expected_path = forcing_shp_dir / f"forcing_{forcing_dataset}.shp"
+        if expected_path.exists():
+            return expected_path
+
+        # Search for any forcing shapefile (handles cases like 'local' dataset)
+        patterns = [
+            "forcing_*.shp",
+            "*.shp"  # Fallback to any shapefile
+        ]
+
+        for pattern in patterns:
+            matches = list(forcing_shp_dir.glob(pattern))
+            if matches:
+                return matches[0]
+
+        return None
+
     def get_data_status(self) -> Dict[str, Any]:
         """Get status of data acquisition and preprocessing."""
         status = {
@@ -495,7 +626,7 @@ class DataManager(BaseManager):
         status['landclass_exists'] = (self.project_dir / 'attributes' / 'landclass').exists()
 
         supplement_forcing = self._get_config_value(
-            lambda: self.config.data.supplement_forcing,
+            lambda: self.config.forcing.supplement,
             False
         )
         if supplement_forcing:

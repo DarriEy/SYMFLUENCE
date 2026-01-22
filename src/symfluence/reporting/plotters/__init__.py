@@ -9,6 +9,7 @@ from symfluence.reporting.plotters.benchmark_plotter import BenchmarkPlotter
 from symfluence.reporting.plotters.snow_plotter import SnowPlotter
 from symfluence.reporting.plotters.hydrograph_plotter import HydrographPlotter
 from symfluence.reporting.plotters.model_results_plotter import ModelResultsPlotter
+from symfluence.reporting.plotters.forcing_comparison_plotter import ForcingComparisonPlotter
 
 __all__ = [
     'DomainPlotter',
@@ -18,4 +19,5 @@ __all__ = [
     'SnowPlotter',
     'HydrographPlotter',
     'ModelResultsPlotter',
+    'ForcingComparisonPlotter',
 ]

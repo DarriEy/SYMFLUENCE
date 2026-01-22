@@ -368,7 +368,7 @@ For snow-dominated mountainous basins:
 
    # Distributed mode with elevation bands
    GR_SPATIAL_MODE: distributed
-   DOMAIN_DEFINITION_METHOD: delineate
+   DOMAIN_DEFINITION_METHOD: semidistributed
    POUR_POINT_COORDS: [-118.5, 49.2]
 
    # Create 5 elevation zones

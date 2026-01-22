@@ -159,7 +159,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         fuse_id = self.config_dict.get('FUSE_FILE_ID')
         if not fuse_id:
             experiment_id = self.config_dict.get('EXPERIMENT_ID', '')
-            fuse_id = experiment_id[:6] if experiment_id else 'fuse'
+            fuse_id = experiment_id if experiment_id else 'fuse'
             self.config_dict['FUSE_FILE_ID'] = fuse_id
         return fuse_id
 
@@ -956,6 +956,15 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         aligned = xr.align(*to_align, join='inner')
         ds_a, pet_a = aligned[0], aligned[1]
         obs_ds_a = aligned[2] if obs_ds is not None else None
+
+        if len(ds_a.time) == 0:
+            msg = "Overlap between forcing, PET, and observations is empty."
+            for i, data in enumerate(to_align):
+                if hasattr(data, 'time') and len(data.time) > 0:
+                    msg += f" Dataset {i} range: {data.time.min().values} to {data.time.max().values}."
+                else:
+                    msg += f" Dataset {i} is empty or has no time."
+            raise ValueError(msg)
 
         self.logger.info(f"Aligned data to overlapping period: {ds_a.time.min().values} to {ds_a.time.max().values}")
 

@@ -28,11 +28,11 @@ References:
 from typing import Dict, Any, Callable, Optional, Tuple, List
 import numpy as np
 
-from .base_algorithm import OptimizationAlgorithm
+from .base_algorithm import OptimizationAlgorithm, NativeGradientCallback
 
 
 class LBFGSAlgorithm(OptimizationAlgorithm):
-    """L-BFGS quasi-Newton optimization using finite-difference gradients.
+    """L-BFGS quasi-Newton optimization with native or finite-difference gradients.
 
     L-BFGS approximates the Hessian inverse using only a limited history of
     gradients and position changes, enabling efficient quasi-Newton optimization
@@ -40,7 +40,7 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
 
     Algorithm Overview:
         1. Initialize parameters at normalized space midpoint (0.5)
-        2. Compute initial gradient via finite differences
+        2. Compute initial gradient (native autodiff or finite differences)
         3. For each step:
            a. Compute search direction using L-BFGS two-loop recursion
            b. Line search: find step size satisfying Wolfe conditions
@@ -61,11 +61,21 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
         1. Sufficient decrease (Armijo): f(x_new) ≥ f(x) + c1*α*⟨∇f,d⟩
         2. Curvature condition (strong Wolfe): |⟨∇f(x_new),d⟩| ≤ c2*|⟨∇f,d⟩|
 
+    Gradient Computation:
+        Supports two modes controlled by gradient_mode parameter:
+        1. Native gradients (when compute_gradient callback provided):
+           - Uses autodiff (JAX/PyTorch) for exact gradients
+           - Cost: ~2 function evaluations per gradient call
+        2. Finite-difference gradients (default fallback):
+           - Uses central differences
+           - Cost: 2*n_params + 1 function evaluations per gradient call
+
     Hyperparameters:
         - α (lr): Initial step size for line search (default: 0.1)
         - history_size: # of (s,y) pairs to retain (default: 10)
         - steps: Maximum iterations (default: uses max_iterations)
         - c1, c2: Wolfe condition parameters (default: 1e-4, 0.9)
+        - gradient_mode: 'auto', 'native', or 'finite_difference'
     """
 
     @property
@@ -83,9 +93,11 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
         update_best: Callable,
         log_progress: Callable,
         evaluate_population_objectives: Optional[Callable] = None,
+        compute_gradient: Optional[NativeGradientCallback] = None,
+        gradient_mode: str = 'auto',
         **kwargs
     ) -> Dict[str, Any]:
-        """Run L-BFGS optimization with finite-difference gradients and line search.
+        """Run L-BFGS optimization with native or finite-difference gradients.
 
         Implements full L-BFGS algorithm with Wolfe line search and gradient
         convergence detection.
@@ -100,6 +112,13 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
             update_best: Function to update best solution found
             log_progress: Function to log progress messages
             evaluate_population_objectives: Unused for L-BFGS
+            compute_gradient: Optional native gradient callback.
+                             Signature: (x_normalized) -> (loss, gradient_array)
+                             When provided, enables ~N times faster gradient computation.
+            gradient_mode: How to compute gradients:
+                          - 'auto': Use native if compute_gradient provided, else FD
+                          - 'native': Require native gradients (error if unavailable)
+                          - 'finite_difference': Always use FD (for comparison)
             **kwargs: Optional hyperparameters:
                      - steps: Maximum iterations (default: max_iterations from config)
                      - lr: Initial step size for line search (default: 0.1)
@@ -112,18 +131,35 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
             - best_solution: Best parameter vector found (normalized [0,1])
             - best_score: Highest objective value achieved
             - best_params: Denormalized best parameters (dictionary)
+            - gradient_method: 'native' or 'finite_difference' (which was used)
         """
         # L-BFGS hyperparameters from config or kwargs
         steps = kwargs.get('steps', self.config_dict.get('LBFGS_STEPS', self.max_iterations))
         lr = kwargs.get('lr', self.config_dict.get('LBFGS_LR', 0.1))
         history_size = kwargs.get('history_size', self.config_dict.get('LBFGS_HISTORY_SIZE', 10))
-        c1 = kwargs.get('c1', self.config.get('LBFGS_C1', 1e-4))  # Armijo condition
-        c2 = kwargs.get('c2', self.config.get('LBFGS_C2', 0.9))   # Wolfe condition
+        c1 = kwargs.get('c1', self.config_dict.get('LBFGS_C1', 1e-4))  # Armijo condition
+        c2 = kwargs.get('c2', self.config_dict.get('LBFGS_C2', 0.9))   # Wolfe condition
         gradient_epsilon = self.config_dict.get('GRADIENT_EPSILON', 1e-4)
         gradient_clip = self.config_dict.get('GRADIENT_CLIP_VALUE', 1.0)
 
+        # Determine gradient method and create unified gradient function
+        use_native = self._should_use_native_gradients(compute_gradient, gradient_mode)
+        gradient_method = 'native' if use_native else 'finite_difference'
+
+        gradient_func = self._create_gradient_function(
+            compute_gradient=compute_gradient,
+            evaluate_solution=evaluate_solution,
+            gradient_mode=gradient_mode,
+            epsilon=gradient_epsilon
+        )
+
         self.logger.info(f"Starting L-BFGS optimization with {n_params} parameters")
         self.logger.info(f"  Steps: {steps}, LR: {lr}, History size: {history_size}")
+        self.logger.info(f"  Gradient method: {gradient_method}")
+        if use_native:
+            self.logger.info("  Using native gradients (~2 evals/step)")
+        else:
+            self.logger.info(f"  Using finite differences ({2*n_params + 1} evals/step)")
 
         # Initialize at midpoint of normalized space
         x = np.full(n_params, 0.5)
@@ -136,8 +172,8 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
         best_x = x.copy()
         best_fitness = float('-inf')
 
-        # Initial gradient
-        fitness, gradient = self._compute_gradients(x, evaluate_solution, gradient_epsilon)
+        # Initial gradient using unified gradient function
+        fitness, gradient = gradient_func(x)
         gradient = self._clip_gradient(gradient, gradient_clip)
 
         for step in range(steps):
@@ -154,10 +190,10 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
             # Compute search direction using L-BFGS two-loop recursion
             direction = self._lbfgs_direction(gradient, s_history, y_history)
 
-            # Line search
-            step_size, new_fitness, new_gradient = self._line_search(
-                x, direction, fitness, gradient, evaluate_solution,
-                lr, c1, c2, gradient_epsilon
+            # Line search using unified gradient function
+            step_size, new_fitness, new_gradient = self._line_search_with_gradient_func(
+                x, direction, fitness, gradient, gradient_func,
+                lr, c1, c2
             )
 
             if step_size is None:
@@ -166,9 +202,7 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
                 step_size = lr / (step + 1)
                 x_new = x + step_size * gradient  # gradient ascent
                 x_new = np.clip(x_new, 0, 1)
-                new_fitness, new_gradient = self._compute_gradients(
-                    x_new, evaluate_solution, gradient_epsilon
-                )
+                new_fitness, new_gradient = gradient_func(x_new)
             else:
                 x_new = x + step_size * direction
                 x_new = np.clip(x_new, 0, 1)
@@ -204,54 +238,11 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
         return {
             'best_solution': best_x,
             'best_score': best_fitness,
-            'best_params': denormalize_params(best_x)
+            'best_params': denormalize_params(best_x),
+            'gradient_method': gradient_method
         }
 
-    def _compute_gradients(
-        self,
-        x: np.ndarray,
-        evaluate_func: Callable,
-        epsilon: float
-    ) -> Tuple[float, np.ndarray]:
-        """
-        Compute gradients using central finite differences.
-
-        Args:
-            x: Current parameter values (normalized)
-            evaluate_func: Function to evaluate fitness
-            epsilon: Perturbation size
-
-        Returns:
-            Tuple of (current fitness, gradient array)
-        """
-        n_params = len(x)
-        gradient = np.zeros(n_params)
-
-        # Evaluate at current point
-        f_center = evaluate_func(x, 0)
-
-        # Compute central differences
-        for i in range(n_params):
-            x_plus = x.copy()
-            x_minus = x.copy()
-
-            x_plus[i] = min(1.0, x[i] + epsilon)
-            x_minus[i] = max(0.0, x[i] - epsilon)
-
-            f_plus = evaluate_func(x_plus, 0)
-            f_minus = evaluate_func(x_minus, 0)
-
-            # Central difference (for maximization, gradient points uphill)
-            gradient[i] = (f_plus - f_minus) / (2 * epsilon)
-
-        return f_center, gradient
-
-    def _clip_gradient(self, gradient: np.ndarray, clip_value: float) -> np.ndarray:
-        """Clip gradient to prevent exploding gradients."""
-        norm = np.linalg.norm(gradient)
-        if norm > clip_value:
-            gradient = gradient * (clip_value / norm)
-        return gradient
+    # Note: _compute_fd_gradients and _clip_gradient are inherited from base class
 
     def _lbfgs_direction(
         self,
@@ -301,21 +292,34 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
 
         return r  # For maximization, this is the ascent direction
 
-    def _line_search(
+    def _line_search_with_gradient_func(
         self,
         x: np.ndarray,
         direction: np.ndarray,
         f_x: float,
         grad_x: np.ndarray,
-        evaluate_func: Callable,
+        gradient_func: Callable[[np.ndarray], Tuple[float, np.ndarray]],
         initial_step: float,
         c1: float,
         c2: float,
-        gradient_epsilon: float,
         max_iter: int = 20
     ) -> Tuple[Optional[float], float, np.ndarray]:
         """
-        Backtracking line search with Wolfe conditions.
+        Backtracking line search with Wolfe conditions using unified gradient function.
+
+        This method uses the unified gradient function which may be either native
+        (autodiff) or finite-difference based, depending on configuration.
+
+        Args:
+            x: Current parameter values (normalized [0,1])
+            direction: Search direction from L-BFGS two-loop recursion
+            f_x: Current fitness value
+            grad_x: Current gradient
+            gradient_func: Unified gradient function: (x) -> (fitness, gradient)
+            initial_step: Initial step size for line search
+            c1: Armijo condition parameter (sufficient decrease)
+            c2: Wolfe curvature condition parameter
+            max_iter: Maximum line search iterations
 
         Returns:
             Tuple of (step_size, new_fitness, new_gradient)
@@ -330,7 +334,7 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
 
         for _ in range(max_iter):
             x_new = np.clip(x + step_size * direction, 0, 1)
-            f_new, grad_new = self._compute_gradients(x_new, evaluate_func, gradient_epsilon)
+            f_new, grad_new = gradient_func(x_new)
 
             # Armijo condition (sufficient increase for maximization)
             if f_new >= f_x + c1 * step_size * directional_deriv:

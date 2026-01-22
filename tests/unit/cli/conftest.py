@@ -17,7 +17,7 @@ def sample_config() -> Dict[str, Any]:
         'DOMAIN_NAME': 'test_domain',
         'EXPERIMENT_ID': 'test_experiment',
         'SYMFLUENCE_DATA_DIR': '/tmp/symfluence_data',
-        'DOMAIN_DISCRETIZATION': 'lumped',
+        'SUB_GRID_DISCRETIZATION': 'lumped',
         'START_DATETIME': '2020-01-01',
         'END_DATETIME': '2020-12-31',
         'FORCING_DATASET': 'ERA5',
@@ -49,7 +49,7 @@ def temp_config_dir(tmp_path):
 DOMAIN_NAME: test_domain
 EXPERIMENT_ID: test_experiment
 SYMFLUENCE_DATA_DIR: /path/to/data
-DOMAIN_DISCRETIZATION: lumped
+SUB_GRID_DISCRETIZATION: lumped
 START_DATETIME: '2020-01-01'
 END_DATETIME: '2020-12-31'
 FORCING_DATASET: ERA5
@@ -123,8 +123,8 @@ def mock_external_tools():
             'repository': 'https://github.com/NCAR/mizuRoute.git',
             'branch': 'serial',
             'install_dir': 'mizuRoute',
-            'config_path_key': 'INSTALL_PATH_MIZUROUTE',
-            'config_exe_key': 'EXE_NAME_MIZUROUTE',
+            'config_path_key': 'MIZUROUTE_INSTALL_PATH',
+            'config_exe_key': 'MIZUROUTE_EXE',
             'default_path_suffix': 'installs/mizuRoute/route/bin',
             'default_exe': 'mizuRoute.exe',
             'build_commands': ['make'],

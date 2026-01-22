@@ -58,7 +58,7 @@ Execution Modes:
         - Efficient for multi-core systems (typical workstations/small servers)
         - Spawn worker processes for each task
         - Execution: ProcessPoolExecutionStrategy
-        - Configuration: MPI_PROCESSES controls pool size
+        - Configuration: NUM_PROCESSES controls pool size
 
     MPI Distributed (num_processes>1 + HPC environment):
         - MPI-based execution across multiple compute nodes (HPC clusters)
@@ -107,31 +107,31 @@ Key Features:
     - Backward Compatibility: Legacy _create_mpi_worker_script() method preserved
 
 Configuration Parameters:
-    MPI_PROCESSES: int (default 1)
+    NUM_PROCESSES: int (default 1)
         - Number of parallel processes to use
         - > 1 triggers ProcessPool or MPI execution
         - Typical values: 1 (sequential), 4, 8, 16, 32 (depends on machine cores)
 
 Properties:
-    num_processes: int - Configured number of processes (from MPI_PROCESSES)
+    num_processes: int - Configured number of processes (from NUM_PROCESSES)
     use_parallel: bool - True if num_processes > 1
     max_workers: int - min(num_processes, cpu_count()) - effective worker count
     is_mpi_run: bool - True if running under MPI environment
 
 Required Mixin Attributes:
-    self.config: Dict[str, Any] - Configuration object with MPI_PROCESSES, paths
+    self.config: Dict[str, Any] - Configuration object with NUM_PROCESSES, paths
     self.logger: logging.Logger - Logger instance
     self.project_dir: Path - Project directory (used by MPI strategy)
 
 Example Workflows:
 
     # Sequential Execution (debugging)
-    >>> config.MPI_PROCESSES = 1
+    >>> config.NUM_PROCESSES = 1
     >>> result = optimizer.execute_batch(tasks, worker_func)
     # Single process executes tasks serially
 
     # Multiprocessing (local multi-core)
-    >>> config.MPI_PROCESSES = 8
+    >>> config.NUM_PROCESSES = 8
     >>> parallel_dirs = optimizer.setup_parallel_processing(base, 'SUMMA', 'exp1')
     >>> optimizer.copy_base_settings(settings_src, parallel_dirs, 'SUMMA')
     >>> optimizer.update_file_managers(parallel_dirs, 'SUMMA', 'exp1')
@@ -140,8 +140,8 @@ Example Workflows:
     # ProcessPool creates 8 worker processes on local machine
 
     # MPI Execution (HPC cluster)
-    >>> # Slurm job: srun -n 4 python calibrate.py (sets MPI_PROCESSES=4)
-    >>> config.MPI_PROCESSES = 4
+    >>> # Slurm job: srun -n 4 python calibrate.py (sets NUM_PROCESSES=4)
+    >>> config.NUM_PROCESSES = 4
     >>> if optimizer.is_mpi_run:
     ...     # MPI environment detected
     ...     parallel_dirs = optimizer.setup_parallel_processing(base, 'SUMMA', 'exp1')
@@ -240,7 +240,7 @@ class ParallelExecutionMixin(ConfigMixin):
 
     Attributes:
 
-        config (Dict[str, Any]): Configuration dictionary with MPI_PROCESSES and paths
+        config (Dict[str, Any]): Configuration dictionary with NUM_PROCESSES and paths
         logger (logging.Logger): Logger instance for execution logging
         project_dir (Path): Project base directory (from class using this mixin)
 
@@ -252,7 +252,7 @@ class ParallelExecutionMixin(ConfigMixin):
 
     Properties:
 
-        num_processes (int): Number of parallel processes from config.MPI_PROCESSES.
+        num_processes (int): Number of parallel processes from config.NUM_PROCESSES.
             Default 1 (sequential). > 1 enables parallel execution.
 
         use_parallel (bool): True if num_processes > 1. Controls strategy selection.
@@ -266,7 +266,7 @@ class ParallelExecutionMixin(ConfigMixin):
     Required Mixin Attributes:
 
         Classes using this mixin MUST provide:
-        - self.config: Dict[str, Any] with 'MPI_PROCESSES' key
+        - self.config: Dict[str, Any] with 'NUM_PROCESSES' key
         - self.logger: logging.Logger instance
         - self.project_dir: Path to project directory
 
@@ -406,7 +406,7 @@ class ParallelExecutionMixin(ConfigMixin):
 
     Configuration:
 
-        config.MPI_PROCESSES: int (default 1)
+        config.NUM_PROCESSES: int (default 1)
             - 1: Sequential execution
             - 2-8: ProcessPool on workstation
             - 8+: MPI on HPC cluster (with proper job submission)
@@ -470,7 +470,7 @@ class ParallelExecutionMixin(ConfigMixin):
     @property
     def num_processes(self) -> int:
         """Get number of processes to use for parallel execution."""
-        return max(1, self._get_config_value(lambda: self.config.system.mpi_processes, default=1, dict_key='MPI_PROCESSES'))
+        return max(1, self._get_config_value(lambda: self.config.system.num_processes, default=1, dict_key='NUM_PROCESSES'))
 
     @property
     def use_parallel(self) -> bool:

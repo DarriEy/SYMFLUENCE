@@ -2,32 +2,51 @@
 HYPE model postprocessor.
 
 Handles output extraction, processing, and analysis for HYPE model outputs.
+Migrated to use StandardModelPostprocessor for reduced boilerplate (Phase 1.2).
 """
 
 from pathlib import Path
-from typing import Dict, Optional
-import pandas as pd  # type: ignore
+from typing import Dict
 
 from ..registry import ModelRegistry
-from ..base import BaseModelPostProcessor
+from ..base import StandardModelPostprocessor
 
 
 @ModelRegistry.register_postprocessor('HYPE')
-class HYPEPostProcessor(BaseModelPostProcessor):
+class HYPEPostProcessor(StandardModelPostprocessor):
     """
     Postprocessor for HYPE model outputs within SYMFLUENCE.
+
     Handles output extraction, processing, and analysis.
-    Inherits common functionality from BaseModelPostProcessor.
+    Uses StandardModelPostprocessor with configuration-based extraction.
+
+    HYPE outputs already-routed discharge at each subbasin outlet in timeCOUT.txt,
+    so mizuRoute is not needed (HYPE's internal routing is sufficient).
 
     Attributes:
-        config (Dict[str, Any]): Configuration settings (inherited)
-        logger (logging.Logger): Logger instance (inherited)
-        project_dir (Path): Project directory path (inherited)
-        domain_name (str): Name of the modeling domain (inherited)
-        sim_dir (Path): HYPE simulation output directory
-        results_dir (Path): Results directory (inherited)
-        reporting_manager (Any): Reporting manager instance (inherited)
+        model_name: "HYPE"
+        output_file_pattern: "timeCOUT.txt"
+        text_file_separator: Tab-separated
+        outlet_selection_method: Falls back to highest discharge if config ID not found
     """
+
+    # Model identification
+    model_name = "HYPE"
+
+    # Output file configuration
+    output_file_pattern = "timeCOUT.txt"
+
+    # Text file parsing
+    text_file_separator = "\t"
+    text_file_skiprows = 1  # Skip header row
+    text_file_date_column = "DATE"
+    text_file_flow_column = "config:SIM_REACH_ID"  # Get column name from config
+
+    # Outlet selection: try config first, fall back to highest discharge
+    outlet_selection_method = "highest_discharge"
+
+    # Streamflow is already in cms from HYPE
+    streamflow_unit = "cms"
 
     def _get_model_name(self) -> str:
         """Return model name for HYPE."""
@@ -44,7 +63,7 @@ class HYPEPostProcessor(BaseModelPostProcessor):
         results = {}
 
         try:
-            # Process streamflow
+            # Process streamflow using StandardModelPostprocessor
             streamflow_path = self.extract_streamflow()
             if streamflow_path:
                 results['streamflow'] = streamflow_path
@@ -55,56 +74,3 @@ class HYPEPostProcessor(BaseModelPostProcessor):
         except Exception as e:
             self.logger.error(f"Error extracting HYPE results: {str(e)}")
             raise
-
-    def extract_streamflow(self) -> Optional[Path]:
-        """
-        Extract simulated streamflow from HYPE or mizuRoute output and save to CSV.
-
-        Returns:
-            Optional[Path]: Path to the saved CSV file if successful, None otherwise
-        """
-        try:
-            self.logger.info("Processing HYPE streamflow results")
-
-            # NOTE: For HYPE, we always use direct output (timeCOUT.txt) rather than
-            # mizuRoute. This is because HYPE's timeCOUT.txt already contains correctly
-            # routed/accumulated discharge at each subbasin outlet. mizuRoute expects
-            # local runoff per HRU (not accumulated discharge), so using it with HYPE
-            # output gives incorrect results.
-            #
-            # Read directly from HYPE output (timeCOUT.txt)
-            cout_path = self.sim_dir / "timeCOUT.txt"
-            if not cout_path.exists():
-                self.logger.error(f"HYPE output file not found: {cout_path}")
-                return None
-
-            self.logger.info(f"Reading HYPE output from: {cout_path}")
-            cout = pd.read_csv(cout_path, sep='\t', skiprows=lambda x: x == 0, parse_dates=['DATE'])
-            cout.set_index('DATE', inplace=True)
-
-            # Extract outlet discharge
-            outlet_id = str(self.config_dict.get('SIM_REACH_ID'))
-            self.logger.info(f"Processing outlet ID: {outlet_id}")
-
-            if outlet_id not in cout.columns:
-                # Auto-select outlet: column with highest mean flow (downstream outlet)
-                col_means = cout.mean()
-                outlet_col = col_means.idxmax()
-                self.logger.warning(
-                    f"Outlet ID '{outlet_id}' not found in columns. "
-                    f"Auto-selecting outlet column '{outlet_col}' (highest mean flow: {col_means.max():.2f} cms)"
-                )
-                q_sim = cout[outlet_col]
-            else:
-                q_sim = cout[outlet_id]
-
-            # Use inherited save method
-            return self.save_streamflow_to_results(
-                q_sim,
-                model_column_name='HYPE_discharge_cms'
-            )
-
-        except Exception as e:
-            self.logger.error(f"Error extracting streamflow: {str(e)}")
-            self.logger.exception("Full traceback:")
-            return None

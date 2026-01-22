@@ -412,12 +412,33 @@ class RHESSysWorker(BaseWorker):
             # Get streamflow in mm/day
             streamflow_mm = sim_df['streamflow'].values
 
-            # Convert to m³/s using catchment area
-            area_m2 = self._get_catchment_area(config)
-            self.logger.info(f"Using catchment area: {area_m2:.2f} m2")
+            # Convert to m³/s using catchment area from shared utility
+            domain_name = config.get('DOMAIN_NAME')
+            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
+            project_dir = data_dir / f'domain_{domain_name}'
+
+            area_km2 = self._streamflow_metrics.get_catchment_area(
+                config, project_dir, domain_name, source='shapefile'
+            )
+            area_m2 = area_km2 * 1e6  # Convert km² to m²
+            self.logger.info(f"Using catchment area: {area_km2:.2f} km² ({area_m2:.2e} m²)")
 
             # Q (m³/s) = Q (mm/day) * area (m²) / 86400 / 1000
             streamflow_m3s = streamflow_mm * area_m2 / 86400 / 1000
+
+            # Check for NaN values in simulation
+            nan_count = pd.isna(streamflow_m3s).sum()
+            if nan_count > 0:
+                self.logger.warning(
+                    f"RHESSys output contains {nan_count} NaN values out of {len(streamflow_m3s)} timesteps"
+                )
+
+            # Check for zero discharge (model didn't produce runoff)
+            if streamflow_m3s.sum() == 0:
+                self.logger.warning(
+                    "RHESSys simulation produced zero streamflow - check model parameters"
+                )
+                return {'kge': self.penalty_score, 'error': 'Zero streamflow from model'}
 
             # Create dates
             sim_dates = pd.to_datetime(
@@ -428,11 +449,7 @@ class RHESSysWorker(BaseWorker):
             )
             sim_series = pd.Series(streamflow_m3s, index=sim_dates)
 
-            # Load observations
-            domain_name = config.get('DOMAIN_NAME')
-            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            project_dir = data_dir / f'domain_{domain_name}'
-
+            # Load observations (domain_name and project_dir already set above)
             obs_values, obs_index = self._streamflow_metrics.load_observations(
                 config, project_dir, domain_name, resample_freq='D'
             )
@@ -476,97 +493,6 @@ class RHESSysWorker(BaseWorker):
             import traceback
             self.logger.error(traceback.format_exc())
             return {'kge': self.penalty_score}
-
-            # Get streamflow in mm/day
-            streamflow_mm = sim_df['streamflow'].values
-
-            # Convert to m³/s using catchment area
-            area_m2 = self._get_catchment_area(config)
-            # Q (m³/s) = Q (mm/day) * area (m²) / 86400 / 1000
-            streamflow_m3s = streamflow_mm * area_m2 / 86400 / 1000
-
-            # Create dates
-            sim_dates = pd.to_datetime(
-                sim_df.apply(
-                    lambda r: f"{int(r['year'])}-{int(r['month']):02d}-{int(r['day']):02d}",
-                    axis=1
-                )
-            )
-            sim_series = pd.Series(streamflow_m3s, index=sim_dates)
-
-            # Load observations
-            domain_name = config.get('DOMAIN_NAME')
-            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            project_dir = data_dir / f'domain_{domain_name}'
-
-            obs_values, obs_index = self._streamflow_metrics.load_observations(
-                config, project_dir, domain_name, resample_freq='D'
-            )
-            if obs_values is None:
-                return {'kge': self.penalty_score, 'error': 'Observations not found'}
-
-            obs_series = pd.Series(obs_values, index=obs_index)
-
-            # Align and calculate metrics
-            try:
-                obs_aligned, sim_aligned = self._streamflow_metrics.align_timeseries(
-                    sim_series, obs_series
-                )
-
-                # Filter to calibration period if specified
-                calib_period = config.get('CALIBRATION_PERIOD', '')
-                if calib_period:
-                    try:
-                        start_str, end_str = calib_period.split(',')
-                        start = pd.to_datetime(start_str.strip())
-                        end = pd.to_datetime(end_str.strip())
-                        mask = (obs_aligned.index >= start) & (obs_aligned.index <= end)
-                        obs_aligned = obs_aligned[mask]
-                        sim_aligned = sim_aligned[mask]
-                    except Exception:
-                        pass
-
-                return self._streamflow_metrics.calculate_metrics(
-                    obs_aligned, sim_aligned, metrics=['kge', 'nse']
-                )
-
-            except ValueError as e:
-                return {'kge': self.penalty_score, 'error': str(e)}
-
-        except Exception as e:
-            self.logger.error(f"Error calculating RHESSys metrics: {e}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return {'kge': self.penalty_score}
-
-    def _get_catchment_area(self, config: Dict[str, Any]) -> float:
-        """Get catchment area in m²."""
-        try:
-            import geopandas as gpd
-
-            domain_name = config.get('DOMAIN_NAME')
-            data_dir = Path(config.get('SYMFLUENCE_DATA_DIR', '.'))
-            project_dir = data_dir / f'domain_{domain_name}'
-
-            # Try different catchment paths
-            catchment_dir = project_dir / 'shapefiles' / 'catchment'
-            catchment_files = list(catchment_dir.glob('*.shp'))
-
-            if catchment_files:
-                gdf = gpd.read_file(catchment_files[0])
-                # Use bounds to avoid UserWarning about geographic CRS centroids
-                bounds = gdf.total_bounds
-                lon = (bounds[0] + bounds[2]) / 2
-                utm_zone = int((lon + 180) / 6) + 1
-                utm_crs = f"EPSG:{32600 + utm_zone}"
-                gdf_proj = gdf.to_crs(utm_crs)
-                return gdf_proj.geometry.area.sum()
-
-        except Exception as e:
-            self.logger.warning(f"Could not calculate area: {e}")
-
-        # Default to 100 km²
-        return 1e8
 
     @staticmethod
     def evaluate_worker_function(task_data: Dict[str, Any]) -> Dict[str, Any]:

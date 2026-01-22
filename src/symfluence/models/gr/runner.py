@@ -19,20 +19,22 @@ import rasterio.mask
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
 from ..mixins import OutputConverterMixin
-from ..execution import ModelExecutor, SpatialOrchestrator
+from ..execution import UnifiedModelExecutor
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.constants import UnitConversion
 
 # Optional R/rpy2 support - only needed for GR models
+# Catch Exception broadly because rpy2 can raise RuntimeError, RRuntimeError,
+# or other exceptions when R is installed but broken (missing core packages)
 try:
     import rpy2.robjects as robjects
     from rpy2.robjects.packages import importr
     from rpy2.robjects import pandas2ri
     from rpy2.robjects.conversion import localconverter
     HAS_RPY2 = True
-except (ImportError, ValueError):
+except Exception:
     HAS_RPY2 = False
     robjects = None
     importr = None
@@ -41,7 +43,7 @@ except (ImportError, ValueError):
 
 
 @ModelRegistry.register_runner('GR', method_name='run_gr')
-class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConverterMixin, MizuRouteConfigMixin):
+class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, MizuRouteConfigMixin):
     """
     Runner class for the GR family of models (initially GR4J).
     Handles model execution, state management, and output processing.
@@ -122,12 +124,10 @@ class GRRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, OutputConver
 
     def _setup_model_specific_paths(self) -> None:
         """Set up GR-specific paths."""
-        # Catchment paths (uses PathResolverMixin from base)
-        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.catchment_name_col
-        if self.catchment_name == 'default':
-            discretization = self.domain_discretization
-            self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
+        # Catchment paths (use backward-compatible path resolution)
+        catchment_file = self._get_catchment_file_path()
+        self.catchment_path = catchment_file.parent
+        self.catchment_name = catchment_file.name
 
         # GR setup and forcing paths
         if hasattr(self, 'settings_dir') and self.settings_dir:

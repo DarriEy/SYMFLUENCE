@@ -358,7 +358,7 @@ Basic MESH Workflow
    HYDROLOGICAL_MODEL: MESH
 
    # Domain
-   DOMAIN_DEFINITION_METHOD: delineate
+   DOMAIN_DEFINITION_METHOD: semidistributed
    POUR_POINT_COORDS: [-95.0, 54.0]  # Manitoba
 
    # Forcing
@@ -387,7 +387,7 @@ For permafrost and seasonal frost:
    HYDROLOGICAL_MODEL: MESH
 
    # Cold region domain (Arctic/Subarctic)
-   DOMAIN_DEFINITION_METHOD: delineate
+   DOMAIN_DEFINITION_METHOD: semidistributed
    POUR_POINT_COORDS: [-115.0, 67.0]  # Northwest Territories
 
    # Discretization with permafrost classes
@@ -435,7 +435,7 @@ For major river basins (e.g., Mackenzie, Nelson):
    MESH_SPATIAL_MODE: distributed
 
    # Parallel execution
-   MPI_PROCESSES: 32
+   NUM_PROCESSES: 32
 
    # Routing essential for large domain
    MESH_ROUTING_SCHEME: WATROUTE

@@ -23,14 +23,14 @@ def fuse_provo_preset():
             'CALIBRATION_PERIOD': '2000-10-01, 2001-09-30',
             'EVALUATION_PERIOD': '2001-10-01, 2002-09-30',
             'SPINUP_PERIOD': '1999-10-01, 2000-09-30',
-            'MPI_PROCESSES': 1,
+            'NUM_PROCESSES': 1,
             'FORCE_RUN_ALL_STEPS': False,
 
             # Geospatial settings
             'POUR_POINT_COORDS': '40.5577278126503/-111.168783841314',
             'BOUNDING_BOX_COORDS': '41/-111.74291666666666/40.0/-110.6208333333333',
             'DOMAIN_DEFINITION_METHOD': 'lumped',
-            'DOMAIN_DISCRETIZATION': 'lumped',
+            'SUB_GRID_DISCRETIZATION': 'lumped',
             'ROUTING_DELINEATION': 'lumped',
             'GEOFABRIC_TYPE': 'TDX',
             'STREAM_THRESHOLD': 2500,
@@ -91,12 +91,12 @@ def fuse_basic_preset():
         'settings': {
             # Global settings
             'EXPERIMENT_ID': 'run_1',
-            'MPI_PROCESSES': 1,
+            'NUM_PROCESSES': 1,
             'FORCE_RUN_ALL_STEPS': False,
 
             # Geospatial settings
             'DOMAIN_DEFINITION_METHOD': 'lumped',
-            'DOMAIN_DISCRETIZATION': 'lumped',
+            'SUB_GRID_DISCRETIZATION': 'lumped',
             'ROUTING_DELINEATION': 'lumped',
             'GEOFABRIC_TYPE': 'TDX',
             'STREAM_THRESHOLD': 1000,

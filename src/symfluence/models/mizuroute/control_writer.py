@@ -226,12 +226,26 @@ class ControlFileWriter(ConfigurableMixin):
         if isinstance(sim_end, str) and len(sim_end) == 10:
             sim_end = f"{sim_end} 23:00"
 
+        # Get routing scheme from config (default to IRF for proper river routing)
+        route_opt = self._get_config_value(
+            lambda: self.config.model.mizuroute.output_vars,
+            default='1',
+            dict_key='SETTINGS_MIZU_OUTPUT_VARS'
+        )
+
+        # Get output file frequency from config
+        output_freq = self._get_config_value(
+            lambda: self.config.model.mizuroute.output_freq,
+            default='yearly',
+            dict_key='SETTINGS_MIZU_OUTPUT_FREQ'
+        )
+
         cf.write("!\n! --- DEFINE SIMULATION CONTROLS \n")
         cf.write(f"<case_name>             {self.experiment_id}    ! Simulation case name \n")
         cf.write(f"<sim_start>             {sim_start}    ! Time of simulation start \n")
         cf.write(f"<sim_end>               {sim_end}    ! Time of simulation end \n")
-        cf.write("<route_opt>             0    ! Routing scheme. 0 -> accumRunoff, 1 -> IRF-UH, 2 -> IRF-KW, 3 -> KW-IRF, 4 -> MC-IRF \n")
-        cf.write("<newFileFrequency>      annual    ! Output file frequency (single, daily, monthly, annual) \n")
+        cf.write(f"<route_opt>             {route_opt}    ! Routing scheme. 0 -> accumRunoff, 1 -> IRF-UH, 2 -> IRF-KW, 3 -> KW-IRF, 4 -> MC-IRF \n")
+        cf.write(f"<newFileFrequency>      {output_freq}    ! Output file frequency (single, yearly, monthly, daily) \n")
 
     def _write_topology(self, cf: TextIO, mizu_config: Dict[str, Any]) -> None:
         """Write topology file section."""

@@ -93,7 +93,7 @@ class TestSUMMAWorkerFunctions:
 
     def test_summa_parameter_application(self, summa_config, test_logger, temp_project_dir):
         """Test applying parameters to SUMMA trial parameter file."""
-        from symfluence.optimization.workers.summa_parallel_workers import _apply_parameters_worker
+        from symfluence.optimization.workers.summa.parameter_application import _apply_parameters_worker
 
         # Create mock trial parameter file
         summa_settings_dir = temp_project_dir / "settings" / "SUMMA"

@@ -112,9 +112,18 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/*.nc
-*.err
-*.err
+
+# Linting and type checking caches
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.pyre/
 
 # Docs build artifacts
 docs/_build/
 config_template.yaml
+
+# Benchmark results (auto-generated)
+benchmark_results/
+plots/
+results/

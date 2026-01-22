@@ -22,7 +22,7 @@ def mock_config(tmp_path):
         'EXPERIMENT_TIME_START': '2020-01-01 00:00',
         'EXPERIMENT_TIME_END': '2020-01-05 00:00',
         'DOMAIN_DEFINITION_METHOD': 'lumped',
-        'DOMAIN_DISCRETIZATION': 'lumped',
+        'SUB_GRID_DISCRETIZATION': 'lumped',
         # Required forcing and model settings
         'FORCING_DATASET': 'ERA5',
         'HYDROLOGICAL_MODEL': 'SUMMA',
@@ -150,7 +150,7 @@ def test_provo_usgs_full_e2e(tmp_path):
         'CALIBRATION_PERIOD': '2023-01-01, 2023-01-01',
         'EVALUATION_PERIOD': '2023-01-02, 2023-01-02',
         'SPINUP_PERIOD': '2023-01-01, 2023-01-01',
-        'MPI_PROCESSES': 1,
+        'NUM_PROCESSES': 1,
         'FORCE_RUN_ALL_STEPS': False,
 
         # Domain
@@ -158,7 +158,7 @@ def test_provo_usgs_full_e2e(tmp_path):
         'BOUNDING_BOX_COORDS': '41/-111.7/40.0/-110.6',
         'DOMAIN_DEFINITION_METHOD': 'lumped',
         'ROUTING_DELINEATION': 'lumped',
-        'DOMAIN_DISCRETIZATION': 'lumped',
+        'SUB_GRID_DISCRETIZATION': 'lumped',
         'GEOFABRIC_TYPE': 'na',
         'LUMPED_WATERSHED_METHOD': 'TauDEM',
 
@@ -186,8 +186,8 @@ def test_provo_usgs_full_e2e(tmp_path):
         'OPTIMIZATION_METHODS': ['iteration'],
         'OPTIMIZATION_TARGET': 'streamflow',
         'ITERATIVE_OPTIMIZATION_ALGORITHM': 'DE',
-        'NUMBER_OF_ITERATIONS': 1,
-        'POPULATION_SIZE': 1,
+        'NUMBER_OF_ITERATIONS': 2,
+        'POPULATION_SIZE': 2,
         'OPTIMIZATION_METRIC': 'KGE'
     }
 
@@ -230,13 +230,13 @@ def test_wsc_geomet_full_e2e(tmp_path):
         'CALIBRATION_PERIOD': '2020-01-01, 2020-01-01',
         'EVALUATION_PERIOD': '2020-01-02, 2020-01-02',
         'SPINUP_PERIOD': '2020-01-01, 2020-01-01',
-        'MPI_PROCESSES': 1,
+        'NUM_PROCESSES': 1,
         'FORCE_RUN_ALL_STEPS': False,
         'POUR_POINT_COORDS': '51.1722/-115.5717',
         'BOUNDING_BOX_COORDS': '51.8/-116.6/50.9/-115.5',
         'DOMAIN_DEFINITION_METHOD': 'lumped',
         'ROUTING_DELINEATION': 'lumped',
-        'DOMAIN_DISCRETIZATION': 'lumped',
+        'SUB_GRID_DISCRETIZATION': 'lumped',
         'GEOFABRIC_TYPE': 'na',
         'LUMPED_WATERSHED_METHOD': 'TauDEM',
         'DATA_ACCESS': 'cloud',
@@ -256,8 +256,8 @@ def test_wsc_geomet_full_e2e(tmp_path):
         'OPTIMIZATION_METHODS': ['iteration'],
         'OPTIMIZATION_TARGET': 'streamflow',
         'ITERATIVE_OPTIMIZATION_ALGORITHM': 'DE',
-        'NUMBER_OF_ITERATIONS': 1,
-        'POPULATION_SIZE': 1,
+        'NUMBER_OF_ITERATIONS': 2,
+        'POPULATION_SIZE': 2,
         'OPTIMIZATION_METRIC': 'KGE'
     }
 
@@ -297,13 +297,13 @@ def test_usgs_gw_full_e2e(tmp_path):
         'CALIBRATION_PERIOD': '2022-01-01, 2022-01-01',
         'EVALUATION_PERIOD': '2022-01-02, 2022-01-02',
         'SPINUP_PERIOD': '2022-01-01, 2022-01-01',
-        'MPI_PROCESSES': 1,
+        'NUM_PROCESSES': 1,
         'FORCE_RUN_ALL_STEPS': False,
         'POUR_POINT_COORDS': '40.0/-105.0',
         'BOUNDING_BOX_COORDS': '41/-106/39/-104',
         'DOMAIN_DEFINITION_METHOD': 'lumped',
         'ROUTING_DELINEATION': 'lumped',
-        'DOMAIN_DISCRETIZATION': 'lumped',
+        'SUB_GRID_DISCRETIZATION': 'lumped',
         'GEOFABRIC_TYPE': 'na',
         'LUMPED_WATERSHED_METHOD': 'TauDEM',
         'DATA_ACCESS': 'cloud',
@@ -325,8 +325,8 @@ def test_usgs_gw_full_e2e(tmp_path):
         'OPTIMIZATION_METHODS': ['iteration'],
         'OPTIMIZATION_TARGET': 'streamflow',
         'ITERATIVE_OPTIMIZATION_ALGORITHM': 'DE',
-        'NUMBER_OF_ITERATIONS': 1,
-        'POPULATION_SIZE': 1,
+        'NUMBER_OF_ITERATIONS': 2,
+        'POPULATION_SIZE': 2,
         'OPTIMIZATION_METRIC': 'KGE'
     }
 

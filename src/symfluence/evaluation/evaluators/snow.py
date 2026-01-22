@@ -254,18 +254,37 @@ class SnowEvaluator(ModelEvaluator):
     def get_observed_data_path(self) -> Path:
         """Get path to preprocessed observed snow data."""
         if self.optimization_target == 'swe':
-            # Check for generic SNOW or specific SWE
+            # Check multiple possible locations for SWE observations
             paths = [
+                # Primary location: snow/swe/processed/
+                self.project_dir / "observations" / "snow" / "swe" / "processed" / f"{self.domain_name}_swe_processed.csv",
+                # Fallback locations for backwards compatibility
+                self.project_dir / "observations" / "snow" / "swe" / "preprocessed" / f"{self.domain_name}_swe_processed.csv",
+                self.project_dir / "observations" / "snow" / "processed" / f"{self.domain_name}_snow_processed.csv",
                 self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_snow_processed.csv",
-                self.project_dir / "observations" / "snow" / "swe" / "preprocessed" / f"{self.domain_name}_swe_processed.csv"
             ]
             for p in paths:
                 if p.exists(): return p
             return paths[0]
         elif self.optimization_target == 'sca':
-            return self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_modis_snow_processed.csv"
+            # Check multiple possible locations for SCA observations
+            paths = [
+                self.project_dir / "observations" / "snow" / "sca" / "processed" / f"{self.domain_name}_sca_processed.csv",
+                self.project_dir / "observations" / "snow" / "sca" / "preprocessed" / f"{self.domain_name}_sca_processed.csv",
+                self.project_dir / "observations" / "snow" / "processed" / f"{self.domain_name}_modis_snow_processed.csv",
+                self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_modis_snow_processed.csv",
+            ]
+            for p in paths:
+                if p.exists(): return p
+            return paths[0]
         else:
-             return self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_snow_processed.csv"
+            paths = [
+                self.project_dir / "observations" / "snow" / "processed" / f"{self.domain_name}_snow_processed.csv",
+                self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_snow_processed.csv",
+            ]
+            for p in paths:
+                if p.exists(): return p
+            return paths[0]
 
     def _get_observed_data_column(self, columns: List[str]) -> Optional[str]:
         if self.optimization_target == 'swe':

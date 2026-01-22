@@ -147,7 +147,7 @@ class ResultsManager(ConfigMixin):
             'population_size': self._get_config_value(lambda: self.config.optimization.population_size, default=50, dict_key='POPULATION_SIZE'),
             'F': self._get_config_value(lambda: self.config.optimization.de.scaling_factor, default=0.5, dict_key='DE_SCALING_FACTOR'),
             'CR': self._get_config_value(lambda: self.config.optimization.de.crossover_rate, default=0.9, dict_key='DE_CROSSOVER_RATE'),
-            'parallel_processes': self._get_config_value(lambda: self.config.system.mpi_processes, default=1, dict_key='MPI_PROCESSES'),
+            'parallel_processes': self._get_config_value(lambda: self.config.system.num_processes, default=1, dict_key='NUM_PROCESSES'),
             'completed_at': datetime.now().isoformat()
         }
 

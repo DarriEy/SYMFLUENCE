@@ -29,7 +29,20 @@ from symfluence.optimization.core.parameter_bounds_registry import (
     get_mizuroute_bounds,
     get_depth_bounds,
 )
-from symfluence.optimization.core.parameter_manager import ParameterManager
+# ParameterManager is deprecated - use lazy import to avoid circular dependency
+# Users should use SUMMAParameterManager from parameter_managers instead
+def __getattr__(name):
+    if name == 'ParameterManager':
+        import warnings
+        warnings.warn(
+            "Importing ParameterManager from symfluence.optimization.core is deprecated. "
+            "Use 'from symfluence.optimization.parameter_managers import SUMMAParameterManager' instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        from symfluence.optimization.parameter_managers.summa_parameter_manager import SUMMAParameterManager
+        return SUMMAParameterManager
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 from symfluence.optimization.core.transformers import TransformationManager
 from symfluence.optimization.core.directory_conventions import (
     ModelDirectoryConvention,

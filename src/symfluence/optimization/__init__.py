@@ -38,6 +38,9 @@ except ImportError:
 # Import model optimizers to trigger registration with OptimizerRegistry
 from . import model_optimizers
 
+# Gradient-based optimization utilities
+from .gradient import AdamW, CosineAnnealingWarmRestarts, CosineDecay, EMA
+
 __all__ = [
     # Registries
     "OptimizerRegistry",
@@ -47,4 +50,9 @@ __all__ = [
     "BaseWorker",
     "WorkerTask",
     "WorkerResult",
+    # Gradient-based optimization utilities
+    "AdamW",
+    "CosineAnnealingWarmRestarts",
+    "CosineDecay",
+    "EMA",
 ]

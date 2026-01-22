@@ -248,23 +248,43 @@ class ModelRegistry:
 
     @classmethod
     def get_preprocessor(cls, model_name):
-        return cls._preprocessors.get(model_name)
+        # Try exact match first, then uppercase for case-insensitive lookup
+        result = cls._preprocessors.get(model_name)
+        if result is None:
+            result = cls._preprocessors.get(model_name.upper())
+        return result
 
     @classmethod
     def get_runner(cls, model_name):
-        return cls._runners.get(model_name)
+        # Try exact match first, then uppercase for case-insensitive lookup
+        result = cls._runners.get(model_name)
+        if result is None:
+            result = cls._runners.get(model_name.upper())
+        return result
 
     @classmethod
     def get_postprocessor(cls, model_name):
-        return cls._postprocessors.get(model_name)
+        # Try exact match first, then uppercase for case-insensitive lookup
+        result = cls._postprocessors.get(model_name)
+        if result is None:
+            result = cls._postprocessors.get(model_name.upper())
+        return result
 
     @classmethod
     def get_visualizer(cls, model_name):
-        return cls._visualizers.get(model_name)
+        # Try exact match first, then uppercase for case-insensitive lookup
+        result = cls._visualizers.get(model_name)
+        if result is None:
+            result = cls._visualizers.get(model_name.upper())
+        return result
 
     @classmethod
     def get_runner_method(cls, model_name):
-        return cls._runner_methods.get(model_name, "run")
+        # Try exact match first, then uppercase for case-insensitive lookup
+        result = cls._runner_methods.get(model_name)
+        if result is None:
+            result = cls._runner_methods.get(model_name.upper())
+        return result if result is not None else "run"
 
     @classmethod
     def list_models(cls):
@@ -518,3 +538,155 @@ class ModelRegistry:
             return ForcingAdapterRegistry.get_registered_models()
         except ImportError:
             return []
+
+    # =========================================================================
+    # Model Registration Validation Methods
+    # =========================================================================
+
+    @classmethod
+    def validate_model_registration(
+        cls,
+        model_name: str,
+        require_all: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Validate that a model has all required components registered.
+
+        Checks for the presence of preprocessor, runner, and postprocessor.
+        Visualizer is considered optional.
+
+        Args:
+            model_name: Name of the model to validate (e.g., 'SUMMA', 'GNN')
+            require_all: If True, raises ValueError when required components
+                are missing. If False (default), returns validation status.
+
+        Returns:
+            Dict with keys:
+                - valid: bool indicating if all required components present
+                - model_name: the model name validated
+                - components: dict of component_type -> class or None
+                - missing: list of missing required component types
+                - optional_missing: list of missing optional component types
+
+        Raises:
+            ValueError: If require_all=True and required components are missing
+
+        Example:
+            >>> status = ModelRegistry.validate_model_registration('GNN')
+            >>> if not status['valid']:
+            ...     print(f"Missing: {status['missing']}")
+        """
+        components = {
+            'preprocessor': cls._preprocessors.get(model_name),
+            'runner': cls._runners.get(model_name),
+            'postprocessor': cls._postprocessors.get(model_name),
+            'visualizer': cls._visualizers.get(model_name),
+        }
+
+        # Required components (visualizer is optional)
+        required = ['preprocessor', 'runner', 'postprocessor']
+        optional = ['visualizer']
+
+        missing = [comp for comp in required if components[comp] is None]
+        optional_missing = [comp for comp in optional if components[comp] is None]
+
+        valid = len(missing) == 0
+
+        result = {
+            'valid': valid,
+            'model_name': model_name,
+            'components': components,
+            'missing': missing,
+            'optional_missing': optional_missing,
+        }
+
+        if require_all and not valid:
+            raise ValueError(
+                f"Model '{model_name}' has incomplete registration. "
+                f"Missing required components: {missing}"
+            )
+
+        return result
+
+    @classmethod
+    def validate_all_models(
+        cls,
+        require_all: bool = False,
+        logger: logging.Logger = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Validate registration status of all registered models.
+
+        Checks each model returned by list_models() and reports their
+        registration completeness.
+
+        Args:
+            require_all: If True, raises ValueError on first incomplete model.
+                If False (default), returns status for all models.
+            logger: Optional logger for warnings about incomplete registrations.
+                If None, uses module-level logger.
+
+        Returns:
+            Dict mapping model_name -> validation result from
+            validate_model_registration()
+
+        Raises:
+            ValueError: If require_all=True and any model is incomplete
+
+        Example:
+            >>> results = ModelRegistry.validate_all_models(logger=logger)
+            >>> for model, status in results.items():
+            ...     if not status['valid']:
+            ...         print(f"{model}: missing {status['missing']}")
+        """
+        log = logger or globals().get('logger')
+        results = {}
+
+        for model_name in cls.list_models():
+            status = cls.validate_model_registration(model_name, require_all=False)
+            results[model_name] = status
+
+            if not status['valid'] and log:
+                log.warning(
+                    f"Model '{model_name}' has incomplete registration. "
+                    f"Missing: {status['missing']}"
+                )
+
+            if require_all and not status['valid']:
+                raise ValueError(
+                    f"Model '{model_name}' has incomplete registration. "
+                    f"Missing required components: {status['missing']}"
+                )
+
+        return results
+
+    @classmethod
+    def get_model_components(cls, model_name: str) -> Dict[str, Any]:
+        """
+        Get all registered component classes for a model.
+
+        Useful for debugging and introspection of model registrations.
+
+        Args:
+            model_name: Name of the model (e.g., 'SUMMA', 'GNN')
+
+        Returns:
+            Dict mapping component type to class (or None if not registered):
+                - preprocessor: Preprocessor class or None
+                - runner: Runner class or None
+                - postprocessor: Postprocessor class or None
+                - visualizer: Visualizer function or None
+                - runner_method: Name of the run method (str)
+
+        Example:
+            >>> components = ModelRegistry.get_model_components('SUMMA')
+            >>> print(f"Runner: {components['runner']}")
+            >>> print(f"Run method: {components['runner_method']}")
+        """
+        return {
+            'preprocessor': cls._preprocessors.get(model_name),
+            'runner': cls._runners.get(model_name),
+            'postprocessor': cls._postprocessors.get(model_name),
+            'visualizer': cls._visualizers.get(model_name),
+            'runner_method': cls._runner_methods.get(model_name, 'run'),
+        }

@@ -394,6 +394,20 @@ class MESHDrainageDatabase(ConfigMixin):
                     ds = ds.drop_vars('GRU')
                     modified = True
                     ds['landclass'].attrs['grid_mapping'] = 'crs'
+
+                    # For lumped mode, ensure we only have 1 landclass
+                    if 'landclass' in ds.dims and ds.dims['landclass'] > 1:
+                        self.logger.info(f"Trimming landclass dimension from {ds.dims['landclass']} to 1 for lumped mode")
+                        # Keep only the first landclass
+                        landclass_data = ds['landclass'].isel(landclass=0).values
+                        landclass_attrs = ds['landclass'].attrs
+                        # Drop the variable and dimension
+                        ds = ds.drop_vars('landclass')
+                        # Re-create with correct dimensions (subbasin, landclass=1)
+                        new_landclass_data = np.ones((n_size, 1), dtype=np.float64)
+                        ds['landclass'] = ((target_n_dim, 'landclass'), new_landclass_data, landclass_attrs)
+                        modified = True
+
                 elif 'landclass' in ds:
                     # Ensure correct dimension names
                     if ds['landclass'].dims != (target_n_dim, 'landclass'):
@@ -402,12 +416,35 @@ class MESHDrainageDatabase(ConfigMixin):
                         modified = True
                     ds['landclass'].attrs['grid_mapping'] = 'crs'
 
-                # Ensure all variables are 1D over N (except GRU which is 2D)
+                    # For lumped mode, ensure we only have 1 landclass
+                    if 'landclass' in ds.dims and ds.dims['landclass'] > 1:
+                        self.logger.info(f"Trimming landclass dimension from {ds.dims['landclass']} to 1 for lumped mode")
+                        landclass_attrs = ds['landclass'].attrs
+                        ds = ds.drop_vars('landclass')
+                        new_landclass_data = np.ones((n_size, 1), dtype=np.float64)
+                        ds['landclass'] = ((target_n_dim, 'landclass'), new_landclass_data, landclass_attrs)
+                        modified = True
+                else:
+                    # Create landclass variable if it doesn't exist (e.g., for lumped mode)
+                    # For lumped mode, we have 1 subbasin and 1 landclass, with 100% coverage
+                    self.logger.info("Creating landclass variable for lumped mode (1 landclass, 100% coverage)")
+                    n_landclass = 1  # Single landcover class for lumped mode
+                    landclass_data = np.ones((n_size, n_landclass), dtype=np.float64)
+                    ds['landclass'] = ((target_n_dim, 'landclass'), landclass_data, {
+                        'long_name': 'Land cover class fractions',
+                        'units': '1',
+                        'grid_mapping': 'crs'
+                    })
+                    modified = True
+
+                # Ensure all variables are 1D over N (except landclass which is 2D)
                 # and remove potentially conflicting variables
-                vars_to_remove = ['landclass', 'landclass_dim', 'time', 'subbasin']
+                vars_to_remove = ['landclass_dim', 'time']
                 for v in vars_to_remove:
                     if v in ds:
                         ds = ds.drop_vars(v)
+
+                # Don't drop 'subbasin' as it's now a coordinate we need
 
                 # Also drop 'time' dimension if it exists as a coordinate or dim
                 if 'time' in ds.dims:
@@ -476,9 +513,25 @@ class MESHDrainageDatabase(ConfigMixin):
                         if coord in ds.coords:
                             ds = ds.reset_coords(coord)
 
-                        # Re-create as clean 1D variable on subbasin
-                        val = ds[coord].values.flatten()[0]
-                        ds[coord] = (target_n_dim, np.full(n_size, val, dtype=np.float64), {
+                        # Re-create as clean 1D variable on subbasin, preserving all values
+                        vals = ds[coord].values.flatten()
+                        if len(vals) >= n_size:
+                            # Use the first n_size values (handles case where we have enough)
+                            coord_vals = vals[:n_size].astype(np.float64)
+                        elif len(vals) == 1:
+                            # Single value - broadcast to all subbasins (legacy behavior)
+                            coord_vals = np.full(n_size, vals[0], dtype=np.float64)
+                        else:
+                            # Fewer values than needed - pad with last value
+                            coord_vals = np.zeros(n_size, dtype=np.float64)
+                            coord_vals[:len(vals)] = vals
+                            coord_vals[len(vals):] = vals[-1]
+                            self.logger.warning(
+                                f"Lat/lon array has {len(vals)} values but need {n_size}, "
+                                f"padding with last value"
+                            )
+
+                        ds[coord] = (target_n_dim, coord_vals, {
                             'units': 'degrees_north' if coord == 'lat' else 'degrees_east',
                             'long_name': 'latitude' if coord == 'lat' else 'longitude',
                             'standard_name': 'latitude' if coord == 'lat' else 'longitude',

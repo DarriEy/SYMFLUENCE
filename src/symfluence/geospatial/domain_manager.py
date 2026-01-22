@@ -40,27 +40,26 @@ class DomainManager(ConfigurableMixin):
             - Use case: FLUXNET sites, point-scale modeling
             - Output: Single polygon shapefile
 
-        **subset**:
-            - Extracts domain from existing geofabric (MERIT-Basins, HydroSHEDS)
-            - Use case: Working within larger river network databases
-            - Output: River basins + river network shapefiles
-
         **lumped**:
             - Single-basin watershed delineation from pour point
             - Use case: Traditional lumped hydrological modeling
             - Output: Single watershed polygon + optional delineated routing network
             - Special: Supports lumped-to-distributed routing workflow
+            - With subset_from_geofabric=True: Dissolves geofabric basins to single polygon
 
-        **delineate**:
+        **semidistributed**:
             - Full TauDEM-based watershed delineation from DEM
             - Use case: Detailed distributed modeling with subcatchments
             - Output: River network + subcatchment polygons
             - Optional: Coastal watershed handling
+            - With subset_from_geofabric=True: Extracts from existing geofabric
 
-        **distribute**:
+        **distributed**:
             - Regular grid domain with D8 flow direction
             - Use case: Grid-based land surface models (VIC, MESH, CLM)
             - Output: Grid cells as both HRUs and routing segments
+            - grid_source='generate': Create grid from bounding box
+            - grid_source='native': Match forcing data resolution
 
     Discretization Strategies:
         **lumped**:
@@ -118,15 +117,18 @@ class DomainManager(ConfigurableMixin):
 
     Configuration Dependencies:
         Domain Definition:
-            - DOMAIN_DEFINITION_METHOD: point/subset/lumped/delineate/distribute
+            - DOMAIN_DEFINITION_METHOD: point/lumped/semidistributed/distributed
             - DOMAIN_NAME: Basin identifier
-            - POUR_POINT_SHP_PATH (lumped/delineate): Pour point location
+            - SUBSET_FROM_GEOFABRIC: Extract from existing geofabric (default: False)
+            - GRID_SOURCE (distributed): 'generate' or 'native'
+            - NATIVE_GRID_DATASET (distributed + native): Dataset identifier (default: 'era5')
+            - POUR_POINT_SHP_PATH (lumped/semidistributed): Pour point location
             - RIVER_NETWORK_SHP_PATH (subset): Existing river network
-            - DOMAIN_BOUNDING_BOX (point): Bbox coordinates
-            - GRID_CELL_SIZE (distribute): Grid spacing in meters
+            - DOMAIN_BOUNDING_BOX: Bbox coordinates
+            - GRID_CELL_SIZE (distributed): Grid spacing in meters
 
         Discretization:
-            - DOMAIN_DISCRETIZATION: Discretization method
+            - SUB_GRID_DISCRETIZATION: Discretization method
             - DEM_PATH: Elevation data (for elevation/aspect/radiation)
             - LAND_CLASS_PATH: Land cover data (for landclass)
             - SOIL_CLASS_PATH: Soil data (for soilclass)
@@ -412,13 +414,20 @@ class DomainManager(ConfigurableMixin):
         """
         Validate the domain configuration settings.
 
+        Validates:
+            - Required settings are present
+            - Definition method is valid (point, lumped, semidistributed, distributed)
+            - Bounding box format is correct
+            - Subset configurations have required geofabric_type
+            - Grid source is valid for distributed method
+
         Returns:
             True if configuration is valid, False otherwise
         """
         required_settings = [
             ('DOMAIN_NAME', lambda: self.config.domain.name),
             ('DOMAIN_DEFINITION_METHOD', lambda: self.config.domain.definition_method),
-            ('DOMAIN_DISCRETIZATION', lambda: self.config.domain.discretization),
+            ('SUB_GRID_DISCRETIZATION', lambda: self.config.domain.discretization),
             ('BOUNDING_BOX_COORDS', lambda: self.config.domain.bounding_box_coords)
         ]
 
@@ -430,13 +439,45 @@ class DomainManager(ConfigurableMixin):
                 return False
 
         # Validate domain definition method
-        valid_methods = ['subset', 'lumped', 'delineate', 'point']  # Added 'point' to valid methods
+        # Note: Legacy values (delineate, distribute, subset, discretized) are mapped
+        # by the config validator to new values
+        valid_methods = ['point', 'lumped', 'semidistributed', 'distributed']
         domain_method = self._get_config_value(
             lambda: self.config.domain.definition_method
         )
         if domain_method not in valid_methods:
             self.logger.error(f"Invalid domain definition method: {domain_method}. Must be one of {valid_methods}")
             return False
+
+        # Validate subset configuration
+        subset_from_geofabric = self._get_config_value(
+            lambda: self.config.domain.subset_from_geofabric,
+            default=False
+        )
+        if subset_from_geofabric:
+            geofabric_type = self._get_config_value(
+                lambda: self.config.domain.delineation.geofabric_type,
+                default='na'
+            )
+            if geofabric_type == 'na' or not geofabric_type:
+                self.logger.error(
+                    "subset_from_geofabric=True requires GEOFABRIC_TYPE to be set. "
+                    "Valid values: merit, tdx, nws, hydrosheds, etc."
+                )
+                return False
+
+        # Validate grid_source for distributed method
+        if domain_method == 'distributed':
+            grid_source = self._get_config_value(
+                lambda: self.config.domain.grid_source,
+                default='generate'
+            )
+            valid_grid_sources = ['generate', 'native']
+            if grid_source not in valid_grid_sources:
+                self.logger.error(
+                    f"Invalid grid_source: {grid_source}. Must be one of {valid_grid_sources}"
+                )
+                return False
 
         # Validate bounding box format
         bbox = self._get_config_value(

@@ -8,12 +8,12 @@ Refactored to use the Unified Model Execution Framework.
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-import subprocess
 import logging
 
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
 from ..execution import ModelExecutor
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
 
 @ModelRegistry.register_runner('HYPE', method_name='run_hype')
@@ -82,7 +82,11 @@ class HYPERunner(BaseModelRunner, ModelExecutor):
         """
         self.logger.debug("Starting HYPE model run")
 
-        try:
+        with symfluence_error_handler(
+            "HYPE model execution",
+            self.logger,
+            error_type=ModelExecutionError
+        ):
             # Create run command
             cmd = self._create_run_command()
             self.logger.debug(f"HYPE command: {cmd}")
@@ -110,13 +114,6 @@ class HYPERunner(BaseModelRunner, ModelExecutor):
             else:
                 self.logger.error("HYPE simulation failed")
                 return None
-
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"HYPE execution failed: {str(e)}")
-            return None
-        except Exception as e:
-            self.logger.error(f"Error running HYPE: {str(e)}")
-            raise
 
     def _create_run_command(self) -> List[str]:
         """Create HYPE execution command."""

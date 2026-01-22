@@ -434,7 +434,7 @@ class DataPreProcessor(ConfigMixin):
         self.logger.info("Calculating elevation statistics")
         subbasins_name = self._get_config_value(lambda: self.config.paths.catchment_name, dict_key='CATCHMENT_SHP_NAME')
         if subbasins_name == 'default':
-            subbasins_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, dict_key='DOMAIN_DISCRETIZATION')}.shp"
+            subbasins_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, dict_key='SUB_GRID_DISCRETIZATION')}.shp"
 
         catchment_path = self._get_file_path('CATCHMENT_PATH', 'shapefiles/catchment', subbasins_name)
 
@@ -518,7 +518,7 @@ class DataPreProcessor(ConfigMixin):
         self.logger.info("Calculating soil statistics")
         subbasins_name = self._get_config_value(lambda: self.config.paths.catchment_name, dict_key='CATCHMENT_SHP_NAME')
         if subbasins_name == 'default':
-            subbasins_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, dict_key='DOMAIN_DISCRETIZATION')}.shp"
+            subbasins_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, dict_key='SUB_GRID_DISCRETIZATION')}.shp"
 
         catchment_path = self._get_file_path('CATCHMENT_PATH', 'shapefiles/catchment', subbasins_name)
         soil_name = self._get_config_value(lambda: self.config.paths.soil_class_name, dict_key='SOIL_CLASS_NAME')
@@ -627,7 +627,7 @@ class DataPreProcessor(ConfigMixin):
         self.logger.info("Calculating land statistics")
         subbasins_name = self._get_config_value(lambda: self.config.paths.catchment_name, dict_key='CATCHMENT_SHP_NAME')
         if subbasins_name == 'default':
-            subbasins_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, dict_key='DOMAIN_DISCRETIZATION')}.shp"
+            subbasins_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, dict_key='SUB_GRID_DISCRETIZATION')}.shp"
 
         catchment_path = self._get_file_path('CATCHMENT_PATH', 'shapefiles/catchment', subbasins_name)
         land_name = self._get_config_value(lambda: self.config.domain.land_class_name, dict_key='LAND_CLASS_NAME')

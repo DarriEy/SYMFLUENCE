@@ -15,7 +15,10 @@ import traceback
 
 # Import SYMFLUENCE - this should work now since we added the path
 from symfluence import SYMFLUENCE
-from test_helpers.helpers import has_cds_credentials, load_config_template, write_config
+from test_helpers.helpers import (
+    has_cds_credentials, load_config_template, write_config,
+    is_rdrs_s3_available, is_em_earth_s3_available, is_cds_data_available
+)
 
 
 
@@ -112,7 +115,7 @@ def base_config(tmp_path_factory, symfluence_code_dir):
     # Paradise point-scale setup (small bbox for high-resolution datasets like AORC/HRRR)
     config["DOMAIN_NAME"] = "paradise_cloud"
     config["DOMAIN_DEFINITION_METHOD"] = "point"
-    config["DOMAIN_DISCRETIZATION"] = "GRUs"
+    config["SUB_GRID_DISCRETIZATION"] = "GRUs"
     config["BOUNDING_BOX_COORDS"] = "46.79/-121.76/46.77/-121.74"  # Small 0.02° x 0.02° box (~2km x 2km)
     config["POUR_POINT_COORDS"] = "46.78/-121.75"
 
@@ -189,12 +192,7 @@ FORCING_CASES = [
         "end": "2010-01-01 01:00",  # Just 1 hour
         "expect_glob": ["ERA5_*.nc", "*ERA5_merged_*.nc", "*ERA5_CDS_*.nc"],  # CDS pathway also produces ERA5_CDS files
     },
-    {
-        "dataset": "ERA5_CDS",
-        "start": "2010-01-01 00:00",
-        "end": "2010-01-01 01:00",  # Just 1 hour
-        "expect_glob": ["*ERA5_CDS_*.nc"],
-    },
+    # ERA5_CDS removed - not a valid ForcingDatasetType. Use ERA5 with ERA5_USE_CDS=True instead.
     {
         "dataset": "AORC",
         "start": "2010-01-01 00:00",
@@ -233,8 +231,8 @@ FORCING_CASES = [
     },
     {
         "dataset": "CARRA",
-        "start": "2010-01-01 01:00",
-        "end": "2010-01-01 03:00",  # 3 hours starting at 01:00
+        "start": "2010-01-01 00:00",
+        "end": "2010-01-01 06:00",  # 6 hours (2 timesteps for 3-hourly data)
         "expect_glob": "*CARRA*.nc",
         "domain_override": {
             "DOMAIN_NAME": "ellioaar_iceland",
@@ -268,10 +266,10 @@ FORCING_CASES = [
         },
     },
     {
-        "dataset": "EM_EARTH",
+        "dataset": "EM-EARTH",
         "start": "2010-01-01 00:00",
-        "end": "2010-01-01 01:00",  # Just 1 hour
-        "expect_glob": "*EM_EARTH_*.nc",
+        "end": "2010-01-03 00:00",  # 2 days (EM-Earth is daily data)
+        "expect_glob": "*EM-Earth_*.nc",
     },
 ]
 
@@ -307,12 +305,10 @@ def _run_case_logic(cfg_path: Path, project_dir: Path, case: dict) -> None:
         data_root = Path(config["SYMFLUENCE_DATA_DIR"])
         project_dir = data_root / f"domain_{config['DOMAIN_NAME']}"
 
-        # Setup new domain if needed
-        symfluence_temp = SYMFLUENCE(cfg_path)
-        # Save updated config first
+        # Save updated config first (before initializing SYMFLUENCE)
         write_config(config, cfg_path)
 
-        # Re-initialize with new domain
+        # Setup new domain if needed
         symfluence_temp = SYMFLUENCE(cfg_path)
         # Check if domain is fully set up (HRUs file exists)
         domain_name = config["DOMAIN_NAME"]
@@ -414,16 +410,16 @@ def test_cloud_forcing_acquisition(prepared_project, case):
         pytest.skip(f"Skipping {case['dataset']} test: CDS API credentials not found in ~/.cdsapirc")
 
     # Skip CARRA if CDS API access is restricted (external service issue)
-    if case["dataset"] == "CARRA":
+    if case["dataset"] == "CARRA" and not is_cds_data_available("reanalysis-carra-single-levels"):
         pytest.skip("Skipping CARRA test: CDS API reanalysis data access currently restricted")
 
     # Skip RDRS if S3 access is restricted (external service issue)
-    if case["dataset"] == "RDRS":
+    if case["dataset"] == "RDRS" and not is_rdrs_s3_available():
         pytest.skip("Skipping RDRS test: S3 Zarr store access restricted (external data source unavailable)")
 
-    # Skip EM_EARTH if S3 access is restricted
-    if case["dataset"] == "EM_EARTH":
-        pytest.skip("Skipping EM_EARTH test: S3 bucket access restricted (anonymous access not available)")
+    # Skip EM-EARTH if S3 access is restricted
+    if case["dataset"] == "EM-EARTH" and not is_em_earth_s3_available():
+        pytest.skip("Skipping EM-EARTH test: S3 bucket access restricted (anonymous access not available)")
 
     cfg_path, project_dir = prepared_project
 

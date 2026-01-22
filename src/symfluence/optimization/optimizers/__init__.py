@@ -3,9 +3,9 @@ Optimization Algorithms Package
 
 This module provides optimization infrastructure for hydrological model calibration.
 
-RECOMMENDED: New Architecture (Model-Agnostic)
-=============================================
-For new code, use the model-specific optimizers from model_optimizers/:
+Architecture
+============
+Use the model-specific optimizers from model_optimizers/:
 
     >>> from symfluence.optimization.model_optimizers import SUMMAModelOptimizer
     >>> optimizer = SUMMAModelOptimizer(config, logger)
@@ -23,16 +23,14 @@ Available model-specific optimizers:
 These use the clean BaseModelOptimizer base class with pure algorithm
 implementations from the algorithms/ subpackage.
 
-DEPRECATED: Legacy Architecture
-==============================
-The following classes are deprecated and will be removed in a future version:
-    - BaseOptimizer: Contains SUMMA-specific code
-    - DDSOptimizer, PSOOptimizer, DEOptimizer, etc.
+Note (v0.5.12)
+==============
+Legacy optimizer classes (DDSOptimizer, PSOOptimizer, DEOptimizer, etc.)
+have been removed in this version. These classes mixed model-specific code
+with algorithm logic and have been superseded by the model-agnostic
+BaseModelOptimizer architecture.
 
-These classes mix model-specific code (SUMMA) with algorithm logic.
-They issue DeprecationWarning when instantiated.
-
-Migration:
+Migration from legacy code:
     OLD:
         optimizer = DDSOptimizer(config, logger)
         optimizer.run_optimization()
@@ -57,16 +55,6 @@ from symfluence.optimization.optimizers.algorithms import (
     NSGA2Algorithm,
 )
 
-# Legacy classes (deprecated - issue DeprecationWarning when used)
-from symfluence.optimization.optimizers.base_optimizer import BaseOptimizer
-from symfluence.optimization.optimizers.dds_optimizer import DDSOptimizer
-from symfluence.optimization.optimizers.de_optimizer import DEOptimizer
-from symfluence.optimization.optimizers.pso_optimizer import PSOOptimizer
-from symfluence.optimization.optimizers.nsga2_optimizer import NSGA2Optimizer
-from symfluence.optimization.optimizers.async_dds_optimizer import AsyncDDSOptimizer
-from symfluence.optimization.optimizers.population_dds_optimizer import PopulationDDSOptimizer
-from symfluence.optimization.optimizers.sceua_optimizer import SCEUAOptimizer
-
 __all__ = [
     # New architecture (recommended)
     'BaseModelOptimizer',
@@ -78,13 +66,4 @@ __all__ = [
     'DEAlgorithm',
     'SCEUAAlgorithm',
     'NSGA2Algorithm',
-    # Legacy (deprecated)
-    'BaseOptimizer',
-    'DDSOptimizer',
-    'DEOptimizer',
-    'PSOOptimizer',
-    'NSGA2Optimizer',
-    'AsyncDDSOptimizer',
-    'PopulationDDSOptimizer',
-    'SCEUAOptimizer',
 ]

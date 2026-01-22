@@ -154,7 +154,7 @@ class NgenConfigGenerator(ConfigMixin):
             'expon': 1.0,
             'expon_secondary': 1.0,
             'refkdt': 1.0,
-            'max_gw_storage': 0.0129,
+            'max_gw_storage': 0.2,  # 200mm - within bounds [0.05, 1.0]
             'cgw': 1.8e-05,
             'gw_expon': 7.0,
             'gw_storage': 0.35,
@@ -659,7 +659,7 @@ shortwave_radiation_provided=0
                     "registration_function": "register_bmi_cfe",
                     "variables_names_map": variables_map,
                     "uses_forcing_file": False,
-                    "output_variable_units": "m"
+                    "output_variable_units": "m3/s"
                 }
             })
 

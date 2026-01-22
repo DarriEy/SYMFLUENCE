@@ -7,7 +7,6 @@ Refactored to use the Unified Model Execution Framework.
 
 import os
 import shutil
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -16,6 +15,7 @@ from typing import Dict, Any, Optional, List
 from ..base import BaseModelRunner
 from ..execution import ModelExecutor
 from ..registry import ModelRegistry
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
 
 @ModelRegistry.register_runner('MESH', method_name='run_mesh')
@@ -59,12 +59,10 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
             typed_exe_accessor=lambda: self.typed_config.model.mesh.exe if (self.typed_config and self.typed_config.model.mesh) else None
         )
 
-        # Catchment paths (now has PathResolverMixin via BaseModelRunner)
-        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
-        if self.catchment_name == 'default':
-            discretization = self.config_dict.get('DOMAIN_DISCRETIZATION')
-            self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
+        # Catchment paths (use backward-compatible path resolution)
+        catchment_file = self._get_catchment_file_path()
+        self.catchment_path = catchment_file.parent
+        self.catchment_name = catchment_file.name
 
         # MESH-specific paths
         self.mesh_setup_dir = self.project_dir / "settings" / "MESH"
@@ -104,16 +102,17 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
         Returns:
             Optional[Path]: Path to the output directory if successful, None otherwise.
 
-        Raises:
-            Exception: Re-raised if a non-subprocess error occurs.
-
         Note:
             MESH executable is temporarily copied to the forcing directory for
             execution and removed after successful completion.
         """
         self.logger.info("Starting MESH model run")
 
-        try:
+        with symfluence_error_handler(
+            "MESH model execution",
+            self.logger,
+            error_type=ModelExecutionError
+        ):
             # Create run command
             cmd = self._create_run_command()
 
@@ -161,13 +160,6 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
                              self.logger.error(f"  {line.strip()}")
                 return None
 
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"MESH execution failed: {str(e)}")
-            return None
-        except Exception as e:
-            self.logger.error(f"Error running MESH: {str(e)}")
-            raise
-
     def _create_run_command(self) -> List[str]:
         """
         Create MESH execution command.
@@ -187,7 +179,9 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
 
         # Create results directory that MESH expects
         results_dir = self.forcing_mesh_path / 'results'
+        self.logger.info(f"Creating MESH results directory: {results_dir}")
         results_dir.mkdir(parents=True, exist_ok=True)
+        self.logger.info(f"Results directory exists: {results_dir.exists()}")
 
         cmd = [
             f'./{self.mesh_exe.name}'

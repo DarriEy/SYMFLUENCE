@@ -110,7 +110,8 @@ class TestMESHParameterManager:
         """Test that parameters are mapped to correct files."""
         manager = MESHParameterManager(mesh_config, logger, temp_dir)
 
-        assert manager.param_file_map['ZSNL'] == 'CLASS'
-        assert manager.param_file_map['MANN'] == 'CLASS'
+        assert manager.param_file_map['ZSNL'] == 'hydrology'
+        assert manager.param_file_map['MANN'] == 'hydrology'
+        assert manager.param_file_map['FRZTH'] == 'CLASS'
         assert manager.param_file_map['RCHARG'] == 'hydrology'
         assert manager.param_file_map['DTMINUSR'] == 'routing'

@@ -48,6 +48,9 @@ Supported Models:
     - MESH: Pan-Arctic hydrological model
     - NGEN: NextGen modular framework (experimental)
     - LSTM: Neural network surrogate (experimental)
+    - HBV: JAX-based HBV-96 with gradient support (experimental)
+    - cFUSE: Differentiable FUSE with PyTorch/Enzyme AD (experimental)
+    - jFUSE: Differentiable FUSE with JAX autodiff (experimental)
 
     Routing/postprocessing models:
     - mizuRoute: Streamflow routing model (automatic dependency)
@@ -315,18 +318,28 @@ class ModelManager(BaseManager):
         configured_models = [m.strip() for m in str(models_str).split(',') if m.strip()]
         execution_list = []
 
-        # Models that support routing via mizuRoute
-        # Note: MESH, HYPE, and NGEN have internal routing, so don't need mizuRoute
-        routable_models = {'SUMMA', 'FUSE', 'GR'}
+        # Models that support routing via mizuRoute or dRoute
+        # Note: MESH, HYPE, and NGEN have internal routing, so don't need external routing
+        routable_models = {'SUMMA', 'FUSE', 'GR', 'HBV'}
+
+        # Check if DROUTE is configured as routing model
+        routing_model = self._get_config_value(
+            lambda: self.config.model.routing_model,
+            default=None
+        )
+        use_droute = routing_model and str(routing_model).upper() == 'DROUTE'
 
         for model in configured_models:
             if model not in execution_list:
                 execution_list.append(model)
 
-            # Check implicit dependencies (e.g. mizuRoute) using shared routing decider
+            # Check implicit dependencies (routing) using shared routing decider
             if model in routable_models:
                 if self._routing_decider.needs_routing(self.config_dict, model):
-                    self._ensure_mizuroute_in_workflow(execution_list, source_model=model)
+                    if use_droute:
+                        self._ensure_droute_in_workflow(execution_list, source_model=model)
+                    else:
+                        self._ensure_mizuroute_in_workflow(execution_list, source_model=model)
 
         return execution_list
 
@@ -350,6 +363,32 @@ class ModelManager(BaseManager):
         if not mizu_from:
             # Log the source model (config is immutable, so we can't update it)
             self.logger.info(f"MIZU_FROM_MODEL not set, using {source_model} as source")
+
+    def _ensure_droute_in_workflow(self, execution_list: List[str], source_model: str):
+        """
+        Add dRoute to workflow and log routing context.
+
+        dRoute is an experimental routing model with AD support for gradient-based
+        calibration. It uses mizuRoute-compatible network topology format.
+
+        Args:
+            execution_list: Current list of models to execute (modified in-place)
+            source_model: Name of the model that requires routing (e.g., 'SUMMA')
+        """
+        if 'DROUTE' not in execution_list:
+            execution_list.append('DROUTE')
+            self.logger.info(
+                f"Automatically adding DROUTE to workflow (dependency of {source_model}). "
+                "Note: dRoute is EXPERIMENTAL."
+            )
+
+        # Check if DROUTE_FROM_MODEL is set in config
+        droute_from = self._get_config_value(
+            lambda: self.config.model.droute.from_model if self.config.model.droute else None,
+            default=None
+        )
+        if not droute_from or droute_from == 'default':
+            self.logger.info(f"DROUTE_FROM_MODEL not set, using {source_model} as source")
 
     def preprocess_models(self, params: Optional[Dict[str, Any]] = None):
         """Preprocess forcing data into model-specific input formats.
@@ -465,18 +504,17 @@ class ModelManager(BaseManager):
                 if 'params' in sig.parameters:
                     kwargs['params'] = params
 
-                # Add LSTM-specific arguments if needed
-                if model == 'LSTM':
-                    if 'project_dir' in sig.parameters:
-                        kwargs['project_dir'] = self.project_dir
-                    if 'device' in sig.parameters:
-                        # Determine device - prefer GPU if available
-                        try:
-                            import torch
-                            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                        except ImportError:
-                            device = None
-                        kwargs['device'] = device
+                # Add project_dir and device if preprocessor needs them
+                if 'project_dir' in sig.parameters:
+                    kwargs['project_dir'] = self.project_dir
+                if 'device' in sig.parameters:
+                    # Determine device - prefer GPU if available
+                    try:
+                        import torch
+                        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                    except ImportError:
+                        device = None
+                    kwargs['device'] = device
 
                 preprocessor = preprocessor_class(self.config, self.logger, **kwargs)
 
@@ -669,6 +707,13 @@ class ModelManager(BaseManager):
 
         # Log baseline performance metrics after postprocessing
         self.log_baseline_performance()
+
+        # Generate model comparison overview (default visualization)
+        if self.reporting_manager:
+            self.reporting_manager.generate_model_comparison_overview(
+                experiment_id=self.experiment_id,
+                context='run_model'
+            )
 
     def log_baseline_performance(self):
         """Log baseline model performance metrics before calibration.
@@ -942,3 +987,12 @@ class ModelManager(BaseManager):
                     self.logger.error(f"Error during {model} visualization: {str(e)}")
             else:
                 self.logger.info(f"Visualization for {model} not yet implemented or registered")
+
+        # Generate Camille's model comparison overview (auto-detects outputs)
+        try:
+            self.reporting_manager.generate_model_comparison_overview(
+                experiment_id=self.experiment_id,
+                context='run_model'
+            )
+        except Exception as e:
+            self.logger.warning(f"Could not generate model comparison overview: {str(e)}")

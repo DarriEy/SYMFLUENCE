@@ -75,7 +75,7 @@ class LazyManagerDict:
 
         elif key == 'optimization':
              from symfluence.optimization.optimization_manager import OptimizationManager
-             return OptimizationManager(self._config, self._logger)
+             return OptimizationManager(self._config, self._logger, self._get_reporting_manager())
 
         raise KeyError(f"Unknown manager key: {key}")
 

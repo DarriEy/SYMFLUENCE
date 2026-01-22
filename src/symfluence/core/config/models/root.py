@@ -74,7 +74,7 @@ class SymfluenceConfig(BaseModel):
         EXPERIMENT_TIME_START='2010-01-01 00:00',
         EXPERIMENT_TIME_END='2020-12-31 23:00',
         DOMAIN_DEFINITION_METHOD='lumped',
-        DOMAIN_DISCRETIZATION='lumped'
+        SUB_GRID_DISCRETIZATION='lumped'
     ))
     data: DataConfig = Field(default_factory=DataConfig)
     forcing: ForcingConfig = Field(default_factory=lambda: ForcingConfig(FORCING_DATASET='ERA5'))
@@ -110,7 +110,7 @@ class SymfluenceConfig(BaseModel):
             'EXPERIMENT_TIME_START',
             'EXPERIMENT_TIME_END',
             'DOMAIN_DEFINITION_METHOD',
-            'DOMAIN_DISCRETIZATION',
+            'SUB_GRID_DISCRETIZATION',
             'HYDROLOGICAL_MODEL',
             'FORCING_DATASET',
         }
@@ -118,6 +118,7 @@ class SymfluenceConfig(BaseModel):
         if 'DOMAIN_DEFINITION_METHOD' in values:
             allowed_definition_methods = {
                 'lumped',
+                'semidistributed',
                 'discretized',
                 'distributed',
                 'distribute',
@@ -376,8 +377,8 @@ class SymfluenceConfig(BaseModel):
                 routing_model = self.model.routing_model.upper()
                 if routing_model == 'MIZUROUTE' and self.model.mizuroute:
                     mizu_required = {
-                        'EXE_NAME_MIZUROUTE': self.model.mizuroute.exe,
-                        'INSTALL_PATH_MIZUROUTE': self.model.mizuroute.install_path,
+                        'MIZUROUTE_EXE': self.model.mizuroute.exe,
+                        'MIZUROUTE_INSTALL_PATH': self.model.mizuroute.install_path,
                     }
                     for field, value in mizu_required.items():
                         if is_unset(value):
@@ -463,7 +464,13 @@ class SymfluenceConfig(BaseModel):
         valid_algorithms = [
             'PSO', 'DE', 'DDS', 'ASYNC-DDS', 'ASYNCDDS', 'ASYNC_DDS',
             'SCE-UA', 'SCEUA', 'NSGA-II', 'NSGA2',
-            'ADAM', 'LBFGS', 'GD', 'SGD'
+            'ADAM', 'LBFGS', 'CMA-ES', 'CMAES', 'DREAM', 'GLUE',
+            'BASIN-HOPPING', 'BASINHOPPING', 'BH',
+            'NELDER-MEAD', 'NELDERMEAD', 'NM', 'SIMPLEX', 'GA',
+            'BAYESIAN-OPT', 'BAYESIAN_OPT', 'BAYESIAN', 'BO',
+            'MOEAD', 'MOEA-D', 'MOEA_D',
+            'SIMULATED-ANNEALING', 'SIMULATED_ANNEALING', 'SA', 'ANNEALING',
+            'ABC', 'ABC-SMC', 'ABC_SMC', 'APPROXIMATE-BAYESIAN'
         ]
         if self.optimization.algorithm not in valid_algorithms:
             errors.append(
@@ -510,16 +517,6 @@ class SymfluenceConfig(BaseModel):
                 errors.append(f"NSGA2_CROSSOVER_RATE should be in [0, 1], got {self.optimization.nsga2.crossover_rate}")
             if not (0 <= self.optimization.nsga2.mutation_rate <= 1):
                 errors.append(f"NSGA2_MUTATION_RATE should be in [0, 1], got {self.optimization.nsga2.mutation_rate}")
-
-        # Validate DPE settings if differentiable optimization is used
-        if 'differentiable' in optimization_methods or 'emulator' in optimization_methods:
-            if self.optimization.dpe:
-                if self.optimization.dpe.learning_rate <= 0:
-                    errors.append(f"DPE_LEARNING_RATE must be > 0, got {self.optimization.dpe.learning_rate}")
-                if self.optimization.dpe.epochs < 1:
-                    errors.append(f"DPE_EPOCHS must be >= 1, got {self.optimization.dpe.epochs}")
-                if not (0 <= self.optimization.dpe.iterate_convergence_tol <= 1):
-                    errors.append(f"DPE_ITERATE_CONVERGENCE_TOL should be in [0, 1], got {self.optimization.dpe.iterate_convergence_tol}")
 
         if errors:
             raise ConfigurationError(

@@ -36,7 +36,7 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
         data_dir: Root data directory
         domain_name: Name of the domain
         project_dir: Project-specific directory
-        mpi_processes: Number of MPI processes for TauDEM
+        num_processes: Number of parallel processes for TauDEM
         max_retries: Maximum number of command retries
         retry_delay: Delay between retries (seconds)
         min_gru_size: Minimum GRU size (km²)
@@ -66,8 +66,8 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
         # Common configuration
-        self.mpi_processes = self._get_config_value(
-            lambda: self.config.system.mpi_processes,
+        self.num_processes = self._get_config_value(
+            lambda: self.config.system.num_processes,
             default=1
         )
         self.max_retries = self.config_dict.get('MAX_RETRIES', 3)
