@@ -381,8 +381,42 @@ def get_geos_proj_detection() -> str:
 detect_geos_proj() {
     GEOS_CFLAGS="" GEOS_LDFLAGS="" PROJ_CFLAGS="" PROJ_LDFLAGS=""
 
-    # Check HPC module environment variables first (EasyBuild)
-    if [ -n "$EBROOTGEOS" ] && [ -d "$EBROOTGEOS" ]; then
+    # Try geos-config tool FIRST - it returns proper flags with all dependencies
+    if command -v geos-config >/dev/null 2>&1; then
+        GEOS_CFLAGS="$(geos-config --cflags 2>/dev/null || true)"
+        GEOS_LDFLAGS="$(geos-config --clibs 2>/dev/null || true)"
+        if [ -n "$GEOS_CFLAGS" ] && [ -n "$GEOS_LDFLAGS" ]; then
+            echo "GEOS found via geos-config: $GEOS_LDFLAGS"
+        else
+            GEOS_CFLAGS="" GEOS_LDFLAGS=""
+        fi
+    fi
+
+    # Try pkg-config for GEOS if geos-config didn't work
+    if [ -z "$GEOS_CFLAGS" ] && command -v pkg-config >/dev/null 2>&1; then
+        if pkg-config --exists geos 2>/dev/null; then
+            GEOS_CFLAGS="$(pkg-config --cflags geos 2>/dev/null || true)"
+            GEOS_LDFLAGS="$(pkg-config --libs geos 2>/dev/null || true)"
+            if [ -n "$GEOS_CFLAGS" ]; then
+                echo "GEOS found via pkg-config"
+            fi
+        fi
+    fi
+
+    # Try pkg-config for PROJ (includes all dependencies like libtiff)
+    if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists proj 2>/dev/null; then
+        PROJ_CFLAGS="$(pkg-config --cflags proj 2>/dev/null || true)"
+        PROJ_LDFLAGS="$(pkg-config --libs proj 2>/dev/null || true)"
+        if [ -n "$PROJ_CFLAGS" ] && [ -n "$PROJ_LDFLAGS" ]; then
+            echo "PROJ found via pkg-config: $PROJ_LDFLAGS"
+        else
+            PROJ_CFLAGS="" PROJ_LDFLAGS=""
+        fi
+    fi
+
+    # Fall back to HPC module environment variables (EasyBuild)
+    # Note: Using modules directly may miss transitive deps like libtiff
+    if [ -z "$GEOS_CFLAGS" ] && [ -n "$EBROOTGEOS" ] && [ -d "$EBROOTGEOS" ]; then
         GEOS_CFLAGS="-I${EBROOTGEOS}/include"
         for libdir in "$EBROOTGEOS/lib64" "$EBROOTGEOS/lib"; do
             if [ -f "$libdir/libgeos_c.so" ] || [ -f "$libdir/libgeos_c.a" ]; then
@@ -390,10 +424,12 @@ detect_geos_proj() {
                 break
             fi
         done
-        echo "GEOS found via HPC module at: $EBROOTGEOS"
+        if [ -n "$GEOS_LDFLAGS" ]; then
+            echo "GEOS found via HPC module at: $EBROOTGEOS"
+        fi
     fi
 
-    if [ -n "$EBROOTPROJ" ] && [ -d "$EBROOTPROJ" ]; then
+    if [ -z "$PROJ_CFLAGS" ] && [ -n "$EBROOTPROJ" ] && [ -d "$EBROOTPROJ" ]; then
         PROJ_CFLAGS="-I${EBROOTPROJ}/include"
         for libdir in "$EBROOTPROJ/lib64" "$EBROOTPROJ/lib"; do
             if [ -f "$libdir/libproj.so" ] || [ -f "$libdir/libproj.a" ]; then
@@ -401,35 +437,10 @@ detect_geos_proj() {
                 break
             fi
         done
-        echo "PROJ found via HPC module at: $EBROOTPROJ"
-    fi
-
-    # Try geos-config tool (more reliable than pkg-config on HPC)
-    if [ -z "$GEOS_CFLAGS" ] && command -v geos-config >/dev/null 2>&1; then
-        GEOS_CFLAGS="$(geos-config --cflags 2>/dev/null || true)"
-        GEOS_LDFLAGS="$(geos-config --clibs 2>/dev/null || true)"
-        if [ -n "$GEOS_CFLAGS" ]; then
-            echo "GEOS found via geos-config"
-        fi
-    fi
-
-    # Try pkg-config (but catch errors for broken dependencies)
-    if command -v pkg-config >/dev/null 2>&1; then
-        if [ -z "$GEOS_CFLAGS" ] && pkg-config --exists geos 2>/dev/null; then
-            GEOS_CFLAGS="$(pkg-config --cflags geos 2>/dev/null || true)"
-            GEOS_LDFLAGS="$(pkg-config --libs geos 2>/dev/null || true)"
-            if [ -n "$GEOS_CFLAGS" ]; then
-                echo "GEOS found via pkg-config"
-            fi
-        fi
-        # Note: pkg-config for proj often fails on HPC due to missing deps (sqlite3, libtiff, libcurl)
-        # Only try if PROJ not already found and suppress errors
-        if [ -z "$PROJ_CFLAGS" ]; then
-            PROJ_CFLAGS="$(pkg-config --cflags proj 2>/dev/null || true)"
-            PROJ_LDFLAGS="$(pkg-config --libs proj 2>/dev/null || true)"
-            if [ -n "$PROJ_CFLAGS" ]; then
-                echo "PROJ found via pkg-config"
-            fi
+        if [ -n "$PROJ_LDFLAGS" ]; then
+            echo "PROJ found via HPC module at: $EBROOTPROJ"
+            echo "WARNING: Using HPC module PROJ directly - if linking fails with libtiff errors,"
+            echo "         try: module load gdal  (which provides PROJ with proper dependencies)"
         fi
     fi
 
