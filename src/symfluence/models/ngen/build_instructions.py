@@ -15,6 +15,7 @@ from symfluence.cli.services import BuildInstructionsRegistry
 from symfluence.cli.services import (
     get_common_build_environment,
     get_netcdf_detection,
+    get_udunits2_detection_and_build,
 )
 
 
@@ -31,6 +32,7 @@ def get_ngen_build_instructions():
     """
     common_env = get_common_build_environment()
     netcdf_detect = get_netcdf_detection()
+    udunits2_detect = get_udunits2_detection_and_build()
 
     return {
         'description': 'NextGen National Water Model Framework',
@@ -44,13 +46,43 @@ def get_ngen_build_instructions():
         'build_commands': [
             common_env,
             netcdf_detect,
+            udunits2_detect,
             r'''
 set -e
+set -o pipefail  # Make pipelines return exit code of failed command, not just last command
 echo "Building ngen with full BMI support (C, C++, Fortran)..."
+
+# Ensure system tools are preferred (fix for 2i2c environments)
+export PATH="/usr/bin:$PATH"
+
+# Prevent any Makefile from being auto-triggered during git operations
+# Debug: show what MAKEFLAGS contains
+echo "DEBUG: MAKEFLAGS before clearing: '${MAKEFLAGS:-}'"
+echo "DEBUG: MAKELEVEL before clearing: '${MAKELEVEL:-}'"
+
+# Must unset ALL make-related variables to prevent spurious make calls
+unset MAKEFLAGS MAKELEVEL MAKE MFLAGS MAKEOVERRIDES GNUMAKEFLAGS 2>/dev/null || true
+export MAKEFLAGS=""
+export MAKELEVEL=""
+export MFLAGS=""
+
+# Disable git hooks that might trigger make
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_SYSTEM=/dev/null
+
+# Fix for conda GCC 14: ensure libstdc++ is found
+# GCC 14 from conda-forge requires explicit library path for C++ runtime
+if [ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX/lib" ]; then
+    export LIBRARY_PATH="${CONDA_PREFIX}/lib:${LIBRARY_PATH:-}"
+    export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
+    echo "Added conda lib to library paths: $CONDA_PREFIX/lib"
+fi
 
 # Detect venv Python - prefer VIRTUAL_ENV, otherwise use which python3
 if [ -n "$VIRTUAL_ENV" ]; then
   PYTHON_EXE="$VIRTUAL_ENV/bin/python3"
+elif [ -n "$CONDA_PREFIX" ]; then
+  PYTHON_EXE="$CONDA_PREFIX/bin/python3"
 else
   PYTHON_EXE=$(which python3)
 fi
@@ -68,17 +100,28 @@ export BOOST_ROOT="$(pwd)/boost_1_79_0"
 export CXX=${CXX:-g++}
 
 # Initialize ALL submodules needed for full BMI support
+# Create a clean git wrapper to prevent MAKEFLAGS from triggering spurious make calls
+# Also disable git hooks which may trigger make
+git_clean() {
+    MAKEFLAGS= MAKELEVEL= MAKE= MFLAGS= GNUMAKEFLAGS= git -c core.hooksPath=/dev/null "$@"
+}
+
 echo "Initializing submodules for ngen and external BMI modules..."
-git submodule update --init --recursive -- test/googletest extern/pybind11 || true
-git submodule update --init --recursive -- extern/cfe extern/evapotranspiration extern/sloth extern/noah-owp-modular || true
+git_clean submodule update --init --recursive -- test/googletest extern/pybind11 || true
+git_clean submodule update --init --recursive -- extern/cfe extern/evapotranspiration extern/sloth extern/noah-owp-modular || true
 
 # Initialize t-route submodule for routing support
+# Note: t-route triggers spurious make calls on some HPC systems, skip if it fails
 echo "Initializing t-route submodule for routing..."
-git submodule update --init --recursive -- extern/t-route || true
+if ! git_clean submodule update --init -- extern/t-route 2>&1; then
+    echo "WARNING: t-route submodule init failed, routing will be disabled"
+fi
+# Don't recursively init t-route submodules as they may trigger make
+# git_clean submodule update --init --recursive -- extern/t-route || true
 
 # Initialize iso_c_fortran_bmi for Fortran BMI support (required for NOAH-OWP)
 echo "Initializing iso_c_fortran_bmi submodule..."
-git submodule update --init --recursive -- extern/iso_c_fortran_bmi || true
+git_clean submodule update --init --recursive -- extern/iso_c_fortran_bmi || true
 
 # Verify Fortran compiler
 echo "Checking Fortran compiler..."
@@ -93,6 +136,14 @@ fi
 
 rm -rf cmake_build
 
+# Debug: show environment
+echo "=== Environment Debug ==="
+echo "CONDA_PREFIX: ${CONDA_PREFIX:-not set}"
+echo "UDUNITS2_DIR: ${UDUNITS2_DIR:-not set}"
+echo "UDUNITS2_INCLUDE_DIR: ${UDUNITS2_INCLUDE_DIR:-not set}"
+echo "UDUNITS2_LIBRARY: ${UDUNITS2_LIBRARY:-not set}"
+echo "========================="
+
 # Build ngen with full BMI support including Fortran
 echo "Configuring ngen with BMI C, C++, and Fortran support..."
 CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
@@ -100,6 +151,52 @@ CMAKE_ARGS="$CMAKE_ARGS -DBOOST_ROOT=$BOOST_ROOT"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_SQLITE3=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_C=ON"
 CMAKE_ARGS="$CMAKE_ARGS -DNGEN_WITH_BMI_CPP=ON"
+
+# Fix for conda GCC 14: explicitly link libstdc++ to resolve __cxa_call_terminate
+# This is needed because conda's GCC uses a separate libstdc++ that may not be auto-linked
+if [ -n "$CONDA_PREFIX" ]; then
+    EXTRA_LIBS="-lstdc++"
+    echo "Adding -lstdc++ for conda GCC 14 compatibility"
+fi
+
+# Add UDUNITS2 paths if available (from detection/build snippet)
+if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
+  CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_ROOT=$UDUNITS2_DIR"
+  CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_INCLUDE_DIR=$UDUNITS2_INCLUDE_DIR"
+  CMAKE_ARGS="$CMAKE_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
+
+  # Also add to compiler flags
+  export CXXFLAGS="${CXXFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
+  export CFLAGS="${CFLAGS:-} -I${UDUNITS2_INCLUDE_DIR}"
+
+  echo "Using UDUNITS2 from: $UDUNITS2_DIR"
+fi
+
+# Add extra linker flags for conda GCC 14 and expat (needed by locally-built UDUNITS2)
+# HPC module UDUNITS2 handles expat dependency via rpath, so we skip -lexpat in that case
+EXTRA_LDFLAGS="${EXTRA_LIBS:-}"
+if [ -n "${UDUNITS2_LIBRARY:-}" ] && [ "${UDUNITS2_FROM_HPC_MODULE:-false}" != "true" ]; then
+  # Only add expat for locally-built UDUNITS2 (not HPC modules which handle deps via rpath)
+  if [ -n "${EXPAT_LIB_DIR:-}" ] && [ -d "${EXPAT_LIB_DIR}" ]; then
+    EXTRA_LDFLAGS="$EXTRA_LDFLAGS -L${EXPAT_LIB_DIR} -lexpat"
+    # Add to LIBRARY_PATH so the linker can find it during build
+    export LIBRARY_PATH="${EXPAT_LIB_DIR}:${LIBRARY_PATH:-}"
+    export LD_LIBRARY_PATH="${EXPAT_LIB_DIR}:${LD_LIBRARY_PATH:-}"
+    # Add to CMAKE_PREFIX_PATH so CMake can find it
+    export CMAKE_PREFIX_PATH="${EXPAT_LIB_DIR%/lib}:${CMAKE_PREFIX_PATH:-}"
+    echo "Using EXPAT from: ${EXPAT_LIB_DIR}"
+  else
+    # Fallback for non-HPC: add -lexpat and hope it's in standard paths
+    EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lexpat"
+    echo "WARNING: EXPAT_LIB_DIR not set, using system expat"
+  fi
+elif [ "${UDUNITS2_FROM_HPC_MODULE:-false}" = "true" ]; then
+  echo "Using HPC module UDUNITS2 - expat dependency handled via module rpath"
+fi
+if [ -n "$EXTRA_LDFLAGS" ]; then
+  export LDFLAGS="${LDFLAGS:-} $EXTRA_LDFLAGS"
+  echo "Adding extra linker flags via LDFLAGS: $EXTRA_LDFLAGS"
+fi
 
 # Add Fortran support if compiler is available
 if [ "${NGEN_WITH_BMI_FORTRAN:-ON}" = "ON" ] && [ -n "$FC" ]; then
@@ -151,6 +248,14 @@ else
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_C=ON"
   FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_CPP=ON"
 
+  # Add UDUNITS2 paths to fallback as well
+  if [ -n "${UDUNITS2_INCLUDE_DIR:-}" ] && [ -n "${UDUNITS2_LIBRARY:-}" ]; then
+    FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_ROOT=$UDUNITS2_DIR"
+    FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_INCLUDE_DIR=$UDUNITS2_INCLUDE_DIR"
+    FALLBACK_ARGS="$FALLBACK_ARGS -DUDUNITS2_LIBRARY=$UDUNITS2_LIBRARY"
+  fi
+  # Note: LIBRARY_PATH and CMAKE_PREFIX_PATH are already set in environment for expat
+
   # Keep Fortran in fallback if compiler is available
   if [ -n "$FC" ]; then
     FALLBACK_ARGS="$FALLBACK_ARGS -DNGEN_WITH_BMI_FORTRAN=ON"
@@ -190,9 +295,10 @@ echo "Building external BMI modules..."
 if [ -d "extern/sloth" ]; then
   echo "Building SLOTH..."
   cd extern/sloth
-  git submodule update --init --recursive || true
+  git_clean submodule update --init --recursive || true
   rm -rf cmake_build && mkdir -p cmake_build
-  cmake -DCMAKE_BUILD_TYPE=Release -S . -B cmake_build
+  # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility with old googletest
+  cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build
   cmake --build cmake_build -j ${NCORES:-4}
   if [ -f cmake_build/libslothmodel.* ]; then
     echo "SLOTH built successfully"
@@ -206,9 +312,10 @@ fi
 if [ -d "extern/cfe" ]; then
   echo "Building CFE..."
   cd extern/cfe
-  git submodule update --init --recursive || true
+  git_clean submodule update --init --recursive || true
   rm -rf cmake_build && mkdir -p cmake_build
-  cmake -DCMAKE_BUILD_TYPE=Release -S . -B cmake_build
+  # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility
+  cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build
   cmake --build cmake_build -j ${NCORES:-4}
   if [ -f cmake_build/libcfebmi.* ]; then
     echo "CFE built successfully"
@@ -222,9 +329,10 @@ fi
 if [ -d "extern/evapotranspiration" ]; then
   echo "Building PET (evapotranspiration)..."
   cd extern/evapotranspiration/evapotranspiration
-  git submodule update --init --recursive 2>/dev/null || true
+  git_clean submodule update --init --recursive 2>/dev/null || true
   rm -rf cmake_build && mkdir -p cmake_build
-  cmake -DCMAKE_BUILD_TYPE=Release -S . -B cmake_build
+  # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility
+  cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S . -B cmake_build
   cmake --build cmake_build -j ${NCORES:-4}
   if [ -f cmake_build/libpetbmi.* ]; then
     echo "PET built successfully"
@@ -239,11 +347,13 @@ fi
 if [ -d "extern/iso_c_fortran_bmi" ] && [ -n "$FC" ]; then
   echo "Building iso_c_fortran_bmi (C wrapper for Fortran BMI)..."
   cd extern/iso_c_fortran_bmi
-  git submodule update --init --recursive || true
+  git_clean submodule update --init --recursive || true
   rm -rf cmake_build && mkdir -p cmake_build
 
   ISO_C_CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
   ISO_C_CMAKE_ARGS="$ISO_C_CMAKE_ARGS -DCMAKE_Fortran_COMPILER=$FC"
+  # Add CMAKE_POLICY_VERSION_MINIMUM for newer CMake compatibility
+  ISO_C_CMAKE_ARGS="$ISO_C_CMAKE_ARGS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
   cmake $ISO_C_CMAKE_ARGS -S . -B cmake_build
   cmake --build cmake_build -j ${NCORES:-4}
@@ -260,7 +370,7 @@ fi
 if [ -d "extern/noah-owp-modular" ] && [ -n "$FC" ]; then
   echo "Building NOAH-OWP-Modular (Fortran)..."
   cd extern/noah-owp-modular
-  git submodule update --init --recursive || true
+  git_clean submodule update --init --recursive || true
   rm -rf cmake_build && mkdir -p cmake_build
 
   # Configure with NGEN support
@@ -269,6 +379,8 @@ if [ -d "extern/noah-owp-modular" ] && [ -n "$FC" ]; then
   NOAH_CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
   NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DCMAKE_Fortran_COMPILER=$FC"
   NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DNGEN_IS_MAIN_PROJECT=ON"
+  # Fix for newer CMake versions that require minimum version >= 3.5
+  NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
   if [ -n "$NETCDF_FORTRAN" ]; then
     NOAH_CMAKE_ARGS="$NOAH_CMAKE_ARGS -DNETCDF_PATH=$NETCDF_FORTRAN"

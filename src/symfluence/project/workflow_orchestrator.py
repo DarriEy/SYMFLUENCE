@@ -128,8 +128,13 @@ class WorkflowOrchestrator(ConfigMixin):
         # Check for snow data (SWE, SCA)
         if any(obs_type.upper() in ['SWE', 'SCA', 'SNOW'] for obs_type in evaluation_data) or \
            self._get_config_value(lambda: self.config.evaluation.snotel.download, dict_key='DOWNLOAD_SNOTEL') or self._get_config_value(lambda: self.config.evaluation.modis_snow.download, dict_key='DOWNLOAD_MODIS_SNOW'):
-            snow_file = self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_snow_processed.csv"
-            if snow_file.exists():
+            snow_files = [
+                self.project_dir / "observations" / "snow" / "swe" / "processed" / f"{self.domain_name}_swe_processed.csv",
+                self.project_dir / "observations" / "snow" / "sca" / "processed" / f"{self.domain_name}_sca_processed.csv",
+                self.project_dir / "observations" / "snow" / "processed" / f"{self.domain_name}_snow_processed.csv",
+                self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_snow_processed.csv",
+            ]
+            if any(f.exists() for f in snow_files):
                 return True
 
         # Check for soil moisture data
@@ -218,7 +223,7 @@ class WorkflowOrchestrator(ConfigMixin):
                 cli_name="discretize_domain",
                 func=self.managers['domain'].discretize_domain,
                 check_func=lambda: (self.project_dir / "shapefiles" / "catchment" /
-                        f"{self.domain_name}_HRUs_{str(self._get_config_value(lambda: self.config.domain.discretization, dict_key='DOMAIN_DISCRETIZATION')).replace(',','_')}.shp").exists(),
+                        f"{self.domain_name}_HRUs_{str(self._get_config_value(lambda: self.config.domain.discretization, dict_key='SUB_GRID_DISCRETIZATION')).replace(',','_')}.shp").exists(),
                 description="Discretizing domain into hydrological response units"
             ),
 
@@ -472,7 +477,7 @@ class WorkflowOrchestrator(ConfigMixin):
             'EXPERIMENT_ID',
             'HYDROLOGICAL_MODEL',
             'DOMAIN_DEFINITION_METHOD',
-            'DOMAIN_DISCRETIZATION'
+            'SUB_GRID_DISCRETIZATION'
         ]
 
         for key in required_config:

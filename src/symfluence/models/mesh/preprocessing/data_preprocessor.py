@@ -97,6 +97,89 @@ class MESHDataPreprocessor:
         except Exception as e:
             self.logger.warning(f"Failed to sanitize shapefile {path}: {e}")
 
+    def fix_network_topology_fields(self, shp_path: str) -> None:
+        """
+        Fix network topology fields to ensure they contain unique scalar integer values.
+
+        Meshflow's extract_rank_next function requires LINKNO and DSLINKNO to be
+        scalar integers with LINKNO being unique. This method ensures:
+        1. Values are not arrays/sequences
+        2. LINKNO values are unique (reassigns if duplicates found)
+        3. DSLINKNO references are updated to match new LINKNO values
+
+        Args:
+            shp_path: Path to river network shapefile.
+        """
+        if not shp_path:
+            return
+
+        path = Path(shp_path)
+        if not path.exists():
+            return
+
+        try:
+            import numpy as np
+            gdf = gpd.read_file(path)
+            modified = False
+
+            for col in ['LINKNO', 'DSLINKNO', 'GRU_ID', 'NGRU']:
+                if col not in gdf.columns:
+                    continue
+
+                # Check if any values are array-like
+                def to_scalar(val):
+                    if val is None:
+                        return -9999
+                    if hasattr(val, '__iter__') and not isinstance(val, (str, bytes)):
+                        # It's a sequence - take first element or -9999 if empty
+                        try:
+                            arr = np.asarray(val)
+                            if arr.size == 0:
+                                return -9999
+                            return int(arr.flat[0])
+                        except (TypeError, ValueError):
+                            return -9999
+                    try:
+                        return int(val)
+                    except (TypeError, ValueError):
+                        return -9999
+
+                original_dtype = gdf[col].dtype
+                gdf[col] = gdf[col].apply(to_scalar)
+
+                if gdf[col].dtype != original_dtype or gdf[col].isna().any():
+                    modified = True
+                    self.logger.info(f"Fixed {col} values in {path.name} to be scalar integers")
+
+            # Check for duplicate LINKNO values (meshflow requires unique segment IDs)
+            if 'LINKNO' in gdf.columns:
+                duplicates = gdf['LINKNO'].duplicated()
+                if duplicates.any():
+                    n_dups = duplicates.sum()
+                    self.logger.warning(f"Found {n_dups} duplicate LINKNO values in {path.name}")
+
+                    # Create mapping from old to new unique IDs
+                    old_linknos = gdf['LINKNO'].copy()
+                    gdf['LINKNO'] = np.arange(1, len(gdf) + 1)
+
+                    # Update DSLINKNO references
+                    if 'DSLINKNO' in gdf.columns:
+                        old_to_new = dict(zip(old_linknos, gdf['LINKNO']))
+                        # Map DSLINKNO to new values, keeping outlet values (-9999, 0, etc)
+                        gdf['DSLINKNO'] = gdf['DSLINKNO'].apply(
+                            lambda x: old_to_new.get(x, x) if x in old_to_new else x
+                        )
+
+                    modified = True
+                    self.logger.info(f"Reassigned LINKNO values to unique integers 1-{len(gdf)}")
+
+            if modified:
+                gdf.to_file(path)
+                self.logger.info(f"Saved topology-fixed shapefile: {path.name}")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to fix network topology fields: {e}")
+
     def fix_outlet_segment(self, shp_path: str, outlet_value: int = 0) -> None:
         """
         Fix outlet segment in river network shapefile.
@@ -319,7 +402,7 @@ class MESHDataPreprocessor:
             self.logger.warning(f"Failed to detect GRU classes: {e}")
             return []
 
-    def sanitize_landcover_stats(self, csv_path: str) -> str:
+    def sanitize_landcover_stats(self, csv_path: str, catchment_path: str = None) -> str:
         """
         Sanitize landcover stats CSV for meshflow compatibility.
 
@@ -328,9 +411,11 @@ class MESHDataPreprocessor:
         - Converts IGBP_* columns to frac_* columns (fractions)
         - Removes non-essential columns that cause meshflow parsing errors
         - Removes duplicate rows
+        - Expands landcover data to match catchment GRU_IDs if needed
 
         Args:
             csv_path: Path to landcover statistics CSV file.
+            catchment_path: Optional path to catchment shapefile for GRU_ID matching.
 
         Returns:
             str: Path to sanitized CSV file (may be a temp file in forcing_dir).
@@ -359,11 +444,6 @@ class MESHDataPreprocessor:
                 self.logger.warning(f"No 'GRU_ID' column found in {path.name}. Using first column '{df.columns[0]}' as ID.")
                 df = df.rename(columns={df.columns[0]: 'GRU_ID'})
                 df['GRU_ID'] = pd.to_numeric(df['GRU_ID'], errors='coerce').fillna(1).astype(int)
-
-            # For lumped cases (1 row), force ID to 1 to match shapefile
-            if len(df) == 1:
-                self.logger.info("Forcing single landcover row ID to 1")
-                df['GRU_ID'] = 1
 
             # Remove unnamed columns (except the one we just renamed if it was the first)
             cols_to_drop = [col for col in df.columns if 'Unnamed' in col and col != 'GRU_ID']
@@ -397,6 +477,10 @@ class MESHDataPreprocessor:
             if len(df) < initial_rows:
                 self.logger.info(f"Removed {initial_rows - len(df)} duplicate rows")
 
+            # Expand landcover data to match catchment GRU_IDs if needed
+            if catchment_path and Path(catchment_path).exists():
+                df = self._expand_landcover_to_catchment(df, catchment_path)
+
             temp_path = self.forcing_dir / f"temp_{path.name}"
             df.to_csv(temp_path, index=False)
             return str(temp_path)
@@ -404,6 +488,68 @@ class MESHDataPreprocessor:
         except Exception as e:
             self.logger.warning(f"Failed to sanitize landcover stats: {e}")
             return csv_path
+
+    def _expand_landcover_to_catchment(self, df: pd.DataFrame, catchment_path: str) -> pd.DataFrame:
+        """
+        Expand landcover data to include all GRU_IDs from the catchment shapefile.
+
+        When landcover data has fewer rows than the catchment (e.g., single-row lumped
+        landcover but multi-feature distributed catchment), this function expands the
+        landcover data by replicating fractions to all catchment GRU_IDs.
+
+        Args:
+            df: Landcover DataFrame with GRU_ID and frac_* columns.
+            catchment_path: Path to catchment shapefile.
+
+        Returns:
+            Expanded DataFrame with rows for all catchment GRU_IDs.
+        """
+        try:
+            cat_gdf = gpd.read_file(catchment_path)
+
+            if 'GRU_ID' not in cat_gdf.columns:
+                return df
+
+            catchment_gru_ids = sorted(cat_gdf['GRU_ID'].dropna().astype(int).unique().tolist())
+            landcover_gru_ids = sorted(df['GRU_ID'].unique().tolist())
+
+            # Check if landcover IDs match catchment IDs
+            if set(landcover_gru_ids) == set(catchment_gru_ids):
+                return df
+
+            # If landcover has only 1 row or doesn't match, expand to all catchment IDs
+            if len(df) == 1 or not set(landcover_gru_ids).intersection(set(catchment_gru_ids)):
+                self.logger.info(
+                    f"Landcover GRU_IDs {landcover_gru_ids} don't match catchment GRU_IDs "
+                    f"{catchment_gru_ids}. Expanding landcover to all catchment IDs."
+                )
+
+                # Get frac_* columns
+                frac_cols = [c for c in df.columns if c.startswith('frac_')]
+
+                if not frac_cols:
+                    # No frac columns - create default grassland
+                    frac_cols = ['frac_10']
+                    df['frac_10'] = 1.0
+
+                # Get the landcover fractions from first row (assumes homogeneous)
+                frac_values = df[frac_cols].iloc[0].to_dict()
+
+                # Create new DataFrame with all catchment GRU_IDs
+                new_rows = []
+                for gru_id in catchment_gru_ids:
+                    row = {'GRU_ID': gru_id}
+                    row.update(frac_values)
+                    new_rows.append(row)
+
+                df = pd.DataFrame(new_rows)
+                self.logger.info(f"Expanded landcover to {len(df)} rows matching catchment GRU_IDs")
+
+            return df
+
+        except Exception as e:
+            self.logger.warning(f"Failed to expand landcover to catchment: {e}")
+            return df
 
     def convert_landcover_to_maf(self, csv_path: str) -> None:
         """
@@ -486,8 +632,8 @@ class MESHDataPreprocessor:
             if self.setup_dir.resolve() == self.forcing_dir.resolve():
                 self.logger.info("Settings and forcing directories are the same, skipping")
                 return
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug(f"Could not compare directory paths: {e}")
 
         skip_files = [
             "MESH_input_run_options.ini",

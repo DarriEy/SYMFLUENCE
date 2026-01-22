@@ -20,7 +20,7 @@ def _base_config(tmp_path, discretization):
         "CATCHMENT_SHP_NAME": "default",
         "CATCHMENT_SHP_GRUID": "GRU_ID",
         "CATCHMENT_SHP_HRUID": "HRU_ID",
-        "DOMAIN_DISCRETIZATION": discretization,
+        "SUB_GRID_DISCRETIZATION": discretization,
         "EXPERIMENT_ID": "test",
         "EXPERIMENT_TIME_START": "2020-01-01 00:00",
         "EXPERIMENT_TIME_END": "2020-01-02 00:00",

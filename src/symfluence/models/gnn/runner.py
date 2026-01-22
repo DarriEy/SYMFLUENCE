@@ -15,7 +15,7 @@ from typing import Dict, Any, Optional, List
 
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
-from ..execution import ModelExecutor, SpatialOrchestrator
+from ..execution import UnifiedModelExecutor
 from symfluence.core.exceptions import (
     ModelExecutionError,
     symfluence_error_handler
@@ -26,7 +26,7 @@ from .preprocessor import GNNPreprocessor
 from .postprocessor import GNNPostprocessor
 
 @ModelRegistry.register_runner('GNN', method_name='run_gnn')
-class GNNRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
+class GNNRunner(BaseModelRunner, UnifiedModelExecutor):
     """Runner for the Spatio-Temporal GNN Hydrological Model.
 
     Orchestrates the complete GNN workflow: data loading, graph construction,
@@ -303,13 +303,41 @@ class GNNRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
         # Or pass mask from preprocessor.
         # Let's compute a mask on the whole dataset once.
         # y is (B, N, O). Sum over B and O.
+        # Phase 4.3: Improved outlet selection with better error messages
         if self.outlet_indices:
             mask = torch.zeros(y.size(1), device=self.device)
             mask[self.outlet_indices] = 1.0
+            self.logger.info(
+                f"Using {len(self.outlet_indices)} configured outlet node(s) for loss calculation. "
+                f"Outlet HRU IDs: {self.outlet_hru_ids[:5]}{'...' if len(self.outlet_hru_ids) > 5 else ''}"
+            )
         else:
+            # Fallback: infer outlets from data variance
+            self.logger.warning(
+                "No outlet_indices configured. Inferring observed nodes from target variance. "
+                "For better results, configure outlet locations explicitly via pour point shapefile "
+                "or CALIBRATION_OUTLET_ID config key."
+            )
             y_activity = y.abs().sum(dim=(0, 2))
-            mask = (y_activity > 1e-6).float().to(self.device) # (N,)
-        self.logger.info(f"Training mask active for {mask.sum().item()} nodes out of {len(mask)}")
+            mask = (y_activity > 1e-6).float().to(self.device)  # (N,)
+
+            # Check if inference found any nodes
+            active_count = mask.sum().item()
+            if active_count == 0:
+                raise ValueError(
+                    "No active observation nodes found in target data. This typically means:\n"
+                    "1. Target data contains all zeros or NaN - check observation preprocessing\n"
+                    "2. Outlet nodes not properly configured - provide pour point shapefile\n"
+                    "3. Data alignment issue - check time periods match between forcing and observations"
+                )
+            elif active_count > y.size(1) * 0.5:
+                self.logger.warning(
+                    f"Unusually high number of 'active' nodes ({int(active_count)}/{y.size(1)}). "
+                    f"This may indicate improper target data setup. GNN expects observations "
+                    f"only at watershed outlets, not all nodes."
+                )
+
+        self.logger.info(f"Training mask active for {mask.sum().item():.0f} nodes out of {len(mask)}")
 
         optimizer = optim.AdamW(self.model.parameters(), lr=learning_rate)
         criterion = nn.MSELoss(reduction='none') # We will apply mask
@@ -347,19 +375,38 @@ class GNNRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator):
                 total_loss += loss.item() * batch_X.size(0)
                 total_samples += batch_X.size(0)
 
-            # Validation
+            # Validation (batched to avoid OOM)
             self.model.eval()
             with torch.no_grad():
-                val_out = self.model(X_val)
-                val_target = y_val[:, :, 0:1]
-                val_loss_raw = criterion(val_out, val_target)
-                val_loss = (val_loss_raw * mask.view(1, -1, 1)).sum() / (mask.sum() * X_val.size(0) + 1e-6)
+                val_loss_sum = 0.0
+                val_batch_size = min(batch_size * 4, 256)  # Larger batches OK for inference
+                for j in range(0, X_val.size(0), val_batch_size):
+                    val_batch_X = X_val[j:j + val_batch_size]
+                    val_batch_y = y_val[j:j + val_batch_size]
+                    val_out = self.model(val_batch_X)
+                    val_target = val_batch_y[:, :, 0:1]
+                    val_loss_raw = criterion(val_out, val_target)
+                    val_loss_sum += (val_loss_raw * mask.view(1, -1, 1)).sum().item()
+                val_loss = val_loss_sum / (mask.sum().item() * X_val.size(0) + 1e-6)
+
+            avg_train_loss = total_loss / max(total_samples, 1)
 
             if (epoch + 1) % 10 == 0:
-                avg_train_loss = total_loss / max(total_samples, 1)
                 self.logger.info(
                     f"Epoch {epoch+1}/{epochs}, Train Loss: {avg_train_loss:.4f}, Val Loss: {val_loss:.4f}"
                 )
+
+            # Phase 4.3: Periodic checkpoint saving every 50 epochs
+            checkpoint_interval = self.config_dict.get('GNN_CHECKPOINT_INTERVAL', 50)
+            if checkpoint_interval > 0 and (epoch + 1) % checkpoint_interval == 0:
+                checkpoint_path = self.sim_dir / f'gnn_checkpoint_epoch_{epoch+1}.pt'
+                try:
+                    # Get adjacency matrix for checkpoint
+                    adj_matrix = self.model.gnn.adj
+                    self._save_model_checkpoint(checkpoint_path, adj_matrix)
+                    self.logger.info(f"Checkpoint saved at epoch {epoch+1}: {checkpoint_path}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to save checkpoint at epoch {epoch+1}: {e}")
 
     def _simulate(self, X: torch.Tensor, common_dates: pd.DatetimeIndex, hru_ids: List[int]) -> pd.DataFrame:
         """Run full forward simulation and return streamflow time series.

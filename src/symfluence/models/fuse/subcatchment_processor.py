@@ -133,7 +133,7 @@ class SubcatchmentProcessor:
             catchment_path = self._get_catchment_path()
             discretization = self._get_config_value(
                 lambda: self._config.domain.discretization if self._config else None,
-                'DOMAIN_DISCRETIZATION',
+                'SUB_GRID_DISCRETIZATION',
                 'GRUs'
             )
 
@@ -464,7 +464,7 @@ class SubcatchmentProcessor:
         catchment_path = self._get_catchment_path()
         discretization = self._get_config_value(
             lambda: self._config.domain.discretization if self._config else None,
-            'DOMAIN_DISCRETIZATION',
+            'SUB_GRID_DISCRETIZATION',
             'GRUs'
         )
         catchment_name_col = self._get_config_value(

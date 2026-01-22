@@ -74,8 +74,8 @@ ModelRegistry.register_result_extractor('GNN')(GNNResultExtractor)
 # Register preprocessor with ModelRegistry
 ModelRegistry.register_preprocessor('GNN')(GNNPreprocessor)
 
-# Register runner with ModelRegistry
-ModelRegistry.register_runner('GNN')(GNNRunner)
+# Register runner with ModelRegistry (method_name must match the actual method in runner.py)
+ModelRegistry.register_runner('GNN', method_name='run_gnn')(GNNRunner)
 
 # Register postprocessor with ModelRegistry
 ModelRegistry.register_postprocessor('GNN')(GNNPostprocessor)

@@ -89,7 +89,7 @@ def config_path(test_data_dir, tmp_path, symfluence_code_dir):
 
     # Point-scale settings from notebook 01a
     config["DOMAIN_DEFINITION_METHOD"] = "point"
-    config["DOMAIN_DISCRETIZATION"] = "GRUs"
+    config["SUB_GRID_DISCRETIZATION"] = "GRUs"
     config["BOUNDING_BOX_COORDS"] = "46.781/-121.751/46.779/-121.749"
     config["POUR_POINT_COORDS"] = "46.78/-121.75"
 
@@ -166,7 +166,7 @@ def test_point_scale_workflow(config_path):
     # Step 4: Discretize domain
     hru_path, discretization_artifacts = symfluence.managers["domain"].discretize_domain()
     assert (
-        discretization_artifacts.method == config["DOMAIN_DISCRETIZATION"]
+        discretization_artifacts.method == config["SUB_GRID_DISCRETIZATION"]
     ), "Discretization method mismatch"
 
     # Verify geospatial artifacts (01a)

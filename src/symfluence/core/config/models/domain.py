@@ -5,6 +5,7 @@ Contains DelineationConfig and DomainConfig for spatial extent, timing, and disc
 """
 
 from typing import Optional, Literal
+import warnings
 from pydantic import BaseModel, Field, field_validator
 
 from .base import FROZEN_CONFIG
@@ -72,10 +73,19 @@ class DomainConfig(BaseModel):
     spinup_period: Optional[str] = Field(default=None, alias='SPINUP_PERIOD')
 
     # Required spatial definition
-    definition_method: Literal['lumped', 'discretized', 'distributed', 'distribute', 'subset', 'point', 'delineate'] = Field(alias='DOMAIN_DEFINITION_METHOD')
-    discretization: str = Field(alias='DOMAIN_DISCRETIZATION')
+    definition_method: Literal['point', 'lumped', 'semidistributed', 'distributed'] = Field(alias='DOMAIN_DEFINITION_METHOD')
+    discretization: str = Field(alias='SUB_GRID_DISCRETIZATION')
 
-    # Grid-based distribute mode settings
+    # Subsetting option (for lumped, semidistributed, distributed)
+    subset_from_geofabric: bool = Field(default=False, alias='SUBSET_FROM_GEOFABRIC')
+
+    # Grid source (for distributed only)
+    grid_source: Literal['generate', 'native'] = Field(default='generate', alias='GRID_SOURCE')
+
+    # Native grid dataset identifier (for distributed + native)
+    native_grid_dataset: str = Field(default='era5', alias='NATIVE_GRID_DATASET')
+
+    # Grid-based distributed mode settings
     grid_cell_size: float = Field(default=1000.0, alias='GRID_CELL_SIZE')  # meters
     clip_grid_to_watershed: bool = Field(default=True, alias='CLIP_GRID_TO_WATERSHED')
 
@@ -118,4 +128,24 @@ class DomainConfig(BaseModel):
         """Ensure positive integers"""
         if v < 1:
             raise ValueError(f"{info.field_name} must be at least 1, got {v}")
+        return v
+
+    @field_validator('definition_method', mode='before')
+    @classmethod
+    def normalize_definition_method(cls, v):
+        """Map legacy method names to new values for backwards compatibility."""
+        legacy_mapping = {
+            'delineate': 'semidistributed',
+            'distribute': 'distributed',
+            'discretized': 'semidistributed',  # deprecated
+            'subset': 'semidistributed',  # now use subset_from_geofabric=True
+        }
+        if v in legacy_mapping:
+            if v == 'discretized':
+                warnings.warn(
+                    f"definition_method '{v}' is deprecated, use 'semidistributed' instead",
+                    DeprecationWarning,
+                    stacklevel=2
+                )
+            return legacy_mapping[v]
         return v

@@ -404,7 +404,7 @@ Simplest NGEN setup:
    HYDROLOGICAL_MODEL: NGEN
 
    # Domain definition (single catchment or multiple)
-   DOMAIN_DEFINITION_METHOD: delineate
+   DOMAIN_DEFINITION_METHOD: semidistributed
    POUR_POINT_COORDS: [-105.5, 40.2]
 
    # NGEN modules
@@ -480,7 +480,7 @@ Following National Water Model approach:
    NGEN_MODULES_TO_CALIBRATE: CFE
 
    # Parallel execution essential
-   MPI_PROCESSES: 256
+   NUM_PROCESSES: 256
 
 Calibration Strategies
 =====================

@@ -47,7 +47,7 @@ SYMFLUENCE configurations are organized into 8 hierarchical sections:
 
 1. **system** - System paths, logging, MPI settings
    - Required: SYMFLUENCE_DATA_DIR, SYMFLUENCE_CODE_DIR
-   - Settings: debug_mode, log_level, mpi_processes, stop_on_error
+   - Settings: debug_mode, log_level, num_processes, stop_on_error
 
 2. **domain** - Domain definition and timing
    - Required: name, experiment_id, time_start, time_end, definition_method, discretization
@@ -83,7 +83,7 @@ Every config must set:
 5. EXPERIMENT_TIME_START - Simulation start time (format: "YYYY-MM-DD HH:MM")
 6. EXPERIMENT_TIME_END - Simulation end time
 7. DOMAIN_DEFINITION_METHOD - How to define domain (lumped/delineate/point/subset/discretized)
-8. DOMAIN_DISCRETIZATION - How to discretize domain (lumped/elevation/aspect/landclass/grus)
+8. SUB_GRID_DISCRETIZATION - How to discretize domain (lumped/elevation/aspect/landclass/grus)
 9. HYDROLOGICAL_MODEL - Which model to run
 10. FORCING_DATASET - Which forcing data to use
 
@@ -133,7 +133,7 @@ All other 346+ parameters have defaults.
 - Recommended template: config_template_comprehensive.yaml
 - Domain definition: discretized or distributed
 - Large bounding box, stream threshold 7500+
-- Add: mpi_processes, combined discretization methods
+- Add: num_processes, combined discretization methods
 - Setup time: Variable, HPC execution
 - Best for: Large-scale simulations, research
 

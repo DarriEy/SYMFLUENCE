@@ -17,6 +17,7 @@ import pandas as pd
 import xarray as xr
 
 from symfluence.core.path_resolver import PathResolverMixin
+from symfluence.models.mixins import ModelComponentMixin
 from symfluence.core.constants import UnitConversion
 from symfluence.core.validation import (
     validate_config_keys
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 
-class BaseModelPostProcessor(ABC, PathResolverMixin):
+class BaseModelPostProcessor(ABC, ModelComponentMixin, PathResolverMixin):
     """
     Abstract base class for all model postprocessors.
 
@@ -75,31 +76,11 @@ class BaseModelPostProcessor(ABC, PathResolverMixin):
         Raises:
             ConfigurationError: If required configuration keys are missing
         """
-        # Import here to avoid circular imports at module level
-        from symfluence.core.config.models import SymfluenceConfig
+        # Common initialization via mixin
+        self._init_model_component(config, logger, reporting_manager)
 
-        # Auto-convert dict to typed config for backward compatibility
-        if isinstance(config, dict):
-            self._config = SymfluenceConfig(**config)
-        else:
-            self._config = config
-
-        self.logger = logger
-        self.reporting_manager = reporting_manager
-
-        # Validate required configuration keys
-        self._validate_required_config()
-
-        # Base paths - direct typed access
-        self.data_dir = self.config.system.data_dir
-        self.domain_name = self.config.domain.name
-        self.project_dir = self.data_dir / f"domain_{self.domain_name}"
-
-        # Model-specific initialization
-        self.model_name = self._get_model_name()
+        # Postprocessor-specific: standard output directories
         # experiment_id is available via ConfigMixin property
-
-        # Standard output directories
         self.sim_dir = self._get_simulation_dir()
         self.results_dir = self.project_dir / "results"
         self.results_dir.mkdir(parents=True, exist_ok=True)

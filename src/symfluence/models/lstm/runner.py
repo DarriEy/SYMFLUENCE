@@ -25,7 +25,7 @@ except ImportError:
 
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
-from ..execution import ModelExecutor, SpatialOrchestrator, RoutingModel
+from ..execution import UnifiedModelExecutor, RoutingModel
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.core.exceptions import (
     ModelExecutionError,
@@ -38,7 +38,7 @@ from .postprocessor import LSTMPostprocessor
 
 
 @ModelRegistry.register_runner('LSTM', method_name='run_lstm')
-class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteConfigMixin):
+class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin):
     """
     LSTM: Flow and Snow Hydrological LSTM Runner.
 
@@ -334,11 +334,19 @@ class LSTMRunner(BaseModelRunner, ModelExecutor, SpatialOrchestrator, MizuRouteC
 
                 total_loss += loss.item()
 
-            # Validation
+            # Validation (batched to avoid OOM)
             self.model.eval()
             with torch.no_grad():
-                val_outputs = self.model(X_val)
-                val_loss = criterion(val_outputs, y_val)
+                val_loss_sum = 0.0
+                val_samples = 0
+                val_batch_size = min(batch_size * 4, 1000)  # Larger batches OK for inference
+                for j in range(0, X_val.size(0), val_batch_size):
+                    val_batch_X = X_val[j:j + val_batch_size]
+                    val_batch_y = y_val[j:j + val_batch_size]
+                    val_outputs = self.model(val_batch_X)
+                    val_loss_sum += criterion(val_outputs, val_batch_y).item() * val_batch_X.size(0)
+                    val_samples += val_batch_X.size(0)
+                val_loss = val_loss_sum / max(val_samples, 1)
 
             scheduler.step(val_loss)
 

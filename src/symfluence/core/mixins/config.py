@@ -153,12 +153,17 @@ class ConfigMixin:
         )
 
     @property
-    def domain_discretization(self) -> str:
-        """Domain discretization method from config.domain.discretization."""
+    def sub_grid_discretization(self) -> str:
+        """Sub-grid discretization method from config.domain.discretization."""
         return self._get_config_value(
             lambda: self.config.domain.discretization,
             default='lumped'
         )
+
+    @property
+    def domain_discretization(self) -> str:
+        """Alias for sub_grid_discretization (backward compatibility)."""
+        return self.sub_grid_discretization
 
     @property
     def calibration_period(self) -> Optional[str]:

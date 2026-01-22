@@ -725,11 +725,11 @@ Parallel Execution
 .. code-block:: python
 
    # Configure in YAML
-   # MPI_PROCESSES: 8
+   # NUM_PROCESSES: 8
    # PARALLEL_CALIBRATION: true
 
    # Or programmatically
-   config_dict['MPI_PROCESSES'] = 8
+   config_dict['NUM_PROCESSES'] = 8
    config_dict['PARALLEL_CALIBRATION'] = True
 
    conf = SYMFLUENCE(config_dict)

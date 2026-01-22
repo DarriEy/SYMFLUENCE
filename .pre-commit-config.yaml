@@ -1,27 +1,63 @@
-# Pre-commit hooks for symfluence
+# Pre-commit hooks for SYMFLUENCE
 # Install: pre-commit install
-# Run all: pre-commit run --all-files
-# Update: pre-commit autoupdate
+# Run manually: pre-commit run --all-files
+
+default_language_version:
+  python: python3.11
 
 repos:
-  # Ruff - fast Python linter and formatter
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.2
-    hooks:
-      - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
-        # Uses pyproject.toml configuration automatically
-
   # General file hygiene
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v4.5.0
     hooks:
       - id: trailing-whitespace
-        exclude: ^examples/
+        exclude: ^(docs/|examples/.*\.ipynb$)
       - id: end-of-file-fixer
-        exclude: ^examples/
+        exclude: ^(docs/|examples/.*\.ipynb$)
       - id: check-yaml
+        args: [--unsafe]  # Allow custom YAML tags
+      - id: check-toml
       - id: check-added-large-files
-        args: [--maxkb=1000]
+        args: ['--maxkb=1000']
       - id: check-merge-conflict
-      - id: debug-statements  # Check for debugger imports and py37+ breakpoint()
+      - id: debug-statements
+      - id: check-case-conflict
+
+  # Ruff - fast Python linter and formatter (matches pyproject.toml config)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      # Linter
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        types_or: [python, pyi]
+      # Formatter (optional - uncomment to enable auto-formatting)
+      # - id: ruff-format
+      #   types_or: [python, pyi]
+
+  # Security checks
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.8
+    hooks:
+      - id: bandit
+        args: [-c, pyproject.toml, --quiet]
+        additional_dependencies: ["bandit[toml]"]
+        exclude: ^tests/
+
+  # Jupyter notebook cleanup (clear outputs before commit)
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.7.1
+    hooks:
+      - id: nbstripout
+        files: ^examples/
+
+# Optional hooks (commented out - can be slow or require additional setup)
+#
+# Mypy type checking - can be slow on large codebases
+#  - repo: https://github.com/pre-commit/mirrors-mypy
+#    rev: v1.10.0
+#    hooks:
+#      - id: mypy
+#        args: [--config-file=pyproject.toml]
+#        additional_dependencies: [types-PyYAML, types-requests]
+#        exclude: ^(tests/|examples/)

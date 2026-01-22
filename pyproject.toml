@@ -17,7 +17,8 @@ dynamic = ["version"]
 # Runtime dependencies with version constraints for stability
 dependencies = [
   # Core scientific stack - constrained to major versions
-  "numpy>=1.24.0,<3.0.0",
+  # NumPy 2.0+ required for ABI compatibility with compiled extensions
+  "numpy>=2.0.0,<3.0.0",
   "pandas>=2.0.0,<3.0.0",
   "scipy>=1.10.0,<2.0.0",
   "xarray>=2023.0.0,<2026.0.0",
@@ -43,8 +44,6 @@ dependencies = [
   "plotly>=5.0.0,<6.0.0",
   "matplotlib>=3.7.0,<4.0.0",
   "contextily",
-  # R integration - version constrained for stability
-  "rpy2>=3.5.0,<4.0.0",
   # Cloud and data access
   "gcsfs>=2023.0.0",
   "intake-xarray",
@@ -72,6 +71,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# R integration (requires R and libgcc to be installed)
+r = [
+  "rpy2>=3.5.0,<4.0.0",
+]
 # Development tools
 dev = [
   "ruff>=0.1.0",
@@ -177,6 +180,18 @@ ignore = [
 "tests/**/*.py" = ["F401", "F841"]
 # Init files often have unused imports for re-export
 "**/__init__.py" = ["F401", "F403"]
+
+[tool.bandit]
+exclude_dirs = ["tests", "examples", "venv", ".venv"]
+skips = [
+    "B101",  # Allow assert statements
+    "B110",  # try_except_pass - used for optional error handling
+    "B112",  # try_except_continue - used for optional error handling in loops
+    "B311",  # random - not used for security/cryptographic purposes
+    "B404",  # subprocess import - required for external model execution
+    "B603",  # subprocess calls - required for external model execution
+    "B607",  # partial paths - safe for known system commands
+]
 
 [tool.mypy]
 python_version = "3.11"

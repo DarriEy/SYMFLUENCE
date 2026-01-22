@@ -282,7 +282,7 @@ class EMEarthIntegrator(ConfigMixin):
             self.logger.debug(f"Found {len(files_to_process)} EM-Earth files to remap")
 
             # Check if we should use parallel processing
-            num_processes = self._get_config_value(lambda: self.config.system.mpi_processes, default=1, dict_key='MPI_PROCESSES')
+            num_processes = self._get_config_value(lambda: self.config.system.num_processes, default=1, dict_key='NUM_PROCESSES')
             use_parallel = num_processes > 1 and len(files_to_process) > 1
 
             if use_parallel:

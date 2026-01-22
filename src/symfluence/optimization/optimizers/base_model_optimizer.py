@@ -82,12 +82,12 @@ Final Evaluation:
     6. Restores settings to optimization configuration for reproducibility
 
 Supported Algorithms (via registry):
-    - Single-objective: DDS, PSO, DE, SCE-UA, ASYNC_DDS, ADAM, LBFGS
+    - Single-objective: DDS, PSO, DE, SCE-UA, ASYNC_DDS, ADAM, LBFGS, CMA-ES, DREAM, GLUE, BASIN-HOPPING, NELDER-MEAD
     - Multi-objective: NSGA-II
 
     Algorithm selection by calling:
     run_dds(), run_pso(), run_de(), run_sce(), run_async_dds(), run_nsga2(),
-    run_adam(), run_lbfgs()
+    run_adam(), run_lbfgs(), run_cmaes(), run_dream(), run_glue(), run_basin_hopping(), run_nelder_mead()
 
     Or directly via: run_optimization('algorithm_name')
 
@@ -154,7 +154,7 @@ Configuration Parameters:
     System:
         system.data_dir: Root data directory
         system.random_seed: Random seed for reproducibility
-        system.mpi_processes: Number of parallel processes
+        system.num_processes: Number of parallel processes
 
 References:
     - Tolson, B. A., & Shoemaker, C. A. (2007). Dynamically dimensioned search
@@ -172,7 +172,7 @@ import numpy as np
 import pandas as pd
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, Union, Tuple, Callable, TYPE_CHECKING
 from datetime import datetime
 
 from symfluence.core import ConfigurableMixin
@@ -235,7 +235,7 @@ class BaseModelOptimizer(
             - Convergence detection (gradient norm < threshold)
 
     Algorithm Selection:
-        All algorithms (DDS, PSO, DE, SCE-UA, ASYNC_DDS, NSGA-II, ADAM, LBFGS)
+        All algorithms (DDS, PSO, DE, SCE-UA, ASYNC_DDS, NSGA-II, ADAM, LBFGS, CMA-ES, DREAM, GLUE, BASIN-HOPPING)
         retrieved from algorithms.py registry. Delegates to algorithm.optimize()
         with unified callback interface. See run_optimization() for details.
 
@@ -401,9 +401,9 @@ class BaseModelOptimizer(
         # Parallel processing state
         self.parallel_dirs: Dict[int, Dict[str, Any]] = {}
         self.default_sim_dir = self.results_dir  # Initialize with results_dir as fallback
-        # Setup directories if MPI_PROCESSES is set, regardless of count (for isolation)
-        mpi_processes = self._get_config_value(lambda: self.config.system.mpi_processes, default=1)
-        if mpi_processes >= 1:
+        # Setup directories if NUM_PROCESSES is set, regardless of count (for isolation)
+        num_processes = self._get_config_value(lambda: self.config.system.num_processes, default=1)
+        if num_processes >= 1:
             self._setup_parallel_dirs()
 
         # Runtime config overrides (for algorithm-specific settings like Adam/LBFGS)
@@ -861,8 +861,8 @@ class BaseModelOptimizer(
             "{ALGORITHM} {iter}/{max_iter} ({%}%) | Best: {best:.4f} | [optional fields] | Elapsed: {time}"
 
         Algorithm-Specific Metrics:
-            - Single-objective (DDS, PSO, DE): Reports best score and iteration count
-            - Population-based (GA, PSO, DE): Additionally reports improved individuals
+            - Single-objective (DDS, PSO, DE, CMA-ES): Reports best score and iteration count
+            - Population-based (PSO, DE, CMA-ES): Additionally reports improved individuals
             - Multi-objective (NSGA-II): Reports objectives separately
             - Gradient-based (Adam, LBFGS): Reports gradient norm or step size
 
@@ -1002,6 +1002,113 @@ class BaseModelOptimizer(
             Fitness score
         """
         return self.population_evaluator.evaluate_solution(normalized_params, proc_id)
+
+    def _create_gradient_callback(self) -> Optional[Callable]:
+        """
+        Create native gradient callback if worker supports autodiff.
+
+        This enables gradient-based optimizers (Adam, L-BFGS) to use native
+        gradients from autodiff-capable models (e.g., HBV with JAX) instead
+        of finite differences, providing ~N times speedup where N is parameter count.
+
+        The callback handles:
+        1. Denormalization: [0,1] normalized space → physical parameters
+        2. Worker gradient computation via evaluate_with_gradient()
+        3. Gradient chain rule: transform from physical to normalized space
+
+        Returns:
+            Callable with signature (x_normalized: np.ndarray) -> Tuple[loss, gradient]
+            where loss is the objective value (for minimization) and gradient is
+            in normalized [0,1] space. Returns None if worker doesn't support
+            native gradients.
+
+        Note:
+            The returned callback computes gradients for MINIMIZATION (loss).
+            The optimization algorithms handle the sign conversion for maximization.
+        """
+        # Check if worker supports native gradients
+        if not hasattr(self, 'worker') or self.worker is None:
+            return None
+
+        if not hasattr(self.worker, 'supports_native_gradients'):
+            return None
+
+        if not self.worker.supports_native_gradients():
+            return None
+
+        # Get optimization metric from config
+        # Uses OPTIMIZATION_METRIC first, then CALIBRATION_METRIC, matching _extract_primary_score
+        # in base_worker.py to ensure FD and native gradient paths optimize the same objective
+        metric = self.config_dict.get(
+            'OPTIMIZATION_METRIC',
+            self.config_dict.get('CALIBRATION_METRIC', 'KGE')
+        ).lower()
+
+        # Get parameter names and bounds for gradient transformation
+        param_names = self.param_manager.all_param_names
+        bounds = self.param_manager.get_parameter_bounds()
+
+        # Compute scale factors for gradient chain rule
+        # d(loss)/d(x_norm) = d(loss)/d(x_phys) * d(x_phys)/d(x_norm)
+        # where d(x_phys)/d(x_norm) = (upper - lower) for linear scaling
+        scale_factors = np.array([
+            bounds[name]['max'] - bounds[name]['min']
+            for name in param_names
+        ])
+
+        def gradient_callback(x_normalized: np.ndarray) -> Tuple[float, np.ndarray]:
+            """
+            Compute loss and gradient for normalized parameters.
+
+            Args:
+                x_normalized: Parameters in [0,1] normalized space
+
+            Returns:
+                Tuple of (loss, gradient_normalized) where:
+                - loss: Scalar loss value (negative of metric, for minimization)
+                - gradient_normalized: Gradient in normalized [0,1] space
+            """
+            # Denormalize to physical parameters
+            params_dict = self.param_manager.denormalize_parameters(x_normalized)
+
+            # Call worker's evaluate_with_gradient
+            loss, grad_dict = self.worker.evaluate_with_gradient(params_dict, metric)
+
+            if grad_dict is None:
+                raise RuntimeError(
+                    f"Worker returned None gradient despite supporting native gradients. "
+                    f"Check {self.worker.__class__.__name__}.evaluate_with_gradient() implementation."
+                )
+
+            # Convert gradient dict to array (same order as param_names)
+            grad_physical = np.array([grad_dict[name] for name in param_names])
+
+            # Transform gradient from physical to normalized space via chain rule
+            grad_normalized = grad_physical * scale_factors
+
+            return loss, grad_normalized
+
+        self.logger.info(
+            f"Native gradient callback created for {self._get_model_name()} "
+            f"({len(param_names)} parameters)"
+        )
+        return gradient_callback
+
+    def _get_gradient_mode(self) -> str:
+        """
+        Get gradient computation mode from configuration.
+
+        Returns:
+            One of: 'auto', 'native', 'finite_difference'
+            - 'auto': Use native gradients if available, else finite differences
+            - 'native': Require native gradients (error if unavailable)
+            - 'finite_difference': Always use FD (useful for comparison/debugging)
+        """
+        return self._get_config_value(
+            lambda: self.config.optimization.gradient_mode,
+            default='auto',
+            dict_key='GRADIENT_MODE'
+        )
 
     def _evaluate_population(
         self,
@@ -1270,6 +1377,25 @@ class BaseModelOptimizer(
                 lambda: self.config.optimization.nsga2.multi_target, default=False
             ))
 
+        # For gradient-based algorithms (Adam, L-BFGS), add native gradient support
+        if algorithm_name.lower() in ['adam', 'lbfgs']:
+            gradient_callback = self._create_gradient_callback()
+            gradient_mode = self._get_gradient_mode()
+
+            if gradient_callback is not None:
+                kwargs['compute_gradient'] = gradient_callback
+                self.logger.info(
+                    f"Native gradient support enabled for {algorithm_name.upper()} "
+                    f"(mode: {gradient_mode})"
+                )
+            else:
+                self.logger.info(
+                    f"Using finite-difference gradients for {algorithm_name.upper()} "
+                    f"(native gradients not available for {self._get_model_name()})"
+                )
+
+            kwargs['gradient_mode'] = gradient_mode
+
         # Run the algorithm
         result = algorithm.optimize(
             n_params=n_params,
@@ -1324,6 +1450,46 @@ class BaseModelOptimizer(
     def run_nsga2(self) -> Path:
         """Run NSGA-II multi-objective optimization."""
         return self.run_optimization('nsga2')
+
+    def run_cmaes(self) -> Path:
+        """Run CMA-ES (Covariance Matrix Adaptation Evolution Strategy) optimization."""
+        return self.run_optimization('cmaes')
+
+    def run_dream(self) -> Path:
+        """Run DREAM (DiffeRential Evolution Adaptive Metropolis) optimization."""
+        return self.run_optimization('dream')
+
+    def run_glue(self) -> Path:
+        """Run GLUE (Generalized Likelihood Uncertainty Estimation) analysis."""
+        return self.run_optimization('glue')
+
+    def run_basin_hopping(self) -> Path:
+        """Run Basin Hopping global optimization."""
+        return self.run_optimization('basin_hopping')
+
+    def run_nelder_mead(self) -> Path:
+        """Run Nelder-Mead simplex optimization."""
+        return self.run_optimization('nelder_mead')
+
+    def run_ga(self) -> Path:
+        """Run Genetic Algorithm (GA) optimization."""
+        return self.run_optimization('ga')
+
+    def run_bayesian_opt(self) -> Path:
+        """Run Bayesian Optimization with Gaussian Process surrogate."""
+        return self.run_optimization('bayesian_opt')
+
+    def run_moead(self) -> Path:
+        """Run MOEA/D (Multi-Objective Evolutionary Algorithm based on Decomposition)."""
+        return self.run_optimization('moead')
+
+    def run_simulated_annealing(self) -> Path:
+        """Run Simulated Annealing optimization."""
+        return self.run_optimization('simulated_annealing')
+
+    def run_abc(self) -> Path:
+        """Run Approximate Bayesian Computation (ABC-SMC) for likelihood-free inference."""
+        return self.run_optimization('abc')
 
     def run_adam(self, steps: int = 100, lr: float = 0.01) -> Path:
         """

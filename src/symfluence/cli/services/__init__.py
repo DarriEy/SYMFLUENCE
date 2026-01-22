@@ -39,6 +39,9 @@ from .build_snippets import (
     get_hdf5_detection,
     get_netcdf_lib_detection,
     get_geos_proj_detection,
+    get_udunits2_detection_and_build,
+    get_bison_detection_and_build,
+    get_flex_detection_and_build,
     get_all_snippets,
 )
 from .build_schema import (
@@ -69,6 +72,9 @@ __all__ = [
     'get_hdf5_detection',
     'get_netcdf_lib_detection',
     'get_geos_proj_detection',
+    'get_udunits2_detection_and_build',
+    'get_bison_detection_and_build',
+    'get_flex_detection_and_build',
     'get_all_snippets',
     # Build schema
     'BuildInstructionSchema',

@@ -153,11 +153,25 @@ class GNNModel(nn.Module):
             hidden_size: Hidden size of the LSTM.
             gnn_output_size: Size of the node embedding after GNN layer.
             adjacency_matrix: Sparse tensor representing the DAG (Rows=DS, Cols=US).
+            dropout_rate: Dropout probability for regularization.
 
         Raises:
-            ValueError: If input dimensions are invalid.
+            ValueError: If input dimensions or adjacency matrix are invalid.
         """
         super(GNNModel, self).__init__()
+
+        # Phase 4.3: Validate input dimensions
+        if input_size <= 0:
+            raise ValueError(f"input_size must be positive, got {input_size}")
+        if hidden_size <= 0:
+            raise ValueError(f"hidden_size must be positive, got {hidden_size}")
+        if gnn_output_size <= 0:
+            raise ValueError(f"gnn_output_size must be positive, got {gnn_output_size}")
+        if not 0.0 <= dropout_rate < 1.0:
+            raise ValueError(f"dropout_rate must be in [0, 1), got {dropout_rate}")
+
+        # Phase 4.3: Validate adjacency matrix
+        self._validate_adjacency_matrix(adjacency_matrix)
 
         # Temporal Feature Extraction (Shared weights across all nodes)
         # LSTM dropout is only applied when num_layers > 1, so avoid warnings.
@@ -179,6 +193,63 @@ class GNNModel(nn.Module):
         # Final Prediction
         self.fc = nn.Linear(gnn_output_size, 1) # Predict Q (scalar)
 
+        # Phase 4.3: Track number of nodes for validation
+        self.num_nodes = adjacency_matrix.size(0)
+
+    def _validate_adjacency_matrix(self, adj: torch.Tensor) -> None:
+        """
+        Validate adjacency matrix for graph construction (Phase 4.3).
+
+        Args:
+            adj: Sparse adjacency matrix tensor
+
+        Raises:
+            ValueError: If adjacency matrix is invalid
+        """
+        # Check it's a tensor
+        if not isinstance(adj, torch.Tensor):
+            raise ValueError(
+                f"adjacency_matrix must be a torch.Tensor, got {type(adj).__name__}. "
+                f"Use torch.sparse_coo_tensor() to create sparse adjacency matrices."
+            )
+
+        # Check it's 2D
+        if adj.dim() != 2:
+            raise ValueError(
+                f"adjacency_matrix must be 2D (Nodes x Nodes), got shape {adj.shape}"
+            )
+
+        # Check it's square
+        if adj.size(0) != adj.size(1):
+            raise ValueError(
+                f"adjacency_matrix must be square, got shape {adj.shape}. "
+                f"Ensure row and column dimensions match the number of nodes."
+            )
+
+        # Check it's sparse for efficiency
+        if not adj.is_sparse:
+            import warnings
+            warnings.warn(
+                "adjacency_matrix is not sparse. For large networks, consider using "
+                "torch.sparse_coo_tensor() for better memory efficiency and speed.",
+                UserWarning
+            )
+
+        # Check for valid entries (should be 0 or 1 for adjacency)
+        if adj.is_sparse:
+            values = adj.values()
+        else:
+            values = adj
+
+        if torch.isnan(values).any():
+            raise ValueError(
+                "adjacency_matrix contains NaN values. Check graph construction."
+            )
+        if torch.isinf(values).any():
+            raise ValueError(
+                "adjacency_matrix contains Inf values. Check graph construction."
+            )
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through temporal and spatial processing layers.
 
@@ -193,6 +264,8 @@ class GNNModel(nn.Module):
         weights. This makes the model scalable: the LSTM capacity doesn't grow
         with the number of nodes.
 
+        Phase 4.3: Includes input validation and NaN checking for stability.
+
         Args:
             x: Input tensor of shape (Batch, Time, Nodes, Features).
                 - Batch: Multiple training examples
@@ -203,8 +276,31 @@ class GNNModel(nn.Module):
         Returns:
             out: Streamflow prediction tensor of shape (Batch, Nodes, 1).
                 Values represent predicted streamflow at each node.
+
+        Raises:
+            ValueError: If input shape is invalid or contains NaN/Inf
         """
         B, T, N, F = x.shape
+
+        # Phase 4.3: Validate input dimensions
+        if N != self.num_nodes:
+            raise ValueError(
+                f"Input nodes ({N}) don't match adjacency matrix nodes ({self.num_nodes}). "
+                f"Ensure input tensor has correct number of nodes for this model."
+            )
+
+        # Phase 4.3: Check for NaN/Inf in input (training stability)
+        if self.training:
+            if torch.isnan(x).any():
+                raise ValueError(
+                    "Input contains NaN values. Check forcing data preprocessing. "
+                    "Consider using torch.nan_to_num() or checking for missing data."
+                )
+            if torch.isinf(x).any():
+                raise ValueError(
+                    "Input contains Inf values. Check forcing data for extreme values "
+                    "or apply normalization."
+                )
 
         # 1. Temporal Processing (LSTM)
         # Reshape to flatten Batch and Nodes dimensions: (B*N, T, F)

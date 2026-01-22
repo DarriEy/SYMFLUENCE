@@ -77,8 +77,12 @@ class GeofabricDelineator(BaseGeofabricDelineator):
         self.coastal_delineator = CoastalWatershedDelineator(config, logger)
 
     def _get_delineation_method_name(self) -> str:
-        """Return method name for output files."""
-        return "delineate"
+        """Return method name for output files.
+
+        Uses config-based _get_method_suffix() for consistency with model preprocessors.
+        This ensures delineation output filenames match what preprocessors expect when loading.
+        """
+        return self._get_method_suffix()
 
     def delineate_geofabric(self) -> Tuple[Optional[Path], Optional[Path]]:
         """
@@ -158,7 +162,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
         # Determine MPI command
         mpi_cmd = self.taudem.get_mpi_command()
         if mpi_cmd:
-            mpi_prefix = f"{mpi_cmd} -n {self._get_config_value(lambda: self.config.system.mpi_processes, default=1, dict_key='MPI_PROCESSES')} "
+            mpi_prefix = f"{mpi_cmd} -n {self._get_config_value(lambda: self.config.system.num_processes, default=1, dict_key='NUM_PROCESSES')} "
         else:
             mpi_prefix = ""
 
@@ -328,8 +332,7 @@ class GeofabricDelineator(BaseGeofabricDelineator):
         """
         subset_basins_path = self._get_config_value(lambda: self.config.paths.output_basins_path, dict_key='OUTPUT_BASINS_PATH')
         subset_rivers_path = self._get_config_value(lambda: self.config.paths.output_rivers_path, dict_key='OUTPUT_RIVERS_PATH')
-        # Use the delineator's own method name, not the config-based _get_method_suffix()
-        # This prevents overwriting lumped basins when doing distributed routing delineation
+        # Use config-based method suffix for consistency with model preprocessors
         method_suffix = self._get_delineation_method_name()
 
         if subset_basins_path == 'default':

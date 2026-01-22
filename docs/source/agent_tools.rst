@@ -215,7 +215,7 @@ Set up a complete workflow for a watershed based on a pour point location.
 - ``latitude`` (required): Latitude in decimal degrees
 - ``longitude`` (required): Longitude in decimal degrees
 - ``domain_name`` (required): Name for the domain
-- ``domain_definition_method`` (required): Method - lumped, point, subset, or delineate
+- ``domain_definition_method`` (required): Method - point, lumped, semidistributed, or distributed
 - ``bounding_box``: Optional bounding box coordinates
 
 **Example:**

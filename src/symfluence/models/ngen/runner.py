@@ -6,7 +6,7 @@ Refactored to use the Unified Model Execution Framework.
 """
 
 import os
-import subprocess
+import subprocess  # nosec B404 - Required for running Docker containers and model executables
 import re
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -38,36 +38,15 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
         else:
             self.ngen_setup_dir = self.project_dir / "settings" / "NGEN"
 
-        # Determine absolute ngen base directory
-        install_path = self.config_dict.get('NGEN_INSTALL_PATH', 'default')
-        if install_path == 'default':
-            ngen_base = self.data_dir.parent / 'installs' / 'ngen'
-        else:
-            p = Path(install_path)
-            if p.name == 'cmake_build': ngen_base = p.parent
-            else: ngen_base = p
-
-        # Try both root/ngen, root/cmake_build/ngen, root/bin/ngen
-        candidates = [
-            ngen_base / "ngen",
-            ngen_base / "cmake_build" / "ngen",
-            ngen_base / "bin" / "ngen"
-        ]
-
-        self.ngen_exe = None
-        for cand in candidates:
-            if cand.exists():
-                self.ngen_exe = cand
-                break
-
-        if self.ngen_exe is None:
-            # Fallback to get_model_executable if none found
-            self.ngen_exe = self.get_model_executable(
-                install_path_key='NGEN_INSTALL_PATH',
-                default_install_subpath='installs/ngen/cmake_build',
-                exe_name_key=None,
-                default_exe_name='ngen'
-            )
+        # Use enhanced get_model_executable with candidates for multi-location search
+        # Search order: root, cmake_build, bin subdirectories
+        self.ngen_exe = self.get_model_executable(
+            install_path_key='NGEN_INSTALL_PATH',
+            default_install_subpath='installs/ngen',
+            default_exe_name='ngen',
+            candidates=['', 'cmake_build', 'bin'],
+            must_exist=True
+        )
 
     def _get_model_name(self) -> str:
         """Return model name for NextGen."""
@@ -85,7 +64,14 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
             experiment_id: Optional experiment identifier. If None, uses config value.
 
         Runs ngen with the prepared catchment, nexus, forcing, and configuration files.
+        Supports both native execution and NGIAB Docker-based execution.
         """
+        # Check if NGIAB Docker execution is requested
+        use_ngiab = self.config_dict.get('USE_NGIAB', False)
+        if use_ngiab:
+            self.logger.info("Using NGIAB Docker for NextGen execution")
+            return self._run_ngen_docker(experiment_id)
+
         self.logger.debug("Starting NextGen model run")
 
         with symfluence_error_handler(
@@ -159,13 +145,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                 # Setup environment for NGEN execution
                 env = os.environ.copy()
 
-                # Remove PYTHONPATH to avoid version mismatches
-                # NGEN is linked to the Homebrew Python, not the venv
-                env.pop('PYTHONPATH', None)
-                env.pop('PYTHONHOME', None)
-
-                # Ensure library paths are set for BMI modules
-                # This is especially important for MPI/multiprocessing workers
+                # Determine ngen_base directory first (needed for venv and library paths)
                 if self.config and self.config.model.ngen:
                     install_path = self.config.model.ngen.install_path
                 else:
@@ -175,8 +155,53 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                     ngen_base = self.data_dir.parent / 'installs' / 'ngen'
                 else:
                     p = Path(install_path)
-                    if p.name == 'cmake_build': ngen_base = p.parent
-                    else: ngen_base = p
+                    if p.name == 'cmake_build':
+                        ngen_base = p.parent
+                    else:
+                        ngen_base = p
+
+                # Check if NGEN has a dedicated virtual environment (ngen_venv)
+                # This is used when NGEN is built against a specific NumPy version
+                ngen_venv = ngen_base / "ngen_venv"
+                if ngen_venv.exists():
+                    # Use the NGEN-specific venv to ensure NumPy version compatibility
+                    self.logger.debug(f"Using NGEN venv: {ngen_venv}")
+                    env['VIRTUAL_ENV'] = str(ngen_venv)
+                    env.pop('PYTHONHOME', None)
+                    env.pop('PYTHONPATH', None)
+
+                    # Prepend ngen_venv/bin to PATH
+                    ngen_venv_bin = str(ngen_venv / "bin")
+                    if 'PATH' in env:
+                        # Remove other venvs from PATH, then prepend ngen_venv
+                        path_parts = env['PATH'].split(':')
+                        filtered_parts = [p for p in path_parts if '/venv' not in p.lower()
+                                          and '/.venv' not in p.lower()
+                                          and '/envs/' not in p.lower()]
+                        env['PATH'] = ngen_venv_bin + ':' + ':'.join(filtered_parts)
+                    else:
+                        env['PATH'] = ngen_venv_bin
+                else:
+                    # No NGEN venv - remove Python environment variables to avoid version mismatches
+                    # NGEN is linked to the system/Homebrew Python, not the venv
+                    # NumPy version mismatch between build and runtime causes SIGABRT
+                    env.pop('PYTHONPATH', None)
+                    env.pop('PYTHONHOME', None)
+                    env.pop('VIRTUAL_ENV', None)
+
+                    # Remove virtual environment from PATH so NGEN finds system Python
+                    # This prevents NumPy version mismatch errors
+                    if 'PATH' in env:
+                        path_parts = env['PATH'].split(':')
+                        # Filter out venv bin directories
+                        filtered_parts = [p for p in path_parts if '/venv' not in p.lower()
+                                          and '/.venv' not in p.lower()
+                                          and '/envs/' not in p.lower()]
+                        env['PATH'] = ':'.join(filtered_parts)
+
+                # Ensure library paths are set for BMI modules
+                # This is especially important for MPI/multiprocessing workers
+                # (ngen_base was already computed above for venv check)
 
                 # Try both ngen_base/extern and ngen_base/cmake_build/extern
                 lib_paths = []
@@ -443,6 +468,8 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
         Returns:
             True if routing succeeded, False otherwise
         """
+        import json
+
         try:
             # Check if ngen_routing is available
             from ngen_routing.ngen_main import ngen_main
@@ -454,7 +481,27 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
         troute_config = self.ngen_setup_dir / "troute_config.yaml"
         if not troute_config.exists():
             self.logger.warning(f"T-Route config not found: {troute_config}. Skipping routing.")
+            self.logger.info("Run NGEN preprocessing to generate troute_config.yaml")
             return False
+
+        # Check if this is a lumped domain (single nexus) - routing is optional
+        nexus_file = self.ngen_setup_dir / "nexus.geojson"
+        is_lumped = False
+        if nexus_file.exists():
+            try:
+                with open(nexus_file, 'r') as f:
+                    nexus_data = json.load(f)
+                num_nexuses = len(nexus_data.get('features', []))
+                if num_nexuses == 1:
+                    is_lumped = True
+                    self.logger.info("Lumped domain detected (single nexus). Nexus output is equivalent to routed flow.")
+            except Exception as e:
+                self.logger.debug(f"Could not parse nexus file for lumped detection: {e}")
+
+        # For lumped domains, we can skip routing and use nexus output directly
+        if is_lumped:
+            self.logger.info("Skipping t-route for lumped domain - nex-*.csv output is already at the outlet.")
+            return True  # Return True since flow is already at outlet
 
         # Create troute output directory
         troute_output_dir = output_dir / "troute_output"
@@ -488,3 +535,618 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
             if troute_log.exists():
                 self.logger.error(f"Check t-route log: {troute_log}")
             return False
+
+    def _run_ngen_docker(self, experiment_id: str = None) -> bool:
+        """
+        Execute NextGen model using NGIAB Docker container.
+
+        This provides T-Route routing out of the box since the container
+        includes all required components pre-built.
+
+        Args:
+            experiment_id: Optional experiment identifier.
+
+        Returns:
+            True if execution succeeded, False otherwise.
+        """
+        import shutil
+
+        with symfluence_error_handler(
+            "NGIAB Docker execution",
+            self.logger,
+            error_type=ModelExecutionError
+        ):
+            # Get experiment info
+            if experiment_id is None:
+                if self.config:
+                    experiment_id = self.config.domain.experiment_id
+                else:
+                    experiment_id = self.config_dict.get('EXPERIMENT_ID', 'default_run')
+
+            # Determine output directory
+            if '_ngen_output_dir' in self.config_dict:
+                output_dir = Path(self.config_dict['_ngen_output_dir'])
+            else:
+                output_dir = self.get_experiment_output_dir(experiment_id)
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Determine if we're in calibration mode (isolated directories)
+            is_calibration_mode = '_ngen_settings_dir' in self.config_dict
+            if is_calibration_mode:
+                # In calibration mode, ngen_setup_dir is the isolated directory with modified BMI configs
+                # But we need the original project's nexus, catchments, and realization files
+                original_ngen_setup_dir = self.project_dir / "settings" / "NGEN"
+                isolated_settings_dir = Path(self.config_dict['_ngen_settings_dir'])
+                self.logger.debug(f"Calibration mode: isolated={isolated_settings_dir}, original={original_ngen_setup_dir}")
+            else:
+                original_ngen_setup_dir = self.ngen_setup_dir
+                isolated_settings_dir = None
+
+            # Get domain name
+            if self.config:
+                domain_name = self.config.domain.name
+            else:
+                domain_name = self.config_dict.get('DOMAIN_NAME')
+
+            # NGIAB Docker image
+            ngiab_image = self.config_dict.get('NGIAB_IMAGE', 'awiciroh/ciroh-ngen-image:latest')
+
+            # Check if Docker is available
+            try:
+                result = subprocess.run(['docker', '--version'], capture_output=True, text=True)  # nosec B603 B607
+                if result.returncode != 0:
+                    self.logger.error("Docker is not available")
+                    return False
+            except FileNotFoundError:
+                self.logger.error("Docker is not installed")
+                return False
+
+            # Pull image if not present
+            self.logger.info(f"Checking for NGIAB Docker image: {ngiab_image}")
+            pull_result = subprocess.run(  # nosec B603 B607
+                ['docker', 'image', 'inspect', ngiab_image],
+                capture_output=True
+            )
+            if pull_result.returncode != 0:
+                self.logger.info(f"Pulling NGIAB Docker image: {ngiab_image}")
+                pull_result = subprocess.run(  # nosec B603 B607
+                    ['docker', 'pull', ngiab_image],
+                    capture_output=True,
+                    text=True
+                )
+                if pull_result.returncode != 0:
+                    self.logger.error(f"Failed to pull Docker image: {pull_result.stderr}")
+                    return False
+
+            # Create NGIAB-compatible directory structure
+            # NGIAB expects: ngen-run/config/, ngen-run/forcings/, ngen-run/outputs/
+            ngiab_run_dir = output_dir / "ngiab_run"
+            ngiab_config_dir = ngiab_run_dir / "config"
+            ngiab_forcings_dir = ngiab_run_dir / "forcings"
+            ngiab_outputs_dir = ngiab_run_dir / "outputs"
+
+            # Clean and create directories
+            if ngiab_run_dir.exists():
+                shutil.rmtree(ngiab_run_dir)
+            ngiab_config_dir.mkdir(parents=True, exist_ok=True)
+            ngiab_forcings_dir.mkdir(parents=True, exist_ok=True)
+            ngiab_outputs_dir.mkdir(parents=True, exist_ok=True)
+
+            # Copy configuration files
+            self.logger.info("Preparing NGIAB-compatible directory structure...")
+
+            # In calibration mode, use original_ngen_setup_dir for base files (realization, hydrofabric)
+            # and isolated_settings_dir for modified BMI configs
+            base_setup_dir = original_ngen_setup_dir
+            bmi_config_source = isolated_settings_dir if is_calibration_mode else original_ngen_setup_dir
+
+            # Copy realization config from base setup
+            realization_file = base_setup_dir / "realization_config.json"
+            if realization_file.exists():
+                # Patch realization for NGIAB paths
+                self._create_ngiab_realization(realization_file, ngiab_config_dir, domain_name)
+            else:
+                self.logger.error(f"Realization file not found: {realization_file}")
+                return False
+
+            # Copy hydrofabric files (catchments and nexus) from base setup
+            catchment_file = base_setup_dir / f"{domain_name}_catchments.geojson"
+            nexus_file = base_setup_dir / "nexus.geojson"
+
+            # Try GeoPackage first, fallback to GeoJSON
+            gpkg_file = base_setup_dir / f"{domain_name}_catchments.gpkg"
+            if gpkg_file.exists():
+                shutil.copy(gpkg_file, ngiab_config_dir / gpkg_file.name)
+                self.logger.debug(f"Copied hydrofabric: {gpkg_file.name}")
+            elif catchment_file.exists():
+                shutil.copy(catchment_file, ngiab_config_dir / catchment_file.name)
+                self.logger.debug(f"Copied catchments: {catchment_file.name}")
+
+            if nexus_file.exists():
+                shutil.copy(nexus_file, ngiab_config_dir / nexus_file.name)
+                self.logger.debug(f"Copied nexus: {nexus_file.name}")
+
+            # Copy BMI config directories (CFE, PET, NOAH, SLOTH)
+            # In calibration mode, use isolated directory which has modified parameters
+            # Note: NGIAB uses NOAH-OWP-M as the directory name for NOAH configs
+            cat_config_dir = ngiab_config_dir / "cat-config"
+            cat_config_dir.mkdir(exist_ok=True)
+
+            # Map source directory names to NGIAB expected names
+            module_mapping = {
+                'CFE': 'CFE',
+                'PET': 'PET',
+                'NOAH': 'NOAH-OWP-M',  # NGIAB expects NOAH-OWP-M
+                'SLOTH': 'SLOTH'
+            }
+
+            for src_name, dst_name in module_mapping.items():
+                src_dir = bmi_config_source / src_name
+                if src_dir.exists():
+                    dst_dir = cat_config_dir / dst_name
+                    shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
+                    self.logger.debug(f"Copied {src_name} configs to {dst_name}")
+
+            # In calibration mode, the isolated directory may not have the NOAH parameters/ subdirectory
+            # Copy it from the original NGEN setup directory if needed
+            if is_calibration_mode:
+                noah_dst_dir = cat_config_dir / 'NOAH-OWP-M'
+                noah_params_src = original_ngen_setup_dir / 'NOAH' / 'parameters'
+                noah_params_dst = noah_dst_dir / 'parameters'
+                if noah_params_src.exists() and not noah_params_dst.exists():
+                    shutil.copytree(noah_params_src, noah_params_dst)
+                    self.logger.debug("Copied NOAH parameters directory from original setup")
+
+            # Patch NOAH config files to use container paths for parameter tables
+            noah_config_dir = cat_config_dir / 'NOAH-OWP-M'
+            if noah_config_dir.exists():
+                container_param_dir = "/ngen/ngen/data/config/cat-config/NOAH-OWP-M/parameters/"
+                for config_file in noah_config_dir.glob('*.input'):
+                    try:
+                        content = config_file.read_text()
+                        # Replace the host parameter_dir path with container path
+                        import re
+                        content = re.sub(
+                            r'parameter_dir\s*=\s*"[^"]*"',
+                            f'parameter_dir      = "{container_param_dir}"',
+                            content
+                        )
+                        config_file.write_text(content)
+                    except Exception as e:
+                        self.logger.warning(f"Failed to patch NOAH config {config_file.name}: {e}")
+                self.logger.debug("Patched NOAH config files with container parameter paths")
+
+            # Copy forcing files - forcing is at project_dir/forcing, not settings/forcing
+            forcing_src = self.project_dir / 'forcing' / 'NGEN_input' / 'csv'
+            if forcing_src.exists():
+                for f in forcing_src.glob('*.csv'):
+                    shutil.copy(f, ngiab_forcings_dir / f.name)
+                self.logger.debug(f"Copied forcing files to {ngiab_forcings_dir}")
+            else:
+                self.logger.warning(f"Forcing directory not found: {forcing_src}")
+
+            # Copy and configure T-Route files for routing
+            # Try NetCDF first (NHDNetwork - most reliable), then GeoPackage/GeoJSON (HYFeaturesNetwork)
+            domain_name = self.config_dict.get('DOMAIN_NAME', 'domain')
+            troute_gpkg_src = base_setup_dir / f"{domain_name}_hydrofabric_troute.gpkg"
+            troute_flowlines_src = base_setup_dir / "troute_flowlines.geojson"
+            troute_topology_src = base_setup_dir / "troute_topology.nc"
+            troute_config_src = base_setup_dir / "troute_config.yaml"
+
+            # Check if topology has required channel geometry columns for T-Route
+            topology_complete = False
+            use_gpkg = False
+            use_geojson = False
+            use_netcdf = False
+
+            # First try NetCDF topology with NHDNetwork (most reliable)
+            if troute_topology_src.exists() and troute_config_src.exists():
+                try:
+                    import xarray as xr
+                    topo_ds = xr.open_dataset(troute_topology_src, decode_timedelta=False)
+                    topo_vars = set(topo_ds.variables.keys())
+                    topo_ds.close()
+
+                    required_cols = {'comid', 'to_node', 'length', 'slope', 'n'}
+                    extended_cols = {'bw', 'tw', 'twcc', 'ncc', 'musk', 'musx', 'cs'}
+
+                    if not required_cols.issubset(topo_vars):
+                        missing = required_cols - topo_vars
+                        self.logger.debug(f"NetCDF topology missing required columns: {missing}. Trying GeoPackage.")
+                    elif not extended_cols.issubset(topo_vars):
+                        self.logger.debug(f"NetCDF topology missing channel geometry columns: {extended_cols - topo_vars}. Trying GeoPackage.")
+                    else:
+                        topology_complete = True
+                        use_netcdf = True
+                        self.logger.info("Using NetCDF topology for T-Route NHDNetwork")
+                except Exception as e:
+                    self.logger.debug(f"NetCDF topology check failed: {e}. Trying GeoPackage.")
+
+            # Fall back to hydrofabric GeoPackage with HYFeaturesNetwork
+            if not topology_complete and troute_gpkg_src.exists() and troute_config_src.exists():
+                try:
+                    import fiona
+                    layers = fiona.listlayers(troute_gpkg_src)
+                    # T-Route HYFeaturesNetwork expects 'flowpaths' and 'flowpath_attributes' layers
+                    if 'flowpaths' in layers and 'flowpath_attributes' in layers:
+                        import geopandas as gpd
+                        import pandas as pd
+                        flowpaths_gdf = gpd.read_file(troute_gpkg_src, layer='flowpaths')
+                        # Read attributes from sqlite table
+                        import sqlite3
+                        conn = sqlite3.connect(troute_gpkg_src)
+                        attrs_df = pd.read_sql("SELECT * FROM flowpath_attributes", conn)
+                        conn.close()
+                        # Check required columns across both tables
+                        all_cols = set(flowpaths_gdf.columns) | set(attrs_df.columns)
+                        required_cols = {'id', 'toid', 'lengthkm', 'So', 'n'}
+                        if required_cols.issubset(all_cols):
+                            topology_complete = True
+                            use_gpkg = True
+                            self.logger.debug(f"Using hydrofabric GeoPackage for T-Route HYFeaturesNetwork (layers: {layers})")
+                    elif 'flowlines' in layers:
+                        # Legacy format - single flowlines layer
+                        import geopandas as gpd
+                        flowlines_gdf = gpd.read_file(troute_gpkg_src, layer='flowlines')
+                        required_cols = {'id', 'toid', 'lengthkm', 'So', 'n'}
+                        if required_cols.issubset(set(flowlines_gdf.columns)):
+                            topology_complete = True
+                            use_gpkg = True
+                            self.logger.debug("Using hydrofabric GeoPackage (legacy flowlines layer)")
+                except Exception as e:
+                    self.logger.debug(f"GeoPackage check failed: {e}. Trying GeoJSON.")
+
+            # Fall back to GeoJSON flowlines
+            if not topology_complete and troute_flowlines_src.exists() and troute_config_src.exists():
+                try:
+                    import geopandas as gpd
+                    flowlines_gdf = gpd.read_file(troute_flowlines_src)
+                    required_cols = {'id', 'toid', 'lengthkm', 'So', 'n'}
+                    available_cols = set(flowlines_gdf.columns)
+
+                    if required_cols.issubset(available_cols):
+                        topology_complete = True
+                        use_geojson = True
+                        self.logger.debug("Using GeoJSON flowlines for T-Route HYFeaturesNetwork")
+                    else:
+                        missing = required_cols - available_cols
+                        self.logger.warning(f"T-Route flowlines missing required columns: {missing}. Skipping routing.")
+                except Exception as e:
+                    self.logger.warning(f"Failed to read T-Route flowlines: {e}. Skipping routing.")
+
+            if not topology_complete and not troute_flowlines_src.exists() and not troute_topology_src.exists():
+                self.logger.warning(f"T-Route files not found in {base_setup_dir}. Routing will be disabled.")
+
+            if topology_complete:
+                self.logger.info("Configuring T-Route routing for NGIAB...")
+
+                # Copy topology file (GeoPackage, GeoJSON, or NetCDF)
+                import yaml
+                container_base = "/ngen/ngen/data"
+
+                if use_gpkg:
+                    # Copy hydrofabric GeoPackage
+                    topology_dest = ngiab_config_dir / f"{domain_name}_hydrofabric_troute.gpkg"
+                    shutil.copy(troute_gpkg_src, topology_dest)
+                    geo_file_path = f"{container_base}/config/{domain_name}_hydrofabric_troute.gpkg"
+                    network_type = 'HYFeaturesNetwork'
+                    # HYFeaturesNetwork column mappings for GeoPackage
+                    columns = {
+                        'key': 'id',              # Segment ID (wb-XX format)
+                        'downstream': 'toid',      # Downstream segment ID
+                        'dx': 'lengthkm',          # Segment length [km]
+                        'n': 'n',                  # Manning's n
+                        's0': 'So',                # Slope [m/m]
+                        'bw': 'BtmWdth',           # Bottom width [m]
+                        'tw': 'TopWdth',           # Top width [m]
+                        'twcc': 'TopWdthCC',       # Top width compound channel [m]
+                        'ncc': 'nCC',              # Manning's n compound channel
+                        'musk': 'MusK',            # Muskingum K
+                        'musx': 'MusX',            # Muskingum X
+                        'cs': 'Cs',                # Cross-section area [m²]
+                        'alt': 'alt',              # Altitude
+                    }
+                elif use_geojson:
+                    # Copy GeoJSON flowlines
+                    topology_dest = ngiab_config_dir / "troute_flowlines.geojson"
+                    shutil.copy(troute_flowlines_src, topology_dest)
+                    geo_file_path = f"{container_base}/config/troute_flowlines.geojson"
+                    network_type = 'HYFeaturesNetwork'
+                    # HYFeaturesNetwork column mappings
+                    columns = {
+                        'key': 'id',              # Segment ID (wb-XX format)
+                        'downstream': 'toid',      # Downstream segment ID
+                        'dx': 'lengthkm',          # Segment length [km]
+                        'n': 'n',                  # Manning's n
+                        's0': 'So',                # Slope [m/m]
+                        'bw': 'BtmWdth',           # Bottom width [m]
+                        'tw': 'TopWdth',           # Top width [m]
+                        'twcc': 'TopWdthCC',       # Top width compound channel [m]
+                        'ncc': 'nCC',              # Manning's n compound channel
+                        'musk': 'MusK',            # Muskingum K
+                        'musx': 'MusX',            # Muskingum X
+                        'cs': 'Cs',                # Cross-section area [m²]
+                        'alt': 'alt',              # Altitude
+                    }
+                elif use_netcdf:
+                    # Copy NetCDF topology
+                    topology_dest = ngiab_config_dir / "troute_topology.nc"
+                    shutil.copy(troute_topology_src, topology_dest)
+                    geo_file_path = f"{container_base}/config/troute_topology.nc"
+                    network_type = 'NHDNetwork'
+                    # NHDNetwork column mappings (must include ALL columns to override defaults)
+                    columns = {
+                        'key': 'comid',           # Segment ID
+                        'downstream': 'to_node',   # Downstream segment ID
+                        'dx': 'length',            # Segment length [m]
+                        'n': 'n',                  # Manning's n
+                        's0': 'slope',             # Slope [m/m]
+                        'bw': 'bw',                # Bottom width [m]
+                        'tw': 'tw',                # Top width [m]
+                        'twcc': 'twcc',            # Top width compound channel [m]
+                        'ncc': 'ncc',              # Manning's n compound channel
+                        'musk': 'musk',            # Muskingum K
+                        'musx': 'musx',            # Muskingum X
+                        'cs': 'ChSlp',             # Channel side slope (not cross-section)
+                        'alt': 'alt',              # Altitude
+                        'waterbody': 'waterbody',  # Waterbody ID (-9999 for none)
+                        'gages': 'gages',          # Gage IDs (empty string for none)
+                    }
+                else:
+                    self.logger.warning("No valid topology format selected. Skipping T-Route.")
+                    topology_complete = False
+
+            if topology_complete:
+                # Load and modify T-Route config
+                with open(troute_config_src, 'r') as f:
+                    troute_config = yaml.safe_load(f)
+
+                # Update paths for container
+                if 'network_topology_parameters' not in troute_config:
+                    troute_config['network_topology_parameters'] = {}
+                ntp = troute_config['network_topology_parameters']
+
+                if 'supernetwork_parameters' not in ntp:
+                    ntp['supernetwork_parameters'] = {}
+                snp = ntp['supernetwork_parameters']
+
+                # Set geo_file_path and columns
+                snp['geo_file_path'] = geo_file_path
+                snp['columns'] = columns
+
+                # Add default values
+                snp['waterbody_null_code'] = -9999
+                snp['terminal_code'] = 0
+                # Set both network_type (for class selection) and geo_file_type (for file format)
+                snp['network_type'] = network_type
+                snp['geo_file_type'] = network_type
+
+                # Default values for missing columns (will be used if not in topology)
+                if 'synthetic_wb_segments' not in snp:
+                    snp['synthetic_wb_segments'] = []
+
+                # Add waterbody_parameters (required by HYFeaturesNetwork even if no waterbodies)
+                if 'network_topology_parameters' in troute_config:
+                    if 'waterbody_parameters' not in troute_config['network_topology_parameters']:
+                        troute_config['network_topology_parameters']['waterbody_parameters'] = {
+                            'break_network_at_waterbodies': False,
+                            'level_pool': {
+                                'level_pool_waterbody_parameter_file_path': None,
+                            },
+                        }
+
+                # Add preprocessing_parameters (required even if not using preprocessed data)
+                if 'network_topology_parameters' in troute_config:
+                    if 'preprocessing_parameters' not in troute_config['network_topology_parameters']:
+                        troute_config['network_topology_parameters']['preprocessing_parameters'] = {
+                            'use_preprocessed_data': False,
+                        }
+
+                # Use Muskingum-Cunge routing (simpler, doesn't need channel geometry)
+                if 'compute_parameters' not in troute_config:
+                    troute_config['compute_parameters'] = {}
+                cp = troute_config['compute_parameters']
+
+                # Set routing method to Muskingum-Cunge which is more forgiving
+                cp['compute_kernel'] = 'V02-structured'
+                cp['assume_short_ts'] = True
+                cp['subnetwork_target_size'] = 10000
+                cp['parallel_compute_method'] = 'serial'
+                cp['cpu_pool'] = 1
+
+                if 'forcing_parameters' not in cp:
+                    cp['forcing_parameters'] = {}
+                cp['forcing_parameters']['qlat_input_folder'] = f"{container_base}/outputs/"
+                cp['forcing_parameters']['qlat_file_pattern_filter'] = 'nex-*_output.csv'
+
+                # Add hybrid_parameters (required even if not using hybrid routing)
+                if 'hybrid_parameters' not in cp:
+                    cp['hybrid_parameters'] = {
+                        'run_hybrid_routing': False,
+                    }
+
+                # Fix output parameters
+                if 'output_parameters' not in troute_config:
+                    troute_config['output_parameters'] = {}
+                op = troute_config['output_parameters']
+
+                if 'stream_output' not in op:
+                    op['stream_output'] = {}
+                so = op['stream_output']
+                so['stream_output_directory'] = f"{container_base}/outputs/"
+                so['stream_output_time'] = 60  # Minutes (must be >= internal_frequency)
+                so['stream_output_type'] = '.csv'
+                so['stream_output_internal_frequency'] = 60  # Minutes
+
+                # Write container-compatible config
+                ngiab_troute_config = ngiab_config_dir / "troute_config.yaml"
+                with open(ngiab_troute_config, 'w') as f:
+                    yaml.dump(troute_config, f, default_flow_style=False, sort_keys=False)
+
+                self.logger.debug(f"Created NGIAB T-Route config: {ngiab_troute_config}")
+
+                # Update realization to include routing section
+                self._add_routing_to_realization(ngiab_config_dir / "realization.json")
+                self.logger.info("T-Route routing enabled in realization")
+
+            # Run NGIAB Docker container
+            # We run ngen-serial directly since SYMFLUENCE uses separate catchment/nexus files
+            # The auto mode expects a combined hydrofabric GeoPackage
+            self.logger.info("Running NGIAB Docker container...")
+
+            # Determine hydrofabric files in container paths
+            container_base = "/ngen/ngen/data"
+            if gpkg_file.exists():
+                container_catchment = f"{container_base}/config/{gpkg_file.name}"
+            else:
+                container_catchment = f"{container_base}/config/{catchment_file.name}"
+            container_nexus = f"{container_base}/config/nexus.geojson"
+            container_realization = f"{container_base}/config/realization.json"
+
+            # Run ngen-serial directly (bypasses interactive menu)
+            # Override entrypoint since HelloNGEN.sh expects different arguments
+            docker_cmd = [
+                'docker', 'run', '--rm',
+                '-v', f'{ngiab_run_dir}:/ngen/ngen/data',
+                '-w', '/ngen/ngen/data',  # Set working directory
+                '--entrypoint', '/dmod/bin/ngen-serial',  # Override entrypoint
+                ngiab_image,
+                container_catchment,
+                'all',
+                container_nexus,
+                'all',
+                container_realization
+            ]
+
+            self.logger.debug(f"Docker command: {' '.join(docker_cmd)}")
+
+            docker_log = output_dir / "ngiab_docker_log.txt"
+            try:
+                with open(docker_log, 'w') as log_f:
+                    result = subprocess.run(  # nosec B603
+                        docker_cmd,
+                        stdout=log_f,
+                        stderr=subprocess.STDOUT,
+                        timeout=3600  # 1 hour timeout
+                    )
+
+                if result.returncode != 0:
+                    self.logger.error(f"NGIAB Docker execution failed. Check log: {docker_log}")
+                    return False
+
+                self.logger.info("NGIAB Docker execution completed successfully")
+
+                # Copy outputs from ngiab_outputs_dir to output_dir
+                for f in ngiab_outputs_dir.glob('*'):
+                    if f.is_file():
+                        shutil.copy(f, output_dir / f.name)
+
+                # Count outputs
+                output_count = len(list(output_dir.glob('*.csv'))) + len(list(output_dir.glob('*.parquet')))
+                self.logger.info(f"Generated {output_count} output files")
+
+                return True
+
+            except subprocess.TimeoutExpired:
+                self.logger.error("NGIAB Docker execution timed out")
+                return False
+            except Exception as e:
+                self.logger.error(f"NGIAB Docker execution failed: {e}")
+                return False
+
+    def _create_ngiab_realization(self, src_realization: Path, config_dir: Path, domain_name: str):
+        """
+        Create NGIAB-compatible realization file with container paths.
+
+        NGIAB expects paths relative to /ngen/ngen/data/ inside the container.
+        """
+        import json
+
+        with open(src_realization, 'r') as f:
+            data = json.load(f)
+
+        # NGIAB container paths
+        container_base = "/ngen/ngen/data"
+
+        # Patch global forcing path
+        if 'global' in data and 'forcing' in data['global']:
+            forcing = data['global']['forcing']
+            if 'path' in forcing:
+                forcing['path'] = f"{container_base}/forcings/"
+            if 'file_pattern' in forcing:
+                # Keep the pattern but ensure it doesn't have absolute paths
+                pattern = Path(forcing['file_pattern']).name
+                forcing['file_pattern'] = pattern
+
+        # Patch formulation library and init_config paths
+        if 'global' in data and 'formulations' in data['global']:
+            for formulation in data['global']['formulations']:
+                if 'params' in formulation and 'modules' in formulation['params']:
+                    for module in formulation['params']['modules']:
+                        mod_params = module.get('params', {})
+
+                        # NGIAB has libraries at standard locations
+                        if 'library_file' in mod_params:
+                            lib_name = Path(mod_params['library_file']).name
+                            # NGIAB container library paths
+                            if 'pet' in lib_name.lower():
+                                mod_params['library_file'] = '/dmod/shared_libs/libpetbmi.so'
+                            elif 'cfe' in lib_name.lower():
+                                mod_params['library_file'] = '/dmod/shared_libs/libcfebmi.so'
+                            elif 'sloth' in lib_name.lower():
+                                mod_params['library_file'] = '/dmod/shared_libs/libslothmodel.so'
+                            elif 'surface' in lib_name.lower() or 'noah' in lib_name.lower():
+                                mod_params['library_file'] = '/dmod/shared_libs/libsurfacebmi.so'
+
+                        # Patch init_config paths
+                        if 'init_config' in mod_params:
+                            old_path = mod_params['init_config']
+                            if old_path and old_path != "/dev/null":
+                                # Extract module type and filename
+                                mod_type = None
+                                if 'PET' in str(mod_params.get('model_type_name', '')).upper() or 'pet' in old_path.lower():
+                                    mod_type = 'PET'
+                                elif 'CFE' in str(mod_params.get('model_type_name', '')).upper() or 'cfe' in old_path.lower():
+                                    mod_type = 'CFE'
+                                elif 'NOAH' in str(mod_params.get('model_type_name', '')).upper() or 'noah' in old_path.lower():
+                                    mod_type = 'NOAH-OWP-M'
+                                elif 'SLOTH' in str(mod_params.get('model_type_name', '')).upper() or 'sloth' in old_path.lower():
+                                    mod_type = 'SLOTH'
+
+                                if mod_type:
+                                    filename = Path(old_path).name
+                                    mod_params['init_config'] = f"{container_base}/config/cat-config/{mod_type}/{filename}"
+
+        # Set output root
+        data['output_root'] = f"{container_base}/outputs/"
+
+        # Write patched realization
+        dst_realization = config_dir / "realization.json"
+        with open(dst_realization, 'w') as f:
+            json.dump(data, f, indent=2)
+
+        self.logger.debug(f"Created NGIAB realization: {dst_realization}")
+
+    def _add_routing_to_realization(self, realization_path: Path):
+        """
+        Add T-Route routing configuration to an existing NGIAB realization file.
+
+        Args:
+            realization_path: Path to the realization.json file to update.
+        """
+        import json
+
+        container_base = "/ngen/ngen/data"
+
+        with open(realization_path, 'r') as f:
+            data = json.load(f)
+
+        # Add routing section pointing to T-Route config
+        data['routing'] = {
+            "t_route_config_file_with_path": f"{container_base}/config/troute_config.yaml"
+        }
+
+        with open(realization_path, 'w') as f:
+            json.dump(data, f, indent=2)
+
+        self.logger.debug(f"Added routing section to realization: {realization_path}")

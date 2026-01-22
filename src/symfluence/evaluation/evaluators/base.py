@@ -55,22 +55,25 @@ class ModelEvaluator(ConfigurableMixin, ABC):
         self._project_dir = project_dir or Path(".")
         self._logger = logger
 
-        # Parse time periods from typed config
+        # Parse time periods from typed config (with dict_key fallback for worker dicts)
         calibration_period_str = self._get_config_value(
             lambda: self.config.domain.calibration_period,
-            default=''
+            default='',
+            dict_key='CALIBRATION_PERIOD'
         )
         evaluation_period_str = self._get_config_value(
             lambda: self.config.domain.evaluation_period,
-            default=''
+            default='',
+            dict_key='EVALUATION_PERIOD'
         )
         self.calibration_period: Tuple[Optional[pd.Timestamp], Optional[pd.Timestamp]] = self._parse_date_range(calibration_period_str)
         self.evaluation_period: Tuple[Optional[pd.Timestamp], Optional[pd.Timestamp]] = self._parse_date_range(evaluation_period_str)
 
-        # Parse calibration/evaluation timestep
+        # Parse calibration/evaluation timestep (with dict_key fallback for worker dicts)
         self.eval_timestep = self._get_config_value(
             lambda: self.config.optimization.calibration_timestep,
-            default='native'
+            default='native',
+            dict_key='CALIBRATION_TIMESTEP'
         ).lower()
         if self.eval_timestep not in ['native', 'hourly', 'daily']:
             self.logger.warning(
@@ -211,7 +214,7 @@ class ModelEvaluator(ConfigurableMixin, ABC):
 
         # Try to read with index_col=0 first (handles GRACE/TWS files where date is first column)
         try:
-            obs_df = pd.read_csv(obs_path, index_col=0, parse_dates=True)
+            obs_df = pd.read_csv(obs_path, index_col=0, parse_dates=True, dayfirst=True)
 
             # Check if index looks like dates
             if isinstance(obs_df.index, pd.DatetimeIndex):

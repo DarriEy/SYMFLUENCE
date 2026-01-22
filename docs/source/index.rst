@@ -15,7 +15,7 @@ Overview
 **SYMFLUENCE** is a computational framework for Earth-system modeling that integrates data preparation, model setup, calibration, and evaluation in unified workflows.
 
 **Core capabilities:**
-- Multi-model integration (SUMMA, FUSE, NextGen, GR4J, LSTM, mizuRoute)
+- Multi-model integration (SUMMA, FUSE, HBV, NextGen, GR4J, LSTM, mizuRoute)
 - Automated parameter calibration and optimization
 - Parallel execution and HPC support
 - Reproducible workflows from data to results
@@ -57,6 +57,7 @@ Quick Start
    models/model_summa
    models/model_fuse
    models/model_gr
+   models/model_hbv
    models/model_hype
    models/model_ngen
    models/model_lstm
@@ -83,6 +84,7 @@ Quick Start
    :maxdepth: 2
    :caption: Developer Documentation
 
+   architecture
    developer_guide
 
 .. toctree::

@@ -94,7 +94,9 @@ except ImportError as e:
 
 try:
     from . import gr
-except ImportError as e:
+except Exception as e:
+    # Catch Exception broadly because GR depends on rpy2 which can raise
+    # RuntimeError or RRuntimeError when R is installed but broken
     logger.warning(f"Could not import gr: {e}")
 
 try:
@@ -106,6 +108,21 @@ try:
     from . import rhessys
 except ImportError as e:
     logger.warning(f"Could not import rhessys: {e}")
+
+try:
+    from . import hbv
+except ImportError as e:
+    logger.warning(f"Could not import hbv: {e}")
+
+try:
+    from . import jfuse
+except ImportError as e:
+    logger.warning(f"Could not import jfuse: {e}")
+
+try:
+    from . import cfuse
+except ImportError as e:
+    logger.warning(f"Could not import cfuse: {e}")
 
 
 __all__ = [

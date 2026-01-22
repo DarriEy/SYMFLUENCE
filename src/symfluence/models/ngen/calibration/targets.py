@@ -240,15 +240,23 @@ class NgenStreamflowTarget(StreamflowEvaluator):
                 if not is_flow_already and nexus_id in nexus_areas and nexus_areas[nexus_id] > 0:
                     area_m2 = nexus_areas[nexus_id] * 1e6  # km² to m²
 
-                    # Heuristic: Check if conversion yields insane values (e.g. > 500,000 cms)
+                    # Heuristic: Check if conversion yields unreasonable values
                     # This protects against cases where output IS flow but user didn't set flag
                     potential_flow = (flow_values * area_m2) / timestep_seconds
+                    mean_raw = np.mean(flow_values)
+                    mean_converted = np.mean(potential_flow)
 
-                    if np.mean(potential_flow) > 100000 and np.mean(flow_values) < 100000:
+                    # Calculate conversion factor
+                    conversion_factor = mean_converted / mean_raw if mean_raw > 0 else 1
+
+                    # Skip conversion if:
+                    # 1. Converted values are extremely large (> 100,000 m³/s), OR
+                    # 2. Conversion multiplies values by more than 100x (likely already in flow units)
+                    if mean_converted > 100000 or conversion_factor > 100:
                         self.logger.warning(
-                            f"Unit conversion for {nexus_id} resulted in mean flow > 100,000 cms. "
-                            f"Raw mean: {np.mean(flow_values):.2f}. "
-                            f"Assuming output is ALREADY flow (m3/s) and skipping conversion."
+                            f"Unit conversion for {nexus_id} appears unnecessary. "
+                            f"Raw mean: {mean_raw:.4f}, Converted mean: {mean_converted:.2f} (factor: {conversion_factor:.1f}x). "
+                            f"Assuming output is ALREADY flow (m³/s) and skipping conversion."
                         )
                         # Don't convert
                     else:
@@ -282,7 +290,7 @@ class NgenStreamflowTarget(StreamflowEvaluator):
             combined.name = 'basin_total'
             return combined.sort_index()
 
-    def calculate_metrics(self, sim: Any, obs: Optional[pd.Series] = None,
+    def calculate_metrics(self, sim: Optional[Any] = None, obs: Optional[pd.Series] = None,
                          mizuroute_dir: Optional[Path] = None,
                          calibration_only: bool = True, **kwargs) -> Optional[Dict[str, float]]:
         """

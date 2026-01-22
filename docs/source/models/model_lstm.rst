@@ -421,7 +421,7 @@ LSTM on distributed domain:
 .. code-block:: yaml
 
    # Semi-distributed LSTM
-   DOMAIN_DEFINITION_METHOD: delineate
+   DOMAIN_DEFINITION_METHOD: semidistributed
    POUR_POINT_COORDS: [-115.0, 51.0]
 
    HYDROLOGICAL_MODEL: LSTM

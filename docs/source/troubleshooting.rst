@@ -64,7 +64,7 @@ Runtime and Workflow
   - Incorrect relative paths in model setup.
 
 **Parallel job hangs**
-- Check ``MPI_PROCESSES`` matches available cores.
+- Check ``NUM_PROCESSES`` matches available cores.
 - Reduce thread counts if memory limits are reached.
 - Ensure the cluster scheduler allows requested resources.
 
@@ -221,7 +221,7 @@ Performance Issues
 
   .. code-block:: yaml
 
-     MPI_PROCESSES: 4  # Match available cores
+     NUM_PROCESSES: 4  # Match available cores
 
 **Out of memory**
 - Process forcing data in smaller time chunks

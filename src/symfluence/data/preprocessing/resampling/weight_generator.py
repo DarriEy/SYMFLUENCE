@@ -36,11 +36,53 @@ def _create_easymore_instance():
     return instance
 
 
+def _ensure_thread_safety():
+    """
+    Ensure thread-safe environment for netCDF4/HDF5 operations.
+
+    This function must be called before any EASYMORE operations to prevent
+    segmentation faults caused by HDF5 library thread-safety issues.
+    """
+
+    # Ensure HDF5 file locking is disabled (critical for thread safety)
+    os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
+
+    # Disable tqdm monitor thread which can cause segfaults with netCDF4/HDF5
+    try:
+        import tqdm
+        tqdm.tqdm.monitor_interval = 0
+        if hasattr(tqdm.tqdm, 'monitor') and tqdm.tqdm.monitor is not None:
+            try:
+                tqdm.tqdm.monitor.exit()
+            except Exception:
+                pass
+            tqdm.tqdm.monitor = None
+    except ImportError:
+        pass
+
+    # Clear xarray's file manager cache to prevent stale file handles
+    try:
+        import xarray as xr
+        # Close any cached file handles that might cause issues
+        if hasattr(xr.backends, 'file_manager'):
+            fm = xr.backends.file_manager
+            if hasattr(fm, 'FILE_CACHE'):
+                fm.FILE_CACHE.clear()
+    except Exception:
+        pass
+
+    # Force garbage collection to release file handles
+    gc.collect()
+
+
 def _run_easmore_with_suppressed_output(esmr, logger):
     """Run EASMORE's nc_remapper while suppressing verbose output."""
     import warnings
     from io import StringIO
     from contextlib import redirect_stdout, redirect_stderr
+
+    # Ensure thread-safe environment before running easymore
+    _ensure_thread_safety()
 
     try:
         with warnings.catch_warnings():
@@ -76,6 +118,9 @@ def _run_easmore_with_suppressed_output(esmr, logger):
     except Exception as e:
         logger.error(f"Error running EASMORE: {str(e)}")
         raise
+    finally:
+        # Cleanup after easymore operation
+        gc.collect()
 
 
 class RemappingWeightGenerator(ConfigMixin):
@@ -297,7 +342,7 @@ class RemappingWeightGenerator(ConfigMixin):
 
         # NetCDF configuration
         var_lat, var_lon = self.dataset_handler.get_coordinate_names()
-        os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
+        # Note: HDF5_USE_FILE_LOCKING is now set at package init (symfluence/__init__.py)
 
         # Detect variables and resolution
         available_vars, source_nc_resolution = self._detect_variables(

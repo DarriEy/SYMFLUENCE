@@ -574,14 +574,274 @@ class AnalysisPlotter(BasePlotter):
             self.logger.error(f"Error in plot_fuse_streamflow: {str(e)}")
             return None
 
+    def _load_swe_observations(self) -> Optional[pd.Series]:
+        """
+        Load SWE observations for comparison with scalarSWE.
+
+        Searches common locations for processed SWE observation files.
+        Returns observations converted to mm for comparison with SUMMA output.
+        """
+        domain_name = self._get_config_value(
+            lambda: self.config.domain.name, dict_key='DOMAIN_NAME'
+        )
+
+        # Search paths for SWE observations (primary: processed/, fallback: preprocessed/)
+        search_paths = [
+            self.project_dir / "observations" / "snow" / "swe" / "processed" / f"{domain_name}_swe_processed.csv",
+            self.project_dir / "observations" / "snow" / "processed" / f"{domain_name}_swe_processed.csv",
+            self.project_dir / "observations" / "snow" / "swe" / "preprocessed" / f"{domain_name}_swe_processed.csv",
+            self.project_dir / "observations" / "snow" / "preprocessed" / f"{domain_name}_snow_processed.csv",
+        ]
+
+        obs_path = None
+        for path in search_paths:
+            if path.exists():
+                obs_path = path
+                break
+
+        if obs_path is None:
+            return None
+
+        try:
+            df = pd.read_csv(obs_path)
+
+            # Find date column
+            date_col = None
+            for col in df.columns:
+                if col.lower() in ('date', 'datetime', 'time', 'timestamp'):
+                    date_col = col
+                    break
+            if date_col is None and df.columns[0]:
+                date_col = df.columns[0]
+
+            # Try multiple date formats
+            try:
+                df[date_col] = pd.to_datetime(df[date_col])
+            except Exception:
+                try:
+                    # Try day-first format (DD/MM/YYYY)
+                    df[date_col] = pd.to_datetime(df[date_col], dayfirst=True)
+                except Exception:
+                    try:
+                        # Try mixed format inference
+                        df[date_col] = pd.to_datetime(df[date_col], format='mixed', dayfirst=True)
+                    except Exception:
+                        self.logger.warning(f"Could not parse dates in {obs_path}")
+                        return None
+
+            df = df.set_index(date_col).sort_index()
+
+            # Find SWE column
+            swe_col = None
+            for col in df.columns:
+                if col.lower() in ('swe', 'snw', 'snow_water_equivalent'):
+                    swe_col = col
+                    break
+            if swe_col is None:
+                # Use first numeric column
+                numeric_cols = df.select_dtypes(include=[np.number]).columns
+                if len(numeric_cols) > 0:
+                    swe_col = numeric_cols[0]
+
+            if swe_col is None:
+                return None
+
+            obs_series = df[swe_col].astype(float)
+
+            # Auto-detect units: if max < 50, likely inches; convert to mm
+            if obs_series.max() < 50:
+                obs_series = obs_series * 25.4  # inches to mm
+            elif obs_series.max() < 500:
+                # Could be cm, convert to mm
+                if obs_series.max() < 100:
+                    obs_series = obs_series * 10  # cm to mm
+
+            return obs_series
+
+        except Exception as e:
+            self.logger.warning(f"Could not load SWE observations: {e}")
+            return None
+
+    def _load_energy_flux_observations(self, flux_type: str = 'LE') -> Optional[pd.Series]:
+        """
+        Load energy flux observations for comparison.
+
+        Args:
+            flux_type: 'LE' for latent heat, 'H' for sensible heat
+
+        Returns:
+            Observations in W/m² for comparison with SUMMA output.
+        """
+        domain_name = self._get_config_value(
+            lambda: self.config.domain.name, dict_key='DOMAIN_NAME'
+        )
+
+        # Search paths for FLUXNET/energy flux observations
+        search_paths = [
+            self.project_dir / "observations" / "energy_fluxes" / "processed" / f"{domain_name}_fluxnet_processed.csv",
+            self.project_dir / "observations" / "et" / "preprocessed" / f"{domain_name}_fluxnet_et_processed.csv",
+            self.project_dir / "observations" / "energy_fluxes" / "processed",
+        ]
+
+        obs_path = None
+        for path in search_paths:
+            if path.is_file() and path.exists():
+                obs_path = path
+                break
+            elif path.is_dir() and path.exists():
+                # Search for any CSV in directory
+                csvs = list(path.glob("*.csv"))
+                if csvs:
+                    obs_path = csvs[0]
+                    break
+
+        if obs_path is None:
+            return None
+
+        try:
+            df = pd.read_csv(obs_path)
+
+            # Find timestamp column
+            ts_col = None
+            for col in df.columns:
+                if 'timestamp' in col.lower() or 'time' in col.lower() or 'date' in col.lower():
+                    ts_col = col
+                    break
+
+            if ts_col is None:
+                return None
+
+            # Parse timestamp (handle FLUXNET format YYYYMMDDHHMM)
+            try:
+                df['datetime'] = pd.to_datetime(df[ts_col])
+            except Exception:
+                try:
+                    df['datetime'] = pd.to_datetime(df[ts_col].astype(str), format='%Y%m%d%H%M')
+                except Exception:
+                    df['datetime'] = pd.to_datetime(df[ts_col].astype(str).str[:8], format='%Y%m%d')
+
+            df = df.set_index('datetime').sort_index()
+
+            # Find the appropriate flux column
+            if flux_type == 'LE':
+                col_candidates = ['LE_F_MDS', 'LE', 'LE_CORR', 'latent_heat', 'scalarLatHeatTotal']
+            else:  # H
+                col_candidates = ['H_F_MDS', 'H', 'H_CORR', 'sensible_heat', 'scalarSenHeatTotal']
+
+            flux_col = None
+            for col in col_candidates:
+                if col in df.columns:
+                    flux_col = col
+                    break
+
+            if flux_col is None:
+                return None
+
+            obs_series = df[flux_col].astype(float)
+
+            # Resample to daily if higher frequency (handles hourly, 30-min, etc.)
+            if len(obs_series) > 0:
+                freq = pd.infer_freq(obs_series.index)
+                # Check for sub-daily frequencies: H (hourly), T/min (minutes), S (seconds)
+                is_sub_daily = freq and any(x in str(freq) for x in ['H', 'T', 'min', 'S', 'h'])
+                # Also check by counting: if >365 entries per year, likely sub-daily
+                if not is_sub_daily and len(obs_series) > 0:
+                    days_span = (obs_series.index.max() - obs_series.index.min()).days + 1
+                    if days_span > 0 and len(obs_series) / days_span > 1.5:
+                        is_sub_daily = True
+                if is_sub_daily:
+                    obs_series = obs_series.resample('D').mean()
+
+            return obs_series
+
+        except Exception as e:
+            self.logger.warning(f"Could not load {flux_type} observations: {e}")
+            return None
+
+    def _get_variable_display_info(self, var_name: str) -> Dict[str, str]:
+        """Get display-friendly names and units for SUMMA variables."""
+        var_info = {
+            'scalarSWE': {
+                'title': 'Snow Water Equivalent',
+                'short_name': 'SWE',
+                'unit': 'mm',
+                'cmap': 'Blues',
+                'obs_label': 'SNOTEL Observed',
+            },
+            'scalarLatHeatTotal': {
+                'title': 'Latent Heat Flux',
+                'short_name': 'LE',
+                'unit': 'W/m²',
+                'cmap': 'YlOrRd',
+                'obs_label': 'FLUXNET Observed',
+            },
+            'scalarSenHeatTotal': {
+                'title': 'Sensible Heat Flux',
+                'short_name': 'H',
+                'unit': 'W/m²',
+                'cmap': 'RdYlBu_r',
+                'obs_label': 'FLUXNET Observed',
+            },
+            'scalarSnowDepth': {
+                'title': 'Snow Depth',
+                'short_name': 'Snow Depth',
+                'unit': 'm',
+                'cmap': 'Blues',
+                'obs_label': 'Observed',
+            },
+            'scalarTotalRunoff': {
+                'title': 'Total Runoff',
+                'short_name': 'Runoff',
+                'unit': 'mm/day',
+                'cmap': 'Blues',
+                'obs_label': 'Observed',
+            },
+        }
+        return var_info.get(var_name, {
+            'title': var_name,
+            'short_name': var_name,
+            'unit': '',
+            'cmap': 'viridis',
+            'obs_label': 'Observed',
+        })
+
     def plot_summa_outputs(self, experiment_id: str) -> Dict[str, str]:
-        """Create spatial and temporal visualizations for SUMMA output variables."""
+        """
+        Create professional visualizations for SUMMA output variables.
+
+        Auto-detects and overlays observations for key variables:
+        - scalarSWE: Snow water equivalent (from SNOTEL/snow observations)
+        - scalarLatHeatTotal: Latent heat flux (from FLUXNET)
+        - scalarSenHeatTotal: Sensible heat flux (from FLUXNET)
+
+        When observations are available, creates a comprehensive 4-panel layout:
+        - Spatial map with colorbar
+        - Time series comparison with metrics
+        - Scatter plot with 1:1 line and correlation
+        - Monthly boxplot comparison
+
+        Visual styling matches Camille's model comparison overview for consistency.
+        """
         plt, _ = self._setup_matplotlib()
         from matplotlib import gridspec  # type: ignore
+        from matplotlib.patches import Patch  # type: ignore
+        import matplotlib.dates as mdates  # type: ignore
         import xarray as xr  # type: ignore
-        import geopandas as gpd  # type: ignore
+        from symfluence.reporting.core.plot_utils import calculate_metrics
 
         plot_paths: Dict[str, str] = {}
+
+        # Professional color palette
+        COLOR_OBS = '#2c3e50'       # Dark blue-gray for observations
+        COLOR_SIM = '#e74c3c'       # Professional red for simulations
+        COLOR_ACCENT = '#3498db'    # Blue accent
+
+        # Define observation loaders for supported variables
+        obs_loaders = {
+            'scalarSWE': self._load_swe_observations,
+            'scalarLatHeatTotal': lambda: self._load_energy_flux_observations('LE'),
+            'scalarSenHeatTotal': lambda: self._load_energy_flux_observations('H'),
+        }
 
         try:
             summa_file = self.project_dir / "simulations" / experiment_id / "SUMMA" / f"{experiment_id}_day.nc"
@@ -591,35 +851,330 @@ class AnalysisPlotter(BasePlotter):
             plot_dir = self._ensure_output_dir('summa_outputs', experiment_id)
             ds = xr.open_dataset(summa_file)
 
-            hru_name = self._get_config_value(lambda: self.config.paths.catchment_name, default='default', dict_key='CATCHMENT_SHP_NAME')
-            if hru_name == 'default':
-                hru_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_HRUs_{self._get_config_value(lambda: self.config.domain.discretization, dict_key='DOMAIN_DISCRETIZATION')}.shp"
-            hru_path = self.project_dir / 'shapefiles' / 'catchment' / hru_name
-            hru_gdf = gpd.read_file(hru_path) if hru_path.exists() else None
+            # Get domain name for title
+            domain_name = self._get_config_value(
+                lambda: self.config.domain.name,
+                default='Domain',
+                dict_key='DOMAIN_NAME'
+            )
 
             skip_vars = {'hru', 'time', 'gru', 'dateId', 'latitude', 'longitude', 'hruId', 'gruId'}
 
             for var_name in ds.data_vars:
-                if var_name in skip_vars or 'time' not in ds[var_name].dims:
+                var_name_str = str(var_name)
+                if var_name_str in skip_vars or 'time' not in ds[var_name].dims:
                     continue
 
-                fig = plt.figure(figsize=self.plot_config.FIGURE_SIZE_MEDIUM_TALL)
-                gs = gridspec.GridSpec(2, 1, height_ratios=[1.5, 1])
-                ax1, ax2 = fig.add_subplot(gs[0]), fig.add_subplot(gs[1])
+                # Get display info for this variable
+                var_info = self._get_variable_display_info(var_name_str)
 
-                var_mean = ds[var_name].mean(dim='time').compute()
-                if hru_gdf is not None:
-                    plot_gdf = hru_gdf.copy()
-                    plot_gdf['value'] = var_mean.values
-                    plot_gdf = plot_gdf.to_crs(epsg=3857)
-                    vmin, vmax = np.percentile(var_mean.values, [2, 98])
-                    plot_gdf.plot(column='value', ax=ax1, vmin=vmin, vmax=vmax, cmap='RdYlBu', legend=True)
-                    ax1.set_axis_off()
+                # Check if we have observations for this variable
+                obs_data = None
+                if var_name_str in obs_loaders:
+                    obs_data = obs_loaders[var_name_str]()
 
-                mean_ts = ds[var_name].mean(dim='hru').compute()
-                ax2.plot(mean_ts.time, mean_ts, color=self.plot_config.COLOR_SIMULATED_PRIMARY)
-                self._apply_standard_styling(ax2, xlabel='Date', ylabel=var_name, title=f'Mean Time Series: {var_name}', legend=False)
-                self._format_date_axis(ax2)
+                # Determine figure layout based on whether we have observations
+                has_obs = obs_data is not None and len(obs_data) > 0
+
+                if has_obs:
+                    # Professional 4-panel layout matching Camille's style
+                    fig = plt.figure(figsize=(16, 12), facecolor='white')
+                    gs = gridspec.GridSpec(
+                        3, 3,
+                        height_ratios=[0.08, 1.2, 1],
+                        width_ratios=[1.2, 1, 0.8],
+                        hspace=0.35, wspace=0.3
+                    )
+
+                    # Title spanning full width
+                    ax_title = fig.add_subplot(gs[0, :])
+                    ax_title.axis('off')
+                    ax_title.text(0.5, 0.5,
+                                 f"{var_info['title']} Evaluation — {domain_name}",
+                                 ha='center', va='center',
+                                 fontsize=18, fontweight='bold',
+                                 transform=ax_title.transAxes)
+                    ax_title.text(0.5, -0.3,
+                                 f"Experiment: {experiment_id}",
+                                 ha='center', va='center',
+                                 fontsize=11, color='#7f8c8d',
+                                 transform=ax_title.transAxes)
+
+                    # Panel 1: Time series (row 1, cols 0-1)
+                    ax_ts = fig.add_subplot(gs[1, 0:2])
+
+                    # Panel 2: Metrics box (row 1, col 2)
+                    ax_metrics = fig.add_subplot(gs[1, 2])
+
+                    # Panel 3: Scatter plot (row 2, col 0)
+                    ax_scatter = fig.add_subplot(gs[2, 0])
+
+                    # Panel 4: Monthly boxplot (row 2, cols 1-2)
+                    ax_monthly = fig.add_subplot(gs[2, 1:3])
+
+                else:
+                    # Simpler 2-panel layout for sim-only
+                    fig = plt.figure(figsize=(14, 8), facecolor='white')
+                    gs = gridspec.GridSpec(2, 2, height_ratios=[0.08, 1], hspace=0.25)
+
+                    ax_title = fig.add_subplot(gs[0, :])
+                    ax_title.axis('off')
+                    ax_title.text(0.5, 0.5,
+                                 f"{var_info['title']} — {domain_name}",
+                                 ha='center', va='center',
+                                 fontsize=16, fontweight='bold')
+
+                    ax_ts = fig.add_subplot(gs[1, :])
+                    ax_scatter = None
+                    ax_metrics = None
+                    ax_monthly = None
+
+                # Extract time series data - handle multiple dimensions
+                var_data = ds[var_name]
+
+                # Get all dimensions except 'time'
+                dims_to_mean = [d for d in var_data.dims if d != 'time']
+
+                if dims_to_mean:
+                    mean_ts = var_data.mean(dim=dims_to_mean).compute()
+                else:
+                    mean_ts = var_data.compute()
+
+                # Ensure 1D array
+                ts_values = mean_ts.values
+                if ts_values.ndim > 1:
+                    ts_values = ts_values.squeeze()
+                if ts_values.ndim > 1:
+                    # If still multi-dimensional, take mean across remaining dims
+                    ts_values = np.nanmean(ts_values, axis=tuple(range(1, ts_values.ndim)))
+
+                sim_series = pd.Series(ts_values, index=pd.to_datetime(mean_ts.time.values))
+
+                # SUMMA uses opposite sign convention for latent heat:
+                # SUMMA: negative = energy leaving surface (evaporation)
+                # FLUXNET: positive = energy leaving surface (evaporation)
+                # Negate SUMMA LE for comparison with observations
+                if var_name == 'scalarLatHeatTotal' and has_obs:
+                    sim_series = -sim_series
+
+                if has_obs:
+                    # Align observations and simulations
+                    common_idx = sim_series.index.intersection(obs_data.index)
+
+                    if len(common_idx) > 10:
+                        sim_aligned = sim_series.loc[common_idx].dropna()
+                        obs_aligned = obs_data.loc[common_idx].dropna()
+
+                        # Re-align after dropping NaNs
+                        common_idx = sim_aligned.index.intersection(obs_aligned.index)
+                        sim_aligned = sim_aligned.loc[common_idx]
+                        obs_aligned = obs_aligned.loc[common_idx]
+
+                        # ===== TIME SERIES PANEL =====
+                        ax_ts.fill_between(obs_aligned.index, 0, obs_aligned.values,
+                                          alpha=0.15, color=COLOR_OBS, label='_nolegend_')
+                        ax_ts.plot(obs_aligned.index, obs_aligned.values,
+                                  color=COLOR_OBS, linewidth=1.8, label=var_info['obs_label'],
+                                  alpha=0.9)
+                        ax_ts.plot(sim_aligned.index, sim_aligned.values,
+                                  color=COLOR_SIM, linewidth=1.5, label='SUMMA Simulated',
+                                  alpha=0.9)
+
+                        ax_ts.set_xlabel('Date', fontsize=11, fontweight='medium')
+                        ax_ts.set_ylabel(f"{var_info['short_name']} ({var_info['unit']})",
+                                        fontsize=11, fontweight='medium')
+                        ax_ts.set_title('Time Series Comparison', fontsize=12,
+                                       fontweight='bold', pad=10)
+
+                        ax_ts.legend(loc='upper right', frameon=True, fancybox=True,
+                                    shadow=False, fontsize=10, framealpha=0.95)
+                        ax_ts.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+                        ax_ts.set_facecolor('#fafafa')
+
+                        # Format date axis
+                        ax_ts.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+                        ax_ts.xaxis.set_major_locator(mdates.MonthLocator(interval=3))
+                        plt.setp(ax_ts.xaxis.get_majorticklabels(), rotation=45, ha='right')
+
+                        # Set y-axis to start at 0 for SWE
+                        if var_name == 'scalarSWE':
+                            ax_ts.set_ylim(bottom=0)
+
+                        # ===== METRICS PANEL =====
+                        metrics = calculate_metrics(obs_aligned.values, sim_aligned.values)
+                        ax_metrics.axis('off')
+                        ax_metrics.set_facecolor('#f8f9fa')
+
+                        # Create metrics display
+                        metrics_display = [
+                            ('KGE', metrics.get('KGE', np.nan), '#27ae60' if metrics.get('KGE', 0) > 0.5 else '#e74c3c'),
+                            ('NSE', metrics.get('NSE', np.nan), '#27ae60' if metrics.get('NSE', 0) > 0.5 else '#e74c3c'),
+                            ('RMSE', metrics.get('RMSE', np.nan), '#3498db'),
+                            ('Bias %', metrics.get('PBIAS', np.nan), '#9b59b6'),
+                            ('MAE', metrics.get('MAE', np.nan), '#3498db'),
+                        ]
+
+                        ax_metrics.text(0.5, 0.95, 'Performance Metrics',
+                                       ha='center', va='top', fontsize=13, fontweight='bold',
+                                       transform=ax_metrics.transAxes)
+
+                        for i, (name, value, color) in enumerate(metrics_display):
+                            y_pos = 0.78 - i * 0.15
+                            if not np.isnan(value):
+                                ax_metrics.text(0.15, y_pos, f'{name}:', ha='left', va='center',
+                                               fontsize=11, fontweight='medium',
+                                               transform=ax_metrics.transAxes)
+                                ax_metrics.text(0.85, y_pos, f'{value:.3f}', ha='right', va='center',
+                                               fontsize=12, fontweight='bold', color=color,
+                                               transform=ax_metrics.transAxes)
+
+                        # Add colored background box
+                        from matplotlib.patches import FancyBboxPatch
+                        bbox = FancyBboxPatch((0.02, 0.02), 0.96, 0.96,
+                                             boxstyle="round,pad=0.02,rounding_size=0.02",
+                                             facecolor='#f8f9fa', edgecolor='#bdc3c7',
+                                             linewidth=1.5, transform=ax_metrics.transAxes,
+                                             clip_on=False)
+                        ax_metrics.add_patch(bbox)
+
+                        # ===== SCATTER PLOT PANEL =====
+                        ax_scatter.scatter(obs_aligned.values, sim_aligned.values,
+                                          alpha=0.5, s=25, c=COLOR_ACCENT, edgecolors='white',
+                                          linewidth=0.3)
+
+                        # 1:1 line
+                        min_val = min(obs_aligned.min(), sim_aligned.min())
+                        max_val = max(obs_aligned.max(), sim_aligned.max())
+                        margin = (max_val - min_val) * 0.05
+                        ax_scatter.plot([min_val - margin, max_val + margin],
+                                       [min_val - margin, max_val + margin],
+                                       'k--', linewidth=1.5, alpha=0.7, label='1:1 Line')
+
+                        # Correlation
+                        valid_mask = ~(np.isnan(obs_aligned.values) | np.isnan(sim_aligned.values))
+                        if valid_mask.sum() > 2:
+                            corr = np.corrcoef(obs_aligned.values[valid_mask],
+                                              sim_aligned.values[valid_mask])[0, 1]
+                            ax_scatter.text(0.05, 0.95, f'r = {corr:.3f}',
+                                           transform=ax_scatter.transAxes,
+                                           fontsize=12, fontweight='bold', va='top',
+                                           bbox=dict(boxstyle='round,pad=0.4',
+                                                    facecolor='white', edgecolor='#bdc3c7',
+                                                    alpha=0.9))
+
+                        ax_scatter.set_xlabel(f'Observed ({var_info["unit"]})',
+                                             fontsize=11, fontweight='medium')
+                        ax_scatter.set_ylabel(f'Simulated ({var_info["unit"]})',
+                                             fontsize=11, fontweight='medium')
+                        ax_scatter.set_title('Observed vs Simulated', fontsize=12,
+                                            fontweight='bold', pad=10)
+                        ax_scatter.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+                        ax_scatter.set_facecolor('#fafafa')
+                        ax_scatter.set_aspect('equal', adjustable='box')
+                        ax_scatter.set_xlim(min_val - margin, max_val + margin)
+                        ax_scatter.set_ylim(min_val - margin, max_val + margin)
+
+                        # ===== MONTHLY BOXPLOT PANEL =====
+                        # Create monthly data
+                        obs_monthly = obs_aligned.groupby(obs_aligned.index.month)
+                        sim_monthly = sim_aligned.groupby(sim_aligned.index.month)
+
+                        months = range(1, 13)
+                        month_names = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D']
+                        positions_obs = np.arange(1, 13) - 0.2
+                        positions_sim = np.arange(1, 13) + 0.2
+
+                        # Observed boxplots
+                        obs_data_monthly = [obs_monthly.get_group(m).values
+                                           if m in obs_monthly.groups else [] for m in months]
+                        bp_obs = ax_monthly.boxplot(obs_data_monthly, positions=positions_obs,
+                                                   widths=0.35, patch_artist=True,
+                                                   showfliers=False)
+                        for patch in bp_obs['boxes']:
+                            patch.set_facecolor(COLOR_OBS)
+                            patch.set_alpha(0.6)
+                        for median in bp_obs['medians']:
+                            median.set_color('white')
+                            median.set_linewidth(1.5)
+
+                        # Simulated boxplots
+                        sim_data_monthly: List[Any] = [sim_monthly.get_group(m).values
+                                                       if m in sim_monthly.groups else [] for m in months]
+                        bp_sim = ax_monthly.boxplot(sim_data_monthly, positions=positions_sim,
+                                                   widths=0.35, patch_artist=True,
+                                                   showfliers=False)
+                        for patch in bp_sim['boxes']:
+                            patch.set_facecolor(COLOR_SIM)
+                            patch.set_alpha(0.6)
+                        for median in bp_sim['medians']:
+                            median.set_color('white')
+                            median.set_linewidth(1.5)
+
+                        ax_monthly.set_xticks(range(1, 13))
+                        ax_monthly.set_xticklabels(month_names)
+                        ax_monthly.set_xlabel('Month', fontsize=11, fontweight='medium')
+                        ax_monthly.set_ylabel(f"{var_info['short_name']} ({var_info['unit']})",
+                                             fontsize=11, fontweight='medium')
+                        ax_monthly.set_title('Monthly Distribution', fontsize=12,
+                                            fontweight='bold', pad=10)
+                        ax_monthly.grid(True, alpha=0.3, axis='y', linestyle='-', linewidth=0.5)
+                        ax_monthly.set_facecolor('#fafafa')
+
+                        # Legend for boxplots
+                        legend_elements = [
+                            Patch(facecolor=COLOR_OBS, alpha=0.6, label='Observed'),
+                            Patch(facecolor=COLOR_SIM, alpha=0.6, label='Simulated')
+                        ]
+                        ax_monthly.legend(handles=legend_elements, loc='upper right',
+                                         frameon=True, fancybox=True, fontsize=10)
+
+                    else:
+                        # Not enough overlap
+                        ax_ts.plot(sim_series.index, sim_series.values,
+                                  color=COLOR_SIM, linewidth=1.5)
+                        ax_ts.set_xlabel('Date', fontsize=11)
+                        ax_ts.set_ylabel(f"{var_info['short_name']} ({var_info['unit']})", fontsize=11)
+                        ax_ts.set_title(f'{var_info["title"]} Time Series', fontsize=12, fontweight='bold')
+                        ax_ts.grid(True, alpha=0.3)
+                        ax_ts.set_facecolor('#fafafa')
+
+                        if ax_scatter:
+                            ax_scatter.text(0.5, 0.5, 'Insufficient\ndata overlap',
+                                          transform=ax_scatter.transAxes, ha='center', va='center',
+                                          fontsize=12, color='#7f8c8d')
+                            ax_scatter.set_facecolor('#f8f9fa')
+                        if ax_metrics:
+                            ax_metrics.axis('off')
+                        if ax_monthly:
+                            ax_monthly.axis('off')
+                else:
+                    # Simulation-only plot
+                    ax_ts.plot(sim_series.index, sim_series.values,
+                              color=COLOR_SIM, linewidth=1.5, label='SUMMA Simulated')
+                    ax_ts.fill_between(sim_series.index, 0, sim_series.values,
+                                      alpha=0.15, color=COLOR_SIM)
+                    ax_ts.set_xlabel('Date', fontsize=11, fontweight='medium')
+                    ax_ts.set_ylabel(f"{var_info['short_name']} ({var_info['unit']})",
+                                    fontsize=11, fontweight='medium')
+                    ax_ts.set_title(f'{var_info["title"]} Time Series', fontsize=12,
+                                   fontweight='bold', pad=10)
+                    ax_ts.legend(loc='upper right', frameon=True, fontsize=10)
+                    ax_ts.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+                    ax_ts.set_facecolor('#fafafa')
+
+                    # Format date axis
+                    ax_ts.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+                    ax_ts.xaxis.set_major_locator(mdates.MonthLocator(interval=3))
+                    plt.setp(ax_ts.xaxis.get_majorticklabels(), rotation=45, ha='right')
+
+                # Use subplots_adjust for GridSpec layouts (tight_layout not always compatible)
+                try:
+                    if has_obs:
+                        fig.subplots_adjust(left=0.06, right=0.98, top=0.92, bottom=0.08)
+                    else:
+                        plt.tight_layout()
+                except Exception:
+                    pass  # Layout adjustment not critical
 
                 plot_file = plot_dir / f'{var_name}.png'
                 self._save_and_close(fig, plot_file)
@@ -627,6 +1182,8 @@ class AnalysisPlotter(BasePlotter):
             ds.close()
         except Exception as e:
             self.logger.error(f"Error in plot_summa_outputs: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
         return plot_paths
 
     def plot_ngen_results(self, sim_df: pd.DataFrame, obs_df: Optional[pd.DataFrame], experiment_id: str, results_dir: Path) -> Optional[str]:

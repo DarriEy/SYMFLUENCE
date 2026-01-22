@@ -24,16 +24,18 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
     Returns:
         Path: Path to the output HRU shapefile.
     """
-    # Determine default name based on method
-    definition_method = discretizer.domain_definition_method
-    default_name = f"{discretizer.domain_name}_riverBasins_{definition_method}.shp"
+    # Determine default name based on delineation suffix
+    # The delineation_suffix reflects how the domain was actually created
+    # (e.g., "delineate" for TauDEM, "lumped", "subset_{geofabric}", etc.)
+    delineation_suffix = discretizer.delineation_suffix
+    default_name = f"{discretizer.domain_name}_riverBasins_{delineation_suffix}.shp"
     delineate_coastal = discretizer._get_config_value(
         lambda: discretizer.config.domain.delineation.delineate_coastal_watersheds,
         default=False
     )
     if delineate_coastal:
         default_name = f"{discretizer.domain_name}_riverBasins_with_coastal.shp"
-    elif definition_method == "point":
+    elif delineation_suffix == "point":
         default_name = f"{discretizer.domain_name}_riverBasins_point.shp"
 
     gru_shapefile = discretizer._get_file_path(
@@ -43,11 +45,13 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
         default_name=default_name,
     )
 
+    # Use backward-compatible catchment subpath
+    default_name = f"{discretizer.domain_name}_HRUs_GRUs.shp"
     hru_output_shapefile = discretizer._get_file_path(
         path_key="CATCHMENT_PATH",
         name_key="CATCHMENT_SHP_NAME",
-        default_subpath="shapefiles/catchment",
-        default_name=f"{discretizer.domain_name}_HRUs_GRUs.shp",
+        default_subpath=discretizer._get_catchment_subpath(default_name),
+        default_name=default_name,
     )
 
     gru_gdf = discretizer._read_shapefile(gru_shapefile)

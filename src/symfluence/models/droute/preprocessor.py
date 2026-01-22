@@ -1,42 +1,67 @@
 """
 dRoute Model Preprocessor.
 
-Handles spatial preprocessing and network topology generation for the dRoute routing model.
+Handles spatial preprocessing and configuration generation for the dRoute routing model.
+Follows the same pattern as MizuRoutePreProcessor to ensure consistent workflow.
 """
 
-import pickle
-import numpy as np
+import os
 from pathlib import Path
-from typing import Dict, Any
-import xarray as xr
+from shutil import copyfile
+from typing import Any, Dict, Optional
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelPreProcessor
-from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
-
-try:
-    import droute
-    HAS_DROUTE = True
-except ImportError:
-    HAS_DROUTE = False
+from symfluence.models.droute.mixins import DRouteConfigMixin
+from symfluence.models.droute.network_adapter import DRouteNetworkAdapter
 
 
 @ModelRegistry.register_preprocessor('DROUTE')
-class DRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
+class DRoutePreProcessor(BaseModelPreProcessor, DRouteConfigMixin):
     """
-    Preprocessor for the dRoute differentiable routing model.
+    Spatial preprocessor and configuration generator for the dRoute routing model.
 
-    Handles spatial preprocessing and network topology generation for dRoute,
-    including conversion of river network shapefiles to dRoute's Network object
-    format and pickle serialization for fast loading during model execution.
+    This preprocessor handles all spatial setup tasks required to run dRoute:
+    - Network topology loading (from mizuRoute-compatible files)
+    - Conversion to dRoute format
+    - Configuration file generation
 
-    dRoute is a differentiable routing model that can be integrated with
-    neural network training for end-to-end hydrological modeling.
+    The preprocessor can reuse existing mizuRoute topology files, enabling
+    seamless switching between routing models without re-preprocessing.
 
-    Attributes:
-        setup_dir (Path): Directory for dRoute configuration files.
-        project_dir (Path): Root project directory.
-        domain_name (str): Name of the modeling domain.
+    Supported Source Models:
+        - SUMMA: Physics-based snow hydrology
+        - FUSE: Framework for Understanding Structural Errors
+        - GR: Parsimonious hydrological models
+        - HYPE: Semi-distributed hydrological model
+        - HBV: JAX-based HBV model
+
+    Key Methods:
+        run_preprocessing(): Orchestrates all preprocessing steps
+        copy_base_settings(): Copy template files
+        setup_topology(): Load/convert network topology
+        create_config_file(): Generate dRoute configuration YAML
+
+    Configuration Dependencies:
+        Required:
+            - DOMAIN_NAME: Basin identifier
+            - EXPERIMENT_ID: Experiment identifier
+
+        Optional:
+            - SETTINGS_DROUTE_PATH: Custom setup directory
+            - DROUTE_TOPOLOGY_FILE: Topology file name (default: topology.nc)
+            - DROUTE_TOPOLOGY_FORMAT: Topology format (netcdf/geojson/csv)
+            - DROUTE_FROM_MODEL: Source model name
+
+    Example:
+        >>> config = {
+        ...     'DOMAIN_NAME': 'bow_river',
+        ...     'EXPERIMENT_ID': 'calibration_run',
+        ...     'ROUTING_MODEL': 'DROUTE',
+        ...     'droute': {'routing_method': 'muskingum_cunge'}
+        ... }
+        >>> preprocessor = DRoutePreProcessor(config, logger)
+        >>> preprocessor.run_preprocessing()
     """
 
     def _get_model_name(self) -> str:
@@ -44,163 +69,254 @@ class DRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         return "dRoute"
 
     def __init__(self, config: Dict[str, Any], logger: Any):
-        # Initialize base class (handles standard paths and directories)
+        """
+        Initialize the dRoute preprocessor.
+
+        Args:
+            config: Configuration dictionary or SymfluenceConfig object
+            logger: Logger instance for status messages
+        """
         super().__init__(config, logger)
 
         self.logger.debug(f"DRoutePreProcessor initialized. Default setup_dir: {self.setup_dir}")
+
+        # Override setup_dir if SETTINGS_DROUTE_PATH is provided
+        droute_settings_path = self.droute_settings_path
+        if droute_settings_path and droute_settings_path != 'default':
+            self.setup_dir: Path = Path(droute_settings_path)
+            self.logger.debug(f"Using custom setup_dir: {self.setup_dir}")
 
         # Ensure setup directory exists
         if not self.setup_dir.exists():
             self.logger.info(f"Creating dRoute setup directory: {self.setup_dir}")
             self.setup_dir.mkdir(parents=True, exist_ok=True)
 
+        # Initialize network adapter
+        self.network_adapter = DRouteNetworkAdapter(logger)
+
     def run_preprocessing(self):
-        """Run the complete dRoute preprocessing workflow."""
-        self.logger.info("Starting dRoute spatial preprocessing")
+        """
+        Run the complete dRoute preprocessing workflow.
 
-        if not HAS_DROUTE:
-            self.logger.error("dRoute not found. Please install it to use dRoute routing.")
-            return
+        Steps:
+        1. Copy base settings from templates
+        2. Load/setup network topology (reuse mizuRoute if available)
+        3. Convert topology to dRoute format
+        4. Generate dRoute configuration file
+        """
+        self.logger.debug("Starting dRoute spatial preprocessing")
 
-        # 1. Create or ensure topology.nc exists (can reuse mizuRoute topology if already created)
-        # We'll use the one created by mizuRoute preprocessor if available,
-        # or create a new one if it doesn't exist.
-        topology_path = self.setup_dir / self.config_dict.get('SETTINGS_MIZU_TOPOLOGY', 'topology.nc')
-
-        if not topology_path.exists():
-            self.logger.info("Creating network topology file for dRoute")
-            self._create_topology_file(topology_path)
-        else:
-            self.logger.info(f"Using existing topology file: {topology_path}")
-
-        # 2. Convert topology.nc to dRoute Network object and pickle it for fast loading
-        self._create_droute_network_pickle(topology_path)
+        self.copy_base_settings()
+        self.setup_topology()
+        self.create_config_file()
 
         self.logger.info("dRoute spatial preprocessing completed")
 
-    def _create_topology_file(self, output_path: Path):
+    def copy_base_settings(self, source_dir: Optional[Path] = None, file_patterns: Optional[list] = None):
         """
-        Create a mizuRoute-compatible topology.nc file.
-        This leverages existing logic from MizuRoutePreProcessor if possible,
-        but for simplicity here we'll implement a basic version.
-        """
-        from symfluence.models.mizuroute import MizuRoutePreProcessor
-        mizu_pre = MizuRoutePreProcessor(self.config_dict, self.logger)
-        # Override setup_dir to point to dRoute setup dir
-        mizu_pre.setup_dir = self.setup_dir
-        mizu_pre.create_network_topology_file()
+        Copy dRoute base settings from package resources.
 
-    def _create_droute_network_pickle(self, topology_path: Path):
+        If no dRoute-specific templates exist, this is a no-op since
+        dRoute generates its configuration dynamically.
         """
-        Load topology.nc and create a droute.Network object, then save as pickle.
-        """
-        self.logger.info(f"Building dRoute Network from {topology_path}")
+        if source_dir:
+            return super().copy_base_settings(source_dir, file_patterns)
 
+        self.logger.info("Setting up dRoute base configuration")
+        self.setup_dir.mkdir(parents=True, exist_ok=True)
+
+        # Check if dRoute base settings exist in resources
         try:
-            ds = xr.open_dataset(topology_path)
-
-            # Extract data
-            seg_ids = ds['segId'].values
-            down_seg_ids = ds['downSegId'].values
-            slopes = ds['slope'].values
-            lengths = ds['length'].values
-
-            # Use Manning's n from config or default
-            default_n = self.config_dict.get('DROUTE_DEFAULT_MANNING_N', 0.035)
-            if 'mann_n' in ds:
-                mann_n = ds['mann_n'].values
+            from symfluence.resources import get_base_settings_dir
+            base_settings_path = get_base_settings_dir('dRoute')
+            if base_settings_path.exists():
+                for file in os.listdir(base_settings_path):
+                    copyfile(base_settings_path / file, self.setup_dir / file)
+                self.logger.info("dRoute base settings copied")
             else:
-                mann_n = np.full(len(seg_ids), default_n)
+                self.logger.debug("No dRoute base settings found, will generate dynamically")
+        except (ImportError, FileNotFoundError):
+            self.logger.debug("No dRoute base settings available, will generate dynamically")
 
-            hru_ids = ds['hruId'].values
-            hru_to_seg = ds['hruToSegId'].values
-            hru_areas = ds['area'].values  # m²
+    def setup_topology(self):
+        """
+        Load or create network topology for dRoute.
 
-            ds.close()
+        First checks for existing mizuRoute topology file (enables reuse).
+        Falls back to creating topology from shapefiles if needed.
+        """
+        self.logger.info("Setting up dRoute network topology")
 
-            n_segs = len(seg_ids)
-            seg_id_to_idx = {int(seg_id): i for i, seg_id in enumerate(seg_ids)}
+        # Try to reuse existing mizuRoute topology
+        topology_file = self._find_existing_topology()
 
-            # Build upstream connectivity map
-            upstream_map: dict[int, list[int]] = {i: [] for i in range(n_segs)}
-            for i, down_id in enumerate(down_seg_ids):
-                down_id_int = int(down_id)
-                if down_id_int in seg_id_to_idx:
-                    down_idx = seg_id_to_idx[down_id_int]
-                    upstream_map[down_idx].append(i)
+        if topology_file:
+            self.logger.info(f"Reusing existing topology: {topology_file}")
+            self.topology_path = topology_file
+        else:
+            # Check for mizuRoute topology in standard location
+            mizu_topology = self.project_dir / 'settings' / 'mizuRoute' / 'mizuRoute_topology.nc'
+            if mizu_topology.exists():
+                self.logger.info(f"Found mizuRoute topology, will reuse: {mizu_topology}")
+                self.topology_path = mizu_topology
+            else:
+                # Need to generate topology from scratch
+                self.logger.warning(
+                    "No existing topology found. Please run mizuRoute preprocessing first "
+                    "or provide a topology file."
+                )
+                self.topology_path = None
+                return
 
-            # Build network
-            network = droute.Network()
+        # Load and convert topology
+        if self.topology_path:
+            try:
+                topology = self.network_adapter.load_topology(
+                    self.topology_path,
+                    format=self.droute_topology_format
+                )
 
-            for i in range(n_segs):
-                reach = droute.Reach()
-                reach.id = i
-                reach.length = float(lengths[i])
-                reach.slope = max(float(slopes[i]), 0.0001)
-                reach.manning_n = float(mann_n[i])
+                # Validate topology
+                is_valid, warnings = self.network_adapter.validate_topology(topology)
+                for warning in warnings:
+                    self.logger.warning(f"Topology validation: {warning}")
 
-                # Default geometry (power law) - can be made configurable
-                reach.geometry.width_coef = self.config_dict.get('DROUTE_WIDTH_COEF', 7.2)
-                reach.geometry.width_exp = self.config_dict.get('DROUTE_WIDTH_EXP', 0.5)
-                reach.geometry.depth_coef = self.config_dict.get('DROUTE_DEPTH_COEF', 0.27)
-                reach.geometry.depth_exp = self.config_dict.get('DROUTE_DEPTH_EXP', 0.3)
+                if not is_valid:
+                    self.logger.error("Topology validation failed with errors")
 
-                reach.upstream_junction_id = i
-                down_id = int(down_seg_ids[i])
-                if down_id in seg_id_to_idx:
-                    reach.downstream_junction_id = seg_id_to_idx[down_id]
-                else:
-                    reach.downstream_junction_id = -1  # Outlet
+                # Convert to dRoute format
+                self.droute_network = self.network_adapter.to_droute_format(
+                    topology,
+                    routing_method=self.droute_routing_method,
+                    routing_dt=self.droute_routing_dt
+                )
 
-                network.add_reach(reach)
+                self.logger.info(
+                    f"Topology loaded: {self.droute_network['n_segments']} segments, "
+                    f"{len(self.droute_network['outlet_indices'])} outlets"
+                )
 
-            for i in range(n_segs):
-                junc = droute.Junction()
-                junc.id = i
-                junc.upstream_reach_ids = upstream_map[i]
-                junc.downstream_reach_ids = [i]
-                network.add_junction(junc)
+            except Exception as e:
+                self.logger.error(f"Error loading topology: {e}")
+                self.droute_network = None
 
-            network.build_topology()
+    def _find_existing_topology(self) -> Optional[Path]:
+        """
+        Find existing topology file in standard locations.
 
-            # Create HRU ID to segment index mapping
-            hru_to_seg_idx = {}
-            for i, hru_id in enumerate(hru_ids):
-                seg_id = int(hru_to_seg[i])
-                if seg_id in seg_id_to_idx:
-                    hru_to_seg_idx[int(hru_id)] = seg_id_to_idx[seg_id]
+        Returns:
+            Path to topology file if found, None otherwise
+        """
+        # Check dRoute settings directory
+        droute_topology = self.setup_dir / self.droute_topology_file
+        if droute_topology.exists():
+            return droute_topology
 
-            # Create area array indexed by reach index
-            seg_areas = np.zeros(n_segs)
-            for i, hru_id in enumerate(hru_ids):
-                seg_id = int(hru_to_seg[i])
-                if seg_id in seg_id_to_idx:
-                    seg_idx = seg_id_to_idx[seg_id]
-                    seg_areas[seg_idx] = hru_areas[i]
+        # Check for specified path in config
+        config_topology = self.config_dict.get('DROUTE_TOPOLOGY_PATH')
+        if config_topology and config_topology != 'default':
+            path = Path(config_topology)
+            if path.exists():
+                return path
 
-            # Find outlet index
-            outlet_idx = 0
-            for i, down_id in enumerate(down_seg_ids):
-                if int(down_id) not in seg_id_to_idx:
-                    outlet_idx = i
-                    break
+        return None
 
-            # Metadata for the runner
-            network_data = {
-                'network': network,
-                'seg_areas': seg_areas,
-                'outlet_idx': outlet_idx,
-                'hru_to_seg_idx': hru_to_seg_idx,
-                'hru_ids': hru_ids,
-                'seg_ids': seg_ids
-            }
+    def create_config_file(self):
+        """
+        Generate dRoute configuration YAML file.
 
-            pickle_path = self.setup_dir / 'dRoute_network.pkl'
-            with open(pickle_path, 'wb') as f:
-                pickle.dump(network_data, f)
+        Creates a configuration file that specifies:
+        - Network topology reference
+        - Routing method and parameters
+        - Input/output paths
+        - AD/gradient settings if enabled
+        """
+        self.logger.info("Creating dRoute configuration file")
 
-            self.logger.info(f"dRoute Network pickled to {pickle_path}")
+        if not hasattr(self, 'droute_network') or self.droute_network is None:
+            self.logger.warning("Cannot create config file: topology not loaded")
+            return
 
-        except Exception as e:
-            self.logger.error(f"Error creating dRoute network pickle: {e}")
-            raise
+        # Build configuration
+        config = {
+            'simulation': {
+                'experiment_id': self.experiment_id,
+                'domain_name': self.domain_name,
+            },
+            'routing': {
+                'method': self.droute_routing_method,
+                'dt': self.droute_routing_dt,
+            },
+            'paths': {
+                'topology_file': str(self.topology_path) if self.topology_path else 'topology.nc',
+                'input_dir': str(self._get_input_dir()),
+                'output_dir': str(self._get_output_dir()),
+            },
+            'options': {
+                'enable_gradients': self.droute_enable_gradients,
+                'ad_backend': self.droute_ad_backend if self.droute_enable_gradients else None,
+            },
+        }
+
+        # Write network configuration separately
+        network_config_path = self.setup_dir / 'droute_network.yaml'
+        self.network_adapter.write_droute_config(self.droute_network, network_config_path)
+
+        # Write main configuration
+        config_path = self.setup_dir / self.droute_config_file
+        try:
+            import yaml
+            with open(config_path, 'w') as f:
+                yaml.dump(config, f, default_flow_style=False)
+            self.logger.info(f"dRoute config written to {config_path}")
+        except ImportError:
+            # Fallback: write as simple text format
+            self._write_config_fallback(config, config_path)
+
+    def _write_config_fallback(self, config: Dict[str, Any], path: Path):
+        """Write config as simple text if YAML not available."""
+        with open(path, 'w') as f:
+            f.write("# dRoute Configuration\n")
+            f.write("# Generated by SYMFLUENCE\n\n")
+
+            def write_section(section_name, section_data, indent=0):
+                prefix = "  " * indent
+                f.write(f"{prefix}{section_name}:\n")
+                for key, value in section_data.items():
+                    if isinstance(value, dict):
+                        write_section(key, value, indent + 1)
+                    else:
+                        f.write(f"{prefix}  {key}: {value}\n")
+
+            for section, data in config.items():
+                write_section(section, data)
+
+        self.logger.info(f"dRoute config written to {path} (text format)")
+
+    def _get_input_dir(self) -> Path:
+        """Get input directory for runoff data from source model."""
+        from_model = self.droute_from_model.upper()
+        if from_model == 'DEFAULT':
+            # Try to detect from config
+            hydro_model = self.config_dict.get('HYDROLOGICAL_MODEL', 'SUMMA')
+            if ',' in str(hydro_model):
+                from_model = str(hydro_model).split(',')[0].strip().upper()
+            else:
+                from_model = str(hydro_model).strip().upper()
+
+        experiment_output = self.config_dict.get(f'EXPERIMENT_OUTPUT_{from_model}')
+        if experiment_output and experiment_output != 'default':
+            return Path(experiment_output)
+
+        return self.project_dir / f"simulations/{self.experiment_id}" / from_model
+
+    def _get_output_dir(self) -> Path:
+        """Get output directory for routed streamflow."""
+        droute_output = self.droute_experiment_output
+        if droute_output and droute_output != 'default':
+            return Path(droute_output)
+
+        return self.project_dir / f"simulations/{self.experiment_id}" / 'dRoute'
+
+
+__all__ = ['DRoutePreProcessor']

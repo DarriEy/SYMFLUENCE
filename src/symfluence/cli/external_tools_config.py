@@ -109,9 +109,9 @@ cmake --build . --target install -j ${NCORES:-4}
         'test_command': None,
         'verify_install': {
             'file_paths': [
-                'lib64/libsundials_core.a',
-                'lib/libsundials_core.a',
-                'include/sundials/sundials_config.h'
+                'install/sundials/lib64/libsundials_core.a',
+                'install/sundials/lib/libsundials_core.a',
+                'install/sundials/include/sundials/sundials_config.h'
             ],
             'check_type': 'exists_any'
         },
@@ -136,15 +136,38 @@ cmake --build . --target install -j ${NCORES:-4}
 # Build TauDEM from GitHub repository
 set -e
 
-# Use OpenMPI compiler wrappers so CMake/FindMPI can auto-detect everything
-export CC=mpicc
-export CXX=mpicxx
+# On Compute Canada HPC, OpenMPI has broken Level Zero dependency through hwloc.
+# The Level Zero library doesn't exist but hwloc was built with it enabled.
+# Solution: Use --allow-shlib-undefined to ignore missing symbols in shared libs.
+CMAKE_MPI_FLAGS=""
+if [ -d "/cvmfs/soft.computecanada.ca" ]; then
+    echo "Detected Compute Canada HPC environment"
+
+    # Use system gcc/g++ to avoid broken mpicc dependency chain
+    export CC=gcc
+    export CXX=g++
+
+    # Tell linker to allow undefined symbols in shared libraries
+    # This works around the missing libze_loader.so that hwloc wants
+    export LDFLAGS="-Wl,--allow-shlib-undefined ${LDFLAGS:-}"
+
+    # Tell cmake where MPI is
+    MPI_ROOT=$(dirname $(dirname $(which mpicc 2>/dev/null))) || true
+    if [ -n "$MPI_ROOT" ] && [ -d "$MPI_ROOT" ]; then
+        echo "Found MPI at: $MPI_ROOT"
+        CMAKE_MPI_FLAGS="-DMPI_HOME=$MPI_ROOT -DCMAKE_EXE_LINKER_FLAGS=-Wl,--allow-shlib-undefined -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--allow-shlib-undefined"
+    fi
+else
+    # On other systems, mpicc/mpicxx as CC/CXX works fine
+    export CC=mpicc
+    export CXX=mpicxx
+fi
 
 rm -rf build && mkdir -p build
 cd build
 
 # Let CMake find MPI and GDAL
-cmake -S .. -B . -DCMAKE_BUILD_TYPE=Release
+cmake -S .. -B . -DCMAKE_BUILD_TYPE=Release $CMAKE_MPI_FLAGS
 
 # Build everything plus the two tools that sometimes get skipped by default
 cmake --build . -j 2
@@ -153,6 +176,10 @@ cmake --build . --target moveoutletstostreams gagewatershed -j 2 || true
 echo "Staging executables..."
 mkdir -p ../bin
 
+# Debug: show what was built
+echo "Files in build directory:"
+find . -type f -executable 2>/dev/null | head -20 || find . -type f -perm +111 2>/dev/null | head -20 || ls -la
+
 # List of expected TauDEM tools (superset — some may not exist on older commits)
 tools="pitremove d8flowdir d8converge dinfconverge dinfflowdir aread8 areadinf threshold
        streamnet slopearea gridnet peukerdouglas lengtharea moveoutletstostreams gagewatershed"
@@ -160,18 +187,26 @@ tools="pitremove d8flowdir d8converge dinfconverge dinfflowdir aread8 areadinf t
 copied=0
 for exe in $tools;
   do
-  # Find anywhere under build tree and copy if executable
-  p="$(find . -type f -perm -111 -name "$exe" | head -n1 || true)"
-  if [ -n "$p" ]; then
+  # Find anywhere under build tree and copy if executable (try multiple find syntaxes)
+  p="$(find . -type f -executable -name "$exe" 2>/dev/null | head -n1)" || \
+  p="$(find . -type f -perm +111 -name "$exe" 2>/dev/null | head -n1)" || \
+  p="$(find . -type f -name "$exe" 2>/dev/null | head -n1)" || true
+  if [ -n "$p" ] && [ -f "$p" ]; then
     cp -f "$p" ../bin/
+    chmod +x ../bin/$exe
     copied=$((copied+1))
+    echo "  Copied: $exe"
   fi
 done
 
+echo "Copied $copied executables"
+
 # Final sanity
 ls -la ../bin/ || true
-if [ ! -x "../bin/pitremove" ] || [ ! -x "../bin/streamnet" ]; then
+if [ ! -f "../bin/pitremove" ] || [ ! -f "../bin/streamnet" ]; then
   echo "TauDEM stage failed: core binaries missing" >&2
+  echo "Build directory contents:"
+  find . -name "pitremove" -o -name "streamnet" 2>/dev/null || true
   exit 1
 fi
 echo "TauDEM executables staged"
@@ -303,6 +338,8 @@ def _import_model_build_instructions() -> None:
     model_modules = [
         'symfluence.models.summa.build_instructions',
         'symfluence.models.fuse.build_instructions',
+        'symfluence.models.cfuse.build_instructions',
+        'symfluence.models.droute.build_instructions',
         'symfluence.models.mizuroute.build_instructions',
         'symfluence.models.troute.build_instructions',
         'symfluence.models.ngen.build_instructions',

@@ -262,30 +262,105 @@ class PathResolverMixin(ConfigurableMixin):
             must_exist=must_exist
         )
 
+    def _get_catchment_file_path(
+        self,
+        catchment_name: Optional[str] = None
+    ) -> Path:
+        """
+        Resolve catchment shapefile path with backward compatibility.
+
+        Checks for existing file in the legacy location first, then returns
+        the new organized path if not found.
+
+        The new path structure includes domain_definition_method and experiment_id:
+            shapefiles/catchment/{domain_definition_method}/{experiment_id}/
+
+        For backward compatibility:
+            - If file exists at old path (shapefiles/catchment/), use that
+            - Otherwise use new organized path
+
+        Args:
+            catchment_name: Optional catchment shapefile name. If None,
+                           constructs default name from domain and discretization.
+
+        Returns:
+            Full path to the catchment shapefile
+        """
+        # Construct catchment name if not provided
+        if catchment_name is None or catchment_name == 'default':
+            catchment_name = self.config_dict.get('CATCHMENT_SHP_NAME')
+
+        if catchment_name is None or catchment_name == 'default':
+            discretization = self.domain_discretization
+            # Handle comma-separated attributes for output filename
+            if "," in discretization:
+                method_suffix = discretization.replace(",", "_")
+            else:
+                method_suffix = discretization
+            catchment_name = f"{self.domain_name}_HRUs_{method_suffix}.shp"
+
+        # Check old path first for backward compatibility
+        old_path = self.project_dir / "shapefiles" / "catchment" / catchment_name
+        if old_path.exists():
+            return old_path
+
+        # Return new organized path
+        new_path = (
+            self.project_dir / "shapefiles" / "catchment" /
+            self.domain_definition_method / self.experiment_id / catchment_name
+        )
+        return new_path
+
     def _get_method_suffix(self) -> str:
         """
-        Standardized method for getting the delineation suffix for filenames.
-        Uses typed config for DOMAIN_DEFINITION_METHOD with special handling for 'subset'.
+        Get delineation suffix encoding all relevant configuration.
+
+        Returns unique suffixes based on definition method and associated options:
+
+        | Method           | Subset | Grid Source | Suffix                              |
+        |------------------|--------|-------------|-------------------------------------|
+        | point            | —      | —           | point                               |
+        | lumped           | false  | —           | lumped                              |
+        | lumped           | true   | —           | lumped_subset_{geofabric}           |
+        | semidistributed  | false  | —           | semidistributed                     |
+        | semidistributed  | true   | —           | semidistributed_subset_{geofabric}  |
+        | distributed      | false  | generate    | distributed_{cellsize}m             |
+        | distributed      | true   | —           | distributed_subset_{geofabric}      |
+        | distributed      | —      | native      | distributed_native_{dataset}        |
         """
-        # Prioritize pre-resolved attribute if available (in BaseModelPreProcessor)
-        method = getattr(self, 'domain_definition_method', None)
+        cfg = self.config
+        if cfg is None:
+            return 'semidistributed'
 
-        if method is None:
-            # Get from typed config
-            cfg = self.config
-            if cfg is not None:
-                method = cfg.domain.definition_method or 'delineate'
-            else:
-                method = 'delineate'
+        method = cfg.domain.definition_method or 'semidistributed'
+        subset = getattr(cfg.domain, 'subset_from_geofabric', False)
+        grid_source = getattr(cfg.domain, 'grid_source', 'generate')
+        geofabric_type = cfg.domain.delineation.geofabric_type or 'na'
+        grid_cell_size = int(cfg.domain.grid_cell_size)
+        native_dataset = getattr(cfg.domain, 'native_grid_dataset', 'era5')
 
-        if method == 'subset':
-            # Get geofabric_type from typed config
-            cfg = self.config
-            geofabric_type = 'na'
-            if cfg is not None:
-                geofabric_type = cfg.domain.delineation.geofabric_type or 'na'
-            if geofabric_type != 'na':
-                return f"subset_{geofabric_type}"
-            return "subset"
+        # Point method - simple suffix
+        if method == 'point':
+            return 'point'
+
+        # Lumped method
+        if method == 'lumped':
+            if subset:
+                return f"lumped_subset_{geofabric_type}"
+            return 'lumped'
+
+        # Semi-distributed method
+        if method == 'semidistributed':
+            if subset:
+                return f"semidistributed_subset_{geofabric_type}"
+            return 'semidistributed'
+
+        # Distributed method
+        if method == 'distributed':
+            if subset:
+                return f"distributed_subset_{geofabric_type}"
+            if grid_source == 'native':
+                return f"distributed_native_{native_dataset}"
+            return f"distributed_{grid_cell_size}m"
 
         return method

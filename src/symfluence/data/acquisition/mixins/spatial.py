@@ -50,8 +50,8 @@ class SpatialSubsetMixin:
         lat_name = None
         lon_name = None
 
-        # Check both coords and dims
-        all_names = set(ds.coords.keys()) | set(ds.dims.keys())
+        # Check both coords and sizes (dims is deprecated for returning keys)
+        all_names = set(ds.coords.keys()) | set(ds.sizes.keys())
 
         for candidate in lat_candidates:
             if candidate in all_names:

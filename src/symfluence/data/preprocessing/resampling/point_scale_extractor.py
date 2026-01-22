@@ -123,8 +123,7 @@ class PointScaleForcingExtractor(ConfigMixin):
         self,
         forcing_files: List[Path],
         output_dir: Path,
-        catchment_path: Path,
-        catchment_name: str,
+        catchment_file_path: Path,
         output_filename_func
     ) -> None:
         """
@@ -133,8 +132,7 @@ class PointScaleForcingExtractor(ConfigMixin):
         Args:
             forcing_files: List of forcing files to process
             output_dir: Output directory for processed files
-            catchment_path: Path to catchment shapefile directory
-            catchment_name: Name of catchment shapefile
+            catchment_file_path: Full path to catchment shapefile (resolved by caller)
             output_filename_func: Function to determine output filename
         """
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -146,7 +144,7 @@ class PointScaleForcingExtractor(ConfigMixin):
         intersect_csv = intersect_path / f"{case_name}_intersected_shapefile.csv"
 
         if not intersect_csv.exists():
-            self._create_intersection_csv(intersect_csv, catchment_path, catchment_name)
+            self._create_intersection_csv(intersect_csv, catchment_file_path)
 
         # Process each file
         for file in forcing_files:
@@ -159,14 +157,12 @@ class PointScaleForcingExtractor(ConfigMixin):
     def _create_intersection_csv(
         self,
         intersect_csv: Path,
-        catchment_path: Path,
-        catchment_name: str
+        catchment_file_path: Path
     ) -> None:
         """Create minimal intersection artifact for SUMMA preprocessor."""
         self.logger.info(f"Creating minimal intersection artifact: {intersect_csv.name}")
 
-        target_shp_path = catchment_path / catchment_name
-        target_gdf = gpd.read_file(target_shp_path)
+        target_gdf = gpd.read_file(catchment_file_path)
         hru_id_field = self._get_config_value(lambda: self.config.paths.catchment_hruid, dict_key='CATCHMENT_SHP_HRUID')
 
         hru_id_field_val = target_gdf[hru_id_field].values

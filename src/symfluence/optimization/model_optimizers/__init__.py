@@ -26,13 +26,16 @@ def _register_optimizers():
         'summa',
         'fuse',
         'gr',
+        'hbv',
         'hype',
         'mesh',
         'gnn',
         'lstm',
         'rhessys',
         'mizuroute',
-        'troute'
+        'troute',
+        'jfuse',
+        'cfuse',
     ]
 
     for model in models:

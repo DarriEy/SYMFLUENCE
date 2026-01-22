@@ -265,7 +265,7 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
         chunk_files = []
 
         # Default to parallel processing if not specified
-        n_workers_cfg = self._get_config_value(lambda: self.config.system.mpi_processes)
+        n_workers_cfg = self._get_config_value(lambda: self.config.system.num_processes)
         if n_workers_cfg is not None:
             n_workers = int(n_workers_cfg)
         else:

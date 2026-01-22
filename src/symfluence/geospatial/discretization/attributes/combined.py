@@ -51,13 +51,14 @@ def discretize(discretizer: "DomainDiscretizer", attributes: List[str]):
         default_name=default_name,
     )
 
-    # Generate output filename
+    # Generate output filename with backward-compatible catchment subpath
     method_suffix = "_".join(attributes)
+    default_name = f"{discretizer.domain_name}_HRUs_{method_suffix}.shp"
     output_shapefile = discretizer._get_file_path(
         path_key="CATCHMENT_PATH",
         name_key="CATCHMENT_SHP_NAME",
-        default_subpath="shapefiles/catchment",
-        default_name=f"{discretizer.domain_name}_HRUs_{method_suffix}.shp",
+        default_subpath=discretizer._get_catchment_subpath(default_name),
+        default_name=default_name,
     )
 
     # Get raster paths and thresholds for each attribute

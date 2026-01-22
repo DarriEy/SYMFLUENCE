@@ -47,6 +47,22 @@ set -e
 export SUNDIALS_DIR="$(realpath ../sundials/install/sundials)"
 echo "Using SUNDIALS from: $SUNDIALS_DIR"
 
+# Ensure NetCDF paths are set correctly for CMake
+# CMAKE_PREFIX_PATH helps CMake find NetCDF libraries
+if [ -n "$CONDA_PREFIX" ]; then
+    export CMAKE_PREFIX_PATH="${CONDA_PREFIX}:${CMAKE_PREFIX_PATH:-}"
+    export NETCDF="${NETCDF:-$CONDA_PREFIX}"
+    export NETCDF_FORTRAN="${NETCDF_FORTRAN:-$CONDA_PREFIX}"
+    echo "Using conda NetCDF at: $NETCDF"
+fi
+
+# Validate NetCDF installation
+if [ ! -f "${NETCDF}/include/netcdf.h" ] && [ ! -f "${NETCDF}/include/netcdf.inc" ]; then
+    echo "WARNING: NetCDF headers not found at ${NETCDF}/include"
+    echo "Available in CONDA_PREFIX:"
+    ls -la "${CONDA_PREFIX}/include" 2>/dev/null | head -10 || true
+fi
+
 # Determine LAPACK strategy based on platform
 SPECIFY_LINKS=OFF
 
@@ -76,10 +92,11 @@ cmake -S build -B cmake_build \
   -DUSE_SUNDIALS=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DSPECIFY_LAPACK_LINKS=$SPECIFY_LINKS \
-  -DCMAKE_PREFIX_PATH="$SUNDIALS_DIR" \
+  -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-$SUNDIALS_DIR}" \
   -DSUNDIALS_ROOT="$SUNDIALS_DIR" \
   -DNETCDF_PATH="${NETCDF:-/usr}" \
   -DNETCDF_FORTRAN_PATH="${NETCDF_FORTRAN:-/usr}" \
+  -DNetCDF_ROOT="${NETCDF:-/usr}" \
   -DCMAKE_Fortran_COMPILER="$FC" \
   -DCMAKE_Fortran_FLAGS="-ffree-form -ffree-line-length-none"
 

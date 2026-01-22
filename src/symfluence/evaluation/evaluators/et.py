@@ -150,7 +150,8 @@ class ETEvaluator(ModelEvaluator):
         # Determine ET variable type from config
         self.optimization_target = self._get_config_value(
             lambda: self.config.optimization.target,
-            default='streamflow'
+            default='streamflow',
+            dict_key='OPTIMIZATION_TARGET'
         )
         if self.optimization_target not in ['et', 'latent_heat']:
             eval_var = self.config_dict.get('EVALUATION_VARIABLE', '')
@@ -289,6 +290,13 @@ class ETEvaluator(ModelEvaluator):
 
             # Convert units: SUMMA outputs kg m-2 s-1, convert to mm/day
             sim_data = self._convert_et_units(sim_data, from_unit='kg_m2_s', to_unit='mm_day')
+
+            # SUMMA uses opposite sign convention for ET:
+            # SUMMA: negative = evaporation (water leaving surface)
+            # FLUXNET/standard: positive = evaporation
+            # Negate to match observation convention
+            sim_data = -sim_data
+
             return sim_data
         else:
             return self._sum_et_components(ds)
@@ -359,6 +367,10 @@ class ETEvaluator(ModelEvaluator):
 
             sim_data = total_et.to_pandas()
             sim_data = self._convert_et_units(sim_data, from_unit='kg_m2_s', to_unit='mm_day')
+
+            # SUMMA uses opposite sign convention for ET - negate to match observations
+            sim_data = -sim_data
+
             return sim_data
         except Exception as e:
             self.logger.error(f"Error summing ET components: {str(e)}")
@@ -415,6 +427,13 @@ class ETEvaluator(ModelEvaluator):
                 sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
 
             sim_data = cast(pd.Series, sim_xr.to_pandas())
+
+            # SUMMA uses opposite sign convention for latent heat:
+            # SUMMA: negative = energy leaving surface (evaporation)
+            # FLUXNET/standard: positive = energy leaving surface
+            # Negate to match observation convention
+            sim_data = -sim_data
+
             return sim_data
         else:
             raise ValueError("scalarLatHeatTotal not found in SUMMA output")
@@ -687,6 +706,19 @@ class ETEvaluator(ModelEvaluator):
                     if data_col:
                         obs_data = pd.to_numeric(obs_df[data_col], errors='coerce')
                         obs_data = obs_data.dropna()
+                        # Resample sub-daily data to daily (e.g., FLUXNET half-hourly)
+                        if len(obs_data) > 0:
+                            freq = pd.infer_freq(obs_data.index)
+                            is_sub_daily = freq and any(x in str(freq) for x in ['H', 'T', 'min', 'S', 'h'])
+                            if not is_sub_daily:
+                                days_span = (obs_data.index.max() - obs_data.index.min()).days + 1
+                                if days_span > 0 and len(obs_data) / days_span > 1.5:
+                                    is_sub_daily = True
+                            if is_sub_daily:
+                                if self.temporal_aggregation == 'daily_mean':
+                                    obs_data = obs_data.resample('D').mean().dropna()
+                                elif self.temporal_aggregation == 'daily_sum':
+                                    obs_data = obs_data.resample('D').sum().dropna()
                         self.logger.info(f"Loaded {len(obs_data)} ET observations from {obs_path.name}")
                         return obs_data
             except Exception:

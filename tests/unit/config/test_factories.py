@@ -46,14 +46,14 @@ class TestFromMinimalFactory:
             EXPERIMENT_TIME_START='2020-01-01 00:00',
             EXPERIMENT_TIME_END='2020-12-31 23:00',
             POUR_POINT_COORDS='40.5/-111.0',
-            MPI_PROCESSES=8
+            NUM_PROCESSES=8
         )
 
         assert config.domain.name == 'test_basin'
         assert config.model.hydrological_model == 'FUSE'
         assert config.forcing.dataset == 'NLDAS'
         assert config.domain.pour_point_coords == '40.5/-111.0'
-        assert config.system.mpi_processes == 8
+        assert config.system.num_processes == 8
 
     def test_minimal_config_missing_required_fields(self):
         """Test that minimal config raises error if required fields missing"""
@@ -109,7 +109,7 @@ EXPERIMENT_ID: run_1
 EXPERIMENT_TIME_START: "2020-01-01 00:00"
 EXPERIMENT_TIME_END: "2020-12-31 23:00"
 DOMAIN_DEFINITION_METHOD: lumped
-DOMAIN_DISCRETIZATION: lumped
+SUB_GRID_DISCRETIZATION: lumped
 HYDROLOGICAL_MODEL: SUMMA
 FORCING_DATASET: ERA5
 """
@@ -133,21 +133,21 @@ EXPERIMENT_ID: run_1
 EXPERIMENT_TIME_START: "2020-01-01 00:00"
 EXPERIMENT_TIME_END: "2020-12-31 23:00"
 DOMAIN_DEFINITION_METHOD: lumped
-DOMAIN_DISCRETIZATION: lumped
+SUB_GRID_DISCRETIZATION: lumped
 HYDROLOGICAL_MODEL: SUMMA
 FORCING_DATASET: ERA5
-MPI_PROCESSES: 1
+NUM_PROCESSES: 1
 """
         config_path = self.create_temp_config(yaml_content)
 
         try:
             config = SymfluenceConfig.from_file(
                 config_path,
-                overrides={'MPI_PROCESSES': 8, 'DEBUG_MODE': True}
+                overrides={'NUM_PROCESSES': 8, 'DEBUG_MODE': True}
             )
 
             # Override should take precedence
-            assert config.system.mpi_processes == 8
+            assert config.system.num_processes == 8
             assert config.system.debug_mode is True
 
             # File values should still be present
@@ -168,21 +168,21 @@ EXPERIMENT_ID: run_1
 EXPERIMENT_TIME_START: "2020-01-01 00:00"
 EXPERIMENT_TIME_END: "2020-12-31 23:00"
 DOMAIN_DEFINITION_METHOD: lumped
-DOMAIN_DISCRETIZATION: lumped
+SUB_GRID_DISCRETIZATION: lumped
 HYDROLOGICAL_MODEL: SUMMA
 FORCING_DATASET: ERA5
-MPI_PROCESSES: 1
+NUM_PROCESSES: 1
 """
         config_path = self.create_temp_config(yaml_content)
 
         try:
             # Set environment variable
-            monkeypatch.setenv('SYMFLUENCE_MPI_PROCESSES', '16')
+            monkeypatch.setenv('SYMFLUENCE_NUM_PROCESSES', '16')
 
             config = SymfluenceConfig.from_file(config_path, use_env=True)
 
             # Environment variable should override file value
-            assert config.system.mpi_processes == 16
+            assert config.system.num_processes == 16
         finally:
             config_path.unlink()
 
@@ -223,12 +223,12 @@ class TestFromPresetFactory:
                 DOMAIN_NAME='custom_basin',
                 EXPERIMENT_TIME_START='2020-01-01 00:00',
                 EXPERIMENT_TIME_END='2020-12-31 23:00',
-                MPI_PROCESSES=16
+                NUM_PROCESSES=16
             )
 
             # Overrides should take precedence
             assert config.domain.name == 'custom_basin'
-            assert config.system.mpi_processes == 16
+            assert config.system.num_processes == 16
 
         except (ConfigurationError, ValueError) as e:
             if "not found" in str(e).lower():

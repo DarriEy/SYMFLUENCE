@@ -21,7 +21,7 @@ class TestDictLikeAccess:
             system=SystemConfig(
                 SYMFLUENCE_DATA_DIR=Path('/data'),
                 SYMFLUENCE_CODE_DIR=Path('/code'),
-                MPI_PROCESSES=4,
+                NUM_PROCESSES=4,
                 DEBUG_MODE=True
             ),
             domain=DomainConfig(
@@ -30,7 +30,7 @@ class TestDictLikeAccess:
                 EXPERIMENT_TIME_START='2020-01-01 00:00',
                 EXPERIMENT_TIME_END='2020-12-31 23:00',
                 DOMAIN_DEFINITION_METHOD='lumped',
-                DOMAIN_DISCRETIZATION='lumped'
+                SUB_GRID_DISCRETIZATION='lumped'
             ),
             forcing=ForcingConfig(
                 FORCING_DATASET='ERA5'
@@ -51,7 +51,7 @@ class TestDictLikeAccess:
         """Test bracket access to system fields"""
         assert str(sample_config['SYMFLUENCE_DATA_DIR']) == '/data'
         assert str(sample_config['SYMFLUENCE_CODE_DIR']) == '/code'
-        assert sample_config['MPI_PROCESSES'] == 4
+        assert sample_config['NUM_PROCESSES'] == 4
         assert sample_config['DEBUG_MODE'] is True
 
     def test_getitem_raises_keyerror_for_missing(self, sample_config):
@@ -96,7 +96,7 @@ class TestToDictMethod:
             system=SystemConfig(
                 SYMFLUENCE_DATA_DIR=Path('/data'),
                 SYMFLUENCE_CODE_DIR=Path('/code'),
-                MPI_PROCESSES=4
+                NUM_PROCESSES=4
             ),
             domain=DomainConfig(
                 DOMAIN_NAME='test_basin',
@@ -104,7 +104,7 @@ class TestToDictMethod:
                 EXPERIMENT_TIME_START='2020-01-01 00:00',
                 EXPERIMENT_TIME_END='2020-12-31 23:00',
                 DOMAIN_DEFINITION_METHOD='lumped',
-                DOMAIN_DISCRETIZATION='lumped'
+                SUB_GRID_DISCRETIZATION='lumped'
             ),
             forcing=ForcingConfig(
                 FORCING_DATASET='ERA5'
@@ -129,7 +129,7 @@ class TestToDictMethod:
         # Should have correct values
         assert flat['DOMAIN_NAME'] == 'test_basin'
         assert flat['FORCING_DATASET'] == 'ERA5'
-        assert flat['MPI_PROCESSES'] == 4
+        assert flat['NUM_PROCESSES'] == 4
 
         # Paths should be strings
         assert isinstance(flat['SYMFLUENCE_DATA_DIR'], str)
@@ -168,7 +168,7 @@ class TestToDictMethod:
         # Values from bracket access should match to_dict()
         assert sample_config['DOMAIN_NAME'] == flat_from_to_dict['DOMAIN_NAME']
         assert sample_config['FORCING_DATASET'] == flat_from_to_dict['FORCING_DATASET']
-        assert sample_config['MPI_PROCESSES'] == flat_from_to_dict['MPI_PROCESSES']
+        assert sample_config['NUM_PROCESSES'] == flat_from_to_dict['NUM_PROCESSES']
 
 
 class TestBackwardCompatibilityPatterns:
@@ -188,7 +188,7 @@ class TestBackwardCompatibilityPatterns:
                 EXPERIMENT_TIME_START='2020-01-01 00:00',
                 EXPERIMENT_TIME_END='2020-12-31 23:00',
                 DOMAIN_DEFINITION_METHOD='lumped',
-                DOMAIN_DISCRETIZATION='lumped',
+                SUB_GRID_DISCRETIZATION='lumped',
                 POUR_POINT_COORDS='51.17/-115.57'
             ),
             forcing=ForcingConfig(

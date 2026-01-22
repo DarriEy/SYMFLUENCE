@@ -38,7 +38,7 @@ def lumped_config(tmp_path):
         'SYMFLUENCE_DATA_DIR': str(tmp_path),
         'DOMAIN_NAME': 'test_lumped',
         'DOMAIN_DEFINITION_METHOD': 'lumped',
-        'DOMAIN_DISCRETIZATION': 'lumped',
+        'SUB_GRID_DISCRETIZATION': 'lumped',
         'CATCHMENT_PATH': 'default',
         'CATCHMENT_SHP_NAME': 'default',
         'CATCHMENT_SHP_HRUID': 'HRU_ID'
@@ -52,7 +52,7 @@ def distributed_config(tmp_path):
         'SYMFLUENCE_DATA_DIR': str(tmp_path),
         'DOMAIN_NAME': 'test_distributed',
         'DOMAIN_DEFINITION_METHOD': 'distributed',
-        'DOMAIN_DISCRETIZATION': 'distributed_5',
+        'SUB_GRID_DISCRETIZATION': 'distributed_5',
         'CATCHMENT_PATH': 'default',
         'CATCHMENT_SHP_NAME': 'default',
         'CATCHMENT_SHP_HRUID': 'HRU_ID'

@@ -48,9 +48,12 @@ class MESHParameterManager(BaseParameterManager):
         self.routing_params_file = self.mesh_settings_dir / 'MESH_parameters.txt'
 
         # Map parameters to files
+        # NOTE: meshflow creates MESH_parameters_hydrology.ini with ZSNL, ZPLS, ZPLG, MANN in .ini format
+        # The old CLASS file is in a different format, so calibratable params go in hydrology file
         self.param_file_map = {
-            'ZSNL': 'CLASS', 'ZPLG': 'CLASS', 'ZPLS': 'CLASS',
-            'FRZTH': 'CLASS', 'MANN': 'CLASS',
+            'ZSNL': 'hydrology', 'ZPLG': 'hydrology', 'ZPLS': 'hydrology',
+            'FRZTH': 'CLASS',
+            'MANN': 'hydrology',
             'RCHARG': 'hydrology', 'DRAINFRAC': 'hydrology', 'BASEFLW': 'hydrology',
             'DTMINUSR': 'routing',  # In main MESH_parameters.txt
         }
@@ -174,7 +177,7 @@ class MESHParameterManager(BaseParameterManager):
                     return content[match.start():match.start(2)].replace(match.group(2), "") + f"{value:.6f}"
 
                 # Simpler replacement to avoid preservation complexity if it's tricky
-                content, n = re.subn(pattern, lambda m: m.group(1).decode('utf-8') + " " + f"{value:.6f}", content, count=1, flags=re.IGNORECASE)
+                content, n = re.subn(pattern, lambda m: m.group(1) + " " + f"{value:.6f}", content, count=1, flags=re.IGNORECASE)
 
                 if n > 0:
                     updated += 1

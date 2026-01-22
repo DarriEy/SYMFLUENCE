@@ -65,7 +65,7 @@ from .gr_calibration_targets import GRStreamflowTarget
 from .hype_calibration_targets import HYPEStreamflowTarget
 from .rhessys_calibration_targets import RHESSysStreamflowTarget
 from .ngen_calibration_targets import NgenStreamflowTarget
-# from .fuse_calibration_targets import FUSEStreamflowTarget, FUSESnowTarget  # REMOVED to break circular import
+# FUSE targets: Use create_calibration_target() or import directly from .fuse_calibration_targets
 
 
 # =========================================================================
@@ -83,6 +83,10 @@ _DEFAULT_TARGETS: Dict[str, Type[CalibrationTarget]] = {
     'gw': GroundwaterTarget,
     'soil_moisture': SoilMoistureTarget,
     'sm': SoilMoistureTarget,
+    'sm_point': SoilMoistureTarget,
+    'sm_smap': SoilMoistureTarget,
+    'sm_ismn': SoilMoistureTarget,
+    'sm_esa': SoilMoistureTarget,
     'tws': TWSTarget,
     'stor_grace': TWSTarget,
     'stor_mb': TWSTarget,

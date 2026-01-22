@@ -51,7 +51,7 @@ def base_config(tmp_path):
         'CALIBRATION_PERIOD': '2020-01-01, 2020-01-31',
 
         # Parallel settings
-        'MPI_PROCESSES': 1,
+        'NUM_PROCESSES': 1,
         'PARALLEL_WORKERS': 1,
     }
 

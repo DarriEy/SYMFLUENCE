@@ -7,6 +7,7 @@ Uses shared utilities for time window management and forcing data processing.
 
 import sys
 import json
+import yaml
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -476,8 +477,8 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             if not parent.exists():
                 try:
                     parent.mkdir(exist_ok=True)
-                except Exception:
-                    pass
+                except OSError:
+                    pass  # Parent may have been created by another process
 
         self.forcing_dir.mkdir(parents=True, exist_ok=True)
 
@@ -567,3 +568,323 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         config_gen = NgenConfigGenerator(self.config_dict, self.logger, self.setup_dir, getattr(self, 'catchment_crs', None))
         config_gen.set_module_availability(cfe=self._include_cfe, pet=self._include_pet, noah=self._include_noah, sloth=self._include_sloth)
         config_gen.generate_realization_config(forcing_file, self.project_dir, lib_paths=self._ngen_lib_paths)
+
+        # Generate t-route config if routing is enabled
+        if self.config_dict.get('NGEN_RUN_TROUTE', True):
+            self._generate_troute_config(nexus_file)
+
+    def _generate_troute_config(self, nexus_file: Path):
+        """
+        Generate t-route configuration for NGEN routing.
+
+        Creates troute_config.yaml with network topology and forcing parameters
+        suitable for routing NGEN nexus outputs. Handles both lumped (single
+        catchment) and distributed (multi-catchment) domains.
+
+        Args:
+            nexus_file: Path to nexus GeoJSON file for determining network size.
+        """
+        self.logger.info("Generating t-route configuration for NGEN routing")
+
+        # Load nexus to determine if this is a lumped or distributed domain
+        with open(nexus_file, 'r') as f:
+            nexus_data = json.load(f)
+        num_nexuses = len(nexus_data.get('features', []))
+
+        # For lumped domains (single nexus), t-route is optional but we still create config
+        if num_nexuses == 1:
+            self.logger.info("Lumped domain detected (single nexus). T-route will pass through single outlet.")
+
+        # Get time parameters
+        start_time = self.config_dict.get('EXPERIMENT_TIME_START', '2000-01-01 00:00')
+        end_time = self.config_dict.get('EXPERIMENT_TIME_END', '2000-12-31 23:00')
+        time_step_seconds = self.config_dict.get('FORCING_TIME_STEP_SIZE', 3600)
+
+        # Calculate number of timesteps
+        start_dt = pd.to_datetime(start_time)
+        end_dt = pd.to_datetime(end_time)
+        total_seconds = (end_dt - start_dt).total_seconds() + time_step_seconds
+        nts = int(total_seconds / time_step_seconds)
+
+        # Determine output directory for NGEN (where nex-*.csv files will be)
+        experiment_id = self.config_dict.get('EXPERIMENT_ID', 'default_run')
+        ngen_output_dir = self.project_dir / 'simulations' / experiment_id / 'NGEN'
+        troute_output_dir = ngen_output_dir / 'troute_output'
+
+        # Check if we have a river network for distributed routing
+        river_network_file = self.get_river_network_path()
+        has_network = river_network_file.exists()
+
+        # Create topology file for distributed domains
+        topology_file = None
+        if has_network and num_nexuses > 1:
+            topology_file = self._create_troute_topology()
+
+        # Build t-route config
+        troute_config = {
+            'log_parameters': {
+                'showtiming': True,
+                'log_level': 'INFO'
+            },
+            'network_topology_parameters': {
+                'supernetwork_parameters': {
+                    'title_string': f'NGEN routing for {self.domain_name}',
+                    'columns': {
+                        'key': 'id',
+                        'downstream': 'toid',
+                        'mainstem': 'mainstem'
+                    }
+                }
+            },
+            'compute_parameters': {
+                'restart_parameters': {
+                    'start_datetime': str(start_dt)
+                },
+                'forcing_parameters': {
+                    'nts': nts,
+                    'max_loop_size': 24,
+                    'dt': time_step_seconds,
+                    'qts_subdivisions': 1,
+                    'qlat_input_folder': str(ngen_output_dir),
+                    'qlat_file_pattern_filter': 'nex-*',
+                    'binary_nexus_file_folder': None,
+                    'coastal_boundary_input_file': None
+                },
+                'data_assimilation_parameters': {
+                    'usgs_timeslices_folder': None,
+                    'usace_timeslices_folder': None,
+                    'reservoir_da': None
+                }
+            },
+            'output_parameters': {
+                'stream_output': {
+                    'stream_output_directory': str(troute_output_dir),
+                    'stream_output_time': 1,
+                    'stream_output_type': '.csv',
+                    'stream_output_internal_frequency': time_step_seconds
+                }
+            }
+        }
+
+        # Add topology file if available
+        if topology_file:
+            troute_config['network_topology_parameters']['supernetwork_parameters']['geo_file_path'] = str(topology_file)
+        else:
+            # For lumped domains or missing network, use nexus file as simple network
+            troute_config['network_topology_parameters']['supernetwork_parameters']['geo_file_path'] = str(nexus_file)
+
+        # Write config file
+        troute_config_file = self.setup_dir / 'troute_config.yaml'
+        with open(troute_config_file, 'w') as f:
+            yaml.dump(troute_config, f, default_flow_style=False, sort_keys=False, indent=2)
+
+        self.logger.info(f"T-route config created: {troute_config_file}")
+        return troute_config_file
+
+    def _create_troute_topology(self) -> Optional[Path]:
+        """
+        Create t-route network topology file from river network shapefile.
+
+        Creates a GeoJSON flowlines file with all channel geometry parameters
+        required by T-Route HYFeaturesNetwork for Muskingum-Cunge routing.
+        Channel geometry is estimated using hydraulic geometry relationships
+        based on drainage area.
+
+        Returns:
+            Path to topology GeoJSON file, or None if creation failed.
+        """
+        try:
+            import numpy as np
+        except ImportError:
+            self.logger.warning("numpy not available, skipping topology file creation")
+            return None
+
+        self.logger.info("Creating t-route network topology file with channel geometry")
+        river_network_file = self.get_river_network_path()
+
+        if not river_network_file.exists():
+            self.logger.warning(f"River network not found: {river_network_file}")
+            return None
+
+        try:
+            river_gdf = gpd.read_file(river_network_file)
+        except Exception as e:
+            self.logger.warning(f"Failed to read river network: {e}")
+            return None
+
+        seg_id_col = self.config_dict.get('RIVER_NETWORK_SHP_SEGID', 'LINKNO')
+        downstream_col = self.config_dict.get('RIVER_NETWORK_SHP_DOWNSEGID', 'DSLINKNO')
+        length_col = self.config_dict.get('RIVER_NETWORK_SHP_LENGTH', 'Length')
+        slope_col = self.config_dict.get('RIVER_NETWORK_SHP_SLOPE', 'Slope')
+
+        # Get drainage area column (try common names)
+        drainage_area_col = None
+        for col_name in ['DSContArea', 'TotDASqKm', 'drainage_area', 'DAREA', 'AreaSqKm']:
+            if col_name in river_gdf.columns:
+                drainage_area_col = col_name
+                break
+
+        n_segments = len(river_gdf)
+
+        # Create a new GeoDataFrame with hydrofabric-compatible column names
+        # HYFeaturesNetwork expects: id, toid, lengthkm, slope, n, etc.
+        flowlines_gdf = gpd.GeoDataFrame(geometry=river_gdf.geometry.copy())
+
+        # Segment IDs - use 'wb-XX' format to match hydrofabric convention
+        flowlines_gdf['id'] = [f'wb-{int(seg_id)}' for seg_id in river_gdf[seg_id_col].values]
+
+        # Downstream IDs - use 'wb-XX' format, handle terminal nodes
+        downstream_ids = river_gdf[downstream_col].values
+        flowlines_gdf['toid'] = [
+            f'wb-{int(ds_id)}' if ds_id > 0 else ''
+            for ds_id in downstream_ids
+        ]
+
+        # Length in km (HYFeaturesNetwork expects km)
+        if length_col in river_gdf.columns:
+            lengths_m = river_gdf[length_col].values
+        else:
+            lengths_m = river_gdf.geometry.length.values
+        flowlines_gdf['lengthkm'] = lengths_m / 1000.0
+
+        # Slope
+        if slope_col in river_gdf.columns:
+            slopes = river_gdf[slope_col].values
+        else:
+            slopes = np.full(n_segments, 0.001)
+        slopes = np.maximum(slopes, 0.0001)  # Minimum for numerical stability
+        flowlines_gdf['So'] = slopes
+
+        # Manning's n for channel
+        flowlines_gdf['n'] = 0.035
+
+        # === Channel Geometry Estimation ===
+        # Get drainage area in km² for hydraulic geometry calculations
+        if drainage_area_col:
+            drainage_areas_m2 = river_gdf[drainage_area_col].values
+            if np.median(drainage_areas_m2) > 10000:
+                drainage_areas_km2 = drainage_areas_m2 / 1e6
+            else:
+                drainage_areas_km2 = drainage_areas_m2
+            self.logger.debug(f"Using drainage area from column '{drainage_area_col}'")
+        else:
+            self.logger.warning("No drainage area column found. Using default estimates.")
+            drainage_areas_km2 = np.full(n_segments, 100.0)
+
+        drainage_areas_km2 = np.maximum(drainage_areas_km2, 1.0)
+
+        # Bankfull width estimation: W = a * A^b
+        width_coef = self.config_dict.get('TROUTE_WIDTH_COEF', 3.0)
+        width_exp = self.config_dict.get('TROUTE_WIDTH_EXP', 0.5)
+        bankfull_widths = width_coef * np.power(drainage_areas_km2, width_exp)
+        bankfull_widths = np.clip(bankfull_widths, 2.0, 500.0)
+
+        # Bankfull depth estimation: D = c * A^d
+        depth_coef = self.config_dict.get('TROUTE_DEPTH_COEF', 0.3)
+        depth_exp = self.config_dict.get('TROUTE_DEPTH_EXP', 0.4)
+        bankfull_depths = depth_coef * np.power(drainage_areas_km2, depth_exp)
+        bankfull_depths = np.clip(bankfull_depths, 0.3, 20.0)
+
+        # Channel geometry columns
+        flowlines_gdf['BtmWdth'] = 0.5 * bankfull_widths  # Bottom width
+        flowlines_gdf['TopWdth'] = bankfull_widths  # Top width
+        flowlines_gdf['TopWdthCC'] = 3.0 * bankfull_widths  # Compound channel width
+        flowlines_gdf['nCC'] = 0.08  # Compound channel Manning's n
+        flowlines_gdf['ChSlp'] = 0.05  # Channel side slope (1:20)
+
+        # Cross-section area (trapezoidal)
+        cross_section_areas = 0.5 * (flowlines_gdf['BtmWdth'] + flowlines_gdf['TopWdth']) * bankfull_depths
+        flowlines_gdf['Cs'] = cross_section_areas
+
+        # Muskingum parameters
+        hydraulic_radius = bankfull_depths * 0.7
+        velocities = (1.0 / 0.035) * np.power(hydraulic_radius, 2.0/3.0) * np.sqrt(slopes)
+        velocities = np.clip(velocities, 0.1, 5.0)
+        muskingum_k = lengths_m / velocities / 3600.0  # Convert to hours
+        muskingum_k = np.clip(muskingum_k, 0.5, 100.0)
+        flowlines_gdf['MusK'] = muskingum_k
+        flowlines_gdf['MusX'] = 0.2
+
+        # Additional columns expected by HYFeaturesNetwork
+        flowlines_gdf['alt'] = 0.0  # Altitude (not used)
+        flowlines_gdf['order'] = river_gdf.get('strmOrder', 1)  # Stream order
+        flowlines_gdf['mainstem'] = 0  # Mainstem flag
+
+        # Save as GeoJSON for standalone use
+        geojson_file = self.setup_dir / 'troute_flowlines.geojson'
+        flowlines_gdf.to_file(geojson_file, driver='GeoJSON')
+        self.logger.info("Created " + str(len(flowlines_gdf)) + " records")
+
+        # Create hydrofabric GeoPackage with separate flowpaths and flowpath_attributes layers
+        # T-Route HYFeaturesNetwork expects these as separate layers that get merged
+        gpkg_file = self.setup_dir / f'{self.domain_name}_hydrofabric_troute.gpkg'
+        try:
+            # Read existing catchments
+            catchments_file = self.setup_dir / f'{self.domain_name}_catchments.geojson'
+            nexus_file = self.setup_dir / 'nexus.geojson'
+
+            if catchments_file.exists():
+                divides_gdf = gpd.read_file(catchments_file)
+
+                # Create flowpaths layer with geometry and routing identifiers only
+                flowpaths_gdf = gpd.GeoDataFrame({
+                    'id': flowlines_gdf['id'],
+                    'toid': flowlines_gdf['toid'],
+                }, geometry=flowlines_gdf.geometry, crs=flowlines_gdf.crs)
+
+                # Create flowpath_attributes layer with all channel parameters (no geometry)
+                flowpath_attrs_df = flowlines_gdf.drop(columns='geometry').copy()
+
+                # Write flowpaths layer (with geometry)
+                flowpaths_gdf.to_file(gpkg_file, layer='flowpaths', driver='GPKG')
+
+                # Write flowpath_attributes layer (without geometry - use pandas to_sql)
+                import sqlite3
+                conn = sqlite3.connect(gpkg_file)
+                flowpath_attrs_df.to_sql('flowpath_attributes', conn, if_exists='replace', index=False)
+                conn.close()
+
+                # Add divides layer to GeoPackage
+                divides_gdf.to_file(gpkg_file, layer='divides', driver='GPKG', mode='a')
+
+                # Add nexus layer if exists
+                if nexus_file.exists():
+                    nexus_gdf = gpd.read_file(nexus_file)
+                    nexus_gdf.to_file(gpkg_file, layer='nexus', driver='GPKG', mode='a')
+
+                self.logger.info(f"T-route hydrofabric GeoPackage created: {gpkg_file}")
+                self.logger.debug("  Layers: flowpaths, flowpath_attributes, divides" +
+                                  (", nexus" if nexus_file.exists() else ""))
+            else:
+                self.logger.warning(f"Catchments file not found: {catchments_file}. Using GeoJSON only.")
+                gpkg_file = None
+
+        except Exception as e:
+            self.logger.warning(f"Failed to create hydrofabric GeoPackage: {e}. Using GeoJSON only.")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            gpkg_file = None
+
+        # Return GeoPackage if available, otherwise GeoJSON
+        topology_file = gpkg_file if gpkg_file and gpkg_file.exists() else geojson_file
+        self.logger.info(f"T-route flowlines file created with channel geometry: {topology_file}")
+        self.logger.debug(f"  Segments: {n_segments}")
+        self.logger.debug(f"  Drainage area range: {drainage_areas_km2.min():.1f} - {drainage_areas_km2.max():.1f} km²")
+        self.logger.debug(f"  Width range: {bankfull_widths.min():.1f} - {bankfull_widths.max():.1f} m")
+        self.logger.debug(f"  Depth range: {bankfull_depths.min():.2f} - {bankfull_depths.max():.2f} m")
+        return topology_file
+
+    def get_river_network_path(self) -> Path:
+        """Get path to river network shapefile."""
+        river_path = self.config_dict.get('RIVER_NETWORK_SHP_PATH', 'default')
+        if river_path == 'default':
+            river_path = self.project_dir / 'shapefiles' / 'river_network'
+        else:
+            river_path = Path(river_path)
+
+        river_name = self.config_dict.get('RIVER_NETWORK_SHP_NAME', 'default')
+        if river_name == 'default':
+            domain_method = self.config_dict.get('DOMAIN_DEFINITION_METHOD', 'delineate')
+            river_name = f"{self.domain_name}_riverNetwork_{domain_method}.shp"
+
+        return river_path / river_name

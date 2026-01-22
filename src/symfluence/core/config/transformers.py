@@ -8,17 +8,71 @@ This module handles conversion between flat and hierarchical configuration forma
 Key functions:
 - transform_flat_to_nested(): Convert flat dict to nested structure for Pydantic models
 - flatten_nested_config(): Convert SymfluenceConfig instance back to flat dict for backward compatibility
+
+Phase 2 Addition (Configuration Key Standardization):
+- Standardized naming for MizuRoute keys (MIZUROUTE_INSTALL_PATH, MIZUROUTE_EXE)
+- Deprecation warnings for legacy keys (INSTALL_PATH_MIZUROUTE, EXE_NAME_MIZUROUTE)
 """
 
 from typing import Dict, Any, Tuple, TYPE_CHECKING, Optional
 from pathlib import Path
 import threading
 import logging
+import warnings
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 logger = logging.getLogger(__name__)
+
+
+# ========================================
+# DEPRECATED KEY MAPPING (Phase 2)
+# ========================================
+
+# Maps deprecated keys to their standardized replacements
+# Used to emit warnings when deprecated keys are encountered
+DEPRECATED_KEYS: Dict[str, str] = {
+    # MizuRoute legacy naming (inverted: INSTALL_PATH_MIZUROUTE -> MIZUROUTE_INSTALL_PATH)
+    'INSTALL_PATH_MIZUROUTE': 'MIZUROUTE_INSTALL_PATH',
+    'EXE_NAME_MIZUROUTE': 'MIZUROUTE_EXE',
+}
+
+# Canonical keys for nested paths with multiple aliases
+# When flattening config back to flat format, use these keys (not the aliases)
+# Format: nested_path_tuple -> canonical_flat_key
+CANONICAL_KEYS: Dict[Tuple[str, ...], str] = {
+    ('system', 'num_processes'): 'NUM_PROCESSES',  # Prefer over MPI_PROCESSES
+    ('optimization', 'nsga2', 'secondary_target'): 'NSGA2_SECONDARY_TARGET',
+    ('optimization', 'nsga2', 'secondary_metric'): 'NSGA2_SECONDARY_METRIC',
+    ('model', 'mizuroute', 'install_path'): 'MIZUROUTE_INSTALL_PATH',
+    ('model', 'mizuroute', 'exe'): 'MIZUROUTE_EXE',
+}
+
+
+def _warn_deprecated_keys(flat_config: Dict[str, Any]) -> None:
+    """
+    Warn about deprecated configuration keys.
+
+    Checks the flat configuration dictionary for any deprecated keys and
+    emits deprecation warnings with guidance on the new key names.
+
+    Args:
+        flat_config: Flat configuration dictionary with uppercase keys
+    """
+    for old_key, new_key in DEPRECATED_KEYS.items():
+        if old_key in flat_config:
+            logger.warning(
+                f"Configuration key '{old_key}' is deprecated, use '{new_key}' instead. "
+                f"Support will be removed in v2.0."
+            )
+            # Also emit a Python DeprecationWarning for programmatic detection
+            warnings.warn(
+                f"Config key '{old_key}' is deprecated, use '{new_key}' instead. "
+                f"This key will be removed in SYMFLUENCE v2.0.",
+                DeprecationWarning,
+                stacklevel=3
+            )
 
 # Global cache for auto-generated mapping (thread-safe)
 _AUTO_GENERATED_MAP: Optional[Dict[str, Tuple[str, ...]]] = None
@@ -84,7 +138,8 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # ========== SYSTEM CONFIGURATION ==========
     'SYMFLUENCE_DATA_DIR': ('system', 'data_dir'),
     'SYMFLUENCE_CODE_DIR': ('system', 'code_dir'),
-    'MPI_PROCESSES': ('system', 'mpi_processes'),
+    'NUM_PROCESSES': ('system', 'num_processes'),
+    'MPI_PROCESSES': ('system', 'num_processes'),  # Backward compatibility alias
     'DEBUG_MODE': ('system', 'debug_mode'),
     'LOG_LEVEL': ('system', 'log_level'),
     'LOG_TO_FILE': ('system', 'log_to_file'),
@@ -106,7 +161,10 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'EVALUATION_PERIOD': ('domain', 'evaluation_period'),
     'SPINUP_PERIOD': ('domain', 'spinup_period'),
     'DOMAIN_DEFINITION_METHOD': ('domain', 'definition_method'),
-    'DOMAIN_DISCRETIZATION': ('domain', 'discretization'),
+    'SUB_GRID_DISCRETIZATION': ('domain', 'discretization'),
+    'SUBSET_FROM_GEOFABRIC': ('domain', 'subset_from_geofabric'),
+    'GRID_SOURCE': ('domain', 'grid_source'),
+    'NATIVE_GRID_DATASET': ('domain', 'native_grid_dataset'),
     'POUR_POINT_COORDS': ('domain', 'pour_point_coords'),
     'BOUNDING_BOX_COORDS': ('domain', 'bounding_box_coords'),
     'MIN_GRU_SIZE': ('domain', 'min_gru_size'),
@@ -128,18 +186,18 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # ========== DATA CONFIGURATION ==========
     'ADDITIONAL_OBSERVATIONS': ('data', 'additional_observations'),
     # Note: SUPPLEMENT_FORCING mapped to ('forcing', 'supplement') in Forcing section
-    'FORCE_DOWNLOAD': ('data', 'force_download'),
+    # Note: FORCE_DOWNLOAD removed (unused field)
     'STREAMFLOW_DATA_PROVIDER': ('data', 'streamflow_data_provider'),
     'USGS_SITE_CODE': ('data', 'usgs_site_code'),
     'DOWNLOAD_USGS_DATA': ('data', 'download_usgs_data'),
     # Note: DOWNLOAD_USGS_GW mapped to ('evaluation', 'usgs_gw', 'download') in Evaluation section
     # Note: DOWNLOAD_MODIS_SNOW mapped to ('evaluation', 'modis_snow', 'download') in Evaluation section
     # Note: DOWNLOAD_SNOTEL mapped to ('evaluation', 'snotel', 'download') in Evaluation section
-    'DOWNLOAD_SMHI_DATA': ('data', 'download_smhi_data'),
-    'DOWNLOAD_LAMAH_ICE_DATA': ('data', 'download_lamah_ice_data'),
+    # Note: DOWNLOAD_SMHI_DATA mapped to ('evaluation', 'smhi', 'download') in Evaluation section
+    # Note: DOWNLOAD_LAMAH_ICE_DATA mapped to ('evaluation', 'lamah_ice', 'download') in Evaluation section
+    # Note: DOWNLOAD_GLACIER_DATA mapped to ('evaluation', 'glacier', 'download') in Evaluation section
+    # Note: LAMAH_ICE_PATH mapped to ('evaluation', 'lamah_ice', 'path') in Evaluation section
     'DOWNLOAD_ISMN': ('data', 'download_ismn'),
-    'DOWNLOAD_GLACIER_DATA': ('data', 'download_glacier_data'),
-    'LAMAH_ICE_PATH': ('data', 'lamah_ice_path'),
     'STREAMFLOW_STATION_ID': ('data', 'streamflow_station_id'),
     'ELEV_CHUNK_SIZE': ('data', 'elev_chunk_size'),
     'ELEV_TILE_TARGET': ('data', 'elev_tile_target'),
@@ -285,6 +343,39 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'SETTINGS_GR_CONTROL': ('model', 'gr', 'control'),
     'GR_PARAMS_TO_CALIBRATE': ('model', 'gr', 'params_to_calibrate'),
 
+    # Model > HBV
+    'HBV_SPATIAL_MODE': ('model', 'hbv', 'spatial_mode'),
+    'HBV_ROUTING_INTEGRATION': ('model', 'hbv', 'routing_integration'),
+    'HBV_BACKEND': ('model', 'hbv', 'backend'),
+    'HBV_USE_GPU': ('model', 'hbv', 'use_gpu'),
+    'HBV_JIT_COMPILE': ('model', 'hbv', 'jit_compile'),
+    'HBV_WARMUP_DAYS': ('model', 'hbv', 'warmup_days'),
+    'HBV_PARAMS_TO_CALIBRATE': ('model', 'hbv', 'params_to_calibrate'),
+    'HBV_USE_GRADIENT_CALIBRATION': ('model', 'hbv', 'use_gradient_calibration'),
+    'HBV_CALIBRATION_METRIC': ('model', 'hbv', 'calibration_metric'),
+    'HBV_INITIAL_SNOW': ('model', 'hbv', 'initial_snow'),
+    'HBV_INITIAL_SM': ('model', 'hbv', 'initial_sm'),
+    'HBV_INITIAL_SUZ': ('model', 'hbv', 'initial_suz'),
+    'HBV_INITIAL_SLZ': ('model', 'hbv', 'initial_slz'),
+    'HBV_PET_METHOD': ('model', 'hbv', 'pet_method'),
+    'HBV_LATITUDE': ('model', 'hbv', 'latitude'),
+    'HBV_SAVE_STATES': ('model', 'hbv', 'save_states'),
+    'HBV_OUTPUT_FREQUENCY': ('model', 'hbv', 'output_frequency'),
+    'HBV_DEFAULT_TT': ('model', 'hbv', 'default_tt'),
+    'HBV_DEFAULT_CFMAX': ('model', 'hbv', 'default_cfmax'),
+    'HBV_DEFAULT_SFCF': ('model', 'hbv', 'default_sfcf'),
+    'HBV_DEFAULT_CFR': ('model', 'hbv', 'default_cfr'),
+    'HBV_DEFAULT_CWH': ('model', 'hbv', 'default_cwh'),
+    'HBV_DEFAULT_FC': ('model', 'hbv', 'default_fc'),
+    'HBV_DEFAULT_LP': ('model', 'hbv', 'default_lp'),
+    'HBV_DEFAULT_BETA': ('model', 'hbv', 'default_beta'),
+    'HBV_DEFAULT_K0': ('model', 'hbv', 'default_k0'),
+    'HBV_DEFAULT_K1': ('model', 'hbv', 'default_k1'),
+    'HBV_DEFAULT_K2': ('model', 'hbv', 'default_k2'),
+    'HBV_DEFAULT_UZL': ('model', 'hbv', 'default_uzl'),
+    'HBV_DEFAULT_PERC': ('model', 'hbv', 'default_perc'),
+    'HBV_DEFAULT_MAXBAS': ('model', 'hbv', 'default_maxbas'),
+
     # Model > HYPE
     'HYPE_INSTALL_PATH': ('model', 'hype', 'install_path'),
     'HYPE_EXE': ('model', 'hype', 'exe'),
@@ -330,7 +421,11 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'MESH_SPINUP_DAYS': ('model', 'mesh', 'spinup_days'),
     'MESH_GRU_MIN_TOTAL': ('model', 'mesh', 'gru_min_total'),
 
-    # Model > mizuRoute
+    # Model > mizuRoute - STANDARD NAMING (preferred)
+    'MIZUROUTE_INSTALL_PATH': ('model', 'mizuroute', 'install_path'),
+    'MIZUROUTE_EXE': ('model', 'mizuroute', 'exe'),
+
+    # Model > mizuRoute - LEGACY ALIASES (deprecated, will be removed in v2.0)
     'INSTALL_PATH_MIZUROUTE': ('model', 'mizuroute', 'install_path'),
     'EXE_NAME_MIZUROUTE': ('model', 'mizuroute', 'exe'),
     'SETTINGS_MIZU_PATH': ('model', 'mizuroute', 'settings_path'),
@@ -356,6 +451,25 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'MIZUROUTE_PARAMS_TO_CALIBRATE': ('model', 'mizuroute', 'params_to_calibrate'),
     'CALIBRATE_MIZUROUTE': ('model', 'mizuroute', 'calibrate'),
     'MIZUROUTE_TIMEOUT': ('model', 'mizuroute', 'timeout'),
+
+    # Model > dRoute (experimental C++ routing library)
+    'DROUTE_EXECUTION_MODE': ('model', 'droute', 'execution_mode'),
+    'DROUTE_INSTALL_PATH': ('model', 'droute', 'install_path'),
+    'DROUTE_EXE': ('model', 'droute', 'exe'),
+    'SETTINGS_DROUTE_PATH': ('model', 'droute', 'settings_path'),
+    'DROUTE_ROUTING_METHOD': ('model', 'droute', 'routing_method'),
+    'DROUTE_ROUTING_DT': ('model', 'droute', 'routing_dt'),
+    'DROUTE_ENABLE_GRADIENTS': ('model', 'droute', 'enable_gradients'),
+    'DROUTE_AD_BACKEND': ('model', 'droute', 'ad_backend'),
+    'DROUTE_TOPOLOGY_FILE': ('model', 'droute', 'topology_file'),
+    'DROUTE_TOPOLOGY_FORMAT': ('model', 'droute', 'topology_format'),
+    'DROUTE_CONFIG_FILE': ('model', 'droute', 'config_file'),
+    'DROUTE_FROM_MODEL': ('model', 'droute', 'from_model'),
+    'EXPERIMENT_OUTPUT_DROUTE': ('model', 'droute', 'experiment_output'),
+    'EXPERIMENT_LOG_DROUTE': ('model', 'droute', 'experiment_log'),
+    'DROUTE_PARAMS_TO_CALIBRATE': ('model', 'droute', 'params_to_calibrate'),
+    'CALIBRATE_DROUTE': ('model', 'droute', 'calibrate'),
+    'DROUTE_TIMEOUT': ('model', 'droute', 'timeout'),
 
     # Model > LSTM
     'LSTM_LOAD': ('model', 'lstm', 'load'),
@@ -412,6 +526,13 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'POPULATION_SIZE': ('optimization', 'population_size'),
     'FINAL_EVALUATION_NUMERICAL_METHOD': ('optimization', 'final_evaluation_numerical_method'),
     'CLEANUP_PARALLEL_DIRS': ('optimization', 'cleanup_parallel_dirs'),
+    'ERROR_LOG_DIR': ('optimization', 'error_log_dir'),
+    'ERROR_LOGGING_MODE': ('optimization', 'error_logging_mode'),
+    'PARAMS_KEEP_TRIALS': ('optimization', 'params_keep_trials'),
+    'STOP_ON_MODEL_FAILURE': ('optimization', 'stop_on_model_failure'),
+    'GRADIENT_MODE': ('optimization', 'gradient_mode'),
+    'GRADIENT_EPSILON': ('optimization', 'gradient_epsilon'),
+    'GRADIENT_CLIP_VALUE': ('optimization', 'gradient_clip_value'),
 
     # Optimization > PSO
     'SWRMSIZE': ('optimization', 'pso', 'swrmsize'),
@@ -451,32 +572,6 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     # Legacy aliases for NSGA2 multi-target settings
     'OPTIMIZATION_TARGET2': ('optimization', 'nsga2', 'secondary_target'),
     'OPTIMIZATION_METRIC2': ('optimization', 'nsga2', 'secondary_metric'),
-
-    # Optimization > DPE
-    'DPE_TRAINING_CACHE': ('optimization', 'dpe', 'training_cache'),
-    'DPE_HIDDEN_DIMS': ('optimization', 'dpe', 'hidden_dims'),
-    'DPE_TRAINING_SAMPLES': ('optimization', 'dpe', 'training_samples'),
-    'DPE_VALIDATION_SAMPLES': ('optimization', 'dpe', 'validation_samples'),
-    'DPE_EPOCHS': ('optimization', 'dpe', 'epochs'),
-    'DPE_LEARNING_RATE': ('optimization', 'dpe', 'learning_rate'),
-    'DPE_OPTIMIZATION_LR': ('optimization', 'dpe', 'optimization_lr'),
-    'DPE_OPTIMIZATION_STEPS': ('optimization', 'dpe', 'optimization_steps'),
-    'DPE_OPTIMIZER': ('optimization', 'dpe', 'optimizer'),
-    'DPE_OBJECTIVE_WEIGHTS': ('optimization', 'dpe', 'objective_weights'),
-    'DPE_EMULATOR_ITERATE': ('optimization', 'dpe', 'emulator_iterate'),
-    'DPE_ITERATE_MAX_ITERATIONS': ('optimization', 'dpe', 'iterate_max_iterations'),
-    'DPE_ITERATE_SAMPLES_PER_CYCLE': ('optimization', 'dpe', 'iterate_samples_per_cycle'),
-    'DPE_ITERATE_SAMPLING_RADIUS': ('optimization', 'dpe', 'iterate_sampling_radius'),
-    'DPE_ITERATE_CONVERGENCE_TOL': ('optimization', 'dpe', 'iterate_convergence_tol'),
-    'DPE_ITERATE_MIN_IMPROVEMENT': ('optimization', 'dpe', 'iterate_min_improvement'),
-    'DPE_ITERATE_SAMPLING_METHOD': ('optimization', 'dpe', 'iterate_sampling_method'),
-    'DPE_USE_NN_HEAD': ('optimization', 'dpe', 'use_nn_head'),
-    'DPE_PRETRAIN_NN_HEAD': ('optimization', 'dpe', 'pretrain_nn_head'),
-    'DPE_USE_SUNDIALS': ('optimization', 'dpe', 'use_sundials'),
-    'DPE_AUTODIFF_STEPS': ('optimization', 'dpe', 'autodiff_steps'),
-    'DPE_AUTODIFF_LR': ('optimization', 'dpe', 'autodiff_lr'),
-    'DPE_FD_STEP': ('optimization', 'dpe', 'fd_step'),
-    'DPE_GD_STEP_SIZE': ('optimization', 'dpe', 'gd_step_size'),
 
     # Optimization > Emulation
     'EMULATION_NUM_SAMPLES': ('optimization', 'emulation', 'num_samples'),
@@ -561,6 +656,21 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'MODIS_ET_PRODUCT': ('evaluation', 'modis_et', 'product'),
     'MODIS_ET_PATH': ('evaluation', 'modis_et', 'path'),
     'MOD16_ET_DIR': ('evaluation', 'modis_et', 'data_dir'),
+
+    # Evaluation > SMHI
+    'DOWNLOAD_SMHI_DATA': ('evaluation', 'smhi', 'download'),
+    'SMHI_STATION_ID': ('evaluation', 'smhi', 'station_id'),
+    'SMHI_PATH': ('evaluation', 'smhi', 'path'),
+
+    # Evaluation > LAMAH-ICE
+    'DOWNLOAD_LAMAH_ICE_DATA': ('evaluation', 'lamah_ice', 'download'),
+    'LAMAH_ICE_PATH': ('evaluation', 'lamah_ice', 'path'),
+    'LAMAH_ICE_STATION_ID': ('evaluation', 'lamah_ice', 'station_id'),
+
+    # Evaluation > Glacier
+    'DOWNLOAD_GLACIER_DATA': ('evaluation', 'glacier', 'download'),
+    'GLACIER_PATH': ('evaluation', 'glacier', 'path'),
+    'GLACIER_SOURCE': ('evaluation', 'glacier', 'source'),
 
     # Evaluation > Attributes
     'ATTRIBUTES_DATA_DIR': ('evaluation', 'attributes', 'data_dir'),
@@ -682,6 +792,9 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
     Auto-generated mapping is available via get_flat_to_nested_map() for validation.
     In Phase 4, this will switch to use auto-generated mapping exclusively.
 
+    PHASE 2 ADDITION: Emits deprecation warnings for legacy config keys
+    (e.g., INSTALL_PATH_MIZUROUTE -> MIZUROUTE_INSTALL_PATH).
+
     Args:
         flat_config: Flat configuration dictionary with uppercase keys
 
@@ -697,6 +810,9 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
             'forcing': {'dataset': 'ERA5'}
         }
     """
+    # Check for deprecated keys and emit warnings
+    _warn_deprecated_keys(flat_config)
+
     nested: Dict[str, Any] = {
         'system': {},
         'domain': {},
@@ -724,11 +840,30 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
             # If ModelRegistry not available or model not registered, just use base mapping
             pass
 
-    # Apply mapping
+    # Build reverse map: nested_path -> list of flat keys that map to it
+    # This helps identify when multiple flat keys (canonical + deprecated) map to same path
+    path_to_keys: Dict[Tuple[str, ...], list] = {}
+    for flat_key in flat_config.keys():
+        if flat_key in combined_mapping:
+            path = combined_mapping[flat_key]
+            path_to_keys.setdefault(path, []).append(flat_key)
+
+    # Apply mapping, preferring canonical keys over deprecated aliases
+    processed_paths: set = set()
     for flat_key, value in flat_config.items():
         if flat_key in combined_mapping:
             path = combined_mapping[flat_key]
+
+            # If multiple keys map to this path, use the canonical key's value
+            keys_for_path = path_to_keys.get(path, [flat_key])
+            if len(keys_for_path) > 1 and path in CANONICAL_KEYS:
+                canonical_key = CANONICAL_KEYS[path]
+                if flat_key != canonical_key and canonical_key in flat_config:
+                    # Skip this deprecated key, canonical key will be used
+                    continue
+
             _set_nested_value(nested, path, value)
+            processed_paths.add(path)
         else:
             # Unknown keys stored in _extra (Pydantic extra='allow' will handle)
             nested.setdefault('_extra', {})[flat_key] = value
@@ -759,7 +894,15 @@ def flatten_nested_config(config: 'SymfluenceConfig') -> Dict[str, Any]:
     flat = {}
 
     # Create reverse mapping (nested path -> flat key)
-    nested_to_flat = {v: k for k, v in FLAT_TO_NESTED_MAP.items()}
+    # Use CANONICAL_KEYS for paths with multiple aliases to ensure consistent output
+    nested_to_flat = {}
+    for flat_key, nested_path in FLAT_TO_NESTED_MAP.items():
+        # Only set if not already set, OR if this is the canonical key for this path
+        if nested_path not in nested_to_flat:
+            nested_to_flat[nested_path] = flat_key
+        elif nested_path in CANONICAL_KEYS and CANONICAL_KEYS[nested_path] == flat_key:
+            # Override with canonical key
+            nested_to_flat[nested_path] = flat_key
 
     def _flatten_section(section_name: str, section_obj: Any, prefix: Tuple[str, ...] = ()) -> None:
         """Recursively flatten a config section"""

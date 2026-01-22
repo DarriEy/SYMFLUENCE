@@ -48,6 +48,55 @@ class ToolInstaller(BaseService):
             self._external_tools = get_external_tools_definitions()
         return self._external_tools
 
+    def _get_clean_build_env(self) -> Dict[str, str]:
+        """
+        Get a clean environment for build processes.
+
+        Removes MAKE-related variables that can cause spurious make calls
+        during git submodule operations (common issue in 2i2c/JupyterHub).
+
+        Returns:
+            Clean environment dictionary for subprocess calls.
+        """
+        env = os.environ.copy()
+
+        # Remove MAKE-related variables that can trigger unwanted make calls
+        make_vars = ["MAKEFLAGS", "MAKELEVEL", "MAKE", "MFLAGS", "MAKEOVERRIDES"]
+        for var in make_vars:
+            env.pop(var, None)
+
+        # Check if conda compilers are available (required for ABI compatibility
+        # with conda-forge libraries like GDAL built with GCC 13+)
+        conda_prefix = env.get("CONDA_PREFIX", "")
+        conda_gcc = os.path.join(conda_prefix, "bin", "x86_64-conda-linux-gnu-gcc")
+        conda_gxx = os.path.join(conda_prefix, "bin", "x86_64-conda-linux-gnu-g++")
+
+        if conda_prefix and os.path.exists(conda_gcc) and os.path.exists(conda_gxx):
+            # Use conda compilers for ABI compatibility with conda libraries
+            env["CC"] = conda_gcc
+            env["CXX"] = conda_gxx
+            # Ensure conda bin is first in PATH
+            conda_bin = os.path.join(conda_prefix, "bin")
+            if conda_bin not in env.get("PATH", "").split(":")[0]:
+                env["PATH"] = conda_bin + ":" + env.get("PATH", "")
+        elif os.path.exists("/srv/conda/envs/notebook"):
+            # 2i2c environment without conda compilers - try system compilers
+            # but warn that this may fail if conda GDAL needs newer ABI
+            if "/usr/bin" not in env.get("PATH", "").split(":")[0]:
+                env["PATH"] = "/usr/bin:" + env.get("PATH", "")
+            if os.path.exists("/usr/bin/gcc"):
+                env["CC"] = "/usr/bin/gcc"
+            if os.path.exists("/usr/bin/g++"):
+                env["CXX"] = "/usr/bin/g++"
+            if os.path.exists("/usr/bin/ld"):
+                env["LD"] = "/usr/bin/ld"
+        else:
+            # Non-2i2c environment - ensure /usr/bin is accessible
+            if "/usr/bin" not in env.get("PATH", "").split(":")[0]:
+                env["PATH"] = "/usr/bin:" + env.get("PATH", "")
+
+        return env
+
     def install(
         self,
         specific_tools: Optional[List[str]] = None,
@@ -92,7 +141,11 @@ class ToolInstaller(BaseService):
 
         # Determine which tools to install
         if specific_tools is None:
-            tools_to_install = list(self.external_tools.keys())
+            # Install all non-optional tools by default
+            tools_to_install = [
+                name for name, info in self.external_tools.items()
+                if not info.get('optional', False)
+            ]
         else:
             tools_to_install = []
             for tool in specific_tools:
@@ -250,7 +303,13 @@ class ToolInstaller(BaseService):
             else:
                 clone_cmd = ["git", "clone", repository_url, str(target_dir)]
 
-            subprocess.run(clone_cmd, capture_output=True, text=True, check=True)
+            subprocess.run(
+                clone_cmd,
+                capture_output=True,
+                text=True,
+                check=True,
+                env=self._get_clean_build_env(),
+            )
             self._console.success("Clone successful")
         else:
             self._console.indent("Creating installation directory")
@@ -288,13 +347,14 @@ class ToolInstaller(BaseService):
             # are multi-line shell scripts that may contain shell-specific syntax
             # (pipes, redirects, environment variables, etc.). The build commands
             # come from internal tool definitions, not user input.
-            build_result = subprocess.run(
+            build_result = subprocess.run(  # nosec B602
                 combined_script,
                 shell=True,
                 check=True,
                 capture_output=True,
                 text=True,
                 executable="/bin/bash",
+                env=self._get_clean_build_env(),
             )
 
             # Show output for critical tools

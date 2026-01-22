@@ -34,14 +34,14 @@ def hype_config(temp_dir):
         'SYMFLUENCE_DATA_DIR': str(temp_dir),
         'SYMFLUENCE_CODE_DIR': str(temp_dir),
         'DOMAIN_DEFINITION_METHOD': 'lumped',
-        'DOMAIN_DISCRETIZATION': 'lumped',
+        'SUB_GRID_DISCRETIZATION': 'lumped',
         'EXPERIMENT_TIME_START': '2010-01-01 00:00',
         'EXPERIMENT_TIME_END': '2010-12-31 23:00',
         'FORCING_DATASET': 'ERA5',
         'HYDROLOGICAL_MODEL': 'HYPE',
         'HYPE_PARAMS_TO_CALIBRATE': 'ttmp,cmlt,cevp',
         'OPTIMIZATION_TARGET': 'streamflow',
-        'OPTIMIZATION_METRIC': 'kge',
+        'OPTIMIZATION_METRIC': 'KGE',
     }
 
 
@@ -54,14 +54,14 @@ def mesh_config(temp_dir):
         'SYMFLUENCE_DATA_DIR': str(temp_dir),
         'SYMFLUENCE_CODE_DIR': str(temp_dir),
         'DOMAIN_DEFINITION_METHOD': 'lumped',
-        'DOMAIN_DISCRETIZATION': 'lumped',
+        'SUB_GRID_DISCRETIZATION': 'lumped',
         'EXPERIMENT_TIME_START': '2010-01-01 00:00',
         'EXPERIMENT_TIME_END': '2010-12-31 23:00',
         'FORCING_DATASET': 'ERA5',
         'HYDROLOGICAL_MODEL': 'MESH',
         'MESH_PARAMS_TO_CALIBRATE': 'ZSNL,MANN',
         'OPTIMIZATION_TARGET': 'streamflow',
-        'OPTIMIZATION_METRIC': 'kge',
+        'OPTIMIZATION_METRIC': 'KGE',
     }
 
 

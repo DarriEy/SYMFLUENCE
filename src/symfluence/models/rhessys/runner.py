@@ -12,6 +12,7 @@ import pandas as pd
 
 from symfluence.models.base.base_runner import BaseModelRunner
 from symfluence.models.registry import ModelRegistry
+from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +74,8 @@ class RHESSysRunner(BaseModelRunner):
         """
         Get the RHESSys executable path.
 
-        Searches for RHESSys binary in config-specified path first, then
-        falls back to default install location.
+        Uses the standardized get_model_executable method with candidates
+        to search multiple potential locations for the RHESSys binary.
 
         Returns:
             Path: Path to RHESSys executable.
@@ -82,28 +83,18 @@ class RHESSysRunner(BaseModelRunner):
         Raises:
             FileNotFoundError: If executable not found in any location.
         """
-        # Try config path first
-        try:
-            install_path = self._get_config_value(
-                lambda: self.config.model.rhessys.installation.install_path if self.config.model and self.config.model.rhessys and self.config.model.rhessys.installation else None
-            )
-            exe_name = self._get_config_value(
-                lambda: self.config.model.rhessys.installation.exe_name if self.config.model and self.config.model.rhessys and self.config.model.rhessys.installation else None,
-                'rhessys'
-            )
-            if install_path:
-                exe_path = Path(install_path) / exe_name
-                if exe_path.exists():
-                    return exe_path
-        except (AttributeError, TypeError):
-            pass
-
-        # Default path
-        default_path = Path(self.config.system.data_dir) / "installs" / "rhessys" / "bin" / "rhessys"
-        if default_path.exists():
-            return default_path
-
-        raise FileNotFoundError(f"RHESSys executable not found at {default_path}")
+        return self.get_model_executable(
+            install_path_key='RHESSYS_INSTALL_PATH',
+            default_install_subpath='installs/rhessys',
+            default_exe_name='rhessys',
+            typed_exe_accessor=lambda: (
+                self.config.model.rhessys.installation.exe_name
+                if self.config.model and self.config.model.rhessys and self.config.model.rhessys.installation
+                else None
+            ),
+            candidates=['bin', ''],  # Search bin subdirectory first, then root
+            must_exist=True
+        )
 
     def run(self, **kwargs):
         """
@@ -111,73 +102,74 @@ class RHESSysRunner(BaseModelRunner):
 
         Returns:
             Path to output directory
-
-        Raises:
-            FileNotFoundError: If RHESSys executable not found
-            RuntimeError: If RHESSys execution fails or produces no output
         """
         logger.info(f"Running RHESSys for domain: {self.config.domain.name}")
 
-        # Setup output directory
-        self.output_dir = self.project_dir / "simulations" / self.config.domain.experiment_id / "RHESSys"
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        with symfluence_error_handler(
+            "RHESSys model execution",
+            logger,
+            error_type=ModelExecutionError
+        ):
+            # Setup output directory
+            self.output_dir = self.project_dir / "simulations" / self.config.domain.experiment_id / "RHESSys"
+            self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Get executable
-        rhessys_exe = self._get_rhessys_executable()
+            # Get executable
+            rhessys_exe = self._get_rhessys_executable()
 
-        # Build command
-        cmd = self._build_command(rhessys_exe)
+            # Build command
+            cmd = self._build_command(rhessys_exe)
 
-        # Set library path for WMFire
-        env = os.environ.copy()
+            # Set library path for WMFire
+            env = os.environ.copy()
 
-        # Add both rhessys/lib and wmfire/lib to library path
-        lib_paths = []
-        rhessys_bin_dir = rhessys_exe.parent
-        rhessys_lib_dir = rhessys_bin_dir.parent / "lib"
-        wmfire_lib_dir = Path(self.config.system.data_dir) / "installs" / "wmfire" / "lib"
+            # Add both rhessys/lib and wmfire/lib to library path
+            lib_paths = []
+            rhessys_bin_dir = rhessys_exe.parent
+            rhessys_lib_dir = rhessys_bin_dir.parent / "lib"
+            wmfire_lib_dir = Path(self.config.system.data_dir) / "installs" / "wmfire" / "lib"
 
-        for lib_dir in [rhessys_bin_dir, rhessys_lib_dir, wmfire_lib_dir]:
-            if lib_dir.exists():
-                lib_paths.append(str(lib_dir))
+            for lib_dir in [rhessys_bin_dir, rhessys_lib_dir, wmfire_lib_dir]:
+                if lib_dir.exists():
+                    lib_paths.append(str(lib_dir))
 
-        if lib_paths:
-            lib_path_str = ":".join(lib_paths)
-            import sys
-            if sys.platform == "darwin":
-                env["DYLD_LIBRARY_PATH"] = f"{lib_path_str}:{env.get('DYLD_LIBRARY_PATH', '')}"
-            else:
-                env["LD_LIBRARY_PATH"] = f"{lib_path_str}:{env.get('LD_LIBRARY_PATH', '')}"
+            if lib_paths:
+                lib_path_str = ":".join(lib_paths)
+                import sys
+                if sys.platform == "darwin":
+                    env["DYLD_LIBRARY_PATH"] = f"{lib_path_str}:{env.get('DYLD_LIBRARY_PATH', '')}"
+                else:
+                    env["LD_LIBRARY_PATH"] = f"{lib_path_str}:{env.get('LD_LIBRARY_PATH', '')}"
 
-        logger.info(f"Executing command: {' '.join(cmd)}")
+            logger.info(f"Executing command: {' '.join(cmd)}")
 
-        # Run the model
-        result = subprocess.run(
-            cmd,
-            cwd=str(self.output_dir),
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=7200  # 2 hour timeout
-        )
+            # Run the model
+            result = subprocess.run(
+                cmd,
+                cwd=str(self.output_dir),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=7200  # 2 hour timeout
+            )
 
-        # Log output
-        if result.stdout:
-            logger.debug(f"RHESSys stdout: {result.stdout[-2000:]}")
-        if result.stderr:
-            logger.debug(f"RHESSys stderr: {result.stderr[-2000:]}")
+            # Log output
+            if result.stdout:
+                logger.debug(f"RHESSys stdout: {result.stdout[-2000:]}")
+            if result.stderr:
+                logger.debug(f"RHESSys stderr: {result.stderr[-2000:]}")
 
-        if result.returncode != 0:
-            logger.error(f"RHESSys execution returned code {result.returncode}")
-            logger.error(f"stderr: {result.stderr[-2000:] if result.stderr else 'none'}")
-            raise RuntimeError(f"RHESSys execution failed with return code {result.returncode}")
+            if result.returncode != 0:
+                logger.error(f"RHESSys execution returned code {result.returncode}")
+                logger.error(f"stderr: {result.stderr[-2000:] if result.stderr else 'none'}")
+                raise ModelExecutionError(f"RHESSys execution failed with return code {result.returncode}")
 
-        logger.info("RHESSys execution completed successfully")
+            logger.info("RHESSys execution completed successfully")
 
-        # Verify output was produced
-        self._verify_output()
+            # Verify output was produced
+            self._verify_output()
 
-        return self.output_dir
+            return self.output_dir
 
     def _verify_output(self):
         """Verify that RHESSys produced valid output files with data."""

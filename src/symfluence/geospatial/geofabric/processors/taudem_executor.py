@@ -41,12 +41,20 @@ class TauDEMExecutor:
         self.config = config
         self.logger = logger
         self.taudem_dir = taudem_dir
-        self.mpi_processes = config.get('MPI_PROCESSES', 1)
+        self.num_processes = config.get('NUM_PROCESSES', 1)
         self.max_retries = config.get('MAX_RETRIES', 3)
         self.retry_delay = config.get('RETRY_DELAY', 5)
 
         # Add TauDEM to PATH
         os.environ['PATH'] = f"{os.environ['PATH']}:{taudem_dir}"
+
+        # Ensure LD_LIBRARY_PATH includes conda libs for TauDEM's GDAL dependency
+        conda_prefix = os.environ.get('CONDA_PREFIX', '')
+        if conda_prefix:
+            conda_lib = os.path.join(conda_prefix, 'lib')
+            current_ld_path = os.environ.get('LD_LIBRARY_PATH', '')
+            if conda_lib not in current_ld_path:
+                os.environ['LD_LIBRARY_PATH'] = f"{conda_lib}:{current_ld_path}" if current_ld_path else conda_lib
 
     def _get_mpi_command(self) -> Optional[str]:
         """
@@ -113,14 +121,18 @@ class TauDEMExecutor:
                         module_part = parts[0]
                         actual_cmd = parts[1]
                         if not has_mpi_prefix:
-                            full_command: Union[str, List[str]] = f"{module_part} && {run_cmd} -n {self.mpi_processes} {actual_cmd}"
+                            full_command: Union[str, List[str]] = f"{module_part} && {run_cmd} -n {self.num_processes} {actual_cmd}"
                         else:
                             full_command = command
                     else:
                         full_command = command
                 elif run_cmd and not has_mpi_prefix:
                     # Add MPI prefix for regular commands - use list format
-                    full_command = [run_cmd, "-n", str(self.mpi_processes)] + shlex.split(command)
+                    # Use -x to export LD_LIBRARY_PATH to MPI child processes
+                    if run_cmd == "mpirun":
+                        full_command = [run_cmd, "-x", "LD_LIBRARY_PATH", "-n", str(self.num_processes)] + shlex.split(command)
+                    else:
+                        full_command = [run_cmd, "-n", str(self.num_processes)] + shlex.split(command)
                 elif has_mpi_prefix:
                     # Command already has MPI prefix - parse with shlex
                     full_command = shlex.split(command)

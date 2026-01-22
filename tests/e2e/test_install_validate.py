@@ -91,13 +91,13 @@ def test_binary_validation(symfluence_code_dir, symfluence_data_root):
     print(f"  SUMMA version output: {result.stdout.strip() or result.stderr.strip()}")
 
     # Check for mizuRoute - use configured path
-    mizu_install_path = config.get("INSTALL_PATH_MIZUROUTE", "default")
+    mizu_install_path = config.get("MIZUROUTE_INSTALL_PATH", "default")
     if mizu_install_path == "default":
         mizu_install_path = data_dir / "installs" / "mizuRoute" / "route" / "bin"
     else:
         mizu_install_path = Path(mizu_install_path)
 
-    mizu_exe = config.get("EXE_NAME_MIZUROUTE", "mizuRoute.exe")
+    mizu_exe = config.get("MIZUROUTE_EXE", "mizuRoute.exe")
 
     # Try PATH first, then fall back to configured location
     mizu_in_path = shutil.which(mizu_exe)
@@ -303,6 +303,34 @@ def test_package_imports():
     assert True
 
 
+def _copy_with_name_adaptation(src: Path, dst: Path, old_name: str, new_name: str) -> bool:
+    """Copy directory or file and adapt filenames containing the old domain name."""
+    if not src.exists():
+        return False
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if src.is_file():
+        shutil.copy2(src, dst)
+        return True
+    shutil.copytree(src, dst, dirs_exist_ok=True)
+    for file in dst.rglob("*"):
+        if file.is_file() and old_name in file.name:
+            new_file = file.parent / file.name.replace(old_name, new_name)
+            file.rename(new_file)
+    return True
+
+
+def _setup_installs_symlink(tmp_path: Path, symfluence_data_root: Path) -> Path:
+    """Create symlink to installs directory in tmp_path so TauDEM binaries are found."""
+    installs_src = symfluence_data_root / "installs"
+    installs_dst = tmp_path / "installs"
+    if installs_src.exists() and not installs_dst.exists():
+        try:
+            installs_dst.symlink_to(installs_src)
+        except OSError:
+            pass
+    return installs_dst
+
+
 @pytest.mark.e2e
 @pytest.mark.ci_quick
 @pytest.mark.requires_data
@@ -319,22 +347,27 @@ def test_quick_workflow_summa_only(
 
     Tests the complete workflow with minimal data:
     1. Setup project
-    2. Use existing domain data (shapefiles, forcing)
-    3. Preprocess forcing (3 hours)
-    4. Run SUMMA simulation (3 hours)
+    2. Copy raw data from source domain
+    3. Run delineation if shapefiles don't exist
+    4. Preprocess forcing (3 hours)
+    5. Run SUMMA simulation (3 hours)
 
     This is a smoke test for CI - fast validation of core functionality.
     """
     from test_helpers.helpers import load_config_template, write_config
 
+    # Setup installs symlink for TauDEM
+    _setup_installs_symlink(tmp_path, symfluence_data_root)
+
     # Create test configuration
     config = load_config_template(symfluence_code_dir)
-    config["SYMFLUENCE_DATA_DIR"] = str(symfluence_data_root)
+    config["SYMFLUENCE_DATA_DIR"] = str(tmp_path)
     config["SYMFLUENCE_CODE_DIR"] = str(symfluence_code_dir)
 
     # Minimal 3-hour simulation
-    config["DOMAIN_NAME"] = "Bow_at_Banff_lumped"  # Match existing test data files
-    config["EXPERIMENT_ID"] = f"test_quick_{tmp_path.name}"
+    # Use short names to avoid Fortran path length limits in mizuRoute
+    config["DOMAIN_NAME"] = "Bow_quick"
+    config["EXPERIMENT_ID"] = "qtest"
     config["EXPERIMENT_TIME_START"] = "2004-01-01 01:00"
     config["EXPERIMENT_TIME_END"] = "2004-01-01 04:00"  # 3 hours
     config["CALIBRATION_PERIOD"] = None
@@ -344,8 +377,13 @@ def test_quick_workflow_summa_only(
     # Model settings
     config["HYDROLOGICAL_MODEL"] = "SUMMA"
     config["ROUTING_MODEL"] = "mizuRoute"
-    config["DOMAIN_DISCRETIZATION"] = "GRUs"
-    config["DOMAIN_DEFINITION_METHOD"] = "lumped"
+    config["SUB_GRID_DISCRETIZATION"] = "GRUs"
+    config["POUR_POINT_COORDS"] = "51.1722/-115.5717"
+
+    # Delineation settings - run full workflow from raw data
+    config["DOMAIN_DEFINITION_METHOD"] = "delineate"
+    config["DELINEATION_METHOD"] = "stream_threshold"
+    config["STREAM_THRESHOLD"] = 100000  # High threshold for single basin (lumped)
 
     # Use existing data (no downloads)
     config["DOWNLOAD_WSC_DATA"] = False
@@ -361,47 +399,35 @@ def test_quick_workflow_summa_only(
     project_dir = sym.managers["project"].setup_project()
     assert project_dir.exists(), "Project directory should be created"
 
-    # Copy existing forcing data from bow_domain (skip if same location)
-    import shutil
+    # Copy raw data from bow_domain to project directory, renaming files
+    src_domain_name = bow_domain.name.replace("domain_", "")
+    dst_domain_name = config["DOMAIN_NAME"]
+
+    # Copy forcing
     src_forcing = bow_domain / "forcing" / "raw_data"
     dst_forcing = project_dir / "forcing" / "raw_data"
-    if src_forcing.exists() and src_forcing.resolve() != dst_forcing.resolve():
-        dst_forcing.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(src_forcing, dst_forcing, dirs_exist_ok=True)
-
+    if src_forcing.exists():
+        _copy_with_name_adaptation(src_forcing, dst_forcing, src_domain_name, dst_domain_name)
     _prune_raw_forcing(project_dir, "domain_*_ERA5_merged_200401.nc")
 
-    # Copy existing shapefiles (skip if same location)
-    src_shapefiles = bow_domain / "shapefiles"
-    dst_shapefiles = project_dir / "shapefiles"
-    if src_shapefiles.exists() and src_shapefiles.resolve() != dst_shapefiles.resolve():
-        shutil.copytree(src_shapefiles, dst_shapefiles, dirs_exist_ok=True)
+    # Copy attributes (DEM, landclass, soilclass)
+    for attr_type in ["elevation", "landclass", "soilclass"]:
+        src_attr = bow_domain / "attributes" / attr_type
+        dst_attr = project_dir / "attributes" / attr_type
+        if src_attr.exists():
+            _copy_with_name_adaptation(src_attr, dst_attr, src_domain_name, dst_domain_name)
 
-    # Copy existing attributes (skip if same location)
-    src_attributes = bow_domain / "attributes"
-    dst_attributes = project_dir / "attributes"
-    if src_attributes.exists() and src_attributes.resolve() != dst_attributes.resolve():
-        shutil.copytree(src_attributes, dst_attributes, dirs_exist_ok=True)
+    # Create pour point
+    sym.managers["project"].create_pour_point()
 
-    # Reuse preprocessed forcing if available to speed smoke test
-    has_preprocessed_forcing = False
-    src_basin_avg = bow_domain / "forcing" / "basin_averaged_data"
-    dst_basin_avg = project_dir / "forcing" / "basin_averaged_data"
-    if src_basin_avg.exists() and src_basin_avg.resolve() != dst_basin_avg.resolve():
-        if list(src_basin_avg.glob("*.nc")):
-            dst_basin_avg.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(src_basin_avg, dst_basin_avg, dirs_exist_ok=True)
-            has_preprocessed_forcing = True
+    # Define domain (watershed delineation) - creates shapefiles from raw DEM
+    sym.managers["domain"].define_domain()
 
-    src_intersection = bow_domain / "shapefiles" / "catchment_intersection"
-    dst_intersection = project_dir / "shapefiles" / "catchment_intersection"
-    if src_intersection.exists() and src_intersection.resolve() != dst_intersection.resolve():
-        if list(src_intersection.glob("*")):
-            shutil.copytree(src_intersection, dst_intersection, dirs_exist_ok=True)
+    # Discretize domain
+    sym.managers["domain"].discretize_domain()
 
     # Model-agnostic preprocessing
-    if not has_preprocessed_forcing:
-        sym.managers["data"].run_model_agnostic_preprocessing()
+    sym.managers["data"].run_model_agnostic_preprocessing()
 
     # Check preprocessing outputs
     basin_avg_dir = project_dir / "forcing" / "basin_averaged_data"
@@ -427,7 +453,7 @@ def test_quick_workflow_summa_only(
 @pytest.mark.e2e
 @pytest.mark.ci_full
 @pytest.mark.requires_data
-@pytest.mark.parametrize("model", ["SUMMA", "HYPE", "RHESSys"])
+@pytest.mark.parametrize("model", ["SUMMA"])
 def test_full_workflow_1month(
     model,
     tmp_path,
@@ -436,27 +462,32 @@ def test_full_workflow_1month(
     bow_domain
 ):
     """
-    Full 1-month workflow test for each model.
+    Full 1-month workflow test for SUMMA.
 
     Tests the complete workflow with standard data:
     1. Setup project
-    2. Use existing domain data
+    2. Copy raw data and run delineation
     3. Preprocess forcing (1 month)
     4. Run model simulation (1 month)
     5. Verify outputs
 
     This is a more comprehensive test for full CI validation.
+    Note: HYPE and RHESSys are tested in integration tests.
     """
     from test_helpers.helpers import load_config_template, write_config
 
+    # Setup installs symlink for TauDEM
+    _setup_installs_symlink(tmp_path, symfluence_data_root)
+
     # Create test configuration
     config = load_config_template(symfluence_code_dir)
-    config["SYMFLUENCE_DATA_DIR"] = str(symfluence_data_root)
+    config["SYMFLUENCE_DATA_DIR"] = str(tmp_path)
     config["SYMFLUENCE_CODE_DIR"] = str(symfluence_code_dir)
 
     # 1-month simulation
-    config["DOMAIN_NAME"] = "Bow_at_Banff_lumped"  # Match existing test data files
-    config["EXPERIMENT_ID"] = f"test_full_{model}_{tmp_path.name}"
+    # Use short names to avoid Fortran path length limits in mizuRoute
+    config["DOMAIN_NAME"] = "Bow_full"
+    config["EXPERIMENT_ID"] = f"ftest_{model[:2]}"
     config["EXPERIMENT_TIME_START"] = "2004-01-01 01:00"
     config["EXPERIMENT_TIME_END"] = "2004-01-31 23:00"  # 1 month
 
@@ -466,9 +497,15 @@ def test_full_workflow_1month(
 
     # Model settings
     config["HYDROLOGICAL_MODEL"] = model
-    config["forcing"] = {"dataset": "ERA5"}
-    if model == "SUMMA":
-        config["ROUTING_MODEL"] = "mizuRoute"
+    config["FORCING_DATASET"] = "ERA5"
+    config["ROUTING_MODEL"] = "mizuRoute"
+    config["SUB_GRID_DISCRETIZATION"] = "GRUs"
+    config["POUR_POINT_COORDS"] = "51.1722/-115.5717"
+
+    # Delineation settings - run full workflow from raw data
+    config["DOMAIN_DEFINITION_METHOD"] = "delineate"
+    config["DELINEATION_METHOD"] = "stream_threshold"
+    config["STREAM_THRESHOLD"] = 100000  # High threshold for single basin
 
     # Save config
     cfg_path = tmp_path / "config_full.yaml"
@@ -478,14 +515,27 @@ def test_full_workflow_1month(
     sym = SYMFLUENCE(cfg_path)
     project_dir = sym.managers["project"].setup_project()
 
-    # Copy data (same as quick test, skip if same location)
-    import shutil
-    for subdir in ["forcing/raw_data", "shapefiles", "attributes"]:
-        src = bow_domain / subdir
-        dst = project_dir / subdir
-        if src.exists() and src.resolve() != dst.resolve():
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(src, dst, dirs_exist_ok=True)
+    # Copy raw data from bow_domain to project directory, renaming files
+    src_domain_name = bow_domain.name.replace("domain_", "")
+    dst_domain_name = config["DOMAIN_NAME"]
+
+    # Copy forcing
+    src_forcing = bow_domain / "forcing" / "raw_data"
+    dst_forcing = project_dir / "forcing" / "raw_data"
+    if src_forcing.exists():
+        _copy_with_name_adaptation(src_forcing, dst_forcing, src_domain_name, dst_domain_name)
+
+    # Copy attributes (DEM, landclass, soilclass)
+    for attr_type in ["elevation", "landclass", "soilclass"]:
+        src_attr = bow_domain / "attributes" / attr_type
+        dst_attr = project_dir / "attributes" / attr_type
+        if src_attr.exists():
+            _copy_with_name_adaptation(src_attr, dst_attr, src_domain_name, dst_domain_name)
+
+    # Create pour point and run domain workflow
+    sym.managers["project"].create_pour_point()
+    sym.managers["domain"].define_domain()
+    sym.managers["domain"].discretize_domain()
 
     # Run full pipeline
     sym.managers["data"].run_model_agnostic_preprocessing()
@@ -507,32 +557,51 @@ def test_calibration_workflow(tmp_path, symfluence_code_dir, symfluence_data_roo
 
     Tests the complete calibration pipeline:
     1. Setup project
-    2. Preprocess data
-    3. Run model
-    4. Calibrate model (minimal iterations for testing)
-    5. Verify calibration outputs
+    2. Copy raw data and run delineation
+    3. Preprocess data
+    4. Run model
+    5. Calibrate model (minimal iterations for testing)
+    6. Verify calibration outputs with real data validation
     """
+    import pandas as pd
+    import math
     from test_helpers.helpers import load_config_template, write_config
+
+    # Setup installs symlink for TauDEM
+    _setup_installs_symlink(tmp_path, symfluence_data_root)
 
     # Create test configuration
     config = load_config_template(symfluence_code_dir)
-    config["SYMFLUENCE_DATA_DIR"] = str(symfluence_data_root)
+    config["SYMFLUENCE_DATA_DIR"] = str(tmp_path)
     config["SYMFLUENCE_CODE_DIR"] = str(symfluence_code_dir)
 
     # Calibration settings
-    config["DOMAIN_NAME"] = "Bow_at_Banff_lumped"  # Match existing test data files
-    config["EXPERIMENT_ID"] = f"test_calib_{tmp_path.name}"
+    # Use short names to avoid Fortran path length limits in mizuRoute
+    config["DOMAIN_NAME"] = "Bow_calib"
+    config["EXPERIMENT_ID"] = "ctest"
     config["EXPERIMENT_TIME_START"] = "2004-01-01 01:00"
-    config["EXPERIMENT_TIME_END"] = "2004-01-31 23:00"
-    config["CALIBRATION_PERIOD"] = "2004-01-05, 2004-01-19"
-    config["EVALUATION_PERIOD"] = "2004-01-20, 2004-01-30"
-    config["SPINUP_PERIOD"] = "2004-01-01, 2004-01-04"
+    config["EXPERIMENT_TIME_END"] = "2004-01-05 23:00"  # 5 days for faster test
+    config["CALIBRATION_PERIOD"] = "2004-01-02, 2004-01-04"
+    config["EVALUATION_PERIOD"] = "2004-01-05, 2004-01-05"
+    config["SPINUP_PERIOD"] = "2004-01-01, 2004-01-01"
 
     # Model settings
     config["HYDROLOGICAL_MODEL"] = "SUMMA"
     config["ROUTING_MODEL"] = "mizuRoute"
+    config["FORCING_DATASET"] = "ERA5"
+    config["SUB_GRID_DISCRETIZATION"] = "GRUs"
+    config["POUR_POINT_COORDS"] = "51.1722/-115.5717"
 
-    # Minimal calibration for testing
+    # Delineation settings
+    config["DOMAIN_DEFINITION_METHOD"] = "delineate"
+    config["DELINEATION_METHOD"] = "stream_threshold"
+    config["STREAM_THRESHOLD"] = 100000
+
+    # Streamflow station
+    config["STATION_ID"] = "05BB001"
+    config["DOWNLOAD_WSC_DATA"] = False
+
+    # Calibration for testing - use 3 iterations to verify algorithm runs
     config["NUMBER_OF_ITERATIONS"] = 3
     config["RANDOM_SEED"] = 42
     config["PARAMS_TO_CALIBRATE"] = "theta_sat"
@@ -545,14 +614,34 @@ def test_calibration_workflow(tmp_path, symfluence_code_dir, symfluence_data_roo
     sym = SYMFLUENCE(cfg_path)
     project_dir = sym.managers["project"].setup_project()
 
-    # Copy data (skip if same location)
-    import shutil
-    for subdir in ["forcing/raw_data", "shapefiles", "attributes", "observations"]:
-        src = bow_domain / subdir
-        dst = project_dir / subdir
-        if src.exists() and src.resolve() != dst.resolve():
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(src, dst, dirs_exist_ok=True)
+    # Copy raw data from bow_domain to project directory, renaming files
+    src_domain_name = bow_domain.name.replace("domain_", "")
+    dst_domain_name = config["DOMAIN_NAME"]
+
+    # Copy forcing
+    src_forcing = bow_domain / "forcing" / "raw_data"
+    dst_forcing = project_dir / "forcing" / "raw_data"
+    if src_forcing.exists():
+        _copy_with_name_adaptation(src_forcing, dst_forcing, src_domain_name, dst_domain_name)
+    _prune_raw_forcing(project_dir, "domain_*_ERA5_merged_200401.nc")
+
+    # Copy attributes (DEM, landclass, soilclass)
+    for attr_type in ["elevation", "landclass", "soilclass"]:
+        src_attr = bow_domain / "attributes" / attr_type
+        dst_attr = project_dir / "attributes" / attr_type
+        if src_attr.exists():
+            _copy_with_name_adaptation(src_attr, dst_attr, src_domain_name, dst_domain_name)
+
+    # Copy observations (streamflow)
+    src_obs = bow_domain / "observations"
+    dst_obs = project_dir / "observations"
+    if src_obs.exists():
+        _copy_with_name_adaptation(src_obs, dst_obs, src_domain_name, dst_domain_name)
+
+    # Create pour point and run domain workflow
+    sym.managers["project"].create_pour_point()
+    sym.managers["domain"].define_domain()
+    sym.managers["domain"].discretize_domain()
 
     # Run pipeline
     sym.managers["data"].run_model_agnostic_preprocessing()
@@ -563,6 +652,28 @@ def test_calibration_workflow(tmp_path, symfluence_code_dir, symfluence_data_roo
     results_file = sym.managers["optimization"].calibrate_model()
     assert results_file is not None, "Calibration should produce results"
 
-    # Verify calibration outputs
+    # Validate calibration results - ensure we actually ran with real data
+    assert results_file.exists(), f"Results file should exist on disk: {results_file}"
+
+    results_df = pd.read_csv(results_file)
+    assert len(results_df) >= 3, f"Should have at least 3 calibration iterations, got {len(results_df)}"
+
+    # Check required columns exist
+    assert 'iteration' in results_df.columns, "Results should have 'iteration' column"
+    assert 'score' in results_df.columns, "Results should have 'score' column"
+
+    # Validate scores are real numbers (not NaN or inf)
+    scores = results_df['score'].values
+    for i, score in enumerate(scores):
+        assert not math.isnan(score), f"Score at iteration {i} should not be NaN"
+        assert not math.isinf(score), f"Score at iteration {i} should not be infinite"
+        # KGE ranges from -inf to 1, but reasonable values are > -100
+        assert score > -100, f"Score at iteration {i} seems unreasonably low: {score}"
+
+    # Verify we have parameter columns
+    param_cols = [c for c in results_df.columns if c not in ['iteration', 'score', 'elapsed_time']]
+    assert len(param_cols) > 0, "Results should contain parameter columns"
+
+    # Verify calibration directory exists
     calib_dir = project_dir / "optimization"
     assert calib_dir.exists(), "Calibration directory should exist"

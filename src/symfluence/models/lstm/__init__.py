@@ -98,8 +98,8 @@ ModelRegistry.register_result_extractor('LSTM')(LSTMResultExtractor)
 # Register preprocessor with ModelRegistry
 ModelRegistry.register_preprocessor('LSTM')(LSTMPreprocessor)
 
-# Register runner with ModelRegistry
-ModelRegistry.register_runner('LSTM')(LSTMRunner)
+# Register runner with ModelRegistry (method_name must match the actual method in runner.py)
+ModelRegistry.register_runner('LSTM', method_name='run_lstm')(LSTMRunner)
 
 # Register postprocessor with ModelRegistry
 ModelRegistry.register_postprocessor('LSTM')(LSTMPostprocessor)

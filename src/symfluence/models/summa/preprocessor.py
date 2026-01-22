@@ -82,14 +82,10 @@ class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.dem_path = self.get_dem_path()
         self.forcing_summa_path = self.project_dir / 'forcing' / 'SUMMA_input'
 
-        # Catchment and river network (use base class methods)
-        self.catchment_path = self._get_default_path('CATCHMENT_PATH', 'shapefiles/catchment')
-        self.catchment_name = self._get_config_value(
-            lambda: self.config.paths.catchment_name
-        )
-        if self.catchment_name == 'default' or self.catchment_name is None:
-            discretization = self._get_config_value(lambda: self.config.domain.discretization)
-            self.catchment_name = f"{self.domain_name}_HRUs_{discretization}.shp"
+        # Catchment and river network (use backward-compatible path resolution)
+        catchment_file = self._get_catchment_file_path()
+        self.catchment_path = catchment_file.parent
+        self.catchment_name = catchment_file.name
 
         self.river_network_path = self._get_default_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network')
         self.river_network_name = self._get_config_value(

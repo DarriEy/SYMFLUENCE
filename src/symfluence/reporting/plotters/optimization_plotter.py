@@ -49,8 +49,11 @@ class OptimizationPlotter(BasePlotter):
             plots_dir.mkdir(parents=True, exist_ok=True)
 
             # Extract progress data
-            generations = [h.get('generation', 0) for h in history]
-            best_scores = [h['best_score'] for h in history if h.get('best_score') is not None]
+            # Note: record_iteration stores the score as 'score', not 'best_score'
+            # Some algorithms may also provide 'generation' in additional_metrics
+            generations = [h.get('generation', h.get('iteration', i)) for i, h in enumerate(history)]
+            best_scores = [h.get('best_score', h.get('score')) for h in history
+                          if h.get('best_score') is not None or h.get('score') is not None]
 
             if not best_scores:
                 self.logger.warning("No best scores found in history for plotting.")
@@ -122,16 +125,31 @@ class OptimizationPlotter(BasePlotter):
             plots_dir.mkdir(parents=True, exist_ok=True)
 
             # Extract depth parameters
+            # Note: record_iteration spreads params directly into the record,
+            # so check both h['best_params'] (legacy) and h directly
             generations = []
             total_mults = []
             shape_factors = []
 
-            for h in history:
+            for i, h in enumerate(history):
+                # Check for params in best_params dict (legacy format)
                 if h.get('best_params') and 'total_mult' in h['best_params'] and 'shape_factor' in h['best_params']:
-                    generations.append(h.get('generation', 0))
+                    generations.append(h.get('generation', h.get('iteration', i)))
 
                     tm = h['best_params']['total_mult']
                     sf = h['best_params']['shape_factor']
+
+                    tm_val = tm[0] if isinstance(tm, np.ndarray) and len(tm) > 0 else tm
+                    sf_val = sf[0] if isinstance(sf, np.ndarray) and len(sf) > 0 else sf
+
+                    total_mults.append(tm_val)
+                    shape_factors.append(sf_val)
+                # Check for params directly in record (current format from record_iteration)
+                elif 'total_mult' in h and 'shape_factor' in h:
+                    generations.append(h.get('generation', h.get('iteration', i)))
+
+                    tm = h['total_mult']
+                    sf = h['shape_factor']
 
                     tm_val = tm[0] if isinstance(tm, np.ndarray) and len(tm) > 0 else tm
                     sf_val = sf[0] if isinstance(sf, np.ndarray) and len(sf) > 0 else sf

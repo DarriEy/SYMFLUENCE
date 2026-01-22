@@ -21,14 +21,14 @@ References:
     In Proceedings of the 3rd International Conference on Learning Representations (ICLR).
 """
 
-from typing import Dict, Any, Callable, Optional, Tuple
+from typing import Dict, Any, Callable, Optional
 import numpy as np
 
-from .base_algorithm import OptimizationAlgorithm
+from .base_algorithm import OptimizationAlgorithm, NativeGradientCallback
 
 
 class AdamAlgorithm(OptimizationAlgorithm):
-    """Adam gradient-based optimization using finite-difference gradients.
+    """Adam gradient-based optimization with support for native or finite-difference gradients.
 
     ADAM maintains first and second moment estimates of the gradient:
     - m = exponential moving average of gradients (momentum)
@@ -38,7 +38,7 @@ class AdamAlgorithm(OptimizationAlgorithm):
     Algorithm Overview:
         1. Initialize parameters at normalized space midpoint (0.5)
         2. For each step:
-           a. Compute finite-difference gradients (central differences)
+           a. Compute gradients (native autodiff or finite-difference)
            b. Update first moment: m ← β1*m + (1-β1)*∇f
            c. Update second moment: v ← β2*v + (1-β2)*∇f²
            d. Bias correct: m̂ = m / (1 - β1^t), v̂ = v / (1 - β2^t)
@@ -47,10 +47,14 @@ class AdamAlgorithm(OptimizationAlgorithm):
         3. Return best solution found
 
     Gradient Computation:
-        Uses central finite differences: ∇f_i = (f(x+ε*e_i) - f(x-ε*e_i)) / (2ε)
-        - e_i: unit vector in dimension i
-        - ε: perturbation size (typically 1e-4)
-        - Cost: 2*n_params function evaluations per step
+        Supports two modes controlled by gradient_mode parameter:
+        1. Native gradients (when compute_gradient callback provided):
+           - Uses autodiff (JAX/PyTorch) for exact gradients
+           - Cost: ~2 function evaluations per step (forward + backward)
+           - ~N times faster than FD for N parameters
+        2. Finite-difference gradients (default fallback):
+           - Uses central differences: ∇f_i = (f(x+ε*e_i) - f(x-ε*e_i)) / (2ε)
+           - Cost: 2*n_params + 1 function evaluations per step
 
     Hyperparameters:
         - α (lr): Learning rate (default: 0.01)
@@ -58,6 +62,7 @@ class AdamAlgorithm(OptimizationAlgorithm):
         - β2: Second moment decay (default: 0.999)
         - ε: Numerical stability (default: 1e-8)
         - steps: Maximum iterations (default: uses max_iterations)
+        - gradient_mode: 'auto', 'native', or 'finite_difference'
     """
 
     @property
@@ -75,9 +80,11 @@ class AdamAlgorithm(OptimizationAlgorithm):
         update_best: Callable,
         log_progress: Callable,
         evaluate_population_objectives: Optional[Callable] = None,
+        compute_gradient: Optional[NativeGradientCallback] = None,
+        gradient_mode: str = 'auto',
         **kwargs
     ) -> Dict[str, Any]:
-        """Run ADAM optimization with finite-difference gradients.
+        """Run ADAM optimization with native or finite-difference gradients.
 
         Initializes parameters at normalized space midpoint and iteratively
         improves using adaptive moment estimation and gradient ascent.
@@ -93,6 +100,13 @@ class AdamAlgorithm(OptimizationAlgorithm):
             update_best: Function to update best solution found
             log_progress: Function to log progress messages
             evaluate_population_objectives: Unused for ADAM
+            compute_gradient: Optional native gradient callback.
+                             Signature: (x_normalized) -> (loss, gradient_array)
+                             When provided, enables ~N times faster gradient computation.
+            gradient_mode: How to compute gradients:
+                          - 'auto': Use native if compute_gradient provided, else FD
+                          - 'native': Require native gradients (error if unavailable)
+                          - 'finite_difference': Always use FD (for comparison)
             **kwargs: Optional hyperparameters:
                      - steps: Number of iterations (default: max_iterations from config)
                      - lr: Learning rate (default: 0.01)
@@ -105,18 +119,35 @@ class AdamAlgorithm(OptimizationAlgorithm):
             - best_solution: Best parameter vector found (normalized [0,1])
             - best_score: Highest objective value achieved
             - best_params: Denormalized best parameters (dictionary)
+            - gradient_method: 'native' or 'finite_difference' (which was used)
         """
         # Adam hyperparameters from config or kwargs
         steps = kwargs.get('steps', self.config_dict.get('ADAM_STEPS', self.max_iterations))
         lr = kwargs.get('lr', self.config_dict.get('ADAM_LR', 0.01))
-        beta1 = kwargs.get('beta1', self.config.get('ADAM_BETA1', 0.9))
-        beta2 = kwargs.get('beta2', self.config.get('ADAM_BETA2', 0.999))
+        beta1 = kwargs.get('beta1', self.config_dict.get('ADAM_BETA1', 0.9))
+        beta2 = kwargs.get('beta2', self.config_dict.get('ADAM_BETA2', 0.999))
         eps = kwargs.get('eps', self.config_dict.get('ADAM_EPS', 1e-8))
         gradient_epsilon = self.config_dict.get('GRADIENT_EPSILON', 1e-4)
         gradient_clip = self.config_dict.get('GRADIENT_CLIP_VALUE', 1.0)
 
+        # Determine gradient method and create unified gradient function
+        use_native = self._should_use_native_gradients(compute_gradient, gradient_mode)
+        gradient_method = 'native' if use_native else 'finite_difference'
+
+        gradient_func = self._create_gradient_function(
+            compute_gradient=compute_gradient,
+            evaluate_solution=evaluate_solution,
+            gradient_mode=gradient_mode,
+            epsilon=gradient_epsilon
+        )
+
         self.logger.info(f"Starting Adam optimization with {n_params} parameters")
         self.logger.info(f"  Steps: {steps}, LR: {lr}, Beta1: {beta1}, Beta2: {beta2}")
+        self.logger.info(f"  Gradient method: {gradient_method}")
+        if use_native:
+            self.logger.info("  Using native gradients (~2 evals/step)")
+        else:
+            self.logger.info(f"  Using finite differences ({2*n_params + 1} evals/step)")
 
         # Initialize at midpoint of normalized space
         x = np.full(n_params, 0.5)
@@ -130,10 +161,8 @@ class AdamAlgorithm(OptimizationAlgorithm):
         best_fitness = float('-inf')
 
         for step in range(steps):
-            # Compute gradients using finite differences
-            fitness, gradient = self._compute_gradients(
-                x, evaluate_solution, gradient_epsilon
-            )
+            # Compute gradients using unified gradient function
+            fitness, gradient = gradient_func(x)
 
             # Clip gradient
             gradient = self._clip_gradient(gradient, gradient_clip)
@@ -169,89 +198,13 @@ class AdamAlgorithm(OptimizationAlgorithm):
         return {
             'best_solution': best_x,
             'best_score': best_fitness,
-            'best_params': denormalize_params(best_x)
+            'best_params': denormalize_params(best_x),
+            'gradient_method': gradient_method
         }
 
-    def _compute_gradients(
-        self,
-        x: np.ndarray,
-        evaluate_func: Callable,
-        epsilon: float
-    ) -> Tuple[float, np.ndarray]:
-        """Compute gradients using central finite differences.
-
-        Central finite difference formula (more accurate than forward/backward):
-            ∂f/∂x_i ≈ (f(x + ε*e_i) - f(x - ε*e_i)) / (2*ε)
-
-        where e_i is unit vector with 1 in dimension i and 0 elsewhere.
-
-        Procedure:
-            1. Evaluate fitness at current point (f_center)
-            2. For each parameter dimension:
-               a. Perturb +ε in that dimension
-               b. Evaluate fitness at perturbed point
-               c. Perturb -ε in that dimension
-               d. Evaluate fitness at perturbed point
-               e. Compute central difference
-            3. Return current fitness and gradient array
-
-        Cost: 2*n_params + 1 function evaluations
-
-        Args:
-            x: Current parameter values (normalized [0,1])
-            evaluate_func: Function to evaluate fitness: f = evaluate_func(x, step_id)
-            epsilon: Perturbation size (typically 1e-4)
-
-        Returns:
-            Tuple of (f_center, gradient_array):
-            - f_center: Fitness at current point
-            - gradient_array: Approximate gradient (shape: n_params)
-        """
-        n_params = len(x)
-        gradient = np.zeros(n_params)
-
-        # Evaluate at current point
-        f_center = evaluate_func(x, 0)
-
-        # Compute central differences
-        for i in range(n_params):
-            x_plus = x.copy()
-            x_minus = x.copy()
-
-            x_plus[i] = min(1.0, x[i] + epsilon)
-            x_minus[i] = max(0.0, x[i] - epsilon)
-
-            f_plus = evaluate_func(x_plus, 0)
-            f_minus = evaluate_func(x_minus, 0)
-
-            # Central difference (for maximization, gradient points uphill)
-            gradient[i] = (f_plus - f_minus) / (2 * epsilon)
-
-        return f_center, gradient
-
-    def _clip_gradient(self, gradient: np.ndarray, clip_value: float) -> np.ndarray:
-        """Clip gradient norm to prevent exploding gradients.
-
-        Gradient clipping prevents numerical instability when finite-difference
-        gradients become very large (e.g., near discontinuities or noise).
-
-        Algorithm:
-            1. Compute gradient norm: ||g|| = √(Σ g_i²)
-            2. If ||g|| > clip_value:
-                 g_clipped = g * (clip_value / ||g||)
-            3. Otherwise: g_clipped = g
-
-        This rescales the gradient vector to have maximum norm of clip_value,
-        preserving direction but reducing magnitude.
-
-        Args:
-            gradient: Gradient vector (shape: n_params)
-            clip_value: Maximum L2 norm allowed (typically 1.0)
-
-        Returns:
-            np.ndarray: Clipped gradient with ||g|| ≤ clip_value
-        """
-        norm = np.linalg.norm(gradient)
-        if norm > clip_value:
-            gradient = gradient * (clip_value / norm)
-        return gradient
+    # Note: _compute_gradients and _clip_gradient are inherited from base class
+    # The base class provides:
+    # - _compute_fd_gradients(): Central finite differences
+    # - _clip_gradient(): Gradient norm clipping
+    # - _create_gradient_function(): Unified gradient function factory
+    # - _should_use_native_gradients(): Gradient mode decision logic

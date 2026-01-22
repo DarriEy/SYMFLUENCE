@@ -374,7 +374,7 @@ class TestInitCommandWithCustomFlags:
         assert config['EXPERIMENT_TIME_START'] == '2018-01-01 00:00'
         assert config['EXPERIMENT_TIME_END'] == '2022-12-31 23:00'
         assert config['FORCING_DATASET'] == 'RDRS'
-        assert config['DOMAIN_DISCRETIZATION'] == 'elevation'
+        assert config['SUB_GRID_DISCRETIZATION'] == 'elevation'
 
 
 class TestInitCommandWithScaffold:

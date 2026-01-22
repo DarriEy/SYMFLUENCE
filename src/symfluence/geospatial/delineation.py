@@ -1,43 +1,47 @@
 """Domain delineation module for watershed boundary extraction and spatial discretization.
 
-Provides flexible domain delineation workflows supporting five distinct modeling paradigms:
-point-scale (FLUXNET), lumped watershed (conceptual), distributed geofabric subsetting,
-full TauDEM-based watershed delineation, and grid-based discretization. Integrates with
+Provides flexible domain delineation workflows supporting four primary definition methods
+with optional subsetting: point-scale (FLUXNET), lumped watershed (conceptual),
+semi-distributed (subcatchments), and distributed (grid-based). Integrates with
 geofabric providers (MERIT-Basins, HydroSHEDS) and DEM-based delineation.
 
 Architecture:
     The delineation module enables multiple domain definition workflows through the
     DomainDelineator orchestrator class:
 
-    1. Five Domain Definition Methods:
+    1. Four Domain Definition Methods:
        - POINT: Single-polygon square domain for point-scale modeling (FLUXNET, weather stations)
-       - SUBSET: Extract domain from existing geofabric via spatial intersection
        - LUMPED: Single-basin watershed from pour point (traditional hydrological modeling)
-       - DELINEATE: Full subcatchment delineation via TauDEM (distributed models like SUMMA)
-       - DISTRIBUTE: Regular grid cells with D8 flow routing (grid-based models like VIC, MESH)
+       - SEMIDISTRIBUTED: Full subcatchment delineation via TauDEM (distributed models like SUMMA)
+       - DISTRIBUTED: Regular grid cells with D8 flow routing (grid-based models like VIC, MESH)
 
-    2. Delineation Workflows:
-       Point → Point-scale forcing, constant attributes, single model HRU
-       Subset → Extract from HydroSHEDS/MERIT-Basins, subset attributes
-       Lumped → Single-HRU model, simplified routing, traditional calibration
-       Delineate → Subcatchment-scale HRUs, complex routing, distributed parameters
-       Distribute → Grid cells (~1 km), cell-based routing, fully distributed
+    2. Subsetting Option (subset_from_geofabric):
+       - When True, extracts domain from existing geofabric (MERIT-Basins, HydroSHEDS)
+       - Available for lumped, semidistributed, and distributed methods
+       - Lumped + subset: Dissolves subset basins to single polygon, preserves original for routing
+       - Semidistributed + subset: Uses subset basins directly
+       - Distributed + subset: Creates grid cells clipped to geofabric extent
 
-    3. Lumped-to-Distributed Routing (Special Workflow):
+    3. Grid Source Options (for distributed only):
+       - 'generate': Create grid from bounding box with specified cell size
+       - 'native': Match forcing data grid resolution (e.g., ERA5)
+
+    4. Lumped-to-Distributed Routing (Special Workflow):
        - Hydrological model runs as lumped (single basin, 1 HRU)
        - Routing model runs as distributed (subcatchment-level)
        - Requires area-weighted remapping from lumped model outputs
        - Configuration: domain.delineation.routing = "river_network"
 
-    4. Artifact Tracking:
+    5. Artifact Tracking:
        DelineationArtifacts dataclass tracks:
-       - method: Domain definition method used (point, subset, lumped, delineate, distribute)
+       - method: Domain definition method used (point, lumped, semidistributed, distributed)
        - river_basins_path: Subcatchment polygons shapefile
        - river_network_path: River network polyline shapefile
        - pour_point_path: Outlet point coordinate
+       - original_basins_path: Original basins before aggregation (for lumped+subset)
        - metadata: Method-specific configuration (grid cell size, coastal delineation flags)
 
-    5. Component Integration:
+    6. Component Integration:
        - GeofabricDelineator: TauDEM-based full delineation
        - GeofabricSubsetter: Spatial intersection with existing shapefiles
        - LumpedWatershedDelineator: Single-watershed creation
@@ -45,32 +49,51 @@ Architecture:
        - GridDelineator: Regular grid discretization
 
 Configuration Parameters:
-    domain.definition_method: Delineation method (point, subset, lumped, delineate, distribute)
+    domain.definition_method: Delineation method (point, lumped, semidistributed, distributed)
+    domain.subset_from_geofabric: Extract from existing geofabric (default: False)
+    domain.grid_source: Grid creation method for distributed (generate, native)
+    domain.native_grid_dataset: Dataset identifier for native grid (default: era5)
     domain.delineation.routing: Routing mode for lumped domain (lumped, river_network)
     domain.delineation.geofabric_type: Source geofabric (merit_basins, hydrosheds)
     domain.delineation.delineate_coastal_watersheds: Enable coastal special handling (bool)
-    domain.grid_cell_size: Grid spacing in meters (distribute method, default 1000.0)
+    domain.grid_cell_size: Grid spacing in meters (distributed method, default 1000.0)
     domain.clip_grid_to_watershed: Clip grid cells to watershed boundary (bool)
     paths.river_basins_name: Pre-existing shapefile basename (skip delineation if provided)
 
-Output Files:
-    river_basins_path: shapefiles/river_basins/{domain_name}_riverBasins_{method}.shp
-    river_network_path: shapefiles/river_network/{domain_name}_riverNetwork_{method}.shp
-    pour_point_path: shapefiles/pour_point/{domain_name}_pourPoint.shp
+Output File Naming Convention:
+    | Method           | Subset | Grid Source | Suffix                              |
+    |------------------|--------|-------------|-------------------------------------|
+    | point            | —      | —           | point                               |
+    | lumped           | false  | —           | lumped                              |
+    | lumped           | true   | —           | lumped_subset_{geofabric}           |
+    | semidistributed  | false  | —           | semidistributed                     |
+    | semidistributed  | true   | —           | semidistributed_subset_{geofabric}  |
+    | distributed      | false  | generate    | distributed_{cellsize}m             |
+    | distributed      | true   | —           | distributed_subset_{geofabric}      |
+    | distributed      | —      | native      | distributed_native_{dataset}        |
 
 Use Cases by Method:
     1. POINT: FLUXNET tower calibration, single weather station forcing, small-scale studies
-    2. SUBSET: Continental-scale studies (extract subset of larger geofabric)
-    3. LUMPED: Traditional bucket-model calibration (GR4J, GR6J, conceptual models)
-    4. DELINEATE: Physically-distributed LSM calibration (SUMMA, HYPE with TauDEM)
-    5. DISTRIBUTE: Grid-based land surface models (VIC, MESH, CLM at 1 km resolution)
+    2. LUMPED: Traditional bucket-model calibration (GR4J, GR6J, conceptual models)
+    3. LUMPED + subset: Use geofabric topology for routing with lumped hydrology
+    4. SEMIDISTRIBUTED: Physically-distributed LSM calibration (SUMMA, HYPE with TauDEM)
+    5. SEMIDISTRIBUTED + subset: Work within larger geofabric (MERIT-Basins, HydroSHEDS)
+    6. DISTRIBUTED: Grid-based land surface models (VIC, MESH, CLM at 1 km resolution)
 
 Example Workflows:
     Point-scale: FLUXNET site → Point domain (10×10 km) → Model forcing
     Lumped: Pour point → Single-basin domain → Simple routing (usually no routing)
-    Lumped-to-Distributed: Lumped model HRU → Distributed subcatchments → MizuRoute routing
-    Distributed: Pour point → TauDEM delineation → Subcatchments → SUMMA + MizuRoute
-    Grid: Domain extent → Regular grid → D8 routing → VIC/MESH
+    Lumped + subset: Geofabric subset → Dissolve to single basin → Keep original for routing
+    Semidistributed: Pour point → TauDEM delineation → Subcatchments → SUMMA + MizuRoute
+    Semidistributed + subset: Geofabric subset → Subcatchments → Model + Routing
+    Distributed: Domain extent → Regular grid → D8 routing → VIC/MESH
+
+Backwards Compatibility:
+    Old method names are automatically mapped to new values:
+    - 'delineate' → 'semidistributed'
+    - 'distribute' → 'distributed'
+    - 'subset' → 'semidistributed' (with subset_from_geofabric implied)
+    - 'discretized' → 'semidistributed' (deprecated, shows warning)
 
 References:
     - TauDEM Delineation: https://hydrology.unsw.edu.au/download/TauDEM/
@@ -105,34 +128,37 @@ class DelineationArtifacts:
     audit trail of which method was used and optional metadata for method-specific config.
 
     Attributes:
-        method (str): Domain definition method used (point, subset, lumped, delineate, distribute).
+        method (str): Domain definition method used (point, lumped, semidistributed, distributed).
             Used to identify workflow configuration and output naming scheme.
 
         river_basins_path (Optional[Path]): Path to subcatchment polygon shapefile (*.shp).
             - POINT: Single-polygon bounding box
-            - SUBSET: Extracted geofabric subcatchments
-            - LUMPED: Single polygon (entire watershed)
-            - DELINEATE: TauDEM-delineated subcatchments
-            - DISTRIBUTE: Grid cells as polygons
+            - LUMPED: Single polygon (entire watershed, possibly dissolved from subset)
+            - SEMIDISTRIBUTED: TauDEM-delineated or subset subcatchments
+            - DISTRIBUTED: Grid cells as polygons
 
         river_network_path (Optional[Path]): Path to river network polyline shapefile (*.shp).
             - POINT: Usually None (point-scale has no network)
-            - SUBSET: Subset network from geofabric
-            - LUMPED: Simplified river network (main stem only)
-            - DELINEATE: Full TauDEM-delineated stream network
-            - DISTRIBUTE: D8 flow paths connecting grid cells
+            - LUMPED: Simplified river network (main stem only) or preserved from subset
+            - SEMIDISTRIBUTED: Full stream network from TauDEM or geofabric
+            - DISTRIBUTED: D8 flow paths connecting grid cells
 
         pour_point_path (Optional[Path]): Path to outlet point shapefile (*.shp).
             Single point geometry representing watershed outlet. Used by some models
             (e.g., HYPE) and for visualization.
 
+        original_basins_path (Optional[Path]): Path to original basins before aggregation.
+            Only populated for lumped + subset workflows where multiple basins are
+            dissolved into a single polygon. The original basins are preserved for
+            creating remap files for distributed routing.
+
         metadata (Dict[str, str]): Method-specific configuration and outputs.
             Examples:
-                - 'grid_cell_size': '1000.0' (from DISTRIBUTE method)
-                - 'clip_to_watershed': 'True' (from DISTRIBUTE method)
+                - 'grid_cell_size': '1000.0' (from DISTRIBUTED method)
+                - 'clip_to_watershed': 'True' (from DISTRIBUTED method)
                 - 'delineated_river_network_path': path (from LUMPED with routing='river_network')
                 - 'delineated_river_basins_path': path (from LUMPED with routing='river_network')
-                - 'geofabric_type': 'merit_basins' (from SUBSET method)
+                - 'geofabric_type': 'merit_basins' (from subset workflows)
 
     Examples:
         >>> # Point-scale domain
@@ -140,6 +166,15 @@ class DelineationArtifacts:
         ...     method='point',
         ...     river_basins_path=Path('shapefiles/river_basins/site_basins.shp'),
         ...     pour_point_path=Path('shapefiles/pour_point/site_point.shp')
+        ... )
+
+        >>> # Lumped with subset (dissolved basins, original preserved)
+        >>> artifacts = DelineationArtifacts(
+        ...     method='lumped',
+        ...     river_basins_path=Path('shapefiles/river_basins/domain_riverBasins_lumped_subset_merit.shp'),
+        ...     river_network_path=Path('shapefiles/river_network/domain_riverNetwork_lumped_subset_merit.shp'),
+        ...     original_basins_path=Path('shapefiles/river_basins/domain_riverBasins_lumped_subset_merit_original.shp'),
+        ...     metadata={'geofabric_type': 'merit'}
         ... )
 
         >>> # Lumped with distributed routing
@@ -157,6 +192,7 @@ class DelineationArtifacts:
     river_basins_path: Optional[Path] = None
     river_network_path: Optional[Path] = None
     pour_point_path: Optional[Path] = None
+    original_basins_path: Optional[Path] = None
     metadata: Dict[str, str] = field(default_factory=dict)
 
 
@@ -710,11 +746,28 @@ class DomainDelineator(PathResolverMixin):
             - MizuRoute: Getenet et al., 2021
         """
         with self.time_limit("Domain Definition"):
-            # Get the domain definition method from configuration (lumped, delineate, subset, point, distribute)
+            # Get the domain definition method from configuration
+            # Valid methods: point, lumped, semidistributed, distributed
+            # Legacy methods (delineate, distribute, subset, discretized) are mapped by validator
             domain_method = self._get_config_value(
                 lambda: self.config.domain.definition_method,
-                default='lumped'
+                default='semidistributed'
             )
+
+            # Get subset and grid options
+            subset_from_geofabric = self._get_config_value(
+                lambda: self.config.domain.subset_from_geofabric,
+                default=False
+            )
+            grid_source = self._get_config_value(
+                lambda: self.config.domain.grid_source,
+                default='generate'
+            )
+            geofabric_type = self._get_config_value(
+                lambda: self.config.domain.delineation.geofabric_type,
+                default='na'
+            )
+
             artifacts = DelineationArtifacts(method=domain_method)
 
             # Early exit: User provided pre-existing shapefiles, skip all delineation
@@ -726,103 +779,236 @@ class DomainDelineator(PathResolverMixin):
                 self.logger.info("Shapefile provided, skipping domain definition")
                 return None, artifacts
 
+            # =========================================================================
             # Method 1: POINT - Create square bounding box domain for point-scale modeling
             # Use case: FLUXNET sites, single point forcing data
             # Creates: Single polygon shapefile from bounding box coordinates
+            # =========================================================================
             if domain_method == "point":
                 output_path = self.point_delineator.create_point_domain_shapefile()
                 artifacts.river_basins_path = output_path
                 artifacts.pour_point_path = self._get_pour_point_path()
                 return output_path, artifacts
 
-            # Method 2: SUBSET - Extract domain from existing geofabric using spatial intersection
-            # Use case: Working within larger geofabric (e.g., MERIT-Basins, HydroSHEDS)
-            # Creates: River basins + river network shapefiles via spatial subsetting
-            if domain_method == "subset":
-                result = self.subsetter.subset_geofabric()
-                basins_path, rivers_path = self._get_subset_paths()
-                artifacts.river_basins_path = basins_path
-                artifacts.river_network_path = rivers_path
-                artifacts.pour_point_path = self._get_pour_point_path()
-                return result, artifacts  # type: ignore[return-value]
-
-            # Method 3: LUMPED - Single-basin watershed delineation from pour point
+            # =========================================================================
+            # Method 2: LUMPED - Single-basin watershed
             # Use case: Traditional lumped hydrological modeling with single HRU
-            # Creates: Single-polygon basin + simplified river network
-            # Special case: Can also create delineated subcatchments for distributed routing
+            # Variants:
+            #   - Default: Delineate from pour point
+            #   - subset_from_geofabric=True: Subset from geofabric, dissolve to single polygon
+            # =========================================================================
             if domain_method == "lumped":
-                # Step 1: Create the lumped watershed (single polygon representing entire catchment)
-                river_network_path, river_basins_path = (
-                    self.lumped_delineator.delineate_lumped_watershed()
+                if subset_from_geofabric:
+                    # Lumped + subset: Extract from geofabric, dissolve to single polygon
+                    self.logger.info(f"Creating lumped domain from {geofabric_type} geofabric subset")
+
+                    # Step 1: Subset the geofabric to get basins and rivers
+                    subset_basins, subset_rivers = self.subsetter.subset_geofabric()
+
+                    if subset_basins is None or len(subset_basins) == 0:
+                        self.logger.error("Geofabric subsetting returned no basins")
+                        return None, artifacts
+
+                    # Step 2: Get output paths using new naming convention
+                    method_suffix = self._get_method_suffix()
+                    basins_path = (
+                        self.project_dir / "shapefiles" / "river_basins" /
+                        f"{self.domain_name}_riverBasins_{method_suffix}.shp"
+                    )
+                    original_basins_path = (
+                        self.project_dir / "shapefiles" / "river_basins" /
+                        f"{self.domain_name}_riverBasins_{method_suffix}_original.shp"
+                    )
+                    rivers_path = (
+                        self.project_dir / "shapefiles" / "river_network" /
+                        f"{self.domain_name}_riverNetwork_{method_suffix}.shp"
+                    )
+
+                    # Ensure directories exist
+                    basins_path.parent.mkdir(parents=True, exist_ok=True)
+                    rivers_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    # Step 3: Dissolve basins to single polygon, preserving original
+                    dissolved_basins = self.subsetter.aggregate_to_lumped(
+                        subset_basins, original_basins_path
+                    )
+                    dissolved_basins.to_file(basins_path)
+                    self.logger.info(f"Saved dissolved lumped basin to: {basins_path}")
+
+                    # Step 4: Save rivers (preserved as-is for routing)
+                    if subset_rivers is not None:
+                        subset_rivers.to_file(rivers_path)
+                        artifacts.river_network_path = rivers_path
+
+                    artifacts.river_basins_path = basins_path
+                    artifacts.original_basins_path = original_basins_path
+                    artifacts.pour_point_path = self._get_pour_point_path()
+                    artifacts.metadata['geofabric_type'] = geofabric_type
+
+                    return (rivers_path, basins_path), artifacts  # type: ignore[return-value]
+
+                else:
+                    # Default lumped: Delineate from pour point
+                    river_network_path, river_basins_path = (
+                        self.lumped_delineator.delineate_lumped_watershed()
+                    )
+                    artifacts.river_network_path = river_network_path
+                    artifacts.river_basins_path = river_basins_path
+                    artifacts.pour_point_path = self._get_pour_point_path()
+
+                    # Check if we need delineated catchments for distributed routing
+                    routing_delineation = self._get_config_value(
+                        lambda: self.config.domain.delineation.routing,
+                        default="lumped"
+                    )
+                    if routing_delineation == "river_network":
+                        self.logger.info("Creating delineated catchments for lumped-to-distributed routing")
+                        delineated_river_network, delineated_river_basins = self._delineate_lumped_domain()
+
+                        if delineated_river_network and delineated_river_basins:
+                            artifacts.metadata['delineated_river_network_path'] = str(delineated_river_network)
+                            artifacts.metadata['delineated_river_basins_path'] = str(delineated_river_basins)
+                            self.logger.info("Delineated catchments created successfully")
+                        else:
+                            self.logger.error("Failed to create delineated catchments for lumped domain")
+                            raise RuntimeError("Delineation of lumped domain failed")
+
+                    return (river_network_path, river_basins_path), artifacts  # type: ignore[return-value]
+
+            # =========================================================================
+            # Method 3: SEMIDISTRIBUTED - Multiple subcatchment polygons
+            # Use case: Distributed hydrological modeling with subcatchment-level HRUs
+            # Variants:
+            #   - Default: TauDEM delineation from DEM
+            #   - subset_from_geofabric=True: Subset from existing geofabric
+            # =========================================================================
+            if domain_method == "semidistributed":
+                if subset_from_geofabric:
+                    # Semidistributed + subset: Extract subcatchments from geofabric
+                    self.logger.info(f"Creating semidistributed domain from {geofabric_type} geofabric subset")
+                    result = self.subsetter.subset_geofabric()
+                    basins_path, rivers_path = self._get_subset_paths()
+                    artifacts.river_basins_path = basins_path
+                    artifacts.river_network_path = rivers_path
+                    artifacts.pour_point_path = self._get_pour_point_path()
+                    artifacts.metadata['geofabric_type'] = geofabric_type
+                    return result, artifacts  # type: ignore[return-value]
+
+                else:
+                    # Default semidistributed: TauDEM delineation
+                    river_network_path, river_basins_path = self.delineator.delineate_geofabric()
+
+                    # Optional coastal delineation for basins draining to ocean
+                    if self._get_config_value(
+                        lambda: self.config.domain.delineation.delineate_coastal_watersheds,
+                        default=False
+                    ):
+                        coastal_result = self.delineator.delineate_coastal()
+                        if coastal_result and all(coastal_result):
+                            river_network_path, river_basins_path = coastal_result
+                            self.logger.info(f"Coastal delineation completed: {coastal_result}")
+
+                    artifacts.river_network_path = river_network_path
+                    artifacts.river_basins_path = river_basins_path
+                    artifacts.pour_point_path = self._get_pour_point_path()
+                    return (river_network_path, river_basins_path), artifacts  # type: ignore[return-value]
+
+            # =========================================================================
+            # Method 4: DISTRIBUTED - Regular grid cells with D8 flow routing
+            # Use case: Grid-based distributed modeling (VIC, MESH, CLM)
+            # Variants:
+            #   - grid_source='generate': Create grid from bounding box
+            #   - grid_source='native': Match forcing data resolution
+            #   - subset_from_geofabric=True: Clip grid to geofabric extent
+            # =========================================================================
+            if domain_method == "distributed":
+                # Store grid configuration in metadata
+                artifacts.metadata['grid_cell_size'] = str(
+                    self._get_config_value(lambda: self.config.domain.grid_cell_size, default=1000.0)
                 )
-                artifacts.river_network_path = river_network_path
-                artifacts.river_basins_path = river_basins_path
-                artifacts.pour_point_path = self._get_pour_point_path()
-
-                # Step 2: Check if we need delineated catchments for distributed routing
-                # This enables "lumped-to-distributed" workflow:
-                #   - Hydrological model runs as lumped (single HRU)
-                #   - Routing model runs as distributed (multiple subcatchments)
-                #   - Requires area-weighted remapping from lumped to distributed
-                routing_delineation = self._get_config_value(
-                    lambda: self.config.domain.delineation.routing,
-                    default="lumped"
+                artifacts.metadata['clip_to_watershed'] = str(
+                    self._get_config_value(lambda: self.config.domain.clip_grid_to_watershed, default=True)
                 )
-                if routing_delineation == "river_network":
-                    # Delineate subcatchments within the lumped domain for distributed routing
-                    self.logger.info("Creating delineated catchments for lumped-to-distributed routing")
-                    delineated_river_network, delineated_river_basins = self._delineate_lumped_domain()
+                artifacts.metadata['grid_source'] = grid_source
 
-                    # Verify delineation succeeded before storing results
-                    if delineated_river_network and delineated_river_basins:
-                        # Store delineated paths as separate artifacts (not primary paths)
-                        # Primary paths remain lumped; delineated paths used only for routing
-                        artifacts.metadata['delineated_river_network_path'] = str(delineated_river_network)
-                        artifacts.metadata['delineated_river_basins_path'] = str(delineated_river_basins)
-                        self.logger.info("Delineated catchments created successfully")
-                    else:
-                        # Delineation failed - this is critical for lumped-to-distributed workflow
-                        self.logger.error("Failed to create delineated catchments for lumped domain")
-                        raise RuntimeError("Delineation of lumped domain failed")
+                if subset_from_geofabric:
+                    # Distributed + subset: Create grid clipped to geofabric extent
+                    self.logger.info(f"Creating distributed grid domain from {geofabric_type} geofabric subset")
+                    artifacts.metadata['geofabric_type'] = geofabric_type
 
-                return (river_network_path, river_basins_path), artifacts  # type: ignore[return-value]
+                    # First subset the geofabric
+                    subset_basins, subset_rivers = self.subsetter.subset_geofabric()
+                    if subset_basins is None:
+                        self.logger.error("Geofabric subsetting returned no basins")
+                        return None, artifacts
 
-            # Method 4: DELINEATE - Full watershed delineation using TauDEM and DEM
-            # Use case: Detailed distributed modeling with subcatchment delineation
-            # Creates: River network + river basins with subcatchment polygons
-            # Optional: Coastal watershed delineation for coastal basins
-            if domain_method == "delineate":
-                # Step 1: Standard geofabric delineation using TauDEM workflow
-                river_network_path, river_basins_path = self.delineator.delineate_geofabric()
+                    # Then create grid clipped to subset extent
+                    grid_gdf = self.grid_delineator._subset_grid_from_geofabric(subset_basins)
+                    if grid_gdf is None:
+                        self.logger.error("Failed to create grid from geofabric subset")
+                        return None, artifacts
 
-                # Step 2: Optional coastal delineation for basins draining to ocean
-                # Coastal watersheds require special handling to avoid river network artifacts
-                if self._get_config_value(lambda: self.config.domain.delineation.delineate_coastal_watersheds, default=False):
-                    coastal_result = self.delineator.delineate_coastal()
-                    # Replace standard delineation with coastal delineation if successful
-                    if coastal_result and all(coastal_result):
-                        river_network_path, river_basins_path = coastal_result
-                        self.logger.info(f"Coastal delineation completed: {coastal_result}")
+                    # Save the grid
+                    method_suffix = self._get_method_suffix()
+                    river_basins_path = (
+                        self.project_dir / "shapefiles" / "river_basins" /
+                        f"{self.domain_name}_riverBasins_{method_suffix}.shp"
+                    )
+                    river_network_path = (
+                        self.project_dir / "shapefiles" / "river_network" /
+                        f"{self.domain_name}_riverNetwork_{method_suffix}.shp"
+                    )
+                    river_basins_path.parent.mkdir(parents=True, exist_ok=True)
+                    river_network_path.parent.mkdir(parents=True, exist_ok=True)
 
-                artifacts.river_network_path = river_network_path
-                artifacts.river_basins_path = river_basins_path
-                artifacts.pour_point_path = self._get_pour_point_path()
-                return (river_network_path, river_basins_path), artifacts  # type: ignore[return-value]
+                    grid_gdf.to_file(river_basins_path)
 
-            # Method 5: DISTRIBUTE - Grid-based distributed domain with D8 flow direction
-            # Use case: Grid-based distributed modeling (e.g., VIC, MESH, CLM)
-            # Creates: Regular grid cells with D8 topology, each cell is both HRU and segment
-            if domain_method == "distribute":
-                river_network_path, river_basins_path = self.grid_delineator.create_grid_domain()
-                artifacts.river_network_path = river_network_path
-                artifacts.river_basins_path = river_basins_path
-                artifacts.pour_point_path = self._get_pour_point_path()
-                # Store grid configuration in metadata for reference
-                artifacts.metadata['grid_cell_size'] = str(self._get_config_value(lambda: self.config.domain.grid_cell_size, default=1000.0))
-                artifacts.metadata['clip_to_watershed'] = str(self._get_config_value(lambda: self.config.domain.clip_grid_to_watershed, default=True))
-                return (river_network_path, river_basins_path), artifacts  # type: ignore[return-value]
+                    # Create river network from grid
+                    network_gdf = self.grid_delineator._create_river_network_from_grid(grid_gdf)
+                    network_gdf.to_file(river_network_path)
+
+                    artifacts.river_basins_path = river_basins_path
+                    artifacts.river_network_path = river_network_path
+                    artifacts.pour_point_path = self._get_pour_point_path()
+
+                    return (river_network_path, river_basins_path), artifacts  # type: ignore[return-value]
+
+                elif grid_source == 'native':
+                    # Distributed + native: Match forcing data grid resolution
+                    self.logger.info("Creating distributed grid domain from native forcing resolution")
+                    native_dataset = self._get_config_value(
+                        lambda: self.config.domain.native_grid_dataset,
+                        default='era5'
+                    )
+                    artifacts.metadata['native_grid_dataset'] = native_dataset
+
+                    grid_gdf = self.grid_delineator._create_native_grid()
+                    if grid_gdf is None:
+                        self.logger.error(f"Native grid creation not yet implemented for {native_dataset}")
+                        return None, artifacts
+
+                    # If native grid is implemented, save it
+                    method_suffix = self._get_method_suffix()
+                    river_basins_path = (
+                        self.project_dir / "shapefiles" / "river_basins" /
+                        f"{self.domain_name}_riverBasins_{method_suffix}.shp"
+                    )
+                    grid_gdf.to_file(river_basins_path)
+                    artifacts.river_basins_path = river_basins_path
+                    artifacts.pour_point_path = self._get_pour_point_path()
+
+                    return (None, river_basins_path), artifacts  # type: ignore[return-value]
+
+                else:
+                    # Default distributed: Generate grid from bounding box
+                    river_network_path, river_basins_path = self.grid_delineator.create_grid_domain()
+                    artifacts.river_network_path = river_network_path
+                    artifacts.river_basins_path = river_basins_path
+                    artifacts.pour_point_path = self._get_pour_point_path()
+
+                    return (river_network_path, river_basins_path), artifacts  # type: ignore[return-value]
 
             # Fallback: Unknown domain definition method - configuration error
-            # Valid methods: point, subset, lumped, delineate, distribute
+            # Valid methods: point, lumped, semidistributed, distributed
             self.logger.error(f"Unknown domain definition method: {domain_method}")
             return None, artifacts
