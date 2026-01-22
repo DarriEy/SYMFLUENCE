@@ -1276,6 +1276,97 @@ NUMBER_OF_COMPLEXES: 2
 #   Usage:      2
 NUMBER_OF_EVOLUTION_STEPS: 20
 
+# ABC_PARTICLES
+#   Type:        int
+#   Default:     100
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Number of particles in ABC-SMC population
+ABC_PARTICLES: 100
+
+# ABC_GENERATIONS
+#   Type:        int
+#   Default:     20
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Maximum number of ABC-SMC generations
+ABC_GENERATIONS: 20
+
+# ABC_INITIAL_TOLERANCE
+#   Type:        float
+#   Default:     0.5
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Initial acceptance tolerance for ABC-SMC
+ABC_INITIAL_TOLERANCE: 0.5
+
+# ABC_FINAL_TOLERANCE
+#   Type:        float
+#   Default:     0.05
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Target final tolerance for ABC-SMC
+ABC_FINAL_TOLERANCE: 0.05
+
+# ABC_TOLERANCE_QUANTILE
+#   Type:        float
+#   Default:     0.75
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Quantile for adaptive tolerance schedule
+ABC_TOLERANCE_QUANTILE: 0.75
+
+# ABC_TOLERANCE_DECAY
+#   Type:        float
+#   Default:     0.9
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Maximum tolerance reduction per generation
+ABC_TOLERANCE_DECAY: 0.9
+
+# ABC_PERTURBATION_SCALE
+#   Type:        float
+#   Default:     2.0
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Scaling factor for perturbation kernel bandwidth
+ABC_PERTURBATION_SCALE: 2.0
+
+# ABC_KERNEL_TYPE
+#   Type:        Literal['gaussian', 'uniform', 'component_wise']
+#   Default:     component_wise
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Type of perturbation kernel
+ABC_KERNEL_TYPE: "component_wise"
+
+# ABC_USE_OLCM
+#   Type:        bool
+#   Default:     True
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Use Optimal Local Covariance Matrix adaptation
+ABC_USE_OLCM: true
+
+# ABC_MIN_ACCEPTANCE_RATE
+#   Type:        float
+#   Default:     0.05
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Minimum acceptance rate before stopping
+ABC_MIN_ACCEPTANCE_RATE: 0.05
+
+# ABC_MIN_ESS_RATIO
+#   Type:        float
+#   Default:     0.5
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Minimum effective sample size ratio
+ABC_MIN_ESS_RATIO: 0.5
+
+# ABC_CONVERGENCE_THRESHOLD
+#   Type:        float
+#   Default:     0.001
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Convergence threshold for stopping
+ABC_CONVERGENCE_THRESHOLD: 0.001
+
+# ABC_MIN_GENERATIONS
+#   Type:        int
+#   Default:     5
+#   Source:      ABCConfig (optimization.py)
+#   Usage:      Minimum generations before checking convergence
+ABC_MIN_GENERATIONS: 5
+
 
 # 16. Evaluation & Observation Data
 # ================================================================================
@@ -3291,6 +3382,13 @@ FUSE_N_ELEVATION_BANDS: 1
 #   Source:      FUSEConfig (model_configs.py)
 #   Usage:      Model execution timeout in seconds
 FUSE_TIMEOUT: 3600
+
+# FUSE_RUN_INTERNAL_CALIBRATION
+#   Type:        bool
+#   Default:     True
+#   Source:      FUSEConfig (model_configs.py)
+#   Usage:      Whether to run FUSE's internal calibration
+FUSE_RUN_INTERNAL_CALIBRATION: true
 
 
 # 9. GR Model Configuration
