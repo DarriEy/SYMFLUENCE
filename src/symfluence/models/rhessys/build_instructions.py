@@ -328,7 +328,8 @@ if [ -z "$WMFIRE_FLAG" ] && [ -d "../FIRE" ]; then
         if [ -f "RanNums.o" ] && [ -f "WMFire.o" ]; then
             $CXX $SHARED_FLAG -fPIC -o $WMFIRE_LIB_NAME RanNums.o WMFire.o
             if [ -f "$WMFIRE_LIB_NAME" ]; then
-                mv $WMFIRE_LIB_NAME ../../lib/
+                # From ../FIRE, ../lib is at the same level as rhessys source dir
+                mv $WMFIRE_LIB_NAME ../lib/
                 WMFIRE_FLAG="wmfire=T"
                 WMFIRE_LDFLAGS="-L../lib"
                 echo "WMFire built and enabled"
