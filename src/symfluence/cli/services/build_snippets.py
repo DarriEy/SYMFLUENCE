@@ -832,16 +832,22 @@ detect_or_build_flex() {
         FLEX_FOUND=true
 
         # Check if libfl is available for linking
-        # Try multiple methods to find libfl
-        if ldconfig -p 2>/dev/null | grep -q libfl; then
+        # Try multiple methods to find libfl - be specific to avoid matching libflac etc.
+        # Use word boundary matching with grep
+        if ldconfig -p 2>/dev/null | grep -qE 'libfl\.(so|a)'; then
             echo "System libfl found via ldconfig"
             LIBFL_FOUND=true
-        elif [ -f /usr/lib/libfl.a ] || [ -f /usr/lib/x86_64-linux-gnu/libfl.a ] || [ -f /usr/lib64/libfl.a ]; then
-            echo "System libfl.a found"
-            LIBFL_FOUND=true
-        elif [ -f /usr/lib/libfl.so ] || [ -f /usr/lib/x86_64-linux-gnu/libfl.so ] || [ -f /usr/lib64/libfl.so ]; then
-            echo "System libfl.so found"
-            LIBFL_FOUND=true
+        fi
+
+        # Check common system library paths
+        if [ "$LIBFL_FOUND" != "true" ]; then
+            for libdir in /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu /lib64 /lib; do
+                if [ -f "$libdir/libfl.a" ] || [ -f "$libdir/libfl.so" ]; then
+                    echo "System libfl found in: $libdir"
+                    LIBFL_FOUND=true
+                    break
+                fi
+            done
         fi
 
         if [ "$LIBFL_FOUND" = "true" ]; then
