@@ -122,7 +122,12 @@ class TestFUSEParameterManagerInitialization:
         assert manager.fuse_id == 'test_fuse'
 
     def test_init_handles_empty_params(self, fuse_config, test_logger, tmp_path):
-        """Test initialization with no parameters to calibrate."""
+        """Test initialization with empty string uses default parameters.
+
+        Note: Empty string or 'default' both trigger use of sensible defaults,
+        rather than resulting in no parameters. This ensures calibration can
+        proceed even if user omits the parameter list.
+        """
         from symfluence.optimization.parameter_managers.fuse_parameter_manager import FUSEParameterManager
 
         config = fuse_config.copy()
@@ -132,7 +137,9 @@ class TestFUSEParameterManagerInitialization:
         settings_dir.mkdir(parents=True)
 
         manager = FUSEParameterManager(config, test_logger, settings_dir)
-        assert manager.fuse_params == []
+        # Empty string triggers default parameters, not an empty list
+        assert len(manager.fuse_params) > 0
+        assert 'MAXWATR_1' in manager.fuse_params  # Check a known default param
 
 
 # ============================================================================
