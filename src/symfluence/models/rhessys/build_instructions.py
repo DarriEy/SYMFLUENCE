@@ -5,9 +5,15 @@ This module defines how to build RHESSys from source, including:
 - Repository and branch information
 - Build commands (shell scripts)
 - Installation verification criteria
+- Optional WMFire library linking for fire spread simulation
 
 RHESSys (Regional Hydro-Ecologic Simulation System) is an ecosystem-
 hydrological model that simulates water, carbon, and nitrogen cycling.
+
+WMFire Integration:
+    If WMFire library (libwmfire.so/dylib) is found at installs/wmfire/lib,
+    RHESSys will be built with fire spread support (wmfire=T). Build WMFire
+    first to enable this capability. WMFire requires Boost headers.
 """
 
 from symfluence.cli.services import BuildInstructionsRegistry
@@ -98,6 +104,32 @@ if [ -z "$NETCDF_LDFLAGS" ]; then
     echo "  module load netcdf  # or netcdf-c"
 fi
 echo "NETCDF_LDFLAGS: $NETCDF_LDFLAGS"
+
+# Set up flex library flags if flex was detected/built
+FLEX_LDFLAGS=""
+
+# Check HPC module environment variable first (EasyBuild)
+if [ -n "${EBROOTFLEX:-}" ]; then
+    for libdir in "$EBROOTFLEX/lib64" "$EBROOTFLEX/lib"; do
+        if [ -f "$libdir/libfl.so" ] || [ -f "$libdir/libfl.a" ]; then
+            FLEX_LDFLAGS="-L$libdir -lfl"
+            echo "Found HPC module flex library in: $libdir"
+            break
+        fi
+    done
+fi
+
+# Use FLEX_LIB_DIR if set by flex_detect snippet
+if [ -z "$FLEX_LDFLAGS" ] && [ -n "${FLEX_LIB_DIR:-}" ] && [ -d "${FLEX_LIB_DIR}" ]; then
+    FLEX_LDFLAGS="-L${FLEX_LIB_DIR} -lfl"
+    echo "FLEX_LDFLAGS: $FLEX_LDFLAGS"
+fi
+
+# Fallback - just try -lfl and hope it's in the library path
+if [ -z "$FLEX_LDFLAGS" ]; then
+    FLEX_LDFLAGS="-lfl"
+    echo "FLEX_LDFLAGS: $FLEX_LDFLAGS (using default path)"
+fi
 
 echo "GEOS_CFLAGS: $GEOS_CFLAGS, PROJ_CFLAGS: $PROJ_CFLAGS"
 
@@ -238,7 +270,82 @@ grep -q "^rhessys: \$(OBJECTS)$" makefile && echo "Makefile patched successfully
 # IMPORTANT: Use CMD_OPTS for extra flags, NOT CFLAGS override - the makefile's CFLAGS
 # includes $(DEFINES) with -DLIU_NETCDF_READER which is required for is_approximately()
 COMPAT_FLAGS="-Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-error=implicit-function-declaration"
-make V=1 CC="$CC" netcdf=T CMD_OPTS="$COMPAT_FLAGS $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS $NETCDF_LDFLAGS"
+
+# Check for WMFire library and enable fire spread support if available
+WMFIRE_FLAG=""
+WMFIRE_LDFLAGS=""
+mkdir -p ../lib
+
+# Look for WMFire library in common locations
+OS=$(uname -s)
+if [ "$OS" = "Darwin" ]; then
+    WMFIRE_LIB_NAME="libwmfire.dylib"
+else
+    WMFIRE_LIB_NAME="libwmfire.so"
+fi
+
+# Check if WMFire was already built in the wmfire install directory
+WMFIRE_INSTALL_DIR="${INSTALLS_DIR:-../..}/wmfire/lib"
+if [ -f "$WMFIRE_INSTALL_DIR/$WMFIRE_LIB_NAME" ]; then
+    echo "Found WMFire library at $WMFIRE_INSTALL_DIR/$WMFIRE_LIB_NAME"
+    cp "$WMFIRE_INSTALL_DIR/$WMFIRE_LIB_NAME" ../lib/
+    WMFIRE_FLAG="wmfire=T"
+    WMFIRE_LDFLAGS="-L../lib"
+    echo "WMFire support ENABLED"
+fi
+
+# Also check if WMFire is in the FIRE directory (build from source in same repo)
+if [ -z "$WMFIRE_FLAG" ] && [ -d "../FIRE" ]; then
+    if [ -f "../FIRE/$WMFIRE_LIB_NAME" ]; then
+        echo "Found WMFire library in FIRE directory"
+        cp "../FIRE/$WMFIRE_LIB_NAME" ../lib/
+        WMFIRE_FLAG="wmfire=T"
+        WMFIRE_LDFLAGS="-L../lib"
+        echo "WMFire support ENABLED (from FIRE directory)"
+    elif [ -f "../FIRE/WMFire.cpp" ]; then
+        echo "WMFire source found but not built. Building WMFire..."
+        # Build WMFire from source
+        pushd ../FIRE > /dev/null
+        CXX=${CXX:-g++}
+
+        # Find Boost headers
+        BOOST_INCLUDE=""
+        for boost_dir in "$CONDA_PREFIX/include" /opt/homebrew/include /usr/local/include /usr/include; do
+            if [ -d "$boost_dir/boost" ]; then
+                BOOST_INCLUDE="-I$boost_dir"
+                break
+            fi
+        done
+
+        if [ "$OS" = "Darwin" ]; then
+            SHARED_FLAG="-dynamiclib"
+        else
+            SHARED_FLAG="-shared"
+        fi
+
+        $CXX -c -fPIC $BOOST_INCLUDE -O2 -o RanNums.o RanNums.cpp 2>/dev/null || echo "WMFire build requires Boost headers"
+        $CXX -c -fPIC $BOOST_INCLUDE -O2 -o WMFire.o WMFire.cpp 2>/dev/null || true
+        if [ -f "RanNums.o" ] && [ -f "WMFire.o" ]; then
+            $CXX $SHARED_FLAG -fPIC -o $WMFIRE_LIB_NAME RanNums.o WMFire.o
+            if [ -f "$WMFIRE_LIB_NAME" ]; then
+                mv $WMFIRE_LIB_NAME ../../lib/
+                WMFIRE_FLAG="wmfire=T"
+                WMFIRE_LDFLAGS="-L../lib"
+                echo "WMFire built and enabled"
+            fi
+            rm -f RanNums.o WMFire.o
+        fi
+        popd > /dev/null
+    fi
+fi
+
+if [ -z "$WMFIRE_FLAG" ]; then
+    echo "WMFire library not found - building RHESSys without fire spread support"
+    echo "To enable WMFire: install Boost headers and build WMFire first"
+fi
+
+# Build RHESSys with optional WMFire support
+make V=1 CC="$CC" netcdf=T $WMFIRE_FLAG CMD_OPTS="$COMPAT_FLAGS $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS $NETCDF_LDFLAGS $FLEX_LDFLAGS $WMFIRE_LDFLAGS"
 
 mkdir -p ../bin
 # Try multiple possible locations for rhessys binary
