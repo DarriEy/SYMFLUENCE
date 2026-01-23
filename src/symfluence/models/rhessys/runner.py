@@ -66,6 +66,16 @@ class RHESSysRunner(BaseModelRunner):
             pass
         return False
 
+    def _get_wmfire_resolution(self) -> int:
+        """Get WMFire grid resolution from config or use default."""
+        try:
+            if (hasattr(self.config.model.rhessys, 'wmfire') and
+                self.config.model.rhessys.wmfire is not None):
+                return self.config.model.rhessys.wmfire.grid_resolution
+        except AttributeError:
+            pass
+        return 30  # Default resolution in meters
+
     def _get_model_name(self) -> str:
         """Return model name for directory structure."""
         return "RHESSys"
@@ -248,10 +258,19 @@ class RHESSysRunner(BaseModelRunner):
             patch_grid = fire_dir / "patch_grid.txt"
             dem_grid = fire_dir / "dem_grid.txt"
             if patch_grid.exists() and dem_grid.exists():
-                cmd.extend(["-firespread", "30", str(patch_grid), str(dem_grid)])
-                logger.info("WMFire fire spread enabled with patch and DEM grids")
+                # Get resolution from WMFire config or use default
+                resolution = self._get_wmfire_resolution()
+                cmd.extend(["-firespread", str(resolution), str(patch_grid), str(dem_grid)])
+                logger.info(f"WMFire fire spread enabled: {resolution}m resolution")
             else:
-                logger.warning("WMFire enabled but fire grid files not found, skipping -firespread flag")
+                # This is an error because the worldfile header includes fire defaults
+                # If we skip -firespread, RHESSys will misinterpret fire.def as a base station
+                raise RuntimeError(
+                    f"WMFire is enabled but fire grid files not found. "
+                    f"Expected: {patch_grid} and {dem_grid}. "
+                    f"Run preprocessing first to generate fire grid files, "
+                    f"or disable WMFire by setting RHESSYS_USE_WMFIRE: false"
+                )
 
         # Routing if available
         routing_file = self.rhessys_input_dir / "routing" / f"{self.config.domain.name}.routing"

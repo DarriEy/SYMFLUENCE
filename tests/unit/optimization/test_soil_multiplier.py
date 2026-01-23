@@ -4,6 +4,28 @@ import netCDF4 as nc
 import logging
 from symfluence.optimization.core.transformers import SoilDepthTransformer
 
+
+def _make_full_config(tmp_path, **overrides):
+    """Create a complete mock config with all required fields."""
+    config = {
+        # Required system paths
+        'SYMFLUENCE_DATA_DIR': str(tmp_path),
+        'SYMFLUENCE_CODE_DIR': str(tmp_path),
+        # Required domain settings
+        'DOMAIN_NAME': 'test_domain',
+        'EXPERIMENT_ID': 'test_exp',
+        'EXPERIMENT_TIME_START': '2020-01-01 00:00',
+        'EXPERIMENT_TIME_END': '2020-12-31 23:00',
+        'DOMAIN_DEFINITION_METHOD': 'lumped',
+        'SUB_GRID_DISCRETIZATION': 'lumped',
+        # Required model settings
+        'FORCING_DATASET': 'ERA5',
+        'HYDROLOGICAL_MODEL': 'SUMMA',
+    }
+    config.update(overrides)
+    return config
+
+
 def test_soil_depth_transformation(tmp_path):
     """
     Test the SoilDepthTransformer with a real (mock) NetCDF file.
@@ -27,7 +49,7 @@ def test_soil_depth_transformation(tmp_path):
         heights[:, 0] = h_vals
 
     # 2. Setup transformer
-    config = {'SETTINGS_SUMMA_COLDSTATE': 'coldState.nc'}
+    config = _make_full_config(tmp_path, SETTINGS_SUMMA_COLDSTATE='coldState.nc')
     import logging
     logger = logging.getLogger('test')
     transformer = SoilDepthTransformer(config, logger)
@@ -75,7 +97,7 @@ def test_transformation_manager(tmp_path):
 
 
 
-    mgr = TransformationManager({}, logging.getLogger('test'))
+    mgr = TransformationManager(_make_full_config(tmp_path), logging.getLogger('test'))
 
     success = mgr.transform({'total_soil_depth_multiplier': 2.0}, tmp_path)
 

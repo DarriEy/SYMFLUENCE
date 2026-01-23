@@ -29,6 +29,7 @@ from typing import Dict, Any, Callable, Optional, Tuple, List
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm, NativeGradientCallback
+from .config_schema import LBFGSDefaults
 
 
 class LBFGSAlgorithm(OptimizationAlgorithm):
@@ -133,14 +134,60 @@ class LBFGSAlgorithm(OptimizationAlgorithm):
             - best_params: Denormalized best parameters (dictionary)
             - gradient_method: 'native' or 'finite_difference' (which was used)
         """
-        # L-BFGS hyperparameters from config or kwargs
-        steps = kwargs.get('steps', self.config_dict.get('LBFGS_STEPS', self.max_iterations))
-        lr = kwargs.get('lr', self.config_dict.get('LBFGS_LR', 0.1))
-        history_size = kwargs.get('history_size', self.config_dict.get('LBFGS_HISTORY_SIZE', 10))
-        c1 = kwargs.get('c1', self.config_dict.get('LBFGS_C1', 1e-4))  # Armijo condition
-        c2 = kwargs.get('c2', self.config_dict.get('LBFGS_C2', 0.9))   # Wolfe condition
-        gradient_epsilon = self.config_dict.get('GRADIENT_EPSILON', 1e-4)
-        gradient_clip = self.config_dict.get('GRADIENT_CLIP_VALUE', 1.0)
+        # L-BFGS hyperparameters from config or kwargs using standardized access
+        # Maximum steps (Nocedal 1980)
+        steps = kwargs.get('steps', self._get_config_value(
+            lambda: self.config.optimization.lbfgs_steps,
+            default=self.max_iterations,
+            dict_key='LBFGS_STEPS'
+        ))
+
+        # Initial learning rate (Nocedal 1980, Section 4)
+        lr = kwargs.get('lr', self._get_config_value(
+            lambda: self.config.optimization.lbfgs_lr,
+            default=LBFGSDefaults.LR,
+            dict_key='LBFGS_LR'
+        ))
+
+        # History size for Hessian approximation (Nocedal 1980, Section 3)
+        history_size = kwargs.get('history_size', self._get_config_value(
+            lambda: self.config.optimization.lbfgs_history_size,
+            default=LBFGSDefaults.HISTORY_SIZE,
+            dict_key='LBFGS_HISTORY_SIZE'
+        ))
+
+        # Armijo condition parameter (Nocedal 1980)
+        c1 = kwargs.get('c1', self._get_config_value(
+            lambda: self.config.optimization.lbfgs_c1,
+            default=LBFGSDefaults.C1,
+            dict_key='LBFGS_C1'
+        ))
+
+        # Wolfe curvature condition parameter (Nocedal 1980, Section 2)
+        c2 = kwargs.get('c2', self._get_config_value(
+            lambda: self.config.optimization.lbfgs_c2,
+            default=LBFGSDefaults.C2,
+            dict_key='LBFGS_C2'
+        ))
+
+        # Gradient epsilon for finite differences
+        gradient_epsilon = self._get_config_value(
+            lambda: self.config.optimization.gradient_epsilon,
+            default=LBFGSDefaults.GRADIENT_EPSILON,
+            dict_key='GRADIENT_EPSILON'
+        )
+
+        # Gradient clipping value
+        gradient_clip = self._get_config_value(
+            lambda: self.config.optimization.gradient_clip_value,
+            default=LBFGSDefaults.GRADIENT_CLIP_VALUE,
+            dict_key='GRADIENT_CLIP_VALUE'
+        )
+
+        # Validate Wolfe condition parameters
+        valid, msg = LBFGSDefaults.validate_wolfe(c1, c2)
+        if not valid:
+            self.logger.warning(f"L-BFGS validation: {msg}")
 
         # Determine gradient method and create unified gradient function
         use_native = self._should_use_native_gradients(compute_gradient, gradient_mode)

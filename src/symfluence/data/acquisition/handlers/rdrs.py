@@ -148,12 +148,19 @@ class RDRSAcquirer(BaseAcquisitionHandler):
         file_name = dt.strftime("%Y%m%d%H.nc")
         url = f"{base_url.rstrip('/')}/{year_str}/{file_name}"
         dest_path = output_dir / f"temp_rdrs_{file_name}"
-        if dest_path.exists(): return dest_path
+        if dest_path.exists():
+            return dest_path
         try:
             response = requests.get(url, timeout=30, stream=True)
             if response.status_code == 200:
                 with open(dest_path, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192): f.write(chunk)
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
                 return dest_path
-        except Exception: pass
+            else:
+                self.logger.debug(f"RDRS download returned status {response.status_code} for {file_name}")
+        except requests.exceptions.Timeout:
+            self.logger.debug(f"RDRS download timed out for {file_name}")
+        except requests.exceptions.RequestException as e:
+            self.logger.debug(f"RDRS download failed for {file_name}: {e}")
         return None

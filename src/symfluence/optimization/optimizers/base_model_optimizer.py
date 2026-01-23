@@ -766,7 +766,7 @@ class BaseModelOptimizer(
                 len(obs_period),
                 len(overlap)
             )
-        except Exception as e:
+        except (KeyError, IndexError, TypeError, ValueError) as e:
             self.logger.debug(f"Calibration alignment check failed: {e}")
 
     def _set_random_seeds(self, seed: int) -> None:
@@ -809,7 +809,7 @@ class BaseModelOptimizer(
 
             return end_time_str
 
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             self.logger.warning(f"Could not adjust end time: {e}")
             return end_time_str
 
@@ -1366,7 +1366,7 @@ class BaseModelOptimizer(
                     initial_guess = self.param_manager.normalize_parameters(initial_params_dict)
                     kwargs['initial_guess'] = initial_guess
                     self.logger.info("Using initial parameter guess for optimization seeding")
-            except Exception as e:
+            except (KeyError, AttributeError, ValueError) as e:
                 self.logger.warning(f"Failed to prepare initial parameter guess: {e}")
 
         # For NSGA-II, add multi-objective support
@@ -1672,7 +1672,7 @@ class BaseModelOptimizer(
 
             return final_result
 
-        except Exception as e:
+        except (IOError, OSError, ValueError, RuntimeError) as e:
             self.logger.error(f"Error in final evaluation: {e}")
             import traceback
             self.logger.error(f"Traceback: {traceback.format_exc()}")
@@ -1745,7 +1745,7 @@ class BaseModelOptimizer(
 
             self.logger.debug(f"Updated file manager for full period: {sim_start} to {sim_end}")
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, ValueError) as e:
             self.logger.error(f"Failed to update file manager for final run: {e}")
 
 
@@ -1761,7 +1761,7 @@ class BaseModelOptimizer(
                 with open(model_decisions_path, 'w') as f:
                     f.writelines(lines)
                 self.logger.debug("Restored model decisions to optimization settings")
-            except Exception as e:
+            except (FileNotFoundError, IOError, PermissionError) as e:
                 self.logger.error(f"Error restoring model decisions: {e}")
 
     def _restore_file_manager_for_optimization(self) -> None:
@@ -1794,7 +1794,7 @@ class BaseModelOptimizer(
 
             self.logger.debug("Restored file manager to calibration period")
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, ValueError) as e:
             self.logger.error(f"Failed to restore file manager: {e}")
 
     def _apply_best_parameters_for_final(self, best_params: Dict[str, float]) -> bool:
@@ -1805,7 +1805,7 @@ class BaseModelOptimizer(
                 self.optimization_settings_dir,
                 config=self.config
             )
-        except Exception as e:
+        except (ValueError, IOError, RuntimeError) as e:
             self.logger.error(f"Error applying parameters for final evaluation: {e}")
             return False
 
@@ -1836,7 +1836,7 @@ class BaseModelOptimizer(
 
             self.logger.debug(f"Updated output path to: {output_path_str}")
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, ValueError) as e:
             self.logger.error(f"Failed to update output path: {e}")
 
     def _save_final_evaluation_results(

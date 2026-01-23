@@ -88,7 +88,7 @@ class TestNoCircularDependencies:
     def test_optimization_can_import_models(self):
         """Test optimization can import from models (one-way dependency)."""
         # This should work: optimization → models
-        from symfluence.optimization.workers.fuse_worker import FUSEWorker
+        from symfluence.models.fuse.calibration.worker import FUSEWorker
         from symfluence.models.fuse.runner import FUSERunner
 
         # Both should be accessible

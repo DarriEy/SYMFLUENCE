@@ -112,6 +112,7 @@ pytest_plugins = [
     "fixtures.domain_fixtures",
     "fixtures.model_fixtures",
     "fixtures.real_data_fixtures",
+    "fixtures.geospatial_fixtures",
 ]
 
 def pytest_addoption(parser):

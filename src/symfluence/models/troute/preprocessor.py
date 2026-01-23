@@ -4,14 +4,16 @@ TRoute Model Preprocessor.
 Handles spatial preprocessing and configuration generation for the t-route routing model.
 """
 
+import logging
 import os
-import yaml
-import netCDF4 as nc4
-import geopandas as gpd
+from datetime import datetime
 from pathlib import Path
 from shutil import copyfile
-from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+import geopandas as gpd
+import netCDF4 as nc4
+import yaml
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelPreProcessor
@@ -31,7 +33,7 @@ class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
         """Return model name for directory structure."""
         return "troute"
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         # Initialize base class (handles standard paths and directories)
         super().__init__(config, logger)
 

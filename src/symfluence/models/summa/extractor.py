@@ -168,7 +168,7 @@ class SUMMAResultExtractor(ModelResultExtractor):
                             if attrs.sizes['hru'] == var.sizes['gru']:
                                 areas = attrs['HRUarea']
                                 return (var * areas.values).sum(dim='gru')
-                except Exception:
+                except (FileNotFoundError, OSError, ValueError, KeyError):
                     pass  # Fall through to simple selection
 
         # Fallback: select first spatial unit

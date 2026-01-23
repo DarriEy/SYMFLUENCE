@@ -412,3 +412,180 @@ class ForcingDataProcessor:
             encoding[var_name] = var_encoding
 
         return encoding
+
+    # =========================================================================
+    # Convenience Methods for Variable Extraction
+    # =========================================================================
+
+    # Standard variable name fallback sequences
+    VARIABLE_FALLBACKS = {
+        'precip': ['pr', 'pptrate', 'precipitation', 'precip', 'rainfall', 'prcp', 'PRCP', 'PPT'],
+        'temp': ['temp', 'airtemp', 'air_temperature', 'tas', 'T2', 'tmean', 'TAVE'],
+        'pet': ['pet', 'potevap', 'evspsblpot', 'PET', 'eto', 'potential_evapotranspiration'],
+        'shortwave': ['SWRadAtm', 'sw_radiation', 'rsds', 'SWDOWN', 'ssrd', 'shortwave_radiation'],
+        'longwave': ['LWRadAtm', 'lw_radiation', 'rlds', 'LWDOWN', 'strd', 'longwave_radiation'],
+        'humidity': ['spechum', 'specific_humidity', 'q', 'QVAPOR', 'hus'],
+        'wind': ['windspd', 'wind_speed', 'sfcWind', 'WIND', 'wspd', 'u10'],
+        'pressure': ['airpres', 'surface_pressure', 'ps', 'PSFC', 'sp'],
+    }
+
+    def extract_variable_with_fallback(
+        self,
+        ds: xr.Dataset,
+        variable_type: str,
+        fallback_names: Optional[List[str]] = None
+    ) -> Optional[xr.DataArray]:
+        """
+        Extract variable from dataset using standard fallback sequences.
+
+        Tries multiple common variable names in order until one is found.
+        This consolidates the pattern of checking multiple variable names
+        that was previously duplicated across model preprocessors.
+
+        Args:
+            ds: Dataset to extract variable from
+            variable_type: Type of variable ('precip', 'temp', 'pet', 'shortwave',
+                          'longwave', 'humidity', 'wind', 'pressure')
+            fallback_names: Custom list of names to try. If None, uses
+                           VARIABLE_FALLBACKS[variable_type]
+
+        Returns:
+            xr.DataArray if variable found, None otherwise
+
+        Example:
+            >>> processor.extract_variable_with_fallback(ds, 'temp')
+            # Tries: temp, airtemp, air_temperature, tas, T2, tmean, TAVE
+        """
+        if fallback_names is None:
+            if variable_type not in self.VARIABLE_FALLBACKS:
+                self.logger.warning(
+                    f"Unknown variable type '{variable_type}'. "
+                    f"Known types: {list(self.VARIABLE_FALLBACKS.keys())}"
+                )
+                return None
+            fallback_names = self.VARIABLE_FALLBACKS[variable_type]
+
+        for var_name in fallback_names:
+            if var_name in ds.data_vars:
+                self.logger.debug(f"Found '{variable_type}' variable as '{var_name}'")
+                return ds[var_name]
+
+        self.logger.warning(
+            f"Could not find '{variable_type}' variable. Tried: {fallback_names}. "
+            f"Available: {list(ds.data_vars)}"
+        )
+        return None
+
+    def standardize_temperature_units(
+        self,
+        temp_data: xr.DataArray,
+        target_unit: str = 'celsius'
+    ) -> xr.DataArray:
+        """
+        Convert temperature to Celsius if needed.
+
+        Automatically detects if temperature is in Kelvin (values > 200)
+        and converts to Celsius. This is a common pattern in hydrological
+        model preprocessing.
+
+        Args:
+            temp_data: Temperature DataArray
+            target_unit: Target unit ('celsius' or 'kelvin')
+
+        Returns:
+            Temperature DataArray in target units
+
+        Example:
+            >>> temp_c = processor.standardize_temperature_units(ds['temp'])
+        """
+        import numpy as np
+
+        # Get a sample of values to detect units
+        sample = temp_data.values.flatten()
+        sample = sample[~np.isnan(sample)]
+
+        if len(sample) == 0:
+            self.logger.warning("Temperature data is all NaN, cannot detect units")
+            return temp_data
+
+        mean_temp = np.nanmean(sample[:1000])  # Sample first 1000 values
+
+        # Heuristic: If mean > 200, likely Kelvin
+        is_kelvin = mean_temp > 200
+
+        if target_unit == 'celsius':
+            if is_kelvin:
+                self.logger.debug(f"Converting temperature from Kelvin to Celsius (mean={mean_temp:.1f}K)")
+                return temp_data - 273.15
+            else:
+                self.logger.debug(f"Temperature already in Celsius (mean={mean_temp:.1f}°C)")
+                return temp_data
+        elif target_unit == 'kelvin':
+            if not is_kelvin:
+                self.logger.debug(f"Converting temperature from Celsius to Kelvin (mean={mean_temp:.1f}°C)")
+                return temp_data + 273.15
+            else:
+                self.logger.debug(f"Temperature already in Kelvin (mean={mean_temp:.1f}K)")
+                return temp_data
+        else:
+            raise ValueError(f"Unknown target unit: {target_unit}. Use 'celsius' or 'kelvin'")
+
+    def extract_forcing_variables(
+        self,
+        ds: xr.Dataset,
+        required_vars: List[str],
+        optional_vars: Optional[List[str]] = None,
+        standardize_temp: bool = True
+    ) -> Dict[str, xr.DataArray]:
+        """
+        Extract multiple forcing variables with fallbacks and standardization.
+
+        Convenience method that combines variable extraction and temperature
+        standardization for common forcing preparation workflows.
+
+        Args:
+            ds: Source dataset
+            required_vars: List of required variable types (e.g., ['precip', 'temp'])
+            optional_vars: List of optional variable types
+            standardize_temp: If True, convert temperature to Celsius
+
+        Returns:
+            Dict mapping variable types to DataArrays
+
+        Raises:
+            ValueError: If a required variable cannot be found
+
+        Example:
+            >>> vars = processor.extract_forcing_variables(
+            ...     ds, required_vars=['precip', 'temp', 'pet']
+            ... )
+            >>> precip = vars['precip']
+            >>> temp = vars['temp']  # Already in Celsius
+        """
+        result = {}
+
+        # Extract required variables
+        for var_type in required_vars:
+            data = self.extract_variable_with_fallback(ds, var_type)
+            if data is None:
+                raise ValueError(
+                    f"Required variable '{var_type}' not found in dataset. "
+                    f"Tried: {self.VARIABLE_FALLBACKS.get(var_type, [var_type])}"
+                )
+
+            # Standardize temperature
+            if standardize_temp and var_type == 'temp':
+                data = self.standardize_temperature_units(data)
+
+            result[var_type] = data
+
+        # Extract optional variables
+        if optional_vars:
+            for var_type in optional_vars:
+                data = self.extract_variable_with_fallback(ds, var_type)
+                if data is not None:
+                    if standardize_temp and var_type == 'temp':
+                        data = self.standardize_temperature_units(data)
+                    result[var_type] = data
+
+        return result

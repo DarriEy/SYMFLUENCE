@@ -15,8 +15,10 @@ from shapely.geometry import Polygon # type: ignore
 
 
 from ..base.base_delineator import BaseGeofabricDelineator
+from ....geospatial.delineation_registry import DelineationRegistry
 
 
+@DelineationRegistry.register('point')
 class PointDelineator(BaseGeofabricDelineator):
     """
     Handles point-scale domain delineation by creating a small square basin

@@ -185,7 +185,7 @@ class RHESSysClimateGenerator:
             self.logger.warning(f"Failed with combine='by_coords': {e}. Retrying...")
             try:
                 ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time')
-            except Exception:
+            except (FileNotFoundError, OSError, ValueError, KeyError):
                 self.logger.warning("Failed to concat. Attempting merge...")
                 datasets = [xr.open_dataset(f) for f in forcing_files]
                 ds = xr.merge(datasets)
@@ -385,7 +385,7 @@ class RHESSysClimateGenerator:
                 centroid = gdf.geometry.centroid.iloc[0]
                 lon, lat = centroid.x, centroid.y
                 elev = float(gdf.get('elev_mean', [1000])[0]) if 'elev_mean' in gdf.columns else 1000.0
-            except Exception:
+            except (FileNotFoundError, KeyError, IndexError, ValueError):
                 pass
 
         # Full path to climate file prefix

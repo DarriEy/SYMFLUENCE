@@ -5,6 +5,7 @@ Handles spatial preprocessing and configuration generation for the dRoute routin
 Follows the same pattern as MizuRoutePreProcessor to ensure consistent workflow.
 """
 
+import logging
 import os
 from pathlib import Path
 from shutil import copyfile
@@ -68,7 +69,7 @@ class DRoutePreProcessor(BaseModelPreProcessor, DRouteConfigMixin):
         """Return model name for directory structure."""
         return "dRoute"
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """
         Initialize the dRoute preprocessor.
 

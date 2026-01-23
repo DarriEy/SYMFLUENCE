@@ -65,7 +65,7 @@ class LocalScratchManager(ConfigMixin):
 
                 self._config = SymfluenceConfig(**config)
 
-            except Exception:
+            except (OSError, IOError, PermissionError):
 
                 # Fallback for partial configs (e.g., in tests)
 
@@ -116,7 +116,7 @@ class LocalScratchManager(ConfigMixin):
             return f"node{slurm_nodeid}"
 
         # Otherwise use hostname hash for uniqueness
-        node_hash = hashlib.md5(self.node_name.encode()).hexdigest()[:8]
+        node_hash = hashlib.md5(self.node_name.encode(), usedforsecurity=False).hexdigest()[:8]  # nosec B324
         return f"node_{node_hash}"
 
     def _should_use_scratch(self) -> bool:
@@ -268,7 +268,7 @@ class LocalScratchManager(ConfigMixin):
             self.logger.info(f"Rank {self.mpi_rank}: Scratch setup completed successfully on {self.node_name}")
             return True
 
-        except Exception as e:
+        except (OSError, IOError, PermissionError) as e:
             self.logger.error(f"Rank {self.mpi_rank}: Error setting up scratch space on {self.node_name}: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -527,7 +527,7 @@ class LocalScratchManager(ConfigMixin):
             self.logger.info(f"Rank {self.mpi_rank}: Results staged successfully to: {self.original_project_dir}")
             self.logger.info(f"{'='*60}")
 
-        except Exception as e:
+        except (OSError, IOError, PermissionError) as e:
             self.logger.error(f"Rank {self.mpi_rank}: Error staging results back: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())

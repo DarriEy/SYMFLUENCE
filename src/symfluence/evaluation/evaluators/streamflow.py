@@ -17,6 +17,7 @@ from typing import cast, List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
+from symfluence.core.constants import UnitConverter
 from .base import ModelEvaluator
 
 if TYPE_CHECKING:
@@ -269,17 +270,31 @@ class StreamflowEvaluator(ModelEvaluator):
                     self.logger.debug(f"Found streamflow variable {var_name} with units: '{units}'")
 
                     # Unit conversion: Mass flux (kg m-2 s-1) to Volume flux (m s-1)
-                    # Check for explicit 'kg' units OR unreasonably high values (> 1e-6 m/s = > 86 mm/day mean)
-                    # which indicates the value is likely mass flux but mislabeled as m/s.
+                    # Uses centralized threshold from UnitConverter for consistency.
+                    #
+                    # Check for explicit 'kg' units OR unreasonably high values which indicates
+                    # the value is likely mass flux but mislabeled as m/s.
+                    #
+                    # Physical reasoning for threshold (see UnitConverter.MASS_FLUX_THRESHOLD):
+                    #   - 1e-6 m/s = 86.4 mm/day of runoff (extremely high)
+                    #   - Typical mean runoff: 0.1-5 mm/day = 1e-9 to 6e-8 m/s
+                    #   - Values exceeding threshold are almost certainly mass flux
+
                     is_mass_flux = False
                     if 'units' in var.attrs and 'kg' in var.attrs['units'] and 's-1' in var.attrs['units']:
                         is_mass_flux = True
-                    elif float(var.mean().item()) > 1e-6:
-                        self.logger.debug(f"Variable {var_name} mean ({float(var.mean().item()):.2e}) is unreasonably high for m/s. Assuming mislabeled mass flux.")
+                    elif float(var.mean().item()) > UnitConverter.MASS_FLUX_THRESHOLD:
+                        self.logger.debug(
+                            f"Variable {var_name} mean ({float(var.mean().item()):.2e}) exceeds "
+                            f"threshold {UnitConverter.MASS_FLUX_THRESHOLD:.0e} m/s. "
+                            "Assuming mislabeled mass flux."
+                        )
                         is_mass_flux = True
 
                     if is_mass_flux:
-                        self.logger.debug(f"Converting {var_name} from mass flux to volume flux (dividing by 1000)")
+                        self.logger.debug(
+                            f"Converting {var_name} from mass flux to volume flux (dividing by 1000)"
+                        )
                         var = var / 1000.0  # Divide by density of water
 
                     # Check if we need spatial aggregation
@@ -342,6 +357,53 @@ class StreamflowEvaluator(ModelEvaluator):
                     return sim_data * catchment_area
             raise ValueError("No suitable streamflow variable found in SUMMA output")
 
+    # Catchment area validation bounds (m²)
+    MIN_CATCHMENT_AREA = 1e3    # 0.001 km² - smallest reasonable catchment
+    MAX_CATCHMENT_AREA = 1e12   # 1,000,000 km² - larger than any river basin
+
+    def _validate_catchment_area(
+        self,
+        area_m2: float,
+        source: str
+    ) -> Optional[float]:
+        """Validate catchment area is within reasonable bounds.
+
+        Checks that detected/calculated catchment area falls within
+        physically plausible bounds.
+
+        Validation Bounds:
+            - Minimum: 1e3 m² (0.001 km²) - smallest reasonable catchment
+            - Maximum: 1e12 m² (1,000,000 km²) - larger than Amazon basin
+
+        Args:
+            area_m2: Catchment area in square meters
+            source: Description of where area came from (for logging)
+
+        Returns:
+            float if valid, None if invalid
+        """
+        if area_m2 <= 0:
+            self.logger.warning(
+                f"Invalid catchment area from {source}: {area_m2} m² (non-positive)"
+            )
+            return None
+
+        if area_m2 < self.MIN_CATCHMENT_AREA:
+            self.logger.warning(
+                f"Invalid catchment area from {source}: {area_m2} m² "
+                f"(< minimum {self.MIN_CATCHMENT_AREA} m²)"
+            )
+            return None
+
+        if area_m2 > self.MAX_CATCHMENT_AREA:
+            self.logger.warning(
+                f"Invalid catchment area from {source}: {area_m2} m² "
+                f"(> maximum {self.MAX_CATCHMENT_AREA} m²)"
+            )
+            return None
+
+        return area_m2
+
     def _get_catchment_area(self) -> float:
         """Determine catchment area with multi-source fallback strategy.
 
@@ -364,28 +426,34 @@ class StreamflowEvaluator(ModelEvaluator):
            - Alternative delineation layer
            - Searches shapefiles/catchment/*.shp
            - Attempts HRU_area column first, then geometry
-        5. Default: 1 km² (1e6 m²)
-           - Last resort, triggers warning
-           - Only if all above methods fail or return invalid values
+        5. Default: 1 km² (1e6 m²) or error if REQUIRE_EXPLICIT_CATCHMENT_AREA=True
 
         Validation:
-            Checks all areas for reasonable bounds: 0 < area < 1e12 m²
-            - Minimum: >0 (negative/zero areas invalid)
-            - Maximum: <1e12 m² (extreme check for unit/calculation errors)
+            All areas validated via _validate_catchment_area() for bounds checking.
+
+        Configuration:
+            REQUIRE_EXPLICIT_CATCHMENT_AREA: If True, raise error when auto-detection fails
+                                             (default: False)
 
         Returns:
             float: Catchment area in square meters (m²)
 
-        Warnings:
-            Logs info level when falling back between priority levels
-            Logs warning for invalid areas or if using 1 km² default
+        Raises:
+            ValueError: If auto-detection fails and REQUIRE_EXPLICIT_CATCHMENT_AREA=True
         """
 
         # Priority 0: Manual override from config
-        fixed_area = self.config_dict.get('FIXED_CATCHMENT_AREA')
+        fixed_area = self._get_config_value(
+            lambda: self.config.domain.catchment_area_m2,
+            default=None,
+            dict_key='FIXED_CATCHMENT_AREA'
+        )
         if fixed_area:
-            self.logger.info(f"Using fixed catchment area from config: {fixed_area} m²")
-            return float(fixed_area)
+            validated = self._validate_catchment_area(float(fixed_area), 'config')
+            if validated:
+                self.logger.info(f"Using fixed catchment area from config: {validated} m²")
+                return validated
+            # Fall through to other methods if fixed area is invalid
 
         # Priority 1: Try SUMMA attributes file first (most reliable)
         try:
@@ -394,11 +462,14 @@ class StreamflowEvaluator(ModelEvaluator):
                 with xr.open_dataset(attrs_file) as attrs:
                     if 'HRUarea' in attrs.data_vars:
                         catchment_area_m2 = float(attrs['HRUarea'].values.sum())
-                        if 0 < catchment_area_m2 < 1e12:  # Reasonable area check
-                            self.logger.info(f"Using catchment area from SUMMA attributes: {catchment_area_m2:.0f} m²")
-                            return catchment_area_m2
-                        else:
-                            self.logger.warning(f"Catchment area from attributes.nc is {catchment_area_m2} m², which is out of bounds (0 < area < 1e12).")
+                        validated = self._validate_catchment_area(
+                            catchment_area_m2, 'SUMMA attributes.nc'
+                        )
+                        if validated:
+                            self.logger.info(
+                                f"Using catchment area from SUMMA attributes: {validated:.0f} m²"
+                            )
+                            return validated
 
         except Exception as e:
             self.logger.warning(f"Error reading SUMMA attributes file: {str(e)}")
@@ -410,12 +481,21 @@ class StreamflowEvaluator(ModelEvaluator):
             basin_files = list(basin_path.glob("*.shp"))
             if basin_files:
                 gdf = gpd.read_file(basin_files[0])
-                area_col = self.config_dict.get('RIVER_BASIN_SHP_AREA', 'GRU_area')
+                area_col = self._get_config_value(
+                    lambda: self.config.geospatial.river_basin_area_column,
+                    default='GRU_area',
+                    dict_key='RIVER_BASIN_SHP_AREA'
+                )
                 if area_col in gdf.columns:
                     total_area = gdf[area_col].sum()
-                    if 0 < total_area < 1e12:
-                        self.logger.info(f"Using catchment area from basin shapefile: {total_area:.0f} m²")
-                        return total_area
+                    validated = self._validate_catchment_area(
+                        total_area, f'basin shapefile ({area_col})'
+                    )
+                    if validated:
+                        self.logger.info(
+                            f"Using catchment area from basin shapefile: {validated:.0f} m²"
+                        )
+                        return validated
                 # Fallback: calculate from geometry
                 if gdf.crs and gdf.crs.is_geographic:
                     centroid = gdf.dissolve().centroid.iloc[0]
@@ -423,10 +503,18 @@ class StreamflowEvaluator(ModelEvaluator):
                     utm_crs = f"+proj=utm +zone={utm_zone} +north +datum=WGS84 +units=m +no_defs"
                     gdf = gdf.to_crs(utm_crs)
                 geom_area = gdf.geometry.area.sum()
-                self.logger.info(f"Using catchment area from basin geometry: {geom_area:.0f} m²")
-                return geom_area
+                validated = self._validate_catchment_area(
+                    geom_area, 'basin shapefile (geometry)'
+                )
+                if validated:
+                    self.logger.info(
+                        f"Using catchment area from basin geometry: {validated:.0f} m²"
+                    )
+                    return validated
         except Exception as e:
-            self.logger.warning(f"Could not calculate catchment area from basin shapefile: {str(e)}")
+            self.logger.warning(
+                f"Could not calculate catchment area from basin shapefile: {str(e)}"
+            )
 
         # Priority 3: Try catchment shapefile
         try:
@@ -435,17 +523,43 @@ class StreamflowEvaluator(ModelEvaluator):
             catchment_files = list(catchment_path.glob("*.shp"))
             if catchment_files:
                 gdf = gpd.read_file(catchment_files[0])
-                area_col = self.config_dict.get('CATCHMENT_SHP_AREA', 'HRU_area')
+                area_col = self._get_config_value(
+                    lambda: self.config.geospatial.catchment_area_column,
+                    default='HRU_area',
+                    dict_key='CATCHMENT_SHP_AREA'
+                )
                 if area_col in gdf.columns:
                     total_area = gdf[area_col].sum()
-                    if 0 < total_area < 1e12:
-                        self.logger.info(f"Using catchment area from catchment shapefile: {total_area:.0f} m²")
-                        return total_area
+                    validated = self._validate_catchment_area(
+                        total_area, f'catchment shapefile ({area_col})'
+                    )
+                    if validated:
+                        self.logger.info(
+                            f"Using catchment area from catchment shapefile: {validated:.0f} m²"
+                        )
+                        return validated
         except Exception as e:
             self.logger.warning(f"Error reading catchment shapefile: {str(e)}")
 
-        # Fallback
-        self.logger.warning("Using default catchment area: 1,000,000 m²")
+        # Fallback: Check if explicit area is required
+        require_explicit = self._get_config_value(
+            lambda: self.config.domain.require_explicit_catchment_area,
+            default=False,
+            dict_key='REQUIRE_EXPLICIT_CATCHMENT_AREA'
+        )
+
+        if require_explicit:
+            raise ValueError(
+                "Catchment area auto-detection failed and REQUIRE_EXPLICIT_CATCHMENT_AREA=True. "
+                "Set FIXED_CATCHMENT_AREA in config to specify the catchment area manually."
+            )
+
+        self.logger.warning(
+            "Using default catchment area: 1,000,000 m² (1 km²). "
+            "This may cause incorrect discharge calculations. "
+            "Set FIXED_CATCHMENT_AREA in config or enable REQUIRE_EXPLICIT_CATCHMENT_AREA "
+            "to enforce explicit specification."
+        )
         return 1e6  # 1 km² fallback
 
     def get_observed_data_path(self) -> Path:
@@ -466,7 +580,11 @@ class StreamflowEvaluator(ModelEvaluator):
         Returns:
             Path: Path to observed streamflow CSV file
         """
-        obs_path = self.config_dict.get('OBSERVATIONS_PATH')
+        obs_path = self._get_config_value(
+            lambda: self.config.observations.streamflow_path,
+            default=None,
+            dict_key='OBSERVATIONS_PATH'
+        )
         if obs_path == 'default' or not obs_path:
             return self.project_dir / "observations" / "streamflow" / "preprocessed" / f"{self.domain_name}_streamflow_processed.csv"
         return Path(obs_path)
@@ -528,7 +646,11 @@ class StreamflowEvaluator(ModelEvaluator):
             lambda: self.config.domain.definition_method,
             default='lumped'
         )
-        routing_delineation = self.config_dict.get('ROUTING_DELINEATION', 'lumped')
+        routing_delineation = self._get_config_value(
+            lambda: self.config.routing.delineation,
+            default='lumped',
+            dict_key='ROUTING_DELINEATION'
+        )
 
         if domain_method not in ['point', 'lumped']:
             return True

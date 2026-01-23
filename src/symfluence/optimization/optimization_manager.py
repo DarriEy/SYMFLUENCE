@@ -497,7 +497,7 @@ class OptimizationManager(BaseManager):
 
             return results[-1]
 
-        except Exception as e:
+        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError) as e:
             self.logger.error(f"Error during model calibration: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -616,7 +616,7 @@ class OptimizationManager(BaseManager):
                 self.logger.warning(f"{model_name} calibration completed but results file not found")
                 return None
 
-        except Exception as e:
+        except (KeyError, TypeError, ValueError, RuntimeError) as e:
             self.logger.error(f"Error during {model_name} {algorithm} optimization: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -771,6 +771,6 @@ class OptimizationManager(BaseManager):
 
             return results
 
-        except Exception as e:
+        except (FileNotFoundError, ValueError, KeyError) as e:
             self.logger.error(f"Error loading optimization results: {str(e)}")
             return None

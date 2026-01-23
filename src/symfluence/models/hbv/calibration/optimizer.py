@@ -54,7 +54,7 @@ class HBVModelOptimizer(BaseModelOptimizer):
 
     def _create_parameter_manager(self):
         """Create HBV parameter manager."""
-        from symfluence.optimization.parameter_managers.hbv_parameter_manager import HBVParameterManager
+        from symfluence.models.hbv.calibration.parameter_manager import HBVParameterManager
         return HBVParameterManager(
             self.config,
             self.logger,

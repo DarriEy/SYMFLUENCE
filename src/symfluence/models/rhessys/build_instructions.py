@@ -288,6 +288,49 @@ grep "const void \*e1" util/key_compare.c || { echo "Patching key_compare.c fail
 grep "const void \*" util/sort_patch_layers.c || { echo "Patching sort_patch_layers.c failed"; exit 1; }
 echo "Patches verified."
 
+# Fix WMFire fire grid bug: patch ID 0 should not be treated as valid patch
+# The condition if(tmpPatchID>=0) incorrectly treats 0 as valid, causing NULL pointer dereference
+# when the patches array is allocated but not populated (no patch 0 exists in the world file)
+echo "Patching construct_fire_grid.c for WMFire patch ID bug..."
+if [ -f "init/construct_fire_grid.c" ]; then
+    sed -i.bak 's/if(tmpPatchID>=0)/if(tmpPatchID>0)/' init/construct_fire_grid.c
+    if grep -q 'if(tmpPatchID>0)' init/construct_fire_grid.c; then
+        echo "Patched construct_fire_grid.c: tmpPatchID>=0 -> tmpPatchID>0"
+    else
+        echo "WARNING: construct_fire_grid.c patch may not have applied"
+    fi
+fi
+
+# Fix handle_event.c to include WMFire event handler (missing in source)
+echo "Patching handle_event.c to add fire_grid_on support..."
+cat > /tmp/rhessys_event_patch.pl << 'PERLSCRIPT'
+use strict;
+use warnings;
+my $file = $ARGV[0];
+open(my $fh, '<', $file) or die "Cannot open $file: $!";
+my $content = do { local $/; <$fh> };
+close($fh);
+
+my $changes = 0;
+
+# Add function declaration
+if ($content !~ /void\s+execute_firespread_event/) {
+    $changes += ($content =~ s/(\s*)void\s+execute_state_output_event/$1void execute_firespread_event(\n$1\tstruct world_object *,\n$1\tstruct command_line_object *,\n$1\tstruct date);\n$1void execute_state_output_event/);
+}
+
+# Add event handler
+if ($content !~ /fire_grid_on/) {
+    # Match the last else block
+    $changes += ($content =~ s/(\s*)else\{\s*fprintf\(stderr,"FATAL ERROR: in handle event - event %s not recognized/\n$1else if ( !strcmp(event[0].command,"fire_grid_on") ){\n$1\texecute_firespread_event(world, command_line, current_date);\n$1}\n$1else{\n$1\tfprintf(stderr,"FATAL ERROR: in handle event - event %s not recognized/);
+}
+
+open($fh, '>', $file) or die "Cannot write $file: $!";
+print $fh $content;
+close($fh);
+print "Patched $file with $changes changes\n";
+PERLSCRIPT
+perl /tmp/rhessys_event_patch.pl rhessys/tec/handle_event.c
+
 # Patch makefile to remove test dependency from rhessys target
 # This allows building without glib-2.0 which is required only for tests
 echo "Patching makefile to skip test dependency..."

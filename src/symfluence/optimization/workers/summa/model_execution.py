@@ -46,7 +46,7 @@ def _cleanup_stale_output_files(output_dir: Path, logger) -> None:
             try:
                 file_path.unlink()
                 files_removed += 1
-            except Exception as e:
+            except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
                 logger.warning(f"Could not remove stale file {file_path}: {e}")
 
     if files_removed > 0:
@@ -91,7 +91,7 @@ def _deduplicate_output_control(output_control_path: Path, logger):
                 f.writelines(new_lines)
             logger.debug(f"Deduplicated {output_control_path.name}")
 
-    except Exception as e:
+    except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
         logger.warning(f"Failed to deduplicate output control: {e}")
 
 
@@ -145,7 +145,7 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
                 try:
                     runinfo_path.chmod(0o644)
                     runinfo_path.unlink()
-                except Exception as e:
+                except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
                     logger.warning(f"Could not remove existing runinfo.txt: {e}")
 
             updated_lines = []
@@ -209,7 +209,7 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
             if settings_path_str is not None:
                 logger.debug(f"Updated file manager settings path to: {settings_path_str}")
 
-        except Exception as e:
+        except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
             logger.warning(f"Failed to update file manager paths: {e}")
             # Continue anyway, hoping it works or fails later
 
@@ -278,7 +278,7 @@ def _run_summa_worker(summa_exe: Path, file_manager: Path, summa_dir: Path, logg
         debug_info['errors'].append(error_msg)
         return False
 
-    except Exception as e:
+    except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
         error_msg = f"Error running SUMMA: {str(e)}"
         logger.error(error_msg)
         debug_info['errors'].append(error_msg)
@@ -308,7 +308,7 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
             logger.info("Fixing SUMMA time precision for mizuRoute compatibility")
             fix_summa_time_precision(expected_files[0])
             logger.info("SUMMA time precision fixed successfully")
-        except Exception as e:
+        except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
             error_msg = f"Failed to fix SUMMA time precision: {str(e)}"
             logger.error(error_msg)
             debug_info['errors'].append(error_msg)
@@ -398,7 +398,7 @@ def _run_mizuroute_worker(task_data: Dict, mizuroute_dir: Path, logger, debug_in
 
         return True
 
-    except Exception as e:
+    except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
         error_msg = f"mizuRoute execution failed: {str(e)}"
         logger.error(error_msg)
         debug_info['errors'].append(error_msg)

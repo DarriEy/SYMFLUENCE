@@ -163,7 +163,7 @@ class TestSUMMAParameterConstraints:
 
     def test_enforce_theta_sat_res_constraint(self, summa_config, test_logger, temp_project_dir):
         """Test theta_sat > theta_res constraint."""
-        from symfluence.optimization.parameter_managers.summa_parameter_manager import SUMMAParameterManager
+        from symfluence.optimization.parameter_managers import SUMMAParameterManager
 
         summa_settings_dir = temp_project_dir / "settings" / "SUMMA"
         summa_settings_dir.mkdir(parents=True, exist_ok=True)
@@ -200,7 +200,7 @@ class TestSUMMAParameterConstraints:
 
     def test_enforce_field_capacity_constraint(self, summa_config, test_logger, temp_project_dir):
         """Test theta_sat > fieldCapacity > theta_res constraint."""
-        from symfluence.optimization.parameter_managers.summa_parameter_manager import SUMMAParameterManager
+        from symfluence.optimization.parameter_managers import SUMMAParameterManager
 
         summa_settings_dir = temp_project_dir / "settings" / "SUMMA"
         summa_settings_dir.mkdir(parents=True, exist_ok=True)
@@ -281,7 +281,7 @@ class TestFUSEWorkerFunctions:
 
     def test_fuse_parameter_application(self, fuse_config, test_logger, temp_project_dir):
         """Test applying parameters to FUSE input files via worker class."""
-        from symfluence.optimization.workers.fuse_worker import FUSEWorker
+        from symfluence.models.fuse.calibration.worker import FUSEWorker
         from unittest.mock import mock_open
 
         params = {
@@ -362,7 +362,7 @@ class TestNGENWorkerFunctions:
 
     def test_ngen_parameter_application(self, ngen_config, test_logger, temp_project_dir):
         """Test applying parameters to NGEN realization file via worker class."""
-        from symfluence.optimization.workers.ngen_worker import NgenWorker
+        from symfluence.models.ngen.calibration.worker import NgenWorker
 
         params = {
             'CFE.smcmax': 0.45,

@@ -18,9 +18,9 @@ from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('MODIS_ET')
-@ObservationRegistry.register('MOD16')
-@ObservationRegistry.register('MOD16A2')
+@ObservationRegistry.register('modis_et')
+@ObservationRegistry.register('mod16')
+@ObservationRegistry.register('mod16a2')
 class MODISETHandler(BaseObservationHandler):
     """
     Handles MODIS MOD16A2 8-day Evapotranspiration (ET) data.
@@ -34,6 +34,9 @@ class MODISETHandler(BaseObservationHandler):
         MOD16_INTERPOLATION_METHOD: 'linear' (default), 'nearest', 'constant'
         MOD16_MIN_VALID_FRACTION: Minimum fraction of valid data (default 0.5)
     """
+
+    obs_type = "et"
+    source_name = "NASA_MODIS"
 
     def acquire(self) -> Path:
         """

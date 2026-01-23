@@ -6,18 +6,6 @@ jFUSE Model Integration for SYMFLUENCE.
     used at your own risk. The API may change without notice in future releases.
     Please report any issues at https://github.com/DarriEy/SYMFLUENCE/issues
 
-.. note::
-    **API Stability**: This module is not yet covered by semantic versioning guarantees.
-    Breaking changes may occur in minor releases until this module reaches stable status.
-
-    **Known Limitations**:
-    - Internal routing is not yet implemented; use mizuRoute for distributed routing
-    - Some JAX features require specific hardware/driver configurations
-    - Performance optimization is ongoing
-
-    To disable this experimental module at import time, set the environment variable:
-    ``SYMFLUENCE_DISABLE_EXPERIMENTAL=1``
-
 This module provides integration for jFUSE (JAX-based FUSE), a differentiable
 hydrological model that supports gradient-based calibration via JAX autodiff.
 
@@ -54,37 +42,19 @@ Requirements:
     - JAX: pip install jax jaxlib (for gradient computation)
 """
 
-import os
 import warnings
 
-# Check if experimental modules are disabled
-_DISABLE_EXPERIMENTAL = os.environ.get('SYMFLUENCE_DISABLE_EXPERIMENTAL', '').lower() in ('1', 'true', 'yes')
-
-if _DISABLE_EXPERIMENTAL:
-    raise ImportError(
-        "jFUSE module is disabled via SYMFLUENCE_DISABLE_EXPERIMENTAL environment variable. "
-        "This experimental module is not yet stable. Remove the environment variable to enable."
-    )
-
-# Deferred warning - only shown when module is actually used
-_EXPERIMENTAL_WARNING_SHOWN = False
-
-
-def _warn_experimental():
-    """Emit experimental warning on first actual use."""
-    global _EXPERIMENTAL_WARNING_SHOWN
-    if not _EXPERIMENTAL_WARNING_SHOWN:
-        warnings.warn(
-            "jFUSE is an EXPERIMENTAL module. The API may change without notice. "
-            "For production use, consider the stable FUSE module instead.",
-            category=UserWarning,
-            stacklevel=3
-        )
-        _EXPERIMENTAL_WARNING_SHOWN = True
+# Emit experimental warning on import
+warnings.warn(
+    "jFUSE is an EXPERIMENTAL module. The API may change without notice. "
+    "For production use, consider the stable FUSE module instead.",
+    category=UserWarning,
+    stacklevel=2
+)
 
 # Import components to trigger registration with registries
 from .config import JFUSEConfig, JFUSEConfigAdapter
-from .preprocessor import JFUSEPreprocessor
+from .preprocessor import JFUSEPreProcessor
 from .runner import JFUSERunner
 from .postprocessor import JFUSEPostprocessor, JFUSERoutedPostprocessor
 from .extractor import JFUSEResultExtractor
@@ -95,6 +65,9 @@ from .calibration import JFUSEWorker, JFUSEParameterManager, get_jfuse_calibrati
 # Register config adapter with ModelRegistry
 from symfluence.models.registry import ModelRegistry
 ModelRegistry.register_config_adapter('JFUSE')(JFUSEConfigAdapter)
+
+# Register result extractor with ModelRegistry
+ModelRegistry.register_result_extractor('JFUSE')(JFUSEResultExtractor)
 
 # Check for jFUSE availability
 try:
@@ -136,7 +109,7 @@ __all__ = [
     'JFUSEConfig',
     'JFUSEConfigAdapter',
     # Model components
-    'JFUSEPreprocessor',
+    'JFUSEPreProcessor',
     'JFUSERunner',
     'JFUSEPostprocessor',
     'JFUSERoutedPostprocessor',

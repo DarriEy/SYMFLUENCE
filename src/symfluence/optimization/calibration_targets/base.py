@@ -51,7 +51,7 @@ class MultivariateTarget(CalibrationTarget):
             try:
                 config = SymfluenceConfig.model_validate(config)
                 self.config = config  # Update self.config as well
-            except Exception as e:
+            except (KeyError, ValueError, AttributeError) as e:
                 logger.warning(f"Failed to convert config dict to SymfluenceConfig: {e}")
 
         self.analysis_manager = AnalysisManager(config, logger)
@@ -64,7 +64,7 @@ class MultivariateTarget(CalibrationTarget):
             else:
                 # Try attribute access for SymfluenceConfig
                 weights = getattr(config, 'OBJECTIVE_WEIGHTS', getattr(config, 'objective_weights', {'STREAMFLOW': 1.0}))
-        except Exception:
+        except (KeyError, ValueError, AttributeError):
             weights = {'STREAMFLOW': 1.0}
 
         self.variables = list(weights.keys()) if weights else ['STREAMFLOW']
@@ -152,7 +152,7 @@ class MultivariateTarget(CalibrationTarget):
                 if sim_files:
                     try:
                         sim_results[var] = evaluator.extract_simulated_data(sim_files)
-                    except Exception as e:
+                    except (KeyError, ValueError, AttributeError) as e:
                         self.logger.warning(f"Failed to extract data for {var}: {e}")
 
         # 2. Run multivariate evaluation (returns dict of metrics per variable)

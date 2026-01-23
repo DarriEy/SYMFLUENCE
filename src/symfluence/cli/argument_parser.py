@@ -281,6 +281,8 @@ For more help on a specific command:
                                help='Create minimal configuration')
         init_parser.add_argument('--comprehensive', action='store_true',
                                help='Create comprehensive configuration (default)')
+        init_parser.add_argument('--interactive', '-i', action='store_true',
+                               help='Run interactive configuration wizard')
         init_parser.set_defaults(func=ProjectCommands.init)
 
         # project pour-point

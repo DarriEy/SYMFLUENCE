@@ -17,50 +17,54 @@ Note: We import each parameter manager to trigger @register_parameter_manager de
 Import errors are caught to handle missing dependencies gracefully.
 """
 
-# Import parameter managers to trigger registration decorators
+# Import parameter managers from canonical locations to trigger registration decorators
+# This avoids deprecation warnings while still enabling decorator-based registration
 # Errors are caught to handle optional dependencies
 def _register_parameter_managers():
-    """Import all parameter managers to trigger registry decorators."""
+    """Import all parameter managers from canonical locations to trigger registry decorators."""
     import importlib
     import logging
 
     logger = logging.getLogger(__name__)
 
-    models = [
-        'ngen',
-        'summa',
-        'fuse',
-        'gr',
-        'hbv',
-        'hype',
-        'mesh',
-        'rhessys',
-        'ml'
+    # Map of canonical module paths for parameter managers
+    canonical_modules = [
+        'symfluence.models.ngen.calibration.parameter_manager',
+        'symfluence.models.summa.calibration.parameter_manager',
+        'symfluence.models.fuse.calibration.parameter_manager',
+        'symfluence.models.gr.calibration.parameter_manager',
+        'symfluence.models.hbv.calibration.parameter_manager',
+        'symfluence.models.hype.calibration.parameter_manager',
+        'symfluence.models.mesh.calibration.parameter_manager',
+        'symfluence.models.rhessys.calibration.parameter_manager',
+        'symfluence.models.gnn.calibration.parameter_manager',  # ML parameter manager
     ]
 
-    for model in models:
+    for module_path in canonical_modules:
         try:
-            logger.debug(f"Attempting to import parameter manager for {model}")
-            importlib.import_module(f'.{model}_parameter_manager', package='symfluence.optimization.parameter_managers')
-        except Exception as e:
+            logger.debug(f"Attempting to import parameter manager from {module_path}")
+            importlib.import_module(module_path)
+        except (ImportError, AttributeError) as e:
             # Silently skip models with missing dependencies
             # This is expected for optional models
-            logger.debug(f"Failed to import {model} parameter manager: {e}")
+            model_name = module_path.split('.')[2]  # Extract model name from path
+            logger.debug(f"Failed to import {model_name} parameter manager: {e}")
             pass
 
 # Trigger registration on import
 _register_parameter_managers()
 
-# Re-export for backward compatibility
-from .fuse_parameter_manager import FUSEParameterManager
-from .gr_parameter_manager import GRParameterManager
-from .hbv_parameter_manager import HBVParameterManager
-from .hype_parameter_manager import HYPEParameterManager
-from .mesh_parameter_manager import MESHParameterManager
-from .ngen_parameter_manager import NgenParameterManager
-from .rhessys_parameter_manager import RHESSysParameterManager
-from .summa_parameter_manager import SUMMAParameterManager
-from .ml_parameter_manager import MLParameterManager
+# Re-export from canonical locations (avoids deprecation warnings for internal use)
+# Users who import directly from the stub modules will still see deprecation warnings
+from symfluence.models.fuse.calibration.parameter_manager import FUSEParameterManager
+from symfluence.models.gr.calibration.parameter_manager import GRParameterManager
+from symfluence.models.hbv.calibration.parameter_manager import HBVParameterManager
+from symfluence.models.hype.calibration.parameter_manager import HYPEParameterManager
+from symfluence.models.mesh.calibration.parameter_manager import MESHParameterManager
+from symfluence.models.ngen.calibration.parameter_manager import NgenParameterManager
+from symfluence.models.rhessys.calibration.parameter_manager import RHESSysParameterManager
+from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
+from symfluence.models.gnn.calibration.parameter_manager import MLParameterManager
 
 __all__ = [
     'FUSEParameterManager',

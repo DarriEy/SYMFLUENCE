@@ -5,11 +5,13 @@ from .observation_loader import ObservationLoaderMixin
 from .dataset_builder import DatasetBuilderMixin
 from .output_converter import OutputConverterMixin
 from .model_component import ModelComponentMixin
+from .spatial_mode_mixin import SpatialModeDetectionMixin
 
 __all__ = [
     'PETCalculatorMixin',
     'ObservationLoaderMixin',
     'DatasetBuilderMixin',
     'OutputConverterMixin',
-    'ModelComponentMixin'
+    'ModelComponentMixin',
+    'SpatialModeDetectionMixin',
 ]

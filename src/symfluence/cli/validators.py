@@ -223,3 +223,122 @@ def validate_directory_exists(dir_path: str, dir_type: str = "Directory") -> Res
             value=dir_path,
         ))
     return Result.ok(path)
+
+
+def validate_identifier(value: str) -> Result[str]:
+    """
+    Validate an identifier (alphanumeric with underscores).
+
+    Identifiers must start with a letter or underscore and contain
+    only alphanumeric characters and underscores.
+
+    Args:
+        value: String to validate
+
+    Returns:
+        Result containing the value if valid, or ValidationError if invalid.
+
+    Example:
+        >>> result = validate_identifier("my_domain_1")
+        >>> if result.is_ok:
+        ...     print(f"Valid: {result.unwrap()}")
+    """
+    import re
+
+    if not value:
+        return Result.err(ValidationError(
+            field="identifier",
+            message="Identifier cannot be empty",
+            value=value,
+        ))
+
+    # Must start with letter or underscore, then alphanumeric/underscore
+    pattern = r'^[a-zA-Z_][a-zA-Z0-9_]*$'
+    if not re.match(pattern, value):
+        return Result.err(ValidationError(
+            field="identifier",
+            message="Invalid identifier format",
+            value=value,
+            suggestion="Use only letters, numbers, and underscores. Must start with a letter or underscore.",
+        ))
+
+    return Result.ok(value)
+
+
+def validate_date(date_string: str) -> Result[str]:
+    """
+    Validate date string in YYYY-MM-DD format.
+
+    Args:
+        date_string: Date string to validate
+
+    Returns:
+        Result containing the date string if valid, or ValidationError if invalid.
+
+    Example:
+        >>> result = validate_date("2020-01-15")
+        >>> if result.is_ok:
+        ...     print(f"Valid date: {result.unwrap()}")
+    """
+    from datetime import datetime
+
+    try:
+        datetime.strptime(date_string, '%Y-%m-%d')
+        return Result.ok(date_string)
+    except ValueError:
+        return Result.err(ValidationError(
+            field="date",
+            message="Invalid date format",
+            value=date_string,
+            suggestion="Use YYYY-MM-DD format (e.g., 2020-01-15)",
+        ))
+
+
+def validate_date_range(start_date: str, end_date: str) -> Result[Tuple[str, str]]:
+    """
+    Validate that end date is after start date.
+
+    Args:
+        start_date: Start date string in YYYY-MM-DD format
+        end_date: End date string in YYYY-MM-DD format
+
+    Returns:
+        Result containing (start_date, end_date) tuple if valid.
+
+    Example:
+        >>> result = validate_date_range("2010-01-01", "2020-12-31")
+        >>> if result.is_ok:
+        ...     start, end = result.unwrap()
+    """
+    from datetime import datetime
+
+    # First validate individual dates
+    start_result = validate_date(start_date)
+    if start_result.is_err:
+        return Result.err(ValidationError(
+            field="start_date",
+            message=f"Invalid start date: {start_date}",
+            value=start_date,
+        ))
+
+    end_result = validate_date(end_date)
+    if end_result.is_err:
+        return Result.err(ValidationError(
+            field="end_date",
+            message=f"Invalid end date: {end_date}",
+            value=end_date,
+        ))
+
+    # Parse and compare
+    start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+    end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+
+    if end_dt <= start_dt:
+        return Result.err(ValidationError(
+            field="date_range",
+            message="End date must be after start date",
+            value=f"{start_date} to {end_date}",
+            suggestion="Ensure the end date is later than the start date",
+        ))
+
+    return Result.ok((start_date, end_date))

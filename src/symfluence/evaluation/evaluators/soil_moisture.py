@@ -39,7 +39,7 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 from pathlib import Path
-from typing import cast, List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
@@ -175,11 +175,27 @@ class SoilMoistureEvaluator(ModelEvaluator):
         self.variable_name = self.optimization_target
 
         if self.optimization_target == 'sm_point':
-            self.target_depth = self.config_dict.get('SM_TARGET_DEPTH', 'auto')
-            self.depth_tolerance = self.config_dict.get('SM_DEPTH_TOLERANCE', 0.05)
+            self.target_depth = self._get_config_value(
+                lambda: self.config.evaluation.soil_moisture.target_depth_m,
+                default='auto',
+                dict_key='SM_TARGET_DEPTH'
+            )
+            self.depth_tolerance = self._get_config_value(
+                lambda: self.config.evaluation.soil_moisture.depth_tolerance_m,
+                default=0.05,
+                dict_key='SM_DEPTH_TOLERANCE'
+            )
         elif self.optimization_target == 'sm_smap':
-            self.smap_layer = self.config_dict.get('SMAP_LAYER', 'surface_sm')
-            self.temporal_aggregation = self.config_dict.get('SM_TEMPORAL_AGGREGATION', 'daily_mean')
+            self.smap_layer = self._get_config_value(
+                lambda: self.config.evaluation.smap.layer,
+                default='surface_sm',
+                dict_key='SMAP_LAYER'
+            )
+            self.temporal_aggregation = self._get_config_value(
+                lambda: self.config.evaluation.soil_moisture.temporal_aggregation,
+                default='daily_mean',
+                dict_key='SM_TEMPORAL_AGGREGATION'
+            )
         elif self.optimization_target == 'sm_ismn':
             self.target_depth = self._get_config_value(
                 lambda: self.config.evaluation.ismn.target_depth_m,
@@ -192,11 +208,27 @@ class SoilMoistureEvaluator(ModelEvaluator):
                 dict_key='ISMN_TEMPORAL_AGGREGATION'
             )
         elif self.optimization_target == 'sm_esa':
-            self.esa_surface_depth = float(self.config_dict.get('ESA_SURFACE_DEPTH_M', 0.05))
-            self.temporal_aggregation = self.config_dict.get('SM_TEMPORAL_AGGREGATION', 'daily_mean')
+            self.esa_surface_depth = float(self._get_config_value(
+                lambda: self.config.evaluation.esa_cci.surface_depth_m,
+                default=0.05,
+                dict_key='ESA_SURFACE_DEPTH_M'
+            ))
+            self.temporal_aggregation = self._get_config_value(
+                lambda: self.config.evaluation.soil_moisture.temporal_aggregation,
+                default='daily_mean',
+                dict_key='SM_TEMPORAL_AGGREGATION'
+            )
 
-        self.use_quality_control = self.config_dict.get('SM_USE_QUALITY_CONTROL', True)
-        self.min_valid_pixels = self.config_dict.get('SM_MIN_VALID_PIXELS', 10)
+        self.use_quality_control = self._get_config_value(
+            lambda: self.config.evaluation.soil_moisture.use_quality_control,
+            default=True,
+            dict_key='SM_USE_QUALITY_CONTROL'
+        )
+        self.min_valid_pixels = self._get_config_value(
+            lambda: self.config.evaluation.smap.min_valid_pixels,
+            default=10,
+            dict_key='SM_MIN_VALID_PIXELS'
+        )
 
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
         """Locate SUMMA output files containing soil moisture variables.
@@ -254,16 +286,15 @@ class SoilMoistureEvaluator(ModelEvaluator):
         soil_moisture_var = ds['mLayerVolFracLiq']
         layer_depths = ds['mLayerDepth']
 
-        # Collapse spatial dimensions but preserve layer dimension
-        sim_xr = soil_moisture_var
-        depths_xr = layer_depths
+        # Find layer dimension
+        layer_dims = [dim for dim in soil_moisture_var.dims if 'mid' in dim.lower() or 'layer' in dim.lower()]
+        if not layer_dims:
+            raise ValueError("Layer dimension not found in soil moisture output")
+        layer_dim = layer_dims[0]
 
+        # Collapse spatial dimensions on depths for layer selection
+        depths_xr = layer_depths
         for dim in ['hru', 'gru']:
-            if dim in sim_xr.dims:
-                if sim_xr.sizes[dim] == 1:
-                    sim_xr = sim_xr.isel({dim: 0})
-                else:
-                    sim_xr = sim_xr.mean(dim=dim)
             if dim in depths_xr.dims:
                 if depths_xr.sizes[dim] == 1:
                     depths_xr = depths_xr.isel({dim: 0})
@@ -271,15 +302,10 @@ class SoilMoistureEvaluator(ModelEvaluator):
                     depths_xr = depths_xr.mean(dim=dim)
 
         target_layer_idx = self._find_target_layer(depths_xr)
-        layer_dim = [dim for dim in sim_xr.dims if 'mid' in dim.lower() or 'layer' in dim.lower()][0]
 
-        # Select target layer and ensure no other spatial dims remain
-        sim_xr = sim_xr.isel({layer_dim: target_layer_idx})
-        non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
-        if non_time_dims:
-            sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-
-        sim_data = cast(pd.Series, sim_xr.to_pandas())
+        # Select target layer first, then use base class method for remaining collapse
+        sim_xr = soil_moisture_var.isel({layer_dim: target_layer_idx})
+        sim_data = self._collapse_spatial_dims(sim_xr, aggregate='mean')
         return sim_data
 
     def _find_target_layer(self, layer_depths: xr.DataArray) -> int:
@@ -307,7 +333,7 @@ class SoilMoistureEvaluator(ModelEvaluator):
         soil_moisture_var = ds['mLayerVolFracLiq']
         layer_depths = ds['mLayerDepth'] if 'mLayerDepth' in ds.variables else None
 
-        # Collapse spatial dimensions
+        # Collapse spatial dimensions first (preserving layer dimension)
         sim_xr = soil_moisture_var
         for dim in ['hru', 'gru']:
             if dim in sim_xr.dims:
@@ -344,12 +370,8 @@ class SoilMoistureEvaluator(ModelEvaluator):
         else:
             raise ValueError(f"Unknown SMAP layer: {self.smap_layer}")
 
-        # Ensure no other spatial dims remain
-        non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
-        if non_time_dims:
-            sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-
-        sim_data = cast(pd.Series, sim_xr.to_pandas())
+        # Use base class method for any remaining spatial dimension collapse
+        sim_data = self._collapse_spatial_dims(sim_xr, aggregate='mean')
         return sim_data
 
     def _depth_weighted_mean(
@@ -433,7 +455,7 @@ class SoilMoistureEvaluator(ModelEvaluator):
         soil_moisture_var = ds['mLayerVolFracLiq']
         layer_depths = ds['mLayerDepth'] if 'mLayerDepth' in ds.variables else None
 
-        # Collapse spatial dimensions
+        # Collapse spatial dimensions first (preserving layer dimension)
         sim_xr = soil_moisture_var
         for dim in ['hru', 'gru']:
             if dim in sim_xr.dims:
@@ -452,12 +474,8 @@ class SoilMoistureEvaluator(ModelEvaluator):
         else:
             sim_xr = self._depth_weighted_mean(sim_xr, layer_depths, self.esa_surface_depth, layer_dim)
 
-        # Ensure no other spatial dims remain
-        non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
-        if non_time_dims:
-            sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-
-        sim_data = cast(pd.Series, sim_xr.to_pandas())
+        # Use base class method for any remaining spatial dimension collapse
+        sim_data = self._collapse_spatial_dims(sim_xr, aggregate='mean')
         return sim_data
 
     def get_observed_data_path(self) -> Path:
@@ -471,7 +489,7 @@ class SoilMoistureEvaluator(ModelEvaluator):
             return self.project_dir / "observations" / "soil_moisture" / "esa_sm" / "processed" / f"{self.domain_name}_esa_processed.csv"
         else:
             # Fallback path if target not perfectly set
-             return self.project_dir / "observations" / "soil_moisture" / "processed" / f"{self.domain_name}_sm_processed.csv"
+            return self.project_dir / "observations" / "soil_moisture" / "processed" / f"{self.domain_name}_sm_processed.csv"
 
     def _get_observed_data_column(self, columns: List[str]) -> Optional[str]:
         if self.optimization_target == 'sm_point':

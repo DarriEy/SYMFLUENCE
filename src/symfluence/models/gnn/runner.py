@@ -5,13 +5,15 @@ GNN Model Runner.
 Orchestrates the GNN model workflow: data loading, graph construction, training, and simulation.
 """
 
+import logging
+from pathlib import Path
+from typing import Dict, Any, Optional, List
+
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
-import pandas as pd
-from pathlib import Path
-from typing import Dict, Any, Optional, List
 
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
@@ -22,7 +24,7 @@ from symfluence.core.exceptions import (
 )
 
 from .model import GNNModel
-from .preprocessor import GNNPreprocessor
+from .preprocessor import GNNPreProcessor
 from .postprocessor import GNNPostprocessor
 
 @ModelRegistry.register_runner('GNN', method_name='run_gnn')
@@ -46,7 +48,7 @@ class GNNRunner(BaseModelRunner, UnifiedModelExecutor):
 
     Attributes:
         device: torch.device (cuda if available, else cpu)
-        preprocessor: GNNPreprocessor for data loading and normalization
+        preprocessor: GNNPreProcessor for data loading and normalization
         postprocessor: GNNPostprocessor for result formatting
         model: GNNModel instance (None until initialized)
         hru_ids: List of HRU identifiers in model
@@ -54,7 +56,7 @@ class GNNRunner(BaseModelRunner, UnifiedModelExecutor):
         outlet_hru_ids: List of HRU IDs at outlets (for output mapping)
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the GNN model runner.
 
@@ -88,7 +90,7 @@ class GNNRunner(BaseModelRunner, UnifiedModelExecutor):
                 "DOMAIN_DEFINITION_METHOD to 'delineate'."
             )
 
-        self.preprocessor = GNNPreprocessor(
+        self.preprocessor = GNNPreProcessor(
             self.config_dict,
             self.logger,
             self.project_dir,

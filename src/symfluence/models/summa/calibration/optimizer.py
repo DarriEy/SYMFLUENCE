@@ -68,7 +68,7 @@ class SUMMAModelOptimizer(BaseModelOptimizer):
 
     def _create_parameter_manager(self):
         """Create SUMMA parameter manager."""
-        from symfluence.optimization.parameter_managers.summa_parameter_manager import SUMMAParameterManager
+        from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
         # SUMMA ParameterManager expects to find localParamInfo.txt and attributes.nc
         # These are located in settings/SUMMA, not optimization/
         summa_settings_dir = self.project_dir / 'settings' / 'SUMMA'

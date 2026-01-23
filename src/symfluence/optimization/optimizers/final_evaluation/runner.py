@@ -146,7 +146,7 @@ class FinalEvaluationRunner:
 
             return final_result
 
-        except Exception as e:
+        except (ValueError, RuntimeError, IOError) as e:
             self.logger.error(f"Error in final evaluation: {e}")
             self.logger.error(f"Traceback: {traceback.format_exc()}")
             return None
@@ -171,7 +171,7 @@ class FinalEvaluationRunner:
                 self.settings_dir,
                 config=self.config
             )
-        except Exception as e:
+        except (ValueError, RuntimeError, IOError) as e:
             self.logger.error(f"Error applying parameters for final evaluation: {e}")
             return False
 

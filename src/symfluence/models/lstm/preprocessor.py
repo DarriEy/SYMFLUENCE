@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 @ModelRegistry.register_preprocessor('LSTM')
-class LSTMPreprocessor(BaseModelPreProcessor):
+class LSTMPreProcessor(BaseModelPreProcessor):
     """
     Handles data preprocessing for the LSTM model.
 

@@ -16,6 +16,7 @@ from typing import Dict, Any, Callable, Optional
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm
+from .config_schema import GADefaults
 
 
 class GAAlgorithm(OptimizationAlgorithm):
@@ -71,11 +72,36 @@ class GAAlgorithm(OptimizationAlgorithm):
             self.logger.info(f"Adjusted population size to {pop_size} for even pairing")
 
         # GA parameters from config
-        crossover_rate = self.config_dict.get('GA_CROSSOVER_RATE', 0.9)
-        mutation_rate = self.config_dict.get('GA_MUTATION_RATE', 0.1)
-        mutation_scale = self.config_dict.get('GA_MUTATION_SCALE', 0.1)
-        tournament_size = self.config_dict.get('GA_TOURNAMENT_SIZE', 3)
-        elitism_count = self.config_dict.get('GA_ELITISM_COUNT', 2)
+        crossover_rate = self._get_config_value(
+            lambda: self.config.optimization.ga.crossover_rate,
+            default=GADefaults.CROSSOVER_RATE,
+            dict_key='GA_CROSSOVER_RATE'
+        )
+        mutation_rate = self._get_config_value(
+            lambda: self.config.optimization.ga.mutation_rate,
+            default=GADefaults.MUTATION_RATE,
+            dict_key='GA_MUTATION_RATE'
+        )
+        mutation_scale = self._get_config_value(
+            lambda: self.config.optimization.ga.mutation_scale,
+            default=GADefaults.MUTATION_SCALE,
+            dict_key='GA_MUTATION_SCALE'
+        )
+        tournament_size = self._get_config_value(
+            lambda: self.config.optimization.ga.tournament_size,
+            default=GADefaults.TOURNAMENT_SIZE,
+            dict_key='GA_TOURNAMENT_SIZE'
+        )
+        elitism_count = self._get_config_value(
+            lambda: self.config.optimization.ga.elitism_count,
+            default=GADefaults.ELITISM_COUNT,
+            dict_key='GA_ELITISM_COUNT'
+        )
+
+        # Validate GA parameters
+        valid, warning = GADefaults.validate_rates(crossover_rate, mutation_rate)
+        if not valid:
+            self.logger.warning(f"GA parameters may cause issues: {warning}")
 
         # Ensure elitism doesn't exceed population
         elitism_count = min(elitism_count, pop_size // 2)
@@ -102,12 +128,15 @@ class GAAlgorithm(OptimizationAlgorithm):
         if log_initial_population:
             log_initial_population(self.name, pop_size, best_fit)
 
+        # Track previous generation's best for n_improved metric
+        prev_best_fit = best_fit
+
         # GA main loop
         for iteration in range(1, self.max_iterations + 1):
             # Sort population by fitness (descending)
             sorted_indices = np.argsort(-fitness)
             sorted_population = population[sorted_indices]
-            sorted_fitness = fitness[sorted_indices]
+            _sorted_fitness = fitness[sorted_indices]  # noqa: F841 - kept for debugging
 
             # Elitism: keep top individuals
             new_population = list(sorted_population[:elitism_count])
@@ -144,9 +173,9 @@ class GAAlgorithm(OptimizationAlgorithm):
             population = np.array(new_population)
             fitness = evaluate_population(population, iteration)
 
-            # Track improvements
+            # Track improvements - count individuals that beat previous generation's best
             current_best_idx = np.argmax(fitness)
-            n_improved = np.sum(fitness > sorted_fitness[-1])  # Count better than worst of previous gen
+            n_improved = int(np.sum(fitness > prev_best_fit))
 
             if fitness[current_best_idx] > best_fit:
                 best_pos = population[current_best_idx].copy()
@@ -159,6 +188,9 @@ class GAAlgorithm(OptimizationAlgorithm):
 
             # Log progress
             log_progress(self.name, iteration, best_fit, n_improved, pop_size)
+
+            # Update previous best for next iteration
+            prev_best_fit = best_fit
 
         return {
             'best_solution': best_pos,

@@ -5,21 +5,22 @@ Prepares forcing data, calculates PET, generates FUSE input files,
 and handles synthetic data generation for the FUSE hydrological model.
 """
 
+import logging
 import os
 import re
 import time
 from datetime import datetime
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-import geopandas as gpd # type: ignore
-import numpy as np # type: ignore
-import pandas as pd # type: ignore
-import xarray as xr # type: ignore
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import xarray as xr
 
 from ..base import BaseModelPreProcessor
-from ..mixins import PETCalculatorMixin, ObservationLoaderMixin, DatasetBuilderMixin
+from ..mixins import PETCalculatorMixin, ObservationLoaderMixin, DatasetBuilderMixin, SpatialModeDetectionMixin
 from ..registry import ModelRegistry
 from .elevation_band_manager import FuseElevationBandManager
 from .forcing_processor import FuseForcingProcessor
@@ -30,7 +31,7 @@ from symfluence.data.utils.variable_utils import VariableHandler # type: ignore
 
 
 @ModelRegistry.register_preprocessor('FUSE')
-class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, ObservationLoaderMixin, DatasetBuilderMixin):
+class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, ObservationLoaderMixin, DatasetBuilderMixin, SpatialModeDetectionMixin):
     """
     Preprocessor for the FUSE (Framework for Understanding Structural Errors) model.
 
@@ -95,7 +96,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
         """Return model name for directory structure."""
         return "FUSE"
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """
         Initialize the FUSE preprocessor.
 
@@ -212,16 +213,11 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
 
     def create_directories(self, additional_dirs: Optional[List[Path]] = None):
         """Create necessary directories for FUSE setup."""
-        dirs_to_create = [
-            self.setup_dir,
-            self.forcing_fuse_path,
-        ]
+        # FUSE-specific directories (setup_dir and forcing_dir handled by base)
+        fuse_dirs = [self.forcing_fuse_path]
         if additional_dirs:
-            dirs_to_create.extend(additional_dirs)
-
-        for dir_path in dirs_to_create:
-            dir_path.mkdir(parents=True, exist_ok=True)
-            self.logger.debug(f"Created directory: {dir_path}")
+            fuse_dirs.extend(additional_dirs)
+        super().create_directories(additional_dirs=fuse_dirs)
 
     def copy_base_settings(self, source_dir: Optional[Path] = None, file_patterns: Optional[List[str]] = None):
         """
@@ -424,10 +420,6 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             self.logger.error(f"Error preparing forcing data: {str(e)}")
             raise
 
-        except Exception as e:
-            self.logger.error(f"Error preparing forcing data: {str(e)}")
-            raise
-
 
     def _calculate_pet(self, temp_data: xr.DataArray, lat: float, method: str = 'oudin') -> xr.DataArray:
         """
@@ -615,23 +607,32 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             numpy.ndarray: Synthetic streamflow array of shape (time_length, n_subcatchments).
         """
         return self.synthetic_data_generator.generate_distributed_synthetic_hydrograph(ds, n_subcatchments, time_length)
-    def _prepare_lumped_forcing(self, ds):
+
+    def _prepare_lumped_forcing(self, ds: xr.Dataset) -> xr.Dataset:
         """Prepare lumped forcing data - delegates to forcing processor"""
         return self.forcing_processor._prepare_lumped_forcing(ds)
 
-    def _prepare_semi_distributed_forcing(self, ds, subcatchment_dim):
+    def _prepare_semi_distributed_forcing(self, ds: xr.Dataset, subcatchment_dim: str) -> xr.Dataset:
         """Prepare semi-distributed forcing data - delegates to forcing processor"""
         return self.forcing_processor._prepare_semi_distributed_forcing(ds, subcatchment_dim)
 
-    def _prepare_distributed_forcing(self, ds):
+    def _prepare_distributed_forcing(self, ds: xr.Dataset) -> xr.Dataset:
         """Prepare fully distributed forcing data - delegates to forcing processor"""
         return self.forcing_processor._prepare_distributed_forcing(ds)
 
-    def _load_subcatchment_data(self):
+    def _load_subcatchment_data(self) -> np.ndarray:
         """Load subcatchment information - delegates to forcing processor"""
         return self.forcing_processor._load_subcatchment_data()
 
-    def _create_fuse_forcing_dataset(self, ds, pet, obs_ds, spatial_mode, subcatchment_dim, ts_config=None):
+    def _create_fuse_forcing_dataset(
+        self,
+        ds: xr.Dataset,
+        pet: xr.DataArray,
+        obs_ds: Optional[xr.Dataset],
+        spatial_mode: str,
+        subcatchment_dim: str,
+        ts_config: Optional[Dict[str, Any]] = None
+    ) -> xr.Dataset:
         """
         Create the final FUSE forcing dataset with proper coordinate structure.
 
@@ -887,19 +888,24 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
     # removed as they are now fully handled by FuseElevationBandManager. This eliminates ~120 lines
     # of duplicated code.
 
-    def _load_streamflow_observations(self, spatial_mode, ts_config=None, time_window=None):
+    def _load_streamflow_observations(
+        self,
+        spatial_mode: str,
+        ts_config: Optional[Dict[str, Any]] = None,
+        time_window: Optional[Tuple[pd.Timestamp, pd.Timestamp]] = None
+    ) -> Optional[xr.Dataset]:
         """
         Load streamflow observations for FUSE forcing data.
 
         Uses ObservationLoaderMixin for standardized observation loading.
 
         Args:
-            spatial_mode (str): Spatial mode ('lumped', 'semi_distributed', 'distributed')
-            ts_config (dict): Timestep configuration from _get_timestep_config()
-            time_window (tuple): Optional (start, end) timestamp tuple for filtering
+            spatial_mode: Spatial mode ('lumped', 'semi_distributed', 'distributed')
+            ts_config: Timestep configuration from _get_timestep_config()
+            time_window: Optional (start, end) timestamp tuple for filtering
 
         Returns:
-            xr.Dataset or None: Dataset containing observed streamflow or None if not available
+            Dataset containing observed streamflow or None if not available
         """
         # Get timestep config if not provided
         if ts_config is None:

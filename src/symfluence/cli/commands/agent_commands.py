@@ -6,7 +6,7 @@ This module implements handlers for the AI agent interface.
 
 from argparse import Namespace
 
-from .base import BaseCommand
+from .base import BaseCommand, cli_exception_handler
 from ..exit_codes import ExitCode
 
 
@@ -14,6 +14,7 @@ class AgentCommands(BaseCommand):
     """Handlers for AI agent commands."""
 
     @staticmethod
+    @cli_exception_handler
     def start(args: Namespace) -> int:
         """
         Execute: symfluence agent start
@@ -26,14 +27,15 @@ class AgentCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
+        from symfluence.agent.agent_manager import AgentManager
+
+        verbose = BaseCommand.get_arg(args, 'verbose', False)
+        config_path = BaseCommand.get_config_path(args)
+
+        BaseCommand._console.info("Starting interactive AI agent...")
+
+        # Handle connection errors specifically
         try:
-            from symfluence.agent.agent_manager import AgentManager
-
-            verbose = getattr(args, 'verbose', False)
-            config_path = BaseCommand.get_config_path(args)
-
-            BaseCommand._console.info("Starting interactive AI agent...")
-
             # Initialize agent manager
             agent = AgentManager(
                 config_path=config_path,
@@ -42,15 +44,12 @@ class AgentCommands(BaseCommand):
 
             # Run interactive mode
             return agent.run_interactive_mode()
-
-        except Exception as e:
-            BaseCommand._console.error(f"Failed to start agent: {e}")
-            if getattr(args, 'debug', False):
-                import traceback
-                traceback.print_exc()
-            return ExitCode.GENERAL_ERROR
+        except ConnectionError as e:
+            BaseCommand._console.error(f"Failed to connect to AI service: {e}")
+            return ExitCode.NETWORK_ERROR
 
     @staticmethod
+    @cli_exception_handler
     def run(args: Namespace) -> int:
         """
         Execute: symfluence agent run PROMPT
@@ -63,15 +62,16 @@ class AgentCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
+        from symfluence.agent.agent_manager import AgentManager
+
+        verbose = BaseCommand.get_arg(args, 'verbose', False)
+        config_path = BaseCommand.get_config_path(args)
+        prompt = args.prompt
+
+        BaseCommand._console.info(f"Executing agent prompt: {prompt}")
+
+        # Handle connection and timeout errors specifically
         try:
-            from symfluence.agent.agent_manager import AgentManager
-
-            verbose = getattr(args, 'verbose', False)
-            config_path = BaseCommand.get_config_path(args)
-            prompt = args.prompt
-
-            BaseCommand._console.info(f"Executing agent prompt: {prompt}")
-
             # Initialize agent manager
             agent = AgentManager(
                 config_path=config_path,
@@ -80,27 +80,9 @@ class AgentCommands(BaseCommand):
 
             # Run single prompt
             return agent.run_single_prompt(prompt)
-
-        except Exception as e:
-            BaseCommand._console.error(f"Failed to execute prompt: {e}")
-            if getattr(args, 'debug', False):
-                import traceback
-                traceback.print_exc()
-            return ExitCode.GENERAL_ERROR
-
-    @staticmethod
-    def execute(args: Namespace) -> int:
-        """
-        Main execution dispatcher (required by BaseCommand).
-
-        Args:
-            args: Parsed arguments namespace
-
-        Returns:
-            Exit code
-        """
-        if hasattr(args, 'func'):
-            return args.func(args)
-        else:
-            BaseCommand._console.error("No agent action specified")
-            return ExitCode.USAGE_ERROR
+        except ConnectionError as e:
+            BaseCommand._console.error(f"Failed to connect to AI service: {e}")
+            return ExitCode.NETWORK_ERROR
+        except TimeoutError as e:
+            BaseCommand._console.error(f"Agent request timed out: {e}")
+            return ExitCode.TIMEOUT_ERROR

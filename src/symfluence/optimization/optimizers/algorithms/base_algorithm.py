@@ -47,8 +47,9 @@ class OptimizationAlgorithm(ConfigMixin, ABC):
         if isinstance(config, dict):
             try:
                 self._config = SymfluenceConfig(**config)
-            except Exception:
+            except (AttributeError, KeyError, TypeError, ValueError):
                 # Fallback for partial configs (e.g., in tests)
+                # ValueError catches pydantic ValidationError which is a subclass
                 self._config = config
         else:
             self._config = config

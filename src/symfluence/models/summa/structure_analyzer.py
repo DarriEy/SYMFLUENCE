@@ -8,11 +8,13 @@ This module implements the Structure Ensemble Analysis for the SUMMA model,
 often coupled with mizuRoute for routing.
 """
 
+import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
 import pandas as pd
 import xarray as xr
-import numpy as np
-from pathlib import Path
-from typing import List, Tuple, Dict, Any, Optional
 
 from symfluence.evaluation.structure_ensemble import BaseStructureEnsembleAnalyzer
 from symfluence.evaluation.metrics import kge, kge_prime, nse, mae, rmse
@@ -33,7 +35,7 @@ class SummaStructureAnalyzer(BaseStructureEnsembleAnalyzer):
     preventing unnecessary dependencies and circular import risks.
     """
 
-    def __init__(self, config: Any, logger: Any, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Any, logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the SUMMA structure analyzer.
         """

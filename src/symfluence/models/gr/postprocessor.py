@@ -14,14 +14,15 @@ from ..registry import ModelRegistry
 from ..base import BaseModelPostProcessor
 
 # Optional R/rpy2 support - only needed for GR models
-# Catch Exception broadly because rpy2 can raise RuntimeError, RRuntimeError,
-# or other exceptions when R is installed but broken (missing core packages)
+# Broad exception handling is intentional here: rpy2 can raise RuntimeError, RRuntimeError,
+# ImportError, or other exceptions when R is installed but broken (missing core packages,
+# incompatible versions, etc.). We must catch all to provide graceful fallback.
 try:
     import rpy2.robjects as robjects
     from rpy2.robjects import pandas2ri
     from rpy2.robjects.conversion import localconverter
     HAS_RPY2 = True
-except Exception:
+except Exception:  # noqa: BLE001 - Broad exception required for rpy2 import failures
     HAS_RPY2 = False
     robjects = None
     pandas2ri = None

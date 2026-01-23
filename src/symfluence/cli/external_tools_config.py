@@ -345,6 +345,7 @@ def _import_model_build_instructions() -> None:
         'symfluence.models.ngen.build_instructions',
         'symfluence.models.hype.build_instructions',
         'symfluence.models.mesh.build_instructions',
+        'symfluence.models.wmfire.build_instructions',
         'symfluence.models.rhessys.build_instructions',
     ]
 
