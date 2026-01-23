@@ -62,7 +62,7 @@ class FireDefParameters:
 
     # Output options
     fire_verbose: int = 0  # Verbose output (0=off, 1=on)
-    fire_write: int = 0    # Write fire grids (0=off, 1=on)
+    fire_write: int = 1    # Write fire grids (0=off, 1=on)
     fire_in_buffer: int = 0  # Buffer zone handling
 
     # Spread calculation type (9 = von Mises-Fisher based)
