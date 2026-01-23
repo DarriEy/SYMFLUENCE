@@ -99,7 +99,6 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self._meshflow_config,
                 self.logger
             )
-        assert self._meshflow_manager is not None
         return self._meshflow_manager
 
     @property
@@ -120,7 +119,6 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self.config_dict,
                 self.logger
             )
-        assert self._drainage_database is not None
         return self._drainage_database
 
     @property
@@ -139,7 +137,6 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self.logger,
                 self.get_simulation_time_window
             )
-        assert self._parameter_fixer is not None
         return self._parameter_fixer
 
     @property
@@ -158,7 +155,6 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self.logger,
                 self.get_simulation_time_window
             )
-        assert self._config_generator is not None
         return self._config_generator
 
     @property
@@ -175,7 +171,6 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self._meshflow_config,
                 self.logger
             )
-        assert self._forcing_processor is not None
         return self._forcing_processor
 
     @property
@@ -193,7 +188,6 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self.config_dict,
                 self.logger
             )
-        assert self._data_preprocessor is not None
         return self._data_preprocessor
 
     def _get_spatial_mode(self) -> str:
@@ -230,34 +224,22 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self._run_meshflow()
 
     def _create_model_configs(self) -> None:
-        """Create MESH-specific configuration files (template hook)."""
-        self.logger.info("Creating MESH configuration files")
+        """Create MESH-specific configuration files (template hook).
 
-        # Create files if not already created by meshflow
-        if not (self.forcing_dir / "MESH_input_run_options.ini").exists():
-            self.config_generator.create_run_options()
-        else:
-            self.logger.info("Using existing run options from meshflow")
+        Meshflow generates all required config files. This method only:
+        1. Creates streamflow input (observation-dependent)
+        2. Copies settings files
+        3. Applies fixes for MESH compatibility
+        """
+        self.logger.info("Finalizing MESH configuration files")
 
-        if not (self.forcing_dir / "MESH_parameters_CLASS.ini").exists():
-            self.config_generator.create_class_parameters()
-        else:
-            self.logger.info("Using existing CLASS parameters from meshflow")
-
-        if not (self.forcing_dir / "MESH_parameters_hydrology.ini").exists():
-            self.config_generator.create_hydrology_parameters()
-        else:
-            self.logger.info("Using existing hydrology parameters from meshflow")
-
-        if not (self.forcing_dir / "MESH_input_streamflow.txt").exists():
-            self.config_generator.create_streamflow_input()
-        else:
-            self.logger.info("Using existing streamflow input file")
+        # Streamflow input requires observation data - always create
+        self.config_generator.create_streamflow_input()
 
         # Copy settings files
         self.data_preprocessor.copy_settings_to_forcing()
 
-        # Apply all fixes
+        # Apply fixes for MESH compatibility
         self.parameter_fixer.fix_run_options_var_names()
         self.parameter_fixer.fix_run_options_snow_params()
         self.parameter_fixer.fix_run_options_output_dirs()
@@ -441,8 +423,6 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         Raises:
             ModelExecutionError: If meshflow library is not available.
         """
-        assert self._meshflow_config is not None
-
         if not MESHFlowManager.is_available():
             from symfluence.core.exceptions import ModelExecutionError
             raise ModelExecutionError(

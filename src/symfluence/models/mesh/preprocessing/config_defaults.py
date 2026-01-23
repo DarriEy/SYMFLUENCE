@@ -95,7 +95,7 @@ class MESHConfigDefaults:
 
     # Full NALCMS to CLASS parameter type mapping
     FULL_GRU_MAPPING: Dict[int, str] = {
-        0: 'needleleaf',  # Unknown -> default to needleleaf
+        0: 'grass',       # Unknown -> conservative default (grassland)
         1: 'needleleaf',  # Temperate or sub-polar needleleaf forest
         2: 'needleleaf',  # Sub-polar taiga needleleaf forest
         3: 'broadleaf',   # Tropical or sub-tropical broadleaf evergreen forest
@@ -109,12 +109,12 @@ class MESHConfigDefaults:
         11: 'grass',      # Sub-polar or polar shrubland-lichen-moss
         12: 'grass',      # Sub-polar or polar grassland-lichen-moss
         13: 'barrenland', # Sub-polar or polar barren-lichen-moss
-        14: 'water',      # Wetland
+        14: 'wetland',    # Wetland (distinct from open water)
         15: 'crops',      # Cropland
         16: 'barrenland', # Barren lands
         17: 'urban',      # Urban
         18: 'water',      # Water
-        19: 'water',      # Snow and Ice
+        19: 'barrenland', # Snow and Ice (glacier surfaces, not open water)
     }
 
     # MESH variable name mappings
@@ -166,6 +166,119 @@ class MESHConfigDefaults:
             'PRE': 'kg m-2 s-1',
         }
         return units.get(var, '1')
+
+    # Unit conversion factors: (source_unit, target_unit) -> multiplier
+    # MESH expects: PRE in kg m-2 s-1 (equivalent to mm/s for water)
+    UNIT_CONVERSIONS: Dict[str, Dict[str, float]] = {
+        'precipitation': {
+            'm/s_to_kg m-2 s-1': 1000.0,  # m/s -> mm/s -> kg/m²/s (water density ~1000 kg/m³)
+            'mm/s_to_kg m-2 s-1': 1.0,    # mm/s ≈ kg/m²/s for water
+            'mm/h_to_kg m-2 s-1': 1.0/3600.0,  # mm/hr -> mm/s
+            'm/h_to_kg m-2 s-1': 1000.0/3600.0,
+        },
+        'air_temperature': {
+            'C_to_K': 273.15,  # additive, not multiplicative
+            'K_to_K': 1.0,
+        },
+    }
+
+    @classmethod
+    def convert_forcing_data(cls, data, standard_name: str, source_units: str, logger=None) -> tuple:
+        """
+        Convert forcing data from source units to MESH-expected units.
+
+        Args:
+            data: numpy array of values
+            standard_name: standard variable name (e.g., 'precipitation')
+            source_units: units of source data
+            logger: optional logger for warnings
+
+        Returns:
+            tuple: (converted_data, target_units)
+        """
+
+        mesh_var = cls.MESH_VAR_NAMES.get(standard_name, standard_name)
+        target_units = cls.get_var_units(mesh_var)
+
+        # Normalize source units string
+        source_units_norm = source_units.replace(' ', '').replace('^', '').lower()
+
+        if standard_name == 'precipitation':
+            # Precipitation: convert to kg m-2 s-1
+            if source_units_norm in ['m/s', 'ms-1', 'ms^-1']:
+                converted = data * 1000.0
+                if logger:
+                    logger.info("Converted precipitation: m/s -> kg m-2 s-1 (×1000)")
+            elif source_units_norm in ['mm/s', 'mms-1', 'kgm-2s-1', 'kg/m2/s']:
+                converted = data  # Already correct
+            elif source_units_norm in ['mm/h', 'mm/hr', 'mmh-1']:
+                converted = data / 3600.0
+                if logger:
+                    logger.info("Converted precipitation: mm/h -> kg m-2 s-1 (÷3600)")
+            elif source_units_norm in ['mm/d', 'mm/day', 'mmd-1']:
+                converted = data / 86400.0
+                if logger:
+                    logger.info("Converted precipitation: mm/d -> kg m-2 s-1 (÷86400)")
+            else:
+                converted = data
+                if logger:
+                    logger.warning(
+                        f"Unknown precipitation units '{source_units}', assuming already in kg m-2 s-1"
+                    )
+            return converted, target_units
+
+        elif standard_name == 'air_temperature':
+            # Temperature: convert to K
+            if source_units_norm in ['c', 'degc', 'celsius', '°c']:
+                converted = data + 273.15
+                if logger:
+                    logger.info("Converted temperature: °C -> K (+273.15)")
+            elif source_units_norm in ['k', 'kelvin']:
+                converted = data  # Already in K
+            else:
+                converted = data
+                if logger:
+                    logger.warning(f"Unknown temperature units '{source_units}', assuming K")
+            return converted, target_units
+
+        # For other variables, check if units need conversion
+        # Most others (Pa, kg/kg, m/s, W/m²) are typically already correct
+        return data, target_units
+
+    @classmethod
+    def get_recommended_spinup_days(cls, latitude: float = None, elevation: float = None) -> int:
+        """
+        Get climate-appropriate spinup period for MESH simulations.
+
+        Spinup requirements vary by climate:
+        - Arctic/permafrost (lat >= 60°): 3 years - deep soil thermal equilibration
+        - Alpine (elev >= 2500m): 3 years - glacier/snowpack equilibration
+        - Boreal (50° <= lat < 60°): 2 years - seasonal snow equilibration
+        - Temperate (lat < 50°): 1 year - adequate for most soil moisture
+
+        Args:
+            latitude: Domain centroid latitude in degrees (optional)
+            elevation: Mean domain elevation in meters (optional)
+
+        Returns:
+            Recommended spinup period in days
+        """
+        # Check for high-altitude alpine conditions first
+        if elevation is not None and elevation >= 2500:
+            return 1095  # 3 years
+
+        # Then check latitude-based climate zones
+        if latitude is not None:
+            abs_lat = abs(latitude)
+            if abs_lat >= 60:
+                return 1095  # 3 years - Arctic/permafrost
+            elif abs_lat >= 50:
+                return 730   # 2 years - Boreal
+            else:
+                return 365   # 1 year - Temperate
+
+        # Default: conservative 2-year spinup
+        return 730
 
     @classmethod
     def get_gru_mapping_for_classes(cls, detected_classes: list) -> Dict[int, str]:
