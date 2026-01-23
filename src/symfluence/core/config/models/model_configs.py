@@ -113,6 +113,7 @@ class HBVConfig(BaseModel):
     use_gpu: bool = Field(default=False, alias='HBV_USE_GPU')
     jit_compile: bool = Field(default=True, alias='HBV_JIT_COMPILE')
     warmup_days: int = Field(default=365, alias='HBV_WARMUP_DAYS', ge=0)
+    timestep_hours: int = Field(default=24, alias='HBV_TIMESTEP_HOURS', ge=1, le=24)
     params_to_calibrate: str = Field(
         default='tt,cfmax,fc,lp,beta,k0,k1,k2,uzl,perc,maxbas',
         alias='HBV_PARAMS_TO_CALIBRATE'

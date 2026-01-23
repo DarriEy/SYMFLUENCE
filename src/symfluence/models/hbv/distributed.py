@@ -62,7 +62,7 @@ except ImportError:
     jit = None
 
 from .model import (
-    HBVState, PARAM_BOUNDS, DEFAULT_PARAMS,
+    HBVState, PARAM_BOUNDS, DEFAULT_PARAMS, HBVParameters,
     create_params_from_dict, create_initial_state, scale_params_for_timestep,
     simulate_jax, simulate_numpy
 )
@@ -73,6 +73,33 @@ from .routing import (
     route_network_step_jax, route_network_step_numpy,
     runoff_mm_to_cms
 )
+from .regionalization import forward_transfer_function, TransferLayer
+
+def _slice_hbv_params(params: HBVParameters, idx: int) -> HBVParameters:
+    """Slice batched HBVParameters for a single GRU."""
+    # Handle both JAX and NumPy arrays
+    def get_val(arr):
+        val = arr[idx]
+        return float(val) if hasattr(val, 'item') else val
+
+    return HBVParameters(
+        tt=get_val(params.tt),
+        cfmax=get_val(params.cfmax),
+        sfcf=get_val(params.sfcf),
+        cfr=get_val(params.cfr),
+        cwh=get_val(params.cwh),
+        fc=get_val(params.fc),
+        lp=get_val(params.lp),
+        beta=get_val(params.beta),
+        k0=get_val(params.k0),
+        k1=get_val(params.k1),
+        k2=get_val(params.k2),
+        uzl=get_val(params.uzl),
+        perc=get_val(params.perc),
+        maxbas=get_val(params.maxbas),
+        smoothing=params.smoothing[idx] if hasattr(params.smoothing, '__len__') and len(np.shape(params.smoothing)) > 0 else params.smoothing,
+        smoothing_enabled=params.smoothing_enabled[idx] if hasattr(params.smoothing_enabled, '__len__') and len(np.shape(params.smoothing_enabled)) > 0 else params.smoothing_enabled
+    )
 
 
 class DistributedHBVState(NamedTuple):
@@ -247,7 +274,10 @@ class DistributedHBV:
         self,
         hbv_params: Optional[Dict[str, float]] = None,
         routing_params: Optional[RoutingParams] = None,
-        per_gru_params: Optional[List[Dict[str, float]]] = None
+        per_gru_params: Optional[List[Dict[str, float]]] = None,
+        attributes: Optional[Any] = None,
+        transfer_weights: Optional[List[TransferLayer]] = None,
+        param_mode: Optional[str] = None
     ) -> DistributedHBVParams:
         """
         Create model parameters.
@@ -256,16 +286,22 @@ class DistributedHBV:
             hbv_params: Uniform HBV parameters (dict). Used if param_mode='uniform'.
             routing_params: Routing parameters. If None, computed from channel properties.
             per_gru_params: Per-GRU HBV parameters. Used if param_mode='per_gru'.
+            attributes: Catchment attributes [n_nodes, n_features]. Used if param_mode='regionalized'.
+            transfer_weights: Weights for transfer function. Used if param_mode='regionalized'.
+            param_mode: Override self.param_mode if provided.
 
         Returns:
             DistributedHBVParams
         """
+        mode = param_mode or self.param_mode
+
         # HBV parameters
-        if self.param_mode == 'uniform':
+        if mode == 'uniform':
             params_dict = hbv_params or DEFAULT_PARAMS.copy()
             scaled_params = scale_params_for_timestep(params_dict, self.timestep_hours)
             hbv = create_params_from_dict(scaled_params, use_jax=self.use_jax)
-        elif self.param_mode == 'per_gru':
+
+        elif mode == 'per_gru':
             if per_gru_params is None:
                 # Use defaults for all GRUs
                 per_gru_params = [DEFAULT_PARAMS.copy() for _ in range(self.network.n_nodes)]
@@ -277,8 +313,45 @@ class DistributedHBV:
                 )
                 for p in per_gru_params
             ]
+
+        elif mode == 'regionalized':
+            if attributes is None or transfer_weights is None:
+                raise ValueError("attributes and transfer_weights required for regionalized mode")
+
+            # Generate parameters from attributes using transfer function
+            # The forward_transfer_function returns HBVParameters where fields are arrays [n_nodes]
+            # We assume attributes are already normalized if needed
+            hbv = forward_transfer_function(
+                transfer_weights,
+                attributes,
+                PARAM_BOUNDS
+            )
+
+            # Scale rate parameters for timestep
+            # Since hbv is HBVParameters with arrays, we need to scale the arrays
+            if self.timestep_hours != 24:
+                scale_factor = self.timestep_hours / 24.0
+                hbv = HBVParameters(
+                    tt=hbv.tt,
+                    cfmax=hbv.cfmax * scale_factor,
+                    sfcf=hbv.sfcf,
+                    cfr=hbv.cfr,
+                    cwh=hbv.cwh,
+                    fc=hbv.fc,
+                    lp=hbv.lp,
+                    beta=hbv.beta,
+                    k0=hbv.k0 * scale_factor,
+                    k1=hbv.k1 * scale_factor,
+                    k2=hbv.k2 * scale_factor,
+                    uzl=hbv.uzl,
+                    perc=hbv.perc * scale_factor,
+                    maxbas=hbv.maxbas,
+                    smoothing=hbv.smoothing,
+                    smoothing_enabled=hbv.smoothing_enabled
+                )
+
         else:
-            raise ValueError(f"Unknown param_mode: {self.param_mode}")
+            raise ValueError(f"Unknown param_mode: {mode}")
 
         # Routing parameters
         routing = routing_params or self._default_routing_params
@@ -286,7 +359,7 @@ class DistributedHBV:
         return DistributedHBVParams(
             hbv_params=hbv,
             routing_params=routing,
-            param_mode=self.param_mode
+            param_mode=mode
         )
 
     def simulate(
@@ -379,8 +452,40 @@ class DistributedHBV:
         pet: Any,
         params: DistributedHBVParams
     ) -> Any:
-        """Run HBV for all GRUs using vmap."""
+        """Run HBV for all GRUs using vmap.
+
+        Args:
+            precip: Precipitation array [n_timesteps, n_nodes] (mm/timestep)
+            temp: Temperature array [n_timesteps, n_nodes] (deg C)
+            pet: PET array [n_timesteps, n_nodes] (mm/timestep)
+            params: Distributed HBV parameters
+
+        Returns:
+            Runoff array [n_timesteps, n_nodes] (mm/timestep)
+
+        Raises:
+            ValueError: If input arrays have incorrect shape or dimensions
+        """
         n_nodes = self.network.n_nodes
+
+        # Validate input array shapes
+        for name, arr in [('precip', precip), ('temp', temp), ('pet', pet)]:
+            if arr.ndim != 2:
+                raise ValueError(
+                    f"{name} must be 2D array [n_timesteps, n_nodes], "
+                    f"got {arr.ndim}D array with shape {arr.shape}"
+                )
+            if arr.shape[1] != n_nodes:
+                raise ValueError(
+                    f"{name} has {arr.shape[1]} nodes but network has {n_nodes} nodes. "
+                    f"Expected shape [n_timesteps, {n_nodes}], got {arr.shape}"
+                )
+
+        # Transpose forcing to [n_nodes, n_timesteps]
+        precip_T = precip.T
+        temp_T = temp.T
+        pet_T = pet.T
+
         if params.param_mode == 'uniform':
             # Same parameters for all GRUs - use vmap over spatial dimension
             def run_single_gru(p, t, e):
@@ -392,17 +497,29 @@ class DistributedHBV:
                 )
                 return runoff
 
-            # Transpose forcing to [n_nodes, n_timesteps]
-            precip_T = precip.T
-            temp_T = temp.T
-            pet_T = pet.T
-
             # vmap over GRUs (first axis after transpose)
             runoff = vmap(run_single_gru)(precip_T, temp_T, pet_T)  # [n_nodes, n_timesteps]
             return runoff.T  # [n_timesteps, n_nodes]
 
+        elif params.param_mode == 'regionalized':
+            # Parameters are batched [n_nodes] in params.hbv_params
+            # We vmap over forcing AND parameters
+
+            def run_single_gru(p, t, e, gru_params):
+                runoff, _ = simulate_jax(
+                    p, t, e,
+                    gru_params,
+                    warmup_days=0,
+                    timestep_hours=self.timestep_hours
+                )
+                return runoff
+
+            # vmap over forcing and params.hbv_params
+            runoff = vmap(run_single_gru)(precip_T, temp_T, pet_T, params.hbv_params)
+            return runoff.T
+
         else:
-            # Per-GRU parameters - can't easily vmap
+            # Per-GRU parameters (List) - can't easily vmap
             all_runoff = []
             for gru_idx in range(n_nodes):
                 gru_params = params.hbv_params[gru_idx]
@@ -468,6 +585,8 @@ class DistributedHBV:
         for gru_idx in range(n_nodes):
             if params.param_mode == 'uniform':
                 gru_params = params.hbv_params
+            elif params.param_mode == 'regionalized':
+                gru_params = _slice_hbv_params(params.hbv_params, gru_idx)
             else:
                 gru_params = params.hbv_params[gru_idx]
 

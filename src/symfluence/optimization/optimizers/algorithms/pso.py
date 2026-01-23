@@ -143,9 +143,14 @@ class PSOAlgorithm(OptimizationAlgorithm):
         global_best_pos = positions[global_best_idx].copy()
         global_best_fit = fitness[global_best_idx]
 
-        # Record initial best
+        # Record initial best with enhanced tracking
         params_dict = denormalize_params(global_best_pos)
-        record_iteration(0, global_best_fit, params_dict)
+        record_iteration(0, global_best_fit, params_dict, {
+            'mean_score': float(np.mean(fitness)),
+            'std_score': float(np.std(fitness)),
+            'n_improved': 0,
+            'best_particle_idx': int(global_best_idx),
+        })
         update_best(global_best_fit, params_dict, 0)
 
         if log_initial_population:
@@ -209,9 +214,14 @@ class PSOAlgorithm(OptimizationAlgorithm):
                 )
                 n_improved = 0
 
-            # Record results
+            # Record results with enhanced tracking for response surface analysis
             params_dict = denormalize_params(global_best_pos)
-            record_iteration(iteration, global_best_fit, params_dict)
+            record_iteration(iteration, global_best_fit, params_dict, {
+                'mean_score': float(np.mean(fitness)),
+                'std_score': float(np.std(fitness)),
+                'n_improved': int(n_improved),
+                'best_particle_idx': int(global_best_idx),
+            })
             update_best(global_best_fit, params_dict, iteration)
 
             # Log progress

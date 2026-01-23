@@ -37,7 +37,7 @@ class RHESSysPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
     - Optional: Flow table for hillslope routing, fire grids for WMFire
     """
 
-    def __init__(self, config, logger_instance):
+    def __init__(self, config, logger):
         """
         Initialize the RHESSys preprocessor.
 
@@ -47,13 +47,13 @@ class RHESSysPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         Args:
             config: Configuration dictionary or SymfluenceConfig object containing
                 RHESSys settings, domain paths, and simulation parameters.
-            logger_instance: Logger instance for status messages and debugging.
+            logger: Logger instance for status messages and debugging.
 
         Note:
             Creates input directories for worldfiles, tecfiles, climate data,
             routing tables, and definition files under {project_dir}/RHESSys_input/.
         """
-        super().__init__(config, logger_instance)
+        super().__init__(config, logger)
         # Check for WMFire support (handles both wmfire and legacy vmfire config names)
         self.wmfire_enabled = self._check_wmfire_enabled()
 

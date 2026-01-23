@@ -100,6 +100,13 @@ from .distributed import (
     load_distributed_hbv_from_config,
 )
 
+from .regionalization import (
+    forward_transfer_function,
+    initialize_weights,
+    TransferFunctionConfig,
+    TransferLayer,
+)
+
 # Optimizers for gradient-based calibration
 from .optimizers import (
     AdamW,
@@ -162,6 +169,12 @@ __all__ = [
     'compute_muskingum_params',
     'route_reach_step',
     'runoff_mm_to_cms',
+
+    # Regionalization
+    'forward_transfer_function',
+    'initialize_weights',
+    'TransferFunctionConfig',
+    'TransferLayer',
 
     # Optimizers
     'AdamW',
