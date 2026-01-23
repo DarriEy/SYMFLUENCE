@@ -46,7 +46,7 @@ The HBV-96 (Hydrologiska Byråns Vattenbalansavdelning) model is a conceptual ra
 
 **Spatial Scales:** Small catchments (1 km²) to large basins (50,000 km²)
 
-**Temporal Resolution:** Daily
+**Temporal Resolution:** Daily to hourly (sub-daily supported via automatic parameter scaling)
 
 Model Structure
 ===============
@@ -235,6 +235,104 @@ Routing Parameter
      - [1, 7]
      - Length of triangular routing function
 
+Sub-Daily Simulation
+====================
+
+SYMFLUENCE's HBV implementation supports sub-daily timesteps (e.g., hourly) through
+automatic parameter scaling. Parameters are always specified in **daily units** per
+HBV-96 convention; the model internally scales them for the chosen timestep.
+
+Enabling Sub-Daily Simulation
+-----------------------------
+
+.. code-block:: yaml
+
+   # Set timestep in hours (1-24)
+   HBV_TIMESTEP_HOURS: 1  # hourly simulation
+
+   # Forcing files must match the timestep
+   # e.g., <domain>_hbv_forcing_1h.nc for hourly
+
+Parameter Scaling
+-----------------
+
+Different parameter types require different scaling approaches:
+
+**Flux Rate Parameters (linear scaling):**
+
+Parameters with units of mm/day are scaled linearly:
+
+.. math::
+
+   P_{sub} = P_{daily} \times \frac{\Delta t}{24}
+
+Applies to: ``CFMAX``, ``PERC``
+
+**Recession Coefficients (exact exponential scaling):**
+
+Recession coefficients represent exponential reservoir decay. Linear scaling introduces
+errors up to ~13% for typical parameter values. SYMFLUENCE uses the mathematically
+exact transformation:
+
+.. math::
+
+   k_{sub} = 1 - (1 - k_{daily})^{\frac{\Delta t}{24}}
+
+Applies to: ``K0``, ``K1``, ``K2``
+
+This ensures that running 24 hourly timesteps produces identical results to running
+1 daily timestep (to numerical precision).
+
+**Why Exact Scaling Matters:**
+
+Consider K0 = 0.3 (30% drains per day):
+
+- Linear approximation: k_hourly = 0.3/24 = 0.0125 → Daily drain = 26% (13% error)
+- Exact formula: k_hourly = 0.0147 → Daily drain = 30% (exact)
+
+The error compounds during high-flow events, causing peak flow discrepancies.
+
+**Unchanged Parameters:**
+
+- Dimensionless: ``SFCF``, ``CFR``, ``CWH``, ``LP``, ``BETA``
+- Thresholds: ``TT``, ``FC``, ``UZL``
+- Duration: ``MAXBAS`` (remains in days; routing buffer adjusted internally)
+
+Sub-Daily Forcing Requirements
+------------------------------
+
+Sub-daily simulation requires forcing data at the specified timestep:
+
+.. code-block:: text
+
+   # Hourly forcing file
+   <domain>_hbv_forcing_1h.nc
+
+   Dimensions:
+     time: N_HOURS
+
+   Variables:
+     pr(time)    - Precipitation [mm/hour]
+     temp(time)  - Temperature [°C]
+     pet(time)   - PET [mm/hour]
+
+.. note::
+
+   Ensure forcing units match the timestep (mm/hour for hourly, not mm/day).
+   The model expects fluxes per timestep, not per day.
+
+Validation Approach
+-------------------
+
+When validating sub-daily implementation against daily observations:
+
+1. **Calibrate at daily timestep** (where real observations exist)
+2. **Run sub-daily with same parameters** (tests scaling correctness)
+3. **Aggregate sub-daily outputs to daily** for comparison
+4. **Check consistency** - results should match closely (r > 0.999)
+
+This approach avoids circular logic when sub-daily observations are not available.
+
 Spatial Modes
 =============
 
@@ -309,6 +407,9 @@ Runtime Configuration
    * - HBV_SPATIAL_MODE
      - auto
      - Spatial mode (auto, lumped, distributed)
+   * - HBV_TIMESTEP_HOURS
+     - 24
+     - Model timestep in hours (1-24). Use 1 for hourly, 24 for daily.
    * - HBV_BACKEND
      - jax
      - Computation backend (jax, numpy)
@@ -641,6 +742,26 @@ For faster calibration, use a reduced parameter set:
    # 7-parameter version (good performance, faster)
    HBV_PARAMS_TO_CALIBRATE: fc,lp,beta,k1,k2,perc,maxbas
 
+Sub-Daily Calibration
+---------------------
+
+When calibrating at sub-daily timesteps:
+
+1. **Ensure observations match timestep** - Calibrating hourly models against
+   interpolated daily observations produces poor results.
+
+2. **Parameters remain in daily units** - The calibration optimizes parameters in
+   their standard daily units; scaling is handled internally.
+
+3. **Computational cost** - Hourly calibration is ~24× more expensive than daily.
+   Consider calibrating at daily timestep first, then validating at hourly.
+
+.. code-block:: yaml
+
+   # Hourly calibration (requires hourly observations)
+   HBV_TIMESTEP_HOURS: 1
+   OPTIMIZATION_MAX_ITERATIONS: 1000  # May need fewer iterations
+
 JAX Features
 ============
 
@@ -715,10 +836,12 @@ Features NOT available without JAX:
 Known Limitations
 =================
 
-1. **Daily Timestep Only:**
+1. **Sub-Daily Observations:**
 
-   - Model designed for daily data
-   - Sub-daily forcing is aggregated to daily
+   - Sub-daily simulation is supported, but calibration requires observations at the
+     same timestep for meaningful comparison
+   - When only daily observations are available, validate by comparing daily vs
+     aggregated-hourly simulations using the same parameters
 
 2. **Conceptual Model:**
 

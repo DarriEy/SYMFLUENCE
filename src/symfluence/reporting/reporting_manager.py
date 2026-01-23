@@ -669,13 +669,13 @@ class ReportingManager(ConfigMixin):
         This ensures that model-specific plotters are registered before we try
         to look them up. The registration happens at import time via decorators.
         """
-        models_to_import = ['summa', 'fuse', 'hype', 'ngen', 'lstm']
+        from symfluence.core.constants import SupportedModels
 
-        for model in models_to_import:
+        for model in SupportedModels.WITH_PLOTTERS:
             try:
                 __import__(f'symfluence.models.{model}')
             except ImportError:
-                pass  # Model module may not be available
+                self.logger.debug(f"Model plotter module '{model}' not available")
 
     def _fallback_visualize(self, model_name: str, **kwargs) -> Optional[Any]:
         """
@@ -997,7 +997,7 @@ class ReportingManager(ConfigMixin):
                                 elif isinstance(data, dict) and 'history' in data:
                                     history = data['history']
                                     break
-                        except Exception:
+                        except (json.JSONDecodeError, OSError, KeyError):
                             continue
 
                 if history:

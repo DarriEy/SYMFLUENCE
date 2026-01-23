@@ -1,3 +1,18 @@
+"""
+Configuration management facade for SYMFLUENCE.
+
+Provides high-level access to configuration loading, normalization, validation,
+and type-safe configuration models. Acts as the public API for external code
+and CLI commands that need to work with SYMFLUENCE configurations.
+
+Exports:
+    SymfluenceConfig: Type-safe configuration model with hierarchical access
+    ensure_typed_config: Adapter to convert dict configs to SymfluenceConfig
+    normalize_config: Normalize and apply aliases to configuration dictionaries
+    validate_config: Validate configuration against schema
+    DefaultsRegistry: Central registry for default configuration values
+"""
+
 from typing import Union, Dict, Any
 from symfluence.core.config.config_loader import normalize_config, validate_config
 from symfluence.core.config.models import SymfluenceConfig

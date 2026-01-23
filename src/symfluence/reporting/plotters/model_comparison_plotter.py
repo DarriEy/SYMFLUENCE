@@ -584,7 +584,8 @@ class ModelComparisonPlotter(BasePlotter):
                         ds.close()
                         break
                     ds.close()
-                except Exception:
+                except (OSError, KeyError, ValueError):
+                    # File doesn't contain recognized routing variables
                     continue
 
         # Load and add observations

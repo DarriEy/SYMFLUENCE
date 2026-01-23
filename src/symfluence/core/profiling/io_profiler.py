@@ -335,7 +335,7 @@ class IOProfiler:
             if size_bytes is None and success:
                 try:
                     size_bytes = Path(path).stat().st_size
-                except Exception:
+                except (OSError, FileNotFoundError):
                     pass
 
             op = IOOperation(
@@ -379,7 +379,7 @@ class IOProfiler:
             if size_bytes is None and success:
                 try:
                     size_bytes = Path(path).stat().st_size
-                except Exception:
+                except (OSError, FileNotFoundError):
                     pass
 
             op = IOOperation(
@@ -458,7 +458,7 @@ class IOProfiler:
             if size_bytes is None and success:
                 try:
                     size_bytes = Path(dst_path).stat().st_size
-                except Exception:
+                except (OSError, FileNotFoundError):
                     pass
 
             op = IOOperation(
@@ -810,7 +810,7 @@ class IOProfiler:
                 # Clean up after importing
                 try:
                     os.remove(profile_file)
-                except Exception:
+                except OSError:
                     pass
             except Exception as e:
                 self.logger.warning(f"Failed to import {profile_file}: {e}")

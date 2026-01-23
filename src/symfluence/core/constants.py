@@ -373,3 +373,88 @@ class UnitConverter:
                 f"Converting mm/day to m³/s with area={catchment_area_m2:.0f} m²"
             )
         return data * catchment_area_m2 / (1000.0 * cls.SECONDS_PER_DAY)
+
+
+class UnitDetectionThresholds:
+    """
+    Heuristic thresholds for automatic unit detection.
+
+    These thresholds are used to infer input data units based on typical
+    value ranges. While convenient, explicit unit specification is always
+    preferred when available.
+
+    Warning:
+        These heuristics may fail for unusual data ranges. Always verify
+        unit conversions are applied correctly for your specific data.
+    """
+
+    # Area unit detection
+    AREA_KM2_VS_M2 = 1000.0
+    """
+    Threshold for detecting km² vs m² area units.
+
+    If mean(area) < 1000, values are assumed to be in km² and converted to m².
+    Rationale: A catchment of 1000 m² (0.001 km²) is unrealistically small,
+    while 1000 km² is a reasonable catchment size.
+    """
+
+    # Temperature unit detection
+    TEMP_KELVIN_VS_CELSIUS = 100.0
+    """
+    Threshold for detecting Kelvin vs Celsius temperature units.
+
+    If mean(temp) > 100, values are assumed to be in Kelvin and converted to °C.
+    Rationale: Mean temperatures on Earth never exceed 100°C, but 100K (-173°C)
+    is well below any terrestrial temperature, so values > 100 must be Kelvin.
+    """
+
+    # Flux rate detection
+    FLUX_RATE_MM_S_VS_MM_DAY = 0.01
+    """
+    Threshold for detecting mm/s vs mm/day flux rates (PET, evaporation).
+
+    If mean(|flux|) < 0.01, values are assumed to be in mm/s (or similar small
+    rate units) and converted to mm/day.
+    Rationale: Typical daily PET is 1-10 mm/day. A mean of 0.01 mm/day is
+    unrealistically low, suggesting the data is in mm/s (× 86400 for mm/day).
+    """
+
+
+class SupportedModels:
+    """
+    Registry of supported model names for dynamic imports.
+
+    Centralizes the whitelist of valid model names to prevent arbitrary
+    code execution via dynamic imports. All model names must be listed
+    here before they can be imported dynamically.
+    """
+
+    # Core hydrological models
+    ALL: Tuple[str, ...] = (
+        'summa', 'fuse', 'hype', 'ngen', 'mesh', 'gr', 'rhessys',
+        'lstm', 'gnn', 'mizuroute', 'hbv'
+    )
+    """All models supported by SYMFLUENCE."""
+
+    # Models with forcing adapters
+    WITH_FORCING_ADAPTER: Tuple[str, ...] = (
+        'summa', 'fuse', 'hype', 'ngen', 'mesh', 'gr', 'rhessys'
+    )
+    """Models that have forcing adapter modules."""
+
+    # Models with visualization plotters
+    WITH_PLOTTERS: Tuple[str, ...] = (
+        'summa', 'fuse', 'hype', 'ngen', 'lstm'
+    )
+    """Models with registered visualization plotters."""
+
+    # Models with initialization presets
+    WITH_PRESETS: Tuple[str, ...] = (
+        'summa', 'fuse', 'hype', 'gr', 'ngen'
+    )
+    """Models that have initialization preset modules."""
+
+    @classmethod
+    def is_valid(cls, model_name: str) -> bool:
+        """Check if a model name is in the supported whitelist."""
+        return model_name.lower() in cls.ALL
