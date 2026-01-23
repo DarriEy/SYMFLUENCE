@@ -617,15 +617,15 @@ class AnalysisPlotter(BasePlotter):
             # Try multiple date formats
             try:
                 df[date_col] = pd.to_datetime(df[date_col])
-            except Exception:
+            except (ValueError, TypeError):
                 try:
                     # Try day-first format (DD/MM/YYYY)
                     df[date_col] = pd.to_datetime(df[date_col], dayfirst=True)
-                except Exception:
+                except (ValueError, TypeError):
                     try:
                         # Try mixed format inference
                         df[date_col] = pd.to_datetime(df[date_col], format='mixed', dayfirst=True)
-                    except Exception:
+                    except (ValueError, TypeError):
                         self.logger.warning(f"Could not parse dates in {obs_path}")
                         return None
 
@@ -714,10 +714,10 @@ class AnalysisPlotter(BasePlotter):
             # Parse timestamp (handle FLUXNET format YYYYMMDDHHMM)
             try:
                 df['datetime'] = pd.to_datetime(df[ts_col])
-            except Exception:
+            except (ValueError, TypeError):
                 try:
                     df['datetime'] = pd.to_datetime(df[ts_col].astype(str), format='%Y%m%d%H%M')
-                except Exception:
+                except (ValueError, TypeError):
                     df['datetime'] = pd.to_datetime(df[ts_col].astype(str).str[:8], format='%Y%m%d')
 
             df = df.set_index('datetime').sort_index()

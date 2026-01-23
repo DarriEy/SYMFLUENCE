@@ -857,7 +857,7 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
             if model_transformers:
                 # Model-specific transformers override base mapping
                 combined_mapping.update(model_transformers)
-        except Exception:
+        except (ImportError, KeyError, AttributeError):
             # If ModelRegistry not available or model not registered, just use base mapping
             pass
 

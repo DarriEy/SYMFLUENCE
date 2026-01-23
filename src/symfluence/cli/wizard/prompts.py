@@ -240,7 +240,7 @@ class WizardPrompts:
                 )
             except KeyboardInterrupt:
                 raise
-            except Exception:
+            except ValueError:
                 self._show_validation_error("Please enter a valid integer")
 
     def _ask_path(self, question: Question, state: WizardState) -> str:
