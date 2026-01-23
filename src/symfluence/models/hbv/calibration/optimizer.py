@@ -250,8 +250,8 @@ class HBVModelOptimizer(BaseModelOptimizer):
             dates = [d.strip() for d in period_str.split(',')]
             if len(dates) >= 2:
                 return (pd.Timestamp(dates[0]), pd.Timestamp(dates[1]))
-        except (ValueError, AttributeError):
-            pass
+        except (ValueError, AttributeError) as e:
+            self.logger.debug(f"Could not parse period string '{period_str}': {e}")
         return (None, None)
 
     def _calculate_period_metrics_inmemory(

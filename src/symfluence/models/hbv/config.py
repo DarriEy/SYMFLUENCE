@@ -59,7 +59,8 @@ class HBVConfig(BaseModel):
         description=(
             "Model timestep in hours. Default is 24 (daily). Set to 1 for hourly simulation. "
             "Sub-daily timesteps require parameter scaling (see HBV-96 documentation). "
-            "Parameters like cfmax, k0, k1, k2, perc are automatically scaled from daily to sub-daily rates."
+            "Flux rates (cfmax, perc) use linear scaling; recession coefficients (k0, k1, k2) "
+            "use exact exponential scaling: k_sub = 1 - (1-k_daily)^(dt/24)."
         )
     )
 

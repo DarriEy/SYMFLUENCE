@@ -17,7 +17,7 @@ from symfluence.models.registry import ModelRegistry
 from symfluence.models.utilities import ForcingDataProcessor
 from symfluence.models.mixins import SpatialModeDetectionMixin
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
-from symfluence.core.constants import UnitConversion
+from symfluence.core.constants import UnitConversion, UnitDetectionThresholds
 
 
 @ModelRegistry.register_preprocessor('HBV')
@@ -177,8 +177,8 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                     f"Tried: {temp_vars}. Available: {list(forcing_ds.data_vars)}"
                 )
 
-            # Convert temperature from K to C if needed
-            if np.nanmean(temp) > 100:  # Likely Kelvin
+            # Convert temperature from K to C if needed (heuristic detection)
+            if np.nanmean(temp) > UnitDetectionThresholds.TEMP_KELVIN_VS_CELSIUS:
                 temp = temp - 273.15
                 self.logger.info("Converted temperature from K to °C")
 
@@ -533,7 +533,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                 self.logger.info(f"Using PET from forcing data (variable: {var})")
                 pet = ds[var].values
                 # Convert if needed (some datasets have mm/s or kg/m2/s)
-                if np.nanmean(np.abs(pet)) < 0.01:  # Likely mm/s or similar
+                if np.nanmean(np.abs(pet)) < UnitDetectionThresholds.FLUX_RATE_MM_S_VS_MM_DAY:
                     pet = pet * UnitConversion.SECONDS_PER_DAY
                 return pet.flatten() if pet.ndim > 1 else pet
 
@@ -556,7 +556,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
         for var in ['pet', 'pET', 'potEvap', 'evap', 'evspsbl']:
             if var in ds:
                 pet = ds[var].values
-                if np.nanmean(np.abs(pet)) < 0.01:
+                if np.nanmean(np.abs(pet)) < UnitDetectionThresholds.FLUX_RATE_MM_S_VS_MM_DAY:
                     pet = pet * UnitConversion.SECONDS_PER_DAY
                 return pet
 
