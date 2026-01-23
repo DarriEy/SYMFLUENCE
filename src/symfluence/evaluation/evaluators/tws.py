@@ -3,37 +3,9 @@
 
 """Total Water Storage (TWS) Evaluator.
 
-Evaluates simulated total water storage from SUMMA against GRACE satellite
-observations of water storage anomalies.
-
-GRACE Satellites:
-    - GRACE (Gravity Recovery and Climate Experiment): Twin satellites measuring
-      Earth's gravity field to infer water storage changes
-    - GRACE Follow-On: Continuation mission (2018-present)
-    - Temporal resolution: Monthly anomalies
-    - Spatial resolution: ~300 km × 300 km footprint
-    - Sensitivity: 1-2 cm equivalent water height
-
-GRACE Data Products:
-    - Multiple processing centers: JPL (Jet Propulsion Lab), CSR (U.Texas), GSFC (NASA)
-    - Released as time-variable gravity fields → converted to water storage anomalies
-    - Units: mm equivalent water thickness (relative to 2004-2009 baseline)
-
-Water Storage Components (SUMMA):
-    - Snow Water Equivalent (SWE): scalarSWE (kg/m² → mm)
-    - Canopy water: scalarCanopyWat (mm)
-    - Soil water: scalarTotalSoilWat (mm)
-    - Groundwater: scalarAquiferStorage (m → mm via ×1000)
-    - Glacier ice mass change (optional): scalarGlceWE (kg/m² → mm)
-
-Configuration:
-    TWS_GRACE_COLUMN: GRACE data column name (default: 'grace_jpl_anomaly')
-    TWS_ANOMALY_BASELINE: Baseline period for anomaly calc ('overlap' or year range)
-    TWS_UNIT_CONVERSION: Scaling factor for model storage (default: 1.0)
-    TWS_STORAGE_COMPONENTS: Comma-separated storage variables to sum
-    TWS_DETREND: Remove linear trend (critical for glacierized basins)
-    TWS_SCALE_TO_OBS: Scale model variability to match observations
-    TWS_OBS_PATH: Direct path override for GRACE data
+Evaluates simulated water storage from SUMMA using either total water storage change 
+and comparing against GRACE satellite data or using glacier only mass balance and 
+comparing against observed glacier mass balance data.
 """
 
 import logging
@@ -55,11 +27,11 @@ if TYPE_CHECKING:
 class TWSEvaluator(ModelEvaluator):
     """Total Water Storage evaluator comparing SUMMA to GRACE satellites.
 
-    Compares time series of simulated water storage (SWE + canopy + soil + groundwater)
-    from SUMMA land-surface model against monthly water storage anomalies from GRACE
-    satellite gravity measurements.
+    Evaluates simulated water storage from SUMMA using one of two metrics
+    1) total water storage change against GRACE satellite observations of water storage anomalies.
+    2) glacier annual maximum and minimum mass balance against observations
 
-    Key Features:
+   Key Features:
         - Multi-component storage summation: SWE + canopy + soil + aquifer
         - Flexible storage component selection via configuration
         - GRACE data support from multiple processing centers (JPL, CSR, GSFC)
@@ -67,47 +39,27 @@ class TWSEvaluator(ModelEvaluator):
         - Advanced signal processing: detrending, variability scaling
         - Diagnostic exports for visualization and analysis
 
+    Output Variables:
+        - basin__StorageChange: sum of scalarSWE+calarCanopyWat+scalarTotalSoilWat
+            +scalarAquiferStorage+scalarGlceWE 
+        - basin__MassBalanceMax: glacier mass balance units of mm of water, maximum per year
+        - basin__MassBalanceMin: glacier mass balance units of mm of water, minimum per year
+
+    Configuration:
+        TWS_GRACE_COLUMN: GRACE data column name (default: 'grace_jpl_anomaly')
+        TWS_ANOMALY_BASELINE: Baseline period for anomaly calc ('overlap' or year range)
+        TWS_UNIT_CONVERSION: Scaling factor for model storage (default: 1.0)
+        TWS_STORAGE_COMPONENTS: Comma-separated storage variables to sum
+        TWS_DETREND: Remove linear trend (critical for glacierized basins)
+        TWS_SCALE_TO_OBS: Scale model variability to match observations
+        TWS_OBS_PATH: Direct path override for GRACE data
+
     Physical Basis:
         GRACE measures vertically-integrated water column changes via:
         - Temporal gravity variations → water storage changes
         - Signal includes: surface water, soil moisture, groundwater, snow/ice
         - Monthly resolution averages diurnal/seasonal noise
         - Spatial footprint ~300 km (cannot resolve sub-grid variability)
-
-    Critical for Glacierized Basins:
-        Glacier mass loss creates long-term trend that dominates GRACE signal and
-        obscures seasonal patterns (r ≈ 0.3 with trend, r ≈ 0.8 after detrending).
-        TWS_DETREND option removes this trend for proper seasonal comparison.
-
-    Storage Component Units (SUMMA):
-        - scalarSWE: kg/m² → mm (multiply by 1.0, density=1000 kg/m³)
-        - scalarCanopyWat: mm (water depth)
-        - scalarTotalSoilWat: mm (water depth)
-        - scalarAquiferStorage: m → mm (multiply by 1000.0)
-        - scalarIceWE: kg/m² → mm (multiply by 1.0, density=1000 kg/m³)
-
-    File Search Strategy:
-        1. Prefer daily NetCDF files (*_day.nc) for most storage variables
-        2. Check original file from get_simulation_files()
-        3. Search for timestep files (*_timestep.nc) for more storage variables
-        4. Select file with maximum matching variables
-
-    Metrics Calculation:
-        1. Load absolute storage from SUMMA (daily or timestep data)
-        2. Aggregate to monthly means (match GRACE temporal resolution)
-        3. Calculate anomaly relative to overlap period mean
-        4. Optional detrending: Remove linear trend (glacierized basins)
-        5. Optional scaling: Match model variability to observations
-        6. Calculate performance metrics (KGE, RMSE, NSE, etc.)
-
-    Configuration:
-        TWS_GRACE_COLUMN: Column name in GRACE CSV (default: 'grace_jpl_anomaly')
-        TWS_ANOMALY_BASELINE: Baseline for anomaly ('overlap' or year-range)
-        TWS_UNIT_CONVERSION: Multiplicative scaling for model storage
-        TWS_STORAGE_COMPONENTS: Comma-separated variable names (default: SWE, canopy, soil, aquifer)
-        TWS_DETREND: Remove linear trend from both series (False by default)
-        TWS_SCALE_TO_OBS: Scale model std dev to match observations (False)
-        TWS_OBS_PATH: Direct path override for GRACE observation file
 
     Attributes:
         grace_column: GRACE data column name
@@ -125,7 +77,7 @@ class TWSEvaluator(ModelEvaluator):
     def __init__(self, config: 'SymfluenceConfig', project_dir: Path, logger: logging.Logger):
         """Initialize TWS evaluator with storage component and signal processing options.
 
-        Configures water storage components to sum (SWE, canopy, soil, aquifer),
+        Configures water storage components to sum (SWE, canopy, soil, aquifer, glacier),
         GRACE data column selection, and optional signal processing (detrending,
         variability scaling) to handle model-observation mismatches.
 
@@ -140,18 +92,13 @@ class TWSEvaluator(ModelEvaluator):
             TWS_STORAGE_COMPONENTS: Comma-separated SUMMA storage variables
                 - Default: 'scalarSWE, scalarCanopyWat, scalarTotalSoilWat, scalarAquiferStorage'
                 - Can include glacier mass change: 'scalarGlceWE'
+                - Or just use total '
             TWS_DETREND: Remove linear trend from both sim and obs (default: False)
                 - Critical for glacierized basins (glacier mass loss trend obscures seasonal signal)
                 - Improves correlation from ~0.3 to ~0.8 for glacier domains
             TWS_SCALE_TO_OBS: Scale model variability to match observations (default: False)
                 - Centers both series on zero-mean, rescales model std dev to match obs
                 - Useful when pattern is correct but amplitude is wrong
-
-        Storage Component Units:
-            - scalarSWE: kg/m² (converted to mm)
-            - scalarCanopyWat: mm (water depth, no conversion needed)
-            - scalarTotalSoilWat: mm (water depth, no conversion needed)
-            - scalarAquiferStorage: m (converted to mm via ×1000)
 
         Args:
             config: Typed configuration object (SymfluenceConfig)
@@ -231,11 +178,18 @@ class TWSEvaluator(ModelEvaluator):
             Multiple HRU/GRU: Averages across dimension via nanmean()
             Result: Scalar time series (1D array of length = n_timesteps)
 
-        Unit Conversions:
-            - scalarSWE: kg/m² → mm (density ≈ 1, so 1 kg/m² ≈ 1 mm)
-            - scalarAquiferStorage: m → mm (×1000)
-            - scalarGlceWE: kg/m² → mm (density ≈ 1, so 1 kg/m² ≈ 1 mm)
-            - Others: Already mm (canopy, soil water depth)
+        Storage Component Units (SUMMA) by HRU or DOM:
+            - scalarSWE: kg/m² → mm (multiply by 1.0, density=1000 kg/m³)
+            - scalarCanopyWat: mm (water depth)
+            - scalarTotalSoilWat: mm (water depth)
+            - scalarAquiferStorage: m → mm (multiply by 1000.0)
+            - scalarGlceWE: kg/m² → mm (multiply by 1.0, density=1000 kg/m³)
+            OR could use cumulative basin__StorageChange by GRU, sums these (kg/m²/s → mm/s summed)
+        OR
+        Glacier Only Storage Components (SUMMA) by GRU
+            - Glacier mass balance: (change in basin__GlacierStorage)/basin__GlacierArea
+            - Units of Gt/m² → mm via x10⁻¹² and subtract initial value
+             - Calibrate to seasonal maximum and minimum
 
         Args:
             sim_files: List of SUMMA output files (typically daily NetCDF)
@@ -360,6 +314,22 @@ class TWSEvaluator(ModelEvaluator):
             - Processed format: {domain}_grace_tws_processed.csv
             - Generic format: {domain}_grace_tws_anomaly.csv
             - Generic without domain: grace_tws_anomaly.csv, tws_anomaly.csv
+
+        GRACE Satellites:
+            - GRACE (Gravity Recovery and Climate Experiment): Twin satellites measuring
+              Earth's gravity field to infer water storage changes
+            - GRACE Follow-On: Continuation mission (2018-present)
+            - Temporal resolution: Monthly anomalies
+            - Spatial resolution: ~300 km × 300 km footprint
+            - Sensitivity: 1-2 cm equivalent water height
+        GRACE Data Products:
+            - Multiple processing centers: JPL (Jet Propulsion Lab), CSR (U.Texas), GSFC (NASA)
+            - Released as time-variable gravity fields → converted to water storage anomalies
+            - Units: mm equivalent water thickness (relative to 2004-2009 baseline)
+            OR
+        Glacier Mass Balance Data:
+            - Annually reported maximum in mm.w.e. and minimum mm.w.e.
+            - These are usually in April and October in the Northern Hemisphere
 
         Directory Hierarchy:
             - Preprocessed subdirectory (preferred for processed data)
