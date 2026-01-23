@@ -157,8 +157,11 @@ class FUSEWorker(BaseWorker):
 
             return True
 
-        except Exception as e:
-            self.logger.error(f"Error applying FUSE parameters: {e}")
+        except (FileNotFoundError, OSError) as e:
+            self.logger.error(f"File error applying FUSE parameters: {e}")
+            return False
+        except (KeyError, ValueError, TypeError) as e:
+            self.logger.error(f"Data error applying FUSE parameters: {e}")
             import traceback
             self.logger.error(traceback.format_exc())
             return False
@@ -199,7 +202,7 @@ class FUSEWorker(BaseWorker):
                             after = float(ds.variables[param_name][0])
                             self.logger.debug(f"  NC: {param_name}: {before:.4f} -> {after:.4f}")
                             params_updated.add(param_name)
-                        except Exception as e:
+                        except (IndexError, ValueError, TypeError) as e:
                             self.logger.warning(f"Error updating {param_name} in NetCDF: {e}")
                     else:
                         self.logger.debug(f"  NC: {param_name} not in file (may be structure param)")
@@ -207,8 +210,10 @@ class FUSEWorker(BaseWorker):
                 # Force sync to disk
                 ds.sync()
 
-        except Exception as e:
-            self.logger.error(f"Error updating {para_def_path}: {e}")
+        except (OSError, IOError) as e:
+            self.logger.error(f"I/O error updating {para_def_path}: {e}")
+        except (KeyError, ValueError) as e:
+            self.logger.error(f"Data error updating {para_def_path}: {e}")
 
         return params_updated
 
@@ -278,8 +283,10 @@ class FUSEWorker(BaseWorker):
             with open(constraints_file, 'w') as f:
                 f.writelines(updated_lines)
 
-        except Exception as e:
-            self.logger.warning(f"Error updating constraints file: {e}")
+        except (OSError, IOError) as e:
+            self.logger.warning(f"I/O error updating constraints file: {e}")
+        except (IndexError, ValueError) as e:
+            self.logger.warning(f"Format error updating constraints file: {e}")
 
         return params_updated
 
@@ -551,7 +558,14 @@ class FUSEWorker(BaseWorker):
         except subprocess.TimeoutExpired:
             self.logger.error("FUSE execution timed out")
             return False
-        except Exception as e:
+        except FileNotFoundError as e:
+            self.logger.error(f"Required file not found for FUSE: {e}")
+            return False
+        except (OSError, IOError) as e:
+            self.logger.error(f"I/O error running FUSE: {e}")
+            return False
+        except (subprocess.SubprocessError, RuntimeError) as e:
+            # Catch subprocess errors and runtime issues during model execution
             self.logger.error(f"Error running FUSE: {e}")
             return False
 
@@ -995,7 +1009,14 @@ class FUSEWorker(BaseWorker):
 
             return metrics
 
-        except Exception as e:
+        except FileNotFoundError as e:
+            self.logger.error(f"Output or observation file not found: {e}")
+            return {'kge': self.penalty_score}
+        except (KeyError, ValueError, TypeError) as e:
+            self.logger.error(f"Data error calculating FUSE metrics: {e}")
+            return {'kge': self.penalty_score}
+        except (ImportError, OSError) as e:
+            # Catch xarray/pandas import issues or I/O errors
             self.logger.error(f"Error calculating FUSE metrics: {e}")
             return {'kge': self.penalty_score}
 
@@ -1125,10 +1146,13 @@ class FUSEWorker(BaseWorker):
         except subprocess.TimeoutExpired:
             self.logger.error("mizuRoute execution timed out")
             return False
-        except Exception as e:
+        except FileNotFoundError as e:
+            self.logger.error(f"Required file not found for mizuRoute: {e}")
+            return False
+        except (OSError, subprocess.SubprocessError) as e:
             self.logger.error(f"Error running mizuRoute: {e}")
             import traceback
-            self.logger.error(traceback.format_exc())
+            self.logger.debug(traceback.format_exc())
             return False
 
     @staticmethod

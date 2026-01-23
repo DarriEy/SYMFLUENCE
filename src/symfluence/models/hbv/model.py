@@ -1044,7 +1044,8 @@ def nse_loss(
     pet: Any,
     obs: Any,
     warmup_days: int = 365,
-    use_jax: bool = True
+    use_jax: bool = True,
+    timestep_hours: int = 24
 ) -> float:
     """
     Compute negative NSE (Nash-Sutcliffe Efficiency) loss.
@@ -1052,24 +1053,31 @@ def nse_loss(
     Negative because optimization minimizes, and higher NSE is better.
 
     Args:
-        params_dict: Parameter dictionary
-        precip: Precipitation timeseries
-        temp: Temperature timeseries
-        pet: PET timeseries
-        obs: Observed streamflow timeseries
+        params_dict: Parameter dictionary (in DAILY units - will be scaled for timestep)
+        precip: Precipitation timeseries (mm/timestep)
+        temp: Temperature timeseries (°C)
+        pet: PET timeseries (mm/timestep)
+        obs: Observed streamflow timeseries (mm/timestep)
         warmup_days: Days to exclude from loss calculation
         use_jax: Whether to use JAX backend
+        timestep_hours: Model timestep in hours (1-24). Default 24 (daily).
 
     Returns:
         Negative NSE (loss to minimize)
     """
-    params = create_params_from_dict(params_dict, use_jax=use_jax)
+    # Scale parameters for sub-daily timesteps
+    scaled_params = scale_params_for_timestep(params_dict, timestep_hours)
+    params = create_params_from_dict(scaled_params, use_jax=use_jax)
+
+    # Convert warmup from days to timesteps
+    timesteps_per_day = 24 // timestep_hours
+    warmup_timesteps = warmup_days * timesteps_per_day
 
     if use_jax and HAS_JAX:
-        sim, _ = simulate_jax(precip, temp, pet, params, warmup_days=warmup_days)
-        # Exclude warmup period
-        sim_eval = sim[warmup_days:]
-        obs_eval = obs[warmup_days:]
+        sim, _ = simulate_jax(precip, temp, pet, params, warmup_days=warmup_days, timestep_hours=timestep_hours)
+        # Exclude warmup period (in timesteps)
+        sim_eval = sim[warmup_timesteps:]
+        obs_eval = obs[warmup_timesteps:]
 
         # NSE = 1 - sum((sim-obs)^2) / sum((obs-mean(obs))^2)
         ss_res = jnp.sum((sim_eval - obs_eval) ** 2)
@@ -1077,9 +1085,9 @@ def nse_loss(
         nse = 1.0 - ss_res / (ss_tot + 1e-10)
         return -nse  # Negative for minimization
     else:
-        sim, _ = simulate_numpy(precip, temp, pet, params, warmup_days=warmup_days)
-        sim_eval = sim[warmup_days:]
-        obs_eval = obs[warmup_days:]
+        sim, _ = simulate_numpy(precip, temp, pet, params, warmup_days=warmup_days, timestep_hours=timestep_hours)
+        sim_eval = sim[warmup_timesteps:]
+        obs_eval = obs[warmup_timesteps:]
 
         ss_res = np.sum((sim_eval - obs_eval) ** 2)
         ss_tot = np.sum((obs_eval - np.mean(obs_eval)) ** 2)
@@ -1094,29 +1102,37 @@ def kge_loss(
     pet: Any,
     obs: Any,
     warmup_days: int = 365,
-    use_jax: bool = True
+    use_jax: bool = True,
+    timestep_hours: int = 24
 ) -> float:
     """
     Compute negative KGE (Kling-Gupta Efficiency) loss.
 
     Args:
-        params_dict: Parameter dictionary
-        precip: Precipitation timeseries
-        temp: Temperature timeseries
-        pet: PET timeseries
-        obs: Observed streamflow timeseries
+        params_dict: Parameter dictionary (in DAILY units - will be scaled for timestep)
+        precip: Precipitation timeseries (mm/timestep)
+        temp: Temperature timeseries (°C)
+        pet: PET timeseries (mm/timestep)
+        obs: Observed streamflow timeseries (mm/timestep)
         warmup_days: Days to exclude from loss calculation
         use_jax: Whether to use JAX backend
+        timestep_hours: Model timestep in hours (1-24). Default 24 (daily).
 
     Returns:
         Negative KGE (loss to minimize)
     """
-    params = create_params_from_dict(params_dict, use_jax=use_jax)
+    # Scale parameters for sub-daily timesteps
+    scaled_params = scale_params_for_timestep(params_dict, timestep_hours)
+    params = create_params_from_dict(scaled_params, use_jax=use_jax)
+
+    # Convert warmup from days to timesteps
+    timesteps_per_day = 24 // timestep_hours
+    warmup_timesteps = warmup_days * timesteps_per_day
 
     if use_jax and HAS_JAX:
-        sim, _ = simulate_jax(precip, temp, pet, params, warmup_days=warmup_days)
-        sim_eval = sim[warmup_days:]
-        obs_eval = obs[warmup_days:]
+        sim, _ = simulate_jax(precip, temp, pet, params, warmup_days=warmup_days, timestep_hours=timestep_hours)
+        sim_eval = sim[warmup_timesteps:]
+        obs_eval = obs[warmup_timesteps:]
 
         # KGE components
         r = jnp.corrcoef(sim_eval, obs_eval)[0, 1]  # Correlation
@@ -1126,9 +1142,9 @@ def kge_loss(
         kge = 1.0 - jnp.sqrt((r - 1) ** 2 + (alpha - 1) ** 2 + (beta - 1) ** 2)
         return -kge
     else:
-        sim, _ = simulate_numpy(precip, temp, pet, params, warmup_days=warmup_days)
-        sim_eval = sim[warmup_days:]
-        obs_eval = obs[warmup_days:]
+        sim, _ = simulate_numpy(precip, temp, pet, params, warmup_days=warmup_days, timestep_hours=timestep_hours)
+        sim_eval = sim[warmup_timesteps:]
+        obs_eval = obs[warmup_timesteps:]
 
         r = np.corrcoef(sim_eval, obs_eval)[0, 1]
         alpha = np.std(sim_eval) / (np.std(obs_eval) + 1e-10)
@@ -1147,7 +1163,8 @@ def get_nse_gradient_fn(
     temp: Any,
     pet: Any,
     obs: Any,
-    warmup_days: int = 365
+    warmup_days: int = 365,
+    timestep_hours: int = 24
 ):
     """
     Get gradient function for NSE loss.
@@ -1160,6 +1177,7 @@ def get_nse_gradient_fn(
         pet: PET timeseries (fixed)
         obs: Observed streamflow (fixed)
         warmup_days: Warmup period
+        timestep_hours: Model timestep in hours (1-24). Default 24 (daily).
 
     Returns:
         Gradient function if JAX available, None otherwise.
@@ -1171,7 +1189,7 @@ def get_nse_gradient_fn(
     def loss_fn(params_array, param_names):
         # Convert array back to dict
         params_dict = dict(zip(param_names, params_array))
-        return nse_loss(params_dict, precip, temp, pet, obs, warmup_days, use_jax=True)
+        return nse_loss(params_dict, precip, temp, pet, obs, warmup_days, use_jax=True, timestep_hours=timestep_hours)
 
     return jax.grad(loss_fn)
 
@@ -1181,12 +1199,24 @@ def get_kge_gradient_fn(
     temp: Any,
     pet: Any,
     obs: Any,
-    warmup_days: int = 365
+    warmup_days: int = 365,
+    timestep_hours: int = 24
 ):
     """
     Get gradient function for KGE loss.
 
     Returns a function that computes gradients w.r.t. parameters.
+
+    Args:
+        precip: Precipitation timeseries (fixed)
+        temp: Temperature timeseries (fixed)
+        pet: PET timeseries (fixed)
+        obs: Observed streamflow (fixed)
+        warmup_days: Warmup period
+        timestep_hours: Model timestep in hours (1-24). Default 24 (daily).
+
+    Returns:
+        Gradient function if JAX available, None otherwise.
     """
     if not HAS_JAX:
         warnings.warn("JAX not available. Cannot compute gradients.")
@@ -1194,7 +1224,7 @@ def get_kge_gradient_fn(
 
     def loss_fn(params_array, param_names):
         params_dict = dict(zip(param_names, params_array))
-        return kge_loss(params_dict, precip, temp, pet, obs, warmup_days, use_jax=True)
+        return kge_loss(params_dict, precip, temp, pet, obs, warmup_days, use_jax=True, timestep_hours=timestep_hours)
 
     return jax.grad(loss_fn)
 

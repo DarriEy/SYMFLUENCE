@@ -355,6 +355,22 @@ class RHESSysWorker(BaseWorker):
             '-svalt', '1.0', '1.0',
         ])
 
+        # Fire spread if WMFire is enabled
+        wmfire_enabled = config.get('RHESSYS_USE_WMFIRE', False)
+        if wmfire_enabled:
+            fire_dir = rhessys_input_dir / "fire"
+            patch_grid = fire_dir / "patch_grid.txt"
+            dem_grid = fire_dir / "dem_grid.txt"
+            if patch_grid.exists() and dem_grid.exists():
+                resolution = config.get('WMFIRE_GRID_RESOLUTION', 30)
+                cmd.extend(["-firespread", str(resolution), str(patch_grid), str(dem_grid)])
+                self.logger.debug(f"WMFire fire spread enabled: {resolution}m resolution")
+            else:
+                self.logger.warning(
+                    f"WMFire is enabled but fire grid files not found at {fire_dir}. "
+                    "Fire spread will be disabled for calibration."
+                )
+
         return cmd
 
     def _create_worker_header(

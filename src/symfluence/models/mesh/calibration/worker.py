@@ -70,8 +70,11 @@ class MESHWorker(BaseWorker):
 
             return success
 
-        except Exception as e:
-            self.logger.error(f"Error applying MESH parameters: {e}")
+        except (FileNotFoundError, OSError) as e:
+            self.logger.error(f"File error applying MESH parameters: {e}")
+            return False
+        except (KeyError, ValueError, TypeError) as e:
+            self.logger.error(f"Data error applying MESH parameters: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -122,7 +125,14 @@ class MESHWorker(BaseWorker):
 
             return result_path is not None
 
-        except Exception as e:
+        except FileNotFoundError as e:
+            self.logger.error(f"Required file not found for MESH: {e}")
+            return False
+        except (OSError, IOError) as e:
+            self.logger.error(f"I/O error running MESH: {e}")
+            return False
+        except (RuntimeError, ValueError) as e:
+            # Model execution or configuration errors
             self.logger.error(f"Error running MESH: {e}")
             return False
 
@@ -204,7 +214,14 @@ class MESHWorker(BaseWorker):
 
             return {'kge': float(kge_val), 'nse': float(nse_val)}
 
-        except Exception as e:
+        except FileNotFoundError as e:
+            self.logger.error(f"Output or observation file not found: {e}")
+            return {'kge': self.penalty_score}
+        except (KeyError, ValueError, TypeError) as e:
+            self.logger.error(f"Data error calculating MESH metrics: {e}")
+            return {'kge': self.penalty_score}
+        except (OSError, pd.errors.ParserError) as e:
+            # I/O errors or CSV parsing issues
             self.logger.error(f"Error calculating MESH metrics: {e}")
             return {'kge': self.penalty_score}
 

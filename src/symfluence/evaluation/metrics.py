@@ -70,6 +70,12 @@ __all__ = [
     'correlation',
     'r_squared',
     'volumetric_efficiency',
+    # Hydrograph signature metrics
+    'peak_timing_error',
+    'recession_constant',
+    'baseflow_index',
+    'flow_duration_curve_metrics',
+    'hydrograph_signatures',
     # Convenience functions
     'calculate_all_metrics',
     'calculate_metrics',
@@ -1266,6 +1272,339 @@ def list_available_metrics() -> List[str]:
         'bias', 'PBIAS', 'correlation', 'R2'
     ]
     return primary_names
+
+
+# =============================================================================
+# Hydrograph Signature Metrics
+# =============================================================================
+
+def peak_timing_error(
+    observed: Union[np.ndarray, pd.Series],
+    simulated: Union[np.ndarray, pd.Series],
+    time_index: Optional[Union[np.ndarray, pd.DatetimeIndex]] = None,
+    threshold_percentile: float = 95.0
+) -> Dict[str, float]:
+    """
+    Calculate peak timing error metrics.
+
+    Identifies peaks above threshold and computes timing differences.
+
+    Parameters
+    ----------
+    observed : array-like
+        Observed streamflow values
+    simulated : array-like
+        Simulated streamflow values
+    time_index : array-like, optional
+        Time index (if None, uses integer indices)
+    threshold_percentile : float
+        Percentile threshold for peak identification (default: 95)
+
+    Returns
+    -------
+    dict
+        Dictionary with:
+        - mean_timing_error: Mean timing error (positive = late, negative = early)
+        - abs_timing_error: Mean absolute timing error
+        - n_peaks: Number of peaks identified
+        - peak_magnitude_error: Mean relative error in peak magnitude
+    """
+    obs, sim = _clean_data(observed, simulated)
+
+    if len(obs) < 10:
+        return {'mean_timing_error': np.nan, 'abs_timing_error': np.nan,
+                'n_peaks': 0, 'peak_magnitude_error': np.nan}
+
+    # Identify peaks in observed data
+    threshold = np.percentile(obs, threshold_percentile)
+    obs_peaks = []
+
+    for i in range(1, len(obs) - 1):
+        if obs[i] > threshold and obs[i] > obs[i-1] and obs[i] > obs[i+1]:
+            obs_peaks.append(i)
+
+    if len(obs_peaks) == 0:
+        return {'mean_timing_error': np.nan, 'abs_timing_error': np.nan,
+                'n_peaks': 0, 'peak_magnitude_error': np.nan}
+
+    timing_errors = []
+    magnitude_errors = []
+
+    for obs_peak_idx in obs_peaks:
+        # Search window around observed peak for simulated peak
+        window_start = max(0, obs_peak_idx - 5)
+        window_end = min(len(sim), obs_peak_idx + 6)
+
+        sim_window = sim[window_start:window_end]
+        if len(sim_window) == 0:
+            continue
+
+        sim_peak_local = np.argmax(sim_window)
+        sim_peak_idx = window_start + sim_peak_local
+
+        # Timing error (positive = simulated peak is late)
+        timing_errors.append(sim_peak_idx - obs_peak_idx)
+
+        # Magnitude error
+        if obs[obs_peak_idx] > 0:
+            magnitude_errors.append(
+                (sim[sim_peak_idx] - obs[obs_peak_idx]) / obs[obs_peak_idx]
+            )
+
+    if len(timing_errors) == 0:
+        return {'mean_timing_error': np.nan, 'abs_timing_error': np.nan,
+                'n_peaks': 0, 'peak_magnitude_error': np.nan}
+
+    return {
+        'mean_timing_error': float(np.mean(timing_errors)),
+        'abs_timing_error': float(np.mean(np.abs(timing_errors))),
+        'n_peaks': len(timing_errors),
+        'peak_magnitude_error': float(np.mean(magnitude_errors)) if magnitude_errors else np.nan
+    }
+
+
+def recession_constant(
+    flow: Union[np.ndarray, pd.Series],
+    method: str = 'linear'
+) -> float:
+    """
+    Calculate recession constant (K) from streamflow data.
+
+    The recession constant describes how quickly streamflow decreases
+    during recession periods: Q(t) = Q0 * K^t
+
+    Parameters
+    ----------
+    flow : array-like
+        Streamflow time series
+    method : str
+        Method for fitting: 'linear' (log-linear regression) or 'ratio'
+
+    Returns
+    -------
+    float
+        Recession constant K (typically 0.9-0.99 for daily data)
+        K closer to 1 = slower recession (more baseflow contribution)
+    """
+    flow = np.array(flow)
+    flow = flow[~np.isnan(flow)]
+
+    if len(flow) < 10:
+        return np.nan
+
+    # Identify recession periods (3+ consecutive decreasing values)
+    recession_ratios = []
+
+    i = 0
+    while i < len(flow) - 3:
+        # Check for recession start
+        if flow[i+1] < flow[i] and flow[i+2] < flow[i+1] and flow[i+3] < flow[i+2]:
+            # Find end of recession
+            j = i + 1
+            while j < len(flow) - 1 and flow[j+1] < flow[j]:
+                j += 1
+
+            # Calculate recession ratios for this period
+            if j - i >= 3:
+                for k in range(i, j):
+                    if flow[k] > 0:
+                        recession_ratios.append(flow[k+1] / flow[k])
+
+            i = j
+        else:
+            i += 1
+
+    if len(recession_ratios) < 5:
+        return np.nan
+
+    # Return median recession constant
+    return float(np.median(recession_ratios))
+
+
+def baseflow_index(
+    flow: Union[np.ndarray, pd.Series],
+    filter_param: float = 0.925
+) -> float:
+    """
+    Calculate Baseflow Index (BFI) using digital filter method.
+
+    BFI = baseflow volume / total flow volume
+
+    Parameters
+    ----------
+    flow : array-like
+        Streamflow time series
+    filter_param : float
+        Filter parameter (alpha), typically 0.925 for daily data.
+        Higher values = more smoothing = higher baseflow.
+
+    Returns
+    -------
+    float
+        Baseflow index (0-1), higher values indicate groundwater-dominated system
+
+    References
+    ----------
+    Eckhardt, K. (2005). How to construct recursive digital filters for
+    baseflow separation. Hydrological Processes, 19(2), 507-515.
+    """
+    flow = np.array(flow)
+    flow = flow[~np.isnan(flow)]
+
+    if len(flow) < 10:
+        return np.nan
+
+    # Single-pass Lyne-Hollick filter
+    alpha = filter_param
+    quickflow = np.zeros_like(flow)
+    quickflow[0] = 0
+
+    for i in range(1, len(flow)):
+        quickflow[i] = alpha * quickflow[i-1] + (1 + alpha) / 2 * (flow[i] - flow[i-1])
+        quickflow[i] = max(0, min(quickflow[i], flow[i]))
+
+    baseflow = flow - quickflow
+
+    total_flow = np.sum(flow)
+    if total_flow == 0:
+        return np.nan
+
+    return float(np.sum(baseflow) / total_flow)
+
+
+def flow_duration_curve_metrics(
+    observed: Union[np.ndarray, pd.Series],
+    simulated: Union[np.ndarray, pd.Series]
+) -> Dict[str, float]:
+    """
+    Calculate Flow Duration Curve (FDC) based metrics.
+
+    Parameters
+    ----------
+    observed : array-like
+        Observed streamflow values
+    simulated : array-like
+        Simulated streamflow values
+
+    Returns
+    -------
+    dict
+        Dictionary with:
+        - fdc_slope: Slope of FDC (log scale) - steeper = more flashy
+        - fdc_bias_low: Bias in low flows (Q70-Q99)
+        - fdc_bias_mid: Bias in mid flows (Q30-Q70)
+        - fdc_bias_high: Bias in high flows (Q1-Q30)
+    """
+    obs, sim = _clean_data(observed, simulated)
+
+    if len(obs) < 30:
+        return {'fdc_slope': np.nan, 'fdc_bias_low': np.nan,
+                'fdc_bias_mid': np.nan, 'fdc_bias_high': np.nan}
+
+    # Sort flows (descending for FDC)
+    obs_sorted = np.sort(obs)[::-1]
+    sim_sorted = np.sort(sim)[::-1]
+    n = len(obs_sorted)
+
+    # Exceedance probabilities (used implicitly via indices)
+    _ = np.arange(1, n + 1) / (n + 1)  # noqa: F841
+
+    # FDC slope (using log-transformed flows, Q20 to Q70)
+    idx_20 = int(0.2 * n)
+    idx_70 = int(0.7 * n)
+
+    if obs_sorted[idx_20] > 0 and obs_sorted[idx_70] > 0:
+        log_q20 = np.log10(obs_sorted[idx_20])
+        log_q70 = np.log10(obs_sorted[idx_70])
+        fdc_slope = (log_q20 - log_q70) / (0.7 - 0.2)
+    else:
+        fdc_slope = np.nan
+
+    # Flow segment biases
+    def calc_bias(start_pct, end_pct):
+        start_idx = int(start_pct * n)
+        end_idx = int(end_pct * n)
+        if end_idx <= start_idx:
+            return np.nan
+        obs_seg = obs_sorted[start_idx:end_idx]
+        sim_seg = sim_sorted[start_idx:end_idx]
+        if np.sum(obs_seg) == 0:
+            return np.nan
+        return float((np.sum(sim_seg) - np.sum(obs_seg)) / np.sum(obs_seg) * 100)
+
+    return {
+        'fdc_slope': float(fdc_slope) if not np.isnan(fdc_slope) else np.nan,
+        'fdc_bias_low': calc_bias(0.70, 0.99),   # Low flows
+        'fdc_bias_mid': calc_bias(0.30, 0.70),   # Mid flows
+        'fdc_bias_high': calc_bias(0.01, 0.30),  # High flows
+    }
+
+
+def hydrograph_signatures(
+    observed: Union[np.ndarray, pd.Series],
+    simulated: Union[np.ndarray, pd.Series],
+    time_index: Optional[Union[np.ndarray, pd.DatetimeIndex]] = None
+) -> Dict[str, float]:
+    """
+    Calculate comprehensive hydrograph signature metrics.
+
+    This is a convenience function that computes all signature metrics
+    and compares observed vs simulated signatures.
+
+    Parameters
+    ----------
+    observed : array-like
+        Observed streamflow values
+    simulated : array-like
+        Simulated streamflow values
+    time_index : array-like, optional
+        Time index for peak timing calculations
+
+    Returns
+    -------
+    dict
+        Dictionary with all signature metrics and comparison values
+    """
+    obs, sim = _clean_data(observed, simulated)
+
+    result = {}
+
+    # Peak timing
+    peak_metrics = peak_timing_error(obs, sim, time_index)
+    result.update({f'peak_{k}': v for k, v in peak_metrics.items()})
+
+    # Recession constants
+    result['recession_k_obs'] = recession_constant(obs)
+    result['recession_k_sim'] = recession_constant(sim)
+    if not np.isnan(result['recession_k_obs']) and not np.isnan(result['recession_k_sim']):
+        result['recession_k_error'] = result['recession_k_sim'] - result['recession_k_obs']
+    else:
+        result['recession_k_error'] = np.nan
+
+    # Baseflow indices
+    result['bfi_obs'] = baseflow_index(obs)
+    result['bfi_sim'] = baseflow_index(sim)
+    if not np.isnan(result['bfi_obs']) and not np.isnan(result['bfi_sim']):
+        result['bfi_error'] = result['bfi_sim'] - result['bfi_obs']
+    else:
+        result['bfi_error'] = np.nan
+
+    # FDC metrics
+    fdc_metrics = flow_duration_curve_metrics(obs, sim)
+    result.update(fdc_metrics)
+
+    # Flow variability (coefficient of variation)
+    if np.mean(obs) > 0:
+        result['cv_obs'] = float(np.std(obs) / np.mean(obs))
+    else:
+        result['cv_obs'] = np.nan
+
+    if np.mean(sim) > 0:
+        result['cv_sim'] = float(np.std(sim) / np.mean(sim))
+    else:
+        result['cv_sim'] = np.nan
+
+    return result
 
 
 def interpret_metric(name: str, value: float) -> str:
