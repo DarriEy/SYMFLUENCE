@@ -50,7 +50,9 @@ class EMEarthAcquirer(BaseAcquisitionHandler):
                                 real_start, real_end = max(self.start_date, pd.Timestamp(f"{year}-{month:02d}-01")), min(self.end_date, pd.Timestamp(f"{year}-{month:02d}-01") + pd.offsets.MonthEnd(0))
                                 ds_subset = ds_subset.sel(time=slice(real_start, real_end))
                                 if len(ds_subset.time) > 0: var_datasets.append(ds_subset.load())
-                    except Exception: continue
+                    except (OSError, KeyError, ValueError) as e:
+                        self.logger.debug(f"EM-Earth file not available for {var} {ym}: {e}")
+                        continue
             if var_datasets: all_datasets[var] = xr.concat(var_datasets, dim="time")
         if not all_datasets: raise ValueError("No EM-Earth data downloaded")
         ds_final = xr.merge(list(all_datasets.values()))

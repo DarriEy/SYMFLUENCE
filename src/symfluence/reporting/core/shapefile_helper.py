@@ -91,19 +91,12 @@ class ShapefileHelper(ConfigMixin):
         # Auto-convert dict to typed config for backward compatibility
 
         if isinstance(config, dict):
-
             try:
-
                 self._config = SymfluenceConfig(**config)
-
-            except Exception:
-
+            except (TypeError, ValueError):
                 # Fallback for partial configs (e.g., in tests)
-
                 self._config = config
-
         else:
-
             self._config = config
         self.logger = logger
 

@@ -136,16 +136,18 @@ class ForcingAdapterRegistry:
         This method attempts to import the forcing_adapter module
         from each known model package.
         """
-        models = ['summa', 'fuse', 'hype', 'ngen', 'mesh', 'gr', 'rhessys']
+        from symfluence.core.constants import SupportedModels
 
-        for model_name in models:
+        for model_name in SupportedModels.WITH_FORCING_ADAPTER:
             try:
                 __import__(
                     f'symfluence.models.{model_name}.forcing_adapter',
                     fromlist=['forcing_adapter']
                 )
             except ImportError:
-                pass  # Adapter not available for this model
+                logging.getLogger(__name__).debug(
+                    f"Forcing adapter for '{model_name}' not available"
+                )
 
 
 def transform_cfif_to_model(

@@ -197,7 +197,7 @@ class MacOSProcessIOMonitor(ProcessIOMonitor):
                 mem_info = self.process.memory_info()
                 # Convert RSS from bytes to pages (assuming 4KB pages)
                 stats['rss_pages'] = mem_info.rss // 4096
-            except Exception:
+            except (AttributeError, self.psutil.AccessDenied, self.psutil.ZombieProcess):
                 stats['rss_pages'] = 0
 
             return stats

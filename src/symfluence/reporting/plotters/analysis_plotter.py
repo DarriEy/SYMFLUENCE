@@ -1173,8 +1173,9 @@ class AnalysisPlotter(BasePlotter):
                         fig.subplots_adjust(left=0.06, right=0.98, top=0.92, bottom=0.08)
                     else:
                         plt.tight_layout()
-                except Exception:
-                    pass  # Layout adjustment not critical
+                except (ValueError, RuntimeError):
+                    # Layout adjustment not critical - may fail with complex GridSpec
+                    pass
 
                 plot_file = plot_dir / f'{var_name}.png'
                 self._save_and_close(fig, plot_file)

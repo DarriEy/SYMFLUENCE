@@ -1,3 +1,19 @@
+"""
+SYMFLUENCE Command-Line Interface entry point.
+
+Provides the main() function that serves as the entry point for the
+`symfluence` command. Handles argument parsing, command dispatch, and
+error handling for all CLI operations.
+
+The main() function is called by the console_scripts entry point defined
+in pyproject.toml and is responsible for:
+- Creating the CLI argument parser
+- Parsing command-line arguments
+- Dispatching to appropriate command handlers
+- Handling interrupts and exceptions gracefully
+"""
+
+
 def main():
     """
     Main entry point for SYMFLUENCE CLI.

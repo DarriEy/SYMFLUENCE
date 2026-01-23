@@ -78,9 +78,10 @@ class SMAPHandler(BaseObservationHandler):
             try:
                 try:
                     ds = xr.open_dataset(f, engine='netcdf4')
-                except Exception:
+                except (OSError, ValueError):
+                    # netcdf4 engine failed, try h5netcdf fallback
                     ds = xr.open_dataset(f, engine='h5netcdf')
-            except Exception as exc:
+            except (OSError, ValueError) as exc:
                 self.logger.warning(f"Skipping unreadable SMAP file {f.name}: {exc}")
                 continue
             with ds:

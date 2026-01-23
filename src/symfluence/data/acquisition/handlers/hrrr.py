@@ -261,7 +261,9 @@ class HRRRAcquirer(BaseAcquisitionHandler):
                             s1 = s3fs.S3Map(f"hrrrzarr/sfc/{dstr}/{dstr}_{h:02d}z_anl.zarr/{level}/{v}/{level}", s3=fs)
                             s2 = s3fs.S3Map(f"hrrrzarr/sfc/{dstr}/{dstr}_{h:02d}z_anl.zarr/{level}/{v}", s3=fs)
                             v_ds.append(xr.open_mfdataset([s1, s2], engine="zarr", consolidated=False))
-                        except Exception: continue
+                        except (OSError, KeyError, ValueError) as e:
+                            self.logger.debug(f"Variable {v} not available for {dstr} {h:02d}z: {e}")
+                            continue
                     if v_ds:
                         ds_h = xr.merge(v_ds)
                         if xy_slice is None and "latitude" in ds_h.coords:
@@ -274,7 +276,9 @@ class HRRRAcquirer(BaseAcquisitionHandler):
                             iy, ix = np.where(mask)
                             if len(iy) > 0: xy_slice = (slice(iy.min(), iy.max()+1), slice(ix.min(), ix.max()+1))
                         all_datasets.append(ds_h.isel(y=xy_slice[0], x=xy_slice[1]) if xy_slice else ds_h)
-                except Exception: continue
+                except (OSError, KeyError, ValueError) as e:
+                    self.logger.debug(f"Hour {dstr} {h:02d}z not available: {e}")
+                    continue
             curr += pd.Timedelta(days=1)
         if not all_datasets: raise ValueError("No HRRR data downloaded")
         ds_final = xr.concat(all_datasets, dim="time").sortby("time")
