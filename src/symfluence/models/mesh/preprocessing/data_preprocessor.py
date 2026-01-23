@@ -5,6 +5,7 @@ Handles shapefile and landcover data preparation.
 """
 
 import logging
+import os
 import re
 import shutil
 from pathlib import Path
@@ -624,8 +625,6 @@ class MESHDataPreprocessor:
         Also handles cases where setup and forcing directories are the same
         or files already exist at the destination.
         """
-        import os
-
         self.logger.info(f"Copying MESH settings from {self.setup_dir} to {self.forcing_dir}")
 
         try:

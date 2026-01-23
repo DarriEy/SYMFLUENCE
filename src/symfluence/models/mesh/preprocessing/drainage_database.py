@@ -53,28 +53,13 @@ class MESHDrainageDatabase(ConfigMixin):
         self.rivers_name = rivers_name
         self.catchment_path = catchment_path
         self.catchment_name = catchment_name
-        # Import here to avoid circular imports
-
         from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
         if isinstance(config, dict):
-
             try:
-
                 self._config = SymfluenceConfig(**config)
-
             except (TypeError, ValueError, KeyError, AttributeError):
-
-                # Fallback for partial configs (e.g., in tests)
-
                 self._config = config
-
         else:
-
             self._config = config
         self.logger = logger or logging.getLogger(__name__)
 
@@ -121,9 +106,9 @@ class MESHDrainageDatabase(ConfigMixin):
             self._rebuild_topology(n_size)
 
         except Exception as e:
-            self.logger.error(f"Failed to fix drainage topology: {e}")
             import traceback
-            traceback.print_exc()
+            self.logger.error(f"Failed to fix drainage topology: {e}")
+            self.logger.debug(traceback.format_exc())
 
     def _rebuild_topology(self, n_size: int) -> None:
         """Rebuild topology from river network."""
@@ -300,21 +285,33 @@ class MESHDrainageDatabase(ConfigMixin):
 
         self.logger.info(f"Rebuilt topology: {n_grus} GRUs, {n_outlets} outlet(s), max level={max_level}")
 
-        # Reorder by rank
+        # Reorder by rank and remap Next values
         with xr.open_dataset(self.ddb_path) as ds:
             n_dim = self._get_spatial_dim(ds)
             order_idx = np.argsort(rank_arr)
             ds_new = ds.isel({n_dim: order_idx}).copy(deep=True)
-            rank_arr_sorted = np.arange(1, n_grus + 1, dtype=np.int32)
+
+            # After sorting, ranks become sequential [1, 2, 3, ...]
+            old_ranks_sorted = rank_arr[order_idx]
+            new_ranks = np.arange(1, n_grus + 1, dtype=np.int32)
+
+            # Build mapping from old rank -> new rank
+            rank_remap = {int(old): int(new) for old, new in zip(old_ranks_sorted, new_ranks)}
+
+            # Remap Next values to point to new ranks
             next_arr_sorted = next_arr[order_idx]
+            next_arr_remapped = np.array([
+                rank_remap.get(int(val), 0) if val > 0 else 0
+                for val in next_arr_sorted
+            ], dtype=np.int32)
 
             ds_new['Next'] = xr.DataArray(
-                next_arr_sorted,
+                next_arr_remapped,
                 dims=[n_dim],
                 attrs={'long_name': 'Downstream cell rank', 'units': '1'}
             )
             ds_new['Rank'] = xr.DataArray(
-                rank_arr_sorted,
+                new_ranks,
                 dims=[n_dim],
                 attrs={'long_name': 'Cell rank in topological order', 'units': '1'}
             )
@@ -566,21 +563,48 @@ class MESHDrainageDatabase(ConfigMixin):
                     modified = True
                     self.logger.info("Added IAK to drainage database")
 
-                # Add AL (side length)
+                # Add AL (characteristic length)
+                # AL is used in MESH routing for time-of-concentration calculations
+                # Prefer: perimeter-based > channel length > sqrt(area) fallback
                 if 'AL' not in ds and 'GridArea' in ds:
                     grid_area = ds['GridArea'].values
-                    side_length = np.sqrt(grid_area)
+
+                    if 'Perimeter' in ds:
+                        # Best: use equivalent radius from perimeter (A = pi*r^2, P = 2*pi*r)
+                        perimeter = ds['Perimeter'].values
+                        # Characteristic length = perimeter / (2*pi) for circular approximation
+                        char_length = perimeter / (2 * np.pi)
+                        method = 'perimeter-based'
+                    elif 'ChnlLength' in ds:
+                        # Good: use channel length if available (represents flow path)
+                        char_length = ds['ChnlLength'].values
+                        method = 'channel length'
+                    elif 'ChnlLen' in ds:
+                        char_length = ds['ChnlLen'].values
+                        method = 'channel length'
+                    else:
+                        # Fallback: sqrt(area) assumes square cells (less accurate for irregular polygons)
+                        char_length = np.sqrt(grid_area)
+                        method = 'sqrt(area) fallback'
+                        self.logger.warning(
+                            "AL computed from sqrt(area) - may be inaccurate for irregular catchments. "
+                            "Consider adding Perimeter or ChnlLength to input shapefiles."
+                        )
+
+                    # Ensure positive values
+                    char_length = np.maximum(char_length, 1.0)
+
                     ds['AL'] = xr.DataArray(
-                        side_length,
+                        char_length,
                         dims=[n_dim],
                         attrs={
-                            'long_name': 'Side length of grid',
+                            'long_name': 'Characteristic length of grid',
                             'units': 'm',
                             '_FillValue': np.nan
                         }
                     )
                     modified = True
-                    self.logger.info(f"Added AL: min={side_length.min():.1f}m, max={side_length.max():.1f}m")
+                    self.logger.info(f"Added AL ({method}): min={char_length.min():.1f}m, max={char_length.max():.1f}m")
 
                 # Add DA (drainage area)
                 if 'DA' not in ds and 'GridArea' in ds and 'Next' in ds and 'Rank' in ds:
