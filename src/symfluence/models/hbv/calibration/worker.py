@@ -97,6 +97,22 @@ class HBVWorker(InMemoryModelWorker):
 
         from symfluence.models.hbv.model import create_initial_state
 
+        # Inject smoothing config into parameters
+        if self.config:
+            # Check for boolean flag (handles "True", "true", True, 1)
+            smoothing_enabled = self.config.get('HBV_SMOOTHING', False)
+            if isinstance(smoothing_enabled, str):
+                smoothing_enabled = smoothing_enabled.lower() in ('true', '1', 'yes', 'on')
+
+            params['smoothing_enabled'] = bool(smoothing_enabled)
+
+            # Check for custom smoothing factor
+            if 'HBV_SMOOTHING_FACTOR' in self.config:
+                try:
+                    params['smoothing'] = float(self.config['HBV_SMOOTHING_FACTOR'])
+                except (ValueError, TypeError):
+                    pass
+
         precip = forcing['precip']
         temp = forcing['temp']
         pet = forcing['pet']
