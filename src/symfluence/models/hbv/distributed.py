@@ -39,6 +39,7 @@ Example:
 
 from __future__ import annotations
 from typing import Dict, List, Optional, Tuple, NamedTuple, Any, Union, Callable, TYPE_CHECKING
+import logging
 
 if TYPE_CHECKING:
     from .optimizers import CalibrationResult
@@ -46,6 +47,8 @@ from pathlib import Path
 import warnings
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 try:
     import jax
@@ -328,23 +331,29 @@ class DistributedHBV:
             )
 
             # Scale rate parameters for timestep
-            # Since hbv is HBVParameters with arrays, we need to scale the arrays
+            # Flux rates (cfmax, perc): linear scaling
+            # Recession coefficients (k0, k1, k2): exact exponential scaling
+            # k_subdaily = 1 - (1 - k_daily)^(dt/24)
             if self.timestep_hours != 24:
                 scale_factor = self.timestep_hours / 24.0
+                # Clamp recession coefficients to valid range for exponential formula
+                k0_clamped = jnp.clip(hbv.k0, 0.0, 0.9999)
+                k1_clamped = jnp.clip(hbv.k1, 0.0, 0.9999)
+                k2_clamped = jnp.clip(hbv.k2, 0.0, 0.9999)
                 hbv = HBVParameters(
                     tt=hbv.tt,
-                    cfmax=hbv.cfmax * scale_factor,
+                    cfmax=hbv.cfmax * scale_factor,  # linear scaling for flux rate
                     sfcf=hbv.sfcf,
                     cfr=hbv.cfr,
                     cwh=hbv.cwh,
                     fc=hbv.fc,
                     lp=hbv.lp,
                     beta=hbv.beta,
-                    k0=hbv.k0 * scale_factor,
-                    k1=hbv.k1 * scale_factor,
-                    k2=hbv.k2 * scale_factor,
+                    k0=1.0 - jnp.power(1.0 - k0_clamped, scale_factor),  # exact exponential
+                    k1=1.0 - jnp.power(1.0 - k1_clamped, scale_factor),  # exact exponential
+                    k2=1.0 - jnp.power(1.0 - k2_clamped, scale_factor),  # exact exponential
                     uzl=hbv.uzl,
-                    perc=hbv.perc * scale_factor,
+                    perc=hbv.perc * scale_factor,  # linear scaling for flux rate
                     maxbas=hbv.maxbas,
                     smoothing=hbv.smoothing,
                     smoothing_enabled=hbv.smoothing_enabled
@@ -1069,12 +1078,12 @@ def _calibrate_single_phase(
     start_time = time.time()
 
     if verbose:
-        print("\n" + "="*60)
-        print("Adam Calibration (Single Phase)")
-        print("="*60)
-        print(f"Parameters: {param_names}")
-        print(f"Iterations: {n_iterations}")
-        print(f"LR: [{lr_min}, {lr_max}]")
+        logger.info("=" * 60)
+        logger.info("Adam Calibration (Single Phase)")
+        logger.info("=" * 60)
+        logger.info(f"Parameters: {param_names}")
+        logger.info(f"Iterations: {n_iterations}")
+        logger.info(f"LR: [{lr_min}, {lr_max}]")
 
     # Initial parameters
     x = jnp.array([DEFAULT_PARAMS[p] for p in param_names])
@@ -1136,12 +1145,12 @@ def _calibrate_single_phase(
         history['grad_norm'].append(grad_norm)
 
         if verbose and (i % 25 == 0 or i == n_iterations - 1):
-            print(f"  Iter {i:4d}: NSE={nse:.4f}, Loss={float(loss):.4f}, "
-                  f"lr={lr:.5f}, best={best_nse:.4f}@{best_iter}")
+            logger.info(f"  Iter {i:4d}: NSE={nse:.4f}, Loss={float(loss):.4f}, "
+                        f"lr={lr:.5f}, best={best_nse:.4f}@{best_iter}")
 
         if no_improve >= patience:
             if verbose:
-                print(f"\n  Early stopping at iteration {i}")
+                logger.info(f"  Early stopping at iteration {i}")
             break
 
     # Check EMA
@@ -1160,8 +1169,8 @@ def _calibrate_single_phase(
     metrics = _compute_metrics(model, precip, temp, pet, obs, final_params, param_names, warmup_timesteps)
 
     if verbose:
-        print(f"\nCalibration complete in {total_time:.1f}s")
-        print(f"Final NSE: {metrics['nse']:.4f}, KGE: {metrics['kge']:.4f}")
+        logger.info(f"Calibration complete in {total_time:.1f}s")
+        logger.info(f"Final NSE: {metrics['nse']:.4f}, KGE: {metrics['kge']:.4f}")
 
     calibrated_params = dict(zip(param_names, [float(p) for p in final_params]))
 
@@ -1209,17 +1218,17 @@ def _calibrate_two_phase(
     total_start = time.time()
 
     if verbose:
-        print("\n" + "="*70)
-        print("TWO-PHASE CALIBRATION")
-        print("="*70)
+        logger.info("=" * 70)
+        logger.info("TWO-PHASE CALIBRATION")
+        logger.info("=" * 70)
 
     # =========================================================================
     # PHASE 1: EXPLORATION
     # =========================================================================
     if verbose:
-        print("\n" + "-"*70)
-        print("PHASE 1: Exploration (Composite Loss, Higher LR)")
-        print("-"*70)
+        logger.info("-" * 70)
+        logger.info("PHASE 1: Exploration (Composite Loss, Higher LR)")
+        logger.info("-" * 70)
 
     x = jnp.array([DEFAULT_PARAMS[p] for p in param_names])
 
@@ -1282,23 +1291,23 @@ def _calibrate_two_phase(
         history1['grad_norm'].append(grad_norm)
 
         if verbose and (i % 25 == 0 or i == n_iter_p1 - 1):
-            print(f"  Iter {i:4d}: NSE={nse:.4f}, lr={lr:.5f}, best={best_nse_p1:.4f}@{best_iter_p1}")
+            logger.info(f"  Iter {i:4d}: NSE={nse:.4f}, lr={lr:.5f}, best={best_nse_p1:.4f}@{best_iter_p1}")
 
         if no_improve >= patience_p1:
             if verbose:
-                print(f"\n  Phase 1 early stop at iteration {i}")
+                logger.info(f"  Phase 1 early stop at iteration {i}")
             break
 
     if verbose:
-        print(f"\n  Phase 1 Best NSE: {best_nse_p1:.4f}")
+        logger.info(f"  Phase 1 Best NSE: {best_nse_p1:.4f}")
 
     # =========================================================================
     # PHASE 2: REFINEMENT
     # =========================================================================
     if verbose:
-        print("\n" + "-"*70)
-        print("PHASE 2: Refinement (NSE-only, Lower LR)")
-        print("-"*70)
+        logger.info("-" * 70)
+        logger.info("PHASE 2: Refinement (NSE-only, Lower LR)")
+        logger.info("-" * 70)
 
     # Start from phase 1 best
     x = best_params_p1
@@ -1348,11 +1357,11 @@ def _calibrate_two_phase(
         history2['grad_norm'].append(grad_norm)
 
         if verbose and (i % 30 == 0 or i == n_iter_p2 - 1):
-            print(f"  Iter {i:4d}: NSE={nse:.4f}, lr={lr:.5f}, best={best_nse_p2:.4f}@{best_iter_p2}")
+            logger.info(f"  Iter {i:4d}: NSE={nse:.4f}, lr={lr:.5f}, best={best_nse_p2:.4f}@{best_iter_p2}")
 
         if no_improve >= patience_p2:
             if verbose:
-                print(f"\n  Phase 2 early stop at iteration {i}")
+                logger.info(f"  Phase 2 early stop at iteration {i}")
             break
 
     # Check EMA
@@ -1371,9 +1380,9 @@ def _calibrate_two_phase(
     metrics = _compute_metrics(model, precip, temp, pet, obs, final_params, param_names, warmup_timesteps)
 
     if verbose:
-        print(f"\nCalibration complete in {total_time:.1f}s")
-        print(f"Phase 1 best: {best_nse_p1:.4f}, Phase 2 best: {best_nse_p2:.4f}")
-        print(f"Final NSE: {metrics['nse']:.4f}, KGE: {metrics['kge']:.4f}")
+        logger.info(f"Calibration complete in {total_time:.1f}s")
+        logger.info(f"Phase 1 best: {best_nse_p1:.4f}, Phase 2 best: {best_nse_p2:.4f}")
+        logger.info(f"Final NSE: {metrics['nse']:.4f}, KGE: {metrics['kge']:.4f}")
 
     # Combine histories
     combined_history = {

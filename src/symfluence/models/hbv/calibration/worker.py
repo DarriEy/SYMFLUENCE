@@ -330,8 +330,11 @@ class HBVWorker(InMemoryModelWorker):
             if 'HBV_SMOOTHING_FACTOR' in self.config:
                 try:
                     params['smoothing'] = float(self.config['HBV_SMOOTHING_FACTOR'])
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as e:
+                    self.logger.debug(
+                        f"Could not parse HBV_SMOOTHING_FACTOR "
+                        f"'{self.config['HBV_SMOOTHING_FACTOR']}': {e}"
+                    )
 
         precip = forcing['precip']
         temp = forcing['temp']
