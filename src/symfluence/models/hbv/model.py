@@ -134,11 +134,12 @@ PARAM_BOUNDS: Dict[str, Tuple[float, float]] = {
     'uzl': (0.0, 100.0),      # Threshold for fast flow (mm)
     'perc': (0.0, 10.0),      # Maximum percolation rate (mm/day)
     'maxbas': (1.0, 7.0),     # Length of triangular routing function (days)
+    'smoothing': (1.0, 50.0), # Smoothing factor for thresholds (dimensionless)
 }
 
 # Default parameter values (midpoint of bounds, tuned for temperate catchments)
 # NOTE: All parameters are defined in DAILY units per HBV-96 convention
-DEFAULT_PARAMS: Dict[str, float] = {
+DEFAULT_PARAMS: Dict[str, Any] = {
     'tt': 0.0,
     'cfmax': 3.5,
     'sfcf': 0.9,
@@ -153,6 +154,8 @@ DEFAULT_PARAMS: Dict[str, float] = {
     'uzl': 30.0,
     'perc': 2.5,
     'maxbas': 2.5,
+    'smoothing': 15.0,
+    'smoothing_enabled': False,
 }
 
 # Parameters that require temporal scaling for sub-daily timesteps
@@ -187,6 +190,8 @@ class HBVParameters(NamedTuple):
         uzl: Threshold for surface runoff generation (mm)
         perc: Maximum percolation rate from upper to lower zone (mm/day)
         maxbas: Length of triangular routing function (days)
+        smoothing: Smoothing factor for threshold approximations
+        smoothing_enabled: Whether to use smooth approximations (bool/int)
     """
     tt: Any      # float or array
     cfmax: Any
@@ -202,6 +207,8 @@ class HBVParameters(NamedTuple):
     uzl: Any
     perc: Any
     maxbas: Any
+    smoothing: Any
+    smoothing_enabled: Any
 
 
 class HBVState(NamedTuple):
@@ -227,7 +234,7 @@ class HBVState(NamedTuple):
 
 
 def create_params_from_dict(
-    params_dict: Dict[str, float],
+    params_dict: Dict[str, Any],
     use_jax: bool = True
 ) -> HBVParameters:
     """
@@ -260,6 +267,8 @@ def create_params_from_dict(
             uzl=jnp.array(full_params['uzl']),
             perc=jnp.array(full_params['perc']),
             maxbas=jnp.array(full_params['maxbas']),
+            smoothing=jnp.array(full_params.get('smoothing', 15.0)),
+            smoothing_enabled=jnp.array(full_params.get('smoothing_enabled', False), dtype=bool),
         )
     else:
         return HBVParameters(
@@ -277,6 +286,8 @@ def create_params_from_dict(
             uzl=np.float64(full_params['uzl']),
             perc=np.float64(full_params['perc']),
             maxbas=np.float64(full_params['maxbas']),
+            smoothing=np.float64(full_params.get('smoothing', 15.0)),
+            smoothing_enabled=bool(full_params.get('smoothing_enabled', False)),
         )
 
 
@@ -293,11 +304,13 @@ def scale_params_for_timestep(
 
     Scaling approach (following Lindström et al., 1997, Eq. 1-8):
     - Rate parameters (cfmax, k0, k1, k2, perc): scaled by (timestep_hours / 24)
-      These have units of mm/day or 1/day and represent fluxes per time unit.
+      These have units of /day or mm/day and represent fluxes per time unit.
     - Duration parameters (maxbas): remain in original units (days)
       The routing buffer length is adjusted separately based on timestep.
     - Dimensionless parameters (sfcf, cfr, cwh, lp, beta): unchanged
     - Threshold parameters (tt, fc, uzl): unchanged (represent states, not rates)
+    - Smoothing: unchanged
+    - Smoothing Enabled: unchanged
 
     For recession coefficients (k0, k1, k2), linear scaling is an approximation.
     The exact relationship is: k_subdaily = 1 - (1 - k_daily)^(dt/24)
@@ -397,6 +410,56 @@ def create_initial_state(
 
 
 # =============================================================================
+# SMOOTH APPROXIMATIONS
+# =============================================================================
+
+def _smooth_threshold(val, threshold, smoothing, enabled, use_jax):
+    """
+    Smooth or hard threshold based on enabled flag.
+    Returns ~1 if val > threshold, ~0 if val < threshold.
+    """
+    if use_jax and HAS_JAX:
+        # If enabled is a JAX array (tracer), this uses jnp.where for both branches
+        smooth_val = jax.nn.sigmoid(smoothing * (val - threshold))
+        hard_val = jnp.where(val > threshold, 1.0, 0.0)
+        return jnp.where(enabled, smooth_val, hard_val)
+    else:
+        if enabled:
+            x = smoothing * (val - threshold)
+            return np.where(x >= 0,
+                            1 / (1 + np.exp(-x)),
+                            np.exp(x) / (1 + np.exp(x)))
+        else:
+            return np.where(val > threshold, 1.0, 0.0)
+
+def _smooth_relu(val, threshold, smoothing, enabled, use_jax):
+    """
+    Smooth or hard ReLU based on enabled flag.
+    Returns max(val - threshold, 0).
+    """
+    if use_jax and HAS_JAX:
+        x = (val - threshold) * smoothing
+        smooth_val = jax.nn.softplus(x) / smoothing
+        hard_val = jnp.maximum(val - threshold, 0.0)
+        return jnp.where(enabled, smooth_val, hard_val)
+    else:
+        if enabled:
+            x = (val - threshold) * smoothing
+            out = np.where(x > 20.0, x, np.log1p(np.exp(np.minimum(x, 20.0))))
+            return out / smoothing
+        else:
+            return np.maximum(val - threshold, 0.0)
+
+def _smooth_min(val, limit, smoothing, enabled, use_jax):
+    """
+    Smooth or hard min based on enabled flag.
+    Returns min(val, limit).
+    """
+    # min(a, b) = a - max(a - b, 0)
+    return val - _smooth_relu(val, limit, smoothing, enabled, use_jax)
+
+
+# =============================================================================
 # CORE ROUTINES (JAX IMPLEMENTATION)
 # =============================================================================
 
@@ -419,6 +482,7 @@ def snow_routine_jax(
 
     Partitions precipitation into rain and snow based on temperature threshold.
     Calculates snowmelt using degree-day method with refreezing.
+    Uses smooth approximations for differentiability.
 
     Args:
         precip: Precipitation (mm/day)
@@ -431,32 +495,57 @@ def snow_routine_jax(
         Tuple of (new_snow, new_snow_water, rainfall_plus_melt)
     """
     # Partition precipitation
-    rainfall = jnp.where(temp > params.tt, precip, 0.0)
-    snowfall = jnp.where(temp <= params.tt, precip * params.sfcf, 0.0)
+    rain_frac = _smooth_threshold(
+        temp, params.tt, params.smoothing, params.smoothing_enabled, use_jax=True
+    )
+
+    rainfall = precip * rain_frac
+    snowfall = precip * params.sfcf * (1.0 - rain_frac)
 
     # Add snowfall to pack
     snow = snow + snowfall
 
     # Potential melt (degree-day)
-    pot_melt = params.cfmax * jnp.maximum(temp - params.tt, 0.0)
+    # pot_melt = cfmax * max(temp - tt, 0)
+    pot_melt = params.cfmax * _smooth_relu(
+        temp, params.tt, params.smoothing, params.smoothing_enabled, use_jax=True
+    )
 
     # Actual melt limited by available snow
-    melt = jnp.minimum(pot_melt, snow)
+    # melt = min(pot_melt, snow)
+    melt = _smooth_min(
+        pot_melt, snow, params.smoothing, params.smoothing_enabled, use_jax=True
+    )
     snow = snow - melt
 
     # Add melt to liquid water in snow
     snow_water = snow_water + melt + rainfall
 
     # Refreezing of liquid water when temp < tt
-    pot_refreeze = params.cfr * params.cfmax * jnp.maximum(params.tt - temp, 0.0)
-    refreeze = jnp.minimum(pot_refreeze, snow_water)
+    # pot_refreeze = cfr * cfmax * max(tt - temp, 0)
+    # Note reversed args for smooth_relu to get max(tt - temp, 0)
+    pot_refreeze = params.cfr * params.cfmax * _smooth_relu(
+        params.tt, temp, params.smoothing, params.smoothing_enabled, use_jax=True
+    )
+
+    # refreeze = min(pot_refreeze, snow_water)
+    refreeze = _smooth_min(
+        pot_refreeze, snow_water, params.smoothing, params.smoothing_enabled, use_jax=True
+    )
+
     snow = snow + refreeze
     snow_water = snow_water - refreeze
 
     # Water holding capacity
     max_water = params.cwh * snow
-    outflow = jnp.maximum(snow_water - max_water, 0.0)
-    snow_water = jnp.minimum(snow_water, max_water)
+
+    # outflow = max(snow_water - max_water, 0)
+    outflow = _smooth_relu(
+        snow_water, max_water, params.smoothing, params.smoothing_enabled, use_jax=True
+    )
+
+    # snow_water = min(snow_water, max_water)
+    snow_water = snow_water - outflow
 
     return snow, snow_water, outflow
 
@@ -487,8 +576,13 @@ def soil_routine_jax(
 
     # Recharge using beta function (non-linear)
     # dQ/dP = (SM/FC)^beta
+    # We smooth the min(rel_sm, 1.0) to avoid kink at saturation
+    smoothed_rel_sm = _smooth_min(
+        rel_sm, 1.0, params.smoothing, params.smoothing_enabled, use_jax=True
+    )
+
     recharge = rainfall_plus_melt * jnp.power(
-        jnp.minimum(rel_sm, 1.0),
+        smoothed_rel_sm,
         params.beta
     )
 
@@ -498,15 +592,21 @@ def soil_routine_jax(
     # Evapotranspiration reduction below LP threshold
     # AET/PET = SM / (LP * FC) when SM < LP * FC
     lp_threshold = params.lp * params.fc
-    et_factor = jnp.where(
-        sm < lp_threshold,
-        sm / lp_threshold,
-        1.0
+
+    # Smooth min(sm, lp_threshold)
+    effective_sm_for_et = _smooth_min(
+        sm, lp_threshold, params.smoothing, params.smoothing_enabled, use_jax=True
     )
+
+    # et_factor = effective_sm / lp_threshold
+    et_factor = effective_sm_for_et / lp_threshold
+
     actual_et = pet * et_factor
 
-    # Limit ET to available soil moisture
-    actual_et = jnp.minimum(actual_et, sm)
+    # Limit ET to available soil moisture (smooth min)
+    actual_et = _smooth_min(
+        actual_et, sm, params.smoothing, params.smoothing_enabled, use_jax=True
+    )
     sm = sm - actual_et
 
     # Ensure non-negative
@@ -540,14 +640,22 @@ def response_routine_jax(
     suz = suz + recharge
 
     # Percolation from upper to lower zone
-    perc = jnp.minimum(params.perc, suz)
+    # perc = min(params.perc, suz)
+    perc = _smooth_min(
+        params.perc, suz, params.smoothing, params.smoothing_enabled, use_jax=True
+    )
+
     suz = suz - perc
     slz = slz + perc
 
     # Upper zone outflow
     # Q0 = k0 * max(SUZ - UZL, 0)  (fast surface runoff)
+    # This is the critical threshold we want to smooth for UZL calibration
+    q0 = params.k0 * _smooth_relu(
+        suz, params.uzl, params.smoothing, params.smoothing_enabled, use_jax=True
+    )
+
     # Q1 = k1 * SUZ                 (interflow)
-    q0 = params.k0 * jnp.maximum(suz - params.uzl, 0.0)
     q1 = params.k1 * suz
 
     # Lower zone outflow (baseflow)
@@ -565,6 +673,7 @@ def response_routine_jax(
     total_runoff = q0 + q1 + q2
 
     return suz, slz, total_runoff
+
 
 
 def triangular_weights(
