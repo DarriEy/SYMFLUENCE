@@ -194,14 +194,6 @@ class GRWorker(BaseWorker):
             self.logger.debug(f"Traceback: {traceback.format_exc()}")
             return {'kge': self.penalty_score}
 
-    def _get_observed_streamflow(self, config: Dict[str, Any]):
-        """DEPRECATED: Use GRStreamflowTarget instead."""
-        pass
-
-    def _get_catchment_area(self, config: Dict[str, Any]) -> float:
-        """DEPRECATED: Use GRStreamflowTarget instead."""
-        return 1000.0
-
     @staticmethod
     def evaluate_worker_function(task_data: Dict[str, Any]) -> Dict[str, Any]:
         """Static worker function for parallel execution."""

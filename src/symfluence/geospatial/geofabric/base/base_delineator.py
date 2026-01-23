@@ -58,10 +58,15 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
         self.logger = logger
 
         # Base paths (use convenience properties from mixin where available)
-        self.data_dir = Path(self._get_config_value(
+        data_dir = self._get_config_value(
             lambda: self.config.system.data_dir,
-            default=self.config_dict.get('SYMFLUENCE_DATA_DIR')
-        ))
+            default=None,
+            dict_key='SYMFLUENCE_DATA_DIR'
+        )
+        # Fall back to DATA_DIR if SYMFLUENCE_DATA_DIR not found
+        if data_dir is None:
+            data_dir = self.config_dict.get('DATA_DIR', '/tmp')  # nosec B108
+        self.data_dir = Path(data_dir)
         # domain_name is provided by ConfigMixin via ProjectContextMixin
         self.project_dir = self.data_dir / f"domain_{self.domain_name}"
 
@@ -110,10 +115,10 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
         dem_path = self.config_dict.get('DEM_PATH')
         dem_name = self.config_dict.get('DEM_NAME')
 
-        if dem_name == "default":
+        if dem_name is None or dem_name == "default":
             dem_name = f"domain_{self.domain_name}_elv.tif"
 
-        if dem_path == 'default':
+        if dem_path is None or dem_path == 'default':
             return self.project_dir / 'attributes' / 'elevation' / 'dem' / dem_name
 
         return Path(dem_path) / dem_name
@@ -126,13 +131,13 @@ class BaseGeofabricDelineator(ABC, PathResolverMixin):
             Path to pour point shapefile
         """
         pour_point_path = self.config_dict.get('POUR_POINT_SHP_PATH')
-        if pour_point_path == 'default':
+        if pour_point_path is None or pour_point_path == 'default':
             pour_point_path = self.project_dir / "shapefiles" / "pour_point"
         else:
             pour_point_path = Path(pour_point_path)
 
         pour_point_name = self.config_dict.get('POUR_POINT_SHP_NAME', "default")
-        if pour_point_name == "default":
+        if pour_point_name is None or pour_point_name == "default":
             pour_point_path = pour_point_path / f"{self.domain_name}_pourPoint.shp"
         else:
             pour_point_path = pour_point_path / pour_point_name

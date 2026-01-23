@@ -131,7 +131,7 @@ class ErrorLogger:
                 trial_params_dst = failure_dir / f"trialParams_{failure_id}.nc"
                 shutil.copy2(trial_params_src, trial_params_dst)
                 self.logger.debug(f"Copied trialParams.nc to {trial_params_dst}")
-            except Exception as e:
+            except (IOError, OSError, KeyError) as e:
                 self.logger.warning(f"Failed to copy trialParams.nc: {e}")
 
         # 2. Copy SUMMA log file if it exists
@@ -143,7 +143,7 @@ class ErrorLogger:
                     shutil.copy2(log_file, log_dst)
                     self.logger.debug(f"Copied SUMMA log to {log_dst}")
                     break  # Only copy the most recent one
-                except Exception as e:
+                except (IOError, OSError, KeyError) as e:
                     self.logger.warning(f"Failed to copy SUMMA log: {e}")
 
         # 3. Copy mizuRoute log if it exists
@@ -155,7 +155,7 @@ class ErrorLogger:
                     shutil.copy2(log_file, log_dst)
                     self.logger.debug(f"Copied mizuRoute log to {log_dst}")
                     break
-                except Exception as e:
+                except (IOError, OSError, KeyError) as e:
                     self.logger.warning(f"Failed to copy mizuRoute log: {e}")
 
         # 4. Save debug info as JSON
@@ -177,7 +177,7 @@ class ErrorLogger:
             with open(debug_file, 'w') as f:
                 json.dump(debug_output, f, indent=2, default=str)
             self.logger.debug(f"Saved debug info to {debug_file}")
-        except Exception as e:
+        except (IOError, OSError, KeyError) as e:
             self.logger.warning(f"Failed to save debug info: {e}")
 
         # 5. Copy coldState.nc if it exists (for soil depth debugging)
@@ -187,7 +187,7 @@ class ErrorLogger:
                 coldstate_dst = failure_dir / f"coldState_{failure_id}.nc"
                 shutil.copy2(coldstate_src, coldstate_dst)
                 self.logger.debug(f"Copied coldState.nc to {coldstate_dst}")
-            except Exception as e:
+            except (IOError, OSError, KeyError) as e:
                 self.logger.warning(f"Failed to copy coldState.nc: {e}")
 
         return failure_dir
@@ -224,7 +224,7 @@ class ErrorLogger:
             try:
                 trial_params_dst = success_dir / f"trialParams_{success_id}.nc"
                 shutil.copy2(trial_params_src, trial_params_dst)
-            except Exception as e:
+            except (IOError, OSError, KeyError) as e:
                 self.logger.warning(f"Failed to copy trialParams.nc: {e}")
 
         # Save parameters and score
@@ -239,7 +239,7 @@ class ErrorLogger:
         try:
             with open(info_file, 'w') as f:
                 json.dump(success_info, f, indent=2, default=str)
-        except Exception as e:
+        except (IOError, OSError, KeyError) as e:
             self.logger.warning(f"Failed to save success info: {e}")
 
         return success_dir

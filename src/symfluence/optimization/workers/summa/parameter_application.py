@@ -69,7 +69,7 @@ def _apply_parameters_worker(params: Dict, task_data: Dict, settings_dir: Path, 
         logger.debug("Parameter application completed successfully (consistent)")
         return True
 
-    except Exception as e:
+    except (FileNotFoundError, IOError, ValueError) as e:
         error_msg = f"Error applying parameters (consistent): {str(e)}"
         logger.error(error_msg)
         debug_info['errors'].append(error_msg)
@@ -147,7 +147,7 @@ def _update_soil_depths_worker(params: Dict, task_data: Dict, settings_dir: Path
         logger.debug("Soil depths updated successfully")
         return True
 
-    except Exception as e:
+    except (FileNotFoundError, IOError, ValueError) as e:
         error_msg = f"Error updating soil depths: {str(e)}"
         logger.error(error_msg)
         debug_info['errors'].append(error_msg)
@@ -198,7 +198,7 @@ def _update_mizuroute_params_worker(params: Dict, task_data: Dict, logger, debug
         logger.debug("mizuRoute parameters updated successfully")
         return True
 
-    except Exception as e:
+    except (FileNotFoundError, IOError, ValueError) as e:
         error_msg = f"Error updating mizuRoute params: {str(e)}"
         logger.error(error_msg)
         debug_info['errors'].append(error_msg)
@@ -221,7 +221,7 @@ def _can_update_inplace(trial_params_path: Path, params: Dict, logger) -> bool:
                     logger.debug(f"Parameter {param_name} not in existing file, need full recreation")
                     return False
         return True
-    except Exception as e:
+    except (FileNotFoundError, IOError, ValueError) as e:
         logger.debug(f"Cannot read existing trialParams for in-place update: {e}")
         return False
 
@@ -260,7 +260,7 @@ def _update_trial_params_inplace(trial_params_path: Path, params: Dict, logger, 
             logger.debug(f"Updated {len(params)} parameters in-place")
             return True
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, ValueError) as e:
             if attempt < max_retries - 1:
                 delay = base_delay * (2 ** attempt) + random.uniform(0, 0.1)
                 time.sleep(delay)
@@ -387,12 +387,12 @@ def _generate_trial_params_worker(params: Dict, settings_dir: Path, logger, debu
 
                 # Atomically move temporary file to final location
                 try:
-                    os.chmod(temp_path, 0o664)  # Set appropriate permissions
+                    os.chmod(temp_path, 0o664)  # nosec B103 - Group-writable for HPC shared access
                     temp_path.rename(trial_params_path)
                     logger.debug(f"Trial parameters file created successfully: {trial_params_path}")
                     debug_info['files_checked'].append(f"trialParams.nc (created): {trial_params_path}")
                     return True
-                except Exception as move_error:
+                except (FileNotFoundError, IOError, ValueError) as move_error:
                     if temp_path.exists():
                         temp_path.unlink()
                     raise move_error
@@ -419,7 +419,7 @@ def _generate_trial_params_worker(params: Dict, settings_dir: Path, logger, debu
 
         return False
 
-    except Exception as e:
+    except (FileNotFoundError, IOError, ValueError) as e:
         error_msg = f"Error generating trial params: {str(e)}"
         logger.error(error_msg)
         debug_info['errors'].append(error_msg)

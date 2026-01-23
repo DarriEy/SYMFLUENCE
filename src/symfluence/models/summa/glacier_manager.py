@@ -83,7 +83,7 @@ class GlacierAttributesManager(ConfigMixin):
 
                 self._config = SymfluenceConfig(**config)
 
-            except Exception:
+            except (TypeError, ValueError, KeyError, AttributeError):
 
                 # Fallback for partial configs (e.g., in tests)
 
@@ -124,7 +124,7 @@ class GlacierAttributesManager(ConfigMixin):
                     if any(col.startswith('domType_') for col in gdf.columns):
                         self.logger.debug("Found glacier domain type shapefiles")
                         return True
-                except Exception:
+                except (FileNotFoundError, KeyError, IndexError, ValueError):
                     pass
 
         # Fallback: check for raster files

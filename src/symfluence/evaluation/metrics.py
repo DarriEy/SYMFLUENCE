@@ -171,7 +171,7 @@ def _apply_transformation(
     Returns
     -------
     tuple of np.ndarray
-        Transformed (observed, simulated) arrays
+        Transformed (observed, simulated) arrays with NaN/Inf values removed
     """
     if transfo == 1.0:
         return observed, simulated
@@ -185,7 +185,10 @@ def _apply_transformation(
         obs_trans = observed ** transfo
         sim_trans = simulated ** transfo
 
-    return obs_trans, sim_trans
+    # Clean NaN/Inf values that may result from transformation
+    valid_mask = ~(np.isnan(obs_trans) | np.isnan(sim_trans) |
+                   np.isinf(obs_trans) | np.isinf(sim_trans))
+    return obs_trans[valid_mask], sim_trans[valid_mask]
 
 
 def nse(

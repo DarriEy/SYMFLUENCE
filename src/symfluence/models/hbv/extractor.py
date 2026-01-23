@@ -1,298 +1,179 @@
 """
 HBV Result Extractor.
 
-Provides utilities for extracting and analyzing HBV-96 model results
-beyond standard streamflow extraction.
+Handles extraction of simulation results from HBV-96 model outputs
+for integration with the evaluation framework.
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional
-import logging
-
-import numpy as np
+from typing import cast, List, Dict
 import pandas as pd
 import xarray as xr
 
+from symfluence.models.base import ModelResultExtractor
 
-class HBVResultExtractor:
+
+class HBVResultExtractor(ModelResultExtractor):
+    """HBV-96-specific result extraction.
+
+    Handles HBV's unique output characteristics:
+    - Variable naming: streamflow, runoff, snow, sm, suz, slz
+    - File patterns: *_hbv_output.nc, *_hbv_output.csv
+    - Units: streamflow in m³/s, runoff in mm/day
+    - Dimensions: time, optionally hru for distributed mode
     """
-    Utility class for extracting HBV-96 simulation results.
 
-    Provides methods for extracting:
-    - Streamflow timeseries
-    - State variables (if saved)
-    - Model performance metrics
-    - Parameter values used in simulation
-    """
+    def __init__(self):
+        """Initialize the HBV result extractor."""
+        super().__init__('HBV')
 
-    def __init__(
-        self,
-        output_dir: Path,
-        domain_name: str,
-        logger: Optional[logging.Logger] = None
-    ):
-        """
-        Initialize result extractor.
-
-        Args:
-            output_dir: Directory containing HBV output files
-            domain_name: Name of the domain
-            logger: Optional logger instance
-        """
-        self.output_dir = Path(output_dir)
-        self.domain_name = domain_name
-        self.logger = logger or logging.getLogger(__name__)
-
-    def extract_streamflow(
-        self,
-        convert_to_cms: bool = False,
-        catchment_area_km2: Optional[float] = None
-    ) -> Optional[pd.DataFrame]:
-        """
-        Extract simulated streamflow.
-
-        Args:
-            convert_to_cms: Convert from mm/day to m³/s
-            catchment_area_km2: Catchment area for unit conversion
-
-        Returns:
-            DataFrame with datetime index and streamflow column
-        """
-        # Try NetCDF first
-        nc_file = self.output_dir / f"{self.domain_name}_hbv_output.nc"
-        if nc_file.exists():
-            ds = xr.open_dataset(nc_file)
-            streamflow_cms = ds['streamflow'].values  # Already in m³/s
-            time = pd.to_datetime(ds.time.values)
-
-            # Also get runoff if available (in mm/day)
-            runoff_mm_day = ds['runoff'].values if 'runoff' in ds else None
-            ds.close()
-
-            df = pd.DataFrame({
-                'streamflow_cms': streamflow_cms
-            }, index=time)
-
-            # Add runoff in mm/day if available
-            if runoff_mm_day is not None:
-                df['streamflow_mm_day'] = runoff_mm_day
-
-            df.index.name = 'datetime'
-
-            # No conversion needed - already in cms
-            return df
-
-        # Try CSV
-        csv_file = self.output_dir / f"{self.domain_name}_hbv_output.csv"
-        if csv_file.exists():
-            df = pd.read_csv(csv_file, index_col='datetime', parse_dates=True)
-            # CSV already has both streamflow_cms and streamflow_mm_day columns
-            return df
-
-        self.logger.error(f"No output file found in {self.output_dir}")
-        return None
-
-    def extract_distributed_runoff(self) -> Optional[xr.Dataset]:
-        """
-        Extract distributed runoff (for routing).
-
-        Returns:
-            xarray Dataset with runoff per HRU
-        """
-        patterns = [
-            f"{self.domain_name}_*_runs_def.nc",
-            "*_runs_def.nc",
-            f"{self.domain_name}_hbv_output_distributed.nc"
-        ]
-
-        for pattern in patterns:
-            matches = list(self.output_dir.glob(pattern))
-            if matches:
-                return xr.open_dataset(matches[0])
-
-        self.logger.error("No distributed output file found")
-        return None
-
-    def extract_states(self) -> Optional[pd.DataFrame]:
-        """
-        Extract saved state variables (if available).
-
-        Returns:
-            DataFrame with state variables or None
-        """
-        states_file = self.output_dir / f"{self.domain_name}_hbv_states.nc"
-        if not states_file.exists():
-            self.logger.info("No state file found (states may not have been saved)")
-            return None
-
-        ds = xr.open_dataset(states_file)
-
-        # Extract state variables
-        states = {}
-        for var in ['snow', 'snow_water', 'sm', 'suz', 'slz']:
-            if var in ds:
-                states[var] = ds[var].values
-
-        if not states:
-            return None
-
-        time = pd.to_datetime(ds.time.values)
-        df = pd.DataFrame(states, index=time)
-        df.index.name = 'datetime'
-
-        ds.close()
-        return df
-
-    def calculate_metrics(
-        self,
-        observations: pd.Series,
-        warmup_days: int = 365
-    ) -> Dict[str, float]:
-        """
-        Calculate performance metrics against observations.
-
-        Args:
-            observations: Observed streamflow series (same units as simulation)
-            warmup_days: Days to exclude from metric calculation
-
-        Returns:
-            Dictionary with metric values
-        """
-        from symfluence.evaluation.metrics import kge, nse, pbias, rmse
-
-        # Load simulation
-        sim_df = self.extract_streamflow()
-        if sim_df is None:
-            return {'error': 'No simulation found'}
-
-        # Use cms for metrics (observations are typically in cms)
-        sim_series = sim_df['streamflow_cms']
-
-        # Skip warmup
-        if len(sim_series) > warmup_days:
-            sim_series = sim_series.iloc[warmup_days:]
-
-        # Align time series
-        common_idx = sim_series.index.intersection(observations.index)
-        if len(common_idx) < 10:
-            return {'error': f'Insufficient overlap ({len(common_idx)} points)'}
-
-        sim_aligned = sim_series.loc[common_idx].values
-        obs_aligned = observations.loc[common_idx].values
-
-        # Remove NaN
-        valid_mask = ~(np.isnan(sim_aligned) | np.isnan(obs_aligned))
-        sim_aligned = sim_aligned[valid_mask]
-        obs_aligned = obs_aligned[valid_mask]
-
-        if len(sim_aligned) == 0:
-            return {'error': 'No valid data pairs'}
-
-        # Calculate metrics
-        metrics = {
-            'kge': float(kge(obs_aligned, sim_aligned, transfo=1)),
-            'nse': float(nse(obs_aligned, sim_aligned, transfo=1)),
-            'pbias': float(pbias(obs_aligned, sim_aligned)),
-            'rmse': float(rmse(obs_aligned, sim_aligned)),
-            'n_points': len(sim_aligned),
+    def get_output_file_patterns(self) -> Dict[str, List[str]]:
+        """Get file patterns for HBV outputs."""
+        return {
+            'streamflow': [
+                '*_hbv_output.nc',
+                '*_hbv_output.csv',
+                '*_hbv_output_distributed.nc',
+                '*_runs_def.nc',
+            ],
+            'runoff': [
+                '*_hbv_output.nc',
+                '*_hbv_output_distributed.nc',
+            ],
+            'snow': [
+                '*_hbv_output.nc',
+                '*_hbv_states.nc',
+            ],
+            'soil_moisture': [
+                '*_hbv_output.nc',
+                '*_hbv_states.nc',
+            ],
         }
 
-        # KGE components
-        r = np.corrcoef(obs_aligned, sim_aligned)[0, 1]
-        alpha = np.std(sim_aligned) / (np.std(obs_aligned) + 1e-10)
-        beta = np.mean(sim_aligned) / (np.mean(obs_aligned) + 1e-10)
-
-        metrics['kge_r'] = float(r)
-        metrics['kge_alpha'] = float(alpha)
-        metrics['kge_beta'] = float(beta)
-
-        return metrics
-
-    def get_simulation_summary(self) -> Dict[str, Any]:
-        """
-        Get summary statistics of the simulation.
-
-        Returns:
-            Dictionary with summary information
-        """
-        sim_df = self.extract_streamflow()
-        if sim_df is None:
-            return {'error': 'No simulation found'}
-
-        # Use cms as primary unit
-        streamflow = sim_df['streamflow_cms']
-
-        summary = {
-            'start_date': str(streamflow.index.min()),
-            'end_date': str(streamflow.index.max()),
-            'n_timesteps': len(streamflow),
-            'mean_streamflow_cms': float(streamflow.mean()),
-            'max_streamflow_cms': float(streamflow.max()),
-            'min_streamflow_cms': float(streamflow.min()),
-            'std_streamflow_cms': float(streamflow.std()),
+    def get_variable_names(self, variable_type: str) -> List[str]:
+        """Get HBV variable names for different types."""
+        variable_mapping = {
+            'streamflow': ['streamflow', 'discharge', 'Q', 'q_routed'],
+            'runoff': ['runoff', 'total_runoff', 'q'],
+            'snow': ['snow', 'swe', 'snow_water', 'snow_water_equivalent'],
+            'soil_moisture': ['sm', 'soil_moisture', 'soil_water'],
+            'upper_zone': ['suz', 'upper_storage', 'upper_zone_storage'],
+            'lower_zone': ['slz', 'lower_storage', 'lower_zone_storage'],
+            'et': ['et', 'evapotranspiration', 'aet'],
         }
+        return variable_mapping.get(variable_type, [variable_type])
 
-        # Add mm/day stats if available
-        if 'streamflow_mm_day' in sim_df.columns:
-            runoff = sim_df['streamflow_mm_day']
-            summary['mean_runoff_mm_day'] = float(runoff.mean())
-            summary['total_runoff_mm'] = float(runoff.sum())
-
-        # Check for missing values
-        n_missing = streamflow.isna().sum()
-        if n_missing > 0:
-            summary['n_missing'] = int(n_missing)
-            summary['pct_missing'] = float(n_missing / len(streamflow) * 100)
-
-        return summary
-
-    def compare_runs(
+    def extract_variable(
         self,
-        other_dir: Path,
-        other_domain: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Compare results with another HBV run.
+        output_file: Path,
+        variable_type: str,
+        **kwargs
+    ) -> pd.Series:
+        """Extract variable from HBV output.
 
         Args:
-            other_dir: Directory of the other run
-            other_domain: Domain name for other run (defaults to same)
+            output_file: Path to HBV output file (NetCDF or CSV)
+            variable_type: Type of variable to extract
+            **kwargs: Additional options:
+                - catchment_area: Catchment area in m² for unit conversion
 
         Returns:
-            Dictionary with comparison statistics
+            Time series of extracted variable
+
+        Raises:
+            ValueError: If variable not found
         """
-        other_extractor = HBVResultExtractor(
-            other_dir,
-            other_domain or self.domain_name,
-            self.logger
+        output_file = Path(output_file)
+        var_names = self.get_variable_names(variable_type)
+
+        if output_file.suffix == '.csv':
+            return self._extract_from_csv(output_file, var_names)
+        else:
+            return self._extract_from_netcdf(output_file, var_names, variable_type, **kwargs)
+
+    def _extract_from_csv(self, output_file: Path, var_names: List[str]) -> pd.Series:
+        """Extract variable from CSV output."""
+        df = pd.read_csv(output_file, index_col='datetime', parse_dates=True)
+
+        for var_name in var_names:
+            # Check for exact match
+            if var_name in df.columns:
+                return df[var_name]
+            # Check for streamflow_cms column (common in HBV output)
+            if var_name == 'streamflow' and 'streamflow_cms' in df.columns:
+                return df['streamflow_cms']
+
+        raise ValueError(
+            f"No suitable variable found for extraction in {output_file}. "
+            f"Tried: {var_names}. Available: {list(df.columns)}"
         )
 
-        # Extract both
-        this_df = self.extract_streamflow()
-        other_df = other_extractor.extract_streamflow()
+    def _extract_from_netcdf(
+        self,
+        output_file: Path,
+        var_names: List[str],
+        variable_type: str,
+        **kwargs
+    ) -> pd.Series:
+        """Extract variable from NetCDF output."""
+        with xr.open_dataset(output_file) as ds:
+            for var_name in var_names:
+                if var_name in ds.variables:
+                    var = ds[var_name]
 
-        if this_df is None or other_df is None:
-            return {'error': 'Could not load both simulations'}
+                    # Handle spatial dimensions (hru, etc.)
+                    var = self._handle_spatial_dimensions(var)
 
-        # Align
-        common_idx = this_df.index.intersection(other_df.index)
-        if len(common_idx) == 0:
-            return {'error': 'No overlapping time period'}
+                    # Convert units if needed for streamflow
+                    result = cast(pd.Series, var.to_pandas())
 
-        this_q = this_df.loc[common_idx, 'streamflow_cms'].values
-        other_q = other_df.loc[common_idx, 'streamflow_cms'].values
+                    if variable_type == 'streamflow':
+                        # HBV outputs streamflow in m³/s, no conversion needed
+                        # unless it's runoff (mm/day) that needs conversion
+                        catchment_area = kwargs.get('catchment_area')
+                        if catchment_area is not None and 'runoff' in var_name.lower():
+                            # mm/day to m³/s: (mm/day) * (area_m²) / (1000 mm/m) / (86400 s/day)
+                            result = result * catchment_area / 1000 / 86400
 
-        # Calculate differences
-        diff = this_q - other_q
-        rel_diff = diff / (other_q + 1e-10) * 100
+                    return result
 
-        comparison = {
-            'n_common_timesteps': len(common_idx),
-            'mean_diff_cms': float(np.mean(diff)),
-            'max_diff_cms': float(np.max(np.abs(diff))),
-            'rmse_cms': float(np.sqrt(np.mean(diff ** 2))),
-            'mean_rel_diff_pct': float(np.mean(rel_diff)),
-            'correlation': float(np.corrcoef(this_q, other_q)[0, 1]),
-        }
+            raise ValueError(
+                f"No suitable variable found for '{variable_type}' in {output_file}. "
+                f"Tried: {var_names}. Available: {list(ds.data_vars)}"
+            )
 
-        return comparison
+    def _handle_spatial_dimensions(self, var: xr.DataArray) -> xr.DataArray:
+        """Handle HBV spatial dimensions.
+
+        HBV outputs may have:
+        - hru: Hydrologic response unit dimension (select first or sum)
+        - node: Network node dimension for distributed mode
+
+        Args:
+            var: xarray DataArray
+
+        Returns:
+            DataArray with spatial dimensions reduced
+        """
+        # Select first hru if present (for lumped equivalent)
+        if 'hru' in var.dims:
+            var = var.isel(hru=0)
+
+        # Select first node if present
+        if 'node' in var.dims:
+            var = var.isel(node=0)
+
+        # Handle any remaining non-time dimensions
+        non_time_dims = [dim for dim in var.dims if dim != 'time']
+        for dim in non_time_dims:
+            var = var.isel({dim: 0})
+
+        return var
+
+    def requires_unit_conversion(self, variable_type: str) -> bool:
+        """HBV outputs streamflow in m³/s, runoff in mm/day."""
+        return variable_type == 'runoff'
+
+    def get_spatial_aggregation_method(self, variable_type: str) -> str:
+        """HBV uses selection for spatial aggregation."""
+        return 'selection'

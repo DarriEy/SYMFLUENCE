@@ -12,11 +12,14 @@ from symfluence.core.exceptions import DataAcquisitionError
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 
-@ObservationRegistry.register('SNOTEL')
+@ObservationRegistry.register('snotel')
 class SNOTELHandler(BaseObservationHandler):
     """
     Handles SNOTEL data acquisition and processing.
     """
+
+    obs_type = "swe"
+    source_name = "NRCS_SNOTEL"
 
     def acquire(self) -> Path:
         """

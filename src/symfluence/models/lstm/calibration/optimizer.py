@@ -44,7 +44,7 @@ class LSTMModelOptimizer(BaseModelOptimizer):
         LSTM uses standard ParameterManager.
         Parameters could be LSTM hyperparameters or multipliers.
         """
-        from symfluence.optimization.parameter_managers.ml_parameter_manager import MLParameterManager
+        from symfluence.models.gnn.calibration.parameter_manager import MLParameterManager
         lstm_settings_dir = self.project_dir / 'settings' / 'LSTM'
         if not lstm_settings_dir.exists():
             lstm_settings_dir.mkdir(parents=True, exist_ok=True)

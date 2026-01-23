@@ -9,59 +9,57 @@ Each worker is responsible for:
 
 Available workers:
 - BaseWorker: Abstract base class for all workers
+- InMemoryModelWorker: Base class for in-memory model workers (jFUSE, cFUSE, HBV)
 - WorkerTask: Data structure for worker inputs
 - WorkerResult: Data structure for worker outputs
 
 Model-specific workers are available via:
-1. Direct import: from symfluence.optimization.workers.{model}_worker import {Model}Worker
+1. Direct import: from symfluence.models.{model}.calibration.worker import {Model}Worker
 2. Registry pattern: OptimizerRegistry.get_worker('{MODEL}')
 
-Note: Model-specific workers are NOT eagerly imported here to avoid circular dependencies.
-As models migrate to symfluence.models/{model}/calibration/, the old paths become facades
-that re-export from the new location. Eager imports would create circular dependencies:
-  optimization.workers.__init__ → workers.fuse_worker → models.fuse.calibration →
-  optimization.optimizers.base_model_optimizer → optimization.workers.base_worker →
-  optimization.workers.__init__ (CYCLE!)
+Note: Model-specific workers have been moved to their canonical locations under
+symfluence.models/{model}/calibration/worker.py. Use the registry or direct
+import from the canonical location.
 """
 
 from .base_worker import BaseWorker, WorkerTask, WorkerResult
+from .inmemory_worker import InMemoryModelWorker
 
-# Re-export for backward compatibility
-# Import only when explicitly accessed to avoid circular dependencies
+# Lazy import of worker classes from canonical locations to avoid circular dependencies
 def __getattr__(name):
-    """Lazy import of worker classes to avoid circular dependencies."""
+    """Lazy import of worker classes from canonical model locations."""
+    # Map worker class names to their canonical module paths
     worker_mapping = {
-        'FUSEWorker': '.fuse_worker',
-        'GRWorker': '.gr_worker',
-        'HBVWorker': '.hbv_worker',
-        'HYPEWorker': '.hype_worker',
-        'MESHWorker': '.mesh_worker',
-        'NgenWorker': '.ngen_worker',
-        'RHESSysWorker': '.rhessys_worker',
-        'SUMMAWorker': '.summa_worker',
-        'GNNWorker': '.gnn_worker',
-        'LSTMWorker': '.lstm_worker',
+        'FUSEWorker': 'symfluence.models.fuse.calibration.worker',
+        'JFUSEWorker': 'symfluence.models.jfuse.calibration.worker',
+        'CFUSEWorker': 'symfluence.models.cfuse.calibration.worker',
+        'GRWorker': 'symfluence.models.gr.calibration.worker',
+        'HBVWorker': 'symfluence.models.hbv.calibration.worker',
+        'HYPEWorker': 'symfluence.models.hype.calibration.worker',
+        'MESHWorker': 'symfluence.models.mesh.calibration.worker',
+        'NgenWorker': 'symfluence.models.ngen.calibration.worker',
+        'RHESSysWorker': 'symfluence.models.rhessys.calibration.worker',
+        'SUMMAWorker': 'symfluence.models.summa.calibration.worker',
+        'GNNWorker': 'symfluence.models.gnn.calibration.worker',
+        'LSTMWorker': 'symfluence.models.lstm.calibration.worker',
     }
 
     if name in worker_mapping:
         from importlib import import_module
-        module = import_module(worker_mapping[name], package='symfluence.optimization.workers')
-        return getattr(module, name)
+        try:
+            module = import_module(worker_mapping[name])
+            return getattr(module, name)
+        except (ImportError, AttributeError):
+            raise AttributeError(
+                f"Worker '{name}' not found. Ensure the model package is installed "
+                f"and the worker is defined in {worker_mapping[name]}"
+            )
 
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
     'BaseWorker',
+    'InMemoryModelWorker',
     'WorkerTask',
     'WorkerResult',
-    'FUSEWorker',
-    'GRWorker',
-    'HBVWorker',
-    'HYPEWorker',
-    'MESHWorker',
-    'NgenWorker',
-    'RHESSysWorker',
-    'SUMMAWorker',
-    'GNNWorker',
-    'LSTMWorker',
 ]

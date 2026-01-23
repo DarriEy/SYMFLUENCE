@@ -10,15 +10,32 @@ for dynamic instantiation by type string.
 
 Key Classes:
     ObservationRegistry: Central registry for managing handler instances.
+    BaseObservationHandler: Abstract base class for all handlers.
+    ObservationMetadata: Dataclass for standardized output metadata.
+
+Exceptions:
+    ObservationError: Base exception for observation handling errors.
+    ObservationAcquisitionError: Error during data acquisition.
+    ObservationProcessingError: Error during data processing.
+    ObservationValidationError: Error during data validation.
 
 Usage:
     >>> from symfluence.data.observation import ObservationRegistry
-    >>> handler = ObservationRegistry.get_handler('GRACE', config, logger)
+    >>> handler = ObservationRegistry.get_handler('grace', config, logger)
     >>> raw_data = handler.acquire()
     >>> processed = handler.process(raw_data)
 """
 
 from .registry import ObservationRegistry
+from .base import (
+    BaseObservationHandler,
+    ObservationMetadata,
+    ObservationError,
+    ObservationAcquisitionError,
+    ObservationProcessingError,
+    ObservationValidationError,
+    STANDARD_COLUMNS,
+)
 from . import handlers
 
 # Trigger registration of all observation handler plugins when this module is imported.
@@ -30,4 +47,17 @@ try:
 except ImportError:
     pass
 
-__all__ = ["ObservationRegistry"]
+__all__ = [
+    # Registry
+    "ObservationRegistry",
+    # Base class
+    "BaseObservationHandler",
+    # Data contract
+    "ObservationMetadata",
+    "STANDARD_COLUMNS",
+    # Exceptions
+    "ObservationError",
+    "ObservationAcquisitionError",
+    "ObservationProcessingError",
+    "ObservationValidationError",
+]

@@ -106,7 +106,7 @@ class FinalResultsSaver:
             self.logger.info(f"Saved final evaluation results to {output_file}")
             return output_file
 
-        except Exception as e:
+        except (IOError, OSError, ValueError) as e:
             self.logger.error(f"Failed to save final evaluation results: {e}")
             return None
 

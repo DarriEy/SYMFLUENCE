@@ -104,7 +104,7 @@ class ModelDecisionsUpdater:
 
             self.logger.debug("Updated model decisions for final evaluation")
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, ValueError) as e:
             self.logger.error(f"Error updating model decisions for final run: {e}")
 
     def restore_for_optimization(self) -> None:
@@ -121,7 +121,7 @@ class ModelDecisionsUpdater:
 
             self.logger.debug("Restored model decisions to optimization settings")
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, ValueError) as e:
             self.logger.error(f"Error restoring model decisions: {e}")
 
     def get_decision(self, key: str) -> Optional[str]:
@@ -144,7 +144,7 @@ class ModelDecisionsUpdater:
                         parts = line.split()
                         if len(parts) >= 2:
                             return parts[1]
-        except Exception:
+        except (FileNotFoundError, IOError, ValueError):
             pass
 
         return None
@@ -185,7 +185,7 @@ class ModelDecisionsUpdater:
                     f.writelines(updated_lines)
                 return True
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, ValueError) as e:
             self.logger.error(f"Error setting decision {key}: {e}")
 
         return False

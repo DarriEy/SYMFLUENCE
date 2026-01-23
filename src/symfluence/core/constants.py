@@ -5,7 +5,11 @@ Centralizes all hardcoded constants to eliminate duplication and
 improve maintainability across the codebase.
 """
 
-from typing import Dict
+from typing import Dict, Optional, Tuple, TYPE_CHECKING
+import logging
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class UnitConversion:
@@ -212,3 +216,160 @@ Convenience dictionary for accessing unit conversion factors.
 Provided for backward compatibility and convenience. Prefer using
 UnitConversion class directly for better IDE support and documentation.
 """
+
+
+class UnitConverter:
+    """Centralized unit conversion utilities for hydrological data.
+
+    Provides static methods for common unit conversions with optional
+    auto-detection of input units based on data magnitude heuristics.
+
+    This class consolidates scattered conversion logic from evaluators
+    to ensure consistent unit handling across the evaluation suite.
+
+    Thresholds and Constants:
+        MASS_FLUX_THRESHOLD: 1e-6 m/s - values above indicate mass flux units
+        SWE_UNIT_THRESHOLD: 250 - SWE values above indicate mm units
+        SECONDS_PER_DAY: 86400 - conversion factor for daily rates
+        INCHES_TO_MM: 25.4 - standard conversion factor
+    """
+
+    MASS_FLUX_THRESHOLD = 1e-6  # m/s threshold for detecting mass flux
+    SWE_UNIT_THRESHOLD = 250    # values below likely in inches
+    SECONDS_PER_DAY = 86400
+    INCHES_TO_MM = 25.4
+
+    @classmethod
+    def et_mass_flux_to_mm_day(
+        cls,
+        data: 'pd.Series',
+        logger: Optional[logging.Logger] = None
+    ) -> 'pd.Series':
+        """Convert ET from kg m⁻² s⁻¹ to mm/day.
+
+        SUMMA outputs evapotranspiration in mass flux units (kg m⁻² s⁻¹).
+        This converts to the more common mm/day representation.
+
+        Physical basis:
+            - 1 kg m⁻² s⁻¹ = 1 mm/s (assuming water density = 1000 kg/m³)
+            - 1 mm/s × 86400 s/day = 86400 mm/day
+
+        Args:
+            data: ET time series in kg m⁻² s⁻¹
+            logger: Optional logger for debug messages
+
+        Returns:
+            ET time series in mm/day
+        """
+        if logger:
+            logger.debug("Converting ET from kg m⁻² s⁻¹ to mm/day")
+        return data * cls.SECONDS_PER_DAY
+
+    @classmethod
+    def swe_inches_to_mm(
+        cls,
+        data: 'pd.Series',
+        auto_detect: bool = True,
+        logger: Optional[logging.Logger] = None
+    ) -> 'pd.Series':
+        """Convert SWE from inches to mm with optional auto-detection.
+
+        SNOTEL and some other data sources report SWE in inches.
+        This method can auto-detect based on data magnitude.
+
+        Auto-detection logic:
+            If max(data) < SWE_UNIT_THRESHOLD (250), assume inches
+            Rationale: 250 inches = 6350 mm is an extremely high SWE value
+
+        Args:
+            data: SWE time series (potentially in inches)
+            auto_detect: If True, detect units from data magnitude
+            logger: Optional logger for debug messages
+
+        Returns:
+            SWE time series in mm
+        """
+        import numpy as np
+
+        if auto_detect:
+            max_val = np.nanmax(data)
+            if max_val < cls.SWE_UNIT_THRESHOLD:
+                if logger:
+                    logger.debug(
+                        f"SWE max={max_val:.1f} < {cls.SWE_UNIT_THRESHOLD}: "
+                        f"assuming inches, converting to mm"
+                    )
+                return data * cls.INCHES_TO_MM
+            else:
+                if logger:
+                    logger.debug(
+                        f"SWE max={max_val:.1f} >= {cls.SWE_UNIT_THRESHOLD}: "
+                        f"assuming already in mm"
+                    )
+                return data
+        else:
+            if logger:
+                logger.debug("Converting SWE from inches to mm (forced)")
+            return data * cls.INCHES_TO_MM
+
+    @classmethod
+    def detect_and_convert_mass_flux(
+        cls,
+        data: 'pd.Series',
+        logger: Optional[logging.Logger] = None
+    ) -> Tuple['pd.Series', bool]:
+        """Detect mass flux and convert to volume flux if needed.
+
+        SUMMA may output runoff in mass flux (kg m⁻² s⁻¹) incorrectly
+        labeled as volume flux (m s⁻¹). This detects and corrects.
+
+        Detection logic:
+            If mean(data) > MASS_FLUX_THRESHOLD (1e-6 m/s), likely mass flux
+            Rationale: 1e-6 m/s = 86.4 mm/day runoff (extremely high)
+
+        Args:
+            data: Runoff time series (possibly mislabeled units)
+            logger: Optional logger for debug messages
+
+        Returns:
+            Tuple of (converted_data, was_converted)
+        """
+        import numpy as np
+
+        mean_val = np.nanmean(data)
+        if mean_val > cls.MASS_FLUX_THRESHOLD:
+            if logger:
+                logger.debug(
+                    f"Mean runoff {mean_val:.2e} > {cls.MASS_FLUX_THRESHOLD:.0e} m/s: "
+                    f"detected mass flux, dividing by 1000"
+                )
+            return data / 1000.0, True
+        return data, False
+
+    @classmethod
+    def streamflow_mm_day_to_cms(
+        cls,
+        data: 'pd.Series',
+        catchment_area_m2: float,
+        logger: Optional[logging.Logger] = None
+    ) -> 'pd.Series':
+        """Convert mm/day to m³/s given catchment area.
+
+        Converts per-unit-area runoff depth to volumetric discharge.
+
+        Formula:
+            Q(m³/s) = depth(mm/day) × area(m²) / (1000 mm/m × 86400 s/day)
+
+        Args:
+            data: Runoff time series in mm/day
+            catchment_area_m2: Catchment area in square meters
+            logger: Optional logger for debug messages
+
+        Returns:
+            Discharge time series in m³/s
+        """
+        if logger:
+            logger.debug(
+                f"Converting mm/day to m³/s with area={catchment_area_m2:.0f} m²"
+            )
+        return data * catchment_area_m2 / (1000.0 * cls.SECONDS_PER_DAY)

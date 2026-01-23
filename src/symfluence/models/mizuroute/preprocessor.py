@@ -4,16 +4,18 @@ MizuRoute Model Preprocessor.
 Handles spatial preprocessing and configuration generation for the mizuRoute routing model.
 """
 
+import logging
 import os
-import pandas as pd
-import netCDF4 as nc4
-import geopandas as gpd
-import numpy as np
+from datetime import datetime
 from pathlib import Path
 from shutil import copyfile
-from datetime import datetime
 from typing import Any, Dict, List, Optional
+
 import easymore
+import geopandas as gpd
+import netCDF4 as nc4
+import numpy as np
+import pandas as pd
 import xarray as xr
 
 from symfluence.models.registry import ModelRegistry
@@ -284,7 +286,7 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
         """Return model name for directory structure."""
         return "mizuRoute"
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """
         Initialize the mizuRoute preprocessor.
 

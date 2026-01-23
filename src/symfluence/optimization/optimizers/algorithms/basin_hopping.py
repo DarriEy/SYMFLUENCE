@@ -34,6 +34,7 @@ import numpy as np
 from scipy.optimize import minimize
 
 from .base_algorithm import OptimizationAlgorithm
+from .config_schema import BasinHoppingDefaults
 
 
 class BasinHoppingAlgorithm(OptimizationAlgorithm):
@@ -85,29 +86,68 @@ class BasinHoppingAlgorithm(OptimizationAlgorithm):
         """
         self.logger.info(f"Starting Basin Hopping optimization with {n_params} parameters")
 
-        # Basin Hopping parameters
+        # Basin Hopping parameters using standardized config access
         # Step size for random perturbations (in normalized [0,1] space)
-        step_size = self.config_dict.get('BH_STEP_SIZE', 0.5)
+        # 0.5 covers half the parameter range, providing good exploration
+        # (Wales & Doye 1997, Section 2.1)
+        step_size = self._get_config_value(
+            lambda: self.config.optimization.bh_step_size,
+            default=BasinHoppingDefaults.STEP_SIZE,
+            dict_key='BH_STEP_SIZE'
+        )
 
-        # Temperature for Metropolis acceptance
-        temperature = self.config_dict.get('BH_TEMPERATURE', 1.0)
+        # Temperature for Metropolis acceptance criterion
+        # T=1.0 is standard; lower values favor exploitation, higher favor exploration
+        # (Li & Scheraga 1987)
+        temperature = self._get_config_value(
+            lambda: self.config.optimization.bh_temperature,
+            default=BasinHoppingDefaults.TEMPERATURE,
+            dict_key='BH_TEMPERATURE'
+        )
 
         # Number of local optimization steps per basin
-        # Default increased to 50 for better convergence
-        local_steps = self.config_dict.get('BH_LOCAL_STEPS', 50)
+        # Higher values ensure better local convergence
+        # 50 is recommended for good convergence
+        local_steps = self._get_config_value(
+            lambda: self.config.optimization.bh_local_steps,
+            default=BasinHoppingDefaults.LOCAL_STEPS,
+            dict_key='BH_LOCAL_STEPS'
+        )
+
+        # Local optimizer method: 'nelder_mead' or 'gradient'
+        # Nelder-Mead is derivative-free and robust
+        local_method = self._get_config_value(
+            lambda: self.config.optimization.bh_local_method,
+            default=BasinHoppingDefaults.LOCAL_METHOD,
+            dict_key='BH_LOCAL_METHOD'
+        )
+
+        # Target acceptance rate for adaptive step size
+        # 0.5 is optimal for random walk Metropolis (Roberts et al. 1997)
+        target_accept_rate = self._get_config_value(
+            lambda: self.config.optimization.bh_target_accept,
+            default=BasinHoppingDefaults.TARGET_ACCEPT,
+            dict_key='BH_TARGET_ACCEPT'
+        )
+
+        # Adaptation interval (iterations between step size adjustments)
+        # 10 provides reasonably frequent adaptation without instability
+        adapt_interval = self._get_config_value(
+            lambda: self.config.optimization.bh_adapt_interval,
+            default=BasinHoppingDefaults.ADAPT_INTERVAL,
+            dict_key='BH_ADAPT_INTERVAL'
+        )
+
+        # Validate Basin Hopping configuration
+        valid, warning = BasinHoppingDefaults.validate_parameters(step_size, temperature)
+        if not valid:
+            self.logger.warning(f"Basin Hopping parameter validation: {warning}")
 
         if local_steps < 20:
             self.logger.warning(
                 f"BH_LOCAL_STEPS is set to {local_steps}, which is very low. "
                 "Consider increasing to at least 50 for effective local optimization."
             )
-
-        # Local optimizer: 'gradient' or 'nelder_mead'
-        local_method = self.config_dict.get('BH_LOCAL_METHOD', 'nelder_mead')
-
-        # Adaptive step size parameters
-        target_accept_rate = self.config_dict.get('BH_TARGET_ACCEPT', 0.5)
-        adapt_interval = self.config_dict.get('BH_ADAPT_INTERVAL', 10)
 
         self.logger.info(
             f"Basin Hopping settings: step_size={step_size}, temperature={temperature}, "
@@ -278,7 +318,7 @@ class BasinHoppingAlgorithm(OptimizationAlgorithm):
             best_fit = -res.fun
             return best_pos, best_fit
 
-        except Exception as e:
+        except (ValueError, RuntimeError) as e:
             self.logger.warning(f"Local minimization failed: {e}. Returning original point.")
             current_fit = evaluate(x, 0)
             return x, current_fit

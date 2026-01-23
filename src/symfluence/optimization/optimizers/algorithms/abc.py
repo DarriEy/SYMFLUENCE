@@ -652,7 +652,7 @@ class ABCAlgorithm(OptimizationAlgorithm):
 
         # Regularize if needed
         min_var = 1e-6
-        diag = np.diag(cov)
+        diag = np.diag(cov).copy()  # Copy to avoid read-only view issues
         diag[diag < min_var] = min_var
         np.fill_diagonal(cov, diag)
 

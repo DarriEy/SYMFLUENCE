@@ -17,6 +17,7 @@ from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.execution import UnifiedModelExecutor
 from symfluence.models.mizuroute.mixins import MizuRouteConfigMixin
+from symfluence.models.mixins import SpatialModeDetectionMixin
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 from symfluence.core.constants import UnitConversion
@@ -33,7 +34,7 @@ except ImportError:
 
 
 @ModelRegistry.register_runner('HBV', method_name='run_hbv')
-class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin):
+class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, SpatialModeDetectionMixin):
     """
     Runner class for the HBV-96 hydrological model.
 
@@ -74,19 +75,8 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin):
         # Instance variables for external parameters during calibration
         self._external_params: Optional[Dict[str, float]] = None
 
-        # Determine spatial mode
-        configured_mode = self._get_config_value(
-            lambda: self.config.model.hbv.spatial_mode if self.config.model and self.config.model.hbv else None,
-            'auto'
-        )
-
-        if configured_mode in (None, 'auto', 'default'):
-            if self.domain_definition_method == 'delineate':
-                self.spatial_mode = 'distributed'
-            else:
-                self.spatial_mode = 'lumped'
-        else:
-            self.spatial_mode = configured_mode
+        # Determine spatial mode using mixin
+        self.spatial_mode = self.detect_spatial_mode('HBV')
 
         # Backend configuration
         self.backend = self._get_config_value(

@@ -23,8 +23,10 @@ from ..methods.curvature import CurvatureMethod
 from ..methods.slope_area import SlopeAreaMethod
 from ..methods.multi_scale import MultiScaleMethod
 from .coastal_delineator import CoastalWatershedDelineator
+from ....geospatial.delineation_registry import DelineationRegistry
 
 
+@DelineationRegistry.register('semidistributed')
 class GeofabricDelineator(BaseGeofabricDelineator):
     """
     Main geofabric delineation class for distributed and semi-distributed domains.

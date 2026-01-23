@@ -48,7 +48,7 @@ def _export_worker_profile_data():
         profile_file = profile_dir / f"worker_profile_{pid}.json"
 
         profiler.export_to_file(str(profile_file))
-    except Exception:
+    except (OSError, IOError):
         # Silently fail - don't want profiling to break workers
         pass
 
@@ -114,7 +114,7 @@ def _evaluate_parameters_worker_safe(task_data: Dict, skip_profile_export: bool 
                 gc.collect()
                 return result
 
-            except Exception as e:
+            except (OSError, IOError, TimeoutError) as e:
                 error_str = str(e).lower()
                 error_trace = traceback.format_exc()
 
@@ -146,7 +146,7 @@ def _evaluate_parameters_worker_safe(task_data: Dict, skip_profile_export: bool 
             'proc_id': proc_id
         }
 
-    except Exception as e:
+    except (OSError, IOError, TimeoutError) as e:
         return {
             'individual_id': task_data.get('individual_id', -1),
             'params': task_data.get('params', {}),

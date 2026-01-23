@@ -4,10 +4,12 @@ MizuRoute Model Optimizer.
 Implements the BaseModelOptimizer for the MizuRoute routing model.
 """
 
+import logging
 import re
-import xarray as xr
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
+import xarray as xr
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.models.mizuroute.runner import MizuRouteRunner
@@ -19,7 +21,7 @@ class MizuRouteModelOptimizer(BaseModelOptimizer):
     Optimizer for MizuRoute routing model.
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any, output_dir: Path, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, output_dir: Path, reporting_manager: Optional[Any] = None):
         super().__init__(config, logger, output_dir, reporting_manager)
         self.model_name = "MIZUROUTE"
 

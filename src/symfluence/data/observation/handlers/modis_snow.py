@@ -25,12 +25,15 @@ from .modis_utils import (
 )
 
 
-@ObservationRegistry.register('MODIS_SNOW')
+@ObservationRegistry.register('modis_snow')
 class MODISSnowHandler(BaseObservationHandler):
     """
     Handles MODIS Snow Cover Area (SCA) data.
     Supports both single-product (MOD10A1) and merged (MOD10A1+MYD10A1) data.
     """
+
+    obs_type = "snow_cover"
+    source_name = "NASA_MODIS"
 
     # Use constants from modis_utils
     VALID_SNOW_RANGE = VALID_SNOW_RANGE
@@ -305,8 +308,8 @@ class MODISSnowHandler(BaseObservationHandler):
         return output_file
 
 
-@ObservationRegistry.register('MODIS_SCA')
-@ObservationRegistry.register('MODIS_SNOW_MERGED')
+@ObservationRegistry.register('modis_sca')
+@ObservationRegistry.register('modis_snow_merged')
 class MODISSCAHandler(MODISSnowHandler):
     """
     Specialized handler for merged MODIS SCA (MOD10A1 + MYD10A1).

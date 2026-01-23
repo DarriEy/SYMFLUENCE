@@ -25,6 +25,7 @@ from typing import Dict, Any, Callable, Optional
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm, NativeGradientCallback
+from .config_schema import AdamDefaults
 
 
 class AdamAlgorithm(OptimizationAlgorithm):
@@ -121,14 +122,60 @@ class AdamAlgorithm(OptimizationAlgorithm):
             - best_params: Denormalized best parameters (dictionary)
             - gradient_method: 'native' or 'finite_difference' (which was used)
         """
-        # Adam hyperparameters from config or kwargs
-        steps = kwargs.get('steps', self.config_dict.get('ADAM_STEPS', self.max_iterations))
-        lr = kwargs.get('lr', self.config_dict.get('ADAM_LR', 0.01))
-        beta1 = kwargs.get('beta1', self.config_dict.get('ADAM_BETA1', 0.9))
-        beta2 = kwargs.get('beta2', self.config_dict.get('ADAM_BETA2', 0.999))
-        eps = kwargs.get('eps', self.config_dict.get('ADAM_EPS', 1e-8))
-        gradient_epsilon = self.config_dict.get('GRADIENT_EPSILON', 1e-4)
-        gradient_clip = self.config_dict.get('GRADIENT_CLIP_VALUE', 1.0)
+        # Adam hyperparameters from config or kwargs using standardized access
+        # Maximum steps (Kingma & Ba 2015)
+        steps = kwargs.get('steps', self._get_config_value(
+            lambda: self.config.optimization.adam_steps,
+            default=self.max_iterations,
+            dict_key='ADAM_STEPS'
+        ))
+
+        # Learning rate (Kingma & Ba 2015, Section 2)
+        lr = kwargs.get('lr', self._get_config_value(
+            lambda: self.config.optimization.adam_lr,
+            default=AdamDefaults.LR,
+            dict_key='ADAM_LR'
+        ))
+
+        # First moment decay rate (Kingma & Ba 2015)
+        beta1 = kwargs.get('beta1', self._get_config_value(
+            lambda: self.config.optimization.adam_beta1,
+            default=AdamDefaults.BETA1,
+            dict_key='ADAM_BETA1'
+        ))
+
+        # Second moment decay rate (Kingma & Ba 2015)
+        beta2 = kwargs.get('beta2', self._get_config_value(
+            lambda: self.config.optimization.adam_beta2,
+            default=AdamDefaults.BETA2,
+            dict_key='ADAM_BETA2'
+        ))
+
+        # Epsilon for numerical stability (Kingma & Ba 2015)
+        eps = kwargs.get('eps', self._get_config_value(
+            lambda: self.config.optimization.adam_eps,
+            default=AdamDefaults.EPS,
+            dict_key='ADAM_EPS'
+        ))
+
+        # Gradient epsilon for finite differences
+        gradient_epsilon = self._get_config_value(
+            lambda: self.config.optimization.gradient_epsilon,
+            default=AdamDefaults.GRADIENT_EPSILON,
+            dict_key='GRADIENT_EPSILON'
+        )
+
+        # Gradient clipping value
+        gradient_clip = self._get_config_value(
+            lambda: self.config.optimization.gradient_clip_value,
+            default=AdamDefaults.GRADIENT_CLIP_VALUE,
+            dict_key='GRADIENT_CLIP_VALUE'
+        )
+
+        # Validate beta parameters
+        valid, msg = AdamDefaults.validate_betas(beta1, beta2)
+        if not valid:
+            self.logger.warning(f"Adam validation: {msg}")
 
         # Determine gradient method and create unified gradient function
         use_native = self._should_use_native_gradients(compute_gradient, gradient_mode)

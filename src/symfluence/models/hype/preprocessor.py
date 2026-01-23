@@ -8,7 +8,9 @@ Uses the generalized pipeline pattern with manager classes for:
 - Geographic data file generation (HYPEGeoDataManager)
 """
 
-from typing import Dict, Any, Optional, cast
+import logging
+from typing import Any, Dict, Optional, cast
+
 import pandas as pd
 
 from symfluence.models.hype.forcing_processor import HYPEForcingProcessor
@@ -105,7 +107,7 @@ class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         """Return model name for HYPE."""
         return "HYPE"
 
-    def __init__(self, config, logger: Any, params: Optional[Dict[str, Any]] = None):
+    def __init__(self, config, logger: logging.Logger, params: Optional[Dict[str, Any]] = None):
         """
         Initialize HYPE preprocessor with SYMFLUENCE configuration.
 

@@ -12,11 +12,14 @@ from symfluence.core.exceptions import DataAcquisitionError
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 
-@ObservationRegistry.register('GGMN')
+@ObservationRegistry.register('ggmn')
 class GGMNHandler(BaseObservationHandler):
     """
     Handles GGMN groundwater data acquisition and processing.
     """
+
+    obs_type = "groundwater"
+    source_name = "IGRAC_GGMN"
 
     WFS_URL = "https://ggis.un-igrac.org/geoserver/ows"
 

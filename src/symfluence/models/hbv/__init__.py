@@ -6,19 +6,6 @@ HBV-96 Hydrological Model for SYMFLUENCE.
     used at your own risk. The API may change without notice in future releases.
     Please report any issues at https://github.com/DarriEy/SYMFLUENCE/issues
 
-.. note::
-    **API Stability**: This module is not yet covered by semantic versioning guarantees.
-    Breaking changes may occur in minor releases until this module reaches stable status.
-
-    **Known Limitations**:
-    - Distributed routing integration is still in development
-    - Some parameter combinations may produce numerical instabilities
-    - GPU acceleration requires JAX with CUDA/ROCm support
-    - Performance optimization is ongoing
-
-    To disable this experimental module at import time, set the environment variable:
-    ``SYMFLUENCE_DISABLE_EXPERIMENTAL=1``
-
 A native JAX-based implementation of the HBV-96 hydrological model, enabling:
 - Automatic differentiation for gradient-based calibration
 - JIT compilation for fast execution
@@ -27,7 +14,7 @@ A native JAX-based implementation of the HBV-96 hydrological model, enabling:
 - Distributed modeling with graph-based Muskingum-Cunge routing
 
 Components:
-    - HBVPreprocessor: Prepares forcing data (P, T, PET)
+    - HBVPreProcessor: Prepares forcing data (P, T, PET)
     - HBVRunner: Executes model simulations
     - HBVPostprocessor: Extracts streamflow results
     - HBVWorker: Handles calibration with gradient support
@@ -35,9 +22,9 @@ Components:
 
 Usage:
     # Standard workflow
-    from symfluence.models.hbv import HBVPreprocessor, HBVRunner, HBVPostprocessor
+    from symfluence.models.hbv import HBVPreProcessor, HBVRunner, HBVPostprocessor
 
-    preprocessor = HBVPreprocessor(config, logger)
+    preprocessor = HBVPreProcessor(config, logger)
     preprocessor.run_preprocessing()
 
     runner = HBVRunner(config, logger)
@@ -60,37 +47,19 @@ References:
     Journal of Hydrology, 201(1-4), 272-288.
 """
 
-import os
 import warnings
 
-# Check if experimental modules are disabled
-_DISABLE_EXPERIMENTAL = os.environ.get('SYMFLUENCE_DISABLE_EXPERIMENTAL', '').lower() in ('1', 'true', 'yes')
-
-if _DISABLE_EXPERIMENTAL:
-    raise ImportError(
-        "HBV module is disabled via SYMFLUENCE_DISABLE_EXPERIMENTAL environment variable. "
-        "This experimental module is not yet stable. Remove the environment variable to enable."
-    )
-
-# Deferred warning - only shown when module is actually used
-_EXPERIMENTAL_WARNING_SHOWN = False
-
-
-def _warn_experimental():
-    """Emit experimental warning on first actual use."""
-    global _EXPERIMENTAL_WARNING_SHOWN
-    if not _EXPERIMENTAL_WARNING_SHOWN:
-        warnings.warn(
-            "HBV is an EXPERIMENTAL module. The API may change without notice. "
-            "For production use, consider using SUMMA or FUSE instead.",
-            category=UserWarning,
-            stacklevel=3
-        )
-        _EXPERIMENTAL_WARNING_SHOWN = True
+# Emit experimental warning on import
+warnings.warn(
+    "HBV is an EXPERIMENTAL module. The API may change without notice. "
+    "For production use, consider using SUMMA or FUSE instead.",
+    category=UserWarning,
+    stacklevel=2
+)
 
 # Register model components with ModelRegistry via imports
 from .config import HBVConfig, HBVConfigAdapter
-from .preprocessor import HBVPreprocessor
+from .preprocessor import HBVPreProcessor
 from .runner import HBVRunner
 from .postprocessor import HBVPostprocessor, HBVRoutedPostprocessor
 from .extractor import HBVResultExtractor
@@ -145,9 +114,12 @@ from .optimizers import (
 from symfluence.models.registry import ModelRegistry
 ModelRegistry.register_config_adapter('HBV')(HBVConfigAdapter)
 
+# Register result extractor with ModelRegistry
+ModelRegistry.register_result_extractor('HBV')(HBVResultExtractor)
+
 __all__ = [
     # Main components
-    'HBVPreprocessor',
+    'HBVPreProcessor',
     'HBVRunner',
     'HBVPostprocessor',
     'HBVRoutedPostprocessor',

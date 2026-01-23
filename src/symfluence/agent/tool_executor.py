@@ -125,8 +125,13 @@ class ToolExecutor:
             elif tool_name == 'setup_pour_point_workflow':
                 return self._execute_pour_point_setup(arguments)
 
-            # Code operations
-            elif tool_name in ['read_file', 'list_directory', 'analyze_codebase', 'propose_code_change', 'show_staged_changes', 'run_tests', 'create_pr_proposal']:
+            # Code operations (including search and PR automation)
+            elif tool_name in [
+                'read_file', 'list_directory', 'analyze_codebase',
+                'propose_code_change', 'show_staged_changes', 'run_tests',
+                'create_pr_proposal', 'create_pr', 'check_pr_status',
+                'search_code', 'find_definition', 'find_usages'
+            ]:
                 return self._execute_code_operations(tool_name, arguments)
 
             # SLURM operations
@@ -536,6 +541,78 @@ class ToolExecutor:
                     title=arguments.get('title'),
                     description=arguments.get('description'),
                     reason=arguments.get('reason', 'improvement')
+                )
+                return ToolResult(
+                    success=success,
+                    output=output,
+                    error=None if success else output,
+                    exit_code=0 if success else 1
+                )
+
+            elif operation == 'create_pr':
+                pr_mgr = PRManager()
+                success, output = pr_mgr.create_pr(
+                    title=arguments.get('title'),
+                    description=arguments.get('description'),
+                    branch_name=arguments.get('branch_name'),
+                    base_branch=arguments.get('base_branch', 'main'),
+                    reason=arguments.get('reason', 'improvement'),
+                    draft=arguments.get('draft', False)
+                )
+                return ToolResult(
+                    success=success,
+                    output=output,
+                    error=None if success else output,
+                    exit_code=0 if success else 1
+                )
+
+            elif operation == 'check_pr_status':
+                pr_mgr = PRManager()
+                success, output = pr_mgr.check_gh_auth()
+                return ToolResult(
+                    success=success,
+                    output=output,
+                    error=None if success else output,
+                    exit_code=0 if success else 1
+                )
+
+            elif operation == 'search_code':
+                from symfluence.agent.code_search import CodeSearch
+                searcher = CodeSearch()
+                success, output = searcher.search(
+                    pattern=arguments.get('pattern'),
+                    file_glob=arguments.get('file_glob', '*.py'),
+                    context_lines=arguments.get('context_lines', 2),
+                    case_sensitive=arguments.get('case_sensitive', True),
+                    whole_word=arguments.get('whole_word', False)
+                )
+                return ToolResult(
+                    success=success,
+                    output=output,
+                    error=None if success else output,
+                    exit_code=0 if success else 1
+                )
+
+            elif operation == 'find_definition':
+                from symfluence.agent.code_search import CodeSearch
+                searcher = CodeSearch()
+                success, output = searcher.find_definition(
+                    name=arguments.get('name'),
+                    definition_type=arguments.get('definition_type', 'any')
+                )
+                return ToolResult(
+                    success=success,
+                    output=output,
+                    error=None if success else output,
+                    exit_code=0 if success else 1
+                )
+
+            elif operation == 'find_usages':
+                from symfluence.agent.code_search import CodeSearch
+                searcher = CodeSearch()
+                success, output = searcher.find_usages(
+                    name=arguments.get('name'),
+                    file_glob=arguments.get('file_glob', '*.py')
                 )
                 return ToolResult(
                     success=success,

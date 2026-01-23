@@ -7,18 +7,19 @@ Supports both local HYDAT SQLite database extraction and web API acquisition.
 import requests
 import pandas as pd
 from pathlib import Path
-from typing import Optional, List
 
-from symfluence.core.constants import ModelDefaults
 from symfluence.core.exceptions import DataAcquisitionError
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 
-@ObservationRegistry.register('WSC_STREAMFLOW')
+@ObservationRegistry.register('wsc_streamflow')
 class WSCStreamflowHandler(BaseObservationHandler):
     """
     Handles WSC streamflow data acquisition and processing.
     """
+
+    obs_type = "streamflow"
+    source_name = "WSC_HYDAT"
 
     def acquire(self) -> Path:
         self.logger.debug("WSCStreamflowHandler.acquire called")
@@ -201,18 +202,3 @@ class WSCStreamflowHandler(BaseObservationHandler):
         resampled.to_csv(output_file, header=True, index_label='datetime')
 
         return output_file
-
-    def _find_col(self, columns: List[str], candidates: List[str]) -> Optional[str]:
-        for col in columns:
-            if any(c.lower() in col.lower() for c in candidates):
-                return col
-        return None
-
-    def _get_resample_freq(self) -> str:
-        timestep_size = int(self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE'))
-        if timestep_size <= 10800:
-            return 'h'
-        elif timestep_size == ModelDefaults.DEFAULT_TIMESTEP_DAILY:
-            return 'D'
-        else:
-            return f'{timestep_size}s'

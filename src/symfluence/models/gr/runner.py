@@ -7,8 +7,9 @@ Supports both lumped and distributed spatial modes with optional mizuRoute routi
 Refactored to use the Unified Model Execution Framework.
 """
 
-from typing import Dict, Any, Optional
+import logging
 from pathlib import Path
+from typing import Dict, Any, Optional
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -18,7 +19,7 @@ import rasterio.mask
 
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
-from ..mixins import OutputConverterMixin
+from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
 from ..execution import UnifiedModelExecutor
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
@@ -26,15 +27,16 @@ from symfluence.core.exceptions import ModelExecutionError, symfluence_error_han
 from symfluence.core.constants import UnitConversion
 
 # Optional R/rpy2 support - only needed for GR models
-# Catch Exception broadly because rpy2 can raise RuntimeError, RRuntimeError,
-# or other exceptions when R is installed but broken (missing core packages)
+# Broad exception handling is intentional here: rpy2 can raise RuntimeError, RRuntimeError,
+# ImportError, or other exceptions when R is installed but broken (missing core packages,
+# incompatible versions, etc.). We must catch all to provide graceful fallback.
 try:
     import rpy2.robjects as robjects
     from rpy2.robjects.packages import importr
     from rpy2.robjects import pandas2ri
     from rpy2.robjects.conversion import localconverter
     HAS_RPY2 = True
-except Exception:
+except Exception:  # noqa: BLE001 - Broad exception required for rpy2 import failures
     HAS_RPY2 = False
     robjects = None
     importr = None
@@ -43,7 +45,7 @@ except Exception:
 
 
 @ModelRegistry.register_runner('GR', method_name='run_gr')
-class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, MizuRouteConfigMixin):
+class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, MizuRouteConfigMixin, SpatialModeDetectionMixin):
     """
     Runner class for the GR family of models (initially GR4J).
     Handles model execution, state management, and output processing.
@@ -61,7 +63,7 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
         domain_name (str): Name of the domain being processed
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None, settings_dir: Optional[Path] = None):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None, settings_dir: Optional[Path] = None):
         """
         Initialize the GR model runner.
 
@@ -104,21 +106,8 @@ class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mizu
         # Keep legacy attribute name for downstream GR code.
         self.output_path = self.output_dir
 
-        # GR-specific configuration
-        configured_mode = self._get_config_value(
-            lambda: self.config.model.gr.spatial_mode if self.config.model and self.config.model.gr else None,
-            'auto'
-        )
-
-        # Handle 'auto' mode - infer from domain definition method
-        if configured_mode in (None, 'auto', 'default'):
-            domain_method = self.domain_definition_method
-            if domain_method == 'delineate':
-                self.spatial_mode = 'distributed'
-            else:
-                self.spatial_mode = 'lumped'
-        else:
-            self.spatial_mode = configured_mode
+        # GR-specific configuration - determine spatial mode using mixin
+        self.spatial_mode = self.detect_spatial_mode('GR')
 
         self.needs_routing = self._check_routing_requirements()
 

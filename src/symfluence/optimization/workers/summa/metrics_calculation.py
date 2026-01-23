@@ -86,7 +86,7 @@ def resample_to_timestep(data: pd.Series, target_timestep: str, logger) -> pd.Se
 
         return resampled
 
-    except Exception as e:
+    except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
         logger.debug(f"Error resampling to {target_timestep}: {str(e)}")
         logger.debug("Returning original data without resampling")
         return data
@@ -117,7 +117,7 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
                             return catchment_area_m2
                     else:
                         logger.debug("HRUarea not found in SUMMA attributes file")
-            except Exception as e:
+            except (ValueError, KeyError, FileNotFoundError) as e:
                 logger.debug(f"Error reading SUMMA attributes file: {str(e)}")
         else:
             logger.debug(f"SUMMA attributes file not found: {attrs_file}")
@@ -158,7 +158,7 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
 
             except ImportError:
                 logger.warning("geopandas not available for area calculation")
-            except Exception as e:
+            except (ValueError, KeyError, FileNotFoundError) as e:
                 logger.warning(f"Error reading basin shapefile: {str(e)}")
 
         # Priority 3: Try catchment shapefile
@@ -177,10 +177,10 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
                         logger.info(f"Using catchment area from catchment shapefile: {total_area:.0f} m²")
                         return total_area
 
-            except Exception as e:
+            except (ValueError, KeyError, FileNotFoundError) as e:
                 logger.warning(f"Error reading catchment shapefile: {str(e)}")
 
-    except Exception as e:
+    except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
         logger.warning(f"Could not calculate catchment area: {str(e)}")
 
     # Fallback
@@ -304,7 +304,7 @@ def _calculate_metrics_with_target(summa_dir: Path, mizuroute_dir: Path, config:
             logger.warning("Calibration target returned empty metrics")
             return None
 
-    except Exception as e:
+    except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
         import traceback
         logger.error(f"Error calculating metrics with calibration target: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
@@ -362,7 +362,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                     try:
                         catchment_area = _get_catchment_area_worker(config, logger)
                         logger.debug(f"Got catchment area = {catchment_area:.2e} m²")
-                    except Exception as e:
+                    except (ValueError, KeyError, FileNotFoundError) as e:
                         logger.debug(f"Error getting catchment area: {str(e)}")
                         catchment_area = 1e6  # Default fallback
             else:
@@ -414,7 +414,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
 
                         logger.debug(f"Extracted {routing_var} (mizuRoute), mean = {float(sim_data.mean().item()):.2f} m³/s")
 
-                    except Exception as e:
+                    except (ValueError, KeyError, FileNotFoundError) as e:
                         logger.debug(f"Error extracting outlet segment from {routing_var}: {str(e)}")
                         return None
 
@@ -488,7 +488,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                                                         dim_name = 'hru' if 'hru' in areas.dims else 'gru'
                                                         sim_data = (var * areas).sum(dim=dim_name).to_pandas()
                                                         aggregated = True
-                                    except Exception as e:
+                                    except (ValueError, KeyError, FileNotFoundError) as e:
                                         logger.debug(f"Aggregation failed, falling back: {e}")
 
                                 if not aggregated:
@@ -513,14 +513,14 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                                     logger.debug(f"Post-conversion mean = {float(sim_data.mean().item()):.2f} m³/s")
 
                                 break
-                            except Exception:
+                            except (KeyError, ValueError):
                                 continue
 
                     if sim_data is None:
                         logger.debug("sim_data is None after trying all SUMMA variables")
                         return None
 
-        except Exception as e:
+        except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
             logger.error(f"Exception extracting simulated streamflow: {str(e)}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
@@ -550,7 +550,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
             obs_df.set_index('DateTime', inplace=True)
             obs_data = obs_df[flow_col]
             logger.debug(f"Loaded {len(obs_data)} observation points")
-        except Exception as e:
+        except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
             logger.error(f"Exception loading observations: {str(e)}")
             return None
 
@@ -577,7 +577,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                 else:
                     obs_period = obs_data
                     sim_period = sim_data
-            except Exception:
+            except (KeyError, ValueError):
                 obs_period = obs_data
                 sim_period = sim_data
         else:
@@ -649,7 +649,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
                 'NSE': nse_val, 'KGE': kge_val, 'RMSE': rmse_val, 'MAE': mae_val,
                 'PBIAS': pbias_val, 'correlation': r_val
             }
-        except Exception:
+        except (KeyError, ValueError):
             return None
 
     except ImportError as e:
@@ -658,7 +658,7 @@ def _calculate_metrics_inline_worker(summa_dir: Path, mizuroute_dir: Path, confi
     except FileNotFoundError as e:
         logger.error(f"File not found error: {str(e)}")
         return None
-    except Exception as e:
+    except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
         logger.error(f"Error in inline metrics calculation: {str(e)}")
         import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
@@ -804,6 +804,6 @@ def _calculate_multitarget_objectives(task: Dict, summa_dir: str, mizuroute_dir:
 
         return [obj1, obj2]
 
-    except Exception as e:
+    except (ValueError, KeyError, ZeroDivisionError, FileNotFoundError) as e:
         logger.warning(f"Multi-target objective calculation failed: {e}")
         return [-1.0, -1.0]

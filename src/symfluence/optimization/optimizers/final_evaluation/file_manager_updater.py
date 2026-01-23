@@ -52,7 +52,7 @@ class FileManagerUpdater(ConfigMixin):
 
                 self._config = SymfluenceConfig(**config)
 
-            except Exception:
+            except (FileNotFoundError, IOError, ValueError):
 
                 # Fallback for partial configs (e.g., in tests)
 
@@ -97,7 +97,7 @@ class FileManagerUpdater(ConfigMixin):
 
             self.logger.debug(f"Updated file manager for full period: {sim_start} to {sim_end}")
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, ValueError) as e:
             self.logger.error(f"Failed to update file manager for final run: {e}")
 
     def update_output_path(self, output_dir: Path) -> None:
@@ -131,7 +131,7 @@ class FileManagerUpdater(ConfigMixin):
 
             self.logger.debug(f"Updated output path to: {output_path_str}")
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, ValueError) as e:
             self.logger.error(f"Failed to update output path: {e}")
 
     def restore_calibration_period(self) -> None:
@@ -163,7 +163,7 @@ class FileManagerUpdater(ConfigMixin):
 
             self.logger.debug("Restored file manager to calibration period")
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, ValueError) as e:
             self.logger.error(f"Failed to restore file manager: {e}")
 
     def _adjust_end_time_for_forcing(self, end_time_str: str) -> str:
@@ -198,6 +198,6 @@ class FileManagerUpdater(ConfigMixin):
 
             return end_time_str
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, ValueError) as e:
             self.logger.warning(f"Could not adjust end time: {e}")
             return end_time_str

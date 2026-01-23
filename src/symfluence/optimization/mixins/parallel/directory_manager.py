@@ -122,7 +122,7 @@ class DirectoryManager:
                 try:
                     shutil.rmtree(root_dir)
                     self.logger.debug(f"Cleaned up parallel directory for process {proc_id}")
-                except Exception as e:
+                except (OSError, PermissionError) as e:
                     self.logger.warning(
                         f"Failed to cleanup parallel directory for process {proc_id}: {e}"
                     )
