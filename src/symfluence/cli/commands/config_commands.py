@@ -7,7 +7,7 @@ This module implements handlers for configuration file management and validation
 from argparse import Namespace
 from pathlib import Path
 
-from .base import BaseCommand
+from .base import BaseCommand, cli_exception_handler
 from ..exit_codes import ExitCode
 
 
@@ -15,6 +15,7 @@ class ConfigCommands(BaseCommand):
     """Handlers for configuration management commands."""
 
     @staticmethod
+    @cli_exception_handler
     def list_templates(args: Namespace) -> int:
         """
         Execute: symfluence config list-templates
@@ -25,52 +26,46 @@ class ConfigCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        try:
-            # Get template files from SYMFLUENCE resources
-            from symfluence.resources import list_config_templates
+        # Get template files from SYMFLUENCE resources
+        from symfluence.resources import list_config_templates
 
-            BaseCommand._console.info("Available configuration templates:")
+        BaseCommand._console.info("Available configuration templates:")
+        BaseCommand._console.rule()
+
+        templates = list_config_templates()
+        if templates:
+            for i, template_path in enumerate(templates, 1):
+                template_name = Path(template_path).name
+                # Skip backup files
+                if template_name.endswith('_backup.yaml'):
+                    continue
+                description = ""
+                if 'quickstart_minimal' in template_name:
+                    description = " (Minimal template - 10 required fields only)"
+                elif 'comprehensive' in template_name:
+                    description = " (Complete reference - 406+ options)"
+                elif 'camels' in template_name:
+                    description = " (CAMELS dataset template)"
+                elif 'fluxnet' in template_name:
+                    description = " (FLUXNET sites template)"
+                elif 'norswe' in template_name:
+                    description = " (Norwegian SWE template)"
+                elif template_name.startswith('config_template.yaml'):
+                    description = " (Standard template with common options)"
+                BaseCommand._console.info(f"{i:2}. {template_name}{description}")
             BaseCommand._console.rule()
+            BaseCommand._console.info(f"Total: {len([t for t in templates if not Path(t).name.endswith('_backup.yaml')])} templates")
+        else:
+            BaseCommand._console.info("No template files found")
 
-            templates = list_config_templates()
-            if templates:
-                for i, template_path in enumerate(templates, 1):
-                    template_name = Path(template_path).name
-                    # Skip backup files
-                    if template_name.endswith('_backup.yaml'):
-                        continue
-                    description = ""
-                    if 'quickstart_minimal' in template_name:
-                        description = " (Minimal template - 10 required fields only)"
-                    elif 'comprehensive' in template_name:
-                        description = " (Complete reference - 406+ options)"
-                    elif 'camels' in template_name:
-                        description = " (CAMELS dataset template)"
-                    elif 'fluxnet' in template_name:
-                        description = " (FLUXNET sites template)"
-                    elif 'norswe' in template_name:
-                        description = " (Norwegian SWE template)"
-                    elif template_name.startswith('config_template.yaml'):
-                        description = " (Standard template with common options)"
-                    BaseCommand._console.info(f"{i:2}. {template_name}{description}")
-                BaseCommand._console.rule()
-                BaseCommand._console.info(f"Total: {len([t for t in templates if not Path(t).name.endswith('_backup.yaml')])} templates")
-            else:
-                BaseCommand._console.info("No template files found")
-
-            return ExitCode.SUCCESS
-
-        except Exception as e:
-            BaseCommand._console.error(f"Failed to list templates: {e}")
-            if getattr(args, 'debug', False):
-                import traceback
-                traceback.print_exc()
-            return ExitCode.GENERAL_ERROR
+        return ExitCode.SUCCESS
 
     @staticmethod
     def update(args: Namespace) -> int:
         """
         Execute: symfluence config update CONFIG_FILE
+
+        This feature is not yet implemented.
 
         Args:
             args: Parsed arguments namespace
@@ -78,34 +73,22 @@ class ConfigCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        try:
-            config_file = args.config_file
+        config_file = args.config_file
 
-            # Validate file exists
-            if not Path(config_file).exists():
-                BaseCommand._console.error(f"Config file not found: {config_file}")
-                return ExitCode.FILE_NOT_FOUND
+        # Validate file exists
+        if not Path(config_file).exists():
+            BaseCommand._console.error(f"Config file not found: {config_file}")
+            return ExitCode.FILE_NOT_FOUND
 
-            BaseCommand._console.info(f"Updating configuration: {config_file}")
-
-            if getattr(args, 'interactive', False):
-                BaseCommand._console.indent("(Interactive mode)")
-                BaseCommand._console.info("Interactive config update not yet implemented")
-                return ExitCode.GENERAL_ERROR
-            else:
-                BaseCommand._console.info("Config update functionality not yet implemented")
-                BaseCommand._console.info("You can edit the file directly with your preferred editor")
-
-            return ExitCode.SUCCESS
-
-        except Exception as e:
-            BaseCommand._console.error(f"Config update failed: {e}")
-            if getattr(args, 'debug', False):
-                import traceback
-                traceback.print_exc()
-            return ExitCode.GENERAL_ERROR
+        # Feature not implemented - provide helpful guidance
+        BaseCommand._console.warning("Config update command is not yet implemented")
+        BaseCommand._console.info("Workarounds:")
+        BaseCommand._console.indent("- Use 'symfluence project init --interactive' to create a new config")
+        BaseCommand._console.indent(f"- Edit the file directly: {config_file}")
+        return ExitCode.USAGE_ERROR
 
     @staticmethod
+    @cli_exception_handler
     def validate(args: Namespace) -> int:
         """
         Execute: symfluence config validate
@@ -116,36 +99,37 @@ class ConfigCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
+        from symfluence.core import SYMFLUENCE
+        from symfluence.core.exceptions import ConfigurationError, SYMFLUENCEError
+
+        config_path = BaseCommand.get_config_path(args)
+
+        BaseCommand._console.info(f"Validating configuration: {config_path}")
+
+        # Load config using typed system to validate
+        config = BaseCommand.load_typed_config(config_path, required=True)
+        if config is None:
+            return ExitCode.CONFIG_ERROR
+
+        BaseCommand._console.success("Configuration file is valid YAML")
+
+        # Try to initialize SYMFLUENCE to validate structure
         try:
-            config_path = BaseCommand.get_config_path(args)
-
-            BaseCommand._console.info(f"Validating configuration: {config_path}")
-
-            # Load config using typed system to validate
-            config = BaseCommand.load_typed_config(config_path, required=True)
-            if config is None:
-                return ExitCode.CONFIG_ERROR
-
-            BaseCommand._console.success("Configuration file is valid YAML")
-
-            # Try to initialize SYMFLUENCE to validate structure
-            from symfluence.core import SYMFLUENCE
-            try:
-                SYMFLUENCE(config_path, debug_mode=args.debug)
-                BaseCommand._console.success("Configuration validated successfully")
-                return ExitCode.SUCCESS
-            except Exception as e:
-                BaseCommand._console.error(f"Configuration structure validation failed: {e}")
-                return ExitCode.CONFIG_ERROR
-
-        except Exception as e:
-            BaseCommand._console.error(f"Validation failed: {e}")
-            if getattr(args, 'debug', False):
-                import traceback
-                traceback.print_exc()
-            return ExitCode.VALIDATION_ERROR
+            SYMFLUENCE(config_path, debug_mode=BaseCommand.get_arg(args, 'debug', False))
+            BaseCommand._console.success("Configuration validated successfully")
+            return ExitCode.SUCCESS
+        except ConfigurationError as e:
+            BaseCommand._console.error(f"Configuration structure validation failed: {e}")
+            return ExitCode.CONFIG_ERROR
+        except (ValueError, TypeError) as e:
+            BaseCommand._console.error(f"Configuration contains invalid values: {e}")
+            return ExitCode.CONFIG_ERROR
+        except SYMFLUENCEError as e:
+            BaseCommand._console.error(f"Configuration structure validation failed: {e}")
+            return ExitCode.CONFIG_ERROR
 
     @staticmethod
+    @cli_exception_handler
     def validate_env(args: Namespace) -> int:
         """
         Execute: symfluence config validate-env
@@ -158,58 +142,33 @@ class ConfigCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        try:
-            BaseCommand._console.info("Validating system environment...")
-            BaseCommand._console.rule()
+        import sys
+        import platform
 
-            import sys
-            import platform
+        BaseCommand._console.info("Validating system environment...")
+        BaseCommand._console.rule()
 
-            BaseCommand._console.info(f"Python version: {sys.version}")
-            BaseCommand._console.info(f"Platform: {platform.platform()}")
-            BaseCommand._console.info(f"Python executable: {sys.executable}")
+        BaseCommand._console.info(f"Python version: {sys.version}")
+        BaseCommand._console.info(f"Platform: {platform.platform()}")
+        BaseCommand._console.info(f"Python executable: {sys.executable}")
 
-            # Check for required packages
-            required_packages = ['yaml', 'numpy', 'pandas', 'xarray', 'geopandas']
-            missing_packages = []
+        # Check for required packages
+        required_packages = ['yaml', 'numpy', 'pandas', 'xarray', 'geopandas']
+        missing_packages = []
 
-            for package in required_packages:
-                try:
-                    __import__(package)
-                    BaseCommand._console.success(f"{package:15s} - installed")
-                except ImportError:
-                    BaseCommand._console.error(f"{package:15s} - MISSING")
-                    missing_packages.append(package)
+        for package in required_packages:
+            try:
+                __import__(package)
+                BaseCommand._console.success(f"{package:15s} - installed")
+            except ImportError:
+                BaseCommand._console.error(f"{package:15s} - MISSING")
+                missing_packages.append(package)
 
-            BaseCommand._console.rule()
+        BaseCommand._console.rule()
 
-            if missing_packages:
-                BaseCommand._console.error(f"Missing packages: {', '.join(missing_packages)}")
-                return ExitCode.DEPENDENCY_ERROR
-            else:
-                BaseCommand._console.success("Environment validation passed")
-                return ExitCode.SUCCESS
-
-        except Exception as e:
-            BaseCommand._console.error(f"Environment validation failed: {e}")
-            if getattr(args, 'debug', False):
-                import traceback
-                traceback.print_exc()
-            return ExitCode.GENERAL_ERROR
-
-    @staticmethod
-    def execute(args: Namespace) -> int:
-        """
-        Main execution dispatcher (required by BaseCommand).
-
-        Args:
-            args: Parsed arguments namespace
-
-        Returns:
-            Exit code
-        """
-        if hasattr(args, 'func'):
-            return args.func(args)
+        if missing_packages:
+            BaseCommand._console.error(f"Missing packages: {', '.join(missing_packages)}")
+            return ExitCode.DEPENDENCY_ERROR
         else:
-            BaseCommand._console.error("No config action specified")
-            return ExitCode.USAGE_ERROR
+            BaseCommand._console.success("Environment validation passed")
+            return ExitCode.SUCCESS

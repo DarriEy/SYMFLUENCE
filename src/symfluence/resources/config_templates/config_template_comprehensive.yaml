@@ -3766,6 +3766,125 @@ WMFIRE_INSTALL_PATH: "installs/wmfire/lib"
 #   Usage:      3
 WMFIRE_LIB: "libwmfire.so"
 
+# WMFIRE_GRID_RESOLUTION
+#   Type:        int
+#   Default:     30
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Fire grid cell resolution in meters (30, 60, or 90 recommended)
+WMFIRE_GRID_RESOLUTION: 30
+
+# WMFIRE_TIMESTEP_HOURS
+#   Type:        int
+#   Default:     24
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Fire spread timestep in hours (1-24)
+WMFIRE_TIMESTEP_HOURS: 24
+
+# WMFIRE_NDAYS_AVERAGE
+#   Type:        float
+#   Default:     30.0
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Fuel moisture averaging window in days
+WMFIRE_NDAYS_AVERAGE: 30.0
+
+# WMFIRE_FUEL_SOURCE
+#   Type:        str (Literal['static', 'rhessys_litter'])
+#   Default:     static
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Source of fuel load data: static values or RHESSys litter pools
+WMFIRE_FUEL_SOURCE: "static"
+
+# WMFIRE_MOISTURE_SOURCE
+#   Type:        str (Literal['static', 'rhessys_soil'])
+#   Default:     static
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Source of moisture data: static values or RHESSys soil moisture
+WMFIRE_MOISTURE_SOURCE: "static"
+
+# WMFIRE_CARBON_TO_FUEL_RATIO
+#   Type:        float
+#   Default:     2.0
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Conversion factor from kg carbon to kg fuel
+WMFIRE_CARBON_TO_FUEL_RATIO: 2.0
+
+# WMFIRE_IGNITION_SHAPEFILE
+#   Type:        str (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Path to ignition point shapefile (overrides ignition_point if set)
+WMFIRE_IGNITION_SHAPEFILE: null
+
+# WMFIRE_IGNITION_POINT
+#   Type:        str (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Ignition point as "lat/lon" (e.g., "51.2096/-115.7539")
+WMFIRE_IGNITION_POINT: null
+
+# WMFIRE_IGNITION_DATE
+#   Type:        str (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Ignition date as "YYYY-MM-DD" for fire simulation start
+WMFIRE_IGNITION_DATE: null
+
+# WMFIRE_IGNITION_NAME
+#   Type:        str (optional)
+#   Default:     ignition
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Name for the ignition point (used in output shapefile)
+WMFIRE_IGNITION_NAME: "ignition"
+
+# WMFIRE_PERIMETER_SHAPEFILE
+#   Type:        str (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Path to observed fire perimeter shapefile for validation
+WMFIRE_PERIMETER_SHAPEFILE: null
+
+# WMFIRE_PERIMETER_DIR
+#   Type:        str (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Directory containing fire perimeter shapefiles for comparison
+WMFIRE_PERIMETER_DIR: null
+
+# WMFIRE_WRITE_GEOTIFF
+#   Type:        bool
+#   Default:     True
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Write georeferenced GeoTIFF outputs for visualization
+WMFIRE_WRITE_GEOTIFF: true
+
+# WMFIRE_LOAD_K1
+#   Type:        float (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Fuel load coefficient k1 (default 3.9)
+WMFIRE_LOAD_K1: null
+
+# WMFIRE_LOAD_K2
+#   Type:        float (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Fuel load coefficient k2 (default 0.07)
+WMFIRE_LOAD_K2: null
+
+# WMFIRE_MOISTURE_K1
+#   Type:        float (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Moisture coefficient k1 (default 3.8)
+WMFIRE_MOISTURE_K1: null
+
+# WMFIRE_MOISTURE_K2
+#   Type:        float (optional)
+#   Default:     null
+#   Source:      WMFireConfig (model_configs.py)
+#   Usage:      Moisture coefficient k2 (default 0.27)
+WMFIRE_MOISTURE_K2: null
+
 # RHESSYS_USE_VMFIRE
 #   Type:        bool
 #   Default:     False

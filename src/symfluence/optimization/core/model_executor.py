@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional
+from pydantic import ValidationError
 from symfluence.optimization.calibration_targets import CalibrationTarget
 from symfluence.core.mixins import ConfigMixin
 
@@ -32,7 +33,7 @@ def fix_summa_time_precision(nc_file: Path):
                     # Full implementation would convert units - for now we assume
                     # the worker script version is used
                     pass
-    except Exception as e:
+    except (OSError, RuntimeError, KeyError) as e:
         logging.error(f"Error fixing SUMMA time precision: {str(e)}")
 
 class ModelExecutor(ConfigMixin):
@@ -53,7 +54,7 @@ class ModelExecutor(ConfigMixin):
 
                 self._config = SymfluenceConfig(**config)
 
-            except Exception:
+            except (ValidationError, TypeError):
 
                 # Fallback for partial configs (e.g., in tests)
 
@@ -91,7 +92,7 @@ class ModelExecutor(ConfigMixin):
 
             return True
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, subprocess.CalledProcessError) as e:
             self.logger.error(f"Error running models: {str(e)}")
             return False
 
@@ -137,7 +138,7 @@ class ModelExecutor(ConfigMixin):
         except subprocess.TimeoutExpired:
             self.logger.error("SUMMA simulation timed out")
             return False
-        except Exception as e:
+        except (FileNotFoundError, IOError, OSError) as e:
             self.logger.error(f"Error running SUMMA: {str(e)}")
             return False
 
@@ -208,7 +209,7 @@ class ModelExecutor(ConfigMixin):
         except subprocess.TimeoutExpired:
             self.logger.error("mizuRoute simulation timed out")
             return False
-        except Exception as e:
+        except (FileNotFoundError, IOError, OSError) as e:
             self.logger.error(f"Error running mizuRoute: {str(e)}")
             return False
 
@@ -293,6 +294,6 @@ class ModelExecutor(ConfigMixin):
             # but for this refactor, we keep the structure
             return True
 
-        except Exception as e:
+        except (OSError, RuntimeError, KeyError, ValueError) as e:
             self.logger.error(f"Error converting lumped to distributed: {str(e)}")
             return False

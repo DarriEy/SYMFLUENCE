@@ -13,13 +13,13 @@ import torch
 import geopandas as gpd
 
 # Import LSTM Preprocessor to inherit/reuse data loading logic
-from ..lstm.preprocessor import LSTMPreprocessor
+from ..lstm.preprocessor import LSTMPreProcessor
 
 if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 
-class GNNPreprocessor(LSTMPreprocessor):
+class GNNPreProcessor(LSTMPreProcessor):
     """
     Handles data preprocessing and graph construction for the GNN model.
 

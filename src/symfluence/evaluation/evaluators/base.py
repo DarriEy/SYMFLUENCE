@@ -129,6 +129,12 @@ class ModelEvaluator(ConfigurableMixin, ABC):
                 self.logger.error("Failed to extract simulated data")
                 return None
 
+            # Validate simulated data
+            is_valid, error_msg = self._validate_data(sim_data, 'simulated')
+            if not is_valid:
+                self.logger.error(error_msg)
+                return None
+
             # 2. Prepare observed data
             if obs is None:
                 obs_data = self._load_observed_data()
@@ -137,6 +143,12 @@ class ModelEvaluator(ConfigurableMixin, ABC):
 
             if obs_data is None or len(obs_data) == 0:
                 self.logger.error("Failed to load observed data (check path and column names)")
+                return None
+
+            # Validate observed data
+            is_valid, error_msg = self._validate_data(obs_data, 'observed')
+            if not is_valid:
+                self.logger.error(error_msg)
                 return None
 
             self.logger.debug(f"Loaded {len(obs_data)} observed data points")
@@ -259,6 +271,65 @@ class ModelEvaluator(ConfigurableMixin, ABC):
 
         return obs_df[data_col]
 
+    def _validate_data(
+        self,
+        data: pd.Series,
+        data_name: str,
+        min_valid_points: int = 10
+    ) -> Tuple[bool, Optional[str]]:
+        """Validate data series for quality issues.
+
+        Performs comprehensive validation of input data before metric calculation
+        to catch common data quality issues early with clear error messages.
+
+        Validation Checks:
+            1. None check: Data must not be None
+            2. Empty check: Data must have at least one element
+            3. All-NaN check: Data must have at least one valid (non-NaN) value
+            4. Minimum points: Must have at least min_valid_points valid values
+            5. Constant warning: Logs warning if all values are identical
+
+        Args:
+            data: pandas Series to validate
+            data_name: Human-readable name for error messages (e.g., 'simulated', 'observed')
+            min_valid_points: Minimum number of non-NaN points required (default: 10)
+
+        Returns:
+            Tuple of (is_valid, error_message):
+                - (True, None) if data passes all checks
+                - (False, "error description") if validation fails
+
+        Example:
+            is_valid, error_msg = self._validate_data(sim_data, 'simulated')
+            if not is_valid:
+                self.logger.error(error_msg)
+                return None
+        """
+        if data is None:
+            return False, f"{data_name} data is None"
+
+        if len(data) == 0:
+            return False, f"{data_name} data is empty"
+
+        valid_count = data.notna().sum()
+        if valid_count == 0:
+            return False, f"{data_name} data contains only NaN values"
+
+        if valid_count < min_valid_points:
+            return False, (
+                f"{data_name} data has insufficient valid points: "
+                f"{valid_count} < {min_valid_points}"
+            )
+
+        # Warn about constant data (some metrics undefined)
+        if data.dropna().nunique() == 1:
+            self.logger.warning(
+                f"{data_name} data is constant (all values = {data.dropna().iloc[0]:.4g}). "
+                "Some metrics (e.g., correlation, NSE) may be undefined."
+            )
+
+        return True, None
+
     @abstractmethod
     def _get_observed_data_column(self, columns: List[str]) -> Optional[str]:
         """Identify the data column in observed data file"""
@@ -275,14 +346,19 @@ class ModelEvaluator(ConfigurableMixin, ABC):
                 sim_data.index = pd.to_datetime(sim_data.index)
 
             # EXPLICIT filtering for both datasets (consistent with parallel worker)
+            # Round BOTH indices to ensure alignment (fixes misalignment with daily data)
             if period[0] and period[1]:
-                # Filter observed data to period
-                period_mask = (obs_data.index >= period[0]) & (obs_data.index <= period[1])
-                obs_period = obs_data[period_mask].copy()
-
-                # Explicitly filter simulated data to same period (like parallel worker)
+                # Round both observed and simulated indices consistently
+                obs_data_rounded = obs_data.copy()
+                obs_data_rounded.index = obs_data_rounded.index.round('h')
                 sim_data_rounded = sim_data.copy()
                 sim_data_rounded.index = sim_data_rounded.index.round('h')
+
+                # Filter observed data to period
+                obs_period_mask = (obs_data_rounded.index >= period[0]) & (obs_data_rounded.index <= period[1])
+                obs_period = obs_data_rounded[obs_period_mask].copy()
+
+                # Explicitly filter simulated data to same period (like parallel worker)
                 sim_period_mask = (sim_data_rounded.index >= period[0]) & (sim_data_rounded.index <= period[1])
                 sim_period = sim_data_rounded[sim_period_mask].copy()
 
@@ -291,7 +367,9 @@ class ModelEvaluator(ConfigurableMixin, ABC):
                 self.logger.debug(f"{prefix} observed points in period: {len(obs_period)}")
                 self.logger.debug(f"{prefix} simulated points in period: {len(sim_period)}")
             else:
+                # Round BOTH indices consistently for alignment
                 obs_period = obs_data.copy()
+                obs_period.index = obs_period.index.round('h')
                 sim_period = sim_data.copy()
                 sim_period.index = sim_period.index.round('h')
 

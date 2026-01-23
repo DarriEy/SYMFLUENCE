@@ -7,18 +7,20 @@ import requests
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, List
 
-from symfluence.core.constants import UnitConversion, ModelDefaults
+from symfluence.core.constants import UnitConversion
 from symfluence.core.exceptions import DataAcquisitionError
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 
-@ObservationRegistry.register('USGS_STREAMFLOW')
+@ObservationRegistry.register('usgs_streamflow')
 class USGSStreamflowHandler(BaseObservationHandler):
     """
     Handles USGS streamflow (discharge) data acquisition and processing.
     """
+
+    obs_type = "streamflow"
+    source_name = "USGS_NWIS"
 
     def acquire(self) -> Path:
         """
@@ -196,29 +198,15 @@ class USGSStreamflowHandler(BaseObservationHandler):
         self.logger.info(f"USGS streamflow processing complete: {output_file}")
         return output_file
 
-    def _find_col(self, columns: List[str], candidates: List[str]) -> Optional[str]:
-        for col in columns:
-            if any(c.lower() in col.lower() for c in candidates):
-                return col
-        return None
 
-    def _get_resample_freq(self) -> str:
-        timestep_size = self._get_config_value(
-            lambda: self.config.forcing.time_step_size, default=3600
-        )
-        timestep_size = int(timestep_size)
-        if timestep_size == ModelDefaults.DEFAULT_TIMESTEP_HOURLY or timestep_size == 10800:
-            return 'h'
-        elif timestep_size == ModelDefaults.DEFAULT_TIMESTEP_DAILY:
-            return 'D'
-        else:
-            return f'{timestep_size}s'
-
-@ObservationRegistry.register('USGS_GW')
+@ObservationRegistry.register('usgs_gw')
 class USGSGroundwaterHandler(BaseObservationHandler):
     """
     Handles USGS groundwater level data.
     """
+
+    obs_type = "groundwater"
+    source_name = "USGS_NWIS"
 
     def acquire(self) -> Path:
         """Download USGS groundwater data."""

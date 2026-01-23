@@ -1,0 +1,175 @@
+# ================================================================================
+# O'Brien Creek RHESSys Configuration with VMFIRE Fire Simulation
+# Banff National Park, Alberta, Canada - 2014 Fire Scenario
+# ================================================================================
+# This configuration sets up a RHESSys ecohydrological model for O'Brien Creek
+# with streamflow calibration at Bow-at-Banff and VMFIRE fire spread simulation.
+#
+# Workflow:
+# 1. Domain delineation based on pour point
+# 2. ERA5 forcing data acquisition
+# 3. WSC streamflow observations for calibration
+# 4. RHESSys model preprocessing and execution
+# 5. Calibration using DDS optimization against Bow-at-Banff streamflow
+# 6. VMFIRE fire spread simulation
+# ================================================================================
+
+# ------------------------------------------------------------------------------
+# Experiment Metadata
+# ------------------------------------------------------------------------------
+EXPERIMENT_ID: obrien_fire_2014
+DOMAIN_NAME: obrien_creek
+
+# ------------------------------------------------------------------------------
+# Domain Definition
+# ------------------------------------------------------------------------------
+# O'Brien Creek is a tributary in the upper Bow River basin near Banff
+# Pour point coordinates (approximate outlet to Bow River)
+POUR_POINT_COORDS: 51.1850/-115.5400
+
+# Domain setup
+DOMAIN_DEFINITION_METHOD: lumped
+SUB_GRID_DISCRETIZATION: GRUs
+BOUNDING_BOX_COORDS: 51.25/-115.65/51.10/-115.40  # north/west/south/east
+DELINEATE_BY_POURPOINT: true
+DELINEATION_METHOD: stream_threshold
+STREAM_THRESHOLD: 2500
+LUMPED_WATERSHED_METHOD: TauDEM
+GEOFABRIC_TYPE: na
+ROUTING_DELINEATION: lumped
+
+# ------------------------------------------------------------------------------
+# Time Periods
+# ------------------------------------------------------------------------------
+# Shortened period for VMFIRE testing (Jan-Apr 2014 data available)
+EXPERIMENT_TIME_START: '2014-01-01 00:00'
+EXPERIMENT_TIME_END: '2014-04-30 23:00'
+SPINUP_PERIOD: '2014-01-01, 2014-01-31'           # 1 month spin-up
+CALIBRATION_PERIOD: '2014-02-01, 2014-03-31'      # 2 months calibration
+EVALUATION_PERIOD: '2014-04-01, 2014-04-30'       # 1 month evaluation (fire test)
+CALIBRATION_TIMESTEP: daily
+
+# ------------------------------------------------------------------------------
+# Cloud Data Access
+# ------------------------------------------------------------------------------
+DATA_ACCESS: cloud
+DEM_SOURCE: copernicus
+DOWNLOAD_DEM: true
+DOWNLOAD_SOIL: true
+DOWNLOAD_LAND_COVER: false
+LAND_CLASS_SOURCE: modis
+
+# ------------------------------------------------------------------------------
+# Forcing Data - ERA5
+# ------------------------------------------------------------------------------
+FORCING_DATASET: ERA5
+FORCING_TIME_STEP_SIZE: 3600  # Hourly
+FORCING_MEASUREMENT_HEIGHT: 2
+FORCING_VARIABLES: default
+
+# ------------------------------------------------------------------------------
+# Observation Data - Water Survey of Canada (WSC)
+# ------------------------------------------------------------------------------
+# Bow River at Banff station for calibration
+STATION_ID: '05BB001'
+STREAMFLOW_DATA_PROVIDER: WSC
+DOWNLOAD_WSC_DATA: true
+
+# Disable other observation sources (enable as needed)
+DOWNLOAD_USGS_DATA: false
+DOWNLOAD_SNOTEL: false
+DOWNLOAD_MODIS_SNOW: false
+DOWNLOAD_GRACE: false
+DOWNLOAD_USGS_GW: false
+
+# ------------------------------------------------------------------------------
+# Model Configuration - RHESSys
+# ------------------------------------------------------------------------------
+HYDROLOGICAL_MODEL: RHESSYS
+RHESSYS_INSTALL_PATH: default
+RHESSYS_EXE: rhessys
+SETTINGS_RHESSYS_PATH: default
+
+# RHESSys input templates
+RHESSYS_WORLD_TEMPLATE: world.template
+RHESSYS_FLOW_TEMPLATE: flow.template
+
+# Model timeout (2 hours)
+RHESSYS_TIMEOUT: 7200
+
+# ------------------------------------------------------------------------------
+# RHESSys Calibration Parameters
+# ------------------------------------------------------------------------------
+# Skip calibration initially to test setup, set to false for full calibration
+RHESSYS_SKIP_CALIBRATION: false
+
+# Parameters to calibrate for mountain watershed
+RHESSYS_PARAMS_TO_CALIBRATE: >-
+  sat_to_gw_coeff,
+  gw_loss_coeff,
+  m,
+  Ksat_0,
+  porosity_0,
+  soil_depth,
+  snow_melt_Tcoef
+
+# ------------------------------------------------------------------------------
+# VMFIRE / WMFIRE Configuration - Fire Spread Module
+# ------------------------------------------------------------------------------
+# Enable VMFIRE for fire simulation
+RHESSYS_USE_WMFIRE: true
+
+# WMFire library paths
+WMFIRE_INSTALL_PATH: installs/wmfire/lib
+WMFIRE_LIB: libwmfire.so
+
+# Legacy config (RHESSYS_USE_VMFIRE is also supported)
+# RHESSYS_USE_VMFIRE: true
+# VMFIRE_INSTALL_PATH: installs/wmfire/lib
+
+# ------------------------------------------------------------------------------
+# Optimization Configuration
+# ------------------------------------------------------------------------------
+OPTIMIZATION_METHODS: ['iteration']
+ITERATIVE_OPTIMIZATION_ALGORITHM: DDS
+OPTIMIZATION_METRIC: KGE
+OPTIMIZATION_TARGET: streamflow
+EVALUATION_DATA: ['streamflow']
+NUMBER_OF_ITERATIONS: 500
+
+# DDS algorithm settings
+DDS_R: 0.2
+ASYNC_DDS_POOL_SIZE: 8
+ASYNC_DDS_BATCH_SIZE: 8
+MAX_STAGNATION_BATCHES: 15
+
+# ------------------------------------------------------------------------------
+# Routing
+# ------------------------------------------------------------------------------
+ROUTING_MODEL: none  # RHESSys handles internal routing
+
+# ------------------------------------------------------------------------------
+# Project Paths (adjust to your environment)
+# ------------------------------------------------------------------------------
+SYMFLUENCE_CODE_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE
+SYMFLUENCE_DATA_DIR: /Users/darrieythorsson/compHydro/code/SYMFLUENCE_data
+OUTPUT_DIR: default
+
+# ------------------------------------------------------------------------------
+# Analysis and Reporting
+# ------------------------------------------------------------------------------
+ANALYSES: [benchmarking, attributes, visualization, optimization]
+
+# ------------------------------------------------------------------------------
+# Execution Settings
+# ------------------------------------------------------------------------------
+LOG_LEVEL: INFO
+RANDOM_SEED: 42
+FORCE_RUN_ALL_STEPS: false
+NUM_PROCESSES: 4
+
+# ------------------------------------------------------------------------------
+# Additional Settings
+# ------------------------------------------------------------------------------
+SUPPLEMENT_FORCING: false
+PET_METHOD: oudin  # Potential ET calculation method

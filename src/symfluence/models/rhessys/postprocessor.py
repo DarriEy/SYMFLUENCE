@@ -57,6 +57,9 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
                 results['streamflow'] = streamflow_path
                 self.logger.info("Streamflow extracted successfully")
 
+            # Compare fire perimeters if WMFire is enabled
+            self._compare_fire_perimeters_if_enabled(results)
+
         except Exception as e:
             self.logger.error(f"Error extracting RHESSys results: {str(e)}")
             import traceback
@@ -64,6 +67,41 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             raise
 
         return results
+
+    def _compare_fire_perimeters_if_enabled(self, results: Dict[str, Path]) -> None:
+        """Compare fire perimeters if WMFire is enabled and perimeter data exists."""
+        try:
+            # Check if WMFire is enabled
+            wmfire_config = None
+            if (hasattr(self.config, 'model') and
+                hasattr(self.config.model, 'rhessys') and
+                self.config.model.rhessys is not None):
+                rhessys_config = self.config.model.rhessys
+                if hasattr(rhessys_config, 'use_wmfire') and rhessys_config.use_wmfire:
+                    wmfire_config = getattr(rhessys_config, 'wmfire', None)
+
+            if wmfire_config is None:
+                return
+
+            # Check if perimeter data is configured
+            has_perimeter = (
+                (hasattr(wmfire_config, 'perimeter_shapefile') and wmfire_config.perimeter_shapefile) or
+                (hasattr(wmfire_config, 'perimeter_dir') and wmfire_config.perimeter_dir)
+            )
+
+            if not has_perimeter:
+                return
+
+            self.logger.info("WMFire enabled with perimeter data - comparing fire perimeters")
+            metrics = self.compare_fire_perimeters(visualize=True)
+
+            if metrics:
+                self.logger.info(f"Fire perimeter comparison: IoU={metrics.get('iou', 0):.3f}, "
+                               f"Dice={metrics.get('dice', 0):.3f}")
+                results['fire_perimeter_metrics'] = metrics
+
+        except Exception as e:
+            self.logger.warning(f"Could not compare fire perimeters: {e}")
 
     def extract_streamflow(self) -> Optional[Path]:
         """
@@ -283,4 +321,269 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
 
         except Exception as e:
             self.logger.error(f"Error extracting water balance: {e}")
+            return None
+
+    def extract_litter_pools(self) -> Optional[Path]:
+        """
+        Extract and aggregate litter carbon pools from RHESSys output.
+
+        Reads patch-level litter pools (litr1c-litr4c) and aggregates
+        to basin level for fire fuel load calculations.
+
+        Returns:
+            Path to saved litter pools CSV if successful, None otherwise
+        """
+        try:
+            # Find patch daily output files
+            patch_files = list(self.sim_dir.glob("*_patch.daily"))
+            grow_patch_files = list(self.sim_dir.glob("*_grow_patch.daily"))
+
+            # Prefer grow_patch files (have carbon pools)
+            output_file = None
+            if grow_patch_files:
+                output_file = grow_patch_files[0]
+            elif patch_files:
+                output_file = patch_files[0]
+            else:
+                self.logger.warning("No patch output files found for litter extraction")
+                return None
+
+            self.logger.info(f"Extracting litter pools from: {output_file}")
+
+            # Read the file
+            df = pd.read_csv(output_file, sep=r'\s+', skipinitialspace=True)
+
+            # Check for litter columns
+            litter_cols = ['litr1c', 'litr2c', 'litr3c', 'litr4c']
+            available_cols = [col for col in litter_cols if col in df.columns]
+
+            if not available_cols:
+                self.logger.warning(f"No litter columns found. Available: {df.columns.tolist()}")
+                return None
+
+            self.logger.info(f"Found litter pools: {available_cols}")
+
+            # Construct date
+            if all(col in df.columns for col in ['year', 'month', 'day']):
+                df['date'] = pd.to_datetime(df[['year', 'month', 'day']])
+
+            # Aggregate to basin level (mean across patches per day)
+            if 'date' in df.columns:
+                basin_litter = df.groupby('date')[available_cols].mean()
+            else:
+                basin_litter = df[available_cols].mean()
+
+            # Calculate total litter carbon
+            if isinstance(basin_litter, pd.DataFrame):
+                basin_litter['total_litrc'] = basin_litter[available_cols].sum(axis=1)
+            else:
+                basin_litter['total_litrc'] = sum(basin_litter[col] for col in available_cols)
+
+            # Save to CSV
+            output_path = self.sim_dir / "rhessys_litter_pools.csv"
+            if isinstance(basin_litter, pd.DataFrame):
+                basin_litter.to_csv(output_path)
+            else:
+                pd.DataFrame([basin_litter]).to_csv(output_path, index=False)
+
+            self.logger.info(f"Litter pools saved to: {output_path}")
+            return output_path
+
+        except Exception as e:
+            self.logger.error(f"Error extracting litter pools: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return None
+
+    def generate_fuel_grids(self) -> Optional[Path]:
+        """
+        Generate spatially variable fuel load grids from RHESSys litter output.
+
+        Converts litter carbon pools to fuel loads using FuelCalculator
+        and writes fuel grids for fire modeling.
+
+        Returns:
+            Path to saved fuel grid if successful, None otherwise
+        """
+        try:
+            # Check WMFire configuration
+            wmfire_config = None
+            try:
+                if hasattr(self.config, 'model') and hasattr(self.config.model, 'rhessys'):
+                    if self.config.model.rhessys and hasattr(self.config.model.rhessys, 'wmfire'):
+                        wmfire_config = self.config.model.rhessys.wmfire
+            except AttributeError:
+                pass
+
+            # Only generate if fuel_source is rhessys_litter
+            if wmfire_config is None or wmfire_config.fuel_source != 'rhessys_litter':
+                self.logger.debug("Fuel source not set to rhessys_litter, skipping fuel grid generation")
+                return None
+
+            self.logger.info("Generating fuel grids from RHESSys litter output")
+
+            # Import FuelCalculator
+            try:
+                from symfluence.models.wmfire import FuelCalculator
+            except ImportError:
+                self.logger.warning("FuelCalculator not available")
+                return None
+
+            # Extract litter pools
+            litter_path = self.extract_litter_pools()
+            if litter_path is None:
+                return None
+
+            # Read litter data
+            litter_df = pd.read_csv(litter_path, index_col=0, parse_dates=True)
+
+            # Initialize fuel calculator
+            carbon_ratio = wmfire_config.carbon_to_fuel_ratio if wmfire_config else 2.0
+            fuel_calc = FuelCalculator(carbon_to_fuel_ratio=carbon_ratio)
+
+            # Calculate fuel load time series
+            fuel_loads = []
+            for idx, row in litter_df.iterrows():
+                pools = {
+                    'litr1c': row.get('litr1c', 0),
+                    'litr2c': row.get('litr2c', 0),
+                    'litr3c': row.get('litr3c', 0),
+                    'litr4c': row.get('litr4c', 0),
+                }
+                fuel_load = fuel_calc.calculate_fuel_load(pools)
+                fuel_loads.append({'date': idx, 'fuel_load_kg_m2': fuel_load})
+
+            fuel_df = pd.DataFrame(fuel_loads).set_index('date')
+
+            # Save fuel loads
+            output_path = self.sim_dir / "rhessys_fuel_loads.csv"
+            fuel_df.to_csv(output_path)
+
+            self.logger.info(f"Fuel loads saved to: {output_path}")
+            self.logger.info(f"Mean fuel load: {fuel_df['fuel_load_kg_m2'].mean():.3f} kg/m²")
+
+            return output_path
+
+        except Exception as e:
+            self.logger.error(f"Error generating fuel grids: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return None
+
+    def compare_fire_perimeters(self, visualize: bool = True) -> Optional[Dict]:
+        """
+        Compare simulated fire perimeter with observed perimeters.
+
+        Loads observed perimeters from configuration and compares with
+        simulated fire output from WMFire.
+
+        Args:
+            visualize: If True, create comparison map
+
+        Returns:
+            Dictionary with comparison metrics or None
+        """
+        try:
+            # Check WMFire configuration
+            wmfire_config = None
+            try:
+                if hasattr(self.config, 'model') and hasattr(self.config.model, 'rhessys'):
+                    if self.config.model.rhessys and hasattr(self.config.model.rhessys, 'wmfire'):
+                        wmfire_config = self.config.model.rhessys.wmfire
+            except AttributeError:
+                pass
+
+            if wmfire_config is None:
+                self.logger.debug("WMFire not configured, skipping perimeter comparison")
+                return None
+
+            # Import validator
+            try:
+                from symfluence.models.wmfire import FirePerimeterValidator
+            except ImportError:
+                self.logger.warning("FirePerimeterValidator not available")
+                return None
+
+            validator = FirePerimeterValidator(self.logger)
+
+            # Find observed perimeter
+            observed_gdf = None
+            perimeter_source = None
+
+            # Check for specific perimeter shapefile
+            if wmfire_config.perimeter_shapefile:
+                perimeter_path = Path(wmfire_config.perimeter_shapefile)
+                if perimeter_path.exists():
+                    observed_gdf = validator.load_perimeters(perimeter_path)
+                    perimeter_source = perimeter_path
+                else:
+                    self.logger.warning(f"Perimeter shapefile not found: {perimeter_path}")
+
+            # Check for perimeter directory
+            if observed_gdf is None and wmfire_config.perimeter_dir:
+                perimeter_dir = Path(wmfire_config.perimeter_dir)
+                if perimeter_dir.exists():
+                    observed_gdf = validator.load_perimeters(perimeter_dir)
+                    perimeter_source = perimeter_dir
+
+            # Check default location
+            if observed_gdf is None:
+                try:
+                    domain_path = self.config.data_directory / f"domain_{self.config.domain.name}"
+                    default_perim_dir = domain_path / 'shapefiles' / 'perimiters'
+                    if default_perim_dir.exists():
+                        observed_gdf = validator.load_perimeters(default_perim_dir)
+                        perimeter_source = default_perim_dir
+                except (FileNotFoundError, OSError, KeyError, ValueError):
+                    pass
+
+            if observed_gdf is None:
+                self.logger.info("No observed fire perimeters found for comparison")
+                return None
+
+            self.logger.info(f"Loaded observed perimeters from: {perimeter_source}")
+
+            # Look for simulated fire output
+            # WMFire outputs fire spread grid files
+            fire_output_dir = self.sim_dir
+            simulated_files = list(fire_output_dir.glob("*fire*.shp")) + \
+                            list(fire_output_dir.glob("*burn*.shp"))
+
+            if not simulated_files:
+                self.logger.warning("No simulated fire perimeter shapefile found")
+                # Could also try to reconstruct from fire grid outputs
+                return None
+
+            import geopandas as gpd
+            simulated_gdf = gpd.read_file(simulated_files[0])
+            self.logger.info(f"Loaded simulated perimeter from: {simulated_files[0]}")
+
+            # Compare perimeters
+            metrics = validator.compare_perimeters(simulated_gdf, observed_gdf)
+
+            # Create visualization
+            if visualize and metrics:
+                viz_path = self.sim_dir / "fire_perimeter_comparison.png"
+                fire_name = perimeter_source.stem if hasattr(perimeter_source, 'stem') else 'Fire'
+                validator.create_comparison_map(
+                    simulated_gdf,
+                    observed_gdf,
+                    viz_path,
+                    title=f"{fire_name} Perimeter Comparison"
+                )
+
+            # Save metrics
+            if metrics:
+                import json
+                metrics_path = self.sim_dir / "fire_perimeter_metrics.json"
+                with open(metrics_path, 'w') as f:
+                    json.dump(metrics, f, indent=2)
+                self.logger.info(f"Perimeter metrics saved to: {metrics_path}")
+
+            return metrics
+
+        except Exception as e:
+            self.logger.error(f"Error comparing fire perimeters: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
             return None

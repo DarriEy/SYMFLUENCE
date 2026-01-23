@@ -6,7 +6,7 @@ Executes tasks using MPI (mpirun) for distributed computing.
 
 import logging
 import os
-import pickle
+import pickle  # nosec B403 - Used for trusted internal MPI task serialization
 import subprocess
 import sys
 import uuid
@@ -127,7 +127,7 @@ class MPIExecutionStrategy(ExecutionStrategy):
 
             if results_file.exists():
                 with open(results_file, 'rb') as f:
-                    results = pickle.load(f)
+                    results = pickle.load(f)  # nosec B301 - Loading trusted MPI results
                 self.logger.debug(f"MPI completed: {len(results)} results")
                 return results
             else:
@@ -292,7 +292,7 @@ def main():
         try:
             with open(tasks_file, 'rb') as f:
                 all_tasks = pickle.load(f)
-        except Exception as e:
+        except (ValueError, RuntimeError, IOError) as e:
             logger.error(f"Master failed to load tasks: {{e}}")
             all_tasks = []
 
@@ -324,7 +324,7 @@ def main():
             try:
                 worker_result = {worker_function}(task)
                 all_results.append(worker_result)
-            except Exception as e:
+            except (ValueError, RuntimeError, IOError) as e:
                 logger.error(f"Rank 0: Task {{i}} failed: {{e}}")
                 error_result = {{
                     'individual_id': task.get('individual_id', -1),
@@ -341,7 +341,7 @@ def main():
                 worker_results = comm.recv(source=worker_rank, tag=2)
                 logger.info(f"Rank 0: Received {{len(worker_results)}} results from rank {{worker_rank}}")
                 all_results.extend(worker_results)
-            except Exception as e:
+            except (ValueError, RuntimeError, IOError) as e:
                 logger.error(f"Error receiving from worker {{worker_rank}}: {{e}}")
 
         # Save results
@@ -364,7 +364,7 @@ def main():
                 try:
                     worker_result = {worker_function}(task)
                     my_results.append(worker_result)
-                except Exception as e:
+                except (ValueError, RuntimeError, IOError) as e:
                     logger.error(f"Rank {{rank}}: Task {{i}} failed: {{e}}")
                     error_result = {{
                         'individual_id': task.get('individual_id', -1),
@@ -378,7 +378,7 @@ def main():
             comm.send(my_results, dest=0, tag=2)
             logger.info(f"Rank {{rank}}: Results sent successfully")
 
-        except Exception as e:
+        except (ValueError, RuntimeError, IOError) as e:
             logger.error(f"Worker {{rank}} failed: {{e}}")
 
 if __name__ == "__main__":

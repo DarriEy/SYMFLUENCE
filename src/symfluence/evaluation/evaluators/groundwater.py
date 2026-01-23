@@ -35,7 +35,7 @@ import logging
 import pandas as pd
 import xarray as xr
 from pathlib import Path
-from typing import cast, List, Optional, TYPE_CHECKING
+from typing import Any, cast, Dict, List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
@@ -101,7 +101,11 @@ class GroundwaterEvaluator(ModelEvaluator):
                 self.optimization_target = eval_var
 
         self.variable_name = self.optimization_target
-        self.grace_center = self.config_dict.get('GRACE_PROCESSING_CENTER', 'csr')
+        self.grace_center = self._get_config_value(
+            lambda: self.config.evaluation.grace.processing_center,
+            default='csr',
+            dict_key='GRACE_PROCESSING_CENTER'
+        )
 
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
         """Locate SUMMA output files containing groundwater storage variables.
@@ -117,6 +121,106 @@ class GroundwaterEvaluator(ModelEvaluator):
         """
         locator = OutputFileLocator(self.logger)
         return locator.find_groundwater_files(sim_dir)
+
+    def calculate_metrics(
+        self,
+        sim: Any,
+        obs: Optional[pd.Series] = None,
+        mizuroute_dir: Optional[Path] = None,
+        calibration_only: bool = True
+    ) -> Optional[Dict[str, float]]:
+        """Calculate groundwater metrics with optional auto-alignment.
+
+        Overrides base class to apply auto-alignment AFTER both simulated
+        and observed data are loaded, avoiding the side effect of loading
+        observations during extraction.
+
+        Auto-alignment (GW_AUTO_ALIGN=True):
+            Shifts simulated groundwater depth to match observed mean.
+            Useful for datum offsets in well observations where absolute
+            depth values may not be directly comparable.
+
+        Args:
+            sim: Either a Path to simulation directory or pre-loaded pd.Series
+            obs: Optional pre-loaded observations (if None, loads from file)
+            mizuroute_dir: mizuRoute directory (unused for groundwater)
+            calibration_only: If True, only calculate calibration period metrics
+
+        Returns:
+            Dictionary of metrics or None if calculation fails
+        """
+        try:
+            # 1. Prepare simulated data (standard extraction)
+            if isinstance(sim, (str, Path)):
+                sim_dir = Path(sim)
+                sim_files = self.get_simulation_files(sim_dir)
+                if not sim_files:
+                    self.logger.error(f"No simulation files found in {sim_dir}")
+                    return None
+                sim_data = self.extract_simulated_data(sim_files)
+            else:
+                sim_data = sim
+
+            if sim_data is None:
+                self.logger.error("Failed to extract simulated groundwater data")
+                return None
+
+            # Validate simulated data
+            is_valid, error_msg = self._validate_data(sim_data, 'simulated')
+            if not is_valid:
+                self.logger.error(error_msg)
+                return None
+
+            # 2. Prepare observed data
+            if obs is None:
+                obs_data = self._load_observed_data()
+            else:
+                obs_data = obs
+
+            if obs_data is None or len(obs_data) == 0:
+                self.logger.error("Failed to load observed groundwater data")
+                return None
+
+            # Validate observed data
+            is_valid, error_msg = self._validate_data(obs_data, 'observed')
+            if not is_valid:
+                self.logger.error(error_msg)
+                return None
+
+            # 3. Apply auto-alignment AFTER both datasets loaded
+            auto_align = self._get_config_value(
+                lambda: self.config.evaluation.groundwater.auto_align,
+                default=True,
+                dict_key='GW_AUTO_ALIGN'
+            )
+            if auto_align and self.optimization_target == 'gw_depth':
+                # Find common time indices for alignment
+                common_idx = sim_data.index.intersection(obs_data.index)
+                if len(common_idx) > 0:
+                    obs_mean = obs_data.loc[common_idx].mean()
+                    sim_mean = sim_data.loc[common_idx].mean()
+                    offset = obs_mean - sim_mean
+                    sim_data = sim_data + offset
+                    self.logger.info(
+                        f"Auto-aligned groundwater: offset={offset:.3f}m "
+                        f"(obs_mean={obs_mean:.3f}, sim_mean={sim_mean:.3f})"
+                    )
+                else:
+                    self.logger.warning(
+                        "Cannot auto-align groundwater: no overlapping time indices"
+                    )
+
+            # 4. Delegate to base class for metric calculation
+            return super().calculate_metrics(
+                sim=sim_data,
+                obs=obs_data,
+                mizuroute_dir=mizuroute_dir,
+                calibration_only=calibration_only
+            )
+
+        except Exception as e:
+            self.logger.error(f"Error calculating groundwater metrics: {str(e)}")
+            return None
 
     def extract_simulated_data(self, sim_files: List[Path], **kwargs) -> pd.Series:
         # Sort files to try daily first
@@ -143,64 +247,50 @@ class GroundwaterEvaluator(ModelEvaluator):
         raise ValueError(f"Could not extract groundwater data from any of {sim_files}")
 
     def _extract_groundwater_depth(self, ds: xr.Dataset) -> pd.Series:
+        """Extract groundwater depth from SUMMA output.
+
+        Converts storage variables to depth-below-surface representation.
+        Note: Auto-alignment is applied in calculate_metrics() after both
+        simulated and observed data are loaded, not here.
+
+        Args:
+            ds: xarray Dataset with groundwater storage variables
+
+        Returns:
+            pd.Series: Groundwater depth time series (meters below surface)
+        """
         if 'scalarTotalSoilWat' in ds.variables:
-            gw_var = ds['scalarTotalSoilWat']
-
-            # Collapse spatial dimensions
-            sim_xr = gw_var
-            for dim in ['hru', 'gru']:
-                if dim in sim_xr.dims:
-                    if sim_xr.sizes[dim] == 1:
-                        sim_xr = sim_xr.isel({dim: 0})
-                    else:
-                        sim_xr = sim_xr.mean(dim=dim)
-
-            # Handle any remaining non-time dimensions
-            non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
-            if non_time_dims:
-                sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-
-            sim_data = cast(pd.Series, sim_xr.to_pandas())
+            # Use base class method for spatial dimension collapse
+            sim_data = self._collapse_spatial_dims(ds['scalarTotalSoilWat'], aggregate='mean')
 
             # Convert storage to depth-below-surface if comparing to GGMN
             # TotalSoilWat is in kg/m2 (mm). Convert to meters.
             sim_data_m = sim_data / 1000.0
 
-            base_depth = float(self.config_dict.get('GW_BASE_DEPTH', 50.0))
+            base_depth = float(self._get_config_value(
+                lambda: self.config.evaluation.groundwater.base_depth_m,
+                default=50.0,
+                dict_key='GW_BASE_DEPTH'
+            ))
             gw_depth_sim = cast(pd.Series, (base_depth - sim_data_m).abs())
-
-            # Auto-align: If the means are wildly different, shift the simulation to match the observation mean
-            if self.config_dict.get('GW_AUTO_ALIGN', True):
-                obs = self._load_observed_data()
-                if obs is not None and not obs.empty:
-                    offset = obs.mean() - gw_depth_sim.mean()
-                    self.logger.info(f"Auto-aligning groundwater simulated mean with offset: {offset:.3f}")
-                    gw_depth_sim = gw_depth_sim + offset
 
             return gw_depth_sim
         elif 'scalarAquiferStorage' in ds.variables:
-            gw_var = ds['scalarAquiferStorage']
-            sim_xr = gw_var
-            for dim in ['hru', 'gru']:
-                if dim in sim_xr.dims:
-                    if sim_xr.sizes[dim] == 1:
-                        sim_xr = sim_xr.isel({dim: 0})
-                    else:
-                        sim_xr = sim_xr.mean(dim=dim)
-
-            sim_data = cast(pd.Series, sim_xr.to_pandas())
-            base_depth = float(self.config_dict.get('GW_BASE_DEPTH', 50.0))
+            # Use base class method for spatial dimension collapse
+            sim_data = self._collapse_spatial_dims(ds['scalarAquiferStorage'], aggregate='mean')
+            base_depth = float(self._get_config_value(
+                lambda: self.config.evaluation.groundwater.base_depth_m,
+                default=50.0,
+                dict_key='GW_BASE_DEPTH'
+            ))
             gw_depth_sim = cast(pd.Series, (base_depth - sim_data).abs())
 
-            if self.config_dict.get('GW_AUTO_ALIGN', True):
-                obs = self._load_observed_data()
-                if obs is not None and not obs.empty:
-                    offset = obs.mean() - gw_depth_sim.mean()
-                    self.logger.info(f"Auto-aligning groundwater simulated mean with offset: {offset:.3f}")
-                    gw_depth_sim = gw_depth_sim + offset
             return gw_depth_sim
         else:
             return pd.Series()
+
+    def _extract_total_water_storage(self, ds: xr.Dataset) -> pd.Series:
+        """Extract total water storage for GRACE comparison."""
         try:
             storage_components = {}
             if 'scalarSWE' in ds.variables:
@@ -217,37 +307,66 @@ class GroundwaterEvaluator(ModelEvaluator):
 
             total_storage = None
             for component_name, component_data in storage_components.items():
-                # Collapse spatial dimensions for this component
-                sim_xr = component_data
-                for dim in ['hru', 'gru']:
-                    if dim in sim_xr.dims:
-                        if sim_xr.sizes[dim] == 1:
-                            sim_xr = sim_xr.isel({dim: 0})
-                        else:
-                            sim_xr = sim_xr.mean(dim=dim)
-
-                # Handle any remaining non-time dimensions
-                non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
-                if non_time_dims:
-                    sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
+                # Use base class method for spatial dimension collapse
+                sim_data = self._collapse_spatial_dims(component_data, aggregate='mean')
 
                 if total_storage is None:
-                    total_storage = sim_xr
+                    total_storage = sim_data
                 else:
-                    total_storage = total_storage + sim_xr
+                    total_storage = total_storage + sim_data
 
-            sim_data = total_storage.to_pandas()
-            return self._convert_tws_units(sim_data)
+            return self._convert_tws_units(total_storage)
         except Exception as e:
             self.logger.error(f"Error calculating TWS: {str(e)}")
             raise
 
     def _convert_tws_units(self, tws_data: pd.Series) -> pd.Series:
+        """Convert TWS units based on data range heuristics.
+
+        SUMMA outputs water storage components in kg/m² (equivalent to mm).
+        GRACE observations are typically in cm or mm of equivalent water thickness.
+        This method applies automatic unit conversion based on data magnitude.
+
+        Unit Detection Heuristics:
+            The method infers units from the data range (max - min):
+
+            1. data_range > 1000 mm → Likely in 0.1 mm units (decamillimeters)
+               - Divide by 10 to convert to mm
+               - Common in some SUMMA configurations or legacy outputs
+               - Example: range of 5000 → actually 500 mm seasonal variation
+
+            2. 10 < data_range ≤ 1000 mm → Likely in cm
+               - Multiply by 100 to convert cm → mm (GRACE convention)
+               - GRACE anomalies typically range 5-50 cm in most basins
+               - Example: range of 25 cm → 2500 mm after conversion
+
+            3. data_range ≤ 10 → Likely already in meters or needs no conversion
+               - Return unchanged
+               - Example: range of 0.5 m = 500 mm (reasonable for small basins)
+
+        Note:
+            These thresholds are empirically derived from typical SUMMA/GRACE
+            data ranges. For unusual basins (e.g., very large seasonal storage
+            in monsoon regions), consider using explicit unit configuration
+            via TWS_UNITS config parameter.
+
+        Args:
+            tws_data: Total water storage time series (unknown units)
+
+        Returns:
+            pd.Series: TWS data converted to consistent units (mm)
+        """
         data_range = tws_data.max() - tws_data.min()
         if data_range > 1000:
+            # Data range > 1000 suggests units are 0.1 mm (decamillimeters)
+            self.logger.debug(f"TWS range={data_range:.1f} > 1000: dividing by 10 (assumed 0.1mm units)")
             return tws_data / 10.0
         elif data_range > 10:
+            # Data range 10-1000 suggests units are cm, convert to mm
+            self.logger.debug(f"TWS range={data_range:.1f} in [10, 1000]: multiplying by 100 (assumed cm units)")
             return tws_data * 100.0
+        # Data range ≤ 10 suggests meters or already mm - return unchanged
+        self.logger.debug(f"TWS range={data_range:.1f} ≤ 10: no conversion applied")
         return tws_data
 
     def get_observed_data_path(self) -> Path:
@@ -256,7 +375,7 @@ class GroundwaterEvaluator(ModelEvaluator):
         elif self.optimization_target == 'gw_grace':
             return self.project_dir / "observations" / "groundwater" / "grace" / "processed" / f"{self.domain_name}_grace_processed.csv"
         else:
-             return self.project_dir / "observations" / "groundwater" / "depth" / "processed" / f"{self.domain_name}_gw_processed.csv"
+            return self.project_dir / "observations" / "groundwater" / "depth" / "processed" / f"{self.domain_name}_gw_processed.csv"
 
     def _get_observed_data_column(self, columns: List[str]) -> Optional[str]:
         if self.optimization_target == 'gw_depth':

@@ -27,6 +27,7 @@ from typing import Dict, Any, Callable, Optional
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm
+from .config_schema import NelderMeadDefaults
 
 
 class NelderMeadAlgorithm(OptimizationAlgorithm):
@@ -78,20 +79,57 @@ class NelderMeadAlgorithm(OptimizationAlgorithm):
 
         # Nelder-Mead parameters (adaptive based on dimension)
         # Standard parameters
-        alpha = self.config_dict.get('NM_ALPHA', 1.0)   # Reflection coefficient
-        gamma = self.config_dict.get('NM_GAMMA', 2.0)   # Expansion coefficient
-        rho = self.config_dict.get('NM_RHO', 0.5)       # Contraction coefficient
-        sigma = self.config_dict.get('NM_SIGMA', 0.5)   # Shrinkage coefficient
+        alpha = self._get_config_value(
+            lambda: self.config.optimization.nelder_mead.alpha,
+            default=NelderMeadDefaults.ALPHA,
+            dict_key='NM_ALPHA'
+        )
+        gamma = self._get_config_value(
+            lambda: self.config.optimization.nelder_mead.gamma,
+            default=NelderMeadDefaults.GAMMA,
+            dict_key='NM_GAMMA'
+        )
+        rho = self._get_config_value(
+            lambda: self.config.optimization.nelder_mead.rho,
+            default=NelderMeadDefaults.RHO,
+            dict_key='NM_RHO'
+        )
+        sigma = self._get_config_value(
+            lambda: self.config.optimization.nelder_mead.sigma,
+            default=NelderMeadDefaults.SIGMA,
+            dict_key='NM_SIGMA'
+        )
 
         # Initial simplex size
-        simplex_size = self.config_dict.get('NM_SIMPLEX_SIZE', 0.1)
+        simplex_size = self._get_config_value(
+            lambda: self.config.optimization.nelder_mead.simplex_size,
+            default=NelderMeadDefaults.SIMPLEX_SIZE,
+            dict_key='NM_SIMPLEX_SIZE'
+        )
 
         # Convergence tolerances
-        x_tol = self.config_dict.get('NM_X_TOL', 1e-6)
-        f_tol = self.config_dict.get('NM_F_TOL', 1e-6)
+        x_tol = self._get_config_value(
+            lambda: self.config.optimization.nelder_mead.x_tol,
+            default=NelderMeadDefaults.X_TOL,
+            dict_key='NM_X_TOL'
+        )
+        f_tol = self._get_config_value(
+            lambda: self.config.optimization.nelder_mead.f_tol,
+            default=NelderMeadDefaults.F_TOL,
+            dict_key='NM_F_TOL'
+        )
 
         # Use adaptive parameters for high dimensions (Gao & Han, 2012)
-        use_adaptive = self.config_dict.get('NM_ADAPTIVE', True)
+        use_adaptive = self._get_config_value(
+            lambda: self.config.optimization.nelder_mead.adaptive,
+            default=NelderMeadDefaults.ADAPTIVE,
+            dict_key='NM_ADAPTIVE'
+        )
+
+        # Validate Nelder-Mead parameters
+        valid, warning = NelderMeadDefaults.validate_parameters(alpha, gamma, rho, sigma)
+        if not valid:
+            self.logger.warning(f"Nelder-Mead parameters may cause issues: {warning}")
         if use_adaptive and n_params > 2:
             alpha = 1.0
             gamma = 1.0 + 2.0 / n_params

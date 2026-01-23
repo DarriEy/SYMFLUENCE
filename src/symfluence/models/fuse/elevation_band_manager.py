@@ -70,7 +70,7 @@ class FuseElevationBandManager(ConfigMixin):
 
                 self._config = SymfluenceConfig(**config)
 
-            except Exception:
+            except (TypeError, ValueError, KeyError, AttributeError):
 
                 # Fallback for partial configs (e.g., in tests)
 
@@ -132,7 +132,7 @@ class FuseElevationBandManager(ConfigMixin):
                         spatial_coords[dim_str] = np.arange(ds.sizes[dim])
 
                 return spatial_dims, spatial_coords
-        except Exception as e:
+        except (FileNotFoundError, OSError, ValueError, KeyError) as e:
             self.logger.warning(f"Unable to read spatial info from {forcing_file}: {e}")
             return None
 
@@ -251,7 +251,7 @@ class FuseElevationBandManager(ConfigMixin):
             self.logger.info(f"Created lumped elevation bands file with {n_bands} bands: {output_file}")
             return output_file
 
-        except Exception as e:
+        except (FileNotFoundError, OSError, PermissionError) as e:
             self.logger.error(f"Error creating lumped elevation bands: {str(e)}")
             raise
 
@@ -387,6 +387,6 @@ class FuseElevationBandManager(ConfigMixin):
             self.logger.info(f"Created distributed elevation bands file with {n_hrus} HRUs: {output_file}")
             return output_file
 
-        except Exception as e:
+        except (FileNotFoundError, OSError, PermissionError) as e:
             self.logger.error(f"Error creating distributed elevation bands: {str(e)}")
             raise

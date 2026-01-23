@@ -27,6 +27,7 @@ from typing import Dict, Any, Callable, Optional, List, Tuple
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm
+from .config_schema import BODefaults
 
 
 class BayesianOptimizationAlgorithm(OptimizationAlgorithm):
@@ -75,12 +76,58 @@ class BayesianOptimizationAlgorithm(OptimizationAlgorithm):
         """
         self.logger.info(f"Starting Bayesian Optimization with {n_params} parameters")
 
-        # BO parameters
-        n_initial = self.config_dict.get('BO_INITIAL_SAMPLES', max(5, 2 * n_params))
-        acquisition = self.config_dict.get('BO_ACQUISITION', 'ei')  # 'ei', 'ucb', 'pi'
-        xi = self.config_dict.get('BO_XI', 0.01)  # Exploration parameter for EI/PI
-        kappa = self.config_dict.get('BO_KAPPA', 2.576)  # UCB parameter
-        n_restarts = self.config_dict.get('BO_RESTARTS', 10)  # Restarts for acquisition optimization
+        # BO parameters using standardized config access
+        # Number of initial samples for building the GP surrogate
+        # Rule of thumb: max(5, 2*n_params) ensures reasonable initial coverage
+        # (Snoek 2012, Section 3)
+        n_initial = self._get_config_value(
+            lambda: self.config.optimization.bo_initial_samples,
+            default=max(5, BODefaults.INITIAL_SAMPLES_FACTOR * n_params),
+            dict_key='BO_INITIAL_SAMPLES'
+        )
+
+        # Acquisition function: 'ei' (Expected Improvement), 'ucb', or 'pi'
+        # EI is the most commonly used and robust choice
+        # (Jones 1998, Section 4)
+        acquisition = self._get_config_value(
+            lambda: self.config.optimization.bo_acquisition,
+            default=BODefaults.ACQUISITION,
+            dict_key='BO_ACQUISITION'
+        )
+
+        # Exploration parameter for EI/PI acquisition
+        # xi=0.01 provides slight exploration bias
+        # Higher values increase exploration
+        # (Snoek 2012, Section 2.1)
+        xi = self._get_config_value(
+            lambda: self.config.optimization.bo_xi,
+            default=BODefaults.XI,
+            dict_key='BO_XI'
+        )
+
+        # UCB parameter (kappa)
+        # kappa=2.576 corresponds to 99% confidence interval
+        # Higher values increase exploration
+        # (Srinivas et al. 2010, GP-UCB)
+        kappa = self._get_config_value(
+            lambda: self.config.optimization.bo_kappa,
+            default=BODefaults.KAPPA,
+            dict_key='BO_KAPPA'
+        )
+
+        # Number of restarts for acquisition function optimization
+        # More restarts improve chance of finding global optimum of acquisition
+        # (Snoek 2012, Section 3.2)
+        n_restarts = self._get_config_value(
+            lambda: self.config.optimization.bo_restarts,
+            default=BODefaults.RESTARTS,
+            dict_key='BO_RESTARTS'
+        )
+
+        # Validate BO configuration
+        valid, warning = BODefaults.validate_acquisition(acquisition)
+        if not valid:
+            self.logger.warning(f"BO acquisition validation: {warning}")
 
         self.logger.info(
             f"BO settings: {n_initial} initial samples, acquisition={acquisition}, "

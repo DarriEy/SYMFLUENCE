@@ -28,7 +28,7 @@ Graph Structure:
 Key Components:
     GNNRunner: Main orchestrator for model workflow (data, training, simulation)
     GNNModel: PyTorch model architecture (LSTM + GNN layers)
-    GNNPreprocessor: Data loading, normalization, tensor preparation
+    GNNPreProcessor: Data loading, normalization, tensor preparation
     GNNPostprocessor: Output formatting and result saving
 
 Configuration Parameters:
@@ -56,10 +56,10 @@ Limitations and Considerations:
 """
 
 from .runner import GNNRunner
-from .preprocessor import GNNPreprocessor
+from .preprocessor import GNNPreProcessor
 from .postprocessor import GNNPostprocessor
 
-__all__ = ['GNNRunner', 'GNNPreprocessor', 'GNNPostprocessor']
+__all__ = ['GNNRunner', 'GNNPreProcessor', 'GNNPostprocessor']
 
 
 # Register config adapter with ModelRegistry
@@ -72,7 +72,7 @@ from .extractor import GNNResultExtractor
 ModelRegistry.register_result_extractor('GNN')(GNNResultExtractor)
 
 # Register preprocessor with ModelRegistry
-ModelRegistry.register_preprocessor('GNN')(GNNPreprocessor)
+ModelRegistry.register_preprocessor('GNN')(GNNPreProcessor)
 
 # Register runner with ModelRegistry (method_name must match the actual method in runner.py)
 ModelRegistry.register_runner('GNN', method_name='run_gnn')(GNNRunner)

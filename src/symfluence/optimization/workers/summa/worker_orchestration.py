@@ -354,7 +354,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                     }
                 }
 
-            except Exception as e:
+            except (ValueError, RuntimeError, IOError) as e:
                 error_msg = f"Exception in inline multi-objective calculation: {str(e)}"
                 logger.error(error_msg)
                 logger.error(f"Traceback: {traceback.format_exc()}")
@@ -443,7 +443,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                     }
                 }
 
-            except Exception as e:
+            except (ValueError, RuntimeError, IOError) as e:
                 error_msg = f"Exception in single-objective calculation: {str(e)}"
                 logger.error(error_msg)
                 logger.error(f"Traceback: {traceback.format_exc()}")
@@ -457,7 +457,7 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                     'runtime': eval_runtime
                 }
 
-    except Exception as e:
+    except (ValueError, RuntimeError, IOError) as e:
         error_trace = traceback.format_exc()
         error_msg = f'Worker exception at stage {debug_info.get("stage", "unknown")}: {str(e)}'
         debug_info['errors'].append(f"{error_msg}\nTraceback:\n{error_trace}")

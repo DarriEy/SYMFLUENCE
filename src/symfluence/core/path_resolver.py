@@ -332,12 +332,21 @@ class PathResolverMixin(ConfigurableMixin):
         if cfg is None:
             return 'semidistributed'
 
-        method = cfg.domain.definition_method or 'semidistributed'
-        subset = getattr(cfg.domain, 'subset_from_geofabric', False)
-        grid_source = getattr(cfg.domain, 'grid_source', 'generate')
-        geofabric_type = cfg.domain.delineation.geofabric_type or 'na'
-        grid_cell_size = int(cfg.domain.grid_cell_size)
-        native_dataset = getattr(cfg.domain, 'native_grid_dataset', 'era5')
+        # Handle both typed config objects and plain dicts
+        if isinstance(cfg, dict):
+            method = cfg.get('DOMAIN_DEFINITION_METHOD', cfg.get('DEFINITION_METHOD', 'semidistributed'))
+            subset = cfg.get('SUBSET_FROM_GEOFABRIC', False)
+            grid_source = cfg.get('GRID_SOURCE', 'generate')
+            geofabric_type = cfg.get('GEOFABRIC_TYPE', 'na')
+            grid_cell_size = int(cfg.get('GRID_CELL_SIZE', 1000))
+            native_dataset = cfg.get('NATIVE_GRID_DATASET', 'era5')
+        else:
+            method = cfg.domain.definition_method or 'semidistributed'
+            subset = getattr(cfg.domain, 'subset_from_geofabric', False)
+            grid_source = getattr(cfg.domain, 'grid_source', 'generate')
+            geofabric_type = cfg.domain.delineation.geofabric_type or 'na'
+            grid_cell_size = int(cfg.domain.grid_cell_size)
+            native_dataset = getattr(cfg.domain, 'native_grid_dataset', 'era5')
 
         # Point method - simple suffix
         if method == 'point':

@@ -96,6 +96,27 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         - _should_create_output_dir(): Control output directory creation
         - _get_output_dir(): Customize output directory location
         - _validate_required_config(): Add model-specific config validation
+
+    Error Handling Pattern:
+        All model runners should follow this consistent pattern:
+
+        1. Top-level run methods (run(), run_fuse(), run_hbv(), etc.):
+           Use symfluence_error_handler context manager::
+
+               with symfluence_error_handler("Model execution", self.logger,
+                                              error_type=ModelExecutionError):
+                   # execution code
+
+        2. Internal methods returning bool:
+           Use try/except with return values::
+
+               def _internal_step(self) -> bool:
+                   try:
+                       # step logic
+                       return True
+                   except Exception as e:
+                       self.logger.error(f"Step failed: {e}")
+                       return False
     """
 
     def __init__(
@@ -294,6 +315,36 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
         """
         experiment_id = self.config.domain.experiment_id
         return self.project_dir / 'simulations' / experiment_id / self.model_name
+
+    def run(self, **kwargs) -> Optional[Path]:
+        """
+        Execute the model using the registered run method.
+
+        Provides a uniform interface for all model runners by delegating
+        to the model-specific run method (run_fuse, run_hbv, etc.).
+
+        Args:
+            **kwargs: Arguments passed to the model-specific run method
+
+        Returns:
+            Path to output directory on success, None on failure
+
+        Raises:
+            NotImplementedError: If model doesn't implement the run method
+        """
+        from symfluence.models.registry import ModelRegistry
+
+        method_name = ModelRegistry.get_runner_method(self.model_name)
+        if method_name is None:
+            method_name = f"run_{self.model_name.lower()}"
+
+        run_method = getattr(self, method_name, None)
+        if run_method is None:
+            raise NotImplementedError(
+                f"Model {self.model_name} does not implement {method_name}()"
+            )
+
+        return run_method(**kwargs)
 
     def backup_settings(self, source_dir: Path, backup_subdir: str = "run_settings") -> None:
         """

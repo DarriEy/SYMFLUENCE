@@ -15,8 +15,10 @@ import shutil
 from ..base.base_delineator import BaseGeofabricDelineator
 from ..processors.taudem_executor import TauDEMExecutor
 from ..processors.gdal_processor import GDALProcessor
+from ....geospatial.delineation_registry import DelineationRegistry
 
 
+@DelineationRegistry.register('lumped')
 class LumpedWatershedDelineator(BaseGeofabricDelineator):
     """
     Delineates lumped watersheds using TauDEM.

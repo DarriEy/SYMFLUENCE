@@ -10,9 +10,10 @@ from symfluence.optimization.objectives import ObjectiveRegistry
 def test_observation_registry():
     """Verify that observations are correctly registered and retrievable."""
     datasets = ObservationRegistry.list_observations()
-    assert 'GRACE' in datasets
-    assert 'MODIS_SNOW' in datasets
-    assert 'MODIS_ET' in datasets
+    # Registry now uses lowercase keys
+    assert 'grace' in datasets
+    assert 'modis_snow' in datasets
+    assert 'modis_et' in datasets
 
 def test_evaluation_registry():
     """Verify that evaluators are correctly registered."""

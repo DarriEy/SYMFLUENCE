@@ -30,6 +30,7 @@ from typing import Dict, Any, Callable, Optional, List
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm
+from .config_schema import DREAMDefaults
 
 
 class DREAMAlgorithm(OptimizationAlgorithm):
@@ -58,14 +59,14 @@ class DREAMAlgorithm(OptimizationAlgorithm):
 
         DREAM maintains N parallel Markov chains that explore the parameter space.
         Proposals are generated using differential evolution:
-            x_proposal = x_current + γ * (x_r1 - x_r2) + ε
+            x_proposal = x_current + gamma * (x_r1 - x_r2) + epsilon
 
-        where γ is adapted based on acceptance rate and ε is small random noise.
+        where gamma is adapted based on acceptance rate and epsilon is small random noise.
 
         The algorithm uses Metropolis-Hastings acceptance:
-            α = min(1, p(x_proposal) / p(x_current))
+            alpha = min(1, p(x_proposal) / p(x_current))
 
-        For optimization, we use likelihood ∝ exp(fitness / T) where T is temperature.
+        For optimization, we use likelihood proportional to exp(fitness / T) where T is temperature.
 
         Args:
             n_params: Number of parameters
@@ -83,36 +84,69 @@ class DREAMAlgorithm(OptimizationAlgorithm):
         """
         self.logger.info(f"Starting DREAM optimization with {n_params} parameters")
 
-        # DREAM parameters
-        # Number of chains: DREAM needs at least 2*n_params for good mixing
-        # Use population_size if specified, otherwise default to 2*n_params + 1
-        min_chains = 2 * n_params + 1
+        # DREAM parameters using standardized config access
+
+        # Number of chains: DREAM needs at least 2*n+1 for good mixing
+        # This ensures the differential evolution has sufficient chain diversity
+        # to generate meaningful proposals in n-dimensional space.
+        # (Vrugt 2009, Section 2.2 - "Number of Chains")
+        min_chains = DREAMDefaults.compute_min_chains(n_params)
         n_chains = max(min_chains, self.population_size)
         self.logger.info(f"Using {n_chains} chains for DREAM ({n_params} parameters)")
 
-        # Number of chain pairs for DE proposal (δ)
-        n_pairs = self.config_dict.get('DREAM_PAIRS', 3)
+        # Number of chain pairs for DE proposal (delta)
+        # Using 3 pairs provides robust proposal generation.
+        # (Vrugt 2009, Section 2.1 - "Differential Evolution")
+        n_pairs = self._get_config_value(
+            lambda: self.config.optimization.dream_pairs,
+            default=DREAMDefaults.DE_PAIRS,
+            dict_key='DREAM_PAIRS'
+        )
         n_pairs = min(n_pairs, (n_chains - 1) // 2)
         if n_pairs < 1:
             n_pairs = 1
 
-        # Crossover probability for subspace sampling
-        CR = self.config_dict.get('DREAM_CR', 0.9)
+        # Crossover probability for subspace sampling (CR)
+        # 0.9 means 90% of dimensions are updated in each proposal.
+        # (Vrugt 2009, Section 2.3 - "Snooker Update")
+        CR = self._get_config_value(
+            lambda: self.config.optimization.dream_cr,
+            default=DREAMDefaults.CROSSOVER_PROBABILITY,
+            dict_key='DREAM_CR'
+        )
 
-        # Jump rate scaling factor
+        # Jump rate scaling factor (gamma)
         # The optimal gamma depends on effective dimensions: d* = CR * n_params
+        # gamma = 2.38 / sqrt(2 * delta * d*) maximizes expected squared jumping distance
+        # (Vrugt 2009, Equation 5)
         d_star = max(1, int(CR * n_params))
-        gamma_base = 2.38 / np.sqrt(2 * n_pairs * d_star)
+        gamma_base = DREAMDefaults.compute_optimal_gamma(n_pairs, d_star)
 
         # Small random noise for ergodicity (scaled by parameter range)
         # Default is 1e-3 which gives ~0.1% noise in normalized [0,1] space
-        eps_std = self.config_dict.get('DREAM_EPS', 1e-3)
+        # (Vrugt 2009, Equation 4)
+        eps_std = self._get_config_value(
+            lambda: self.config.optimization.dream_eps,
+            default=DREAMDefaults.EPSILON_STD,
+            dict_key='DREAM_EPS'
+        )
 
         # Temperature for likelihood (lower = more greedy, higher = more exploration)
-        temperature = self.config_dict.get('DREAM_TEMPERATURE', 1.0)
+        # T=1.0 is standard MCMC (Vrugt 2016, Section 2.4)
+        temperature = self._get_config_value(
+            lambda: self.config.optimization.dream_temperature,
+            default=DREAMDefaults.TEMPERATURE,
+            dict_key='DREAM_TEMPERATURE'
+        )
 
-        # Outlier detection threshold (Mahalanobis distance)
-        outlier_threshold = self.config_dict.get('DREAM_OUTLIER_THRESHOLD', 2.0)
+        # Outlier detection threshold (IQR multiplier)
+        # Chains with log-likelihood below Q1 - threshold*IQR are considered outliers
+        # (Vrugt 2009, Section 2.4)
+        outlier_threshold = self._get_config_value(
+            lambda: self.config.optimization.dream_outlier_threshold,
+            default=DREAMDefaults.OUTLIER_THRESHOLD,
+            dict_key='DREAM_OUTLIER_THRESHOLD'
+        )
 
         # Initialize chains uniformly in [0, 1]
         chains = np.random.uniform(0, 1, (n_chains, n_params))
@@ -138,7 +172,9 @@ class DREAMAlgorithm(OptimizationAlgorithm):
             log_initial_population(self.name, n_chains, best_fit)
 
         # Storage for posterior samples (after burn-in)
-        burn_in = self.max_iterations // 5  # 20% burn-in
+        # First 20% of iterations are discarded as burn-in for posterior estimation
+        # (Vrugt 2016, Section 3.1 - "Burn-in Period")
+        burn_in = int(self.max_iterations * DREAMDefaults.BURN_IN_FRACTION)
         posterior_samples: List[np.ndarray] = []
 
         # Acceptance tracking for adaptive scaling
@@ -149,49 +185,73 @@ class DREAMAlgorithm(OptimizationAlgorithm):
         for iteration in range(1, self.max_iterations + 1):
             n_accepted = 0
 
-            # Generate proposals for all chains
+            # Generate proposals for all chains with error handling
             proposals = np.zeros_like(chains)
 
             for i in range(n_chains):
-                # Select random chains for DE (excluding current chain)
-                available = [j for j in range(n_chains) if j != i]
+                try:
+                    # Select random chains for DE (excluding current chain)
+                    available = [j for j in range(n_chains) if j != i]
 
-                # Select 2*n_pairs chains for differential evolution
-                selected = np.random.choice(available, size=2 * n_pairs, replace=False)
-                r1 = selected[:n_pairs]
-                r2 = selected[n_pairs:]
+                    # Select 2*n_pairs chains for differential evolution
+                    selected = np.random.choice(available, size=2 * n_pairs, replace=False)
+                    r1 = selected[:n_pairs]
+                    r2 = selected[n_pairs:]
 
-                # Compute differential evolution jump
-                diff = np.zeros(n_params)
-                for k in range(n_pairs):
-                    diff += chains[r1[k]] - chains[r2[k]]
+                    # Compute differential evolution jump
+                    # diff = sum_{k=1}^{delta} (x_{r1[k]} - x_{r2[k]})
+                    diff = np.zeros(n_params)
+                    for k in range(n_pairs):
+                        diff += chains[r1[k]] - chains[r2[k]]
 
-                # Subspace sampling: randomly select dimensions to update
-                # This improves mixing in high dimensions
-                crossover_mask = np.random.random(n_params) < CR
-                if not crossover_mask.any():
-                    # Ensure at least one dimension is updated
-                    crossover_mask[np.random.randint(n_params)] = True
+                    # Subspace sampling: randomly select dimensions to update
+                    # This improves mixing in high dimensions
+                    # (Vrugt 2009, Section 2.3)
+                    crossover_mask = np.random.random(n_params) < CR
+                    if not crossover_mask.any():
+                        # Ensure at least one dimension is updated
+                        crossover_mask[np.random.randint(n_params)] = True
 
-                # Adaptive jump rate
-                # Occasionally use gamma = 1 for mode jumping
-                if np.random.random() < 0.1:
-                    gamma = 1.0
-                else:
-                    gamma = gamma_base
+                    # Adaptive jump rate
+                    # MODE_JUMP_PROBABILITY = 0.1: occasionally use gamma = 1 for mode jumping
+                    # This helps escape local modes in multimodal distributions
+                    # (Vrugt 2009, Section 2.2 - "Jump Rate")
+                    if np.random.random() < DREAMDefaults.MODE_JUMP_PROBABILITY:
+                        gamma = 1.0
+                    else:
+                        gamma = gamma_base
 
-                # Generate proposal
-                proposal = chains[i].copy()
-                jump = gamma * diff + eps_std * np.random.randn(n_params)
-                proposal[crossover_mask] += jump[crossover_mask]
+                    # Generate proposal: x_proposal = x_current + gamma * diff + noise
+                    proposal = chains[i].copy()
+                    jump = gamma * diff + eps_std * np.random.randn(n_params)
+                    proposal[crossover_mask] += jump[crossover_mask]
 
-                # Reflect at bounds
-                proposal = self._reflect_at_bounds(proposal)
-                proposals[i] = proposal
+                    # Reflect at bounds
+                    proposal = self._reflect_at_bounds(proposal)
+                    proposals[i] = proposal
+
+                except (ValueError, FloatingPointError, IndexError) as e:
+                    self.logger.warning(f"Error generating proposal for chain {i}: {e}")
+                    proposals[i] = chains[i].copy()  # Keep current position
 
             # Evaluate all proposals
-            proposal_fitness = evaluate_population(proposals, iteration)
-            proposal_log_lik = proposal_fitness / temperature
+            try:
+                proposal_fitness = evaluate_population(proposals, iteration)
+                proposal_log_lik = proposal_fitness / temperature
+
+                # Handle NaN/Inf fitness values
+                invalid_mask = ~np.isfinite(proposal_fitness)
+                if invalid_mask.any():
+                    self.logger.warning(
+                        f"Iteration {iteration}: {invalid_mask.sum()} proposals "
+                        f"returned invalid fitness, rejecting"
+                    )
+                    proposal_log_lik[invalid_mask] = float('-inf')
+
+            except (ValueError, FloatingPointError) as e:
+                self.logger.warning(f"Error evaluating proposals: {e}")
+                proposal_fitness = fitness.copy()
+                proposal_log_lik = log_likelihood.copy()
 
             # Metropolis-Hastings acceptance for each chain
             for i in range(n_chains):
@@ -216,11 +276,16 @@ class DREAMAlgorithm(OptimizationAlgorithm):
             acceptance_idx += 1
 
             # Outlier chain detection and correction
+            # Detect and correct outlier chains that may be stuck in low-probability regions
+            # (Vrugt 2009, Section 2.4)
             if iteration > 10 and iteration % 10 == 0:
-                self._correct_outlier_chains(
-                    chains, fitness, log_likelihood,
-                    outlier_threshold, temperature
-                )
+                try:
+                    self._correct_outlier_chains(
+                        chains, fitness, log_likelihood,
+                        outlier_threshold, temperature
+                    )
+                except (ValueError, IndexError) as e:
+                    self.logger.warning(f"Error in outlier correction: {e}")
 
             # Store posterior samples after burn-in
             if iteration > burn_in:
@@ -241,14 +306,19 @@ class DREAMAlgorithm(OptimizationAlgorithm):
             log_progress(self.name, iteration, best_fit, n_accepted, n_chains)
 
             # Convergence check via Gelman-Rubin diagnostic (simplified)
+            # R-hat < 1.1 indicates approximate convergence of chains
+            # (Gelman & Rubin, 1992; Vrugt 2016, Section 3.2)
             if iteration > burn_in and iteration % 50 == 0:
-                r_hat = self._compute_gelman_rubin(chains, fitness)
-                if r_hat < 1.1:
-                    self.logger.info(
-                        f"DREAM converged at iteration {iteration} (R-hat = {r_hat:.3f})"
-                    )
-                    # Continue to collect more samples rather than stopping
-                    pass
+                try:
+                    r_hat = self._compute_gelman_rubin(chains, fitness)
+                    if r_hat < DREAMDefaults.RHAT_THRESHOLD:
+                        self.logger.info(
+                            f"DREAM converged at iteration {iteration} (R-hat = {r_hat:.3f})"
+                        )
+                        # Continue to collect more samples rather than stopping
+                        pass
+                except (ValueError, FloatingPointError) as e:
+                    self.logger.debug(f"Error computing R-hat: {e}")
 
         # Compute posterior statistics
         posterior_array = np.array(posterior_samples) if posterior_samples else chains
@@ -329,6 +399,10 @@ class DREAMAlgorithm(OptimizationAlgorithm):
 
         The R-hat statistic compares within-chain and between-chain variance.
         Values close to 1.0 indicate convergence.
+
+        Reference:
+            Gelman, A. and Rubin, D.B. (1992). Inference from iterative simulation
+            using multiple sequences. Statistical Science, 7(4), 457-472.
 
         Args:
             chains: Current chain positions (n_chains, n_params)

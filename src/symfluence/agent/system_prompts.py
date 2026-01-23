@@ -416,20 +416,60 @@ Avoid proposing changes:
 **Binary Management:**
 - install_executables, validate_binaries, run_doctor, show_tools_info
 
+**Code Search** (NEW - SOTA Feature):
+- search_code: Search codebase using ripgrep with regex patterns
+- find_definition: Find function/class/variable definitions
+- find_usages: Find all usages of a symbol across codebase
+
 **Code Operations** (Agent Self-Awareness - Phase 1):
 - read_file: Read source files with optional line ranges
 - list_directory: Browse repository structure
 - analyze_codebase: Get project overview and statistics
 
-**Code Modification** (Phase 2):
-- propose_code_change: Suggest code modifications with diffs
+**Code Modification** (Phase 2 - Enhanced with Fuzzy Matching):
+- propose_code_change: Suggest code modifications with fuzzy matching
+  - Now supports approximate matching (85% similarity threshold)
+  - Preserves indentation automatically
+  - Validates Python syntax before applying
 - show_staged_changes: Review staged changes before PR
 
 **Testing** (Phase 3):
 - run_tests: Execute pytest on modified code
 
-**PR Creation** (Phase 4):
-- create_pr_proposal: Stage complete changes and generate PR description
+**PR Creation** (Phase 4 - SOTA Automated Workflow):
+- create_pr_proposal: Stage changes and generate PR description (manual workflow)
+- create_pr: FULLY AUTOMATED PR creation via GitHub CLI
+  - Creates branch automatically
+  - Commits with Co-Author attribution
+  - Pushes to remote
+  - Opens PR on GitHub
+  - Requires: gh CLI installed and authenticated
+- check_pr_status: Verify gh CLI authentication before automated PR
+
+### SOTA Self-Improvement Workflow
+
+The recommended workflow for self-modification:
+
+1. **Search**: Use `search_code` or `find_definition` to locate relevant code
+2. **Read**: Use `read_file` to understand full context
+3. **Propose**: Use `propose_code_change` with fuzzy matching
+4. **Test**: Use `run_tests` to validate changes
+5. **Create PR**: Use `create_pr` for fully automated PR creation
+
+Example:
+```
+1. search_code(pattern="def execute_tool")  # Find the function
+2. read_file("src/agent/tool_executor.py")  # Get full context
+3. propose_code_change(file_path=..., old_code=..., new_code=...)  # Make change
+4. run_tests(test_pattern="test_tool")  # Validate
+5. create_pr(title="Fix: Improve error handling", description="...")  # Ship it!
+```
+
+### Parallel Tool Execution
+
+Multiple read-only tools now execute in parallel for faster responses.
+Parallelizable tools include: search_code, find_definition, find_usages,
+read_file, list_directory, analyze_codebase, show_staged_changes.
 """
 
 INTERACTIVE_WELCOME = """

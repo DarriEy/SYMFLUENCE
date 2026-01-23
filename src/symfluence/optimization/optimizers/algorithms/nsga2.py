@@ -17,6 +17,7 @@ from typing import Dict, Any, Callable, Optional, List, Tuple
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm
+from .config_schema import NSGA2Defaults
 
 
 class NSGA2Algorithm(OptimizationAlgorithm):
@@ -66,11 +67,38 @@ class NSGA2Algorithm(OptimizationAlgorithm):
         objective_names = objective_names or ['KGE', 'NSE']
         num_objectives = len(objective_names)
 
-        # NSGA-II parameters
-        crossover_rate = self.config.get('NSGA2_CROSSOVER_RATE', 0.9)
-        mutation_rate = self.config.get('NSGA2_MUTATION_RATE', 0.5)
-        eta_c = self.config.get('NSGA2_ETA_C', 15)  # Crossover distribution index
-        eta_m = self.config.get('NSGA2_ETA_M', 10)  # Mutation distribution index
+        # NSGA-II parameters using standardized config access
+        # Crossover rate: probability of applying crossover (Deb 2002, Section IV-A)
+        crossover_rate = self._get_config_value(
+            lambda: self.config.optimization.nsga2_crossover_rate,
+            default=NSGA2Defaults.CROSSOVER_RATE,
+            dict_key='NSGA2_CROSSOVER_RATE'
+        )
+
+        # Mutation rate: probability of mutating each gene
+        mutation_rate = self._get_config_value(
+            lambda: self.config.optimization.nsga2_mutation_rate,
+            default=NSGA2Defaults.MUTATION_RATE,
+            dict_key='NSGA2_MUTATION_RATE'
+        )
+
+        # SBX crossover distribution index (eta_c)
+        # Higher values produce children closer to parents (more exploitation)
+        # Typical range: 2-20, with 15 being a common default (Deb 2002, Section III-B)
+        eta_c = self._get_config_value(
+            lambda: self.config.optimization.nsga2_eta_c,
+            default=NSGA2Defaults.ETA_C,
+            dict_key='NSGA2_ETA_C'
+        )
+
+        # Polynomial mutation distribution index (eta_m)
+        # Higher values produce smaller mutations (more local search)
+        # Typical range: 10-20 (Deb 2002, Section III-C)
+        eta_m = self._get_config_value(
+            lambda: self.config.optimization.nsga2_eta_m,
+            default=NSGA2Defaults.ETA_M,
+            dict_key='NSGA2_ETA_M'
+        )
 
         # Initialize population
         self.logger.debug(f"Initializing population ({pop_size} individuals)...")
@@ -112,58 +140,75 @@ class NSGA2Algorithm(OptimizationAlgorithm):
         else:
             self.logger.info(f"Initial population complete | Best obj1: {best_fitness:.4f}")
 
-        # Main NSGA-II loop
+        # Main NSGA-II loop with error handling
         for generation in range(1, self.max_iterations + 1):
-            # Generate offspring through selection, crossover, and mutation
-            offspring = np.zeros_like(population)
-            for i in range(0, pop_size, 2):
-                # Tournament selection
-                p1_idx = self._tournament_selection(ranks, crowding_distances, pop_size)
-                p2_idx = self._tournament_selection(ranks, crowding_distances, pop_size)
-                p1, p2 = population[p1_idx], population[p2_idx]
+            try:
+                # Generate offspring through selection, crossover, and mutation
+                offspring = np.zeros_like(population)
+                for i in range(0, pop_size, 2):
+                    # Tournament selection
+                    p1_idx = self._tournament_selection(ranks, crowding_distances, pop_size)
+                    p2_idx = self._tournament_selection(ranks, crowding_distances, pop_size)
+                    p1, p2 = population[p1_idx], population[p2_idx]
 
-                # Crossover
-                if np.random.random() < crossover_rate:
-                    c1, c2 = self._sbx_crossover(p1, p2, eta_c)
+                    # Crossover
+                    if np.random.random() < crossover_rate:
+                        c1, c2 = self._sbx_crossover(p1, p2, eta_c)
+                    else:
+                        c1, c2 = p1.copy(), p2.copy()
+
+                    # Mutation
+                    offspring[i] = self._polynomial_mutation(c1, eta_m, mutation_rate)
+                    if i + 1 < pop_size:
+                        offspring[i + 1] = self._polynomial_mutation(c2, eta_m, mutation_rate)
+
+                # Evaluate offspring
+                if multiobjective and evaluate_population_objectives:
+                    offspring_objectives = evaluate_population_objectives(
+                        offspring, objective_names, generation
+                    )
                 else:
-                    c1, c2 = p1.copy(), p2.copy()
+                    offspring_fitness = evaluate_population(offspring, generation)
+                    offspring_objectives = np.full((pop_size, num_objectives), np.nan)
+                    offspring_objectives[:, 0] = offspring_fitness
+                    if num_objectives > 1:
+                        offspring_objectives[:, 1] = offspring_fitness
 
-                # Mutation
-                offspring[i] = self._polynomial_mutation(c1, eta_m, mutation_rate)
-                if i + 1 < pop_size:
-                    offspring[i + 1] = self._polynomial_mutation(c2, eta_m, mutation_rate)
+                # Handle NaN/Inf objective values
+                invalid_mask = ~np.isfinite(offspring_objectives).all(axis=1)
+                if invalid_mask.any():
+                    self.logger.warning(
+                        f"Generation {generation}: {invalid_mask.sum()} offspring "
+                        f"returned invalid objectives, assigning penalty"
+                    )
+                    offspring_objectives[invalid_mask] = float('-inf')
 
-            # Evaluate offspring
-            if multiobjective and evaluate_population_objectives:
-                offspring_objectives = evaluate_population_objectives(
-                    offspring, objective_names, generation
+                # Combine parent and offspring populations
+                combined_pop = np.vstack([population, offspring])
+                combined_obj = np.vstack([objectives, offspring_objectives])
+
+                # Environmental selection
+                selected_indices = self._environmental_selection(combined_obj, pop_size)
+                population = combined_pop[selected_indices]
+                objectives = combined_obj[selected_indices]
+
+                # Update ranks and crowding distances
+                ranks = self._fast_non_dominated_sort(objectives)
+                crowding_distances = self._calculate_crowding_distance(objectives, ranks)
+
+                # Update best solution
+                current_best_idx = np.argmax(objectives[:, 0])
+                if objectives[current_best_idx, 0] > best_fitness:
+                    best_solution = population[current_best_idx].copy()
+                    best_fitness = objectives[current_best_idx, 0]
+                    best_secondary = objectives[current_best_idx, 1] if num_objectives > 1 else None
+
+            except (ValueError, FloatingPointError) as e:
+                self.logger.warning(
+                    f"Error in generation {generation}: {e}. "
+                    f"Continuing with current population."
                 )
-            else:
-                offspring_fitness = evaluate_population(offspring, generation)
-                offspring_objectives = np.full((pop_size, num_objectives), np.nan)
-                offspring_objectives[:, 0] = offspring_fitness
-                if num_objectives > 1:
-                    offspring_objectives[:, 1] = offspring_fitness
-
-            # Combine parent and offspring populations
-            combined_pop = np.vstack([population, offspring])
-            combined_obj = np.vstack([objectives, offspring_objectives])
-
-            # Environmental selection
-            selected_indices = self._environmental_selection(combined_obj, pop_size)
-            population = combined_pop[selected_indices]
-            objectives = combined_obj[selected_indices]
-
-            # Update ranks and crowding distances
-            ranks = self._fast_non_dominated_sort(objectives)
-            crowding_distances = self._calculate_crowding_distance(objectives, ranks)
-
-            # Update best solution
-            current_best_idx = np.argmax(objectives[:, 0])
-            if objectives[current_best_idx, 0] > best_fitness:
-                best_solution = population[current_best_idx].copy()
-                best_fitness = objectives[current_best_idx, 0]
-                best_secondary = objectives[current_best_idx, 1] if num_objectives > 1 else None
+                # Continue with current state rather than crashing
 
             # Record results
             params_dict = denormalize_params(best_solution)
@@ -307,29 +352,60 @@ class NSGA2Algorithm(OptimizationAlgorithm):
         p2: np.ndarray,
         eta_c: float
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Simulated Binary Crossover (SBX)."""
+        """
+        Simulated Binary Crossover (SBX).
+
+        SBX simulates the behavior of single-point crossover for binary strings
+        in the continuous domain. Children are generated symmetrically around
+        the parents with a spread factor beta.
+
+        Reference:
+            Deb, K. and Agrawal, R.B. (1995). Simulated binary crossover for
+            continuous search space. Complex Systems, 9(2), 115-148.
+
+        Args:
+            p1: First parent (normalized [0,1])
+            p2: Second parent (normalized [0,1])
+            eta_c: Distribution index controlling spread (higher = closer to parents)
+
+        Returns:
+            Tuple of two children
+        """
         c1, c2 = p1.copy(), p2.copy()
         n_params = len(p1)
 
         for i in range(n_params):
-            if np.random.random() < 0.5 and abs(p1[i] - p2[i]) > 1e-9:
+            # SBX_SWAP_PROBABILITY = 0.5: equal chance of swapping each gene
+            # SBX_EPSILON = 1e-9: minimum parent distance to avoid numerical issues
+            if (np.random.random() < NSGA2Defaults.SBX_SWAP_PROBABILITY and
+                    abs(p1[i] - p2[i]) > NSGA2Defaults.SBX_EPSILON):
+                # Order parents so y1 <= y2
                 if p1[i] < p2[i]:
                     y1, y2 = p1[i], p2[i]
                 else:
                     y1, y2 = p2[i], p1[i]
 
+                # Generate spread factor using polynomial distribution
                 rand = np.random.random()
+
+                # Beta calculation for bounded SBX (Deb & Agrawal 1995, Eq. 9-11)
+                # beta = (2 * y1 / (y2 - y1))^(eta+1) at lower bound
+                # The formula ensures children stay within [0, 1] bounds
                 beta = 1.0 + (2.0 * (y1 - 0.0) / (y2 - y1))
                 alpha = 2.0 - beta ** -(eta_c + 1.0)
 
+                # Compute betaq from polynomial distribution
+                # This creates a distribution biased toward children near parents
                 if rand <= 1.0 / alpha:
                     betaq = (rand * alpha) ** (1.0 / (eta_c + 1.0))
                 else:
                     betaq = (1.0 / (2.0 - rand * alpha)) ** (1.0 / (eta_c + 1.0))
 
+                # Generate children symmetrically around parent midpoint
                 c1[i] = 0.5 * ((y1 + y2) - betaq * (y2 - y1))
                 c2[i] = 0.5 * ((y1 + y2) + betaq * (y2 - y1))
 
+                # Ensure children stay within bounds
                 c1[i] = np.clip(c1[i], 0, 1)
                 c2[i] = np.clip(c2[i], 0, 1)
 
@@ -341,24 +417,48 @@ class NSGA2Algorithm(OptimizationAlgorithm):
         eta_m: float,
         mutation_rate: float
     ) -> np.ndarray:
-        """Polynomial mutation."""
+        """
+        Polynomial mutation operator.
+
+        Creates a perturbation using polynomial probability distribution.
+        The distribution is symmetric around zero with higher probability
+        for small perturbations (controlled by eta_m).
+
+        Reference:
+            Deb, K. and Goyal, M. (1996). A combined genetic adaptive search
+            (GeneAS) for engineering design. Computer Science and Informatics, 26, 30-45.
+
+        Args:
+            solution: Solution to mutate (normalized [0,1])
+            eta_m: Distribution index (higher = smaller mutations)
+            mutation_rate: Probability of mutating each gene
+
+        Returns:
+            Mutated solution
+        """
         mutated = solution.copy()
         n_params = len(solution)
 
         for i in range(n_params):
             if np.random.random() < mutation_rate:
                 y = mutated[i]
-                delta1 = y - 0.0
-                delta2 = 1.0 - y
+                # Distance to bounds (used to bias mutation toward feasible region)
+                delta1 = y - 0.0  # Distance to lower bound
+                delta2 = 1.0 - y  # Distance to upper bound
 
                 rand = np.random.random()
+                # Mutation power: 1/(eta_m + 1) controls perturbation magnitude
                 mut_pow = 1.0 / (eta_m + 1.0)
 
+                # Polynomial distribution biased by distance to bounds
+                # (Deb & Goyal 1996, Equations 4-5)
                 if rand < 0.5:
+                    # Perturbation toward lower bound
                     xy = 1.0 - delta1
                     val = 2.0 * rand + (1.0 - 2.0 * rand) * (xy ** (eta_m + 1.0))
                     deltaq = val ** mut_pow - 1.0
                 else:
+                    # Perturbation toward upper bound
                     xy = 1.0 - delta2
                     val = 2.0 * (1.0 - rand) + 2.0 * (rand - 0.5) * (xy ** (eta_m + 1.0))
                     deltaq = 1.0 - val ** mut_pow

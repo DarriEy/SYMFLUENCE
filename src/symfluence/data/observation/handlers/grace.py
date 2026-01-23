@@ -14,12 +14,15 @@ from typing import Dict, Optional
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 
-@ObservationRegistry.register('GRACE')
+@ObservationRegistry.register('grace')
 class GRACEHandler(BaseObservationHandler):
     """
     Handles GRACE Total Water Storage anomaly data.
     Implements adaptive extraction based on basin size.
     """
+
+    obs_type = "tws"
+    source_name = "NASA_GRACE"
 
     # Basin size thresholds for extraction strategy
     STRATEGY_CONFIG = {

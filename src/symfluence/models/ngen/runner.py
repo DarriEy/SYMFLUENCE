@@ -5,9 +5,10 @@ Manages the execution of the NOAA NextGen Framework (ngen).
 Refactored to use the Unified Model Execution Framework.
 """
 
+import logging
 import os
-import subprocess  # nosec B404 - Required for running Docker containers and model executables
 import re
+import subprocess  # nosec B404 - Required for running Docker containers and model executables
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -26,7 +27,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
     Uses the Unified Model Execution Framework for subprocess execution.
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         # Call base class
         super().__init__(config, logger, reporting_manager=reporting_manager)
 
@@ -256,7 +257,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                 if not use_geojson and fallback_catchment_file.exists():
                     try:
                         log_text = log_file.read_text(errors='ignore')
-                    except Exception:
+                    except (FileNotFoundError, OSError, PermissionError):
                         log_text = ""
                     sqlite_error = "SQLite3 support required to read GeoPackage files"
 

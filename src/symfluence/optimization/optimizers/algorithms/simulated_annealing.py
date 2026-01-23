@@ -27,6 +27,7 @@ from typing import Dict, Any, Callable, Optional
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm
+from .config_schema import SADefaults
 
 
 class SimulatedAnnealingAlgorithm(OptimizationAlgorithm):
@@ -75,14 +76,60 @@ class SimulatedAnnealingAlgorithm(OptimizationAlgorithm):
         """
         self.logger.info(f"Starting Simulated Annealing with {n_params} parameters")
 
-        # SA parameters
-        initial_temp = self.config_dict.get('SA_INITIAL_TEMP', 1.0)
-        final_temp = self.config_dict.get('SA_FINAL_TEMP', 1e-6)
-        cooling_schedule = self.config_dict.get('SA_COOLING_SCHEDULE', 'exponential')
-        cooling_rate = self.config_dict.get('SA_COOLING_RATE', 0.95)
-        step_size = self.config_dict.get('SA_STEP_SIZE', 0.1)
-        steps_per_temp = self.config_dict.get('SA_STEPS_PER_TEMP', 10)
-        adaptive_step = self.config_dict.get('SA_ADAPTIVE_STEP', True)
+        # SA parameters using standardized config access
+        # Initial temperature (Kirkpatrick 1983, Section 2)
+        initial_temp = self._get_config_value(
+            lambda: self.config.optimization.sa_initial_temp,
+            default=SADefaults.INITIAL_TEMP,
+            dict_key='SA_INITIAL_TEMP'
+        )
+
+        # Final temperature - termination condition
+        final_temp = self._get_config_value(
+            lambda: self.config.optimization.sa_final_temp,
+            default=SADefaults.FINAL_TEMP,
+            dict_key='SA_FINAL_TEMP'
+        )
+
+        # Cooling schedule type (Kirkpatrick 1983)
+        cooling_schedule = self._get_config_value(
+            lambda: self.config.optimization.sa_cooling_schedule,
+            default=SADefaults.COOLING_SCHEDULE,
+            dict_key='SA_COOLING_SCHEDULE'
+        )
+
+        # Cooling rate for exponential schedule (Kirkpatrick 1983, Section 3)
+        cooling_rate = self._get_config_value(
+            lambda: self.config.optimization.sa_cooling_rate,
+            default=SADefaults.COOLING_RATE,
+            dict_key='SA_COOLING_RATE'
+        )
+
+        # Step size for neighbor generation
+        step_size = self._get_config_value(
+            lambda: self.config.optimization.sa_step_size,
+            default=SADefaults.STEP_SIZE,
+            dict_key='SA_STEP_SIZE'
+        )
+
+        # Steps per temperature level
+        steps_per_temp = self._get_config_value(
+            lambda: self.config.optimization.sa_steps_per_temp,
+            default=SADefaults.STEPS_PER_TEMP,
+            dict_key='SA_STEPS_PER_TEMP'
+        )
+
+        # Enable adaptive step size (Ingber 1989)
+        adaptive_step = self._get_config_value(
+            lambda: self.config.optimization.sa_adaptive_step,
+            default=SADefaults.ADAPTIVE_STEP,
+            dict_key='SA_ADAPTIVE_STEP'
+        )
+
+        # Validate temperature parameters
+        valid, msg = SADefaults.validate_temperatures(initial_temp, final_temp)
+        if not valid:
+            self.logger.warning(f"SA validation: {msg}")
 
         self.logger.info(
             f"SA settings: T0={initial_temp}, Tf={final_temp}, "

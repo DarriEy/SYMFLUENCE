@@ -406,6 +406,86 @@ class ToolRegistry:
             {
                 "type": "function",
                 "function": {
+                    "name": "search_code",
+                    "description": "Search for code patterns in the repository using ripgrep. "
+                                   "Supports regex patterns and returns matching lines with context. "
+                                   "Use this to find functions, classes, imports, or any code patterns.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "pattern": {
+                                "type": "string",
+                                "description": "Regex pattern to search for (e.g., 'def my_function', 'class.*Error', 'import os')"
+                            },
+                            "file_glob": {
+                                "type": "string",
+                                "description": "File glob pattern to filter files (default: '*.py'). Examples: '*.yaml', '*.md', '*test*.py'"
+                            },
+                            "context_lines": {
+                                "type": "integer",
+                                "description": "Number of context lines before/after each match (default: 2)"
+                            },
+                            "case_sensitive": {
+                                "type": "boolean",
+                                "description": "Whether search is case sensitive (default: true)"
+                            },
+                            "whole_word": {
+                                "type": "boolean",
+                                "description": "Match whole words only (default: false)"
+                            }
+                        },
+                        "required": ["pattern"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "find_definition",
+                    "description": "Find the definition of a function, class, or variable in the codebase. "
+                                   "Returns the file path, line number, and surrounding context.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Name of the symbol to find (e.g., 'ToolExecutor', 'run_tests', 'SYSTEM_PROMPT')"
+                            },
+                            "definition_type": {
+                                "type": "string",
+                                "enum": ["function", "class", "variable", "any"],
+                                "description": "Type of definition to find (default: 'any')"
+                            }
+                        },
+                        "required": ["name"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "find_usages",
+                    "description": "Find all usages of a symbol (function, class, variable) across the codebase. "
+                                   "Helps understand how code is used before modifying it.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Name of the symbol to find usages of"
+                            },
+                            "file_glob": {
+                                "type": "string",
+                                "description": "File glob pattern to filter files (default: '*.py')"
+                            }
+                        },
+                        "required": ["name"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "list_directory",
                     "description": "Browse repository directory structure. Lists files and subdirectories with descriptions.",
                     "parameters": {
@@ -524,7 +604,7 @@ class ToolRegistry:
                 "function": {
                     "name": "create_pr_proposal",
                     "description": "Create a PR proposal by staging changes and generating commit messages. "
-                                   "Prepares all staged changes for pulling into a PR.",
+                                   "Prepares all staged changes for pulling into a PR. Use this for manual PR workflow.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -543,6 +623,58 @@ class ToolRegistry:
                             }
                         },
                         "required": ["title", "description"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "create_pr",
+                    "description": "FULLY AUTOMATED PR creation using GitHub CLI. Creates branch, commits, pushes, "
+                                   "and opens PR in one step. Requires gh CLI to be installed and authenticated. "
+                                   "Use this for seamless self-improvement workflow.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "PR title (will be used as commit message too)"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "PR body with summary of changes"
+                            },
+                            "branch_name": {
+                                "type": "string",
+                                "description": "Optional branch name (auto-generated if not provided)"
+                            },
+                            "base_branch": {
+                                "type": "string",
+                                "description": "Base branch to merge into (default: 'main')"
+                            },
+                            "reason": {
+                                "type": "string",
+                                "enum": ["bugfix", "improvement", "feature"],
+                                "description": "Type of change for categorization"
+                            },
+                            "draft": {
+                                "type": "boolean",
+                                "description": "Create as draft PR (default: false)"
+                            }
+                        },
+                        "required": ["title", "description"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "check_pr_status",
+                    "description": "Check GitHub CLI authentication and PR creation readiness. "
+                                   "Use this before create_pr to verify the automated workflow will work.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {}
                     }
                 }
             }

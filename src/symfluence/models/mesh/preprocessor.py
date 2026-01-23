@@ -5,9 +5,10 @@ Handles data preparation using meshflow library for MESH model setup.
 Uses meshflow exclusively for all preprocessing - both lumped and distributed modes.
 """
 
+import logging
 from datetime import timedelta
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 from ..base import BaseModelPreProcessor
 from ..mixins import ObservationLoaderMixin
@@ -45,7 +46,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         """Return model name for MESH."""
         return "MESH"
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """
         Initialize the MESH preprocessor.
 

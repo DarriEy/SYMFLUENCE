@@ -44,6 +44,15 @@ class RHESSysResultExtractor(ModelResultExtractor):
             'soil_moisture': [
                 'rhessys_basin.daily',
                 '*_basin.daily',
+                '*_patch.daily',
+            ],
+            'litter': [
+                '*_patch.daily',           # Patch-level litter pools
+                '*_grow_patch.daily',      # Growth patch output
+            ],
+            'vegetation': [
+                '*_stratum.daily',         # Stratum-level vegetation
+                '*_grow_stratum.daily',    # Growth stratum output
             ],
         }
 
@@ -55,6 +64,7 @@ class RHESSysResultExtractor(ModelResultExtractor):
         - evaporation: evap
         - transpiration: trans
         - snow: snowpack
+        - litter: litr1c, litr2c, litr3c, litr4c carbon pools
         """
         variable_mapping = {
             'streamflow': [
@@ -78,6 +88,23 @@ class RHESSysResultExtractor(ModelResultExtractor):
                 'soil.water',
                 'soil_moisture',
                 'unsat_storage',
+                'rz_storage',
+            ],
+            'litter': [
+                'litr1c',  # Labile litter carbon
+                'litr2c',  # Cellulose litter carbon
+                'litr3c',  # Lignin litter carbon
+                'litr4c',  # Recalcitrant litter carbon
+            ],
+            'litter_total': [
+                'litrc',   # Total litter carbon (if available)
+                'litter_carbon',
+            ],
+            'vegetation': [
+                'leafc',   # Leaf carbon
+                'stemc',   # Stem carbon
+                'rootc',   # Root carbon
+                'lai',     # Leaf area index
             ],
         }
         return variable_mapping.get(variable_type, [variable_type])
@@ -225,3 +252,105 @@ class RHESSysResultExtractor(ModelResultExtractor):
         RHESSys basin.daily files are already basin-aggregated.
         """
         return None  # Basin outputs are pre-aggregated
+
+    def extract_litter_pools(
+        self,
+        output_file: Path,
+        pool_names: Optional[List[str]] = None
+    ) -> Dict[str, pd.DataFrame]:
+        """Extract litter carbon pools from RHESSys patch output.
+
+        RHESSys outputs litter carbon in four pools representing
+        different decomposition stages:
+        - litr1c: Labile litter (fast decomposing)
+        - litr2c: Cellulose litter (medium)
+        - litr3c: Lignin litter (slow)
+        - litr4c: Recalcitrant litter (very slow)
+
+        Args:
+            output_file: Path to patch.daily or grow_patch.daily file
+            pool_names: Optional list of specific pools to extract
+
+        Returns:
+            Dict mapping pool names to DataFrames with time series
+            by patch_id
+        """
+        if pool_names is None:
+            pool_names = ['litr1c', 'litr2c', 'litr3c', 'litr4c']
+
+        try:
+            # Read patch daily file
+            df = pd.read_csv(output_file, sep=r'\s+', skipinitialspace=True)
+
+            # Construct date index
+            if all(col in df.columns for col in ['year', 'month', 'day']):
+                df['date'] = pd.to_datetime(df[['year', 'month', 'day']])
+
+            # Find patch ID column
+            patch_col = None
+            for col in ['patchID', 'patch_ID', 'patch', 'ID']:
+                if col in df.columns:
+                    patch_col = col
+                    break
+
+            results = {}
+            for pool in pool_names:
+                if pool in df.columns:
+                    if patch_col and 'date' in df.columns:
+                        # Pivot to get time series by patch
+                        pivot_df = df.pivot_table(
+                            index='date',
+                            columns=patch_col,
+                            values=pool,
+                            aggfunc='mean'
+                        )
+                        results[pool] = pivot_df
+                    elif 'date' in df.columns:
+                        # No patch column, return as series
+                        results[pool] = df.set_index('date')[pool]
+                    else:
+                        results[pool] = df[pool]
+
+            return results
+
+        except Exception as e:
+            raise ValueError(f"Error extracting litter pools from {output_file}: {e}")
+
+    def aggregate_litter_to_basin(
+        self,
+        litter_pools: Dict[str, pd.DataFrame],
+        patch_areas: Optional[Dict[int, float]] = None
+    ) -> Dict[str, pd.Series]:
+        """Aggregate patch-level litter pools to basin level.
+
+        Args:
+            litter_pools: Dict from extract_litter_pools()
+            patch_areas: Optional dict mapping patch_id to area (m²)
+                for area-weighted averaging
+
+        Returns:
+            Dict mapping pool names to basin-averaged time series
+        """
+        basin_pools = {}
+
+        for pool_name, pool_data in litter_pools.items():
+            if isinstance(pool_data, pd.DataFrame):
+                if patch_areas:
+                    # Area-weighted average
+                    total_area = sum(
+                        patch_areas.get(pid, 1.0)
+                        for pid in pool_data.columns
+                    )
+                    weighted_sum = sum(
+                        pool_data[pid] * patch_areas.get(pid, 1.0)
+                        for pid in pool_data.columns
+                    )
+                    basin_pools[pool_name] = weighted_sum / total_area
+                else:
+                    # Simple mean across patches
+                    basin_pools[pool_name] = pool_data.mean(axis=1)
+            else:
+                # Already a series
+                basin_pools[pool_name] = pool_data
+
+        return basin_pools

@@ -43,7 +43,7 @@ class ConfigurationUpdater(ConfigMixin):
 
                 self._config = SymfluenceConfig(**config)
 
-            except Exception:
+            except (KeyError, ValueError, IOError):
 
                 # Fallback for partial configs (e.g., in tests)
 
@@ -106,7 +106,7 @@ class ConfigurationUpdater(ConfigMixin):
                         f"Updated file manager for process {proc_id}: {file_manager_path}"
                     )
 
-            except Exception as e:
+            except (KeyError, ValueError, IOError) as e:
                 self.logger.error(
                     f"Failed to update file manager for process {proc_id}: {e}"
                 )
@@ -132,7 +132,7 @@ class ConfigurationUpdater(ConfigMixin):
                         start_dt = datetime.strptime(cal_start, '%Y-%m-%d')
                         start_dt = start_dt.replace(hour=exp_dt.hour, minute=exp_dt.minute)
                         cal_start = start_dt.strftime('%Y-%m-%d %H:%M')
-                    except Exception:
+                    except (KeyError, ValueError, IOError):
                         # If parsing fails, keep original date string
                         pass
 
@@ -158,7 +158,7 @@ class ConfigurationUpdater(ConfigMixin):
                 if last_hour < 0:
                     last_hour = 0
                 cal_end = end_dt.strftime('%Y-%m-%d') + f' {int(last_hour):02d}:00'
-        except Exception:
+        except (KeyError, ValueError, IOError):
             pass  # Keep original if adjustment fails
         return cal_end
 
@@ -270,7 +270,7 @@ class ConfigurationUpdater(ConfigMixin):
                     f"Updated mizuRoute control file for process {proc_id}: {control_file_path}"
                 )
 
-            except Exception as e:
+            except (KeyError, ValueError, IOError) as e:
                 self.logger.error(
                     f"Failed to update mizuRoute control file for process {proc_id}: {e}"
                 )

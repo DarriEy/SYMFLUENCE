@@ -8,15 +8,16 @@ including initialization and pour point setup.
 from argparse import Namespace
 from pathlib import Path
 
-from .base import BaseCommand
+from .base import BaseCommand, cli_exception_handler
 from ..exit_codes import ExitCode
-from ..validators import validate_coordinates, validate_bounding_box
+from ..validators import validate_coordinates, validate_bounding_box, validate_date_range
 
 
 class ProjectCommands(BaseCommand):
     """Handlers for project category commands."""
 
     @staticmethod
+    @cli_exception_handler
     def init(args: Namespace) -> int:
         """
         Execute: symfluence project init [PRESET]
@@ -27,73 +28,73 @@ class ProjectCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        try:
-            # Import initialization manager
-            from symfluence.cli.services import InitializationManager
-
-            init_manager = InitializationManager()
-
-            # Build initialization operations dict
-            preset_name = args.preset if args.preset else None
-
-            cli_overrides = {
-                'domain': args.domain,
-                'model': args.model,
-                'start_date': args.start_date,
-                'end_date': args.end_date,
-                'forcing': args.forcing,
-                'discretization': args.discretization,
-                'definition_method': args.definition_method,
-            }
-
-            # Remove None values
-            cli_overrides = {k: v for k, v in cli_overrides.items() if v is not None}
-
-            output_dir = args.output_dir if args.output_dir else './0_config_files/'
-            scaffold = args.scaffold
-            minimal = args.minimal
-            comprehensive = args.comprehensive if hasattr(args, 'comprehensive') else True
-
-            BaseCommand._console.info("Initializing SYMFLUENCE project...")
-
-            # Call initialization manager
-            config = init_manager.generate_config(
-                preset_name=preset_name,
-                cli_overrides=cli_overrides,
-                minimal=minimal,
-                comprehensive=comprehensive
+        # Check for interactive mode
+        if BaseCommand.get_arg(args, 'interactive', False):
+            from symfluence.cli.wizard import ProjectWizard
+            wizard = ProjectWizard()
+            return wizard.run(
+                output_dir=BaseCommand.get_arg(args, 'output_dir', './'),
+                scaffold=BaseCommand.get_arg(args, 'scaffold', False)
             )
 
-            # 2. Determine output path
-            domain_name = config.get("DOMAIN_NAME", "unnamed_project")
-            output_dir_path = Path(output_dir)
-            output_file = output_dir_path / f"config_{domain_name}.yaml"
+        # Import initialization manager
+        from symfluence.cli.services import InitializationManager
 
-            # 3. Write config file
-            written_path = init_manager.write_config(config, output_file)
-            BaseCommand._console.success(f"✅ Created config file: {written_path}")
+        init_manager = InitializationManager()
 
-            # 4. Create scaffold if requested
-            if scaffold:
-                BaseCommand._console.info("Creating project scaffold...")
-                domain_dir = init_manager.create_scaffold(config)
-                BaseCommand._console.success(f"✅ Created project structure at: {domain_dir}")
-            else:
-                BaseCommand._console.info(f"📁 To create project structure, run: symfluence setup_project --config {written_path}")
+        # Build initialization operations dict
+        preset_name = args.preset if args.preset else None
 
-            return ExitCode.SUCCESS
+        # Use get_args_dict for cleaner extraction
+        cli_overrides = BaseCommand.get_args_dict(args, [
+            'domain', 'model', 'start_date', 'end_date',
+            'forcing', 'discretization', 'definition_method'
+        ])
 
-        except ValueError as e:
-            BaseCommand._console.error(str(e))
-            return ExitCode.USAGE_ERROR
-        except Exception as e:
-            BaseCommand._console.error(f"Initialization failed: {e}")
-            if getattr(args, 'debug', False):
-                import traceback
-                traceback.print_exc()
-            return ExitCode.GENERAL_ERROR
+        # Validate date range if both dates provided
+        if cli_overrides.get('start_date') and cli_overrides.get('end_date'):
+            result = validate_date_range(cli_overrides['start_date'], cli_overrides['end_date'])
+            if result.is_err:
+                error = result.first_error()
+                BaseCommand._console.error(f"Invalid date range: {error.message if error else 'validation failed'}")
+                return ExitCode.VALIDATION_ERROR
+
+        output_dir = BaseCommand.get_arg(args, 'output_dir', './0_config_files/')
+        scaffold = BaseCommand.get_arg(args, 'scaffold', False)
+        minimal = BaseCommand.get_arg(args, 'minimal', False)
+        comprehensive = BaseCommand.get_arg(args, 'comprehensive', True)
+
+        BaseCommand._console.info("Initializing SYMFLUENCE project...")
+
+        # Call initialization manager
+        config = init_manager.generate_config(
+            preset_name=preset_name,
+            cli_overrides=cli_overrides,
+            minimal=minimal,
+            comprehensive=comprehensive
+        )
+
+        # 2. Determine output path
+        domain_name = config.get("DOMAIN_NAME", "unnamed_project")
+        output_dir_path = Path(output_dir)
+        output_file = output_dir_path / f"config_{domain_name}.yaml"
+
+        # 3. Write config file
+        written_path = init_manager.write_config(config, output_file)
+        BaseCommand._console.success(f"Created config file: {written_path}")
+
+        # 4. Create scaffold if requested
+        if scaffold:
+            BaseCommand._console.info("Creating project scaffold...")
+            domain_dir = init_manager.create_scaffold(config)
+            BaseCommand._console.success(f"Created project structure at: {domain_dir}")
+        else:
+            BaseCommand._console.info(f"To create project structure, run: symfluence setup_project --config {written_path}")
+
+        return ExitCode.SUCCESS
 
     @staticmethod
+    @cli_exception_handler
     def pour_point(args: Namespace) -> int:
         """
         Execute: symfluence project pour-point LAT/LON
@@ -104,54 +105,48 @@ class ProjectCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        try:
-            # Validate coordinates using Result pattern
-            coord_result = validate_coordinates(args.coordinates)
-            if coord_result.is_err:
-                error = coord_result.first_error()
-                BaseCommand._console.error(f"Invalid coordinates: {error.message if error else 'validation failed'}")
+        # Validate coordinates using Result pattern
+        coord_result = validate_coordinates(args.coordinates)
+        if coord_result.is_err:
+            error = coord_result.first_error()
+            BaseCommand._console.error(f"Invalid coordinates: {error.message if error else 'validation failed'}")
+            return ExitCode.VALIDATION_ERROR
+
+        # Validate bounding box if provided
+        bounding_box_coords = BaseCommand.get_arg(args, 'bounding_box_coords', None)
+        if bounding_box_coords:
+            bbox_result = validate_bounding_box(bounding_box_coords)
+            if bbox_result.is_err:
+                error = bbox_result.first_error()
+                BaseCommand._console.error(f"Invalid bounding box: {error.message if error else 'validation failed'}")
                 return ExitCode.VALIDATION_ERROR
 
-            # Validate bounding box if provided
-            if hasattr(args, 'bounding_box_coords') and args.bounding_box_coords:
-                bbox_result = validate_bounding_box(args.bounding_box_coords)
-                if bbox_result.is_err:
-                    error = bbox_result.first_error()
-                    BaseCommand._console.error(f"Invalid bounding box: {error.message if error else 'validation failed'}")
-                    return ExitCode.VALIDATION_ERROR
+        BaseCommand._console.info("Setting up pour point workflow...")
+        BaseCommand._console.indent(f"Coordinates: {args.coordinates}")
+        BaseCommand._console.indent(f"Domain name: {args.domain_name}")
+        BaseCommand._console.indent(f"Definition method: {args.domain_def}")
 
-            BaseCommand._console.info("Setting up pour point workflow...")
-            BaseCommand._console.indent(f"Coordinates: {args.coordinates}")
-            BaseCommand._console.indent(f"Domain name: {args.domain_name}")
-            BaseCommand._console.indent(f"Definition method: {args.domain_def}")
+        from symfluence.project.pour_point_workflow import setup_pour_point_workflow
 
-            from symfluence.project.pour_point_workflow import setup_pour_point_workflow
+        # Get output directory from args or use default
+        output_dir = Path(BaseCommand.get_arg(args, 'output_dir', '.'))
 
-            # Get output directory from args or use default
-            output_dir = Path(getattr(args, 'output_dir', '.'))
+        result = setup_pour_point_workflow(
+            coordinates=args.coordinates,
+            domain_def_method=args.domain_def,
+            domain_name=args.domain_name,
+            bounding_box_coords=bounding_box_coords,
+            output_dir=output_dir,
+        )
 
-            result = setup_pour_point_workflow(
-                coordinates=args.coordinates,
-                domain_def_method=args.domain_def,
-                domain_name=args.domain_name,
-                bounding_box_coords=getattr(args, 'bounding_box_coords', None),
-                output_dir=output_dir,
-            )
-
-            BaseCommand._console.success("Pour point workflow setup completed")
-            BaseCommand._console.indent(f"Config file: {result.config_file}")
-            if result.used_auto_bounding_box:
-                BaseCommand._console.indent(f"Auto-generated bounding box: {result.bounding_box_coords}")
-            return ExitCode.SUCCESS
-
-        except Exception as e:
-            BaseCommand._console.error(f"Pour point setup failed: {e}")
-            if getattr(args, 'debug', False):
-                import traceback
-                traceback.print_exc()
-            return ExitCode.GENERAL_ERROR
+        BaseCommand._console.success("Pour point workflow setup completed")
+        BaseCommand._console.indent(f"Config file: {result.config_file}")
+        if result.used_auto_bounding_box:
+            BaseCommand._console.indent(f"Auto-generated bounding box: {result.bounding_box_coords}")
+        return ExitCode.SUCCESS
 
     @staticmethod
+    @cli_exception_handler
     def list_presets(args: Namespace) -> int:
         """
         Execute: symfluence project list-presets
@@ -162,24 +157,17 @@ class ProjectCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        try:
-            from symfluence.cli.services import InitializationManager
+        from symfluence.cli.services import InitializationManager
 
-            init_manager = InitializationManager()
+        init_manager = InitializationManager()
 
-            # InitializationManager handles all output formatting
-            init_manager.list_presets()
+        # InitializationManager handles all output formatting
+        init_manager.list_presets()
 
-            return ExitCode.SUCCESS
-
-        except Exception as e:
-            BaseCommand._console.error(f"Failed to list presets: {e}")
-            if getattr(args, 'debug', False):
-                import traceback
-                traceback.print_exc()
-            return ExitCode.GENERAL_ERROR
+        return ExitCode.SUCCESS
 
     @staticmethod
+    @cli_exception_handler
     def show_preset(args: Namespace) -> int:
         """
         Execute: symfluence project show-preset PRESET_NAME
@@ -190,42 +178,17 @@ class ProjectCommands(BaseCommand):
         Returns:
             Exit code (0 for success, non-zero for failure)
         """
-        try:
-            from symfluence.cli.services import InitializationManager
+        from symfluence.cli.services import InitializationManager
 
-            init_manager = InitializationManager()
+        init_manager = InitializationManager()
 
-            preset_name = args.preset_name
+        preset_name = args.preset_name
 
-            # InitializationManager handles all output formatting
-            preset_info = init_manager.show_preset(preset_name)
+        # InitializationManager handles all output formatting
+        preset_info = init_manager.show_preset(preset_name)
 
-            if preset_info:
-                return ExitCode.SUCCESS
-            else:
-                # Error already printed by manager if invalid
-                return ExitCode.FILE_NOT_FOUND
-
-        except Exception as e:
-            BaseCommand._console.error(f"Failed to show preset: {e}")
-            if getattr(args, 'debug', False):
-                import traceback
-                traceback.print_exc()
-            return ExitCode.GENERAL_ERROR
-
-    @staticmethod
-    def execute(args: Namespace) -> int:
-        """
-        Main execution dispatcher (required by BaseCommand).
-
-        Args:
-            args: Parsed arguments namespace
-
-        Returns:
-            Exit code
-        """
-        if hasattr(args, 'func'):
-            return args.func(args)
+        if preset_info:
+            return ExitCode.SUCCESS
         else:
-            BaseCommand._console.error("No project action specified")
-            return ExitCode.USAGE_ERROR
+            # Error already printed by manager if invalid
+            return ExitCode.FILE_NOT_FOUND

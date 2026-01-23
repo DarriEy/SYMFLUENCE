@@ -4,11 +4,13 @@ TRoute Model Optimizer.
 Implements the BaseModelOptimizer for the T-Route routing model.
 """
 
-import xarray as xr
+import logging
+from pathlib import Path
+from typing import Any, Dict, Optional
+
 import netCDF4 as nc4
 import numpy as np
-from pathlib import Path
-from typing import Dict, Any, Optional
+import xarray as xr
 
 from symfluence.optimization.optimizers.base_model_optimizer import BaseModelOptimizer
 from symfluence.models.troute.runner import TRouteRunner
@@ -20,7 +22,7 @@ class TRouteModelOptimizer(BaseModelOptimizer):
     Optimizer for T-Route routing model.
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any, output_dir: Path, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, output_dir: Path, reporting_manager: Optional[Any] = None):
         super().__init__(config, logger, output_dir, reporting_manager)
         self.model_name = "TROUTE"
 

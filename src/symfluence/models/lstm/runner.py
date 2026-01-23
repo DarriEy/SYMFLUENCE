@@ -5,15 +5,17 @@ An LSTM-based model for hydrological predictions, specifically for streamflow
 and snow water equivalent (SWE).
 """
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
+import logging
+import pickle  # nosec B403 - Used for trusted internal model serialization
+from pathlib import Path
+from typing import Dict, Any, Optional
+
 import numpy as np
 import pandas as pd
 import psutil
-import pickle
-from pathlib import Path
-from typing import Dict, Any, Optional
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
 from torch.utils.data import TensorDataset, DataLoader
 
@@ -25,6 +27,7 @@ except ImportError:
 
 from ..registry import ModelRegistry
 from ..base import BaseModelRunner
+from ..mixins import SpatialModeDetectionMixin
 from ..execution import UnifiedModelExecutor, RoutingModel
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.core.exceptions import (
@@ -33,12 +36,12 @@ from symfluence.core.exceptions import (
 )
 
 from .model import LSTMModel
-from .preprocessor import LSTMPreprocessor
+from .preprocessor import LSTMPreProcessor
 from .postprocessor import LSTMPostprocessor
 
 
 @ModelRegistry.register_runner('LSTM', method_name='run_lstm')
-class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin):
+class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, SpatialModeDetectionMixin):
     """
     LSTM: Flow and Snow Hydrological LSTM Runner.
 
@@ -52,7 +55,7 @@ class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin):
         """Access LSTM-specific configuration."""
         return self.config.model.lstm
 
-    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the LSTM model runner.
 
@@ -78,19 +81,12 @@ class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.logger.info(f"Initialized LSTM runner with device: {self.device}")
 
-        # Determine spatial mode
-        domain_method = self.domain_definition_method
-        if domain_method == 'delineate':
-            self.spatial_mode = 'distributed'
-            self.logger.warning(
-                "⚠️  LSTM model requested in 'distributed' mode. While supported, consider using 'GNN' "
-                "which explicitly models the river network topology (DAG) and flow routing."
-            )
-        else:
-            self.spatial_mode = 'lumped'
+        # Determine spatial mode using mixin
+        # LSTM has model-specific warnings for distributed mode in MODEL_SPATIAL_CAPABILITIES
+        self.spatial_mode = self.detect_spatial_mode('LSTM')
 
         # Initialize components
-        self.preprocessor = LSTMPreprocessor(
+        self.preprocessor = LSTMPreProcessor(
             self.config_dict,
             self.logger,
             self.project_dir,
@@ -409,7 +405,7 @@ class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin):
         # 1. Load network
         network_data_path = self.project_dir / "settings" / "dRoute" / 'dRoute_network.pkl'
         with open(network_data_path, 'rb') as f:
-            network_data = pickle.load(f)
+            network_data = pickle.load(f)  # nosec B301 - Loading trusted internal model data
 
         network = network_data['network']
         network_data['seg_areas']

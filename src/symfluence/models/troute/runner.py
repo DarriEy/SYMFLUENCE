@@ -5,9 +5,11 @@ Manages the execution of the t-route routing model.
 Refactored to use the Unified Model Execution Framework.
 """
 
+import logging
 import sys
-import xarray as xr
 from typing import Dict, Any, Optional
+
+import xarray as xr
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelRunner
@@ -22,7 +24,7 @@ class TRouteRunner(BaseModelRunner, ModelExecutor):
 
     Uses the Unified Model Execution Framework for subprocess execution.
     """
-    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         # Call base class
         super().__init__(config, logger, reporting_manager=reporting_manager)
 

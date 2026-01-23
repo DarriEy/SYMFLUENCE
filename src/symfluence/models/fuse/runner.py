@@ -5,6 +5,7 @@ Refactored to use the Unified Model Execution Framework:
 - UnifiedModelExecutor: Combined execution and spatial orchestration
 """
 
+import logging
 import shutil
 import subprocess
 from datetime import datetime
@@ -15,7 +16,7 @@ import numpy as np
 import xarray as xr
 
 from ..base import BaseModelRunner
-from ..mixins import OutputConverterMixin
+from ..mixins import OutputConverterMixin, SpatialModeDetectionMixin
 from ..execution import UnifiedModelExecutor
 from ..mizuroute.mixins import MizuRouteConfigMixin
 from ..registry import ModelRegistry
@@ -27,7 +28,7 @@ from symfluence.core.exceptions import (
 
 
 @ModelRegistry.register_runner('FUSE', method_name='run_fuse')
-class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, MizuRouteConfigMixin):
+class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, MizuRouteConfigMixin, SpatialModeDetectionMixin):
     """
     Runner class for the FUSE (Framework for Understanding Structural Errors) model.
     Handles model execution, output processing, and file management.
@@ -44,7 +45,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
         domain_name (str): Name of the domain being processed
     """
 
-    def __init__(self, config, logger: Any, reporting_manager: Optional[Any] = None):
+    def __init__(self, config, logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the FUSE runner.
 
@@ -65,11 +66,8 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
         # Call base class
         super().__init__(config, logger, reporting_manager=reporting_manager)
 
-        # FUSE-specific initialization
-        self.spatial_mode = self._get_config_value(
-            lambda: self.config.model.fuse.spatial_mode if self.config.model and self.config.model.fuse else None,
-            'lumped'
-        )
+        # FUSE-specific initialization - determine spatial mode using mixin
+        self.spatial_mode = self.detect_spatial_mode('FUSE')
 
         self.needs_routing = self._check_routing_requirements()
         self._subcatchment_processor = None
@@ -260,7 +258,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
             # Run FUSE once with the complete distributed forcing file
             return self._run_multidimensional_fuse()
 
-        except Exception as e:
+        except (subprocess.CalledProcessError, OSError, FileNotFoundError) as e:
             self.logger.error(f"Error in distributed FUSE execution: {str(e)}")
             return False
 
@@ -280,7 +278,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
                 self.logger.error("Distributed FUSE run failed")
                 return False
 
-        except Exception as e:
+        except (subprocess.CalledProcessError, OSError) as e:
             self.logger.error(f"Error in multidimensional FUSE execution: {str(e)}")
             return False
 
@@ -324,7 +322,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
         except subprocess.CalledProcessError as e:
             self.logger.error(f"FUSE execution failed: {str(e)}")
             return False
-        except Exception as e:
+        except (OSError, FileNotFoundError) as e:
             self.logger.error(f"Error executing distributed FUSE: {str(e)}")
             return False
 
@@ -421,7 +419,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
             self.logger.info(f"Converted FUSE output → mizuRoute format: {write_target}")
             return True
 
-        except Exception as e:
+        except (FileNotFoundError, OSError, ValueError, KeyError) as e:
             self.logger.error(f"Error converting FUSE output: {e}")
             return False
 
@@ -491,7 +489,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
         # Add gruId from the spatial coordinate; cast to int32 if possible
         try:
             gid = ids.astype('int32')
-        except Exception:
+        except (ValueError, TypeError):
             gid = ids
         mizu['gru'] = xr.DataArray(range(data.sizes['gru']), dims=('gru',))
         mizu['gruId'] = xr.DataArray(gid, dims=('gru',), attrs={
@@ -542,7 +540,7 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
 
             return False
 
-        except Exception as e:
+        except (FileNotFoundError, KeyError, ValueError) as e:
             self.logger.warning(f"Could not determine if snow optimization: {str(e)}")
             # Fall back to checking config
             optimization_target = self.config_dict.get('OPTIMIZATION_TARGET', 'streamflow')
@@ -624,11 +622,11 @@ class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, Mi
             self.logger.debug(f"Updated file manager: OUTPUT_PATH={output_path}, FMODEL_ID={fuse_id}, M_DECISIONS={decisions_file}")
             return True
 
-        except Exception as e:
+        except (FileNotFoundError, OSError, PermissionError) as e:
             self.logger.error(f"Failed to update file manager: {e}")
             return False
 
-    def _execute_fuse(self, mode, para_file=None) -> bool:
+    def _execute_fuse(self, mode: str, para_file: Optional[Path] = None) -> bool:
         """
         Execute the FUSE model with specified run mode.
 

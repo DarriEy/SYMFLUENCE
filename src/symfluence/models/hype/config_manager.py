@@ -91,7 +91,7 @@ class HYPEConfigManager(ConfigMixin):
 
                 self._config = SymfluenceConfig(**config)
 
-            except Exception:
+            except (TypeError, ValueError, KeyError, AttributeError):
 
                 # Fallback for partial configs (e.g., in tests)
 

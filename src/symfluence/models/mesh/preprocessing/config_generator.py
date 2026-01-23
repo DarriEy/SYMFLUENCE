@@ -61,7 +61,7 @@ class MESHConfigGenerator(ConfigMixin):
 
                 self._config = SymfluenceConfig(**config)
 
-            except Exception:
+            except (TypeError, ValueError, KeyError, AttributeError):
 
                 # Fallback for partial configs (e.g., in tests)
 
@@ -170,7 +170,7 @@ METRICSSPINUP       {spinup_days}                       # Spinup days to exclude
         try:
             with xr.open_dataset(ddb_path) as ds:
                 ngru = ds.dims.get('NGRU', 1)
-        except Exception as e:
+        except (FileNotFoundError, OSError, ValueError, KeyError) as e:
             self.logger.warning(f"Failed to read DDB: {e}")
             ngru = 1
 
@@ -182,7 +182,7 @@ METRICSSPINUP       {spinup_days}                       # Spinup days to exclude
             with open(DEFAULT_CLASS_PARAMS, 'r') as f:
                 defaults = json.load(f)
             class_defaults = defaults.get('class_defaults', {})
-        except Exception:
+        except (ImportError, FileNotFoundError, OSError, ValueError, KeyError):
             class_defaults = {
                 'veg': {'line5': {'fcan': 1, 'lamx': 1.45}, 'line6': {'lnz0': -1.3, 'lamn': 1.2}},
                 'soil': {'line14': {'sand1': 50, 'sand2': 50, 'sand3': 50}},

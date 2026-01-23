@@ -61,6 +61,7 @@ class RHESSysWorker(BaseWorker):
             True if successful
         """
         try:
+            self.logger.debug(f"Applying RHESSys parameters: {params}")
 
             # The settings_dir should contain a 'defs' subdirectory
             defs_dir = settings_dir / 'defs'
@@ -157,6 +158,7 @@ class RHESSysWorker(BaseWorker):
 
             with open(def_file, 'w') as f:
                 f.writelines(updated_lines)
+            self.logger.debug(f"Updated {len(file_params)} params in {def_file_name}")
 
         return True
 
@@ -189,6 +191,13 @@ class RHESSysWorker(BaseWorker):
             # Use sim_dir for output if provided
             rhessys_output_dir = Path(kwargs.get('sim_dir', output_dir))
             rhessys_output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Clean up stale output files to ensure fresh model run
+            self._cleanup_stale_output(rhessys_output_dir)
+
+            # Log cleanup status
+            output_file = rhessys_output_dir / 'rhessys_basin.daily'
+            self.logger.debug(f"After cleanup, output file exists: {output_file.exists()}")
 
             # Get executable
             rhessys_exe = self._get_rhessys_executable(config, data_dir)
@@ -223,6 +232,8 @@ class RHESSysWorker(BaseWorker):
                     env["LD_LIBRARY_PATH"] = f"{lib_path_str}:{env.get('LD_LIBRARY_PATH', '')}"
 
             # Run RHESSys
+            import time as time_module
+            run_start = time_module.time()
             result = subprocess.run(
                 cmd,
                 cwd=str(rhessys_output_dir),
@@ -231,17 +242,24 @@ class RHESSysWorker(BaseWorker):
                 text=True,
                 timeout=config.get('RHESSYS_TIMEOUT', 3600)
             )
+            run_time = time_module.time() - run_start
+            self.logger.info(f"RHESSys completed in {run_time:.2f}s with return code {result.returncode}")
 
             if result.returncode != 0:
                 self._last_error = f"RHESSys failed: {result.stderr[-500:]}"
                 self.logger.error(self._last_error)
                 return False
 
-            # Verify output exists
+            # Verify output exists and log details
             output_file = rhessys_output_dir / 'rhessys_basin.daily'
             if not output_file.exists():
                 self._last_error = "No basin output file produced"
+                self.logger.error(f"Expected output at {output_file}")
                 return False
+
+            # Log output file size to verify it was actually written
+            file_size = output_file.stat().st_size
+            self.logger.debug(f"Output file {output_file} size: {file_size} bytes")
 
             return True
 
@@ -360,6 +378,56 @@ class RHESSysWorker(BaseWorker):
         with open(worker_hdr, 'w') as f:
             f.write(content)
 
+    def _cleanup_stale_output(self, output_dir: Path, config: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Remove stale RHESSys output files before a new model run.
+
+        This ensures that each calibration iteration produces fresh output
+        and prevents reusing stale results from previous runs.
+
+        Args:
+            output_dir: Directory containing RHESSys output files
+            config: Optional config dict to get experiment_id for nested path cleanup
+        """
+        # RHESSys output file patterns to clean up
+        output_patterns = [
+            'rhessys_basin.daily',
+            'rhessys_basin.hourly',
+            'rhessys_basin.monthly',
+            'rhessys_basin.yearly',
+        ]
+
+        files_removed = 0
+
+        # Clean at the direct output directory level
+        for pattern in output_patterns:
+            direct_file = output_dir / pattern
+            if direct_file.exists():
+                try:
+                    direct_file.unlink()
+                    files_removed += 1
+                    self.logger.debug(f"Removed stale output: {direct_file}")
+                except (OSError, IOError) as e:
+                    self.logger.warning(f"Could not remove stale file {direct_file}: {e}")
+
+        # Clean the RHESSys-specific output file with wildcard
+        for file_path in output_dir.glob('rhessys_*.daily'):
+            try:
+                file_path.unlink()
+                files_removed += 1
+            except (OSError, IOError) as e:
+                self.logger.warning(f"Could not remove stale file {file_path}: {e}")
+
+        for file_path in output_dir.glob('rhessys_*.hourly'):
+            try:
+                file_path.unlink()
+                files_removed += 1
+            except (OSError, IOError) as e:
+                self.logger.warning(f"Could not remove stale file {file_path}: {e}")
+
+        if files_removed > 0:
+            self.logger.info(f"Cleaned up {files_removed} stale RHESSys output files from {output_dir}")
+
     def calculate_metrics(
         self,
         output_dir: Path,
@@ -469,7 +537,7 @@ class RHESSysWorker(BaseWorker):
                     try:
                         start_str, end_str = calib_period_str.split(',')
                         calib_period_tuple = (start_str.strip(), end_str.strip())
-                    except Exception:
+                    except (ValueError, IndexError):
                         pass
 
                 # Let StreamflowMetrics handle alignment and period filtering

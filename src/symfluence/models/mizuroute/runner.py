@@ -5,10 +5,12 @@ Manages the execution of the mizuRoute routing model.
 Refactored to use the Unified Model Execution Framework.
 """
 
-import pandas as pd
+import logging
 import traceback
 from pathlib import Path
 from typing import Dict, Any, Optional
+
+import pandas as pd
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelRunner
@@ -33,7 +35,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
         domain_name (str): Name of the domain being processed.
         project_dir (Path): Directory for the current project.
     """
-    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         # Call base class
         super().__init__(config, logger, reporting_manager=reporting_manager)
 
@@ -292,7 +294,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
             ds.to_netcdf(temp_filepath, format='NETCDF4')
             ds.close()
 
-            os.chmod(temp_filepath, 0o664)
+            os.chmod(temp_filepath, 0o664)  # nosec B103 - Group-writable for HPC shared access
             temp_filepath.rename(runoff_filepath)
 
             self.logger.info("Time precision fixed successfully")

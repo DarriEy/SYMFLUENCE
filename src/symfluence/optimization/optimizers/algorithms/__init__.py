@@ -36,6 +36,14 @@ from .bayesian_optimization import BayesianOptimizationAlgorithm
 from .moead import MOEADAlgorithm
 from .simulated_annealing import SimulatedAnnealingAlgorithm
 from .abc import ABCAlgorithm
+from .config_schema import (
+    CMAESDefaults,
+    NSGA2Defaults,
+    DREAMDefaults,
+    PSODefaults,
+    get_algorithm_defaults,
+    validate_hyperparameters,
+)
 
 
 # Algorithm registry mapping names to classes
@@ -148,6 +156,13 @@ __all__ = [
     'MOEADAlgorithm',
     'SimulatedAnnealingAlgorithm',
     'ABCAlgorithm',
+    # Config schema classes
+    'CMAESDefaults',
+    'NSGA2Defaults',
+    'DREAMDefaults',
+    'PSODefaults',
+    'get_algorithm_defaults',
+    'validate_hyperparameters',
     # Factory functions
     'get_algorithm',
     'list_algorithms',

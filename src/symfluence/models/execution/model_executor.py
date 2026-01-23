@@ -190,7 +190,7 @@ class ModelExecutor(ABC):
                     stderr=subprocess.STDOUT if not capture_output else subprocess.PIPE,
                     cwd=cwd,
                     env=run_env,
-                    shell=shell,
+                    shell=shell,  # nosec B602 - shell mode required for model executables
                     text=True,
                     timeout=timeout
                 )
@@ -518,7 +518,7 @@ class ModelExecutor(ABC):
             # First line contains the status
             status = result.stdout.strip().split('\n')[0].split('|')[0]
             return status.strip()
-        except Exception:
+        except (subprocess.SubprocessError, OSError, IndexError):
             return "UNKNOWN"
 
     def _parse_squeue_output(self, output: str) -> str:
