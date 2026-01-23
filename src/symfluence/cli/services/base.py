@@ -114,7 +114,7 @@ class BaseService:
                         data_dir_valid = True
                     except (PermissionError, OSError):
                         pass
-            except Exception:
+            except (ValueError, OSError):
                 pass
 
         if code_dir:
@@ -122,7 +122,7 @@ class BaseService:
                 code_path = Path(code_dir)
                 if code_path.exists() and os.access(code_path, os.R_OK):
                     code_dir_valid = True
-            except Exception:
+            except (ValueError, OSError):
                 pass
 
         if not data_dir_valid or not code_dir_valid:
@@ -141,7 +141,7 @@ class BaseService:
                 try:
                     new_data_dir.mkdir(parents=True, exist_ok=True)
                     self._console.success(f"SYMFLUENCE_DATA_DIR set to: {new_data_dir}")
-                except Exception:
+                except OSError:
                     pass
 
             try:
@@ -152,7 +152,7 @@ class BaseService:
                     shutil.copy2(config_path, backup_path)
                 with open(config_path, "w", encoding="utf-8") as f:
                     yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-            except Exception:
+            except OSError:
                 pass
 
         return config

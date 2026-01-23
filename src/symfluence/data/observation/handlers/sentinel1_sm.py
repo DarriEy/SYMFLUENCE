@@ -227,14 +227,19 @@ class Sentinel1SMHandler(BaseObservationHandler):
                 if not measurement_files:
                     return None
 
-                # Extract VV polarization backscatter
-                _vv_file = next(  # noqa: F841 - TODO: use for rasterio processing
+                # Find VV polarization file (preferred) or use first available
+                vv_file = next(
                     (f for f in measurement_files if 'vv' in f.lower()),
                     measurement_files[0]
                 )
 
-                # Read backscatter (would need rasterio for proper processing)
-                # This is a simplified placeholder
+                # Raw Sentinel-1 SAR processing requires radiometric calibration
+                # and terrain correction which is beyond the scope of this handler.
+                # Use preprocessed NetCDF or GeoTIFF products instead.
+                self.logger.debug(
+                    f"Raw ZIP processing not implemented for {vv_file}. "
+                    "Use preprocessed NetCDF/GeoTIFF products for Sentinel-1 SM."
+                )
                 backscatter_vv = np.nan
 
                 return {

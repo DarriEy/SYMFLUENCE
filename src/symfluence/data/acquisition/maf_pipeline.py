@@ -56,13 +56,13 @@ Configuration:
 
 Examples:
     >>> # Geospatial extraction
-    >>> from symphluence.data.acquisition.maf_pipeline import gistoolRunner
+    >>> from symfluence.data.acquisition.maf_pipeline import gistoolRunner
     >>> runner = gistoolRunner(config, logger)
     >>> runner.create_gistool_command(...)
     >>> runner.execute_gistool_command(cmd)
 
     >>> # Forcing data extraction
-    >>> from symphluence.data.acquisition.maf_pipeline import datatoolRunner
+    >>> from symfluence.data.acquisition.maf_pipeline import datatoolRunner
     >>> runner = datatoolRunner(config, logger)
     >>> runner.create_datatool_command(...)
     >>> runner.execute_datatool_command(cmd)

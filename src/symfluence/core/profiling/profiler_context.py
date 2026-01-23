@@ -95,7 +95,7 @@ def _register_worker_export():
             profile_file = profile_dir / f"worker_profile_{pid}.json"
 
             _global_profiler.export_to_file(str(profile_file))
-        except Exception:
+        except OSError:
             # Silently fail - don't want to crash on exit
             pass
 
