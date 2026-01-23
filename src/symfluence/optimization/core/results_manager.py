@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional
+from pydantic import ValidationError
 
 from symfluence.core.mixins import ConfigMixin
 
@@ -32,7 +33,7 @@ class ResultsManager(ConfigMixin):
 
                 self._config = SymfluenceConfig(**config)
 
-            except Exception:
+            except (ValidationError, TypeError):
 
                 # Fallback for partial configs (e.g., in tests)
 
@@ -65,7 +66,7 @@ class ResultsManager(ConfigMixin):
 
             return True
 
-        except Exception as e:
+        except (IOError, OSError, ValueError) as e:
             self.logger.error(f"Error saving results: {str(e)}")
             return False
 

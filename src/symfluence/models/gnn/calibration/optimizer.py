@@ -33,7 +33,7 @@ class GNNModelOptimizer(BaseModelOptimizer):
         return 'GNN'
 
     def _create_parameter_manager(self):
-        from symfluence.optimization.parameter_managers.ml_parameter_manager import MLParameterManager
+        from symfluence.models.gnn.calibration.parameter_manager import MLParameterManager
         gnn_settings_dir = self.project_dir / 'settings' / 'GNN'
         gnn_settings_dir.mkdir(parents=True, exist_ok=True)
 

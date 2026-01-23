@@ -187,10 +187,12 @@ class LSTMPostprocessor(StandardModelPostprocessor):
                 ds.scalarSWE.attrs['units'] = 'mm'
 
             # Also save outlet prediction if available
-            # For now, just save the sum as a fallback standardized result
+            # Aggregate HRU runoff using simple summation
+            # For proper routing, configure ROUTING_MODEL in config
+            aggregated_discharge = pivot_df.sum(axis=1)
             self.save_streamflow_to_results(
-                pivot_df.sum(axis=1),  # Simple sum as placeholder
-                model_column_name=f"{self.model_name}_sum_discharge_cms"
+                aggregated_discharge,
+                model_column_name=f"{self.model_name}_aggregated_discharge_cms"
             )
 
         # Common attributes

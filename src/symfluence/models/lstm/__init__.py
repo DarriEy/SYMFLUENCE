@@ -28,7 +28,7 @@ Design Rationale:
 
 Key Components:
     LSTMRunner: Main orchestrator for model workflow (preprocessing, training, simulation)
-    LSTMPreprocessor: Data loading, normalization, sequence preparation
+    LSTMPreProcessor: Data loading, normalization, sequence preparation
     LSTMPostprocessor: Output denormalization, result formatting, saving
     LSTMModel: PyTorch model architecture (LSTM + optional attention)
 
@@ -63,7 +63,7 @@ Limitations and Considerations:
 """
 
 from .runner import LSTMRunner
-from .preprocessor import LSTMPreprocessor
+from .preprocessor import LSTMPreProcessor
 from .postprocessor import LSTMPostprocessor
 from .model import LSTMModel
 from .visualizer import visualize_lstm
@@ -71,18 +71,18 @@ from .visualizer import visualize_lstm
 # Alias for backward compatibility
 FLASH = LSTMRunner
 FlashRunner = LSTMRunner
-FlashPreprocessor = LSTMPreprocessor
+FlashPreProcessor = LSTMPreProcessor
 FlashPostprocessor = LSTMPostprocessor
 
 __all__ = [
     'LSTMRunner',
-    'LSTMPreprocessor',
+    'LSTMPreProcessor',
     'LSTMPostprocessor',
     'LSTMModel',
     'visualize_lstm',
     'FLASH',
     'FlashRunner',
-    'FlashPreprocessor',
+    'FlashPreProcessor',
     'FlashPostprocessor'
 ]
 
@@ -96,7 +96,7 @@ from .extractor import LSTMResultExtractor
 ModelRegistry.register_result_extractor('LSTM')(LSTMResultExtractor)
 
 # Register preprocessor with ModelRegistry
-ModelRegistry.register_preprocessor('LSTM')(LSTMPreprocessor)
+ModelRegistry.register_preprocessor('LSTM')(LSTMPreProcessor)
 
 # Register runner with ModelRegistry (method_name must match the actual method in runner.py)
 ModelRegistry.register_runner('LSTM', method_name='run_lstm')(LSTMRunner)

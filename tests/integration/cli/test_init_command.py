@@ -419,21 +419,24 @@ class TestInitCommandValidation:
         """Test init with invalid preset name."""
         exit_code, _, stderr = _run_cli(['project', 'init', 'nonexistent-preset'])
 
-        assert exit_code == 2
+        # ExitCode.VALIDATION_ERROR = 4
+        assert exit_code == 4
         assert 'Unknown preset' in stderr
 
     def test_init_without_preset_requires_domain(self):
         """Test init without preset requires --domain."""
         exit_code, _, stderr = _run_cli(['project', 'init'])
 
-        assert exit_code == 2
+        # ExitCode.VALIDATION_ERROR = 4
+        assert exit_code == 4
         assert 'Missing required field: DOMAIN_NAME' in stderr
 
     def test_init_without_preset_requires_model(self):
         """Test init without preset requires --model (and other fields)."""
         exit_code, _, stderr = _run_cli(['project', 'init', '--domain', 'test'])
 
-        assert exit_code == 2
+        # ExitCode.VALIDATION_ERROR = 4
+        assert exit_code == 4
         # Model might have default, but forcing should be missing
         assert 'Missing required field: FORCING_DATASET' in stderr
 
@@ -461,4 +464,5 @@ class TestInitCommandOutput:
             cwd=tmp_path,
         )
 
-        assert '📁 To create project structure' in stdout
+        assert 'To create project structure, run:' in stdout
+        assert 'setup_project' in stdout

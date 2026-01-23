@@ -13,11 +13,12 @@ import numpy as np
 import geopandas as gpd
 import rasterio
 from shapely.geometry import box
-from scipy import stats as scipy_stats
 
 from ..base.base_delineator import BaseGeofabricDelineator
+from ....geospatial.raster_utils import _scipy_mode_compat
 from ..processors.taudem_executor import TauDEMExecutor
 from ..processors.gdal_processor import GDALProcessor
+from ....geospatial.delineation_registry import DelineationRegistry
 
 
 # D8 flow direction encoding (TauDEM convention)
@@ -34,6 +35,7 @@ D8_OFFSETS = {
 }
 
 
+@DelineationRegistry.register('distributed')
 class GridDelineator(BaseGeofabricDelineator):
     """
     Creates a regular mesh grid for fully distributed modeling.
@@ -409,7 +411,9 @@ class GridDelineator(BaseGeofabricDelineator):
                     valid_d8 = cell_d8[(cell_d8 > 0) & (cell_d8 <= 8)]
 
                     if len(valid_d8) > 0:
-                        dominant_direction = int(scipy_stats.mode(valid_d8, keepdims=True)[0][0])
+                        # Use compatibility wrapper for scipy version differences
+                        mode_result = _scipy_mode_compat(valid_d8.flatten(), axis=0)
+                        dominant_direction = int(mode_result.flat[0] if mode_result.size > 0 else 0)
                     else:
                         dominant_direction = 0
                 else:
@@ -609,24 +613,252 @@ class GridDelineator(BaseGeofabricDelineator):
         Create grid matching native forcing data resolution.
 
         Reads forcing file metadata to determine grid structure and creates
-        polygons matching the forcing data grid cells.
+        polygons matching the forcing data grid cells. Filters cells to the
+        domain bounding box.
 
         Returns:
             GeoDataFrame with grid cells matching native forcing resolution,
             or None if forcing data cannot be read.
 
-        Note:
-            This is a stub implementation. Full implementation requires reading
-            the forcing netCDF file to extract lat/lon grid coordinates.
+        Supported datasets:
+            - era5: ERA5 reanalysis (~0.25 degree resolution)
+            - cerra: CERRA reanalysis (~5.5 km resolution)
+            - carra: CARRA reanalysis (~2.5 km resolution)
         """
         self.logger.info(f"Creating native grid from dataset: {self.native_grid_dataset}")
 
-        # TODO: Implementation would read forcing netCDF to get grid structure
-        # For now, log that this feature is not yet implemented
-        self.logger.warning(
-            f"Native grid creation for '{self.native_grid_dataset}' is not yet implemented. "
-            "Use grid_source='generate' with explicit grid_cell_size instead."
+        try:
+            # Step 1: Locate the forcing file
+            forcing_path = self._locate_forcing_file()
+            if forcing_path is None:
+                self.logger.warning(
+                    f"Could not locate forcing file for '{self.native_grid_dataset}'. "
+                    "Use grid_source='generate' with explicit grid_cell_size instead."
+                )
+                return None
+
+            self.logger.info(f"Reading grid structure from: {forcing_path}")
+
+            # Step 2: Read grid structure from netCDF
+            import xarray as xr
+
+            with xr.open_dataset(forcing_path) as ds:
+                # Detect coordinate names
+                lat_name = self._detect_coord_name(ds, ['latitude', 'lat', 'y', 'rlat'])
+                lon_name = self._detect_coord_name(ds, ['longitude', 'lon', 'x', 'rlon'])
+
+                if lat_name is None or lon_name is None:
+                    self.logger.error(
+                        f"Could not detect lat/lon coordinates in {forcing_path}. "
+                        f"Available coords: {list(ds.coords)}"
+                    )
+                    return None
+
+                self.logger.info(f"Detected coordinates: lat='{lat_name}', lon='{lon_name}'")
+
+                # Get coordinate arrays
+                lat_vals = ds[lat_name].values
+                lon_vals = ds[lon_name].values
+
+                # Ensure latitude is in ascending order for processing
+                lat_ascending = lat_vals[0] < lat_vals[-1] if len(lat_vals) > 1 else True
+                if not lat_ascending:
+                    lat_vals = lat_vals[::-1]
+
+            # Step 3: Parse bounding box to filter grid cells
+            bbox_coords = self._get_config_value(
+                lambda: self.config.domain.bounding_box_coords,
+                default="",
+                dict_key='BOUNDING_BOX_COORDS'
+            )
+
+            if bbox_coords:
+                try:
+                    lat_max, lon_min, lat_min, lon_max = map(float, bbox_coords.split("/"))
+                except ValueError:
+                    self.logger.warning(f"Invalid bounding box format: {bbox_coords}, using full grid")
+                    lat_min, lat_max = lat_vals.min(), lat_vals.max()
+                    lon_min, lon_max = lon_vals.min(), lon_vals.max()
+            else:
+                lat_min, lat_max = lat_vals.min(), lat_vals.max()
+                lon_min, lon_max = lon_vals.min(), lon_vals.max()
+
+            # Step 4: Calculate grid cell size (resolution)
+            if len(lat_vals) > 1:
+                lat_res = abs(lat_vals[1] - lat_vals[0])
+            else:
+                lat_res = 0.25  # Default ERA5 resolution
+
+            if len(lon_vals) > 1:
+                lon_res = abs(lon_vals[1] - lon_vals[0])
+            else:
+                lon_res = 0.25
+
+            self.logger.info(f"Grid resolution: lat={lat_res:.4f}, lon={lon_res:.4f} degrees")
+
+            # Step 5: Filter coordinates to bounding box with buffer
+            buffer = max(lat_res, lon_res)  # One cell buffer
+            lat_mask = (lat_vals >= lat_min - buffer) & (lat_vals <= lat_max + buffer)
+            lon_mask = (lon_vals >= lon_min - buffer) & (lon_vals <= lon_max + buffer)
+
+            filtered_lats = lat_vals[lat_mask]
+            filtered_lons = lon_vals[lon_mask]
+
+            if len(filtered_lats) == 0 or len(filtered_lons) == 0:
+                self.logger.error("No grid cells within bounding box")
+                return None
+
+            self.logger.info(
+                f"Filtered grid: {len(filtered_lats)} lats x {len(filtered_lons)} lons "
+                f"= {len(filtered_lats) * len(filtered_lons)} cells"
+            )
+
+            # Step 6: Create grid cell polygons
+            cells = []
+            cell_id = 1
+
+            # Store original indices for native grid referencing
+            lat_indices = np.where(lat_mask)[0]
+            lon_indices = np.where(lon_mask)[0]
+
+            for i, lat in enumerate(filtered_lats):
+                for j, lon in enumerate(filtered_lons):
+                    # Create cell polygon (cell centers to cell edges)
+                    half_lat = lat_res / 2
+                    half_lon = lon_res / 2
+
+                    cell = box(
+                        lon - half_lon, lat - half_lat,
+                        lon + half_lon, lat + half_lat
+                    )
+
+                    # Calculate approximate area in square meters
+                    # Using spherical approximation at cell center latitude
+                    lat_m = lat_res * 111000  # ~111 km per degree latitude
+                    lon_m = lon_res * 111000 * np.cos(np.radians(lat))
+                    area_m2 = lat_m * lon_m
+
+                    cells.append({
+                        'geometry': cell,
+                        'GRU_ID': cell_id,
+                        'GRU_area': area_m2,
+                        'gru_to_seg': cell_id,
+                        'center_lat': lat,
+                        'center_lon': lon,
+                        'native_lat_idx': int(lat_indices[i]),
+                        'native_lon_idx': int(lon_indices[j]),
+                        'row': i,
+                        'col': j,
+                    })
+                    cell_id += 1
+
+            # Step 7: Create GeoDataFrame
+            grid_gdf = gpd.GeoDataFrame(cells, crs='EPSG:4326')
+
+            self.logger.info(
+                f"Created native grid with {len(grid_gdf)} cells "
+                f"from {self.native_grid_dataset} forcing data"
+            )
+
+            return grid_gdf
+
+        except Exception as e:
+            self.logger.error(f"Error creating native grid: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return None
+
+    def _locate_forcing_file(self) -> Optional[Path]:
+        """
+        Locate forcing netCDF file for native grid extraction.
+
+        Searches for forcing files in the configured forcing directory
+        based on the native_grid_dataset setting.
+
+        Returns:
+            Path to forcing file, or None if not found.
+        """
+        # Get forcing directory from config
+        forcing_dir = self._get_config_value(
+            lambda: self.config.paths.forcing_path,
+            default=str(self.project_dir / "forcing"),
+            dict_key='FORCING_PATH'
         )
+
+        if forcing_dir == 'default':
+            forcing_dir = self.project_dir / "forcing"
+        else:
+            forcing_dir = Path(forcing_dir)
+
+        if not forcing_dir.exists():
+            self.logger.warning(f"Forcing directory not found: {forcing_dir}")
+            return None
+
+        # Dataset-specific file patterns
+        dataset_patterns = {
+            'era5': ['era5*.nc', 'ERA5*.nc', '*era5*.nc', '*ERA5*.nc'],
+            'cerra': ['cerra*.nc', 'CERRA*.nc', '*cerra*.nc', '*CERRA*.nc'],
+            'carra': ['carra*.nc', 'CARRA*.nc', '*carra*.nc', '*CARRA*.nc'],
+            'rdrs': ['rdrs*.nc', 'RDRS*.nc', '*rdrs*.nc', '*RDRS*.nc'],
+        }
+
+        patterns = dataset_patterns.get(
+            self.native_grid_dataset.lower(),
+            [f'{self.native_grid_dataset}*.nc', f'*{self.native_grid_dataset}*.nc']
+        )
+
+        # Search for matching files
+        for pattern in patterns:
+            matches = list(forcing_dir.glob(pattern))
+            if matches:
+                # Return the first match (or could prioritize by date/size)
+                return matches[0]
+
+        # Also try subdirectories
+        for subdir in forcing_dir.iterdir():
+            if subdir.is_dir():
+                for pattern in patterns:
+                    matches = list(subdir.glob(pattern))
+                    if matches:
+                        return matches[0]
+
+        # Fallback: try any netCDF file in the forcing directory
+        all_nc_files = list(forcing_dir.glob('*.nc'))
+        if all_nc_files:
+            self.logger.info(
+                f"No {self.native_grid_dataset}-specific file found, "
+                f"using first available: {all_nc_files[0].name}"
+            )
+            return all_nc_files[0]
+
+        return None
+
+    def _detect_coord_name(self, ds, candidates: list) -> Optional[str]:
+        """
+        Detect coordinate name from dataset using candidate names.
+
+        Args:
+            ds: xarray Dataset
+            candidates: List of possible coordinate names (e.g., ['lat', 'latitude', 'y'])
+
+        Returns:
+            Detected coordinate name, or None if not found.
+        """
+        # Check coordinates first
+        for name in candidates:
+            if name in ds.coords:
+                return name
+
+        # Check dimensions as fallback
+        for name in candidates:
+            if name in ds.dims:
+                return name
+
+        # Check data variables (some datasets store coords as vars)
+        for name in candidates:
+            if name in ds.data_vars:
+                return name
+
         return None
 
     def _subset_grid_from_geofabric(

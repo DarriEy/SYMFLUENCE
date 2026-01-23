@@ -132,7 +132,7 @@ class TestConfig:
         """Test JFUSEConfig has sensible defaults."""
         config = JFUSEConfig()
 
-        assert config.model_config_name == 'prms'
+        assert config.model_config_name == 'prms_gradient'  # Default is prms_gradient for gradient-based calibration
         assert config.enable_snow is True
         assert config.spatial_mode == 'auto'  # Default is 'auto' for auto-detection
         assert config.warmup_days == 365

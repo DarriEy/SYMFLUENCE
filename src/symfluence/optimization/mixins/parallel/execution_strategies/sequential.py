@@ -55,7 +55,7 @@ class SequentialExecutionStrategy(ExecutionStrategy):
             try:
                 result = worker_func(task)
                 results.append(result)
-            except Exception as e:
+            except (ValueError, RuntimeError, IOError) as e:
                 self.logger.error(f"Task failed in sequential execution: {e}")
                 results.append({'error': str(e), 'task': task})
 

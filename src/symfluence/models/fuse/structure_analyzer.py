@@ -7,12 +7,14 @@ FUSE Structure Analyzer
 This module implements the Structure Ensemble Analysis for the FUSE model.
 """
 
+import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import geopandas as gpd
+import numpy as np
 import pandas as pd
 import xarray as xr
-import numpy as np
-import geopandas as gpd
-from pathlib import Path
-from typing import List, Tuple, Dict, Any, Optional
 
 from symfluence.evaluation.structure_ensemble import BaseStructureEnsembleAnalyzer
 from symfluence.evaluation.metrics import kge, kge_prime, nse, mae, rmse
@@ -27,7 +29,7 @@ class FuseStructureAnalyzer(BaseStructureEnsembleAnalyzer):
     and evaluates their performance against observations.
     """
 
-    def __init__(self, config: Any, logger: Any, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Any, logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the FUSE structure analyzer.
         """

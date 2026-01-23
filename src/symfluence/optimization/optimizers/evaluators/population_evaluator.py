@@ -76,7 +76,7 @@ class PopulationEvaluator:
                     f"Resolved MPI worker function from loaded module: "
                     f"{worker_module_name}.{func_name}"
                 )
-        except Exception as e:
+        except (ValueError, RuntimeError) as e:
             self.logger.debug(f"Dynamic worker resolution failed: {e}")
 
         if worker_func is None:

@@ -36,7 +36,7 @@ Design Rationale:
     - What are the nitrogen export dynamics from forested watersheds?
 
 Key Components:
-    RHESSysPreprocessor: World file and flow table generation from GIS
+    RHESSysPreProcessor: World file and flow table generation from GIS
     RHESSysRunner: Model execution with optional WMFire coupling
     RHESSysPostProcessor: Output extraction and analysis
 
@@ -56,7 +56,7 @@ Configuration Parameters:
 
 Typical Workflow:
     1. Prepare GIS data (DEM, soils, vegetation, streams)
-    2. Generate world file and flow table via RHESSysPreprocessor
+    2. Generate world file and flow table via RHESSysPreProcessor
     3. Create forcing data (climate time series)
     4. Run spinup to initialize carbon and nitrogen pools
     5. Execute main simulation via RHESSysRunner
@@ -69,11 +69,11 @@ Limitations and Considerations:
     - Computationally intensive for large watersheds
     - Patch-level output can generate very large files
 """
-from .preprocessor import RHESSysPreprocessor
+from .preprocessor import RHESSysPreProcessor
 from .runner import RHESSysRunner
 from .postprocessor import RHESSysPostProcessor
 
-__all__ = ["RHESSysPreprocessor", "RHESSysRunner", "RHESSysPostProcessor"]
+__all__ = ["RHESSysPreProcessor", "RHESSysRunner", "RHESSysPostProcessor"]
 
 # Register build instructions (lightweight, no heavy deps)
 try:
@@ -92,7 +92,7 @@ from .extractor import RHESSysResultExtractor
 ModelRegistry.register_result_extractor('RHESSYS')(RHESSysResultExtractor)
 
 # Register preprocessor with ModelRegistry
-ModelRegistry.register_preprocessor('RHESSYS')(RHESSysPreprocessor)
+ModelRegistry.register_preprocessor('RHESSYS')(RHESSysPreProcessor)
 
 # Register runner with ModelRegistry
 ModelRegistry.register_runner('RHESSYS')(RHESSysRunner)

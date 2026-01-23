@@ -17,6 +17,7 @@ from typing import Dict, Any, Callable, Optional
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm
+from .config_schema import DEDefaults
 
 
 class DEAlgorithm(OptimizationAlgorithm):
@@ -67,8 +68,21 @@ class DEAlgorithm(OptimizationAlgorithm):
             )
 
         # DE parameters
-        F = self.config_dict.get('DE_F', 0.8)  # Differential weight
-        CR = self.config_dict.get('DE_CR', 0.9)  # Crossover probability
+        F = self._get_config_value(
+            lambda: self.config.optimization.de.f,
+            default=DEDefaults.F,
+            dict_key='DE_F'
+        )
+        CR = self._get_config_value(
+            lambda: self.config.optimization.de.cr,
+            default=DEDefaults.CR,
+            dict_key='DE_CR'
+        )
+
+        # Validate DE parameters
+        valid, warning = DEDefaults.validate_parameters(F, CR)
+        if not valid:
+            self.logger.warning(f"DE parameters may cause issues: {warning}")
 
         # Initialize population
         self.logger.info(f"Evaluating initial population ({pop_size} individuals)...")

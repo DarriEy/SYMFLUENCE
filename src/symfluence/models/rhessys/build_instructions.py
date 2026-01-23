@@ -5,9 +5,15 @@ This module defines how to build RHESSys from source, including:
 - Repository and branch information
 - Build commands (shell scripts)
 - Installation verification criteria
+- Optional WMFire library linking for fire spread simulation
 
 RHESSys (Regional Hydro-Ecologic Simulation System) is an ecosystem-
 hydrological model that simulates water, carbon, and nitrogen cycling.
+
+WMFire Integration:
+    If WMFire library (libwmfire.so/dylib) is found at installs/wmfire/lib,
+    RHESSys will be built with fire spread support (wmfire=T). Build WMFire
+    first to enable this capability. WMFire requires Boost headers.
 """
 
 from symfluence.cli.services import BuildInstructionsRegistry
@@ -98,6 +104,63 @@ if [ -z "$NETCDF_LDFLAGS" ]; then
     echo "  module load netcdf  # or netcdf-c"
 fi
 echo "NETCDF_LDFLAGS: $NETCDF_LDFLAGS"
+
+# Set up flex library flags if flex was detected/built
+FLEX_LDFLAGS=""
+
+# Check HPC module environment variable first (EasyBuild)
+if [ -n "${EBROOTFLEX:-}" ]; then
+    for libdir in "$EBROOTFLEX/lib64" "$EBROOTFLEX/lib"; do
+        if [ -f "$libdir/libfl.so" ] || [ -f "$libdir/libfl.a" ]; then
+            FLEX_LDFLAGS="-L$libdir -lfl"
+            echo "Found HPC module flex library in: $libdir"
+            break
+        fi
+    done
+fi
+
+# Use FLEX_LIB_DIR if set by flex_detect snippet
+if [ -z "$FLEX_LDFLAGS" ] && [ -n "${FLEX_LIB_DIR:-}" ] && [ -d "${FLEX_LIB_DIR}" ]; then
+    if [ -f "${FLEX_LIB_DIR}/libfl.a" ] || [ -f "${FLEX_LIB_DIR}/libfl.so" ]; then
+        FLEX_LDFLAGS="-L${FLEX_LIB_DIR} -lfl"
+        echo "FLEX_LDFLAGS: $FLEX_LDFLAGS (from FLEX_LIB_DIR)"
+    fi
+fi
+
+# Check if flex was built locally in the install directory (one level up from rhessys source)
+if [ -z "$FLEX_LDFLAGS" ]; then
+    for flexlib in "../flex/lib" "../../flex/lib"; do
+        if [ -f "$flexlib/libfl.a" ] || [ -f "$flexlib/libfl.so" ]; then
+            # Convert to absolute path
+            FLEX_LIB_ABS=$(cd "$flexlib" && pwd)
+            FLEX_LDFLAGS="-L${FLEX_LIB_ABS} -lfl"
+            echo "Found locally-built flex library at: $FLEX_LIB_ABS"
+            export LIBRARY_PATH="${FLEX_LIB_ABS}:${LIBRARY_PATH:-}"
+            export LD_LIBRARY_PATH="${FLEX_LIB_ABS}:${LD_LIBRARY_PATH:-}"
+            break
+        fi
+    done
+fi
+
+# Search common system paths for libfl
+if [ -z "$FLEX_LDFLAGS" ]; then
+    for libdir in /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu /lib64 /lib; do
+        if [ -f "$libdir/libfl.a" ] || [ -f "$libdir/libfl.so" ]; then
+            FLEX_LDFLAGS="-L$libdir -lfl"
+            echo "Found system flex library in: $libdir"
+            break
+        fi
+    done
+fi
+
+# Final fallback - just try -lfl (might work if it's in standard paths)
+if [ -z "$FLEX_LDFLAGS" ]; then
+    FLEX_LDFLAGS="-lfl"
+    echo "WARNING: libfl not found in expected locations. Trying default -lfl"
+    echo "If linking fails, ensure flex-devel is installed or load the flex module"
+fi
+
+echo "FLEX_LDFLAGS: $FLEX_LDFLAGS"
 
 echo "GEOS_CFLAGS: $GEOS_CFLAGS, PROJ_CFLAGS: $PROJ_CFLAGS"
 
@@ -225,6 +288,49 @@ grep "const void \*e1" util/key_compare.c || { echo "Patching key_compare.c fail
 grep "const void \*" util/sort_patch_layers.c || { echo "Patching sort_patch_layers.c failed"; exit 1; }
 echo "Patches verified."
 
+# Fix WMFire fire grid bug: patch ID 0 should not be treated as valid patch
+# The condition if(tmpPatchID>=0) incorrectly treats 0 as valid, causing NULL pointer dereference
+# when the patches array is allocated but not populated (no patch 0 exists in the world file)
+echo "Patching construct_fire_grid.c for WMFire patch ID bug..."
+if [ -f "init/construct_fire_grid.c" ]; then
+    sed -i.bak 's/if(tmpPatchID>=0)/if(tmpPatchID>0)/' init/construct_fire_grid.c
+    if grep -q 'if(tmpPatchID>0)' init/construct_fire_grid.c; then
+        echo "Patched construct_fire_grid.c: tmpPatchID>=0 -> tmpPatchID>0"
+    else
+        echo "WARNING: construct_fire_grid.c patch may not have applied"
+    fi
+fi
+
+# Fix handle_event.c to include WMFire event handler (missing in source)
+echo "Patching handle_event.c to add fire_grid_on support..."
+cat > /tmp/rhessys_event_patch.pl << 'PERLSCRIPT'
+use strict;
+use warnings;
+my $file = $ARGV[0];
+open(my $fh, '<', $file) or die "Cannot open $file: $!";
+my $content = do { local $/; <$fh> };
+close($fh);
+
+my $changes = 0;
+
+# Add function declaration
+if ($content !~ /void\s+execute_firespread_event/) {
+    $changes += ($content =~ s/(\s*)void\s+execute_state_output_event/$1void execute_firespread_event(\n$1\tstruct world_object *,\n$1\tstruct command_line_object *,\n$1\tstruct date);\n$1void execute_state_output_event/);
+}
+
+# Add event handler
+if ($content !~ /fire_grid_on/) {
+    # Match the last else block
+    $changes += ($content =~ s/(\s*)else\{\s*fprintf\(stderr,"FATAL ERROR: in handle event - event %s not recognized/\n$1else if ( !strcmp(event[0].command,"fire_grid_on") ){\n$1\texecute_firespread_event(world, command_line, current_date);\n$1}\n$1else{\n$1\tfprintf(stderr,"FATAL ERROR: in handle event - event %s not recognized/);
+}
+
+open($fh, '>', $file) or die "Cannot write $file: $!";
+print $fh $content;
+close($fh);
+print "Patched $file with $changes changes\n";
+PERLSCRIPT
+perl /tmp/rhessys_event_patch.pl rhessys/tec/handle_event.c
+
 # Patch makefile to remove test dependency from rhessys target
 # This allows building without glib-2.0 which is required only for tests
 echo "Patching makefile to skip test dependency..."
@@ -238,7 +344,83 @@ grep -q "^rhessys: \$(OBJECTS)$" makefile && echo "Makefile patched successfully
 # IMPORTANT: Use CMD_OPTS for extra flags, NOT CFLAGS override - the makefile's CFLAGS
 # includes $(DEFINES) with -DLIU_NETCDF_READER which is required for is_approximately()
 COMPAT_FLAGS="-Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-error=implicit-function-declaration"
-make V=1 CC="$CC" netcdf=T CMD_OPTS="$COMPAT_FLAGS $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS $NETCDF_LDFLAGS"
+
+# Check for WMFire library and enable fire spread support if available
+WMFIRE_FLAG=""
+WMFIRE_LDFLAGS=""
+mkdir -p ../lib
+
+# Look for WMFire library in common locations
+OS=$(uname -s)
+if [ "$OS" = "Darwin" ]; then
+    WMFIRE_LIB_NAME="libwmfire.dylib"
+else
+    WMFIRE_LIB_NAME="libwmfire.so"
+fi
+
+# Check if WMFire was already built in the wmfire install directory
+WMFIRE_INSTALL_DIR="${INSTALLS_DIR:-../..}/wmfire/lib"
+if [ -f "$WMFIRE_INSTALL_DIR/$WMFIRE_LIB_NAME" ]; then
+    echo "Found WMFire library at $WMFIRE_INSTALL_DIR/$WMFIRE_LIB_NAME"
+    cp "$WMFIRE_INSTALL_DIR/$WMFIRE_LIB_NAME" ../lib/
+    WMFIRE_FLAG="wmfire=T"
+    WMFIRE_LDFLAGS="-L../lib"
+    echo "WMFire support ENABLED"
+fi
+
+# Also check if WMFire is in the FIRE directory (build from source in same repo)
+if [ -z "$WMFIRE_FLAG" ] && [ -d "../FIRE" ]; then
+    if [ -f "../FIRE/$WMFIRE_LIB_NAME" ]; then
+        echo "Found WMFire library in FIRE directory"
+        cp "../FIRE/$WMFIRE_LIB_NAME" ../lib/
+        WMFIRE_FLAG="wmfire=T"
+        WMFIRE_LDFLAGS="-L../lib"
+        echo "WMFire support ENABLED (from FIRE directory)"
+    elif [ -f "../FIRE/WMFire.cpp" ]; then
+        echo "WMFire source found but not built. Building WMFire..."
+        # Build WMFire from source
+        pushd ../FIRE > /dev/null
+        CXX=${CXX:-g++}
+
+        # Find Boost headers
+        BOOST_INCLUDE=""
+        for boost_dir in "$CONDA_PREFIX/include" /opt/homebrew/include /usr/local/include /usr/include; do
+            if [ -d "$boost_dir/boost" ]; then
+                BOOST_INCLUDE="-I$boost_dir"
+                break
+            fi
+        done
+
+        if [ "$OS" = "Darwin" ]; then
+            SHARED_FLAG="-dynamiclib"
+        else
+            SHARED_FLAG="-shared"
+        fi
+
+        $CXX -c -fPIC $BOOST_INCLUDE -O2 -o RanNums.o RanNums.cpp 2>/dev/null || echo "WMFire build requires Boost headers"
+        $CXX -c -fPIC $BOOST_INCLUDE -O2 -o WMFire.o WMFire.cpp 2>/dev/null || true
+        if [ -f "RanNums.o" ] && [ -f "WMFire.o" ]; then
+            $CXX $SHARED_FLAG -fPIC -o $WMFIRE_LIB_NAME RanNums.o WMFire.o
+            if [ -f "$WMFIRE_LIB_NAME" ]; then
+                # From ../FIRE, ../lib is at the same level as rhessys source dir
+                mv $WMFIRE_LIB_NAME ../lib/
+                WMFIRE_FLAG="wmfire=T"
+                WMFIRE_LDFLAGS="-L../lib"
+                echo "WMFire built and enabled"
+            fi
+            rm -f RanNums.o WMFire.o
+        fi
+        popd > /dev/null
+    fi
+fi
+
+if [ -z "$WMFIRE_FLAG" ]; then
+    echo "WMFire library not found - building RHESSys without fire spread support"
+    echo "To enable WMFire: install Boost headers and build WMFire first"
+fi
+
+# Build RHESSys with optional WMFire support
+make V=1 CC="$CC" netcdf=T $WMFIRE_FLAG CMD_OPTS="$COMPAT_FLAGS $GEOS_CFLAGS $PROJ_CFLAGS $GEOS_LDFLAGS $PROJ_LDFLAGS $NETCDF_LDFLAGS $FLEX_LDFLAGS $WMFIRE_LDFLAGS"
 
 mkdir -p ../bin
 # Try multiple possible locations for rhessys binary

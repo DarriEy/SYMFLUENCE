@@ -5,6 +5,7 @@ Provides functions for land cover mode calculation, aspect and radiation
 derivation from DEMs, and raster value analysis for discretization.
 """
 
+import logging
 import numpy as np
 import rasterio # type: ignore
 from scipy import stats
@@ -15,7 +16,38 @@ from pathlib import Path
 from logging import Logger
 from typing import Optional
 
-def calculate_landcover_mode(input_dir, output_file, start_year, end_year, domain_name):
+
+def _scipy_mode_compat(data: np.ndarray, axis: int = 0) -> np.ndarray:
+    """
+    Compute mode with scipy version compatibility.
+
+    Handles scipy <1.11 (no keepdims) and >=1.11 (keepdims parameter).
+
+    Args:
+        data: Input array to compute mode over
+        axis: Axis along which to compute the mode
+
+    Returns:
+        Array of mode values with the specified axis removed
+    """
+    try:
+        # scipy >= 1.11.0
+        result = stats.mode(data, axis=axis, keepdims=False)
+        return result.mode
+    except TypeError:
+        # scipy 1.10.x - no keepdims parameter
+        result = stats.mode(data, axis=axis)
+        # Old scipy returns ModeResult with shape including axis dimension
+        return np.squeeze(result.mode, axis=axis)
+
+
+def calculate_landcover_mode(
+    input_dir: Path,
+    output_file: Path,
+    start_year: int,
+    end_year: int,
+    domain_name: str
+) -> None:
     """
     Calculate the temporal mode of land cover data across multiple years.
 
@@ -84,6 +116,7 @@ def calculate_landcover_mode(input_dir, output_file, start_year, end_year, domai
     with rasterio.open(files[0]) as src:
         meta = src.meta.copy()
         shape = (src.height, src.width)
+        input_nodata = meta.get('nodata', None)
 
     # Read data for each year
     for year in range(start_year, end_year + 1):
@@ -111,31 +144,45 @@ def calculate_landcover_mode(input_dir, output_file, start_year, end_year, domai
         stacked_data = np.stack(yearly_data, axis=0)
 
         # Calculate the mode along the year axis (axis=0)
-        # Using scipy.stats.mode with keepdims=False for newer scipy versions
-        try:
-            mode_data, _ = stats.mode(stacked_data, axis=0, keepdims=False)
-        except TypeError:
-            # For older scipy versions that don't have keepdims parameter
-            mode_result = stats.mode(stacked_data, axis=0)
-            mode_data = mode_result[0][0]  # Extract the mode values
+        # Use compatibility wrapper for scipy version differences
+        mode_data = _scipy_mode_compat(stacked_data, axis=0)
 
     # Update the metadata for the output file
+    # Preserve input nodata or use dtype-appropriate value to avoid conflicts
+    # with valid land cover classes (e.g., 0 often represents water or background)
+    if input_nodata is not None:
+        output_nodata = input_nodata
+    elif meta['dtype'] == 'uint8':
+        output_nodata = 255  # Standard nodata for uint8 land cover
+    else:
+        output_nodata = -9999
+
     meta.update({
         'count': 1,
-        'nodata': 0
+        'nodata': output_nodata
     })
 
     # Ensure output directory exists
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     # Write the result
+    logger = logging.getLogger(__name__)
+
     with rasterio.open(output_file, 'w', **meta) as dst:
         # Make sure mode_data has the right shape
         if mode_data.ndim == 1 or mode_data.shape != shape:
             # If the shape doesn't match, reshape it to the expected dimensions
             if mode_data.size == shape[0] * shape[1]:
+                logger.warning(
+                    f"Mode data shape {mode_data.shape} reshaped to {shape}. "
+                    "Verify output raster for correctness."
+                )
                 mode_data = mode_data.reshape(shape)
             else:
+                logger.warning(
+                    f"Mode data shape {mode_data.shape} does not match expected {shape}. "
+                    f"Padding with zeros - DATA MAY BE INCOMPLETE."
+                )
                 # Create a new array with the correct shape
                 new_mode_data = np.zeros(shape, dtype=meta['dtype'])
 
@@ -144,13 +191,13 @@ def calculate_landcover_mode(input_dir, output_file, start_year, end_year, domai
                     # Take as many values as we can from mode_data
                     size = min(mode_data.size, shape[0] * shape[1])
                     new_mode_data.flat[:size] = mode_data[:size]
-                    mode_data = new_mode_data
                 else:
                     # If dimensions don't match but we can copy partial data
                     min_h = min(mode_data.shape[0], shape[0])
                     min_w = min(mode_data.shape[1], shape[1])
                     new_mode_data[:min_h, :min_w] = mode_data[:min_h, :min_w]
-                    mode_data = new_mode_data
+
+                mode_data = new_mode_data
 
         # Now write the data
         dst.write(mode_data, 1)

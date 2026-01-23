@@ -6,16 +6,18 @@ Supports both lumped and distributed spatial modes.
 Uses shared utilities for forcing data processing and data quality handling.
 """
 
+from pathlib import Path
+
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 import xarray as xr
-import geopandas as gpd
 
 from symfluence.data.utils.variable_utils import VariableHandler
 from symfluence.core.constants import UnitConversion
 from ..registry import ModelRegistry
 from ..base import BaseModelPreProcessor
-from ..mixins import PETCalculatorMixin, ObservationLoaderMixin, DatasetBuilderMixin
+from ..mixins import PETCalculatorMixin, ObservationLoaderMixin, DatasetBuilderMixin, SpatialModeDetectionMixin
 from ..utilities import ForcingDataProcessor
 from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 
@@ -26,7 +28,7 @@ HAS_RPY2 = find_spec("rpy2") is not None
 
 
 @ModelRegistry.register_preprocessor('GR')
-class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, ObservationLoaderMixin, DatasetBuilderMixin):
+class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, ObservationLoaderMixin, DatasetBuilderMixin, SpatialModeDetectionMixin):
     """
     Preprocessor for the GR family of models (GR4J, GR5J, GR6J).
 
@@ -127,25 +129,8 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         self.catchment_path = catchment_file.parent
         self.catchment_name = catchment_file.name
 
-        # Resolve spatial mode
-        # 1. Check for explicit configuration
-        configured_mode = self._get_config_value(
-            lambda: self.config.model.gr.spatial_mode if self.config.model and self.config.model.gr else None
-        )
-
-        # 2. If 'auto' or not set, infer from domain definition method
-        if configured_mode in (None, 'auto', 'default'):
-            # Infer from domain definition method
-            if self.domain_definition_method == 'delineate':
-                self.spatial_mode = 'distributed'
-                self.logger.info(f"GR spatial mode auto-detected as 'distributed' (DOMAIN_DEFINITION_METHOD: {self.domain_definition_method})")
-            else:
-                self.spatial_mode = 'lumped'
-                self.logger.info(f"GR spatial mode auto-detected as 'lumped' (DOMAIN_DEFINITION_METHOD: {self.domain_definition_method})")
-        else:
-            # 3. Use explicit config
-            self.spatial_mode = configured_mode
-            self.logger.info(f"GR spatial mode set to '{self.spatial_mode}' from configuration")
+        # Resolve spatial mode using mixin
+        self.spatial_mode = self.detect_spatial_mode('GR')
 
     def run_preprocessing(self):
         """
@@ -203,7 +188,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             self.logger.error(f"Error preparing forcing data: {str(e)}")
             raise
 
-    def _prepare_lumped_forcing(self, ds):
+    def _prepare_lumped_forcing(self, ds: xr.Dataset) -> Path:
         """Prepare lumped forcing data using shared utilities."""
         # Check if we have enough dates for inference
         if len(ds.time) < 3:
@@ -298,7 +283,7 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         self.logger.info(f"Lumped forcing data saved to: {output_file}")
         return output_file
 
-    def _prepare_distributed_forcing(self, ds):
+    def _prepare_distributed_forcing(self, ds: xr.Dataset) -> Path:
         """Prepare distributed forcing data for each HRU using shared utilities."""
 
         # Load catchment to get HRU information

@@ -28,6 +28,7 @@ from typing import Dict, Any, Callable, Optional, List
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm
+from .config_schema import GLUEDefaults
 
 
 class GLUEAlgorithm(OptimizationAlgorithm):
@@ -88,13 +89,36 @@ class GLUEAlgorithm(OptimizationAlgorithm):
 
         # Behavioral threshold (minimum acceptable performance)
         # For KGE/NSE, typically 0.0 to 0.5
-        threshold = self.config_dict.get('GLUE_THRESHOLD', 0.0)
+        # (Beven & Binley 1992, Section 3 - "Likelihood measures")
+        threshold = self._get_config_value(
+            lambda: self.config.optimization.glue_threshold,
+            default=GLUEDefaults.THRESHOLD,
+            dict_key='GLUE_THRESHOLD'
+        )
 
         # Likelihood shaping factor (higher = more weight to better solutions)
-        shaping_factor = self.config_dict.get('GLUE_SHAPING_FACTOR', 1.0)
+        # L = max(0, metric - threshold) ^ N
+        # N=1 is linear weighting; N>1 emphasizes best solutions
+        # (Beven 2006, Section 2.1)
+        shaping_factor = self._get_config_value(
+            lambda: self.config.optimization.glue_shaping_factor,
+            default=GLUEDefaults.SHAPING_FACTOR,
+            dict_key='GLUE_SHAPING_FACTOR'
+        )
 
         # Sampling method: 'uniform' or 'lhs' (Latin Hypercube)
-        sampling_method = self.config_dict.get('GLUE_SAMPLING', 'lhs')
+        # LHS provides better coverage of parameter space
+        # (McKay et al. 1979)
+        sampling_method = self._get_config_value(
+            lambda: self.config.optimization.glue_sampling,
+            default=GLUEDefaults.SAMPLING,
+            dict_key='GLUE_SAMPLING'
+        )
+
+        # Validate GLUE configuration
+        valid, warning = GLUEDefaults.validate_threshold(threshold)
+        if not valid:
+            self.logger.warning(f"GLUE threshold validation: {warning}")
 
         self.logger.info(
             f"GLUE settings: {n_samples} samples, threshold={threshold}, "

@@ -64,11 +64,11 @@ class TestHYPEParameterManager:
         assert 'cmlt' in bounds
         assert 'cevp' in bounds
 
-        # Check specific bounds
-        assert bounds['ttmp']['min'] == -3.0
-        assert bounds['ttmp']['max'] == 3.0
-        assert bounds['cmlt']['min'] == 1.0
-        assert bounds['cmlt']['max'] == 15.0
+        # Check specific bounds (from central parameter registry)
+        assert bounds['ttmp']['min'] == -5.0
+        assert bounds['ttmp']['max'] == 5.0
+        assert bounds['cmlt']['min'] == 0.5
+        assert bounds['cmlt']['max'] == 20.0
 
     def test_normalize_denormalize(self, hype_config, logger, temp_dir):
         """Test parameter normalization and denormalization roundtrip."""
@@ -97,14 +97,14 @@ class TestHYPEParameterManager:
         manager = HYPEParameterManager(hype_config, logger, temp_dir)
         defaults = manager._get_default_initial_values()
 
-        # ttmp bounds: -3.0 to 3.0, midpoint should be 0.0
+        # ttmp bounds: -5.0 to 5.0, midpoint should be 0.0
         assert abs(defaults['ttmp'] - 0.0) < 1e-6
 
-        # cmlt bounds: 1.0 to 15.0, midpoint should be 8.0
-        assert abs(defaults['cmlt'] - 8.0) < 1e-6
+        # cmlt bounds: 0.5 to 20.0, midpoint should be 10.25
+        assert abs(defaults['cmlt'] - 10.25) < 1e-6
 
-        # cevp bounds: 0.1 to 1.0, midpoint should be 0.55
-        assert abs(defaults['cevp'] - 0.55) < 1e-6
+        # cevp bounds: 0.1 to 2.0, midpoint should be 1.05
+        assert abs(defaults['cevp'] - 1.05) < 1e-6
 
     def test_update_par_file_creates_warning_if_missing(self, hype_config, logger, temp_dir, caplog):
         """Test that update_par_file handles missing file gracefully."""

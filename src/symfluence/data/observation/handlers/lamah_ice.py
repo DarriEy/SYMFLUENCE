@@ -6,16 +6,18 @@ Provides handlers for LamaH-ICE (Iceland) streamflow data from local files.
 import pandas as pd
 from pathlib import Path
 
-from symfluence.core.constants import ModelDefaults
 from symfluence.core.exceptions import DataAcquisitionError
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 
-@ObservationRegistry.register('LAMAH_ICE_STREAMFLOW')
+@ObservationRegistry.register('lamah_ice_streamflow')
 class LamahIceStreamflowHandler(BaseObservationHandler):
     """
     Handles LamaH-ICE streamflow data processing from a local dataset.
     """
+
+    obs_type = "streamflow"
+    source_name = "LAMAH_ICE"
 
     def acquire(self) -> Path:
         """
@@ -92,12 +94,3 @@ class LamahIceStreamflowHandler(BaseObservationHandler):
 
         self.logger.info(f"LamaH-ICE streamflow processing complete: {output_file}")
         return output_file
-
-    def _get_resample_freq(self) -> str:
-        timestep_size = int(self._get_config_value(lambda: self.config.forcing.time_step_size, default=3600, dict_key='FORCING_TIME_STEP_SIZE'))
-        if timestep_size <= 10800:
-            return 'h'
-        elif timestep_size == ModelDefaults.DEFAULT_TIMESTEP_DAILY:
-            return 'D'
-        else:
-            return f'{timestep_size}s'

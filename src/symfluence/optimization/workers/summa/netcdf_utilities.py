@@ -62,7 +62,7 @@ def fix_summa_time_precision_inplace(input_file: Path, logger=None) -> None:
         if logger:
             logger.info(f"Fixed time precision in-place: {input_file.name}")
 
-    except Exception as e:
+    except (OSError, RuntimeError, KeyError, ValueError) as e:
         if logger:
             logger.error(f"Error fixing time precision in-place: {e}")
         # Fall back to original method if in-place modification fails
@@ -178,7 +178,7 @@ def fix_summa_time_precision(input_file, output_file=None, logger: Optional[logg
 
             # Make output file writable if overwriting
             if output_file is None and os.path.exists(input_file):
-                os.chmod(input_file, 0o664)
+                os.chmod(input_file, 0o664)  # nosec B103 - Group-writable for HPC shared access
 
             # Atomically move to final location
             shutil.move(temp_file, output_path)
@@ -186,7 +186,7 @@ def fix_summa_time_precision(input_file, output_file=None, logger: Optional[logg
 
             log.debug("Time precision fix completed successfully")
 
-        except Exception as e:
+        except (OSError, RuntimeError, KeyError, ValueError) as e:
             # Clean up temp file if it exists
             if temp_file and os.path.exists(temp_file):
                 try:
@@ -195,7 +195,7 @@ def fix_summa_time_precision(input_file, output_file=None, logger: Optional[logg
                     log.warning(f"Could not remove temp file {temp_file}: {cleanup_err}")
             raise e
 
-    except Exception as e:
+    except (OSError, RuntimeError, KeyError, ValueError) as e:
         log.error(f"Error fixing time precision: {e}")
         raise
 
@@ -230,8 +230,8 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
 
         # Ensure the original file is writable
         try:
-            os.chmod(summa_file, 0o664)
-        except Exception as e:
+            os.chmod(summa_file, 0o664)  # nosec B103 - Group-writable for HPC shared access
+        except (OSError, RuntimeError, KeyError, ValueError) as e:
             logger.warning(f"Could not change file permissions: {str(e)}")
 
         # Load and convert SUMMA output
@@ -318,7 +318,7 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
             summa_ds.close()
             summa_ds = None
 
-        except Exception as e:
+        except (OSError, RuntimeError, KeyError, ValueError) as e:
             if summa_ds is not None:
                 summa_ds.close()
             raise e
@@ -339,7 +339,7 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
             mizuForcing.close()
 
             # Set permissions and move
-            os.chmod(temp_file, 0o664)
+            os.chmod(temp_file, 0o664)  # nosec B103 - Group-writable for HPC shared access
             shutil.move(str(temp_file), str(summa_file))
             temp_file = None
 
@@ -351,7 +351,7 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
 
             return True
 
-        except Exception as e:
+        except (OSError, RuntimeError, KeyError, ValueError) as e:
             if temp_file and temp_file.exists():
                 try:
                     temp_file.unlink()
@@ -359,7 +359,7 @@ def _convert_lumped_to_distributed_worker(task_data: Dict, summa_dir: Path, logg
                     logger.warning(f"Could not remove temp file {temp_file}: {cleanup_err}")
             raise e
 
-    except Exception as e:
+    except (OSError, RuntimeError, KeyError, ValueError) as e:
         logger.error(f"Conversion failed: {str(e)}")
         debug_info['errors'].append(f"Lumped-to-distributed conversion error: {str(e)}")
         return False

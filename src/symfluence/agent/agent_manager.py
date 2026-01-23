@@ -3,14 +3,19 @@ Agent manager for the SYMFLUENCE AI agent.
 
 This module provides the main orchestration for the agent, coordinating
 API calls, tool execution, and conversation management.
+
+Supports parallel tool execution for improved performance when the LLM
+requests multiple independent tool calls.
 """
 
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Tuple, Any
 
 from .api_client import APIClient
 from .conversation_manager import ConversationManager
 from .tool_registry import ToolRegistry
-from .tool_executor import ToolExecutor
+from .tool_executor import ToolExecutor, ToolResult
 from . import system_prompts
 
 
@@ -20,18 +25,41 @@ class AgentManager:
 
     Coordinates between the API client, conversation manager, tool registry,
     and tool executor to provide an intelligent assistant for SYMFLUENCE workflows.
+
+    Features:
+    - Multi-provider LLM support (OpenAI, Groq, Ollama)
+    - Parallel tool execution for independent operations
+    - Fuzzy code matching for self-modification
+    - Automated PR creation via GitHub CLI
     """
 
-    def __init__(self, config_path: str, verbose: bool = False):
+    # Tools that can safely run in parallel (read-only or independent operations)
+    PARALLELIZABLE_TOOLS = {
+        'read_file', 'list_directory', 'analyze_codebase',
+        'search_code', 'find_definition', 'find_usages',
+        'show_staged_changes', 'show_workflow_status',
+        'list_workflow_steps', 'list_config_templates',
+        'validate_environment', 'validate_config_file',
+        'show_help', 'list_available_tools', 'explain_workflow',
+        'check_pr_status', 'get_commit_log', 'validate_binaries',
+        'run_doctor', 'show_tools_info'
+    }
+
+    # Maximum workers for parallel execution
+    MAX_PARALLEL_WORKERS = 4
+
+    def __init__(self, config_path: str, verbose: bool = False, parallel_tools: bool = True):
         """
         Initialize the agent manager.
 
         Args:
             config_path: Default config path for workflows
             verbose: Enable verbose output
+            parallel_tools: Enable parallel tool execution (default: True)
         """
         self.config_path = config_path
         self.verbose = verbose
+        self.parallel_tools = parallel_tools
 
         # Initialize components
         self.api_client = APIClient(verbose=verbose)
@@ -199,14 +227,17 @@ class AgentManager:
                     tool_calls=tool_calls_data
                 )
 
-                # Execute each tool call
-                for tool_call in message.tool_calls:
-                    result = self._execute_tool_call(tool_call)
+                # Execute tool calls (parallel when possible)
+                if self.parallel_tools and len(message.tool_calls) > 1:
+                    results = self._execute_tools_parallel(message.tool_calls)
+                else:
+                    results = self._execute_tools_sequential(message.tool_calls)
 
+                # Add all results to conversation
+                for tool_call, result in results:
                     if self.verbose:
                         print(f"[Agent Loop] Tool {tool_call.function.name}: {'✓' if result.success else '✗'}", file=sys.stderr)
 
-                    # Add tool result to conversation
                     self.conversation_manager.add_tool_result(
                         tool_call_id=tool_call.id,
                         result=result.to_string(),
@@ -230,7 +261,7 @@ class AgentManager:
         print(error_msg, file=sys.stderr)
         return "I apologize, but I encountered an issue completing this task. Please try breaking it into smaller steps."
 
-    def _execute_tool_call(self, tool_call):
+    def _execute_tool_call(self, tool_call) -> ToolResult:
         """
         Execute a single tool call from the LLM.
 
@@ -241,7 +272,6 @@ class AgentManager:
             ToolResult with execution status and output
         """
         import json
-        from .tool_executor import ToolResult
 
         tool_name = tool_call.function.name
 
@@ -258,7 +288,6 @@ class AgentManager:
             return result
 
         except json.JSONDecodeError as e:
-            from .tool_executor import ToolResult
             return ToolResult(
                 success=False,
                 output="",
@@ -266,13 +295,90 @@ class AgentManager:
                 exit_code=1
             )
         except Exception as e:
-            from .tool_executor import ToolResult
             return ToolResult(
                 success=False,
                 output="",
                 error=f"Tool execution failed: {str(e)}",
                 exit_code=1
             )
+
+    def _execute_tools_sequential(self, tool_calls: List[Any]) -> List[Tuple[Any, ToolResult]]:
+        """
+        Execute tool calls sequentially.
+
+        Args:
+            tool_calls: List of tool call objects
+
+        Returns:
+            List of (tool_call, result) tuples
+        """
+        results = []
+        for tool_call in tool_calls:
+            result = self._execute_tool_call(tool_call)
+            results.append((tool_call, result))
+        return results
+
+    def _execute_tools_parallel(self, tool_calls: List[Any]) -> List[Tuple[Any, ToolResult]]:
+        """
+        Execute tool calls in parallel when safe to do so.
+
+        Parallelizable tools (read-only operations) run concurrently.
+        Non-parallelizable tools (writes, commits) run sequentially after parallel batch.
+
+        Args:
+            tool_calls: List of tool call objects
+
+        Returns:
+            List of (tool_call, result) tuples in original order
+        """
+        # Separate parallelizable and sequential tools
+        parallel_calls = []
+        sequential_calls = []
+
+        for tool_call in tool_calls:
+            tool_name = tool_call.function.name
+            if tool_name in self.PARALLELIZABLE_TOOLS:
+                parallel_calls.append(tool_call)
+            else:
+                sequential_calls.append(tool_call)
+
+        results_dict = {}
+
+        # Execute parallelizable tools concurrently
+        if parallel_calls:
+            if self.verbose:
+                print(f"[Parallel Execution] Running {len(parallel_calls)} tools in parallel", file=sys.stderr)
+
+            with ThreadPoolExecutor(max_workers=self.MAX_PARALLEL_WORKERS) as executor:
+                # Submit all parallel tasks
+                future_to_call = {
+                    executor.submit(self._execute_tool_call, tc): tc
+                    for tc in parallel_calls
+                }
+
+                # Collect results as they complete
+                for future in as_completed(future_to_call):
+                    tool_call = future_to_call[future]
+                    try:
+                        result = future.result()
+                    except Exception as e:
+                        result = ToolResult(
+                            success=False,
+                            output="",
+                            error=f"Parallel execution failed: {str(e)}",
+                            exit_code=1
+                        )
+                    results_dict[tool_call.id] = (tool_call, result)
+
+        # Execute sequential tools in order
+        for tool_call in sequential_calls:
+            if self.verbose:
+                print(f"[Sequential Execution] {tool_call.function.name}", file=sys.stderr)
+            result = self._execute_tool_call(tool_call)
+            results_dict[tool_call.id] = (tool_call, result)
+
+        # Return results in original order
+        return [results_dict[tc.id] for tc in tool_calls]
 
     def _print_available_tools(self) -> None:
         """Print all available tools in a formatted manner."""

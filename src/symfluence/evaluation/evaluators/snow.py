@@ -12,10 +12,11 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 from pathlib import Path
-from typing import cast, Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
+from symfluence.core.constants import UnitConverter
 from .base import ModelEvaluator
 
 if TYPE_CHECKING:
@@ -80,30 +81,40 @@ class SnowEvaluator(ModelEvaluator):
             # Get from typed config, with fallback to flat config keys and CALIBRATION_VARIABLE
             opt_target = self._get_config_value(
                 lambda: self.config.optimization.target,
-                default=None
+                default=None,
+                dict_key='OPTIMIZATION_TARGET'
             )
-            # Also check flat config keys (for worker processes with flattened config)
-            if not opt_target:
-                opt_target = self.config_dict.get('OPTIMIZATION_TARGET')
 
-            calib_var = self.config_dict.get('CALIBRATION_VARIABLE', 'swe')
-            self.logger.debug(f"[SNOW INIT] opt_target={opt_target}, calib_var={calib_var}")
+            calib_var = self._get_config_value(
+                lambda: self.config.optimization.calibration_variable,
+                default='swe',
+                dict_key='CALIBRATION_VARIABLE'
+            )
+            self.logger.debug(f"Snow evaluator init: target={opt_target}, calib_var={calib_var}")
             self.optimization_target = (opt_target or calib_var).lower()
 
         if self.optimization_target not in ['swe', 'sca', 'snow_depth']:
-            # Check if OPTIMIZATION_TARGET contains swe/sca keywords
-            opt_target = self.config_dict.get('OPTIMIZATION_TARGET', '').lower()
-            if opt_target in ['swe', 'sca']:
+            # Check if OPTIMIZATION_TARGET contains swe/sca/snow_depth keywords
+            opt_target = self._get_config_value(
+                lambda: self.config.optimization.target,
+                default='',
+                dict_key='OPTIMIZATION_TARGET'
+            ).lower()
+            if opt_target in ['swe', 'sca', 'snow_depth']:
                 self.optimization_target = opt_target
             else:
                 # Fall back to CALIBRATION_VARIABLE
-                calibration_var = self.config_dict.get('CALIBRATION_VARIABLE', '').lower()
+                calibration_var = self._get_config_value(
+                    lambda: self.config.optimization.calibration_variable,
+                    default='',
+                    dict_key='CALIBRATION_VARIABLE'
+                ).lower()
                 if 'swe' in calibration_var or 'snow' in calibration_var:
                     self.optimization_target = 'swe'
                 elif 'sca' in calibration_var:
                     self.optimization_target = 'sca'
 
-        self.logger.debug(f"[SNOW INIT FINAL] optimization_target={self.optimization_target}")
+        self.logger.debug(f"Snow evaluator initialized with target: {self.optimization_target}")
         self.variable_name = self.optimization_target
 
     def get_simulation_files(self, sim_dir: Path) -> List[Path]:
@@ -141,6 +152,8 @@ class SnowEvaluator(ModelEvaluator):
                     return self._extract_swe_data(ds)
                 elif self.optimization_target == 'sca':
                     return self._extract_sca_data(ds)
+                elif self.optimization_target == 'snow_depth':
+                    return self._extract_snow_depth_data(ds)
                 else:
                     return self._extract_swe_data(ds)
         except Exception as e:
@@ -172,58 +185,130 @@ class SnowEvaluator(ModelEvaluator):
         """
         if 'scalarSWE' not in ds.variables:
             raise ValueError("scalarSWE variable not found")
-        swe_var = ds['scalarSWE']
 
-        # Collapse spatial dimensions
-        sim_xr = swe_var
-        for dim in ['hru', 'gru']:
-            if dim in sim_xr.dims:
-                if sim_xr.sizes[dim] == 1:
-                    sim_xr = sim_xr.isel({dim: 0})
-                else:
-                    sim_xr = sim_xr.mean(dim=dim)
+        # Use base class method for spatial dimension collapse
+        sim_data = self._collapse_spatial_dims(ds['scalarSWE'], aggregate='mean')
 
-        # Handle any remaining non-time dimensions
-        non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
-        if non_time_dims:
-            sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-
-        sim_data = cast(pd.Series, sim_xr.to_pandas())
-
-        # DEBUG: Log extraction stats
         if len(sim_data) > 0:
             self.logger.debug(f"SWE extraction: min={sim_data.min():.3f}, max={sim_data.max():.3f}, mean={sim_data.mean():.3f} kg/m² (n={len(sim_data)})")
 
         return sim_data
 
     def _extract_sca_data(self, ds: xr.Dataset) -> pd.Series:
+        """Extract Snow-Covered Area (SCA) from SUMMA output.
+
+        SCA represents the fraction of the basin covered by snow (0-1 or 0-100%).
+        This method handles two extraction strategies:
+
+        1. Direct SCA variable (scalarGroundSnowFraction):
+           - Returns fractional snow cover directly (0-1)
+           - Preferred when available
+
+        2. Derived from SWE (scalarSWE):
+           - Converts SWE to binary snow presence using threshold
+           - SWE > threshold → snow present (1.0)
+           - SWE ≤ threshold → no snow (0.0)
+
+        SCA from SWE Threshold: 1.0 kg/m²
+        --------------------------------
+        Physical reasoning for 1.0 kg/m² threshold:
+          - 1 kg/m² = 1 mm water equivalent of snow
+          - At typical snow density (100-300 kg/m³), this is 3-10 mm snow depth
+          - This is the minimum detectable snow for most satellite sensors
+          - MODIS snow detection limit is ~1-2 cm, roughly 2-5 kg/m² SWE
+          - Using 1.0 kg/m² is conservative (captures thin snow cover)
+          - Helps match satellite-derived SCA observations
+
+        Note: This binary conversion loses information about snow depth.
+        For continuous SCA, prefer scalarGroundSnowFraction if available.
+
+        Args:
+            ds: xarray Dataset with snow variables
+
+        Returns:
+            pd.Series: Time series of fractional SCA (0-1)
+
+        Raises:
+            ValueError: If no suitable SCA variable found
+        """
+        # SCA threshold for deriving snow cover from SWE (kg/m²)
+        # 1.0 kg/m² ≈ 1 mm SWE ≈ minimum satellite-detectable snow
+        SCA_SWE_THRESHOLD = 1.0
+
         sca_vars = ['scalarGroundSnowFraction', 'scalarSWE']
         for var_name in sca_vars:
             if var_name in ds.variables:
-                sca_var = ds[var_name]
-
-                # Collapse spatial dimensions
-                sim_xr = sca_var
-                for dim in ['hru', 'gru']:
-                    if dim in sim_xr.dims:
-                        if sim_xr.sizes[dim] == 1:
-                            sim_xr = sim_xr.isel({dim: 0})
-                        else:
-                            sim_xr = sim_xr.mean(dim=dim)
-
-                # Handle any remaining non-time dimensions
-                non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
-                if non_time_dims:
-                    sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-
-                sim_data = cast(pd.Series, sim_xr.to_pandas())
+                # Use base class method for spatial dimension collapse
+                sim_data = self._collapse_spatial_dims(ds[var_name], aggregate='mean')
 
                 if var_name == 'scalarSWE':
-                    swe_threshold = 1.0
-                    sim_data = (sim_data > swe_threshold).astype(float)
+                    # Convert SWE to binary snow presence
+                    self.logger.debug(
+                        f"Deriving SCA from SWE using threshold {SCA_SWE_THRESHOLD} kg/m²"
+                    )
+                    sim_data = (sim_data > SCA_SWE_THRESHOLD).astype(float)
 
                 return sim_data
         raise ValueError("No suitable SCA variable found")
+
+    def _extract_snow_depth_data(self, ds: xr.Dataset) -> pd.Series:
+        """Extract snow depth from SUMMA output.
+
+        Snow depth represents the physical thickness of the snowpack (meters).
+        This method handles two extraction strategies:
+
+        1. Direct snow depth variable (scalarSnowDepth):
+           - Returns snow depth directly in meters
+           - Preferred when available
+
+        2. Derived from SWE (scalarSWE):
+           - Estimates depth using assumed snow density
+           - depth = SWE / density
+           - Default density: 250 kg/m³ (typical settled snow)
+
+        Snow Density for SWE-to-Depth Conversion: 250 kg/m³
+        ---------------------------------------------------
+        Physical reasoning for 250 kg/m³ default:
+          - Fresh snow: 50-100 kg/m³
+          - Settled snow: 200-400 kg/m³
+          - Old/compacted snow: 400-550 kg/m³
+          - 250 kg/m³ represents typical mid-season settled snow
+          - Conversion: depth_m = SWE_kg_m2 / 250 = SWE_mm / 250
+
+        Note: Snow density varies significantly with climate, age, and
+        metamorphism. For accurate depth, prefer scalarSnowDepth when available.
+
+        Args:
+            ds: xarray Dataset with snow variables
+
+        Returns:
+            pd.Series: Time series of snow depth (meters)
+
+        Raises:
+            ValueError: If no suitable snow depth variable found
+        """
+        # Default snow density for SWE-to-depth conversion (kg/m³)
+        # 250 kg/m³ = typical settled seasonal snow
+        DEFAULT_SNOW_DENSITY = 250.0
+
+        if 'scalarSnowDepth' in ds.variables:
+            sim_data = self._collapse_spatial_dims(ds['scalarSnowDepth'], aggregate='mean')
+            self.logger.debug(f"Extracted snow depth directly: mean={sim_data.mean():.3f} m")
+            return sim_data
+
+        elif 'scalarSWE' in ds.variables:
+            # Derive depth from SWE using assumed density
+            swe_data = self._collapse_spatial_dims(ds['scalarSWE'], aggregate='mean')
+            # SWE in kg/m² (= mm), density in kg/m³ → depth in m
+            # depth = SWE / density = (kg/m²) / (kg/m³) = m
+            snow_depth = swe_data / DEFAULT_SNOW_DENSITY
+            self.logger.debug(
+                f"Derived snow depth from SWE using density {DEFAULT_SNOW_DENSITY} kg/m³: "
+                f"mean={snow_depth.mean():.3f} m"
+            )
+            return snow_depth
+
+        raise ValueError("No suitable snow depth variable found (need scalarSnowDepth or scalarSWE)")
 
     def calculate_metrics(self, sim: Any, obs: Optional[pd.Series] = None,
                          mizuroute_dir: Optional[Path] = None,
@@ -277,6 +362,17 @@ class SnowEvaluator(ModelEvaluator):
             for p in paths:
                 if p.exists(): return p
             return paths[0]
+        elif self.optimization_target == 'snow_depth':
+            # Check multiple possible locations for snow depth observations
+            paths = [
+                self.project_dir / "observations" / "snow" / "depth" / "processed" / f"{self.domain_name}_snow_depth_processed.csv",
+                self.project_dir / "observations" / "snow" / "depth" / "preprocessed" / f"{self.domain_name}_snow_depth_processed.csv",
+                self.project_dir / "observations" / "snow" / "processed" / f"{self.domain_name}_snow_depth_processed.csv",
+                self.project_dir / "observations" / "snow" / "preprocessed" / f"{self.domain_name}_snow_depth_processed.csv",
+            ]
+            for p in paths:
+                if p.exists(): return p
+            return paths[0]
         else:
             paths = [
                 self.project_dir / "observations" / "snow" / "processed" / f"{self.domain_name}_snow_processed.csv",
@@ -300,6 +396,15 @@ class SnowEvaluator(ModelEvaluator):
             for col in columns:
                 if any(term in col.lower() for term in ['snow_cover_ratio', 'sca', 'snow_cover']):
                     return col
+        elif self.optimization_target == 'snow_depth':
+            # Check for exact match first
+            for col in columns:
+                if col.lower() in ['snow_depth', 'depth', 'snowdepth']:
+                    return col
+            # Then check for patterns
+            for col in columns:
+                if any(term in col.lower() for term in ['snow_depth', 'depth_m', 'depth_cm', 'hs', 'snowdepth']):
+                    return col
         return None
 
     def _load_observed_data(self) -> Optional[pd.Series]:
@@ -311,13 +416,13 @@ class SnowEvaluator(ModelEvaluator):
 
             obs_df = pd.read_csv(obs_path)
 
-            self.logger.debug(f"[SNOW DEBUG] Target: {self.optimization_target}")
-            self.logger.debug(f"[SNOW DEBUG] Columns: {list(obs_df.columns)}")
+            self.logger.debug(f"Loading snow observations for target: {self.optimization_target}")
+            self.logger.debug(f"Available columns: {list(obs_df.columns)}")
 
             date_col = self._find_date_column(obs_df.columns)
             data_col = self._get_observed_data_column(obs_df.columns)
 
-            self.logger.debug(f"[SNOW DEBUG] Found Date: {date_col}, Data: {data_col}")
+            self.logger.debug(f"Identified columns - date: {date_col}, data: {data_col}")
 
             if not date_col or not data_col:
                 self.logger.warning(f"Could not find required columns in {obs_path}. Need Date and data column.")
@@ -335,10 +440,24 @@ class SnowEvaluator(ModelEvaluator):
             obs_series = pd.to_numeric(obs_series, errors='coerce')
 
             if self.optimization_target == 'swe':
-                # Convert if data is likely in inches (common for NRCS)
-                # If values are large, they are likely already in mm
-                if obs_series.max() < 250: # 250 inches is a huge amount of SWE
-                    obs_series = self._convert_swe_units(obs_series)
+                # Convert if data is likely in inches (common for NRCS SNOTEL data)
+                # Uses centralized UnitConverter for consistent unit handling
+                obs_series = UnitConverter.swe_inches_to_mm(
+                    obs_series,
+                    auto_detect=True,
+                    logger=self.logger
+                )
+                obs_series = obs_series[obs_series >= 0]
+            elif self.optimization_target == 'snow_depth':
+                # Snow depth observations may be in cm or m
+                # If max > 50, assume cm and convert to m
+                DEPTH_UNIT_THRESHOLD = 50  # meters - if max > 50, likely in cm
+                if obs_series.max() > DEPTH_UNIT_THRESHOLD:
+                    self.logger.debug(
+                        f"Snow depth max={obs_series.max():.1f} > {DEPTH_UNIT_THRESHOLD}: "
+                        "assuming cm, converting to m"
+                    )
+                    obs_series = obs_series / 100.0  # cm to m
                 obs_series = obs_series[obs_series >= 0]
 
             return obs_series.dropna()
@@ -347,9 +466,27 @@ class SnowEvaluator(ModelEvaluator):
             return None
 
     def _convert_swe_units(self, obs_swe: pd.Series) -> pd.Series:
-        """Convert SWE units from inches to kg/m² (mm water equivalent)"""
-        # Assume inches if set up that way, otherwise just return
-        return obs_swe * 25.4
+        """Convert SWE units from inches to kg/m² (mm water equivalent).
+
+        Uses centralized UnitConverter for consistent unit handling.
+        This method provides explicit (non-auto-detect) conversion.
+
+        Physical basis:
+          - 1 inch = 25.4 mm (exact definition)
+          - SWE in mm = SWE in inches × 25.4
+          - 1 mm SWE = 1 kg/m² (water density = 1000 kg/m³)
+
+        Args:
+            obs_swe: SWE observations in inches
+
+        Returns:
+            pd.Series: SWE observations in kg/m² (mm water equivalent)
+        """
+        return UnitConverter.swe_inches_to_mm(
+            obs_swe,
+            auto_detect=False,
+            logger=self.logger
+        )
 
     def needs_routing(self) -> bool:
         return False

@@ -312,8 +312,8 @@ class ParameterBoundsRegistry:
     RHESSYS_PARAMS: Dict[str, ParameterInfo] = {
         # Groundwater/baseflow parameters (basin.def and soil.def)
         # Note: gw_loss_coeff constrained to prevent excessive groundwater loss
-        'sat_to_gw_coeff': ParameterInfo(0.000001, 0.0001, '1/day', 'Saturation to groundwater coefficient', 'baseflow'),
-        'gw_loss_coeff': ParameterInfo(0.0, 10.0, '-', 'Groundwater loss coefficient (tightened to prevent NaN)', 'baseflow'),
+        'sat_to_gw_coeff': ParameterInfo(0.00001, 0.001, '1/day', 'Saturation to groundwater coefficient', 'baseflow'),
+        'gw_loss_coeff': ParameterInfo(0.0, 0.5, '-', 'Groundwater loss coefficient (low to preserve streamflow)', 'baseflow'),
 
         # Soil hydraulic parameters (soil.def)
         # Note: m constrained to prevent extreme Ksat decay; soil_depth min increased for storage

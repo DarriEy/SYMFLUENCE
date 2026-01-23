@@ -864,7 +864,7 @@ class BaseWorker(ABC):
             result.runtime = time.time() - start_time
             return result
 
-        except Exception as e:
+        except (ValueError, RuntimeError, IOError) as e:
             self.logger.error(
                 f"Evaluation failed for individual {task.individual_id}: {e}"
             )
@@ -891,7 +891,7 @@ class BaseWorker(ABC):
             try:
                 return self._evaluate_once(task)
 
-            except Exception as e:
+            except (ValueError, RuntimeError, IOError, TimeoutError) as e:
                 last_error = e
 
                 if attempt >= self.max_retries:

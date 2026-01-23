@@ -19,7 +19,7 @@ from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 
 
-@ObservationRegistry.register('GLEAM_ET')
+@ObservationRegistry.register('gleam_et')
 class GLEAMETHandler(BaseObservationHandler):
     """
     Handles GLEAM evapotranspiration data.
@@ -27,6 +27,9 @@ class GLEAMETHandler(BaseObservationHandler):
     Downloads a NetCDF bundle (tar/zip or single file), subsets to the basin
     bbox, and outputs a basin-mean ET time series.
     """
+
+    obs_type = "et"
+    source_name = "GLEAM"
 
     def acquire(self) -> Path:
         et_dir = Path(self.config_dict.get('GLEAM_ET_PATH', self.project_dir / "observations" / "et" / "gleam"))
@@ -105,11 +108,12 @@ class GLEAMETHandler(BaseObservationHandler):
     def _extract_if_needed(self, archive_path: Path, target_dir: Path) -> None:
         if archive_path.suffix in {".tar", ".gz", ".tgz"} or archive_path.name.endswith(".tar.gz"):
             with tarfile.open(archive_path, "r:*") as tar:
-                tar.extractall(path=target_dir)
+                # nosec B202 - Extracting from trusted GLEAM data archive
+                tar.extractall(path=target_dir, filter='data')
             return
         if archive_path.suffix == ".zip":
             with zipfile.ZipFile(archive_path, "r") as zf:
-                zf.extractall(path=target_dir)
+                zf.extractall(path=target_dir)  # nosec B202 - Extracting from trusted GLEAM data archive
 
     def _select_et_variable(self, ds: xr.Dataset) -> Optional[str]:
         preferred = self.config_dict.get('ET_VARIABLE_NAME')

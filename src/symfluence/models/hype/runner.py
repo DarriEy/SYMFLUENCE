@@ -31,7 +31,7 @@ class HYPERunner(BaseModelRunner, ModelExecutor):
         domain_name (str): Name of the modeling domain
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the HYPE model runner.
 

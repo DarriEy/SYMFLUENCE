@@ -5,6 +5,7 @@ Handles MESH model execution, state management, and output processing.
 Refactored to use the Unified Model Execution Framework.
 """
 
+import logging
 import os
 import shutil
 import sys
@@ -33,7 +34,7 @@ class MESHRunner(BaseModelRunner, ModelExecutor):
         domain_name (str): Name of the domain being processed
     """
 
-    def __init__(self, config: Dict[str, Any], logger: Any, reporting_manager: Optional[Any] = None):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger, reporting_manager: Optional[Any] = None):
         """
         Initialize the MESH model runner.
 

@@ -19,10 +19,13 @@ from ..base import BaseObservationHandler
 from ...acquisition.handlers.fluxnet_constants import convert_le_to_et
 
 
-@ObservationRegistry.register('FLUXNET')
-@ObservationRegistry.register('FLUXNET_ET')
-@ObservationRegistry.register('AMERIFLUX')
+@ObservationRegistry.register('fluxnet')
+@ObservationRegistry.register('fluxnet_et')
+@ObservationRegistry.register('ameriflux')
 class FLUXNETObservationHandler(BaseObservationHandler):
+
+    obs_type = "et"
+    source_name = "FLUXNET"
     """
     FLUXNET flux tower observation handler for ET calibration.
 

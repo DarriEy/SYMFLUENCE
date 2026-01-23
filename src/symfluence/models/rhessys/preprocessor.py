@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 @ModelRegistry.register_preprocessor("RHESSys")
-class RHESSysPreprocessor(BaseModelPreProcessor, ObservationLoaderMixin):
+class RHESSysPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
     """
     Prepares inputs for a RHESSys model run.
 
@@ -207,7 +207,7 @@ class RHESSysPreprocessor(BaseModelPreProcessor, ObservationLoaderMixin):
             try:
                 # Try nested concatenation (works if files are strictly ordered)
                 ds = xr.open_mfdataset(forcing_files, combine='nested', concat_dim='time')
-            except Exception:
+            except (FileNotFoundError, OSError, ValueError, KeyError):
                 # Fallback: Open individually and merge (works for variable-split files)
                 logger.warning("Failed to concat. Attempting to merge variable-split files...")
                 datasets = [xr.open_dataset(f) for f in forcing_files]
@@ -262,7 +262,7 @@ class RHESSysPreprocessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 elev = float(gdf.get('elev_mean', [1000])[0]) if 'elev_mean' in gdf.columns else 1000.0
             else:
                 lon, lat, elev = -115.0, 51.0, 1500.0
-        except Exception:
+        except (FileNotFoundError, KeyError, IndexError, ValueError):
             lon, lat, elev = -115.0, 51.0, 1500.0
 
         # Full path to climate file prefix for RHESSys to find the daily files
@@ -460,7 +460,7 @@ none\thourly_climate_prefix
       {lat:.8f}    y
       {elev:.8f}    z
       1    hill_parm_ID
-      0.00000000    gw.storage
+      0.10000000    gw.storage
       0.00000000    gw.NO3
       0    hillslope_n_basestations
       1    num_zones
@@ -489,9 +489,9 @@ none\thourly_climate_prefix
             {lna:.8f}    lna
             1.00000000    Ksat_vertical
             0.00000000    mpar
-            0.00000000    rz_storage
-            0.00000000    unsat_storage
-            0.05000000    sat_deficit
+            0.10000000    rz_storage
+            0.05000000    unsat_storage
+            0.50000000    sat_deficit
             0.00000000    snowpack.water_equivalent_depth
             0.00000000    snowpack.water_depth
             -10.00000000    snowpack.T
@@ -543,6 +543,14 @@ none\thourly_climate_prefix
                0    canopy_strata_n_basestations
 """
 
+        # Add fire_parm_ID for WMFire support if enabled
+        if self.wmfire_enabled:
+            # Insert fire_parm_ID line after landuse_parm_ID
+            content = content.replace(
+                "            1    landuse_parm_ID\n            ",
+                "            1    landuse_parm_ID\n            1    fire_parm_ID\n            "
+            )
+
         world_file.write_text(content)
         logger.info(f"Worldfile written: {world_file}")
 
@@ -560,7 +568,18 @@ none\thourly_climate_prefix
             gdf: GeoDataFrame with HRU polygons and attributes
             world_file: Output path for worldfile
         """
+        from shapely.validation import make_valid
+
         logger.info(f"Generating distributed worldfile with {len(gdf)} patches...")
+
+        # Fix invalid geometries
+        if not gdf.is_valid.all():
+            invalid_count = (~gdf.is_valid).sum()
+            logger.info(f"Fixing {invalid_count} invalid geometries in catchment")
+            gdf = gdf.copy()
+            gdf['geometry'] = gdf['geometry'].apply(
+                lambda g: make_valid(g) if g is not None and not g.is_valid else g
+            )
 
         # Load additional attributes if available
         attrs_file = self.project_dir / 'attributes' / f'{self.domain_name}_attributes.csv'
@@ -634,7 +653,7 @@ none\thourly_climate_prefix
         lines.append(f"      {basin_lat:.8f}    y")
         lines.append(f"      {basin_elev:.8f}    z")
         lines.append("      1    hill_parm_ID")
-        lines.append("      0.00000000    gw.storage")
+        lines.append("      0.10000000    gw.storage")
         lines.append("      0.00000000    gw.NO3")
         lines.append("      0    hillslope_n_basestations")
         lines.append(f"      {num_patches}    num_zones")
@@ -715,14 +734,17 @@ none\thourly_climate_prefix
             lines.append(f"            {elev:.8f}    z")
             lines.append("            1    soil_parm_ID")
             lines.append("            1    landuse_parm_ID")
+            # Add fire_parm_ID for WMFire support
+            if self.wmfire_enabled:
+                lines.append("            1    fire_parm_ID")
             lines.append(f"            {area_m2:.8f}    area")
             lines.append(f"            {slope_frac:.8f}    slope")
             lines.append(f"            {lna:.8f}    lna")
             lines.append("            1.00000000    Ksat_vertical")
             lines.append("            0.00000000    mpar")
-            lines.append("            0.00000000    rz_storage")
-            lines.append("            0.00000000    unsat_storage")
-            lines.append("            0.05000000    sat_deficit")
+            lines.append("            0.10000000    rz_storage")
+            lines.append("            0.05000000    unsat_storage")
+            lines.append("            0.50000000    sat_deficit")
             lines.append("            0.00000000    snowpack.water_equivalent_depth")
             lines.append("            0.00000000    snowpack.water_depth")
             lines.append("            -10.00000000    snowpack.T")
@@ -828,7 +850,16 @@ none\thourly_climate_prefix
 {self.defs_dir / 'landuse.def'}
 1    num_stratum_default_files
 {self.defs_dir / 'stratum.def'}
-1    num_base_stations
+"""
+
+        # Add fire defaults if WMFire is enabled
+        if self.wmfire_enabled:
+            content += f"""1    num_fire_default_files
+{self.defs_dir / 'fire.def'}
+"""
+
+        # Add base stations
+        content += f"""1    num_base_stations
 {self.climate_dir / f'{self.domain_name}_base'}
 """
         header_file.write_text(content)
@@ -855,6 +886,7 @@ none\thourly_climate_prefix
         Generate the RHESSys Temporal Event Control (TEC) file.
 
         The TEC file specifies simulation events and output timing.
+        When WMFire is enabled, adds fire ignition event.
         """
         logger.info("Generating TEC file...")
 
@@ -864,12 +896,64 @@ none\thourly_climate_prefix
         # Build TEC content
         # Note: print_daily_on at hour 1, print_daily_growth_on at hour 2
         # Don't use print_daily_off - let output continue until simulation ends
-        content = f"""{start_date.year} {start_date.month} {start_date.day} 1 print_daily_on
-{start_date.year} {start_date.month} {start_date.day} 2 print_daily_growth_on
-"""
+        lines = [
+            f"{start_date.year} {start_date.month} {start_date.day} 1 print_daily_on",
+            f"{start_date.year} {start_date.month} {start_date.day} 2 print_daily_growth_on",
+        ]
 
+        # Add fire ignition event if WMFire is enabled
+        if self.wmfire_enabled:
+            fire_date = self._get_fire_ignition_date(start_date, end_date)
+            if fire_date:
+                # fire_grid_on triggers WMFire fire spread at the specified date
+                lines.append(f"{fire_date.year} {fire_date.month} {fire_date.day} 1 fire_grid_on")
+                logger.info(f"Added fire ignition event for {fire_date.strftime('%Y-%m-%d')}")
+
+        content = "\n".join(lines) + "\n"
         tec_file.write_text(content)
         logger.info(f"TEC file written: {tec_file}")
+
+    def _get_fire_ignition_date(self, start_date, end_date):
+        """
+        Get the fire ignition date from config or calculate default.
+
+        Returns:
+            datetime: The ignition date, or None if fire should not be triggered.
+        """
+        from datetime import datetime, timedelta
+
+        # Try to get ignition date from WMFire config
+        try:
+            wmfire_config = self.config.model.rhessys.wmfire
+            if wmfire_config and hasattr(wmfire_config, 'ignition_date') and wmfire_config.ignition_date:
+                # Parse date string (format: YYYY-MM-DD)
+                ignition_date = datetime.strptime(wmfire_config.ignition_date, '%Y-%m-%d')
+                logger.info(f"Using configured ignition date: {ignition_date.strftime('%Y-%m-%d')}")
+                return ignition_date
+        except (AttributeError, ValueError) as e:
+            logger.debug(f"Could not get ignition date from config: {e}")
+
+        # Default: use spinup end date + 1 day, or 30 days after start if no spinup
+        try:
+            spinup_period = self.config.experiment.spinup_period
+            if spinup_period:
+                # spinup_period is typically (start, end) tuple or string
+                if isinstance(spinup_period, (list, tuple)) and len(spinup_period) >= 2:
+                    spinup_end_str = spinup_period[1]
+                    if isinstance(spinup_end_str, str):
+                        spinup_end = datetime.strptime(spinup_end_str.strip(), '%Y-%m-%d')
+                        ignition_date = spinup_end + timedelta(days=1)
+                        logger.info(f"Using post-spinup ignition date: {ignition_date.strftime('%Y-%m-%d')}")
+                        return ignition_date
+        except (AttributeError, ValueError) as e:
+            logger.debug(f"Could not parse spinup period: {e}")
+
+        # Fallback: 30 days after simulation start
+        ignition_date = start_date + timedelta(days=30)
+        if ignition_date > end_date:
+            ignition_date = start_date + timedelta(days=7)  # Use 7 days if simulation is short
+        logger.info(f"Using default ignition date: {ignition_date.strftime('%Y-%m-%d')}")
+        return ignition_date
 
     def _generate_flow_table(self):
         """
@@ -1123,16 +1207,235 @@ waring    epc.allocation_flag
         Creates the fire grid files required for the -firespread flag:
         - patch_grid.txt: Grid of patch IDs for fire tracking
         - dem_grid.txt: DEM values for fire spread calculations
+
+        Uses FireGridManager for georeferenced grid generation with
+        proper CRS and transform metadata. Supports multiple resolutions
+        (30, 60, 90m) and optional GeoTIFF output for visualization.
         """
         logger.info("WMFire is enabled. Setting up fire spread inputs...")
 
         fire_dir = self.rhessys_input_dir / "fire"
         fire_dir.mkdir(parents=True, exist_ok=True)
 
-        # For lumped model, create simple 1x1 grids
         patch_grid_file = fire_dir / "patch_grid.txt"
         dem_grid_file = fire_dir / "dem_grid.txt"
 
+        # Get WMFire configuration
+        wmfire_config = None
+        try:
+            if hasattr(self.config.model.rhessys, 'wmfire'):
+                wmfire_config = self.config.model.rhessys.wmfire
+        except AttributeError:
+            pass
+
+        # Try to use FireGridManager for georeferenced grid generation
+        use_geospatial = False
+        try:
+            catchment_path = self.get_catchment_path()
+            if catchment_path.exists():
+                catchment_gdf = gpd.read_file(catchment_path)
+                if len(catchment_gdf) > 0:
+                    use_geospatial = True
+        except Exception as e:
+            logger.warning(f"Could not load catchment for fire grids: {e}")
+
+        if use_geospatial:
+            self._setup_geospatial_fire_grids(
+                catchment_gdf, patch_grid_file, dem_grid_file, wmfire_config
+            )
+        elif hasattr(self, '_distributed_patches') and len(self._distributed_patches) > 1:
+            # Fallback: use distributed patches from worldfile generation
+            self._setup_distributed_fire_grids(patch_grid_file, dem_grid_file)
+        else:
+            # Fallback: lumped single-patch grid
+            self._setup_lumped_fire_grids(patch_grid_file, dem_grid_file)
+
+        # Generate fire.def with correct grid dimensions
+        self._generate_fire_defaults()
+
+        logger.info(f"WMFire input files created in {fire_dir}")
+
+    def _setup_geospatial_fire_grids(
+        self,
+        catchment_gdf: gpd.GeoDataFrame,
+        patch_grid_file: Path,
+        dem_grid_file: Path,
+        wmfire_config
+    ):
+        """
+        Setup georeferenced fire grids using FireGridManager.
+
+        Creates properly georeferenced grids with correct CRS, transform,
+        and resolution. Optionally writes GeoTIFF outputs for visualization.
+        Also handles ignition point processing.
+
+        Args:
+            catchment_gdf: GeoDataFrame with catchment/HRU polygons
+            patch_grid_file: Output path for patch grid text file
+            dem_grid_file: Output path for DEM grid text file
+            wmfire_config: WMFireConfig object with settings
+        """
+        from symfluence.models.wmfire import FireGridManager
+
+        # Create grid manager
+        grid_manager = FireGridManager(self.config, self.logger)
+        resolution = grid_manager.resolution
+        logger.info(f"Creating fire grids at {resolution}m resolution")
+
+        # Look for DEM if available
+        dem_path = None
+        dem_candidates = [
+            self.project_dir / 'attributes' / 'elevation' / 'dem.tif',
+            self.project_dir / 'attributes' / 'dem' / 'dem.tif',
+            self.project_dir / 'domain' / 'dem.tif',
+        ]
+        for candidate in dem_candidates:
+            if candidate.exists():
+                dem_path = candidate
+                logger.info(f"Found DEM: {dem_path}")
+                break
+
+        # Generate georeferenced grids
+        try:
+            patch_grid, dem_grid = grid_manager.create_fire_grid(
+                catchment_gdf, dem_path
+            )
+
+            # Write text format for RHESSys
+            patch_grid_file.write_text(patch_grid.to_text())
+            dem_grid_file.write_text(dem_grid.to_text())
+
+            # Store grid dimensions for fire.def generation
+            self._fire_grid_nrows = patch_grid.nrows
+            self._fire_grid_ncols = patch_grid.ncols
+            self._fire_grid = patch_grid  # Store for fire.def generation
+
+            logger.info(f"Georeferenced fire grids created: "
+                       f"{patch_grid.nrows}x{patch_grid.ncols} @ {resolution}m")
+
+            # Process ignition point
+            self._process_ignition_point(patch_grid, wmfire_config)
+
+            # Write GeoTIFF outputs if requested
+            write_geotiff = True
+            if wmfire_config and hasattr(wmfire_config, 'write_geotiff'):
+                write_geotiff = wmfire_config.write_geotiff
+
+            if write_geotiff:
+                fire_dir = patch_grid_file.parent
+                try:
+                    patch_grid.to_geotiff(fire_dir / "patch_grid.tif")
+                    dem_grid.to_geotiff(fire_dir / "dem_grid.tif")
+                    logger.info("GeoTIFF outputs written for visualization")
+                except Exception as e:
+                    logger.warning(f"Could not write GeoTIFF outputs: {e}")
+
+        except Exception as e:
+            logger.warning(f"Geospatial grid generation failed: {e}, falling back to simple grid")
+            import traceback
+            logger.debug(traceback.format_exc())
+            # Fall back to simple grid generation
+            if hasattr(self, '_distributed_patches') and len(self._distributed_patches) > 1:
+                self._setup_distributed_fire_grids(patch_grid_file, dem_grid_file)
+            else:
+                self._setup_lumped_fire_grids(patch_grid_file, dem_grid_file)
+
+    def _process_ignition_point(self, patch_grid, wmfire_config):
+        """
+        Process ignition point from configuration.
+
+        Loads ignition point from shapefile or coordinates, converts to
+        grid indices, and optionally writes ignition shapefile.
+
+        Args:
+            patch_grid: FireGrid object with grid metadata
+            wmfire_config: WMFireConfig object with ignition settings
+        """
+        from symfluence.models.wmfire import IgnitionManager
+
+        ignition_mgr = IgnitionManager(self.config, self.logger)
+        ignition = ignition_mgr.get_ignition_point()
+
+        if ignition is None:
+            logger.info("No ignition point specified, using random ignition (-1, -1)")
+            self._ignition_row = -1
+            self._ignition_col = -1
+            return
+
+        logger.info(f"Processing ignition point: {ignition.name} "
+                   f"({ignition.latitude:.4f}, {ignition.longitude:.4f})")
+
+        # Convert to grid indices
+        row, col = ignition_mgr.convert_to_grid_indices(
+            ignition,
+            patch_grid.transform,
+            patch_grid.crs,
+            patch_grid.nrows,
+            patch_grid.ncols
+        )
+
+        self._ignition_row = row
+        self._ignition_col = col
+
+        # Write ignition shapefile if coordinates were from config (not already a shapefile)
+        if ignition.source == 'config':
+            ignition_dir = self.domain_path / 'shapefiles' / 'ignitions'
+            ignition_mgr.write_ignition_shapefile(
+                ignition,
+                ignition_dir,
+                filename=f"{ignition.name}.shp"
+            )
+
+        logger.info(f"Ignition grid indices: row={row}, col={col}")
+
+    def _setup_distributed_fire_grids(self, patch_grid_file: Path, dem_grid_file: Path):
+        """
+        Setup fire grids for distributed multi-patch domains.
+
+        Creates a grid representing the spatial arrangement of patches.
+        For elevation-based discretization, arranges patches in a column
+        from lowest to highest elevation.
+        """
+        patches = self._distributed_patches
+        num_patches = len(patches)
+
+        # Sort patches by elevation (lowest at bottom/south)
+        patches_sorted = sorted(patches, key=lambda p: p['elev'])
+
+        # For simplicity, create a 3-column grid with patches arranged by elevation
+        # This gives each patch 3 cells for more realistic fire spread
+        ncols = 3
+        nrows = num_patches
+
+        logger.info(f"Creating distributed fire grid: {nrows}x{ncols} ({num_patches} patches)")
+
+        # Build patch grid (each row is one patch)
+        # RHESSys expects NO header line and tab-separated values
+        patch_lines = []
+        dem_lines = []
+
+        for patch_info in patches_sorted:
+            patch_id = patch_info['patch_id']
+            elev = patch_info['elev']
+            # Each patch gets a full row (3 cells), tab-separated
+            patch_lines.append(f"{patch_id}\t{patch_id}\t{patch_id}")
+            dem_lines.append(f"{elev:.1f}\t{elev:.1f}\t{elev:.1f}")
+
+        patch_grid_file.write_text('\n'.join(patch_lines) + '\n')
+        dem_grid_file.write_text('\n'.join(dem_lines) + '\n')
+
+        # Store grid dimensions for fire.def generation
+        self._fire_grid_nrows = nrows
+        self._fire_grid_ncols = ncols
+
+        logger.info(f"Distributed fire grids created with {num_patches} patches")
+        for i, p in enumerate(patches_sorted):
+            logger.debug(f"  Row {i+1}: patch_id={p['patch_id']}, elev={p['elev']:.0f}m")
+
+    def _setup_lumped_fire_grids(self, patch_grid_file: Path, dem_grid_file: Path):
+        """
+        Setup fire grids for lumped single-patch domains.
+        """
         # Get elevation if available
         try:
             catchment_path = self.get_catchment_path()
@@ -1141,25 +1444,119 @@ waring    epc.allocation_flag
                 elev = float(gdf.get('elev_mean', [1500])[0]) if 'elev_mean' in gdf.columns else 1500.0
             else:
                 elev = 1500.0
-        except Exception:
+        except (FileNotFoundError, KeyError, IndexError, ValueError):
             elev = 1500.0
 
-        # Simple 3x3 grid for fire spread
-        patch_content = """3 3
-1 1 1
-1 1 1
-1 1 1
+        # Simple 3x3 grid for single patch
+        # RHESSys expects NO header line and tab-separated values
+        patch_content = """1\t1\t1
+1\t1\t1
+1\t1\t1
 """
-        dem_content = f"""3 3
-{elev:.1f} {elev:.1f} {elev:.1f}
-{elev:.1f} {elev:.1f} {elev:.1f}
-{elev:.1f} {elev:.1f} {elev:.1f}
+        dem_content = f"""{elev:.1f}\t{elev:.1f}\t{elev:.1f}
+{elev:.1f}\t{elev:.1f}\t{elev:.1f}
+{elev:.1f}\t{elev:.1f}\t{elev:.1f}
 """
 
         patch_grid_file.write_text(patch_content)
         dem_grid_file.write_text(dem_content)
 
-        logger.info(f"WMFire input files created in {fire_dir}")
+        # Store grid dimensions for fire.def generation
+        self._fire_grid_nrows = 3
+        self._fire_grid_ncols = 3
+
+        logger.info("Lumped fire grids created (3x3, single patch)")
+
+    def _generate_fire_defaults(self):
+        """
+        Generate fire.def file with grid dimensions for WMFire.
+
+        The fire.def file specifies fire spread parameters including
+        n_rows and n_cols which must match the fire grid dimensions.
+        Uses FireDefGenerator for dynamic parameter generation based
+        on WMFire configuration.
+        """
+        fire_def_file = self.defs_dir / "fire.def"
+
+        # Get grid dimensions
+        nrows = getattr(self, '_fire_grid_nrows', 3)
+        ncols = getattr(self, '_fire_grid_ncols', 3)
+
+        # Get ignition indices (default -1 for random)
+        ignition_row = getattr(self, '_ignition_row', -1)
+        ignition_col = getattr(self, '_ignition_col', -1)
+
+        # Try to use FireDefGenerator for enhanced generation
+        try:
+            from symfluence.models.wmfire import FireDefGenerator
+
+            fire_def_gen = FireDefGenerator(self.config, self.logger)
+
+            # Use stored grid if available, otherwise create dummy
+            if hasattr(self, '_fire_grid'):
+                fire_def_gen.write_fire_def(
+                    fire_def_file,
+                    self._fire_grid,
+                    ignition_row=ignition_row,
+                    ignition_col=ignition_col
+                )
+            else:
+                # Generate with just dimensions
+                content = fire_def_gen.generate_default_fire_def(
+                    n_rows=nrows,
+                    n_cols=ncols,
+                    output_path=fire_def_file
+                )
+            return
+
+        except ImportError:
+            logger.debug("FireDefGenerator not available, using fallback")
+        except Exception as e:
+            logger.warning(f"FireDefGenerator failed: {e}, using fallback")
+
+        # Fallback: Generate fire.def manually
+        # Fire defaults content based on RHESSys WMFire construct_fire_defaults.c
+        content = f"""1    fire_parm_ID
+30.0    ndays_average
+3.9    load_k1
+0.07    load_k2
+0.91    slope_k1
+1.0    slope_k2
+3.8    moisture_k1
+0.27    moisture_k2
+0.87    winddir_k1
+0.48    winddir_k2
+3.8    moisture_ign_k1
+0.27    moisture_ign_k2
+1.0    windmax
+-1    ignition_col
+-1    ignition_row
+10.0    ignition_tmin
+0    fire_verbose
+0    fire_write
+0    fire_in_buffer
+{nrows}    n_rows
+{ncols}    n_cols
+9    spread_calc_type
+0.494    mean_log_wind
+0.654    sd_log_wind
+1.71    mean1_rvm
+-1.91    mean2_rvm
+2.37    kappa1_rvm
+2.38    kappa2_rvm
+0.411    p_rvm
+1.0    ign_def_mod
+0.8    veg_k1
+10.0    veg_k2
+1.0    mean_ign
+0    ran_seed
+0    calc_fire_effects
+0    include_wui
+0    fire_size_name
+0.0    wind_shift
+"""
+        fire_def_file.write_text(content)
+        logger.info(f"Fire defaults written: {fire_def_file} (grid: {nrows}x{ncols})")
 
     def preprocess(self, **kwargs):
         """

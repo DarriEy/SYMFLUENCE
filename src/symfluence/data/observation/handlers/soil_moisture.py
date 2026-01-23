@@ -12,11 +12,14 @@ from typing import Any, Optional
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 
-@ObservationRegistry.register('SMAP')
+@ObservationRegistry.register('smap')
 class SMAPHandler(BaseObservationHandler):
     """
     Handles SMAP Soil Moisture data.
     """
+
+    obs_type = "soil_moisture"
+    source_name = "NASA_SMAP"
 
     def acquire(self) -> Path:
         """Locate SMAP data."""
@@ -132,11 +135,14 @@ class SMAPHandler(BaseObservationHandler):
         return output_file
 
 
-@ObservationRegistry.register('ISMN')
+@ObservationRegistry.register('ismn')
 class ISMNHandler(BaseObservationHandler):
     """
     Handles ISMN soil moisture data.
     """
+
+    obs_type = "soil_moisture"
+    source_name = "ISMN"
 
     def acquire(self) -> Path:
         """Locate or download ISMN data."""
@@ -308,11 +314,14 @@ class ISMNHandler(BaseObservationHandler):
         except Exception:
             return 0.05
 
-@ObservationRegistry.register('ESA_CCI_SM')
+@ObservationRegistry.register('esa_cci_sm')
 class ESACCISMHandler(BaseObservationHandler):
     """
     Handles ESA CCI Soil Moisture data.
     """
+
+    obs_type = "soil_moisture"
+    source_name = "ESA_CCI"
 
     def acquire(self) -> Path:
         """Locate ESA CCI SM data."""

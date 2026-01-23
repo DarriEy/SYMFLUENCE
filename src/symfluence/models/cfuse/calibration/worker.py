@@ -3,21 +3,21 @@ cFUSE Calibration Worker with Native Gradient Support.
 
 Provides the CFUSEWorker class for parameter evaluation during optimization.
 Supports both numerical and native Enzyme AD gradients via PyTorch autograd.
+
+Refactored to use InMemoryModelWorker base class for common functionality.
 """
 
-from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
 import logging
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
-import pandas as pd
-import xarray as xr
 
-from symfluence.optimization.workers.base_worker import BaseWorker, WorkerTask
+from symfluence.optimization.workers.inmemory_worker import InMemoryModelWorker
+from symfluence.optimization.workers.base_worker import WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
-from symfluence.evaluation.metrics import kge, nse
 
-# Lazy PyTorch and cFUSE imports
+# Lazy PyTorch imports
 try:
     import torch
     import torch.nn as nn
@@ -27,6 +27,7 @@ except ImportError:
     torch = None
     nn = None
 
+# Lazy cFUSE imports
 try:
     import cfuse
     from cfuse import (
@@ -50,7 +51,7 @@ except ImportError:
     HAS_ENZYME = False
     cfuse_core = None
 
-# Import PyTorch integration if available
+# PyTorch integration
 try:
     from cfuse.torch import DifferentiableFUSEBatch, FUSEModule
     HAS_TORCH_INTEGRATION = True
@@ -76,22 +77,18 @@ def _get_model_config(structure: str) -> dict:
     structure_lower = structure.lower()
     if structure_lower in configs:
         return configs[structure_lower].to_dict()
-    return PRMS_CONFIG.to_dict()  # Default to PRMS for better gradient support
+    return PRMS_CONFIG.to_dict()
 
 
 @OptimizerRegistry.register_worker('CFUSE')
-class CFUSEWorker(BaseWorker):
-    """
-    Worker for cFUSE model evaluation with native gradient support.
+class CFUSEWorker(InMemoryModelWorker):
+    """Worker for cFUSE model evaluation with native gradient support.
 
     Key Features:
     - Native gradient computation via Enzyme AD (when available)
     - PyTorch autograd fallback for gradient computation
     - Support for both lumped and distributed (multi-HRU) modes
     - Efficient batch processing for distributed simulations
-    - Falls back to numerical gradients when native unavailable
-
-    The worker maintains a cached PyTorch model for efficiency.
     """
 
     def __init__(
@@ -99,8 +96,7 @@ class CFUSEWorker(BaseWorker):
         config: Optional[Dict[str, Any]] = None,
         logger: Optional[logging.Logger] = None
     ):
-        """
-        Initialize cFUSE worker.
+        """Initialize cFUSE worker.
 
         Args:
             config: Configuration dictionary
@@ -108,17 +104,15 @@ class CFUSEWorker(BaseWorker):
         """
         super().__init__(config, logger)
 
-        # Check dependencies
         if not HAS_CFUSE:
             self.logger.warning("cFUSE not installed. Model execution will fail.")
 
         if not HAS_TORCH:
-            self.logger.warning("PyTorch not installed. Gradient computation will be unavailable.")
+            self.logger.warning("PyTorch not installed. Gradient computation unavailable.")
 
         # Model configuration
         self.model_structure = self.config.get('CFUSE_MODEL_STRUCTURE', 'prms')
         self.enable_snow = self.config.get('CFUSE_ENABLE_SNOW', True)
-        self.warmup_days = int(self.config.get('CFUSE_WARMUP_DAYS', 365))
         self.spatial_mode = self.config.get('CFUSE_SPATIAL_MODE', 'lumped')
         self.timestep_days = float(self.config.get('CFUSE_TIMESTEP_DAYS', 1.0))
 
@@ -140,213 +134,162 @@ class CFUSEWorker(BaseWorker):
         if self.enable_snow:
             self.config_dict['enable_snow'] = True
 
-        # Cached model and data
-        self._forcing = None
-        self._observations = None
-        self._time_index = None
+        # cFUSE-specific attributes
         self._n_hrus = 1
-        self._n_states = 10  # Default, updated when core is loaded
-        self._initialized = False
+        self._n_states = 10
+        self._forcing_tensor = None
 
-        # Cache for simulation results
-        self._last_params = None
-        self._last_runoff = None
-        self._cached_catchment_area = None  # Cache for unit conversion
-
-        # Get number of states from core if available
+        # Get number of states from core
         if HAS_CFUSE_CORE:
             try:
                 self._n_states = cfuse_core.get_num_active_states(self.config_dict)
             except Exception as e:
-                self.logger.debug(f"Could not get state count from cfuse_core: {e}")
+                self.logger.debug(f"Could not get state count: {e}")
 
-    def supports_native_gradients(self) -> bool:
-        """
-        Check if native gradient computation is available.
+    # =========================================================================
+    # InMemoryModelWorker Abstract Method Implementations
+    # =========================================================================
 
-        Returns:
-            True if PyTorch and cFUSE core are both installed.
-        """
-        return HAS_TORCH and HAS_CFUSE_CORE
+    def _get_model_name(self) -> str:
+        """Return the model identifier."""
+        return 'CFUSE'
 
-    def supports_enzyme_gradients(self) -> bool:
-        """
-        Check if Enzyme AD gradients are available.
+    def _get_forcing_subdir(self) -> str:
+        """Return the forcing subdirectory name."""
+        return 'CFUSE_input'
 
-        Returns:
-            True if Enzyme AD is available in the cFUSE core.
-        """
-        return HAS_ENZYME
+    def _get_forcing_variable_map(self) -> Dict[str, str]:
+        """Return mapping from standard names to cFUSE variable names."""
+        return {
+            'precip': 'precip',
+            'temp': 'temp',
+            'pet': 'pet',
+        }
 
-    def _initialize_model_and_data(self, task: Optional[WorkerTask] = None) -> bool:
-        """
-        Initialize cFUSE model and load forcing/observation data.
+    def _get_warmup_days_config(self) -> int:
+        """Get warmup days from config."""
+        return int(self.config.get('CFUSE_WARMUP_DAYS', 365))
+
+    def _run_simulation(
+        self,
+        forcing: Dict[str, np.ndarray],
+        params: Dict[str, float],
+        **kwargs
+    ) -> np.ndarray:
+        """Run cFUSE model simulation.
 
         Args:
-            task: Optional task containing paths
+            forcing: Dictionary with 'precip', 'temp', 'pet' arrays
+            params: Parameter dictionary
+            **kwargs: Additional arguments
 
         Returns:
-            True if initialization successful.
+            Runoff array in mm/day
         """
+        if not HAS_CFUSE_CORE:
+            raise RuntimeError("cFUSE core not installed")
+
+        # Convert parameters to array
+        params_array = self._params_to_array(params)
+
+        # Get forcing as numpy array
+        if self._forcing_tensor is not None and HAS_TORCH:
+            forcing_np = self._forcing_tensor.cpu().numpy()
+        else:
+            precip = forcing['precip']
+            pet = forcing['pet']
+            temp = forcing['temp']
+            if precip.ndim == 1:
+                forcing_np = np.stack([precip, pet, temp], axis=-1)[:, np.newaxis, :]
+            else:
+                forcing_np = np.stack([precip, pet, temp], axis=-1)
+
+        initial_states = self._get_initial_states()
+
+        # Run simulation
+        final_states, runoff = cfuse_core.run_fuse_batch(
+            initial_states.astype(np.float32),
+            forcing_np.astype(np.float32),
+            params_array.astype(np.float32),
+            self.config_dict,
+            float(self.timestep_days)
+        )
+
+        # Handle multi-HRU output
+        if self._n_hrus == 1:
+            return runoff.flatten()
+        return runoff
+
+    # =========================================================================
+    # Model Initialization
+    # =========================================================================
+
+    def _initialize_model(self) -> bool:
+        """Initialize cFUSE model components."""
+        if not HAS_CFUSE_CORE:
+            self.logger.error("cFUSE core not installed")
+            return False
+        return True
+
+    def initialize(self, task: Optional[WorkerTask] = None) -> bool:
+        """Initialize model and load data with cFUSE-specific setup."""
         if self._initialized:
             return True
 
-        if not HAS_CFUSE_CORE:
-            self.logger.error("cFUSE core not installed. Cannot initialize model.")
+        # Load forcing first
+        if not self._load_forcing(task):
             return False
 
-        try:
-            # Load forcing data
-            forcing_dir = self._get_forcing_dir(task)
-            domain_name = self.config.get('DOMAIN_NAME', 'domain')
+        # Determine n_hrus from forcing shape
+        precip = self._forcing['precip']
+        if precip.ndim > 1:
+            self._n_hrus = precip.shape[1]
+        else:
+            self._n_hrus = 1
 
-            # Try NetCDF first (distributed or lumped)
-            nc_file_distributed = forcing_dir / f"{domain_name}_cfuse_forcing_distributed.nc"
-            nc_file = forcing_dir / f"{domain_name}_cfuse_forcing.nc"
+        # Prepare forcing tensor for PyTorch
+        self._prepare_forcing_tensor()
 
-            if nc_file_distributed.exists():
-                ds = xr.open_dataset(nc_file_distributed)
-                self._load_distributed_forcing(ds)
-                ds.close()
-            elif nc_file.exists():
-                ds = xr.open_dataset(nc_file)
-                self._load_lumped_forcing(ds)
-                ds.close()
-            else:
-                # Try CSV for lumped
-                csv_file = forcing_dir / f"{domain_name}_cfuse_forcing.csv"
-                if csv_file.exists():
-                    self._load_csv_forcing(csv_file)
-                else:
-                    self.logger.error(f"No forcing file found in {forcing_dir}")
-                    return False
-
-            # Load observations
-            obs_file = forcing_dir / f"{domain_name}_observations.csv"
-            if obs_file.exists():
-                obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
-                obs = obs_df.iloc[:, 0].values
-
-                # Handle warmup alignment
-                if len(obs) > self.warmup_days:
-                    obs = obs[self.warmup_days:]
-
-                if HAS_TORCH:
-                    self._observations = torch.tensor(obs, dtype=torch.float32, device=self.device)
-                else:
-                    self._observations = obs
-            else:
-                self.logger.warning(f"No observation file found: {obs_file}")
-                self._observations = None
-
-            self._initialized = True
-            n_timesteps = len(self._forcing['precip'])
-            self.logger.info(
-                f"cFUSE worker initialized: {n_timesteps} timesteps, "
-                f"{self._n_hrus} HRUs, device={self.device_name}"
-            )
-            return True
-
-        except Exception as e:
-            self.logger.error(f"Failed to initialize cFUSE worker: {e}")
-            import traceback
-            self.logger.debug(traceback.format_exc())
+        # Initialize model
+        if not self._initialize_model():
             return False
 
-    def _load_lumped_forcing(self, ds: xr.Dataset) -> None:
-        """Load lumped forcing from NetCDF dataset."""
-        precip = ds['precip'].values.flatten()
-        temp = ds['temp'].values.flatten()
-        pet = ds['pet'].values.flatten()
-        self._time_index = pd.to_datetime(ds.time.values)
-        self._n_hrus = 1
+        # Load observations
+        if not self._load_observations(task):
+            self.logger.warning("No observations loaded - calibration will fail")
 
-        # Store as tensors if PyTorch available
-        if HAS_TORCH:
-            # Shape: [n_timesteps, n_hrus, 3] for batch interface
-            forcing_array = np.stack([precip, pet, temp], axis=-1)  # [time, 3]
-            forcing_array = forcing_array[:, np.newaxis, :]  # [time, 1, 3]
-            self._forcing = {
-                'tensor': torch.tensor(forcing_array, dtype=torch.float32, device=self.device),
-                'precip': precip,
-                'temp': temp,
-                'pet': pet,
-            }
+        self._initialized = True
+        n_timesteps = len(self._forcing['precip'])
+        self.logger.info(
+            f"cFUSE worker initialized: {n_timesteps} timesteps, "
+            f"{self._n_hrus} HRUs, device={self.device_name}"
+        )
+        return True
+
+    def _prepare_forcing_tensor(self) -> None:
+        """Prepare forcing as PyTorch tensor."""
+        if self._forcing is None or not HAS_TORCH:
+            return
+
+        precip = self._forcing['precip']
+        pet = self._forcing['pet']
+        temp = self._forcing['temp']
+
+        # Shape: [n_timesteps, n_hrus, 3]
+        if precip.ndim == 1:
+            forcing_array = np.stack([precip, pet, temp], axis=-1)[:, np.newaxis, :]
         else:
-            self._forcing = {
-                'precip': precip,
-                'temp': temp,
-                'pet': pet,
-            }
-
-    def _load_distributed_forcing(self, ds: xr.Dataset) -> None:
-        """Load distributed forcing from NetCDF dataset."""
-        precip = ds['precip'].values  # [time, hru]
-        temp = ds['temp'].values
-        pet = ds['pet'].values
-        self._time_index = pd.to_datetime(ds.time.values)
-        self._n_hrus = precip.shape[1] if precip.ndim > 1 else 1
-
-        if HAS_TORCH:
-            # Shape: [n_timesteps, n_hrus, 3] for batch interface
             forcing_array = np.stack([precip, pet, temp], axis=-1)
-            self._forcing = {
-                'tensor': torch.tensor(forcing_array, dtype=torch.float32, device=self.device),
-                'precip': precip,
-                'temp': temp,
-                'pet': pet,
-            }
-        else:
-            self._forcing = {
-                'precip': precip,
-                'temp': temp,
-                'pet': pet,
-            }
 
-    def _load_csv_forcing(self, csv_file: Path) -> None:
-        """Load lumped forcing from CSV file."""
-        df = pd.read_csv(csv_file)
-        precip = df['precip'].values
-        temp = df['temp'].values
-        pet = df['pet'].values
-        self._time_index = pd.to_datetime(df['time'])
-        self._n_hrus = 1
-
-        if HAS_TORCH:
-            forcing_array = np.stack([precip, pet, temp], axis=-1)
-            forcing_array = forcing_array[:, np.newaxis, :]
-            self._forcing = {
-                'tensor': torch.tensor(forcing_array, dtype=torch.float32, device=self.device),
-                'precip': precip,
-                'temp': temp,
-                'pet': pet,
-            }
-        else:
-            self._forcing = {
-                'precip': precip,
-                'temp': temp,
-                'pet': pet,
-            }
-
-    def _get_forcing_dir(self, task: Optional[WorkerTask] = None) -> Path:
-        """Get path to forcing directory."""
-        if task and task.settings_dir:
-            parent = task.settings_dir.parent.parent if task.settings_dir.parent else task.settings_dir
-            forcing_dir = parent / 'forcing' / 'CFUSE_input'
-            if forcing_dir.exists():
-                return forcing_dir
-
-        # Fall back to config-based path using SYMFLUENCE_DATA_DIR
-        data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', self.config.get('ROOT_PATH', '.')))
-        domain_name = self.config.get('DOMAIN_NAME', 'domain')
-        return data_dir / f"domain_{domain_name}" / 'forcing' / 'CFUSE_input'
+        self._forcing_tensor = torch.tensor(
+            forcing_array, dtype=torch.float32, device=self.device
+        )
 
     def _params_to_array(self, params: Dict[str, float]) -> np.ndarray:
         """Convert parameter dict to array in correct order."""
         if not HAS_CFUSE:
             return np.array(list(params.values()), dtype=np.float32)
 
-        # Use full PARAM_NAMES order, filling with defaults
         full_params = DEFAULT_PARAMS.copy()
         full_params.update(params)
         return np.array([full_params.get(name, 0.0) for name in PARAM_NAMES], dtype=np.float32)
@@ -354,126 +297,16 @@ class CFUSEWorker(BaseWorker):
     def _get_initial_states(self) -> np.ndarray:
         """Get initial state array."""
         states = np.zeros((self._n_hrus, self._n_states), dtype=np.float32)
-        # Set initial storages
         states[:, 0] = self.config.get('CFUSE_INITIAL_S1', 50.0)
         if self._n_states > 1:
-            states[:, 1] = 20.0  # Upper free storage
+            states[:, 1] = 20.0
         if self._n_states > 2:
             states[:, 2] = self.config.get('CFUSE_INITIAL_S2', 200.0)
         return states
 
     # =========================================================================
-    # BaseWorker Abstract Method Implementations
+    # Override Metric Calculation for Multi-HRU
     # =========================================================================
-
-    def apply_parameters(
-        self,
-        params: Dict[str, float],
-        settings_dir: Path,
-        **kwargs
-    ) -> bool:
-        """
-        Apply parameters for cFUSE simulation.
-
-        For cFUSE, parameters are passed directly to the model, so this
-        stores the parameters for run_model.
-
-        Args:
-            params: Parameter dictionary
-            settings_dir: Settings directory path
-            **kwargs: Additional arguments (unused)
-
-        Returns:
-            True (always succeeds for cFUSE)
-        """
-        task = kwargs.get('task')
-        if not self._initialized:
-            if not self._initialize_model_and_data(task):
-                return False
-
-        self._current_params = params
-        return True
-
-    def run_model(
-        self,
-        config: Dict[str, Any],
-        settings_dir: Path,
-        output_dir: Path,
-        **kwargs
-    ) -> bool:
-        """
-        Run cFUSE model simulation.
-
-        Args:
-            config: Configuration dictionary
-            settings_dir: Settings directory
-            output_dir: Output directory
-            **kwargs: Must contain 'params' for the simulation
-
-        Returns:
-            True if simulation successful.
-        """
-        if not HAS_CFUSE_CORE:
-            self.logger.error("cFUSE core not installed")
-            return False
-
-        try:
-            params = kwargs.get('params', getattr(self, '_current_params', None))
-            if params is None:
-                self.logger.error("No parameters provided for simulation")
-                return False
-
-            # Convert parameters to array
-            params_array = self._params_to_array(params)
-
-            # Get forcing and initial states
-            if HAS_TORCH and 'tensor' in self._forcing:
-                forcing_np = self._forcing['tensor'].cpu().numpy()
-            else:
-                precip = self._forcing['precip']
-                pet = self._forcing['pet']
-                temp = self._forcing['temp']
-                if precip.ndim == 1:
-                    forcing_np = np.stack([precip, pet, temp], axis=-1)[:, np.newaxis, :]
-                else:
-                    forcing_np = np.stack([precip, pet, temp], axis=-1)
-
-            initial_states = self._get_initial_states()
-
-            # Run simulation
-            final_states, runoff = cfuse_core.run_fuse_batch(
-                initial_states.astype(np.float32),
-                forcing_np.astype(np.float32),
-                params_array.astype(np.float32),
-                self.config_dict,
-                float(self.timestep_days)
-            )
-
-            # Handle warmup - also adjust time index
-            time_index = self._time_index
-            if self.warmup_days > 0 and len(runoff) > self.warmup_days:
-                runoff = runoff[self.warmup_days:]
-                if time_index is not None and len(time_index) > self.warmup_days:
-                    time_index = time_index[self.warmup_days:]
-
-            # Store result
-            if self._n_hrus == 1:
-                self._last_runoff = runoff.flatten()
-            else:
-                self._last_runoff = runoff  # [time, hrus]
-            self._last_params = params
-
-            # Save output files for final evaluation (required for calibration target)
-            if output_dir is not None:
-                self._save_output_files(output_dir, time_index)
-
-            return True
-
-        except Exception as e:
-            self.logger.error(f"cFUSE simulation failed: {e}")
-            import traceback
-            self.logger.debug(traceback.format_exc())
-            return False
 
     def calculate_metrics(
         self,
@@ -481,239 +314,54 @@ class CFUSEWorker(BaseWorker):
         config: Dict[str, Any],
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        Calculate metrics from cFUSE simulation results.
-
-        Args:
-            output_dir: Output directory (unused for cFUSE - results in memory)
-            config: Configuration dictionary
-            **kwargs: Additional arguments
-
-        Returns:
-            Dictionary with metrics (KGE, NSE, etc.)
-        """
+        """Calculate metrics from cFUSE output."""
         if self._last_runoff is None:
-            self.logger.error("No simulation results available")
-            return {'error': 'No simulation results'}
+            return {'kge': self.penalty_score, 'error': 'No simulation results'}
 
         if self._observations is None:
-            self.logger.warning("No observations available for metrics")
-            return {'error': 'No observations'}
+            return {'kge': self.penalty_score, 'error': 'No observations'}
 
         try:
             runoff = self._last_runoff
             if self._n_hrus > 1:
-                # Sum across HRUs for total catchment runoff
                 runoff = np.sum(runoff, axis=1)
 
-            # Convert runoff from mm/day to m³/s for comparison with observations
-            catchment_area_m2 = self._get_cached_catchment_area()
-            sim = runoff * catchment_area_m2 / (1000.0 * 86400.0)
+            # Skip warmup and calculate metrics
+            sim = runoff[self.warmup_days:]
+            obs = self._observations[self.warmup_days:]
 
-            # Get observations (in m³/s)
-            if HAS_TORCH and isinstance(self._observations, torch.Tensor):
-                obs = self._observations.cpu().numpy()
-            else:
-                obs = self._observations
-
-            # Align lengths
-            min_len = min(len(sim), len(obs))
-            sim = sim[:min_len]
-            obs = obs[:min_len]
-
-            # Remove NaN values
-            valid_mask = ~(np.isnan(sim) | np.isnan(obs))
-            sim = sim[valid_mask]
-            obs = obs[valid_mask]
-
-            if len(sim) < 10:
-                return {'error': 'Insufficient valid data points', 'n_points': len(sim)}
-
-            # Calculate metrics
-            kge_val = float(kge(obs, sim, transfo=1))
-            nse_val = float(nse(obs, sim, transfo=1))
-
-            # KGE components
-            r = np.corrcoef(obs, sim)[0, 1]
-            alpha = np.std(sim) / (np.std(obs) + 1e-10)
-            beta = np.mean(sim) / (np.mean(obs) + 1e-10)
-
-            metrics = {
-                'KGE': kge_val,
-                'NSE': nse_val,
-                'kge_r': float(r),
-                'kge_alpha': float(alpha),
-                'kge_beta': float(beta),
-                'mean_sim': float(np.mean(sim)),
-                'mean_obs': float(np.mean(obs)),
-                'n_points': len(sim),
-            }
-
-            return metrics
+            return self.calculate_streamflow_metrics(sim, obs, skip_warmup=False)
 
         except Exception as e:
-            self.logger.error(f"Metric calculation failed: {e}")
-            return {'error': str(e)}
-
-    def _save_output_files(self, output_dir: Path, time_index: pd.DatetimeIndex) -> None:
-        """
-        Save simulation results to output files for final evaluation.
-
-        This is critical for the calibration target to find and evaluate
-        cFUSE outputs during final evaluation (otherwise it may find
-        and incorrectly use SUMMA or other model outputs).
-
-        Args:
-            output_dir: Directory to save output files
-            time_index: Time index for the results (after warmup removal)
-        """
-        if self._last_runoff is None:
-            self.logger.warning("No runoff data to save")
-            return
-
-        try:
-            output_dir = Path(output_dir)
-            output_dir.mkdir(parents=True, exist_ok=True)
-
-            # Get domain name from config
-            domain_name = self.config.get('DOMAIN_NAME', 'domain')
-
-            # Get catchment area for unit conversion
-            catchment_area_m2 = self._get_catchment_area_for_output()
-
-            # Get runoff (mm/day)
-            runoff = self._last_runoff
-            if self._n_hrus > 1:
-                runoff = np.sum(runoff, axis=1)  # Sum across HRUs
-
-            # Convert mm/day to m3/s: runoff_mm * area_m2 / (1000 mm/m * 86400 s/day)
-            streamflow_cms = runoff * catchment_area_m2 / (1000.0 * 86400.0)
-
-            # Ensure time_index length matches runoff
-            if time_index is not None and len(time_index) != len(runoff):
-                self.logger.warning(
-                    f"Time index length ({len(time_index)}) != runoff length ({len(runoff)}). "
-                    "Creating synthetic time index."
-                )
-                time_index = pd.date_range(start='2000-01-01', periods=len(runoff), freq='D')
-
-            if time_index is None:
-                time_index = pd.date_range(start='2000-01-01', periods=len(runoff), freq='D')
-
-            # Save CSV
-            results_df = pd.DataFrame({
-                'datetime': time_index,
-                'streamflow_mm_day': runoff,
-                'streamflow_cms': streamflow_cms,
-            })
-            csv_file = output_dir / f"{domain_name}_cfuse_output.csv"
-            results_df.to_csv(csv_file, index=False)
-            self.logger.debug(f"Saved cFUSE output to: {csv_file}")
-
-            # Save NetCDF with proper variable names for evaluator detection
-            ds = xr.Dataset(
-                data_vars={
-                    'streamflow': (['time'], streamflow_cms),
-                    'runoff': (['time'], runoff),
-                },
-                coords={
-                    'time': time_index,
-                },
-                attrs={
-                    'model': 'cFUSE',
-                    'spatial_mode': self.spatial_mode,
-                    'catchment_area_m2': catchment_area_m2,
-                }
-            )
-            ds['streamflow'].attrs = {'units': 'm3/s', 'long_name': 'Streamflow'}
-            ds['runoff'].attrs = {'units': 'mm/day', 'long_name': 'Runoff depth'}
-
-            nc_file = output_dir / f"{domain_name}_cfuse_output.nc"
-            ds.to_netcdf(nc_file)
-            self.logger.debug(f"Saved cFUSE NetCDF to: {nc_file}")
-
-        except Exception as e:
-            self.logger.warning(f"Failed to save cFUSE output files: {e}")
-            import traceback
-            self.logger.debug(traceback.format_exc())
-
-    def _get_catchment_area_for_output(self) -> float:
-        """Get catchment area in m2 for unit conversion."""
-        # Try config values
-        area_m2 = self.config.get('CATCHMENT_AREA_M2')
-        if area_m2:
-            return float(area_m2)
-
-        area_km2 = self.config.get('CATCHMENT_AREA_KM2')
-        if area_km2:
-            return float(area_km2) * 1e6
-
-        # Try to get from shapefile
-        try:
-            import geopandas as gpd
-            data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', self.config.get('ROOT_PATH', '.')))
-            domain_name = self.config.get('DOMAIN_NAME', 'domain')
-            catchment_dir = data_dir / f"domain_{domain_name}" / 'shapefiles' / 'catchment'
-
-            if catchment_dir.exists():
-                shp_files = list(catchment_dir.glob("*.shp"))
-                if shp_files:
-                    gdf = gpd.read_file(shp_files[0])
-                    area_cols = [c for c in gdf.columns if 'area' in c.lower()]
-                    if area_cols:
-                        total_area = gdf[area_cols[0]].sum()
-                        self.logger.debug(f"Using catchment area from shapefile: {total_area/1e6:.2f} km2")
-                        return float(total_area)
-        except Exception as e:
-            self.logger.debug(f"Could not get area from shapefile: {e}")
-
-        # Default fallback
-        self.logger.warning("Could not determine catchment area, using default 1000 km2")
-        return 1000.0 * 1e6
-
-    def _get_cached_catchment_area(self) -> float:
-        """
-        Get cached catchment area for unit conversion during optimization.
-
-        Caches the area to avoid repeated file reads during calibration
-        (which may run 1000+ evaluations).
-
-        Returns:
-            Catchment area in m2
-        """
-        if self._cached_catchment_area is None:
-            self._cached_catchment_area = self._get_catchment_area_for_output()
-        return self._cached_catchment_area
+            self.logger.error(f"Error calculating cFUSE metrics: {e}")
+            return {'kge': self.penalty_score, 'error': str(e)}
 
     # =========================================================================
-    # Native Gradient Methods
+    # Native Gradient Support (PyTorch/Enzyme)
     # =========================================================================
+
+    def supports_native_gradients(self) -> bool:
+        """Check if native gradient computation is available."""
+        return HAS_TORCH and HAS_CFUSE_CORE
+
+    def supports_enzyme_gradients(self) -> bool:
+        """Check if Enzyme AD gradients are available."""
+        return HAS_ENZYME
 
     def compute_gradient(
         self,
         params: Dict[str, float],
         metric: str = 'kge'
     ) -> Optional[Dict[str, float]]:
-        """
-        Compute gradient of loss with respect to parameters using Enzyme AD or PyTorch.
-
-        Args:
-            params: Dictionary mapping parameter names to values
-            metric: Objective metric ('kge' or 'nse')
-
-        Returns:
-            Dictionary mapping parameter names to gradient values,
-            or None if native gradients not supported.
-        """
+        """Compute gradient using Enzyme AD or PyTorch."""
         if not self.supports_native_gradients():
             return None
 
         if not self._initialized:
-            if not self._initialize_model_and_data():
+            if not self.initialize():
                 return None
 
         if self._observations is None:
-            self.logger.error("No observations available for gradient computation")
             return None
 
         try:
@@ -731,43 +379,34 @@ class CFUSEWorker(BaseWorker):
         params: Dict[str, float],
         metric: str = 'kge'
     ) -> Tuple[float, Optional[Dict[str, float]]]:
-        """
-        Evaluate loss and compute gradient in a single pass.
-
-        This uses cfuse.torch.DifferentiableFUSEBatch for efficient gradient
-        computation via Enzyme AD or numerical differentiation.
-
-        Args:
-            params: Dictionary mapping parameter names to values
-            metric: Objective metric ('kge' or 'nse')
-
-        Returns:
-            Tuple of (loss_value, gradient_dict):
-            - loss_value: Scalar loss (negative of metric)
-            - gradient_dict: Dictionary mapping parameter names to gradients
-        """
+        """Evaluate loss and compute gradient using DifferentiableFUSEBatch."""
         if not self.supports_native_gradients():
             raise NotImplementedError(
-                "Native gradients not supported. PyTorch or cFUSE core not installed."
+                f"Native gradient computation not supported for {self._get_model_name()} worker. "
+                "Use supports_native_gradients() to check availability before calling."
             )
 
         if not self._initialized:
-            if not self._initialize_model_and_data():
+            if not self.initialize():
                 raise RuntimeError("Failed to initialize cFUSE worker")
 
         if self._observations is None:
-            raise ValueError("No observations available for gradient computation")
+            raise ValueError("No observations available")
+
+        if not HAS_TORCH_INTEGRATION:
+            raise NotImplementedError(
+                "PyTorch integration not available for cFUSE gradient computation. "
+                "Install PyTorch and torch-fuse to enable native gradients."
+            )
 
         try:
-            # Get parameter names we're calibrating
             param_names = list(params.keys())
 
-            # Create full parameter array with gradients only for calibrated params
+            # Create full parameter tensor with gradients
             full_params = DEFAULT_PARAMS.copy()
             full_params.update(params)
 
-            # Convert to tensor with gradients
-            params_array = torch.tensor(
+            params_tensor = torch.tensor(
                 [full_params.get(name, 0.0) for name in PARAM_NAMES],
                 dtype=torch.float32,
                 device=self.device,
@@ -775,7 +414,7 @@ class CFUSEWorker(BaseWorker):
             )
 
             # Get forcing tensor
-            forcing = self._forcing['tensor']  # [time, hru, 3]
+            forcing = self._forcing_tensor
 
             # Initial states
             initial_states = torch.tensor(
@@ -786,7 +425,7 @@ class CFUSEWorker(BaseWorker):
 
             # Forward pass using DifferentiableFUSEBatch
             runoff = DifferentiableFUSEBatch.apply(
-                params_array,
+                params_tensor,
                 initial_states,
                 forcing,
                 self.config_dict,
@@ -804,13 +443,19 @@ class CFUSEWorker(BaseWorker):
                 runoff = runoff.squeeze()
 
             # Get observations
-            obs = self._observations
+            obs = torch.tensor(
+                self._observations[self.warmup_days:],
+                dtype=torch.float32,
+                device=self.device
+            )
+
+            # Align lengths
             if len(obs) > len(runoff):
                 obs = obs[:len(runoff)]
             elif len(runoff) > len(obs):
                 runoff = runoff[:len(obs)]
 
-            # Compute loss (negative metric)
+            # Compute loss
             if metric.lower() == 'nse':
                 loss = self._nse_loss(obs, runoff)
             else:
@@ -820,7 +465,7 @@ class CFUSEWorker(BaseWorker):
             loss.backward()
 
             # Extract gradients for calibrated parameters
-            grad_array = params_array.grad.cpu().numpy()
+            grad_array = params_tensor.grad.cpu().numpy()
             grad_dict = {}
             for name in param_names:
                 if name in PARAM_NAMES:
@@ -829,9 +474,7 @@ class CFUSEWorker(BaseWorker):
                 else:
                     grad_dict[name] = 0.0
 
-            loss_value = float(loss.item())
-
-            return loss_value, grad_dict
+            return float(loss.item()), grad_dict
 
         except Exception as e:
             self.logger.error(f"Value and gradient computation failed: {e}")
@@ -841,7 +484,6 @@ class CFUSEWorker(BaseWorker):
 
     def _kge_loss(self, obs: torch.Tensor, sim: torch.Tensor) -> torch.Tensor:
         """Compute negative KGE loss (PyTorch differentiable)."""
-        # Remove NaN (use mask)
         valid_mask = ~(torch.isnan(obs) | torch.isnan(sim))
         obs_valid = obs[valid_mask]
         sim_valid = sim[valid_mask]
@@ -849,26 +491,18 @@ class CFUSEWorker(BaseWorker):
         if len(obs_valid) < 10:
             return torch.tensor(999.0, device=self.device)
 
-        # KGE components
         obs_mean = obs_valid.mean()
         sim_mean = sim_valid.mean()
         obs_std = obs_valid.std()
         sim_std = sim_valid.std()
 
-        # Correlation
         cov = ((obs_valid - obs_mean) * (sim_valid - sim_mean)).mean()
         r = cov / (obs_std * sim_std + 1e-10)
-
-        # Alpha (variability ratio)
         alpha = sim_std / (obs_std + 1e-10)
-
-        # Beta (bias ratio)
         beta = sim_mean / (obs_mean + 1e-10)
 
-        # KGE
         kge_val = 1 - torch.sqrt((r - 1)**2 + (alpha - 1)**2 + (beta - 1)**2)
-
-        return -kge_val  # Negative for minimization
+        return -kge_val
 
     def _nse_loss(self, obs: torch.Tensor, sim: torch.Tensor) -> torch.Tensor:
         """Compute negative NSE loss (PyTorch differentiable)."""
@@ -879,39 +513,28 @@ class CFUSEWorker(BaseWorker):
         if len(obs_valid) < 10:
             return torch.tensor(999.0, device=self.device)
 
-        # NSE
         ss_res = ((obs_valid - sim_valid) ** 2).sum()
         ss_tot = ((obs_valid - obs_valid.mean()) ** 2).sum()
         nse_val = 1 - ss_res / (ss_tot + 1e-10)
 
-        return -nse_val  # Negative for minimization
+        return -nse_val
 
     def evaluate_parameters(
         self,
         params: Dict[str, float],
         metric: str = 'kge'
     ) -> float:
-        """
-        Evaluate a parameter set and return the metric value.
-
-        Args:
-            params: Parameter dictionary
-            metric: Evaluation metric ('kge' or 'nse')
-
-        Returns:
-            Metric value (higher is better)
-        """
+        """Evaluate a parameter set and return the metric value."""
         if not self._initialized:
-            if not self._initialize_model_and_data():
+            if not self.initialize():
                 return self.penalty_score
 
         try:
-            # Convert parameters to array
             params_array = self._params_to_array(params)
 
             # Get forcing
-            if HAS_TORCH and 'tensor' in self._forcing:
-                forcing_np = self._forcing['tensor'].cpu().numpy()
+            if HAS_TORCH and self._forcing_tensor is not None:
+                forcing_np = self._forcing_tensor.cpu().numpy()
             else:
                 precip = self._forcing['precip']
                 pet = self._forcing['pet']
@@ -936,29 +559,22 @@ class CFUSEWorker(BaseWorker):
             if self.warmup_days > 0 and len(runoff) > self.warmup_days:
                 runoff = runoff[self.warmup_days:]
 
-            # Sum across HRUs if distributed
+            # Sum across HRUs
             if self._n_hrus > 1:
                 runoff = np.sum(runoff, axis=1)
             else:
                 runoff = runoff.flatten()
 
-            # Convert runoff from mm/day to m³/s for comparison with observations
-            # Observations are in m³/s from the preprocessed streamflow file
-            catchment_area_m2 = self._get_cached_catchment_area()
-            streamflow_cms = runoff * catchment_area_m2 / (1000.0 * 86400.0)
-
-            # Get observations (in m³/s)
-            if HAS_TORCH and isinstance(self._observations, torch.Tensor):
-                obs = self._observations.cpu().numpy()
-            else:
-                obs = self._observations
-
+            obs = self._observations
             if obs is None:
                 return self.penalty_score
 
+            # Skip warmup for observations
+            obs = obs[self.warmup_days:]
+
             # Align and filter
-            min_len = min(len(streamflow_cms), len(obs))
-            sim = streamflow_cms[:min_len]
+            min_len = min(len(runoff), len(obs))
+            sim = runoff[:min_len]
             obs_arr = obs[:min_len]
 
             valid_mask = ~(np.isnan(sim) | np.isnan(obs_arr))
@@ -968,7 +584,7 @@ class CFUSEWorker(BaseWorker):
             if len(sim) < 10:
                 return self.penalty_score
 
-            # Calculate metric
+            from symfluence.evaluation.metrics import kge, nse
             if metric.lower() == 'nse':
                 return float(nse(obs_arr, sim, transfo=1))
             return float(kge(obs_arr, sim, transfo=1))
@@ -976,3 +592,20 @@ class CFUSEWorker(BaseWorker):
         except Exception as e:
             self.logger.error(f"Parameter evaluation failed: {e}")
             return self.penalty_score
+
+    # =========================================================================
+    # Static Worker Function
+    # =========================================================================
+
+    @staticmethod
+    def evaluate_worker_function(task_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Static worker function for process pool execution."""
+        return _evaluate_cfuse_parameters_worker(task_data)
+
+
+def _evaluate_cfuse_parameters_worker(task_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Module-level worker function for MPI/ProcessPool execution."""
+    worker = CFUSEWorker(config=task_data.get('config'))
+    task = WorkerTask.from_legacy_dict(task_data)
+    result = worker.evaluate(task)
+    return result.to_legacy_dict()

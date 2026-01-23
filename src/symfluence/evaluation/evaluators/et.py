@@ -40,10 +40,11 @@ import logging
 import pandas as pd
 import xarray as xr
 from pathlib import Path
-from typing import cast, List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 from symfluence.evaluation.registry import EvaluationRegistry
 from symfluence.evaluation.output_file_locator import OutputFileLocator
+from symfluence.core.constants import UnitConverter
 from .base import ModelEvaluator
 
 if TYPE_CHECKING:
@@ -236,6 +237,10 @@ class ETEvaluator(ModelEvaluator):
             self.logger.error(f"Error extracting ET data from {sim_file}: {str(e)}")
             raise
 
+    def _extract_total_et(self, ds: xr.Dataset) -> pd.Series:
+        """Alias for _extract_et_data for backward compatibility."""
+        return self._extract_et_data(ds)
+
     def _extract_et_data(self, ds: xr.Dataset) -> pd.Series:
         """Extract total evapotranspiration from SUMMA output.
 
@@ -270,23 +275,8 @@ class ETEvaluator(ModelEvaluator):
             ValueError: If neither scalarTotalET nor component variables found
         """
         if 'scalarTotalET' in ds.variables:
-            et_var = ds['scalarTotalET']
-
-            # Collapse spatial dimensions
-            sim_xr = et_var
-            for dim in ['hru', 'gru']:
-                if dim in sim_xr.dims:
-                    if sim_xr.sizes[dim] == 1:
-                        sim_xr = sim_xr.isel({dim: 0})
-                    else:
-                        sim_xr = sim_xr.mean(dim=dim)
-
-            # Handle any remaining non-time dimensions
-            non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
-            if non_time_dims:
-                sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-
-            sim_data = sim_xr.to_pandas()
+            # Use base class method for spatial dimension collapse
+            sim_data = self._collapse_spatial_dims(ds['scalarTotalET'], aggregate='mean')
 
             # Convert units: SUMMA outputs kg m-2 s-1, convert to mm/day
             sim_data = self._convert_et_units(sim_data, from_unit='kg_m2_s', to_unit='mm_day')
@@ -376,6 +366,10 @@ class ETEvaluator(ModelEvaluator):
             self.logger.error(f"Error summing ET components: {str(e)}")
             raise
 
+    def _extract_latent_heat(self, ds: xr.Dataset) -> pd.Series:
+        """Alias for _extract_latent_heat_data for backward compatibility."""
+        return self._extract_latent_heat_data(ds)
+
     def _extract_latent_heat_data(self, ds: xr.Dataset) -> pd.Series:
         """Extract latent heat flux from SUMMA output.
 
@@ -410,23 +404,8 @@ class ETEvaluator(ModelEvaluator):
             ValueError: If scalarLatHeatTotal not found in dataset
         """
         if 'scalarLatHeatTotal' in ds.variables:
-            lh_var = ds['scalarLatHeatTotal']
-
-            # Collapse spatial dimensions
-            sim_xr = lh_var
-            for dim in ['hru', 'gru']:
-                if dim in sim_xr.dims:
-                    if sim_xr.sizes[dim] == 1:
-                        sim_xr = sim_xr.isel({dim: 0})
-                    else:
-                        sim_xr = sim_xr.mean(dim=dim)
-
-            # Handle any remaining non-time dimensions
-            non_time_dims = [dim for dim in sim_xr.dims if dim != 'time']
-            if non_time_dims:
-                sim_xr = sim_xr.isel({d: 0 for d in non_time_dims})
-
-            sim_data = cast(pd.Series, sim_xr.to_pandas())
+            # Use base class method for spatial dimension collapse
+            sim_data = self._collapse_spatial_dims(ds['scalarLatHeatTotal'], aggregate='mean')
 
             # SUMMA uses opposite sign convention for latent heat:
             # SUMMA: negative = energy leaving surface (evaporation)
@@ -441,20 +420,18 @@ class ETEvaluator(ModelEvaluator):
     def _convert_et_units(self, et_data: pd.Series, from_unit: str, to_unit: str) -> pd.Series:
         """Convert evapotranspiration units.
 
-        Converts between different ET unit systems used by SUMMA and observation sources.
+        Uses centralized UnitConverter for consistent unit handling across evaluators.
 
         Supported Conversions:
-            - kg m⁻² s⁻¹ → mm/day:
-                Formula: ET_mm_day = ET_kg_m2_s × 86400 s/day
-                Factor: 86400 (assumes water density = 1 kg/L)
+            - kg m⁻² s⁻¹ → mm/day: Uses UnitConverter.et_mass_flux_to_mm_day()
+            - mm/day → kg m⁻² s⁻¹: Inverse conversion
             - Same unit: No conversion (returns unchanged)
             - Other conversions: Returns data unchanged (no-op fallback)
 
         Physical Basis:
             - SUMMA outputs mass flux (kg m⁻² s⁻¹, specific mass per area per time)
             - mm/day represents equivalent water depth (volume per area per time)
-            - Conversion assumes water density = 1000 kg m⁻³ (liquid water)
-            - 86400 = seconds per day (365.25 days/year, 24 hours/day, 3600 s/hour)
+            - Conversion factor: 86400 seconds/day
 
         Args:
             et_data: Evapotranspiration time series to convert
@@ -465,8 +442,10 @@ class ETEvaluator(ModelEvaluator):
             pd.Series: Converted ET time series with same index as input
         """
         if from_unit == 'kg_m2_s' and to_unit == 'mm_day':
-            # Convert kg m-2 s-1 to mm/day
-            return et_data * 86400.0
+            return UnitConverter.et_mass_flux_to_mm_day(et_data, logger=self.logger)
+        elif from_unit == 'mm_day' and to_unit == 'kg_m2_s':
+            # Inverse conversion: mm/day to kg m-2 s-1
+            return et_data / UnitConverter.SECONDS_PER_DAY
         elif from_unit == to_unit:
             return et_data
         else:
@@ -597,8 +576,6 @@ class ETEvaluator(ModelEvaluator):
         Returns:
             str: Name of ET/latent heat column, or None if not found
         """
-        [c.lower() for c in columns]
-
         if self.optimization_target == 'et':
             # MOD16 column names (highest priority for MOD16 source)
             if self.obs_source in {'mod16', 'modis', 'modis_et', 'mod16a2'}:
@@ -850,35 +827,22 @@ class ETEvaluator(ModelEvaluator):
             self.logger.warning(f"Could not acquire FLUXNET data: {e}")
             return None
 
-    def _apply_quality_control(self, obs_df: pd.DataFrame, obs_data: pd.Series, data_col: str) -> pd.Series:
-        """Apply FluxNet quality control filtering (source-specific).
+    def _apply_quality_control(
+        self,
+        obs_df: pd.DataFrame,
+        obs_data: pd.Series,
+        data_col: str
+    ) -> pd.Series:
+        """Apply source-specific quality control filtering.
 
-        FluxNet provides quality control flags for each measurement indicating
-        the reliability/gap-filling status. This method filters observations
-        based on configurable quality threshold.
+        Dispatches to appropriate QC method based on observation source.
+        Each source has different QC flags and filtering strategies.
 
-        FluxNet QC Flag Scale:
-            0: Measured data (best quality, no gap-filling)
-            1: Good gap-filled data (most gaps filled with interpolation/regression)
-            2: Moderate gap-filled data (larger gaps or assumptions required)
-            3+: Poor quality (rarely used, should be excluded)
-
-        Quality Control Variables:
-            - LE_F_MDS_QC: QC flag for latent heat flux (used for both ET and LE)
-            - Same flag applies to both optimization targets ('et', 'latent_heat')
-
-        Configuration:
-            ET_MAX_QUALITY_FLAG: Retain data with QC ≤ threshold
-            - Default: 2 (good + moderate = most data retained)
-            - Strict: 0 (measured only = 30-40% data loss)
-            - Relaxed: 3 (include all gap-filled = keep suspicious values)
-
-        Filtering Logic:
-            1. Locate QC column (LE_F_MDS_QC) in input DataFrame
-            2. Convert QC values to numeric (handles errors)
-            3. Create boolean mask: qc_flags ≤ max_quality_flag
-            4. Return observations passing QC filter
-            5. On error: Log warning, return unfiltered data
+        Supported Sources:
+            - FluxNet: LE_F_MDS_QC flag (0-2 scale)
+            - MODIS/MOD16: MODLAND QC bits (0-1 = good, 2-3 = marginal/bad)
+            - GLEAM: Relative uncertainty threshold
+            - FLUXCOM: No QC available (returns unchanged)
 
         Args:
             obs_df: DataFrame with DateTime index and QC columns
@@ -887,27 +851,188 @@ class ETEvaluator(ModelEvaluator):
 
         Returns:
             pd.Series: QC-filtered observations (or original if filtering fails)
+        """
+        if not self.use_quality_control:
+            return obs_data
 
-        Raises:
-            None (logs warning, returns unfiltered data on error)
+        if self.obs_source == 'fluxnet':
+            return self._apply_fluxnet_qc(obs_df, obs_data)
+        elif self.obs_source in {'mod16', 'modis', 'modis_et', 'mod16a2'}:
+            return self._apply_modis_qc(obs_df, obs_data)
+        elif self.obs_source == 'gleam':
+            return self._apply_gleam_qc(obs_df, obs_data)
+        # FLUXCOM: No QC flags available
+        return obs_data
+
+    def _apply_fluxnet_qc(
+        self,
+        obs_df: pd.DataFrame,
+        obs_data: pd.Series
+    ) -> pd.Series:
+        """Apply FluxNet quality control filtering.
+
+        FluxNet provides quality control flags for each measurement indicating
+        the reliability/gap-filling status.
+
+        FluxNet QC Flag Scale:
+            0: Measured data (best quality, no gap-filling)
+            1: Good gap-filled data (most gaps filled with interpolation/regression)
+            2: Moderate gap-filled data (larger gaps or assumptions required)
+            3+: Poor quality (rarely used, should be excluded)
+
+        Configuration:
+            ET_MAX_QUALITY_FLAG: Retain data with QC ≤ threshold (default: 2)
+
+        Args:
+            obs_df: DataFrame with DateTime index and QC columns
+            obs_data: Series of ET/latent heat measurements to filter
+
+        Returns:
+            pd.Series: QC-filtered observations
         """
         try:
             qc_col = None
-            if self.optimization_target == 'et':
-                if 'LE_F_MDS_QC' in obs_df.columns:
-                    qc_col = 'LE_F_MDS_QC'
-            elif self.optimization_target == 'latent_heat':
+            # LE_F_MDS_QC flag applies to both ET and latent heat measurements
+            if self.optimization_target in ('et', 'latent_heat'):
                 if 'LE_F_MDS_QC' in obs_df.columns:
                     qc_col = 'LE_F_MDS_QC'
 
-            if qc_col and qc_col in obs_df.columns:
+            if qc_col:
                 qc_flags = pd.to_numeric(obs_df[qc_col], errors='coerce')
                 quality_mask = qc_flags <= self.max_quality_flag
-                obs_data = obs_data[quality_mask]
+                filtered_count = (~quality_mask).sum()
+                if filtered_count > 0:
+                    self.logger.debug(
+                        f"FluxNet QC: filtered {filtered_count} points "
+                        f"(QC > {self.max_quality_flag})"
+                    )
+                return obs_data[quality_mask]
 
             return obs_data
         except Exception as e:
-            self.logger.warning(f"Error applying quality control: {str(e)}")
+            self.logger.warning(f"Error applying FluxNet QC: {str(e)}")
+            return obs_data
+
+    def _apply_modis_qc(
+        self,
+        obs_df: pd.DataFrame,
+        obs_data: pd.Series
+    ) -> pd.Series:
+        """Apply MODIS/MOD16 quality control filtering.
+
+        MODIS uses MODLAND QC bits (bits 0-1) to indicate data quality:
+            0: Good quality (main method with or without saturation)
+            1: Other quality (main method not used, bit value = 01)
+            2: Marginal (produced with backup method, bit value = 10)
+            3: Cloud/not produced (bit value = 11)
+
+        QC Column Names (tried in order):
+            - ET_QC_500m: MOD16A2 500m product
+            - ET_QC: Generic
+            - QC: Fallback
+
+        Configuration:
+            ET_MODIS_MAX_QC: Maximum MODLAND QC value (0-3, default: 0)
+
+        Args:
+            obs_df: DataFrame with DateTime index and QC columns
+            obs_data: Series of ET measurements to filter
+
+        Returns:
+            pd.Series: QC-filtered observations
+        """
+        try:
+            # Find QC column
+            qc_col = None
+            for col in ['ET_QC_500m', 'ET_QC', 'QC']:
+                if col in obs_df.columns:
+                    qc_col = col
+                    break
+
+            if qc_col is None:
+                self.logger.debug("No MODIS QC column found, skipping QC filtering")
+                return obs_data
+
+            qc_flags = pd.to_numeric(obs_df[qc_col], errors='coerce')
+
+            # Extract MODLAND QC bits (bits 0-1)
+            modland_qc = qc_flags.astype('Int64') & 0b11
+
+            max_qc = self.config_dict.get('ET_MODIS_MAX_QC', 0)
+            quality_mask = modland_qc <= max_qc
+
+            filtered_count = (~quality_mask).sum()
+            if filtered_count > 0:
+                self.logger.debug(
+                    f"MODIS QC: filtered {filtered_count} points "
+                    f"(MODLAND QC > {max_qc})"
+                )
+
+            return obs_data[quality_mask]
+
+        except Exception as e:
+            self.logger.warning(f"Error applying MODIS QC: {str(e)}")
+            return obs_data
+
+    def _apply_gleam_qc(
+        self,
+        obs_df: pd.DataFrame,
+        obs_data: pd.Series
+    ) -> pd.Series:
+        """Apply GLEAM quality control filtering based on uncertainty.
+
+        GLEAM provides uncertainty estimates for each ET value. This method
+        filters based on relative uncertainty (uncertainty / ET value).
+
+        Uncertainty Column Names (tried in order):
+            - E_uncertainty: Standard GLEAM naming
+            - Et_uncertainty: Alternative naming
+
+        Configuration:
+            ET_GLEAM_MAX_RELATIVE_UNCERTAINTY: Maximum relative uncertainty
+                (uncertainty/value ratio, default: 0.5 = 50%)
+
+        Args:
+            obs_df: DataFrame with DateTime index and uncertainty columns
+            obs_data: Series of ET measurements to filter
+
+        Returns:
+            pd.Series: QC-filtered observations
+        """
+        try:
+            # Find uncertainty column
+            unc_col = None
+            for col in ['E_uncertainty', 'Et_uncertainty', 'uncertainty']:
+                if col in obs_df.columns:
+                    unc_col = col
+                    break
+
+            if unc_col is None:
+                self.logger.debug("No GLEAM uncertainty column found, skipping QC filtering")
+                return obs_data
+
+            uncertainty = pd.to_numeric(obs_df[unc_col], errors='coerce')
+
+            max_relative_unc = self.config_dict.get(
+                'ET_GLEAM_MAX_RELATIVE_UNCERTAINTY', 0.5
+            )
+
+            # Calculate relative uncertainty (avoid division by zero)
+            with pd.option_context('mode.use_inf_as_na', True):
+                relative_unc = uncertainty / obs_data.abs()
+                quality_mask = relative_unc <= max_relative_unc
+
+            filtered_count = (~quality_mask).sum()
+            if filtered_count > 0:
+                self.logger.debug(
+                    f"GLEAM QC: filtered {filtered_count} points "
+                    f"(relative uncertainty > {max_relative_unc:.0%})"
+                )
+
+            return obs_data[quality_mask]
+
+        except Exception as e:
+            self.logger.warning(f"Error applying GLEAM QC: {str(e)}")
             return obs_data
 
     def needs_routing(self) -> bool:

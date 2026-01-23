@@ -64,7 +64,7 @@ class MESHParameterFixer(ConfigMixin):
 
                 self._config = SymfluenceConfig(**config)
 
-            except Exception:
+            except (TypeError, ValueError, KeyError, AttributeError):
 
                 # Fallback for partial configs (e.g., in tests)
 
@@ -272,7 +272,7 @@ class MESHParameterFixer(ConfigMixin):
                 if 'NGRU' not in ds.dims:
                     return None
                 return int(ds.dims['NGRU'])
-        except Exception:
+        except (FileNotFoundError, OSError, ValueError, KeyError):
             return None
 
     def _trim_ddb_to_active_grus(self, target_count: int) -> None:
@@ -418,7 +418,7 @@ class MESHParameterFixer(ConfigMixin):
 
             block_count = sum(1 for line in lines if 'XSLP/XDRAINH/MANN/KSAT/MID' in line or line.startswith('[GRU_'))
             return block_count if block_count > 0 else None
-        except Exception:
+        except (FileNotFoundError, OSError, ValueError, KeyError):
             return None
 
     def _trim_class_to_count(self, target_count: int) -> None:

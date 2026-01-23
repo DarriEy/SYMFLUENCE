@@ -30,7 +30,7 @@ class ParameterTransformer(ConfigMixin):
 
                 self._config = SymfluenceConfig(**config)
 
-            except Exception:
+            except (AttributeError, KeyError, TypeError):
 
                 # Fallback for partial configs (e.g., in tests)
 
@@ -126,7 +126,7 @@ class SoilDepthTransformer(ParameterTransformer):
 
             return True
 
-        except Exception as e:
+        except (OSError, IOError, KeyError, ValueError) as e:
             self.logger.error(f"Error in SoilDepthTransformer: {str(e)}")
             return False
 

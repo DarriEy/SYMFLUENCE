@@ -50,7 +50,7 @@ class GRModelOptimizer(BaseModelOptimizer):
 
     def _create_parameter_manager(self):
         """Create GR parameter manager."""
-        from symfluence.optimization.parameter_managers.gr_parameter_manager import GRParameterManager
+        from symfluence.models.gr.calibration.parameter_manager import GRParameterManager
         return GRParameterManager(
             self.config,
             self.logger,

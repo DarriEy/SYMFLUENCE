@@ -76,7 +76,7 @@ class OptimizationResultsManager:
 
             return results_file
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, ValueError) as e:
             self.logger.error(f"Error saving optimization results: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
@@ -127,7 +127,7 @@ class OptimizationResultsManager:
             history_df.to_csv(history_file, index=False)
             self.logger.info(f"Saved optimization history to {history_file}")
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, ValueError) as e:
             self.logger.error(f"Error saving optimization history: {str(e)}")
 
     def load_optimization_results(self, filename: str = None) -> pd.DataFrame:

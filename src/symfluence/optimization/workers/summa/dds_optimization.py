@@ -48,7 +48,7 @@ def _export_worker_profile_data(worker_id: int = None):
             profile_file = profile_dir / f"worker_profile_{pid}.json"
 
         profiler.export_to_file(str(profile_file))
-    except Exception:
+    except (ValueError, KeyError, AttributeError):
         # Silently fail - don't want profiling to break workers
         pass
 
@@ -174,11 +174,11 @@ def _run_dds_instance_worker(worker_data: Dict) -> Dict:
             'final_current_score': current_score
         }
 
-    except Exception as e:
+    except (ValueError, KeyError, AttributeError) as e:
         # Still export profiling data even on error
         try:
             _export_worker_profile_data(worker_id=worker_data['dds_task']['start_id'])
-        except Exception:
+        except (ValueError, KeyError, AttributeError):
             pass
         return {
             'start_id': worker_data['dds_task']['start_id'],
@@ -222,7 +222,7 @@ def _evaluate_single_solution_worker(solution: np.ndarray, worker_data: Dict, lo
 
         return score
 
-    except Exception as e:
+    except (ValueError, KeyError, AttributeError) as e:
         logger.error(f"Error evaluating solution: {str(e)}")
         return float('-inf')
 

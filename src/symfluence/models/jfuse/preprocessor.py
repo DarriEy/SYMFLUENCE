@@ -20,7 +20,7 @@ from symfluence.core.constants import UnitConversion
 
 
 @ModelRegistry.register_preprocessor('JFUSE')
-class JFUSEPreprocessor(BaseModelPreProcessor):
+class JFUSEPreProcessor(BaseModelPreProcessor):
     """
     Preprocessor for jFUSE model.
 
@@ -467,7 +467,7 @@ class JFUSEPreprocessor(BaseModelPreProcessor):
             catchment = gpd.read_file(self.get_catchment_path())
             centroid = catchment.to_crs(epsg=4326).union_all().centroid
             lat = centroid.y
-        except Exception:
+        except (FileNotFoundError, KeyError, IndexError, ValueError):
             lat = 45.0  # Default mid-latitude
             self.logger.warning(f"Using default latitude {lat} for PET calculation")
 

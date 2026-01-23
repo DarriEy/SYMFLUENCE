@@ -40,7 +40,7 @@ def __getattr__(name):
             DeprecationWarning,
             stacklevel=2
         )
-        from symfluence.optimization.parameter_managers.summa_parameter_manager import SUMMAParameterManager
+        from symfluence.models.summa.calibration.parameter_manager import SUMMAParameterManager
         return SUMMAParameterManager
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 from symfluence.optimization.core.transformers import TransformationManager

@@ -51,6 +51,9 @@ class ConfigMixin:
         Returns:
             Flattened configuration dictionary with uppercase keys
         """
+        # Check for override dict first
+        if hasattr(self, '_config_dict_override') and self._config_dict_override is not None:
+            return self._config_dict_override
         cfg = self.config
         if cfg is not None:
             # Handle both SymfluenceConfig and plain dict
@@ -58,6 +61,19 @@ class ConfigMixin:
                 return cfg
             return cfg.to_dict(flatten=True)
         return {}
+
+    @config_dict.setter
+    def config_dict(self, value: Dict[str, Any]) -> None:
+        """
+        Set the configuration dictionary override.
+
+        This allows direct setting of config values for testing or
+        overriding specific configuration entries.
+
+        Args:
+            value: Dictionary of configuration values
+        """
+        self._config_dict_override = value
 
     def _get_config_value(
         self,
@@ -91,6 +107,11 @@ class ConfigMixin:
                 dict_key='SYMFLUENCE_DATA_DIR'
             )
         """
+        # Check override dict first (for testing and explicit overrides)
+        if dict_key is not None and hasattr(self, '_config_dict_override') and self._config_dict_override is not None:
+            if dict_key in self._config_dict_override:
+                return self._config_dict_override[dict_key]
+
         try:
             value = typed_accessor()
             if value is not None:

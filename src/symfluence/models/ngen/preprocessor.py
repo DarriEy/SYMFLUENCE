@@ -5,16 +5,18 @@ Handles spatial preprocessing and configuration generation for the NOAA NextGen 
 Uses shared utilities for time window management and forcing data processing.
 """
 
-import sys
 import json
-import yaml
+import logging
+import sys
+from pathlib import Path
+from shutil import copyfile
+from typing import Any, Dict, List, Optional
+
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 import xarray as xr
-import geopandas as gpd
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-from shutil import copyfile
+import yaml
 
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.base import BaseModelPreProcessor
@@ -42,7 +44,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         """Return model name for directory structure."""
         return "NGEN"
 
-    def __init__(self, config: Dict[str, Any], logger: Any):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """
         Initialize the NextGen preprocessor.
 

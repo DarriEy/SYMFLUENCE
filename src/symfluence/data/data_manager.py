@@ -314,15 +314,15 @@ class DataManager(BaseManager):
                 lambda: self.config.data.streamflow_data_provider,
                 ''
             )).upper()
-            if streamflow_provider == 'USGS' and 'USGS_STREAMFLOW' not in additional_obs:
-                # Automatically add USGS_STREAMFLOW if it's the primary provider but not in additional_obs
-                additional_obs.append('USGS_STREAMFLOW')
-            elif streamflow_provider == 'WSC' and 'WSC_STREAMFLOW' not in additional_obs:
-                additional_obs.append('WSC_STREAMFLOW')
-            elif streamflow_provider == 'SMHI' and 'SMHI_STREAMFLOW' not in additional_obs:
-                additional_obs.append('SMHI_STREAMFLOW')
-            elif streamflow_provider == 'LAMAH_ICE' and 'LAMAH_ICE_STREAMFLOW' not in additional_obs:
-                additional_obs.append('LAMAH_ICE_STREAMFLOW')
+            if streamflow_provider == 'USGS' and 'usgs_streamflow' not in [o.lower() for o in additional_obs]:
+                # Automatically add usgs_streamflow if it's the primary provider but not in additional_obs
+                additional_obs.append('usgs_streamflow')
+            elif streamflow_provider == 'WSC' and 'wsc_streamflow' not in [o.lower() for o in additional_obs]:
+                additional_obs.append('wsc_streamflow')
+            elif streamflow_provider == 'SMHI' and 'smhi_streamflow' not in [o.lower() for o in additional_obs]:
+                additional_obs.append('smhi_streamflow')
+            elif streamflow_provider == 'LAMAH_ICE' and 'lamah_ice_streamflow' not in [o.lower() for o in additional_obs]:
+                additional_obs.append('lamah_ice_streamflow')
 
             # Check for USGS Groundwater download and ensure it's in additional_obs
             download_usgs_gw = self._get_config_value(
@@ -332,16 +332,16 @@ class DataManager(BaseManager):
             if isinstance(download_usgs_gw, str):
                 download_usgs_gw = download_usgs_gw.lower() == 'true'
 
-            if download_usgs_gw and 'USGS_GW' not in additional_obs:
-                additional_obs.append('USGS_GW')
+            if download_usgs_gw and 'usgs_gw' not in [o.lower() for o in additional_obs]:
+                additional_obs.append('usgs_gw')
 
             # Check for MODIS Snow and ensure it's in additional_obs
             download_modis_snow = self._get_config_value(
                 lambda: self.config.evaluation.modis_snow.download,
                 False
             )
-            if download_modis_snow and 'MODIS_SNOW' not in additional_obs:
-                additional_obs.append('MODIS_SNOW')
+            if download_modis_snow and 'modis_snow' not in [o.lower() for o in additional_obs]:
+                additional_obs.append('modis_snow')
 
             # Check for SNOTEL download and ensure it's in additional_obs
             download_snotel = self._get_config_value(
@@ -351,8 +351,8 @@ class DataManager(BaseManager):
             if isinstance(download_snotel, str):
                 download_snotel = download_snotel.lower() == 'true'
 
-            if download_snotel and 'SNOTEL' not in additional_obs:
-                additional_obs.append('SNOTEL')
+            if download_snotel and 'snotel' not in [o.lower() for o in additional_obs]:
+                additional_obs.append('snotel')
 
             # Check for ISMN download and ensure it's in additional_obs
             download_ismn = self._get_config_value(
@@ -362,15 +362,17 @@ class DataManager(BaseManager):
             if isinstance(download_ismn, str):
                 download_ismn = download_ismn.lower() == 'true'
 
-            if download_ismn and 'ISMN' not in additional_obs:
-                additional_obs.append('ISMN')
+            if download_ismn and 'ismn' not in [o.lower() for o in additional_obs]:
+                additional_obs.append('ismn')
 
             # 3. Traditional streamflow processing (for providers not yet migrated)
             observed_data_processor = ObservedDataProcessor(self.config, self.logger)
 
             # Only run traditional if NOT using the formalized handlers
-            formalized_providers = ['USGS_STREAMFLOW', 'WSC_STREAMFLOW', 'SMHI_STREAMFLOW', 'LAMAH_ICE_STREAMFLOW']
-            is_formalized = any(obs in additional_obs for obs in formalized_providers)
+            # Note: Registry uses lowercase keys, so we check with case-insensitive comparison
+            formalized_providers = ['usgs_streamflow', 'wsc_streamflow', 'smhi_streamflow', 'lamah_ice_streamflow']
+            additional_obs_lower = [o.lower() for o in additional_obs]
+            is_formalized = any(obs in additional_obs_lower for obs in formalized_providers)
 
             if not is_formalized:
                 observed_data_processor.process_streamflow_data()

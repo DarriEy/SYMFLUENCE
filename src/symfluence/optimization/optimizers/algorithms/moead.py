@@ -28,6 +28,7 @@ from typing import Dict, Any, Callable, Optional, List, Tuple
 import numpy as np
 
 from .base_algorithm import OptimizationAlgorithm
+from .config_schema import MOEADDefaults
 
 
 class MOEADAlgorithm(OptimizationAlgorithm):
@@ -100,12 +101,42 @@ class MOEADAlgorithm(OptimizationAlgorithm):
         """Single-objective optimization using MOEA/D framework."""
         self.logger.info(f"Starting MOEA/D (single-objective mode) with {n_params} parameters")
 
-        # MOEA/D parameters
+        # MOEA/D parameters using standardized config access
         pop_size = self.population_size
-        n_neighbors = self.config_dict.get('MOEAD_NEIGHBORS', min(20, pop_size - 1))
-        cr = self.config_dict.get('MOEAD_CR', 1.0)  # Crossover rate
-        f = self.config_dict.get('MOEAD_F', 0.5)  # DE scaling factor
-        mutation_rate = self.config_dict.get('MOEAD_MUTATION', 0.1)
+
+        # Neighborhood size - number of neighbors for each subproblem
+        # (Zhang & Li 2007, Section III-A)
+        n_neighbors = self._get_config_value(
+            lambda: self.config.optimization.moead_neighbors,
+            default=min(MOEADDefaults.NEIGHBORS, pop_size - 1),
+            dict_key='MOEAD_NEIGHBORS'
+        )
+
+        # Crossover rate for DE reproduction (Zhang & Li 2007, Section III-B)
+        cr = self._get_config_value(
+            lambda: self.config.optimization.moead_cr,
+            default=MOEADDefaults.CR,
+            dict_key='MOEAD_CR'
+        )
+
+        # DE scaling factor (Zhang & Li 2007, Section III-B)
+        f = self._get_config_value(
+            lambda: self.config.optimization.moead_f,
+            default=MOEADDefaults.F,
+            dict_key='MOEAD_F'
+        )
+
+        # Mutation rate for polynomial mutation
+        mutation_rate = self._get_config_value(
+            lambda: self.config.optimization.moead_mutation,
+            default=MOEADDefaults.MUTATION,
+            dict_key='MOEAD_MUTATION'
+        )
+
+        # Validate parameters
+        valid, msg = MOEADDefaults.validate_decomposition('tchebycheff')
+        if not valid:
+            self.logger.warning(f"MOEA/D validation: {msg}")
 
         # Initialize population
         population = np.random.uniform(0, 1, (pop_size, n_params))
@@ -204,13 +235,48 @@ class MOEADAlgorithm(OptimizationAlgorithm):
         """Multi-objective optimization using MOEA/D decomposition."""
         self.logger.info(f"Starting MOEA/D (multi-objective mode) with {n_params} parameters")
 
-        # MOEA/D parameters
+        # MOEA/D parameters using standardized config access
         pop_size = self.population_size
-        n_neighbors = self.config_dict.get('MOEAD_NEIGHBORS', min(20, pop_size - 1))
-        cr = self.config_dict.get('MOEAD_CR', 1.0)
-        f = self.config_dict.get('MOEAD_F', 0.5)
-        mutation_rate = self.config_dict.get('MOEAD_MUTATION', 0.1)
-        decomposition = self.config_dict.get('MOEAD_DECOMPOSITION', 'tchebycheff')
+
+        # Neighborhood size (Zhang & Li 2007, Section III-A)
+        n_neighbors = self._get_config_value(
+            lambda: self.config.optimization.moead_neighbors,
+            default=min(MOEADDefaults.NEIGHBORS, pop_size - 1),
+            dict_key='MOEAD_NEIGHBORS'
+        )
+
+        # Crossover rate for DE reproduction (Zhang & Li 2007, Section III-B)
+        cr = self._get_config_value(
+            lambda: self.config.optimization.moead_cr,
+            default=MOEADDefaults.CR,
+            dict_key='MOEAD_CR'
+        )
+
+        # DE scaling factor (Zhang & Li 2007, Section III-B)
+        f = self._get_config_value(
+            lambda: self.config.optimization.moead_f,
+            default=MOEADDefaults.F,
+            dict_key='MOEAD_F'
+        )
+
+        # Mutation rate for polynomial mutation
+        mutation_rate = self._get_config_value(
+            lambda: self.config.optimization.moead_mutation,
+            default=MOEADDefaults.MUTATION,
+            dict_key='MOEAD_MUTATION'
+        )
+
+        # Decomposition approach (Zhang & Li 2007, Section II-B)
+        decomposition = self._get_config_value(
+            lambda: self.config.optimization.moead_decomposition,
+            default=MOEADDefaults.DECOMPOSITION,
+            dict_key='MOEAD_DECOMPOSITION'
+        )
+
+        # Validate decomposition method
+        valid, msg = MOEADDefaults.validate_decomposition(decomposition)
+        if not valid:
+            self.logger.warning(f"MOEA/D validation: {msg}")
 
         # Determine number of objectives from first evaluation
         test_solution = np.random.uniform(0, 1, n_params)

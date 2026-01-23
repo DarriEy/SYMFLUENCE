@@ -37,16 +37,16 @@ class OutputFileLocator:
     matching pattern to avoid returning incorrect file types.
     """
 
-    # Standard NetCDF patterns in priority order
+    # Standard NetCDF patterns in priority order (includes recursive variants)
     NETCDF_PATTERNS = {
-        'daily': ['*_day.nc', '*_daily.nc'],
-        'timestep': ['*timestep.nc', '*_timestep.nc'],
-        'streamflow': ['*_streamflow.nc', '*streamflow*.nc'],
-        'output': ['*output*.nc', '*_runs_best.nc', '*_runs_def.nc'],
-        'generic': ['*.nc'],
+        'daily': ['*_day.nc', '*_daily.nc', '**/*_day.nc', '**/*_daily.nc'],
+        'timestep': ['*timestep.nc', '*_timestep.nc', '**/*timestep.nc', '**/*_timestep.nc'],
+        'streamflow': ['*_streamflow.nc', '*streamflow*.nc', '**/*_streamflow.nc', '**/*streamflow*.nc'],
+        'output': ['*output*.nc', '*_runs_best.nc', '*_runs_def.nc', '**/*output*.nc', '**/*_runs_best.nc', '**/*_runs_def.nc'],
+        'generic': ['*.nc', '**/*.nc'],
     }
 
-    # Model-specific file patterns
+    # Model-specific file patterns (includes recursive variants)
     MODEL_PATTERNS = {
         'HYPE': {
             'streamflow': ['timeCOUT.txt', 'HYPE/timeCOUT.txt'],
@@ -54,11 +54,11 @@ class OutputFileLocator:
         },
         'RHESSys': {
             'streamflow': ['rhessys_results.csv', 'rhessys_basin.daily'],
-            'patterns': ['*_basin.daily'],
+            'patterns': ['*_basin.daily', '**/*_basin.daily'],
         },
         'GR': {
             'streamflow': ['GR_results.csv'],
-            'patterns': ['*_runs_def.nc'],
+            'patterns': ['*_runs_def.nc', '**/*_runs_def.nc'],
         },
         'TROUTE': {
             'streamflow': ['nex-troute-out.nc'],
@@ -69,15 +69,15 @@ class OutputFileLocator:
             'patterns': ['**/nexus_data.nc', '**/catchment_data.nc'],
         },
         'mizuRoute': {
-            'patterns': ['mizuRoute/*.nc', '*.h.*.nc', 'mizuRoute/**/*.nc'],
+            'patterns': ['mizuRoute/*.nc', '*.h.*.nc', '**/*.h.*.nc', 'mizuRoute/**/*.nc'],
         },
         'JFUSE': {
             'streamflow': [],
-            'patterns': ['*_jfuse_output.nc', '*_jfuse_output.csv'],
+            'patterns': ['*_jfuse_output.nc', '*_jfuse_output.csv', '**/*_jfuse_output.nc', '**/*_jfuse_output.csv'],
         },
         'CFUSE': {
             'streamflow': [],
-            'patterns': ['*_cfuse_output.nc', '*_cfuse_output.csv'],
+            'patterns': ['*_cfuse_output.nc', '*_cfuse_output.csv', '**/*_cfuse_output.nc', '**/*_cfuse_output.csv'],
         },
     }
 

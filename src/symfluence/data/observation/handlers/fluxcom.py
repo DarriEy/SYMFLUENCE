@@ -11,11 +11,14 @@ from pathlib import Path
 from ..base import BaseObservationHandler
 from ..registry import ObservationRegistry
 
-@ObservationRegistry.register('FLUXCOM_ET')
+@ObservationRegistry.register('fluxcom_et')
 class FLUXCOMETHandler(BaseObservationHandler):
     """
     Handles FLUXCOM Evapotranspiration data.
     """
+
+    obs_type = "et"
+    source_name = "FLUXCOM"
 
     def acquire(self) -> Path:
         """Locate FLUXCOM ET data."""

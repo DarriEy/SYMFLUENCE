@@ -15,12 +15,13 @@ import xarray as xr
 from symfluence.models.base import BaseModelPreProcessor
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.utilities import ForcingDataProcessor
+from symfluence.models.mixins import SpatialModeDetectionMixin
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.constants import UnitConversion
 
 
 @ModelRegistry.register_preprocessor('HBV')
-class HBVPreprocessor(BaseModelPreProcessor):
+class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
     """
     Preprocessor for HBV-96 model.
 
@@ -56,19 +57,8 @@ class HBVPreprocessor(BaseModelPreProcessor):
         self.hbv_forcing_dir = self.forcing_dir
         self.hbv_results_dir = self.project_dir / 'simulations' / self.experiment_id / 'HBV'
 
-        # Determine spatial mode
-        configured_mode = self._get_config_value(
-            lambda: self.config.model.hbv.spatial_mode if self.config.model and self.config.model.hbv else None,
-            'auto'
-        )
-
-        if configured_mode in (None, 'auto', 'default'):
-            if self.domain_definition_method == 'delineate':
-                self.spatial_mode = 'distributed'
-            else:
-                self.spatial_mode = 'lumped'
-        else:
-            self.spatial_mode = configured_mode
+        # Determine spatial mode using mixin
+        self.spatial_mode = self.detect_spatial_mode('HBV')
 
         # PET method configuration
         self.pet_method = self._get_config_value(
@@ -99,24 +89,24 @@ class HBVPreprocessor(BaseModelPreProcessor):
 
         Returns:
             True if preprocessing completed successfully.
+
+        Raises:
+            FileNotFoundError: If required forcing data files are not found.
+            RuntimeError: If preprocessing fails due to data errors.
         """
         self.logger.info(f"Starting HBV preprocessing in {self.spatial_mode} mode")
 
         # Create directories
         self.create_directories()
 
-        # Prepare forcing data
+        # Prepare forcing data (will raise exceptions on failure)
         if self.spatial_mode == 'lumped':
-            success = self._prepare_lumped_forcing()
+            self._prepare_lumped_forcing()
         else:
-            success = self._prepare_distributed_forcing()
+            self._prepare_distributed_forcing()
 
-        if success:
-            self.logger.info("HBV preprocessing completed successfully")
-        else:
-            self.logger.error("HBV preprocessing failed")
-
-        return success
+        self.logger.info("HBV preprocessing completed successfully")
+        return True
 
     def _prepare_lumped_forcing(self) -> bool:
         """
@@ -133,7 +123,10 @@ class HBVPreprocessor(BaseModelPreProcessor):
             # Load basin-averaged forcing
             forcing_ds = self._load_basin_averaged_forcing()
             if forcing_ds is None:
-                return False
+                raise FileNotFoundError(
+                    f"No forcing data found for domain '{self.domain_name}'. "
+                    f"Checked: {self.forcing_basin_path}, {self.merged_forcing_path}"
+                )
 
             # Get timestep configuration
             timestep_config = self.get_timestep_config()
@@ -152,8 +145,10 @@ class HBVPreprocessor(BaseModelPreProcessor):
                     self.logger.info(f"Using precipitation variable: {var}")
                     break
             if precip is None:
-                self.logger.error(f"Precipitation variable not found. Available: {list(forcing_ds.data_vars)}")
-                return False
+                raise ValueError(
+                    f"Precipitation variable not found in forcing data. "
+                    f"Tried: {precip_vars}. Available: {list(forcing_ds.data_vars)}"
+                )
 
             # Convert precipitation units if needed
             # Check if units indicate mm/s (common in SUMMA/ERA5 forcing)
@@ -178,8 +173,10 @@ class HBVPreprocessor(BaseModelPreProcessor):
                     self.logger.info(f"Using temperature variable: {var}")
                     break
             if temp is None:
-                self.logger.error(f"Temperature variable not found. Available: {list(forcing_ds.data_vars)}")
-                return False
+                raise ValueError(
+                    f"Temperature variable not found in forcing data. "
+                    f"Tried: {temp_vars}. Available: {list(forcing_ds.data_vars)}"
+                )
 
             # Convert temperature from K to C if needed
             if np.nanmean(temp) > 100:  # Likely Kelvin
@@ -188,7 +185,10 @@ class HBVPreprocessor(BaseModelPreProcessor):
             # Potential evapotranspiration
             pet = self._get_pet(forcing_ds, temp, time)
             if pet is None:
-                return False
+                raise ValueError(
+                    "Could not calculate or extract PET. "
+                    "Ensure forcing data contains PET variable or temperature for calculation."
+                )
 
             # Handle temporal resolution based on timestep_hours config
             if timestep_config['time_label'] == 'hourly' and self.timestep_hours == 24:
@@ -260,11 +260,14 @@ class HBVPreprocessor(BaseModelPreProcessor):
 
             return True
 
+        except FileNotFoundError:
+            # Re-raise file not found errors without wrapping
+            raise
         except Exception as e:
             self.logger.error(f"Error preparing lumped forcing: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
-            return False
+            raise RuntimeError(f"HBV lumped forcing preparation failed: {e}") from e
 
     def _prepare_distributed_forcing(self) -> bool:
         """
@@ -287,8 +290,10 @@ class HBVPreprocessor(BaseModelPreProcessor):
             # Get HRU information
             catchment_path = self.get_catchment_path()
             if not catchment_path.exists():
-                self.logger.error(f"Catchment shapefile not found: {catchment_path}")
-                return False
+                raise FileNotFoundError(
+                    f"Catchment shapefile not found: {catchment_path}. "
+                    "Required for distributed HBV preprocessing."
+                )
 
             import geopandas as gpd
             catchment = gpd.read_file(catchment_path)
@@ -387,36 +392,55 @@ class HBVPreprocessor(BaseModelPreProcessor):
 
             return True
 
+        except FileNotFoundError:
+            # Re-raise file not found errors without wrapping
+            raise
         except Exception as e:
             self.logger.error(f"Error preparing distributed forcing: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
-            return False
+            raise RuntimeError(f"HBV distributed forcing preparation failed: {e}") from e
 
     def _load_basin_averaged_forcing(self) -> Optional[xr.Dataset]:
-        """Load basin-averaged forcing data using ForcingDataProcessor."""
-        try:
-            # Use shared ForcingDataProcessor for loading (handles multi-file data)
-            fdp = ForcingDataProcessor(self.config, self.logger)
+        """
+        Load basin-averaged forcing data using ForcingDataProcessor.
 
-            # Try forcing_basin_path first (from base class)
-            if hasattr(self, 'forcing_basin_path') and self.forcing_basin_path.exists():
-                self.logger.info(f"Loading basin-averaged forcing from: {self.forcing_basin_path}")
+        Returns:
+            xr.Dataset with forcing data, or None if no data found
+            (allows caller to implement fallback logic).
+
+        Raises:
+            RuntimeError: If forcing data loading fails due to errors
+            (not just missing files).
+        """
+        # Use shared ForcingDataProcessor for loading (handles multi-file data)
+        fdp = ForcingDataProcessor(self.config, self.logger)
+
+        # Try forcing_basin_path first (from base class)
+        if hasattr(self, 'forcing_basin_path') and self.forcing_basin_path.exists():
+            self.logger.info(f"Loading basin-averaged forcing from: {self.forcing_basin_path}")
+            try:
                 ds = fdp.load_forcing_data(self.forcing_basin_path)
                 if ds is not None:
                     # Subset to simulation time window
                     ds = self.subset_to_simulation_time(ds, "Forcing")
                     return ds
+            except Exception as e:
+                raise RuntimeError(
+                    f"Error loading forcing data from {self.forcing_basin_path}: {e}"
+                ) from e
 
-            # Fall back to merged forcing
-            return self._load_merged_forcing()
-
-        except Exception as e:
-            self.logger.error(f"Error loading forcing data: {e}")
-            return None
+        # Fall back to merged forcing
+        return self._load_merged_forcing()
 
     def _load_merged_forcing(self) -> Optional[xr.Dataset]:
-        """Load merged forcing data."""
+        """
+        Load merged forcing data.
+
+        Returns:
+            xr.Dataset with forcing data, or None if file not found
+            (allows caller to implement fallback logic).
+        """
         merged_file = self.merged_forcing_path / f"{self.domain_name}_merged_forcing.nc"
         if merged_file.exists():
             self.logger.info(f"Loading merged forcing from: {merged_file}")
@@ -424,7 +448,7 @@ class HBVPreprocessor(BaseModelPreProcessor):
             ds = self.subset_to_simulation_time(ds, "Forcing")
             return ds
 
-        self.logger.error(f"No forcing data found at: {merged_file}")
+        self.logger.warning(f"Merged forcing file not found at: {merged_file}")
         return None
 
     def _get_temperature_variable(self, ds: xr.Dataset) -> np.ndarray:
@@ -518,7 +542,7 @@ class HBVPreprocessor(BaseModelPreProcessor):
                 catchment = gpd.read_file(self.get_catchment_path())
                 centroid = catchment.to_crs(epsg=4326).union_all().centroid
                 lat = centroid.y
-            except Exception:
+            except (FileNotFoundError, KeyError, IndexError, ValueError):
                 lat = 45.0  # Default mid-latitude
                 self.logger.warning(f"Using default latitude {lat}° for PET calculation")
         else:
