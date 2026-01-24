@@ -29,7 +29,7 @@ Installation and Environment
 
   .. code-block:: bash
 
-     ./symfluence --install
+     ./scripts/symfluence-bootstrap --install
 
 - Activate environment:
 
@@ -48,7 +48,7 @@ Installation and Environment
   .. code-block:: bash
 
      rm -rf .venv
-     ./symfluence --install
+     ./scripts/symfluence-bootstrap --install
 
 ---
 
