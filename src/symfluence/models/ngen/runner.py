@@ -616,7 +616,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                     text=True
                 )
                 if pull_result.returncode != 0:
-                    self.logger.error(f"Failed to pull Docker image: {pull_result.stderr}")
+                    self.logger.error(f"Failed to pull Docker image: {pull_result.stderr}")  # type: ignore[str-bytes-safe]
                     return False
 
             # Create NGIAB-compatible directory structure
@@ -982,7 +982,7 @@ class NgenRunner(BaseModelRunner, ModelExecutor):
                 # Write container-compatible config
                 ngiab_troute_config = ngiab_config_dir / "troute_config.yaml"
                 with open(ngiab_troute_config, 'w') as f:
-                    yaml.dump(troute_config, f, default_flow_style=False, sort_keys=False)
+                    yaml.dump(troute_config, f, default_flow_style=False, sort_keys=False)  # type: ignore[call-overload]
 
                 self.logger.debug(f"Created NGIAB T-Route config: {ngiab_troute_config}")
 

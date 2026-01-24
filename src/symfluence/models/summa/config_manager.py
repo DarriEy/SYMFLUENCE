@@ -29,7 +29,7 @@ class SummaConfigManager(PathResolverMixin):
     including file managers, initial conditions, trial parameters, and attributes.
     """
 
-    @property
+    @property  # type: ignore[misc]
     def config_dict(self) -> Dict[str, Any]:
         """Return the config dict for PathResolverMixin compatibility."""
         return getattr(self, '_config_dict_data', {})

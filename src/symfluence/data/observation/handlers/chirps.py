@@ -226,15 +226,17 @@ class CHIRPSHandler(BaseObservationHandler):
     def _find_lat_dim(self, da: xr.DataArray) -> Optional[str]:
         """Find latitude dimension name."""
         for dim in da.dims:
-            if dim.lower() in ['lat', 'latitude', 'y']:
-                return dim
+            dim_str = str(dim)
+            if dim_str.lower() in ['lat', 'latitude', 'y']:
+                return dim_str
         return None
 
     def _find_lon_dim(self, da: xr.DataArray) -> Optional[str]:
         """Find longitude dimension name."""
         for dim in da.dims:
-            if dim.lower() in ['lon', 'longitude', 'x']:
-                return dim
+            dim_str = str(dim)
+            if dim_str.lower() in ['lon', 'longitude', 'x']:
+                return dim_str
         return None
 
     def _subset_spatial(

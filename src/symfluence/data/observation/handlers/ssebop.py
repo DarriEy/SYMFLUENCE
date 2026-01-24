@@ -259,8 +259,9 @@ class SSEBopHandler(BaseObservationHandler):
     def _find_dim(self, da: xr.DataArray, candidates: List[str]) -> Optional[str]:
         """Find dimension matching candidates."""
         for dim in da.dims:
-            if dim.lower() in [c.lower() for c in candidates]:
-                return dim
+            dim_str = str(dim)
+            if dim_str.lower() in [c.lower() for c in candidates]:
+                return dim_str
         return None
 
     def _subset_spatial(

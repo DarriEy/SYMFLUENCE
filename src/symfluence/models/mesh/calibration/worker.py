@@ -114,8 +114,19 @@ class MESHWorker(BaseWorker):
                 runner.set_process_directories(settings_dir, output_dir)
             else:
                 # Fallback to standard paths
+                # Handle both flat (DOMAIN_NAME) and nested (domain.name) config formats
                 domain_name = config.get('DOMAIN_NAME')
-                data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+                if domain_name is None and 'domain' in config:
+                    domain_name = config['domain'].get('name')
+
+                data_dir = config.get('SYMFLUENCE_DATA_DIR')
+                if data_dir is None and 'system' in config:
+                    data_dir = config['system'].get('data_dir')
+
+                if data_dir is None:
+                    raise ValueError("SYMFLUENCE_DATA_DIR or system.data_dir is required")
+
+                data_dir = Path(data_dir)
                 project_dir = data_dir / f"domain_{domain_name}"
                 runner.mesh_forcing_dir = project_dir / 'forcing' / 'MESH_input'
                 runner.output_dir = output_dir

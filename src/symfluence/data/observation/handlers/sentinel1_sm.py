@@ -183,7 +183,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
         lat_name = self._find_coord(ds, ['lat', 'latitude', 'y'])
         lon_name = self._find_coord(ds, ['lon', 'longitude', 'x'])
 
-        results = {'datetime': [], 'soil_moisture': []}
+        results: dict[str, list] = {'datetime': [], 'soil_moisture': []}
 
         if time_dim:
             time_vals = pd.to_datetime(ds[time_dim].values)

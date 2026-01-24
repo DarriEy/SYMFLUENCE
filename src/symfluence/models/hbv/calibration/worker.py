@@ -350,6 +350,7 @@ class HBVWorker(InMemoryModelWorker):
             timestep_hours=self.timestep_hours
         )
 
+        assert self._simulate_fn is not None
         runoff, _ = self._simulate_fn(
             precip, temp, pet,
             params=params,
@@ -429,6 +430,7 @@ class HBVWorker(InMemoryModelWorker):
         try:
             from symfluence.models.hbv.model import kge_loss, nse_loss
 
+            assert self._forcing is not None
             precip = jnp.array(self._forcing['precip'])
             temp = jnp.array(self._forcing['temp'])
             pet = jnp.array(self._forcing['pet'])
@@ -484,6 +486,7 @@ class HBVWorker(InMemoryModelWorker):
         try:
             from symfluence.models.hbv.model import kge_loss, nse_loss
 
+            assert self._forcing is not None
             precip = jnp.array(self._forcing['precip'])
             temp = jnp.array(self._forcing['temp'])
             pet = jnp.array(self._forcing['pet'])

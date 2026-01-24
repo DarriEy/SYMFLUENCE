@@ -224,7 +224,7 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
         for param_name in DEFAULT_PARAMS.keys():
             config_key = f'default_{param_name}'
             params[param_name] = self._get_config_value(
-                lambda pn=config_key: getattr(self.config.model.hbv, pn, None)
+                lambda pn=config_key: getattr(self.config.model.hbv, pn, None)  # type: ignore[misc]
                 if self.config.model and self.config.model.hbv else None,
                 DEFAULT_PARAMS[param_name]
             )
@@ -479,7 +479,7 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
         else:
             obs = None
 
-        return forcing, obs
+        return forcing, obs  # type: ignore[return-value]
 
     def _save_lumped_results(self, runoff: np.ndarray, time_index: pd.DatetimeIndex) -> None:
         """Save lumped simulation results."""

@@ -1242,10 +1242,11 @@ def _calibrate_two_phase(
     val_grad_fn = jit(jax.value_and_grad(loss_fn))
 
     # NSE tracking
-    nse_fn = model.get_value_and_grad_function(
+    _nse_fn = model.get_value_and_grad_function(
         precip, temp, pet, obs, 'nse', param_names, warmup_timesteps
     )
-    nse_fn = jit(nse_fn)
+    assert _nse_fn is not None, "NSE function required for gradient calibration"
+    nse_fn = jit(_nse_fn)
 
     optimizer = AdamW(lr=lr_max * 0.8, weight_decay=0.001)
     scheduler = CosineAnnealingWarmRestarts(

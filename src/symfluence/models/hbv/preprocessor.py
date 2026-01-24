@@ -796,10 +796,10 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                 'pet': 'mean'  # Hamon gives daily PET, not hourly increments
             })
 
-            return (
-                df_daily['pr'].values[:, np.newaxis],
-                df_daily['temp'].values[:, np.newaxis],
-                df_daily['pet'].values[:, np.newaxis],
+            return (  # type: ignore[return-value]
+                np.asarray(df_daily['pr'].values)[:, np.newaxis],
+                np.asarray(df_daily['temp'].values)[:, np.newaxis],
+                np.asarray(df_daily['pet'].values)[:, np.newaxis],
                 df_daily.index
             )
         else:
@@ -825,7 +825,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                 temp_daily.append(df_daily['temp'].values)
                 pet_daily.append(df_daily['pet'].values)
 
-            return (
+            return (  # type: ignore[return-value]
                 np.column_stack(precip_daily),
                 np.column_stack(temp_daily),
                 np.column_stack(pet_daily),
@@ -880,4 +880,4 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
         else:
             observations = None
 
-        return forcing, observations
+        return forcing, observations  # type: ignore[return-value]
