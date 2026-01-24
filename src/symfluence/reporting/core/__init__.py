@@ -23,6 +23,11 @@ from symfluence.reporting.core.dataframe_utils import (
     align_multiple_datasets,
     skip_spinup_period,
 )
+from symfluence.reporting.core.decorators import (
+    skip_if_not_visualizing,
+    requires_plotter,
+    log_visualization,
+)
 
 __all__ = [
     # Base plotter
@@ -42,4 +47,8 @@ __all__ = [
     'resample_to_hourly',
     'align_multiple_datasets',
     'skip_spinup_period',
+    # Decorators
+    'skip_if_not_visualizing',
+    'requires_plotter',
+    'log_visualization',
 ]

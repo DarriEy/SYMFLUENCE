@@ -10,6 +10,7 @@ from typing import Optional, Dict, Any
 import logging
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.constants import ConfigKeys
 
 # Lazy import for geopandas
 _gpd = None
@@ -48,9 +49,9 @@ def resolve_default_name(
     value = config.get(config_key, 'default')
     if value == 'default':
         value = pattern.format(
-            domain=config.get('DOMAIN_NAME', 'domain'),
-            method=config.get('DOMAIN_DEFINITION_METHOD', 'lumped'),
-            discretization=config.get('SUB_GRID_DISCRETIZATION', 'GRUs')
+            domain=config.get(ConfigKeys.DOMAIN_NAME, 'domain'),
+            method=config.get(ConfigKeys.DOMAIN_DEFINITION_METHOD, 'lumped'),
+            discretization=config.get(ConfigKeys.SUB_GRID_DISCRETIZATION, 'GRUs')
         )
     return value
 
@@ -104,8 +105,8 @@ class ShapefileHelper(ConfigMixin):
             self.project_dir = project_dir
         else:
             self.project_dir = (
-                Path(config.get('SYMFLUENCE_DATA_DIR', '.')) /
-                f"domain_{config.get('DOMAIN_NAME', 'unknown')}"
+                Path(config.get(ConfigKeys.SYMFLUENCE_DATA_DIR, '.')) /
+                f"domain_{config.get(ConfigKeys.DOMAIN_NAME, 'unknown')}"
             )
 
         self._cache: Dict[str, Any] = {}
@@ -201,7 +202,7 @@ class ShapefileHelper(ConfigMixin):
         Returns:
             GeoDataFrame of HRUs, or None if not found
         """
-        method = discretization_method or self._get_config_value(lambda: self.config.domain.discretization, default='GRUs', dict_key='SUB_GRID_DISCRETIZATION')
+        method = discretization_method or self._get_config_value(lambda: self.config.domain.discretization, default='GRUs', dict_key=ConfigKeys.SUB_GRID_DISCRETIZATION)
         cache_key = f'hru_{method}'
 
         if cache_key in self._cache:
@@ -236,7 +237,7 @@ class ShapefileHelper(ConfigMixin):
             if basin_gdf is None:
                 return None
 
-            area_col = area_column or self._get_config_value(lambda: self.config.paths.river_basin_area, default='GRU_area', dict_key='RIVER_BASIN_SHP_AREA')
+            area_col = area_column or self._get_config_value(lambda: self.config.paths.river_basin_area, default='GRU_area', dict_key=ConfigKeys.RIVER_BASIN_SHP_AREA)
 
             if area_col not in basin_gdf.columns:
                 self.logger.warning(f"Area column '{area_col}' not found in basin shapefile")

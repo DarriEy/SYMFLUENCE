@@ -65,6 +65,8 @@ autodoc_mock_imports = [
     # JAX (optional)
     'jax',
     'jaxlib',
+    'equinox',
+    'jfuse',
     # Pydantic
     'pydantic',
     'pydantic_core',
@@ -74,6 +76,8 @@ autodoc_mock_imports = [
     'meshflow',
     'timezonefinder',
     'numba',
+    # Internal optional modules that can error at import time
+    'symfluence.models.jfuse',
 ]
 
 # Project information

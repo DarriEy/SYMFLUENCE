@@ -54,7 +54,7 @@ NGEN uses BMI to standardize model coupling:
 This allows any BMI-compliant model to plug into NGEN.
 
 Core Modules
------------
+------------
 
 **1. CFE (Conceptual Functional Equivalent)**
 
@@ -119,7 +119,7 @@ Configuration in SYMFLUENCE
 ===========================
 
 Model Selection
---------------
+---------------
 
 .. code-block:: yaml
 
@@ -149,7 +149,7 @@ Installation and Execution
      - Specific catchment to simulate (or null for all)
 
 Module Selection
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -163,7 +163,7 @@ Module Selection
      - Which modules to calibrate (CFE, NOAH, PET)
 
 Calibration Parameters
-^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
 
 **CFE Module:**
 
@@ -295,7 +295,7 @@ CFE Configuration (JSON)
    }
 
 Noah-OWP-M Configuration (JSON)
-------------------------------
+-------------------------------
 
 **File:** ``noah_config.json``
 
@@ -393,7 +393,7 @@ Model-Specific Workflows
 ========================
 
 Basic NGEN with CFE
-------------------
+-------------------
 
 Simplest NGEN setup:
 
@@ -425,7 +425,7 @@ Run:
    symfluence workflow run --config config.yaml
 
 NGEN with Noah-OWP-M
--------------------
+--------------------
 
 For detailed land surface modeling:
 
@@ -444,7 +444,7 @@ For detailed land surface modeling:
    FORCING_DATASET: ERA5  # Provides complete forcings
 
 Multi-Catchment NGEN
--------------------
+--------------------
 
 For river basin modeling:
 
@@ -463,7 +463,7 @@ For river basin modeling:
    NGEN_MODULES_TO_CALIBRATE: "CFE,PET"
 
 National Scale NGEN
-------------------
+-------------------
 
 Following National Water Model approach:
 
@@ -483,10 +483,10 @@ Following National Water Model approach:
    NUM_PROCESSES: 256
 
 Calibration Strategies
-=====================
+======================
 
 CFE Parameters
--------------
+--------------
 
 .. code-block:: yaml
 
@@ -515,7 +515,7 @@ CFE Parameters
    K_nash:    [0.01, 0.5]       # Nash cascade coefficient
 
 Noah-OWP-M Parameters
---------------------
+---------------------
 
 .. code-block:: yaml
 
@@ -532,7 +532,7 @@ Noah-OWP-M Parameters
    CZIL:      [0.01, 0.5]       # Surface roughness parameter
 
 PET Parameters
--------------
+--------------
 
 .. code-block:: yaml
 
@@ -544,7 +544,7 @@ PET Parameters
    beta:      [-0.2, 0.2]       # PET additive adjustment
 
 Calibration Tips
----------------
+----------------
 
 1. **Start with CFE** (simplest, 6-8 parameters)
 2. **Use DDS or PSO** (efficient for 10-20 dimensional problems)
@@ -553,7 +553,7 @@ Calibration Tips
 5. **Validate routing** if using multiple catchments
 
 Known Limitations
-================
+=================
 
 1. **Complexity:**
 
@@ -586,7 +586,7 @@ Known Limitations
    - Module-specific docs scattered
 
 Troubleshooting
-==============
+===============
 
 Common Issues
 -------------
@@ -664,7 +664,7 @@ NGEN expects specific variable names. Verify:
    # <project_dir>/domain/routing/troute_network.json
 
 Performance Tips
----------------
+----------------
 
 **Speed up calibration:**
 
@@ -681,7 +681,7 @@ Performance Tips
 4. Include snow observations if applicable
 
 Additional Resources
-===================
+====================
 
 **NGEN Documentation:**
 

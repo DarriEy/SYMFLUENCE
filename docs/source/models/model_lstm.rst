@@ -39,7 +39,7 @@ Model Architecture
 ==================
 
 LSTM Fundamentals
-----------------
+-----------------
 
 **Standard LSTM Cell:**
 
@@ -66,7 +66,7 @@ LSTMs learn relationships like:
 - Handles irregular forcing patterns
 
 Network Structure
-----------------
+-----------------
 
 SYMFLUENCE LSTM configuration:
 
@@ -95,7 +95,7 @@ SYMFLUENCE LSTM configuration:
    └─ Output: Streamflow (+ Snow if LSTM_USE_SNOW=true)
 
 Key Hyperparameters
-------------------
+-------------------
 
 .. list-table::
    :header-rows: 1
@@ -124,7 +124,7 @@ Configuration in SYMFLUENCE
 ===========================
 
 Model Selection
---------------
+---------------
 
 .. code-block:: yaml
 
@@ -134,7 +134,7 @@ Key Configuration Parameters
 ----------------------------
 
 Network Architecture
-^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -160,7 +160,7 @@ Network Architecture
      - Multi-task: flow + snow
 
 Training Configuration
-^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -186,7 +186,7 @@ Training Configuration
      - L2 weight decay
 
 Data Configuration
-^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -209,7 +209,7 @@ Input Data Requirements
 =======================
 
 Training Data
-------------
+-------------
 
 LSTMs require substantial training data:
 
@@ -249,7 +249,7 @@ LSTMs require substantial training data:
 - Snow water equivalent observations [mm]
 
 Data Split
----------
+----------
 
 Standard split for training/validation/testing:
 
@@ -267,10 +267,10 @@ Standard split for training/validation/testing:
 - Holdout testing period should be truly unseen
 
 Output Specifications
-====================
+=====================
 
 During Training
---------------
+---------------
 
 **Logs:**
 
@@ -290,7 +290,7 @@ During Training
 **File:** ``<project_dir>/models/LSTM/best_model.pt``
 
 After Training
--------------
+--------------
 
 **Predictions (CSV):**
 
@@ -324,7 +324,7 @@ Model-Specific Workflows
 ========================
 
 Basic LSTM Workflow
-------------------
+-------------------
 
 Simple basin-scale LSTM:
 
@@ -414,7 +414,7 @@ Train on data-rich basin, transfer to ungauged basin:
    LSTM_EPOCHS: 50  # Short fine-tuning
 
 Distributed LSTM
----------------
+----------------
 
 LSTM on distributed domain:
 
@@ -437,7 +437,7 @@ Hyperparameter Tuning
 =====================
 
 Key Hyperparameters
-------------------
+-------------------
 
 **1. Hidden Size**
 
@@ -510,7 +510,7 @@ Use SYMFLUENCE's optimization framework:
    OPTIMIZATION_MAX_ITERATIONS: 20  # Try 20 combinations
 
 Known Limitations
-================
+=================
 
 1. **Data Hungry:**
 
@@ -549,7 +549,7 @@ Known Limitations
    - Physical similarity metrics needed
 
 Troubleshooting
-==============
+===============
 
 Common Issues
 -------------
@@ -662,7 +662,7 @@ Common Issues
    LSTM_BATCH_SIZE: 128
 
 Performance Tips
-===============
+================
 
 Improving Accuracy
 ------------------
@@ -696,7 +696,7 @@ Improving Accuracy
    - Average predictions
 
 Speeding Up Training
--------------------
+--------------------
 
 1. **Use GPU:**
 
@@ -723,7 +723,7 @@ Speeding Up Training
       LSTM_BATCH_SIZE: 128
 
 Deployment
----------
+----------
 
 After training, LSTM is very fast:
 
@@ -766,7 +766,7 @@ Use LSTM alongside physics-based models:
    # Use best performer or weighted ensemble
 
 Additional Resources
-===================
+====================
 
 **Deep Learning for Hydrology:**
 

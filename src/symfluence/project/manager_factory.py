@@ -13,10 +13,11 @@ class LazyManagerDict:
     This improves startup performance by only importing and instantiating
     managers when they are actually accessed.
     """
-    def __init__(self, config: Any, logger: logging.Logger, visualize: bool = False):
+    def __init__(self, config: Any, logger: logging.Logger, visualize: bool = False, diagnostic: bool = False):
         self._config = config
         self._logger = logger
         self._visualize = visualize
+        self._diagnostic = diagnostic
         self._managers: Dict[str, Any] = {}
         # Reporting manager is a shared dependency that must be instantiated early if needed
         self._reporting_manager = None
@@ -31,7 +32,7 @@ class LazyManagerDict:
         """Get or create the shared reporting manager instance."""
         if not self._reporting_manager:
              from symfluence.reporting.reporting_manager import ReportingManager
-             self._reporting_manager = ReportingManager(self._config, self._logger, visualize=self._visualize)
+             self._reporting_manager = ReportingManager(self._config, self._logger, visualize=self._visualize, diagnostic=self._diagnostic)
         return self._reporting_manager
 
     def __getitem__(self, key: str) -> Any:

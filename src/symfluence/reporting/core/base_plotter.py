@@ -12,6 +12,7 @@ import logging
 
 from symfluence.reporting.config.plot_config import PlotConfig, DEFAULT_PLOT_CONFIG
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.constants import ConfigKeys
 
 
 class BasePlotter(ConfigMixin, ABC):
@@ -66,7 +67,7 @@ class BasePlotter(ConfigMixin, ABC):
         self._mdates = None
 
         # Base project directory
-        self.project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')) / f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}"
+        self.project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key=ConfigKeys.SYMFLUENCE_DATA_DIR)) / f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}"
 
     def _setup_matplotlib(self) -> Tuple[Any, Any]:
         """

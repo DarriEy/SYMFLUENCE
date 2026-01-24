@@ -39,7 +39,7 @@ Model Structure and Components
 ==============================
 
 FUSE Philosophy
---------------
+---------------
 
 Unlike traditional fixed-structure models, FUSE builds models from modular components. Each component represents a conceptual choice for a hydrological process:
 
@@ -63,7 +63,7 @@ This creates 2 × 2 × 2 × 4 = 32 parent structures.
 Total combinations: **1,248 unique model structures**
 
 Common FUSE Structures
----------------------
+----------------------
 
 Several pre-defined structures replicate well-known models:
 
@@ -108,7 +108,7 @@ Spatial Modes in SYMFLUENCE
 FUSE in SYMFLUENCE supports three spatial modes:
 
 Lumped Mode
-----------
+-----------
 
 Single HRU represents entire basin:
 
@@ -121,7 +121,7 @@ Single HRU represents entire basin:
    # Good for conceptual studies
 
 Semi-Distributed Mode
---------------------
+---------------------
 
 Multiple subcatchments, each with single HRU:
 
@@ -134,7 +134,7 @@ Multiple subcatchments, each with single HRU:
    # Balances complexity and performance
 
 Distributed Mode
----------------
+----------------
 
 HRUs within each subcatchment (typically elevation bands):
 
@@ -154,7 +154,7 @@ Configuration in SYMFLUENCE
 ===========================
 
 Model Selection
---------------
+---------------
 
 .. code-block:: yaml
 
@@ -190,7 +190,7 @@ Installation and Execution
      - FUSE file manager path
 
 Spatial Configuration
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -210,7 +210,7 @@ Spatial Configuration
      - Dimension for subcatchment extraction
 
 Model Structure
-^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -227,7 +227,7 @@ Model Structure
      - Custom identifier for output files
 
 Routing Integration
-^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -244,7 +244,7 @@ Routing Integration
      - Set to 'mizuRoute' for routing
 
 Calibration
-^^^^^^^^^^
+^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -261,10 +261,10 @@ Calibration
      - Output directory for experiments
 
 Model Structure Selection
-========================
+=========================
 
 Using Structure ID
------------------
+------------------
 
 Simplest approach - specify a structure number:
 
@@ -314,7 +314,7 @@ Input File Specifications
 FUSE uses ASCII control files and NetCDF forcing data.
 
 Forcing Data (NetCDF)
---------------------
+---------------------
 
 **File:** ``<basin_name>_input_<mode>.nc``
 
@@ -343,7 +343,7 @@ Forcing Data (NetCDF)
    pet         : Potential evapotranspiration [kg m-2 s-1]
 
 Control Files (ASCII)
---------------------
+---------------------
 
 **File:** ``fm_catch.txt`` (File Manager)
 
@@ -373,7 +373,7 @@ Specifies model configuration:
    DT 86400
 
 Elevation Bands File
--------------------
+--------------------
 
 **File:** ``elev_bands.txt`` (for distributed mode)
 
@@ -393,7 +393,7 @@ Output File Specifications
 FUSE outputs NetCDF files with states and fluxes.
 
 Standard Output (NetCDF)
------------------------
+------------------------
 
 **File:** ``<basin>_<structure>_<mode>_output.nc``
 
@@ -422,7 +422,7 @@ Standard Output (NetCDF)
    watr_2            : Lower water storage
 
 Routed Output (with mizuRoute)
------------------------------
+------------------------------
 
 **File:** ``<basin>_routed_streamflow.nc``
 
@@ -471,7 +471,7 @@ Run:
    symfluence workflow run --config config.yaml
 
 Distributed FUSE with Elevation Bands
-------------------------------------
+-------------------------------------
 
 For snow-dominated basins:
 
@@ -505,7 +505,7 @@ For snow-dominated basins:
    FUSE_ROUTING_INTEGRATION: mizuRoute
 
 Structure Ensemble Workflow
---------------------------
+---------------------------
 
 Compare multiple model structures:
 
@@ -557,10 +557,10 @@ For large river networks:
    SETTINGS_FUSE_PARAMS_TO_CALIBRATE: "maxwatr_1,maxwatr_2,baserte"
 
 Calibration Strategies
-=====================
+======================
 
 Recommended Parameters
----------------------
+----------------------
 
 **Universal parameters (all structures):**
 
@@ -607,7 +607,7 @@ For VIC-like structures (e.g., 900):
 - ``ds_p``: Baseflow parameter
 
 Parameter Bounds
----------------
+----------------
 
 Standard ranges:
 
@@ -656,7 +656,7 @@ When using structure ensembles:
    - Or create weighted ensemble based on performance
 
 Known Limitations
-================
+=================
 
 1. **Primarily Daily Timestep:**
 
@@ -690,7 +690,7 @@ Known Limitations
    - Distributed mode with many bands can be slow
 
 Troubleshooting
-==============
+===============
 
 Common Issues
 -------------
@@ -754,7 +754,7 @@ Common causes:
    FUSE_ROUTING_INTEGRATION: mizuRoute
 
 Performance Tips
----------------
+----------------
 
 **Speed up calibration:**
 
@@ -779,7 +779,7 @@ Performance Tips
    ../../installs/fuse/bin/fuse.exe fm_catch.txt
 
 Additional Resources
-===================
+====================
 
 **FUSE Documentation:**
 

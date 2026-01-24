@@ -297,6 +297,19 @@ class DomainManager(ConfigurableMixin):
         if result:
             self.logger.info(f"Domain definition completed using method: {domain_method}")
 
+        # Generate diagnostic plots if enabled
+        if self.reporting_manager and artifacts.river_basins_path:
+            try:
+                import geopandas as gpd
+                basin_gdf = gpd.read_file(artifacts.river_basins_path)
+                dem_path = self.project_dir / 'attributes' / 'elevation' / 'dem' / f"{self.domain_name}_elv.tif"
+                self.reporting_manager.diagnostic_domain_definition(
+                    basin_gdf=basin_gdf,
+                    dem_path=dem_path if dem_path.exists() else None
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not generate domain definition diagnostics: {e}")
+
         self.logger.debug("Domain definition workflow finished")
 
         return result, artifacts
@@ -327,6 +340,23 @@ class DomainManager(ConfigurableMixin):
 
             # Visualize the discretized domain
             self.visualize_discretized_domain()
+
+            # Generate diagnostic plots if enabled
+            if self.reporting_manager and artifacts.hru_paths:
+                try:
+                    import geopandas as gpd
+                    # hru_paths can be Path or Dict[str, Path]
+                    hru_path = artifacts.hru_paths
+                    if isinstance(hru_path, dict):
+                        # Take first path from dict
+                        hru_path = next(iter(hru_path.values()))
+                    hru_gdf = gpd.read_file(hru_path)
+                    self.reporting_manager.diagnostic_discretization(
+                        hru_gdf=hru_gdf,
+                        method=discretization_method
+                    )
+                except Exception as e:
+                    self.logger.debug(f"Could not generate discretization diagnostics: {e}")
 
             return hru_shapefile, artifacts
 

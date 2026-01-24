@@ -37,7 +37,7 @@ class SYMFLUENCE:
     pour point setup, SLURM job submission, and comprehensive workflow management.
     """
 
-    def __init__(self, config_input: Union[Path, str, SymfluenceConfig], config_overrides: Dict[str, Any] = None, debug_mode: bool = False, visualize: bool = False):
+    def __init__(self, config_input: Union[Path, str, SymfluenceConfig], config_overrides: Dict[str, Any] = None, debug_mode: bool = False, visualize: bool = False, diagnostic: bool = False):
         """
         Initialize the SYMFLUENCE system with configuration and CLI options.
 
@@ -46,9 +46,11 @@ class SYMFLUENCE:
             config_overrides: Dictionary of configuration overrides from CLI
             debug_mode: Whether to enable debug mode
             visualize: Whether to enable visualization
+            diagnostic: Whether to enable diagnostic plots for workflow validation
         """
         self.debug_mode = debug_mode
         self.visualize = visualize
+        self.diagnostic = diagnostic
         self.config_overrides = config_overrides or {}
 
         # Handle different config input types
@@ -82,7 +84,7 @@ class SYMFLUENCE:
 
 
         # Initialize managers (lazy loaded)
-        self.managers = LazyManagerDict(self.typed_config, self.logger, self.visualize)
+        self.managers = LazyManagerDict(self.typed_config, self.logger, self.visualize, self.diagnostic)
 
         # Initialize workflow orchestrator
         self.workflow_orchestrator = WorkflowOrchestrator(

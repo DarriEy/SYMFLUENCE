@@ -62,7 +62,8 @@ class WorkflowCommands(BaseCommand):
         symfluence = SYMFLUENCE(
             config_path,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
-            visualize=BaseCommand.get_arg(args, 'visualise', False)
+            visualize=BaseCommand.get_arg(args, 'visualise', False),
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
         )
 
         # Execute full workflow
@@ -96,7 +97,8 @@ class WorkflowCommands(BaseCommand):
         symfluence = SYMFLUENCE(
             config_path,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
-            visualize=BaseCommand.get_arg(args, 'visualise', False)
+            visualize=BaseCommand.get_arg(args, 'visualise', False),
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
         )
 
         # Run single step
@@ -131,7 +133,8 @@ class WorkflowCommands(BaseCommand):
         symfluence = SYMFLUENCE(
             config_path,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
-            visualize=BaseCommand.get_arg(args, 'visualise', False)
+            visualize=BaseCommand.get_arg(args, 'visualise', False),
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
         )
 
         # Run multiple steps in order
@@ -162,7 +165,8 @@ class WorkflowCommands(BaseCommand):
         symfluence = SYMFLUENCE(
             config_path,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
-            visualize=BaseCommand.get_arg(args, 'visualise', False)
+            visualize=BaseCommand.get_arg(args, 'visualise', False),
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
         )
 
         # Show workflow status
@@ -262,7 +266,8 @@ class WorkflowCommands(BaseCommand):
         symfluence = SYMFLUENCE(
             config_path,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
-            visualize=BaseCommand.get_arg(args, 'visualise', False)
+            visualize=BaseCommand.get_arg(args, 'visualise', False),
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
         )
 
         # Run steps from resume point
