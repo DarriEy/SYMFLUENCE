@@ -458,3 +458,150 @@ class SupportedModels:
     def is_valid(cls, model_name: str) -> bool:
         """Check if a model name is in the supported whitelist."""
         return model_name.lower() in cls.ALL
+
+
+class ConfigKeys:
+    """
+    Configuration key constants for standardized config access.
+
+    Centralizes all configuration key strings used throughout SYMFLUENCE
+    to eliminate magic strings and improve maintainability. These keys
+    correspond to the flattened dictionary representation of SymfluenceConfig.
+
+    Usage:
+        from symfluence.core.constants import ConfigKeys
+
+        value = self._get_config_value(
+            lambda: self.config.domain.name,
+            default='unnamed',
+            dict_key=ConfigKeys.DOMAIN_NAME
+        )
+    """
+
+    # System configuration
+    SYMFLUENCE_DATA_DIR = 'SYMFLUENCE_DATA_DIR'
+    """Root data directory for all SYMFLUENCE data."""
+
+    # Domain configuration
+    DOMAIN_NAME = 'DOMAIN_NAME'
+    """Name of the study domain."""
+
+    EXPERIMENT_ID = 'EXPERIMENT_ID'
+    """Unique identifier for the experiment/run."""
+
+    DOMAIN_DEFINITION_METHOD = 'DOMAIN_DEFINITION_METHOD'
+    """Method used to define the domain (delineate, subset, lumped)."""
+
+    SUB_GRID_DISCRETIZATION = 'SUB_GRID_DISCRETIZATION'
+    """Sub-grid discretization method (lumped, elevation, point)."""
+
+    ELEVATION_BAND_SIZE = 'ELEVATION_BAND_SIZE'
+    """Elevation band size for discretization in meters."""
+
+    # Path configuration
+    OBSERVATIONS_PATH = 'OBSERVATIONS_PATH'
+    """Path to streamflow observations file."""
+
+    RIVER_BASINS_NAME = 'RIVER_BASINS_NAME'
+    """Name of the river basins shapefile."""
+
+    RIVER_BASINS_PATH = 'RIVER_BASINS_PATH'
+    """Path to the river basins shapefile."""
+
+    RIVER_NETWORK_SHP_NAME = 'RIVER_NETWORK_SHP_NAME'
+    """Name of the river network shapefile."""
+
+    RIVER_NETWORK_SHP_SEGID = 'RIVER_NETWORK_SHP_SEGID'
+    """Segment ID field in river network shapefile."""
+
+    POUR_POINT_SHP_NAME = 'POUR_POINT_SHP_NAME'
+    """Name of the pour point shapefile."""
+
+    CATCHMENT_SHP_NAME = 'CATCHMENT_SHP_NAME'
+    """Name of the catchment shapefile."""
+
+    CATCHMENT_SHP_HRUID = 'CATCHMENT_SHP_HRUID'
+    """HRU ID field in catchment shapefile."""
+
+    # Optimization configuration
+    OPTIMIZATION_METRIC = 'OPTIMIZATION_METRIC'
+    """Metric used for optimization (KGE, NSE, RMSE, etc.)."""
+
+    OPTIMIZATION_TARGET = 'OPTIMIZATION_TARGET'
+    """Target variable for optimization (streamflow, swe, et)."""
+
+    # Time configuration
+    SPINUP_PERIOD = 'SPINUP_PERIOD'
+    """Spin-up period string (e.g., '1981-01-01,1982-01-01')."""
+
+    CALIBRATION_PERIOD = 'CALIBRATION_PERIOD'
+    """Calibration period string."""
+
+    EVALUATION_PERIOD = 'EVALUATION_PERIOD'
+    """Evaluation period string."""
+
+    # Spatial configuration
+    SIM_REACH_ID = 'SIM_REACH_ID'
+    """Simulated reach ID for routing comparison."""
+
+    POUR_POINT_COORDS = 'POUR_POINT_COORDS'
+    """Pour point coordinates [lat, lon]."""
+
+    # Forcing configuration
+    FORCING_DATASET = 'FORCING_DATASET'
+    """Name of the forcing dataset (ERA5, RDRS, etc.)."""
+
+    # Shapefile attribute fields
+    RIVER_BASIN_SHP_AREA = 'RIVER_BASIN_SHP_AREA'
+    """Area field name in river basin shapefile."""
+
+
+class DiscretizationMethods:
+    """
+    Constants for sub-grid discretization methods.
+
+    These define how the domain is divided into hydrological response units (HRUs)
+    for spatial representation in models.
+    """
+
+    LUMPED = 'lumped'
+    """Single HRU representing the entire catchment."""
+
+    POINT = 'point'
+    """Point-based discretization for specific locations."""
+
+    ELEVATION = 'elevation'
+    """Elevation band-based discretization."""
+
+    ALL: Tuple[str, ...] = (LUMPED, POINT, ELEVATION)
+    """All supported discretization methods."""
+
+    @classmethod
+    def is_valid(cls, method: str) -> bool:
+        """Check if a discretization method is valid."""
+        return method.lower() in cls.ALL
+
+
+class DelineationMethods:
+    """
+    Constants for domain delineation methods.
+
+    These define how the study domain boundary is determined.
+    """
+
+    DELINEATE = 'delineate'
+    """Delineate watershed from DEM using pour point."""
+
+    SUBSET = 'subset'
+    """Subset from existing geospatial data."""
+
+    LUMPED = 'lumped'
+    """Use predefined lumped basin boundary."""
+
+    ALL: Tuple[str, ...] = (DELINEATE, SUBSET, LUMPED)
+    """All supported delineation methods."""
+
+    @classmethod
+    def is_valid(cls, method: str) -> bool:
+        """Check if a delineation method is valid."""
+        return method.lower() in cls.ALL

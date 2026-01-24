@@ -415,6 +415,46 @@ class OptimizationManager(BaseManager):
 
             if results_file and Path(results_file).exists():
                 self.logger.info(f"{model_name} calibration completed: {results_file}")
+
+                # Generate calibration diagnostics
+                if self.reporting_manager:
+                    try:
+                        # Load results for diagnostic visualization
+                        results_df = pd.read_csv(results_file)
+
+                        # Extract optimization history
+                        history = []
+                        if 'iteration' in results_df.columns or 'Iteration' in results_df.columns:
+                            iter_col = 'iteration' if 'iteration' in results_df.columns else 'Iteration'
+                            obj_cols = [c for c in results_df.columns if 'objective' in c.lower() or 'kge' in c.lower() or 'fitness' in c.lower()]
+                            obj_col = obj_cols[0] if obj_cols else None
+                            if obj_col:
+                                for _, row in results_df.iterrows():
+                                    history.append({
+                                        'iteration': row[iter_col],
+                                        'objective': row[obj_col]
+                                    })
+
+                        # Extract best parameters
+                        param_cols = [c for c in results_df.columns if c not in ['iteration', 'Iteration', 'objective', 'Objective', 'kge', 'KGE', 'fitness']]
+                        best_params = {}
+                        if not results_df.empty and param_cols:
+                            best_row = results_df.iloc[0]  # Assuming first row is best
+                            for col in param_cols:
+                                try:
+                                    best_params[col] = float(best_row[col])
+                                except (ValueError, TypeError):
+                                    pass
+
+                        self.reporting_manager.diagnostic_calibration(
+                            history=history if history else None,
+                            best_params=best_params if best_params else None,
+                            obs_vs_sim=None,  # Would need to load from model outputs
+                            model_name=model_name
+                        )
+                    except Exception as e:
+                        self.logger.debug(f"Could not generate calibration diagnostics: {e}")
+
                 return results_file
             else:
                 self.logger.warning(f"{model_name} calibration completed but results file not found")

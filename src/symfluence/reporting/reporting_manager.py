@@ -14,6 +14,8 @@ from functools import cached_property
 # Config
 from symfluence.reporting.config.plot_config import PlotConfig, DEFAULT_PLOT_CONFIG
 from symfluence.core.mixins import ConfigMixin
+from symfluence.reporting.core.decorators import skip_if_not_visualizing, skip_if_not_diagnostic
+from symfluence.core.constants import ConfigKeys
 
 # Type hints only - actual imports are lazy
 if TYPE_CHECKING:
@@ -28,6 +30,7 @@ if TYPE_CHECKING:
     from symfluence.reporting.plotters.diagnostic_plotter import DiagnosticPlotter
     from symfluence.reporting.plotters.model_comparison_plotter import ModelComparisonPlotter
     from symfluence.reporting.plotters.forcing_comparison_plotter import ForcingComparisonPlotter
+    from symfluence.reporting.plotters.workflow_diagnostic_plotter import WorkflowDiagnosticPlotter
 
 
 class ReportingManager(ConfigMixin):
@@ -288,7 +291,7 @@ class ReportingManager(ConfigMixin):
         >>> rm.plot_calibration()     # Plot calibration convergence
     """
 
-    def __init__(self, config: 'SymfluenceConfig', logger: Any, visualize: bool = False):
+    def __init__(self, config: 'SymfluenceConfig', logger: Any, visualize: bool = False, diagnostic: bool = False):
         """
         Initialize the ReportingManager.
 
@@ -297,6 +300,8 @@ class ReportingManager(ConfigMixin):
             logger: Logger instance.
             visualize: Boolean flag indicating if visualization is enabled.
                        If False, most visualization methods will return early.
+            diagnostic: Boolean flag indicating if diagnostic mode is enabled.
+                       If True, generates validation plots at workflow step completion.
         """
         from symfluence.core.config.models import SymfluenceConfig
         if not isinstance(config, SymfluenceConfig):
@@ -308,6 +313,7 @@ class ReportingManager(ConfigMixin):
         self._config = config
         self.logger = logger
         self.visualize = visualize
+        self.diagnostic = diagnostic
         self.project_dir = Path(config['SYMFLUENCE_DATA_DIR']) / f"domain_{config['DOMAIN_NAME']}"
 
     # =========================================================================
@@ -379,26 +385,31 @@ class ReportingManager(ConfigMixin):
         from symfluence.reporting.plotters.forcing_comparison_plotter import ForcingComparisonPlotter
         return ForcingComparisonPlotter(self.config, self.logger, self.plot_config)
 
+    @cached_property
+    def workflow_diagnostic_plotter(self) -> 'WorkflowDiagnosticPlotter':
+        """Lazy initialization of workflow diagnostic plotter."""
+        from symfluence.reporting.plotters.workflow_diagnostic_plotter import WorkflowDiagnosticPlotter
+        return WorkflowDiagnosticPlotter(self.config, self.logger, self.plot_config)
+
     # =========================================================================
     # Public Methods
     # =========================================================================
 
-    def visualize_data_distribution(self, data: Any, variable_name: str, stage: str):
+    @skip_if_not_visualizing()
+    def visualize_data_distribution(self, data: Any, variable_name: str, stage: str) -> None:
         """
         Visualize data distribution (histogram/boxplot).
         """
-        if not self.visualize:
-            return
         self.diagnostic_plotter.plot_data_distribution(data, variable_name, stage)
 
-    def visualize_spatial_coverage(self, raster_path: Path, variable_name: str, stage: str):
+    @skip_if_not_visualizing()
+    def visualize_spatial_coverage(self, raster_path: Path, variable_name: str, stage: str) -> None:
         """
         Visualize spatial coverage of raster data.
         """
-        if not self.visualize:
-            return
         self.diagnostic_plotter.plot_spatial_coverage(raster_path, variable_name, stage)
 
+    @skip_if_not_visualizing()
     def visualize_forcing_comparison(
         self,
         raw_forcing_file: Path,
@@ -425,8 +436,6 @@ class ReportingManager(ConfigMixin):
         Returns:
             Path to saved plot, or None if visualization is disabled or failed
         """
-        if not self.visualize:
-            return None
         self.logger.info("Creating raw vs. remapped forcing comparison visualization...")
         return self.forcing_comparison_plotter.plot_raw_vs_remapped(
             raw_forcing_file=raw_forcing_file,
@@ -455,6 +464,7 @@ class ReportingManager(ConfigMixin):
 
     # --- Domain Visualization ---
 
+    @skip_if_not_visualizing()
     def visualize_domain(self) -> Optional[str]:
         """
         Visualize the domain boundaries and features.
@@ -462,11 +472,10 @@ class ReportingManager(ConfigMixin):
         Returns:
             Path to the plot if created, None otherwise.
         """
-        if not self.visualize:
-            return None
         self.logger.info("Creating domain visualization...")
         return self.domain_plotter.plot_domain()
 
+    @skip_if_not_visualizing()
     def visualize_discretized_domain(self, discretization_method: str) -> Optional[str]:
         """
         Visualize the discretized domain (HRUs/GRUs).
@@ -477,13 +486,12 @@ class ReportingManager(ConfigMixin):
         Returns:
             Path to the plot if created, None otherwise.
         """
-        if not self.visualize:
-            return None
         self.logger.info(f"Creating discretization visualization for {discretization_method}...")
         return self.domain_plotter.plot_discretized_domain(discretization_method)
 
     # --- Model Output Visualization ---
 
+    @skip_if_not_visualizing()
     def visualize_model_outputs(self, model_outputs: List[Tuple[str, str]], obs_files: List[Tuple[str, str]]) -> Optional[str]:
         """
         Visualize model outputs (streamflow comparison).
@@ -495,11 +503,10 @@ class ReportingManager(ConfigMixin):
         Returns:
             Path to the plot if created, None otherwise.
         """
-        if not self.visualize:
-            return None
         self.logger.info("Creating model output visualizations...")
         return self.analysis_plotter.plot_streamflow_comparison(model_outputs, obs_files)
 
+    @skip_if_not_visualizing()
     def visualize_lumped_model_outputs(self, model_outputs: List[Tuple[str, str]], obs_files: List[Tuple[str, str]]) -> Optional[str]:
         """
         Visualize lumped model outputs.
@@ -511,11 +518,10 @@ class ReportingManager(ConfigMixin):
         Returns:
             Path to the plot if created, None otherwise.
         """
-        if not self.visualize:
-            return None
         self.logger.info("Creating lumped model output visualizations...")
         return self.analysis_plotter.plot_streamflow_comparison(model_outputs, obs_files, lumped=True)
 
+    @skip_if_not_visualizing()
     def visualize_fuse_outputs(self, model_outputs: List[Tuple[str, str]], obs_files: List[Tuple[str, str]]) -> Optional[str]:
         """
         Visualize FUSE model outputs.
@@ -527,11 +533,10 @@ class ReportingManager(ConfigMixin):
         Returns:
             Path to the plot if created, None otherwise.
         """
-        if not self.visualize:
-            return None
         self.logger.info("Creating FUSE model output visualizations...")
         return self.analysis_plotter.plot_fuse_streamflow(model_outputs, obs_files)
 
+    @skip_if_not_visualizing(default={})
     def visualize_summa_outputs(self, experiment_id: str) -> Dict[str, str]:
         """
         Visualize SUMMA model outputs (all variables).
@@ -542,12 +547,11 @@ class ReportingManager(ConfigMixin):
         Returns:
             Dictionary mapping variable names to plot paths.
         """
-        if not self.visualize:
-            return {}
         self.logger.info(f"Creating SUMMA output visualizations for experiment {experiment_id}...")
         return self.analysis_plotter.plot_summa_outputs(experiment_id)
 
-    def visualize_ngen_results(self, sim_df: Any, obs_df: Optional[Any], experiment_id: str, results_dir: Path):
+    @skip_if_not_visualizing()
+    def visualize_ngen_results(self, sim_df: Any, obs_df: Optional[Any], experiment_id: str, results_dir: Path) -> None:
         """
         Visualize NGen streamflow plots.
 
@@ -557,12 +561,11 @@ class ReportingManager(ConfigMixin):
             experiment_id: Experiment ID.
             results_dir: Results directory.
         """
-        if not self.visualize:
-            return
         self.logger.info("Creating NGen streamflow plots...")
         self.analysis_plotter.plot_ngen_results(sim_df, obs_df, experiment_id, results_dir)
 
-    def visualize_lstm_results(self, results_df: Any, obs_streamflow: Any, obs_snow: Any, use_snow: bool, output_dir: Path, experiment_id: str):
+    @skip_if_not_visualizing()
+    def visualize_lstm_results(self, results_df: Any, obs_streamflow: Any, obs_snow: Any, use_snow: bool, output_dir: Path, experiment_id: str) -> None:
         """
         Visualize LSTM simulation results.
 
@@ -574,14 +577,13 @@ class ReportingManager(ConfigMixin):
             output_dir: Output directory.
             experiment_id: Experiment ID.
         """
-        if not self.visualize:
-            return
         self.logger.info("Creating LSTM visualization...")
         self.analysis_plotter.plot_lstm_results(
             results_df, obs_streamflow, obs_snow, use_snow, output_dir, experiment_id
         )
 
-    def visualize_hype_results(self, sim_flow: Any, obs_flow: Any, outlet_id: str, domain_name: str, experiment_id: str, project_dir: Path):
+    @skip_if_not_visualizing()
+    def visualize_hype_results(self, sim_flow: Any, obs_flow: Any, outlet_id: str, domain_name: str, experiment_id: str, project_dir: Path) -> None:
         """
         Visualize HYPE streamflow comparison.
 
@@ -593,13 +595,12 @@ class ReportingManager(ConfigMixin):
             experiment_id: Experiment ID.
             project_dir: Project directory.
         """
-        if not self.visualize:
-            return
         self.logger.info("Creating HYPE streamflow comparison plot...")
         self.analysis_plotter.plot_hype_results(
             sim_flow, obs_flow, outlet_id, domain_name, experiment_id, project_dir
         )
 
+    @skip_if_not_visualizing()
     def visualize_model_results(self, model_name: str, **kwargs) -> Optional[Any]:
         """
         Visualize model results using registry-based dispatch.
@@ -633,9 +634,6 @@ class ReportingManager(ConfigMixin):
             ...     outlet_id='1234', domain_name='test',
             ...     experiment_id='exp1', project_dir=Path('/path'))
         """
-        if not self.visualize:
-            return None
-
         # Import model modules to trigger plotter registration
         self._import_model_plotters()
 
@@ -711,22 +709,20 @@ class ReportingManager(ConfigMixin):
 
     # --- Analysis Visualization ---
 
-    def visualize_timeseries_results(self):
+    @skip_if_not_visualizing()
+    def visualize_timeseries_results(self) -> None:
         """
         Visualize timeseries results from the standard results file.
         Reads results using DataProcessor and plots using AnalysisPlotter.
         """
-        if not self.visualize:
-            return None
-
         self.logger.info("Creating timeseries visualizations from results file...")
 
         try:
             # Use new DataProcessor to read results
             df = self.data_processor.read_results_file()
 
-            exp_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='default', dict_key='EXPERIMENT_ID')
-            domain_name = self._get_config_value(lambda: self.config.domain.name, default='unknown', dict_key='DOMAIN_NAME')
+            exp_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='default', dict_key=ConfigKeys.EXPERIMENT_ID)
+            domain_name = self._get_config_value(lambda: self.config.domain.name, default='unknown', dict_key=ConfigKeys.DOMAIN_NAME)
 
             self.analysis_plotter.plot_timeseries_results(df, exp_id, domain_name)
             self.analysis_plotter.plot_diagnostics(df, exp_id, domain_name)
@@ -734,6 +730,7 @@ class ReportingManager(ConfigMixin):
         except Exception as e:
             self.logger.error(f"Error creating timeseries visualizations: {str(e)}")
 
+    @skip_if_not_visualizing(default=[])
     def visualize_benchmarks(self, benchmark_results: Dict[str, Any]) -> List[str]:
         """
         Visualize benchmark results.
@@ -744,11 +741,10 @@ class ReportingManager(ConfigMixin):
         Returns:
             List of paths to created plots.
         """
-        if not self.visualize:
-            return []
         self.logger.info("Creating benchmark visualizations...")
         return self.benchmark_plotter.plot_benchmarks(benchmark_results)
 
+    @skip_if_not_visualizing(default={})
     def visualize_snow_comparison(self, model_outputs: List[List[str]]) -> Dict[str, Any]:
         """
         Visualize snow comparison.
@@ -759,13 +755,12 @@ class ReportingManager(ConfigMixin):
         Returns:
             Dictionary with paths and metrics.
         """
-        if not self.visualize:
-            return {}
         self.logger.info("Creating snow comparison visualization...")
         # Convert List[List[str]] to List[Tuple[str, str]] for consistency if needed
         formatted_outputs = [tuple(item) for item in model_outputs]
         return self.snow_plotter.plot_snow_comparison(formatted_outputs)
 
+    @skip_if_not_visualizing()
     def visualize_optimization_progress(self, history: List[Dict], output_dir: Path, calibration_variable: str, metric: str) -> None:
         """
         Visualize optimization progress.
@@ -776,13 +771,12 @@ class ReportingManager(ConfigMixin):
             calibration_variable: Name of the variable being calibrated.
             metric: Name of the optimization metric.
         """
-        if not self.visualize:
-            return
         self.logger.info("Creating optimization progress visualization...")
         self.optimization_plotter.plot_optimization_progress(
             history, output_dir, calibration_variable, metric
         )
 
+    @skip_if_not_visualizing()
     def visualize_optimization_depth_parameters(self, history: List[Dict], output_dir: Path) -> None:
         """
         Visualize depth parameter evolution.
@@ -791,12 +785,11 @@ class ReportingManager(ConfigMixin):
             history: List of optimization history dictionaries.
             output_dir: Directory to save the plot.
         """
-        if not self.visualize:
-            return
         self.logger.info("Creating depth parameter visualization...")
         self.optimization_plotter.plot_depth_parameters(history, output_dir)
 
-    def visualize_sensitivity_analysis(self, sensitivity_data: Any, output_file: Path, plot_type: str = 'single'):
+    @skip_if_not_visualizing()
+    def visualize_sensitivity_analysis(self, sensitivity_data: Any, output_file: Path, plot_type: str = 'single') -> None:
         """
         Visualize sensitivity analysis results.
 
@@ -805,14 +798,13 @@ class ReportingManager(ConfigMixin):
             output_file: Path to save the plot.
             plot_type: 'single' for one method, 'comparison' for multiple.
         """
-        if not self.visualize:
-            return
         self.logger.info(f"Creating sensitivity analysis visualization ({plot_type})...")
         self.analysis_plotter.plot_sensitivity_analysis(
             sensitivity_data, output_file, plot_type
         )
 
-    def visualize_decision_impacts(self, results_file: Path, output_folder: Path):
+    @skip_if_not_visualizing()
+    def visualize_decision_impacts(self, results_file: Path, output_folder: Path) -> None:
         """
         Visualize decision analysis impacts.
 
@@ -820,12 +812,11 @@ class ReportingManager(ConfigMixin):
             results_file: Path to the CSV results file.
             output_folder: Folder to save plots.
         """
-        if not self.visualize:
-            return
         self.logger.info("Creating decision impact visualizations...")
         self.analysis_plotter.plot_decision_impacts(results_file, output_folder)
 
-    def visualize_hydrographs_with_highlight(self, results_file: Path, simulation_results: Dict, observed_streamflow: Any, decision_options: Dict, output_folder: Path, metric: str = 'kge'):
+    @skip_if_not_visualizing()
+    def visualize_hydrographs_with_highlight(self, results_file: Path, simulation_results: Dict, observed_streamflow: Any, decision_options: Dict, output_folder: Path, metric: str = 'kge') -> None:
         """
         Visualize hydrographs with top performers highlighted.
 
@@ -837,15 +828,14 @@ class ReportingManager(ConfigMixin):
             output_folder: Output folder.
             metric: Metric to use for highlighting.
         """
-        if not self.visualize:
-            return
         self.logger.info(f"Creating hydrograph visualization with {metric} highlight...")
         self.analysis_plotter.plot_hydrographs_with_highlight(
             results_file, simulation_results, observed_streamflow,
             decision_options, output_folder, metric
         )
 
-    def visualize_drop_analysis(self, drop_data: List[Dict], optimal_threshold: float, project_dir: Path):
+    @skip_if_not_visualizing()
+    def visualize_drop_analysis(self, drop_data: List[Dict], optimal_threshold: float, project_dir: Path) -> None:
         """
         Visualize drop analysis for stream threshold selection.
 
@@ -854,13 +844,12 @@ class ReportingManager(ConfigMixin):
             optimal_threshold: The selected optimal threshold.
             project_dir: Project directory for saving the plot.
         """
-        if not self.visualize:
-            return
         self.logger.info("Creating drop analysis visualization...")
         self.analysis_plotter.plot_drop_analysis(
             drop_data, optimal_threshold, project_dir
         )
 
+    @skip_if_not_visualizing()
     def generate_model_comparison_overview(
         self,
         experiment_id: Optional[str] = None,
@@ -893,15 +882,12 @@ class ReportingManager(ConfigMixin):
             Automatically triggered at the end of run_model and calibrate_model
             when the --visualize flag is enabled.
         """
-        if not self.visualize:
-            return None
-
         # Get experiment ID from config if not provided
         if experiment_id is None:
             experiment_id = self._get_config_value(
                 lambda: self.config.domain.experiment_id,
                 default='default',
-                dict_key='EXPERIMENT_ID'
+                dict_key=ConfigKeys.EXPERIMENT_ID
             )
 
         self.logger.info(f"Generating model comparison overview for {experiment_id}...")
@@ -915,6 +901,7 @@ class ReportingManager(ConfigMixin):
             self.logger.error(f"Error generating model comparison overview: {str(e)}")
             return None
 
+    @skip_if_not_visualizing(default={})
     def visualize_calibration_results(
         self,
         experiment_id: Optional[str] = None,
@@ -956,15 +943,12 @@ class ReportingManager(ConfigMixin):
         import json
         plot_paths: Dict[str, str] = {}
 
-        if not self.visualize:
-            return plot_paths
-
         # Get experiment ID from config if not provided
         if experiment_id is None:
             experiment_id = self._get_config_value(
                 lambda: self.config.domain.experiment_id,
                 default='default',
-                dict_key='EXPERIMENT_ID'
+                dict_key=ConfigKeys.EXPERIMENT_ID
             )
 
         # Get calibration target from config if not provided
@@ -972,7 +956,7 @@ class ReportingManager(ConfigMixin):
             calibration_target = self._get_config_value(
                 lambda: self.config.optimization.target,
                 default='streamflow',
-                dict_key='OPTIMIZATION_TARGET'
+                dict_key=ConfigKeys.OPTIMIZATION_TARGET
             )
         calibration_target = str(calibration_target).lower()
 
@@ -1004,7 +988,7 @@ class ReportingManager(ConfigMixin):
                     metric = self._get_config_value(
                         lambda: self.config.optimization.metric,
                         default='KGE',
-                        dict_key='OPTIMIZATION_METRIC'
+                        dict_key=ConfigKeys.OPTIMIZATION_METRIC
                     )
                     progress_plot = self.optimization_plotter.plot_optimization_progress(
                         history, opt_dir, calibration_target, metric
@@ -1077,3 +1061,238 @@ class ReportingManager(ConfigMixin):
 
         self.logger.info(f"Generated {len(plot_paths)} calibration visualization(s)")
         return plot_paths
+
+    # =========================================================================
+    # Workflow Diagnostic Methods
+    # =========================================================================
+
+    @skip_if_not_diagnostic()
+    def diagnostic_domain_definition(self, basin_gdf: Any, dem_path: Optional[Path] = None) -> Optional[str]:
+        """
+        Generate diagnostic plots for domain definition step.
+
+        Creates validation plots including:
+        - DEM coverage vs basin boundary
+        - NoData percentage analysis
+        - Elevation histogram
+
+        Args:
+            basin_gdf: GeoDataFrame of basin boundaries
+            dem_path: Path to DEM raster file
+
+        Returns:
+            Path to saved diagnostic plot, or None if failed
+        """
+        self.logger.info("Generating domain definition diagnostics...")
+        return self.workflow_diagnostic_plotter.plot_domain_definition_diagnostic(
+            basin_gdf=basin_gdf,
+            dem_path=dem_path
+        )
+
+    @skip_if_not_diagnostic()
+    def diagnostic_discretization(self, hru_gdf: Any, method: str) -> Optional[str]:
+        """
+        Generate diagnostic plots for discretization step.
+
+        Creates validation plots including:
+        - HRU area distribution
+        - Tiny/huge HRU warnings
+        - Count by elevation band
+
+        Args:
+            hru_gdf: GeoDataFrame of HRU polygons
+            method: Discretization method used
+
+        Returns:
+            Path to saved diagnostic plot, or None if failed
+        """
+        self.logger.info("Generating discretization diagnostics...")
+        return self.workflow_diagnostic_plotter.plot_discretization_diagnostic(
+            hru_gdf=hru_gdf,
+            method=method
+        )
+
+    @skip_if_not_diagnostic()
+    def diagnostic_observations(self, obs_df: Any, obs_type: str) -> Optional[str]:
+        """
+        Generate diagnostic plots for observation processing step.
+
+        Creates validation plots including:
+        - Gap analysis timeline
+        - Outlier detection
+        - Value range histogram
+
+        Args:
+            obs_df: DataFrame of observations
+            obs_type: Type of observations (e.g., 'streamflow', 'swe')
+
+        Returns:
+            Path to saved diagnostic plot, or None if failed
+        """
+        self.logger.info(f"Generating observation diagnostics for {obs_type}...")
+        return self.workflow_diagnostic_plotter.plot_observations_diagnostic(
+            obs_df=obs_df,
+            obs_type=obs_type
+        )
+
+    @skip_if_not_diagnostic()
+    def diagnostic_forcing_raw(self, forcing_nc: Path, domain_shp: Optional[Path] = None) -> Optional[str]:
+        """
+        Generate diagnostic plots for raw forcing acquisition step.
+
+        Creates validation plots including:
+        - Spatial coverage map
+        - Variable completeness
+        - Temporal extent
+
+        Args:
+            forcing_nc: Path to raw forcing NetCDF file
+            domain_shp: Optional path to domain shapefile for overlay
+
+        Returns:
+            Path to saved diagnostic plot, or None if failed
+        """
+        self.logger.info("Generating raw forcing diagnostics...")
+        return self.workflow_diagnostic_plotter.plot_forcing_raw_diagnostic(
+            forcing_nc=forcing_nc,
+            domain_shp=domain_shp
+        )
+
+    @skip_if_not_diagnostic()
+    def diagnostic_forcing_remapped(
+        self,
+        raw_nc: Path,
+        remapped_nc: Path,
+        hru_shp: Optional[Path] = None
+    ) -> Optional[str]:
+        """
+        Generate diagnostic plots for forcing remapping step.
+
+        Creates validation plots including:
+        - Raw vs remapped comparison
+        - Conservation check
+        - Per-HRU coverage
+
+        Args:
+            raw_nc: Path to raw forcing NetCDF file
+            remapped_nc: Path to remapped forcing NetCDF file
+            hru_shp: Optional path to HRU shapefile
+
+        Returns:
+            Path to saved diagnostic plot, or None if failed
+        """
+        self.logger.info("Generating forcing remapping diagnostics...")
+        return self.workflow_diagnostic_plotter.plot_forcing_remapped_diagnostic(
+            raw_nc=raw_nc,
+            remapped_nc=remapped_nc,
+            hru_shp=hru_shp
+        )
+
+    @skip_if_not_diagnostic()
+    def diagnostic_model_preprocessing(self, input_dir: Path, model_name: str) -> Optional[str]:
+        """
+        Generate diagnostic plots for model preprocessing step.
+
+        Creates validation plots including:
+        - Required vs present files
+        - Variable inventory
+        - Config validation
+
+        Args:
+            input_dir: Path to model input directory
+            model_name: Name of the model
+
+        Returns:
+            Path to saved diagnostic plot, or None if failed
+        """
+        self.logger.info(f"Generating model preprocessing diagnostics for {model_name}...")
+        return self.workflow_diagnostic_plotter.plot_model_preprocessing_diagnostic(
+            input_dir=input_dir,
+            model_name=model_name
+        )
+
+    @skip_if_not_diagnostic()
+    def diagnostic_model_output(self, output_nc: Path, model_name: str) -> Optional[str]:
+        """
+        Generate diagnostic plots for model output step.
+
+        Creates validation plots including:
+        - Output variable ranges
+        - NaN heatmap
+        - Mass/energy balance check
+
+        Args:
+            output_nc: Path to model output NetCDF file
+            model_name: Name of the model
+
+        Returns:
+            Path to saved diagnostic plot, or None if failed
+        """
+        self.logger.info(f"Generating model output diagnostics for {model_name}...")
+        return self.workflow_diagnostic_plotter.plot_model_output_diagnostic(
+            output_nc=output_nc,
+            model_name=model_name
+        )
+
+    @skip_if_not_diagnostic()
+    def diagnostic_attributes(
+        self,
+        dem_path: Optional[Path] = None,
+        soil_path: Optional[Path] = None,
+        land_path: Optional[Path] = None
+    ) -> Optional[str]:
+        """
+        Generate diagnostic plots for attribute acquisition step.
+
+        Creates validation plots including:
+        - DEM coverage and statistics
+        - Soil class distribution
+        - Land class distribution
+
+        Args:
+            dem_path: Path to DEM raster file
+            soil_path: Path to soil class raster file
+            land_path: Path to land class raster file
+
+        Returns:
+            Path to saved diagnostic plot, or None if failed
+        """
+        self.logger.info("Generating attribute acquisition diagnostics...")
+        return self.workflow_diagnostic_plotter.plot_attributes_diagnostic(
+            dem_path=dem_path,
+            soil_path=soil_path,
+            land_path=land_path
+        )
+
+    @skip_if_not_diagnostic()
+    def diagnostic_calibration(
+        self,
+        history: Optional[List[Dict]] = None,
+        best_params: Optional[Dict[str, float]] = None,
+        obs_vs_sim: Optional[Dict[str, Any]] = None,
+        model_name: str = 'Unknown'
+    ) -> Optional[str]:
+        """
+        Generate diagnostic plots for calibration step.
+
+        Creates validation plots including:
+        - Optimization convergence
+        - Parameter evolution/values
+        - Observed vs simulated comparison
+
+        Args:
+            history: List of optimization history dictionaries
+            best_params: Dictionary of best parameter values
+            obs_vs_sim: Dictionary with 'observed' and 'simulated' arrays
+            model_name: Name of the model being calibrated
+
+        Returns:
+            Path to saved diagnostic plot, or None if failed
+        """
+        self.logger.info(f"Generating calibration diagnostics for {model_name}...")
+        return self.workflow_diagnostic_plotter.plot_calibration_diagnostic(
+            history=history,
+            best_params=best_params,
+            obs_vs_sim=obs_vs_sim,
+            model_name=model_name
+        )

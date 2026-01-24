@@ -83,6 +83,8 @@ class CLIParser:
                           help='Enable debug output')
         parser.add_argument('--visualise', '--visualize', action='store_true', dest='visualise',
                           help='Enable visualization during execution')
+        parser.add_argument('--diagnostic', action='store_true',
+                          help='Enable diagnostic plots for workflow validation')
         parser.add_argument('--dry-run', action='store_true', dest='dry_run',
                           help='Show what would be executed without running')
         parser.add_argument('--profile', action='store_true', dest='profile',

@@ -60,7 +60,7 @@ MESH supports multiple physics options:
 - Glacier representation
 
 Spatial Discretization
----------------------
+----------------------
 
 **Grouped Response Units (GRUs):**
 
@@ -83,7 +83,7 @@ Each GRU contains tiles representing land cover types:
    └─ Tile 2: Cropland (40%)
 
 Process Representation
----------------------
+----------------------
 
 **Snow:**
 
@@ -123,7 +123,7 @@ Configuration in SYMFLUENCE
 ===========================
 
 Model Selection
---------------
+---------------
 
 .. code-block:: yaml
 
@@ -153,7 +153,7 @@ Installation and Execution
      - Output directory
 
 Spatial Configuration
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -173,7 +173,7 @@ Spatial Configuration
      - HRU (tile) dimension name
 
 Forcing Configuration
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -196,7 +196,7 @@ Forcing Configuration
      - Target units for conversion
 
 Data Configuration
-^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -250,7 +250,7 @@ Contains GRU and tile attributes:
      float tile_aspect(gru, tile)
 
 Forcing Data (NetCDF)
---------------------
+---------------------
 
 **File:** ``MESH_forcing.nc``
 
@@ -271,7 +271,7 @@ Forcing Data (NetCDF)
      float PRES(time, gru)        ! Pressure [Pa]
 
 Initial Conditions
------------------
+------------------
 
 **File:** ``MESH_initial_conditions.ini``
 
@@ -349,7 +349,7 @@ Model-Specific Workflows
 ========================
 
 Basic MESH Workflow
-------------------
+-------------------
 
 .. code-block:: yaml
 
@@ -441,12 +441,12 @@ For major river basins (e.g., Mackenzie, Nelson):
    MESH_ROUTING_SCHEME: WATROUTE
 
 Calibration Strategies
-=====================
+======================
 
 MESH has many parameters, but key ones for calibration:
 
 Recommended Parameters
----------------------
+----------------------
 
 **Runoff generation:**
 
@@ -478,7 +478,7 @@ Recommended Parameters
 - Fresh snow albedo
 
 Parameter Bounds
----------------
+----------------
 
 Typical ranges for key parameters:
 
@@ -500,7 +500,7 @@ Typical ranges for key parameters:
    ZPLS:     [0.1, 10.0]       # Max snow interception [mm]
 
 Known Limitations
-================
+=================
 
 1. **Complexity:**
 
@@ -533,7 +533,7 @@ Known Limitations
    - Requires expert knowledge
 
 Troubleshooting
-==============
+===============
 
 Common Issues
 -------------
@@ -598,7 +598,7 @@ Check NetCDF structure:
    MESH_ROUTING_SCHEME: WATFLOOD
 
 Performance Optimization
------------------------
+------------------------
 
 **Speed up execution:**
 
@@ -615,7 +615,7 @@ Performance Optimization
 4. Use high-resolution DEM for slopes
 
 Additional Resources
-===================
+====================
 
 **MESH Documentation:**
 

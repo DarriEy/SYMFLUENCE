@@ -12,6 +12,7 @@ import logging
 
 from symfluence.reporting.core.shapefile_helper import ShapefileHelper
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.constants import ConfigKeys
 
 
 class DataProcessor(ConfigMixin):
@@ -51,7 +52,7 @@ class DataProcessor(ConfigMixin):
         else:
             self._config = config
         self.logger = logger
-        self.project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')) / f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}"
+        self.project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key=ConfigKeys.SYMFLUENCE_DATA_DIR)) / f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}"
         self._shapefile_helper = ShapefileHelper(config, logger, self.project_dir)
 
     def load_streamflow_observations(
@@ -356,7 +357,7 @@ class DataProcessor(ConfigMixin):
         """
         try:
             # Read simulation results
-            results_file = self.project_dir / "results" / f"{self._get_config_value(lambda: self.config.domain.experiment_id, dict_key='EXPERIMENT_ID')}_results.csv"
+            results_file = self.project_dir / "results" / f"{self._get_config_value(lambda: self.config.domain.experiment_id, dict_key=ConfigKeys.EXPERIMENT_ID)}_results.csv"
             if not results_file.exists():
                 raise FileNotFoundError(f"Results file not found: {results_file}")
 
@@ -390,9 +391,9 @@ class DataProcessor(ConfigMixin):
                 raise ValueError("No time or datetime column found in results file")
 
             # Read observations
-            obs_file_path = self._get_config_value(lambda: self.config.paths.observations_path, dict_key='OBSERVATIONS_PATH')
+            obs_file_path = self._get_config_value(lambda: self.config.paths.observations_path, dict_key=ConfigKeys.OBSERVATIONS_PATH)
             if obs_file_path == 'default' or obs_file_path is None:
-                obs_file_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_streamflow_processed.csv"
+                obs_file_path = self.project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}_streamflow_processed.csv"
             else:
                 obs_file_path = Path(obs_file_path)
 

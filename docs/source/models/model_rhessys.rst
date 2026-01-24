@@ -40,7 +40,7 @@ Model Structure
 ===============
 
 Spatial Hierarchy
-----------------
+-----------------
 
 RHESSys uses a nested spatial structure:
 
@@ -61,7 +61,7 @@ RHESSys uses a nested spatial structure:
 **Basin:** Entire watershed
 
 Vertical Structure
------------------
+------------------
 
 Within each patch, vertical processes occur through:
 
@@ -84,7 +84,7 @@ Within each patch, vertical processes occur through:
 - Channel routing
 
 Process Representation
----------------------
+----------------------
 
 **Hydrology:**
 
@@ -121,7 +121,7 @@ Configuration in SYMFLUENCE
 ===========================
 
 Model Selection
---------------
+---------------
 
 .. code-block:: yaml
 
@@ -154,7 +154,7 @@ Installation and Execution
      - Execution timeout (seconds)
 
 Configuration Files
-^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -177,7 +177,7 @@ Configuration Files
      - Flow table template
 
 Calibration Parameters
-^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -194,7 +194,7 @@ Calibration Parameters
      - Skip calibration (use defaults)
 
 Wildfire Module
-^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -219,7 +219,7 @@ Input File Specifications
 RHESSys uses ASCII text files for configuration and inputs.
 
 World File
----------
+----------
 
 **File:** ``worldfile``
 
@@ -267,7 +267,7 @@ Defines the spatial structure and initial states:
    cover_fraction  0.8
 
 Flow Table
----------
+----------
 
 **File:** ``flowtable``
 
@@ -314,7 +314,7 @@ Daily meteorological data:
 - ``wind_m/s``: Wind speed [m/s]
 
 Parameter Files
---------------
+---------------
 
 **Vegetation parameters:**
 
@@ -335,7 +335,7 @@ Output File Specifications
 RHESSys produces ASCII time series outputs.
 
 Basin Output
------------
+------------
 
 **File:** ``<basin>_basin.daily``
 
@@ -379,7 +379,7 @@ Carbon and Nitrogen Output
 - ``N_leached_gN``: Nitrogen leaching [gN/m²/month]
 
 Patch-Level Output
------------------
+------------------
 
 **File:** ``<basin>_patch.daily``
 
@@ -397,7 +397,7 @@ Model-Specific Workflows
 ========================
 
 Basic RHESSys Workflow
----------------------
+----------------------
 
 Hydrology-focused application:
 
@@ -450,7 +450,7 @@ Full ecohydrological simulation:
    RHESSYS_PARAMS_TO_CALIBRATE: "sat_to_gw_coeff,m,Ksat_0,Vmax,Jmax,allocation_leaf"
 
 Fire Impact Assessment
----------------------
+----------------------
 
 Simulate wildfire effects:
 
@@ -493,7 +493,7 @@ Multi-decade projections:
    RHESSYS_SIMULATE_CARBON: true  # Dynamic vegetation
 
 Calibration Strategies
-=====================
+======================
 
 Hydrological Parameters
 -----------------------
@@ -527,7 +527,7 @@ Key parameters for streamflow calibration:
    snow_melt_Tcoef:  [1.0, 10.0]     # Melt factor [mm/°C/day]
 
 Ecological Parameters
---------------------
+---------------------
 
 For carbon/nitrogen modeling:
 
@@ -553,7 +553,7 @@ For carbon/nitrogen modeling:
    allocation_stem:    [0.1, 0.4]
 
 Calibration Approach
--------------------
+--------------------
 
 **Multi-objective recommended:**
 
@@ -572,7 +572,7 @@ Calibration Approach
 2. **Then ecology** (fix hydro params, calibrate carbon/nitrogen)
 
 Known Limitations
-================
+=================
 
 1. **Computational Cost:**
 
@@ -614,7 +614,7 @@ Known Limitations
    - Careful spinup required (especially carbon pools)
 
 Troubleshooting
-==============
+===============
 
 Common Issues
 -------------
@@ -693,7 +693,7 @@ Check world file structure:
    ls /path/to/wmfire/lib/libwmfire.so
 
 Performance Tips
-===============
+================
 
 **Speed up execution:**
 
@@ -719,7 +719,7 @@ Performance Tips
    ../../installs/rhessys/rhessys -st 2015 1 1 1 -ed 2016 1 1 1 -w world -whdr world.hdr -r flow -t tecfile
 
 Additional Resources
-===================
+====================
 
 **RHESSys Documentation:**
 

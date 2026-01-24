@@ -39,7 +39,7 @@ mizuRoute (mizuRoute: Standalone Runoff Routing) is a multi-method river network
 **Temporal Resolution:** Sub-hourly to daily
 
 Routing Methods
-==============
+===============
 
 mizuRoute supports five routing schemes with varying complexity and computational cost:
 
@@ -99,7 +99,7 @@ mizuRoute supports five routing schemes with varying complexity and computationa
 - Reasonable computational cost
 
 3. Kinematic Wave (KW)
----------------------
+----------------------
 
 **Method:** Simplified kinematic wave
 
@@ -119,7 +119,7 @@ mizuRoute supports five routing schemes with varying complexity and computationa
 **Best for:** Mountainous regions, headwater routing
 
 4. Muskingum-Cunge (MC)
-----------------------
+-----------------------
 
 **Method:** Variable parameter Muskingum-Cunge
 
@@ -138,7 +138,7 @@ mizuRoute supports five routing schemes with varying complexity and computationa
 **Best for:** Lowland rivers, moderate slopes
 
 5. Diffusive Wave (DW)
----------------------
+----------------------
 
 **Method:** Diffusive wave approximation
 
@@ -160,7 +160,7 @@ mizuRoute supports five routing schemes with varying complexity and computationa
 **Limitations:** Slow for large networks
 
 Method Comparison
-----------------
+-----------------
 
 .. list-table::
    :header-rows: 1
@@ -207,7 +207,7 @@ Configuration in SYMFLUENCE
 ===========================
 
 Enabling mizuRoute
------------------
+------------------
 
 .. code-block:: yaml
 
@@ -222,7 +222,7 @@ Key Configuration Parameters
 ----------------------------
 
 Routing Method Selection
-^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -239,7 +239,7 @@ Routing Method Selection
      - Routing timestep (seconds)
 
 Network Configuration
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -256,7 +256,7 @@ Network Configuration
      - River reach parameters file
 
 Channel Parameters
-^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1

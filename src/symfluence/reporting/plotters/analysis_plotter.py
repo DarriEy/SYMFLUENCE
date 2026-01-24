@@ -10,7 +10,12 @@ from pathlib import Path
 from typing import List, Dict, Optional, Any, Tuple
 
 from symfluence.reporting.core.base_plotter import BasePlotter
-from symfluence.core.constants import UnitConversion
+from symfluence.core.constants import UnitConversion, ConfigKeys
+from symfluence.reporting.panels import (
+    TimeSeriesPanel,
+    FDCPanel,
+    ScatterPanel,
+)
 
 
 class AnalysisPlotter(BasePlotter):
@@ -24,6 +29,33 @@ class AnalysisPlotter(BasePlotter):
     - Drop/threshold analysis
     """
 
+    # -------------------------------------------------------------------------
+    # Lazy-loaded panel properties
+    # -------------------------------------------------------------------------
+    @property
+    def _scatter_panel(self) -> ScatterPanel:
+        """Lazy-loaded scatter panel."""
+        if not hasattr(self, '__scatter_panel'):
+            self.__scatter_panel = ScatterPanel(self.plot_config, self.logger)
+        return self.__scatter_panel
+
+    @property
+    def _fdc_panel(self) -> FDCPanel:
+        """Lazy-loaded FDC panel."""
+        if not hasattr(self, '__fdc_panel'):
+            self.__fdc_panel = FDCPanel(self.plot_config, self.logger)
+        return self.__fdc_panel
+
+    @property
+    def _ts_panel(self) -> TimeSeriesPanel:
+        """Lazy-loaded time series panel."""
+        if not hasattr(self, '__ts_panel'):
+            self.__ts_panel = TimeSeriesPanel(self.plot_config, self.logger)
+        return self.__ts_panel
+
+    # -------------------------------------------------------------------------
+    # Plotting methods
+    # -------------------------------------------------------------------------
     def plot_sensitivity_analysis(
         self,
         sensitivity_data: Any,
@@ -291,6 +323,11 @@ class AnalysisPlotter(BasePlotter):
         Returns:
             Path to saved plot, or None if failed
         """
+        # Handle empty data gracefully
+        if not drop_data:
+            self.logger.warning("Empty drop_data provided, skipping plot")
+            return None
+
         plt, _ = self._setup_matplotlib()
 
         try:
@@ -515,7 +552,7 @@ class AnalysisPlotter(BasePlotter):
 
         try:
             plot_dir = self._ensure_output_dir('results')
-            exp_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='FUSE', dict_key='EXPERIMENT_ID')
+            exp_id = self._get_config_value(lambda: self.config.domain.experiment_id, default='FUSE', dict_key=ConfigKeys.EXPERIMENT_ID)
             plot_filename = plot_dir / f"{exp_id}_FUSE_streamflow_comparison.png"
 
             fig, ax = plt.subplots(figsize=self.plot_config.FIGURE_SIZE_MEDIUM)
@@ -535,13 +572,13 @@ class AnalysisPlotter(BasePlotter):
                         sim_flow = ds['q_routed'].isel(param_set=0, latitude=0, longitude=0).to_series()
 
                         # Unit conversion (mm/day to cms)
-                        basin_name = self._get_config_value(lambda: self.config.paths.river_basins_name, default='default', dict_key='RIVER_BASINS_NAME')
+                        basin_name = self._get_config_value(lambda: self.config.paths.river_basins_name, default='default', dict_key=ConfigKeys.RIVER_BASINS_NAME)
                         if basin_name == 'default':
-                            basin_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_riverBasins_delineate.shp"
+                            basin_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}_riverBasins_delineate.shp"
 
                         basin_path = self.project_dir / 'shapefiles' / 'river_basins' / basin_name
                         if not basin_path.exists():
-                            basin_path = Path(self._get_config_value(lambda: self.config.paths.river_basins_path, default='', dict_key='RIVER_BASINS_PATH'))
+                            basin_path = Path(self._get_config_value(lambda: self.config.paths.river_basins_path, default='', dict_key=ConfigKeys.RIVER_BASINS_PATH))
 
                         if basin_path.exists():
                             basin_gdf = gpd.read_file(basin_path)
@@ -582,7 +619,7 @@ class AnalysisPlotter(BasePlotter):
         Returns observations converted to mm for comparison with SUMMA output.
         """
         domain_name = self._get_config_value(
-            lambda: self.config.domain.name, dict_key='DOMAIN_NAME'
+            lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME
         )
 
         # Search paths for SWE observations (primary: processed/, fallback: preprocessed/)
@@ -673,7 +710,7 @@ class AnalysisPlotter(BasePlotter):
             Observations in W/m² for comparison with SUMMA output.
         """
         domain_name = self._get_config_value(
-            lambda: self.config.domain.name, dict_key='DOMAIN_NAME'
+            lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME
         )
 
         # Search paths for FLUXNET/energy flux observations
@@ -855,7 +892,7 @@ class AnalysisPlotter(BasePlotter):
             domain_name = self._get_config_value(
                 lambda: self.config.domain.name,
                 default='Domain',
-                dict_key='DOMAIN_NAME'
+                dict_key=ConfigKeys.DOMAIN_NAME
             )
 
             skip_vars = {'hru', 'time', 'gru', 'dateId', 'latitude', 'longitude', 'hruId', 'gruId'}
@@ -1309,9 +1346,13 @@ class AnalysisPlotter(BasePlotter):
             return None
 
     def plot_diagnostics(self, df: pd.DataFrame, experiment_id: str, domain_name: str) -> Optional[str]:
-        """Create diagnostic plots (scatter and FDC) for each model."""
+        """Create diagnostic plots (scatter and FDC) for each model.
+
+        Uses ScatterPanel for scatter plots. FDC uses log-log scale (different
+        from ModelComparisonPlotter's log-linear FDC).
+        """
         plt, _ = self._setup_matplotlib()
-        from symfluence.reporting.core.plot_utils import calculate_metrics, calculate_flow_duration_curve
+        from symfluence.reporting.core.plot_utils import calculate_flow_duration_curve
 
         try:
             plot_dir = self._ensure_output_dir('results')
@@ -1319,7 +1360,8 @@ class AnalysisPlotter(BasePlotter):
 
             models = [c.replace('_discharge_cms', '') for c in df.columns if '_discharge_cms' in c]
             n_models = len(models)
-            if n_models == 0: return None
+            if n_models == 0:
+                return None
 
             fig = plt.figure(figsize=(15, 5 * n_models))
             gs = plt.GridSpec(n_models, 2)
@@ -1328,20 +1370,16 @@ class AnalysisPlotter(BasePlotter):
                 col = f"{model}_discharge_cms"
                 color = self.plot_config.get_color_from_palette(i)
 
-                # Scatter plot
+                # Scatter plot - use panel
                 ax_scatter = fig.add_subplot(gs[i, 0])
-                ax_scatter.scatter(df['Observed'], df[col], alpha=0.5, s=10, color=color)
+                self._scatter_panel.render(ax_scatter, {
+                    'obs_values': df['Observed'].values,
+                    'sim_values': df[col].values,
+                    'model_name': f'{model} - Scatter',
+                    'color_index': i
+                })
 
-                # 1:1 line
-                max_val = max(df['Observed'].max(), df[col].max())
-                ax_scatter.plot([0, max_val], [0, max_val], 'k--', alpha=0.5)
-
-                metrics = calculate_metrics(df['Observed'].values, df[col].values)
-                self._add_metrics_text(ax_scatter, metrics)
-
-                self._apply_standard_styling(ax_scatter, xlabel='Observed', ylabel='Simulated', title=f'{model} - Scatter')
-
-                # FDC
+                # FDC - custom log-log implementation (different from panel's log-linear)
                 ax_fdc = fig.add_subplot(gs[i, 1])
                 exc_obs, f_obs = calculate_flow_duration_curve(df['Observed'].values)
                 exc_sim, f_sim = calculate_flow_duration_curve(df[col].values)

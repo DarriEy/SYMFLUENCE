@@ -18,6 +18,15 @@ from symfluence.reporting.core.plot_utils import (
     calculate_metrics,
     calculate_flow_duration_curve,
 )
+from symfluence.core.constants import ConfigKeys
+from symfluence.reporting.panels import (
+    TimeSeriesPanel,
+    MetricsTablePanel,
+    FDCPanel,
+    MultiScatterPanel,
+    MonthlyBoxplotPanel,
+    ResidualAnalysisPanel,
+)
 
 
 class ModelComparisonPlotter(BasePlotter):
@@ -67,6 +76,48 @@ class ModelComparisonPlotter(BasePlotter):
         '#e377c2',  # pink
         '#7f7f7f',  # gray
     ]
+
+    @property
+    def _ts_panel(self) -> TimeSeriesPanel:
+        """Lazy-loaded time series panel."""
+        if not hasattr(self, '__ts_panel'):
+            self.__ts_panel = TimeSeriesPanel(self.plot_config, self.logger)
+        return self.__ts_panel
+
+    @property
+    def _fdc_panel(self) -> FDCPanel:
+        """Lazy-loaded flow duration curve panel."""
+        if not hasattr(self, '__fdc_panel'):
+            self.__fdc_panel = FDCPanel(self.plot_config, self.logger)
+        return self.__fdc_panel
+
+    @property
+    def _metrics_panel(self) -> MetricsTablePanel:
+        """Lazy-loaded metrics table panel."""
+        if not hasattr(self, '__metrics_panel'):
+            self.__metrics_panel = MetricsTablePanel(self.plot_config, self.logger)
+        return self.__metrics_panel
+
+    @property
+    def _scatter_panel(self) -> MultiScatterPanel:
+        """Lazy-loaded scatter panel."""
+        if not hasattr(self, '__scatter_panel'):
+            self.__scatter_panel = MultiScatterPanel(self.plot_config, self.logger)
+        return self.__scatter_panel
+
+    @property
+    def _monthly_panel(self) -> MonthlyBoxplotPanel:
+        """Lazy-loaded monthly boxplot panel."""
+        if not hasattr(self, '__monthly_panel'):
+            self.__monthly_panel = MonthlyBoxplotPanel(self.plot_config, self.logger)
+        return self.__monthly_panel
+
+    @property
+    def _residual_panel(self) -> ResidualAnalysisPanel:
+        """Lazy-loaded residual analysis panel."""
+        if not hasattr(self, '__residual_panel'):
+            self.__residual_panel = ResidualAnalysisPanel(self.plot_config, self.logger)
+        return self.__residual_panel
 
     def plot_model_comparison_overview(
         self,
@@ -118,21 +169,29 @@ class ModelComparisonPlotter(BasePlotter):
             fig.suptitle(f'Model Comparison Overview - {context_title}\n{experiment_id}',
                         fontsize=16, fontweight='bold', y=0.98)
 
+            # Common data dictionary for panels
+            panel_data = {
+                'results_df': results_df,
+                'obs_series': obs_series,
+                'model_cols': model_cols,
+                'metrics_dict': metrics_dict,
+            }
+
             # Panel 1: Time series (row 1, cols 0-1)
             ax_ts = fig.add_subplot(gs[1, 0:2])
-            self._plot_timeseries_panel(ax_ts, results_df, obs_series, model_cols)
+            self._ts_panel.render(ax_ts, panel_data)
 
             # Panel 2: Metrics table (row 1, col 2)
             ax_metrics = fig.add_subplot(gs[1, 2])
-            self._plot_metrics_table(ax_metrics, metrics_dict)
+            self._metrics_panel.render(ax_metrics, panel_data)
 
             # Panel 3: Flow Duration Curves (row 2, col 0)
             ax_fdc = fig.add_subplot(gs[2, 0])
-            self._plot_fdc_panel(ax_fdc, results_df, obs_series, model_cols)
+            self._fdc_panel.render(ax_fdc, panel_data)
 
             # Panel 4: Monthly boxplots (row 2, cols 1-2)
             ax_monthly = fig.add_subplot(gs[2, 1:3])
-            self._plot_monthly_boxplots(ax_monthly, results_df, obs_series, model_cols)
+            self._monthly_panel.render(ax_monthly, panel_data)
 
             # Panel 5: Scatter plots (row 3, cols 0-1)
             # Create subplot grid for scatter plots
@@ -145,11 +204,11 @@ class ModelComparisonPlotter(BasePlotter):
                 )
                 scatter_axes = [fig.add_subplot(scatter_gs[0, i])
                                for i in range(min(n_models, 3))]
-                self._plot_scatter_panels(scatter_axes, results_df, obs_series, model_cols)
+                self._scatter_panel.render(scatter_axes, panel_data)
 
             # Panel 6: Residual analysis (row 3, col 2)
             ax_residual = fig.add_subplot(gs[3, 2])
-            self._plot_residual_analysis(ax_residual, results_df, obs_series, model_cols)
+            self._residual_panel.render(ax_residual, panel_data)
 
             # Ensure output directory exists
             output_dir = self._ensure_output_dir('model_comparison')
@@ -295,7 +354,7 @@ class ModelComparisonPlotter(BasePlotter):
         spinup_period = self._get_config_value(
             lambda: self.config.domain.spinup_period,
             default='',
-            dict_key='SPINUP_PERIOD'
+            dict_key=ConfigKeys.SPINUP_PERIOD
         )
         spinup_end = None
         if spinup_period and ',' in str(spinup_period):
@@ -353,7 +412,7 @@ class ModelComparisonPlotter(BasePlotter):
                     sim_reach_id = self._get_config_value(
                         lambda: self.config.routing.sim_reach_id,
                         default=None,
-                        dict_key='SIM_REACH_ID'
+                        dict_key=ConfigKeys.SIM_REACH_ID
                     )
 
                     var_data = ds[routing_var]
@@ -498,7 +557,7 @@ class ModelComparisonPlotter(BasePlotter):
         spinup_period = self._get_config_value(
             lambda: self.config.domain.spinup_period,
             default='',
-            dict_key='SPINUP_PERIOD'
+            dict_key=ConfigKeys.SPINUP_PERIOD
         )
         spinup_end = None
         if spinup_period and ',' in str(spinup_period):
@@ -614,7 +673,7 @@ class ModelComparisonPlotter(BasePlotter):
         """
         domain_name = self._get_config_value(
             lambda: self.config.domain.name,
-            dict_key='DOMAIN_NAME'
+            dict_key=ConfigKeys.DOMAIN_NAME
         )
         obs_path = (self.project_dir / "observations" / "streamflow" /
                    "preprocessed" / f"{domain_name}_streamflow_processed.csv")
@@ -648,11 +707,11 @@ class ModelComparisonPlotter(BasePlotter):
 
             domain_name = self._get_config_value(
                 lambda: self.config.domain.name,
-                dict_key='DOMAIN_NAME'
+                dict_key=ConfigKeys.DOMAIN_NAME
             )
             domain_method = self._get_config_value(
                 lambda: self.config.domain.definition_method,
-                dict_key='DOMAIN_DEFINITION_METHOD'
+                dict_key=ConfigKeys.DOMAIN_DEFINITION_METHOD
             )
 
             basin_path = (self.project_dir / 'shapefiles' / 'river_basins' /
@@ -687,7 +746,7 @@ class ModelComparisonPlotter(BasePlotter):
         spinup_period = self._get_config_value(
             lambda: self.config.domain.spinup_period,
             default='',
-            dict_key='SPINUP_PERIOD'
+            dict_key=ConfigKeys.SPINUP_PERIOD
         )
 
         if not spinup_period or not isinstance(spinup_period, str):

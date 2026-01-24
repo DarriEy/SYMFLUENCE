@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any
 import traceback
 
 from symfluence.reporting.core.base_plotter import BasePlotter
+from symfluence.core.constants import ConfigKeys
 
 
 class ForcingComparisonPlotter(BasePlotter):
@@ -85,7 +86,7 @@ class ForcingComparisonPlotter(BasePlotter):
             # Check for point-scale domain (skip visualization)
             domain_method = self._get_config_value(
                 lambda: self.config.domain.definition_method,
-                dict_key='DOMAIN_DEFINITION_METHOD'
+                dict_key=ConfigKeys.DOMAIN_DEFINITION_METHOD
             )
             if domain_method == 'point':
                 self.logger.info("Skipping raw vs remapped visualization for point-scale domain")
@@ -208,10 +209,10 @@ class ForcingComparisonPlotter(BasePlotter):
             self._add_stats_box(ax_remap, remap_stats, position=(0.02, 0.02))
 
             # Add main title
-            domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
+            domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)
             forcing_dataset = self._get_config_value(
                 lambda: self.config.forcing.dataset,
-                dict_key='FORCING_DATASET'
+                dict_key=ConfigKeys.FORCING_DATASET
             )
             fig.suptitle(
                 f'Forcing Comparison: {domain_name} - {forcing_dataset}',
