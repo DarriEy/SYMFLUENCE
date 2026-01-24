@@ -85,6 +85,23 @@ class TauDEMExecutor:
         """
         return self._get_mpi_command()
 
+    @staticmethod
+    def _strip_mpi_prefix(parts: List[str]) -> List[str]:
+        """
+        Strip a leading MPI launcher prefix from a tokenized command.
+
+        Handles the common pattern: mpirun/srun -n <N> <command> ...
+        """
+        if not parts:
+            return parts
+
+        if parts[0] in {"mpirun", "srun"}:
+            if len(parts) >= 3 and parts[1] in {"-n", "-np"}:
+                return parts[3:]
+            return parts[1:]
+
+        return parts
+
     def run_command(self, command: str, retry: bool = True) -> None:
         """
         Run a TauDEM command with MPI support and retry logic.
@@ -101,65 +118,76 @@ class TauDEMExecutor:
         Raises:
             subprocess.CalledProcessError: If command fails after all retries
         """
-        run_cmd = self._get_mpi_command()
+        detected_mpi = self._get_mpi_command()
+        run_cmds: List[Optional[str]] = [detected_mpi] if detected_mpi else [None]
+        if detected_mpi:
+            run_cmds.append(None)
 
-        for attempt in range(self.max_retries if retry else 1):
-            try:
-                # Check if command already has MPI prefix to avoid double prefixing
-                has_mpi_prefix = any(cmd in command for cmd in ["mpirun", "srun"])
+        last_err: Optional[subprocess.CalledProcessError] = None
+        max_attempts = self.max_retries if retry else 1
 
-                # Determine if shell execution is required
-                # module load is a shell function and requires shell=True
-                needs_shell = "module load" in command
+        for run_cmd in run_cmds:
+            if run_cmd is None and detected_mpi is not None:
+                self.logger.info(f"Trying without {detected_mpi}...")
 
-                if run_cmd and needs_shell:
-                    # Handle commands with module load specially - requires shell=True
-                    # Security note: module load commands require shell execution
-                    # as 'module' is a shell function, not an executable
-                    parts = command.split(" && ")
-                    if len(parts) == 2:
-                        module_part = parts[0]
-                        actual_cmd = parts[1]
-                        if not has_mpi_prefix:
-                            full_command: Union[str, List[str]] = f"{module_part} && {run_cmd} -n {self.num_processes} {actual_cmd}"
+            for attempt in range(max_attempts):
+                try:
+                    # Check if command already has MPI prefix to avoid double prefixing
+                    has_mpi_prefix = any(cmd in command for cmd in ["mpirun", "srun"])
+
+                    # Determine if shell execution is required
+                    # module load is a shell function and requires shell=True
+                    needs_shell = "module load" in command
+
+                    if run_cmd and needs_shell:
+                        # Handle commands with module load specially - requires shell=True
+                        # Security note: module load commands require shell execution
+                        # as 'module' is a shell function, not an executable
+                        parts = command.split(" && ")
+                        if len(parts) == 2:
+                            module_part = parts[0]
+                            actual_cmd = parts[1]
+                            if not has_mpi_prefix:
+                                full_command: Union[str, List[str]] = f"{module_part} && {run_cmd} -n {self.num_processes} {actual_cmd}"
+                            else:
+                                full_command = command
                         else:
                             full_command = command
+                    elif run_cmd and not has_mpi_prefix:
+                        # Add MPI prefix for regular commands - use list format
+                        # Use -x to export LD_LIBRARY_PATH to MPI child processes
+                        if run_cmd == "mpirun":
+                            full_command = [run_cmd, "-x", "LD_LIBRARY_PATH", "-n", str(self.num_processes)] + shlex.split(command)
+                        else:
+                            full_command = [run_cmd, "-n", str(self.num_processes)] + shlex.split(command)
+                    elif has_mpi_prefix:
+                        # Command already has MPI prefix - parse with shlex
+                        full_command = shlex.split(command)
+                        if run_cmd is None:
+                            full_command = self._strip_mpi_prefix(full_command)
                     else:
-                        full_command = command
-                elif run_cmd and not has_mpi_prefix:
-                    # Add MPI prefix for regular commands - use list format
-                    # Use -x to export LD_LIBRARY_PATH to MPI child processes
-                    if run_cmd == "mpirun":
-                        full_command = [run_cmd, "-x", "LD_LIBRARY_PATH", "-n", str(self.num_processes)] + shlex.split(command)
-                    else:
-                        full_command = [run_cmd, "-n", str(self.num_processes)] + shlex.split(command)
-                elif has_mpi_prefix:
-                    # Command already has MPI prefix - parse with shlex
-                    full_command = shlex.split(command)
-                else:
-                    # No MPI launcher available - parse with shlex
-                    full_command = shlex.split(command)
+                        # No MPI launcher available - parse with shlex
+                        full_command = shlex.split(command)
 
-                self.logger.debug(f"Running command: {full_command}")
-                result = subprocess.run(
-                    full_command,
-                    check=True,
-                    shell=needs_shell,
-                    capture_output=True,
-                    text=True
-                )
-                self.logger.debug(f"Command output: {result.stdout}")
-                return
+                    self.logger.debug(f"Running command: {full_command}")
+                    result = subprocess.run(
+                        full_command,
+                        check=True,
+                        shell=needs_shell,  # nosec B602 - shell controlled by MPI config
+                        capture_output=True,
+                        text=True
+                    )
+                    self.logger.debug(f"Command output: {result.stdout}")
+                    return
 
-            except subprocess.CalledProcessError as e:
-                self.logger.error(f"Error executing command: {full_command}")
-                self.logger.error(f"Error details: {e.stderr}")
+                except subprocess.CalledProcessError as e:
+                    last_err = e
+                    self.logger.error(f"Error executing command: {full_command}")
+                    self.logger.error(f"Error details: {e.stderr}")
 
-                if attempt < self.max_retries - 1 and retry:
-                    self.logger.info(f"Retrying in {self.retry_delay} seconds...")
-                    time.sleep(self.retry_delay)
-                elif run_cmd:
-                    self.logger.info(f"Trying without {run_cmd}...")
-                    run_cmd = None  # Try without srun/mpirun on the next attempt
-                else:
-                    raise
+                    if attempt < max_attempts - 1 and retry:
+                        self.logger.info(f"Retrying in {self.retry_delay} seconds...")
+                        time.sleep(self.retry_delay)
+
+        if last_err is not None:
+            raise last_err

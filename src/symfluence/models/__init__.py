@@ -124,6 +124,11 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import cfuse: {e}")
 
+try:
+    from . import ignacio
+except ImportError as e:
+    logger.warning(f"Could not import ignacio: {e}")
+
 
 __all__ = [
     # Core
