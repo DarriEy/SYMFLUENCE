@@ -15,7 +15,7 @@ We welcome all contributions — from bug fixes and documentation improvements t
 
 2. **Set up your environment**
    ```bash
-   ./symfluence --install
+   ./scripts/symfluence-bootstrap --install
    ```
    This will create and manage a `.venv` automatically.
    If you prefer manual setup:
@@ -27,7 +27,7 @@ We welcome all contributions — from bug fixes and documentation improvements t
 
 3. **Verify installation**
    ```bash
-   ./symfluence --help
+   ./scripts/symfluence-bootstrap --help
    ```
 
 ---
@@ -230,7 +230,7 @@ Example:
 Model setup fails on FIR cluster with NetCDF 4.9.2.
 
 ## Steps
-1. Run ./symfluence --setup_project
+1. Run ./scripts/symfluence-bootstrap --setup_project
 2. Error during model initialization
 
 ## Expected

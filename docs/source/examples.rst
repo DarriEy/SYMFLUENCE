@@ -26,7 +26,7 @@ Running the Examples
 1. Install SYMFLUENCE and activate your environment:
    .. code-block:: bash
 
-      ./symfluence --install
+      ./scripts/symfluence-bootstrap --install
       source .venv/bin/activate
 
 2. Navigate to the example directory:

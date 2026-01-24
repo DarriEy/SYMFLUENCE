@@ -253,8 +253,8 @@ jobs:
             echo "  FC=${FC:-not set}"
           fi
 
-          chmod +x ./symfluence
-          ./symfluence --install
+          chmod +x ./scripts/symfluence-bootstrap
+          ./scripts/symfluence-bootstrap --install
 
           # Install test dependencies (pytest moved to optional deps)
           source venv/bin/activate

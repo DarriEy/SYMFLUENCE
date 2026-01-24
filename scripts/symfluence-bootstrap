@@ -1066,7 +1066,7 @@ else:
         if [[ "$IS_2I2C_ENVIRONMENT" == "true" ]]; then
             print_info "To use SYMFLUENCE: conda activate ${CONDA_ENV_PATH:-/tmp/symfluence}"
             print_warning "Note: /tmp environment won't persist across server restarts"
-            print_info "Re-run './symfluence --install' after JupyterHub restarts"
+            print_info "Re-run './scripts/symfluence-bootstrap --install' after JupyterHub restarts"
         else
             print_info "To use SYMFLUENCE: source ${venv_path}/${VENV_ACTIVATE}"
         fi
@@ -1088,7 +1088,7 @@ else:
 
     if [[ -z "$symfluence_cli" ]]; then
         print_error "SYMFLUENCE CLI not found"
-        print_info "Run: ./symfluence --install"
+        print_info "Run: ./scripts/symfluence-bootstrap --install"
         exit 1
     fi
 

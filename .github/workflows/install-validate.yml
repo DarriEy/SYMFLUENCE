@@ -163,8 +163,8 @@ jobs:
           PYTHONIOENCODING: utf-8
         run: |
           set -e
-          chmod +x ./symfluence
-          ./symfluence --install
+          chmod +x ./scripts/symfluence-bootstrap
+          ./scripts/symfluence-bootstrap --install
 
           # Install CPU-only torch to save space (Linux only)
           source venv/bin/activate
@@ -549,8 +549,8 @@ jobs:
           PYTHONIOENCODING: utf-8
         run: |
           set -e
-          chmod +x ./symfluence
-          ./symfluence --install
+          chmod +x ./scripts/symfluence-bootstrap
+          ./scripts/symfluence-bootstrap --install
 
           # Install test dependencies (pytest moved to optional deps)
           source venv/bin/activate
@@ -603,7 +603,7 @@ jobs:
       - name: Step 1 — setup_project (creates domain scaffolding)
         run: |
           set -e
-          ./symfluence workflow step setup_project --config 0_config_files/config_ci_bow.yaml
+          ./scripts/symfluence-bootstrap workflow step setup_project --config 0_config_files/config_ci_bow.yaml
 
       - name: Step 2 — copy repo data into created domain folder
         run: |
@@ -638,7 +638,7 @@ jobs:
 
           if [ -f "${POUR_POINT_FILE}" ]; then
             echo "✅ Pour point shapefile found, running define_domain..."
-            ./symfluence workflow step define_domain --config 0_config_files/config_ci_bow.yaml
+            ./scripts/symfluence-bootstrap workflow step define_domain --config 0_config_files/config_ci_bow.yaml
           else
             echo "⚠️  Pour point shapefile not found at: ${POUR_POINT_FILE}"
             echo "   Skipping define_domain step (test data not available)"
