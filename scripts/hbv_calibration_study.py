@@ -345,7 +345,7 @@ class CalibrationStudyResult:
                 # Fastest to target (by mean)
                 with_target = {k: v for k, v in valid_stats.items() if v.evals_to_target_mean is not None}
                 if with_target:
-                    fastest = min(with_target.items(), key=lambda x: x[1].evals_to_target_mean)
+                    fastest = min(with_target.items(), key=lambda x: x[1].evals_to_target_mean or float('inf'))
                     self.fastest_to_target = fastest[0]
         else:
             # Fallback to single-run logic
@@ -357,7 +357,7 @@ class CalibrationStudyResult:
 
                 results_with_target = [r for r in valid_results if r.evals_to_target is not None]
                 if results_with_target:
-                    fastest = min(results_with_target, key=lambda r: r.evals_to_target)
+                    fastest = min(results_with_target, key=lambda r: r.evals_to_target or float('inf'))
                     self.fastest_to_target = fastest.algorithm
 
     def run_statistical_tests(self) -> None:
@@ -390,9 +390,10 @@ class CalibrationStudyResult:
             pass
 
         # Compute ranks for each run, then average
-        ranks_per_run = []
+        ranks_per_run: List[np.ndarray] = []
+        kge_array = np.array(kge_matrix)  # Ensure it's a numpy array for mypy
         for run_idx in range(min_runs):
-            run_kges = kge_matrix[:, run_idx]
+            run_kges = kge_array[:, run_idx]
             # Rank (higher KGE = lower rank = better)
             ranks = scipy_stats.rankdata(-run_kges)
             ranks_per_run.append(ranks)
@@ -674,7 +675,7 @@ class CalibrationStudyResult:
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        data = {
+        data: Dict[str, Any] = {
             'domain_name': self.domain_name,
             'model': self.model,
             'timestamp': self.timestamp,
@@ -914,7 +915,7 @@ class HBVCalibrationStudy:
         # Default population size heuristics from literature
         default_pop_size = max(20, min(50, 4 + int(3 * np.log(n_params)) * 2))
 
-        config = {
+        config: Dict[str, Any] = {
             'iterations': 100,
             'population_size': default_pop_size,
             'extra_settings': {}
@@ -1764,7 +1765,7 @@ class HBVCalibrationStudy:
         failed = [r for r in result.algorithm_results if r.final_kge <= -900]
         if failed:
             # Group failures by algorithm
-            failed_algos = {}
+            failed_algos: Dict[str, List[str]] = {}
             for r in failed:
                 if r.algorithm not in failed_algos:
                     failed_algos[r.algorithm] = []
@@ -1831,6 +1832,11 @@ class HBVCalibrationStudy:
 
         # Generate convergence plots (works for both)
         self._generate_convergence_plots(result, plots_dir, dpi)
+
+        # Generate advanced analysis plots (multi-run only)
+        if has_stats and result.algorithm_ranks:
+            self._plot_critical_difference_diagram(result, plots_dir, dpi)
+            self._plot_performance_profiles(result, plots_dir, dpi)
 
         self.logger.info(f"Plots saved to: {plots_dir}")
         return plots_dir
@@ -2073,7 +2079,7 @@ class HBVCalibrationStudy:
             return
 
         # Group by algorithm for multi-run
-        algo_histories = {}
+        algo_histories: Dict[str, List[AlgorithmResult]] = {}
         for r in results_with_history:
             if r.algorithm not in algo_histories:
                 algo_histories[r.algorithm] = []
@@ -2145,6 +2151,257 @@ class HBVCalibrationStudy:
         plt.savefig(plots_dir / 'convergence_curves.png', format='png', dpi=dpi)
         plt.close()
 
+    def _plot_critical_difference_diagram(
+        self, result: CalibrationStudyResult, plots_dir: Path, dpi: int
+    ) -> None:
+        """
+        Plot Critical Difference diagram (Nemenyi post-hoc test).
+
+        Shows average ranks of algorithms with horizontal lines connecting
+        algorithms that are not significantly different. Based on the critical
+        difference (CD) for the Nemenyi test.
+
+        Args:
+            result: CalibrationStudyResult with algorithm ranks
+            plots_dir: Directory to save the plot
+            dpi: Resolution for the plot
+        """
+        import matplotlib.pyplot as plt
+
+        if not result.algorithm_ranks or len(result.algorithm_ranks) < 2:
+            self.logger.warning("Not enough algorithms for CD diagram")
+            return
+
+        stats = result.algorithm_statistics
+        if not stats:
+            return
+
+        # Get minimum number of runs (for Nemenyi CD calculation)
+        min_runs = min(len(s.individual_results) for s in stats.values())
+        if min_runs < 2:
+            return
+
+        # Sort algorithms by rank (best rank first)
+        algorithms = sorted(result.algorithm_ranks.keys(),
+                          key=lambda x: result.algorithm_ranks[x])
+        ranks = [result.algorithm_ranks[a] for a in algorithms]
+        n_algorithms = len(algorithms)
+
+        # Calculate critical difference (Nemenyi test)
+        # CD = q_alpha * sqrt(k(k+1) / (6N))
+        # where q_alpha is from studentized range statistic
+        # For alpha=0.05, q values (from table) depend on k (number of algorithms)
+        q_critical_values = {
+            2: 1.960, 3: 2.343, 4: 2.569, 5: 2.728, 6: 2.850,
+            7: 2.949, 8: 3.031, 9: 3.102, 10: 3.164
+        }
+        q_alpha = q_critical_values.get(n_algorithms, 2.850)  # default to k=6
+        cd = q_alpha * np.sqrt(n_algorithms * (n_algorithms + 1) / (6 * min_runs))
+
+        # Create figure
+        fig, ax = plt.subplots(figsize=(10, max(4, n_algorithms * 0.4)))
+
+        # Plot settings
+        y_positions = np.arange(n_algorithms)
+        line_height = 0.08
+
+        # Plot horizontal lines for each algorithm at their rank position
+        for i, (algo, rank) in enumerate(zip(algorithms, ranks)):
+            ax.plot([rank, rank], [i - 0.15, i + 0.15], 'k-', linewidth=2)
+            # Label
+            ax.text(rank, i + 0.25, f'{algo.upper()}\n({rank:.2f})',
+                   ha='center', va='bottom', fontsize=9)
+
+        # Draw connecting lines for non-significantly different pairs
+        # Algorithms within CD distance are not significantly different
+        connections = []
+        for i in range(n_algorithms):
+            for j in range(i + 1, n_algorithms):
+                if abs(ranks[i] - ranks[j]) <= cd:
+                    connections.append((i, j, ranks[i], ranks[j]))
+
+        # Group connections by proximity to draw clean horizontal bars
+        for i, j, rank_i, rank_j in connections:
+            y_mid = (y_positions[i] + y_positions[j]) / 2
+            ax.plot([rank_i, rank_j], [y_mid - line_height, y_mid - line_height],
+                   'b-', linewidth=2.5, alpha=0.6)
+
+        # Mark the critical difference
+        max_rank = max(ranks)
+        ax.plot([max_rank + 0.2, max_rank + 0.2 + cd],
+               [-0.5, -0.5], 'r-', linewidth=3)
+        ax.text(max_rank + 0.2 + cd/2, -0.7,
+               f'CD = {cd:.2f}', ha='center', fontsize=9, color='red')
+
+        # Formatting
+        ax.set_ylim(-1, n_algorithms + 0.5)
+        ax.set_xlim(0.5, max(ranks) + cd + 0.5)
+        ax.set_xlabel('Average Rank (lower is better)', fontsize=11)
+        ax.set_title(
+            'Critical Difference Diagram (Nemenyi test, α=0.05)\n'
+            'Blue bars connect algorithms with no significant difference',
+            fontsize=12
+        )
+        ax.set_yticks([])
+        ax.grid(True, alpha=0.3, axis='x')
+        ax.invert_xaxis()  # Best (rank 1) on the right
+
+        plt.tight_layout()
+        plt.savefig(plots_dir / 'critical_difference.pdf', format='pdf', dpi=dpi)
+        plt.savefig(plots_dir / 'critical_difference.png', format='png', dpi=dpi)
+        plt.close()
+        self.logger.info("Critical Difference diagram saved")
+
+    def _plot_performance_profiles(
+        self, result: CalibrationStudyResult, plots_dir: Path, dpi: int
+    ) -> None:
+        """
+        Plot performance profiles (Dolan & Moré, 2002).
+
+        For each algorithm, shows the cumulative distribution of performance
+        ratios across all runs. The performance ratio for a run is:
+            r = (metric_algorithm - metric_best) / metric_best
+        or for KGE (higher is better):
+            r = metric_best / metric_algorithm
+
+        The curve shows what fraction of runs achieved performance within
+        a given factor of the best performance.
+
+        Args:
+            result: CalibrationStudyResult with all runs
+            plots_dir: Directory to save the plot
+            dpi: Resolution for the plot
+        """
+        import matplotlib.pyplot as plt
+
+        stats = result.algorithm_statistics
+        if not stats or len(stats) < 2:
+            self.logger.warning("Not enough algorithms for performance profiles")
+            return
+
+        # Collect all valid runs across all algorithms
+        all_runs = []
+        for algo, algo_stats in stats.items():
+            for r in algo_stats.individual_results:
+                if r.final_kge > -900:  # Valid run
+                    all_runs.append({
+                        'algorithm': algo,
+                        'kge': r.final_kge,
+                        'nse': r.final_nse,
+                        'runtime': r.runtime_seconds,
+                    })
+
+        if not all_runs:
+            self.logger.warning("No valid runs for performance profiles")
+            return
+
+        df = pd.DataFrame(all_runs)
+
+        # Create figure with subplots for different metrics
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+        algorithms = sorted(stats.keys())
+        colors = plt.cm.tab10(np.linspace(0, 1, len(algorithms)))
+        algo_colors = {algo: colors[i] for i, algo in enumerate(algorithms)}
+
+        # Helper function to compute performance profile
+        def compute_profile(metric_values, higher_is_better=True):
+            """
+            Compute performance profile for a metric.
+
+            Returns dict: {algorithm: (tau_values, cumulative_fractions)}
+            """
+            profiles = {}
+
+            for algo in algorithms:
+                algo_runs = metric_values[metric_values['algorithm'] == algo]
+                if len(algo_runs) == 0:
+                    continue
+
+                # For each run, compute the performance ratio
+                ratios = []
+                for idx, run in algo_runs.iterrows():
+                    # Best value for this specific run (comparing across algorithms)
+                    # We need to find what other algorithms achieved on similar "problems"
+                    # Since we don't have paired problems, we use a simpler approach:
+                    # ratio = metric / best_across_all_algorithms
+                    if higher_is_better:
+                        best_val = metric_values['value'].max()
+                        if best_val > 0 and run['value'] > 0:
+                            ratio = best_val / run['value']
+                        else:
+                            ratio = np.inf
+                    else:
+                        best_val = metric_values['value'].min()
+                        if best_val > 0 and run['value'] > 0:
+                            ratio = run['value'] / best_val
+                        else:
+                            ratio = np.inf
+
+                    ratios.append(ratio)
+
+                # Compute cumulative distribution
+                ratios = np.array(ratios)
+                ratios = ratios[np.isfinite(ratios)]
+
+                if len(ratios) == 0:
+                    continue
+
+                # Create tau values (performance ratio thresholds)
+                tau_max = min(10, np.percentile(ratios, 95) * 1.2)
+                tau_values = np.linspace(1, tau_max, 100)
+
+                # For each tau, compute fraction of runs with ratio <= tau
+                cumulative = [np.mean(ratios <= tau) for tau in tau_values]
+
+                profiles[algo] = (tau_values, cumulative)
+
+            return profiles
+
+        # Plot 1: KGE performance profile
+        ax = axes[0]
+        metric_df = df[['algorithm', 'kge']].copy()
+        metric_df.columns = ['algorithm', 'value']
+
+        profiles = compute_profile(metric_df, higher_is_better=True)
+
+        for algo, (tau_vals, cum_frac) in profiles.items():
+            ax.plot(tau_vals, cum_frac, label=f'{algo.upper()}',
+                   color=algo_colors[algo], linewidth=2)
+
+        ax.set_xlabel('Performance Ratio τ (best / algorithm)', fontsize=10)
+        ax.set_ylabel('Fraction of Runs with Ratio ≤ τ', fontsize=10)
+        ax.set_title('(a) KGE Performance Profile', fontsize=11)
+        ax.legend(loc='lower right', fontsize=8)
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim(1, None)
+        ax.set_ylim(0, 1.05)
+
+        # Plot 2: Runtime efficiency profile
+        ax = axes[1]
+        metric_df = df[['algorithm', 'runtime']].copy()
+        metric_df.columns = ['algorithm', 'value']
+
+        profiles = compute_profile(metric_df, higher_is_better=False)
+
+        for algo, (tau_vals, cum_frac) in profiles.items():
+            ax.plot(tau_vals, cum_frac, label=f'{algo.upper()}',
+                   color=algo_colors[algo], linewidth=2)
+
+        ax.set_xlabel('Performance Ratio τ (algorithm / best)', fontsize=10)
+        ax.set_ylabel('Fraction of Runs with Ratio ≤ τ', fontsize=10)
+        ax.set_title('(b) Runtime Efficiency Profile', fontsize=11)
+        ax.legend(loc='lower right', fontsize=8)
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim(1, None)
+        ax.set_ylim(0, 1.05)
+
+        plt.tight_layout()
+        plt.savefig(plots_dir / 'performance_profiles.pdf', format='pdf', dpi=dpi)
+        plt.savefig(plots_dir / 'performance_profiles.png', format='png', dpi=dpi)
+        plt.close()
+        self.logger.info("Performance profiles saved")
+
     def save_latex_tables(self, result: CalibrationStudyResult) -> Path:
         """
         Save LaTeX tables for publication.
@@ -2191,7 +2448,7 @@ class HBVCalibrationStudy:
         Returns:
             Dict with response surface statistics and correlation matrices.
         """
-        analysis = {
+        analysis: Dict[str, Any] = {
             'parameter_correlations': {},
             'convergence_patterns': {},
             'gradient_statistics': {},
@@ -2354,8 +2611,8 @@ class HBVCalibrationStudy:
             return self.output_dir
 
         # Collect all parameter-score pairs from trajectories
-        all_params = {}
-        all_scores = []
+        all_params: Dict[str, List[tuple[float, float]]] = {}
+        all_scores: List[float] = []
 
         for r in result.algorithm_results:
             if not r.parameter_trajectory or not r.convergence_history:
@@ -2509,7 +2766,7 @@ class HBVCalibrationStudy:
                 'iqr_kge': float(iqr_kge),
                 'consistency_index': float(consistent),
                 'failure_rate': float(failure_rate),
-                'cal_val_gap': float(cal_val_gap) if not np.isnan(cal_val_gap) else np.nan,
+                'cal_val_gap': float(cal_val_gap) if not np.isnan(float(cal_val_gap)) else np.nan,
             }
 
         return robustness
@@ -2580,13 +2837,13 @@ class HBVCalibrationStudy:
 
         # 2. Box plot: Cal-Val gap by algorithm
         ax2 = axes[1]
-        gaps_by_algo = {}
+        gaps_by_algo: Dict[str, List[float]] = {}
         for cal, val, algo in zip(cal_kges, val_kges, algorithms):
             if algo not in gaps_by_algo:
                 gaps_by_algo[algo] = []
             gaps_by_algo[algo].append(cal - val)
 
-        algos_sorted = sorted(gaps_by_algo.keys(), key=lambda a: np.median(gaps_by_algo[a]))
+        algos_sorted = sorted(gaps_by_algo.keys(), key=lambda a: float(np.median(gaps_by_algo[a])))
         gap_data = [gaps_by_algo[a] for a in algos_sorted]
 
         bp = ax2.boxplot(gap_data, labels=[a.upper() for a in algos_sorted], patch_artist=True)

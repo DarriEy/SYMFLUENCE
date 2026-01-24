@@ -94,6 +94,7 @@ class ForcingConfig(BaseModel):
     shape_lon_name: str = Field(default='lon', alias='FORCING_SHAPE_LON_NAME')
     pet_method: PETMethodType = Field(default='oudin', alias='PET_METHOD')
     supplement: bool = Field(default=False, alias='SUPPLEMENT_FORCING')
+    keep_raw: bool = Field(default=True, alias='KEEP_RAW_FORCING')
 
     # ERA5-specific settings (legacy, prefer using era5 subsection)
     era5_use_cds: Optional[bool] = Field(default=None, alias='ERA5_USE_CDS')

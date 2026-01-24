@@ -258,6 +258,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'FORCING_SHAPE_LON_NAME': ('forcing', 'shape_lon_name'),
     'PET_METHOD': ('forcing', 'pet_method'),
     'SUPPLEMENT_FORCING': ('forcing', 'supplement'),
+    'KEEP_RAW_FORCING': ('forcing', 'keep_raw'),
 
     # Forcing > ERA5
     'ERA5_USE_CDS': ('forcing', 'era5_use_cds'),

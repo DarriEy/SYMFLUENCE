@@ -3580,6 +3580,14 @@ HBV_SAVE_STATES: false
 #   Source:      HBVConfig (hbv/config.py)
 HBV_OUTPUT_FREQUENCY: "daily"
 
+# HBV_TIMESTEP_HOURS
+#   Range:       1-24
+#   Description: Simulation timestep in hours. Use 24 for daily, 1 for hourly.
+#   Type:        int
+#   Default:     24
+#   Source:      HBVConfig (model_configs.py)
+HBV_TIMESTEP_HOURS: 24
+
 # HBV_DEFAULT_TT
 #   Description: Default threshold temperature (°C).
 #   Type:        float

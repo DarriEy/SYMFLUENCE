@@ -598,6 +598,10 @@ def apply_triangular_routing(
     weights_rev = weights[::-1]
 
     # Apply convolution using lax.conv for JAX compatibility
+    # Ensure consistent dtype
+    runoff = jnp.asarray(runoff, dtype=jnp.float32)
+    weights_rev = jnp.asarray(weights_rev, dtype=jnp.float32)
+
     # Reshape for 1D convolution: (batch, length, channels)
     runoff_reshaped = runoff[None, :, None]  # (1, T, 1)
     weights_reshaped = weights_rev[:, None, None]  # (K, 1, 1)
