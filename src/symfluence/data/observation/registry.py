@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING
 from symfluence.data.base_registry import HandlerRegistry
 
 if TYPE_CHECKING:
-    from symfluence.data.observation.base import BaseObservationHandler
+    from symfluence.data.observation.base import BaseObservationHandler  # noqa: F401
 
 
 class ObservationRegistry(HandlerRegistry["BaseObservationHandler"]):
