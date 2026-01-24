@@ -217,7 +217,7 @@ class ISMNHandler(BaseObservationHandler):
                     df = df[df['depth_m'] == closest_depth]
                     depth_value = float(closest_depth)
 
-            series = pd.to_numeric(df[sm_col], errors='coerce').dropna()
+            series = pd.to_numeric(df[sm_col], errors='coerce').dropna()  # type: ignore[call-overload]
             if series.empty:
                 continue
             series_list.append(series)

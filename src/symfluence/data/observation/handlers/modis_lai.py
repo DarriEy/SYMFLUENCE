@@ -102,7 +102,7 @@ class MODISLAIHandler(BaseObservationHandler):
         basin_gdf = self._load_catchment_shapefile()
 
         # Process files
-        results = {'lai': [], 'fpar': [], 'datetime': []}
+        results: dict[str, list] = {'lai': [], 'fpar': [], 'datetime': []}
 
         for nc_file in nc_files:
             try:

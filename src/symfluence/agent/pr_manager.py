@@ -186,7 +186,7 @@ class PRManager:
         old_lines = old_code.split('\n')
         old_len = len(old_lines)
 
-        best_match = (None, None, 0.0)  # (start_idx, end_idx, ratio)
+        best_match: tuple[int, int, float] = (-1, -1, 0.0)  # (start_idx, end_idx, ratio)
 
         # Sliding window search
         for i in range(len(content_lines) - old_len + 1):

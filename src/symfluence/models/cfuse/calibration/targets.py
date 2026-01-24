@@ -56,7 +56,7 @@ class CFUSEStreamflowTarget(StreamflowEvaluator):
         )
         return super().get_observed_data_path()
 
-    def extract_simulated_data(self, sim_files, **kwargs) -> Optional[pd.Series]:
+    def extract_simulated_data(self, sim_files, **kwargs) -> pd.Series:  # type: ignore[override]
         """Extract simulated streamflow from cFUSE output.
 
         cFUSE outputs are stored as CSV and NetCDF with streamflow_cms column.

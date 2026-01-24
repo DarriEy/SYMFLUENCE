@@ -100,7 +100,7 @@ class MODISLSTHandler(BaseObservationHandler):
         basin_gdf = self._load_catchment_shapefile()
 
         # Process files
-        results = {'lst_day_k': [], 'lst_night_k': [], 'datetime': []}
+        results: dict[str, list] = {'lst_day_k': [], 'lst_night_k': [], 'datetime': []}
 
         for nc_file in nc_files:
             try:

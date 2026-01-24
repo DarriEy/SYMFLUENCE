@@ -514,7 +514,7 @@ class DistributedHBV:
             # Parameters are batched [n_nodes] in params.hbv_params
             # We vmap over forcing AND parameters
 
-            def run_single_gru(p, t, e, gru_params):
+            def run_single_gru_regionalized(p, t, e, gru_params):
                 runoff, _ = simulate_jax(
                     p, t, e,
                     gru_params,
@@ -524,7 +524,7 @@ class DistributedHBV:
                 return runoff
 
             # vmap over forcing and params.hbv_params
-            runoff = vmap(run_single_gru)(precip_T, temp_T, pet_T, params.hbv_params)
+            runoff = vmap(run_single_gru_regionalized)(precip_T, temp_T, pet_T, params.hbv_params)
             return runoff.T
 
         else:
@@ -679,7 +679,7 @@ class DistributedHBV:
         params = self.create_params(hbv_params=params_dict)
 
         # Run simulation
-        outlet_flow, _ = self.simulate(precip, temp, pet, params)
+        outlet_flow, _ = self.simulate(precip, temp, pet, params)  # type: ignore[misc]
 
         # Compute metric
         xp = jnp if self.use_jax else np
@@ -878,6 +878,7 @@ def calibrate_distributed_hbv(
         )
 
         def scipy_fn(x):
+            assert value_and_grad_fn is not None
             loss, grads = value_and_grad_fn(jnp.array(x))
             return float(loss), np.array(grads)
 
@@ -1096,10 +1097,11 @@ def _calibrate_single_phase(
     val_grad_fn = jit(jax.value_and_grad(loss_fn))
 
     # NSE-only for tracking
-    nse_fn = model.get_value_and_grad_function(
+    _nse_fn = model.get_value_and_grad_function(
         precip, temp, pet, obs, 'nse', param_names, warmup_timesteps
     )
-    nse_fn = jit(nse_fn)
+    assert _nse_fn is not None, "NSE function required for Adam calibration"
+    nse_fn = jit(_nse_fn)
 
     # Initialize optimizer
     optimizer = AdamW(lr=lr_max, weight_decay=0.001)
@@ -1108,7 +1110,7 @@ def _calibrate_single_phase(
     )
     ema = EMA(decay=ema_decay)
 
-    history = {'iteration': [], 'nse': [], 'loss': [], 'lr': [], 'grad_norm': []}
+    history: dict[str, list] = {'iteration': [], 'nse': [], 'loss': [], 'lr': [], 'grad_norm': []}
     best_nse = -float('inf')
     best_params = x.copy()
     best_iter = 0
@@ -1251,7 +1253,7 @@ def _calibrate_two_phase(
     )
     ema = EMA(decay=0.995)
 
-    history1 = {'iteration': [], 'nse': [], 'loss': [], 'lr': [], 'grad_norm': []}
+    history1: dict[str, list] = {'iteration': [], 'nse': [], 'loss': [], 'lr': [], 'grad_norm': []}
     best_nse_p1 = -float('inf')
     best_params_p1 = x.copy()
     best_iter_p1 = 0
@@ -1318,7 +1320,7 @@ def _calibrate_two_phase(
     optimizer = AdamW(lr=0.02, weight_decay=0.0001)
     ema = EMA(decay=0.998)
 
-    history2 = {'iteration': [], 'nse': [], 'lr': [], 'grad_norm': []}
+    history2: dict[str, list] = {'iteration': [], 'nse': [], 'lr': [], 'grad_norm': []}
     best_nse_p2 = -float('inf')
     best_params_p2 = x.copy()
     best_iter_p2 = 0
@@ -1429,7 +1431,7 @@ def _create_composite_loss(
             hbv_params[name] = x[i]
 
         params = model.create_params(hbv_params=hbv_params)
-        outlet_flow, _ = model.simulate(precip, temp, pet, params)
+        outlet_flow, _ = model.simulate(precip, temp, pet, params)  # type: ignore[misc]
 
         sim = outlet_flow[warmup_timesteps:]
         obs_eval = obs[warmup_timesteps:]
@@ -1494,7 +1496,7 @@ def _compute_metrics(
         hbv_params[name] = float(params_array[i])
 
     params = model.create_params(hbv_params=hbv_params)
-    outlet_flow, _ = model.simulate(precip, temp, pet, params)
+    outlet_flow, _ = model.simulate(precip, temp, pet, params)  # type: ignore[misc]
 
     sim = np.array(outlet_flow)[warmup_timesteps:]
     obs_eval = np.array(obs)[warmup_timesteps:]

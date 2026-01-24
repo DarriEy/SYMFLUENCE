@@ -9,34 +9,36 @@ This module provides:
 - GeospatialStatistics: Catchment attribute computation
 """
 
-import sys as _sys
+import logging as _logging
 from typing import Any
+
+_logger = _logging.getLogger(__name__)
 
 # Fail-safe imports to allow partial loading
 try:
     from .forcing_resampler import ForcingResampler
 except ImportError as _e:
     ForcingResampler: Any = None  # type: ignore
-    print(f"WARNING: Failed to import ForcingResampler: {_e}", file=_sys.stderr)
+    _logger.warning("Failed to import ForcingResampler: %s", _e)
 
 try:
     from .geospatial_statistics import GeospatialStatistics
 except ImportError as _e:
     GeospatialStatistics: Any = None  # type: ignore
-    print(f"WARNING: Failed to import GeospatialStatistics: {_e}", file=_sys.stderr)
+    _logger.warning("Failed to import GeospatialStatistics: %s", _e)
 
 try:
     from .shapefile_manager import ShapefileManager
 except ImportError as _e:
     ShapefileManager: Any = None  # type: ignore
-    print(f"WARNING: Failed to import ShapefileManager: {_e}", file=_sys.stderr)
+    _logger.warning("Failed to import ShapefileManager: %s", _e)
 
 try:
     from .elevation_calculator import ElevationCalculator, create_elevation_calculator
 except ImportError as _e:
     ElevationCalculator: Any = None  # type: ignore
     create_elevation_calculator: Any = None  # type: ignore
-    print(f"WARNING: Failed to import elevation_calculator: {_e}", file=_sys.stderr)
+    _logger.warning("Failed to import elevation_calculator: %s", _e)
 
 try:
     from .remapping_weights import (
@@ -48,7 +50,7 @@ except ImportError as _e:
     RemappingWeightGenerator: Any = None  # type: ignore
     RemappingWeightApplier: Any = None  # type: ignore
     BatchProcessor: Any = None  # type: ignore
-    print(f"WARNING: Failed to import remapping_weights: {_e}", file=_sys.stderr)
+    _logger.warning("Failed to import remapping_weights: %s", _e)
 
 __all__ = [
     'ForcingResampler',

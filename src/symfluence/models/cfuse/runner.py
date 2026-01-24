@@ -423,7 +423,7 @@ class CFUSERunner(BaseModelRunner, UnifiedModelExecutor):
             self.logger.debug(traceback.format_exc())
             return False
 
-    def _load_forcing(self) -> Tuple[Dict[str, np.ndarray], Optional[np.ndarray]]:
+    def _load_forcing(self) -> Tuple[Dict[str, Any], Optional[np.ndarray]]:
         """Load forcing data from preprocessed files."""
         # Try NetCDF first
         nc_file = self.cfuse_forcing_dir / f"{self.domain_name}_cfuse_forcing.nc"
