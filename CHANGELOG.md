@@ -10,6 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Documentation Improvements**
+  - New CFuse model guide (experimental differentiable PyTorch-based FUSE)
+  - New JFuse model guide (experimental JAX-based FUSE with gradient support)
+  - New WM-Fire model guide (wildfire spread simulation with RHESSys)
+  - Comprehensive CLI reference documentation with all commands and options
+  - Expanded configuration parameter reference
+  - Fixed Python API examples in calibration documentation
+  - New testing guide for contributors with pytest patterns and CI integration
+  - Added agent-assisted contribution workflow documentation
+
+- **Agent Improvements**
+  - Enhanced `show_staged_changes` with diff statistics and file summary
+  - Improved `generate_pr_description` with auto-detection of modified files
+  - Better PR descriptions with context-specific sections and testing checklists
+  - Added documentation for fuzzy matching threshold parameter
+
 - **HBV Module Refactoring**
   - New `losses.py` module with differentiable NSE/KGE loss functions and gradient utilities
   - New `parameters.py` module with parameter bounds, defaults, and scaling utilities

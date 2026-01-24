@@ -172,8 +172,15 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
                 area_cols = [c for c in gdf.columns if 'area' in c.lower()]
                 if area_cols:
                     total_area = gdf[area_cols[0]].sum()
-                    self.logger.info(f"Catchment area from shapefile: {total_area/1e6:.2f} km²")
-                    return float(total_area)
+                    # Detect if area is in km² or m² based on magnitude
+                    # Typical watersheds are 10-100,000 km², so if sum < 1e6 m², it's likely km²
+                    if total_area < 1e6:
+                        # Area is likely in km², convert to m²
+                        self.logger.info(f"Catchment area from shapefile: {total_area:.2f} km² (detected km² units)")
+                        return float(total_area * 1e6)
+                    else:
+                        self.logger.info(f"Catchment area from shapefile: {total_area/1e6:.2f} km²")
+                        return float(total_area)
             else:
                 self.logger.debug(f"Catchment shapefile not found at: {catchment_path}")
         except ImportError:

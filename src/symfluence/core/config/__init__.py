@@ -10,13 +10,12 @@ Exports:
     ensure_typed_config: Adapter to convert dict configs to SymfluenceConfig
     normalize_config: Normalize and apply aliases to configuration dictionaries
     validate_config: Validate configuration against schema
-    DefaultsRegistry: Central registry for default configuration values
+
 """
 
 from typing import Union, Dict, Any
 from symfluence.core.config.config_loader import normalize_config, validate_config
 from symfluence.core.config.models import SymfluenceConfig
-from symfluence.core.config.defaults_registry import DefaultsRegistry
 
 
 def ensure_typed_config(config: Union[Dict[str, Any], SymfluenceConfig]) -> SymfluenceConfig:
@@ -50,7 +49,4 @@ __all__ = [
     # Config utility functions
     "normalize_config",
     "validate_config",
-
-    # Defaults registry
-    "DefaultsRegistry",
 ]

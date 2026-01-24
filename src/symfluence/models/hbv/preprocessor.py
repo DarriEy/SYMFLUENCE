@@ -182,6 +182,15 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                 temp = temp - 273.15
                 self.logger.info("Converted temperature from K to °C")
 
+            # For lumped mode, average across HRUs if data has spatial dimension
+            # This handles basin-averaged forcing that still has HRU dimension
+            if precip.ndim > 1:
+                self.logger.info(f"Averaging precipitation across {precip.shape[1]} HRUs for lumped mode")
+                precip = np.nanmean(precip, axis=1)
+            if temp.ndim > 1:
+                self.logger.info(f"Averaging temperature across {temp.shape[1]} HRUs for lumped mode")
+                temp = np.nanmean(temp, axis=1)
+
             # Potential evapotranspiration (calculated at daily resolution, will be distributed)
             pet_daily = self._get_pet(forcing_ds, temp, time)
             if pet_daily is None:

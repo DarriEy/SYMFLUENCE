@@ -713,7 +713,7 @@ Error Handling
 Exception Hierarchy
 -------------------
 
-.. code-block:: python
+.. code-block:: text
 
    SymfluenceError                    # Base exception
    ├── ConfigurationError             # Invalid configuration
@@ -806,5 +806,5 @@ Additional Resources
 
 **Contributing:**
 
-- :doc:`../CONTRIBUTING`: Contribution guidelines
+- `Contribution Guidelines <https://github.com/DarriEy/SYMFLUENCE/blob/main/CONTRIBUTING.md>`_
 - GitHub: https://github.com/DarriEy/SYMFLUENCE

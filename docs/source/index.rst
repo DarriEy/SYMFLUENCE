@@ -56,6 +56,8 @@ Quick Start
 
    models/model_summa
    models/model_fuse
+   models/model_cfuse
+   models/model_jfuse
    models/model_gr
    models/model_hbv
    models/model_hype
@@ -64,20 +66,22 @@ Quick Start
    models/model_gnn
    models/model_mesh
    models/model_rhessys
+   models/model_wmfire
 
 .. toctree::
    :maxdepth: 2
    :caption: Routing Models
 
    routing/mizuroute
+   routing/droute
    routing/troute
 
 .. toctree::
    :maxdepth: 2
    :caption: Reference
 
+   cli_reference
    api
-   config_system
    troubleshooting
 
 .. toctree::
@@ -86,6 +90,7 @@ Quick Start
 
    architecture
    developer_guide
+   testing
 
 .. toctree::
    :maxdepth: 1

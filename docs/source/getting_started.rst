@@ -309,7 +309,7 @@ Step 8: Preprocess Data
 
 .. code-block:: bash
 
-   symfluence workflow step run_model_agnostic_preprocessing --config bow_river/config.yaml
+   symfluence workflow step model_agnostic_preprocessing --config bow_river/config.yaml
 
 **Expected Output:**
 
@@ -340,7 +340,7 @@ Step 9: Model-Specific Preprocessing
 
 .. code-block:: bash
 
-   symfluence workflow step preprocess_models --config bow_river/config.yaml
+   symfluence workflow step model_specific_preprocessing --config bow_river/config.yaml
 
 **Expected Output:**
 
@@ -371,7 +371,7 @@ Step 10: Run Model
 
 .. code-block:: bash
 
-   symfluence workflow step run_models --config bow_river/config.yaml
+   symfluence workflow step run_model --config bow_river/config.yaml
 
 **Expected Output:**
 

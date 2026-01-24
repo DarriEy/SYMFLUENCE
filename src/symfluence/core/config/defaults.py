@@ -4,17 +4,9 @@ Centralized default configuration values for SYMFLUENCE.
 This module provides default values for optional configuration parameters.
 Required parameters (defined in config_loader.py) must be set in config files.
 
-PHASE 3 REFACTORING: Model-specific defaults are now maintained in a single source -
-Pydantic Field(default=...) declarations in each model's config schema. The
-ModelDefaults class provides a unified interface via ModelRegistry for backward
-compatibility.
-
-All defaults are auto-generated from Pydantic models, eliminating the need for:
-- Manual defaults classes (e.g., FUSEDefaults)
-- Hardcoded _LEGACY_* dicts
-- Multi-layer registry patterns (DefaultsRegistry)
-
-Single source of truth: models/{model}/config.py → Pydantic Field declarations
+Model-specific defaults are sourced from Pydantic Field(default=...) declarations
+in each model's config schema via ModelRegistry adapters. Legacy registry layers
+have been removed to keep one source of truth.
 """
 
 from typing import Dict, Any
@@ -111,20 +103,7 @@ class ConfigDefaults:
 
 
 class ModelDefaults:
-    """
-    Model-specific default configuration values.
-
-    PHASE 3 REFACTORING: Model defaults are now maintained in a single source -
-    Pydantic Field(default=...) declarations in each model's config schema.
-    This class provides a unified interface via ModelRegistry for backward compatibility.
-
-    Migration path:
-        OLD: ModelDefaults.get_defaults_for_model('SUMMA')
-        NEW: ModelRegistry.get_config_defaults('SUMMA')
-
-    All defaults are auto-generated from Pydantic models, eliminating the need
-    for manual defaults classes, hardcoded dicts, or multi-layer registries.
-    """
+    """Compatibility shim that forwards to ModelRegistry for model defaults."""
 
     # Legacy attributes for backward compatibility
     SUMMA: Dict[str, Any] = {}

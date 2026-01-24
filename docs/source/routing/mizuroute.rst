@@ -1,3 +1,5 @@
+.. _routing_mizuroute:
+
 =========================================
 mizuRoute Routing Model Guide
 =========================================
@@ -274,7 +276,7 @@ Channel Parameters
      - Channel slope [-] (from DEM)
 
 Output Configuration
-^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -294,7 +296,7 @@ Input File Specifications
 =========================
 
 River Network Topology
----------------------
+----------------------
 
 **File:** ``network_topology.nc``
 
@@ -329,7 +331,7 @@ NetCDF file defining river network structure:
    width:      [15, 25, 40, 80, 12, ...]  ! meters
 
 Runoff Input
------------
+------------
 
 **File:** ``runoff_input.nc``
 
@@ -360,7 +362,7 @@ Catchment runoff time series:
    runoff(seg=2): [1.8, 1.6, 2.4, ...]
 
 Parameter File
--------------
+--------------
 
 **File:** ``mizuRoute_param.nc``
 
@@ -384,7 +386,7 @@ Method-specific routing parameters:
      float MCroutingParams_X(seg)         ! Weighting factor
 
 Lake/Reservoir Data
-------------------
+-------------------
 
 **File (optional):** ``lake_data.nc``
 
@@ -405,7 +407,7 @@ Output File Specifications
 ==========================
 
 Routed Streamflow
-----------------
+-----------------
 
 **File:** ``mizuRoute_output.nc``
 
@@ -433,7 +435,7 @@ Routed Streamflow
      float reachDepth(time, seg)      ! Water depth [m]
 
 State Files
-----------
+-----------
 
 **File:** ``restart_state.nc``
 
@@ -454,7 +456,7 @@ Model-Specific Workflows
 ========================
 
 Basic mizuRoute Workflow
------------------------
+------------------------
 
 Route distributed FUSE output:
 
@@ -533,7 +535,7 @@ Hourly routing for flood events:
    MIZUROUTE_OUTPUT_FREQ: hourly
 
 Reservoir Operations
--------------------
+--------------------
 
 Include reservoir routing:
 
@@ -551,10 +553,10 @@ Include reservoir routing:
    # Reservoirs controlled by release rules in lake file
 
 Calibration Strategies
-=====================
+======================
 
 Routing Parameters
------------------
+------------------
 
 **For IRF method:**
 
@@ -591,11 +593,11 @@ Routing Parameters
    MC_X:  [0.0, 0.5]       # Weighting factor [-]
 
 Parameter Regionalization
-------------------------
+-------------------------
 
 For large networks, use regional relationships:
 
-.. code-block:: python
+.. code-block:: text
 
    # Manning's n by stream order
    stream_order_1-2:  n = 0.05-0.10  # Small streams
@@ -607,7 +609,7 @@ For large networks, use regional relationships:
    # Typical: a = 2-5, b = 0.4-0.5
 
 Calibration Workflow
--------------------
+--------------------
 
 1. **Run hydrological model first** (SUMMA, FUSE, etc.)
 2. **Generate runoff fields**
@@ -626,7 +628,7 @@ Calibration Workflow
       OPTIMIZATION_METRIC: KGE
 
 Known Limitations
-================
+=================
 
 1. **Network Topology Required:**
 
@@ -666,7 +668,7 @@ Known Limitations
    - Natural lake rating curves uncertain
 
 Troubleshooting
-==============
+===============
 
 Common Issues
 -------------
@@ -742,7 +744,7 @@ Check that runoff file has same segments as network:
    >>> # All others should connect to an outlet
 
 Performance Optimization
-=======================
+========================
 
 **Speed up routing:**
 
@@ -775,7 +777,7 @@ Performance Optimization
        method = 'KWT'  # Good balance
 
 Additional Resources
-===================
+====================
 
 **mizuRoute Documentation:**
 

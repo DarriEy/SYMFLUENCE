@@ -46,11 +46,11 @@ Parameter Normalization:
     - Simplify bounds checking and mutation operators
 
     Workflow:
-    - Physical → Normalized: normalize_parameters() clips to [0,1] after scaling
-    - Normalized → Physical: denormalize_parameters() applies bounds and units
-    - Example: Parameter "x" with bounds [100, 500]:
-      * Physical x=300 → Normalized (300-100)/(500-100) = 0.5
-      * Normalized 0.5 → Physical 0.5*(500-100)+100 = 300
+    Physical to Normalized: normalize_parameters() clips to [0,1] after scaling.
+    Normalized to Physical: denormalize_parameters() applies bounds and units.
+    Example: Parameter "x" with bounds [100, 500]: Physical x=300 becomes
+    Normalized (300-100)/(500-100) = 0.5, and Normalized 0.5 becomes
+    Physical 0.5*(500-100)+100 = 300.
 
 Population Evaluation:
     TaskBuilder generates task dicts containing parameter sets and metadata:
@@ -93,33 +93,24 @@ Supported Algorithms (via registry):
 
 Subclass Implementation Requirements:
     REQUIRED (1 abstract method):
-    1. _get_model_name() → str
-       Returns model identifier ('SUMMA', 'FUSE', 'NGEN', 'GR', etc.)
+    ``_get_model_name()`` - Returns model identifier ('SUMMA', 'FUSE', 'NGEN', 'GR', etc.)
 
     OPTIONAL (override for custom behavior):
-    2. _create_parameter_manager() → ParameterManager
-       Default: Registry-based discovery via _create_parameter_manager_default()
-       Override when: Non-standard constructor signature (FUSE, SUMMA, GR)
-       Handles: Parameter bounds, normalization, file writing
 
-    3. _create_calibration_target() → CalibrationTarget
-       Default: Uses create_calibration_target() factory with registry lookup
-       Override when: Rarely needed (factory handles all complexity)
-       Handles: Output extraction, observed data, metric calculation
+    - ``_create_parameter_manager()``: Default uses registry-based discovery.
+      Override for non-standard constructor signature (FUSE, SUMMA, GR).
 
-    4. _create_worker() → BaseWorker
-       Default: Registry-based discovery via _create_worker_default()
-       Override when: Rarely needed (all workers use same signature)
-       Handles: Model execution, parameter application, output parsing
+    - ``_create_calibration_target()``: Default uses factory with registry lookup.
+      Rarely needs override.
 
-    5. _run_model_for_final_evaluation(output_dir) → bool
-       Custom final evaluation logic if standard workflow insufficient
+    - ``_create_worker()``: Default uses registry-based discovery.
+      Rarely needs override.
 
-    6. _get_final_file_manager_path() → Path
-       Path to file manager for final evaluation time period updates
+    - ``_run_model_for_final_evaluation(output_dir)``: Custom final evaluation logic.
 
-    7. _get_settings_directory() → Path
-       Override default {project_dir}/settings/{MODEL}/ convention
+    - ``_get_final_file_manager_path()``: Path to file manager for time period updates.
+
+    - ``_get_settings_directory()``: Override default settings directory convention.
 
 Examples:
     >>> # Create subclass
@@ -1556,23 +1547,20 @@ class BaseModelOptimizer(
                - Restore file manager to calibration period
 
         Window Definitions:
-            Calibration Window: Time period used to optimize parameters
-                - From: config.domain.calibration_start_date
-                - To: config.domain.calibration_end_date
-                - Metric names: *_Calib (e.g., KGE_Calib, NSE_Calib)
 
-            Evaluation Window: Period not used for calibration (validation)
-                - From: config.domain.time_start to calibration_start_date
-                         OR calibration_end_date to time_end
-                - Metric names: *_Eval (e.g., KGE_Eval, NSE_Eval)
+            **Calibration Window**: Time period used to optimize parameters.
+            From calibration_start_date to calibration_end_date.
+            Metric names use ``_Calib`` suffix (e.g., KGE_Calib, NSE_Calib).
 
-            Full Period: Entire simulation window
-                - From: config.domain.time_start
-                - To: config.domain.time_end
+            **Evaluation Window**: Period not used for calibration (validation).
+            From time_start to calibration_start_date OR calibration_end_date to time_end.
+            Metric names use ``_Eval`` suffix (e.g., KGE_Eval, NSE_Eval).
+
+            **Full Period**: Entire simulation window from time_start to time_end.
 
         Metric Calculation:
-            Model output extracted via calibration_target.extract_simulated_data()
-            Metrics calculated via calibration_target.calculate_metrics() with
+            Model output extracted via ``calibration_target.extract_simulated_data()``.
+            Metrics calculated via ``calibration_target.calculate_metrics()`` with
             calibration_only=False to get all periods.
 
         Args:
@@ -1582,15 +1570,10 @@ class BaseModelOptimizer(
                 - Example: {'PARAM1': 100.5, 'PARAM2': 0.25}
 
         Returns:
-            Dict with structure:
-                {
-                    'final_metrics': {...},  # All metrics for all periods
-                    'calibration_metrics': {...},  # *_Calib metrics only
-                    'evaluation_metrics': {...},  # *_Eval metrics only
-                    'success': True,
-                    'best_params': best_params
-                }
-            Or None if any step fails (logged to logger.error)
+            Dict with keys 'final_metrics', 'calibration_metrics', 'evaluation_metrics',
+            'success', and 'best_params'. The calibration_metrics contain ``_Calib``
+            suffixed metrics, evaluation_metrics contain ``_Eval`` suffixed metrics.
+            Returns None if any step fails (logged to logger.error).
 
         Raises:
             (Caught internally, returns None instead):

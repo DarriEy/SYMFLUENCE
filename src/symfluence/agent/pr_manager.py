@@ -54,7 +54,10 @@ class PRManager:
             new_code: Replacement code
             description: Description of why this change is needed
             reason: Type of change (bugfix, improvement, feature)
-            fuzzy_threshold: Minimum similarity for fuzzy match (0.0-1.0)
+            fuzzy_threshold: Minimum similarity for fuzzy match (0.0-1.0).
+                Default 0.85 (85%) allows minor whitespace/formatting differences
+                while preventing incorrect matches. Lower values (0.7-0.8) for
+                more flexible matching, higher values (0.9+) for stricter matching.
 
         Returns:
             Tuple of (success, message_or_error)
@@ -277,7 +280,7 @@ class PRManager:
 
     def show_staged_changes(self) -> Tuple[bool, str]:
         """
-        Display all staged changes.
+        Display all staged changes with statistics.
 
         Returns:
             Tuple of (success, diff_or_error)
@@ -294,11 +297,37 @@ class PRManager:
             if not diff or diff == "(no changes)":
                 return True, "No staged changes\n\nUse propose_code_change to stage modifications."
 
+            # Get diff statistics
+            stat_result = self._run_git(["diff", "--cached", "--stat"])
+            stats = stat_result.stdout.strip() if stat_result.returncode == 0 else ""
+
+            # Get list of modified files
+            success_files, files = self.get_modified_files()
+            file_count = len(files) if success_files else 0
+
             output = "Staged Changes\n" + "=" * 60 + "\n\n"
-            output += diff + "\n\n"
-            output += "=" * 60 + "\n"
-            output += "Use 'git commit' to commit these changes.\n"
-            output += "Use 'git reset' to unstage changes.\n"
+
+            # Show statistics summary
+            if stats:
+                output += "Summary:\n"
+                output += stats + "\n\n"
+
+            output += f"Files changed: {file_count}\n"
+            if success_files and files:
+                for f in files:
+                    output += f"  - {f}\n"
+                output += "\n"
+
+            output += "Diff:\n"
+            output += "-" * 60 + "\n"
+            output += diff + "\n"
+            output += "-" * 60 + "\n\n"
+
+            output += "Next steps:\n"
+            output += "  - Review the changes above\n"
+            output += "  - Run tests: pytest -v -m unit\n"
+            output += "  - Commit: git commit -m 'message'\n"
+            output += "  - Or unstage: git reset\n"
 
             return True, output
 
@@ -343,7 +372,8 @@ class PRManager:
         summary: str,
         reason: str = "improvement",
         files_modified: Optional[List[str]] = None,
-        testing_notes: Optional[str] = None
+        testing_notes: Optional[str] = None,
+        auto_detect_files: bool = True
     ) -> str:
         """
         Generate a comprehensive PR description.
@@ -352,21 +382,34 @@ class PRManager:
             title: PR title
             summary: Summary of changes
             reason: Type of change
-            files_modified: List of files modified
+            files_modified: List of files modified (auto-detected if not provided)
             testing_notes: Notes on testing performed
+            auto_detect_files: Auto-detect modified files from git staging
 
         Returns:
             Formatted PR description
         """
         description = f"## Summary\n{summary}\n\n"
 
-        # Add reason section
+        # Add context-specific reason section
         if reason == "bugfix":
-            description += "## Problem\nThis PR fixes a bug that was causing issues.\n\n"
+            description += "## Problem & Solution\n"
+            description += "This PR addresses an issue identified in the codebase. "
+            description += "The fix involves changes described in the summary above.\n\n"
         elif reason == "feature":
-            description += "## Feature\nThis PR adds new functionality.\n\n"
+            description += "## New Feature\n"
+            description += "This PR introduces new functionality to SYMFLUENCE. "
+            description += "See the summary above for details on what was added.\n\n"
         else:
-            description += "## Improvement\nThis PR improves existing functionality.\n\n"
+            description += "## Changes\n"
+            description += "This PR improves existing functionality in SYMFLUENCE. "
+            description += "The changes enhance code quality, performance, or maintainability.\n\n"
+
+        # Auto-detect files if not provided
+        if files_modified is None and auto_detect_files:
+            success, detected_files = self.get_modified_files()
+            if success and detected_files:
+                files_modified = detected_files
 
         # Files modified
         if files_modified:
@@ -375,15 +418,19 @@ class PRManager:
                 description += f"- `{file_path}`\n"
             description += "\n"
 
-        # Testing
+        # Testing section with guidance
         description += "## Testing\n"
         if testing_notes:
             description += f"{testing_notes}\n"
         else:
-            description += "All existing tests pass. No breaking changes.\n"
+            description += "- [ ] All existing tests pass (`pytest -v -m unit`)\n"
+            description += "- [ ] Changes reviewed for correctness\n"
+            description += "- [ ] No breaking changes introduced\n"
 
-        # Footer with timestamp
-        description += f"\n---\n*PR generated by SYMFLUENCE Agent at {datetime.now().isoformat()}*"
+        # Footer with attribution
+        description += "\n---\n"
+        description += "*Generated by SYMFLUENCE Agent*\n"
+        description += f"*{datetime.now().strftime('%Y-%m-%d %H:%M')}*"
 
         return description
 
