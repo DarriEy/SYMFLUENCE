@@ -454,7 +454,7 @@ Use Google-style docstrings:
 Configuration System
 --------------------
 
-For detailed information on the configuration system architecture, see :doc:`config_system`.
+For detailed configuration patterns, see :doc:`configuration`.
 
 Key points:
 
@@ -468,7 +468,7 @@ Key points:
 Contribution Workflow
 ---------------------
 
-See :doc:`../CONTRIBUTING` for complete contribution guidelines.
+See the `Contribution Guidelines <https://github.com/DarriEy/SYMFLUENCE/blob/main/CONTRIBUTING.md>`_ for complete information.
 
 **Quick Start**
 
@@ -520,7 +520,7 @@ Additional Resources
 **Internal Documentation**
 
 - :doc:`api` — API reference with autodoc
-- :doc:`config_system` — Configuration system architecture
+- :doc:`configuration` — Configuration system usage
 - TESTING.md — Comprehensive testing guide (in tests/ directory)
 
 **External Resources**
@@ -534,7 +534,7 @@ Additional Resources
 
 - GitHub Issues: https://github.com/DarriEy/SYMFLUENCE/issues
 - GitHub Discussions: https://github.com/DarriEy/SYMFLUENCE/discussions
-- Contributing Guide: :doc:`../CONTRIBUTING`
+- `Contributing Guide <https://github.com/DarriEy/SYMFLUENCE/blob/main/CONTRIBUTING.md>`_
 
 ---
 

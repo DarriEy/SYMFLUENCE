@@ -35,33 +35,25 @@ class AnalysisManager(ConfigurableMixin):
 
     Key Responsibilities:
 
-        1. Benchmarking (run_benchmarking):
-           Compare calibrated model against simple reference models:
-               - Mean flow: Annual average discharge
-               - Seasonality model: Climatological monthly patterns
-               - Persistence model: Lagged observations (AR1)
-           Purpose: Quantify value added by sophisticated model vs simplicity
+        1. **Benchmarking** (run_benchmarking):
+           Compare calibrated model against simple reference models
+           (mean flow, seasonality model, persistence model).
+           Purpose: Quantify value added by sophisticated model vs simplicity.
 
-        2. Sensitivity Analysis (run_sensitivity_analysis):
-           Evaluate parameter importance:
-               - Morris screening: Identify influential vs non-influential parameters
-               - Sobol indices: Variance-based sensitivity (1st order, total)
-               - FAST: Fourier amplitude sensitivity test
-           Purpose: Prioritize parameters for observation/data requirements
+        2. **Sensitivity Analysis** (run_sensitivity_analysis):
+           Evaluate parameter importance using Morris screening,
+           Sobol indices, or FAST methods.
+           Purpose: Prioritize parameters for observation/data requirements.
 
-        3. Decision Analysis (run_decision_analysis):
-           Assess impact of model structure choices:
-               - Alternative process representations
-               - Alternative parameter sets (e.g., from different sources)
-               - Alternative calibration targets (KGE vs NSE vs RMSE)
-           Purpose: Evaluate trade-offs in model complexity vs parsimony
+        3. **Decision Analysis** (run_decision_analysis):
+           Assess impact of model structure choices including alternative
+           process representations, parameter sets, and calibration targets.
+           Purpose: Evaluate trade-offs in model complexity vs parsimony.
 
-        4. Visualization:
-           Generate analysis plots via ReportingManager:
-               - Performance comparison plots
-               - Sensitivity indices bar charts
-               - Parameter importance rankings
-               - Decision analysis trade-off plots
+        4. **Visualization**:
+           Generate analysis plots via ReportingManager including
+           performance comparisons, sensitivity indices, parameter rankings,
+           and decision analysis trade-off plots.
 
     Analysis Types:
 
@@ -104,10 +96,10 @@ class AnalysisManager(ConfigurableMixin):
                 - Grouped influence vs non-influential parameters
 
             Interpretation:
-                μ* (modified Morris): Average |∂Y/∂Xi| - Main effect magnitude
-                S1 (Sobol 1st order): Fraction of output variance from Xi alone
-                ST (Sobol total): Fraction of output variance involving Xi
-                Non-influential: Remove from calibration (reduce dimensionality)
+                mu* (modified Morris) is average absolute sensitivity - main effect magnitude.
+                S1 (Sobol 1st order) is fraction of output variance from Xi alone.
+                ST (Sobol total) is fraction of output variance involving Xi.
+                Non-influential parameters can be removed from calibration.
 
         Decision Analysis:
             Input:

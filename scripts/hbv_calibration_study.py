@@ -1240,7 +1240,7 @@ class HBVCalibrationStudy:
         self.logger.info("=" * 50)
 
         try:
-            from symfluence.models.hbv.preprocessor import HBVPreprocessor
+            from symfluence.models.hbv.preprocessor import HBVPreProcessor
 
             # Step 1: Create lumped shapefile if needed
             lumped_shp_dir = self.project_dir / 'shapefiles' / 'catchment' / 'lumped'
@@ -1278,11 +1278,11 @@ class HBVCalibrationStudy:
             # Step 3: Run HBV preprocessor
             self.logger.info("Step 3: Running HBV preprocessor...")
 
-            # Load fresh config dict (HBVPreprocessor accepts dict or config object)
+            # Load fresh config dict (HBVPreProcessor accepts dict or config object)
             config_dict = self._get_fresh_config_dict()
             config_dict['SUB_GRID_DISCRETIZATION'] = 'lumped'
 
-            preprocessor = HBVPreprocessor(config_dict, self.logger)
+            preprocessor = HBVPreProcessor(config_dict, self.logger)
             success = preprocessor.run_preprocessing()
 
             if success:

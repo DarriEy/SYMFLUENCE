@@ -1,7 +1,76 @@
 # Configuration file for the Sphinx documentation builder.
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../'))
+sys.path.insert(0, os.path.abspath('../../src'))
+
+# Mock imports for autodoc - these packages have complex dependencies
+# that are not needed for documentation generation
+autodoc_mock_imports = [
+    # Core scientific stack
+    'numpy',
+    'pandas',
+    'scipy',
+    'xarray',
+    'pint_xarray',
+    'distributed',
+    'pyviscous',
+    # Machine learning
+    'torch',
+    'sklearn',
+    'scikit-learn',
+    # Geospatial
+    'gdal',
+    'osgeo',
+    'geopandas',
+    'rasterio',
+    'pyproj',
+    'shapely',
+    'fiona',
+    'easymore',
+    'rasterstats',
+    'pvlib',
+    'cdo',
+    # Visualization
+    'seaborn',
+    'plotly',
+    'matplotlib',
+    'contextily',
+    # Cloud and data access
+    'gcsfs',
+    'intake_xarray',
+    'intake',
+    'netCDF4',
+    'h5netcdf',
+    'cdsapi',
+    's3fs',
+    'cftime',
+    # Hydrology specific
+    'hydrobm',
+    'baseflow',
+    # Utilities
+    'SALib',
+    'psutil',
+    'tqdm',
+    'yaml',
+    'requests',
+    'numexpr',
+    'bottleneck',
+    'networkx',
+    # AI/LLM
+    'openai',
+    # CLI
+    'rich',
+    # R integration
+    'rpy2',
+    # JAX (optional)
+    'jax',
+    'jaxlib',
+    # Pydantic
+    'pydantic',
+    'pydantic_core',
+    # Units
+    'pint',
+]
 
 # Project information
 project = 'SYMFLUENCE'

@@ -3021,6 +3021,13 @@ PET_METHOD: "oudin"
 #   Usage:      9
 SUPPLEMENT_FORCING: false
 
+# KEEP_RAW_FORCING
+#   Type:        bool
+#   Default:     True
+#   Source:      ForcingConfig (forcing.py)
+#   Usage:      1
+KEEP_RAW_FORCING: true
+
 # EM_PRCP
 #   Type:        str
 #   Default:     prcp

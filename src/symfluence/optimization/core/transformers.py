@@ -5,6 +5,7 @@ Provides transformers that apply calibration parameters to model-specific
 formats (e.g., soil depth multipliers for SUMMA NetCDF files).
 """
 
+from abc import ABC, abstractmethod
 import numpy as np
 import netCDF4 as nc
 from pathlib import Path
@@ -13,7 +14,7 @@ import logging
 
 from symfluence.core.mixins import ConfigMixin
 
-class ParameterTransformer(ConfigMixin):
+class ParameterTransformer(ConfigMixin, ABC):
     """Base class for parameter transformers."""
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         # Import here to avoid circular imports
@@ -41,6 +42,7 @@ class ParameterTransformer(ConfigMixin):
             self._config = config
         self.logger = logger
 
+    @abstractmethod
     def apply(self, params: Dict[str, Any], settings_dir: Path) -> bool:
         """Apply parameter transformations to model configuration files.
 
@@ -51,7 +53,6 @@ class ParameterTransformer(ConfigMixin):
         Returns:
             True if transformation succeeded, False otherwise.
         """
-        raise NotImplementedError
 
 class SoilDepthTransformer(ParameterTransformer):
     """Handles transformation of soil depth parameters."""

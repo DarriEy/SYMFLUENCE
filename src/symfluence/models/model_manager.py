@@ -1,137 +1,9 @@
 """Model Manager
 
-Orchestrates complete hydrological modeling workflow within SYMFLUENCE framework.
-Coordinates preprocessing of forcing data, model execution, output postprocessing,
-and visualization across multiple models using registry-based plugin architecture.
-
-Architecture:
-    The ModelManager acts as a facade for the entire modeling pipeline:
-
-    1. Workflow Resolution (_resolve_model_workflow)
-       - Parses HYDROLOGICAL_MODEL configuration parameter
-       - Automatically adds implicit dependencies (e.g., mizuRoute)
-       - Returns ordered execution list based on model relationships
-
-    2. Model Registry System
-       - Each model registers components: preprocessor, runner, postprocessor
-       - Registry enables dynamic model discovery without code changes
-       - Simplifies adding new models: register components, update config
-
-    3. Preprocessing Phase (preprocess_models)
-       - Iterates through resolved workflow
-       - Invokes model-specific preprocessor
-       - Converts generic forcing data to model input formats
-       - Example: Convert ERA5 to SUMMA forcing files
-
-    4. Execution Phase (run_models)
-       - Iterates through resolved workflow
-       - Retrieves registered runner for each model
-       - Executes model via model-specific runner method
-       - Captures outputs to model output directory
-
-    5. Postprocessing Phase (postprocess_results)
-       - Iterates through resolved workflow
-       - Invokes model postprocessor to extract results
-       - Standardizes outputs to common format (e.g., streamflow CSV)
-       - Calculates baseline performance metrics automatically
-
-    6. Visualization Phase (visualize_outputs)
-       - Invokes registered visualizer for each primary model
-       - Generates timeseries plots, diagnostics, comparisons
-
-Supported Models:
-    Primary hydrological models:
-    - SUMMA: Land surface model with distributed discretization
-    - FUSE: Modular/flexible semi-distributed model
-    - GR4J/GR6J: Lumped conceptual rainfall-runoff
-    - HYPE: Semi-distributed model with internal routing
-    - MESH: Pan-Arctic hydrological model
-    - NGEN: NextGen modular framework (experimental)
-    - LSTM: Neural network surrogate (experimental)
-    - HBV: JAX-based HBV-96 with gradient support (experimental)
-    - cFUSE: Differentiable FUSE with PyTorch/Enzyme AD (experimental)
-    - jFUSE: Differentiable FUSE with JAX autodiff (experimental)
-
-    Routing/postprocessing models:
-    - mizuRoute: Streamflow routing model (automatic dependency)
-
-Dependency Injection via mizuRoute:
-    Some models lack streamflow routing and require mizuRoute:
-    - SUMMA + mizuRoute: Distributed + routing
-    - FUSE + mizuRoute: Flexible + routing
-    - GR + mizuRoute: Lumped + routing
-    - HYPE: Internal routing, no mizuRoute needed
-    - MESH: Internal routing, no mizuRoute needed
-
-    Decision made by RoutingDecider.needs_routing() based on:
-    - Model type
-    - Configuration (routing_file, routing_config)
-    - Evaluation targets (if streamflow evaluation enabled)
-
-Registry-Based Plugin System:
-    Each model registers components via ModelRegistry:
-
-    1. Preprocessor Registration
-       @ModelRegistry.register_preprocessor('MYMODEL')
-       class MyPreprocessor:
-           def run_preprocessing(self): ...
-
-    2. Runner Registration
-       @ModelRegistry.register_runner('MYMODEL', method_name='run_model')
-       class MyRunner:
-           def run_model(self): ...
-
-    3. Postprocessor Registration
-       @ModelRegistry.register_postprocessor('MYMODEL')
-       class MyPostprocessor:
-           def extract_streamflow(self): ...
-
-    4. Visualizer Registration
-       @ModelRegistry.register_visualizer('MYMODEL')
-       def visualize_mymodel(reporting_manager, config, project_dir, ...): ...
-
-    Benefits:
-    - No changes to ModelManager to add new models
-    - Easy to enable/disable models via configuration
-    - Loose coupling between models and orchestrator
-    - Enables third-party model contributions
-
-Baseline Performance Metrics:
-    After postprocessing, automatically calculates and logs:
-    - KGE (Kling-Gupta Efficiency): Balance of correlation, variability, bias
-    - KGE' (Modified KGE): Symmetric variant
-    - NSE (Nash-Sutcliffe Efficiency): Correlation-based metric
-    - Bias (%): Mean bias relative to observations
-
-    Useful for:
-    - Understanding initial model performance
-    - Detecting model setup issues before calibration
-    - Establishing baseline for improvement assessment
-    - Identifying models that may need configuration changes
-
-Examples:
-    >>> # Create manager with config and logger
-    >>> from symfluence.models.model_manager import ModelManager
-    >>> manager = ModelManager(config, logger, reporting_manager=reporter)
-
-    >>> # Run complete workflow
-    >>> manager.preprocess_models()
-    >>> manager.run_models()
-    >>> manager.postprocess_results()
-    >>> manager.visualize_outputs()
-
-    >>> # Run with parameter variations (for calibration)
-    >>> params = {'SAI_SV': 0.3, 'snowCriticalTemp': -1.5}
-    >>> manager.preprocess_models(params=params)
-    >>> manager.run_models()
-    >>> manager.postprocess_results()
-
-References:
-    - Kling, H., et al. (2012). A framework for understanding structural and
-      parametric uncertainty in hydrological modelling. Water Resources
-      Management, 26(12), 3555-3569.
-    - Gupta, H. V., et al. (2009). Decomposition of the mean squared error
-      and NSE performance criteria. Journal of Hydrology, 377(1-2), 80-91.
+Lightweight facade that resolves model workflows, runs preprocess/execute/
+postprocess/visualize steps, and delegates component lookups to
+``ModelRegistry``. Detailed behaviour now lives in the docs (see
+``docs/source/architecture`` and ``docs/source/models/*``).
 """
 
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
@@ -147,173 +19,20 @@ if TYPE_CHECKING:
 
 
 class ModelManager(BaseManager):
-    """Orchestrates complete hydrological modeling workflow.
+    """Facade that turns a hydrological model list into an ordered workflow.
 
-    Coordinates preprocessing, execution, postprocessing, and visualization
-    of multiple hydrological models through registry-based plugin architecture.
-    Automatically handles model dependencies (e.g., mizuRoute routing).
-
-    Architecture Overview:
-        Workflow Resolution → Preprocessing → Execution → Postprocessing → Visualization
-
-        1. Workflow Resolution (_resolve_model_workflow)
-           - Parses config.model.hydrological_model (comma-separated list)
-           - Auto-adds mizuRoute if model requires routing
-           - Returns execution order respecting dependencies
-
-        2. Preprocessing (preprocess_models)
-           - Converts generic forcing to model-specific input formats
-           - Example: ERA5 → SUMMA forcings, NetCDF → GR input files
-           - Invokes model-specific preprocessor from registry
-
-        3. Execution (run_models)
-           - Runs each model in workflow order
-           - Invokes registered runner with model-specific method
-           - Captures outputs to model output directory
-
-        4. Postprocessing (postprocess_results)
-           - Extracts streamflow and other outputs
-           - Standardizes to common format (CSV with datetime index)
-           - Calculates baseline performance metrics
-           - Triggers visualizations
-
-        5. Visualization (visualize_outputs)
-           - Generates timeseries plots, diagnostics, comparisons
-           - Requires reporting_manager to be configured
-
-    Key Responsibilities:
-        - Resolve model execution order and handle implicit dependencies
-        - Preprocess forcing data into model-specific input formats
-        - Execute models using registered runner classes
-        - Postprocess model outputs and extract standardized results
-        - Calculate baseline performance metrics (KGE, NSE, Bias)
-        - Coordinate output visualization and reporting
-
-    Supported Models:
-        Primary: SUMMA, FUSE, GR4J, HYPE, MESH, NGEN, LSTM
-        Routing: mizuRoute (automatically added when needed)
-        Configuration: model.hydrological_model = "SUMMA,FUSE" (comma-separated)
-
-    Model Dependencies:
-        SUMMA/FUSE/GR + (routing enabled) → Adds MIZUROUTE automatically
-        HYPE/MESH/NGEN → Internal routing, no mizuRoute needed
-        LSTM → Data-driven, no routing needed
-
-    Registry-Based Plugin System:
-        Each model registers preprocessor, runner, postprocessor via ModelRegistry:
-        - Enables dynamic model discovery without modifying this class
-        - Simplifies adding new models: register components, update config
-        - Example: SUMMA registers SUMMAPreprocessor, SUMMARunner, SUMMAPostprocessor
-
-    Parameter-Based Preprocessing:
-        Preprocessing accepts optional params dict for calibration:
-        >>> manager.preprocess_models(params={'SAI_SV': 0.3, 'snowCriticalTemp': -1.5})
-        This applies parameter values during preprocessing if needed.
-
-    Baseline Metrics:
-        Automatically logged after postprocessing:
-        - KGE (Kling-Gupta Efficiency): Balanced metric combining correlation, variability, bias
-        - KGE' (Modified KGE): Symmetric variant for metric comparison
-        - NSE (Nash-Sutcliffe): Correlation-based efficiency metric
-        - Bias (%): Mean bias relative to observations
-        - Interpretation: KGE >= 0.7 indicates reasonable performance
-
-    Attributes:
-        _routing_decider: Class-level RoutingDecider instance for dependency resolution
-        config: SymfluenceConfig typed configuration object
-        logger: Logger instance
-        project_dir: Project root directory (from BaseManager)
-        reporting_manager: ReportingManager for visualization (optional)
-
-    Inherits from:
-        BaseManager: Provides config, logger, project_dir, and utility methods
-
-    Examples:
-        >>> # Standard workflow
-        >>> manager = ModelManager(config, logger, reporting_manager=reporter)
-        >>> manager.preprocess_models()
-        >>> manager.run_models()
-        >>> manager.postprocess_results()
-        >>> manager.visualize_outputs()
-
-        >>> # With parameter variations (calibration scenario)
-        >>> params = {'param1': 0.5, 'param2': 100.0}
-        >>> manager.preprocess_models(params=params)
-        >>> manager.run_models()
-        >>> manager.postprocess_results()
-
-    See Also:
-        ModelRegistry: Dynamic model component registration
-        RoutingDecider: Logic for mizuRoute dependency determination
-        BaseManager: Parent class providing config/logger utilities
+    Resolves routing dependencies, then runs preprocess → execute →
+    postprocess → visualize phases using components pulled from
+    ``ModelRegistry``. Full behaviour is covered in the docs; keeping this
+    concise speeds imports.
     """
 
     # Shared routing decision logic (class-level for efficiency)
     _routing_decider = RoutingDecider()
 
     def _resolve_model_workflow(self) -> List[str]:
-        """Resolve model execution order including implicit dependencies.
+        """Resolve execution order and add implicit routing dependencies."""
 
-        Parses config.model.hydrological_model (comma-separated list) and automatically
-        adds dependent models (e.g., mizuRoute) based on model capabilities and
-        configuration. Enables flexible model combinations while hiding complexity.
-
-        Workflow Resolution Algorithm:
-            1. Parse HYDROLOGICAL_MODEL config parameter (e.g., "SUMMA,FUSE")
-            2. Iterate through each model in specified order
-            3. For routable models (SUMMA, FUSE, GR):
-               - Check if routing required via RoutingDecider
-               - Automatically add MIZUROUTE to workflow if needed
-            4. Skip models with internal routing (HYPE, MESH, NGEN)
-            5. Return execution list
-
-        Routable vs Non-Routable Models:
-            Routable (require mizuRoute if routing enabled):
-            - SUMMA: Distributed land surface model (needs routing for streamflow)
-            - FUSE: Flexible conceptual framework (needs routing)
-            - GR: Lumped rainfall-runoff (needs routing)
-
-            Non-Routable (internal routing, skip mizuRoute):
-            - HYPE: Semi-distributed with built-in routing
-            - MESH: Pan-Arctic model with built-in routing
-            - NGEN: NextGen framework with built-in routing
-
-            Non-Hydrological (no routing needed):
-            - LSTM: Neural network surrogate
-            - Other: Data-driven models
-
-        Routing Decision Logic (via RoutingDecider):
-            mizuRoute is added if:
-            1. Model is routable (SUMMA, FUSE, GR) AND
-            2. Routing configuration exists (routing_file or routing_config) AND
-            3. Streamflow evaluation is enabled in optimization targets OR
-               Post-processing streamflow extraction is enabled
-
-        Returns:
-            List[str]: Model names in execution order
-            - Typically [primary_model] or [primary_model, 'MIZUROUTE']
-            - Example: ['SUMMA', 'MIZUROUTE']
-            - Example: ['HYPE']  (no mizuRoute, internal routing)
-            - Example: ['FUSE', 'MIZUROUTE']
-
-        Examples:
-            >>> # Single model with routing
-            >>> manager._resolve_model_workflow()
-            ['SUMMA', 'MIZUROUTE']
-
-            >>> # Single model without routing (internal)
-            >>> manager._resolve_model_workflow()
-            ['HYPE']
-
-            >>> # Multiple models
-            >>> manager._resolve_model_workflow()
-            ['SUMMA', 'MIZUROUTE', 'LSTM']
-
-        See Also:
-            _ensure_mizuroute_in_workflow(): Add mizuRoute and log context
-            RoutingDecider.needs_routing(): Determine routing requirements
-            run_models(): Execute resolved workflow
-        """
         models_str = self.config.model.hydrological_model or ''
         configured_models = [m.strip() for m in str(models_str).split(',') if m.strip()]
         execution_list = []
@@ -574,10 +293,11 @@ class ModelManager(BaseManager):
             - Outputs: Routed streamflow to project_dir/MIZUROUTE_output/
 
         Registry Integration:
-            Each model registers its runner class and method name:
-            @ModelRegistry.register_runner('MYMODEL', method_name='run_model')
-            class MyRunner:
-                def run_model(self): ...
+            Each model registers its runner class and method name::
+
+                @ModelRegistry.register_runner('MYMODEL', method_name='run_model')
+                class MyRunner:
+                    def run_model(self): ...
 
         Execution Dependencies:
             Order matters for models with dependencies:
@@ -586,17 +306,19 @@ class ModelManager(BaseManager):
             3. Order preserved by _resolve_model_workflow()
 
         Output Directories:
-            Each runner saves outputs to: project_dir/{MODEL}_output/
-            Example structure:
-            project_dir/
-            ├── SUMMA_output/
-            │   ├── output.nc (NetCDF with all variables)
-            │   └── ...
-            ├── MIZUROUTE_output/
-            │   ├── Qrouted*.txt (routed streamflow)
-            │   └── ...
-            └── results/
-                └── {experiment_id}_results.csv (postprocessed)
+            Each runner saves outputs to: ``project_dir/{MODEL}_output/``
+
+            Example structure::
+
+                project_dir/
+                ├── SUMMA_output/
+                │   ├── output.nc (NetCDF with all variables)
+                │   └── ...
+                ├── MIZUROUTE_output/
+                │   ├── Qrouted*.txt (routed streamflow)
+                │   └── ...
+                └── results/
+                    └── {experiment_id}_results.csv (postprocessed)
 
         Raises:
             Exception: If model execution fails (logged with traceback and re-raised)
@@ -727,32 +449,28 @@ class ModelManager(BaseManager):
         4. Identify models needing attention before calibration
 
         Metrics Calculated:
-            KGE (Kling-Gupta Efficiency):
-            - Formula: KGE = 1 - sqrt((r-1)² + (α-1)² + (β-1)²)
-            - r: Correlation coefficient (0-1, perfect=1)
-            - α: Ratio of simulated to observed std dev
-            - β: Ratio of simulated to observed mean
-            - Range: [-∞, 1], interpretation:
-              * KGE ≥ 0.7: Reasonable performance
-              * 0.5 ≤ KGE < 0.7: Requires calibration
-              * KGE < 0.5: Needs significant improvements
-              * KGE < 0: Worse than using observed mean
 
-            KGE' (Modified KGE):
-            - Symmetric variant for metric comparison
-            - Useful when comparing multiple model configurations
+            **KGE (Kling-Gupta Efficiency)**:
+            Formula: ``KGE = 1 - sqrt((r-1)² + (α-1)² + (β-1)²)``
+            where r is correlation coefficient, α is ratio of simulated to observed
+            std dev, β is ratio of simulated to observed mean.
+            Range: [-∞, 1]. KGE >= 0.7 indicates reasonable performance,
+            0.5 <= KGE < 0.7 requires calibration, KGE < 0.5 needs significant
+            improvements, KGE < 0 is worse than using observed mean.
 
-            NSE (Nash-Sutcliffe Efficiency):
-            - Formula: NSE = 1 - (Σ(Qobs-Qsim)² / Σ(Qobs-Qmean)²)
-            - Correlation-based metric
-            - Range: [-∞, 1], similar interpretation as KGE
-            - Less sensitive to bias and variability than KGE
+            **KGE' (Modified KGE)**:
+            Symmetric variant for metric comparison. Useful when comparing
+            multiple model configurations.
 
-            Bias (%):
-            - Formula: Bias = ((Mean_Sim - Mean_Obs) / Mean_Obs) × 100
-            - Positive: Model overestimates
-            - Negative: Model underestimates
-            - Can indicate systematic model errors
+            **NSE (Nash-Sutcliffe Efficiency)**:
+            Formula: ``NSE = 1 - (Σ(Qobs-Qsim)² / Σ(Qobs-Qmean)²)``
+            Correlation-based metric with range [-∞, 1], similar interpretation
+            as KGE. Less sensitive to bias and variability than KGE.
+
+            **Bias (%)**:
+            Formula: ``Bias = ((Mean_Sim - Mean_Obs) / Mean_Obs) × 100``
+            Positive values indicate model overestimates, negative indicates
+            underestimates. Can indicate systematic model errors.
 
         Data Sources:
             1. Simulation Results: results_dir/{experiment_id}_results.csv
@@ -774,7 +492,8 @@ class ModelManager(BaseManager):
                d. Log results with interpretation
             4. Log footer with metrics summary
 
-        Output Format:
+        Output Format::
+
             ========================================================
             BASELINE MODEL PERFORMANCE (before calibration)
             ========================================================

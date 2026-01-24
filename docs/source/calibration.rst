@@ -1,3 +1,5 @@
+.. _calibration:
+
 Calibration and Optimization
 ============================
 
@@ -217,20 +219,23 @@ Calibration Execution
 
 .. code-block:: python
 
-   from symfluence import Configuration, Calibrator
+   from symfluence import SYMFLUENCE
 
-   # Load configuration
-   config = Configuration('my_project.yaml')
+   # Initialize SYMFLUENCE with configuration
+   sf = SYMFLUENCE('my_project.yaml')
 
-   # Initialize calibrator
-   calibrator = Calibrator(config)
+   # Run calibration step
+   sf.run_calibration()
 
-   # Run calibration
-   results = calibrator.optimize()
+   # Or run the optimization manager directly
+   from symfluence.optimization import OptimizationManager
 
-   # Get best parameters
-   best_params = results.best_parameters
-   best_score = results.best_score
+   opt_manager = OptimizationManager(config, logger)
+   results = opt_manager.run_optimization()
+
+   # Get best parameters from results
+   best_params = results.get('best_parameters', {})
+   best_score = results.get('best_score', None)
 
 Results and Evaluation
 ----------------------
