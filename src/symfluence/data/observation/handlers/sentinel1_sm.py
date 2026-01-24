@@ -91,7 +91,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
         basin_gdf = self._load_catchment_shapefile()
 
         # Process files
-        results = {'datetime': [], 'soil_moisture': [], 'backscatter_vv': []}
+        results: dict[str, list] = {'datetime': [], 'soil_moisture': [], 'backscatter_vv': []}
 
         # Process NetCDF files (preprocessed SM)
         for nc_file in nc_files:

@@ -41,7 +41,7 @@ def nse_loss(
     warmup_days: int = 365,
     use_jax: bool = True,
     timestep_hours: int = 24
-) -> float:
+) -> Any:
     """
     Compute negative NSE (Nash-Sutcliffe Efficiency) loss.
 
@@ -102,7 +102,7 @@ def kge_loss(
     warmup_days: int = 365,
     use_jax: bool = True,
     timestep_hours: int = 24
-) -> float:
+) -> Any:
     """
     Compute negative KGE (Kling-Gupta Efficiency) loss.
 

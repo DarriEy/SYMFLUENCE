@@ -99,7 +99,7 @@ class ABCAlgorithm(OptimizationAlgorithm):
                 'min_generations': self.config_dict.get('ABC_MIN_GENERATIONS', 5),
             }
 
-    def optimize(
+    def optimize(  # type: ignore[override]
         self,
         n_params: int,
         evaluate_solution: Callable[[np.ndarray, int], float],

@@ -7,7 +7,7 @@ with dynamic grid dimensions and configurable coefficients.
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -332,7 +332,7 @@ class FireDefGenerator:
         return content
 
 
-def validate_fire_def(file_path: Union[str, Path]) -> Dict[str, any]:
+def validate_fire_def(file_path: Union[str, Path]) -> Dict[str, Any]:
     """
     Validate a fire.def file and return parsed parameters.
 

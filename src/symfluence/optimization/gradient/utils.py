@@ -24,7 +24,7 @@ try:
     HAS_JAX = True
 except ImportError:
     HAS_JAX = False
-    jnp = np
+    jnp = np  # type: ignore[misc]
 
 
 class EMA:

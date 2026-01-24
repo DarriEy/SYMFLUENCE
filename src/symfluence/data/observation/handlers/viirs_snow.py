@@ -92,7 +92,7 @@ class VIIRSSnowHandler(BaseObservationHandler):
         basin_gdf = self._load_catchment_shapefile()
 
         # Process files
-        results = {'datetime': [], 'sca': [], 'snow_albedo': []}
+        results: dict[str, list] = {'datetime': [], 'sca': [], 'snow_albedo': []}
 
         for nc_file in nc_files:
             try:
@@ -192,7 +192,7 @@ class VIIRSSnowHandler(BaseObservationHandler):
         lat_name = self._find_coord(ds, ['lat', 'latitude', 'y'])
         lon_name = self._find_coord(ds, ['lon', 'longitude', 'x'])
 
-        results = {'datetime': [], 'sca': [], 'snow_albedo': []}
+        results: dict[str, list] = {'datetime': [], 'sca': [], 'snow_albedo': []}
 
         if time_dim:
             time_vals = pd.to_datetime(ds[time_dim].values)

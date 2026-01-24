@@ -28,7 +28,7 @@ class NSGA2Algorithm(OptimizationAlgorithm):
         """Algorithm identifier for logging and result tracking."""
         return "NSGA-II"
 
-    def optimize(
+    def optimize(  # type: ignore[override]
         self,
         n_params: int,
         evaluate_solution: Callable[[np.ndarray, int], float],

@@ -7,8 +7,10 @@ Provides common utilities for data processing:
 - Archive utilities
 """
 
-import sys as _sys
+import logging as _logging
 from typing import Any
+
+_logger = _logging.getLogger(__name__)
 
 # Fail-safe imports to prevent package loading failures in CI
 # If an import fails, we set None and log the error
@@ -27,7 +29,7 @@ try:
         BBox,
     )
 except ImportError as e:
-    print(f"WARNING: Failed to import spatial_utils: {e}", file=_sys.stderr)
+    _logger.warning("Failed to import spatial_utils: %s", e)
     crop_raster_to_bbox: Any = None  # type: ignore
     read_raster_window: Any = None  # type: ignore
     read_raster_multiband_window: Any = None  # type: ignore
@@ -42,7 +44,7 @@ except ImportError as e:
 try:
     from .variable_utils import VariableHandler, VariableStandardizer
 except ImportError as e:
-    print(f"WARNING: Failed to import variable_utils: {e}", file=_sys.stderr)
+    _logger.warning("Failed to import variable_utils: %s", e)
     VariableHandler: Any = None  # type: ignore
     VariableStandardizer: Any = None  # type: ignore
 

@@ -100,6 +100,22 @@ git push origin develop
 - Keep functions focused and testable.
 - Prefer explicit over implicit; avoid magic numbers.
 
+### Type Checking Notes
+
+SYMFLUENCE uses mypy for static type checking. Some files contain `# type: ignore` comments due to limitations in third-party type stubs:
+
+| Library | Issue | Affected Modules |
+|---------|-------|------------------|
+| **matplotlib** | Incomplete type stubs for plotting APIs | `reporting/plotters/` |
+| **xarray** | Complex generic types not fully captured | `reporting/processors/`, data modules |
+| **pandas** | Some DataFrame operations lack precise types | Various data processing |
+| **GDAL/rasterio** | C extension bindings have limited type info | Geospatial modules |
+
+These suppressions are intentional and reviewed. When adding new `# type: ignore` comments:
+1. Use the most specific form: `# type: ignore[error-code]`
+2. Add a brief comment explaining why it's needed
+3. Prefer fixing the type issue if possible
+
 ### Docstring Conventions
 We use NumPy-style docstrings for consistency. Include:
 - A one-line summary
