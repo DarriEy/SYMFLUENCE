@@ -356,6 +356,15 @@ def test_quick_workflow_summa_only(
     """
     from test_helpers.helpers import load_config_template, write_config
 
+    # Validate required source data exists before proceeding
+    src_domain_name = bow_domain.name.replace("domain_", "")
+    dem_path = bow_domain / "attributes" / "elevation" / "dem" / f"domain_{src_domain_name}_elv.tif"
+    if not dem_path.exists():
+        # Also check alternative naming convention
+        dem_path_alt = bow_domain / "attributes" / "elevation" / "dem" / f"{src_domain_name}_elv.tif"
+        if not dem_path_alt.exists():
+            pytest.skip(f"DEM file not found: {dem_path} (test data not available)")
+
     # Setup installs symlink for TauDEM
     _setup_installs_symlink(tmp_path, symfluence_data_root)
 
@@ -476,6 +485,14 @@ def test_full_workflow_1month(
     """
     from test_helpers.helpers import load_config_template, write_config
 
+    # Validate required source data exists before proceeding
+    src_domain_name = bow_domain.name.replace("domain_", "")
+    dem_path = bow_domain / "attributes" / "elevation" / "dem" / f"domain_{src_domain_name}_elv.tif"
+    if not dem_path.exists():
+        dem_path_alt = bow_domain / "attributes" / "elevation" / "dem" / f"{src_domain_name}_elv.tif"
+        if not dem_path_alt.exists():
+            pytest.skip(f"DEM file not found: {dem_path} (test data not available)")
+
     # Setup installs symlink for TauDEM
     _setup_installs_symlink(tmp_path, symfluence_data_root)
 
@@ -566,6 +583,14 @@ def test_calibration_workflow(tmp_path, symfluence_code_dir, symfluence_data_roo
     import pandas as pd
     import math
     from test_helpers.helpers import load_config_template, write_config
+
+    # Validate required source data exists before proceeding
+    src_domain_name = bow_domain.name.replace("domain_", "")
+    dem_path = bow_domain / "attributes" / "elevation" / "dem" / f"domain_{src_domain_name}_elv.tif"
+    if not dem_path.exists():
+        dem_path_alt = bow_domain / "attributes" / "elevation" / "dem" / f"{src_domain_name}_elv.tif"
+        if not dem_path_alt.exists():
+            pytest.skip(f"DEM file not found: {dem_path} (test data not available)")
 
     # Setup installs symlink for TauDEM
     _setup_installs_symlink(tmp_path, symfluence_data_root)

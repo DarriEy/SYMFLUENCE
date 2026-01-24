@@ -275,7 +275,7 @@ class TestERA5LandProcessing:
                 'lon': [-106, -105.5, -105],
             }
         )
-        ds.to_netcdf(mock_file)
+        ds.to_netcdf(mock_file, engine='scipy')
 
         mock_config['ERA5_LAND_DIR'] = str(era5_dir)
         handler = ERA5LandHandler(mock_config, logger)
@@ -307,7 +307,7 @@ class TestMSWEPProcessing:
                 'lon': [-106, -105.5, -105],
             }
         )
-        ds.to_netcdf(mock_file)
+        ds.to_netcdf(mock_file, engine='scipy')
 
         mock_config['MSWEP_DIR'] = str(mswep_dir)
         handler = MSWEPHandler(mock_config, logger)
@@ -332,8 +332,8 @@ class TestMODISLSTProcessing:
         # LST values in scaled DN (will be multiplied by 0.02 to get K)
         ds = xr.Dataset(
             data_vars={
-                'LST_Day_1km': (('time', 'lat', 'lon'), np.random.randint(13000, 16000, (len(times), 3, 3))),
-                'LST_Night_1km': (('time', 'lat', 'lon'), np.random.randint(12000, 15000, (len(times), 3, 3))),
+                'LST_Day_1km': (('time', 'lat', 'lon'), np.random.randint(13000, 16000, (len(times), 3, 3)).astype(np.float64)),
+                'LST_Night_1km': (('time', 'lat', 'lon'), np.random.randint(12000, 15000, (len(times), 3, 3)).astype(np.float64)),
             },
             coords={
                 'time': times,
@@ -341,7 +341,7 @@ class TestMODISLSTProcessing:
                 'lon': [-106, -105.5, -105],
             }
         )
-        ds.to_netcdf(mock_file)
+        ds.to_netcdf(mock_file, engine='scipy')
 
         mock_config['MODIS_LST_DIR'] = str(lst_dir)
         handler = MODISLSTHandler(mock_config, logger)
@@ -367,8 +367,8 @@ class TestMODISLAIProcessing:
         # LAI values in scaled DN (0-100, will be multiplied by 0.1)
         ds = xr.Dataset(
             data_vars={
-                'Lai_500m': (('time', 'lat', 'lon'), np.random.randint(0, 70, (len(times), 3, 3))),
-                'Fpar_500m': (('time', 'lat', 'lon'), np.random.randint(0, 100, (len(times), 3, 3))),
+                'Lai_500m': (('time', 'lat', 'lon'), np.random.randint(0, 70, (len(times), 3, 3)).astype(np.float64)),
+                'Fpar_500m': (('time', 'lat', 'lon'), np.random.randint(0, 100, (len(times), 3, 3)).astype(np.float64)),
             },
             coords={
                 'time': times,
@@ -376,7 +376,7 @@ class TestMODISLAIProcessing:
                 'lon': [-106, -105.5, -105],
             }
         )
-        ds.to_netcdf(mock_file)
+        ds.to_netcdf(mock_file, engine='scipy')
 
         mock_config['MODIS_LAI_DIR'] = str(lai_dir)
         handler = MODISLAIHandler(mock_config, logger)
@@ -468,7 +468,7 @@ class TestDaymetProcessing:
                 'lon': [-106, -105.5, -105],
             }
         )
-        ds.to_netcdf(mock_file)
+        ds.to_netcdf(mock_file, engine='scipy')
 
         mock_config['DAYMET_DIR'] = str(daymet_dir)
         handler = DaymetHandler(mock_config, logger)
@@ -493,7 +493,7 @@ class TestVIIRSSnowProcessing:
         # NDSI Snow Cover values (0-100)
         ds = xr.Dataset(
             data_vars={
-                'CGF_NDSI_Snow_Cover': (('time', 'lat', 'lon'), np.random.randint(0, 100, (len(times), 3, 3))),
+                'CGF_NDSI_Snow_Cover': (('time', 'lat', 'lon'), np.random.randint(0, 100, (len(times), 3, 3)).astype(np.float64)),
             },
             coords={
                 'time': times,
@@ -501,7 +501,7 @@ class TestVIIRSSnowProcessing:
                 'lon': [-106, -105.5, -105],
             }
         )
-        ds.to_netcdf(mock_file)
+        ds.to_netcdf(mock_file, engine='scipy')
 
         mock_config['VIIRS_SNOW_DIR'] = str(viirs_dir)
         handler = VIIRSSnowHandler(mock_config, logger)
