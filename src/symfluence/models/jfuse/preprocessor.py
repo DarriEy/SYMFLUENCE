@@ -611,10 +611,10 @@ class JFUSEPreProcessor(BaseModelPreProcessor):
                 'pet': 'mean'
             })
 
-            return (
-                df_daily['precip'].values[:, np.newaxis],
-                df_daily['temp'].values[:, np.newaxis],
-                df_daily['pet'].values[:, np.newaxis],
+            return (  # type: ignore[return-value]
+                np.asarray(df_daily['precip'].values)[:, np.newaxis],
+                np.asarray(df_daily['temp'].values)[:, np.newaxis],
+                np.asarray(df_daily['pet'].values)[:, np.newaxis],
                 df_daily.index
             )
         else:
@@ -640,7 +640,7 @@ class JFUSEPreProcessor(BaseModelPreProcessor):
                 temp_daily.append(df_daily['temp'].values)
                 pet_daily.append(df_daily['pet'].values)
 
-            return (
+            return (  # type: ignore[return-value]
                 np.column_stack(precip_daily),
                 np.column_stack(temp_daily),
                 np.column_stack(pet_daily),
@@ -722,4 +722,4 @@ class JFUSEPreProcessor(BaseModelPreProcessor):
         else:
             observations = None
 
-        return forcing, observations
+        return forcing, observations  # type: ignore[return-value]

@@ -280,7 +280,7 @@ class UnifiedModelRunner(BaseModelRunner, UnifiedModelExecutor):
     # Main Execution Interface
     # =========================================================================
 
-    def run(self) -> Optional[Path]:
+    def run(self, **kwargs: Any) -> Optional[Path]:  # type: ignore[override]
         """
         Execute the model using the unified framework.
 

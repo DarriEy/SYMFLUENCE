@@ -670,10 +670,10 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
 
         # Add topology file if available
         if topology_file:
-            troute_config['network_topology_parameters']['supernetwork_parameters']['geo_file_path'] = str(topology_file)
+            troute_config['network_topology_parameters']['supernetwork_parameters']['geo_file_path'] = str(topology_file)  # type: ignore[index]
         else:
             # For lumped domains or missing network, use nexus file as simple network
-            troute_config['network_topology_parameters']['supernetwork_parameters']['geo_file_path'] = str(nexus_file)
+            troute_config['network_topology_parameters']['supernetwork_parameters']['geo_file_path'] = str(nexus_file)  # type: ignore[index]
 
         # Write config file
         troute_config_file = self.setup_dir / 'troute_config.yaml'

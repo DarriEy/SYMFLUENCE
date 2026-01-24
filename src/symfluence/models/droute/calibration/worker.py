@@ -216,6 +216,7 @@ class DRouteWorker(BaseWorker):
                     obs_daily = obs_cms
 
                 # Align with runoff time
+                assert self._time_index is not None
                 forcing_dates = pd.to_datetime(self._time_index).normalize()
                 self._observations = obs_daily.reindex(forcing_dates).values
             else:
@@ -388,6 +389,7 @@ class DRouteWorker(BaseWorker):
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        assert self._network_config is not None
         outlet_indices = self._network_config['outlet_indices']
         outlet_idx = outlet_indices[0] if outlet_indices else 0
 

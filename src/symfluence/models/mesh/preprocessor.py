@@ -99,6 +99,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self._meshflow_config,
                 self.logger
             )
+        assert self._meshflow_manager is not None
         return self._meshflow_manager
 
     @property
@@ -119,6 +120,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self.config_dict,
                 self.logger
             )
+        assert self._drainage_database is not None
         return self._drainage_database
 
     @property
@@ -137,6 +139,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self.logger,
                 self.get_simulation_time_window
             )
+        assert self._parameter_fixer is not None
         return self._parameter_fixer
 
     @property
@@ -155,6 +158,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self.logger,
                 self.get_simulation_time_window
             )
+        assert self._config_generator is not None
         return self._config_generator
 
     @property
@@ -171,6 +175,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self._meshflow_config,
                 self.logger
             )
+        assert self._forcing_processor is not None
         return self._forcing_processor
 
     @property
@@ -188,6 +193,7 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 self.config_dict,
                 self.logger
             )
+        assert self._data_preprocessor is not None
         return self._data_preprocessor
 
     def _get_spatial_mode(self) -> str:
@@ -429,6 +435,8 @@ class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
                 "meshflow is not available. Install with: "
                 "pip install git+https://github.com/CH-Earth/meshflow.git@main"
             )
+
+        assert self._meshflow_config is not None, "meshflow config must be set before running"
 
         # Prepare shapefiles
         riv_copy = self.forcing_dir / f"temp_{Path(self._meshflow_config['riv']).name}"

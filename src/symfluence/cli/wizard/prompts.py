@@ -150,6 +150,8 @@ class WizardPrompts:
             )
 
             # Check for special commands
+            if response is None:
+                continue
             if response.lower().strip() in (self.BACK_COMMAND, self.QUIT_COMMAND, self.HELP_COMMAND):
                 return response
 

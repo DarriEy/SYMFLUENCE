@@ -248,10 +248,20 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             hru_id_mapping = None
             if var_id in ds.data_vars and var_id not in ds.coords:
                 # hruId is a data variable - get the mapping from hru index to actual IDs
-                hru_id_values = ds[var_id].values.astype(int)
+                hru_id_da = ds[var_id]
                 # Find the dimension name for hruId (typically 'hru')
-                hru_dim = ds[var_id].dims[0] if ds[var_id].dims else None
+                hru_dim = hru_id_da.dims[0] if hru_id_da.dims else None
                 if hru_dim:
+                    # Handle multi-dimensional case (e.g., if hruId has time dimension)
+                    # Take the first time slice if multiple dimensions exist
+                    if hru_id_da.ndim > 1:
+                        # Select first index along all dimensions except the hru dimension
+                        sel_dict = {str(dim): 0 for dim in hru_id_da.dims if dim != hru_dim}
+                        hru_id_values = hru_id_da.isel(**sel_dict).values.flatten()
+                    else:
+                        hru_id_values = hru_id_da.values.flatten()
+                    # Convert to integer and create mapping
+                    hru_id_values = hru_id_values.astype(int)
                     hru_id_mapping = {i: int(hru_id_values[i]) for i in range(len(hru_id_values))}
             elif var_id in ds.coords:
                 # hruId is already a coordinate - cast to int

@@ -548,7 +548,7 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
         else:
             obs = None
 
-        return forcing, obs
+        return forcing, obs  # type: ignore[return-value]
 
     def _save_lumped_results(self, runoff: np.ndarray, time_index: pd.DatetimeIndex) -> None:
         """Save lumped simulation results."""

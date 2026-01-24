@@ -146,6 +146,18 @@ _LAZY_IMPORTS = {
     'EMA': ('.optimizers', 'EMA'),
     'CalibrationResult': ('.optimizers', 'CalibrationResult'),
     'EXTENDED_PARAM_BOUNDS': ('.optimizers', 'EXTENDED_PARAM_BOUNDS'),
+
+    # ODE-based implementation (diffrax with adjoint gradients)
+    'HAS_DIFFRAX': ('.hbv_ode', 'HAS_DIFFRAX'),
+    'HBVODEState': ('.hbv_ode', 'HBVODEState'),
+    'AdjointMethod': ('.hbv_ode', 'AdjointMethod'),
+    'hbv_dynamics': ('.hbv_ode', 'hbv_dynamics'),
+    'simulate_ode': ('.hbv_ode', 'simulate_ode'),
+    'simulate_ode_with_routing': ('.hbv_ode', 'simulate_ode_with_routing'),
+    'nse_loss_ode': ('.hbv_ode', 'nse_loss_ode'),
+    'get_nse_gradient_fn_ode': ('.hbv_ode', 'get_nse_gradient_fn_ode'),
+    'compare_gradients': ('.hbv_ode', 'compare_gradients'),
+    'create_forcing_interpolant': ('.hbv_ode', 'create_forcing_interpolant'),
 }
 
 
@@ -257,6 +269,18 @@ if TYPE_CHECKING:
         CalibrationResult,
         EXTENDED_PARAM_BOUNDS,
     )
+    from .hbv_ode import (
+        HAS_DIFFRAX,
+        HBVODEState,
+        AdjointMethod,
+        hbv_dynamics,
+        simulate_ode,
+        simulate_ode_with_routing,
+        nse_loss_ode,
+        get_nse_gradient_fn_ode,
+        compare_gradients,
+        create_forcing_interpolant,
+    )
 
 
 __all__ = [
@@ -340,4 +364,16 @@ __all__ = [
 
     # Registration helper
     'register_with_model_registry',
+
+    # ODE-based implementation (diffrax with adjoint gradients)
+    'HAS_DIFFRAX',
+    'HBVODEState',
+    'AdjointMethod',
+    'hbv_dynamics',
+    'simulate_ode',
+    'simulate_ode_with_routing',
+    'nse_loss_ode',
+    'get_nse_gradient_fn_ode',
+    'compare_gradients',
+    'create_forcing_interpolant',
 ]

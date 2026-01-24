@@ -179,7 +179,7 @@ class FUSEWorker(BaseWorker):
         """
         import netCDF4 as nc
 
-        params_updated = set()
+        params_updated: set[str] = set()
 
         try:
             with nc.Dataset(para_def_path, 'r+') as ds:

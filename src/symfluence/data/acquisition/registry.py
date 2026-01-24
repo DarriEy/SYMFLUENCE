@@ -47,7 +47,7 @@ class AcquisitionRegistry(BaseRegistry):
     _handlers: Dict[str, Type] = {}
 
     @classmethod
-    def get_handler(
+    def get_handler(  # type: ignore[override]
         cls,
         dataset_name: str,
         config: Union['SymfluenceConfig', Dict[str, Any]],
