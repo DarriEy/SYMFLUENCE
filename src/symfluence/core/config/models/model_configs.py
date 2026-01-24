@@ -558,6 +558,124 @@ class GNNConfig(BaseModel):
     parameter_bounds: Optional[Dict[str, List[float]]] = Field(default=None, alias='GNN_PARAMETER_BOUNDS')
 
 
+class IGNACIOConfig(BaseModel):
+    """IGNACIO fire spread model configuration.
+
+    IGNACIO implements the Canadian Forest Fire Behavior Prediction (FBP) System
+    with Richards' elliptical wave propagation for fire spread modeling.
+
+    This is a standalone fire model that can be run independently or compared
+    with WMFire results for validation.
+
+    Reference:
+        IGNACIO: https://github.com/KatherineHopeReece/Fire-Engine-Framework
+    """
+    model_config = FROZEN_CONFIG
+
+    # Project settings
+    project_name: str = Field(
+        default='ignacio_run',
+        alias='IGNACIO_PROJECT_NAME',
+        description='Name for the IGNACIO simulation project'
+    )
+    output_dir: str = Field(
+        default='default',
+        alias='IGNACIO_OUTPUT_DIR',
+        description='Output directory for IGNACIO results'
+    )
+
+    # Terrain inputs
+    dem_path: Optional[str] = Field(
+        default=None,
+        alias='IGNACIO_DEM_PATH',
+        description='Path to DEM raster file'
+    )
+
+    # Fuel inputs
+    fuel_path: Optional[str] = Field(
+        default=None,
+        alias='IGNACIO_FUEL_PATH',
+        description='Path to fuel type raster'
+    )
+    default_fuel_type: str = Field(
+        default='C-2',
+        alias='IGNACIO_DEFAULT_FUEL',
+        description='Default FBP fuel type code'
+    )
+
+    # Ignition configuration
+    ignition_shapefile: Optional[str] = Field(
+        default=None,
+        alias='IGNACIO_IGNITION_SHAPEFILE',
+        description='Path to ignition point shapefile'
+    )
+    ignition_date: Optional[str] = Field(
+        default=None,
+        alias='IGNACIO_IGNITION_DATE',
+        description='Ignition date/time as YYYY-MM-DD HH:MM:SS'
+    )
+
+    # Weather configuration
+    station_path: Optional[str] = Field(
+        default=None,
+        alias='IGNACIO_STATION_PATH',
+        description='Path to weather station CSV file'
+    )
+    calculate_fwi: bool = Field(
+        default=True,
+        alias='IGNACIO_CALCULATE_FWI',
+        description='Calculate FWI from weather data'
+    )
+
+    # Simulation parameters
+    dt: float = Field(
+        default=1.0,
+        alias='IGNACIO_DT',
+        ge=0.1,
+        le=60.0,
+        description='Simulation timestep in minutes'
+    )
+    max_duration: int = Field(
+        default=480,
+        alias='IGNACIO_MAX_DURATION',
+        ge=1,
+        le=43200,
+        description='Maximum simulation duration in minutes'
+    )
+
+    # Output configuration
+    save_perimeters: bool = Field(
+        default=True,
+        alias='IGNACIO_SAVE_PERIMETERS',
+        description='Save fire perimeter shapefiles'
+    )
+
+    # Comparison with WMFire
+    compare_with_wmfire: bool = Field(
+        default=False,
+        alias='IGNACIO_COMPARE_WMFIRE',
+        description='Compare fire perimeters with WMFire results'
+    )
+
+    @field_validator('ignition_date')
+    @classmethod
+    def validate_ignition_date(cls, v: Optional[str]) -> Optional[str]:
+        """Validate ignition date format."""
+        if v is not None:
+            from datetime import datetime
+            for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"]:
+                try:
+                    datetime.strptime(v, fmt)
+                    return v
+                except ValueError:
+                    continue
+            raise ValueError(
+                f"Invalid ignition date format: {v}. "
+                f"Expected YYYY-MM-DD or YYYY-MM-DD HH:MM:SS"
+            )
+        return v
+
+
 class ModelConfig(BaseModel):
     """Hydrological model configuration"""
     model_config = FROZEN_CONFIG
@@ -565,6 +683,7 @@ class ModelConfig(BaseModel):
     # Required model selection
     hydrological_model: Union[str, List[str]] = Field(alias='HYDROLOGICAL_MODEL')
     routing_model: Optional[str] = Field(default=None, alias='ROUTING_MODEL')
+    fire_model: Optional[str] = Field(default=None, alias='FIRE_MODEL')
 
     # Model-specific configurations (optional, validated only if model is selected)
     summa: Optional[SUMMAConfig] = Field(default=None)
@@ -579,6 +698,7 @@ class ModelConfig(BaseModel):
     lstm: Optional[LSTMConfig] = Field(default=None, alias='lstm')
     rhessys: Optional[RHESSysConfig] = Field(default=None)
     gnn: Optional[GNNConfig] = Field(default=None)
+    ignacio: Optional[IGNACIOConfig] = Field(default=None)
 
     @field_validator('hydrological_model')
     @classmethod
@@ -636,5 +756,12 @@ class ModelConfig(BaseModel):
                 values['mizuroute'] = MizuRouteConfig()
             elif routing_upper == 'DROUTE' and values.get('droute') is None:
                 values['droute'] = DRouteConfig()
+
+        # Auto-create fire model config if needed
+        fire_model = values.get('FIRE_MODEL') or values.get('fire_model')
+        if fire_model:
+            fire_upper = str(fire_model).upper()
+            if fire_upper == 'IGNACIO' and values.get('ignacio') is None:
+                values['ignacio'] = IGNACIOConfig()
 
         return values

@@ -2,6 +2,9 @@
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.build]
 packages = ["src/symfluence"]
 
@@ -54,12 +57,7 @@ dependencies = [
   "cftime>=1.6.0,<2.0.0",
   # Hydrology specific
   "hydrobm",
-  "baseflow",
-  # MESH model preprocessing - meshflow and its correct hydrant dependency
-  # NOTE: hydrant on PyPI is a different package (Amazon Kinesis Firehose).
-  # The correct hydrant for hydrological topology is from kasra-keshavarz's repo.
-  "hydrant @ git+https://github.com/kasra-keshavarz/hydrant.git",
-  "meshflow @ git+https://github.com/CH-Earth/meshflow.git@main",
+  # Note: baseflow is optional due to Python version constraints (see [project.optional-dependencies])
   # Utilities
   "SALib>=1.4.0,<2.0.0",
   "psutil>=5.9.0,<6.0.0",
@@ -76,6 +74,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# NOTE: MESH model support requires additional packages not on PyPI.
+# Install manually after symfluence:
+#   uv pip install git+https://github.com/kasra-keshavarz/hydrant.git
+#   uv pip install git+https://github.com/CH-Earth/meshflow.git@main
+# Baseflow separation (requires Python <3.10 due to numba constraints)
+baseflow = [
+  "baseflow",
+]
 # R integration (requires R and libgcc to be installed)
 r = [
   "rpy2>=3.5.0,<4.0.0",
@@ -107,7 +113,7 @@ notebook = [
 ]
 # All development dependencies
 all = [
-  "symfluence[dev,test,docs,notebook]",
+  "symfluence[r,dev,test,docs,notebook]",
 ]
 
 [project.scripts]

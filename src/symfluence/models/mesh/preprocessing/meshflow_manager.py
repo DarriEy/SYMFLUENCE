@@ -137,9 +137,10 @@ try:
     MESHFLOW_AVAILABLE = True
     # Apply runtime patch for meshflow bug
     _patch_meshflow_network_bug()
-except ImportError:
+except Exception as e:
     MESHFLOW_AVAILABLE = False
     MESHWorkflow = None
+    logging.getLogger(__name__).warning(f"meshflow import failed; MESH preprocessing disabled: {e}")
 
 
 class MESHFlowManager:

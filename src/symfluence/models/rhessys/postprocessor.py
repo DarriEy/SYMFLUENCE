@@ -83,7 +83,20 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             if wmfire_config is None:
                 return
 
-            # Check if perimeter data is configured
+            # First, run WMFirePostProcessor to generate perimeters from FireSizes output
+            try:
+                from symfluence.models.wmfire import WMFirePostProcessor
+                wmfire_pp = WMFirePostProcessor(self.config, self.logger)
+                wmfire_success = wmfire_pp.run_postprocessing()
+                if wmfire_success:
+                    self.logger.info("WMFire perimeter generation completed")
+                    results['wmfire_perimeters'] = wmfire_pp.output_dir / "wmfire_perimeters.shp"
+            except ImportError:
+                self.logger.debug("WMFirePostProcessor not available")
+            except Exception as e:
+                self.logger.warning(f"WMFire perimeter generation failed: {e}")
+
+            # Check if perimeter data is configured for comparison
             has_perimeter = (
                 (hasattr(wmfire_config, 'perimeter_shapefile') and wmfire_config.perimeter_shapefile) or
                 (hasattr(wmfire_config, 'perimeter_dir') and wmfire_config.perimeter_dir)
@@ -544,14 +557,22 @@ class RHESSysPostProcessor(BaseModelPostProcessor):
             self.logger.info(f"Loaded observed perimeters from: {perimeter_source}")
 
             # Look for simulated fire output
-            # WMFire outputs fire spread grid files
-            fire_output_dir = self.sim_dir
-            simulated_files = list(fire_output_dir.glob("*fire*.shp")) + \
-                            list(fire_output_dir.glob("*burn*.shp"))
+            # Check WMFirePostProcessor output location first
+            experiment_dir = self.sim_dir.parent
+            fire_perim_dir = experiment_dir / "fire_perimeters"
+            simulated_files = []
+
+            if fire_perim_dir.exists():
+                simulated_files = list(fire_perim_dir.glob("wmfire_perimeters.shp"))
+
+            # Fall back to simulation directory
+            if not simulated_files:
+                fire_output_dir = self.sim_dir
+                simulated_files = list(fire_output_dir.glob("*fire*.shp")) + \
+                                list(fire_output_dir.glob("*burn*.shp"))
 
             if not simulated_files:
                 self.logger.warning("No simulated fire perimeter shapefile found")
-                # Could also try to reconstruct from fire grid outputs
                 return None
 
             import geopandas as gpd
