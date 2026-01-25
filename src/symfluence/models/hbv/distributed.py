@@ -39,6 +39,7 @@ Example:
 
 from __future__ import annotations
 from typing import Dict, List, Optional, Tuple, NamedTuple, Any, Union, Callable, TYPE_CHECKING
+import logging
 
 if TYPE_CHECKING:
     from .optimizers import CalibrationResult
@@ -46,6 +47,8 @@ from pathlib import Path
 import warnings
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 try:
     import jax
@@ -62,7 +65,7 @@ except ImportError:
     jit = None
 
 from .model import (
-    HBVState, PARAM_BOUNDS, DEFAULT_PARAMS,
+    HBVState, PARAM_BOUNDS, DEFAULT_PARAMS, HBVParameters,
     create_params_from_dict, create_initial_state, scale_params_for_timestep,
     simulate_jax, simulate_numpy
 )
@@ -73,6 +76,33 @@ from .routing import (
     route_network_step_jax, route_network_step_numpy,
     runoff_mm_to_cms
 )
+from .regionalization import forward_transfer_function, TransferLayer
+
+def _slice_hbv_params(params: HBVParameters, idx: int) -> HBVParameters:
+    """Slice batched HBVParameters for a single GRU."""
+    # Handle both JAX and NumPy arrays
+    def get_val(arr):
+        val = arr[idx]
+        return float(val) if hasattr(val, 'item') else val
+
+    return HBVParameters(
+        tt=get_val(params.tt),
+        cfmax=get_val(params.cfmax),
+        sfcf=get_val(params.sfcf),
+        cfr=get_val(params.cfr),
+        cwh=get_val(params.cwh),
+        fc=get_val(params.fc),
+        lp=get_val(params.lp),
+        beta=get_val(params.beta),
+        k0=get_val(params.k0),
+        k1=get_val(params.k1),
+        k2=get_val(params.k2),
+        uzl=get_val(params.uzl),
+        perc=get_val(params.perc),
+        maxbas=get_val(params.maxbas),
+        smoothing=params.smoothing[idx] if hasattr(params.smoothing, '__len__') and len(np.shape(params.smoothing)) > 0 else params.smoothing,
+        smoothing_enabled=params.smoothing_enabled[idx] if hasattr(params.smoothing_enabled, '__len__') and len(np.shape(params.smoothing_enabled)) > 0 else params.smoothing_enabled
+    )
 
 
 class DistributedHBVState(NamedTuple):
@@ -247,7 +277,10 @@ class DistributedHBV:
         self,
         hbv_params: Optional[Dict[str, float]] = None,
         routing_params: Optional[RoutingParams] = None,
-        per_gru_params: Optional[List[Dict[str, float]]] = None
+        per_gru_params: Optional[List[Dict[str, float]]] = None,
+        attributes: Optional[Any] = None,
+        transfer_weights: Optional[List[TransferLayer]] = None,
+        param_mode: Optional[str] = None
     ) -> DistributedHBVParams:
         """
         Create model parameters.
@@ -256,16 +289,22 @@ class DistributedHBV:
             hbv_params: Uniform HBV parameters (dict). Used if param_mode='uniform'.
             routing_params: Routing parameters. If None, computed from channel properties.
             per_gru_params: Per-GRU HBV parameters. Used if param_mode='per_gru'.
+            attributes: Catchment attributes [n_nodes, n_features]. Used if param_mode='regionalized'.
+            transfer_weights: Weights for transfer function. Used if param_mode='regionalized'.
+            param_mode: Override self.param_mode if provided.
 
         Returns:
             DistributedHBVParams
         """
+        mode = param_mode or self.param_mode
+
         # HBV parameters
-        if self.param_mode == 'uniform':
+        if mode == 'uniform':
             params_dict = hbv_params or DEFAULT_PARAMS.copy()
             scaled_params = scale_params_for_timestep(params_dict, self.timestep_hours)
             hbv = create_params_from_dict(scaled_params, use_jax=self.use_jax)
-        elif self.param_mode == 'per_gru':
+
+        elif mode == 'per_gru':
             if per_gru_params is None:
                 # Use defaults for all GRUs
                 per_gru_params = [DEFAULT_PARAMS.copy() for _ in range(self.network.n_nodes)]
@@ -277,8 +316,51 @@ class DistributedHBV:
                 )
                 for p in per_gru_params
             ]
+
+        elif mode == 'regionalized':
+            if attributes is None or transfer_weights is None:
+                raise ValueError("attributes and transfer_weights required for regionalized mode")
+
+            # Generate parameters from attributes using transfer function
+            # The forward_transfer_function returns HBVParameters where fields are arrays [n_nodes]
+            # We assume attributes are already normalized if needed
+            hbv = forward_transfer_function(
+                transfer_weights,
+                attributes,
+                PARAM_BOUNDS
+            )
+
+            # Scale rate parameters for timestep
+            # Flux rates (cfmax, perc): linear scaling
+            # Recession coefficients (k0, k1, k2): exact exponential scaling
+            # k_subdaily = 1 - (1 - k_daily)^(dt/24)
+            if self.timestep_hours != 24:
+                scale_factor = self.timestep_hours / 24.0
+                # Clamp recession coefficients to valid range for exponential formula
+                k0_clamped = jnp.clip(hbv.k0, 0.0, 0.9999)
+                k1_clamped = jnp.clip(hbv.k1, 0.0, 0.9999)
+                k2_clamped = jnp.clip(hbv.k2, 0.0, 0.9999)
+                hbv = HBVParameters(
+                    tt=hbv.tt,
+                    cfmax=hbv.cfmax * scale_factor,  # linear scaling for flux rate
+                    sfcf=hbv.sfcf,
+                    cfr=hbv.cfr,
+                    cwh=hbv.cwh,
+                    fc=hbv.fc,
+                    lp=hbv.lp,
+                    beta=hbv.beta,
+                    k0=1.0 - jnp.power(1.0 - k0_clamped, scale_factor),  # exact exponential
+                    k1=1.0 - jnp.power(1.0 - k1_clamped, scale_factor),  # exact exponential
+                    k2=1.0 - jnp.power(1.0 - k2_clamped, scale_factor),  # exact exponential
+                    uzl=hbv.uzl,
+                    perc=hbv.perc * scale_factor,  # linear scaling for flux rate
+                    maxbas=hbv.maxbas,
+                    smoothing=hbv.smoothing,
+                    smoothing_enabled=hbv.smoothing_enabled
+                )
+
         else:
-            raise ValueError(f"Unknown param_mode: {self.param_mode}")
+            raise ValueError(f"Unknown param_mode: {mode}")
 
         # Routing parameters
         routing = routing_params or self._default_routing_params
@@ -286,7 +368,7 @@ class DistributedHBV:
         return DistributedHBVParams(
             hbv_params=hbv,
             routing_params=routing,
-            param_mode=self.param_mode
+            param_mode=mode
         )
 
     def simulate(
@@ -379,8 +461,40 @@ class DistributedHBV:
         pet: Any,
         params: DistributedHBVParams
     ) -> Any:
-        """Run HBV for all GRUs using vmap."""
+        """Run HBV for all GRUs using vmap.
+
+        Args:
+            precip: Precipitation array [n_timesteps, n_nodes] (mm/timestep)
+            temp: Temperature array [n_timesteps, n_nodes] (deg C)
+            pet: PET array [n_timesteps, n_nodes] (mm/timestep)
+            params: Distributed HBV parameters
+
+        Returns:
+            Runoff array [n_timesteps, n_nodes] (mm/timestep)
+
+        Raises:
+            ValueError: If input arrays have incorrect shape or dimensions
+        """
         n_nodes = self.network.n_nodes
+
+        # Validate input array shapes
+        for name, arr in [('precip', precip), ('temp', temp), ('pet', pet)]:
+            if arr.ndim != 2:
+                raise ValueError(
+                    f"{name} must be 2D array [n_timesteps, n_nodes], "
+                    f"got {arr.ndim}D array with shape {arr.shape}"
+                )
+            if arr.shape[1] != n_nodes:
+                raise ValueError(
+                    f"{name} has {arr.shape[1]} nodes but network has {n_nodes} nodes. "
+                    f"Expected shape [n_timesteps, {n_nodes}], got {arr.shape}"
+                )
+
+        # Transpose forcing to [n_nodes, n_timesteps]
+        precip_T = precip.T
+        temp_T = temp.T
+        pet_T = pet.T
+
         if params.param_mode == 'uniform':
             # Same parameters for all GRUs - use vmap over spatial dimension
             def run_single_gru(p, t, e):
@@ -392,17 +506,29 @@ class DistributedHBV:
                 )
                 return runoff
 
-            # Transpose forcing to [n_nodes, n_timesteps]
-            precip_T = precip.T
-            temp_T = temp.T
-            pet_T = pet.T
-
             # vmap over GRUs (first axis after transpose)
             runoff = vmap(run_single_gru)(precip_T, temp_T, pet_T)  # [n_nodes, n_timesteps]
             return runoff.T  # [n_timesteps, n_nodes]
 
+        elif params.param_mode == 'regionalized':
+            # Parameters are batched [n_nodes] in params.hbv_params
+            # We vmap over forcing AND parameters
+
+            def run_single_gru_regionalized(p, t, e, gru_params):
+                runoff, _ = simulate_jax(
+                    p, t, e,
+                    gru_params,
+                    warmup_days=0,
+                    timestep_hours=self.timestep_hours
+                )
+                return runoff
+
+            # vmap over forcing and params.hbv_params
+            runoff = vmap(run_single_gru_regionalized)(precip_T, temp_T, pet_T, params.hbv_params)
+            return runoff.T
+
         else:
-            # Per-GRU parameters - can't easily vmap
+            # Per-GRU parameters (List) - can't easily vmap
             all_runoff = []
             for gru_idx in range(n_nodes):
                 gru_params = params.hbv_params[gru_idx]
@@ -468,6 +594,8 @@ class DistributedHBV:
         for gru_idx in range(n_nodes):
             if params.param_mode == 'uniform':
                 gru_params = params.hbv_params
+            elif params.param_mode == 'regionalized':
+                gru_params = _slice_hbv_params(params.hbv_params, gru_idx)
             else:
                 gru_params = params.hbv_params[gru_idx]
 
@@ -551,7 +679,7 @@ class DistributedHBV:
         params = self.create_params(hbv_params=params_dict)
 
         # Run simulation
-        outlet_flow, _ = self.simulate(precip, temp, pet, params)
+        outlet_flow, _ = self.simulate(precip, temp, pet, params)  # type: ignore[misc]
 
         # Compute metric
         xp = jnp if self.use_jax else np
@@ -750,6 +878,7 @@ def calibrate_distributed_hbv(
         )
 
         def scipy_fn(x):
+            assert value_and_grad_fn is not None
             loss, grads = value_and_grad_fn(jnp.array(x))
             return float(loss), np.array(grads)
 
@@ -950,12 +1079,12 @@ def _calibrate_single_phase(
     start_time = time.time()
 
     if verbose:
-        print("\n" + "="*60)
-        print("Adam Calibration (Single Phase)")
-        print("="*60)
-        print(f"Parameters: {param_names}")
-        print(f"Iterations: {n_iterations}")
-        print(f"LR: [{lr_min}, {lr_max}]")
+        logger.info("=" * 60)
+        logger.info("Adam Calibration (Single Phase)")
+        logger.info("=" * 60)
+        logger.info(f"Parameters: {param_names}")
+        logger.info(f"Iterations: {n_iterations}")
+        logger.info(f"LR: [{lr_min}, {lr_max}]")
 
     # Initial parameters
     x = jnp.array([DEFAULT_PARAMS[p] for p in param_names])
@@ -968,10 +1097,11 @@ def _calibrate_single_phase(
     val_grad_fn = jit(jax.value_and_grad(loss_fn))
 
     # NSE-only for tracking
-    nse_fn = model.get_value_and_grad_function(
+    _nse_fn = model.get_value_and_grad_function(
         precip, temp, pet, obs, 'nse', param_names, warmup_timesteps
     )
-    nse_fn = jit(nse_fn)
+    assert _nse_fn is not None, "NSE function required for Adam calibration"
+    nse_fn = jit(_nse_fn)
 
     # Initialize optimizer
     optimizer = AdamW(lr=lr_max, weight_decay=0.001)
@@ -980,7 +1110,7 @@ def _calibrate_single_phase(
     )
     ema = EMA(decay=ema_decay)
 
-    history = {'iteration': [], 'nse': [], 'loss': [], 'lr': [], 'grad_norm': []}
+    history: dict[str, list] = {'iteration': [], 'nse': [], 'loss': [], 'lr': [], 'grad_norm': []}
     best_nse = -float('inf')
     best_params = x.copy()
     best_iter = 0
@@ -1017,12 +1147,12 @@ def _calibrate_single_phase(
         history['grad_norm'].append(grad_norm)
 
         if verbose and (i % 25 == 0 or i == n_iterations - 1):
-            print(f"  Iter {i:4d}: NSE={nse:.4f}, Loss={float(loss):.4f}, "
-                  f"lr={lr:.5f}, best={best_nse:.4f}@{best_iter}")
+            logger.info(f"  Iter {i:4d}: NSE={nse:.4f}, Loss={float(loss):.4f}, "
+                        f"lr={lr:.5f}, best={best_nse:.4f}@{best_iter}")
 
         if no_improve >= patience:
             if verbose:
-                print(f"\n  Early stopping at iteration {i}")
+                logger.info(f"  Early stopping at iteration {i}")
             break
 
     # Check EMA
@@ -1041,8 +1171,8 @@ def _calibrate_single_phase(
     metrics = _compute_metrics(model, precip, temp, pet, obs, final_params, param_names, warmup_timesteps)
 
     if verbose:
-        print(f"\nCalibration complete in {total_time:.1f}s")
-        print(f"Final NSE: {metrics['nse']:.4f}, KGE: {metrics['kge']:.4f}")
+        logger.info(f"Calibration complete in {total_time:.1f}s")
+        logger.info(f"Final NSE: {metrics['nse']:.4f}, KGE: {metrics['kge']:.4f}")
 
     calibrated_params = dict(zip(param_names, [float(p) for p in final_params]))
 
@@ -1090,17 +1220,17 @@ def _calibrate_two_phase(
     total_start = time.time()
 
     if verbose:
-        print("\n" + "="*70)
-        print("TWO-PHASE CALIBRATION")
-        print("="*70)
+        logger.info("=" * 70)
+        logger.info("TWO-PHASE CALIBRATION")
+        logger.info("=" * 70)
 
     # =========================================================================
     # PHASE 1: EXPLORATION
     # =========================================================================
     if verbose:
-        print("\n" + "-"*70)
-        print("PHASE 1: Exploration (Composite Loss, Higher LR)")
-        print("-"*70)
+        logger.info("-" * 70)
+        logger.info("PHASE 1: Exploration (Composite Loss, Higher LR)")
+        logger.info("-" * 70)
 
     x = jnp.array([DEFAULT_PARAMS[p] for p in param_names])
 
@@ -1112,10 +1242,11 @@ def _calibrate_two_phase(
     val_grad_fn = jit(jax.value_and_grad(loss_fn))
 
     # NSE tracking
-    nse_fn = model.get_value_and_grad_function(
+    _nse_fn = model.get_value_and_grad_function(
         precip, temp, pet, obs, 'nse', param_names, warmup_timesteps
     )
-    nse_fn = jit(nse_fn)
+    assert _nse_fn is not None, "NSE function required for gradient calibration"
+    nse_fn = jit(_nse_fn)
 
     optimizer = AdamW(lr=lr_max * 0.8, weight_decay=0.001)
     scheduler = CosineAnnealingWarmRestarts(
@@ -1123,7 +1254,7 @@ def _calibrate_two_phase(
     )
     ema = EMA(decay=0.995)
 
-    history1 = {'iteration': [], 'nse': [], 'loss': [], 'lr': [], 'grad_norm': []}
+    history1: dict[str, list] = {'iteration': [], 'nse': [], 'loss': [], 'lr': [], 'grad_norm': []}
     best_nse_p1 = -float('inf')
     best_params_p1 = x.copy()
     best_iter_p1 = 0
@@ -1163,23 +1294,23 @@ def _calibrate_two_phase(
         history1['grad_norm'].append(grad_norm)
 
         if verbose and (i % 25 == 0 or i == n_iter_p1 - 1):
-            print(f"  Iter {i:4d}: NSE={nse:.4f}, lr={lr:.5f}, best={best_nse_p1:.4f}@{best_iter_p1}")
+            logger.info(f"  Iter {i:4d}: NSE={nse:.4f}, lr={lr:.5f}, best={best_nse_p1:.4f}@{best_iter_p1}")
 
         if no_improve >= patience_p1:
             if verbose:
-                print(f"\n  Phase 1 early stop at iteration {i}")
+                logger.info(f"  Phase 1 early stop at iteration {i}")
             break
 
     if verbose:
-        print(f"\n  Phase 1 Best NSE: {best_nse_p1:.4f}")
+        logger.info(f"  Phase 1 Best NSE: {best_nse_p1:.4f}")
 
     # =========================================================================
     # PHASE 2: REFINEMENT
     # =========================================================================
     if verbose:
-        print("\n" + "-"*70)
-        print("PHASE 2: Refinement (NSE-only, Lower LR)")
-        print("-"*70)
+        logger.info("-" * 70)
+        logger.info("PHASE 2: Refinement (NSE-only, Lower LR)")
+        logger.info("-" * 70)
 
     # Start from phase 1 best
     x = best_params_p1
@@ -1190,7 +1321,7 @@ def _calibrate_two_phase(
     optimizer = AdamW(lr=0.02, weight_decay=0.0001)
     ema = EMA(decay=0.998)
 
-    history2 = {'iteration': [], 'nse': [], 'lr': [], 'grad_norm': []}
+    history2: dict[str, list] = {'iteration': [], 'nse': [], 'lr': [], 'grad_norm': []}
     best_nse_p2 = -float('inf')
     best_params_p2 = x.copy()
     best_iter_p2 = 0
@@ -1229,11 +1360,11 @@ def _calibrate_two_phase(
         history2['grad_norm'].append(grad_norm)
 
         if verbose and (i % 30 == 0 or i == n_iter_p2 - 1):
-            print(f"  Iter {i:4d}: NSE={nse:.4f}, lr={lr:.5f}, best={best_nse_p2:.4f}@{best_iter_p2}")
+            logger.info(f"  Iter {i:4d}: NSE={nse:.4f}, lr={lr:.5f}, best={best_nse_p2:.4f}@{best_iter_p2}")
 
         if no_improve >= patience_p2:
             if verbose:
-                print(f"\n  Phase 2 early stop at iteration {i}")
+                logger.info(f"  Phase 2 early stop at iteration {i}")
             break
 
     # Check EMA
@@ -1252,9 +1383,9 @@ def _calibrate_two_phase(
     metrics = _compute_metrics(model, precip, temp, pet, obs, final_params, param_names, warmup_timesteps)
 
     if verbose:
-        print(f"\nCalibration complete in {total_time:.1f}s")
-        print(f"Phase 1 best: {best_nse_p1:.4f}, Phase 2 best: {best_nse_p2:.4f}")
-        print(f"Final NSE: {metrics['nse']:.4f}, KGE: {metrics['kge']:.4f}")
+        logger.info(f"Calibration complete in {total_time:.1f}s")
+        logger.info(f"Phase 1 best: {best_nse_p1:.4f}, Phase 2 best: {best_nse_p2:.4f}")
+        logger.info(f"Final NSE: {metrics['nse']:.4f}, KGE: {metrics['kge']:.4f}")
 
     # Combine histories
     combined_history = {
@@ -1301,7 +1432,7 @@ def _create_composite_loss(
             hbv_params[name] = x[i]
 
         params = model.create_params(hbv_params=hbv_params)
-        outlet_flow, _ = model.simulate(precip, temp, pet, params)
+        outlet_flow, _ = model.simulate(precip, temp, pet, params)  # type: ignore[misc]
 
         sim = outlet_flow[warmup_timesteps:]
         obs_eval = obs[warmup_timesteps:]
@@ -1366,7 +1497,7 @@ def _compute_metrics(
         hbv_params[name] = float(params_array[i])
 
     params = model.create_params(hbv_params=hbv_params)
-    outlet_flow, _ = model.simulate(precip, temp, pet, params)
+    outlet_flow, _ = model.simulate(precip, temp, pet, params)  # type: ignore[misc]
 
     sim = np.array(outlet_flow)[warmup_timesteps:]
     obs_eval = np.array(obs)[warmup_timesteps:]

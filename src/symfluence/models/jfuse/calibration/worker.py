@@ -396,14 +396,14 @@ class JFUSEWorker(InMemoryModelWorker):
                 if hasattr(fuse_params, name):
                     arr = jnp.ones(self.n_hrus) * float(value)
                     fuse_params = eqx.tree_at(
-                        lambda p, n=name: getattr(p, n), fuse_params, arr
+                        lambda p, n=name: getattr(p, n), fuse_params, arr  # type: ignore[misc]
                     )
-            params = eqx.tree_at(lambda p: p.fuse_params, params, fuse_params)
+            params = eqx.tree_at(lambda p: p.fuse_params, params, fuse_params)  # type: ignore[misc]
         else:
             for name, value in param_dict.items():
                 if hasattr(params, name):
                     params = eqx.tree_at(
-                        lambda p, n=name: getattr(p, n), params, jnp.array(float(value))
+                        lambda p, n=name: getattr(p, n), params, jnp.array(float(value))  # type: ignore[misc]
                     )
 
         return params
@@ -548,13 +548,13 @@ class JFUSEWorker(InMemoryModelWorker):
                     for i, name in enumerate(param_names):
                         if hasattr(fuse_p, name):
                             fuse_p = eqx.tree_at(
-                                lambda x, n=name: getattr(x, n), fuse_p, jnp.ones(n_hrus) * arr[i]
+                                lambda x, n=name: getattr(x, n), fuse_p, jnp.ones(n_hrus) * arr[i]  # type: ignore[misc]
                             )
-                    p = eqx.tree_at(lambda x: x.fuse_params, p, fuse_p)
+                    p = eqx.tree_at(lambda x: x.fuse_params, p, fuse_p)  # type: ignore[misc]
                 else:
                     for i, name in enumerate(param_names):
                         if hasattr(p, name):
-                            p = eqx.tree_at(lambda x, n=name: getattr(x, n), p, arr[i])
+                            p = eqx.tree_at(lambda x, n=name: getattr(x, n), p, arr[i])  # type: ignore[misc]
                 return p
 
             def loss_from_array(param_array):
@@ -624,13 +624,13 @@ class JFUSEWorker(InMemoryModelWorker):
                     for i, name in enumerate(param_names):
                         if hasattr(fuse_p, name):
                             fuse_p = eqx.tree_at(
-                                lambda x, n=name: getattr(x, n), fuse_p, jnp.ones(n_hrus) * arr[i]
+                                lambda x, n=name: getattr(x, n), fuse_p, jnp.ones(n_hrus) * arr[i]  # type: ignore[misc]
                             )
-                    p = eqx.tree_at(lambda x: x.fuse_params, p, fuse_p)
+                    p = eqx.tree_at(lambda x: x.fuse_params, p, fuse_p)  # type: ignore[misc]
                 else:
                     for i, name in enumerate(param_names):
                         if hasattr(p, name):
-                            p = eqx.tree_at(lambda x, n=name: getattr(x, n), p, arr[i])
+                            p = eqx.tree_at(lambda x, n=name: getattr(x, n), p, arr[i])  # type: ignore[misc]
                 return p
 
             def loss_from_array(param_array):

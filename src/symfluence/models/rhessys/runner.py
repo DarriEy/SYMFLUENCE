@@ -29,7 +29,7 @@ class RHESSysRunner(BaseModelRunner):
     - Output directory management
     """
 
-    def __init__(self, config, logger_instance, reporting_manager=None):
+    def __init__(self, config, logger, reporting_manager=None):
         """
         Initialize the RHESSys runner.
 
@@ -39,10 +39,10 @@ class RHESSysRunner(BaseModelRunner):
         Args:
             config: Configuration dictionary or SymfluenceConfig object containing
                 RHESSys settings, domain paths, and simulation parameters.
-            logger_instance: Logger instance for status messages and debugging.
+            logger: Logger instance for status messages and debugging.
             reporting_manager: Optional reporting manager for experiment tracking.
         """
-        super().__init__(config, logger_instance, reporting_manager=reporting_manager)
+        super().__init__(config, logger, reporting_manager=reporting_manager)
         # Check for WMFire support (handles both wmfire and legacy vmfire config names)
         self.wmfire_enabled = self._check_wmfire_enabled()
 
@@ -62,8 +62,8 @@ class RHESSysRunner(BaseModelRunner):
             # Fall back to legacy vmfire naming
             if hasattr(self.config.model.rhessys, 'use_vmfire'):
                 return self.config.model.rhessys.use_vmfire
-        except AttributeError:
-            pass
+        except AttributeError as e:
+            logger.debug(f"WMFire config not found (using default=False): {e}")
         return False
 
     def _get_wmfire_resolution(self) -> int:
@@ -72,8 +72,8 @@ class RHESSysRunner(BaseModelRunner):
             if (hasattr(self.config.model.rhessys, 'wmfire') and
                 self.config.model.rhessys.wmfire is not None):
                 return self.config.model.rhessys.wmfire.grid_resolution
-        except AttributeError:
-            pass
+        except AttributeError as e:
+            logger.debug(f"WMFire resolution config not found (using default=30m): {e}")
         return 30  # Default resolution in meters
 
     def _get_model_name(self) -> str:

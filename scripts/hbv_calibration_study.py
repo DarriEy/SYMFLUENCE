@@ -67,6 +67,13 @@ src_dir = project_root / 'src'
 if src_dir.exists():
     sys.path.insert(0, str(src_dir))
 
+# Detect JAX availability for accurate ADAM evaluation budget
+try:
+    import jax  # noqa: F401
+    HAS_JAX = True
+except ImportError:
+    HAS_JAX = False
+
 
 # ============================================================================
 # DATA CLASSES FOR RESULTS
@@ -100,6 +107,27 @@ class AlgorithmResult:
     convergence_rate: Optional[float] = None
     evals_per_second: Optional[float] = None
     area_under_curve: Optional[float] = None  # AUCC - area under convergence curve
+
+    # Enhanced tracking for response surface analysis
+    parameter_trajectory: List[Dict[str, float]] = field(default_factory=list)
+    gradient_history: List[Dict[str, float]] = field(default_factory=list)  # For gradient-based
+    population_statistics: List[Dict[str, float]] = field(default_factory=list)  # For evolutionary
+    gradient_mode_used: Optional[str] = None  # 'native' or 'finite_difference'
+
+    # Validation period metrics (split-sample evaluation)
+    val_kge: Optional[float] = None  # Validation period KGE
+    val_nse: Optional[float] = None  # Validation period NSE
+    val_lognse: Optional[float] = None  # Validation period logNSE
+    val_pbias: Optional[float] = None  # Validation period PBIAS
+    val_rmse: Optional[float] = None  # Validation period RMSE
+
+    # Hydrograph signature metrics
+    peak_timing_error: Optional[float] = None  # Mean absolute timing error (timesteps)
+    peak_magnitude_error: Optional[float] = None  # Mean relative peak magnitude error
+    recession_k_error: Optional[float] = None  # Error in recession constant
+    baseflow_index_error: Optional[float] = None  # Error in baseflow index
+    fdc_bias_low: Optional[float] = None  # FDC bias for low flows (%)
+    fdc_bias_high: Optional[float] = None  # FDC bias for high flows (%)
 
     def compute_derived_metrics(self, target_kge: float = 0.7) -> None:
         """Compute derived metrics from convergence history."""
@@ -317,7 +345,7 @@ class CalibrationStudyResult:
                 # Fastest to target (by mean)
                 with_target = {k: v for k, v in valid_stats.items() if v.evals_to_target_mean is not None}
                 if with_target:
-                    fastest = min(with_target.items(), key=lambda x: x[1].evals_to_target_mean)
+                    fastest = min(with_target.items(), key=lambda x: x[1].evals_to_target_mean or float('inf'))
                     self.fastest_to_target = fastest[0]
         else:
             # Fallback to single-run logic
@@ -329,7 +357,7 @@ class CalibrationStudyResult:
 
                 results_with_target = [r for r in valid_results if r.evals_to_target is not None]
                 if results_with_target:
-                    fastest = min(results_with_target, key=lambda r: r.evals_to_target)
+                    fastest = min(results_with_target, key=lambda r: r.evals_to_target or float('inf'))
                     self.fastest_to_target = fastest.algorithm
 
     def run_statistical_tests(self) -> None:
@@ -362,9 +390,10 @@ class CalibrationStudyResult:
             pass
 
         # Compute ranks for each run, then average
-        ranks_per_run = []
+        ranks_per_run: List[np.ndarray] = []
+        kge_array = np.array(kge_matrix)  # Ensure it's a numpy array for mypy
         for run_idx in range(min_runs):
-            run_kges = kge_matrix[:, run_idx]
+            run_kges = kge_array[:, run_idx]
             # Rank (higher KGE = lower rank = better)
             ranks = scipy_stats.rankdata(-run_kges)
             ranks_per_run.append(ranks)
@@ -403,20 +432,50 @@ class CalibrationStudyResult:
                 'algorithm': r.algorithm,
                 'run_id': r.run_id,
                 'seed': r.seed,
+                # Calibration period metrics
                 'final_kge': r.final_kge,
                 'final_nse': r.final_nse,
                 'final_lognse': r.final_lognse,
                 'final_pbias': r.final_pbias,
                 'final_rmse': r.final_rmse,
                 'final_mae': r.final_mae,
+                # Validation period metrics
+                'val_kge': r.val_kge,
+                'val_nse': r.val_nse,
+                'val_lognse': r.val_lognse,
+                'val_pbias': r.val_pbias,
+                'val_rmse': r.val_rmse,
+                # Hydrograph signatures
+                'peak_timing_error': r.peak_timing_error,
+                'peak_magnitude_error': r.peak_magnitude_error,
+                'recession_k_error': r.recession_k_error,
+                'baseflow_index_error': r.baseflow_index_error,
+                'fdc_bias_low': r.fdc_bias_low,
+                'fdc_bias_high': r.fdc_bias_high,
+                # Efficiency and tracking
                 'n_evaluations': r.n_evaluations,
                 'runtime_seconds': r.runtime_seconds,
                 'evals_to_target': r.evals_to_target,
                 'area_under_curve': r.area_under_curve,
                 'evals_per_second': r.evals_per_second,
+                'gradient_mode_used': r.gradient_mode_used,
+                'n_trajectory_points': len(r.parameter_trajectory),
                 'error': r.error,
             })
         return pd.DataFrame(records)
+
+    def get_parameter_trajectories(self) -> Dict[str, pd.DataFrame]:
+        """Get parameter trajectories for all algorithm runs.
+
+        Returns:
+            Dict mapping 'algorithm_runN' to DataFrame of parameter values over iterations.
+        """
+        trajectories = {}
+        for r in self.algorithm_results:
+            if r.parameter_trajectory:
+                key = f"{r.algorithm}_run{r.run_id}"
+                trajectories[key] = pd.DataFrame(r.parameter_trajectory)
+        return trajectories
 
     def to_summary_dataframe(self) -> pd.DataFrame:
         """Convert multi-run statistics to summary DataFrame."""
@@ -616,7 +675,7 @@ class CalibrationStudyResult:
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        data = {
+        data: Dict[str, Any] = {
             'domain_name': self.domain_name,
             'model': self.model,
             'timestamp': self.timestamp,
@@ -739,7 +798,8 @@ class HBVCalibrationStudy:
     # Default single-objective algorithms to compare
     DEFAULT_ALGORITHMS = [
         'dds', 'pso', 'de', 'sce-ua', 'cmaes',
-        'adam', 'nelder-mead', 'ga', 'simulated-annealing',
+        'adam', 'adam-smoothed',  # Compare both variants
+        'nelder-mead', 'ga', 'simulated-annealing',
     ]
 
     # Quick test subset
@@ -855,7 +915,7 @@ class HBVCalibrationStudy:
         # Default population size heuristics from literature
         default_pop_size = max(20, min(50, 4 + int(3 * np.log(n_params)) * 2))
 
-        config = {
+        config: Dict[str, Any] = {
             'iterations': 100,
             'population_size': default_pop_size,
             'extra_settings': {}
@@ -887,16 +947,54 @@ class HBVCalibrationStudy:
             config['iterations'] = max(1, max_eval // pop_size)
 
         elif algorithm_lower == 'adam':
-            # Adam with finite differences: (2*n_params + 1) evals per step
-            evals_per_step = 2 * n_params + 1
+            # Check gradient mode - native gradients are much cheaper
+            gradient_mode = self.config_dict.get('GRADIENT_MODE', 'auto')
+            use_native = (gradient_mode == 'native' or
+                          (gradient_mode == 'auto' and HAS_JAX))
+
+            if use_native:
+                # Native gradients: ~2 evals per step (forward + backward)
+                evals_per_step = 2
+                config['extra_settings']['gradient_mode'] = 'native'
+            else:
+                # Finite differences: 2*n_params + 1 evals per step
+                evals_per_step = 2 * n_params + 1
+                config['extra_settings']['gradient_mode'] = 'finite_difference'
+
             config['iterations'] = max(1, max_eval // evals_per_step)
             # Note: ADAM doesn't use population, but validation requires >= 2
             config['population_size'] = 2
+            config['extra_settings']['evals_per_step'] = evals_per_step
+
             # Adjust learning rate based on available steps
             if config['iterations'] < 50:
                 config['extra_settings']['lr'] = 0.05  # Higher LR for fewer steps
             elif config['iterations'] > 500:
                 config['extra_settings']['lr'] = 0.005  # Lower LR for more steps
+
+        elif algorithm_lower == 'adam_smoothed':
+            # Same as ADAM but with HBV smoothing enabled
+            gradient_mode = self.config_dict.get('GRADIENT_MODE', 'auto')
+            use_native = (gradient_mode == 'native' or
+                          (gradient_mode == 'auto' and HAS_JAX))
+
+            if use_native:
+                evals_per_step = 2
+                config['extra_settings']['gradient_mode'] = 'native'
+            else:
+                evals_per_step = 2 * n_params + 1
+                config['extra_settings']['gradient_mode'] = 'finite_difference'
+
+            config['iterations'] = max(1, max_eval // evals_per_step)
+            config['population_size'] = 2
+            config['extra_settings']['evals_per_step'] = evals_per_step
+            config['extra_settings']['hbv_smoothing'] = True
+            config['extra_settings']['hbv_smoothing_factor'] = 15.0
+
+            if config['iterations'] < 50:
+                config['extra_settings']['lr'] = 0.05
+            elif config['iterations'] > 500:
+                config['extra_settings']['lr'] = 0.005
 
         elif algorithm_lower == 'nelder_mead':
             # Nelder-Mead: (n_params + 1) initial + ~1-3 evals per iteration
@@ -1142,7 +1240,7 @@ class HBVCalibrationStudy:
         self.logger.info("=" * 50)
 
         try:
-            from symfluence.models.hbv.preprocessor import HBVPreprocessor
+            from symfluence.models.hbv.preprocessor import HBVPreProcessor
 
             # Step 1: Create lumped shapefile if needed
             lumped_shp_dir = self.project_dir / 'shapefiles' / 'catchment' / 'lumped'
@@ -1180,11 +1278,11 @@ class HBVCalibrationStudy:
             # Step 3: Run HBV preprocessor
             self.logger.info("Step 3: Running HBV preprocessor...")
 
-            # Load fresh config dict (HBVPreprocessor accepts dict or config object)
+            # Load fresh config dict (HBVPreProcessor accepts dict or config object)
             config_dict = self._get_fresh_config_dict()
             config_dict['SUB_GRID_DISCRETIZATION'] = 'lumped'
 
-            preprocessor = HBVPreprocessor(config_dict, self.logger)
+            preprocessor = HBVPreProcessor(config_dict, self.logger)
             success = preprocessor.run_preprocessing()
 
             if success:
@@ -1383,6 +1481,27 @@ class HBVCalibrationStudy:
             config_dict[config_key] = value
             self.logger.debug(f"  Setting {config_key}={value}")
 
+        # Log gradient mode for ADAM variants
+        if algorithm.lower() in ['adam', 'adam-smoothed', 'adam_smoothed']:
+            grad_mode = extra_settings.get('gradient_mode', 'auto')
+            evals_step = extra_settings.get('evals_per_step', 'unknown')
+            if run_id == 0:  # Only log once per algorithm
+                self.logger.info(f"  ADAM gradient mode: {grad_mode} ({evals_step} evals/step)")
+
+        # Handle HBV smoothing for smoothed variants
+        if 'hbv_smoothing' in extra_settings:
+            config_dict['HBV_SMOOTHING'] = extra_settings['hbv_smoothing']
+            if run_id == 0:
+                self.logger.info(f"  HBV smoothing enabled: {extra_settings['hbv_smoothing']}")
+        if 'hbv_smoothing_factor' in extra_settings:
+            config_dict['HBV_SMOOTHING_FACTOR'] = extra_settings['hbv_smoothing_factor']
+
+        # Map algorithm variants to actual algorithm names
+        actual_algorithm = algorithm
+        if algorithm.lower() in ['adam-smoothed', 'adam_smoothed']:
+            actual_algorithm = 'adam'
+            config_dict['optimization']['algorithm'] = actual_algorithm
+
         # Use run-specific seed
         if seed is not None:
             if 'system' not in config_dict:
@@ -1421,6 +1540,19 @@ class HBVCalibrationStudy:
             final_kge_r = best_result.get('r', best_result.get('correlation', None))
 
             # Get all metrics from final evaluation
+            # Initialize validation and signature metrics
+            val_kge = None
+            val_nse = None
+            val_lognse = None
+            val_pbias = None
+            val_rmse = None
+            peak_timing_err = None
+            peak_magnitude_err = None
+            recession_k_err = None
+            baseflow_idx_err = None
+            fdc_bias_low_val = None
+            fdc_bias_high_val = None
+
             if best_params:
                 try:
                     optimizer.worker.apply_parameters(best_params, optimizer.hbv_setup_dir)
@@ -1443,6 +1575,29 @@ class HBVCalibrationStudy:
                     if final_kge_r is None:
                         final_kge_r = metrics.get('r', metrics.get('correlation', None))
 
+                    # Try to get validation period metrics if available
+                    val_kge = metrics.get('val_kge', metrics.get('validation_kge', None))
+                    val_nse = metrics.get('val_nse', metrics.get('validation_nse', None))
+                    val_lognse = metrics.get('val_lognse', None)
+                    val_pbias = metrics.get('val_pbias', None)
+                    val_rmse = metrics.get('val_rmse', None)
+
+                    # Try to compute hydrograph signatures if timeseries available
+                    try:
+                        from symfluence.evaluation.metrics import hydrograph_signatures
+                        obs_ts = getattr(optimizer.worker, 'observed_flow', None)
+                        sim_ts = getattr(optimizer.worker, 'simulated_flow', None)
+                        if obs_ts is not None and sim_ts is not None:
+                            signatures = hydrograph_signatures(obs_ts, sim_ts)
+                            peak_timing_err = signatures.get('peak_abs_timing_error')
+                            peak_magnitude_err = signatures.get('peak_peak_magnitude_error')
+                            recession_k_err = signatures.get('recession_k_error')
+                            baseflow_idx_err = signatures.get('bfi_error')
+                            fdc_bias_low_val = signatures.get('fdc_bias_low')
+                            fdc_bias_high_val = signatures.get('fdc_bias_high')
+                    except Exception as sig_err:
+                        self.logger.debug(f"Could not compute hydrograph signatures: {sig_err}")
+
                 except Exception as e:
                     self.logger.debug(f"Could not compute additional metrics: {e}")
 
@@ -1454,10 +1609,54 @@ class HBVCalibrationStudy:
                 alg_lower = algorithm.lower().replace('-', '_')
                 if alg_lower == 'dds':
                     n_evals = iterations + 1
-                elif alg_lower in ['adam', 'nelder_mead', 'simulated_annealing', 'sa']:
+                elif alg_lower in ['adam', 'adam_smoothed', 'nelder_mead', 'simulated_annealing', 'sa']:
                     n_evals = iterations * max(1, population_size)
                 else:
                     n_evals = (iterations + 1) * population_size
+
+            # Build enhanced convergence history with parameter tracking
+            convergence_history = []
+            parameter_trajectory = []
+            gradient_history = []
+            population_statistics = []
+
+            if history:
+                for i, h in enumerate(history):
+                    # Standard convergence record
+                    conv_record = {
+                        'iteration': h.get('generation', i),
+                        'best_score': h.get('best_score', -999),
+                        'n_evals': h.get('n_evals', population_size),
+                        'mean_score': h.get('mean_score'),
+                        'std_score': h.get('std_score'),
+                    }
+                    convergence_history.append(conv_record)
+
+                    # Parameter trajectory (if available)
+                    params = h.get('params', h.get('best_params', {}))
+                    if params:
+                        param_record = {'iteration': h.get('generation', i), **params}
+                        parameter_trajectory.append(param_record)
+
+                    # Gradient history for gradient-based algorithms
+                    if 'gradient_norm' in h or 'grad_norm' in h:
+                        grad_record = {
+                            'iteration': h.get('generation', i),
+                            'gradient_norm': h.get('gradient_norm', h.get('grad_norm')),
+                            'learning_rate': h.get('lr', h.get('learning_rate')),
+                        }
+                        gradient_history.append(grad_record)
+
+                    # Population statistics for evolutionary algorithms
+                    if 'n_improved' in h or 'diversity' in h:
+                        pop_record = {
+                            'iteration': h.get('generation', i),
+                            'n_improved': h.get('n_improved'),
+                            'diversity': h.get('diversity'),
+                            'mean_fitness': h.get('mean_score'),
+                            'std_fitness': h.get('std_score'),
+                        }
+                        population_statistics.append(pop_record)
 
             return AlgorithmResult(
                 algorithm=algorithm,
@@ -1475,12 +1674,24 @@ class HBVCalibrationStudy:
                 best_params=best_params,
                 n_evaluations=n_evals,
                 runtime_seconds=runtime,
-                convergence_history=[
-                    {'iteration': h.get('generation', i),
-                     'best_score': h.get('best_score', -999),
-                     'n_evals': h.get('n_evals', population_size)}
-                    for i, h in enumerate(history)
-                ] if history else []
+                convergence_history=convergence_history,
+                parameter_trajectory=parameter_trajectory,
+                gradient_history=gradient_history,
+                population_statistics=population_statistics,
+                gradient_mode_used=extra_settings.get('gradient_mode'),
+                # Validation period metrics
+                val_kge=val_kge,
+                val_nse=val_nse,
+                val_lognse=val_lognse,
+                val_pbias=val_pbias,
+                val_rmse=val_rmse,
+                # Hydrograph signature metrics
+                peak_timing_error=peak_timing_err,
+                peak_magnitude_error=peak_magnitude_err,
+                recession_k_error=recession_k_err,
+                baseflow_index_error=baseflow_idx_err,
+                fdc_bias_low=fdc_bias_low_val,
+                fdc_bias_high=fdc_bias_high_val,
             )
 
         except Exception as e:
@@ -1554,7 +1765,7 @@ class HBVCalibrationStudy:
         failed = [r for r in result.algorithm_results if r.final_kge <= -900]
         if failed:
             # Group failures by algorithm
-            failed_algos = {}
+            failed_algos: Dict[str, List[str]] = {}
             for r in failed:
                 if r.algorithm not in failed_algos:
                     failed_algos[r.algorithm] = []
@@ -1621,6 +1832,11 @@ class HBVCalibrationStudy:
 
         # Generate convergence plots (works for both)
         self._generate_convergence_plots(result, plots_dir, dpi)
+
+        # Generate advanced analysis plots (multi-run only)
+        if has_stats and result.algorithm_ranks:
+            self._plot_critical_difference_diagram(result, plots_dir, dpi)
+            self._plot_performance_profiles(result, plots_dir, dpi)
 
         self.logger.info(f"Plots saved to: {plots_dir}")
         return plots_dir
@@ -1863,7 +2079,7 @@ class HBVCalibrationStudy:
             return
 
         # Group by algorithm for multi-run
-        algo_histories = {}
+        algo_histories: Dict[str, List[AlgorithmResult]] = {}
         for r in results_with_history:
             if r.algorithm not in algo_histories:
                 algo_histories[r.algorithm] = []
@@ -1935,6 +2151,257 @@ class HBVCalibrationStudy:
         plt.savefig(plots_dir / 'convergence_curves.png', format='png', dpi=dpi)
         plt.close()
 
+    def _plot_critical_difference_diagram(
+        self, result: CalibrationStudyResult, plots_dir: Path, dpi: int
+    ) -> None:
+        """
+        Plot Critical Difference diagram (Nemenyi post-hoc test).
+
+        Shows average ranks of algorithms with horizontal lines connecting
+        algorithms that are not significantly different. Based on the critical
+        difference (CD) for the Nemenyi test.
+
+        Args:
+            result: CalibrationStudyResult with algorithm ranks
+            plots_dir: Directory to save the plot
+            dpi: Resolution for the plot
+        """
+        import matplotlib.pyplot as plt
+
+        if not result.algorithm_ranks or len(result.algorithm_ranks) < 2:
+            self.logger.warning("Not enough algorithms for CD diagram")
+            return
+
+        stats = result.algorithm_statistics
+        if not stats:
+            return
+
+        # Get minimum number of runs (for Nemenyi CD calculation)
+        min_runs = min(len(s.individual_results) for s in stats.values())
+        if min_runs < 2:
+            return
+
+        # Sort algorithms by rank (best rank first)
+        algorithms = sorted(result.algorithm_ranks.keys(),
+                          key=lambda x: result.algorithm_ranks[x])
+        ranks = [result.algorithm_ranks[a] for a in algorithms]
+        n_algorithms = len(algorithms)
+
+        # Calculate critical difference (Nemenyi test)
+        # CD = q_alpha * sqrt(k(k+1) / (6N))
+        # where q_alpha is from studentized range statistic
+        # For alpha=0.05, q values (from table) depend on k (number of algorithms)
+        q_critical_values = {
+            2: 1.960, 3: 2.343, 4: 2.569, 5: 2.728, 6: 2.850,
+            7: 2.949, 8: 3.031, 9: 3.102, 10: 3.164
+        }
+        q_alpha = q_critical_values.get(n_algorithms, 2.850)  # default to k=6
+        cd = q_alpha * np.sqrt(n_algorithms * (n_algorithms + 1) / (6 * min_runs))
+
+        # Create figure
+        fig, ax = plt.subplots(figsize=(10, max(4, n_algorithms * 0.4)))
+
+        # Plot settings
+        y_positions = np.arange(n_algorithms)
+        line_height = 0.08
+
+        # Plot horizontal lines for each algorithm at their rank position
+        for i, (algo, rank) in enumerate(zip(algorithms, ranks)):
+            ax.plot([rank, rank], [i - 0.15, i + 0.15], 'k-', linewidth=2)
+            # Label
+            ax.text(rank, i + 0.25, f'{algo.upper()}\n({rank:.2f})',
+                   ha='center', va='bottom', fontsize=9)
+
+        # Draw connecting lines for non-significantly different pairs
+        # Algorithms within CD distance are not significantly different
+        connections = []
+        for i in range(n_algorithms):
+            for j in range(i + 1, n_algorithms):
+                if abs(ranks[i] - ranks[j]) <= cd:
+                    connections.append((i, j, ranks[i], ranks[j]))
+
+        # Group connections by proximity to draw clean horizontal bars
+        for i, j, rank_i, rank_j in connections:
+            y_mid = (y_positions[i] + y_positions[j]) / 2
+            ax.plot([rank_i, rank_j], [y_mid - line_height, y_mid - line_height],
+                   'b-', linewidth=2.5, alpha=0.6)
+
+        # Mark the critical difference
+        max_rank = max(ranks)
+        ax.plot([max_rank + 0.2, max_rank + 0.2 + cd],
+               [-0.5, -0.5], 'r-', linewidth=3)
+        ax.text(max_rank + 0.2 + cd/2, -0.7,
+               f'CD = {cd:.2f}', ha='center', fontsize=9, color='red')
+
+        # Formatting
+        ax.set_ylim(-1, n_algorithms + 0.5)
+        ax.set_xlim(0.5, max(ranks) + cd + 0.5)
+        ax.set_xlabel('Average Rank (lower is better)', fontsize=11)
+        ax.set_title(
+            'Critical Difference Diagram (Nemenyi test, α=0.05)\n'
+            'Blue bars connect algorithms with no significant difference',
+            fontsize=12
+        )
+        ax.set_yticks([])
+        ax.grid(True, alpha=0.3, axis='x')
+        ax.invert_xaxis()  # Best (rank 1) on the right
+
+        plt.tight_layout()
+        plt.savefig(plots_dir / 'critical_difference.pdf', format='pdf', dpi=dpi)
+        plt.savefig(plots_dir / 'critical_difference.png', format='png', dpi=dpi)
+        plt.close()
+        self.logger.info("Critical Difference diagram saved")
+
+    def _plot_performance_profiles(
+        self, result: CalibrationStudyResult, plots_dir: Path, dpi: int
+    ) -> None:
+        """
+        Plot performance profiles (Dolan & Moré, 2002).
+
+        For each algorithm, shows the cumulative distribution of performance
+        ratios across all runs. The performance ratio for a run is:
+            r = (metric_algorithm - metric_best) / metric_best
+        or for KGE (higher is better):
+            r = metric_best / metric_algorithm
+
+        The curve shows what fraction of runs achieved performance within
+        a given factor of the best performance.
+
+        Args:
+            result: CalibrationStudyResult with all runs
+            plots_dir: Directory to save the plot
+            dpi: Resolution for the plot
+        """
+        import matplotlib.pyplot as plt
+
+        stats = result.algorithm_statistics
+        if not stats or len(stats) < 2:
+            self.logger.warning("Not enough algorithms for performance profiles")
+            return
+
+        # Collect all valid runs across all algorithms
+        all_runs = []
+        for algo, algo_stats in stats.items():
+            for r in algo_stats.individual_results:
+                if r.final_kge > -900:  # Valid run
+                    all_runs.append({
+                        'algorithm': algo,
+                        'kge': r.final_kge,
+                        'nse': r.final_nse,
+                        'runtime': r.runtime_seconds,
+                    })
+
+        if not all_runs:
+            self.logger.warning("No valid runs for performance profiles")
+            return
+
+        df = pd.DataFrame(all_runs)
+
+        # Create figure with subplots for different metrics
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+        algorithms = sorted(stats.keys())
+        colors = plt.cm.tab10(np.linspace(0, 1, len(algorithms)))
+        algo_colors = {algo: colors[i] for i, algo in enumerate(algorithms)}
+
+        # Helper function to compute performance profile
+        def compute_profile(metric_values, higher_is_better=True):
+            """
+            Compute performance profile for a metric.
+
+            Returns dict: {algorithm: (tau_values, cumulative_fractions)}
+            """
+            profiles = {}
+
+            for algo in algorithms:
+                algo_runs = metric_values[metric_values['algorithm'] == algo]
+                if len(algo_runs) == 0:
+                    continue
+
+                # For each run, compute the performance ratio
+                ratios = []
+                for idx, run in algo_runs.iterrows():
+                    # Best value for this specific run (comparing across algorithms)
+                    # We need to find what other algorithms achieved on similar "problems"
+                    # Since we don't have paired problems, we use a simpler approach:
+                    # ratio = metric / best_across_all_algorithms
+                    if higher_is_better:
+                        best_val = metric_values['value'].max()
+                        if best_val > 0 and run['value'] > 0:
+                            ratio = best_val / run['value']
+                        else:
+                            ratio = np.inf
+                    else:
+                        best_val = metric_values['value'].min()
+                        if best_val > 0 and run['value'] > 0:
+                            ratio = run['value'] / best_val
+                        else:
+                            ratio = np.inf
+
+                    ratios.append(ratio)
+
+                # Compute cumulative distribution
+                ratios = np.array(ratios)
+                ratios = ratios[np.isfinite(ratios)]
+
+                if len(ratios) == 0:
+                    continue
+
+                # Create tau values (performance ratio thresholds)
+                tau_max = min(10, np.percentile(ratios, 95) * 1.2)
+                tau_values = np.linspace(1, tau_max, 100)
+
+                # For each tau, compute fraction of runs with ratio <= tau
+                cumulative = [np.mean(ratios <= tau) for tau in tau_values]
+
+                profiles[algo] = (tau_values, cumulative)
+
+            return profiles
+
+        # Plot 1: KGE performance profile
+        ax = axes[0]
+        metric_df = df[['algorithm', 'kge']].copy()
+        metric_df.columns = ['algorithm', 'value']
+
+        profiles = compute_profile(metric_df, higher_is_better=True)
+
+        for algo, (tau_vals, cum_frac) in profiles.items():
+            ax.plot(tau_vals, cum_frac, label=f'{algo.upper()}',
+                   color=algo_colors[algo], linewidth=2)
+
+        ax.set_xlabel('Performance Ratio τ (best / algorithm)', fontsize=10)
+        ax.set_ylabel('Fraction of Runs with Ratio ≤ τ', fontsize=10)
+        ax.set_title('(a) KGE Performance Profile', fontsize=11)
+        ax.legend(loc='lower right', fontsize=8)
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim(1, None)
+        ax.set_ylim(0, 1.05)
+
+        # Plot 2: Runtime efficiency profile
+        ax = axes[1]
+        metric_df = df[['algorithm', 'runtime']].copy()
+        metric_df.columns = ['algorithm', 'value']
+
+        profiles = compute_profile(metric_df, higher_is_better=False)
+
+        for algo, (tau_vals, cum_frac) in profiles.items():
+            ax.plot(tau_vals, cum_frac, label=f'{algo.upper()}',
+                   color=algo_colors[algo], linewidth=2)
+
+        ax.set_xlabel('Performance Ratio τ (algorithm / best)', fontsize=10)
+        ax.set_ylabel('Fraction of Runs with Ratio ≤ τ', fontsize=10)
+        ax.set_title('(b) Runtime Efficiency Profile', fontsize=11)
+        ax.legend(loc='lower right', fontsize=8)
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim(1, None)
+        ax.set_ylim(0, 1.05)
+
+        plt.tight_layout()
+        plt.savefig(plots_dir / 'performance_profiles.pdf', format='pdf', dpi=dpi)
+        plt.savefig(plots_dir / 'performance_profiles.png', format='png', dpi=dpi)
+        plt.close()
+        self.logger.info("Performance profiles saved")
+
     def save_latex_tables(self, result: CalibrationStudyResult) -> Path:
         """
         Save LaTeX tables for publication.
@@ -1965,6 +2432,443 @@ class HBVCalibrationStudy:
 
         self.logger.info(f"LaTeX tables saved to: {tables_dir}")
         return tables_dir
+
+    def analyze_parameter_response_surface(
+        self,
+        result: CalibrationStudyResult,
+        param_pairs: List[tuple] = None
+    ) -> Dict[str, Any]:
+        """Analyze parameter response surface from optimization trajectories.
+
+        Args:
+            result: CalibrationStudyResult with trajectory data
+            param_pairs: List of (param1, param2) pairs to analyze.
+                        If None, analyzes all adjacent parameter pairs.
+
+        Returns:
+            Dict with response surface statistics and correlation matrices.
+        """
+        analysis: Dict[str, Any] = {
+            'parameter_correlations': {},
+            'convergence_patterns': {},
+            'gradient_statistics': {},
+        }
+
+        # Get all trajectories
+        trajectories = result.get_parameter_trajectories()
+
+        if not trajectories:
+            self.logger.warning("No parameter trajectories available for analysis")
+            return analysis
+
+        # Compute parameter correlations across optimization
+        for algo_run, traj_df in trajectories.items():
+            param_cols = [c for c in traj_df.columns if c != 'iteration']
+            if len(param_cols) >= 2:
+                corr_matrix = traj_df[param_cols].corr()
+                analysis['parameter_correlations'][algo_run] = corr_matrix.to_dict()
+
+        # Analyze convergence patterns by algorithm
+        for algo, stats in result.algorithm_statistics.items():
+            patterns = {
+                'early_improvement_rate': None,
+                'late_improvement_rate': None,
+                'convergence_iteration': None,
+            }
+
+            # Compute from individual runs
+            for run_result in stats.individual_results:
+                if run_result.convergence_history:
+                    scores = [h['best_score'] for h in run_result.convergence_history]
+                    if len(scores) > 10:
+                        early = scores[:len(scores)//3]
+                        late = scores[-len(scores)//3:]
+                        if len(early) > 1:
+                            patterns['early_improvement_rate'] = (early[-1] - early[0]) / len(early)
+                        if len(late) > 1:
+                            patterns['late_improvement_rate'] = (late[-1] - late[0]) / len(late)
+
+            analysis['convergence_patterns'][algo] = patterns
+
+        # Gradient statistics for gradient-based algorithms
+        for r in result.algorithm_results:
+            if r.gradient_history:
+                grad_norms = [g['gradient_norm'] for g in r.gradient_history if g.get('gradient_norm')]
+                if grad_norms:
+                    analysis['gradient_statistics'][f"{r.algorithm}_run{r.run_id}"] = {
+                        'mean_grad_norm': float(np.mean(grad_norms)),
+                        'final_grad_norm': float(grad_norms[-1]),
+                        'grad_norm_trend': 'decreasing' if grad_norms[-1] < grad_norms[0] else 'stable',
+                    }
+
+        return analysis
+
+    def plot_parameter_trajectories(
+        self,
+        result: CalibrationStudyResult,
+        algorithms: List[str] = None,
+        params_to_plot: List[str] = None,
+        dpi: int = 300
+    ) -> Path:
+        """Plot parameter trajectories for selected algorithms.
+
+        Args:
+            result: CalibrationStudyResult with trajectory data
+            algorithms: Algorithms to plot (default: all with trajectories)
+            params_to_plot: Parameters to plot (default: first 4)
+            dpi: Resolution for output
+
+        Returns:
+            Path to saved plot
+        """
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+        except ImportError:
+            self.logger.warning("matplotlib not available, skipping trajectory plots")
+            return self.output_dir
+
+        trajectories = result.get_parameter_trajectories()
+        if not trajectories:
+            self.logger.warning("No trajectories available for plotting")
+            return self.output_dir
+
+        # Filter by algorithms if specified
+        if algorithms:
+            trajectories = {k: v for k, v in trajectories.items()
+                           if any(algo in k for algo in algorithms)}
+
+        if not trajectories:
+            self.logger.warning("No matching trajectories found for specified algorithms")
+            return self.output_dir
+
+        # Get parameter names
+        sample_df = list(trajectories.values())[0]
+        all_params = [c for c in sample_df.columns if c != 'iteration']
+        params = params_to_plot or all_params[:4]
+
+        # Create subplot for each parameter
+        n_params = len(params)
+        if n_params == 0:
+            self.logger.warning("No parameters to plot")
+            return self.output_dir
+
+        fig, axes = plt.subplots(n_params, 1, figsize=(10, 3*n_params), sharex=True)
+        if n_params == 1:
+            axes = [axes]
+
+        colors = plt.cm.tab10.colors
+
+        for ax, param in zip(axes, params):
+            for i, (name, traj_df) in enumerate(trajectories.items()):
+                if param in traj_df.columns:
+                    ax.plot(traj_df['iteration'], traj_df[param],
+                           label=name, color=colors[i % len(colors)], alpha=0.7)
+            ax.set_ylabel(param)
+            ax.legend(loc='upper right', fontsize=8)
+            ax.grid(True, alpha=0.3)
+
+        axes[-1].set_xlabel('Iteration')
+        plt.suptitle(f'Parameter Trajectories - {result.domain_name}')
+        plt.tight_layout()
+
+        # Save
+        plots_dir = self.output_dir / 'plots'
+        plots_dir.mkdir(parents=True, exist_ok=True)
+        plot_path = plots_dir / 'parameter_trajectories.pdf'
+        plt.savefig(plot_path, dpi=dpi, bbox_inches='tight')
+        plt.close()
+
+        self.logger.info(f"Saved parameter trajectory plot to {plot_path}")
+        return plot_path
+
+    def generate_dotty_plots(
+        self,
+        result: CalibrationStudyResult,
+        params_to_plot: List[str] = None,
+        dpi: int = 300
+    ) -> Path:
+        """Generate dotty plots showing parameter-objective relationships.
+
+        Dotty plots show the relationship between parameter values and
+        objective function values, useful for assessing parameter identifiability.
+
+        Args:
+            result: CalibrationStudyResult with trajectory data
+            params_to_plot: Parameters to plot (default: first 6)
+            dpi: Resolution for output
+
+        Returns:
+            Path to saved plot
+        """
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+        except ImportError:
+            self.logger.warning("matplotlib not available, skipping dotty plots")
+            return self.output_dir
+
+        # Collect all parameter-score pairs from trajectories
+        all_params: Dict[str, List[tuple[float, float]]] = {}
+        all_scores: List[float] = []
+
+        for r in result.algorithm_results:
+            if not r.parameter_trajectory or not r.convergence_history:
+                continue
+
+            for i, (traj, conv) in enumerate(zip(r.parameter_trajectory, r.convergence_history)):
+                score = conv.get('best_score', -999)
+                if score <= -900:
+                    continue
+
+                all_scores.append(score)
+                for param, value in traj.items():
+                    if param == 'iteration':
+                        continue
+                    if param not in all_params:
+                        all_params[param] = []
+                    all_params[param].append((value, score))
+
+        if not all_params:
+            self.logger.warning("No parameter data available for dotty plots")
+            return self.output_dir
+
+        # Select parameters to plot
+        param_names = list(all_params.keys())
+        if params_to_plot:
+            param_names = [p for p in params_to_plot if p in param_names]
+        else:
+            param_names = param_names[:6]  # First 6 parameters
+
+        n_params = len(param_names)
+        if n_params == 0:
+            self.logger.warning("No matching parameters for dotty plots")
+            return self.output_dir
+
+        # Create subplot grid
+        n_cols = min(3, n_params)
+        n_rows = (n_params + n_cols - 1) // n_cols
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(4*n_cols, 3.5*n_rows))
+
+        if n_params == 1:
+            axes = np.array([[axes]])
+        elif n_rows == 1:
+            axes = axes.reshape(1, -1)
+
+        # Score threshold for "behavioral" samples (top 10%)
+        if all_scores:
+            behavioral_threshold = np.percentile(all_scores, 90)
+        else:
+            behavioral_threshold = 0.5
+
+        for idx, param in enumerate(param_names):
+            row, col = idx // n_cols, idx % n_cols
+            ax = axes[row, col]
+
+            data = all_params[param]
+            values = [d[0] for d in data]
+            scores = [d[1] for d in data]
+
+            # Color by behavioral vs non-behavioral
+            colors = ['forestgreen' if s >= behavioral_threshold else 'lightgray'
+                     for s in scores]
+
+            ax.scatter(values, scores, c=colors, alpha=0.5, s=10, edgecolors='none')
+            ax.axhline(y=behavioral_threshold, color='red', linestyle='--',
+                      alpha=0.7, label='90th percentile')
+            ax.set_xlabel(param)
+            ax.set_ylabel('Objective (KGE)')
+            ax.grid(True, alpha=0.3)
+
+        # Hide empty subplots
+        for idx in range(n_params, n_rows * n_cols):
+            row, col = idx // n_cols, idx % n_cols
+            axes[row, col].set_visible(False)
+
+        plt.suptitle(f'Dotty Plots - {result.domain_name}\n(Green = behavioral samples, top 10%)')
+        plt.tight_layout()
+
+        # Save
+        plots_dir = self.output_dir / 'plots'
+        plots_dir.mkdir(parents=True, exist_ok=True)
+        plot_path = plots_dir / 'dotty_plots.pdf'
+        plt.savefig(plot_path, dpi=dpi, bbox_inches='tight')
+        plt.savefig(plots_dir / 'dotty_plots.png', dpi=dpi, bbox_inches='tight')
+        plt.close()
+
+        self.logger.info(f"Saved dotty plots to {plot_path}")
+        return plot_path
+
+    def compute_robustness_metrics(
+        self,
+        result: CalibrationStudyResult
+    ) -> Dict[str, Dict[str, float]]:
+        """Compute algorithm robustness metrics across multiple runs.
+
+        Robustness metrics assess how consistently an algorithm performs
+        across different random seeds and initial conditions.
+
+        Args:
+            result: CalibrationStudyResult with multi-run data
+
+        Returns:
+            Dict mapping algorithm names to robustness metrics:
+            - cv_kge: Coefficient of variation of KGE (lower = more robust)
+            - iqr_kge: Interquartile range of KGE (lower = more robust)
+            - consistency_index: Fraction of runs within 0.05 of best run
+            - failure_rate: Fraction of runs with KGE < 0
+            - cal_val_gap: Mean gap between calibration and validation KGE
+        """
+        robustness = {}
+
+        for algo, stats in result.algorithm_statistics.items():
+            kge_vals = [r.final_kge for r in stats.individual_results if r.final_kge > -900]
+
+            if len(kge_vals) < 2:
+                robustness[algo] = {
+                    'cv_kge': np.nan,
+                    'iqr_kge': np.nan,
+                    'consistency_index': np.nan,
+                    'failure_rate': np.nan,
+                    'cal_val_gap': np.nan,
+                }
+                continue
+
+            kge_array = np.array(kge_vals)
+            mean_kge = np.mean(kge_array)
+            std_kge = np.std(kge_array, ddof=1)
+
+            # Coefficient of variation (lower = more robust)
+            cv_kge = std_kge / abs(mean_kge) if mean_kge != 0 else np.nan
+
+            # Interquartile range
+            iqr_kge = np.percentile(kge_array, 75) - np.percentile(kge_array, 25)
+
+            # Consistency index: fraction within 0.05 of best
+            best_kge = np.max(kge_array)
+            consistent = np.sum(kge_array >= best_kge - 0.05) / len(kge_array)
+
+            # Failure rate: fraction with KGE < 0
+            failure_rate = np.sum(kge_array < 0) / len(kge_array)
+
+            # Calibration-validation gap
+            cal_val_gaps = []
+            for r in stats.individual_results:
+                if r.final_kge > -900 and r.val_kge is not None:
+                    cal_val_gaps.append(r.final_kge - r.val_kge)
+
+            cal_val_gap = np.mean(cal_val_gaps) if cal_val_gaps else np.nan
+
+            robustness[algo] = {
+                'cv_kge': float(cv_kge) if not np.isnan(cv_kge) else np.nan,
+                'iqr_kge': float(iqr_kge),
+                'consistency_index': float(consistent),
+                'failure_rate': float(failure_rate),
+                'cal_val_gap': float(cal_val_gap) if not np.isnan(float(cal_val_gap)) else np.nan,
+            }
+
+        return robustness
+
+    def generate_validation_comparison_plot(
+        self,
+        result: CalibrationStudyResult,
+        dpi: int = 300
+    ) -> Path:
+        """Generate calibration vs validation performance comparison plot.
+
+        Args:
+            result: CalibrationStudyResult with validation metrics
+            dpi: Resolution for output
+
+        Returns:
+            Path to saved plot
+        """
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+        except ImportError:
+            self.logger.warning("matplotlib not available, skipping validation plot")
+            return self.output_dir
+
+        # Collect cal/val pairs
+        cal_kges = []
+        val_kges = []
+        algorithms = []
+
+        for r in result.algorithm_results:
+            if r.final_kge > -900 and r.val_kge is not None:
+                cal_kges.append(r.final_kge)
+                val_kges.append(r.val_kge)
+                algorithms.append(r.algorithm)
+
+        if not cal_kges:
+            self.logger.warning("No validation metrics available for comparison plot")
+            return self.output_dir
+
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+        # 1. Scatter plot: Cal vs Val
+        ax1 = axes[0]
+        unique_algos = list(set(algorithms))
+        colors = plt.cm.tab10(np.linspace(0, 1, len(unique_algos)))
+        algo_colors = {a: colors[i] for i, a in enumerate(unique_algos)}
+
+        for cal, val, algo in zip(cal_kges, val_kges, algorithms):
+            ax1.scatter(cal, val, c=[algo_colors[algo]], alpha=0.7, s=50,
+                       label=algo if algo not in [l.get_label() for l in ax1.get_lines()] else '')
+
+        # 1:1 line
+        min_val = min(min(cal_kges), min(val_kges))
+        max_val = max(max(cal_kges), max(val_kges))
+        ax1.plot([min_val, max_val], [min_val, max_val], 'k--', alpha=0.5, label='1:1 line')
+
+        ax1.set_xlabel('Calibration KGE')
+        ax1.set_ylabel('Validation KGE')
+        ax1.set_title('Calibration vs Validation Performance')
+        ax1.grid(True, alpha=0.3)
+
+        # Create legend without duplicates
+        handles, labels = ax1.get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        ax1.legend(by_label.values(), by_label.keys(), loc='lower right')
+
+        # 2. Box plot: Cal-Val gap by algorithm
+        ax2 = axes[1]
+        gaps_by_algo: Dict[str, List[float]] = {}
+        for cal, val, algo in zip(cal_kges, val_kges, algorithms):
+            if algo not in gaps_by_algo:
+                gaps_by_algo[algo] = []
+            gaps_by_algo[algo].append(cal - val)
+
+        algos_sorted = sorted(gaps_by_algo.keys(), key=lambda a: float(np.median(gaps_by_algo[a])))
+        gap_data = [gaps_by_algo[a] for a in algos_sorted]
+
+        bp = ax2.boxplot(gap_data, labels=[a.upper() for a in algos_sorted], patch_artist=True)
+        for patch, algo in zip(bp['boxes'], algos_sorted):
+            patch.set_facecolor(algo_colors[algo])
+            patch.set_alpha(0.7)
+
+        ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
+        ax2.set_ylabel('Calibration - Validation KGE')
+        ax2.set_title('Generalization Gap by Algorithm')
+        ax2.tick_params(axis='x', rotation=45)
+        ax2.grid(True, alpha=0.3, axis='y')
+
+        plt.tight_layout()
+
+        # Save
+        plots_dir = self.output_dir / 'plots'
+        plots_dir.mkdir(parents=True, exist_ok=True)
+        plot_path = plots_dir / 'validation_comparison.pdf'
+        plt.savefig(plot_path, dpi=dpi, bbox_inches='tight')
+        plt.savefig(plots_dir / 'validation_comparison.png', dpi=dpi, bbox_inches='tight')
+        plt.close()
+
+        self.logger.info(f"Saved validation comparison plot to {plot_path}")
+        return plot_path
 
 
 # ============================================================================

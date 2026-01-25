@@ -219,9 +219,14 @@ class AdamAlgorithm(OptimizationAlgorithm):
                 best_fitness = fitness
                 best_x = x.copy()
 
-            # Record iteration
+            # Record iteration with enhanced tracking for response surface analysis
             params_dict = denormalize_params(best_x)
-            record_iteration(step, best_fitness, params_dict)
+            grad_norm = float(np.linalg.norm(gradient))
+            record_iteration(step, best_fitness, params_dict, {
+                'grad_norm': grad_norm,
+                'lr': lr,
+                'current_params': x.copy().tolist(),
+            })
             update_best(best_fitness, params_dict, step)
 
             # Adam update

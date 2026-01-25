@@ -103,6 +103,9 @@ class MESHForcingProcessor:
             var_n = ncfile.createVariable('subbasin', 'i4', ('subbasin',))
             var_n[:] = np.arange(1, n_spatial + 1)
 
+            # Get source units from config or detect from dataset
+            forcing_units = self.config.get('forcing_units', MESHConfigDefaults.FORCING_UNITS)
+
             for src_var, standard_name in var_rename.items():
                 if src_var in ds:
                     mesh_name = MESHConfigDefaults.MESH_VAR_NAMES.get(standard_name, src_var)
@@ -112,11 +115,21 @@ class MESHForcingProcessor:
                         if var_data.shape[0] != len(time_data):
                             var_data = var_data.T
 
+                    # Get source units (from config, dataset attributes, or defaults)
+                    source_units = forcing_units.get(standard_name, '')
+                    if not source_units and src_var in ds:
+                        source_units = ds[src_var].attrs.get('units', '')
+
+                    # Apply unit conversion
+                    converted_data, target_units = MESHConfigDefaults.convert_forcing_data(
+                        var_data, standard_name, source_units, self.logger
+                    )
+
                     var = ncfile.createVariable(mesh_name, 'f4', ('time', 'subbasin'), fill_value=-9999.0)
                     var.long_name = standard_name.replace('_', ' ')
-                    var.units = MESHConfigDefaults.get_var_units(mesh_name)
-                    var[:] = var_data
-                    self.logger.debug(f"Created {mesh_name} from {src_var}")
+                    var.units = target_units
+                    var[:] = converted_data
+                    self.logger.debug(f"Created {mesh_name} from {src_var} (units: {source_units} -> {target_units})")
 
             ncfile.title = 'MESH Forcing Data'
             ncfile.Conventions = 'CF-1.6'

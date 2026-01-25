@@ -150,6 +150,8 @@ class WizardPrompts:
             )
 
             # Check for special commands
+            if response is None:
+                continue
             if response.lower().strip() in (self.BACK_COMMAND, self.QUIT_COMMAND, self.HELP_COMMAND):
                 return response
 
@@ -240,7 +242,7 @@ class WizardPrompts:
                 )
             except KeyboardInterrupt:
                 raise
-            except Exception:
+            except ValueError:
                 self._show_validation_error("Please enter a valid integer")
 
     def _ask_path(self, question: Question, state: WizardState) -> str:

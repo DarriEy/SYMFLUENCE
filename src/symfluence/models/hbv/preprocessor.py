@@ -17,7 +17,7 @@ from symfluence.models.registry import ModelRegistry
 from symfluence.models.utilities import ForcingDataProcessor
 from symfluence.models.mixins import SpatialModeDetectionMixin
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
-from symfluence.core.constants import UnitConversion
+from symfluence.core.constants import UnitConversion, UnitDetectionThresholds
 
 
 @ModelRegistry.register_preprocessor('HBV')
@@ -112,7 +112,8 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
         """
         Prepare forcing data for lumped HBV simulation.
 
-        Creates a single time series for the entire catchment.
+        Creates BOTH hourly and daily forcing files from the same source data
+        to ensure consistency between different timestep configurations.
 
         Returns:
             True if successful.
@@ -128,7 +129,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                     f"Checked: {self.forcing_basin_path}, {self.merged_forcing_path}"
                 )
 
-            # Get timestep configuration
+            # Get timestep configuration from source data
             timestep_config = self.get_timestep_config()
 
             # Extract variables
@@ -151,18 +152,16 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                 )
 
             # Convert precipitation units if needed
-            # Check if units indicate mm/s (common in SUMMA/ERA5 forcing)
+            # Check if units indicate kg/m2/s or mm/s (common in SUMMA/ERA5/RDRS forcing)
             precip_units = forcing_ds[precip_var_name].attrs.get('units', '').lower()
-            if 'mm s' in precip_units or 'mm/s' in precip_units or 's-1' in precip_units:
-                # Convert mm/s to mm/timestep (hourly = 3600s)
-                timestep_seconds = timestep_config.get('time_step_size', 3600)
-                precip = precip * timestep_seconds
-                self.logger.info(f"Converted precipitation from mm/s to mm/timestep (×{timestep_seconds})")
+            if 'kg' in precip_units or 'mm s' in precip_units or 'mm/s' in precip_units or 's-1' in precip_units:
+                # Convert mm/s (or kg/m2/s) to mm/hour
+                precip = precip * 3600.0
+                self.logger.info(f"Converted precipitation from {precip_units} to mm/hour (×3600)")
             elif np.nanmean(precip) < 0.01 and np.nanmax(precip) < 0.1:
                 # Heuristic: if values are very small, likely mm/s not converted
-                timestep_seconds = timestep_config.get('time_step_size', 3600)
-                precip = precip * timestep_seconds
-                self.logger.info(f"Precipitation values appear to be in mm/s, converting to mm/timestep (×{timestep_seconds})")
+                precip = precip * 3600.0
+                self.logger.info("Precipitation values appear to be in mm/s, converting to mm/hour (×3600)")
 
             # Temperature (check various naming conventions)
             temp_vars = ['temp', 'tas', 'airtemp', 'tair', 'temperature', 'tmean']
@@ -178,82 +177,91 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                     f"Tried: {temp_vars}. Available: {list(forcing_ds.data_vars)}"
                 )
 
-            # Convert temperature from K to C if needed
-            if np.nanmean(temp) > 100:  # Likely Kelvin
+            # Convert temperature from K to C if needed (heuristic detection)
+            if np.nanmean(temp) > UnitDetectionThresholds.TEMP_KELVIN_VS_CELSIUS:
                 temp = temp - 273.15
+                self.logger.info("Converted temperature from K to °C")
 
-            # Potential evapotranspiration
-            pet = self._get_pet(forcing_ds, temp, time)
-            if pet is None:
+            # For lumped mode, average across HRUs if data has spatial dimension
+            # This handles basin-averaged forcing that still has HRU dimension
+            if precip.ndim > 1:
+                self.logger.info(f"Averaging precipitation across {precip.shape[1]} HRUs for lumped mode")
+                precip = np.nanmean(precip, axis=1)
+            if temp.ndim > 1:
+                self.logger.info(f"Averaging temperature across {temp.shape[1]} HRUs for lumped mode")
+                temp = np.nanmean(temp, axis=1)
+
+            # Potential evapotranspiration (calculated at daily resolution, will be distributed)
+            pet_daily = self._get_pet(forcing_ds, temp, time)
+            if pet_daily is None:
                 raise ValueError(
                     "Could not calculate or extract PET. "
                     "Ensure forcing data contains PET variable or temperature for calculation."
                 )
 
-            # Handle temporal resolution based on timestep_hours config
-            if timestep_config['time_label'] == 'hourly' and self.timestep_hours == 24:
-                # Default behavior: resample hourly data to daily for daily HBV
-                self.logger.info("Resampling hourly data to daily (HBV_TIMESTEP_HOURS=24)")
-                forcing_df = pd.DataFrame({
+            # Create hourly DataFrame (source resolution)
+            if timestep_config['time_label'] == 'hourly':
+                self.logger.info("Source data is hourly - creating both hourly and daily forcing files")
+
+                # Build hourly forcing DataFrame
+                # PET from Hamon is daily - distribute to hourly (mm/day -> mm/hour)
+                pet_hourly = pet_daily / 24.0
+
+                forcing_hourly = pd.DataFrame({
                     'time': time,
-                    'pr': precip.flatten(),
-                    'temp': temp.flatten(),
-                    'pet': pet.flatten()
+                    'pr': precip.flatten(),    # mm/hour
+                    'temp': temp.flatten(),    # °C
+                    'pet': pet_hourly.flatten() # mm/hour
                 }).set_index('time')
 
-                # Resample: sum for precip, mean for temperature
-                # PET: Hamon formula gives daily values, so use mean (same value all hours)
-                forcing_df = forcing_df.resample('D').agg({
-                    'pr': 'sum',
-                    'temp': 'mean',
-                    'pet': 'mean'  # Hamon gives daily PET, not hourly increments
-                })
-                forcing_df = forcing_df.reset_index()
-            elif timestep_config['time_label'] == 'hourly' and self.timestep_hours < 24:
-                # Sub-daily mode: preserve hourly resolution
-                self.logger.info(f"Preserving hourly resolution for sub-daily HBV (HBV_TIMESTEP_HOURS={self.timestep_hours})")
+                # Subset to simulation time window
+                time_window = self.get_simulation_time_window()
+                if time_window:
+                    start_time, end_time = time_window
+                    forcing_hourly = forcing_hourly[
+                        (forcing_hourly.index >= start_time) &
+                        (forcing_hourly.index <= end_time)
+                    ]
 
-                # For hourly PET, distribute daily PET across hours or recalculate
-                # Hamon gives daily values, so we divide by 24 for hourly increments
-                if self.pet_method in ('hamon', 'thornthwaite') or np.allclose(pet[::24], pet[1:24]):
-                    self.logger.info("Distributing daily PET across hourly timesteps")
-                    # PET was calculated at daily resolution, distribute to hourly
-                    pet_hourly = pet / 24.0
-                else:
-                    pet_hourly = pet.flatten()
+                # Save hourly forcing (1h)
+                self._save_forcing_file(forcing_hourly, timestep_hours=1)
 
-                forcing_df = pd.DataFrame({
-                    'time': time,
-                    'pr': precip.flatten(),  # Already in mm/hour
-                    'temp': temp.flatten(),
-                    'pet': pet_hourly
+                # Create daily forcing by resampling
+                forcing_daily = forcing_hourly.resample('D').agg({
+                    'pr': 'sum',      # mm/hour * 24 = mm/day
+                    'temp': 'mean',   # daily mean temperature
+                    'pet': 'sum'      # mm/hour * 24 = mm/day
                 })
+
+                # Save daily forcing (24h)
+                self._save_forcing_file(forcing_daily.reset_index(), timestep_hours=24)
+
+                self.logger.info(f"Created hourly forcing: {len(forcing_hourly)} timesteps")
+                self.logger.info(f"Created daily forcing: {len(forcing_daily)} timesteps")
+
             else:
-                # Daily input data
-                forcing_df = pd.DataFrame({
+                # Daily source data - only create daily file
+                self.logger.info("Source data is daily - creating daily forcing file only")
+
+                forcing_daily = pd.DataFrame({
                     'time': time,
                     'pr': precip.flatten(),
                     'temp': temp.flatten(),
-                    'pet': pet.flatten()
+                    'pet': pet_daily.flatten()
                 })
 
-            # Subset to simulation time window
-            time_window = self.get_simulation_time_window()
-            if time_window:
-                start_time, end_time = time_window
-                forcing_df['time'] = pd.to_datetime(forcing_df['time'])
-                forcing_df = forcing_df[
-                    (forcing_df['time'] >= start_time) &
-                    (forcing_df['time'] <= end_time)
-                ]
+                # Subset to simulation time window
+                time_window = self.get_simulation_time_window()
+                if time_window:
+                    start_time, end_time = time_window
+                    forcing_daily['time'] = pd.to_datetime(forcing_daily['time'])
+                    forcing_daily = forcing_daily[
+                        (forcing_daily['time'] >= start_time) &
+                        (forcing_daily['time'] <= end_time)
+                    ]
 
-            # Save forcing file
-            output_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing.csv"
-            forcing_df.to_csv(output_file, index=False)
-            self.logger.info(f"Saved lumped forcing to: {output_file}")
-
-            # Also save as NetCDF for consistency
-            self._save_forcing_netcdf(forcing_df, 'lumped')
+                # Save daily forcing
+                self._save_forcing_file(forcing_daily, timestep_hours=24)
 
             # Load and save observations if available
             self._prepare_observations()
@@ -261,13 +269,66 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
             return True
 
         except FileNotFoundError:
-            # Re-raise file not found errors without wrapping
             raise
         except Exception as e:
             self.logger.error(f"Error preparing lumped forcing: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
             raise RuntimeError(f"HBV lumped forcing preparation failed: {e}") from e
+
+    def _save_forcing_file(self, forcing_df: pd.DataFrame, timestep_hours: int) -> None:
+        """Save forcing DataFrame to both CSV and NetCDF files.
+
+        Args:
+            forcing_df: DataFrame with 'pr', 'temp', 'pet' columns (and 'time' column or index)
+            timestep_hours: Timestep in hours (1 for hourly, 24 for daily)
+        """
+        # Ensure time is a column
+        if 'time' not in forcing_df.columns:
+            forcing_df = forcing_df.reset_index()
+
+        # Determine units
+        if timestep_hours == 24:
+            pr_units = 'mm/day'
+            pet_units = 'mm/day'
+            timestep_label = 'daily'
+        else:
+            pr_units = f'mm/{timestep_hours}h'
+            pet_units = f'mm/{timestep_hours}h'
+            timestep_label = f'{timestep_hours}-hourly'
+
+        # Save CSV
+        csv_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_{timestep_hours}h.csv"
+        forcing_df.to_csv(csv_file, index=False)
+        self.logger.debug(f"Saved CSV: {csv_file}")
+
+        # Save NetCDF
+        ds = xr.Dataset(
+            data_vars={
+                'pr': (['time'], forcing_df['pr'].values.astype(np.float32)),
+                'temp': (['time'], forcing_df['temp'].values.astype(np.float32)),
+                'pet': (['time'], forcing_df['pet'].values.astype(np.float32)),
+            },
+            coords={
+                'time': pd.to_datetime(forcing_df['time']),
+            },
+            attrs={
+                'model': 'HBV-96',
+                'spatial_mode': 'lumped',
+                'domain': self.domain_name,
+                'timestep_hours': timestep_hours,
+                'timestep_label': timestep_label,
+                'units_pr': pr_units,
+                'units_temp': 'degC',
+                'units_pet': pet_units,
+            }
+        )
+
+        nc_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_{timestep_hours}h.nc"
+        encoding = create_netcdf_encoding(ds, compression=True)
+        ds.to_netcdf(nc_file, encoding=encoding)
+        ds.close()
+        self.logger.info(f"Saved forcing: {nc_file} ({timestep_label}, {len(forcing_df)} timesteps)")
 
     def _prepare_distributed_forcing(self) -> bool:
         """
@@ -382,7 +443,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                 ds = ds.sel(time=slice(start_time, end_time))
 
             # Save distributed forcing
-            output_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_distributed.nc"
+            output_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_distributed_{self.timestep_hours}h.nc"
             encoding = create_netcdf_encoding(ds, compression=True)
             ds.to_netcdf(output_file, encoding=encoding)
             self.logger.info(f"Saved distributed forcing to: {output_file}")
@@ -481,7 +542,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                 self.logger.info(f"Using PET from forcing data (variable: {var})")
                 pet = ds[var].values
                 # Convert if needed (some datasets have mm/s or kg/m2/s)
-                if np.nanmean(np.abs(pet)) < 0.01:  # Likely mm/s or similar
+                if np.nanmean(np.abs(pet)) < UnitDetectionThresholds.FLUX_RATE_MM_S_VS_MM_DAY:
                     pet = pet * UnitConversion.SECONDS_PER_DAY
                 return pet.flatten() if pet.ndim > 1 else pet
 
@@ -504,7 +565,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
         for var in ['pet', 'pET', 'potEvap', 'evap', 'evspsbl']:
             if var in ds:
                 pet = ds[var].values
-                if np.nanmean(np.abs(pet)) < 0.01:
+                if np.nanmean(np.abs(pet)) < UnitDetectionThresholds.FLUX_RATE_MM_S_VS_MM_DAY:
                     pet = pet * UnitConversion.SECONDS_PER_DAY
                 return pet
 
@@ -540,7 +601,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
             try:
                 import geopandas as gpd
                 catchment = gpd.read_file(self.get_catchment_path())
-                centroid = catchment.to_crs(epsg=4326).union_all().centroid
+                centroid = catchment.to_crs(epsg=4326).unary_union.centroid
                 lat = centroid.y
             except (FileNotFoundError, KeyError, IndexError, ValueError):
                 lat = 45.0  # Default mid-latitude
@@ -744,10 +805,10 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                 'pet': 'mean'  # Hamon gives daily PET, not hourly increments
             })
 
-            return (
-                df_daily['pr'].values[:, np.newaxis],
-                df_daily['temp'].values[:, np.newaxis],
-                df_daily['pet'].values[:, np.newaxis],
+            return (  # type: ignore[return-value]
+                np.asarray(df_daily['pr'].values)[:, np.newaxis],
+                np.asarray(df_daily['temp'].values)[:, np.newaxis],
+                np.asarray(df_daily['pet'].values)[:, np.newaxis],
                 df_daily.index
             )
         else:
@@ -773,50 +834,12 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                 temp_daily.append(df_daily['temp'].values)
                 pet_daily.append(df_daily['pet'].values)
 
-            return (
+            return (  # type: ignore[return-value]
                 np.column_stack(precip_daily),
                 np.column_stack(temp_daily),
                 np.column_stack(pet_daily),
                 df_daily.index
             )
-
-    def _save_forcing_netcdf(self, forcing_df: pd.DataFrame, mode: str) -> None:
-        """Save forcing as NetCDF file."""
-        # Determine units based on timestep
-        if self.timestep_hours == 24:
-            pr_units = 'mm/day'
-            pet_units = 'mm/day'
-            timestep_label = 'daily'
-        else:
-            pr_units = f'mm/{self.timestep_hours}h'
-            pet_units = f'mm/{self.timestep_hours}h'
-            timestep_label = f'{self.timestep_hours}-hourly'
-
-        ds = xr.Dataset(
-            data_vars={
-                'pr': (['time'], forcing_df['pr'].values),
-                'temp': (['time'], forcing_df['temp'].values),
-                'pet': (['time'], forcing_df['pet'].values),
-            },
-            coords={
-                'time': pd.to_datetime(forcing_df['time']) if 'time' in forcing_df.columns else forcing_df.index,
-            },
-            attrs={
-                'model': 'HBV-96',
-                'spatial_mode': mode,
-                'domain': self.domain_name,
-                'timestep_hours': self.timestep_hours,
-                'timestep_label': timestep_label,
-                'units_pr': pr_units,
-                'units_temp': 'degC',
-                'units_pet': pet_units,
-            }
-        )
-
-        output_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing.nc"
-        encoding = create_netcdf_encoding(ds, compression=True)
-        ds.to_netcdf(output_file, encoding=encoding)
-        self.logger.info(f"Saved forcing NetCDF to: {output_file} (timestep: {timestep_label})")
 
     def _prepare_observations(self) -> None:
         """Prepare observation data for validation/calibration."""
@@ -842,9 +865,9 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
             forcing_dict contains 'precip', 'temp', 'pet' arrays
         """
         if self.spatial_mode == 'distributed':
-            forcing_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_distributed.nc"
+            forcing_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_distributed_{self.timestep_hours}h.nc"
         else:
-            forcing_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing.nc"
+            forcing_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_{self.timestep_hours}h.nc"
 
         if not forcing_file.exists():
             raise FileNotFoundError(f"Forcing file not found: {forcing_file}")
@@ -866,4 +889,4 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
         else:
             observations = None
 
-        return forcing, observations
+        return forcing, observations  # type: ignore[return-value]

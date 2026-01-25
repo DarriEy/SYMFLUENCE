@@ -53,4 +53,4 @@ def _register_optimizers():
 # Trigger registration on import
 _register_optimizers()
 
-__all__ = []
+__all__: list[str] = []

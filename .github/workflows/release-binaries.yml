@@ -152,7 +152,7 @@ jobs:
 
           # Build external tools using symfluence command
           echo "Running: symfluence binary install"
-          ./symfluence binary install
+          ./scripts/symfluence-bootstrap binary install
 
           echo "Build external tools completed successfully"
 

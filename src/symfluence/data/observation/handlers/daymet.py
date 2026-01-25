@@ -192,10 +192,11 @@ class DaymetHandler(BaseObservationHandler):
         lon_name = self._find_coord(ds, ['lon', 'longitude', 'x'])
 
         for var_name in ds.data_vars:
-            if var_name in self.VARIABLE_MAP:
-                std_name = self.VARIABLE_MAP[var_name]
+            var_name_str = str(var_name)
+            if var_name_str in self.VARIABLE_MAP:
+                std_name = self.VARIABLE_MAP[var_name_str]
             else:
-                std_name = var_name
+                std_name = var_name_str
 
             try:
                 da = ds[var_name]

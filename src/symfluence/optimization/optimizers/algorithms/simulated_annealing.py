@@ -38,7 +38,7 @@ class SimulatedAnnealingAlgorithm(OptimizationAlgorithm):
         """Algorithm identifier for logging and result tracking."""
         return "SA"
 
-    def optimize(
+    def optimize(  # type: ignore[override]
         self,
         n_params: int,
         evaluate_solution: Callable[[np.ndarray, int], float],

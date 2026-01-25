@@ -65,7 +65,7 @@ git clone https://github.com/DarriEy/SYMFLUENCE.git
 cd SYMFLUENCE
 
 # Use built-in installer
-./symfluence --install
+./scripts/symfluence-bootstrap --install
 ```
 
 This creates a clean Python 3.11 virtual environment, installs dependencies, and builds binaries.

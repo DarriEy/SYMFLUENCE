@@ -262,19 +262,39 @@ propose_code_change
 ^^^^^^^^^^^^^^^^^^^
 Propose a code modification (validates syntax, shows diff).
 
+Uses fuzzy matching to find code even with minor whitespace differences.
+Validates Python syntax before staging and shows a preview diff.
+
 **Parameters:**
 
 - ``file_path`` (required): Path to file to modify
-- ``old_code`` (required): Exact code to replace
+- ``old_code`` (required): Exact code to replace (fuzzy matched)
 - ``new_code`` (required): Replacement code
 - ``description`` (required): Why this change is needed
 - ``reason``: Type - bugfix, improvement, or feature
+- ``fuzzy_threshold``: Match similarity (0.0-1.0, default 0.85)
+
+**Example:**
+
+.. code-block:: text
+
+    Propose changing the timeout from 30 to 60 seconds in config.py
 
 show_staged_changes
 ^^^^^^^^^^^^^^^^^^^
-Display all staged changes ready for commit.
+Display all staged changes with statistics and file summary.
+
+Shows diff statistics (lines added/removed), list of modified files,
+and the full diff. Provides guidance on next steps (run tests, commit, etc.).
 
 **Parameters:** None
+
+**Output includes:**
+
+- Summary statistics (files changed, insertions, deletions)
+- List of modified files
+- Full diff output
+- Next step guidance
 
 run_tests
 ^^^^^^^^^
@@ -290,11 +310,23 @@ create_pr_proposal
 ^^^^^^^^^^^^^^^^^^
 Create a PR proposal from staged changes.
 
+Auto-detects modified files and generates a comprehensive PR description
+with testing checklist. Provides step-by-step instructions for completing
+the PR manually or via ``gh`` CLI.
+
 **Parameters:**
 
 - ``title`` (required): PR title
 - ``description`` (required): PR body/description
 - ``reason``: Type - bugfix, improvement, or feature
+
+**Generated PR includes:**
+
+- Summary section with your description
+- Context-specific problem/feature/improvement section
+- Auto-detected list of modified files
+- Testing checklist
+- Agent attribution footer
 
 Meta Tools
 ----------

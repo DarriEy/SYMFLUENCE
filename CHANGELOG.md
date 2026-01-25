@@ -9,6 +9,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Documentation Improvements**
+  - New CFuse model guide (experimental differentiable PyTorch-based FUSE)
+  - New JFuse model guide (experimental JAX-based FUSE with gradient support)
+  - New WM-Fire model guide (wildfire spread simulation with RHESSys)
+  - Comprehensive CLI reference documentation with all commands and options
+  - Expanded configuration parameter reference
+  - Fixed Python API examples in calibration documentation
+  - New testing guide for contributors with pytest patterns and CI integration
+  - Added agent-assisted contribution workflow documentation
+
+- **Agent Improvements**
+  - Enhanced `show_staged_changes` with diff statistics and file summary
+  - Improved `generate_pr_description` with auto-detection of modified files
+  - Better PR descriptions with context-specific sections and testing checklists
+  - Added documentation for fuzzy matching threshold parameter
+
+- **HBV Module Refactoring**
+  - New `losses.py` module with differentiable NSE/KGE loss functions and gradient utilities
+  - New `parameters.py` module with parameter bounds, defaults, and scaling utilities
+  - Lazy imports in `__init__.py` for optional JAX dependency
+  - Reduced `model.py` by ~650 lines through modularization
+
+- **HBV Parameter Regionalization**
+  - Neural transfer functions for spatially-varying parameter estimation
+  - Support for catchment attribute-based parameter prediction
+
+- **HBV Calibration Improvements**
+  - Hydrograph signature metrics for multi-objective calibration
+  - Enhanced optimizer with adaptive learning rates
+
+### Changed
+- **HBV Sub-Daily Parameter Scaling**
+  - Implemented exact exponential scaling for recession coefficients (K0, K1, K2)
+  - Formula: `k_sub = 1 - (1 - k_daily)^(dt/24)` replaces linear approximation
+  - Eliminates ~5-13% error in recession behavior at sub-daily timesteps
+  - Flux rate parameters (CFMAX, PERC) continue to use linear scaling
+  - Added `FLUX_RATE_PARAMS` and `RECESSION_PARAMS` constants
+
+- **MESH Preprocessing Consolidation**
+  - Moved configuration defaults to dedicated `config_defaults.py`
+  - Streamlined `config_generator.py` and `meshflow_manager.py`
+  - Expanded `parameter_fixer.py` with robust parameter handling
+  - Updated NALCMS to CLASS land cover mapping (wetland, snow/ice corrections)
+  - Added unit conversion utilities for forcing data
+  - Improved logging (replaced debug prints with proper logger calls)
+
+- **Reporting Module Cleanup**
+  - Simplified plotter implementations
+  - Improved shapefile handling
+
+### Fixed
+- Traceback handling in MESH postprocessor
+
+### Documentation
+- Added comprehensive sub-daily simulation section to HBV model guide
+- Documented parameter scaling approaches (exact vs linear)
+- Added validation methodology for sub-daily implementations
+
 ### Planned
 - See [v0.7.0] for upcoming CLI changes
 

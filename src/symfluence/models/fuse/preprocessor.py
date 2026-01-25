@@ -928,7 +928,7 @@ class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtil
             return_none_on_error=True
         )
 
-        return obs_ds
+        return obs_ds  # type: ignore[return-value]
 
     def _calculate_distributed_pet(self, ds, spatial_mode, pet_method='oudin'):
         """Calculate PET for distributed/semi-distributed modes - delegates to forcing processor"""

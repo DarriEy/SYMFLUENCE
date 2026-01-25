@@ -22,6 +22,8 @@ import warnings
 
 import numpy as np
 
+from symfluence.core.constants import UnitDetectionThresholds
+
 try:
     import jax.numpy as jnp
     from jax import lax
@@ -442,8 +444,8 @@ class NetworkBuilder:
         area_col = self._find_column(river_gdf, self.AREA_COLS, required=False)
         if area_col:
             areas = river_gdf[area_col].values
-            # Convert km² to m² if values are small
-            if np.nanmean(areas) < 1000:  # Likely km²
+            # Convert km² to m² if values are small (heuristic detection)
+            if np.nanmean(areas) < UnitDetectionThresholds.AREA_KM2_VS_M2:
                 areas = areas * 1e6
             return areas.astype(np.float64)
 
@@ -462,7 +464,7 @@ class NetworkBuilder:
                         catch_areas.get(sid, np.nan)
                         for sid in river_gdf[seg_id_col]
                     ])
-                    if np.nanmean(areas) < 1000:
+                    if np.nanmean(areas) < UnitDetectionThresholds.AREA_KM2_VS_M2:
                         areas = areas * 1e6
                     return areas.astype(np.float64)
 

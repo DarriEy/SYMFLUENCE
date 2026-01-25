@@ -7,7 +7,6 @@ preprocessor stores daily-resampled observations.
 """
 
 from pathlib import Path
-from typing import Optional
 import pandas as pd
 
 from symfluence.evaluation.evaluators.streamflow import StreamflowEvaluator
@@ -56,7 +55,7 @@ class CFUSEStreamflowTarget(StreamflowEvaluator):
         )
         return super().get_observed_data_path()
 
-    def extract_simulated_data(self, sim_files, **kwargs) -> Optional[pd.Series]:
+    def extract_simulated_data(self, sim_files, **kwargs) -> pd.Series:  # type: ignore[override]
         """Extract simulated streamflow from cFUSE output.
 
         cFUSE outputs are stored as CSV and NetCDF with streamflow_cms column.
@@ -92,7 +91,7 @@ class CFUSEStreamflowTarget(StreamflowEvaluator):
                 ds = xr.open_dataset(cfuse_nc)
                 sim_data = ds['streamflow'].to_pandas()
                 ds.close()
-                return sim_data
+                return sim_data  # type: ignore[return-value]
             except Exception as e:
                 self.logger.warning(f"Error reading cFUSE NetCDF output: {e}")
 

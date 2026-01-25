@@ -99,7 +99,7 @@ class ABCAlgorithm(OptimizationAlgorithm):
                 'min_generations': self.config_dict.get('ABC_MIN_GENERATIONS', 5),
             }
 
-    def optimize(
+    def optimize(  # type: ignore[override]
         self,
         n_params: int,
         evaluate_solution: Callable[[np.ndarray, int], float],
@@ -253,8 +253,8 @@ class ABCAlgorithm(OptimizationAlgorithm):
             # Update importance weights for accepted particles
             if gen > 0 and hasattr(self, '_prev_particles') and hasattr(self, '_kernel_cov'):
                 weights = self._update_weights(
-                    particles, self._prev_particles, self._prev_weights,
-                    self._kernel_cov, accepted_mask
+                    particles, self._prev_particles, self._prev_weights,  # type: ignore[has-type]
+                    self._kernel_cov, accepted_mask  # type: ignore[has-type]
                 )
             else:
                 # First generation: uniform weights for accepted
@@ -481,7 +481,7 @@ class ABCAlgorithm(OptimizationAlgorithm):
 
         # Find index where cumulative weight exceeds quantile
         quantile_idx = np.searchsorted(cumsum, quantile)
-        quantile_idx = min(quantile_idx, len(sorted_distances) - 1)
+        quantile_idx = min(int(quantile_idx), len(sorted_distances) - 1)
         new_tolerance = sorted_distances[quantile_idx]
 
         # Bound by geometric decay and final tolerance
@@ -703,7 +703,7 @@ class ABCAlgorithm(OptimizationAlgorithm):
         particles: np.ndarray,
         weights: np.ndarray,
         alpha: float = 0.05
-    ) -> Dict[str, np.ndarray]:
+    ) -> Dict[str, Any]:
         """
         Compute credible intervals for each parameter.
 

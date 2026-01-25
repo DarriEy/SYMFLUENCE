@@ -2,12 +2,13 @@
 Acquisition handlers for various datasets.
 """
 
-import sys as _sys
+import logging as _logging
 import importlib as _importlib
+
+_logger = _logging.getLogger(__name__)
 
 # Import all handlers to trigger registration
 # Use try/except for each to handle optional dependencies
-# Log errors to stderr for CI debugging
 
 _imported = []
 _failed = []
@@ -58,8 +59,7 @@ for _module_name in _handler_modules:
         _imported.append(_module_name)
     except Exception as _e:
         _failed.append((_module_name, str(_e)))
-        print(f"WARNING: Failed to import acquisition handler '{_module_name}': {_e}",
-              file=_sys.stderr)
+        _logger.warning("Failed to import acquisition handler '%s': %s", _module_name, _e)
 
 # Clean up
 del _handler_modules, _module_name

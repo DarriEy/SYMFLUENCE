@@ -27,7 +27,7 @@ Usage:
     handler.create_shapefile(...)
 """
 
-import sys as _sys
+import logging as _logging
 import warnings as _warnings
 import importlib as _importlib
 
@@ -37,6 +37,8 @@ from .base_dataset import (
     apply_standard_variable_attributes,
 )
 from .dataset_registry import DatasetRegistry
+
+_logger = _logging.getLogger(__name__)
 
 # Import handlers with fail-safe pattern to allow partial loading
 # This helps diagnose which specific handler has import issues
@@ -66,8 +68,7 @@ for _module_name, _handler_name in _handler_imports:
     except Exception as _e:
         _failed_handlers.append((_handler_name, str(_e)))
         globals()[_handler_name] = None
-        print(f"WARNING: Failed to import {_handler_name} from {_module_name}: {_e}",
-              file=_sys.stderr)
+        _logger.warning("Failed to import %s from %s: %s", _handler_name, _module_name, _e)
 
 # Clean up temporary variables
 del _handler_imports

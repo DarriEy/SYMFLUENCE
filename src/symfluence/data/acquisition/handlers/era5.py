@@ -185,7 +185,7 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
         except ImportError as e:
             raise ImportError("gcsfs and xarray are required for ERA5 cloud access.") from e
 
-        gcs = gcsfs.GCSFileSystem(token="anon")
+        gcs = gcsfs.GCSFileSystem(token="anon")  # nosec B106 - anonymous access to public GCS
         default_store = "gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3"
         zarr_store = self._get_config_value(
             lambda: self.config.forcing.era5.zarr_path, default=default_store
@@ -264,6 +264,11 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
         output_dir.mkdir(parents=True, exist_ok=True)
         chunk_files = []
 
+        # Check for skip_existing option (default True to resume interrupted downloads)
+        skip_existing = self._get_config_value(
+            lambda: self.config.forcing.skip_existing_files, default=True
+        )
+
         # Default to parallel processing if not specified
         n_workers_cfg = self._get_config_value(lambda: self.config.system.num_processes)
         if n_workers_cfg is not None:
@@ -277,6 +282,20 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
 
         if n_workers <= 1:
             for i, (chunk_start, chunk_end) in enumerate(chunks, start=1):
+                file_year, file_month = chunk_start.year, chunk_start.month
+                chunk_file = output_dir / f"domain_{domain_name}_ERA5_merged_{file_year}{file_month:02d}.nc"
+
+                # Check if file exists and is valid (skip if already downloaded)
+                if skip_existing and chunk_file.exists():
+                    try:
+                        with xr.open_dataset(chunk_file) as existing:
+                            if "time" in existing.dims and existing.sizes["time"] > 0:
+                                self.logger.info(f"✓ Skipping ERA5 chunk {i}/{len(chunks)} ({chunk_file.name}) - already exists")
+                                chunk_files.append(chunk_file)
+                                continue
+                    except Exception:
+                        self.logger.info(f"  Existing file {chunk_file.name} is invalid, re-downloading")
+
                 self.logger.info(f"Processing ERA5 chunk {i}/{len(chunks)}: {chunk_start.strftime('%Y-%m')} to {chunk_end.strftime('%Y-%m')}")
                 time_start = chunk_start if i == 1 else chunk_start - pd.Timedelta(hours=step)
                 ds_t = ds.sel(time=slice(time_start, chunk_end))
@@ -308,39 +327,62 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
                 if "time" not in ds_ts.dims or ds_ts.sizes["time"] < 2: continue
                 ds_chunk = era5_to_summa_schema(ds_ts[[v for v in available_vars if v in ds_ts.data_vars]], source='arco', logger=self.logger)
                 if "time" not in ds_chunk.dims or ds_chunk.sizes["time"] < 1: continue
-                file_year, file_month = chunk_start.year, chunk_start.month
-                chunk_file = output_dir / f"domain_{domain_name}_ERA5_merged_{file_year}{file_month:02d}.nc"
+                # chunk_file already defined at start of loop
                 encoding = {var: {"zlib": True, "complevel": 1, "chunksizes": (min(168, ds_chunk.sizes["time"]), ds_chunk.sizes["latitude"], ds_chunk.sizes["longitude"])} for var in ds_chunk.data_vars}
                 ds_chunk.to_netcdf(chunk_file, encoding=encoding, compute=True)
                 self.logger.info(f"✓ Successfully saved ERA5 chunk {i}/{len(chunks)} to {chunk_file.name}")
                 chunk_files.append(chunk_file)
         else:
             from concurrent.futures import ThreadPoolExecutor
-            def process_chunk(i, chunk_start, chunk_end):
-                return _process_era5_chunk_threadsafe(
-                    i,
-                    (chunk_start, chunk_end),
-                    ds,
-                    available_vars,
-                    step,
-                    lat_min_raw,
-                    lat_max_raw,
-                    lon_min,
-                    lon_max,
-                    wrap_longitude,
-                    lat_descending,
-                    lon_min_value,
-                    lon_max_value,
-                    output_dir,
-                    domain_name,
-                    len(chunks),
-                    self.logger,
-                )
-            with ThreadPoolExecutor(max_workers=n_workers) as ex:
-                futures = [ex.submit(process_chunk, i, *chunks[i-1]) for i in range(1, len(chunks)+1)]
-                for future in futures:
-                    _, cf, _ = future.result()
-                    if cf: chunk_files.append(cf)
+
+            # Pre-check which chunks need downloading (skip existing valid files)
+            chunks_to_process = []
+            for i, (chunk_start, chunk_end) in enumerate(chunks, start=1):
+                file_year, file_month = chunk_start.year, chunk_start.month
+                chunk_file = output_dir / f"domain_{domain_name}_ERA5_merged_{file_year}{file_month:02d}.nc"
+
+                if skip_existing and chunk_file.exists():
+                    try:
+                        with xr.open_dataset(chunk_file) as existing:
+                            if "time" in existing.dims and existing.sizes["time"] > 0:
+                                self.logger.info(f"✓ Skipping ERA5 chunk {i}/{len(chunks)} ({chunk_file.name}) - already exists")
+                                chunk_files.append(chunk_file)
+                                continue
+                    except Exception:
+                        self.logger.info(f"  Existing file {chunk_file.name} is invalid, re-downloading")
+
+                chunks_to_process.append((i, chunk_start, chunk_end))
+
+            if not chunks_to_process:
+                self.logger.info("All ERA5 chunks already downloaded, skipping acquisition")
+            else:
+                self.logger.info(f"Downloading {len(chunks_to_process)}/{len(chunks)} ERA5 chunks (skipped {len(chunks) - len(chunks_to_process)} existing)")
+
+                def process_chunk(i, chunk_start, chunk_end):
+                    return _process_era5_chunk_threadsafe(
+                        i,
+                        (chunk_start, chunk_end),
+                        ds,
+                        available_vars,
+                        step,
+                        lat_min_raw,
+                        lat_max_raw,
+                        lon_min,
+                        lon_max,
+                        wrap_longitude,
+                        lat_descending,
+                        lon_min_value,
+                        lon_max_value,
+                        output_dir,
+                        domain_name,
+                        len(chunks),
+                        self.logger,
+                    )
+                with ThreadPoolExecutor(max_workers=n_workers) as ex:
+                    futures = [ex.submit(process_chunk, i, cs, ce) for i, cs, ce in chunks_to_process]
+                    for future in futures:
+                        _, cf, _ = future.result()
+                        if cf: chunk_files.append(cf)
 
         return output_dir if len(chunk_files) > 1 else (chunk_files[0] if chunk_files else output_dir)
 

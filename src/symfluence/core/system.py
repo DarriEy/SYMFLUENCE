@@ -13,7 +13,7 @@ Example:
 """
 try:
     from symfluence.symfluence_version import __version__
-except Exception:
+except ImportError:
     __version__ = "0+unknown"
 
 

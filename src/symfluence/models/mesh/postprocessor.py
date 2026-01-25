@@ -122,7 +122,7 @@ class MESHPostProcessor(StandardModelPostprocessor):
             )
 
         except Exception as e:
-            self.logger.error(f"Error extracting MESH streamflow: {str(e)}")
             import traceback
-            traceback.print_exc()
+            self.logger.error(f"Error extracting MESH streamflow: {str(e)}")
+            self.logger.debug(traceback.format_exc())
             return None

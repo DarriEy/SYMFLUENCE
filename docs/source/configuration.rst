@@ -746,3 +746,196 @@ Validation and Best Practices
    - HYPE: Daily only
 
 ---
+
+Experimental Model Parameters
+-----------------------------
+
+CFuse Parameters (Experimental)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. warning::
+
+   CFuse is experimental. API may change without notice.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 15 15 40
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - CFUSE_MODEL_STRUCTURE
+     - string
+     - "prms"
+     - Model structure (prms, sacramento, topmodel, vic, arno)
+   * - CFUSE_SPATIAL_MODE
+     - string
+     - "auto"
+     - Spatial mode (lumped, distributed, auto)
+   * - CFUSE_ENABLE_SNOW
+     - boolean
+     - true
+     - Enable snow processes
+   * - CFUSE_WARMUP_DAYS
+     - integer
+     - 365
+     - Spinup period in days
+   * - CFUSE_USE_NATIVE_GRADIENTS
+     - boolean
+     - true
+     - Use Enzyme AD for gradients
+   * - CFUSE_USE_GRADIENT_CALIBRATION
+     - boolean
+     - true
+     - Use gradient-based optimization
+   * - CFUSE_CALIBRATION_METRIC
+     - string
+     - "KGE"
+     - Objective function (KGE, NSE)
+   * - CFUSE_DEVICE
+     - string
+     - "cpu"
+     - PyTorch device (cpu, cuda)
+
+JFuse Parameters (Experimental)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. warning::
+
+   JFuse is experimental. API may change without notice.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 15 15 40
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - JFUSE_MODEL_CONFIG_NAME
+     - string
+     - "prms_gradient"
+     - Model configuration (prms_gradient, max_gradient, etc.)
+   * - JFUSE_SPATIAL_MODE
+     - string
+     - "auto"
+     - Spatial mode (lumped, distributed, auto)
+   * - JFUSE_JIT_COMPILE
+     - boolean
+     - true
+     - Enable JAX JIT compilation
+   * - JFUSE_USE_GPU
+     - boolean
+     - false
+     - Use GPU acceleration
+   * - JFUSE_WARMUP_DAYS
+     - integer
+     - 365
+     - Spinup period in days
+   * - JFUSE_USE_GRADIENT_CALIBRATION
+     - boolean
+     - true
+     - Use gradient-based optimization
+   * - JFUSE_CALIBRATION_METRIC
+     - string
+     - "KGE"
+     - Objective function (KGE, NSE)
+
+WM-Fire Parameters (RHESSys Fire Module)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 15 15 40
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - RHESSYS_USE_WMFIRE
+     - boolean
+     - false
+     - Enable WM-Fire module
+   * - WMFIRE_GRID_RESOLUTION
+     - integer
+     - 30
+     - Fire grid resolution in meters (10-200)
+   * - WMFIRE_TIMESTEP_HOURS
+     - integer
+     - 24
+     - Simulation timestep (1-24 hours)
+   * - WMFIRE_NDAYS_AVERAGE
+     - float
+     - 30.0
+     - Fuel moisture averaging window (days)
+   * - WMFIRE_FUEL_SOURCE
+     - string
+     - "static"
+     - Fuel source (static, rhessys_litter)
+   * - WMFIRE_MOISTURE_SOURCE
+     - string
+     - "static"
+     - Moisture source (static, rhessys_soil)
+   * - WMFIRE_IGNITION_POINT
+     - string
+     - null
+     - Ignition coordinates as "lat/lon"
+   * - WMFIRE_IGNITION_DATE
+     - string
+     - null
+     - Ignition date (YYYY-MM-DD)
+   * - WMFIRE_WRITE_GEOTIFF
+     - boolean
+     - true
+     - Write GeoTIFF outputs
+
+Advanced Optimization Parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 15 15 40
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - GRADIENT_MODE
+     - string
+     - "auto"
+     - Gradient mode (auto, native, finite_difference)
+   * - GRADIENT_EPSILON
+     - float
+     - 1e-4
+     - Finite difference perturbation size
+   * - GRADIENT_CLIP_VALUE
+     - float
+     - 1.0
+     - Maximum gradient L2 norm
+   * - DDS_R
+     - float
+     - 0.2
+     - DDS neighborhood size parameter
+   * - PSO_COGNITIVE_PARAM
+     - float
+     - 1.5
+     - PSO cognitive parameter (c1)
+   * - PSO_SOCIAL_PARAM
+     - float
+     - 1.5
+     - PSO social parameter (c2)
+   * - PSO_INERTIA_WEIGHT
+     - float
+     - 0.7
+     - PSO inertia weight
+   * - DE_SCALING_FACTOR
+     - float
+     - 0.5
+     - Differential Evolution F parameter
+   * - DE_CROSSOVER_RATE
+     - float
+     - 0.9
+     - Differential Evolution CR parameter
+
+---

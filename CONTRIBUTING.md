@@ -15,7 +15,7 @@ We welcome all contributions — from bug fixes and documentation improvements t
 
 2. **Set up your environment**
    ```bash
-   ./symfluence --install
+   ./scripts/symfluence-bootstrap --install
    ```
    This will create and manage a `.venv` automatically.
    If you prefer manual setup:
@@ -27,7 +27,7 @@ We welcome all contributions — from bug fixes and documentation improvements t
 
 3. **Verify installation**
    ```bash
-   ./symfluence --help
+   ./scripts/symfluence-bootstrap --help
    ```
 
 ---
@@ -99,6 +99,22 @@ git push origin develop
 - Include **type hints** and informative **docstrings**.
 - Keep functions focused and testable.
 - Prefer explicit over implicit; avoid magic numbers.
+
+### Type Checking Notes
+
+SYMFLUENCE uses mypy for static type checking. Some files contain `# type: ignore` comments due to limitations in third-party type stubs:
+
+| Library | Issue | Affected Modules |
+|---------|-------|------------------|
+| **matplotlib** | Incomplete type stubs for plotting APIs | `reporting/plotters/` |
+| **xarray** | Complex generic types not fully captured | `reporting/processors/`, data modules |
+| **pandas** | Some DataFrame operations lack precise types | Various data processing |
+| **GDAL/rasterio** | C extension bindings have limited type info | Geospatial modules |
+
+These suppressions are intentional and reviewed. When adding new `# type: ignore` comments:
+1. Use the most specific form: `# type: ignore[error-code]`
+2. Add a brief comment explaining why it's needed
+3. Prefer fixing the type issue if possible
 
 ### Docstring Conventions
 We use NumPy-style docstrings for consistency. Include:
@@ -214,7 +230,7 @@ Example:
 Model setup fails on FIR cluster with NetCDF 4.9.2.
 
 ## Steps
-1. Run ./symfluence --setup_project
+1. Run ./scripts/symfluence-bootstrap --setup_project
 2. Error during model initialization
 
 ## Expected

@@ -28,7 +28,7 @@ class DEAlgorithm(OptimizationAlgorithm):
         """Algorithm identifier for logging and result tracking."""
         return "DE"
 
-    def optimize(
+    def optimize(  # type: ignore[override]
         self,
         n_params: int,
         evaluate_solution: Callable[[np.ndarray, int], float],
@@ -89,13 +89,17 @@ class DEAlgorithm(OptimizationAlgorithm):
         population = np.random.uniform(0, 1, (pop_size, n_params))
         fitness = evaluate_population(population, 0)
 
-        # Record initial best
+        # Record initial best with enhanced tracking
         best_idx = np.argmax(fitness)
         best_pos = population[best_idx].copy()
         best_fit = fitness[best_idx]
 
         params_dict = denormalize_params(best_pos)
-        record_iteration(0, best_fit, params_dict)
+        record_iteration(0, best_fit, params_dict, {
+            'mean_score': float(np.mean(fitness)),
+            'std_score': float(np.std(fitness)),
+            'n_improved': 0,
+        })
         update_best(best_fit, params_dict, 0)
 
         if log_initial_population:
@@ -138,9 +142,13 @@ class DEAlgorithm(OptimizationAlgorithm):
                         best_pos = trials[i].copy()
                         best_fit = trial_fitness[i]
 
-            # Record results
+            # Record results with enhanced tracking for response surface analysis
             params_dict = denormalize_params(best_pos)
-            record_iteration(iteration, best_fit, params_dict)
+            record_iteration(iteration, best_fit, params_dict, {
+                'mean_score': float(np.mean(fitness)),
+                'std_score': float(np.std(fitness)),
+                'n_improved': int(n_improved),
+            })
             update_best(best_fit, params_dict, iteration)
 
             # Log progress

@@ -43,12 +43,12 @@ Focuses on high-performance execution, large datasets, and scaling efficiency.
 
 1. **Install dependencies**
    ```bash
-   ./symfluence --install
+   ./scripts/symfluence-bootstrap --install
    ```
 
 2. **Launch an example notebook** directly from the CLI:
    ```bash
-   ./symfluence --example_notebook 1a
+   symfluence --example_notebook 1a
    ```
    This command automatically:
 
@@ -60,7 +60,7 @@ Focuses on high-performance execution, large datasets, and scaling efficiency.
 
 3. **Run complete workflows** via configuration:
    ```bash
-   ./symfluence --config config.yaml
+   symfluence --config config.yaml
    ```
 
 ---

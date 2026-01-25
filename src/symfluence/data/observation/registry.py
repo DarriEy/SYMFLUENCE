@@ -26,10 +26,10 @@ from typing import TYPE_CHECKING
 from symfluence.data.base_registry import HandlerRegistry
 
 if TYPE_CHECKING:
-    pass
+    from symfluence.data.observation.base import BaseObservationHandler  # noqa: F401
 
 
-class ObservationRegistry(HandlerRegistry['BaseObservationHandler']):
+class ObservationRegistry(HandlerRegistry["BaseObservationHandler"]):
     """Plugin registry for observation data handlers.
 
     Inherits from HandlerRegistry which provides:

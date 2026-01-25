@@ -329,7 +329,7 @@ print $fh $content;
 close($fh);
 print "Patched $file with $changes changes\n";
 PERLSCRIPT
-perl /tmp/rhessys_event_patch.pl rhessys/tec/handle_event.c
+perl /tmp/rhessys_event_patch.pl tec/handle_event.c
 
 # Patch makefile to remove test dependency from rhessys target
 # This allows building without glib-2.0 which is required only for tests

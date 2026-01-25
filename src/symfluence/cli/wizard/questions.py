@@ -174,7 +174,7 @@ def _default_code_dir(state: WizardState) -> str:
         repo_root = pkg_path.parent.parent.parent
         if (repo_root / '.git').exists():
             return str(repo_root)
-    except Exception:
+    except (ImportError, AttributeError, OSError):
         pass
 
     return str(Path.home() / 'SYMFLUENCE')

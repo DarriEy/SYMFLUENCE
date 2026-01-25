@@ -136,13 +136,16 @@ class PresetRegistry:
         This method attempts to import the init_preset module from
         each known model package.
         """
-        models = ['summa', 'fuse', 'hype', 'gr', 'ngen']
+        import logging
+        from symfluence.core.constants import SupportedModels
 
-        for model_name in models:
+        for model_name in SupportedModels.WITH_PRESETS:
             try:
                 __import__(
                     f'symfluence.models.{model_name}.init_preset',
                     fromlist=['init_preset']
                 )
             except ImportError:
-                pass  # Preset not available for this model
+                logging.getLogger(__name__).debug(
+                    f"Preset module for '{model_name}' not available"
+                )

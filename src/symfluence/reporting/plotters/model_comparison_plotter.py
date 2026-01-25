@@ -301,7 +301,7 @@ class ModelComparisonPlotter(BasePlotter):
         if spinup_period and ',' in str(spinup_period):
             try:
                 spinup_end = pd.to_datetime(str(spinup_period).split(',')[1].strip())
-            except Exception:
+            except (ValueError, TypeError):
                 pass
 
         # Check for mizuRoute output first (distributed routing)
@@ -504,7 +504,7 @@ class ModelComparisonPlotter(BasePlotter):
         if spinup_period and ',' in str(spinup_period):
             try:
                 spinup_end = pd.to_datetime(str(spinup_period).split(',')[1].strip())
-            except Exception:
+            except (ValueError, TypeError):
                 pass
 
         # Check for SUMMA timestep output
@@ -584,7 +584,8 @@ class ModelComparisonPlotter(BasePlotter):
                         ds.close()
                         break
                     ds.close()
-                except Exception:
+                except (OSError, KeyError, ValueError):
+                    # File doesn't contain recognized routing variables
                     continue
 
         # Load and add observations
