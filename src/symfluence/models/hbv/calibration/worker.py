@@ -56,6 +56,11 @@ class HBVWorker(InMemoryModelWorker):
         self._simulate_fn = None
         self._use_jax = HAS_JAX
 
+        # Timestep configuration (hours)
+        self.timestep_hours = 24  # Default to daily
+        if config:
+            self.timestep_hours = int(config.get('HBV_TIMESTEP_HOURS', 24))
+
     # =========================================================================
     # InMemoryModelWorker Abstract Method Implementations
     # =========================================================================
@@ -76,6 +81,221 @@ class HBVWorker(InMemoryModelWorker):
             'pet': 'pet',
         }
 
+    def _load_forcing(self, task=None) -> bool:
+        """Load forcing data with timestep-aware file selection.
+
+        For hourly simulations (timestep_hours < 24), looks for files with
+        the timestep suffix (e.g., _hbv_forcing_1h.nc for hourly).
+
+        Returns:
+            True if loading successful
+        """
+        if self._forcing is not None:
+            return True
+
+        try:
+            import xarray as xr
+        except ImportError:
+            self.logger.error("xarray required for loading forcing")
+            return False
+
+        forcing_dir = self._get_forcing_dir(task)
+        domain_name = self.config.get('DOMAIN_NAME', 'domain')
+        var_map = self._get_forcing_variable_map()
+
+        # Build list of files to try, prioritizing timestep-specific files
+        nc_patterns = []
+        if self.timestep_hours < 24:
+            # For sub-daily, try timestep-specific file first
+            nc_patterns.append(forcing_dir / f"{domain_name}_hbv_forcing_{self.timestep_hours}h.nc")
+        nc_patterns.extend([
+            forcing_dir / f"{domain_name}_hbv_forcing_{24}h.nc",  # Daily fallback
+            forcing_dir / f"{domain_name}_hbv_forcing.nc",
+            forcing_dir / f"{domain_name}_forcing.nc",
+        ])
+
+        for nc_file in nc_patterns:
+            if nc_file.exists():
+                try:
+                    ds = xr.open_dataset(nc_file)
+                    self._forcing = {}
+
+                    for std_name, var_name in var_map.items():
+                        if var_name in ds.variables:
+                            self._forcing[std_name] = ds[var_name].values.flatten()
+                        elif std_name in ds.variables:
+                            self._forcing[std_name] = ds[std_name].values.flatten()
+                        else:
+                            self.logger.warning(f"Variable {var_name} not found in {nc_file}")
+                            continue
+
+                    if 'time' in ds.coords:
+                        import pandas as pd
+                        self._time_index = pd.to_datetime(ds.time.values)
+
+                    ds.close()
+
+                    if len(self._forcing) >= 3:
+                        self.logger.info(
+                            f"Loaded forcing from {nc_file.name}: "
+                            f"{len(self._forcing['precip'])} timesteps"
+                        )
+                        return True
+                except (OSError, RuntimeError, KeyError) as e:
+                    self.logger.warning(f"Error loading {nc_file}: {e}")
+
+        self.logger.error(f"No forcing file found in {forcing_dir}")
+        return False
+
+    def _load_observations(self, task=None) -> bool:
+        """Load observations with timestep-aware resolution handling.
+
+        For hourly simulations, keeps observations at hourly resolution.
+        For daily simulations, resamples to daily.
+
+        Returns:
+            True if loading successful
+        """
+        if self._observations is not None:
+            return True
+
+        import pandas as pd
+        from pathlib import Path
+
+        domain_name = self.config.get('DOMAIN_NAME', 'domain')
+        data_dir = Path(self.config.get('SYMFLUENCE_DATA_DIR', self.config.get('ROOT_PATH', '.')))
+        project_dir = data_dir / f"domain_{domain_name}"
+
+        obs_patterns = [
+            project_dir / 'observations' / 'streamflow' / 'preprocessed' / f"{domain_name}_streamflow_processed.csv",
+        ]
+
+        for obs_file in obs_patterns:
+            if obs_file.exists():
+                try:
+                    obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
+
+                    if not isinstance(obs_df.index, pd.DatetimeIndex):
+                        obs_df.index = pd.to_datetime(obs_df.index)
+
+                    obs_cms = obs_df.iloc[:, 0]
+
+                    # Resample based on model timestep
+                    if len(obs_cms) > 1:
+                        time_diff = obs_cms.index[1] - obs_cms.index[0]
+                        target_freq = f'{self.timestep_hours}h' if self.timestep_hours < 24 else 'D'
+
+                        if self.timestep_hours == 24:
+                            # Daily model - resample obs to daily
+                            if time_diff < pd.Timedelta(days=1):
+                                self.logger.info(f"Resampling observations from {time_diff} to daily")
+                                obs_cms = obs_cms.resample('D').mean().dropna()
+                        else:
+                            # Sub-daily model - resample to model timestep
+                            target_timedelta = pd.Timedelta(hours=self.timestep_hours)
+                            if time_diff != target_timedelta:
+                                self.logger.info(f"Resampling observations from {time_diff} to {target_freq}")
+                                obs_cms = obs_cms.resample(target_freq).mean().dropna()
+
+                    # Convert m³/s to mm/timestep
+                    area_km2 = self.get_catchment_area()
+                    # mm/timestep = m³/s × seconds_per_timestep / (area_m² × 0.001)
+                    seconds_per_timestep = self.timestep_hours * 3600
+                    conversion_factor = seconds_per_timestep / (area_km2 * 1e6 * 0.001)
+                    obs_mm = obs_cms * conversion_factor
+
+                    # Align with forcing time if available
+                    if self._time_index is not None:
+                        obs_aligned = obs_mm.reindex(self._time_index)
+                        n_valid = (~obs_aligned.isna()).sum()
+                        self.logger.info(f"Aligned observations: {n_valid}/{len(self._time_index)} valid")
+                        self._observations = obs_aligned.values
+                    else:
+                        self._observations = obs_mm.values
+
+                    self.logger.debug(f"Loaded observations from {obs_file}")
+                    return True
+
+                except (FileNotFoundError, ValueError, KeyError) as e:
+                    self.logger.warning(f"Error loading {obs_file}: {e}")
+
+        self.logger.warning("No observation file found")
+        return False
+
+    def calculate_streamflow_metrics(
+        self,
+        sim_mm: np.ndarray,
+        obs_mm: np.ndarray,
+        skip_warmup: bool = True
+    ) -> Dict[str, Any]:
+        """Calculate streamflow metrics with timestep-aware warmup handling.
+
+        Args:
+            sim_mm: Simulated runoff in mm/timestep
+            obs_mm: Observed runoff in mm/timestep
+            skip_warmup: Whether to skip warmup period
+
+        Returns:
+            Dictionary with 'kge', 'nse', 'n_points'
+        """
+        from symfluence.evaluation.metrics import kge, nse
+
+        try:
+            # Convert warmup days to timesteps
+            timesteps_per_day = 24 // self.timestep_hours
+            warmup_timesteps = self.warmup_days * timesteps_per_day
+
+            # Skip warmup if requested
+            if skip_warmup:
+                sim = sim_mm[warmup_timesteps:]
+                obs = obs_mm[warmup_timesteps:]
+            else:
+                sim = sim_mm
+                obs = obs_mm
+
+            # Align lengths
+            min_len = min(len(sim), len(obs))
+            sim = sim[:min_len]
+            obs = obs[:min_len]
+
+            # Remove NaN
+            valid_mask = ~(np.isnan(sim) | np.isnan(obs))
+            sim = sim[valid_mask]
+            obs = obs[valid_mask]
+
+            if len(sim) < 10:
+                return {
+                    'kge': self.penalty_score,
+                    'nse': self.penalty_score,
+                    'n_points': len(sim),
+                    'error': 'Insufficient valid data points'
+                }
+
+            # Calculate metrics
+            kge_val = float(kge(obs, sim, transfo=1))
+            nse_val = float(nse(obs, sim, transfo=1))
+
+            if np.isnan(kge_val):
+                kge_val = self.penalty_score
+            if np.isnan(nse_val):
+                nse_val = self.penalty_score
+
+            return {
+                'kge': kge_val,
+                'nse': nse_val,
+                'n_points': len(sim),
+                'mean_sim': float(np.mean(sim)),
+                'mean_obs': float(np.mean(obs)),
+            }
+
+        except (ValueError, ZeroDivisionError, KeyError) as e:
+            self.logger.error(f"Error calculating metrics: {e}")
+            return {
+                'kge': self.penalty_score,
+                'nse': self.penalty_score,
+                'error': str(e)
+            }
+
     def _run_simulation(
         self,
         forcing: Dict[str, np.ndarray],
@@ -90,12 +310,31 @@ class HBVWorker(InMemoryModelWorker):
             **kwargs: Additional arguments
 
         Returns:
-            Runoff array in mm/day
+            Runoff array in mm/timestep
         """
         if not self._ensure_simulate_fn():
             raise RuntimeError("HBV simulation function not available")
 
         from symfluence.models.hbv.model import create_initial_state
+
+        # Inject smoothing config into parameters
+        if self.config:
+            # Check for boolean flag (handles "True", "true", True, 1)
+            smoothing_enabled = self.config.get('HBV_SMOOTHING', False)
+            if isinstance(smoothing_enabled, str):
+                smoothing_enabled = smoothing_enabled.lower() in ('true', '1', 'yes', 'on')
+
+            params['smoothing_enabled'] = bool(smoothing_enabled)
+
+            # Check for custom smoothing factor
+            if 'HBV_SMOOTHING_FACTOR' in self.config:
+                try:
+                    params['smoothing'] = float(self.config['HBV_SMOOTHING_FACTOR'])
+                except (ValueError, TypeError) as e:
+                    self.logger.debug(
+                        f"Could not parse HBV_SMOOTHING_FACTOR "
+                        f"'{self.config['HBV_SMOOTHING_FACTOR']}': {e}"
+                    )
 
         precip = forcing['precip']
         temp = forcing['temp']
@@ -106,14 +345,19 @@ class HBVWorker(InMemoryModelWorker):
             temp = jnp.array(temp)
             pet = jnp.array(pet)
 
-        initial_state = create_initial_state(use_jax=self._use_jax)
+        initial_state = create_initial_state(
+            use_jax=self._use_jax,
+            timestep_hours=self.timestep_hours
+        )
 
+        assert self._simulate_fn is not None
         runoff, _ = self._simulate_fn(
             precip, temp, pet,
             params=params,
             initial_state=initial_state,
             warmup_days=self.warmup_days,
-            use_jax=self._use_jax
+            use_jax=self._use_jax,
+            timestep_hours=self.timestep_hours
         )
 
         if self._use_jax:
@@ -186,18 +430,22 @@ class HBVWorker(InMemoryModelWorker):
         try:
             from symfluence.models.hbv.model import kge_loss, nse_loss
 
+            assert self._forcing is not None
             precip = jnp.array(self._forcing['precip'])
             temp = jnp.array(self._forcing['temp'])
             pet = jnp.array(self._forcing['pet'])
             obs = jnp.array(self._observations)
+            timestep_hours = self.timestep_hours
 
             def loss_fn(params_array, param_names):
                 params_dict = dict(zip(param_names, params_array))
                 if metric.lower() == 'nse':
                     return nse_loss(params_dict, precip, temp, pet, obs,
-                                   self.warmup_days, use_jax=True)
+                                   self.warmup_days, use_jax=True,
+                                   timestep_hours=timestep_hours)
                 return kge_loss(params_dict, precip, temp, pet, obs,
-                               self.warmup_days, use_jax=True)
+                               self.warmup_days, use_jax=True,
+                               timestep_hours=timestep_hours)
 
             grad_fn = jax.grad(loss_fn)
             param_names = list(params.keys())
@@ -238,18 +486,22 @@ class HBVWorker(InMemoryModelWorker):
         try:
             from symfluence.models.hbv.model import kge_loss, nse_loss
 
+            assert self._forcing is not None
             precip = jnp.array(self._forcing['precip'])
             temp = jnp.array(self._forcing['temp'])
             pet = jnp.array(self._forcing['pet'])
             obs = jnp.array(self._observations)
+            timestep_hours = self.timestep_hours
 
             def loss_fn(params_array, param_names):
                 params_dict = dict(zip(param_names, params_array))
                 if metric.lower() == 'nse':
                     return nse_loss(params_dict, precip, temp, pet, obs,
-                                   self.warmup_days, use_jax=True)
+                                   self.warmup_days, use_jax=True,
+                                   timestep_hours=timestep_hours)
                 return kge_loss(params_dict, precip, temp, pet, obs,
-                               self.warmup_days, use_jax=True)
+                               self.warmup_days, use_jax=True,
+                               timestep_hours=timestep_hours)
 
             value_and_grad_fn = jax.value_and_grad(loss_fn)
             param_names = list(params.keys())

@@ -139,17 +139,14 @@ class DomainManager(ConfigurableMixin):
             - ROUTING_DELINEATION: Routing network strategy
 
     Output Files:
-        Shapefiles created in project_dir/shapefiles/:
+        Shapefiles created in ``project_dir/shapefiles/``.
 
-        Delineation outputs:
-            - river_basins/{domain_name}_riverBasins_{method}.shp
-            - river_network/{domain_name}_riverNetwork_{method}.shp
-            - pour_point/{domain_name}_pourPoint.shp
+        Delineation outputs: river_basins, river_network, pour_point shapefiles.
 
-        Discretization outputs:
-            - catchment/{domain_name}_HRUs_{discretization}.shp
+        Discretization outputs: catchment HRU shapefiles.
 
-        Example structure:
+        Example structure::
+
             shapefiles/
             ├── river_basins/
             │   └── bow_river_riverBasins_lumped.shp
@@ -164,7 +161,7 @@ class DomainManager(ConfigurableMixin):
         Lumped-to-Distributed Routing:
             1. Define lumped domain (single watershed polygon)
             2. Internally delineate subcatchments within lumped domain
-            3. Create area-weighted remapping (lumped HRU → distributed routing)
+            3. Create area-weighted remapping (lumped HRU to distributed routing)
             4. Enables distributed routing with lumped hydrology
 
         Coastal Watershed Delineation:

@@ -51,13 +51,11 @@ repos:
       - id: nbstripout
         files: ^examples/
 
-# Optional hooks (commented out - can be slow or require additional setup)
-#
-# Mypy type checking - can be slow on large codebases
-#  - repo: https://github.com/pre-commit/mirrors-mypy
-#    rev: v1.10.0
-#    hooks:
-#      - id: mypy
-#        args: [--config-file=pyproject.toml]
-#        additional_dependencies: [types-PyYAML, types-requests]
-#        exclude: ^(tests/|examples/)
+  # Mypy type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        args: [--config-file=pyproject.toml]
+        additional_dependencies: [types-PyYAML, types-requests, types-psutil, pandas-stubs]
+        exclude: ^(tests/|examples/)

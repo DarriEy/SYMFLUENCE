@@ -387,6 +387,9 @@ class ParameterBoundsRegistry:
 
         # Routing parameters
         'maxbas': ParameterInfo(1.0, 7.0, 'days', 'Triangular routing function length', 'routing'),
+
+        # Numerical parameters
+        'smoothing': ParameterInfo(1.0, 50.0, '-', 'Smoothing factor for thresholds', 'numerical'),
     }
 
     def __init__(self):
@@ -685,5 +688,7 @@ def get_hbv_bounds() -> Dict[str, Dict[str, float]]:
         'k0', 'k1', 'k2', 'uzl', 'perc',
         # Routing
         'maxbas',
+        # Numerical
+        'smoothing',
     ]
     return get_registry().get_bounds_for_params(hbv_params)

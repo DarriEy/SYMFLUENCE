@@ -100,7 +100,7 @@ class MODISLSTHandler(BaseObservationHandler):
         basin_gdf = self._load_catchment_shapefile()
 
         # Process files
-        results = {'lst_day_k': [], 'lst_night_k': [], 'datetime': []}
+        results: dict[str, list] = {'lst_day_k': [], 'lst_night_k': [], 'datetime': []}
 
         for nc_file in nc_files:
             try:
@@ -275,6 +275,7 @@ class MODISLSTHandler(BaseObservationHandler):
     ):
         """Process GeoTIFF file containing LST data."""
         import rasterio
+        from rasterio.mask import mask as rio_mask
 
         # Determine if day or night from filename
         is_day = 'Day' in tif_file.name or 'day' in tif_file.name
@@ -285,7 +286,25 @@ class MODISLSTHandler(BaseObservationHandler):
             return None, None, None
 
         with rasterio.open(tif_file) as src:
-            data = src.read(1)
+            # Basin masking using rasterio
+            if basin_gdf is not None:
+                # Reproject basin to raster CRS if needed
+                if basin_gdf.crs != src.crs:
+                    basin_gdf = basin_gdf.to_crs(src.crs)
+
+                try:
+                    out_image, _ = rio_mask(
+                        src,
+                        basin_gdf.geometry,
+                        crop=True,
+                        nodata=np.nan
+                    )
+                    data = out_image[0]
+                except Exception as e:
+                    self.logger.warning(f"Rasterio masking failed, using full extent: {e}")
+                    data = src.read(1)
+            else:
+                data = src.read(1)
 
             # Apply valid range filter
             data = np.where(
@@ -293,14 +312,7 @@ class MODISLSTHandler(BaseObservationHandler):
                 data, np.nan
             )
 
-            # Basin averaging
-            if basin_gdf is not None:
-                # Simple bounding box extraction for now
-                _bounds = basin_gdf.total_bounds  # noqa: F841 - TODO: use for rasterio masking
-                # Would need proper rasterio masking for accurate extraction
-                lst_val = np.nanmean(data) * LST_SCALE_FACTOR
-            else:
-                lst_val = np.nanmean(data) * LST_SCALE_FACTOR
+            lst_val = np.nanmean(data) * LST_SCALE_FACTOR
 
         return lst_val, time_val, is_day
 

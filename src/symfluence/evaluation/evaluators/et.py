@@ -698,8 +698,8 @@ class ETEvaluator(ModelEvaluator):
                                     obs_data = obs_data.resample('D').sum().dropna()
                         self.logger.info(f"Loaded {len(obs_data)} ET observations from {obs_path.name}")
                         return obs_data
-            except Exception:
-                pass
+            except (pd.errors.ParserError, KeyError, ValueError) as e:
+                self.logger.debug(f"MOD16 format parsing failed, trying standard format: {e}")
 
             # Fall back to standard loading
             obs_df = pd.read_csv(obs_path)

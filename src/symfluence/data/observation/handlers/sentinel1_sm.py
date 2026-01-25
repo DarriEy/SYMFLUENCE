@@ -91,7 +91,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
         basin_gdf = self._load_catchment_shapefile()
 
         # Process files
-        results = {'datetime': [], 'soil_moisture': [], 'backscatter_vv': []}
+        results: dict[str, list] = {'datetime': [], 'soil_moisture': [], 'backscatter_vv': []}
 
         # Process NetCDF files (preprocessed SM)
         for nc_file in nc_files:
@@ -183,7 +183,7 @@ class Sentinel1SMHandler(BaseObservationHandler):
         lat_name = self._find_coord(ds, ['lat', 'latitude', 'y'])
         lon_name = self._find_coord(ds, ['lon', 'longitude', 'x'])
 
-        results = {'datetime': [], 'soil_moisture': []}
+        results: dict[str, list] = {'datetime': [], 'soil_moisture': []}
 
         if time_dim:
             time_vals = pd.to_datetime(ds[time_dim].values)
@@ -227,14 +227,19 @@ class Sentinel1SMHandler(BaseObservationHandler):
                 if not measurement_files:
                     return None
 
-                # Extract VV polarization backscatter
-                _vv_file = next(  # noqa: F841 - TODO: use for rasterio processing
+                # Find VV polarization file (preferred) or use first available
+                vv_file = next(
                     (f for f in measurement_files if 'vv' in f.lower()),
                     measurement_files[0]
                 )
 
-                # Read backscatter (would need rasterio for proper processing)
-                # This is a simplified placeholder
+                # Raw Sentinel-1 SAR processing requires radiometric calibration
+                # and terrain correction which is beyond the scope of this handler.
+                # Use preprocessed NetCDF or GeoTIFF products instead.
+                self.logger.debug(
+                    f"Raw ZIP processing not implemented for {vv_file}. "
+                    "Use preprocessed NetCDF/GeoTIFF products for Sentinel-1 SM."
+                )
                 backscatter_vv = np.nan
 
                 return {

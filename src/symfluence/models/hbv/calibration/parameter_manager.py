@@ -373,4 +373,10 @@ PARAM_DESCRIPTIONS = {
         'unit': 'days',
         'category': 'routing'
     },
+    'smoothing': {
+        'name': 'Smoothing Factor',
+        'description': 'Sharpness of threshold approximations for differentiability',
+        'unit': '-',
+        'category': 'numerical'
+    },
 }

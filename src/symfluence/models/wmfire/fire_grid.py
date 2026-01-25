@@ -398,7 +398,7 @@ class FireGridManager:
 
                 for idx, geom in enumerate(gdf.geometry):
                     if geom.contains(pt):
-                        patch_grid[row, col] = int(gdf[id_col].iloc[idx])
+                        patch_grid[row, col] = int(gdf[id_col].iloc[idx])  # type: ignore[index]
                         break
 
         return patch_grid

@@ -272,12 +272,20 @@ Handles calibration and optimization.
 
    opt = OptimizationManager(config, logger)
 
-   # Run calibration
-   results = opt.run_calibration()
+   # Run full optimization workflow
+   results = opt.run_optimization_workflow()
 
-   # Get best parameters
-   best_params = results["best_parameters"]
-   best_score = results["best_score"]
+   # Or run calibration directly
+   results_path = opt.calibrate_model()
+
+   # Check optimization status
+   status = opt.get_optimization_status()
+
+   # Validate configuration
+   validation = opt.validate_optimization_configuration()
+
+   # Get available optimizers
+   optimizers = opt.get_available_optimizers()
 
 Analysis Manager
 ----------------
@@ -413,27 +421,25 @@ Base Optimizer
    :undoc-members:
    :show-inheritance:
 
-DDS Optimizer
+DDS Algorithm
 -------------
 
-Dynamically Dimensioned Search optimizer.
-
-.. automodule:: symfluence.optimization.optimizers.dds_optimizer
-   :members:
-   :undoc-members:
-   :show-inheritance:
+Dynamically Dimensioned Search (DDS) is accessed through the BaseModelOptimizer interface.
+Model-specific optimizers inherit from BaseModelOptimizer and use the DDS algorithm
+via the ``run_dds()`` method.
 
 **Usage:**
 
 .. code-block:: python
 
-   from symfluence.optimization.optimizers.dds_optimizer import DDSOptimizer
+   # DDS is invoked through model-specific optimizers
+   from symfluence.optimization import OptimizationManager
 
-   optimizer = DDSOptimizer(config, logger)
-   results = optimizer.optimize()
+   opt_manager = OptimizationManager(config, logger)
+   results = opt_manager.calibrate_model()  # Uses algorithm from config
 
-   print(f"Best score: {results['best_score']}")
-   print(f"Best params: {results['best_parameters']}")
+   # Or directly via model optimizer
+   # optimizer.run_dds()  # Runs DDS optimization
 
 Algorithm Selection
 -------------------
@@ -756,6 +762,6 @@ References
 
 - :doc:`getting_started` — High-level workflow tutorial
 - :doc:`configuration` — Configuration parameter reference
-- :doc:`config_system` — Configuration system architecture
+- :doc:`configuration` — Configuration system usage
 - :doc:`developer_guide` — Extending SYMFLUENCE
 - :doc:`examples` — Example workflows and use cases

@@ -50,28 +50,13 @@ class MESHParameterFixer(ConfigMixin):
         """
         self.forcing_dir = forcing_dir
         self.setup_dir = setup_dir
-        # Import here to avoid circular imports
-
         from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
         if isinstance(config, dict):
-
             try:
-
                 self._config = SymfluenceConfig(**config)
-
             except (TypeError, ValueError, KeyError, AttributeError):
-
-                # Fallback for partial configs (e.g., in tests)
-
                 self._config = config
-
         else:
-
             self._config = config
         self.logger = logger or logging.getLogger(__name__)
         self.get_simulation_time_window = time_window_func
@@ -149,9 +134,12 @@ class MESHParameterFixer(ConfigMixin):
                 outfiles_flag = 'default'
 
             modified = False
+            # Snow parameters: SWELIM reduced from 1500 to 500mm for temperate regions
+            # 1500mm was unrealistically high and caused multi-year accumulation issues
+            # For alpine/polar applications, override via MESH_SWELIM config option
             replacements = [
                 (r'FREZTH\s+[-\d.]+', 'FREZTH                -2.0'),
-                (r'SWELIM\s+[-\d.]+', 'SWELIM                1500.0'),
+                (r'SWELIM\s+[-\d.]+', 'SWELIM                500.0'),
                 (r'SNDENLIM\s+[-\d.]+', 'SNDENLIM              600.0'),
                 (r'PBSMFLAG\s+\w+', 'PBSMFLAG              off'),
                 (r'FROZENSOILINFILFLAG\s+\d+', 'FROZENSOILINFILFLAG   0'),
@@ -332,12 +320,12 @@ class MESHParameterFixer(ConfigMixin):
 
                 # Calculate current sums
                 gru = ds['GRU']
-                print(f"DEBUG: GRU values before norm: {gru.values}")
+                self.logger.debug(f"GRU values before norm: {gru.values}")
                 n_dim = self._get_spatial_dim(ds)
                 if not n_dim: return
 
                 sums = gru.sum('NGRU')
-                print(f"DEBUG: GRU sums: {sums.values}")
+                self.logger.debug(f"GRU sums: {sums.values}")
 
                 # Identify where sum is not 1.0 (with small tolerance)
                 if np.allclose(sums.values, 1.0, atol=1e-4):
@@ -392,13 +380,23 @@ class MESHParameterFixer(ConfigMixin):
                     return None
 
                 sums = gru.sum(sum_dim)
-                # MESH uses a threshold to determine active GRUs
-                # Use conservative threshold to ensure only clearly active GRUs are kept
-                min_gru_sum = 0.15
+                # Threshold for considering a GRU class "active"
+                # Reduced from 0.15 to 0.05 to preserve small but hydrologically
+                # important classes (e.g., wetlands, urban areas at <15% coverage)
+                min_gru_sum = 0.05
                 active_count = int((sums > min_gru_sum).sum())
 
+                # Log any classes being excluded
+                excluded = sums[sums <= min_gru_sum]
+                if len(excluded) > 0:
+                    excluded_total = float(excluded.sum())
+                    self.logger.warning(
+                        f"Excluding {len(excluded)} GRU class(es) below {min_gru_sum:.0%} threshold "
+                        f"(total area lost: {excluded_total:.1%})"
+                    )
+
                 if active_count > 0:
-                    self.logger.debug(f"MESH will recognize {active_count} active GRU(s) (threshold={min_gru_sum})")
+                    self.logger.debug(f"MESH will recognize {active_count} active GRU(s) (threshold={min_gru_sum:.0%})")
                     return active_count
 
                 return None
@@ -632,7 +630,14 @@ class MESHParameterFixer(ConfigMixin):
             self.logger.warning(f"Failed to update CLASS NM: {e}")
 
     def fix_hydrology_wf_r2(self) -> None:
-        """Ensure WF_R2 is in the hydrology file."""
+        """Ensure WF_R2 is in the hydrology file.
+
+        Note: WF_R2 (WATFLOOD channel roughness) is DIFFERENT from R2N (overland Manning's n).
+        - R2N: Manning's n for overland flow, typically 0.02-0.10
+        - WF_R2: Channel roughness coefficient for WATFLOOD routing, typically 0.20-0.40
+
+        Previously this code incorrectly set WF_R2 = R2N. Now uses appropriate default.
+        """
         settings_hydro = self.setup_dir / "MESH_parameters_hydrology.ini"
 
         # Copy from settings if missing or empty
@@ -663,17 +668,22 @@ class MESHParameterFixer(ConfigMixin):
                 self.logger.debug("WF_R2 already present")
                 return
 
-            # Add WF_R2 before R2N
+            # Add WF_R2 with appropriate default (NOT copying from R2N)
+            # WF_R2 = 0.30 is a reasonable default for mixed channel types
+            # This can be calibrated during model optimization
             new_lines = []
             r2n_found = False
             for line in lines:
                 if line.startswith('R2N') and not r2n_found:
                     parts = line.split()
                     if len(parts) >= 2:
-                        r2n_values = parts[1:]
-                        wf_r2_line = "WF_R2  " + "    ".join(r2n_values) + "  # channel roughness"
+                        n_values = len(parts) - 1  # Number of routing classes
+                        # Use default WF_R2 = 0.30 for all classes (appropriate for channels)
+                        wf_r2_values = ["0.30"] * n_values
+                        wf_r2_line = "WF_R2  " + "    ".join(wf_r2_values) + "  # channel roughness (calibratable)"
                         new_lines.append(wf_r2_line)
                         r2n_found = True
+                        self.logger.info(f"Added WF_R2=0.30 (default for {n_values} routing class(es))")
 
                         # Update parameter count
                         for j in range(len(new_lines) - 1, -1, -1):
@@ -692,7 +702,6 @@ class MESHParameterFixer(ConfigMixin):
             if r2n_found:
                 with open(self.hydro_path, 'w') as f:
                     f.write('\n'.join(new_lines))
-                self.logger.info("Added WF_R2 to hydrology file")
 
         except Exception as e:
             self.logger.warning(f"Failed to add WF_R2: {e}")
@@ -755,8 +764,73 @@ class MESHParameterFixer(ConfigMixin):
         except Exception as e:
             self.logger.warning(f"Failed to fix run options output dirs: {e}")
 
+    def _get_domain_latitude(self) -> Optional[float]:
+        """Get representative latitude from drainage database for climate classification."""
+        ddb_path = self.forcing_dir / "MESH_drainage_database.nc"
+        if not ddb_path.exists():
+            return None
+        try:
+            import xarray as xr
+            with xr.open_dataset(ddb_path) as ds:
+                if 'lat' in ds:
+                    return float(ds['lat'].values.mean())
+        except (OSError, ValueError, KeyError) as e:
+            self.logger.debug(f"Could not read latitude from drainage database: {e}")
+        return None
+
+    def _get_climate_adjusted_snow_params(self, start_month: int, latitude: Optional[float]) -> dict:
+        """
+        Get snow initial conditions adjusted for climate zone and season.
+
+        Climate zones (by latitude):
+        - Temperate: lat < 50° - minimal snow, mild winters
+        - Boreal: 50° <= lat < 60° - moderate snow, cold winters
+        - Arctic/Alpine: lat >= 60° - heavy snow, very cold winters
+
+        Args:
+            start_month: Month of simulation start (1-12)
+            latitude: Domain latitude in degrees (None uses temperate defaults)
+
+        Returns:
+            Dictionary with SNO, ALBS, RHOS, TSNO, TCAN initial values
+        """
+        is_winter = start_month in [11, 12, 1, 2, 3, 4]
+
+        # Determine climate zone
+        if latitude is None:
+            climate = 'temperate'  # Conservative default
+        elif abs(latitude) >= 60:
+            climate = 'arctic'
+        elif abs(latitude) >= 50:
+            climate = 'boreal'
+        else:
+            climate = 'temperate'
+
+        # Snow initial conditions by climate and season
+        # Values based on CLASS literature and regional climatology
+        params = {
+            'arctic': {
+                'winter': {'sno': 150.0, 'albs': 0.80, 'rhos': 200.0, 'tsno': -20.0, 'tcan': -15.0},
+                'summer': {'sno': 50.0, 'albs': 0.70, 'rhos': 300.0, 'tsno': -5.0, 'tcan': 0.0},
+            },
+            'boreal': {
+                'winter': {'sno': 100.0, 'albs': 0.75, 'rhos': 250.0, 'tsno': -10.0, 'tcan': -5.0},
+                'summer': {'sno': 10.0, 'albs': 0.60, 'rhos': 350.0, 'tsno': -1.0, 'tcan': 5.0},
+            },
+            'temperate': {
+                'winter': {'sno': 50.0, 'albs': 0.70, 'rhos': 300.0, 'tsno': -5.0, 'tcan': 0.0},
+                'summer': {'sno': 0.0, 'albs': 0.50, 'rhos': 400.0, 'tsno': 0.0, 'tcan': 10.0},
+            },
+        }
+
+        season = 'winter' if is_winter else 'summer'
+        return params[climate][season]
+
     def fix_class_initial_conditions(self) -> None:
-        """Fix CLASS initial conditions for proper snow simulation."""
+        """Fix CLASS initial conditions for proper snow simulation.
+
+        Uses climate-aware defaults based on domain latitude and simulation start month.
+        """
         if not self.class_file_path.exists():
             return
 
@@ -764,25 +838,23 @@ class MESHParameterFixer(ConfigMixin):
             with open(self.class_file_path, 'r') as f:
                 lines = f.readlines()
 
-            # Determine initial conditions based on season
+            # Determine start month and latitude for climate classification
             time_window = self.get_simulation_time_window() if self.get_simulation_time_window else None
-            if time_window:
-                start_month = time_window[0].month
-            else:
-                start_month = 1
+            start_month = time_window[0].month if time_window else 1
 
-            if start_month in [11, 12, 1, 2, 3, 4]:
-                initial_sno = 100.0
-                initial_albs = 0.75
-                initial_rhos = 250.0
-                initial_tsno = -10.0
-                initial_tcan = -5.0
-            else:
-                initial_sno = 10.0
-                initial_albs = 0.60
-                initial_rhos = 350.0
-                initial_tsno = -1.0
-                initial_tcan = 0.0
+            latitude = self._get_domain_latitude()
+            snow_params = self._get_climate_adjusted_snow_params(start_month, latitude)
+
+            initial_sno = snow_params['sno']
+            initial_albs = snow_params['albs']
+            initial_rhos = snow_params['rhos']
+            initial_tsno = snow_params['tsno']
+            initial_tcan = snow_params['tcan']
+
+            climate_zone = 'arctic' if latitude and abs(latitude) >= 60 else \
+                           'boreal' if latitude and abs(latitude) >= 50 else 'temperate'
+            self.logger.info(f"Using {climate_zone} snow defaults (lat={latitude:.1f}°)" if latitude else
+                             "Using temperate snow defaults (latitude unknown)")
 
             modified = False
             new_lines = []
@@ -979,8 +1051,8 @@ class MESHParameterFixer(ConfigMixin):
             self._update_run_options_for_safe_forcing(start_time, end_time)
 
         except Exception as e:
-            self.logger.warning(f"Failed to create safe forcing: {e}")
             import traceback
+            self.logger.warning(f"Failed to create safe forcing: {e}")
             self.logger.debug(traceback.format_exc())
 
     def _get_time_window(self) -> Optional[Tuple]:

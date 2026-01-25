@@ -258,6 +258,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'FORCING_SHAPE_LON_NAME': ('forcing', 'shape_lon_name'),
     'PET_METHOD': ('forcing', 'pet_method'),
     'SUPPLEMENT_FORCING': ('forcing', 'supplement'),
+    'KEEP_RAW_FORCING': ('forcing', 'keep_raw'),
 
     # Forcing > ERA5
     'ERA5_USE_CDS': ('forcing', 'era5_use_cds'),
@@ -350,6 +351,7 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'HBV_USE_GPU': ('model', 'hbv', 'use_gpu'),
     'HBV_JIT_COMPILE': ('model', 'hbv', 'jit_compile'),
     'HBV_WARMUP_DAYS': ('model', 'hbv', 'warmup_days'),
+    'HBV_TIMESTEP_HOURS': ('model', 'hbv', 'timestep_hours'),
     'HBV_PARAMS_TO_CALIBRATE': ('model', 'hbv', 'params_to_calibrate'),
     'HBV_USE_GRADIENT_CALIBRATION': ('model', 'hbv', 'use_gradient_calibration'),
     'HBV_CALIBRATION_METRIC': ('model', 'hbv', 'calibration_metric'),
@@ -856,7 +858,7 @@ def transform_flat_to_nested(flat_config: Dict[str, Any]) -> Dict[str, Any]:
             if model_transformers:
                 # Model-specific transformers override base mapping
                 combined_mapping.update(model_transformers)
-        except Exception:
+        except (ImportError, KeyError, AttributeError):
             # If ModelRegistry not available or model not registered, just use base mapping
             pass
 

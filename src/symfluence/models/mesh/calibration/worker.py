@@ -70,8 +70,11 @@ class MESHWorker(BaseWorker):
 
             return success
 
-        except Exception as e:
-            self.logger.error(f"Error applying MESH parameters: {e}")
+        except (FileNotFoundError, OSError) as e:
+            self.logger.error(f"File error applying MESH parameters: {e}")
+            return False
+        except (KeyError, ValueError, TypeError) as e:
+            self.logger.error(f"Data error applying MESH parameters: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
             return False
@@ -111,8 +114,19 @@ class MESHWorker(BaseWorker):
                 runner.set_process_directories(settings_dir, output_dir)
             else:
                 # Fallback to standard paths
+                # Handle both flat (DOMAIN_NAME) and nested (domain.name) config formats
                 domain_name = config.get('DOMAIN_NAME')
-                data_dir = Path(config.get('SYMFLUENCE_DATA_DIR'))
+                if domain_name is None and 'domain' in config:
+                    domain_name = config['domain'].get('name')
+
+                data_dir = config.get('SYMFLUENCE_DATA_DIR')
+                if data_dir is None and 'system' in config:
+                    data_dir = config['system'].get('data_dir')
+
+                if data_dir is None:
+                    raise ValueError("SYMFLUENCE_DATA_DIR or system.data_dir is required")
+
+                data_dir = Path(data_dir)
                 project_dir = data_dir / f"domain_{domain_name}"
                 runner.mesh_forcing_dir = project_dir / 'forcing' / 'MESH_input'
                 runner.output_dir = output_dir
@@ -122,7 +136,14 @@ class MESHWorker(BaseWorker):
 
             return result_path is not None
 
-        except Exception as e:
+        except FileNotFoundError as e:
+            self.logger.error(f"Required file not found for MESH: {e}")
+            return False
+        except (OSError, IOError) as e:
+            self.logger.error(f"I/O error running MESH: {e}")
+            return False
+        except (RuntimeError, ValueError) as e:
+            # Model execution or configuration errors
             self.logger.error(f"Error running MESH: {e}")
             return False
 
@@ -204,7 +225,14 @@ class MESHWorker(BaseWorker):
 
             return {'kge': float(kge_val), 'nse': float(nse_val)}
 
-        except Exception as e:
+        except FileNotFoundError as e:
+            self.logger.error(f"Output or observation file not found: {e}")
+            return {'kge': self.penalty_score}
+        except (KeyError, ValueError, TypeError) as e:
+            self.logger.error(f"Data error calculating MESH metrics: {e}")
+            return {'kge': self.penalty_score}
+        except (OSError, pd.errors.ParserError) as e:
+            # I/O errors or CSV parsing issues
             self.logger.error(f"Error calculating MESH metrics: {e}")
             return {'kge': self.penalty_score}
 

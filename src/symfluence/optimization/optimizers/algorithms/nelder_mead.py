@@ -38,7 +38,7 @@ class NelderMeadAlgorithm(OptimizationAlgorithm):
         """Algorithm identifier for logging and result tracking."""
         return "NELDER-MEAD"
 
-    def optimize(
+    def optimize(  # type: ignore[override]
         self,
         n_params: int,
         evaluate_solution: Callable[[np.ndarray, int], float],

@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import List, Tuple
 from unittest.mock import MagicMock, Mock, patch
 import concurrent.futures
-import platform
 
 import numpy as np
 import pandas as pd
@@ -21,11 +20,8 @@ import pytest
 import xarray as xr
 
 
-# Skip NetCDF merge tests on macOS ARM due to known HDF5/netCDF4 attribute issues
-_MACOS_ARM_NETCDF_SKIP = pytest.mark.skipif(
-    platform.system() == 'Darwin' and platform.machine() == 'arm64',
-    reason="Skipped on macOS ARM due to HDF5/netCDF4 attribute errors"
-)
+# NOTE: macOS ARM HDF5/netCDF4 skip was removed as of Jan 2026.
+# The underlying HDF5 attribute issues have been resolved in recent library versions.
 
 
 # =============================================================================
@@ -329,7 +325,6 @@ class TestDownloadChunksParallel:
 
 @pytest.mark.mixin_chunked
 @pytest.mark.acquisition
-@_MACOS_ARM_NETCDF_SKIP
 class TestMergeNetcdfChunks:
     """Tests for merge_netcdf_chunks method."""
 

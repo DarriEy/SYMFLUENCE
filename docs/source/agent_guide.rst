@@ -191,9 +191,110 @@ If tools fail to execute:
 2. Verify your configuration file exists and is valid
 3. Use ``/tools`` to see available operations
 
+Advanced Usage
+--------------
+
+Multi-Step Workflows
+^^^^^^^^^^^^^^^^^^^^
+
+The agent can execute complex multi-step workflows:
+
+.. code-block:: text
+
+    You: Set up a complete SUMMA project for the Bow River watershed,
+         delineate the domain, acquire ERA5 forcing data, and run
+         preprocessing
+
+    Assistant: I'll set up your SUMMA project step by step...
+    [Agent executes multiple tools in sequence]
+
+Configuration Assistance
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Get help with configuration options:
+
+.. code-block:: text
+
+    You: What parameters should I calibrate for a snow-dominated basin
+         using SUMMA?
+
+    Assistant: For snow-dominated basins with SUMMA, I recommend...
+
+Model Comparison
+^^^^^^^^^^^^^^^^
+
+Compare different models:
+
+.. code-block:: text
+
+    You: Compare SUMMA and FUSE for my watershed - which should I use?
+
+    Assistant: Let me analyze your configuration and domain...
+
+Capabilities
+------------
+
+The SYMFLUENCE agent can:
+
+**Workflow Operations:**
+
+- Execute any of the 16 workflow steps
+- Run complete or partial workflows
+- Monitor workflow status and progress
+- Resume interrupted workflows
+- Clean intermediate files
+
+**Project Management:**
+
+- Initialize new projects with presets
+- Set up pour point workflows
+- Configure domain definitions
+- Manage experiment settings
+
+**Model Operations:**
+
+- Configure hydrological models (SUMMA, FUSE, GR, HBV, HYPE, NGEN, etc.)
+- Set up routing (mizuRoute, dRoute)
+- Manage model parameters
+- Run calibration workflows
+
+**Binary Management:**
+
+- Install model executables
+- Validate installations
+- Run system diagnostics
+- Check tool versions
+
+**Code Analysis:**
+
+- Browse the SYMFLUENCE codebase
+- Propose code modifications
+- Run tests
+- Create PR proposals
+
+Limitations
+-----------
+
+The agent has certain limitations:
+
+- Cannot access external systems without explicit API keys
+- Model execution times depend on domain size and complexity
+- Some operations require HPC resources
+- Code changes require human review before committing
+
+Best Practices
+--------------
+
+1. **Be Specific**: Provide clear, specific instructions
+2. **Include Context**: Mention your config file, domain name, or model
+3. **Iterate**: If results aren't right, refine your request
+4. **Check Output**: Review agent actions before proceeding
+5. **Use Debug Mode**: Enable ``--verbose`` for troubleshooting
+
 See Also
 --------
 
 - :doc:`agent_tools` - Complete tool reference
+- :doc:`cli_reference` - CLI command reference
 - :doc:`getting_started` - General SYMFLUENCE quickstart
 - :doc:`configuration` - Configuration file reference

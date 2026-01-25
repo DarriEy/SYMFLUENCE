@@ -545,7 +545,8 @@ def _create_hru_from_combination_mask(
                 geom = shape(shp)
                 if geom.is_valid and not geom.is_empty and geom.area > 0:
                     polygons.append(geom)
-            except Exception:
+            except (ValueError, TypeError, AttributeError):
+                # Invalid shape geometry - skip and continue
                 continue
 
         if not polygons:

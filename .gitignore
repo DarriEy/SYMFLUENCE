@@ -127,3 +127,13 @@ config_template.yaml
 benchmark_results/
 plots/
 results/
+
+# Temporary calibration/comparison outputs
+hbv_calibration_comparison/
+*_calibration_comparison/
+
+# Development scripts (not for distribution)
+download_era5_forcing.py
+scripts/run_hbv_daily_v_hourly_comparison.py
+
+# Shell wrapper is now tracked for CI compatibility

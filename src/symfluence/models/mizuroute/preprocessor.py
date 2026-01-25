@@ -748,6 +748,42 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
                 else:
                     self.logger.warning(f"Outlet ID {outlet_id} not found in river network")
 
+        # Validate downstream segment references
+        seg_id_col = self.river_segid_col
+        downseg_id_col = self.river_downsegid_col
+        valid_seg_ids = set(shp_river[seg_id_col].values.astype(int))
+
+        invalid_refs = []
+        for idx, row in shp_river.iterrows():
+            seg_id = int(row[seg_id_col])
+            down_seg_id = int(row[downseg_id_col])
+
+            # Check if downstream ID is valid (either 0 for outlet, or exists in segment list)
+            if down_seg_id != 0 and down_seg_id not in valid_seg_ids:
+                invalid_refs.append((seg_id, down_seg_id))
+                # Fix: set invalid downstream references to 0 (outlet)
+                shp_river.loc[idx, downseg_id_col] = 0
+
+        if invalid_refs:
+            self.logger.warning(f"Fixed {len(invalid_refs)} invalid downstream segment references:")
+            for seg_id, invalid_down_id in invalid_refs:
+                self.logger.warning(f"  Segment {seg_id} had invalid downstream ID {invalid_down_id} -> set to 0 (outlet)")
+
+        # Validate HRU-to-segment mapping
+        invalid_hru_refs = []
+        for i, hru_to_seg in enumerate(hru_to_seg_ids):
+            if hru_to_seg not in valid_seg_ids:
+                invalid_hru_refs.append((hru_ids[i], hru_to_seg))
+                # Find the closest valid segment or use the first segment
+                if len(valid_seg_ids) > 0:
+                    # Use the segment with closest ID
+                    closest_seg = min(valid_seg_ids, key=lambda x: abs(x - hru_to_seg))
+                    hru_to_seg_ids[i] = closest_seg
+                    self.logger.warning(f"  HRU {hru_ids[i]} had invalid segment reference {hru_to_seg} -> set to {closest_seg}")
+
+        if invalid_hru_refs:
+            self.logger.warning(f"Fixed {len(invalid_hru_refs)} invalid HRU-to-segment references")
+
         # Create the netCDF file
         with nc4.Dataset(self.setup_dir / topology_name, 'w', format='NETCDF4') as ncid:
             self._set_topology_attributes(ncid)
@@ -1259,6 +1295,19 @@ class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRou
 
         # Fix cycles in topology
         down_seg_ids = self._fix_routing_cycles(seg_ids, down_seg_ids, elevations)
+
+        # Validate downstream segment references
+        valid_seg_ids = set(seg_ids)
+        invalid_count = 0
+        for i, down_seg_id in enumerate(down_seg_ids):
+            # Check if downstream ID is valid (either 0 for outlet, or exists in segment list)
+            if down_seg_id != 0 and down_seg_id not in valid_seg_ids:
+                invalid_count += 1
+                down_seg_ids[i] = 0  # Fix: set to outlet
+                self.logger.warning(f"Segment {seg_ids[i]} had invalid downstream ID {down_seg_id} -> set to 0 (outlet)")
+
+        if invalid_count > 0:
+            self.logger.warning(f"Fixed {invalid_count} invalid downstream segment references in grid topology")
 
         # Get cell size for segment length
         grid_cell_size = self.config_dict.get('GRID_CELL_SIZE', 1000.0)

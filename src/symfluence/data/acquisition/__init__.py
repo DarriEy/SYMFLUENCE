@@ -13,20 +13,22 @@ via the AcquisitionRegistry and support various data sources including:
 - NEX-GDDP-CMIP6 (NASA THREDDS)
 """
 
-import sys as _sys
+import logging as _logging
 from typing import Any
+
+_logger = _logging.getLogger(__name__)
 
 # Fail-safe imports
 try:
     from .registry import AcquisitionRegistry
 except ImportError as _e:
     AcquisitionRegistry: Any = None  # type: ignore
-    print(f"WARNING: Failed to import AcquisitionRegistry: {_e}", file=_sys.stderr)
+    _logger.warning("Failed to import AcquisitionRegistry: %s", _e)
 
 try:
     from . import handlers
 except ImportError as _e:
     handlers: Any = None  # type: ignore
-    print(f"WARNING: Failed to import acquisition handlers: {_e}", file=_sys.stderr)
+    _logger.warning("Failed to import acquisition handlers: %s", _e)
 
 __all__ = ["AcquisitionRegistry"]

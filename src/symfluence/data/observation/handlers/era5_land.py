@@ -216,7 +216,8 @@ class ERA5LandHandler(BaseObservationHandler):
         results = {}
 
         for var_name in ds.data_vars:
-            std_name = VARIABLE_MAPPING.get(var_name, var_name)
+            var_name_str = str(var_name)
+            std_name = VARIABLE_MAPPING.get(var_name_str, var_name_str)
 
             try:
                 da = ds[var_name]

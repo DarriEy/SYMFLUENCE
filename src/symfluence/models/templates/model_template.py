@@ -280,7 +280,7 @@ class UnifiedModelRunner(BaseModelRunner, UnifiedModelExecutor):
     # Main Execution Interface
     # =========================================================================
 
-    def run(self) -> Optional[Path]:
+    def run(self, **kwargs: Any) -> Optional[Path]:  # type: ignore[override]
         """
         Execute the model using the unified framework.
 
@@ -464,4 +464,6 @@ def create_model_runner(
     from ..registry import ModelRegistry
 
     runner_class = ModelRegistry.get_runner(model_name)
+    if runner_class is None:
+        raise KeyError(f"No runner registered for model: {model_name}")
     return runner_class(config, logger, reporting_manager=reporting_manager)

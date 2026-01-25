@@ -513,7 +513,7 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
             self.logger.debug(traceback.format_exc())
             return False
 
-    def _load_forcing(self) -> Tuple[Dict[str, np.ndarray], Optional[np.ndarray]]:
+    def _load_forcing(self) -> Tuple[Dict[str, Any], Optional[np.ndarray]]:
         """Load forcing data from preprocessed files."""
         # Try NetCDF first
         nc_file = self.jfuse_forcing_dir / f"{self.domain_name}_jfuse_forcing.nc"
@@ -548,7 +548,7 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
         else:
             obs = None
 
-        return forcing, obs
+        return forcing, obs  # type: ignore[return-value]
 
     def _save_lumped_results(self, runoff: np.ndarray, time_index: pd.DatetimeIndex) -> None:
         """Save lumped simulation results."""
@@ -759,7 +759,7 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
             self.logger.error("Observations required for gradient calibration")
             return None
 
-        obs = jnp.array(obs)
+        obs_arr = jnp.array(obs)
 
         # Create jFUSE model - use custom config if available
         config_name = self.model_config_name.lower()
@@ -777,7 +777,7 @@ class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
             runoff, _ = model.simulate(forcing_tuple, params)
             # Handle warmup by slicing the outputs
             runoff_eval = runoff[warmup_days:]
-            obs_eval = obs[warmup_days:]
+            obs_eval = obs_arr[warmup_days:]
             if metric.lower() == 'nse':
                 return -jfuse.nse(obs_eval, runoff_eval)
             return -jfuse.kge(obs_eval, runoff_eval)

@@ -50,39 +50,46 @@ Supported Models:
     - MIZUROUTE: Streamflow routing (auto-added dependency)
 
 Component Registration Pattern:
-    1. Preprocessor Registration:
-       @ModelRegistry.register_preprocessor('MYMODEL')
-       class MyPreprocessor:
-           def run_preprocessing(self): ...
 
-       Purpose: Convert ERA5 → model forcing, apply parameter files, etc.
+    1. Preprocessor Registration::
 
-    2. Runner Registration:
-       @ModelRegistry.register_runner('MYMODEL', method_name='execute')
-       class MyRunner:
-           def execute(self): ...
+        @ModelRegistry.register_preprocessor('MYMODEL')
+        class MyPreprocessor:
+            def run_preprocessing(self): ...
+
+       Purpose: Convert ERA5 to model forcing, apply parameter files, etc.
+
+    2. Runner Registration::
+
+        @ModelRegistry.register_runner('MYMODEL', method_name='execute')
+        class MyRunner:
+            def execute(self): ...
 
        Purpose: Invoke model executable with configured inputs
 
-    3. Postprocessor Registration:
-       @ModelRegistry.register_postprocessor('MYMODEL')
-       class MyPostprocessor:
-           def extract_streamflow(self): ...
+    3. Postprocessor Registration::
+
+        @ModelRegistry.register_postprocessor('MYMODEL')
+        class MyPostprocessor:
+            def extract_streamflow(self): ...
 
        Purpose: Parse model outputs, extract metrics, standardize formats
 
-    4. Visualizer Registration:
-       @ModelRegistry.register_visualizer('MYMODEL')
-       def visualize_mymodel(reporting_manager, config, project_dir, ...): ...
+    4. Visualizer Registration::
+
+        @ModelRegistry.register_visualizer('MYMODEL')
+        def visualize_mymodel(reporting_manager, config, project_dir, ...): ...
 
        Purpose: Generate diagnostic plots and timeseries visualizations
 
-Registry Storage (Class-Level):
-    _preprocessors: Dict[model_name: str] → preprocessor_class
-    _runners: Dict[model_name: str] → runner_class
-    _postprocessors: Dict[model_name: str] → postprocessor_class
-    _visualizers: Dict[model_name: str] → visualizer_function
-    _runner_methods: Dict[model_name: str] → method_name (e.g., 'run_summa')
+Registry Architecture:
+    This module provides a unified facade over specialized sub-registries:
+    - ComponentRegistry: preprocessors, runners, postprocessors, visualizers
+    - ConfigRegistry: config adapters, schemas, defaults, transformers, validators
+    - ResultExtractorRegistry: model result extractors
+
+    The facade pattern maintains backward compatibility while enabling
+    focused, maintainable sub-registries.
 
 Lifecycle:
     1. Framework startup: Model modules imported, components registered
@@ -120,13 +127,22 @@ References:
 """
 
 import logging
-from typing import Dict, Any, Type, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, Type
+
+from symfluence.models.registries.component_registry import ComponentRegistry
+from symfluence.models.registries.config_registry import ConfigRegistry
+from symfluence.models.registries.result_registry import ResultExtractorRegistry
 
 logger = logging.getLogger(__name__)
 
 
 class ModelRegistry:
     """Central registry for hydrological model components (Registry Pattern).
+
+    This class is a facade that delegates to specialized sub-registries:
+    - ComponentRegistry: preprocessors, runners, postprocessors, visualizers
+    - ConfigRegistry: config adapters, schemas, defaults, transformers, validators
+    - ResultExtractorRegistry: model result extractors
 
     Implements the Registry Pattern to enable dynamic model discovery and
     extensibility without tight coupling. Model components self-register via
@@ -151,7 +167,8 @@ class ModelRegistry:
         4. Registry populated with all registered components
         5. Workflow execution queries registry by model name
 
-    Example Component Registration:
+    Example Component Registration::
+
         # In models/summa/preprocessor.py
         @ModelRegistry.register_preprocessor('SUMMA')
         class SUMMAPreprocessor(BaseModelPreProcessor):
@@ -166,7 +183,8 @@ class ModelRegistry:
                 # Invoke SUMMA executable
                 pass
 
-    Example Component Lookup:
+    Example Component Lookup::
+
         # In workflow orchestration
         preprocessor_cls = ModelRegistry.get_preprocessor('SUMMA')
         if preprocessor_cls:
@@ -176,322 +194,325 @@ class ModelRegistry:
             logger.warning("No preprocessor for SUMMA")
 
     Attributes:
-        _preprocessors: Dict[model_name] → preprocessor_class
-        _runners: Dict[model_name] → runner_class
-        _postprocessors: Dict[model_name] → postprocessor_class
-        _visualizers: Dict[model_name] → visualizer_function
-        _runner_methods: Dict[model_name] → method_name (e.g., 'run', 'run_summa')
+        _preprocessors: Delegated to ComponentRegistry
+        _runners: Delegated to ComponentRegistry
+        _postprocessors: Delegated to ComponentRegistry
+        _visualizers: Delegated to ComponentRegistry
+        _runner_methods: Delegated to ComponentRegistry
+        _config_adapters: Delegated to ConfigRegistry
+        _config_schemas: Delegated to ConfigRegistry
+        _config_defaults: Delegated to ConfigRegistry
+        _config_transformers: Delegated to ConfigRegistry
+        _config_validators: Delegated to ConfigRegistry
+        _result_extractors: Delegated to ResultExtractorRegistry
 
     Supported Models:
         SUMMA, FUSE, GR, HYPE, NGEN, MESH, LSTM, RHESSys, MIZUROUTE, and others
         registered via the decorator pattern.
 
     Design Patterns:
+        - Facade Pattern: Unified interface over sub-registries
         - Registry Pattern: Centralized component storage
         - Factory Pattern: Component creation via get_*() methods
         - Decorator Pattern: Registration via @register_* decorators
         - Lazy Initialization: Components imported on-demand
 
     See Also:
+        ComponentRegistry: Core component registration
+        ConfigRegistry: Configuration management
+        ResultExtractorRegistry: Result extraction
         ModelManager: Uses registry to discover and invoke components
         optimization.model_optimizers: Depend on model components for calibration
     """
 
-    _preprocessors: Dict[str, Type] = {}
-    _runners: Dict[str, Type] = {}
-    _postprocessors: Dict[str, Type] = {}
-    _visualizers: Dict[str, Type] = {}
-    _runner_methods: Dict[str, str] = {}
-    # Config management registries
-    _config_adapters: Dict[str, Any] = {}
-    _config_schemas: Dict[str, Type] = {}
-    _config_defaults: Dict[str, Dict[str, Any]] = {}
-    _config_transformers: Dict[str, Dict[str, Tuple[str, ...]]] = {}
-    _config_validators: Dict[str, Any] = {}
-    # Result extraction registry
-    _result_extractors: Dict[str, Any] = {}
+    # =========================================================================
+    # Class-level attributes for backward compatibility
+    # These are aliases to the underlying registry dictionaries
+    # =========================================================================
 
-    @classmethod
-    def register_preprocessor(cls, model_name):
-        def decorator(preprocessor_cls):
-            cls._preprocessors[model_name] = preprocessor_cls
-            return preprocessor_cls
-        return decorator
+    # Component registry attributes
+    _preprocessors = ComponentRegistry._preprocessors
+    _runners = ComponentRegistry._runners
+    _postprocessors = ComponentRegistry._postprocessors
+    _visualizers = ComponentRegistry._visualizers
+    _runner_methods = ComponentRegistry._runner_methods
 
-    @classmethod
-    def register_runner(cls, model_name, method_name="run"):
-        def decorator(runner_cls):
-            cls._runners[model_name] = runner_cls
-            cls._runner_methods[model_name] = method_name
-            return runner_cls
-        return decorator
+    # Config registry attributes
+    _config_adapters = ConfigRegistry._config_adapters
+    _config_schemas = ConfigRegistry._config_schemas
+    _config_defaults = ConfigRegistry._config_defaults
+    _config_transformers = ConfigRegistry._config_transformers
+    _config_validators = ConfigRegistry._config_validators
 
-    @classmethod
-    def register_postprocessor(cls, model_name):
-        def decorator(postprocessor_cls):
-            cls._postprocessors[model_name] = postprocessor_cls
-            return postprocessor_cls
-        return decorator
-
-    @classmethod
-    def register_visualizer(cls, model_name):
-        """
-        Register a visualization function for a model.
-
-        The visualizer should be a callable with signature:
-        (reporting_manager, config, project_dir, experiment_id, workflow)
-        """
-        def decorator(visualizer_func):
-            cls._visualizers[model_name] = visualizer_func
-            return visualizer_func
-        return decorator
-
-    @classmethod
-    def get_preprocessor(cls, model_name):
-        # Try exact match first, then uppercase for case-insensitive lookup
-        result = cls._preprocessors.get(model_name)
-        if result is None:
-            result = cls._preprocessors.get(model_name.upper())
-        return result
-
-    @classmethod
-    def get_runner(cls, model_name):
-        # Try exact match first, then uppercase for case-insensitive lookup
-        result = cls._runners.get(model_name)
-        if result is None:
-            result = cls._runners.get(model_name.upper())
-        return result
-
-    @classmethod
-    def get_postprocessor(cls, model_name):
-        # Try exact match first, then uppercase for case-insensitive lookup
-        result = cls._postprocessors.get(model_name)
-        if result is None:
-            result = cls._postprocessors.get(model_name.upper())
-        return result
-
-    @classmethod
-    def get_visualizer(cls, model_name):
-        # Try exact match first, then uppercase for case-insensitive lookup
-        result = cls._visualizers.get(model_name)
-        if result is None:
-            result = cls._visualizers.get(model_name.upper())
-        return result
-
-    @classmethod
-    def get_runner_method(cls, model_name):
-        # Try exact match first, then uppercase for case-insensitive lookup
-        result = cls._runner_methods.get(model_name)
-        if result is None:
-            result = cls._runner_methods.get(model_name.upper())
-        return result if result is not None else "run"
-
-    @classmethod
-    def list_models(cls):
-        return sorted(list(set(cls._runners.keys()) | set(cls._preprocessors.keys())))
+    # Result extractor registry attributes
+    _result_extractors = ResultExtractorRegistry._result_extractors
 
     # =========================================================================
-    # Config Management Registration (New in Refactoring Phase 1)
+    # Component Registration (Delegates to ComponentRegistry)
     # =========================================================================
 
     @classmethod
-    def register_config_adapter(cls, model_name):
+    def register_preprocessor(cls, model_name: str) -> Callable[[Type], Type]:
+        """Register a preprocessor class for a model.
+
+        Delegates to ComponentRegistry.register_preprocessor().
         """
-        Register a complete config adapter for a model.
-
-        The adapter provides schema, defaults, transformers, and validation.
-
-        Args:
-            model_name: Model name (e.g., 'SUMMA', 'FUSE')
-
-        Example:
-            >>> @ModelRegistry.register_config_adapter('SUMMA')
-            ... class SUMMAConfigAdapter(ModelConfigAdapter):
-            ...     def get_config_schema(self):
-            ...         return SUMMAConfig
-        """
-        def decorator(adapter_cls):
-            cls._config_adapters[model_name.upper()] = adapter_cls
-            return adapter_cls
-        return decorator
+        return ComponentRegistry.register_preprocessor(model_name)
 
     @classmethod
-    def register_config_schema(cls, model_name, schema):
-        """
-        Register Pydantic config schema for a model.
+    def register_runner(
+        cls, model_name: str, method_name: str = "run"
+    ) -> Callable[[Type], Type]:
+        """Register a runner class for a model.
 
-        Args:
-            model_name: Model name
-            schema: Pydantic BaseModel class
+        Delegates to ComponentRegistry.register_runner().
         """
-        cls._config_schemas[model_name.upper()] = schema
-        return schema
+        return ComponentRegistry.register_runner(model_name, method_name)
 
     @classmethod
-    def register_config_defaults(cls, model_name, defaults):
-        """
-        Register default configuration values for a model.
+    def register_postprocessor(cls, model_name: str) -> Callable[[Type], Type]:
+        """Register a postprocessor class for a model.
 
-        Args:
-            model_name: Model name
-            defaults: Dictionary of default values
+        Delegates to ComponentRegistry.register_postprocessor().
         """
-        cls._config_defaults[model_name.upper()] = defaults
-        return defaults
+        return ComponentRegistry.register_postprocessor(model_name)
 
     @classmethod
-    def register_config_transformers(cls, model_name, transformers):
+    def register_visualizer(cls, model_name: str) -> Callable[[Callable], Callable]:
+        """Register a visualization function for a model.
+
+        Delegates to ComponentRegistry.register_visualizer().
         """
-        Register flat-to-nested field transformers for a model.
-
-        Args:
-            model_name: Model name
-            transformers: Dictionary mapping flat keys to nested paths
-        """
-        cls._config_transformers[model_name.upper()] = transformers
-        return transformers
-
-    @classmethod
-    def register_config_validator(cls, model_name, validator):
-        """
-        Register custom validation function for a model.
-
-        Args:
-            model_name: Model name
-            validator: Callable that takes config dict and raises on validation error
-        """
-        cls._config_validators[model_name.upper()] = validator
-        return validator
-
-    @classmethod
-    def get_config_adapter(cls, model_name):
-        """Get config adapter instance for a model."""
-        adapter_cls = cls._config_adapters.get(model_name.upper())
-        return adapter_cls(model_name) if adapter_cls else None
-
-    @classmethod
-    def get_config_schema(cls, model_name):
-        """Get Pydantic config schema for a model."""
-        # Try adapter first
-        adapter = cls.get_config_adapter(model_name)
-        if adapter:
-            return adapter.get_config_schema()
-        # Fall back to direct registration
-        return cls._config_schemas.get(model_name.upper())
-
-    @classmethod
-    def get_config_defaults(cls, model_name):
-        """Get default configuration for a model."""
-        # Try adapter first
-        adapter = cls.get_config_adapter(model_name)
-        if adapter:
-            return adapter.get_defaults()
-        # Fall back to direct registration
-        return cls._config_defaults.get(model_name.upper(), {})
-
-    @classmethod
-    def get_config_transformers(cls, model_name):
-        """Get flat-to-nested transformers for a model."""
-        # Try adapter first
-        adapter = cls.get_config_adapter(model_name)
-        if adapter:
-            return adapter.get_field_transformers()
-        # Fall back to direct registration
-        return cls._config_transformers.get(model_name.upper(), {})
-
-    @classmethod
-    def get_config_validator(cls, model_name):
-        """Get config validator function for a model."""
-        # Try adapter first
-        adapter = cls.get_config_adapter(model_name)
-        if adapter:
-            return adapter.validate
-        # Fall back to direct registration
-        return cls._config_validators.get(model_name.upper())
-
-    @classmethod
-    def validate_model_config(cls, model_name, config):
-        """
-        Validate model configuration using registered validator.
-
-        Args:
-            model_name: Model name
-            config: Configuration dictionary
-
-        Raises:
-            ConfigValidationError: If validation fails
-        """
-        validator = cls.get_config_validator(model_name)
-        if validator:
-            validator(config)
+        return ComponentRegistry.register_visualizer(model_name)
 
     # =========================================================================
-    # Result Extraction Registry Methods
+    # Component Retrieval (Delegates to ComponentRegistry)
     # =========================================================================
 
     @classmethod
-    def register_result_extractor(cls, model_name):
+    def get_preprocessor(cls, model_name: str) -> Optional[Type]:
+        """Get preprocessor class for a model.
+
+        Delegates to ComponentRegistry.get_preprocessor().
         """
-        Register a result extractor for a model.
-
-        The extractor handles model-specific output file location and
-        variable extraction logic.
-
-        Args:
-            model_name: Model name (e.g., 'SUMMA', 'NGEN')
-
-        Example:
-            >>> @ModelRegistry.register_result_extractor('SUMMA')
-            ... class SUMMAResultExtractor(ModelResultExtractor):
-            ...     def extract_variable(self, output_file, variable_type):
-            ...         # SUMMA-specific extraction logic
-            ...         pass
-        """
-        def decorator(extractor_cls):
-            cls._result_extractors[model_name.upper()] = extractor_cls
-            return extractor_cls
-        return decorator
+        return ComponentRegistry.get_preprocessor(model_name)
 
     @classmethod
-    def get_result_extractor(cls, model_name):
+    def get_runner(cls, model_name: str) -> Optional[Type]:
+        """Get runner class for a model.
+
+        Delegates to ComponentRegistry.get_runner().
+        """
+        return ComponentRegistry.get_runner(model_name)
+
+    @classmethod
+    def get_postprocessor(cls, model_name: str) -> Optional[Type]:
+        """Get postprocessor class for a model.
+
+        Delegates to ComponentRegistry.get_postprocessor().
+        """
+        return ComponentRegistry.get_postprocessor(model_name)
+
+    @classmethod
+    def get_visualizer(cls, model_name: str) -> Optional[Callable]:
+        """Get visualizer function for a model.
+
+        Delegates to ComponentRegistry.get_visualizer().
+        """
+        return ComponentRegistry.get_visualizer(model_name)
+
+    @classmethod
+    def get_runner_method(cls, model_name: str) -> str:
+        """Get the runner method name for a model.
+
+        Delegates to ComponentRegistry.get_runner_method().
+        """
+        return ComponentRegistry.get_runner_method(model_name)
+
+    @classmethod
+    def list_models(cls) -> list[str]:
+        """List all models with registered components.
+
+        Delegates to ComponentRegistry.list_models().
+        """
+        return ComponentRegistry.list_models()
+
+    @classmethod
+    def get_model_components(cls, model_name: str) -> Dict[str, Any]:
+        """Get all registered component classes for a model.
+
+        Delegates to ComponentRegistry.get_model_components().
+        """
+        return ComponentRegistry.get_model_components(model_name)
+
+    @classmethod
+    def validate_model_registration(
+        cls,
+        model_name: str,
+        require_all: bool = False
+    ) -> Dict[str, Any]:
+        """Validate that a model has all required components registered.
+
+        Delegates to ComponentRegistry.validate_model_registration().
+        """
+        return ComponentRegistry.validate_model_registration(model_name, require_all)
+
+    @classmethod
+    def validate_all_models(
+        cls,
+        require_all: bool = False,
+        logger: logging.Logger = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """Validate registration status of all registered models.
+
+        Delegates to ComponentRegistry.validate_all_models().
+        """
+        return ComponentRegistry.validate_all_models(require_all, logger)
+
+    # =========================================================================
+    # Config Management Registration (Delegates to ConfigRegistry)
+    # =========================================================================
+
+    @classmethod
+    def register_config_adapter(cls, model_name: str) -> Callable[[Type], Type]:
+        """Register a complete config adapter for a model.
+
+        Delegates to ConfigRegistry.register_config_adapter().
+        """
+        return ConfigRegistry.register_config_adapter(model_name)
+
+    @classmethod
+    def register_config_schema(cls, model_name: str, schema: Type) -> Type:
+        """Register Pydantic config schema for a model.
+
+        Delegates to ConfigRegistry.register_config_schema().
+        """
+        return ConfigRegistry.register_config_schema(model_name, schema)
+
+    @classmethod
+    def register_config_defaults(
+        cls, model_name: str, defaults: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Register default configuration values for a model.
+
+        Delegates to ConfigRegistry.register_config_defaults().
+        """
+        return ConfigRegistry.register_config_defaults(model_name, defaults)
+
+    @classmethod
+    def register_config_transformers(
+        cls, model_name: str, transformers: Dict[str, Tuple[str, ...]]
+    ) -> Dict[str, Tuple[str, ...]]:
+        """Register flat-to-nested field transformers for a model.
+
+        Delegates to ConfigRegistry.register_config_transformers().
+        """
+        return ConfigRegistry.register_config_transformers(model_name, transformers)
+
+    @classmethod
+    def register_config_validator(cls, model_name: str, validator: Callable) -> Callable:
+        """Register custom validation function for a model.
+
+        Delegates to ConfigRegistry.register_config_validator().
+        """
+        return ConfigRegistry.register_config_validator(model_name, validator)
+
+    # =========================================================================
+    # Config Management Retrieval (Delegates to ConfigRegistry)
+    # =========================================================================
+
+    @classmethod
+    def get_config_adapter(cls, model_name: str) -> Optional[Any]:
+        """Get config adapter instance for a model.
+
+        Delegates to ConfigRegistry.get_config_adapter().
+        """
+        return ConfigRegistry.get_config_adapter(model_name)
+
+    @classmethod
+    def get_config_schema(cls, model_name: str) -> Optional[Type]:
+        """Get Pydantic config schema for a model.
+
+        Delegates to ConfigRegistry.get_config_schema().
+        """
+        return ConfigRegistry.get_config_schema(model_name)
+
+    @classmethod
+    def get_config_defaults(cls, model_name: str) -> Dict[str, Any]:
+        """Get default configuration for a model.
+
+        Delegates to ConfigRegistry.get_config_defaults().
+        """
+        return ConfigRegistry.get_config_defaults(model_name)
+
+    @classmethod
+    def get_config_transformers(
+        cls, model_name: str
+    ) -> Dict[str, Tuple[str, ...]]:
+        """Get flat-to-nested transformers for a model.
+
+        Delegates to ConfigRegistry.get_config_transformers().
+        """
+        return ConfigRegistry.get_config_transformers(model_name)
+
+    @classmethod
+    def get_config_validator(cls, model_name: str) -> Optional[Callable]:
+        """Get config validator function for a model.
+
+        Delegates to ConfigRegistry.get_config_validator().
+        """
+        return ConfigRegistry.get_config_validator(model_name)
+
+    @classmethod
+    def validate_model_config(cls, model_name: str, config: Dict[str, Any]) -> None:
+        """Validate model configuration using registered validator.
+
+        Delegates to ConfigRegistry.validate_model_config().
+        """
+        ConfigRegistry.validate_model_config(model_name, config)
+
+    # =========================================================================
+    # Result Extraction Registry Methods (Delegates to ResultExtractorRegistry)
+    # =========================================================================
+
+    @classmethod
+    def register_result_extractor(cls, model_name: str) -> Callable[[Type], Type]:
+        """Register a result extractor for a model.
+
+        Delegates to ResultExtractorRegistry.register_result_extractor().
+        """
+        return ResultExtractorRegistry.register_result_extractor(model_name)
+
+    @classmethod
+    def get_result_extractor(cls, model_name: str) -> Optional[Any]:
         """Get result extractor instance for a model.
 
-        Args:
-            model_name: Model name
-
-        Returns:
-            ModelResultExtractor instance or None if not registered
+        Delegates to ResultExtractorRegistry.get_result_extractor().
         """
-        extractor_cls = cls._result_extractors.get(model_name.upper())
-        return extractor_cls(model_name) if extractor_cls else None
+        return ResultExtractorRegistry.get_result_extractor(model_name)
 
     @classmethod
-    def has_result_extractor(cls, model_name):
+    def has_result_extractor(cls, model_name: str) -> bool:
         """Check if a model has a registered result extractor.
 
-        Args:
-            model_name: Model name
-
-        Returns:
-            bool: True if extractor is registered
+        Delegates to ResultExtractorRegistry.has_result_extractor().
         """
-        return model_name.upper() in cls._result_extractors
+        return ResultExtractorRegistry.has_result_extractor(model_name)
 
     @classmethod
-    def list_result_extractors(cls):
+    def list_result_extractors(cls) -> list[str]:
         """List all models with registered result extractors.
 
-        Returns:
-            List of model names with result extractors
+        Delegates to ResultExtractorRegistry.list_result_extractors().
         """
-        return sorted(list(cls._result_extractors.keys()))
+        return ResultExtractorRegistry.list_result_extractors()
 
     # =========================================================================
     # Forcing Adapter Registry Methods (Delegates to ForcingAdapterRegistry)
     # =========================================================================
 
     @classmethod
-    def get_forcing_adapter(cls, model_name, config, logger=None):
+    def get_forcing_adapter(cls, model_name: str, config: Dict, logger=None) -> Optional[Any]:
         """Get forcing adapter instance for a model.
 
         This method delegates to ForcingAdapterRegistry for backward compatibility.
@@ -511,7 +532,7 @@ class ModelRegistry:
             return None
 
     @classmethod
-    def has_forcing_adapter(cls, model_name):
+    def has_forcing_adapter(cls, model_name: str) -> bool:
         """Check if a model has a registered forcing adapter.
 
         Args:
@@ -527,7 +548,7 @@ class ModelRegistry:
             return False
 
     @classmethod
-    def list_forcing_adapters(cls):
+    def list_forcing_adapters(cls) -> list[str]:
         """List all models with registered forcing adapters.
 
         Returns:
@@ -538,155 +559,3 @@ class ModelRegistry:
             return ForcingAdapterRegistry.get_registered_models()
         except ImportError:
             return []
-
-    # =========================================================================
-    # Model Registration Validation Methods
-    # =========================================================================
-
-    @classmethod
-    def validate_model_registration(
-        cls,
-        model_name: str,
-        require_all: bool = False
-    ) -> Dict[str, Any]:
-        """
-        Validate that a model has all required components registered.
-
-        Checks for the presence of preprocessor, runner, and postprocessor.
-        Visualizer is considered optional.
-
-        Args:
-            model_name: Name of the model to validate (e.g., 'SUMMA', 'GNN')
-            require_all: If True, raises ValueError when required components
-                are missing. If False (default), returns validation status.
-
-        Returns:
-            Dict with keys:
-                - valid: bool indicating if all required components present
-                - model_name: the model name validated
-                - components: dict of component_type -> class or None
-                - missing: list of missing required component types
-                - optional_missing: list of missing optional component types
-
-        Raises:
-            ValueError: If require_all=True and required components are missing
-
-        Example:
-            >>> status = ModelRegistry.validate_model_registration('GNN')
-            >>> if not status['valid']:
-            ...     print(f"Missing: {status['missing']}")
-        """
-        components = {
-            'preprocessor': cls._preprocessors.get(model_name),
-            'runner': cls._runners.get(model_name),
-            'postprocessor': cls._postprocessors.get(model_name),
-            'visualizer': cls._visualizers.get(model_name),
-        }
-
-        # Required components (visualizer is optional)
-        required = ['preprocessor', 'runner', 'postprocessor']
-        optional = ['visualizer']
-
-        missing = [comp for comp in required if components[comp] is None]
-        optional_missing = [comp for comp in optional if components[comp] is None]
-
-        valid = len(missing) == 0
-
-        result = {
-            'valid': valid,
-            'model_name': model_name,
-            'components': components,
-            'missing': missing,
-            'optional_missing': optional_missing,
-        }
-
-        if require_all and not valid:
-            raise ValueError(
-                f"Model '{model_name}' has incomplete registration. "
-                f"Missing required components: {missing}"
-            )
-
-        return result
-
-    @classmethod
-    def validate_all_models(
-        cls,
-        require_all: bool = False,
-        logger: logging.Logger = None
-    ) -> Dict[str, Dict[str, Any]]:
-        """
-        Validate registration status of all registered models.
-
-        Checks each model returned by list_models() and reports their
-        registration completeness.
-
-        Args:
-            require_all: If True, raises ValueError on first incomplete model.
-                If False (default), returns status for all models.
-            logger: Optional logger for warnings about incomplete registrations.
-                If None, uses module-level logger.
-
-        Returns:
-            Dict mapping model_name -> validation result from
-            validate_model_registration()
-
-        Raises:
-            ValueError: If require_all=True and any model is incomplete
-
-        Example:
-            >>> results = ModelRegistry.validate_all_models(logger=logger)
-            >>> for model, status in results.items():
-            ...     if not status['valid']:
-            ...         print(f"{model}: missing {status['missing']}")
-        """
-        log = logger or globals().get('logger')
-        results = {}
-
-        for model_name in cls.list_models():
-            status = cls.validate_model_registration(model_name, require_all=False)
-            results[model_name] = status
-
-            if not status['valid'] and log:
-                log.warning(
-                    f"Model '{model_name}' has incomplete registration. "
-                    f"Missing: {status['missing']}"
-                )
-
-            if require_all and not status['valid']:
-                raise ValueError(
-                    f"Model '{model_name}' has incomplete registration. "
-                    f"Missing required components: {status['missing']}"
-                )
-
-        return results
-
-    @classmethod
-    def get_model_components(cls, model_name: str) -> Dict[str, Any]:
-        """
-        Get all registered component classes for a model.
-
-        Useful for debugging and introspection of model registrations.
-
-        Args:
-            model_name: Name of the model (e.g., 'SUMMA', 'GNN')
-
-        Returns:
-            Dict mapping component type to class (or None if not registered):
-                - preprocessor: Preprocessor class or None
-                - runner: Runner class or None
-                - postprocessor: Postprocessor class or None
-                - visualizer: Visualizer function or None
-                - runner_method: Name of the run method (str)
-
-        Example:
-            >>> components = ModelRegistry.get_model_components('SUMMA')
-            >>> print(f"Runner: {components['runner']}")
-            >>> print(f"Run method: {components['runner_method']}")
-        """
-        return {
-            'preprocessor': cls._preprocessors.get(model_name),
-            'runner': cls._runners.get(model_name),
-            'postprocessor': cls._postprocessors.get(model_name),
-            'visualizer': cls._visualizers.get(model_name),
-            'runner_method': cls._runner_methods.get(model_name, 'run'),
-        }

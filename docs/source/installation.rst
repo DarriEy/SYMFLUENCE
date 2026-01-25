@@ -13,7 +13,7 @@ Run the built-in installer from the project root:
 
 .. code-block:: bash
 
-   ./symfluence --install
+   ./scripts/symfluence-bootstrap --install
 
 Note: The npm package under ``tools/npm/`` is release-only packaging used to
 distribute prebuilt binaries. It is not required for local development when
@@ -125,7 +125,7 @@ Then run:
 
 .. code-block:: bash
 
-   ./symfluence --install
+   ./scripts/symfluence-bootstrap --install
 
 macOS (Intel or Apple Silicon)
 ------------------------------
@@ -156,13 +156,13 @@ Then run:
 
 .. code-block:: bash
 
-   ./symfluence --install
+   ./scripts/symfluence-bootstrap --install
 
 Verification
 ------------
 .. code-block:: bash
 
-   ./symfluence --help
+   ./scripts/symfluence-bootstrap --help
 
 Troubleshooting
 ---------------

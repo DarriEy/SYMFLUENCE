@@ -338,11 +338,11 @@ class RHESSysResultExtractor(ModelResultExtractor):
                 if patch_areas:
                     # Area-weighted average
                     total_area = sum(
-                        patch_areas.get(pid, 1.0)
+                        patch_areas.get(int(pid), 1.0)
                         for pid in pool_data.columns
                     )
                     weighted_sum = sum(
-                        pool_data[pid] * patch_areas.get(pid, 1.0)
+                        pool_data[pid] * patch_areas.get(int(pid), 1.0)
                         for pid in pool_data.columns
                     )
                     basin_pools[pool_name] = weighted_sum / total_area
@@ -353,4 +353,4 @@ class RHESSysResultExtractor(ModelResultExtractor):
                 # Already a series
                 basin_pools[pool_name] = pool_data
 
-        return basin_pools
+        return basin_pools  # type: ignore[return-value]

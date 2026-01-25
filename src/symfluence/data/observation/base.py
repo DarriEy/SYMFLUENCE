@@ -407,7 +407,7 @@ class BaseObservationHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
             try:
                 metadata.data_range_start = str(df.index.min())
                 metadata.data_range_end = str(df.index.max())
-            except Exception:
+            except (AttributeError, TypeError):
                 pass
 
         # Save data

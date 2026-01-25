@@ -20,7 +20,6 @@ from symfluence.models.mizuroute.mixins import MizuRouteConfigMixin
 from symfluence.models.mixins import SpatialModeDetectionMixin
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
-from symfluence.core.constants import UnitConversion
 
 # Lazy JAX import
 try:
@@ -124,6 +123,12 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
             10.0
         )
 
+        # Timestep configuration (1=hourly, 24=daily)
+        self.timestep_hours = self._get_config_value(
+            lambda: self.config.model.hbv.timestep_hours if self.config.model and self.config.model.hbv else None,
+            24
+        )
+
         # Routing requirements
         self.needs_routing = self._check_routing_requirements()
 
@@ -167,12 +172,23 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
                 area_cols = [c for c in gdf.columns if 'area' in c.lower()]
                 if area_cols:
                     total_area = gdf[area_cols[0]].sum()
-                    self.logger.info(f"Catchment area from shapefile: {total_area/1e6:.2f} km²")
-                    return float(total_area)
+                    # Detect if area is in km² or m² based on magnitude
+                    # Typical watersheds are 10-100,000 km², so if sum < 1e6 m², it's likely km²
+                    if total_area < 1e6:
+                        # Area is likely in km², convert to m²
+                        self.logger.info(f"Catchment area from shapefile: {total_area:.2f} km² (detected km² units)")
+                        return float(total_area * 1e6)
+                    else:
+                        self.logger.info(f"Catchment area from shapefile: {total_area/1e6:.2f} km²")
+                        return float(total_area)
             else:
                 self.logger.debug(f"Catchment shapefile not found at: {catchment_path}")
-        except Exception as e:
-            self.logger.debug(f"Could not read catchment area from shapefile: {e}")
+        except ImportError:
+            self.logger.debug("geopandas not available for shapefile reading")
+        except (FileNotFoundError, OSError) as e:
+            self.logger.debug(f"Could not read catchment shapefile: {e}")
+        except (KeyError, ValueError, TypeError, AttributeError) as e:
+            self.logger.debug(f"Could not extract area from catchment shapefile: {e}")
 
         # Fall back to config
         area_km2 = self._get_config_value(
@@ -215,7 +231,7 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
         for param_name in DEFAULT_PARAMS.keys():
             config_key = f'default_{param_name}'
             params[param_name] = self._get_config_value(
-                lambda pn=config_key: getattr(self.config.model.hbv, pn, None)
+                lambda pn=config_key: getattr(self.config.model.hbv, pn, None)  # type: ignore[misc]
                 if self.config.model and self.config.model.hbv else None,
                 DEFAULT_PARAMS[param_name]
             )
@@ -234,8 +250,8 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
             Path to output directory if successful, None otherwise.
         """
         # Emit experimental warning on first use
-        from symfluence.models.hbv import _warn_experimental
-        _warn_experimental()
+        # Warning handled at module import time
+
 
         self.logger.info(f"Starting HBV model run in {self.spatial_mode} mode (backend: {self.backend})")
 
@@ -307,7 +323,8 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
                 initial_sm=self.initial_sm,
                 initial_suz=self.initial_suz,
                 initial_slz=self.initial_slz,
-                use_jax=use_jax
+                use_jax=use_jax,
+                timestep_hours=self.timestep_hours
             )
 
             # Run simulation
@@ -318,7 +335,8 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
                 params=params,
                 initial_state=initial_state,
                 warmup_days=self.warmup_days,
-                use_jax=use_jax
+                use_jax=use_jax,
+                timestep_hours=self.timestep_hours
             )
 
             # Convert output to numpy if needed
@@ -330,7 +348,16 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
 
             return True
 
-        except Exception as e:
+        except FileNotFoundError as e:
+            self.logger.error(f"Missing forcing data for lumped HBV: {e}")
+            return False
+        except (ValueError, TypeError) as e:
+            self.logger.error(f"Invalid data in lumped HBV execution: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return False
+        except (ImportError, RuntimeError) as e:
+            # JAX/NumPy backend issues or model import failures
             self.logger.error(f"Error in lumped HBV execution: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -347,7 +374,7 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
             )
 
             # Load distributed forcing
-            forcing_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_distributed.nc"
+            forcing_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_distributed_{self.timestep_hours}h.nc"
             if not forcing_file.exists():
                 self.logger.error(f"Distributed forcing not found: {forcing_file}")
                 return False
@@ -386,7 +413,8 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
                     initial_sm=self.initial_sm,
                     initial_suz=self.initial_suz,
                     initial_slz=self.initial_slz,
-                    use_jax=use_jax
+                    use_jax=use_jax,
+                    timestep_hours=self.timestep_hours
                 )
 
                 runoff, _ = simulate(
@@ -394,7 +422,8 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
                     params=params,
                     initial_state=initial_state,
                     warmup_days=self.warmup_days,
-                    use_jax=use_jax
+                    use_jax=use_jax,
+                    timestep_hours=self.timestep_hours
                 )
 
                 if use_jax:
@@ -407,7 +436,16 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
 
             return True
 
-        except Exception as e:
+        except FileNotFoundError as e:
+            self.logger.error(f"Missing forcing data for distributed HBV: {e}")
+            return False
+        except (ValueError, TypeError, KeyError) as e:
+            self.logger.error(f"Invalid data in distributed HBV execution: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return False
+        except (ImportError, RuntimeError) as e:
+            # JAX/NumPy backend issues or model import failures
             self.logger.error(f"Error in distributed HBV execution: {e}")
             import traceback
             self.logger.debug(traceback.format_exc())
@@ -416,7 +454,7 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
     def _load_forcing(self) -> Tuple[Dict[str, np.ndarray], Optional[np.ndarray]]:
         """Load forcing data from preprocessed files."""
         # Try NetCDF first
-        nc_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing.nc"
+        nc_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_{self.timestep_hours}h.nc"
         if nc_file.exists():
             ds = xr.open_dataset(nc_file)
             forcing = {
@@ -428,7 +466,7 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
             ds.close()
         else:
             # Try CSV
-            csv_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing.csv"
+            csv_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_{self.timestep_hours}h.csv"
             if not csv_file.exists():
                 raise FileNotFoundError(f"No forcing file found at {nc_file} or {csv_file}")
 
@@ -448,20 +486,27 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
         else:
             obs = None
 
-        return forcing, obs
+        return forcing, obs  # type: ignore[return-value]
 
     def _save_lumped_results(self, runoff: np.ndarray, time_index: pd.DatetimeIndex) -> None:
         """Save lumped simulation results."""
         # Get catchment area for unit conversion
         area_m2 = self._get_catchment_area()
 
-        # Convert mm/day to m³/s: Q = runoff * area / (1000 * 86400)
-        streamflow_cms = runoff * area_m2 / (1000.0 * UnitConversion.SECONDS_PER_DAY)
+        # Convert mm/timestep to m³/s: Q = runoff * area / (1000 * seconds_per_timestep)
+        # For daily: seconds_per_timestep = 86400
+        # For hourly: seconds_per_timestep = 3600
+        seconds_per_timestep = self.timestep_hours * 3600
+        streamflow_cms = runoff * area_m2 / (1000.0 * seconds_per_timestep)
+
+        # Also compute runoff in mm/day for comparison
+        runoff_mm_day = runoff * (24.0 / self.timestep_hours)
 
         # Create DataFrame with both units
         results_df = pd.DataFrame({
             'datetime': time_index,
-            'streamflow_mm_day': runoff,
+            'streamflow_mm_timestep': runoff,
+            'streamflow_mm_day': runoff_mm_day,
             'streamflow_cms': streamflow_cms,
         })
 
@@ -475,6 +520,7 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
             data_vars={
                 'streamflow': (['time'], streamflow_cms),
                 'runoff': (['time'], runoff),
+                'runoff_mm_day': (['time'], runoff_mm_day),
             },
             coords={
                 'time': time_index,
@@ -485,10 +531,12 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
                 'domain': self.domain_name,
                 'experiment_id': self.experiment_id,
                 'catchment_area_m2': area_m2,
+                'timestep_hours': self.timestep_hours,
             }
         )
         ds['streamflow'].attrs = {'units': 'm3/s', 'long_name': 'Streamflow'}
-        ds['runoff'].attrs = {'units': 'mm/day', 'long_name': 'Runoff depth'}
+        ds['runoff'].attrs = {'units': f'mm/{self.timestep_hours}h', 'long_name': 'Runoff depth per timestep'}
+        ds['runoff_mm_day'].attrs = {'units': 'mm/day', 'long_name': 'Runoff depth per day'}
 
         nc_file = self.output_dir / f"{self.domain_name}_hbv_output.nc"
         encoding = create_netcdf_encoding(ds, compression=True)
@@ -507,8 +555,11 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
         # Create time coordinate in seconds since 1970
         time_seconds = (time_index - pd.Timestamp('1970-01-01')).total_seconds().values
 
-        # Convert runoff from mm/day to m/s for mizuRoute
-        runoff_ms = runoff / (1000.0 * UnitConversion.SECONDS_PER_DAY)
+        # Convert runoff from mm/timestep to m/s for mizuRoute
+        # For daily: seconds_per_timestep = 86400
+        # For hourly: seconds_per_timestep = 3600
+        seconds_per_timestep = self.timestep_hours * 3600
+        runoff_ms = runoff / (1000.0 * seconds_per_timestep)
 
         # Get routing variable name
         routing_var = self.mizu_routing_var or 'q_routed'
@@ -652,7 +703,12 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
             self.logger.info(f"   Output: {self.output_dir}")
             self.logger.info("=" * 40)
 
-        except Exception as e:
+        except ImportError as e:
+            self.logger.warning(f"Could not import metrics module: {e}")
+        except FileNotFoundError as e:
+            self.logger.warning(f"Output or observation file not found for metrics: {e}")
+        except (KeyError, ValueError, IndexError) as e:
+            # Data alignment or metric calculation issues - non-fatal for run success
             self.logger.warning(f"Error calculating metrics: {e}")
             self.logger.debug("Traceback:", exc_info=True)
 

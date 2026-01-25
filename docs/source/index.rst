@@ -1,103 +1,107 @@
-.. image:: _static/Conf.jpg
-   :width: 200px
-   :align: center
+:html_theme.sidebar_secondary.remove:
 
-SYMFLUENCE Documentation
-========================
+.. raw:: html
 
-**Earth-system modeling. Simplified.**
+   <div style="text-align: center; margin: 2rem 0 3rem 0;">
+     <h1 style="font-size: 3rem; font-weight: 700; margin-bottom: 0.25rem; letter-spacing: -0.02em;">SYMFLUENCE</h1>
+     <p style="font-size: 1.35rem; color: #5a6f7c; margin-bottom: 1rem; font-weight: 400;">Earth-system modeling. Simplified.</p>
+     <p style="font-size: 1rem; color: #6c757d; max-width: 600px; margin: 0 auto;">
+       A computational framework for hydrological modeling that integrates data preparation,
+       model setup, calibration, and evaluation in unified workflows.
+     </p>
+   </div>
 
----
+----
 
-Overview
---------
+.. grid:: 2
+   :gutter: 3
 
-**SYMFLUENCE** is a computational framework for Earth-system modeling that integrates data preparation, model setup, calibration, and evaluation in unified workflows.
+   .. grid-item-card:: Getting Started
+      :link: getting_started
+      :link-type: doc
 
-**Core capabilities:**
-- Multi-model integration (SUMMA, FUSE, HBV, NextGen, GR4J, LSTM, mizuRoute)
-- Automated parameter calibration and optimization
-- Parallel execution and HPC support
-- Reproducible workflows from data to results
-- Comprehensive evaluation and reporting
+      Installation, setup, and your first workflow.
 
----
+   .. grid-item-card:: Configuration
+      :link: configuration
+      :link-type: doc
 
-Quick Start
------------
+      Configure domains, forcing data, and model parameters.
 
-- :doc:`installation` — Installation and environment setup
-- :doc:`getting_started` — Your first project workflow
-- :doc:`examples` — Tutorials and case studies
-- `GitHub Repository <https://github.com/DarriEy/SYMFLUENCE>`_
+   .. grid-item-card:: Models
+      :link: models/index
+      :link-type: doc
 
----
+      Hydrological and routing models supported by SYMFLUENCE.
+
+   .. grid-item-card:: Calibration
+      :link: calibration
+      :link-type: doc
+
+      Parameter optimization and sensitivity analysis.
+
+   .. grid-item-card:: AI Agent
+      :link: agent_guide
+      :link-type: doc
+
+      Natural language interface for model configuration.
+
+   .. grid-item-card:: API Reference
+      :link: api
+      :link-type: doc
+
+      Complete Python API documentation.
+
+----
 
 .. toctree::
-   :maxdepth: 2
-   :caption: User Guide
+   :maxdepth: 1
+   :caption: Getting Started
+   :hidden:
 
    installation
    getting_started
-   configuration
-   calibration
    examples
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
+   :caption: Configuration
+   :hidden:
+
+   configuration
+   calibration
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Models
+   :hidden:
+
+   models/index
+   routing/index
+
+.. toctree::
+   :maxdepth: 1
    :caption: AI Agent
+   :hidden:
 
    agent_guide
    agent_tools
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Hydrological Models
-
-   models/model_summa
-   models/model_fuse
-   models/model_gr
-   models/model_hbv
-   models/model_hype
-   models/model_ngen
-   models/model_lstm
-   models/model_gnn
-   models/model_mesh
-   models/model_rhessys
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Routing Models
-
-   routing/mizuroute
-   routing/troute
-
-.. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Reference
+   :hidden:
 
+   cli_reference
    api
-   config_system
    troubleshooting
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Developer Documentation
+   :maxdepth: 1
+   :caption: Development
+   :hidden:
 
    architecture
    developer_guide
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Project Information
-
+   testing
    changelog
-
----
-
-Indices and Tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

@@ -447,7 +447,7 @@ class FuzzyMatcher:
         if min_indent == float('inf'):
             return ""
 
-        return lines[0][:min_indent]
+        return lines[0][:int(min_indent)]
 
     @staticmethod
     def apply_indentation(code: str, indent: str) -> str:

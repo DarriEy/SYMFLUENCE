@@ -7,18 +7,17 @@ MESH Parameter Manager
 Handles MESH parameter bounds, normalization, and .ini file updates.
 """
 
+import logging
+import os
+import re
 from pathlib import Path
 from typing import Dict, List, Optional
-import logging
-import re
 
 from symfluence.optimization.core.base_parameter_manager import BaseParameterManager
 from symfluence.optimization.core.parameter_bounds_registry import get_mesh_bounds
 from symfluence.optimization.registry import OptimizerRegistry
 
 logger = logging.getLogger(__name__)
-
-logger.debug("Importing actual MESHParameterManager")
 
 @OptimizerRegistry.register_parameter_manager('MESH')
 class MESHParameterManager(BaseParameterManager):
@@ -58,10 +57,6 @@ class MESHParameterManager(BaseParameterManager):
             'DTMINUSR': 'routing',  # In main MESH_parameters.txt
         }
 
-    # ========================================================================
-    # IMPLEMENT ABSTRACT METHODS
-    # ========================================================================
-
     def _get_parameter_names(self) -> List[str]:
         """Return MESH parameter names from config."""
         return self.mesh_params
@@ -94,10 +89,6 @@ class MESHParameterManager(BaseParameterManager):
         except Exception as e:
             self.logger.error(f"Error reading initial parameters: {e}")
             return self._get_default_initial_values()
-
-    # ========================================================================
-    # MESH-SPECIFIC METHODS
-    # ========================================================================
 
     def update_mesh_params(self, params: Dict[str, float]) -> bool:
         """
@@ -152,7 +143,6 @@ class MESHParameterManager(BaseParameterManager):
             self.logger.debug(f"Updating file: {file_path}")
             if not file_path.exists():
                 self.logger.debug(f"File not found: {file_path}")
-                import os
                 if file_path.parent.exists():
                     self.logger.debug(f"Directory contents of {file_path.parent}: {os.listdir(file_path.parent)}")
                 else:
@@ -169,14 +159,6 @@ class MESHParameterManager(BaseParameterManager):
                 # Use word boundary \b to avoid matching partial names
                 # and handle KEY=value or KEY value
                 pattern = rf'\b({param_name})\b\s*[\s=]+\s*([\d\.\-\+eE]+)'
-
-                def replacer(match):
-                    nonlocal updated
-                    updated += 1
-                    # Preserve the separator (space or =)
-                    return content[match.start():match.start(2)].replace(match.group(2), "") + f"{value:.6f}"
-
-                # Simpler replacement to avoid preservation complexity if it's tricky
                 content, n = re.subn(pattern, lambda m: m.group(1) + " " + f"{value:.6f}", content, count=1, flags=re.IGNORECASE)
 
                 if n > 0:

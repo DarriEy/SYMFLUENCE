@@ -241,6 +241,7 @@ class CFUSEWorker(InMemoryModelWorker):
             return False
 
         # Determine n_hrus from forcing shape
+        assert self._forcing is not None
         precip = self._forcing['precip']
         if precip.ndim > 1:
             self._n_hrus = precip.shape[1]
@@ -536,6 +537,7 @@ class CFUSEWorker(InMemoryModelWorker):
             if HAS_TORCH and self._forcing_tensor is not None:
                 forcing_np = self._forcing_tensor.cpu().numpy()
             else:
+                assert self._forcing is not None
                 precip = self._forcing['precip']
                 pet = self._forcing['pet']
                 temp = self._forcing['temp']
