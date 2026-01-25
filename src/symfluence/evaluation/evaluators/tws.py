@@ -133,7 +133,7 @@ class TWSEvaluator(ModelEvaluator):
         """Locate SUMMA output files containing water storage variables.
 
         Searches for NetCDF files containing any of the configured storage
-        components (SWE, canopy water, soil water, aquifer storage, glacier mass change).
+        components (SWE, canopy water, soil water, aquifer storage, glacier ice mass change).
 
         Args:
             sim_dir: Directory containing SUMMA simulation output files
