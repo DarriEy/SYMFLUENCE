@@ -162,6 +162,17 @@ def _perform_em_earth_remapping_logic(input_file: Path, output_file: Path, basin
         logger.error(f"Error remapping {input_file.name}: {str(e)}")
         return False
 
+def _init_worker_pool():
+    """
+    Initialize worker process for multiprocessing pool.
+
+    This function is called once per worker process when the pool is created.
+    It configures HDF5/netCDF4 thread safety to prevent segmentation faults.
+    """
+    from symfluence.core.hdf5_safety import apply_worker_environment
+    apply_worker_environment()
+
+
 def _remap_em_earth_worker(args):
     """Worker function for parallel EM-Earth remapping."""
     input_file_str, output_file_str, basin_shapefile_str, config = args
@@ -178,29 +189,8 @@ class EMEarthIntegrator(ConfigMixin):
     """
 
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
-        # Import here to avoid circular imports
-
-        from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
-        if isinstance(config, dict):
-
-            try:
-
-                self._config = SymfluenceConfig(**config)
-
-            except Exception:
-
-                # Fallback for partial configs (e.g., in tests)
-
-                self._config = config
-
-        else:
-
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger
         self.data_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR'))
         self.domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
@@ -330,7 +320,8 @@ class EMEarthIntegrator(ConfigMixin):
 
         start_time = time.time()
 
-        with mp.Pool(processes=num_workers) as pool:
+        # Use initializer to configure HDF5 safety in each worker
+        with mp.Pool(processes=num_workers, initializer=_init_worker_pool) as pool:
             try:
                 result = pool.map_async(
                     _remap_em_earth_worker,

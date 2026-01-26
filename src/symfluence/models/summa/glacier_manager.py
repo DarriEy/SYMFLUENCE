@@ -69,29 +69,8 @@ class GlacierAttributesManager(ConfigMixin):
             dem_path: Path to DEM file for elevation data
             project_dir: Path to project directory (for shapefiles)
         """
-        # Import here to avoid circular imports
-
-        from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
-        if isinstance(config, dict):
-
-            try:
-
-                self._config = SymfluenceConfig(**config)
-
-            except (TypeError, ValueError, KeyError, AttributeError):
-
-                # Fallback for partial configs (e.g., in tests)
-
-                self._config = config
-
-        else:
-
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger
         self.domain_name = domain_name
         self.dem_path = dem_path

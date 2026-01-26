@@ -200,7 +200,7 @@ class ISMNAcquirer(BaseAcquisitionHandler):
             if auth:
                 user, _, password = auth
                 return (user, password)
-        except Exception:
+        except (FileNotFoundError, netrc.NetrcParseError, OSError, KeyError):
             return None
         return None
 

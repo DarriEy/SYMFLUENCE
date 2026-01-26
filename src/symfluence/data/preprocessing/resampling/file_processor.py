@@ -19,6 +19,17 @@ from .file_validator import FileValidator
 from symfluence.core.mixins import ConfigMixin
 
 
+def _init_worker_pool():
+    """
+    Initialize worker process for multiprocessing pool.
+
+    This function is called once per worker process when the pool is created.
+    It configures HDF5/netCDF4 thread safety to prevent segmentation faults.
+    """
+    from symfluence.core.hdf5_safety import apply_worker_environment
+    apply_worker_environment()
+
+
 class FileProcessor(ConfigMixin):
     """
     Manages parallel and serial processing of forcing files.
@@ -40,29 +51,8 @@ class FileProcessor(ConfigMixin):
             output_dir: Output directory for processed files
             logger: Optional logger instance
         """
-        # Import here to avoid circular imports
-
-        from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
-        if isinstance(config, dict):
-
-            try:
-
-                self._config = SymfluenceConfig(**config)
-
-            except Exception:
-
-                # Fallback for partial configs (e.g., in tests)
-
-                self._config = config
-
-        else:
-
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.output_dir = output_dir
         self.logger = logger or logging.getLogger(__name__)
         self.validator = FileValidator(self.logger)
@@ -183,6 +173,7 @@ class FileProcessor(ConfigMixin):
 
         success_count = 0
 
+        # Note: tqdm monitor thread is disabled globally in configure_hdf5_safety()
         with tqdm(total=len(files), desc="Remapping forcing files", unit="file") as pbar:
             for file in files:
                 try:
@@ -225,6 +216,7 @@ class FileProcessor(ConfigMixin):
 
         success_count = 0
 
+        # Note: tqdm monitor thread is disabled globally in configure_hdf5_safety()
         with tqdm(total=len(files), desc="Remapping forcing files", unit="file") as pbar:
             for batch_num in range(total_batches):
                 start_idx = batch_num * batch_size
@@ -232,7 +224,8 @@ class FileProcessor(ConfigMixin):
                 batch_files = files[start_idx:end_idx]
 
                 try:
-                    with mp.Pool(processes=num_cpus) as pool:
+                    # Use initializer to configure HDF5 safety in each worker
+                    with mp.Pool(processes=num_cpus, initializer=_init_worker_pool) as pool:
                         worker_args = [
                             (file, i % num_cpus)
                             for i, file in enumerate(batch_files)

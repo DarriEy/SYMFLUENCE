@@ -101,13 +101,13 @@ Output Data:
 
     Soil Statistics:
         Merged into catchment shapefile
-        Columns added: soil_class_* (per unique soil class)
-        Contains area-weighted proportions of each soil type
+        Columns added: USGS_* (fraction per soil class), soil_pixel_count
+        Contains pixel-count fractions (0-1) of each soil type within catchment
 
     Landcover Statistics:
         Merged into catchment shapefile
-        Columns added: landcover_class_* (per unique landcover class)
-        Contains area-weighted proportions of each landcover type
+        Columns added: IGBP_* (fraction per landcover class), land_pixel_count
+        Contains pixel-count fractions (0-1) of each landcover type within catchment
 
     Full Results:
         Final output shapefile contains all merged attributes
@@ -409,13 +409,9 @@ class GeospatialStatistics(ConfigurableMixin):
     """
 
     def __init__(self, config: Union['SymfluenceConfig', Dict[str, Any]], logger):
-        # Handle typed config
-        from symfluence.core.config.models import SymfluenceConfig
-        if isinstance(config, dict):
-            self._config = SymfluenceConfig(**config)
-        else:
-            self._config = config
-
+        # Handle typed config using centralized coercion
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger
 
         # Use PathManager for path resolution
@@ -560,7 +556,10 @@ class GeospatialStatistics(ConfigurableMixin):
 
             # Save output
             intersect_path.mkdir(parents=True, exist_ok=True)
-            catchment_gdf.to_file(output_file)
+            # Suppress shapefile column name truncation warning (known limitation)
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', message='.*Column names longer than 10.*')
+                catchment_gdf.to_file(output_file)
             self.logger.info(f"Elevation statistics saved to {output_file}")
 
             # Legacy compatibility: also save as CSV in gistool-outputs for HYPE
@@ -687,6 +686,7 @@ class GeospatialStatistics(ConfigurableMixin):
         n_chunks = (n_catchments + chunk_size - 1) // chunk_size
 
         self.logger.info(f"Processing {n_catchments:,} catchments in {n_chunks} chunks")
+        dem_nodata = self.get_nodata_value(self.dem_path)
 
         for chunk_idx in range(n_chunks):
             start_idx = chunk_idx * chunk_size
@@ -709,7 +709,7 @@ class GeospatialStatistics(ConfigurableMixin):
                         chunk_gdf.geometry,
                         str(self.dem_path),
                         stats=['mean'],
-                        nodata=-9999,
+                        nodata=dem_nodata,
                         all_touched=False
                     )
 
@@ -845,22 +845,28 @@ class GeospatialStatistics(ConfigurableMixin):
 
             def rename_column(x):
                 if x == 'count':
-                    return x
+                    return 'soil_pixel_count'
                 try:
                     return f'USGS_{int(float(x))}'
                 except ValueError:
                     return x
 
             result_df = result_df.rename(columns=rename_column)
-            for col in result_df.columns:
-                if col != 'count':
-                    result_df[col] = result_df[col].astype(int)
+
+            # Normalize pixel counts to fractions (0-1)
+            class_cols = [col for col in result_df.columns if col.startswith('USGS_')]
+            total_pixels = result_df['soil_pixel_count']
+            for col in class_cols:
+                result_df[col] = (result_df[col] / total_pixels).where(total_pixels > 0, 0.0)
 
             catchment_gdf = catchment_gdf.join(result_df)
 
             # Create output directory and save the file
             intersect_path.mkdir(parents=True, exist_ok=True)
-            catchment_gdf.to_file(output_file)
+            # Suppress shapefile column name truncation warning (known limitation)
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', message='.*Column names longer than 10.*')
+                catchment_gdf.to_file(output_file)
             self.logger.info(f"Soil statistics saved to {output_file}")
 
             # Legacy compatibility: also save as CSV in gistool-outputs for HYPE
@@ -962,22 +968,28 @@ class GeospatialStatistics(ConfigurableMixin):
 
         def rename_column(x):
             if x == 'count':
-                return x
+                return 'land_pixel_count'
             try:
                 return f'IGBP_{int(float(x))}'
             except ValueError:
                 return x
 
         result_df = result_df.rename(columns=rename_column)
-        for col in result_df.columns:
-            if col != 'count':
-                result_df[col] = result_df[col].astype(int)
+
+        # Normalize pixel counts to fractions (0-1)
+        class_cols = [col for col in result_df.columns if col.startswith('IGBP_')]
+        total_pixels = result_df['land_pixel_count']
+        for col in class_cols:
+            result_df[col] = (result_df[col] / total_pixels).where(total_pixels > 0, 0.0)
 
         catchment_gdf = catchment_gdf.join(result_df)
 
         # Create output directory and save the file
         intersect_path.mkdir(parents=True, exist_ok=True)
-        catchment_gdf.to_file(output_file)
+        # Suppress shapefile column name truncation warning (known limitation)
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', message='.*Column names longer than 10.*')
+            catchment_gdf.to_file(output_file)
 
         self.logger.info(f"Land statistics saved to {output_file}")
 
@@ -1013,8 +1025,8 @@ class GeospatialStatistics(ConfigurableMixin):
                 if len(usgs_cols) > 0 and len(gdf) > 0:
                     self.logger.debug(f"Soil statistics already calculated: {soil_output_file}")
                     skipped += 1
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug(f"Could not check soil statistics file '{soil_output_file}': {e}")
 
         if skipped < 1:
             self.calculate_soil_stats()
@@ -1034,8 +1046,8 @@ class GeospatialStatistics(ConfigurableMixin):
                 if len(igbp_cols) > 0 and len(gdf) > 0:
                     self.logger.debug(f"Land statistics already calculated: {land_output_file}")
                     skipped += 1
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug(f"Could not check land statistics file '{land_output_file}': {e}")
 
         if skipped < 2:
             self.calculate_land_stats()
@@ -1054,8 +1066,8 @@ class GeospatialStatistics(ConfigurableMixin):
                 if 'elev_mean' in gdf.columns and len(gdf) > 0:
                     self.logger.debug(f"Elevation statistics already calculated: {dem_output_file}")
                     skipped += 1
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug(f"Could not check elevation statistics file '{dem_output_file}': {e}")
 
         if skipped < 3:
             self.calculate_elevation_stats()

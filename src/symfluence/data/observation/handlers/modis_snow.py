@@ -235,8 +235,8 @@ class MODISSnowHandler(BaseObservationHandler):
                                          minute=getattr(t, 'minute', 0),
                                          second=getattr(t, 'second', 0))
                         converted.append(dt)
-                    except Exception:
-                        # Fall back to string parsing
+                    except (ValueError, TypeError, AttributeError):
+                        # Fall back to string parsing for invalid dates
                         converted.append(pd.to_datetime(str(t)[:10]))
                 return pd.DatetimeIndex(converted)
         except ImportError:

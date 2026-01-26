@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List, Dict, Optional, Any, Tuple
 
 from symfluence.reporting.core.base_plotter import BasePlotter
+from symfluence.core.constants import ConfigKeys
 
 
 class BenchmarkPlotter(BasePlotter):
@@ -107,7 +108,7 @@ class BenchmarkPlotter(BasePlotter):
     def _prepare_data(self, flows: pd.DataFrame, scores: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Align flows with observations and clean up score index."""
         # Load observed data (logic moved from BenchmarkVizualiser)
-        domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')
+        domain_name = self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)
         obs_path = (self.project_dir / "observations" / "streamflow" / "preprocessed" /
                    f"{domain_name}_streamflow_processed.csv")
 
@@ -158,7 +159,7 @@ class BenchmarkPlotter(BasePlotter):
             # (Table plotting logic omitted for brevity, but can be moved from legacy)
 
         plt.tight_layout()
-        plot_path = plot_dir / f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_benchmark_groups.png"
+        plot_path = plot_dir / f"{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}_benchmark_groups.png"
         return self._save_and_close(fig, plot_path)
 
     def _plot_statistics(self, flows: pd.DataFrame, scores: pd.DataFrame, plot_dir: Path) -> Optional[str]:
@@ -182,7 +183,7 @@ class BenchmarkPlotter(BasePlotter):
         plt.xticks(rotation=45, ha='right')
 
         plt.tight_layout()
-        plot_path = plot_dir / f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_benchmark_statistics.png"
+        plot_path = plot_dir / f"{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}_benchmark_statistics.png"
         return self._save_and_close(fig, plot_path)
 
     def _plot_envelopes(self, flows: pd.DataFrame, scores: pd.DataFrame, plot_dir: Path) -> Optional[str]:
@@ -224,7 +225,7 @@ class BenchmarkPlotter(BasePlotter):
             self._apply_standard_styling(ax2, xlabel='Exceedance Prob', ylabel='Flow (m³/s)', title='FDC Envelope', legend=True)
 
             plt.tight_layout()
-            plot_path = plot_dir / f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_benchmark_envelopes.png"
+            plot_path = plot_dir / f"{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}_benchmark_envelopes.png"
             return self._save_and_close(fig, plot_path)
 
         except Exception as e:

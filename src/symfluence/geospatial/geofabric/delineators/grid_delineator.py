@@ -466,8 +466,14 @@ class GridDelineator(BaseGeofabricDelineator):
         try:
             self.logger.info("Adding grid cell attributes")
 
-            # Calculate centroids
-            centroids = grid_gdf.geometry.centroid
+            # Calculate centroids (reproject to projected CRS if geographic)
+            if grid_gdf.crs and grid_gdf.crs.is_geographic:
+                # Use Web Mercator for centroid calculation
+                grid_projected = grid_gdf.to_crs('EPSG:3857')
+                centroids_projected = grid_projected.geometry.centroid
+                centroids = centroids_projected.to_crs(grid_gdf.crs)
+            else:
+                centroids = grid_gdf.geometry.centroid
             grid_gdf['center_lon'] = centroids.x
             grid_gdf['center_lat'] = centroids.y
 

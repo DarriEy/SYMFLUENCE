@@ -27,7 +27,7 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
         """Algorithm identifier for logging and result tracking."""
         return "SCE-UA"
 
-    def optimize(  # type: ignore[override]
+    def optimize(
         self,
         n_params: int,
         evaluate_solution: Callable[[np.ndarray, int], float],
@@ -37,6 +37,8 @@ class SCEUAAlgorithm(OptimizationAlgorithm):
         update_best: Callable,
         log_progress: Callable,
         evaluate_population_objectives: Optional[Callable] = None,
+        compute_gradient: Optional[Callable] = None,
+        gradient_mode: str = 'auto',
         log_initial_population: Optional[Callable] = None,
         **kwargs
     ) -> Dict[str, Any]:

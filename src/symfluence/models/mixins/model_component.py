@@ -46,13 +46,8 @@ class ModelComponentMixin:
             reporting_manager: Optional ReportingManager instance
         """
         # Import here to avoid circular imports at module level
-        from symfluence.core.config.models import SymfluenceConfig
-
-        # Auto-convert dict to typed config for backward compatibility
-        if isinstance(config, dict):
-            self._config = SymfluenceConfig(**config)
-        else:
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)  # type: ignore[misc]
 
         self.logger = logger
         self.reporting_manager = reporting_manager

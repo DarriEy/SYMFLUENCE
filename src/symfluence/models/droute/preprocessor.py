@@ -18,7 +18,7 @@ from symfluence.models.droute.network_adapter import DRouteNetworkAdapter
 
 
 @ModelRegistry.register_preprocessor('DROUTE')
-class DRoutePreProcessor(BaseModelPreProcessor, DRouteConfigMixin):
+class DRoutePreProcessor(BaseModelPreProcessor, DRouteConfigMixin):  # type: ignore[misc]
     """
     Spatial preprocessor and configuration generator for the dRoute routing model.
 

@@ -69,6 +69,7 @@ from .model import (
     create_params_from_dict, create_initial_state, scale_params_for_timestep,
     simulate_jax, simulate_numpy
 )
+from .time_utils import warmup_timesteps as warmup_timesteps_from_days
 from .network import RiverNetwork, NetworkBuilder
 from .routing import (
     RoutingParams, RoutingState,
@@ -571,7 +572,7 @@ class DistributedHBV:
         (_, final_state), outlet_series = lax.scan(
             scan_fn,
             (init_inflows, initial_routing_state),
-            jnp.arange(n_timesteps)
+            jnp.arange(n_timesteps, dtype=jnp.int32)
         )
 
         return outlet_series, final_state
@@ -673,7 +674,7 @@ class DistributedHBV:
             Negative metric value (for minimization)
         """
         if warmup_timesteps is None:
-            warmup_timesteps = self.warmup_days * (24 // self.timestep_hours)
+            warmup_timesteps = warmup_timesteps_from_days(self.warmup_days, self.timestep_hours)
 
         # Create parameters
         params = self.create_params(hbv_params=params_dict)
@@ -733,7 +734,7 @@ class DistributedHBV:
             param_names = list(DEFAULT_PARAMS.keys())
 
         if warmup_timesteps is None:
-            warmup_timesteps = self.warmup_days * (24 // self.timestep_hours)
+            warmup_timesteps = warmup_timesteps_from_days(self.warmup_days, self.timestep_hours)
 
         def loss_fn(params_array):
             params_dict = dict(zip(param_names, params_array))
@@ -777,7 +778,7 @@ class DistributedHBV:
             param_names = list(DEFAULT_PARAMS.keys())
 
         if warmup_timesteps is None:
-            warmup_timesteps = self.warmup_days * (24 // self.timestep_hours)
+            warmup_timesteps = warmup_timesteps_from_days(self.warmup_days, self.timestep_hours)
 
         def loss_fn(params_array):
             params_dict = dict(zip(param_names, params_array))
@@ -816,7 +817,7 @@ class DistributedHBV:
             param_names = list(DEFAULT_PARAMS.keys())
 
         if warmup_timesteps is None:
-            warmup_timesteps = self.warmup_days * (24 // self.timestep_hours)
+            warmup_timesteps = warmup_timesteps_from_days(self.warmup_days, self.timestep_hours)
 
         def loss_fn(params_array):
             params_dict = dict(zip(param_names, params_array))
@@ -1023,7 +1024,7 @@ def calibrate_distributed_hbv_adam(
         param_names = ['fc', 'beta', 'k0', 'k1', 'k2', 'perc', 'maxbas', 'cfmax', 'tt', 'lp']
 
     if warmup_timesteps is None:
-        warmup_timesteps = model.warmup_days
+        warmup_timesteps = warmup_timesteps_from_days(model.warmup_days, model.timestep_hours)
 
     if loss_weights is None:
         loss_weights = {'nse': 0.5, 'log_nse': 0.3, 'volume': 0.2}

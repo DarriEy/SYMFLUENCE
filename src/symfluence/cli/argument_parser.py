@@ -83,6 +83,8 @@ class CLIParser:
                           help='Enable debug output')
         parser.add_argument('--visualise', '--visualize', action='store_true', dest='visualise',
                           help='Enable visualization during execution')
+        parser.add_argument('--diagnostic', action='store_true',
+                          help='Enable diagnostic plots for workflow validation')
         parser.add_argument('--dry-run', action='store_true', dest='dry_run',
                           help='Show what would be executed without running')
         parser.add_argument('--profile', action='store_true', dest='profile',
@@ -234,6 +236,16 @@ For more help on a specific command:
                                 default='intermediate',
                                 help='Cleaning level (default: intermediate)')
         clean_parser.set_defaults(func=WorkflowCommands.clean)
+
+        # workflow diagnose
+        diagnose_parser = workflow_subparsers.add_parser(
+            'diagnose',
+            help='Run diagnostic plots on existing workflow outputs',
+            parents=[self.common_parser]
+        )
+        diagnose_parser.add_argument('--step', choices=WORKFLOW_STEPS, metavar='STEP',
+                                    help=f'Run diagnostics for a specific step. Choices: {", ".join(WORKFLOW_STEPS)}')
+        diagnose_parser.set_defaults(func=WorkflowCommands.diagnose)
 
     def _register_project_commands(self, subparsers):
         """Register project category commands."""

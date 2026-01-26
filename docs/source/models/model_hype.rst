@@ -41,7 +41,7 @@ Model Structure
 ===============
 
 Spatial Discretization
----------------------
+----------------------
 
 HYPE uses a unique two-tier spatial structure:
 
@@ -74,7 +74,7 @@ HYPE uses a unique two-tier spatial structure:
    └─ Agriculture-Clay_Soil (40%)
 
 Process Representation
----------------------
+----------------------
 
 **Snow and Ice:**
 
@@ -115,7 +115,7 @@ Configuration in SYMFLUENCE
 ===========================
 
 Model Selection
---------------
+---------------
 
 .. code-block:: yaml
 
@@ -148,7 +148,7 @@ Installation and Execution
      - Main HYPE configuration file
 
 Calibration Parameters
-^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -170,7 +170,7 @@ Input File Specifications
 HYPE uses text-based input files. SYMFLUENCE automatically generates these from your configuration.
 
 Core Configuration Files
------------------------
+------------------------
 
 **1. info.txt** (Main Configuration)
 
@@ -277,7 +277,7 @@ Maps subcatchments to forcing files:
    3        P3.txt    T3.txt    TMAX3.txt   TMIN3.txt
 
 Forcing Data Files
------------------
+------------------
 
 **Precipitation (Pnnn.txt):**
 
@@ -354,7 +354,7 @@ Model-Specific Workflows
 ========================
 
 Basic HYPE Workflow
-------------------
+-------------------
 
 .. code-block:: yaml
 
@@ -413,7 +413,7 @@ For agricultural watersheds:
    HYPE_PARAMS_TO_CALIBRATE: "gratk,rrcs1,rrcs2,ttmp,cmlt,wcfc,wcwp"
 
 Snow-Focused HYPE
-----------------
+-----------------
 
 For snow-dominated regions:
 
@@ -463,10 +463,10 @@ HYPE scales well to large domains:
    OPTIMIZATION_MAX_ITERATIONS: 500
 
 Calibration Strategies
-=====================
+======================
 
 Recommended Parameters
----------------------
+----------------------
 
 **Core hydrological parameters:**
 
@@ -505,7 +505,7 @@ Recommended Parameters
 - ``dissolfN``: Dissolved nitrogen parameter
 
 Parameter Bounds
----------------
+----------------
 
 Typical ranges:
 
@@ -533,7 +533,7 @@ Typical ranges:
    cevp:      [0.1, 0.3]       # Correction factor for PET
 
 Calibration Tips
----------------
+----------------
 
 1. **Spinup is critical:**
 
@@ -563,7 +563,7 @@ Calibration Tips
    - Add complexity (class-specific) if needed
 
 Known Limitations
-================
+=================
 
 1. **Complexity:**
 
@@ -595,7 +595,7 @@ Known Limitations
    - Difficult to calibrate hydrology + nutrients simultaneously
 
 Troubleshooting
-==============
+===============
 
 Common Issues
 -------------
@@ -667,7 +667,7 @@ Solutions:
 4. Enable parallel HYPE (if compiled with OpenMP/MPI)
 
 Performance Optimization
------------------------
+------------------------
 
 **Speed up calibration:**
 
@@ -693,7 +693,7 @@ Performance Optimization
    # Check output for warnings/errors
 
 Additional Resources
-===================
+====================
 
 **HYPE Documentation:**
 

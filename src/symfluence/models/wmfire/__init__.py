@@ -37,6 +37,7 @@ from .ignition import (
     IgnitionManager,
     FirePerimeterValidator,
 )
+from .postprocessor import WMFirePostProcessor
 
 # Import build instructions to register with BuildInstructionsRegistry
 try:
@@ -61,4 +62,6 @@ __all__ = [
     'IgnitionPoint',
     'IgnitionManager',
     'FirePerimeterValidator',
+    # Postprocessor
+    'WMFirePostProcessor',
 ]

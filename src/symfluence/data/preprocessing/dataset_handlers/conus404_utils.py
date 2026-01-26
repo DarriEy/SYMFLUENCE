@@ -195,35 +195,57 @@ class CONUS404Handler(BaseDatasetHandler):
         # ============================
         # Shortwave radiation → SWRadAtm
         # ============================
-        # If already standardized, just grab it
+        # Handle accumulated radiation variables (may already be renamed by acquirer)
         if "ACSWDNB" in ds:
+            # Not yet renamed - convert and assign
             sw_flux = self._convert_accumulated_to_flux(ds["ACSWDNB"])
             sw_flux.name = "SWRadAtm"
             ds["SWRadAtm"] = sw_flux
-        else:
-            ds["SWRadAtm"]
+        elif "SWRadAtm" in ds:
+            # Already renamed by acquirer - check if it needs conversion
+            # Accumulated values are typically very large (>1e6)
+            if float(ds["SWRadAtm"].mean()) > 1e6:
+                self.logger.info("SWRadAtm appears to be accumulated - converting to flux")
+                sw_flux = self._convert_accumulated_to_flux(ds["SWRadAtm"])
+                ds["SWRadAtm"] = sw_flux
+        elif "SWDOWN" in ds:
+            # Instantaneous shortwave - just rename
+            ds = ds.rename({"SWDOWN": "SWRadAtm"})
 
-        ds["SWRadAtm"].attrs.update({
-            "units": "W m-2",
-            "long_name": "downward shortwave radiation at the surface",
-        })
+        if "SWRadAtm" in ds:
+            ds["SWRadAtm"].attrs.update({
+                "units": "W m-2",
+                "long_name": "downward shortwave radiation at the surface",
+            })
 
 
         # ============================
         # Longwave radiation → LWRadAtm
         # ============================
         if "ACLWDNB" in ds:
+            # Not yet renamed - convert and assign
             lw_flux = self._convert_accumulated_to_flux(ds["ACLWDNB"])
             lw_flux.name = "LWRadAtm"
             ds["LWRadAtm"] = lw_flux
-        else:
-            ds["LWRadAtm"]
+        elif "LWRadAtm" in ds:
+            # Already renamed by acquirer - check if it needs conversion
+            # Accumulated values are typically very large (>1e6)
+            if float(ds["LWRadAtm"].mean()) > 1e6:
+                self.logger.info("LWRadAtm appears to be accumulated - converting to flux")
+                lw_flux = self._convert_accumulated_to_flux(ds["LWRadAtm"])
+                ds["LWRadAtm"] = lw_flux
+        elif "LWDOWN" in ds:
+            # Instantaneous longwave - just rename
+            ds = ds.rename({"LWDOWN": "LWRadAtm"})
+        elif "GLW" in ds:
+            # Alternative longwave name - just rename
+            ds = ds.rename({"GLW": "LWRadAtm"})
 
-
-        ds["LWRadAtm"].attrs.update({
-            "units": "W m-2",
-            "long_name": "downward longwave radiation at the surface",
-        })
+        if "LWRadAtm" in ds:
+            ds["LWRadAtm"].attrs.update({
+                "units": "W m-2",
+                "long_name": "downward longwave radiation at the surface",
+            })
 
         # ============================
         # Precipitation rate → pptrate [kg m-2 s-1] (mm/s)

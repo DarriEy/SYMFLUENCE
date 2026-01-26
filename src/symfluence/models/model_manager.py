@@ -250,6 +250,16 @@ class ModelManager(BaseManager):
                 self.logger.error(traceback.format_exc())
                 raise
 
+            # Generate preprocessing diagnostics
+            if self.reporting_manager:
+                try:
+                    self.reporting_manager.diagnostic_model_preprocessing(
+                        input_dir=model_input_dir,
+                        model_name=model
+                    )
+                except Exception as e:
+                    self.logger.debug(f"Could not generate preprocessing diagnostics for {model}: {e}")
+
         self.logger.info("Model-specific preprocessing completed")
 
 
@@ -377,6 +387,20 @@ class ModelManager(BaseManager):
                 import traceback
                 self.logger.error(traceback.format_exc())
                 raise
+
+            # Generate model output diagnostics
+            if self.reporting_manager:
+                try:
+                    output_dir = self.project_dir / f"{model}_output"
+                    if output_dir.exists():
+                        output_files = list(output_dir.glob("*.nc"))
+                        if output_files:
+                            self.reporting_manager.diagnostic_model_output(
+                                output_nc=output_files[0],
+                                model_name=model
+                            )
+                except Exception as e:
+                    self.logger.debug(f"Could not generate output diagnostics for {model}: {e}")
 
     def postprocess_results(self):
         """

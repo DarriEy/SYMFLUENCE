@@ -44,15 +44,11 @@ class MultivariateTarget(CalibrationTarget):
         super().__init__(config, project_dir, logger)
         from symfluence.evaluation.analysis_manager import AnalysisManager
         from ..objectives import ObjectiveRegistry
-        from symfluence.core.config.models import SymfluenceConfig
+        from symfluence.core.config.coercion import coerce_config
 
         # Convert config dict to SymfluenceConfig if needed (required by AnalysisManager)
-        if isinstance(config, dict):
-            try:
-                config = SymfluenceConfig.model_validate(config)
-                self.config = config  # Update self.config as well
-            except (KeyError, ValueError, AttributeError) as e:
-                logger.warning(f"Failed to convert config dict to SymfluenceConfig: {e}")
+        config = coerce_config(config, warn=False)
+        self._config = config  # Update internal config as well
 
         self.analysis_manager = AnalysisManager(config, logger)
         self.objective_handler = ObjectiveRegistry.get_objective('MULTIVARIATE', config, logger)

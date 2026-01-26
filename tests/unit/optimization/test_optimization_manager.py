@@ -213,21 +213,26 @@ class TestResultsManagement:
             assert len(loaded_results) == 1
 
     def test_best_parameters_extraction(self, base_optimization_config, test_logger):
-        """Test extracting best parameters from results."""
+        """Test extracting best parameters from results.
+
+        The best parameters should be from the row with the highest score (for maximize
+        metrics like KGE), not simply row 0.
+        """
         manager = OptimizationManager(base_optimization_config, test_logger)
 
         results_df = pd.DataFrame({
             'iteration': [0, 1, 2],
             'theta_sat': [0.40, 0.45, 0.50],
             'k_soil': [3e-5, 5e-5, 7e-5],
-            'KGE': [0.75, 0.85, 0.80]
+            'KGE': [0.75, 0.85, 0.80]  # Best KGE is 0.85 at row 1
         })
 
-        # get_best_parameters doesn't exist, we usually just take row 0 or use load_optimization_results logic
-        # OptimizationManager.load_optimization_results returns a dict with 'best_iteration'
+        # load_optimization_results should find the row with the best score
         with patch.object(manager.results_manager, 'load_optimization_results', return_value=results_df):
             results = manager.load_optimization_results()
-            assert results['best_iteration']['theta_sat'] == 0.40 # Row 0
+            # Best iteration is row 1 (KGE=0.85), not row 0
+            assert results['best_iteration']['theta_sat'] == 0.45
+            assert results['best_iteration']['KGE'] == 0.85
 
 
 # ============================================================================

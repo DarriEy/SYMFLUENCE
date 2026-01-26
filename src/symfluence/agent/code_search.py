@@ -73,7 +73,11 @@ class CodeSearch:
                     pattern, file_glob, context_lines, max_results,
                     case_sensitive
                 )
-        except Exception as e:
+        except subprocess.TimeoutExpired:
+            return False, "Search timed out"
+        except subprocess.CalledProcessError as e:
+            return False, f"Search command failed: {str(e)}"
+        except (FileNotFoundError, PermissionError, OSError) as e:
             return False, f"Search failed: {str(e)}"
 
     def find_definition(
@@ -190,7 +194,9 @@ class CodeSearch:
 
         except subprocess.TimeoutExpired:
             return False, "Search timed out"
-        except Exception as e:
+        except subprocess.CalledProcessError as e:
+            return False, f"Find command failed: {str(e)}"
+        except (FileNotFoundError, PermissionError, OSError) as e:
             return False, f"Find files failed: {str(e)}"
 
     def _search_with_ripgrep(
@@ -343,8 +349,8 @@ class CodeSearch:
                 if match_count > max_results:
                     break
 
-            except Exception:
-                continue
+            except (OSError, UnicodeDecodeError, SyntaxError):
+                continue  # Skip unreadable or non-Python files
 
         if not results:
             return True, "No matches found"

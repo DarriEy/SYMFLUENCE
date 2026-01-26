@@ -19,7 +19,7 @@ from symfluence.core.exceptions import ModelExecutionError, symfluence_error_han
 
 
 @ModelRegistry.register_runner('NGEN', method_name='run_ngen')
-class NgenRunner(BaseModelRunner, ModelExecutor):
+class NgenRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
     """
     Runner for NextGen Framework simulations.
 

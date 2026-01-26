@@ -20,7 +20,7 @@ from symfluence.core.exceptions import ModelExecutionError, symfluence_error_han
 
 
 @ModelRegistry.register_runner('MESH', method_name='run_mesh')
-class MESHRunner(BaseModelRunner, ModelExecutor):
+class MESHRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
     """
     Runner class for the MESH model.
     Handles model execution, state management, and output processing.

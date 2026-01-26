@@ -73,7 +73,7 @@ def _get_model_config(structure: str) -> dict:
 
 
 @ModelRegistry.register_runner('CFUSE', method_name='run_cfuse')
-class CFUSERunner(BaseModelRunner, UnifiedModelExecutor):
+class CFUSERunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore[misc]
     """
     Runner class for the cFUSE hydrological model.
 

@@ -85,7 +85,7 @@ def convert_cftime_to_datetime(time_values) -> pd.DatetimeIndex:
                         second=getattr(t, 'second', 0)
                     )
                     converted.append(dt)
-                except Exception:
+                except (ValueError, TypeError, AttributeError):
                     # Fall back to string parsing (first 10 chars: YYYY-MM-DD)
                     converted.append(pd.to_datetime(str(t)[:10]))
             return pd.DatetimeIndex(converted)
@@ -183,8 +183,8 @@ def interpolate_8day_to_daily(
         df_daily.index.name = 'date'
         return df_daily
 
-    except Exception:
-        # Return original on failure
+    except (ValueError, TypeError, KeyError):
+        # Return original on failure (e.g., empty index, invalid dates)
         return df
 
 

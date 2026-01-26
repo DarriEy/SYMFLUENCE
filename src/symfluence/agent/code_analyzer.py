@@ -83,7 +83,7 @@ class CodeAnalyzer:
 
             return True, output
 
-        except Exception as e:
+        except (FileNotFoundError, PermissionError, OSError) as e:
             return False, f"Error analyzing project: {str(e)}"
 
     def find_related_files(self, target_file: str) -> Tuple[bool, str]:
@@ -125,7 +125,7 @@ class CodeAnalyzer:
 
             return True, output
 
-        except Exception as e:
+        except (FileNotFoundError, PermissionError, OSError, UnicodeDecodeError) as e:
             return False, f"Error finding related files: {str(e)}"
 
     def validate_python_syntax(self, file_path: str) -> Tuple[bool, str]:
@@ -157,7 +157,7 @@ class CodeAnalyzer:
             except SyntaxError as e:
                 return False, f"Syntax error on line {e.lineno}: {e.msg}"
 
-        except Exception as e:
+        except (FileNotFoundError, PermissionError, OSError, UnicodeDecodeError) as e:
             return False, f"Error validating syntax: {str(e)}"
 
     def get_file_summary(self, file_path: str) -> Tuple[bool, str]:
@@ -214,7 +214,7 @@ class CodeAnalyzer:
 
             return True, output
 
-        except Exception as e:
+        except (FileNotFoundError, PermissionError, OSError, UnicodeDecodeError, SyntaxError) as e:
             return False, f"Error summarizing file: {str(e)}"
 
     # Helper methods
@@ -250,8 +250,8 @@ class CodeAnalyzer:
                         if node.module:
                             module = node.module.split('.')[0]
                             imports[module] = imports.get(module, 0) + 1
-            except Exception:
-                continue
+            except (OSError, UnicodeDecodeError, SyntaxError):
+                continue  # Skip unreadable or unparseable files
 
         return imports
 
@@ -278,8 +278,8 @@ class CodeAnalyzer:
                                 rel_path = py_file.relative_to(self.repo_root)
                                 importers.append(str(rel_path))
                                 break
-            except Exception:
-                continue
+            except (OSError, UnicodeDecodeError, SyntaxError):
+                continue  # Skip unreadable or unparseable files
 
         return list(set(importers))
 
@@ -299,8 +299,8 @@ class CodeAnalyzer:
                 elif isinstance(node, ast.ImportFrom):
                     if node.module and node.module.startswith('symfluence'):
                         imports.append(node.module)
-        except Exception:
-            pass
+        except (OSError, UnicodeDecodeError, SyntaxError):
+            pass  # Skip unreadable or unparseable files
 
         return list(set(imports))
 
@@ -316,7 +316,7 @@ class CodeAnalyzer:
             if parts[-1].endswith('.py'):
                 parts = parts[:-1] + (parts[-1][:-3],)
             return '.'.join(parts)
-        except Exception:
+        except (ValueError, IndexError):
             return str(path)
 
     def _node_imports_module(self, node: Any, module_name: str) -> bool:

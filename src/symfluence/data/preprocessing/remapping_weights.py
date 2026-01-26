@@ -33,6 +33,17 @@ from symfluence.core.mixins import ConfigMixin
 logging.getLogger('easymore').setLevel(logging.WARNING)
 
 
+def _init_worker_pool():
+    """
+    Initialize worker process for multiprocessing pool.
+
+    This function is called once per worker process when the pool is created.
+    It configures HDF5/netCDF4 thread safety to prevent segmentation faults.
+    """
+    from symfluence.core.hdf5_safety import apply_worker_environment
+    apply_worker_environment()
+
+
 def _create_easymore_instance():
     """Create an EASYMORE instance handling different module structures."""
     if hasattr(easymore, "Easymore"):
@@ -66,29 +77,9 @@ class RemappingWeightGenerator(ConfigMixin):
             project_dir: Project directory path
             shapefile_manager: ShapefileManager instance for CRS handling
         """
-        # Import here to avoid circular imports
-
-        from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
-        if isinstance(config, dict):
-
-            try:
-
-                self._config = SymfluenceConfig(**config)
-
-            except Exception:
-
-                # Fallback for partial configs (e.g., in tests)
-
-                self._config = config
-
-        else:
-
-            self._config = config
+        # Use centralized config coercion (handles dict -> SymfluenceConfig with fallback)
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger
         self.project_dir = project_dir
         self.shapefile_manager = shapefile_manager
@@ -473,7 +464,7 @@ class RemappingWeightApplier(ConfigMixin):
                 dt_start = datetime.strptime(start_str, "%Y-%m-%d %H:%M")
                 time_tag = dt_start.strftime("%Y-%m-%d-%H-%M-%S")
                 output_filename = f"{domain_name}_{forcing_dataset}_remapped_{time_tag}.nc"
-            except Exception:
+            except (ValueError, TypeError):
                 output_filename = f"{domain_name}_{forcing_dataset}_remapped_{input_stem}.nc"
 
         elif forcing_dataset.lower() == 'era5':
@@ -530,8 +521,8 @@ class BatchProcessor(ConfigMixin):
                         self.logger.debug(f"Skipping already processed: {file.name}")
                         already_processed += 1
                         continue
-                except Exception:
-                    pass
+                except OSError:
+                    pass  # File may have been removed or is inaccessible
 
             remaining.append(file)
 
@@ -555,6 +546,7 @@ class BatchProcessor(ConfigMixin):
 
         success_count = 0
 
+        # Note: tqdm monitor thread is disabled globally in configure_hdf5_safety()
         with tqdm(total=len(files), desc="Remapping forcing files", unit="file") as pbar:
             for file in files:
                 try:
@@ -596,6 +588,7 @@ class BatchProcessor(ConfigMixin):
 
         success_count = 0
 
+        # Note: tqdm monitor thread is disabled globally in configure_hdf5_safety()
         with tqdm(total=len(files), desc="Remapping forcing files", unit="file") as pbar:
             for batch_num in range(total_batches):
                 start_idx = batch_num * batch_size
@@ -603,7 +596,8 @@ class BatchProcessor(ConfigMixin):
                 batch_files = files[start_idx:end_idx]
 
                 try:
-                    with mp.Pool(processes=num_cpus) as pool:
+                    # Use initializer to configure HDF5 safety in each worker
+                    with mp.Pool(processes=num_cpus, initializer=_init_worker_pool) as pool:
                         worker_args = [
                             (file, remap_file, i % num_cpus)
                             for i, file in enumerate(batch_files)

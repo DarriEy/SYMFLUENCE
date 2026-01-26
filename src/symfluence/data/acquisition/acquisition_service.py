@@ -212,11 +212,8 @@ class AcquisitionService(ConfigurableMixin):
         reporting_manager: Any = None
     ):
         # Set up typed config via ConfigurableMixin
-        from symfluence.core.config.models import SymfluenceConfig
-        if isinstance(config, dict):
-            self._config = SymfluenceConfig(**config)
-        else:
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         # Backward compatibility alias
         self.config = self._config
 
@@ -486,7 +483,13 @@ class AcquisitionService(ConfigurableMixin):
             bbox = self._get_config_value(lambda: self.config.domain.bounding_box_coords)
             time_start = self._get_config_value(lambda: self.config.domain.time_start)
             time_end = self._get_config_value(lambda: self.config.domain.time_end)
-            variables = self._get_config_value(lambda: self.config.forcing.variables, dict_key='FORCING_VARIABLES')
+
+            # Check for dataset-specific variable configuration (e.g., HRRR_VARS, AORC_VARS)
+            # Fall back to generic FORCING_VARIABLES if not found
+            dataset_vars_key = f"{forcing_dataset.upper()}_VARS"
+            variables = self.config_dict.get(dataset_vars_key)
+            if variables is None:
+                variables = self._get_config_value(lambda: self.config.forcing.variables, dict_key='FORCING_VARIABLES')
 
             cache_key = cache.generate_cache_key(
                 dataset=forcing_dataset,

@@ -18,7 +18,7 @@ from symfluence.core.exceptions import ModelExecutionError, symfluence_error_han
 
 
 @ModelRegistry.register_runner('TROUTE', method_name='run_troute')
-class TRouteRunner(BaseModelRunner, ModelExecutor):
+class TRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
     """
     A standalone runner for the t-route model.
 

@@ -56,11 +56,8 @@ class BaseForcingProcessor(ABC, ConfigurableMixin):
             **kwargs: Additional model-specific attributes
         """
         # Set up typed config via ConfigurableMixin
-        from symfluence.core.config.models import SymfluenceConfig
-        if isinstance(config, dict):
-            self._config = SymfluenceConfig(**config)
-        else:
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         # Backward compatibility alias
         self.config = self._config
 

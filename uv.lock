@@ -12,6 +12,18 @@ resolution-markers = [
 ]
 
 [[package]]
+name = "accessible-pygments"
+version = "0.0.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pygments" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bc/c1/bbac6a50d02774f91572938964c582fff4270eee73ab822a4aeea4d8b11b/accessible_pygments-0.0.5.tar.gz", hash = "sha256:40918d3e6a2b619ad424cb91e556bd3bd8865443d9f22f1dcdf79e33c8046872", size = 1377899 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8d/3f/95338030883d8c8b91223b4e21744b04d11b161a3ef117295d8241f50ab4/accessible_pygments-0.0.5-py3-none-any.whl", hash = "sha256:88ae3211e68a1d0b011504b2ffc1691feafce124b845bd072ab6f9f66f34d4b7", size = 1395903 },
+]
+
+[[package]]
 name = "affine"
 version = "2.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4102,6 +4114,24 @@ wheels = [
 ]
 
 [[package]]
+name = "pydata-sphinx-theme"
+version = "0.16.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "accessible-pygments" },
+    { name = "babel" },
+    { name = "beautifulsoup4" },
+    { name = "docutils" },
+    { name = "pygments" },
+    { name = "sphinx" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/00/20/bb50f9de3a6de69e6abd6b087b52fa2418a0418b19597601605f855ad044/pydata_sphinx_theme-0.16.1.tar.gz", hash = "sha256:a08b7f0b7f70387219dc659bff0893a7554d5eb39b59d3b8ef37b8401b7642d7", size = 2412693 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e2/0d/8ba33fa83a7dcde13eb3c1c2a0c1cc29950a048bfed6d9b0d8b6bd710b4c/pydata_sphinx_theme-0.16.1-py3-none-any.whl", hash = "sha256:225331e8ac4b32682c18fcac5a57a6f717c4e632cea5dd0e247b55155faeccde", size = 6723264 },
+]
+
+[[package]]
 name = "pygments"
 version = "2.19.2"
 source = { registry = "https://pypi.org/simple" }
@@ -5142,17 +5172,15 @@ wheels = [
 ]
 
 [[package]]
-name = "sphinx-rtd-theme"
-version = "3.1.0"
+name = "sphinx-design"
+version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "docutils" },
     { name = "sphinx" },
-    { name = "sphinxcontrib-jquery" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/84/68/a1bfbf38c0f7bccc9b10bbf76b94606f64acb1552ae394f0b8285bfaea25/sphinx_rtd_theme-3.1.0.tar.gz", hash = "sha256:b44276f2c276e909239a4f6c955aa667aaafeb78597923b1c60babc76db78e4c", size = 7620915 }
+sdist = { url = "https://files.pythonhosted.org/packages/13/7b/804f311da4663a4aecc6cf7abd83443f3d4ded970826d0c958edc77d4527/sphinx_design-0.7.0.tar.gz", hash = "sha256:d2a3f5b19c24b916adb52f97c5f00efab4009ca337812001109084a740ec9b7a", size = 2203582 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/87/c7/b5c8015d823bfda1a346adb2c634a2101d50bb75d421eb6dcb31acd25ebc/sphinx_rtd_theme-3.1.0-py2.py3-none-any.whl", hash = "sha256:1785824ae8e6632060490f67cf3a72d404a85d2d9fc26bce3619944de5682b89", size = 7655617 },
+    { url = "https://files.pythonhosted.org/packages/30/cf/45dd359f6ca0c3762ce0490f681da242f0530c49c81050c035c016bfdd3a/sphinx_design-0.7.0-py3-none-any.whl", hash = "sha256:f82bf179951d58f55dca78ab3706aeafa496b741a91b1911d371441127d64282", size = 2220350 },
 ]
 
 [[package]]
@@ -5180,18 +5208,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/43/93/983afd9aa001e5201eab16b5a444ed5b9b0a7a010541e0ddfbbfd0b2470c/sphinxcontrib_htmlhelp-2.1.0.tar.gz", hash = "sha256:c9e2916ace8aad64cc13a0d233ee22317f2b9025b9cf3295249fa985cc7082e9", size = 22617 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0a/7b/18a8c0bcec9182c05a0b3ec2a776bba4ead82750a55ff798e8d406dae604/sphinxcontrib_htmlhelp-2.1.0-py3-none-any.whl", hash = "sha256:166759820b47002d22914d64a075ce08f4c46818e17cfc9470a9786b759b19f8", size = 98705 },
-]
-
-[[package]]
-name = "sphinxcontrib-jquery"
-version = "4.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "sphinx" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/de/f3/aa67467e051df70a6330fe7770894b3e4f09436dea6881ae0b4f3d87cad8/sphinxcontrib-jquery-4.1.tar.gz", hash = "sha256:1620739f04e36a2c779f1a131a2dfd49b2fd07351bf1968ced074365933abc7a", size = 122331 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/85/749bd22d1a68db7291c89e2ebca53f4306c3f205853cf31e9de279034c3c/sphinxcontrib_jquery-4.1-py2.py3-none-any.whl", hash = "sha256:f936030d7d0147dd026a4f2b5a57343d233f1fc7b363f68b3d4f1cb0993878ae", size = 121104 },
 ]
 
 [[package]]
@@ -5276,10 +5292,9 @@ wheels = [
 
 [[package]]
 name = "symfluence"
-version = "0.5.12"
+version = "0.6.1"
 source = { editable = "." }
 dependencies = [
-    { name = "baseflow" },
     { name = "bottleneck" },
     { name = "cdo" },
     { name = "cdsapi" },
@@ -5330,13 +5345,18 @@ all = [
     { name = "mypy" },
     { name = "myst-parser" },
     { name = "pre-commit" },
+    { name = "pydata-sphinx-theme" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-timeout" },
     { name = "pytest-xdist" },
+    { name = "rpy2" },
     { name = "ruff" },
     { name = "sphinx" },
-    { name = "sphinx-rtd-theme" },
+    { name = "sphinx-design" },
+]
+baseflow = [
+    { name = "baseflow" },
 ]
 dev = [
     { name = "mypy" },
@@ -5345,8 +5365,9 @@ dev = [
 ]
 docs = [
     { name = "myst-parser" },
+    { name = "pydata-sphinx-theme" },
     { name = "sphinx" },
-    { name = "sphinx-rtd-theme" },
+    { name = "sphinx-design" },
 ]
 notebook = [
     { name = "ipykernel" },
@@ -5364,7 +5385,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "baseflow" },
+    { name = "baseflow", marker = "extra == 'baseflow'" },
     { name = "bottleneck", specifier = ">=1.3.0,<2.0.0" },
     { name = "cdo", specifier = ">=1.6.0,<3.0.0" },
     { name = "cdsapi", specifier = ">=0.6.0,<1.0.0" },
@@ -5386,8 +5407,8 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.7.0,<4.0.0" },
     { name = "mypy", marker = "extra == 'all'", specifier = ">=1.0.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
-    { name = "myst-parser", marker = "extra == 'all'", specifier = ">=0.18.0" },
-    { name = "myst-parser", marker = "extra == 'docs'", specifier = ">=0.18.0" },
+    { name = "myst-parser", marker = "extra == 'all'", specifier = ">=2.0.0" },
+    { name = "myst-parser", marker = "extra == 'docs'", specifier = ">=2.0.0" },
     { name = "netcdf4", specifier = ">=1.6.0,<2.0.0" },
     { name = "networkx", specifier = ">=3.0.0,<4.0.0" },
     { name = "numexpr", specifier = ">=2.8.0,<3.0.0" },
@@ -5400,6 +5421,8 @@ requires-dist = [
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.0.0" },
     { name = "psutil", specifier = ">=5.9.0,<6.0.0" },
     { name = "pvlib" },
+    { name = "pydata-sphinx-theme", marker = "extra == 'all'", specifier = ">=0.15.0" },
+    { name = "pydata-sphinx-theme", marker = "extra == 'docs'", specifier = ">=0.15.0" },
     { name = "pyproj", specifier = ">=3.5.0,<4.0.0" },
     { name = "pytest", marker = "extra == 'all'", specifier = ">=7.0.0,<9.0.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0,<9.0.0" },
@@ -5415,6 +5438,7 @@ requires-dist = [
     { name = "rasterstats" },
     { name = "requests", specifier = ">=2.28.0,<3.0.0" },
     { name = "rich", specifier = ">=13.0.0,<14.0.0" },
+    { name = "rpy2", marker = "extra == 'all'", specifier = ">=3.5.0,<4.0.0" },
     { name = "rpy2", marker = "extra == 'r'", specifier = ">=3.5.0,<4.0.0" },
     { name = "ruff", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
@@ -5424,10 +5448,10 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.10.0,<2.0.0" },
     { name = "seaborn", specifier = ">=0.12.0,<1.0.0" },
     { name = "shapely", specifier = ">=2.0.0,<3.0.0" },
-    { name = "sphinx", marker = "extra == 'all'", specifier = ">=5.0.0,<8.0.0" },
-    { name = "sphinx", marker = "extra == 'docs'", specifier = ">=5.0.0,<8.0.0" },
-    { name = "sphinx-rtd-theme", marker = "extra == 'all'", specifier = ">=1.1.0" },
-    { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=1.1.0" },
+    { name = "sphinx", marker = "extra == 'all'", specifier = ">=7.0.0" },
+    { name = "sphinx", marker = "extra == 'docs'", specifier = ">=7.0.0" },
+    { name = "sphinx-design", marker = "extra == 'all'", specifier = ">=0.5.0" },
+    { name = "sphinx-design", marker = "extra == 'docs'", specifier = ">=0.5.0" },
     { name = "torch", specifier = ">=2.0.0,<3.0.0" },
     { name = "tqdm", specifier = ">=4.64.0,<5.0.0" },
     { name = "xarray", specifier = ">=2023.0.0,<2026.0.0" },

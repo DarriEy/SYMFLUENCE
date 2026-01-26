@@ -53,14 +53,8 @@ class MESHDrainageDatabase(ConfigMixin):
         self.rivers_name = rivers_name
         self.catchment_path = catchment_path
         self.catchment_name = catchment_name
-        from symfluence.core.config.models import SymfluenceConfig
-        if isinstance(config, dict):
-            try:
-                self._config = SymfluenceConfig(**config)
-            except (TypeError, ValueError, KeyError, AttributeError):
-                self._config = config
-        else:
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger or logging.getLogger(__name__)
 
     @property

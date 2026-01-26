@@ -5,6 +5,7 @@ Provides acquisition and preprocessing of NASA SMAP satellite soil moisture
 data for multivariate hydrological model calibration and validation.
 """
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 from pathlib import Path
@@ -207,8 +208,8 @@ class ISMNHandler(BaseObservationHandler):
             depth_col = self._find_depth_column(df.columns)
             depth_value = None
             if depth_col:
-                df['depth_m'] = pd.to_numeric(df[depth_col], errors='coerce')
-                df['depth_m'] = df['depth_m'].where(df['depth_m'].notna(), pd.NA)  # type: ignore[call-overload]
+                depth_numeric: pd.Series = pd.to_numeric(df[depth_col], errors='coerce')
+                df['depth_m'] = depth_numeric.where(depth_numeric.notna(), np.nan)
                 df['depth_m'] = df['depth_m'].apply(self._normalize_depth)
                 df = df.dropna(subset=['depth_m'])
                 if not df.empty:
@@ -217,7 +218,8 @@ class ISMNHandler(BaseObservationHandler):
                     df = df[df['depth_m'] == closest_depth]
                     depth_value = float(closest_depth)
 
-            series = pd.to_numeric(df[sm_col], errors='coerce').dropna()  # type: ignore[call-overload, index]
+            numeric_series = pd.to_numeric(df[sm_col], errors='coerce')  # type: ignore[call-overload,index]
+            series = numeric_series.dropna()
             if series.empty:
                 continue
             series_list.append(series)
@@ -260,10 +262,11 @@ class ISMNHandler(BaseObservationHandler):
     def _read_station_file(self, path: Path) -> Optional[pd.DataFrame]:
         try:
             return pd.read_csv(path)
-        except Exception:
+        except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError, OSError) as e:
+            self.logger.debug(f"Standard CSV parse failed for {path.name}: {e}, trying whitespace delimiter")
             try:
-                return pd.read_csv(path, delim_whitespace=True)  # type: ignore[call-overload]
-            except Exception as exc:
+                return pd.read_csv(path, sep=r'\s+')
+            except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError, OSError) as exc:
                 self.logger.warning(f"Skipping unreadable ISMN file {path.name}: {exc}")
                 return None
 
@@ -300,7 +303,7 @@ class ISMNHandler(BaseObservationHandler):
     def _normalize_depth(self, depth):
         try:
             depth_val = float(depth)
-        except Exception:
+        except (ValueError, TypeError):
             return pd.NA
         if depth_val > 10:
             return depth_val / 100.0
@@ -312,7 +315,8 @@ class ISMNHandler(BaseObservationHandler):
         )
         try:
             return float(target_depth)
-        except Exception:
+        except (ValueError, TypeError):
+            self.logger.debug(f"Could not convert target_depth '{target_depth}' to float, using default 0.05")
             return 0.05
 
 @ObservationRegistry.register('esa_cci_sm')
@@ -379,8 +383,8 @@ class ESACCISMHandler(BaseObservationHandler):
                         target_lon = ((west + 360.0 + east) / 2.0) % 360.0
                         if target_lon > 180.0:
                             target_lon -= 360.0
-            except Exception:
-                self.logger.warning("Failed to parse bbox for ESA CCI SM subsetting")
+            except (KeyError, TypeError, ValueError) as e:
+                self.logger.warning(f"Failed to parse bbox for ESA CCI SM subsetting: {e}")
 
         results = []
         for f in nc_files:

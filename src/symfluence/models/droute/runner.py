@@ -27,7 +27,7 @@ except ImportError:
 
 
 @ModelRegistry.register_runner('DROUTE', method_name='run_droute')
-class DRouteRunner(BaseModelRunner, ModelExecutor, DRouteConfigMixin):
+class DRouteRunner(BaseModelRunner, ModelExecutor, DRouteConfigMixin):  # type: ignore[misc]
     """
     Runner for the dRoute routing model.
 

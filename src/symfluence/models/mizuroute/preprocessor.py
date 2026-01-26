@@ -34,7 +34,7 @@ def _create_easymore_instance():
 
 
 @ModelRegistry.register_preprocessor('MIZUROUTE')
-class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRouteConfigMixin):
+class MizuRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin, MizuRouteConfigMixin):  # type: ignore[misc]
     """
     Spatial preprocessor and configuration generator for the mizuRoute river routing model.
 

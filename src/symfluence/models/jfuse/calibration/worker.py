@@ -28,12 +28,50 @@ try:
     import jfuse
     import equinox as eqx
     from jfuse import (
-        create_fuse_model, Parameters, PARAM_BOUNDS, kge_loss, nse_loss,
+        create_fuse_model, Parameters, PARAM_BOUNDS,
         CoupledModel, create_network_from_topology, load_network,
         FUSEModel, ModelConfig, BaseflowType, UpperLayerArch, LowerLayerArch,
         PercolationType, SurfaceRunoffType, EvaporationType, InterflowType
     )
     from jfuse.fuse.config import SnowType, RoutingType, RainfallErrorType
+
+    # Define JAX-native loss functions locally (jfuse doesn't export them anymore)
+    def kge_loss(sim, obs):
+        """KGE loss function for jFUSE (1 - KGE, lower is better).
+
+        JAX-compatible implementation using jax.numpy.
+        """
+        # Ensure inputs are JAX arrays
+        sim = jnp.asarray(sim)
+        obs = jnp.asarray(obs)
+
+        # Calculate KGE components
+        r = jnp.corrcoef(obs, sim)[0, 1]  # Correlation
+        alpha = jnp.std(sim) / jnp.std(obs)  # Variability ratio
+        beta = jnp.mean(sim) / jnp.mean(obs)  # Bias ratio
+
+        # KGE = 1 - sqrt((r-1)^2 + (alpha-1)^2 + (beta-1)^2)
+        kge = 1.0 - jnp.sqrt((r - 1.0)**2 + (alpha - 1.0)**2 + (beta - 1.0)**2)
+
+        # Return loss (1 - KGE, lower is better)
+        return 1.0 - kge
+
+    def nse_loss(sim, obs):
+        """NSE loss function for jFUSE (1 - NSE, lower is better).
+
+        JAX-compatible implementation using jax.numpy.
+        """
+        # Ensure inputs are JAX arrays
+        sim = jnp.asarray(sim)
+        obs = jnp.asarray(obs)
+
+        # NSE = 1 - sum((obs - sim)^2) / sum((obs - mean(obs))^2)
+        numerator = jnp.sum((obs - sim)**2)
+        denominator = jnp.sum((obs - jnp.mean(obs))**2)
+        nse = 1.0 - (numerator / denominator)
+
+        # Return loss (1 - NSE, lower is better)
+        return 1.0 - nse
 
     # Custom config optimized for gradient-based calibration (ADAM/LBFGS)
     PRMS_GRADIENT_CONFIG = ModelConfig(

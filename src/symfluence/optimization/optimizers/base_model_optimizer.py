@@ -168,6 +168,7 @@ from datetime import datetime
 
 from symfluence.core import ConfigurableMixin
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.exceptions import require_not_none, OptimizationError
 from symfluence.optimization.registry import OptimizerRegistry
 from ..mixins import (
     ParallelExecutionMixin,
@@ -325,13 +326,8 @@ class BaseModelOptimizer(
             optimization_settings_dir: Optional path to optimization settings
             reporting_manager: ReportingManager instance
         """
-        from symfluence.core.config.models import SymfluenceConfig
-
-        # Auto-convert dict to typed config for backward compatibility
-        if isinstance(config, dict):
-            self._config = SymfluenceConfig(**config)
-        else:
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
 
         self.logger = logger
         self.reporting_manager = reporting_manager
@@ -431,8 +427,7 @@ class BaseModelOptimizer(
             )
             if hasattr(self, 'summa_exe_path'):
                 self._task_builder.set_summa_exe_path(self.summa_exe_path)
-        assert self._task_builder is not None
-        return self._task_builder
+        return require_not_none(self._task_builder, "task_builder", OptimizationError)
 
     @property
     def population_evaluator(self) -> PopulationEvaluator:
@@ -447,8 +442,7 @@ class BaseModelOptimizer(
                 model_name=self._get_model_name(),
                 logger=self.logger
             )
-        assert self._population_evaluator is not None
-        return self._population_evaluator
+        return require_not_none(self._population_evaluator, "population_evaluator", OptimizationError)
 
     @property
     def results_saver(self) -> FinalResultsSaver:
@@ -460,8 +454,7 @@ class BaseModelOptimizer(
                 domain_name=self.domain_name,
                 logger=self.logger
             )
-        assert self._results_saver is not None
-        return self._results_saver
+        return require_not_none(self._results_saver, "results_saver", OptimizationError)
 
     def _visualize_progress(self, algorithm: str) -> None:
         """Helper to visualize optimization progress if reporting manager available."""
@@ -691,6 +684,20 @@ class BaseModelOptimizer(
             lambda: self.config.optimization.nsga2.secondary_metric, default=self.target_metric
         )
         return [str(primary_metric).upper(), str(secondary_metric).upper()]
+
+    def _supports_multi_objective(self) -> bool:
+        """Check if this model supports multi-objective optimization (NSGA-II).
+
+        Currently, only SUMMA has the worker infrastructure to return multiple
+        objectives per evaluation. Non-SUMMA models use BaseWorker which only
+        returns a single score, causing NSGA-II to receive penalty values for
+        all objectives.
+
+        Returns:
+            True if NSGA-II is supported, False otherwise.
+        """
+        # Only SUMMA workers have multi-objective support via worker_orchestration.py
+        return self._get_model_name().upper() == 'SUMMA'
 
     def _log_calibration_alignment(self) -> None:
         """Log basic calibration alignment info before optimization starts."""
@@ -1028,12 +1035,10 @@ class BaseModelOptimizer(
             return None
 
         # Get optimization metric from config
-        # Uses OPTIMIZATION_METRIC first, then CALIBRATION_METRIC, matching _extract_primary_score
-        # in base_worker.py to ensure FD and native gradient paths optimize the same objective
-        metric = self.config_dict.get(
-            'OPTIMIZATION_METRIC',
-            self.config_dict.get('CALIBRATION_METRIC', 'KGE')
-        ).lower()
+        # Uses self.target_metric which is set in __init__ from config.optimization.metric
+        # This matches _extract_primary_score in base_worker.py to ensure FD and native
+        # gradient paths optimize the same objective
+        metric = self.target_metric.lower()
 
         # Get parameter names and bounds for gradient transformation
         param_names = self.param_manager.all_param_names
@@ -1279,7 +1284,8 @@ class BaseModelOptimizer(
             self.save_best_params(algorithm_name)
         # Save results
         results_path = self.save_results(algorithm_name, standard_filename=True)
-        assert results_path is not None
+        if results_path is None:
+            raise OptimizationError(f"Failed to save results for {algorithm_name} default evaluation")
         return results_path
 
     def run_optimization(self, algorithm_name: str) -> Path:
@@ -1359,6 +1365,15 @@ class BaseModelOptimizer(
                     self.logger.info("Using initial parameter guess for optimization seeding")
             except (KeyError, AttributeError, ValueError) as e:
                 self.logger.warning(f"Failed to prepare initial parameter guess: {e}")
+
+        # Guard NSGA-II: only SUMMA supports multi-objective
+        if algorithm_name.lower() in ['nsga2', 'nsga-ii']:
+            if not self._supports_multi_objective():
+                raise OptimizationError(
+                    f"NSGA-II multi-objective optimization is not supported for {self._get_model_name()}. "
+                    f"Only SUMMA models have the worker infrastructure to return multiple objectives. "
+                    f"Use single-objective algorithms like DDS, PSO, DE, or SCE-UA instead."
+                )
 
         # For NSGA-II, add multi-objective support
         if algorithm_name.lower() in ['nsga2', 'nsga-ii']:

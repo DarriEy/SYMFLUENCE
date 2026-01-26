@@ -163,7 +163,7 @@ class TestDetrending:
     def test_detrend_removes_linear_trend(self, tws_evaluator):
         """Test that detrending removes linear trend."""
         # Create data with strong linear trend
-        time_idx = pd.date_range('2010-01-01', periods=100, freq='M')
+        time_idx = pd.date_range('2010-01-01', periods=100, freq='ME')
         trend = np.linspace(0, 100, 100)
         noise = np.random.randn(100) * 5
         series = pd.Series(trend + noise, index=time_idx)
@@ -176,7 +176,7 @@ class TestDetrending:
 
     def test_detrend_handles_nan(self, tws_evaluator):
         """Test detrending handles NaN values."""
-        time_idx = pd.date_range('2010-01-01', periods=100, freq='M')
+        time_idx = pd.date_range('2010-01-01', periods=100, freq='ME')
         data = np.linspace(0, 50, 100)
         data[50] = np.nan
 
@@ -193,7 +193,7 @@ class TestVariabilityScaling:
 
     def test_scales_to_obs_variability(self, tws_evaluator):
         """Test scaling model variability to observations."""
-        time_idx = pd.date_range('2010-01-01', periods=100, freq='M')
+        time_idx = pd.date_range('2010-01-01', periods=100, freq='ME')
 
         # Sim has high variability
         sim = pd.Series(np.random.randn(100) * 10, index=time_idx)
@@ -208,7 +208,7 @@ class TestVariabilityScaling:
 
     def test_handles_zero_variability(self, tws_evaluator):
         """Test handling zero variability in simulation."""
-        time_idx = pd.date_range('2010-01-01', periods=10, freq='M')
+        time_idx = pd.date_range('2010-01-01', periods=10, freq='ME')
 
         sim = pd.Series(np.full(10, 5.0), index=time_idx)  # Zero std
         obs = pd.Series(np.random.randn(10), index=time_idx)

@@ -225,7 +225,7 @@ FORCING_CASES = [
         "expect_glob": ["paradise_cloud_HRRR_hourly_*.nc", "HRRR_*.nc"],
         "extras": {
             "HRRR_BOUNDING_BOX_COORDS": "46.79/-121.76/46.77/-121.74",
-            "HRRR_VARS": ["TMP"],
+            "HRRR_VARS": ["TMP", "SPFH", "PRES", "UGRD", "VGRD", "DSWRF", "DLWRF"],  # All SUMMA-required variables
             "HRRR_BUFFER_CELLS": 0,
         },
     },
