@@ -40,20 +40,9 @@ class OptimizationAlgorithm(ConfigMixin, ABC):
             config: SymfluenceConfig instance or dict (auto-converted)
             logger: Logger instance
         """
-        # Import here to avoid circular imports
-        from symfluence.core.config.models import SymfluenceConfig
-
-        # Auto-convert dict to typed config for backward compatibility
-        if isinstance(config, dict):
-            try:
-                self._config = SymfluenceConfig(**config)
-            except (AttributeError, KeyError, TypeError, ValueError):
-                # Fallback for partial configs (e.g., in tests)
-                # ValueError catches pydantic ValidationError which is a subclass
-                self._config = config
-        else:
-            self._config = config
-
+        # Use centralized config coercion (handles dict -> SymfluenceConfig with fallback)
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger
 
         # Common algorithm parameters - use _get_config_value for typed access

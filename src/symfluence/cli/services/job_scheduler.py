@@ -5,6 +5,7 @@ Handles job script generation, submission, and monitoring.
 """
 
 import os
+import shlex
 import shutil
 import subprocess
 import time
@@ -183,33 +184,61 @@ class JobSchedulerService(BaseService):
         """Create SLURM script content for SYMFLUENCE workflow."""
         job_mode = execution_plan.get("job_mode", "workflow")
         job_steps = execution_plan.get("job_steps", [])
+        settings = execution_plan.get("settings", {})
+
+        def _quote_args(args):
+            return " ".join(shlex.quote(str(arg)) for arg in args)
 
         if job_mode == "individual_steps":
-            symfluence_cmd = f"python SYMFLUENCE.py --config {config_file}"
-            for step in job_steps:
-                symfluence_cmd += f" --{step}"
+            steps = [str(step) for step in job_steps if step]
+            if steps:
+                if len(steps) == 1:
+                    symfluence_cmd = f"symfluence workflow step {shlex.quote(steps[0])}"
+                else:
+                    symfluence_cmd = f"symfluence workflow steps {_quote_args(steps)}"
+            else:
+                symfluence_cmd = "symfluence workflow run"
+
+            if config_file:
+                symfluence_cmd += f" --config {shlex.quote(config_file)}"
+
+            if settings.get("force_rerun", False):
+                symfluence_cmd += " --force-rerun"
         elif job_mode == "pour_point_setup":
             pour_point_info = execution_plan.get("pour_point", {})
             symfluence_cmd = (
-                f"python SYMFLUENCE.py "
-                f"--pour_point {pour_point_info.get('coordinates')} "
-                f"--domain_def {pour_point_info.get('domain_definition_method')} "
-                f"--domain_name '{pour_point_info.get('domain_name')}'"
+                f"symfluence project pour-point {shlex.quote(str(pour_point_info.get('coordinates')))} "
+                f"--domain-name {shlex.quote(str(pour_point_info.get('domain_name')))} "
+                f"--definition {shlex.quote(str(pour_point_info.get('domain_definition_method')))}"
             )
             if pour_point_info.get("bounding_box_coords"):
                 symfluence_cmd += (
-                    f" --bounding_box_coords {pour_point_info['bounding_box_coords']}"
+                    f" --bounding-box {shlex.quote(str(pour_point_info['bounding_box_coords']))}"
+                )
+            if pour_point_info.get("experiment_id"):
+                symfluence_cmd += (
+                    f" --experiment-id {shlex.quote(str(pour_point_info['experiment_id']))}"
                 )
         else:
-            symfluence_cmd = f"python SYMFLUENCE.py --config {config_file}"
+            workflow_args = [str(arg) for arg in job_steps if arg]
+            if workflow_args and workflow_args[0] == "symfluence":
+                workflow_args = workflow_args[1:]
 
-        settings = execution_plan.get("settings", {})
-        if settings.get("force_rerun", False):
-            symfluence_cmd += " --force_rerun"
-        if settings.get("debug", False):
+            if workflow_args:
+                symfluence_cmd = f"symfluence {_quote_args(workflow_args)}"
+            else:
+                symfluence_cmd = "symfluence workflow run"
+
+            if config_file and "--config" not in workflow_args:
+                symfluence_cmd += f" --config {shlex.quote(config_file)}"
+
+            if settings.get("force_rerun", False) and "--force-rerun" not in workflow_args:
+                symfluence_cmd += " --force-rerun"
+            if settings.get("continue_on_error", False) and "--continue-on-error" not in workflow_args:
+                symfluence_cmd += " --continue-on-error"
+
+        if settings.get("debug", False) and "--debug" not in symfluence_cmd:
             symfluence_cmd += " --debug"
-        if settings.get("continue_on_error", False):
-            symfluence_cmd += " --continue_on_error"
 
         script = f"""#!/bin/bash
 #SBATCH --job-name={slurm_options['job_name']}

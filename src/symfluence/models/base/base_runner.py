@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 
-class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAccessMixin):
+class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAccessMixin):  # type: ignore[misc]
     """
     Abstract base class for all model runners.
 
@@ -672,7 +672,20 @@ class BaseModelRunner(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAcce
                 for key, value in error_context.items():
                     self.logger.error(f"{key}: {value}")
 
-            self.logger.error(f"See log file for details: {log_file}")
+            # Read and include last lines from log file for better diagnostics
+            if log_file.exists():
+                try:
+                    with open(log_file, 'r') as f:
+                        log_lines = f.readlines()
+                        last_lines = log_lines[-20:] if len(log_lines) > 20 else log_lines
+                        if last_lines:
+                            self.logger.error("Last 20 lines from log file:")
+                            for line in last_lines:
+                                self.logger.error(f"  {line.rstrip()}")
+                except Exception as read_error:
+                    self.logger.error(f"Could not read log file: {read_error}")
+
+            self.logger.error(f"Full log available at: {log_file}")
             raise
 
         except subprocess.TimeoutExpired:

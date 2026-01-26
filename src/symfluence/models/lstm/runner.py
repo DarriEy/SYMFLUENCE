@@ -41,7 +41,7 @@ from .postprocessor import LSTMPostprocessor
 
 
 @ModelRegistry.register_runner('LSTM', method_name='run_lstm')
-class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, SpatialModeDetectionMixin):
+class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     LSTM: Flow and Snow Hydrological LSTM Runner.
 
@@ -184,8 +184,20 @@ class LSTMRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Sp
 
             else:
                 # Training mode: Fit scalers
+                # Compute train/val split BEFORE preprocessing to prevent data leakage
+                # The scaler should only be fit on training data
+                common_times = forcing_df.index.get_level_values('time').unique().intersection(
+                    streamflow_df.index
+                )
+                if snow_df_input is not None and not snow_df_input.empty:
+                    common_times = common_times.intersection(snow_df_input.index)
+                n_timesteps = len(common_times)
+                train_end_idx = int(0.8 * n_timesteps)
+                self.logger.info(f"Training on first {train_end_idx} of {n_timesteps} timesteps (80/20 split)")
+
                 X_tensor, y_tensor, common_dates, features_avg, hru_ids = self.preprocessor.process_data(
-                    forcing_df, streamflow_df, snow_df_input, fit_scalers=True
+                    forcing_df, streamflow_df, snow_df_input, fit_scalers=True,
+                    train_end_idx=train_end_idx
                 )
                 self.hru_ids = hru_ids
 

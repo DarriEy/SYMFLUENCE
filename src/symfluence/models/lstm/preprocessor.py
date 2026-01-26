@@ -224,7 +224,8 @@ class LSTMPreProcessor(BaseModelPreProcessor):
         forcing_df: pd.DataFrame,
         streamflow_df: pd.DataFrame,
         snow_df: Optional[pd.DataFrame] = None,
-        fit_scalers: bool = True
+        fit_scalers: bool = True,
+        train_end_idx: Optional[int] = None
     ) -> Tuple[torch.Tensor, torch.Tensor, pd.DatetimeIndex, pd.DataFrame, List[int]]:
         """
         Preprocess data for LSTM model (clean, scale, sequence).
@@ -234,6 +235,10 @@ class LSTMPreProcessor(BaseModelPreProcessor):
             streamflow_df: DataFrame containing streamflow data.
             snow_df: Optional DataFrame containing snow data.
             fit_scalers: Whether to fit new scalers or use existing ones.
+            train_end_idx: If provided and fit_scalers=True, scalers are fitted
+                only on data up to this index to prevent data leakage from
+                validation/test data. This should be the number of unique
+                timesteps in the training set.
 
         Returns:
             Tuple containing:
@@ -278,7 +283,12 @@ class LSTMPreProcessor(BaseModelPreProcessor):
 
         # Scale features
         if fit_scalers:
-            scaled_features = self.feature_scaler.fit_transform(features_to_scale)
+            if train_end_idx is not None:
+                # Fit scaler only on training data to prevent data leakage
+                self.feature_scaler.fit(features_to_scale[:train_end_idx])
+            else:
+                self.feature_scaler.fit(features_to_scale)
+            scaled_features = self.feature_scaler.transform(features_to_scale)
         else:
             scaled_features = self.feature_scaler.transform(features_to_scale)
 
@@ -309,7 +319,18 @@ class LSTMPreProcessor(BaseModelPreProcessor):
 
         # Scale targets
         if fit_scalers:
-            scaled_targets = self.target_scaler.fit_transform(targets_to_scale)
+            if train_end_idx is not None:
+                # Fit scaler only on training data to prevent data leakage
+                # For distributed mode, we need to account for n_hrus
+                if self.spatial_mode == 'distributed':
+                    n_hrus = len(hru_ids)
+                    train_samples = train_end_idx * n_hrus
+                    self.target_scaler.fit(targets_to_scale[:train_samples])
+                else:
+                    self.target_scaler.fit(targets_to_scale[:train_end_idx])
+            else:
+                self.target_scaler.fit(targets_to_scale)
+            scaled_targets = self.target_scaler.transform(targets_to_scale)
         else:
             scaled_targets = self.target_scaler.transform(targets_to_scale)
 

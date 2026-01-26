@@ -463,8 +463,10 @@ def kge_np(
     r_np = stats.spearmanr(obs, sim)[0]
 
     # Non-parametric alpha: based on normalized flow duration curves
-    fdc_obs = np.sort(obs / (mean_obs * len(obs)))
-    fdc_sim = np.sort(sim / (mean_sim * len(sim)))
+    # Per Pool et al. (2018), normalize by sum so values represent probabilities
+    # that sum to 1. This ensures alpha_np ranges from 0 to 1.
+    fdc_obs = np.sort(obs) / np.sum(obs)
+    fdc_sim = np.sort(sim) / np.sum(sim)
     alpha_np = 1.0 - 0.5 * np.sum(np.abs(fdc_sim - fdc_obs))
 
     # Beta remains the same (bias ratio)

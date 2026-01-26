@@ -71,6 +71,31 @@ class OptimizationError(SYMFLUENCEError):
     pass
 
 
+class WorkerExecutionError(OptimizationError):
+    """
+    Worker execution failures during optimization.
+
+    Raised when:
+    - Worker fails to execute model evaluation
+    - Parameter application fails
+    - Model run fails within worker context
+    - Metric calculation fails
+    """
+    pass
+
+
+class RetryExhaustedError(OptimizationError):
+    """
+    All retry attempts have been exhausted.
+
+    Raised when:
+    - A retriable operation has failed all retry attempts
+    - Transient errors persist beyond the retry limit
+    - The retry loop completes without success or captured error
+    """
+    pass
+
+
 class GeospatialError(SYMFLUENCEError):
     """
     Geospatial processing failures.
@@ -109,6 +134,121 @@ class FileOperationError(SYMFLUENCEError):
     pass
 
 
+class DiscretizationError(GeospatialError):
+    """
+    Domain discretization failures.
+
+    Raised when:
+    - HRU creation fails
+    - Geometry operations fail during discretization
+    - Raster-to-vector conversion errors
+    - Invalid discretization method specified
+    """
+    pass
+
+
+class ShapefileError(GeospatialError):
+    """
+    Shapefile I/O failures.
+
+    Raised when:
+    - Shapefile cannot be read or written
+    - Required columns missing from shapefile
+    - CRS transformation fails
+    - Geometry validation fails
+    """
+    pass
+
+
+class RasterProcessingError(GeospatialError):
+    """
+    Raster processing failures.
+
+    Raised when:
+    - Raster mask extraction fails
+    - Zonal statistics calculation fails
+    - Raster resampling or reprojection fails
+    - Invalid raster data or metadata
+    """
+    pass
+
+
+class CodeAnalysisError(SYMFLUENCEError):
+    """
+    Agent code analysis failures.
+
+    Raised when:
+    - Code search subprocess fails
+    - File parsing errors occur
+    - Repository analysis fails
+    """
+    pass
+
+
+# =============================================================================
+# Validation Helpers
+# =============================================================================
+
+from typing import TypeVar
+
+T = TypeVar('T')
+
+
+def require(condition: bool, message: str, error_type: type = None) -> None:
+    """
+    Validate a condition, raising an exception if it fails.
+
+    This replaces assert statements with proper validation that cannot be
+    disabled with python -O.
+
+    Args:
+        condition: The condition that must be True
+        message: Error message if condition is False
+        error_type: Exception type to raise (default: ValidationError)
+
+    Raises:
+        ValidationError (or specified error_type) if condition is False
+
+    Example:
+        >>> require(len(params) > 0, "Parameters cannot be empty")
+        >>> require(value >= 0, "Value must be non-negative", ValueError)
+    """
+    if error_type is None:
+        error_type = ValidationError
+    if not condition:
+        raise error_type(message)
+
+
+def require_not_none(value: Optional[T], name: str, error_type: type = None) -> T:
+    """
+    Validate that a value is not None, returning it if valid.
+
+    This replaces the pattern:
+        assert x is not None
+        return x
+
+    With:
+        return require_not_none(x, "x")
+
+    Args:
+        value: The value to check
+        name: Name of the value (for error message)
+        error_type: Exception type to raise (default: ValidationError)
+
+    Returns:
+        The value if it is not None
+
+    Raises:
+        ValidationError (or specified error_type) if value is None
+
+    Example:
+        >>> task_builder = require_not_none(self._task_builder, "task_builder")
+    """
+    if error_type is None:
+        error_type = ValidationError
+    if value is None:
+        raise error_type(f"{name} must not be None")
+    return value
 
 
 @contextmanager

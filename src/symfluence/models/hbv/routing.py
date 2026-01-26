@@ -380,7 +380,7 @@ def route_network_step_jax(
     # Create edge index lookup: for node i, which edge starts from it?
     # -1 means no outgoing edge (is outlet)
     node_to_edge = jnp.full(n_nodes, -1, dtype=jnp.int32)
-    node_to_edge = node_to_edge.at[edge_from].set(jnp.arange(n_edges))
+    node_to_edge = node_to_edge.at[edge_from].set(jnp.arange(n_edges, dtype=jnp.int32))
 
     def process_node(carry, node_idx):
         """Process single node in topological order."""
@@ -389,8 +389,8 @@ def route_network_step_jax(
         node = topo_order[node_idx]
 
         # Sum upstream contributions
-        upstream_sum = jnp.float32(0.0)
-        prev_upstream_sum = jnp.float32(0.0)
+        upstream_sum = jnp.float64(0.0)
+        prev_upstream_sum = jnp.float64(0.0)
 
         # Add contributions from all upstream nodes
         def add_upstream(i, sums):
@@ -445,7 +445,7 @@ def route_network_step_jax(
     (node_outflows, _, new_Q), _ = lax.scan(
         process_node,
         (node_outflows, prev_node_outflows, new_Q),
-        jnp.arange(n_nodes)
+        jnp.arange(n_nodes, dtype=jnp.int32)
     )
 
     # Outlet flow is the outflow from outlet nodes
@@ -580,7 +580,7 @@ def route_timeseries_jax(
     (_, final_state), outlet_series = lax.scan(
         scan_fn,
         (init_inflows, initial_state),
-        jnp.arange(n_timesteps)
+        jnp.arange(n_timesteps, dtype=jnp.int32)
     )
 
     return outlet_series, final_state

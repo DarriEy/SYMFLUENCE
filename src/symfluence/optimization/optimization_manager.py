@@ -435,16 +435,43 @@ class OptimizationManager(BaseManager):
                                         'objective': row[obj_col]
                                     })
 
-                        # Extract best parameters
+                        # Extract best parameters - find actual best row, not just row 0
                         param_cols = [c for c in results_df.columns if c not in ['iteration', 'Iteration', 'objective', 'Objective', 'kge', 'KGE', 'fitness']]
                         best_params = {}
                         if not results_df.empty and param_cols:
-                            best_row = results_df.iloc[0]  # Assuming first row is best
-                            for col in param_cols:
+                            # Try to load best params from JSON file first (most reliable)
+                            import json
+                            best_params_json = results_file.parent / f"{self.experiment_id}_{algorithm.lower()}_best_params.json"
+                            if best_params_json.exists():
                                 try:
-                                    best_params[col] = float(best_row[col])
-                                except (ValueError, TypeError):
+                                    with open(best_params_json, 'r') as f:
+                                        best_data = json.load(f)
+                                    best_params = best_data.get('best_params', {})
+                                except (json.JSONDecodeError, IOError):
                                     pass
+
+                            # Fallback: find best row by score column
+                            if not best_params:
+                                score_cols = [c for c in results_df.columns if c.lower() in ['score', 'objective', 'kge', 'fitness', 'nse']]
+                                if score_cols:
+                                    score_col = score_cols[0]
+                                    # Determine if we should minimize or maximize
+                                    metric = self._get_config_value(lambda: self.config.optimization.metric, 'KGE').upper()
+                                    minimize_metrics = {'RMSE', 'MAE', 'BIAS', 'MSE', 'MARE', 'PBIAS', 'NRMSE'}
+                                    if metric in minimize_metrics:
+                                        best_idx = results_df[score_col].idxmin()
+                                    else:
+                                        best_idx = results_df[score_col].idxmax()
+                                    best_row = results_df.loc[best_idx]
+                                else:
+                                    # No score column found, fall back to last row (most recent)
+                                    best_row = results_df.iloc[-1]
+
+                                for col in param_cols:
+                                    try:
+                                        best_params[col] = float(best_row[col])
+                                    except (ValueError, TypeError):
+                                        pass
 
                         self.reporting_manager.diagnostic_calibration(
                             history=history if history else None,
@@ -478,12 +505,14 @@ class OptimizationManager(BaseManager):
             lambda: self.config.optimization.methods,
             []
         )
+        algorithm = self._get_config_value(
+            lambda: self.config.optimization.algorithm,
+            'PSO'
+        ).lower()
+
         status = {
             'iterative_optimization_enabled': 'iteration' in optimization_methods,
-            'optimization_algorithm': self._get_config_value(
-                lambda: self.config.optimization.algorithm,
-                'PSO'
-            ),
+            'optimization_algorithm': algorithm.upper(),
             'optimization_metric': self._get_config_value(
                 lambda: self.config.optimization.metric,
                 'KGE'
@@ -492,9 +521,16 @@ class OptimizationManager(BaseManager):
             'results_exist': False,
         }
 
-        # Check for optimization results
-        results_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
+        # Check for optimization results - include algorithm subdirectory
+        # BaseModelOptimizer saves to: {project_dir}/optimization/{algorithm}_{experiment_id}/...
+        results_dir = self.project_dir / "optimization" / f"{algorithm}_{self.experiment_id}"
+        results_file = results_dir / f"{self.experiment_id}_parallel_iteration_results.csv"
         status['results_exist'] = results_file.exists()
+
+        # Also check legacy path for backward compatibility
+        if not status['results_exist']:
+            legacy_file = self.project_dir / "optimization" / f"{self.experiment_id}_parallel_iteration_results.csv"
+            status['results_exist'] = legacy_file.exists()
 
         return status
 
@@ -606,10 +642,26 @@ class OptimizationManager(BaseManager):
             if results_df is None:
                 return None
 
+            # Find best iteration by score instead of assuming row 0
+            score_cols = [c for c in results_df.columns if c.lower() in ['score', 'objective', 'kge', 'fitness', 'nse']]
+            if score_cols and not results_df.empty:
+                score_col = score_cols[0]
+                # Determine if we should minimize or maximize
+                metric = self._get_config_value(lambda: self.config.optimization.metric, 'KGE').upper()
+                minimize_metrics = {'RMSE', 'MAE', 'BIAS', 'MSE', 'MARE', 'PBIAS', 'NRMSE'}
+                if metric in minimize_metrics:
+                    best_idx = results_df[score_col].idxmin()
+                else:
+                    best_idx = results_df[score_col].idxmax()
+                best_iteration = results_df.loc[best_idx].to_dict()
+            else:
+                # Fall back to last row if no score column found
+                best_iteration = results_df.iloc[-1].to_dict() if not results_df.empty else {}
+
             # Convert DataFrame to dictionary format
             results = {
                 'parameters': results_df.to_dict(orient='records'),
-                'best_iteration': results_df.iloc[0].to_dict(),
+                'best_iteration': best_iteration,
                 'columns': results_df.columns.tolist()
             }
 

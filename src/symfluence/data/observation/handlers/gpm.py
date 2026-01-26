@@ -273,7 +273,7 @@ class GPMIMERGHandler(BaseObservationHandler):
         if match:
             try:
                 return pd.to_datetime(match.group(1), format='%Y%m%d')
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug(f"Could not parse date from '{match.group(1)}' in filename '{filename}': {e}")
 
         return None

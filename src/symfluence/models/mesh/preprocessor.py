@@ -26,7 +26,7 @@ from .preprocessing import (
 
 
 @ModelRegistry.register_preprocessor('MESH')
-class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
+class MESHPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
     """
     Preprocessor for the MESH model.
 

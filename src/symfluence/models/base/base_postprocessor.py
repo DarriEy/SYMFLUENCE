@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 
-class BaseModelPostProcessor(ABC, ModelComponentMixin, PathResolverMixin):
+class BaseModelPostProcessor(ABC, ModelComponentMixin, PathResolverMixin):  # type: ignore[misc]
     """
     Abstract base class for all model postprocessors.
 

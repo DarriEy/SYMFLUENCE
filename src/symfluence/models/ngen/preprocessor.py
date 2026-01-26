@@ -26,7 +26,7 @@ from symfluence.models.ngen.config_generator import NgenConfigGenerator
 
 
 @ModelRegistry.register_preprocessor('NGEN')
-class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
+class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
     """
     Preprocessor for NextGen Framework.
 
@@ -373,6 +373,101 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self.logger.info(f"Created NGEN catchment files: {gpkg_file.name}, {geojson_file.name}")
         return gpkg_file
 
+    def _convert_forcing_units_to_ngen(self, forcing_data: xr.Dataset) -> xr.Dataset:
+        """
+        Convert forcing data units to NGEN/AORC standards.
+
+        Expected NGEN/AORC units:
+        - pptrate: kg m⁻² s⁻¹ (equivalent to mm/s)
+        - airtemp: K (Kelvin)
+        - airpres: Pa (Pascals)
+        - spechum: kg/kg (dimensionless)
+        - SWRadAtm, LWRadAtm: W/m²
+
+        Args:
+            forcing_data: Input forcing dataset
+
+        Returns:
+            Dataset with units converted to NGEN standards
+        """
+        from symfluence.core.constants import UnitDetectionThresholds
+
+        # Temperature: Convert °C to K if needed
+        if 'airtemp' in forcing_data:
+            temp_mean = float(forcing_data['airtemp'].mean())
+            if temp_mean < UnitDetectionThresholds.TEMP_KELVIN_VS_CELSIUS:
+                self.logger.info("Converting temperature from °C to K (+273.15)")
+                forcing_data['airtemp'] = forcing_data['airtemp'] + 273.15
+            else:
+                self.logger.debug(f"Temperature appears to be in K (mean={temp_mean:.1f})")
+
+        # Precipitation rate: Convert mm/day or mm/hour to kg m⁻² s⁻¹ (mm/s)
+        if 'pptrate' in forcing_data:
+            precip_units = forcing_data['pptrate'].attrs.get('units', '').lower()
+            precip_mean = float(forcing_data['pptrate'].mean())
+            precip_max = float(forcing_data['pptrate'].max())
+
+            if 'mm/day' in precip_units or 'mm day' in precip_units or 'mm d-1' in precip_units:
+                self.logger.info("Converting precipitation from mm/day to kg m⁻² s⁻¹ (÷86400)")
+                forcing_data['pptrate'] = forcing_data['pptrate'] / 86400.0
+            elif 'mm/h' in precip_units or 'mm h-1' in precip_units or ('mm' in precip_units and 'hour' in precip_units):
+                self.logger.info("Converting precipitation from mm/hour to kg m⁻² s⁻¹ (÷3600)")
+                forcing_data['pptrate'] = forcing_data['pptrate'] / 3600.0
+            elif precip_mean > 0.1 or precip_max > 1.0:
+                # Heuristic: if values are large, likely mm/day not mm/s
+                self.logger.warning(
+                    f"Precipitation values appear too large for mm/s (mean={precip_mean:.3f}, max={precip_max:.3f}). "
+                    f"Assuming mm/day and converting to kg m⁻² s⁻¹ (÷86400)"
+                )
+                forcing_data['pptrate'] = forcing_data['pptrate'] / 86400.0
+            elif 'kg' in precip_units and 's' in precip_units:
+                self.logger.debug("Precipitation already in kg m⁻² s⁻¹")
+            elif 'mm' in precip_units and 's' in precip_units:
+                self.logger.debug("Precipitation already in mm/s (equivalent to kg m⁻² s⁻¹)")
+            else:
+                self.logger.debug(f"Precipitation units unclear ({precip_units}), assuming already in kg m⁻² s⁻¹")
+
+        # Air pressure: Convert hPa/kPa to Pa if needed
+        if 'airpres' in forcing_data:
+            pres_units = forcing_data['airpres'].attrs.get('units', '').lower()
+            pres_mean = float(forcing_data['airpres'].mean())
+
+            if 'hpa' in pres_units or (pres_mean > 100 and pres_mean < 2000):
+                # Likely hPa (typical range 950-1050 hPa)
+                self.logger.info("Converting pressure from hPa to Pa (×100)")
+                forcing_data['airpres'] = forcing_data['airpres'] * 100.0
+            elif 'kpa' in pres_units or (pres_mean > 10 and pres_mean < 200):
+                # Likely kPa (typical range 95-105 kPa)
+                self.logger.info("Converting pressure from kPa to Pa (×1000)")
+                forcing_data['airpres'] = forcing_data['airpres'] * 1000.0
+            elif pres_mean > 50000 and pres_mean < 110000:
+                self.logger.debug(f"Pressure appears to be in Pa (mean={pres_mean:.0f})")
+            else:
+                self.logger.warning(
+                    f"Pressure units unclear (units={pres_units}, mean={pres_mean:.0f}). "
+                    f"Assuming Pa if > 10000, otherwise converting from hPa"
+                )
+                if pres_mean < 10000:
+                    forcing_data['airpres'] = forcing_data['airpres'] * 100.0
+
+        # Specific humidity: should be kg/kg (0-0.1 range), sometimes given as g/kg
+        if 'spechum' in forcing_data:
+            hum_units = forcing_data['spechum'].attrs.get('units', '').lower()
+            hum_max = float(forcing_data['spechum'].max())
+
+            if 'g/kg' in hum_units or 'g kg' in hum_units or hum_max > 1.0:
+                self.logger.info("Converting specific humidity from g/kg to kg/kg (÷1000)")
+                forcing_data['spechum'] = forcing_data['spechum'] / 1000.0
+            else:
+                self.logger.debug("Specific humidity appears to be in kg/kg")
+
+        # Radiation (SWRadAtm, LWRadAtm) should be in W/m² - typically already correct
+        for rad_var in ['SWRadAtm', 'LWRadAtm']:
+            if rad_var in forcing_data:
+                self.logger.debug(f"{rad_var} assuming W/m² (standard unit)")
+
+        return forcing_data
+
     def prepare_forcing_data(self) -> Path:
         """
         Convert forcing data to NGEN format (NetCDF and CSV).
@@ -401,6 +496,10 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         fdp = ForcingDataProcessor(self.config, self.logger)
         forcing_data = fdp.load_forcing_data(self.forcing_basin_path)
         forcing_data = forcing_data.sortby('time')
+
+        # Convert units to NGEN/AORC standards (K, Pa, kg/m²/s, W/m²)
+        forcing_data = self._convert_forcing_units_to_ngen(forcing_data)
+
         twm = TimeWindowManager(self.config, self.logger)
         try:
             start_time, end_time = twm.get_simulation_times(forcing_path=self.forcing_basin_path)
@@ -419,8 +518,40 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             self.logger.info(
                 f"Resampling forcing data from {inferred_step_seconds} seconds to hourly for NGEN"
             )
-            forcing_data = forcing_data.resample(time='1h').interpolate('linear')
+            # Use mass-conserving resampling: sum for fluxes, mean for state variables
+            # Convert precipitation rate to depth for resampling, then back to rate
+            if 'pptrate' in forcing_data:
+                # Convert mm/s to mm for the source timestep
+                forcing_data['pptrate_depth'] = forcing_data['pptrate'] * inferred_step_seconds
+
+            # Define resampling strategy for each variable
+            resample_dict = {}
+            for var in forcing_data.data_vars:
+                if var in ['pptrate', 'pptrate_depth']:
+                    continue  # Handle precipitation separately
+                elif var in ['SWRadAtm', 'LWRadAtm']:
+                    # Radiation: use mean (could also use interpolation, but mean is safer)
+                    resample_dict[var] = 'mean'
+                else:
+                    # State variables (temp, pressure, humidity): use mean
+                    resample_dict[var] = 'mean'
+
+            # Resample
+            forcing_data_resampled = forcing_data.resample(time='1h').mean()
+
+            # Handle precipitation separately with mass conservation
+            if 'pptrate_depth' in forcing_data:
+                # Sum the precipitation depth over the resampled period
+                precip_depth_hourly = forcing_data['pptrate_depth'].resample(time='1h').sum()
+                # Convert back to rate (mm/h → mm/s)
+                forcing_data_resampled['pptrate'] = precip_depth_hourly / 3600.0
+                # Remove temporary depth variable
+                if 'pptrate_depth' in forcing_data_resampled:
+                    forcing_data_resampled = forcing_data_resampled.drop_vars('pptrate_depth')
+
+            forcing_data = forcing_data_resampled
             self.config_dict['FORCING_TIME_STEP_SIZE'] = 3600
+            self.logger.info("Used mass-conserving resampling: sum for precipitation, mean for other variables")
 
         # NGEN requires forcing data beyond the configured end_time to complete the simulation
         # Extend end_time by 4 forcing timesteps to provide necessary lookahead data
@@ -438,7 +569,21 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         # Pad forcing data if source doesn't extend to full buffer
         actual_end = pd.to_datetime(forcing_data.time.values[-1])
         if actual_end < extended_end_time:
-            self.logger.warning(f"Source forcing only available to {actual_end}, padding to {extended_end_time}")
+            # Check if padding will overlap the actual simulation period (not just buffer)
+            if actual_end < end_time:
+                raise ValueError(
+                    f"Forcing data ends at {actual_end} but simulation requires data until {end_time}. "
+                    f"Padding within the simulation period would produce invalid results. "
+                    f"Please provide forcing data that extends to at least {end_time}."
+                )
+
+            # Padding is only in the lookahead buffer zone (after simulation end)
+            self.logger.warning(
+                f"Source forcing ends at {actual_end}, padding buffer zone to {extended_end_time}. "
+                f"Repeating last timestep for {buffer_timesteps} timestep NGEN lookahead buffer. "
+                f"This padding is outside the simulation period ({start_time} to {end_time}) and should not affect results."
+            )
+
             # Create additional timesteps by repeating last timestep values
             last_slice = forcing_data.isel(time=-1)
             padding_times = pd.date_range(
@@ -454,7 +599,7 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             if padding_data:
                 padding_ds = xr.concat(padding_data, dim='time')
                 forcing_data = xr.concat([forcing_data, padding_ds], dim='time')
-                self.logger.info(f"Added {len(padding_times)} padding timesteps to forcing data")
+                self.logger.info(f"Added {len(padding_times)} padding timesteps in lookahead buffer")
 
         ngen_ds = self._create_ngen_forcing_dataset(forcing_data, catchment_ids)
         output_file = self.forcing_dir / "forcing.nc"
@@ -464,7 +609,57 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
         self._write_csv_forcing_files(forcing_data, catchment_ids)
         return output_file
 
+    def _decompose_wind_speed(self, forcing_data: xr.Dataset) -> xr.Dataset:
+        """
+        Decompose scalar wind speed into U and V components when needed.
+
+        If forcing data contains 'windspd' (scalar wind speed) but lacks U and V
+        components, this method creates them by assuming westerly wind direction.
+
+        Args:
+            forcing_data: Forcing dataset possibly containing 'windspd'
+
+        Returns:
+            Dataset with 'windspeed_u' and 'windspeed_v' added if needed
+        """
+        has_u = 'windspeed_u' in forcing_data
+        has_v = 'windspeed_v' in forcing_data
+        has_scalar = 'windspd' in forcing_data
+
+        # If we already have both components, nothing to do
+        if has_u and has_v:
+            return forcing_data
+
+        # If we have neither components nor scalar, can't help
+        if not has_scalar:
+            return forcing_data
+
+        # Decompose scalar wind to U/V components
+        # Assume westerly wind (from west, blowing east): U = windspd, V = 0
+        # This is a common assumption when direction is unknown
+        self.logger.warning(
+            "Converting scalar wind speed (windspd) to U/V components. "
+            "Assuming westerly wind (U=windspd, V=0) since wind direction is not available. "
+            "This approximation may affect PET and energy balance calculations."
+        )
+
+        if not has_u:
+            forcing_data['windspeed_u'] = forcing_data['windspd'].copy()
+            forcing_data['windspeed_u'].attrs['long_name'] = 'U-component of wind (assumed from scalar windspd)'
+            forcing_data['windspeed_u'].attrs['units'] = 'm/s'
+
+        if not has_v:
+            # Create V-component as zeros (westerly wind assumption)
+            forcing_data['windspeed_v'] = xr.zeros_like(forcing_data['windspd'])
+            forcing_data['windspeed_v'].attrs['long_name'] = 'V-component of wind (assumed zero for westerly wind)'
+            forcing_data['windspeed_v'].attrs['units'] = 'm/s'
+
+        return forcing_data
+
     def _write_csv_forcing_files(self, forcing_data: xr.Dataset, catchment_ids: List[str]) -> Path:
+        # Decompose scalar wind speed to U/V components if needed
+        forcing_data = self._decompose_wind_speed(forcing_data)
+
         # Ensure forcing_dir exists before creating csv subdirectory
         from pathlib import Path
         self.forcing_dir: Path = Path(self.forcing_dir)  # Ensure it's a Path object
@@ -517,11 +712,22 @@ class NgenPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
             df = pd.DataFrame(cols)
             df['APCP_surface'] = df['precip_rate'] if 'precip_rate' in df else 0
 
-            # Add wind speed variables with default values if not present (required for PET and NOAH)
+            # Wind components are required for NGEN PET and NOAH modules
+            # After decomposition, these should exist, but check just in case
+            missing_wind_vars = []
             if 'UGRD_10maboveground' not in df.columns:
-                df['UGRD_10maboveground'] = 1.0  # Default 1 m/s
+                missing_wind_vars.append('windspeed_u (U-component of wind)')
             if 'VGRD_10maboveground' not in df.columns:
-                df['VGRD_10maboveground'] = 1.0  # Default 1 m/s
+                missing_wind_vars.append('windspeed_v (V-component of wind)')
+
+            if missing_wind_vars:
+                raise ValueError(
+                    f"Missing required wind components for NGEN: {', '.join(missing_wind_vars)}\n"
+                    f"Wind data is required for PET and NOAH-OWP energy balance calculations.\n"
+                    f"Available forcing variables: {list(forcing_data.data_vars)}\n"
+                    f"Please ensure your forcing data includes wind components (U and V) or scalar windspd.\n"
+                    f"Note: Scalar windspd is automatically decomposed to U/V assuming westerly wind."
+                )
 
             df.to_csv(csv_dir / f"{cat_id}_forcing.csv", index=False)
         return csv_dir

@@ -74,11 +74,11 @@ def generate_synthetic_forcing(
     """
     np.random.seed(seed)
 
-    timesteps_per_day = 24 // timestep_hours
-    n_timesteps = n_days * timesteps_per_day
+    timesteps_per_day_val = 24.0 / timestep_hours
+    n_timesteps = int(round(n_days * timesteps_per_day_val))
 
     # Time in days (fractional for sub-daily)
-    t_days = np.arange(n_timesteps) / timesteps_per_day
+    t_days = np.arange(n_timesteps) / timesteps_per_day_val
 
     # Seasonal temperature pattern (-5 to 25 C)
     temp_seasonal = 10.0 + 15.0 * np.sin(2 * np.pi * (t_days - 90) / 365)
@@ -90,12 +90,12 @@ def generate_synthetic_forcing(
     precip_occurrence = np.random.random(n_timesteps) < precip_prob
     precip_intensity = np.random.exponential(5.0, n_timesteps)
     precip = precip_occurrence * precip_intensity
-    precip = precip / timesteps_per_day  # Scale to timestep
+    precip = precip / timesteps_per_day_val  # Scale to timestep
 
     # PET (seasonal, temperature-dependent)
     pet_seasonal = 2.0 + 2.0 * np.sin(2 * np.pi * (t_days - 90) / 365)
     pet = np.maximum(pet_seasonal + 0.1 * temp, 0.0)
-    pet = pet / timesteps_per_day  # Scale to timestep
+    pet = pet / timesteps_per_day_val  # Scale to timestep
 
     # Generate synthetic "observed" runoff by running discrete model
     # (provides a target that should be achievable by both methods)

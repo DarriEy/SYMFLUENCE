@@ -400,6 +400,15 @@ class CFUSEWorker(InMemoryModelWorker):
                 "Install PyTorch and torch-fuse to enable native gradients."
             )
 
+        # Validate metric has a differentiable implementation
+        SUPPORTED_GRADIENT_METRICS = {'nse', 'kge'}
+        if metric.lower() not in SUPPORTED_GRADIENT_METRICS:
+            raise ValueError(
+                f"Metric '{metric}' does not have a differentiable implementation in cFUSE. "
+                f"Supported metrics for native gradients: {SUPPORTED_GRADIENT_METRICS}. "
+                f"To use '{metric}', set GRADIENT_MODE='finite_difference' in config."
+            )
+
         try:
             param_names = list(params.keys())
 

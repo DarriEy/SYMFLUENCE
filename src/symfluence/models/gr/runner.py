@@ -45,7 +45,7 @@ except Exception:  # noqa: BLE001 - Broad exception required for rpy2 import fai
 
 
 @ModelRegistry.register_runner('GR', method_name='run_gr')
-class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, MizuRouteConfigMixin, SpatialModeDetectionMixin):
+class GRRunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, MizuRouteConfigMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Runner class for the GR family of models (initially GR4J).
     Handles model execution, state management, and output processing.

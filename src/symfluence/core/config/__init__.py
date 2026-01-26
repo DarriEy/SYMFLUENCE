@@ -16,6 +16,7 @@ Exports:
 from typing import Union, Dict, Any
 from symfluence.core.config.config_loader import normalize_config, validate_config
 from symfluence.core.config.models import SymfluenceConfig
+from symfluence.core.config.coercion import ensure_config, coerce_config
 
 
 def ensure_typed_config(config: Union[Dict[str, Any], SymfluenceConfig]) -> SymfluenceConfig:
@@ -44,7 +45,9 @@ def ensure_typed_config(config: Union[Dict[str, Any], SymfluenceConfig]) -> Symf
 __all__ = [
     # Hierarchical config system (recommended)
     "SymfluenceConfig",
-    "ensure_typed_config",
+    "ensure_config",
+    "coerce_config",  # With fallback for partial configs
+    "ensure_typed_config",  # Alias for backward compatibility
 
     # Config utility functions
     "normalize_config",

@@ -9,7 +9,7 @@ Handles land cover and vegetation attributes including:
 - Composite ecological groupings and diversity metrics
 """
 
-import pickle
+import pickle  # nosec B403
 from pathlib import Path
 from typing import Dict, Any
 import numpy as np
@@ -77,7 +77,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
             self.logger.info("Loading cached GLCLU2019 results")
             try:
                 with open(cache_file, 'rb') as f:
-                    return pickle.load(f)
+                    return pickle.load(f)  # nosec B301
             except Exception as e:
                 self.logger.warning(f"Error loading cache: {e}")
 
@@ -221,7 +221,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
             self.logger.info("Loading cached LAI results")
             try:
                 with open(cache_file, 'rb') as f:
-                    return pickle.load(f)
+                    return pickle.load(f)  # nosec B301
             except Exception as e:
                 self.logger.warning(f"Error loading cache: {e}")
 
@@ -325,7 +325,7 @@ class LandCoverProcessor(BaseAttributeProcessor):
             self.logger.info("Loading cached forest height results")
             try:
                 with open(cache_file, 'rb') as f:
-                    return pickle.load(f)
+                    return pickle.load(f)  # nosec B301
             except Exception as e:
                 self.logger.warning(f"Error loading cache: {e}")
 
@@ -417,5 +417,5 @@ class LandCoverProcessor(BaseAttributeProcessor):
             dataset = None
 
             return scale, offset
-        except Exception:
+        except (ImportError, RuntimeError, AttributeError):
             return None, None

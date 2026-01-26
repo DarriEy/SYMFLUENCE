@@ -84,5 +84,5 @@ class TimeSeriesPanel(BasePanel):
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
             ax.xaxis.set_major_locator(mdates.MonthLocator(interval=3))
             ax.tick_params(axis='x', rotation=45)
-        except Exception:
-            pass  # Keep default formatting
+        except (ImportError, ValueError, TypeError):
+            pass  # Keep default formatting if matplotlib.dates unavailable or axis incompatible

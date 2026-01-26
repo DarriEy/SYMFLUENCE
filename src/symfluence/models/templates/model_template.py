@@ -69,7 +69,7 @@ class ModelRunResult:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-class UnifiedModelRunner(BaseModelRunner, UnifiedModelExecutor):
+class UnifiedModelRunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore[misc]
     """
     Base class for hydrological model runners using the unified framework.
 

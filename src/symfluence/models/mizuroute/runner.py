@@ -10,6 +10,7 @@ import traceback
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+import numpy as np
 import pandas as pd
 
 from symfluence.models.registry import ModelRegistry
@@ -19,7 +20,7 @@ from symfluence.core.exceptions import ModelExecutionError, symfluence_error_han
 
 
 @ModelRegistry.register_runner('MIZUROUTE', method_name='run_mizuroute')
-class MizuRouteRunner(BaseModelRunner, ModelExecutor):
+class MizuRouteRunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
     """
     A class to run the mizuRoute model.
 
@@ -50,11 +51,24 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
         """MizuRoute creates directories on-demand."""
         return False
 
+    def _get_time_rounding_freq(self) -> Optional[str]:
+        """Get time rounding frequency from config.
+
+        Returns:
+            Rounding frequency string (e.g., 'h', 'min', 's') or None if disabled.
+        """
+        freq = self.config_dict.get('MIZUROUTE_TIME_ROUNDING_FREQ', 'h')
+        if freq and freq.lower() == 'none':
+            return None
+        return freq
+
     def fix_time_precision(self) -> Optional[Path]:
         """
-        Fix model output time precision by rounding to nearest hour.
+        Fix model output time precision by rounding to configurable frequency.
         This fixes compatibility issues with mizuRoute time matching.
         Now supports both SUMMA and FUSE outputs with proper time format detection.
+        Rounding frequency can be configured via MIZUROUTE_TIME_ROUNDING_FREQ
+        (default: 'h' for hour, use 'none' to disable rounding).
         Returns the path to the runoff file if resolved, None otherwise.
         """
         # Determine which model's output to process
@@ -188,7 +202,7 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
                             first_time = pd.to_datetime(time_values[0], unit='s', origin=ref_time_str)
                             time_unit = 's'
                         elif 'hour' in units_str:
-                            first_time = pd.to_datetime(time_values[0], unit='h', origin=ref_time_str)  # type: ignore[call-overload]
+                            first_time = pd.Timestamp(ref_time_str) + pd.Timedelta(hours=float(time_values[0]))
                             time_unit = 'h'
                         elif 'day' in units_str:
                             first_time = pd.to_datetime(time_values[0], unit='D', origin=ref_time_str)
@@ -241,9 +255,16 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
             # Apply the appropriate fix based on detected format
             if time_format_detected == 'summa_seconds_1990':
                 # Original SUMMA logic
-                self.logger.info("Applying SUMMA-style time precision fix")
+                rounding_freq = self._get_time_rounding_freq()
+                self.logger.info(f"Applying SUMMA-style time precision fix (rounding to '{rounding_freq}')")
                 time_stamps = pd.to_datetime(time_values, unit='s', origin='1990-01-01')
-                rounded_stamps = time_stamps.round('h')
+                if rounding_freq:
+                    rounded_stamps = time_stamps.round(rounding_freq)
+                    max_shift = np.abs(rounded_stamps - time_stamps).max()
+                    if max_shift > pd.Timedelta(minutes=5):
+                        self.logger.info(f"Time rounding applied, max shift: {max_shift}")
+                else:
+                    rounded_stamps = time_stamps  # No rounding
                 reference = pd.Timestamp('1990-01-01')
                 rounded_seconds = (rounded_stamps - reference).total_seconds().values
 
@@ -255,12 +276,27 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
 
             elif time_format_detected.startswith('generic_since_'):
                 # Generic 'since' format
-                self.logger.info(f"Applying generic time precision fix for format: {time_format_detected}")
+                rounding_freq = self._get_time_rounding_freq()
+                self.logger.info(f"Applying generic time precision fix for format: {time_format_detected} (rounding to '{rounding_freq}')")
                 ref_time_str = time_format_detected.split('generic_since_')[1]
 
-                time_stamps = pd.to_datetime(time_values, unit=time_unit, origin=ref_time_str)  # type: ignore[call-overload]
-                rounded_stamps = time_stamps.round('h')
                 reference = pd.Timestamp(ref_time_str)
+                # Convert time values based on unit
+                if time_unit == 's':
+                    time_stamps = reference + pd.to_timedelta(time_values, unit='s')
+                elif time_unit == 'h':
+                    time_stamps = reference + pd.to_timedelta(time_values, unit='h')
+                elif time_unit == 'D':
+                    time_stamps = reference + pd.to_timedelta(time_values, unit='D')
+                else:
+                    time_stamps = reference + pd.to_timedelta(time_values, unit='s')
+                if rounding_freq:
+                    rounded_stamps = time_stamps.round(rounding_freq)
+                    max_shift = np.abs(rounded_stamps - time_stamps).max()
+                    if max_shift > pd.Timedelta(minutes=5):
+                        self.logger.info(f"Time rounding applied, max shift: {max_shift}")
+                else:
+                    rounded_stamps = time_stamps  # No rounding
 
                 if time_unit == 's':
                     rounded_values = (rounded_stamps - reference).total_seconds().values
@@ -277,10 +313,17 @@ class MizuRouteRunner(BaseModelRunner, ModelExecutor):
 
             elif time_format_detected == 'datetime64':
                 # Already in datetime format, just round
-                self.logger.info("Applying datetime64 time precision fix")
+                rounding_freq = self._get_time_rounding_freq()
+                self.logger.info(f"Applying datetime64 time precision fix (rounding to '{rounding_freq}')")
                 ds_decoded = xr.open_dataset(runoff_filepath, decode_times=True)
                 time_stamps = pd.to_datetime(ds_decoded.time.values)
-                rounded_stamps = time_stamps.round('h')
+                if rounding_freq:
+                    rounded_stamps = time_stamps.round(rounding_freq)
+                    max_shift = np.abs(rounded_stamps - time_stamps).max()
+                    if max_shift > pd.Timedelta(minutes=5):
+                        self.logger.info(f"Time rounding applied, max shift: {max_shift}")
+                else:
+                    rounded_stamps = time_stamps  # No rounding
 
                 # Keep original format but with rounded times
                 ds = ds_decoded.assign_coords(time=rounded_stamps)

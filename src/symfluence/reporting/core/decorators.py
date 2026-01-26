@@ -68,7 +68,7 @@ def _infer_default_from_return_type(func: Callable) -> Any:
         # Default to None for other types
         return None
 
-    except Exception:
+    except (TypeError, AttributeError):
         # If type inspection fails, return None
         return None
 

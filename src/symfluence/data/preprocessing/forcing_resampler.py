@@ -235,6 +235,12 @@ class _ParallelWorker:
         if self._weight_applier is not None:
             return
 
+        # CRITICAL: Apply HDF5/netCDF4 safety settings in worker process
+        # Worker processes are fresh Python interpreters and don't inherit the
+        # environment setup from the main process configure_hdf5_safety() call.
+        from symfluence.core.hdf5_safety import apply_worker_environment
+        apply_worker_environment()
+
         # Create a minimal logger for the worker
         self._logger = logging.getLogger(f"forcing_worker_{mp.current_process().pid}")
         self._logger.setLevel(logging.WARNING)  # Reduce noise in parallel workers
@@ -609,6 +615,7 @@ class ForcingResampler(PathResolverMixin):
 
         success_count = 0
 
+        # Note: tqdm monitor thread is disabled globally in configure_hdf5_safety()
         with tqdm(total=len(files), desc="Remapping forcing files", unit="file") as pbar:
             for batch_num in range(total_batches):
                 start_idx = batch_num * batch_size
@@ -616,7 +623,11 @@ class ForcingResampler(PathResolverMixin):
                 batch_files = files[start_idx:end_idx]
 
                 try:
-                    with mp.Pool(processes=num_cpus) as pool:
+                    # Use initializer to configure HDF5 safety in each worker
+                    # Note: _ParallelWorker also calls apply_worker_environment() internally
+                    # but the pool initializer ensures it's set before any imports
+                    from symfluence.core.hdf5_safety import apply_worker_environment
+                    with mp.Pool(processes=num_cpus, initializer=apply_worker_environment) as pool:
                         worker_args = [
                             (str(file), i % num_cpus)
                             for i, file in enumerate(batch_files)

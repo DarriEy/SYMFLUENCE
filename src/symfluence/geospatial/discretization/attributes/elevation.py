@@ -7,6 +7,7 @@ band sizes, supporting temperature lapse rate and snowmelt modeling.
 
 from __future__ import annotations
 
+import warnings
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -66,7 +67,10 @@ def discretize(discretizer: "DomainDiscretizer") -> Optional[object]:
 
     if hru_gdf is not None and not hru_gdf.empty:
         hru_gdf = discretizer._clean_and_prepare_hru_gdf(hru_gdf)
-        hru_gdf.to_file(output_shapefile)
+        # Suppress shapefile column name truncation warning (known limitation)
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', message='.*Column names longer than 10.*')
+            hru_gdf.to_file(output_shapefile)
         discretizer.logger.info(
             f"Elevation-based HRU Shapefile created with {len(hru_gdf)} HRUs and saved to {output_shapefile}"
         )

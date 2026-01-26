@@ -9,6 +9,7 @@ import logging
 from abc import ABC
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING, Union
 
+from symfluence.core.config.coercion import ensure_config
 from symfluence.core.mixins import ConfigurableMixin
 
 if TYPE_CHECKING:
@@ -52,19 +53,8 @@ class BaseManager(ConfigurableMixin, ABC):
         Raises:
             TypeError: If config cannot be converted to SymfluenceConfig
         """
-        # Import here to avoid circular imports at module level
-        from symfluence.core.config.models import SymfluenceConfig
-
-        # Auto-convert dict to typed config for backward compatibility
-        if isinstance(config, dict):
-            self._config = SymfluenceConfig(**config)
-        elif isinstance(config, SymfluenceConfig):
-            self._config = config
-        else:
-            raise TypeError(
-                f"config must be SymfluenceConfig or dict, got {type(config).__name__}. "
-                "Use SymfluenceConfig.from_file() to load configuration."
-            )
+        # Use centralized config coercion (handles dict -> SymfluenceConfig conversion)
+        self._config = ensure_config(config)
 
         self.logger = logger
         self.reporting_manager = reporting_manager

@@ -143,7 +143,7 @@ def download_file_streaming(
 
         return downloaded
 
-    except Exception:
+    except (requests.RequestException, OSError, IOError):
         # Clean up partial file on error
         if use_temp_file and write_path.exists():
             try:
@@ -181,8 +181,8 @@ def atomic_write(target_path: Path) -> Generator[Path, None, None]:
         yield temp_path
         # Success - rename to target
         temp_path.replace(target_path)
-    except Exception:
-        # Cleanup on failure
+    except BaseException:
+        # Cleanup on failure (use BaseException to catch KeyboardInterrupt too)
         if temp_path.exists():
             try:
                 temp_path.unlink()

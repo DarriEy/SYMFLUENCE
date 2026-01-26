@@ -405,6 +405,9 @@ class SummaForcingProcessor(BaseForcingProcessor):
             # 2. FIX NaN VALUES IN FORCING DATA
             dat = self._fix_nan_values(dat, file)
 
+            # 2a. STANDARDIZE VARIABLE NAMES
+            dat = self._standardize_variable_names(dat, file)
+
             # 2b. ENSURE REQUIRED VARIABLES EXIST
             dat = self._ensure_required_forcing_variables(dat, file)
 
@@ -513,11 +516,25 @@ class SummaForcingProcessor(BaseForcingProcessor):
                 pd_times = pd.to_datetime(time_coord.values)
             elif np.issubdtype(time_coord.dtype, np.number):
                 if 'units' in time_coord.attrs and 'since' in time_coord.attrs['units']:
-                    # Parse existing time units to understand the reference
+                    # Parse existing time units to understand the reference and time unit
                     units_str = time_coord.attrs['units']
                     if 'since' in units_str:
+                        # Parse the time unit from the units string (e.g., "hours since", "days since")
+                        parts = units_str.split()
+                        time_unit_str = parts[0].lower() if parts else 'seconds'
+
+                        # Map to pandas unit codes
+                        unit_map = {
+                            'seconds': 's', 'second': 's',
+                            'hours': 'h', 'hour': 'h',
+                            'days': 'D', 'day': 'D',
+                            'minutes': 'm', 'minute': 'm'
+                        }
+                        pd_unit = unit_map.get(time_unit_str, 's')
+
                         reference_str = units_str.split('since ')[1]
-                        pd_times = pd.to_datetime(time_coord.values, unit='s', origin=reference_str)
+                        self.logger.debug(f"File {filename}: Parsing time with unit='{pd_unit}' from '{time_unit_str}'")
+                        pd_times = pd.to_datetime(time_coord.values, unit=pd_unit, origin=pd.Timestamp(reference_str))  # type: ignore[call-overload]
                     else:
                         # Assume seconds since unix epoch if no reference given
                         pd_times = pd.to_datetime(time_coord.values, unit='s')
@@ -735,6 +752,160 @@ class SummaForcingProcessor(BaseForcingProcessor):
 
         return dataset
 
+    def _standardize_variable_names(self, dataset: xr.Dataset, filename: str) -> xr.Dataset:
+        """
+        Standardize variable names to SUMMA conventions.
+
+        Maps common alternative variable names to SUMMA expected names.
+        This handles datasets that use non-standard naming conventions.
+
+        Args:
+            dataset: Input dataset with potentially non-standard variable names
+            filename: Filename for logging
+
+        Returns:
+            Dataset with standardized variable names
+        """
+        # Common variable name aliases that need mapping
+        name_mappings = {
+            # Pressure variations
+            'pressure': 'airpres',
+            'press': 'airpres',
+            'sp': 'airpres',
+            'surface_pressure': 'airpres',
+            # Humidity variations
+            'r2': 'relhum',
+            'rh': 'relhum',
+            'relative_humidity': 'relhum',
+            'rh2m': 'relhum',
+            '2m_relative_humidity': 'relhum',
+            # Temperature variations
+            't2m': 'airtemp',
+            'temp': 'airtemp',
+            'temperature': 'airtemp',
+            '2m_temperature': 'airtemp',
+            # Wind components
+            'u10': 'windspd_u',
+            'v10': 'windspd_v',
+            'u_component_of_wind': 'windspd_u',
+            'v_component_of_wind': 'windspd_v',
+        }
+
+        # Apply mappings for variables that exist
+        rename_dict = {}
+        for old_name, new_name in name_mappings.items():
+            if old_name in dataset and new_name not in dataset:
+                rename_dict[old_name] = new_name
+
+        if rename_dict:
+            self.logger.info(f"File {filename}: Renaming variables: {rename_dict}")
+            dataset = dataset.rename(rename_dict)
+
+        return dataset
+
+    def _compute_specific_humidity(
+        self, T: xr.DataArray, RH: xr.DataArray, P: xr.DataArray
+    ) -> xr.DataArray:
+        """
+        Calculate specific humidity from temperature, relative humidity, and pressure.
+
+        Uses the Magnus approximation formula for saturation vapor pressure.
+
+        Args:
+            T: Temperature in Kelvin
+            RH: Relative humidity (0-100)
+            P: Pressure in Pa
+
+        Returns:
+            Specific humidity (kg/kg)
+        """
+        # Convert to Celsius
+        T_celsius = T - 273.15
+
+        # Saturation vapor pressure (Magnus formula)
+        es = 611.2 * np.exp(17.67 * T_celsius / (T_celsius + 243.5))
+
+        # Actual vapor pressure
+        e = (RH / 100.0) * es
+
+        # Specific humidity
+        spechum = (0.622 * e) / (P - 0.378 * e)
+
+        # Set attributes
+        spechum.attrs = {
+            'units': 'kg kg-1',
+            'long_name': 'specific humidity',
+            'standard_name': 'specific_humidity'
+        }
+
+        return spechum
+
+    def _estimate_longwave_radiation(self, T: xr.DataArray) -> xr.DataArray:
+        """
+        Estimate incoming longwave radiation from air temperature.
+
+        This is a rough estimate based on air temperature, assuming clear-sky
+        conditions. Uses a simplified empirical relationship where LW increases
+        with temperature. Should only be used when LWRadAtm is not available.
+
+        Args:
+            T: Air temperature in Kelvin
+
+        Returns:
+            Estimated longwave radiation (W/m²)
+        """
+        # Simple empirical relationship: LW ≈ 200 + 0.8*T (W/m²)
+        # This gives reasonable values:
+        #   T = 273K (0°C):  ~218 W/m² (cold, clear sky)
+        #   T = 288K (15°C): ~230 W/m² (moderate)
+        #   T = 303K (30°C): ~242 W/m² (warm, clear sky)
+        #
+        # More sophisticated would be: σ * ε * T^4
+        # where ε is atmospheric emissivity (~0.7-0.9 depending on humidity)
+        # but we don't have humidity data here
+
+        # Use a more conservative approach: Stefan-Boltzmann with effective emissivity
+        # Effective clear-sky emissivity typically ranges from 0.7 to 0.85
+        # We'll use 0.75 as a reasonable middle ground
+        sigma = 5.67e-8  # Stefan-Boltzmann constant (W m-2 K-4)
+        emissivity = 0.75  # Effective atmospheric emissivity for clear sky
+
+        LW = emissivity * sigma * T ** 4
+
+        # Set attributes
+        LW.attrs = {
+            'units': 'W m-2',
+            'long_name': 'estimated incoming longwave radiation',
+            'standard_name': 'surface_downwelling_longwave_flux_in_air',
+            'note': 'Estimated using simplified clear-sky emissivity (0.75) - use with caution'
+        }
+
+        return LW
+
+    def _compute_wind_speed(
+        self, u: xr.DataArray, v: xr.DataArray
+    ) -> xr.DataArray:
+        """
+        Calculate wind speed magnitude from u and v components.
+
+        Args:
+            u: Eastward wind component (m/s)
+            v: Northward wind component (m/s)
+
+        Returns:
+            Wind speed magnitude (m/s)
+        """
+        windspd = np.sqrt(u ** 2 + v ** 2)
+
+        # Set attributes
+        windspd.attrs = {
+            'units': 'm s-1',
+            'long_name': 'wind speed',
+            'standard_name': 'wind_speed'
+        }
+
+        return windspd
+
     def _ensure_required_forcing_variables(self, dataset: xr.Dataset, filename: str) -> xr.Dataset:
         """
         Ensure all required forcing variables exist in the dataset.
@@ -763,22 +934,72 @@ class SummaForcingProcessor(BaseForcingProcessor):
             'SWRadAtm': 'W/m2'
         }
 
-        time_len = len(dataset.time)
-        hru_len = len(dataset.hru)
+        # Check for missing required variables and try to compute them
+        missing_vars = [var for var in required_vars if var not in dataset]
 
-        for var in required_vars:
-            if var in dataset:
-                continue
-            default_val = defaults[var]
-            self.logger.warning(
-                f"File {filename}: Missing {var}; filling with default {default_val}"
-            )
-            data = xr.DataArray(
-                np.full((time_len, hru_len), default_val, dtype=np.float32),
-                dims=('time', 'hru')
-            )
-            data.attrs.update({'units': units.get(var, '')})
-            dataset[var] = data
+        if missing_vars:
+            # Try to compute missing variables from available data
+            computed_vars = []
+
+            for var in missing_vars[:]:  # Use slice to allow modification during iteration
+                if var == 'spechum' and 'relhum' in dataset and 'airtemp' in dataset and 'airpres' in dataset:
+                    # Compute specific humidity from relative humidity
+                    self.logger.info(f"File {filename}: Computing spechum from relhum, airtemp, airpres")
+                    dataset['spechum'] = self._compute_specific_humidity(
+                        dataset['airtemp'],
+                        dataset['relhum'],
+                        dataset['airpres']
+                    )
+                    missing_vars.remove(var)
+                    computed_vars.append(var)
+
+                elif var == 'windspd' and 'windspd_u' in dataset and 'windspd_v' in dataset:
+                    # Compute wind speed from components
+                    self.logger.info(f"File {filename}: Computing windspd from windspd_u and windspd_v")
+                    dataset['windspd'] = self._compute_wind_speed(
+                        dataset['windspd_u'],
+                        dataset['windspd_v']
+                    )
+                    missing_vars.remove(var)
+                    computed_vars.append(var)
+
+                elif var == 'LWRadAtm' and 'airtemp' in dataset:
+                    # Estimate longwave radiation from temperature
+                    self.logger.warning(
+                        f"File {filename}: LWRadAtm missing - estimating from airtemp. "
+                        "This is a rough approximation and may affect model accuracy."
+                    )
+                    dataset['LWRadAtm'] = self._estimate_longwave_radiation(dataset['airtemp'])
+                    missing_vars.remove(var)
+                    computed_vars.append(var)
+
+            # If still missing variables, raise error
+            if missing_vars:
+                available_vars = list(dataset.data_vars)
+                error_msg = (
+                    f"Missing required forcing variables in {filename}: {missing_vars}\n"
+                    f"Available variables: {available_vars}\n"
+                )
+
+                if computed_vars:
+                    error_msg += f"Successfully computed: {computed_vars}\n"
+
+                error_msg += (
+                    "\nSUMMA requires the following forcing variables:\n"
+                )
+                for var in missing_vars:
+                    error_msg += f"  - {var} ({units.get(var, 'unknown units')})\n"
+
+                error_msg += (
+                    f"\nTo fix this issue:\n"
+                    f"1. Ensure your forcing data source provides these variables\n"
+                    f"2. Check variable naming conventions in your forcing files\n"
+                    f"3. Verify forcing preprocessing pipeline includes all required variables\n"
+                    f"\nNote: Previous versions filled missing variables with defaults "
+                    f"({', '.join(f'{v}={defaults[v]}' for v in missing_vars[:3])}...), "
+                    f"but this can produce physically unrealistic results."
+                )
+                raise ValueError(error_msg)
 
         return dataset
 
@@ -804,6 +1025,8 @@ class SummaForcingProcessor(BaseForcingProcessor):
             'SWRadAtm': (0.0, 1500.0)       # Shortwave radiation W/m²
         }
 
+        out_of_range_errors = []
+
         for var, (min_val, max_val) in valid_ranges.items():
             if var not in dataset:
                 continue
@@ -811,15 +1034,49 @@ class SummaForcingProcessor(BaseForcingProcessor):
             var_data = dataset[var]
 
             # Check for out-of-range values
-            below_min = (var_data < min_val).sum()
-            above_max = (var_data > max_val).sum()
+            below_min_count = int((var_data < min_val).sum())
+            above_max_count = int((var_data > max_val).sum())
 
-            if below_min > 0 or above_max > 0:
-                # Clip to valid range
-                clipped_data = var_data.clip(min=min_val, max=max_val)
-                dataset[var] = clipped_data
+            if below_min_count > 0 or above_max_count > 0:
+                var_min = float(var_data.min())
+                var_max = float(var_data.max())
+                var_mean = float(var_data.mean())
 
-                self.logger.debug(f"File {filename}: Clipped {var} to range [{min_val}, {max_val}]")
+                error_details = (
+                    f"  {var}: {below_min_count + above_max_count} values out of range [{min_val}, {max_val}]\n"
+                    f"    Actual range: [{var_min:.3f}, {var_max:.3f}], mean: {var_mean:.3f}\n"
+                )
+
+                # Provide specific guidance based on variable
+                if var == 'airtemp':
+                    if var_mean < 100:
+                        error_details += "    → Temperature appears to be in °C, expected Kelvin. Add 273.15\n"
+                    elif var_max > 350:
+                        error_details += "    → Temperature values unrealistically high. Check source data.\n"
+                elif var == 'airpres':
+                    if var_mean < 1000:
+                        error_details += "    → Pressure appears to be in hPa or kPa, expected Pa. Multiply by 100 or 1000\n"
+                elif var == 'pptrate':
+                    if var_max > 0.1:
+                        error_details += "    → Precipitation rate too high. Expected mm/s, got mm/day or mm/hour?\n"
+                elif var == 'spechum':
+                    if var_max > 0.1:
+                        error_details += "    → Specific humidity too high. Expected kg/kg, got g/kg? Divide by 1000\n"
+
+                out_of_range_errors.append(error_details)
+
+        if out_of_range_errors:
+            error_msg = (
+                f"Out-of-range forcing values detected in {filename}:\n\n"
+                + "".join(out_of_range_errors) +
+                "\nThese values are outside physically realistic ranges and will cause SUMMA to fail or produce incorrect results.\n"
+                "Please check:\n"
+                "1. Unit conversions in your forcing data pipeline\n"
+                "2. Source data quality and processing steps\n"
+                "3. Variable naming and mapping conventions\n\n"
+                "Note: Previous versions silently clipped out-of-range values, which could hide data issues and invalidate results."
+            )
+            raise ValueError(error_msg)
 
         return dataset
 

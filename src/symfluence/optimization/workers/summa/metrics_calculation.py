@@ -147,9 +147,8 @@ def _get_catchment_area_worker(config: Dict, logger) -> float:
                 # Fallback: calculate from geometry
                 if gdf.crs and gdf.crs.is_geographic:
                     # Reproject to UTM for area calculation
-                    centroid = gdf.dissolve().centroid.iloc[0]
-                    utm_zone = int(((centroid.x + 180) / 6) % 60) + 1
-                    utm_crs = f"+proj=utm +zone={utm_zone} +north +datum=WGS84 +units=m +no_defs"
+                    # Use geopandas estimate_utm_crs() for automatic hemisphere detection
+                    utm_crs = gdf.estimate_utm_crs()
                     gdf = gdf.to_crs(utm_crs)
 
                 geom_area = gdf.geometry.area.sum()

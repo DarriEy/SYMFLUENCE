@@ -25,7 +25,10 @@ def sample_basin_gdf():
     """Create a mock GeoDataFrame for basin."""
     gdf = Mock()
     gdf.geometry = Mock()
-    gdf.geometry.area = Mock(return_value=pd.Series([1e9]))  # 1000 km²
+    # Create a proper Series-like mock with sum() method
+    area_series = Mock()
+    area_series.sum = Mock(return_value=1e12)  # 1 million km² in m²
+    gdf.geometry.area = area_series
     gdf.crs = Mock()
     gdf.crs.is_projected = True
     gdf.plot = Mock()
@@ -39,11 +42,17 @@ def sample_hru_gdf():
     """Create a mock GeoDataFrame for HRUs."""
     gdf = Mock()
     gdf.geometry = Mock()
-    gdf.geometry.area = pd.Series([1e8, 2e8, 1.5e8, 3e8])  # Various areas
+    gdf.geometry.area = pd.Series([1e8, 2e8, 1.5e8, 3e8])  # Various areas in m²
     gdf.crs = Mock()
     gdf.crs.is_projected = True
     gdf.plot = Mock()
-    gdf.to_crs = Mock(return_value=gdf)
+
+    # to_crs should return a gdf with the same area series
+    projected_gdf = Mock()
+    projected_gdf.geometry = Mock()
+    projected_gdf.geometry.area = pd.Series([1e8, 2e8, 1.5e8, 3e8])
+    gdf.to_crs = Mock(return_value=projected_gdf)
+
     gdf.columns = ['HRU_ID', 'elevClass', 'geometry']
     gdf.__len__ = Mock(return_value=4)
     gdf.index = range(4)
@@ -60,10 +69,13 @@ def sample_obs_df():
     # Add some gaps
     values[50:55] = np.nan
     values[200:210] = np.nan
-    return pd.DataFrame({
+    df = pd.DataFrame({
         'datetime': dates,
         'discharge': values
     }).set_index('datetime')
+    yield df
+    # Cleanup
+    del df, dates, values
 
 
 @pytest.fixture
@@ -273,8 +285,9 @@ class TestObservationsDiagnostics:
         with tempfile.TemporaryDirectory() as tmpdir:
             diagnostic_plotter.project_dir = Path(tmpdir)
 
-            # Add more gaps
-            sample_obs_df.iloc[100:120] = np.nan
+            # Add more gaps (on a copy to avoid modifying the fixture)
+            test_df = sample_obs_df.copy()
+            test_df.iloc[100:120] = np.nan
 
             with patch.object(diagnostic_plotter, '_setup_matplotlib') as mock_setup, \
                  patch.object(diagnostic_plotter, '_save_and_close', return_value=str(Path(tmpdir) / 'test.png')):
@@ -287,11 +300,14 @@ class TestObservationsDiagnostics:
                 mock_setup.return_value = (mock_plt, None)
 
                 result = diagnostic_plotter.plot_observations_diagnostic(
-                    obs_df=sample_obs_df,
+                    obs_df=test_df,
                     obs_type='streamflow'
                 )
 
                 assert result is not None
+
+            # Explicit cleanup
+            del test_df
 
 
 class TestForcingDiagnostics:
@@ -354,19 +370,45 @@ class TestForcingDiagnostics:
                 mock_plt.subplots.return_value = (mock_fig, mock_axes)
                 mock_setup.return_value = (mock_plt, None)
 
-                # Mock xarray datasets
-                mock_ds = Mock()
-                mock_ds.data_vars = ['pptrate']
-                mock_var = Mock()
-                mock_var.dims = ['time', 'hru']
-                mock_var.values = np.random.random((10, 5))
-                mock_var.isel.return_value = mock_var
-                mock_var.sum.return_value = Mock(values=1000.0)
-                mock_var.mean.return_value = mock_var
-                mock_var.plot = Mock()
-                mock_ds.__getitem__ = Mock(return_value=mock_var)
-                mock_ds.close = Mock()
-                mock_xr.return_value = mock_ds
+                # Create separate mock datasets for raw and remapped to avoid conflicts
+                def create_mock_dataset():
+                    mock_ds = Mock()
+                    mock_ds.data_vars = ['pptrate']
+
+                    # Create a mock variable with all necessary attributes
+                    mock_var = Mock()
+                    mock_var.dims = ['time', 'hru']
+                    mock_var.values = np.random.random((10, 5))
+
+                    # Mock for isel result (selecting a time slice)
+                    mock_isel_result = Mock()
+                    mock_isel_result.dims = ['hru']
+                    mock_isel_result.values = np.random.random(5)
+                    mock_isel_result.plot = Mock(return_value=None)  # plot() should return None
+
+                    # Create a separate mock for mean result to avoid circular refs
+                    mock_mean_result = Mock()
+                    mock_mean_result.dims = ['hru']
+                    mock_mean_result.values = np.random.random(5)
+                    mock_mean_result.plot = Mock(return_value=None)  # plot() should return None
+
+                    # Mock for sum result
+                    mock_sum_result = Mock()
+                    mock_sum_result.values = 1000.0
+
+                    mock_var.isel = Mock(return_value=mock_isel_result)
+                    mock_var.sum = Mock(return_value=mock_sum_result)
+                    mock_var.mean = Mock(return_value=mock_mean_result)
+                    mock_var.plot = Mock(return_value=None)  # plot() should return None
+
+                    # __getitem__ should return the appropriate mock based on check
+                    mock_ds.__getitem__ = Mock(return_value=mock_var)
+                    mock_ds.__contains__ = Mock(return_value=True)  # for 'var_name in ds' checks
+                    mock_ds.close = Mock()
+                    return mock_ds
+
+                # Return a new mock dataset for each call
+                mock_xr.side_effect = [create_mock_dataset(), create_mock_dataset()]
 
                 result = diagnostic_plotter.plot_forcing_remapped_diagnostic(
                     raw_nc=raw_nc,

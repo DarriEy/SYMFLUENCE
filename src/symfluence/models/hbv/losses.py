@@ -26,6 +26,7 @@ from .parameters import (
     scale_params_for_timestep,
     create_params_from_dict,
 )
+from .time_utils import warmup_timesteps
 
 
 # =============================================================================
@@ -67,15 +68,14 @@ def nse_loss(
     scaled_params = scale_params_for_timestep(params_dict, timestep_hours)
     params = create_params_from_dict(scaled_params, use_jax=use_jax)
 
-    # Convert warmup from days to timesteps
-    timesteps_per_day = 24 // timestep_hours
-    warmup_timesteps = warmup_days * timesteps_per_day
+    # Convert warmup from days to timesteps (supports non-divisor timesteps)
+    warmup_steps = warmup_timesteps(warmup_days, timestep_hours)
 
     if use_jax and HAS_JAX:
         sim, _ = simulate_jax(precip, temp, pet, params, warmup_days=warmup_days, timestep_hours=timestep_hours)
         # Exclude warmup period (in timesteps)
-        sim_eval = sim[warmup_timesteps:]
-        obs_eval = obs[warmup_timesteps:]
+        sim_eval = sim[warmup_steps:]
+        obs_eval = obs[warmup_steps:]
 
         # NSE = 1 - sum((sim-obs)^2) / sum((obs-mean(obs))^2)
         ss_res = jnp.sum((sim_eval - obs_eval) ** 2)
@@ -84,8 +84,8 @@ def nse_loss(
         return -nse  # Negative for minimization
     else:
         sim, _ = simulate_numpy(precip, temp, pet, params, warmup_days=warmup_days, timestep_hours=timestep_hours)
-        sim_eval = sim[warmup_timesteps:]
-        obs_eval = obs[warmup_timesteps:]
+        sim_eval = sim[warmup_steps:]
+        obs_eval = obs[warmup_steps:]
 
         ss_res = np.sum((sim_eval - obs_eval) ** 2)
         ss_tot = np.sum((obs_eval - np.mean(obs_eval)) ** 2)
@@ -126,14 +126,13 @@ def kge_loss(
     scaled_params = scale_params_for_timestep(params_dict, timestep_hours)
     params = create_params_from_dict(scaled_params, use_jax=use_jax)
 
-    # Convert warmup from days to timesteps
-    timesteps_per_day = 24 // timestep_hours
-    warmup_timesteps = warmup_days * timesteps_per_day
+    # Convert warmup from days to timesteps (supports non-divisor timesteps)
+    warmup_steps = warmup_timesteps(warmup_days, timestep_hours)
 
     if use_jax and HAS_JAX:
         sim, _ = simulate_jax(precip, temp, pet, params, warmup_days=warmup_days, timestep_hours=timestep_hours)
-        sim_eval = sim[warmup_timesteps:]
-        obs_eval = obs[warmup_timesteps:]
+        sim_eval = sim[warmup_steps:]
+        obs_eval = obs[warmup_steps:]
 
         # KGE components
         r = jnp.corrcoef(sim_eval, obs_eval)[0, 1]  # Correlation
@@ -144,8 +143,8 @@ def kge_loss(
         return -kge
     else:
         sim, _ = simulate_numpy(precip, temp, pet, params, warmup_days=warmup_days, timestep_hours=timestep_hours)
-        sim_eval = sim[warmup_timesteps:]
-        obs_eval = obs[warmup_timesteps:]
+        sim_eval = sim[warmup_steps:]
+        obs_eval = obs[warmup_steps:]
 
         r = np.corrcoef(sim_eval, obs_eval)[0, 1]
         alpha = np.std(sim_eval) / (np.std(obs_eval) + 1e-10)

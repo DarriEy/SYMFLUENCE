@@ -17,7 +17,7 @@ from symfluence.core.exceptions import ModelExecutionError, symfluence_error_han
 
 
 @ModelRegistry.register_runner('HYPE', method_name='run_hype')
-class HYPERunner(BaseModelRunner, ModelExecutor):
+class HYPERunner(BaseModelRunner, ModelExecutor):  # type: ignore[misc]
     """
     Runner class for the HYPE model within SYMFLUENCE.
     Handles model execution and run-time management.

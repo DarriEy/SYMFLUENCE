@@ -77,29 +77,8 @@ class HYPEConfigManager(ConfigMixin):
             output_path: Path to the HYPE settings directory where configuration
                 files will be written. Will be created if it doesn't exist.
         """
-        # Import here to avoid circular imports
-
-        from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
-        if isinstance(config, dict):
-
-            try:
-
-                self._config = SymfluenceConfig(**config)
-
-            except (TypeError, ValueError, KeyError, AttributeError):
-
-                # Fallback for partial configs (e.g., in tests)
-
-                self._config = config
-
-        else:
-
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger if logger else logging.getLogger(__name__)
         self.output_path = Path(output_path)
 

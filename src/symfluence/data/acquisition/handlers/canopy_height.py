@@ -186,8 +186,8 @@ class GEDICanopyHeightAcquirer(BaseAcquisitionHandler):
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=30
             )
-        except Exception:
-            pass
+        except (requests.RequestException, OSError):
+            pass  # Logout failure is non-critical
 
     def _submit_task(
         self,
@@ -530,7 +530,7 @@ class MetaCanopyHeightAcquirer(BaseAcquisitionHandler, RetryMixin):
                 result = self._try_download_tile(session, url, local_tile, f"{lat_str}{lon_str}")
                 if result:
                     return result
-            except Exception:
+            except (requests.RequestException, OSError, IOError):
                 continue
 
         self.logger.warning(f"Tile {lat_str}{lon_str} not available from any source")
@@ -571,7 +571,7 @@ class MetaCanopyHeightAcquirer(BaseAcquisitionHandler, RetryMixin):
                     IOError,
                 )
             )
-        except Exception:
+        except (requests.RequestException, OSError, IOError):
             if local_tile.exists():
                 local_tile.unlink()
             return None

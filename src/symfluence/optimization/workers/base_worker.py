@@ -201,6 +201,8 @@ from typing import Dict, Any, Optional, Tuple
 import numpy as np
 
 from symfluence.core.constants import ModelDefaults
+from symfluence.core.exceptions import RetryExhaustedError
+from symfluence.evaluation.metric_transformer import MetricTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -909,7 +911,7 @@ class BaseWorker(ABC):
 
         if last_error is not None:
             raise last_error
-        raise Exception("Evaluation failed for unknown reasons")
+        raise RetryExhaustedError("Evaluation failed: retry loop completed without success or captured error")
 
     def _evaluate_once(self, task: WorkerTask) -> WorkerResult:
         """
@@ -986,12 +988,15 @@ class BaseWorker(ABC):
         """
         Extract the primary optimization score from metrics.
 
+        Automatically transforms the score to maximization convention using
+        MetricTransformer, so optimization algorithms can always maximize.
+
         Args:
             metrics: Dictionary of calculated metrics
             config: Configuration dictionary
 
         Returns:
-            Primary score for optimization
+            Primary score for optimization (transformed for maximization)
         """
         # Get configured metric name - check OPTIMIZATION_METRIC first, then CALIBRATION_METRIC
         # This ensures consistency with gradient-based optimization which uses optimization.metric
@@ -1000,36 +1005,53 @@ class BaseWorker(ABC):
             config.get('CALIBRATION_METRIC', 'KGE')
         )
 
+        raw_value = None
+
         # Check for exact match first
         if metric_name in metrics:
-            return metrics[metric_name]
-
+            raw_value = metrics[metric_name]
         # Check for Calib_ prefix
-        calib_key = f"Calib_{metric_name}"
-        if calib_key in metrics:
-            return metrics[calib_key]
-
-        # Case-insensitive search
-        metric_lower = metric_name.lower()
-        for k, v in metrics.items():
-            if k.lower() == metric_lower:
-                return v
-            if k.lower() == f"calib_{metric_lower}":
-                return v
-
-        # Try common alternatives
-        alternatives = ['kge', 'nse', 'score', 'fitness', 'objective']
-        for alt in alternatives:
-            # Check exact and lower
-            if alt in metrics:
-                return metrics[alt]
+        elif f"Calib_{metric_name}" in metrics:
+            raw_value = metrics[f"Calib_{metric_name}"]
+        else:
+            # Case-insensitive search
+            metric_lower = metric_name.lower()
             for k, v in metrics.items():
-                if k.lower() == alt:
-                    return v
+                if k.lower() == metric_lower or k.lower() == f"calib_{metric_lower}":
+                    raw_value = v
+                    break
+
+            # Try common alternatives if still not found
+            if raw_value is None:
+                alternatives = ['kge', 'nse', 'score', 'fitness', 'objective']
+                for alt in alternatives:
+                    if alt in metrics:
+                        raw_value = metrics[alt]
+                        metric_name = alt  # Update metric_name for correct transformation
+                        break
+                    for k, v in metrics.items():
+                        if k.lower() == alt:
+                            raw_value = v
+                            metric_name = k
+                            break
+                    if raw_value is not None:
+                        break
 
         # Return penalty if no metric found
-        self.logger.warning(f"Could not find metric '{metric_name}' in results. Available keys: {list(metrics.keys())}")
-        return self.penalty_score
+        if raw_value is None:
+            self.logger.warning(
+                f"Could not find metric '{metric_name}' in results. "
+                f"Available keys: {list(metrics.keys())}"
+            )
+            return self.penalty_score
+
+        # Transform to maximization convention
+        # This ensures RMSE, MAE, PBIAS etc. are properly handled
+        transformed_score = MetricTransformer.transform_for_maximization(
+            metric_name, raw_value
+        )
+
+        return transformed_score if transformed_score is not None else self.penalty_score
 
     def _is_transient_error(self, error: Exception) -> bool:
         """
