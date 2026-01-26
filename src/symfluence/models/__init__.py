@@ -44,7 +44,12 @@ except ImportError:
 
 # Import all models to register them
 import logging
+import warnings
 logger = logging.getLogger(__name__)
+
+# Suppress experimental module warnings and missing optional dependency warnings
+warnings.filterwarnings('ignore', message='.*is an EXPERIMENTAL module.*')
+warnings.filterwarnings('ignore', message='.*import failed.*')
 
 # Import from modular packages (preferred)
 try:
