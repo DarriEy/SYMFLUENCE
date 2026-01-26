@@ -11,6 +11,7 @@ import logging
 import traceback
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.constants import ConfigKeys
 
 
 class SpatialProcessor(ConfigMixin):
@@ -26,24 +27,10 @@ class SpatialProcessor(ConfigMixin):
             config: SYMFLUENCE configuration dictionary
             logger: Logger instance
         """
-        # Import here to avoid circular imports
-
-        from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
-        if isinstance(config, dict):
-            try:
-                self._config = SymfluenceConfig(**config)
-            except (TypeError, ValueError):
-                # Fallback for partial configs (e.g., in tests)
-                self._config = config
-        else:
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger
-        self.project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')) / f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}"
+        self.project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key=ConfigKeys.SYMFLUENCE_DATA_DIR)) / f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}"
 
     def update_sim_reach_id(self, config_path: Optional[str] = None) -> Optional[int]:
         """
@@ -59,9 +46,9 @@ class SpatialProcessor(ConfigMixin):
         import geopandas as gpd  # type: ignore
         try:
             # Load the pour point shapefile
-            pour_point_name = self._get_config_value(lambda: self.config.paths.pour_point_name, dict_key='POUR_POINT_SHP_NAME')
+            pour_point_name = self._get_config_value(lambda: self.config.paths.pour_point_name, dict_key=ConfigKeys.POUR_POINT_SHP_NAME)
             if pour_point_name == 'default':
-                pour_point_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_pourPoint.shp"
+                pour_point_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}_pourPoint.shp"
 
             pour_point_path = self._get_file_path('POUR_POINT_SHP_PATH', 'shapefiles/pour_point', pour_point_name)
 
@@ -72,9 +59,9 @@ class SpatialProcessor(ConfigMixin):
             pour_point_gdf = gpd.read_file(pour_point_path)
 
             # Load the river network shapefile
-            river_network_name = self._get_config_value(lambda: self.config.paths.river_network_name, dict_key='RIVER_NETWORK_SHP_NAME')
+            river_network_name = self._get_config_value(lambda: self.config.paths.river_network_name, dict_key=ConfigKeys.RIVER_NETWORK_SHP_NAME)
             if river_network_name == 'default':
-                river_network_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}_riverNetwork_{self._get_config_value(lambda: self.config.domain.definition_method, dict_key='DOMAIN_DEFINITION_METHOD')}.shp"
+                river_network_name = f"{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}_riverNetwork_{self._get_config_value(lambda: self.config.domain.definition_method, dict_key=ConfigKeys.DOMAIN_DEFINITION_METHOD)}.shp"
 
             river_network_path = self._get_file_path('RIVER_NETWORK_SHP_PATH', 'shapefiles/river_network', river_network_name)
 
@@ -105,7 +92,7 @@ class SpatialProcessor(ConfigMixin):
             nearest_segment = river_network_utm.iloc[river_network_utm.distance(pour_point_utm).idxmin()]
 
             # Get the ID of the nearest segment
-            seg_id_col = self._get_config_value(lambda: self.config.paths.river_network_segid, default='seg_id', dict_key='RIVER_NETWORK_SHP_SEGID')
+            seg_id_col = self._get_config_value(lambda: self.config.paths.river_network_segid, default='seg_id', dict_key=ConfigKeys.RIVER_NETWORK_SHP_SEGID)
             if seg_id_col not in nearest_segment:
                  # Try common alternatives if configured one is missing
                  for alt_col in ['seg_id', 'segId', 'SEG_ID', 'COMID', 'feature_id']:

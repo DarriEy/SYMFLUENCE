@@ -22,6 +22,7 @@ from symfluence.optimization.workers.inmemory_worker import InMemoryModelWorker,
 from symfluence.optimization.workers.base_worker import WorkerTask
 from symfluence.optimization.registry import OptimizerRegistry
 from symfluence.core.constants import ModelDefaults
+from symfluence.models.hbv.time_utils import warmup_timesteps
 
 # Lazy JAX import
 if HAS_JAX:
@@ -242,13 +243,12 @@ class HBVWorker(InMemoryModelWorker):
 
         try:
             # Convert warmup days to timesteps
-            timesteps_per_day = 24 // self.timestep_hours
-            warmup_timesteps = self.warmup_days * timesteps_per_day
+            warmup_steps = warmup_timesteps(self.warmup_days, self.timestep_hours)
 
             # Skip warmup if requested
             if skip_warmup:
-                sim = sim_mm[warmup_timesteps:]
-                obs = obs_mm[warmup_timesteps:]
+                sim = sim_mm[warmup_steps:]
+                obs = obs_mm[warmup_steps:]
             else:
                 sim = sim_mm
                 obs = obs_mm

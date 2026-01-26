@@ -99,17 +99,17 @@ class USGSStreamflowHandler(BaseObservationHandler):
             self.logger.info(f"Successfully downloaded USGS data to {output_path}")
             return output_path
 
-        except Exception:
+        except (requests.RequestException, OSError) as e:
             # Attempt fallback strategy (Waterservices without nwis prefix)
             fallback_url = url.replace("nwis.waterservices.usgs.gov", "waterservices.usgs.gov")
-            self.logger.info(f"Primary USGS download failed, trying fallback: {fallback_url}")
+            self.logger.info(f"Primary USGS download failed ({e}), trying fallback: {fallback_url}")
             try:
                 response = requests.get(fallback_url, timeout=60)
                 response.raise_for_status()
                 with open(output_path, 'w') as f:
                     f.write(response.text)
                 return output_path
-            except Exception as e2:
+            except (requests.RequestException, OSError) as e2:
                 self.logger.error(f"Failed to download USGS data: {e2}")
                 # Fall back to existing files if download fails
                 raw_dir = output_path.parent

@@ -35,10 +35,10 @@
 npm install -g symfluence
 
 # Verify installation
-symfluence info
+symfluence binary info
 
 # Check system compatibility
-symfluence --doctor
+symfluence binary doctor
 ```
 
 **Requirements:**
@@ -52,7 +52,7 @@ symfluence --doctor
 pip install symfluence
 
 # Install modeling tools separately (if npm not used)
-python -m symfluence.cli --get_executables
+symfluence binary install
 ```
 
 ### Development Installation

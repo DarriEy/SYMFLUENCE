@@ -28,7 +28,7 @@ class DDSAlgorithm(OptimizationAlgorithm):
         """Algorithm identifier for logging and result tracking."""
         return "DDS"
 
-    def optimize(  # type: ignore[override]
+    def optimize(
         self,
         n_params: int,
         evaluate_solution: Callable[[np.ndarray, int], float],
@@ -38,6 +38,8 @@ class DDSAlgorithm(OptimizationAlgorithm):
         update_best: Callable,
         log_progress: Callable,
         evaluate_population_objectives: Optional[Callable] = None,
+        compute_gradient: Optional[Callable] = None,
+        gradient_mode: str = 'auto',
         **kwargs
     ) -> Dict[str, Any]:
         """

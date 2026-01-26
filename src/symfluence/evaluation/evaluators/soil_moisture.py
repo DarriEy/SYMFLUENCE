@@ -326,7 +326,8 @@ class SoilMoistureEvaluator(ModelEvaluator):
             depth_differences = np.abs(cumulative_depths - target_depth_m)
             best_layer_idx = np.argmin(depth_differences)
             return int(best_layer_idx)
-        except Exception:
+        except (ValueError, TypeError, KeyError, IndexError) as e:
+            self.logger.debug(f"Could not determine best layer index, defaulting to 0: {e}")
             return 0
 
     def _extract_smap_soil_moisture(self, ds: xr.Dataset) -> pd.Series:

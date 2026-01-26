@@ -299,6 +299,10 @@ def snow_routine_jax(
 
     snow_water = snow_water - outflow
 
+    # Prevent negative storages from smooth approximations
+    snow = jnp.maximum(snow, 0.0)
+    snow_water = jnp.maximum(snow_water, 0.0)
+
     return snow, snow_water, outflow
 
 
@@ -444,21 +448,34 @@ def triangular_weights(
     maxbas_timesteps = maxbas * timesteps_per_day
 
     if HAS_JAX:
-        timesteps = jnp.arange(1, buffer_length + 1, dtype=jnp.float32)
+        timesteps = jnp.arange(1, buffer_length + 1, dtype=jnp.float64)
+
+        # Triangular weights
         rising = jnp.where(
             timesteps <= maxbas_timesteps / 2,
-            timesteps / (maxbas_timesteps / 2),
+            timesteps / jnp.maximum(maxbas_timesteps / 2, 1e-10),
             0.0
         )
         falling = jnp.where(
             (timesteps > maxbas_timesteps / 2) & (timesteps <= maxbas_timesteps),
-            (maxbas_timesteps - timesteps) / (maxbas_timesteps / 2),
+            (maxbas_timesteps - timesteps) / jnp.maximum(maxbas_timesteps / 2, 1e-10),
             0.0
         )
         weights = rising + falling
-        weights = weights / jnp.sum(weights + 1e-10)
+
+        # Special case: if maxbas is <= 1 timestep, use unit weight (no routing delay)
+        # Use jnp.where for JAX compatibility (no Python if statements on traced values)
+        unit_weights = jnp.zeros(buffer_length, dtype=jnp.float64).at[0].set(1.0)
+        weights = jnp.where(maxbas_timesteps <= 1.0, unit_weights, weights / jnp.maximum(jnp.sum(weights), 1e-10))
+
         return weights
     else:
+        # NumPy fallback - can use Python control flow
+        if maxbas_timesteps <= 1.0:
+            weights = np.zeros(buffer_length, dtype=np.float64)
+            weights[0] = 1.0
+            return weights
+
         timesteps = np.arange(1, buffer_length + 1, dtype=np.float64)
         rising = np.where(
             timesteps <= maxbas_timesteps / 2,
@@ -810,7 +827,7 @@ def simulate_ensemble(
 
     # Use vmap for efficient batching
     batch_sim = jax.vmap(sim_single)
-    return batch_sim(jnp.arange(n_ensemble))
+    return batch_sim(jnp.arange(n_ensemble, dtype=jnp.int32))
 
 
 def _simulate_ensemble_numpy(precip, temp, pet, params_batch, initial_state, warmup_days):

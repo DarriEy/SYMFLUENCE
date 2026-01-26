@@ -19,6 +19,7 @@ from rasterio.mask import mask  # type: ignore
 from shapely.geometry import MultiPolygon, Polygon, shape  # type: ignore
 
 from symfluence.core.path_resolver import PathResolverMixin
+from symfluence.core.exceptions import ShapefileError
 from symfluence.geospatial.geometry_utils import clean_geometry
 from symfluence.geospatial.raster_utils import analyze_raster_values
 from .artifacts import DiscretizationArtifacts
@@ -162,9 +163,9 @@ class DomainDiscretizer(PathResolverMixin):
         except ValueError as e:
             self.logger.error(str(e))
             raise
-        except Exception as e:
-            self.logger.error(f"Error sorting catchment shape: {str(e)}")
-            raise
+        except (OSError, IOError) as e:
+            self.logger.error(f"I/O error sorting catchment shape: {str(e)}")
+            raise ShapefileError(f"Failed to read/write catchment shapefile: {e}") from e
 
     def discretize_domain(self) -> Optional[Path]:
         """
@@ -324,7 +325,7 @@ class DomainDiscretizer(PathResolverMixin):
                     )
                     out_image = out_image[0]
                     nodata_value = src.nodata
-                except Exception as e:
+                except (rasterio.RasterioIOError, ValueError, RuntimeError) as e:
                     self.logger.warning(
                         f"Could not extract raster data for GRU {gru_id}: {str(e)}"
                     )
@@ -493,7 +494,8 @@ class DomainDiscretizer(PathResolverMixin):
                     # Filter out degenerate geometries (zero-area slivers, invalid shapes)
                     if geom.is_valid and not geom.is_empty and geom.area > 0:
                         polygons.append(geom)
-                except Exception:
+                except (ValueError, TypeError, AttributeError) as e:
+                    self.logger.debug(f"Skipping invalid geometry shape: {e}")
                     continue
 
             if not polygons:
@@ -546,7 +548,7 @@ class DomainDiscretizer(PathResolverMixin):
 
             return hru_data
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, RuntimeError) as e:
             self.logger.warning(
                 f"Error creating HRU for class {class_value} in GRU: {str(e)}"
             )
@@ -632,7 +634,7 @@ class DomainDiscretizer(PathResolverMixin):
                 "hru_type": f"{attribute_name}_multipolygon",
             }
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, RuntimeError) as e:
             self.logger.warning(
                 f"Error creating MultiPolygon HRU for class {class_value}: {str(e)}"
             )
@@ -720,7 +722,7 @@ class DomainDiscretizer(PathResolverMixin):
                 item["mean"] if item["mean"] is not None else -9999 for item in zs
             ]
 
-        except Exception as e:
+        except (rasterio.RasterioIOError, ValueError, KeyError, RuntimeError) as e:
             self.logger.error(f"Error calculating mean elevation: {str(e)}")
             hru_gdf["elev_mean"] = -9999
 
@@ -754,9 +756,9 @@ class DomainDiscretizer(PathResolverMixin):
                 )
                 gdf = gdf.set_crs("EPSG:4326")
             return gdf
-        except Exception as e:
+        except (FileNotFoundError, OSError, IOError) as e:
             self.logger.error(f"Error reading shapefile {shapefile_path}: {str(e)}")
-            raise
+            raise ShapefileError(f"Failed to read shapefile {shapefile_path}: {e}") from e
 
 
 
@@ -851,8 +853,8 @@ class DomainDiscretizationRunner:
 
             return catchment_delineated_path
 
-        except Exception as e:
+        except (FileNotFoundError, OSError, IOError, ValueError, KeyError) as e:
             self.logger.error(f"Error discretizing delineated domain: {str(e)}")
             import traceback
-            self.logger.error(traceback.format_exc())
+            self.logger.debug(traceback.format_exc())
             return None

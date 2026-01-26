@@ -608,6 +608,13 @@ CALIBRATE_MIZUROUTE: false
 #   Usage:      3
 MIZUROUTE_TIMEOUT: 3600
 
+# MIZUROUTE_TIME_ROUNDING_FREQ
+#   Type:        str
+#   Default:     h
+#   Source:      MizuRouteConfig (model_configs.py)
+#   Description: Frequency for rounding time values (e.g., "h" for hour, "min" for minute, "none" to disable)
+MIZUROUTE_TIME_ROUNDING_FREQ: "h"
+
 
 # 14. dRoute Configuration (EXPERIMENTAL)
 # ================================================================================
@@ -3053,6 +3060,13 @@ HYDROLOGICAL_MODEL: "SUMMA"
 #   Usage:      13
 ROUTING_MODEL: null
 
+# FIRE_MODEL
+#   Type:        str
+#   Default:     None
+#   Source:      ModelConfig (model_configs.py)
+#   Description: Fire model selection (e.g., 'ignacio', 'wmfire')
+FIRE_MODEL: null
+
 
 # 7. SUMMA Model Configuration
 # ================================================================================
@@ -3458,6 +3472,20 @@ SETTINGS_GR_PATH: default
 #   Usage:      5
 GR_PARAMS_TO_CALIBRATE: X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff
 
+# GR_ALLOW_DUMMY_OBSERVATIONS
+#   Type:        bool
+#   Default:     False
+#   Source:      GRConfig (model_configs.py)
+#   Description: If True, use zero-filled dummy observations when no streamflow data found
+GR_ALLOW_DUMMY_OBSERVATIONS: false
+
+# GR_ALLOW_DEFAULT_AREA
+#   Type:        bool
+#   Default:     False
+#   Source:      GRConfig (model_configs.py)
+#   Description: If True, use 1.0 km² default area when basin shapefile not found
+GR_ALLOW_DEFAULT_AREA: false
+
 
 # 9.4. HBV Model Configuration
 # ================================================================================
@@ -3571,6 +3599,13 @@ HBV_PET_METHOD: "input"
 #   Default:     None
 #   Source:      HBVConfig (hbv/config.py)
 HBV_LATITUDE: null
+
+# HBV_ALLOW_UNIT_HEURISTICS
+#   Description: Allow magnitude-based unit detection for precip/PET when units are missing or ambiguous.
+#   Type:        bool
+#   Default:     False
+#   Source:      HBVConfig (hbv/config.py)
+HBV_ALLOW_UNIT_HEURISTICS: false
 
 # HBV_SAVE_STATES
 #   Description: Save internal state variables (snow, soil moisture, etc.) to output.
@@ -3900,6 +3935,34 @@ WMFIRE_MOISTURE_K1: null
 #   Usage:      Moisture coefficient k2 (default 0.27)
 WMFIRE_MOISTURE_K2: null
 
+# WMFIRE_IGN_DEF_MOD
+#   Type:        float
+#   Default:     None
+#   Source:      WMFireConfig (model_configs.py)
+#   Description: Ignition probability modifier (default 1.0, increase for more fires)
+WMFIRE_IGN_DEF_MOD: null
+
+# WMFIRE_MEAN_IGN
+#   Type:        float
+#   Default:     None
+#   Source:      WMFireConfig (model_configs.py)
+#   Description: Mean ignition events per timestep (default 1.0)
+WMFIRE_MEAN_IGN: null
+
+# WMFIRE_WINDMAX
+#   Type:        float
+#   Default:     None
+#   Source:      WMFireConfig (model_configs.py)
+#   Description: Maximum wind speed multiplier (default 1.0)
+WMFIRE_WINDMAX: null
+
+# WMFIRE_SLOPE_K1
+#   Type:        float
+#   Default:     None
+#   Source:      WMFireConfig (model_configs.py)
+#   Description: Slope effect coefficient k1 (default 0.91)
+WMFIRE_SLOPE_K1: null
+
 # RHESSYS_USE_VMFIRE
 #   Type:        bool
 #   Default:     False
@@ -3920,6 +3983,101 @@ VMFIRE_INSTALL_PATH: "installs/wmfire/lib"
 #   Source:      RHESSysConfig (model_configs.py)
 #   Usage:      Model execution timeout in seconds
 RHESSYS_TIMEOUT: 7200
+
+
+# 9.5.1. IGNACIO Fire Model Configuration
+# ================================================================================
+
+# IGNACIO_PROJECT_NAME
+#   Type:        str
+#   Default:     ignacio_run
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Name for the IGNACIO simulation project
+IGNACIO_PROJECT_NAME: "ignacio_run"
+
+# IGNACIO_OUTPUT_DIR
+#   Type:        str
+#   Default:     default
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Output directory for IGNACIO results
+IGNACIO_OUTPUT_DIR: "default"
+
+# IGNACIO_DEM_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Path to DEM raster file
+IGNACIO_DEM_PATH: null
+
+# IGNACIO_FUEL_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Path to fuel type raster
+IGNACIO_FUEL_PATH: null
+
+# IGNACIO_DEFAULT_FUEL
+#   Type:        str
+#   Default:     C-2
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Default FBP fuel type code
+IGNACIO_DEFAULT_FUEL: "C-2"
+
+# IGNACIO_IGNITION_SHAPEFILE
+#   Type:        str
+#   Default:     None
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Path to ignition point shapefile
+IGNACIO_IGNITION_SHAPEFILE: null
+
+# IGNACIO_IGNITION_DATE
+#   Type:        str
+#   Default:     None
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Ignition date/time as YYYY-MM-DD HH:MM:SS
+IGNACIO_IGNITION_DATE: null
+
+# IGNACIO_STATION_PATH
+#   Type:        str
+#   Default:     None
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Path to weather station CSV file
+IGNACIO_STATION_PATH: null
+
+# IGNACIO_CALCULATE_FWI
+#   Type:        bool
+#   Default:     True
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Calculate FWI from weather data
+IGNACIO_CALCULATE_FWI: true
+
+# IGNACIO_DT
+#   Type:        float
+#   Default:     1.0
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Simulation timestep in minutes
+IGNACIO_DT: 1.0
+
+# IGNACIO_MAX_DURATION
+#   Type:        int
+#   Default:     480
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Maximum simulation duration in minutes
+IGNACIO_MAX_DURATION: 480
+
+# IGNACIO_SAVE_PERIMETERS
+#   Type:        bool
+#   Default:     True
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Save fire perimeter shapefiles
+IGNACIO_SAVE_PERIMETERS: true
+
+# IGNACIO_COMPARE_WMFIRE
+#   Type:        bool
+#   Default:     False
+#   Source:      IgnacioConfig (model_configs.py)
+#   Description: Compare fire perimeters with WMFire results
+IGNACIO_COMPARE_WMFIRE: false
 
 
 # 9.6. GNN Model Configuration

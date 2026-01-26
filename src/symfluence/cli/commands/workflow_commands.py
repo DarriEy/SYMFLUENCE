@@ -59,14 +59,20 @@ class WorkflowCommands(BaseCommand):
 
         # Initialize SYMFLUENCE instance
         BaseCommand._console.info("Starting full workflow execution...")
+        config_overrides = {}
+        if BaseCommand.get_arg(args, 'continue_on_error', False):
+            config_overrides['STOP_ON_ERROR'] = False
+
         symfluence = SYMFLUENCE(
             config_path,
+            config_overrides=config_overrides,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
-            visualize=BaseCommand.get_arg(args, 'visualise', False)
+            visualize=BaseCommand.get_arg(args, 'visualise', False),
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
         )
 
         # Execute full workflow
-        symfluence.run_workflow()
+        symfluence.run_workflow(force_run=BaseCommand.get_arg(args, 'force_rerun', False))
 
         BaseCommand._console.success("Workflow execution completed successfully")
         return ExitCode.SUCCESS
@@ -96,7 +102,8 @@ class WorkflowCommands(BaseCommand):
         symfluence = SYMFLUENCE(
             config_path,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
-            visualize=BaseCommand.get_arg(args, 'visualise', False)
+            visualize=BaseCommand.get_arg(args, 'visualise', False),
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
         )
 
         # Run single step
@@ -131,7 +138,8 @@ class WorkflowCommands(BaseCommand):
         symfluence = SYMFLUENCE(
             config_path,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
-            visualize=BaseCommand.get_arg(args, 'visualise', False)
+            visualize=BaseCommand.get_arg(args, 'visualise', False),
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
         )
 
         # Run multiple steps in order
@@ -162,7 +170,8 @@ class WorkflowCommands(BaseCommand):
         symfluence = SYMFLUENCE(
             config_path,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
-            visualize=BaseCommand.get_arg(args, 'visualise', False)
+            visualize=BaseCommand.get_arg(args, 'visualise', False),
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
         )
 
         # Show workflow status
@@ -262,7 +271,8 @@ class WorkflowCommands(BaseCommand):
         symfluence = SYMFLUENCE(
             config_path,
             debug_mode=BaseCommand.get_arg(args, 'debug', False),
-            visualize=BaseCommand.get_arg(args, 'visualise', False)
+            visualize=BaseCommand.get_arg(args, 'visualise', False),
+            diagnostic=BaseCommand.get_arg(args, 'diagnostic', False)
         )
 
         # Run steps from resume point
@@ -327,4 +337,54 @@ class WorkflowCommands(BaseCommand):
 
         if not dry_run:
             BaseCommand._console.success(f"Cleaned {level} files")
+        return ExitCode.SUCCESS
+
+    @staticmethod
+    @cli_exception_handler
+    def diagnose(args: Namespace) -> int:
+        """
+        Execute: symfluence workflow diagnose [--step STEP]
+
+        Run diagnostic plots on existing workflow outputs without re-running the workflow.
+
+        Args:
+            args: Parsed arguments namespace
+
+        Returns:
+            Exit code (0 for success, non-zero for failure)
+        """
+        from symfluence.core import SYMFLUENCE
+
+        config_path = BaseCommand.get_config_path(args)
+
+        if not BaseCommand.validate_config(config_path, required=True):
+            return ExitCode.CONFIG_ERROR
+
+        step = BaseCommand.get_arg(args, 'step', None)
+
+        BaseCommand._console.info("Running diagnostics on existing workflow outputs...")
+        if step:
+            BaseCommand._console.indent(f"Step: {step}")
+
+        # Initialize SYMFLUENCE with diagnostic mode enabled
+        symfluence = SYMFLUENCE(
+            config_path,
+            debug_mode=BaseCommand.get_arg(args, 'debug', False),
+            diagnostic=True  # Always enable diagnostic mode for this command
+        )
+
+        # Run diagnostics
+        if step:
+            results = symfluence.run_diagnostics_for_step(step)
+        else:
+            results = symfluence.run_all_diagnostics()
+
+        # Report results
+        if results:
+            BaseCommand._console.success(f"Generated {len(results)} diagnostic plot(s):")
+            for path in results:
+                BaseCommand._console.indent(f"- {path}")
+        else:
+            BaseCommand._console.warning("No diagnostic plots were generated. Check that workflow outputs exist.")
+
         return ExitCode.SUCCESS

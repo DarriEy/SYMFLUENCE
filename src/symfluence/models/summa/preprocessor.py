@@ -24,7 +24,7 @@ from .glacier_manager import GlacierAttributesManager
 
 
 @ModelRegistry.register_preprocessor('SUMMA')
-class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
+class SummaPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
     """
     Preprocessor for the SUMMA (Structure for Unifying Multiple Modeling Alternatives) model.
 

@@ -35,10 +35,10 @@ The GR (Génie Rural - Rural Engineering) model family consists of parsimonious 
 **Temporal Resolution:** Daily (primary) or hourly
 
 Model Variants
-=============
+==============
 
 GR4J (4 Parameters)
-------------------
+-------------------
 
 **Description:** Daily lumped rainfall-runoff model with 4 parameters.
 
@@ -59,7 +59,7 @@ GR4J (4 Parameters)
 **Best for:** General-purpose applications, temperate climates
 
 GR5J (5 Parameters)
-------------------
+-------------------
 
 **Description:** GR4J plus inter-catchment groundwater exchange.
 
@@ -70,7 +70,7 @@ GR5J (5 Parameters)
 **Best for:** Karstic regions, basins with significant groundwater exchanges
 
 GR6J (6 Parameters)
-------------------
+-------------------
 
 **Description:** GR5J plus exponential store for low flows.
 
@@ -81,7 +81,7 @@ GR6J (6 Parameters)
 **Best for:** Basins with complex low-flow dynamics, ephemeral streams
 
 CemaNeige Snow Module
-====================
+=====================
 
 CemaNeige is a degree-day snow accounting module that can be coupled with any GR model.
 
@@ -113,7 +113,7 @@ Spatial Modes
 The GR models in SYMFLUENCE support flexible spatial configuration:
 
 Lumped Mode
-----------
+-----------
 
 Single HRU represents entire basin:
 
@@ -128,7 +128,7 @@ Single HRU represents entire basin:
 **Use case:** Quick assessments, simple basins, benchmarking
 
 Distributed Mode
----------------
+----------------
 
 Multiple HRUs (typically elevation bands):
 
@@ -147,7 +147,7 @@ Multiple HRUs (typically elevation bands):
 **Use case:** Snow-dominated regions, heterogeneous basins
 
 Auto Mode
---------
+---------
 
 Automatically infers spatial mode from domain definition:
 
@@ -162,7 +162,7 @@ Configuration in SYMFLUENCE
 ===========================
 
 Model Selection
---------------
+---------------
 
 .. code-block:: yaml
 
@@ -194,7 +194,7 @@ Installation and Execution
 **Note:** GR models require R and the ``airGR`` package. SYMFLUENCE uses rpy2 for Python-R interface.
 
 Spatial Configuration
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -211,7 +211,7 @@ Spatial Configuration
      - Enable routing (none, mizuRoute)
 
 Model and Calibration
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -233,7 +233,7 @@ Input File Specifications
 GR models use CSV forcing data and R data structures.
 
 Forcing Data (CSV)
------------------
+------------------
 
 **File (lumped):** ``<basin>_forcing_lumped.csv``
 
@@ -257,7 +257,7 @@ Forcing Data (CSV)
 Same format, one file per HRU.
 
 Observations (CSV)
------------------
+------------------
 
 **File:** ``<basin>_streamflow.csv``
 
@@ -297,7 +297,7 @@ Standard Output (CSV)
 - ``PET_mm``: Input PET [mm/day]
 
 CemaNeige Output (with snow module)
-----------------------------------
+-----------------------------------
 
 **Additional columns:**
 
@@ -313,7 +313,7 @@ CemaNeige Output (with snow module)
 - ``PliqAndMelt_mm``: Liquid precipitation + melt [mm/day]
 
 Routed Output (with mizuRoute)
------------------------------
+------------------------------
 
 **File:** ``<basin>_routed_streamflow.nc``
 
@@ -323,7 +323,7 @@ Model-Specific Workflows
 ========================
 
 Basic GR4J Workflow (Lumped)
----------------------------
+----------------------------
 
 Simplest GR application:
 
@@ -409,7 +409,7 @@ Calibrate GR on multiple basins simultaneously:
    OPTIMIZATION_METRICS: [KGE, NSE, RMSE]
 
 Regional GR Application
-----------------------
+-----------------------
 
 For large-sample studies (CAMELS-style):
 
@@ -442,10 +442,10 @@ Batch process:
        workflow.run()
 
 Calibration Strategies
-=====================
+======================
 
 GR4J Parameters
---------------
+---------------
 
 .. code-block:: yaml
 
@@ -489,7 +489,7 @@ GR4J + CemaNeige Parameters
 - Glaciers: 6-10 mm/°C/day
 
 GR5J and GR6J
-------------
+-------------
 
 Simply add extra parameters:
 
@@ -512,7 +512,7 @@ Simply add extra parameters:
    X6:  [0.1, 20.0]      # Exponential store for low flows [mm]
 
 Calibration Tips
----------------
+----------------
 
 1. **Start with GR4J:**
 
@@ -547,7 +547,7 @@ Calibration Tips
         - RMSE_snow   # Snow cover fit (if data available)
 
 Known Limitations
-================
+=================
 
 1. **Conceptual Model:**
 
@@ -587,7 +587,7 @@ Known Limitations
    - Cannot test structural hypotheses
 
 Troubleshooting
-==============
+===============
 
 Common Issues
 -------------
@@ -693,7 +693,7 @@ GR requires PET calculation:
    # Check: <project_dir>/domain/routing/network.nc
 
 Performance Tips
----------------
+----------------
 
 **Speed up calibration:**
 
@@ -718,7 +718,7 @@ Performance Tips
    Rscript GR.r
 
 Additional Resources
-===================
+====================
 
 **GR Model Documentation:**
 

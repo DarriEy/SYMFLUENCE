@@ -166,8 +166,8 @@ class FLUXNETAcquirer(BaseAcquisitionHandler):
             auth = nrc.authenticators('ameriflux.lbl.gov')
             if auth:
                 return auth[0], auth[2]  # login=user_id, password=email
-        except Exception:
-            pass
+        except (FileNotFoundError, netrc.NetrcParseError, OSError):
+            pass  # .netrc not found or not readable
 
         return None, None
 

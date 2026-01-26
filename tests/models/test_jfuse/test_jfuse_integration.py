@@ -24,8 +24,25 @@ if HAS_JFUSE:
     import jfuse
     from jfuse import (
         create_fuse_model, Parameters, PARAM_BOUNDS,
-        kge_loss, nse_loss, CoupledModel
+        CoupledModel
     )
+
+    def kge_loss(sim, obs):
+        """Compute KGE loss (1 - KGE) for use in optimization."""
+        # Correlation
+        sim_mean = jnp.mean(sim)
+        obs_mean = jnp.mean(obs)
+        sim_std = jnp.std(sim)
+        obs_std = jnp.std(obs)
+        cov = jnp.mean((sim - sim_mean) * (obs - obs_mean))
+        r = cov / (sim_std * obs_std + 1e-10)
+        # Bias ratio
+        beta = sim_mean / (obs_mean + 1e-10)
+        # Variability ratio
+        gamma = sim_std / (obs_std + 1e-10)
+        # KGE
+        kge = 1 - jnp.sqrt((r - 1)**2 + (beta - 1)**2 + (gamma - 1)**2)
+        return 1 - kge  # Return loss (lower is better)
 else:
     jax = None
     jnp = None

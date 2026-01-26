@@ -28,7 +28,7 @@ class NSGA2Algorithm(OptimizationAlgorithm):
         """Algorithm identifier for logging and result tracking."""
         return "NSGA-II"
 
-    def optimize(  # type: ignore[override]
+    def optimize(
         self,
         n_params: int,
         evaluate_solution: Callable[[np.ndarray, int], float],
@@ -38,6 +38,8 @@ class NSGA2Algorithm(OptimizationAlgorithm):
         update_best: Callable,
         log_progress: Callable,
         evaluate_population_objectives: Optional[Callable] = None,
+        compute_gradient: Optional[Callable] = None,
+        gradient_mode: str = 'auto',
         objective_names: Optional[List[str]] = None,
         multiobjective: bool = False,
         **kwargs
@@ -113,6 +115,18 @@ class NSGA2Algorithm(OptimizationAlgorithm):
             objectives[:, 0] = fitness
             if num_objectives > 1:
                 objectives[:, 1] = fitness
+
+        # Check for all-penalty objectives (indicates model doesn't support multi-objective)
+        # Penalty values are typically large negative numbers like -1e6
+        PENALTY_THRESHOLD = -900.0
+        if np.all(objectives < PENALTY_THRESHOLD):
+            raise ValueError(
+                f"All {pop_size} individuals in the initial population returned penalty objectives "
+                f"(all values < {PENALTY_THRESHOLD}). This typically indicates that the model's "
+                f"worker does not support multi-objective evaluation. Only SUMMA models "
+                f"currently support NSGA-II multi-objective optimization. "
+                f"Use single-objective algorithms (DDS, PSO, DE, SCE-UA) instead."
+            )
 
         # Perform NSGA-II selection
         ranks = self._fast_non_dominated_sort(objectives)

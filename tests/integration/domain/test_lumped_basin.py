@@ -193,6 +193,14 @@ def test_lumped_basin_workflow(config_path, model, symfluence_data_root, setup_i
     8. Run model
     9. Calibrate model
     """
+    # Check for model-specific dependencies before starting test
+    if model == 'GR':
+        # GR models require R and rpy2
+        try:
+            import rpy2.robjects
+        except ImportError:
+            pytest.skip("GR models require R and rpy2. Skipping test since dependencies are not available.")
+
     cfg_path, typed_config, bow_domain = config_path
     config_dict = typed_config.to_dict(flatten=True)
 

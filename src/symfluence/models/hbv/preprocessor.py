@@ -21,7 +21,7 @@ from symfluence.core.constants import UnitConversion, UnitDetectionThresholds
 
 
 @ModelRegistry.register_preprocessor('HBV')
-class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
+class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Preprocessor for HBV-96 model.
 
@@ -69,6 +69,12 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
         self.latitude = self._get_config_value(
             lambda: self.config.model.hbv.latitude if self.config.model and self.config.model.hbv else None,
             None
+        )
+
+        # Unit handling
+        self.allow_unit_heuristics = self._get_config_value(
+            lambda: self.config.model.hbv.allow_unit_heuristics if self.config.model and self.config.model.hbv else None,
+            False
         )
 
         # Timestep configuration (1=hourly, 24=daily)
@@ -152,16 +158,13 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                 )
 
             # Convert precipitation units if needed
-            # Check if units indicate kg/m2/s or mm/s (common in SUMMA/ERA5/RDRS forcing)
-            precip_units = forcing_ds[precip_var_name].attrs.get('units', '').lower()
-            if 'kg' in precip_units or 'mm s' in precip_units or 'mm/s' in precip_units or 's-1' in precip_units:
-                # Convert mm/s (or kg/m2/s) to mm/hour
-                precip = precip * 3600.0
-                self.logger.info(f"Converted precipitation from {precip_units} to mm/hour (×3600)")
-            elif np.nanmean(precip) < 0.01 and np.nanmax(precip) < 0.1:
-                # Heuristic: if values are very small, likely mm/s not converted
-                precip = precip * 3600.0
-                self.logger.info("Precipitation values appear to be in mm/s, converting to mm/hour (×3600)")
+            precip_units = forcing_ds[precip_var_name].attrs.get('units', '')
+            precip = self._convert_flux_units(
+                precip,
+                precip_units,
+                timestep_config['time_label'],
+                "Precipitation"
+            )
 
             # Temperature (check various naming conventions)
             temp_vars = ['temp', 'tas', 'airtemp', 'tair', 'temperature', 'tmean']
@@ -192,12 +195,13 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                 temp = np.nanmean(temp, axis=1)
 
             # Potential evapotranspiration (calculated at daily resolution, will be distributed)
-            pet_daily = self._get_pet(forcing_ds, temp, time)
-            if pet_daily is None:
+            pet_result = self._get_pet(forcing_ds, temp, time, timestep_config['time_label'])
+            if pet_result is None:
                 raise ValueError(
                     "Could not calculate or extract PET. "
                     "Ensure forcing data contains PET variable or temperature for calculation."
                 )
+            pet_values, pet_is_daily = pet_result
 
             # Create hourly DataFrame (source resolution)
             if timestep_config['time_label'] == 'hourly':
@@ -205,7 +209,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
 
                 # Build hourly forcing DataFrame
                 # PET from Hamon is daily - distribute to hourly (mm/day -> mm/hour)
-                pet_hourly = pet_daily / 24.0
+                pet_hourly = pet_values / 24.0 if pet_is_daily else pet_values
 
                 forcing_hourly = pd.DataFrame({
                     'time': time,
@@ -247,7 +251,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                     'time': time,
                     'pr': precip.flatten(),
                     'temp': temp.flatten(),
-                    'pet': pet_daily.flatten()
+                    'pet': pet_values.flatten()
                 })
 
                 # Subset to simulation time window
@@ -376,28 +380,57 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
 
             if 'hru' in forcing_ds.dims:
                 # Forcing already per-HRU
-                precip = forcing_ds['pr'].values if 'pr' in forcing_ds else forcing_ds['precip'].values
+                precip_var_name = 'pr' if 'pr' in forcing_ds else 'precip'
+                precip = forcing_ds[precip_var_name].values
                 temp = self._get_temperature_variable(forcing_ds)
-                pet = self._get_pet_distributed(forcing_ds, temp, time)
+                pet = self._get_pet_distributed(forcing_ds, temp, time, timestep_config['time_label'])
+
+                # Convert precipitation units if needed
+                precip_units = forcing_ds[precip_var_name].attrs.get('units', '')
             else:
                 # Need to spatially average forcing to HRUs
                 self.logger.info("Spatially averaging gridded forcing to HRUs")
                 precip, temp, pet = self._spatially_average_to_hrus(forcing_ds, catchment)
+
+                # Try to get units from original forcing dataset
+                precip_var_candidates = ['pr', 'precip', 'pptrate', 'prcp', 'precipitation']
+                precip_units = ''
+                for var in precip_var_candidates:
+                    if var in forcing_ds:
+                        precip_units = forcing_ds[var].attrs.get('units', '')
+                        break
+
+            # Convert precipitation from rate units to depth units if needed
+            precip = self._convert_flux_units(
+                precip,
+                precip_units,
+                timestep_config['time_label'],
+                "Distributed precipitation"
+            )
 
             # Convert temperature from K to C if needed
             if np.nanmean(temp) > 100:
                 temp = temp - 273.15
 
             # Handle temporal resolution based on timestep_hours config
+            pet_is_daily = False
+            if timestep_config['time_label'] == 'hourly' and pet.shape[0] >= 24:
+                if pet.ndim == 2:
+                    pet_is_daily = np.allclose(pet[::24, :], pet[1:24, :], equal_nan=True)
+                else:
+                    pet_is_daily = np.allclose(pet[::24], pet[1:24], equal_nan=True)
+
             if timestep_config['time_label'] == 'hourly' and self.timestep_hours == 24:
                 # Default behavior: resample hourly to daily for daily HBV
                 self.logger.info("Resampling hourly data to daily for HBV (HBV_TIMESTEP_HOURS=24)")
-                precip, temp, pet, time = self._resample_to_daily(precip, temp, pet, time)
+                precip, temp, pet, time = self._resample_to_daily(
+                    precip, temp, pet, time, pet_is_daily=pet_is_daily
+                )
             elif timestep_config['time_label'] == 'hourly' and self.timestep_hours < 24:
                 # Sub-daily mode: preserve hourly resolution
                 self.logger.info(f"Preserving hourly resolution for distributed HBV (HBV_TIMESTEP_HOURS={self.timestep_hours})")
                 # PET from Hamon is daily, distribute to hourly
-                if pet.ndim == 2 and np.allclose(pet[::24, :], pet[1:24, :], equal_nan=True):
+                if pet_is_daily:
                     self.logger.info("Distributing daily PET across hourly timesteps")
                     pet = pet / 24.0
 
@@ -519,12 +552,98 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                 return ds[var].values
         raise ValueError("Temperature variable not found in forcing dataset")
 
+    def _normalize_units(self, units: str) -> str:
+        """Normalize unit strings for robust comparisons."""
+        return units.strip().lower().replace(" ", "")
+
+    def _apply_flux_unit_heuristic(
+        self,
+        values: np.ndarray,
+        timestep_label: str,
+        context: str
+    ) -> np.ndarray:
+        """Apply magnitude-based unit heuristics (opt-in)."""
+        if np.nanmean(np.abs(values)) < UnitDetectionThresholds.FLUX_RATE_MM_S_VS_MM_DAY:
+            if timestep_label == 'hourly':
+                self.logger.warning(f"{context} values appear to be in mm/s; converting to mm/hour (×3600)")
+                return values * UnitConversion.SECONDS_PER_HOUR
+            self.logger.warning(f"{context} values appear to be in mm/s; converting to mm/day (×86400)")
+            return values * UnitConversion.SECONDS_PER_DAY
+        return values
+
+    def _convert_flux_units(
+        self,
+        values: np.ndarray,
+        units: str,
+        timestep_label: str,
+        context: str
+    ) -> np.ndarray:
+        """
+        Convert flux units to mm per timestep.
+
+        Supported units:
+        - mm/day, mm/d
+        - mm/hour, mm/hr
+        - mm/s
+        - kg m-2 s-1 (or similar mass flux)
+        """
+        units_raw = units or ""
+        units_norm = self._normalize_units(units_raw)
+
+        if not units_norm:
+            if self.allow_unit_heuristics:
+                return self._apply_flux_unit_heuristic(values, timestep_label, context)
+            raise ValueError(
+                f"{context} units missing. Provide explicit units in forcing data or set "
+                "HBV_ALLOW_UNIT_HEURISTICS=true to enable magnitude-based detection."
+            )
+
+        is_rate = (
+            "mm/s" in units_norm or
+            "mms-1" in units_norm or
+            ("kg" in units_norm and ("m-2" in units_norm or "m^-2" in units_norm or "m2" in units_norm)
+             and ("s-1" in units_norm or "/s" in units_norm))
+        )
+
+        if is_rate:
+            if timestep_label == 'hourly':
+                self.logger.info(f"Converted {context} from {units_raw} to mm/hour (×3600)")
+                return values * UnitConversion.SECONDS_PER_HOUR
+            self.logger.info(f"Converted {context} from {units_raw} to mm/day (×86400)")
+            return values * UnitConversion.SECONDS_PER_DAY
+
+        if "mm/day" in units_norm or "mm/d" in units_norm:
+            if timestep_label == 'hourly':
+                raise ValueError(
+                    f"{context} units are {units_raw} but forcing is hourly. "
+                    "Convert to mm/hour or supply correct units."
+                )
+            return values
+
+        if "mm/hour" in units_norm or "mm/hr" in units_norm or "mmh-1" in units_norm:
+            if timestep_label != 'hourly':
+                raise ValueError(
+                    f"{context} units are {units_raw} but forcing is daily. "
+                    "Convert to mm/day or supply correct units."
+                )
+            return values
+
+        if self.allow_unit_heuristics:
+            self.logger.warning(f"Unrecognized {context} units '{units_raw}'. Falling back to heuristic detection.")
+            return self._apply_flux_unit_heuristic(values, timestep_label, context)
+
+        raise ValueError(
+            f"Unrecognized {context} units '{units_raw}'. Provide explicit units or set "
+            "HBV_ALLOW_UNIT_HEURISTICS=true."
+        )
+
     def _get_pet(
         self,
         ds: xr.Dataset,
         temp: np.ndarray,
-        time: pd.DatetimeIndex
-    ) -> Optional[np.ndarray]:
+        time: pd.DatetimeIndex,
+        timestep_label: str
+    ) -> Optional[Tuple[np.ndarray, bool]]:
         """
         Get or calculate PET (Potential Evapotranspiration).
 
@@ -541,33 +660,33 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
             if var in ds:
                 self.logger.info(f"Using PET from forcing data (variable: {var})")
                 pet = ds[var].values
-                # Convert if needed (some datasets have mm/s or kg/m2/s)
-                if np.nanmean(np.abs(pet)) < UnitDetectionThresholds.FLUX_RATE_MM_S_VS_MM_DAY:
-                    pet = pet * UnitConversion.SECONDS_PER_DAY
-                return pet.flatten() if pet.ndim > 1 else pet
+                pet_units = ds[var].attrs.get('units', '')
+                pet = self._convert_flux_units(pet, pet_units, timestep_label, "PET")
+                pet_values = pet.flatten() if pet.ndim > 1 else pet
+                return pet_values, (timestep_label != 'hourly')
 
         # Calculate PET if not in forcing
         if self.pet_method == 'hamon':
-            return self._calculate_hamon_pet(temp.flatten(), time)
+            return self._calculate_hamon_pet(temp.flatten(), time), True
         elif self.pet_method == 'thornthwaite':
-            return self._calculate_thornthwaite_pet(temp.flatten(), time)
+            return self._calculate_thornthwaite_pet(temp.flatten(), time), True
         else:
             self.logger.warning("No PET found in forcing and pet_method='input'. Using Hamon method.")
-            return self._calculate_hamon_pet(temp.flatten(), time)
+            return self._calculate_hamon_pet(temp.flatten(), time), True
 
     def _get_pet_distributed(
         self,
         ds: xr.Dataset,
         temp: np.ndarray,
-        time: pd.DatetimeIndex
+        time: pd.DatetimeIndex,
+        timestep_label: str
     ) -> np.ndarray:
         """Get or calculate PET for distributed mode."""
         for var in ['pet', 'pET', 'potEvap', 'evap', 'evspsbl']:
             if var in ds:
                 pet = ds[var].values
-                if np.nanmean(np.abs(pet)) < UnitDetectionThresholds.FLUX_RATE_MM_S_VS_MM_DAY:
-                    pet = pet * UnitConversion.SECONDS_PER_DAY
-                return pet
+                pet_units = ds[var].attrs.get('units', '')
+                return self._convert_flux_units(pet, pet_units, timestep_label, "PET")
 
         # Calculate PET for each HRU using catchment-mean temperature
         mean_temp = np.nanmean(temp, axis=1)  # Average across HRUs for PET calc
@@ -786,9 +905,11 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
         precip: np.ndarray,
         temp: np.ndarray,
         pet: np.ndarray,
-        time: pd.DatetimeIndex
+        time: pd.DatetimeIndex,
+        pet_is_daily: bool = True
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, pd.DatetimeIndex]:
         """Resample hourly data to daily."""
+        pet_agg = 'mean' if pet_is_daily else 'sum'
         # Create DataFrames for resampling
         n_hrus = precip.shape[1] if precip.ndim > 1 else 1
 
@@ -802,7 +923,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
             df_daily = df.resample('D').agg({
                 'pr': 'sum',
                 'temp': 'mean',
-                'pet': 'mean'  # Hamon gives daily PET, not hourly increments
+                'pet': pet_agg
             })
 
             return (  # type: ignore[return-value]
@@ -827,7 +948,7 @@ class HBVPreProcessor(BaseModelPreProcessor, SpatialModeDetectionMixin):
                 df_daily = df.resample('D').agg({
                     'pr': 'sum',
                     'temp': 'mean',
-                    'pet': 'mean'  # Hamon gives daily PET, not hourly increments
+                    'pet': pet_agg
                 })
 
                 precip_daily.append(df_daily['pr'].values)

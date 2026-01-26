@@ -212,11 +212,11 @@ class CopDEM30Acquirer(BaseAcquisitionHandler, RetryMixin):
                         raise requests.exceptions.HTTPError(
                             f"HTTP {r.status_code} for {tile_name}"
                         )
-            except Exception:
+            except (requests.RequestException, OSError, IOError) as download_err:
                 # Clean up partial download before retry
                 if local_tile.exists():
                     local_tile.unlink()
-                raise
+                raise download_err
 
         # For 404s, don't retry - just return None
         try:

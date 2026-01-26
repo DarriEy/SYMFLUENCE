@@ -519,6 +519,10 @@ FLAT_TO_NESTED_MAP: Dict[str, Tuple[str, ...]] = {
     'WMFIRE_LOAD_K2': ('model', 'rhessys', 'wmfire', 'load_k2'),
     'WMFIRE_MOISTURE_K1': ('model', 'rhessys', 'wmfire', 'moisture_k1'),
     'WMFIRE_MOISTURE_K2': ('model', 'rhessys', 'wmfire', 'moisture_k2'),
+    'WMFIRE_IGN_DEF_MOD': ('model', 'rhessys', 'wmfire', 'ign_def_mod'),
+    'WMFIRE_MEAN_IGN': ('model', 'rhessys', 'wmfire', 'mean_ign'),
+    'WMFIRE_WINDMAX': ('model', 'rhessys', 'wmfire', 'windmax'),
+    'WMFIRE_SLOPE_K1': ('model', 'rhessys', 'wmfire', 'slope_k1'),
 
     'RHESSYS_USE_VMFIRE': ('model', 'rhessys', 'use_vmfire'),
     'VMFIRE_INSTALL_PATH': ('model', 'rhessys', 'vmfire_install_path'),

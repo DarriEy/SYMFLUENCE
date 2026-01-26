@@ -11,7 +11,6 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional
-from pydantic import ValidationError
 
 from symfluence.core.mixins import ConfigMixin
 
@@ -19,29 +18,8 @@ class ResultsManager(ConfigMixin):
     """Handles optimization results, history tracking, and visualization"""
 
     def __init__(self, config: Dict, logger: logging.Logger, output_dir: Path, reporting_manager: Optional[Any] = None):
-        # Import here to avoid circular imports
-
-        from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
-        if isinstance(config, dict):
-
-            try:
-
-                self._config = SymfluenceConfig(**config)
-
-            except (ValidationError, TypeError):
-
-                # Fallback for partial configs (e.g., in tests)
-
-                self._config = config
-
-        else:
-
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger
         self.output_dir = output_dir
         self.reporting_manager = reporting_manager

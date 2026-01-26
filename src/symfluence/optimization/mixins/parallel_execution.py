@@ -335,18 +335,8 @@ class ParallelExecutionMixin(ConfigMixin):
 
         >>> class MyOptimizer(ParallelExecutionMixin):
         ...     def __init__(self, config, logger, project_dir):
-        ...         # Import here to avoid circular imports
-         from symfluence.core.config.models import SymfluenceConfig
-
-         # Auto-convert dict to typed config for backward compatibility
-         if isinstance(config, dict):
-             try:
-                 self._config = SymfluenceConfig(**config)
-             except Exception:
-                 # Fallback for partial configs (e.g., in tests)
-                 self._config = config
-         else:
-             self._config = config
+        ...         from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         ...         self.logger = logger
         ...         self.project_dir = project_dir
         ...

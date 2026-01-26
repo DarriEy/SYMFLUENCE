@@ -6,7 +6,6 @@ Creates EASYMORE remapping weights for forcing data.
 
 import gc
 import logging
-import os
 import shutil
 import xarray as xr
 import geopandas as gpd
@@ -17,6 +16,7 @@ from typing import Optional, Tuple
 from .shapefile_processor import ShapefileProcessor
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.hdf5_safety import prepare_for_netcdf_operation, clear_xarray_cache
 
 
 def _create_easymore_instance():
@@ -36,53 +36,14 @@ def _create_easymore_instance():
     return instance
 
 
-def _ensure_thread_safety():
-    """
-    Ensure thread-safe environment for netCDF4/HDF5 operations.
-
-    This function must be called before any EASYMORE operations to prevent
-    segmentation faults caused by HDF5 library thread-safety issues.
-    """
-
-    # Ensure HDF5 file locking is disabled (critical for thread safety)
-    os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
-
-    # Disable tqdm monitor thread which can cause segfaults with netCDF4/HDF5
-    try:
-        import tqdm
-        tqdm.tqdm.monitor_interval = 0
-        if hasattr(tqdm.tqdm, 'monitor') and tqdm.tqdm.monitor is not None:
-            try:
-                tqdm.tqdm.monitor.exit()
-            except Exception:
-                pass
-            tqdm.tqdm.monitor = None
-    except ImportError:
-        pass
-
-    # Clear xarray's file manager cache to prevent stale file handles
-    try:
-        import xarray as xr
-        # Close any cached file handles that might cause issues
-        if hasattr(xr.backends, 'file_manager'):
-            fm = xr.backends.file_manager
-            if hasattr(fm, 'FILE_CACHE'):
-                fm.FILE_CACHE.clear()
-    except Exception:
-        pass
-
-    # Force garbage collection to release file handles
-    gc.collect()
-
-
 def _run_easmore_with_suppressed_output(esmr, logger):
     """Run EASMORE's nc_remapper while suppressing verbose output."""
     import warnings
     from io import StringIO
     from contextlib import redirect_stdout, redirect_stderr
 
-    # Ensure thread-safe environment before running easymore
-    _ensure_thread_safety()
+    # Aggressive cleanup before running easymore to prevent HDF5 conflicts
+    prepare_for_netcdf_operation()
 
     try:
         with warnings.catch_warnings():
@@ -120,7 +81,7 @@ def _run_easmore_with_suppressed_output(esmr, logger):
         raise
     finally:
         # Cleanup after easymore operation
-        gc.collect()
+        clear_xarray_cache()
 
 
 class RemappingWeightGenerator(ConfigMixin):
@@ -147,29 +108,9 @@ class RemappingWeightGenerator(ConfigMixin):
             dataset_handler: Dataset-specific handler
             logger: Optional logger instance
         """
-        # Import here to avoid circular imports
-
-        from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
-        if isinstance(config, dict):
-
-            try:
-
-                self._config = SymfluenceConfig(**config)
-
-            except Exception:
-
-                # Fallback for partial configs (e.g., in tests)
-
-                self._config = config
-
-        else:
-
-            self._config = config
+        # Use centralized config coercion (handles dict -> SymfluenceConfig with fallback)
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.project_dir = project_dir
         self.dataset_handler = dataset_handler
         self.logger = logger or logging.getLogger(__name__)

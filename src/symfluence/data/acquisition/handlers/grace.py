@@ -142,8 +142,8 @@ class GRACEAcquirer(BaseAcquisitionHandler):
         finally:
             try:
                 ds.close()
-            except Exception:
-                pass
+            except (OSError, AttributeError):
+                pass  # Dataset may already be closed or invalid
 
     def _subset_grace_dataset(self, ds: xr.Dataset) -> xr.Dataset:
         lat_name = self._get_coord_name(ds, ("lat", "latitude"))

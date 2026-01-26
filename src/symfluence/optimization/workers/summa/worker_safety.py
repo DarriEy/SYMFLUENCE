@@ -21,6 +21,7 @@ from typing import Dict
 import numpy as np
 
 from .worker_orchestration import _evaluate_parameters_worker
+from symfluence.core.hdf5_safety import get_worker_environment
 
 
 def _export_worker_profile_data():
@@ -77,14 +78,8 @@ def _evaluate_parameters_worker_safe(task_data: Dict, skip_profile_export: bool 
     process_id = os.getpid()
 
     # Force single-threaded execution and disable problematic file locking
-    os.environ.update({
-        'OMP_NUM_THREADS': '1',
-        'MKL_NUM_THREADS': '1',
-        'OPENBLAS_NUM_THREADS': '1',
-        'NETCDF_DISABLE_LOCKING': '1',
-        'HDF5_USE_FILE_LOCKING': 'FALSE',
-        'HDF5_DISABLE_VERSION_CHECK': '1',
-    })
+    # Uses centralized environment configuration from hdf5_safety module
+    os.environ.update(get_worker_environment())
 
     # Add small random delay to stagger file system access
     initial_delay = random.uniform(0.1, 0.8)

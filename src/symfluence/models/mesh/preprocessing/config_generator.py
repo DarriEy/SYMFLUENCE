@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from symfluence.core.config.models import SymfluenceConfig
+from symfluence.core.config.coercion import coerce_config
 from symfluence.core.mixins import ConfigMixin
 
 
@@ -47,13 +47,7 @@ class MESHConfigGenerator(ConfigMixin):
         """
         self.forcing_dir = forcing_dir
         self.project_dir = project_dir
-        if isinstance(config, dict):
-            try:
-                self._config = SymfluenceConfig(**config)
-            except (TypeError, ValueError, KeyError, AttributeError):
-                self._config = config
-        else:
-            self._config = config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger or logging.getLogger(__name__)
         self.get_simulation_time_window = time_window_func
         self.domain_name = config.get('DOMAIN_NAME', 'domain')

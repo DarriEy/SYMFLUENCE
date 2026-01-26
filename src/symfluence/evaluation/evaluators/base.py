@@ -85,6 +85,19 @@ class ModelEvaluator(ConfigurableMixin, ABC):
         if self.eval_timestep != 'native':
             self.logger.debug(f"Evaluation will use {self.eval_timestep} timestep")
 
+    @property
+    def variable_type(self) -> str:
+        """Return the variable type for resampling behavior.
+
+        Override in subclasses for flux variables (precipitation, ET) that
+        should use sum aggregation instead of mean.
+
+        Returns:
+            'state' (default) for state variables - use mean aggregation
+            'flux' for flux/accumulation variables - use sum aggregation
+        """
+        return 'state'
+
     def evaluate(self, sim: Any, obs: Optional[pd.Series] = None,
                  mizuroute_dir: Optional[Path] = None,
                  calibration_only: bool = True) -> Optional[Dict[str, float]]:
@@ -362,6 +375,19 @@ class ModelEvaluator(ConfigurableMixin, ABC):
                 sim_period_mask = (sim_data_rounded.index >= period[0]) & (sim_data_rounded.index <= period[1])
                 sim_period = sim_data_rounded[sim_period_mask].copy()
 
+                # Apply spinup removal if configured
+                spinup_years = self.config_dict.get('EVALUATION_SPINUP_YEARS', 0)
+                try:
+                    spinup_years = int(float(spinup_years))
+                except (TypeError, ValueError):
+                    spinup_years = 0
+
+                if spinup_years > 0 and not obs_period.empty:
+                    cutoff = obs_period.index.min() + pd.DateOffset(years=spinup_years)
+                    obs_period = obs_period[obs_period.index >= cutoff]
+                    sim_period = sim_period[sim_period.index >= cutoff]
+                    self.logger.debug(f"Applied {spinup_years} year spinup removal, cutoff: {cutoff}")
+
                 # Log filtering results for debugging
                 self.logger.debug(f"{prefix} period filtering: {period[0]} to {period[1]}")
                 self.logger.debug(f"{prefix} observed points in period: {len(obs_period)}")
@@ -435,7 +461,13 @@ class ModelEvaluator(ConfigurableMixin, ABC):
 
     def _resample_to_timestep(self, data: pd.Series, target_timestep: str) -> pd.Series:
         """
-        Resample time series data to target timestep
+        Resample time series data to target timestep.
+
+        Aggregation (fine → coarse) uses mean for state variables (temperature,
+        storage) and sum for flux variables (precipitation, ET).
+
+        Upsampling (coarse → fine) is rejected as it creates synthetic data
+        through interpolation, which is inappropriate for observations.
 
         Args:
             data: Time series data with DatetimeIndex
@@ -443,6 +475,9 @@ class ModelEvaluator(ConfigurableMixin, ABC):
 
         Returns:
             Resampled time series
+
+        Raises:
+            ValueError: If upsampling is attempted (coarse to fine resolution)
         """
         if target_timestep == 'native' or data is None or len(data) == 0:
             return data
@@ -472,32 +507,36 @@ class ModelEvaluator(ConfigurableMixin, ABC):
                 self.logger.debug("Data already at daily timestep")
                 return data
 
+            # Determine aggregation function based on variable type
+            agg_func = 'sum' if self.variable_type == 'flux' else 'mean'
+
             # Perform resampling
             if target_timestep == 'hourly':
                 if time_diff < pd.Timedelta(hours=1):
-                    # Upsampling: sub-hourly to hourly (mean aggregation)
-                    self.logger.debug(f"Aggregating {time_diff} data to hourly using mean")
-                    resampled = data.resample('h').mean()
+                    # Aggregation: sub-hourly to hourly
+                    self.logger.debug(f"Aggregating {time_diff} data to hourly using {agg_func}")
+                    resampled = pd.Series(data.resample('h').agg(agg_func))
                 elif time_diff > pd.Timedelta(hours=1):
-                    # Downsampling: daily/coarser to hourly (interpolation)
-                    self.logger.debug(f"Interpolating {time_diff} data to hourly")
-                    # First resample to hourly (creates NaNs)
-                    resampled = data.resample('h').asfreq()
-                    # Then interpolate
-                    resampled = resampled.interpolate(method='time', limit_direction='both')
+                    # Upsampling: daily/coarser to hourly - REJECT
+                    raise ValueError(
+                        f"Cannot upsample {time_diff} data to hourly: "
+                        f"interpolation creates synthetic observations. "
+                        f"Use native timestep or aggregated (coarser) timestep instead."
+                    )
                 else:
                     resampled = data
 
             elif target_timestep == 'daily':
                 if time_diff < pd.Timedelta(days=1):
-                    # Upsampling: hourly/sub-daily to daily (mean aggregation)
-                    self.logger.debug(f"Aggregating {time_diff} data to daily using mean")
-                    resampled = data.resample('D').mean()
+                    # Aggregation: hourly/sub-daily to daily
+                    self.logger.debug(f"Aggregating {time_diff} data to daily using {agg_func}")
+                    resampled = pd.Series(data.resample('D').agg(agg_func))
                 elif time_diff > pd.Timedelta(days=1):
-                    # Downsampling: weekly/monthly to daily (interpolation)
-                    self.logger.debug(f"Interpolating {time_diff} data to daily")
-                    resampled = data.resample('D').asfreq()
-                    resampled = resampled.interpolate(method='time', limit_direction='both')
+                    # Upsampling: weekly/monthly to daily - REJECT
+                    raise ValueError(
+                        f"Cannot upsample {time_diff} data to daily: "
+                        f"interpolation creates synthetic observations."
+                    )
                 else:
                     resampled = data
             else:
@@ -508,11 +547,14 @@ class ModelEvaluator(ConfigurableMixin, ABC):
 
             self.logger.debug(
                 f"Resampled from {len(data)} to {len(resampled)} points "
-                f"(target: {target_timestep})"
+                f"(target: {target_timestep}, agg: {agg_func})"
             )
 
             return resampled
 
+        except ValueError:
+            # Re-raise ValueError for upsampling rejection
+            raise
         except Exception as e:
             self.logger.error(f"Error resampling to {target_timestep}: {str(e)}")
             self.logger.warning("Returning original data without resampling")

@@ -14,6 +14,7 @@ from typing import Any, Callable, Optional
 from functools import wraps
 
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.exceptions import RetryExhaustedError
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +151,7 @@ class RetryExecutionMixin(ConfigMixin):
 
         if last_exception is not None:
             raise last_exception
-        raise Exception(f"Function {func.__name__} failed for unknown reasons")
+        raise RetryExhaustedError(f"Function {func.__name__} failed: retry loop completed without success or captured error")
 
     def _calculate_delay(self, attempt: int) -> float:
         """
@@ -325,7 +326,7 @@ def retry_on_io_error(
 
     if last_exception is not None:
         raise last_exception
-    raise Exception(f"Function {func.__name__} failed for unknown reasons")
+    raise RetryExhaustedError(f"Function {func.__name__} failed: retry loop completed without success or captured error")
 
 
 def with_staggered_start(func: Callable, max_delay: float = 0.5) -> Callable:

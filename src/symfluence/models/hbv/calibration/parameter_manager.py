@@ -42,12 +42,16 @@ class HBVParameterManager(BaseParameterManager):
         self.experiment_id = config.get('EXPERIMENT_ID')
 
         # Parse HBV parameters to calibrate from config
-        hbv_params_str = config.get('HBV_PARAMS_TO_CALIBRATE')
-        # Handle None, empty string, or 'default' as signal to use default parameter list
-        if hbv_params_str is None or hbv_params_str == '' or hbv_params_str == 'default':
-            hbv_params_str = 'tt,cfmax,fc,lp,beta,k0,k1,k2,uzl,perc,maxbas'
+        hbv_params_str = config.get('HBV_PARAMS_TO_CALIBRATE') or config.get('PARAMS_TO_CALIBRATE')
 
-        self.hbv_params = [p.strip() for p in str(hbv_params_str).split(',') if p.strip()]
+        # Handle None, empty string, or 'default' as signal to use ALL available parameters
+        if hbv_params_str is None or hbv_params_str == '' or hbv_params_str == 'default':
+            # Use all available HBV parameters (excluding smoothing which is a numerical parameter)
+            self.hbv_params = [p for p in PARAM_BOUNDS.keys() if p != 'smoothing']
+            logger.debug(f"Using all available HBV parameters for calibration: {self.hbv_params}")
+        else:
+            self.hbv_params = [p.strip() for p in str(hbv_params_str).split(',') if p.strip()]
+            logger.debug(f"Using user-specified HBV parameters for calibration: {self.hbv_params}")
 
         # Store internal references
         self.all_bounds = PARAM_BOUNDS.copy()
@@ -268,17 +272,14 @@ def get_hbv_calibration_bounds(
 
     Args:
         params_to_calibrate: List of parameters to include.
-                           If None, uses common calibration set.
+                           If None, uses ALL available parameters.
 
     Returns:
         Dict mapping param_name -> {'min': float, 'max': float}
     """
     if params_to_calibrate is None:
-        # Common calibration parameters (excluding rarely-calibrated ones)
-        params_to_calibrate = [
-            'tt', 'cfmax', 'fc', 'lp', 'beta',
-            'k0', 'k1', 'k2', 'uzl', 'perc', 'maxbas'
-        ]
+        # Use ALL available parameters (excluding smoothing which is numerical)
+        params_to_calibrate = [p for p in PARAM_BOUNDS.keys() if p != 'smoothing']
 
     # Return bounds directly from PARAM_BOUNDS
     return {

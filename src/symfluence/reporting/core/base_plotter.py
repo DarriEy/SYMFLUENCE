@@ -12,6 +12,7 @@ import logging
 
 from symfluence.reporting.config.plot_config import PlotConfig, DEFAULT_PLOT_CONFIG
 from symfluence.core.mixins import ConfigMixin
+from symfluence.core.constants import ConfigKeys
 
 
 class BasePlotter(ConfigMixin, ABC):
@@ -42,22 +43,8 @@ class BasePlotter(ConfigMixin, ABC):
             logger: Logger instance for messaging
             plot_config: Optional PlotConfig instance (uses default if not provided)
         """
-        # Import here to avoid circular imports
-
-        from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
-        if isinstance(config, dict):
-            try:
-                self._config = SymfluenceConfig(**config)
-            except (TypeError, ValueError):
-                # Fallback for partial configs (e.g., in tests)
-                self._config = config
-        else:
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger
         self.plot_config = plot_config or DEFAULT_PLOT_CONFIG
 
@@ -66,7 +53,7 @@ class BasePlotter(ConfigMixin, ABC):
         self._mdates = None
 
         # Base project directory
-        self.project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')) / f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}"
+        self.project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key=ConfigKeys.SYMFLUENCE_DATA_DIR)) / f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key=ConfigKeys.DOMAIN_NAME)}"
 
     def _setup_matplotlib(self) -> Tuple[Any, Any]:
         """

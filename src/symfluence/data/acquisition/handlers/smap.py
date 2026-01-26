@@ -314,8 +314,8 @@ class SMAPAcquirer(BaseAcquisitionHandler):
                 if time_units:
                     try:
                         time_val = nc.num2date(time_val, time_units, calendar=time_calendar)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self.logger.debug(f"Could not convert time value {time_val} with units '{time_units}': {e}")
                 for sm_name, data in data_vars.items():
                     data_vars[sm_name] = np.expand_dims(data, axis=0)
                 out_dims = ["time"] + out_dims

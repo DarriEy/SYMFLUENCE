@@ -234,11 +234,27 @@ class RHESSysClimateGenerator:
                 # precipitation rates are almost always in mm/s or kg/m2/s in NetCDF.
                 # True m/s would be 1000x larger than typical rain.
                 if 'kg' in units or 'mm' in units or 'm s-1' in units or 'm/s' in units:
+                    self.logger.info(
+                        f"Interpreting '{units}' as mm/s (treating 'm s-1' as 'mm s-1' per convention)"
+                    )
                     # Convert mm/s to m/hour (3600 s/hr / 1000 mm/m)
                     precip = precip * 3.6
                 else:
                     # Assume other rates are also mm/s for safety
                     precip = precip * 3.6
+
+                # Sanity check: verify precipitation magnitude after conversion
+                mean_precip = float(np.nanmean(precip))
+                if mean_precip > 0.01:  # 0.01 m/hour = 10 mm/hour is extremely high as a mean
+                    self.logger.warning(
+                        f"Precipitation mean ({mean_precip:.6f} m/hour) seems high. "
+                        f"Original units were '{units}'. Verify unit interpretation."
+                    )
+                if mean_precip > 0.1:  # 0.1 m/hour = 100 mm/hour is physically impossible as mean
+                    raise ValueError(
+                        f"Precipitation rate {mean_precip:.4f} m/hour is physically impossible. "
+                        f"Check if units '{units}' should be interpreted differently."
+                    )
             # If it's already a depth per timestep (e.g. ERA5 'm')
             elif 'm' in units:
                 if 'mm' in units:

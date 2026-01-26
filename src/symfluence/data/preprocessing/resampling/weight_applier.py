@@ -45,29 +45,9 @@ class RemappingWeightApplier(ConfigMixin):
             dataset_handler: Dataset-specific handler
             logger: Optional logger instance
         """
-        # Import here to avoid circular imports
-
-        from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
-        if isinstance(config, dict):
-
-            try:
-
-                self._config = SymfluenceConfig(**config)
-
-            except Exception:
-
-                # Fallback for partial configs (e.g., in tests)
-
-                self._config = config
-
-        else:
-
-            self._config = config
+        # Use centralized config coercion (handles dict -> SymfluenceConfig with fallback)
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.project_dir = project_dir
         self.output_dir = output_dir
         self.dataset_handler = dataset_handler

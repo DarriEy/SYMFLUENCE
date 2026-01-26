@@ -111,7 +111,7 @@ GNN vs LSTM
      - Slightly better (graph structure)
 
 Network Architecture
--------------------
+--------------------
 
 SYMFLUENCE GNN configuration:
 
@@ -138,7 +138,7 @@ Configuration in SYMFLUENCE
 ===========================
 
 Model Selection
---------------
+---------------
 
 .. code-block:: yaml
 
@@ -148,7 +148,7 @@ Key Configuration Parameters
 ----------------------------
 
 Network Architecture
-^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -171,7 +171,7 @@ Network Architecture
      - L2 weight decay
 
 Training Configuration
-^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -194,7 +194,7 @@ Training Configuration
      - Early stopping patience
 
 Model Options
-^^^^^^^^^^^^
+^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
@@ -217,7 +217,7 @@ Input Data Requirements
 =======================
 
 Network Structure
-----------------
+-----------------
 
 **River network topology file:**
 
@@ -264,7 +264,7 @@ Network Structure
    basin_003,0,0,0
 
 Training Data
-------------
+-------------
 
 **Forcing data (per basin):**
 
@@ -291,7 +291,7 @@ Training Data
 **Note:** Not all basins need observations (GNN can predict for ungauged basins within network)
 
 Static Attributes
-----------------
+-----------------
 
 **File:** ``basin_attributes.csv``
 
@@ -304,10 +304,10 @@ Static Attributes
    ...
 
 Output Specifications
-====================
+=====================
 
 During Training
---------------
+---------------
 
 **Training logs:**
 
@@ -324,7 +324,7 @@ During Training
 **File:** ``<project_dir>/models/GNN/best_model.pt``
 
 After Training
--------------
+--------------
 
 **Network-wide predictions:**
 
@@ -353,7 +353,7 @@ Model-Specific Workflows
 ========================
 
 Basic GNN Workflow
------------------
+------------------
 
 River network with multiple gauged basins:
 
@@ -477,7 +477,7 @@ Hyperparameter Tuning
 =====================
 
 Key Hyperparameters
-------------------
+-------------------
 
 **1. Hidden Size**
 
@@ -521,7 +521,7 @@ Key Hyperparameters
 - Higher for faster convergence
 
 Automated Tuning
----------------
+----------------
 
 .. code-block:: yaml
 
@@ -538,7 +538,7 @@ Automated Tuning
    OPTIMIZATION_MAX_ITERATIONS: 15
 
 Known Limitations
-================
+=================
 
 1. **Network Data Required:**
 
@@ -577,7 +577,7 @@ Known Limitations
    - Need accurate DEM and flow routing
 
 Troubleshooting
-==============
+===============
 
 Common Issues
 -------------
@@ -659,7 +659,7 @@ Check network topology:
 4. Check network topology for cycles or disconnected components
 
 Performance Tips
-===============
+================
 
 Improving Accuracy
 ------------------
@@ -671,7 +671,7 @@ Improving Accuracy
 5. **Multi-task learning:** Predict flow + other variables (e.g., snow)
 
 Speeding Up Training
--------------------
+--------------------
 
 1. **Use GPU** (10-100x faster)
 2. **Smaller networks** (reduce hidden size, layers)
@@ -680,7 +680,7 @@ Speeding Up Training
 5. **Larger batches** (if memory allows)
 
 Deployment
----------
+----------
 
 After training, GNN is fast for inference:
 
@@ -714,7 +714,7 @@ Comparing with Other Models
    # SUMMA at physical processes
 
 Additional Resources
-===================
+====================
 
 **Graph Neural Networks for Hydrology:**
 

@@ -123,7 +123,7 @@ class NotebookService(BaseService):
             for i, p in enumerate(matches[:10], 1):
                 try:
                     self._console.indent(f"[{i}] {p.relative_to(repo_root)}")
-                except Exception:
+                except ValueError:
                     self._console.indent(f"[{i}] {p}")
 
         try:
@@ -161,13 +161,13 @@ class NotebookService(BaseService):
         try:
             subprocess.run([str(python_exe), "-m", tool, str(nb_path)])
             return 0
-        except Exception:
+        except (OSError, subprocess.SubprocessError):
             try:
                 subprocess.run(
                     [str(python_exe), "-m", "jupyter", "notebook", str(nb_path)]
                 )
                 return 0
-            except Exception as e:
+            except (OSError, subprocess.SubprocessError) as e:
                 self._console.error(f"Could not launch Jupyter: {e}")
                 return 3
 

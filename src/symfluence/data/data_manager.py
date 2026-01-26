@@ -65,6 +65,36 @@ class DataManager(BaseManager):
         """
         self.acquisition_service.acquire_attributes()
 
+        # Generate attribute acquisition diagnostics
+        if self.reporting_manager:
+            try:
+                domain_name = self._get_config_value(
+                    lambda: self.config.domain.name,
+                    'domain'
+                )
+                dem_path = self.project_dir / 'attributes' / 'elevation' / 'dem' / f"{domain_name}_elv.tif"
+                soil_path = self.project_dir / 'attributes' / 'soilclass' / f"{domain_name}_soilclass.tif"
+                land_path = self.project_dir / 'attributes' / 'landclass' / f"{domain_name}_landclass.tif"
+
+                # Try alternative paths if standard ones don't exist
+                if not dem_path.exists():
+                    dem_files = list((self.project_dir / 'attributes' / 'elevation').rglob("*.tif"))
+                    dem_path = dem_files[0] if dem_files else None
+                if not soil_path.exists():
+                    soil_files = list((self.project_dir / 'attributes' / 'soilclass').rglob("*.tif"))
+                    soil_path = soil_files[0] if soil_files else None
+                if not land_path.exists():
+                    land_files = list((self.project_dir / 'attributes' / 'landclass').rglob("*.tif"))
+                    land_path = land_files[0] if land_files else None
+
+                self.reporting_manager.diagnostic_attributes(
+                    dem_path=dem_path,
+                    soil_path=soil_path,
+                    land_path=land_path
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not generate attribute diagnostics: {e}")
+
     def acquire_forcings(self):
         """
         Acquire meteorological forcing data for the simulation period.
@@ -74,6 +104,26 @@ class DataManager(BaseManager):
         specified temporal domain.
         """
         self.acquisition_service.acquire_forcings()
+
+        # Generate raw forcing diagnostics
+        if self.reporting_manager:
+            try:
+                # Check for merged or raw forcing files
+                merged_dir = self.project_dir / 'forcing' / 'merged_data'
+                raw_dir = self.project_dir / 'forcing' / 'raw_data'
+                forcing_dir = merged_dir if merged_dir.exists() else raw_dir
+
+                if forcing_dir.exists():
+                    forcing_files = list(forcing_dir.glob("*.nc"))
+                    if forcing_files:
+                        domain_shp = self.project_dir / 'shapefiles' / 'river_basins'
+                        domain_files = list(domain_shp.glob("*.shp")) if domain_shp.exists() else []
+                        self.reporting_manager.diagnostic_forcing_raw(
+                            forcing_nc=forcing_files[0],
+                            domain_shp=domain_files[0] if domain_files else None
+                        )
+            except Exception as e:
+                self.logger.debug(f"Could not generate raw forcing diagnostics: {e}")
 
     def acquire_observations(self):
         """
@@ -222,6 +272,21 @@ class DataManager(BaseManager):
                 except Exception as e:
                     self.logger.warning(f"Failed to process additional observation {obs_type}: {e}")
 
+            # Generate diagnostic plots for streamflow observations
+            if self.reporting_manager:
+                try:
+                    obs_dir = self.project_dir / "observations" / "streamflow" / "preprocessed"
+                    if obs_dir.exists():
+                        obs_files = list(obs_dir.glob("*.csv"))
+                        if obs_files:
+                            obs_df = pd.read_csv(obs_files[0], parse_dates=True)
+                            self.reporting_manager.diagnostic_observations(
+                                obs_df=obs_df,
+                                obs_type='streamflow'
+                            )
+                except Exception as e:
+                    self.logger.debug(f"Could not generate observation diagnostics: {e}")
+
             self.logger.info("Observed data processing completed successfully")
 
     def run_model_agnostic_preprocessing(self):
@@ -268,6 +333,23 @@ class DataManager(BaseManager):
                     self._visualize_forcing_comparison(basin_averaged_data)
                 except Exception as e:
                     self.logger.warning(f"Failed to visualize forcing comparison: {e}")
+
+                # Generate forcing remapping diagnostics
+                try:
+                    raw_forcing_dir = self.project_dir / 'forcing' / 'merged_data'
+                    if not raw_forcing_dir.exists():
+                        raw_forcing_dir = self.project_dir / 'forcing' / 'raw_data'
+                    raw_files = list(raw_forcing_dir.glob("*.nc")) if raw_forcing_dir.exists() else []
+                    basin_files = list(basin_averaged_data.glob("*.nc"))
+                    if raw_files and basin_files:
+                        hru_shp = self._find_hru_shapefile()
+                        self.reporting_manager.diagnostic_forcing_remapped(
+                            raw_nc=raw_files[0],
+                            remapped_nc=basin_files[0],
+                            hru_shp=hru_shp
+                        )
+                except Exception as e:
+                    self.logger.debug(f"Could not generate forcing remapping diagnostics: {e}")
 
             # Integrate EM-Earth data if supplementation is enabled
             supplement_forcing = self._get_config_value(

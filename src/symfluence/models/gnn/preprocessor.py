@@ -171,7 +171,8 @@ class GNNPreProcessor(LSTMPreProcessor):
         forcing_df: pd.DataFrame,
         streamflow_df: pd.DataFrame,
         snow_df: Optional[pd.DataFrame] = None,
-        fit_scalers: bool = True
+        fit_scalers: bool = True,
+        train_end_idx: Optional[int] = None
     ) -> Tuple[torch.Tensor, torch.Tensor, pd.DatetimeIndex, pd.DataFrame, List[int]]:
         """
         Preprocess data and align it with the graph nodes.
@@ -186,6 +187,10 @@ class GNNPreProcessor(LSTMPreProcessor):
             streamflow_df: DataFrame with 'streamflow' column indexed by time.
             snow_df: Optional DataFrame with SWE observations indexed by time.
             fit_scalers: If True, fit scalers to data; if False, use existing scalers.
+            train_end_idx: If provided and fit_scalers=True, scalers are fitted
+                only on data up to this index to prevent data leakage from
+                validation/test data. This should be the number of unique
+                timesteps in the training set.
 
         Returns:
             Tuple containing:
@@ -246,9 +251,17 @@ class GNNPreProcessor(LSTMPreProcessor):
         # Now features_to_scale
         features_to_scale = forcing_df[feature_columns]
 
-        # Scale
+        # Scale features
         if fit_scalers:
-            scaled_features = self.feature_scaler.fit_transform(features_to_scale)
+            if train_end_idx is not None:
+                # Fit scaler only on training data to prevent data leakage
+                # For GNN, features_to_scale is (n_timesteps * n_nodes, n_features)
+                n_nodes = len(self.ordered_hru_ids)
+                train_samples = train_end_idx * n_nodes
+                self.feature_scaler.fit(features_to_scale[:train_samples])
+            else:
+                self.feature_scaler.fit(features_to_scale)
+            scaled_features = self.feature_scaler.transform(features_to_scale)
         else:
             scaled_features = self.feature_scaler.transform(features_to_scale)
 
@@ -296,7 +309,11 @@ class GNNPreProcessor(LSTMPreProcessor):
         # streamflow_df is (Time, 1) or Series
         q_vals = streamflow_df['streamflow'].values
         if fit_scalers:
-            self.target_scaler.fit(q_vals.reshape(-1, 1))
+            if train_end_idx is not None:
+                # Fit scaler only on training data to prevent data leakage
+                self.target_scaler.fit(q_vals[:train_end_idx].reshape(-1, 1))
+            else:
+                self.target_scaler.fit(q_vals.reshape(-1, 1))
 
         q_scaled = self.target_scaler.transform(q_vals.reshape(-1, 1)).flatten()
 

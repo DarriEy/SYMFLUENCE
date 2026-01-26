@@ -232,11 +232,24 @@ class HYPEForcingProcessor(BaseForcingProcessor):
             if unit_conversion:
                 unit_lower = unit_conversion.lower()
 
-                # Precipitation: convert from rate (per second) to amount (per hour)
+                # Precipitation: convert from rate (per second) to amount per timestep
                 if unit_lower in ['mm/s', 'mm s-1', 'kg/m²/s', 'kg m-2 s-1', 'kg/m2/s']:
-                    # Multiply by 3600 seconds/hour to convert rate to hourly amount
-                    self.logger.info(f"Converting {variable_in} from {unit_conversion} to mm/hour (multiplying by 3600)")
-                    ds[variable_in] = ds[variable_in] * 3600.0
+                    # Detect actual timestep from data instead of assuming hourly
+                    time_diff = ds[var_time].diff(dim=var_time)
+                    # Convert to seconds (time_diff is in nanoseconds for datetime64)
+                    median_step_ns = float(time_diff.median())
+                    if np.isnan(median_step_ns) or median_step_ns <= 0:
+                        median_step_seconds = 3600.0  # Default to hourly if detection fails
+                        self.logger.warning("Could not detect timestep, assuming hourly (3600s)")
+                    else:
+                        median_step_seconds = median_step_ns * 1e-9  # Convert ns to seconds
+
+                    # Multiply by timestep seconds to convert rate to amount per timestep
+                    self.logger.info(
+                        f"Converting {variable_in} from {unit_conversion} to mm/timestep "
+                        f"(multiplying by {median_step_seconds:.0f}s)"
+                    )
+                    ds[variable_in] = ds[variable_in] * median_step_seconds
 
                 # Temperature: convert from Kelvin to Celsius
                 elif unit_lower in ['k', 'kelvin']:

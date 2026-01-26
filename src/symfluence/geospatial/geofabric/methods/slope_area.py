@@ -34,29 +34,8 @@ class SlopeAreaMethod(ConfigMixin):
             interim_dir: Directory for interim TauDEM files
         """
         self.taudem = taudem_executor
-        # Import here to avoid circular imports
-
-        from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
-        if isinstance(config, dict):
-
-            try:
-
-                self._config = SymfluenceConfig(**config)
-
-            except Exception:
-
-                # Fallback for partial configs (e.g., in tests)
-
-                self._config = config
-
-        else:
-
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger
         self.interim_dir = interim_dir
         self.taudem_dir = taudem_executor.taudem_dir

@@ -10,12 +10,137 @@ import traceback
 from pathlib import Path
 from typing import Dict, Any
 
+
+def _patch_meshflow_network_bug():
+    """
+    Patch a bug in meshflow's network.py extract_rank_next function.
+
+    The bug is in meshflow/utility/network.py at line ~129 where:
+        next_var[k] = r
+    should be:
+        next_var[k] = r[0]
+
+    The issue is that np.where() returns an array, even with a single match,
+    so assigning it directly to a scalar array element causes:
+        ValueError: setting an array element with a sequence.
+
+    This patch monkey-patches the extract_rank_next function with a corrected
+    version that properly extracts the scalar value from the np.where result.
+
+    This fix should be removed once meshflow releases a corrected version.
+    See: https://github.com/CH-Earth/meshflow (issue to be filed)
+    """
+    try:
+        import numpy as np
+        from meshflow.utility import network as meshflow_network
+
+        def _patched_extract_rank_next(seg, ds_seg, outlet_value=-9999):
+            """
+            Patched version of extract_rank_next that fixes the array assignment bug.
+
+            This is a corrected copy of meshflow.utility.network.extract_rank_next.
+            """
+            from meshflow.utility.network import _adjust_ids
+
+            # extracting numpy array out of input iterables
+            seg_arr = np.array(seg)
+            ds_seg_arr = np.array(ds_seg)
+
+            # re-order ids to match MESH's requirements
+            seg_id, to_segment = _adjust_ids(seg_arr, ds_seg_arr)
+
+            # Count the number of outlets
+            outlets = np.where(to_segment == outlet_value)[0]
+
+            # Search over to extract the subbasins drain into each outlet
+            rank_var_id_domain = np.array([]).astype(int)
+            outlet_number = np.array([]).astype(int)
+
+            for k in range(len(outlets)):
+                # initial step
+                seg_id_target = seg_id[outlets[k]]
+                # set the rank_var of the outlet
+                rank_var_id = outlets[k]
+
+                # find upstream seg_ids draining into the chosen outlet
+                while (np.size(seg_id_target) >= 1):
+                    if (np.size(seg_id_target) == 1):
+                        r = np.where(to_segment == seg_id_target)[0]
+                    else:
+                        r = np.where(to_segment == seg_id_target[0])[0]
+                    # updated the target seg_id
+                    seg_id_target = np.append(seg_id_target, seg_id[r])
+                    # remove the first searched target
+                    seg_id_target = np.delete(seg_id_target, 0, 0)
+                    if (len(seg_id_target) == 0):
+                        break
+                    # update the rank_var_id
+                    rank_var_id = np.append(rank_var_id, r)
+                rank_var_id = np.flip(rank_var_id)
+                if (np.size(rank_var_id) > 1):
+                    outlet_number = np.append(
+                        outlet_number,
+                        (k) * np.ones((len(rank_var_id), 1)).astype(int)
+                    )
+                else:
+                    outlet_number = np.append(outlet_number, (k))
+                rank_var_id_domain = np.append(rank_var_id_domain, rank_var_id)
+                rank_var_id = []
+
+            # reorder seg_id and to_segment
+            seg_id = seg_id[rank_var_id_domain]
+            to_segment = to_segment[rank_var_id_domain]
+
+            # rearrange outlets to be consistent with MESH outlet structure
+            na = len(rank_var_id_domain)
+            fid1 = np.where(to_segment != outlet_value)[0]
+            fid2 = np.where(to_segment == outlet_value)[0]
+            fid = np.append(fid1, fid2)
+
+            rank_var_id_domain = rank_var_id_domain[fid]
+            seg_id = seg_id[fid]
+            to_segment = to_segment[fid]
+            outlet_number = outlet_number[fid]
+
+            # construct rank_var and next_var variables
+            next_var = np.zeros(na).astype(np.int32)
+
+            for k in range(na):
+                if (to_segment[k] != outlet_value):
+                    r = np.where(to_segment[k] == seg_id)[0] + 1
+                    # BUG FIX: Extract scalar from array (original bug: next_var[k] = r)
+                    next_var[k] = r[0] if len(r) > 0 else 0
+                else:
+                    next_var[k] = 0
+
+            # Construct rank_var from 1:na
+            rank_var = np.arange(1, na + 1).astype(np.int32)
+
+            return rank_var, next_var, seg_id, to_segment
+
+        # Apply the patch
+        meshflow_network.extract_rank_next = _patched_extract_rank_next
+
+        # Log that patch was applied
+        logger = logging.getLogger(__name__)
+        logger.debug("Applied runtime patch for meshflow network.py extract_rank_next bug")
+
+    except Exception as e:
+        # If patching fails, log warning but don't prevent import
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to apply meshflow network.py patch: {e}")
+
+
+# Import meshflow and apply patch
 try:
     from meshflow.core import MESHWorkflow
     MESHFLOW_AVAILABLE = True
-except ImportError:
+    # Apply runtime patch for meshflow bug
+    _patch_meshflow_network_bug()
+except Exception as e:
     MESHFLOW_AVAILABLE = False
     MESHWorkflow = None
+    logging.getLogger(__name__).warning(f"meshflow import failed; MESH preprocessing disabled: {e}")
 
 
 class MESHFlowManager:
