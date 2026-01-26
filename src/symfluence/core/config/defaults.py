@@ -33,7 +33,7 @@ class ConfigDefaults:
 
     # === Data Access ===
     DATA_ACCESS = 'MAF'  # Options: 'MAF', 'cloud'
-    DEM_SOURCE = 'merit_hydro'  # Options: 'copernicus', 'fabdem', 'nasadem', 'merit_hydro'
+    DEM_SOURCE = 'copernicus'  # Options: 'copernicus', 'nasadem', 'merit_hydro' (fabdem is paywalled)
     LAND_CLASS_NAME = 'default'
 
     # === Forcing Data ===
