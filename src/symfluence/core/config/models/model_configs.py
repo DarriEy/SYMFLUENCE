@@ -101,6 +101,17 @@ class GRConfig(BaseModel):
         default='X1,X2,X3,X4,CTG,Kf,Gratio,Albedo_diff',
         alias='GR_PARAMS_TO_CALIBRATE'
     )
+    # Fallback behavior control - default to False to prevent silent data corruption
+    allow_dummy_observations: bool = Field(
+        default=False,
+        alias='GR_ALLOW_DUMMY_OBSERVATIONS',
+        description='If True, use zero-filled dummy observations when no streamflow data found'
+    )
+    allow_default_area: bool = Field(
+        default=False,
+        alias='GR_ALLOW_DEFAULT_AREA',
+        description='If True, use 1.0 km² default area when basin shapefile not found'
+    )
 
 
 class HBVConfig(BaseModel):
@@ -115,8 +126,9 @@ class HBVConfig(BaseModel):
     warmup_days: int = Field(default=365, alias='HBV_WARMUP_DAYS', ge=0)
     timestep_hours: int = Field(default=24, alias='HBV_TIMESTEP_HOURS', ge=1, le=24)
     params_to_calibrate: str = Field(
-        default='tt,cfmax,fc,lp,beta,k0,k1,k2,uzl,perc,maxbas',
-        alias='HBV_PARAMS_TO_CALIBRATE'
+        default='default',  # 'default' triggers use of all available HBV parameters
+        alias='HBV_PARAMS_TO_CALIBRATE',
+        description="Parameters to calibrate. Use 'default' for all parameters, or specify comma-separated list."
     )
     use_gradient_calibration: bool = Field(default=True, alias='HBV_USE_GRADIENT_CALIBRATION')
     calibration_metric: Literal['KGE', 'NSE'] = Field(default='KGE', alias='HBV_CALIBRATION_METRIC')
@@ -128,6 +140,11 @@ class HBVConfig(BaseModel):
     # PET configuration
     pet_method: Literal['input', 'hamon', 'thornthwaite'] = Field(default='input', alias='HBV_PET_METHOD')
     latitude: Optional[float] = Field(default=None, alias='HBV_LATITUDE', ge=-90.0, le=90.0)
+    allow_unit_heuristics: bool = Field(
+        default=False,
+        alias='HBV_ALLOW_UNIT_HEURISTICS',
+        description='Allow magnitude-based unit detection for precip/PET when units are missing or ambiguous'
+    )
     # Output configuration
     save_states: bool = Field(default=False, alias='HBV_SAVE_STATES')
     output_frequency: Literal['daily', 'timestep'] = Field(default='daily', alias='HBV_OUTPUT_FREQUENCY')
@@ -254,6 +271,11 @@ class MizuRouteConfig(BaseModel):
     )
     calibrate: bool = Field(default=False, alias='CALIBRATE_MIZUROUTE')
     timeout: int = Field(default=3600, alias='MIZUROUTE_TIMEOUT', ge=60, le=86400)  # seconds (1min to 24hr)
+    time_rounding_freq: str = Field(
+        default='h',
+        alias='MIZUROUTE_TIME_ROUNDING_FREQ',
+        description='Frequency for rounding time values (e.g., "h" for hour, "min" for minute, "none" to disable)'
+    )
 
     @field_validator('output_vars', mode='before')
     @classmethod
@@ -473,6 +495,26 @@ class WMFireConfig(BaseModel):
         default=None,
         alias='WMFIRE_MOISTURE_K2',
         description='Moisture coefficient k2 (default 0.27)'
+    )
+    ign_def_mod: Optional[float] = Field(
+        default=None,
+        alias='WMFIRE_IGN_DEF_MOD',
+        description='Ignition probability modifier (default 1.0, increase for more fires)'
+    )
+    mean_ign: Optional[float] = Field(
+        default=None,
+        alias='WMFIRE_MEAN_IGN',
+        description='Mean ignition events per timestep (default 1.0)'
+    )
+    windmax: Optional[float] = Field(
+        default=None,
+        alias='WMFIRE_WINDMAX',
+        description='Maximum wind speed multiplier (default 1.0)'
+    )
+    slope_k1: Optional[float] = Field(
+        default=None,
+        alias='WMFIRE_SLOPE_K1',
+        description='Slope effect coefficient k1 (default 0.91)'
     )
 
     @field_validator('grid_resolution')

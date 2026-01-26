@@ -20,7 +20,7 @@ class ConfigMixin:
     """
 
     @property
-    def config(self) -> 'SymfluenceConfig':
+    def config(self) -> 'SymfluenceConfig':  # type: ignore[misc]
         """
         Get the typed configuration object.
 

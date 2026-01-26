@@ -242,11 +242,12 @@ class DaymetHandler(BaseObservationHandler):
             # Lines 0-5: metadata (Latitude, X&Y, Tile, Elevation, Version, Citation)
             # Line 6: column headers (year,yday,prcp,tmax,tmin,...)
             df = pd.read_csv(csv_file, skiprows=6)
-        except Exception:
+        except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError, OSError) as e:
+            self.logger.debug(f"Daymet CSV parse with skiprows=6 failed: {e}, trying without skip")
             try:
                 df = pd.read_csv(csv_file)
-            except Exception as e:
-                self.logger.warning(f"Could not parse {csv_file}: {e}")
+            except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError, OSError) as e2:
+                self.logger.warning(f"Could not parse {csv_file}: {e2}")
                 return None
 
         # Standardize column names

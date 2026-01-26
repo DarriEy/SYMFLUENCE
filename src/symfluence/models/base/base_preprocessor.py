@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from symfluence.core.config.models import SymfluenceConfig
 
 
-class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAccessMixin):
+class BaseModelPreProcessor(ABC, ModelComponentMixin, PathResolverMixin, ShapefileAccessMixin):  # type: ignore[misc]
     """
     Abstract base class for all model preprocessors.
 

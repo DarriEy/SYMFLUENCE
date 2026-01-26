@@ -131,6 +131,30 @@ class FireDefGenerator:
             pass
         return None
 
+    def _get_config_value(self, attr_name, default=None):
+        """
+        Safely get a numeric config value, returning default if not a number.
+
+        Protects against MagicMock objects in tests that would fail f-string formatting.
+
+        Args:
+            attr_name: Attribute name to retrieve
+            default: Default value if attribute doesn't exist or isn't numeric
+
+        Returns:
+            Numeric value or default
+        """
+        if not self._wmfire_config:
+            return default
+
+        value = getattr(self._wmfire_config, attr_name, default)
+
+        # Check if it's actually a number (not MagicMock or other object)
+        if value is not None and not isinstance(value, (int, float)):
+            return default
+
+        return value
+
     def generate_fire_def(
         self,
         grid,
@@ -156,20 +180,45 @@ class FireDefGenerator:
             n_cols=grid.ncols
         )
 
-        # Apply WMFire config overrides
+        # Apply WMFire config overrides (using safe getter to avoid MagicMock issues)
         if self._wmfire_config:
-            if self._wmfire_config.ndays_average:
-                params.ndays_average = self._wmfire_config.ndays_average
-            if self._wmfire_config.load_k1 is not None:
-                params.load_k1 = self._wmfire_config.load_k1
-            if self._wmfire_config.load_k2 is not None:
-                params.load_k2 = self._wmfire_config.load_k2
-            if self._wmfire_config.moisture_k1 is not None:
-                params.moisture_k1 = self._wmfire_config.moisture_k1
-                params.moisture_ign_k1 = self._wmfire_config.moisture_k1
-            if self._wmfire_config.moisture_k2 is not None:
-                params.moisture_k2 = self._wmfire_config.moisture_k2
-                params.moisture_ign_k2 = self._wmfire_config.moisture_k2
+            ndays = self._get_config_value('ndays_average')
+            if ndays is not None:
+                params.ndays_average = ndays
+
+            load_k1 = self._get_config_value('load_k1')
+            if load_k1 is not None:
+                params.load_k1 = load_k1
+
+            load_k2 = self._get_config_value('load_k2')
+            if load_k2 is not None:
+                params.load_k2 = load_k2
+
+            moisture_k1 = self._get_config_value('moisture_k1')
+            if moisture_k1 is not None:
+                params.moisture_k1 = moisture_k1
+                params.moisture_ign_k1 = moisture_k1
+
+            moisture_k2 = self._get_config_value('moisture_k2')
+            if moisture_k2 is not None:
+                params.moisture_k2 = moisture_k2
+                params.moisture_ign_k2 = moisture_k2
+
+            ign_def_mod = self._get_config_value('ign_def_mod')
+            if ign_def_mod is not None:
+                params.ign_def_mod = ign_def_mod
+
+            mean_ign = self._get_config_value('mean_ign')
+            if mean_ign is not None:
+                params.mean_ign = mean_ign
+
+            windmax = self._get_config_value('windmax')
+            if windmax is not None:
+                params.windmax = windmax
+
+            slope_k1 = self._get_config_value('slope_k1')
+            if slope_k1 is not None:
+                params.slope_k1 = slope_k1
 
         # Apply fuel-based coefficient adjustments
         if fuel_stats and 'load_k1' in fuel_stats:
@@ -316,10 +365,11 @@ class FireDefGenerator:
         """
         params = FireDefParameters(n_rows=n_rows, n_cols=n_cols)
 
-        # Apply WMFire config if available
+        # Apply WMFire config if available (using safe getter)
         if self._wmfire_config:
-            if self._wmfire_config.ndays_average:
-                params.ndays_average = self._wmfire_config.ndays_average
+            ndays = self._get_config_value('ndays_average')
+            if ndays is not None:
+                params.ndays_average = ndays
 
         content = self._format_fire_def(params)
 

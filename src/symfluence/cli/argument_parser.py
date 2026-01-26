@@ -237,6 +237,16 @@ For more help on a specific command:
                                 help='Cleaning level (default: intermediate)')
         clean_parser.set_defaults(func=WorkflowCommands.clean)
 
+        # workflow diagnose
+        diagnose_parser = workflow_subparsers.add_parser(
+            'diagnose',
+            help='Run diagnostic plots on existing workflow outputs',
+            parents=[self.common_parser]
+        )
+        diagnose_parser.add_argument('--step', choices=WORKFLOW_STEPS, metavar='STEP',
+                                    help=f'Run diagnostics for a specific step. Choices: {", ".join(WORKFLOW_STEPS)}')
+        diagnose_parser.set_defaults(func=WorkflowCommands.diagnose)
+
     def _register_project_commands(self, subparsers):
         """Register project category commands."""
         from .commands import ProjectCommands

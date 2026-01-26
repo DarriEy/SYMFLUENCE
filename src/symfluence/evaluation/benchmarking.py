@@ -17,29 +17,8 @@ from symfluence.core.mixins import ConfigMixin
 
 class Benchmarker(ConfigMixin):
     def __init__(self, config: dict, logger):
-        # Import here to avoid circular imports
-
-        from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
-        if isinstance(config, dict):
-
-            try:
-
-                self._config = SymfluenceConfig(**config)
-
-            except Exception:
-
-                # Fallback for partial configs (e.g., in tests)
-
-                self._config = config
-
-        else:
-
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger
         self.project_dir = Path(self._get_config_value(lambda: self.config.system.data_dir, dict_key='SYMFLUENCE_DATA_DIR')) / f"domain_{self._get_config_value(lambda: self.config.domain.name, dict_key='DOMAIN_NAME')}"
         self.evaluation_dir = self.project_dir / 'evaluation'
@@ -282,8 +261,10 @@ class BenchmarkPreprocessor(ConfigMixin):
         # Average across HRUs
         averaged_ds = combined_ds.mean(dim='hru')
 
-        # Convert precipitation to mm/day (assuming input is in m/s)
-        precip_data = averaged_ds['pptrate'] * 3600
+        # Convert precipitation from kg m⁻² s⁻¹ (mm/s) to mm/day
+        # ERA5 pptrate is in kg m⁻² s⁻¹ which equals mm/s for water (density 1000 kg/m³)
+        from symfluence.core.constants import UnitConversion
+        precip_data = averaged_ds['pptrate'] * UnitConversion.SECONDS_PER_DAY  # 86400
 
         # Create DataFrame directly using to_series for better integration
         forcing_df = pd.DataFrame({

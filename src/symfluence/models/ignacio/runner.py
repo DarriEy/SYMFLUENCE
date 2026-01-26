@@ -159,7 +159,7 @@ class IGNACIORunner(BaseModelRunner):
                 ignacio_cli,
                 'run',
                 str(self.ignacio_config_path),
-                '--output-dir', str(self.output_dir),
+                '--output', str(self.output_dir),
             ]
 
             self.logger.info(f"Running IGNACIO CLI: {' '.join(cmd)}")

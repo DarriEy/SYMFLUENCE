@@ -21,6 +21,7 @@ from .model_execution import _run_summa_worker, _run_mizuroute_worker
 from .netcdf_utilities import _convert_lumped_to_distributed_worker
 from .metrics_calculation import _calculate_metrics_with_target, _calculate_multitarget_objectives
 from .error_logging import log_worker_failure
+from symfluence.evaluation.metric_transformer import MetricTransformer
 
 
 def _evaluate_parameters_worker(task_data: Dict) -> Dict:
@@ -312,11 +313,11 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                         # Handle None/NaN values with a penalty
                         if value is None or (isinstance(value, float) and np.isnan(value)):
                             logger.warning(f"{obj_name} is None/NaN, setting to a penalty value.")
-                            # Use a large penalty for minimization metrics, and a large negative penalty for maximization metrics
-                            if obj_name.upper() in ['RMSE', 'MAE', 'PBIAS']:
-                                value = 1e6
-                            else:
-                                value = -1e6
+                            value = -1e6  # Penalty for missing values (always negative for maximization)
+                        else:
+                            # Transform to maximization convention using MetricTransformer
+                            # This ensures RMSE, MAE, PBIAS etc. are properly negated
+                            value = MetricTransformer.transform_for_maximization(obj_name, value)
 
                         objectives.append(float(value))
 
@@ -418,9 +419,9 @@ def _evaluate_parameters_worker(task_data: Dict) -> Dict:
                         'runtime': eval_runtime
                     }
 
-                # Apply negation for minimize metrics
-                if target_metric.upper() in ['RMSE', 'MAE', 'PBIAS']:
-                    score = -score
+                # Transform to maximization convention using MetricTransformer
+                # This handles RMSE, MAE, PBIAS, and any other minimize metrics correctly
+                score = MetricTransformer.transform_for_maximization(target_metric, score)
 
                 metrics_runtime = time.time() - metrics_start
                 eval_runtime = time.time() - eval_start_time

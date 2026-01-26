@@ -71,11 +71,8 @@ class SummaAttributesManager(ConfigurableMixin):
             get_default_path_callback: Callback function to get default paths
         """
         # Handle typed config
-        from symfluence.core.config.models import SymfluenceConfig
-        if isinstance(config, dict):
-            self._config = SymfluenceConfig(**config)
-        else:
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
 
         self.logger = logger
         self.catchment_path = catchment_path

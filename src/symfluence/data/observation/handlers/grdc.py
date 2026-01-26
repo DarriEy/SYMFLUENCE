@@ -128,12 +128,13 @@ class GRDCHandler(BaseObservationHandler):
         try:
             # Try standard format first
             df = pd.read_csv(csv_file, comment='#')
-        except Exception:
+        except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError, OSError) as e:
+            self.logger.debug(f"Standard CSV parse failed for {csv_file.name}: {e}, trying semicolon separator")
             # Try with semicolon separator (some GRDC exports use this)
             try:
                 df = pd.read_csv(csv_file, sep=';', comment='#')
-            except Exception as e:
-                self.logger.warning(f"Could not parse {csv_file}: {e}")
+            except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError, OSError) as e2:
+                self.logger.warning(f"Could not parse {csv_file}: {e2}")
                 return None
 
         # Standardize column names

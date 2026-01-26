@@ -118,7 +118,7 @@ except ImportError:
 
 
 @ModelRegistry.register_runner('JFUSE', method_name='run_jfuse')
-class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):
+class JFUSERunner(BaseModelRunner, UnifiedModelExecutor):  # type: ignore[misc]
     """
     Runner class for the jFUSE hydrological model.
 

@@ -131,14 +131,8 @@ class BaseObservationHandler(ABC, ConfigurableMixin, CoordinateUtilsMixin):
         Raises:
             ValueError: If config dict cannot be converted to SymfluenceConfig.
         """
-        from symfluence.core.config.models import SymfluenceConfig
-
-        # Auto-convert dict to typed config for backward compatibility
-        if isinstance(config, dict):
-            self._config = SymfluenceConfig(**config)
-        else:
-            self._config = config
-
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger
 
         # Standard attributes use config_dict (from ConfigMixin) for compatibility

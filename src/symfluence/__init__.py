@@ -30,20 +30,11 @@ For CLI usage:
 # background monitor thread can cause segmentation faults when running
 # concurrently with netCDF file operations (e.g., in easymore remapping).
 # ============================================================================
-import os
-os.environ.setdefault('HDF5_USE_FILE_LOCKING', 'FALSE')
-
-# Disable tqdm monitor thread to prevent segfaults with netCDF4/HDF5
-try:
-    import tqdm
-    tqdm.tqdm.monitor_interval = 0
-    if tqdm.tqdm.monitor is not None:
-        tqdm.tqdm.monitor.exit()
-        tqdm.tqdm.monitor = None
-except ImportError:
-    pass
+from symfluence.core.hdf5_safety import configure_hdf5_safety
+configure_hdf5_safety(disable_tqdm_monitor=True)
 
 import logging
+import os
 import warnings
 
 try:

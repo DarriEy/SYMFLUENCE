@@ -21,7 +21,7 @@ from symfluence.geospatial.geometry_utils import GeospatialUtilsMixin
 
 
 @ModelRegistry.register_preprocessor('TROUTE')
-class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):
+class TRoutePreProcessor(BaseModelPreProcessor, GeospatialUtilsMixin):  # type: ignore[misc]
     """
     A standalone preprocessor for t-route within the SYMFLUENCE framework.
 

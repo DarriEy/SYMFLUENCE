@@ -43,22 +43,8 @@ class BasePlotter(ConfigMixin, ABC):
             logger: Logger instance for messaging
             plot_config: Optional PlotConfig instance (uses default if not provided)
         """
-        # Import here to avoid circular imports
-
-        from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
-        if isinstance(config, dict):
-            try:
-                self._config = SymfluenceConfig(**config)
-            except (TypeError, ValueError):
-                # Fallback for partial configs (e.g., in tests)
-                self._config = config
-        else:
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger
         self.plot_config = plot_config or DEFAULT_PLOT_CONFIG
 

@@ -258,7 +258,7 @@ class MODISSCAAcquirer(BaseAppEEARSAcquirer):
                 else:
                     # Try pandas conversion
                     dates.append(pd.to_datetime(t).date())
-            except Exception:
+            except (ValueError, TypeError, AttributeError):
                 # Last resort: string parsing
                 dates.append(pd.to_datetime(str(t)[:10]).date())
         return dates

@@ -48,9 +48,11 @@ except ImportError:
 from .parameters import (
     DEFAULT_PARAMS,
     HBVParameters,
+    PARAM_BOUNDS,
     create_params_from_dict,
-    scale_params_for_timestep,
+    get_routing_buffer_length,
 )
+from .time_utils import warmup_timesteps
 
 
 __all__ = [
@@ -122,6 +124,54 @@ def _smooth_min(a: Any, b: Any, scale: float = 10.0) -> Any:
 def _smooth_max(a: Any, b: Any, scale: float = 10.0) -> Any:
     """Smooth maximum: b + softplus(a - b)."""
     return b + _smooth_relu(a - b, scale)
+
+
+# =============================================================================
+# PARAMETER SCALING (JAX-COMPATIBLE)
+# =============================================================================
+
+def _scale_params_for_timestep_jax(
+    params: HBVParameters,
+    timestep_hours: int
+) -> HBVParameters:
+    """
+    Scale HBV parameters from daily units to sub-daily timestep (JAX-compatible).
+
+    This mirrors scale_params_for_timestep() but keeps everything in JAX space
+    so gradients remain valid for ODE-based calibration.
+    """
+    if timestep_hours == 24:
+        return params
+
+    scale_factor = timestep_hours / 24.0
+
+    # Flux rates (linear scaling)
+    cfmax = params.cfmax * scale_factor
+    perc = params.perc * scale_factor
+
+    # Recession coefficients (exact exponential scaling)
+    k0 = 1.0 - jnp.power(1.0 - jnp.clip(params.k0, 0.0, 0.9999), scale_factor)
+    k1 = 1.0 - jnp.power(1.0 - jnp.clip(params.k1, 0.0, 0.9999), scale_factor)
+    k2 = 1.0 - jnp.power(1.0 - jnp.clip(params.k2, 0.0, 0.9999), scale_factor)
+
+    return HBVParameters(
+        tt=params.tt,
+        cfmax=cfmax,
+        sfcf=params.sfcf,
+        cfr=params.cfr,
+        cwh=params.cwh,
+        fc=params.fc,
+        lp=params.lp,
+        beta=params.beta,
+        k0=k0,
+        k1=k1,
+        k2=k2,
+        uzl=params.uzl,
+        perc=perc,
+        maxbas=params.maxbas,
+        smoothing=params.smoothing,
+        smoothing_enabled=params.smoothing_enabled,
+    )
 
 
 # =============================================================================
@@ -349,9 +399,9 @@ def simulate_ode(
     method rather than backpropagation through the solver.
 
     Args:
-        precip: Precipitation timeseries (mm/day), shape (n_days,)
-        temp: Temperature timeseries (°C), shape (n_days,)
-        pet: PET timeseries (mm/day), shape (n_days,)
+        precip: Precipitation timeseries (mm/timestep), shape (n_steps,)
+        temp: Temperature timeseries (°C), shape (n_steps,)
+        pet: PET timeseries (mm/timestep), shape (n_steps,)
         params: HBV parameters (HBVParameters namedtuple)
         t_span: Time span (t0, t1). Defaults to (0, n_days).
         dt: Output time step (days). Default 1.0 for daily output.
@@ -376,19 +426,27 @@ def simulate_ode(
 
     n_days = len(precip)
 
-    # Default time span
+    # Default time span (in days)
     if t_span is None:
-        t_span = (0.0, float(n_days - 1))
+        t_span = (0.0, float(n_days - 1) * dt)
 
     # Create time array for forcing interpolation
-    forcing_times = jnp.arange(n_days, dtype=jnp.float32)
+    forcing_times = jnp.arange(n_days, dtype=jnp.float32) * dt
+
+    # Convert forcing to per-day rates for continuous-time dynamics
+    precip_arr = jnp.array(precip)
+    temp_arr = jnp.array(temp)
+    pet_arr = jnp.array(pet)
+    if dt != 1.0:
+        precip_arr = precip_arr / dt
+        pet_arr = pet_arr / dt
 
     # Create forcing interpolant
     forcing_interp = create_forcing_interpolant(
         forcing_times,
-        jnp.array(precip),
-        jnp.array(temp),
-        jnp.array(pet),
+        precip_arr,
+        temp_arr,
+        pet_arr,
         method="linear"
     )
 
@@ -493,6 +551,8 @@ def simulate_ode_with_routing(
 
     This is the high-level function that matches the interface of the
     discrete simulate() function, including triangular routing.
+    Parameters are assumed to be in daily units and are scaled internally
+    for sub-daily timesteps.
 
     Args:
         precip: Precipitation timeseries (mm/timestep)
@@ -514,6 +574,7 @@ def simulate_ode_with_routing(
 
     n_timesteps = len(precip)
     dt = timestep_hours / 24.0  # Convert to days
+    params = _scale_params_for_timestep_jax(params, timestep_hours)
 
     # Solve ODE
     times, states, runoff = simulate_ode(
@@ -550,7 +611,7 @@ def apply_triangular_routing(
     runoff: Any,
     maxbas: Any,
     timestep_hours: int = 24,
-    max_buffer_length: int = 20
+    max_buffer_length: Optional[int] = None
 ) -> Any:
     """
     Apply triangular routing to runoff timeseries.
@@ -570,6 +631,10 @@ def apply_triangular_routing(
     Returns:
         Routed runoff timeseries
     """
+    if max_buffer_length is None:
+        maxbas_upper = PARAM_BOUNDS.get('maxbas', (None, 7.0))[1]
+        max_buffer_length = get_routing_buffer_length(maxbas_upper, timestep_hours)
+
     timesteps_per_day = 24.0 / timestep_hours
     maxbas_timesteps = maxbas * timesteps_per_day
 
@@ -593,6 +658,10 @@ def apply_triangular_routing(
     )
     weights = rising + falling
     weights = weights / (jnp.sum(weights) + 1e-10)
+
+    # Special case: if maxbas <= 1 timestep, use unit weight (no routing delay)
+    unit_weights = jnp.zeros(buffer_length, dtype=jnp.float32).at[0].set(1.0)
+    weights = jnp.where(maxbas_timesteps <= 1.0, unit_weights, weights)
 
     # Reverse weights for convolution (we want causal filter)
     weights_rev = weights[::-1]
@@ -655,9 +724,8 @@ def nse_loss_ode(
     Returns:
         Negative NSE (for minimization)
     """
-    # Scale parameters for timestep
-    scaled_params = scale_params_for_timestep(params_dict, timestep_hours)
-    params = create_params_from_dict(scaled_params, use_jax=True)
+    # Create parameters in daily units (scaled internally for sub-daily timesteps)
+    params = create_params_from_dict(params_dict, use_jax=True)
 
     # Simulate
     runoff, _ = simulate_ode_with_routing(
@@ -673,11 +741,10 @@ def nse_loss_ode(
     )
 
     # Calculate NSE (excluding warmup)
-    timesteps_per_day = 24 // timestep_hours
-    warmup_timesteps = warmup_days * timesteps_per_day
+    warmup_steps = warmup_timesteps(warmup_days, timestep_hours)
 
-    sim_eval = runoff[warmup_timesteps:]
-    obs_eval = obs[warmup_timesteps:]
+    sim_eval = runoff[warmup_steps:]
+    obs_eval = obs[warmup_steps:]
 
     ss_res = jnp.sum((sim_eval - obs_eval) ** 2)
     ss_tot = jnp.sum((obs_eval - jnp.mean(obs_eval)) ** 2)
@@ -750,13 +817,19 @@ def _nse_loss_from_array(
     n_timesteps = len(precip)
     dt = timestep_hours / 24.0
 
-    # Create forcing interpolant
-    forcing_times = jnp.arange(n_timesteps, dtype=jnp.float32)
+    # Create forcing interpolant (convert to per-day rates for ODE)
+    forcing_times = jnp.arange(n_timesteps, dtype=jnp.float32) * dt
+    precip_jax = jnp.asarray(precip)
+    temp_jax = jnp.asarray(temp)
+    pet_jax = jnp.asarray(pet)
+    if dt != 1.0:
+        precip_jax = precip_jax / dt
+        pet_jax = pet_jax / dt
     forcing_interp = create_forcing_interpolant(
         forcing_times,
-        jnp.asarray(precip),
-        jnp.asarray(temp),
-        jnp.asarray(pet),
+        precip_jax,
+        temp_jax,
+        pet_jax,
         method="linear"
     )
 
@@ -820,11 +893,10 @@ def _nse_loss_from_array(
     routed = apply_triangular_routing(runoff, params.maxbas, timestep_hours)
 
     # Calculate NSE
-    timesteps_per_day = 24 // timestep_hours
-    warmup_timesteps = warmup_days * timesteps_per_day
+    warmup_steps = warmup_timesteps(warmup_days, timestep_hours)
 
-    sim_eval = routed[warmup_timesteps:]
-    obs_eval = obs[warmup_timesteps:]
+    sim_eval = routed[warmup_steps:]
+    obs_eval = obs[warmup_steps:]
 
     ss_res = jnp.sum((sim_eval - obs_eval) ** 2)
     ss_tot = jnp.sum((obs_eval - jnp.mean(obs_eval)) ** 2)
@@ -1154,8 +1226,7 @@ def compare_simulations(
     params_dict['smoothing'] = smoothing
     params_dict['smoothing_enabled'] = True
 
-    scaled_params = scale_params_for_timestep(params_dict, timestep_hours)
-    params = create_params_from_dict(scaled_params, use_jax=True)
+    params = create_params_from_dict(params_dict, use_jax=True)
 
     # Discrete simulation
     start = time.perf_counter()

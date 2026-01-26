@@ -81,14 +81,22 @@ class OutputFileLocator:
         },
     }
 
-    def __init__(self, logger: Optional[logging.Logger] = None):
+    def __init__(
+        self,
+        logger: Optional[logging.Logger] = None,
+        experiment_id: Optional[str] = None
+    ):
         """
         Initialize OutputFileLocator.
 
         Args:
             logger: Optional logger instance
+            experiment_id: Optional experiment ID for filtering files.
+                           If provided, files containing this ID in their name
+                           are prioritized over modification time sorting.
         """
         self.logger = logger or logging.getLogger(__name__)
+        self.experiment_id = experiment_id
 
     def find_output_files(
         self,
@@ -206,7 +214,26 @@ class OutputFileLocator:
         return []
 
     def _sort_by_mtime(self, files: List[Path]) -> List[Path]:
-        """Sort files by modification time, newest first."""
+        """Sort files by experiment ID match (if set) then modification time.
+
+        If experiment_id is configured, files containing the ID in their name
+        are prioritized. Within matching/non-matching groups, files are sorted
+        by modification time (newest first).
+
+        Args:
+            files: List of file paths to sort
+
+        Returns:
+            Sorted list of file paths
+        """
+        if self.experiment_id:
+            # Prioritize files containing experiment_id
+            matching = [f for f in files if self.experiment_id in f.name]
+            if matching:
+                self.logger.debug(
+                    f"Found {len(matching)} files matching experiment_id '{self.experiment_id}'"
+                )
+                return sorted(matching, key=lambda f: f.stat().st_mtime, reverse=True)
         return sorted(files, key=lambda f: f.stat().st_mtime, reverse=True)
 
     # Convenience methods for specific output types

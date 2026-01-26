@@ -50,14 +50,8 @@ class MESHParameterFixer(ConfigMixin):
         """
         self.forcing_dir = forcing_dir
         self.setup_dir = setup_dir
-        from symfluence.core.config.models import SymfluenceConfig
-        if isinstance(config, dict):
-            try:
-                self._config = SymfluenceConfig(**config)
-            except (TypeError, ValueError, KeyError, AttributeError):
-                self._config = config
-        else:
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.logger = logger or logging.getLogger(__name__)
         self.get_simulation_time_window = time_window_func
         self._actual_spinup_days = None
@@ -576,14 +570,14 @@ class MESHParameterFixer(ConfigMixin):
                 if line.startswith('NM '):
                     try:
                         return int(parts[1])
-                    except (ValueError, IndexError):
-                        pass
+                    except (ValueError, IndexError) as e:
+                        self.logger.debug(f"Could not parse NM from '{line.strip()}': {e}")
                 else:
                     if len(parts) >= 9:
                         try:
                             return int(parts[8])
-                        except (ValueError, IndexError):
-                            pass
+                        except (ValueError, IndexError) as e:
+                            self.logger.debug(f"Could not parse NM from column 9 of '{line.strip()}': {e}")
                 break
         return None
 
@@ -877,8 +871,8 @@ class MESHParameterFixer(ConfigMixin):
                             new_lines.append(new_line)
                             modified = True
                             continue
-                        except (ValueError, IndexError):
-                            pass
+                        except (ValueError, IndexError) as e:
+                            self.logger.debug(f"Could not parse TBAR values from '{line.strip()}': {e}")
 
                 # Fix line 19: RCAN/SCAN/SNO/ALBS/RHOS/GRO
                 if '19 RCAN/SCAN/SNO/ALBS/RHOS/GRO' in line:
@@ -896,8 +890,8 @@ class MESHParameterFixer(ConfigMixin):
                             new_lines.append(new_line)
                             modified = True
                             continue
-                        except (ValueError, IndexError):
-                            pass
+                        except (ValueError, IndexError) as e:
+                            self.logger.debug(f"Could not parse RCAN/SCAN/SNO values from '{line.strip()}': {e}")
 
                 new_lines.append(line)
 
@@ -1147,6 +1141,6 @@ class MESHParameterFixer(ConfigMixin):
                         int(parts[2])
                         int(parts[3])
                         date_line_indices.append(i)
-                    except ValueError:
-                        pass
+                    except ValueError as e:
+                        self.logger.debug(f"Line does not match date format '{stripped}': {e}")
         return date_line_indices

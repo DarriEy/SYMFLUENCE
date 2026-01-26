@@ -179,8 +179,90 @@ class FuseForcingProcessor(BaseForcingProcessor):
             raise
 
     def _prepare_lumped_forcing(self, ds: xr.Dataset) -> xr.Dataset:
-        """Prepare lumped forcing data (spatial average)"""
-        return ds.mean(dim='hru') if 'hru' in ds.dims else ds
+        """
+        Prepare lumped forcing data using area-weighted spatial average.
+
+        For spatially heterogeneous catchments, area-weighted averaging provides
+        more physically accurate basin-average forcing than simple mean.
+
+        Args:
+            ds: Input forcing dataset with 'hru' dimension
+
+        Returns:
+            Lumped forcing dataset (no 'hru' dimension)
+        """
+        if 'hru' not in ds.dims:
+            return ds
+
+        try:
+            # Load catchment to get HRU areas
+            catchment = gpd.read_file(self.catchment_path)
+            n_hrus = len(catchment)
+
+            # Get area for each HRU
+            # First try 'area' or 'area_km2' attribute, then calculate from geometry
+            if 'area' in catchment.columns:
+                areas = catchment['area'].values
+                self.logger.debug("Using 'area' column for area weights")
+            elif 'area_km2' in catchment.columns:
+                areas = catchment['area_km2'].values
+                self.logger.debug("Using 'area_km2' column for area weights")
+            else:
+                # Calculate from geometry
+                # If geographic CRS, reproject to projected CRS for accurate area
+                if catchment.crs and catchment.crs.is_geographic:
+                    self.logger.debug("Geographic CRS detected, reprojecting for area calculation")
+                    # Use an equal-area projection (Web Mercator for simplicity)
+                    catchment_projected = catchment.to_crs('EPSG:3857')
+                    areas = catchment_projected.geometry.area.values
+                else:
+                    areas = catchment.geometry.area.values
+
+                if areas.mean() > 1e6:
+                    # Likely in m², convert to km² for readability
+                    areas = areas / 1e6
+                    self.logger.debug("Calculated areas from geometry (converted m² to km²)")
+                else:
+                    self.logger.debug("Calculated areas from geometry")
+
+            # Verify we have the right number of areas
+            if len(areas) != ds.sizes.get('hru', 0):
+                self.logger.warning(
+                    f"Area count ({len(areas)}) doesn't match HRU count ({ds.sizes.get('hru', 0)}). "
+                    f"Falling back to simple mean."
+                )
+                return ds.mean(dim='hru')
+
+            # Normalize areas to get weights
+            total_area = areas.sum()
+            if total_area <= 0:
+                self.logger.warning(f"Total catchment area is {total_area}. Falling back to simple mean.")
+                return ds.mean(dim='hru')
+
+            weights = areas / total_area
+
+            # Apply area-weighted averaging
+            # Create xarray DataArray for weights to ensure proper broadcasting
+            weight_da = xr.DataArray(weights, dims=['hru'])
+
+            # Weighted average: sum(data * weight) for each variable
+            ds_lumped = (ds * weight_da).sum(dim='hru')
+
+            self.logger.info(
+                f"Applied area-weighted aggregation for lumped mode "
+                f"({n_hrus} HRUs, total area: {total_area:.2f} km²)"
+            )
+
+            return ds_lumped
+
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to apply area-weighted aggregation: {e}. "
+                f"Falling back to simple mean."
+            )
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return ds.mean(dim='hru')
 
     def _prepare_semi_distributed_forcing(self, ds: xr.Dataset, subcatchment_dim: str) -> xr.Dataset:
         """Prepare semi-distributed forcing data using subcatchment IDs"""

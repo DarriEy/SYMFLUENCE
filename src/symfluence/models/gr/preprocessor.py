@@ -28,7 +28,7 @@ HAS_RPY2 = find_spec("rpy2") is not None
 
 
 @ModelRegistry.register_preprocessor('GR')
-class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, ObservationLoaderMixin, DatasetBuilderMixin, SpatialModeDetectionMixin):
+class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, ObservationLoaderMixin, DatasetBuilderMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Preprocessor for the GR family of models (GR4J, GR5J, GR6J).
 
@@ -176,7 +176,9 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             # Handle spatial organization based on mode
             if self.spatial_mode == 'lumped':
                 self.logger.info("Preparing lumped forcing data")
-                ds = ds.mean(dim='hru') if 'hru' in ds.dims else ds
+                # Apply area-weighted aggregation if HRU dimension exists
+                if 'hru' in ds.dims:
+                    ds = self._apply_area_weighted_aggregation(ds)
                 return self._prepare_lumped_forcing(ds)
             elif self.spatial_mode == 'distributed':
                 self.logger.info("Preparing distributed forcing data")
@@ -187,6 +189,76 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
         except Exception as e:
             self.logger.error(f"Error preparing forcing data: {str(e)}")
             raise
+
+    def _apply_area_weighted_aggregation(self, ds: xr.Dataset) -> xr.Dataset:
+        """
+        Apply area-weighted spatial aggregation for lumped mode.
+
+        For spatially heterogeneous catchments, area-weighted averaging provides
+        more physically accurate basin-average forcing than simple mean.
+
+        Args:
+            ds: Input forcing dataset with 'hru' dimension
+
+        Returns:
+            Aggregated forcing dataset (no 'hru' dimension)
+        """
+        try:
+            # Load catchment to get HRU areas
+            catchment = gpd.read_file(self.get_catchment_path())
+            n_hrus = len(catchment)
+
+            # Get area for each HRU
+            if 'area' in catchment.columns:
+                areas = catchment['area'].values
+                self.logger.debug("Using 'area' column for area weights")
+            elif 'area_km2' in catchment.columns:
+                areas = catchment['area_km2'].values
+                self.logger.debug("Using 'area_km2' column for area weights")
+            else:
+                # Calculate from geometry
+                areas = catchment.geometry.area.values
+                if areas.mean() > 1e6:
+                    areas = areas / 1e6  # Convert m² to km²
+                    self.logger.debug("Calculated areas from geometry (m² to km²)")
+                else:
+                    self.logger.debug("Calculated areas from geometry")
+
+            # Verify dimensions match
+            if len(areas) != ds.sizes.get('hru', 0):
+                self.logger.warning(
+                    f"Area count ({len(areas)}) doesn't match HRU count ({ds.sizes.get('hru', 0)}). "
+                    f"Falling back to simple mean."
+                )
+                return ds.mean(dim='hru')
+
+            # Normalize to get weights
+            total_area = areas.sum()
+            if total_area <= 0:
+                self.logger.warning(f"Total area is {total_area}. Falling back to simple mean.")
+                return ds.mean(dim='hru')
+
+            weights = areas / total_area
+            weight_da = xr.DataArray(weights, dims=['hru'])
+
+            # Apply area-weighted averaging
+            ds_lumped = (ds * weight_da).sum(dim='hru')
+
+            self.logger.info(
+                f"Applied area-weighted aggregation "
+                f"({n_hrus} HRUs, total area: {total_area:.2f} km²)"
+            )
+
+            return ds_lumped
+
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to apply area-weighted aggregation: {e}. "
+                f"Falling back to simple mean."
+            )
+            import traceback
+            self.logger.debug(traceback.format_exc())
+            return ds.mean(dim='hru')
 
     def _prepare_lumped_forcing(self, ds: xr.Dataset) -> Path:
         """Prepare lumped forcing data using shared utilities."""
@@ -213,9 +285,24 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             obs_df.index = obs_df.index.tz_localize(None)
             obs_daily = obs_df.resample('D').mean()
         else:
-            self.logger.warning(f"No streamflow observations found at {obs_path}")
-            # Create dummy obs for the forcing period
-            obs_daily = pd.DataFrame({'discharge_cms': [0.0] * len(ds.time)}, index=pd.to_datetime(ds.time.values))
+            # Check if fallback to dummy observations is allowed
+            allow_dummy = self._get_config_value(
+                lambda: self.config.model.gr.allow_dummy_observations, False
+            )
+            if allow_dummy:
+                self.logger.warning(
+                    f"No streamflow observations at {obs_path}, using dummy zeros "
+                    "(GR_ALLOW_DUMMY_OBSERVATIONS=True)"
+                )
+                obs_daily = pd.DataFrame(
+                    {'discharge_cms': [0.0] * len(ds.time)},
+                    index=pd.to_datetime(ds.time.values)
+                )
+            else:
+                raise FileNotFoundError(
+                    f"No streamflow observations found at {obs_path}. "
+                    f"Set GR_ALLOW_DUMMY_OBSERVATIONS=True to use zero-filled dummy data."
+                )
 
         # Get area from river basins shapefile
         basin_dir = self._get_default_path('RIVER_BASINS_PATH', 'shapefiles/river_basins')
@@ -229,8 +316,21 @@ class GRPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsM
             basin_gdf = gpd.read_file(basin_path)
             area_km2 = basin_gdf['GRU_area'].sum() / 1e6
         else:
-            self.logger.warning(f"Basin shapefile not found at {basin_path}, using default area")
-            area_km2 = 1.0
+            # Check if fallback to default area is allowed
+            allow_default = self._get_config_value(
+                lambda: self.config.model.gr.allow_default_area, False
+            )
+            if allow_default:
+                self.logger.warning(
+                    f"Basin shapefile not found at {basin_path}, using area=1.0 km² "
+                    "(GR_ALLOW_DEFAULT_AREA=True)"
+                )
+                area_km2 = 1.0
+            else:
+                raise FileNotFoundError(
+                    f"Basin shapefile not found at {basin_path}. "
+                    f"Set GR_ALLOW_DEFAULT_AREA=True to use 1.0 km² default."
+                )
 
         self.logger.info(f"Total catchment area from GRU_area: {area_km2:.2f} km2")
 

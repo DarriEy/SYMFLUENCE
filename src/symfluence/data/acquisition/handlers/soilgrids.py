@@ -260,11 +260,11 @@ class SoilGridsAcquirer(BaseAcquisitionHandler, RetryMixin):
 
                     tmp_path.replace(zip_path)
                     self.logger.info(f"✓ Downloaded {downloaded / 1024 / 1024:.1f} MB from HydroShare")
-                except Exception:
+                except (requests.RequestException, OSError, IOError) as download_err:
                     # Clean up partial download before retry
                     if tmp_path.exists():
                         tmp_path.unlink()
-                    raise
+                    raise download_err
 
             self.execute_with_retry(
                 do_download,
@@ -291,7 +291,7 @@ class SoilGridsAcquirer(BaseAcquisitionHandler, RetryMixin):
                 self.bbox["lat_max"],
                 src.transform,
             )
-            out_d = src.read(1, window=win)
+            out_d = src.read(1, window=win)  # type: ignore[call-arg]
             meta = src.meta.copy()
             meta.update({
                 "height": out_d.shape[0],
@@ -301,7 +301,7 @@ class SoilGridsAcquirer(BaseAcquisitionHandler, RetryMixin):
             })
 
         with rasterio.open(out_p, "w", **meta) as dst:
-            dst.write(out_d, 1)
+            dst.write(out_d, 1)  # type: ignore[call-arg]
 
         self.logger.info(f"✓ Soil data acquired from HydroShare: {out_p}")
         return out_p

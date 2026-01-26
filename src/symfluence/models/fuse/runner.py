@@ -28,7 +28,7 @@ from symfluence.core.exceptions import (
 
 
 @ModelRegistry.register_runner('FUSE', method_name='run_fuse')
-class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, MizuRouteConfigMixin, SpatialModeDetectionMixin):
+class FUSERunner(BaseModelRunner, UnifiedModelExecutor, OutputConverterMixin, MizuRouteConfigMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Runner class for the FUSE (Framework for Understanding Structural Errors) model.
     Handles model execution, output processing, and file management.

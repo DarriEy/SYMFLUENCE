@@ -113,7 +113,8 @@ class WSCStreamflowHandler(BaseObservationHandler):
         # Load the data
         try:
             df = pd.read_csv(input_path)
-        except Exception:
+        except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as e:
+            self.logger.debug(f"Standard CSV parse failed: {e}, trying with comment='#'")
             # Try with '#' comments if it's a legacy RDB-like file
             df = pd.read_csv(input_path, comment='#')
 

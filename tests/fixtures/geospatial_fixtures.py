@@ -165,7 +165,13 @@ def synthetic_river_network_gdf(
 
     if basins_gdf is not None:
         # Create network based on basin centroids
-        centroids = basins_gdf.geometry.centroid
+        # Use projected CRS for accurate centroid calculation
+        if basins_gdf.crs and basins_gdf.crs.is_geographic:
+            # Reproject to UTM zone based on centroid (for tests, use Web Mercator for simplicity)
+            basins_projected = basins_gdf.to_crs('EPSG:3857')
+            centroids = basins_projected.geometry.centroid.to_crs(basins_gdf.crs)
+        else:
+            centroids = basins_gdf.geometry.centroid
         n_segments = len(basins_gdf)
 
         # Simple linear downstream topology: 1 -> 2 -> 3 -> ... -> outlet

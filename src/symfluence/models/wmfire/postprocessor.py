@@ -298,8 +298,8 @@ class WMFirePostProcessor:
                     metadata['n_rows'] = len(lines)
                     if lines:
                         metadata['n_cols'] = len(lines[0].split())
-                except Exception:
-                    pass
+                except (OSError, UnicodeDecodeError, IndexError):
+                    pass  # File unreadable or has unexpected format
 
         return metadata
 

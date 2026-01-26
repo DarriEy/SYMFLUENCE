@@ -5,8 +5,22 @@ This file sets up the Python path and provides core fixtures for test discovery.
 Additional fixtures are loaded via pytest_plugins from tests/fixtures/.
 """
 
-from pathlib import Path
+# ============================================================================
+# CRITICAL: HDF5/netCDF4 thread safety fix - MUST BE FIRST
+# Must be set BEFORE any imports that could load HDF5 (including GDAL!).
+# The HDF5 library reads this environment variable at initialization time,
+# so if any import loads libhdf5 before this is set, it's too late.
+# ============================================================================
 import os
+os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
+os.environ['HDF5_DISABLE_VERSION_CHECK'] = '1'
+os.environ['NETCDF_DISABLE_LOCKING'] = '1'
+# Limit threading in numerical libraries to prevent HDF5 conflicts
+os.environ.setdefault('OMP_NUM_THREADS', '1')
+os.environ.setdefault('MKL_NUM_THREADS', '1')
+os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
+
+from pathlib import Path
 import sys
 import tempfile
 
@@ -21,22 +35,16 @@ try:
 except ImportError:
     pass  # GDAL not installed
 
-# ============================================================================
-# CRITICAL: HDF5/netCDF4 thread safety fix
-# Must be set BEFORE any HDF5/netCDF4/xarray imports occur.
-# The netCDF4/HDF5 libraries are not thread-safe by default, and tqdm's
-# background monitor thread can cause segmentation faults when running
-# concurrently with netCDF file operations.
-# ============================================================================
-os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
-
 # Disable tqdm monitor thread to prevent segfaults with netCDF4/HDF5
 # This must be done before tqdm is imported anywhere
 import tqdm
 tqdm.tqdm.monitor_interval = 0
 # Also disable the existing monitor if already started
 if tqdm.tqdm.monitor is not None:
-    tqdm.tqdm.monitor.exit()
+    try:
+        tqdm.tqdm.monitor.exit()
+    except (AttributeError, RuntimeError):
+        pass  # Monitor may already be stopped or not properly initialized
     tqdm.tqdm.monitor = None
 
 import pytest
@@ -46,6 +54,30 @@ os.environ.setdefault(
     "MPLCONFIGDIR",
     str(Path(tempfile.gettempdir()) / "symfluence_matplotlib"),
 )
+
+@pytest.fixture(autouse=True)
+def cleanup_matplotlib():
+    """
+    Cleanup matplotlib figures after each test to prevent memory leaks.
+
+    This fixture runs automatically after every test and closes all open
+    matplotlib figures, preventing memory accumulation during test runs.
+    Without this, matplotlib figures accumulate and can cause OOM kills.
+    """
+    yield
+    # Close all matplotlib figures after each test
+    try:
+        import matplotlib.pyplot as plt
+        # Close all figures
+        plt.close('all')
+        # Clear the figure manager's internal state
+        from matplotlib import _pylab_helpers
+        _pylab_helpers.Gcf.destroy_all()
+        # Force garbage collection to release memory immediately
+        import gc
+        gc.collect()
+    except (ImportError, AttributeError):
+        pass  # matplotlib not installed or API changed
 
 # Add directories to path BEFORE importing local modules
 SYMFLUENCE_CODE_DIR = Path(__file__).parent.parent.resolve()
@@ -264,6 +296,37 @@ def forcing_cache_manager(symfluence_data_root):
     return cache
 
 
+@pytest.fixture(scope="session", autouse=True)
+def memory_monitor():
+    """
+    Monitor memory usage during test session.
+
+    Logs memory statistics at the start and end of the test session
+    to help identify memory leaks.
+    """
+    try:
+        import psutil
+        import os
+
+        process = psutil.Process(os.getpid())
+        start_memory = process.memory_info().rss / 1024 / 1024  # MB
+
+        print("\n=== Memory Usage at Start ===")
+        print(f"Memory: {start_memory:.2f} MB")
+        print("=" * 40)
+
+        yield
+
+        end_memory = process.memory_info().rss / 1024 / 1024  # MB
+        print("\n=== Memory Usage at End ===")
+        print(f"Memory: {end_memory:.2f} MB")
+        print(f"Delta: {end_memory - start_memory:+.2f} MB")
+        print("=" * 40)
+    except ImportError:
+        # psutil not installed, skip monitoring
+        yield
+
+
 def pytest_sessionfinish(session, exitstatus):
     """
     Clean up rpy2 embedded R to prevent logging errors on shutdown.
@@ -281,3 +344,15 @@ def pytest_sessionfinish(session, exitstatus):
     # Also suppress the embedded R interface logger
     rpy2_embedded_logger = logging.getLogger('rpy2.rinterface_lib.embedded')
     rpy2_embedded_logger.setLevel(logging.CRITICAL + 1)
+
+    # Final cleanup of matplotlib and memory
+    try:
+        import matplotlib.pyplot as plt
+        plt.close('all')
+        from matplotlib import _pylab_helpers
+        _pylab_helpers.Gcf.destroy_all()
+    except (ImportError, AttributeError):
+        pass
+
+    import gc
+    gc.collect()

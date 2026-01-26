@@ -38,29 +38,8 @@ class PointScaleForcingExtractor(ConfigMixin):
             dataset_handler: Dataset-specific handler for coordinate names
             logger: Optional logger instance
         """
-        # Import here to avoid circular imports
-
-        from symfluence.core.config.models import SymfluenceConfig
-
-
-
-        # Auto-convert dict to typed config for backward compatibility
-
-        if isinstance(config, dict):
-
-            try:
-
-                self._config = SymfluenceConfig(**config)
-
-            except Exception:
-
-                # Fallback for partial configs (e.g., in tests)
-
-                self._config = config
-
-        else:
-
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         self.project_dir = project_dir
         self.dataset_handler = dataset_handler
         self.logger = logger or logging.getLogger(__name__)
@@ -206,8 +185,8 @@ class PointScaleForcingExtractor(ConfigMixin):
                 try:
                     df_int = pd.read_csv(intersect_csv)
                     hru_ids = df_int[self._get_config_value(lambda: self.config.paths.catchment_hruid, dict_key='CATCHMENT_SHP_HRUID')].values.astype('int32')
-                except Exception:
-                    pass
+                except (pd.errors.ParserError, KeyError, ValueError) as e:
+                    self.logger.debug(f"Could not read HRU IDs from intersection CSV: {e}")
 
             n_hrus = len(hru_ids)
 

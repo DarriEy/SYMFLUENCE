@@ -553,8 +553,8 @@ class RHESSysWorker(BaseWorker):
                     try:
                         start_str, end_str = calib_period_str.split(',')
                         calib_period_tuple = (start_str.strip(), end_str.strip())
-                    except (ValueError, IndexError):
-                        pass
+                    except (ValueError, IndexError) as e:
+                        self.logger.warning(f"Could not parse calibration period '{calib_period_str}': {e}")
 
                 # Let StreamflowMetrics handle alignment and period filtering
                 obs_aligned, sim_aligned = self._streamflow_metrics.align_timeseries(

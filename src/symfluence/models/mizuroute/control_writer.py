@@ -97,11 +97,8 @@ class ControlFileWriter(ConfigurableMixin):
         logger: Optional[logging.Logger] = None
     ):
         # Set up typed config via ConfigurableMixin
-        from symfluence.core.config.models import SymfluenceConfig
-        if isinstance(config, dict):
-            self._config = SymfluenceConfig(**config)
-        else:
-            self._config = config
+        from symfluence.core.config.coercion import coerce_config
+        self._config = coerce_config(config, warn=False)
         # Backward compatibility alias
         self.config = self._config
 
@@ -215,16 +212,22 @@ class ControlFileWriter(ConfigurableMixin):
         # Special handling for GR: force midnight alignment for daily data
         if model_type == 'gr':
             if isinstance(sim_start, str):
-                sim_start = sim_start.split(' ')[0] + " 00:00"
+                sim_start = sim_start.split(' ')[0] + " 00:00:00"
             if isinstance(sim_end, str):
-                sim_end = sim_end.split(' ')[0] + " 00:00"
+                sim_end = sim_end.split(' ')[0] + " 00:00:00"
             self.logger.debug(f"Forced GR simulation period to midnight: {sim_start} to {sim_end}")
 
-        # Ensure dates are in proper format
-        if isinstance(sim_start, str) and len(sim_start) == 10:
-            sim_start = f"{sim_start} 00:00"
-        if isinstance(sim_end, str) and len(sim_end) == 10:
-            sim_end = f"{sim_end} 23:00"
+        # Ensure dates are in proper format with seconds (mizuRoute requires HH:MM:SS)
+        if isinstance(sim_start, str):
+            if len(sim_start) == 10:  # Date only: YYYY-MM-DD
+                sim_start = f"{sim_start} 00:00:00"
+            elif len(sim_start) == 16:  # Date + time without seconds: YYYY-MM-DD HH:MM
+                sim_start = f"{sim_start}:00"
+        if isinstance(sim_end, str):
+            if len(sim_end) == 10:  # Date only: YYYY-MM-DD
+                sim_end = f"{sim_end} 23:00:00"
+            elif len(sim_end) == 16:  # Date + time without seconds: YYYY-MM-DD HH:MM
+                sim_end = f"{sim_end}:00"
 
         # Get routing scheme from config (default to IRF for proper river routing)
         route_opt = self._get_config_value(

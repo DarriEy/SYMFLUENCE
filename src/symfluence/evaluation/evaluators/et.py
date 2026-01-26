@@ -37,6 +37,7 @@ Configuration:
 """
 
 import logging
+import numpy as np
 import pandas as pd
 import xarray as xr
 from pathlib import Path
@@ -112,6 +113,15 @@ class ETEvaluator(ModelEvaluator):
         'fluxnet',
         'gleam'
     }
+
+    @property
+    def variable_type(self) -> str:
+        """ET is a flux variable - use sum aggregation when resampling.
+
+        Returns:
+            'flux' to indicate sum aggregation should be used
+        """
+        return 'flux'
 
     def __init__(self, config: 'SymfluenceConfig', project_dir: Path, logger: logging.Logger):
         """Initialize ET evaluator with target and source determination.
@@ -1018,9 +1028,10 @@ class ETEvaluator(ModelEvaluator):
             )
 
             # Calculate relative uncertainty (avoid division by zero)
-            with pd.option_context('mode.use_inf_as_na', True):
-                relative_unc = uncertainty / obs_data.abs()
-                quality_mask = relative_unc <= max_relative_unc
+            relative_unc = uncertainty / obs_data.abs()
+            # Replace inf values with NaN (pandas 3.0+ deprecates use_inf_as_na)
+            relative_unc = relative_unc.replace([np.inf, -np.inf], np.nan)
+            quality_mask = relative_unc <= max_relative_unc
 
             filtered_count = (~quality_mask).sum()
             if filtered_count > 0:

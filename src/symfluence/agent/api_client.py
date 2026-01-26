@@ -108,9 +108,10 @@ class APIClient:
         """
         try:
             import urllib.request
-            urllib.request.urlopen('http://localhost:11434/api/tags', timeout=2)
+            import urllib.error
+            urllib.request.urlopen('http://localhost:11434/api/tags', timeout=2)  # nosec B310
             return True
-        except Exception:
+        except (urllib.error.URLError, OSError, TimeoutError):
             return False
 
     def chat_completion(

@@ -107,7 +107,7 @@ class IGNACIOPostProcessor(BaseModelPostProcessor):
         Returns:
             List of paths to perimeter shapefiles
         """
-        perimeters = []
+        perimeters: List[Path] = []
 
         # Look for shapefiles in output directory
         for pattern in ['*.shp', '**/perimeters/*.shp', '**/fire_*.shp']:

@@ -78,9 +78,8 @@ class WorkflowDiagnosticPlotter(BasePlotter):
         Returns:
             Path to saved diagnostic plot, or None if failed
         """
-        plt, _ = self._setup_matplotlib()
-
         try:
+            plt, _ = self._setup_matplotlib()
             output_dir = self._ensure_diagnostic_dir('domain_definition')
             timestamp = self._get_timestamp()
             plot_filename = output_dir / f'{timestamp}_domain_diagnostic.png'
@@ -219,9 +218,8 @@ class WorkflowDiagnosticPlotter(BasePlotter):
         Returns:
             Path to saved diagnostic plot, or None if failed
         """
-        plt, _ = self._setup_matplotlib()
-
         try:
+            plt, _ = self._setup_matplotlib()
             output_dir = self._ensure_diagnostic_dir('discretization')
             timestamp = self._get_timestamp()
             plot_filename = output_dir / f'{timestamp}_hru_diagnostic.png'
@@ -336,10 +334,9 @@ class WorkflowDiagnosticPlotter(BasePlotter):
         Returns:
             Path to saved diagnostic plot, or None if failed
         """
-        plt, _ = self._setup_matplotlib()
-        import pandas as pd
-
         try:
+            plt, _ = self._setup_matplotlib()
+            import pandas as pd
             output_dir = self._ensure_diagnostic_dir('observations')
             timestamp = self._get_timestamp()
             plot_filename = output_dir / f'{timestamp}_{obs_type}_diagnostic.png'
@@ -477,9 +474,8 @@ class WorkflowDiagnosticPlotter(BasePlotter):
         Returns:
             Path to saved diagnostic plot, or None if failed
         """
-        plt, _ = self._setup_matplotlib()
-
         try:
+            plt, _ = self._setup_matplotlib()
             import xarray as xr
 
             output_dir = self._ensure_diagnostic_dir('forcing_raw')
@@ -589,9 +585,8 @@ class WorkflowDiagnosticPlotter(BasePlotter):
         Returns:
             Path to saved diagnostic plot, or None if failed
         """
-        plt, _ = self._setup_matplotlib()
-
         try:
+            plt, _ = self._setup_matplotlib()
             import xarray as xr
 
             output_dir = self._ensure_diagnostic_dir('forcing_remapped')
@@ -719,9 +714,8 @@ class WorkflowDiagnosticPlotter(BasePlotter):
         Returns:
             Path to saved diagnostic plot, or None if failed
         """
-        plt, _ = self._setup_matplotlib()
-
         try:
+            plt, _ = self._setup_matplotlib()
             output_dir = self._ensure_diagnostic_dir('model_preprocessing')
             timestamp = self._get_timestamp()
             plot_filename = output_dir / f'{timestamp}_{model_name}_input_diagnostic.png'
@@ -768,8 +762,8 @@ class WorkflowDiagnosticPlotter(BasePlotter):
                             ds = xr.open_dataset(nc_file)
                             all_vars.extend(list(ds.data_vars))
                             ds.close()
-                        except Exception:
-                            pass
+                        except (OSError, ValueError, KeyError) as e:
+                            self.logger.debug(f"Could not read {nc_file.name} for variable inventory: {e}")
 
                     if all_vars:
                         var_counts: Dict[str, int] = {}
@@ -876,9 +870,8 @@ class WorkflowDiagnosticPlotter(BasePlotter):
         Returns:
             Path to saved diagnostic plot, or None if failed
         """
-        plt, _ = self._setup_matplotlib()
-
         try:
+            plt, _ = self._setup_matplotlib()
             import xarray as xr
 
             output_dir = self._ensure_diagnostic_dir('model_output')
@@ -1020,9 +1013,8 @@ class WorkflowDiagnosticPlotter(BasePlotter):
         Returns:
             Path to saved diagnostic plot, or None if failed
         """
-        plt, _ = self._setup_matplotlib()
-
         try:
+            plt, _ = self._setup_matplotlib()
             output_dir = self._ensure_diagnostic_dir('attributes')
             timestamp = self._get_timestamp()
             plot_filename = output_dir / f'{timestamp}_attributes_diagnostic.png'
@@ -1204,9 +1196,8 @@ class WorkflowDiagnosticPlotter(BasePlotter):
         Returns:
             Path to saved diagnostic plot, or None if failed
         """
-        plt, _ = self._setup_matplotlib()
-
         try:
+            plt, _ = self._setup_matplotlib()
             output_dir = self._ensure_diagnostic_dir('calibration')
             timestamp = self._get_timestamp()
             plot_filename = output_dir / f'{timestamp}_{model_name}_calibration_diagnostic.png'

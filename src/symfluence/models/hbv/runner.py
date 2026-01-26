@@ -17,7 +17,9 @@ from symfluence.models.base import BaseModelRunner
 from symfluence.models.registry import ModelRegistry
 from symfluence.models.execution import UnifiedModelExecutor
 from symfluence.models.mizuroute.mixins import MizuRouteConfigMixin
-from symfluence.models.mixins import SpatialModeDetectionMixin
+from symfluence.models.mixins import SpatialModeDetectionMixin, ObservationLoaderMixin
+from symfluence.geospatial.geometry_utils import calculate_catchment_area_km2
+from symfluence.models.hbv.time_utils import warmup_timesteps
 from symfluence.data.utils.netcdf_utils import create_netcdf_encoding
 from symfluence.core.exceptions import ModelExecutionError, symfluence_error_handler
 
@@ -33,7 +35,13 @@ except ImportError:
 
 
 @ModelRegistry.register_runner('HBV', method_name='run_hbv')
-class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, SpatialModeDetectionMixin):
+class HBVRunner(  # type: ignore[misc]
+    BaseModelRunner,
+    UnifiedModelExecutor,
+    MizuRouteConfigMixin,
+    SpatialModeDetectionMixin,
+    ObservationLoaderMixin
+):
     """
     Runner class for the HBV-96 hydrological model.
 
@@ -165,24 +173,44 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
                 lambda: self.config.domain.discretization,
                 'GRUs'
             )
-            catchment_path = catchment_dir / f"{self.domain_name}_HRUs_{discretization}.shp"
-            if catchment_path.exists():
+
+            # Try multiple possible locations for the shapefile
+            possible_paths = [
+                # Standard location (top-level)
+                catchment_dir / f"{self.domain_name}_HRUs_{discretization}.shp",
+                # Lumped subdirectory with experiment_id
+                catchment_dir / self.spatial_mode / self.experiment_id / f"{self.domain_name}_HRUs_{discretization}.shp",
+                # Lumped subdirectory without experiment_id
+                catchment_dir / self.spatial_mode / f"{self.domain_name}_HRUs_{discretization}.shp",
+            ]
+
+            catchment_path = None
+            for path in possible_paths:
+                if path.exists():
+                    catchment_path = path
+                    self.logger.debug(f"Found catchment shapefile at: {catchment_path}")
+                    break
+
+            if catchment_path:
                 gdf = gpd.read_file(catchment_path)
-                # Look for area column
-                area_cols = [c for c in gdf.columns if 'area' in c.lower()]
-                if area_cols:
-                    total_area = gdf[area_cols[0]].sum()
-                    # Detect if area is in km² or m² based on magnitude
-                    # Typical watersheds are 10-100,000 km², so if sum < 1e6 m², it's likely km²
-                    if total_area < 1e6:
-                        # Area is likely in km², convert to m²
-                        self.logger.info(f"Catchment area from shapefile: {total_area:.2f} km² (detected km² units)")
-                        return float(total_area * 1e6)
-                    else:
-                        self.logger.info(f"Catchment area from shapefile: {total_area/1e6:.2f} km²")
+                try:
+                    area_km2 = calculate_catchment_area_km2(gdf, logger=self.logger)
+                    return float(area_km2 * 1e6)
+                except Exception as e:
+                    self.logger.debug(f"Geometry-based area calculation failed: {e}")
+                    # Fallback to area columns if geometry calculation fails
+                    area_cols = [c for c in gdf.columns if 'area' in c.lower()]
+                    if area_cols:
+                        col = area_cols[0]
+                        total_area = gdf[col].sum()
+                        col_lower = col.lower()
+                        if 'km' in col_lower:
+                            self.logger.info(f"Catchment area from shapefile column '{col}' interpreted as km²")
+                            return float(total_area * 1e6)
+                        self.logger.info(f"Catchment area from shapefile column '{col}' interpreted as m²")
                         return float(total_area)
             else:
-                self.logger.debug(f"Catchment shapefile not found at: {catchment_path}")
+                self.logger.debug("Catchment shapefile not found in any of the expected locations")
         except ImportError:
             self.logger.debug("geopandas not available for shapefile reading")
         except (FileNotFoundError, OSError) as e:
@@ -196,11 +224,16 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
             None
         )
         if area_km2:
+            self.logger.info(f"Using catchment area from config: {area_km2:.2f} km²")
             return area_km2 * 1e6
 
-        # Default fallback
-        self.logger.warning("Could not determine catchment area, using default 1000 km²")
-        return 1000.0 * 1e6
+        # No fallback - raise error to avoid incorrect discharge outputs
+        raise ValueError(
+            "Catchment area could not be determined. Please provide catchment area via:\n"
+            "  1. Catchment shapefile with area attribute/geometry, OR\n"
+            "  2. Config setting: CATCHMENT_AREA_KM2=<value>\n"
+            "Without a valid catchment area, discharge outputs will be physically incorrect."
+        )
 
     def _check_routing_requirements(self) -> bool:
         """Check if distributed routing is needed."""
@@ -452,39 +485,132 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
             return False
 
     def _load_forcing(self) -> Tuple[Dict[str, np.ndarray], Optional[np.ndarray]]:
-        """Load forcing data from preprocessed files."""
-        # Try NetCDF first
+        """Load forcing data from preprocessed files.
+
+        Attempts to load forcing at the configured timestep. If not available,
+        falls back to loading hourly (1h) or daily (24h) data and resampling.
+        """
+        # Try exact match first (NetCDF then CSV)
         nc_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_{self.timestep_hours}h.nc"
+        csv_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_{self.timestep_hours}h.csv"
+
+        forcing_df = None
+        source_timestep = self.timestep_hours
+
         if nc_file.exists():
             ds = xr.open_dataset(nc_file)
-            forcing = {
-                'precip': ds['pr'].values,
+            forcing_df = pd.DataFrame({
+                'pr': ds['pr'].values,
                 'temp': ds['temp'].values,
                 'pet': ds['pet'].values,
                 'time': pd.to_datetime(ds.time.values),
-            }
+            }).set_index('time')
             ds.close()
+        elif csv_file.exists():
+            forcing_df = pd.read_csv(csv_file, parse_dates=['time']).set_index('time')
         else:
-            # Try CSV
-            csv_file = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_{self.timestep_hours}h.csv"
-            if not csv_file.exists():
-                raise FileNotFoundError(f"No forcing file found at {nc_file} or {csv_file}")
+            # Exact match not found - try to load and resample from available data
+            self.logger.info(f"No forcing file found for {self.timestep_hours}h timestep")
 
-            df = pd.read_csv(csv_file)
-            forcing = {
-                'precip': df['pr'].values,
-                'temp': df['temp'].values,
-                'pet': df['pet'].values,
-                'time': pd.to_datetime(df['time']),
-            }
+            # For sub-daily timesteps, try loading hourly data
+            if self.timestep_hours < 24:
+                nc_1h = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_1h.nc"
+                csv_1h = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_1h.csv"
 
-        # Load observations if available
-        obs_file = self.hbv_forcing_dir / f"{self.domain_name}_observations.csv"
-        if obs_file.exists():
-            obs_df = pd.read_csv(obs_file, index_col='datetime', parse_dates=True)
-            obs = obs_df.iloc[:, 0].values
-        else:
-            obs = None
+                if nc_1h.exists():
+                    self.logger.info(f"Loading 1h data and resampling to {self.timestep_hours}h")
+                    ds = xr.open_dataset(nc_1h)
+                    forcing_df = pd.DataFrame({
+                        'pr': ds['pr'].values,
+                        'temp': ds['temp'].values,
+                        'pet': ds['pet'].values,
+                        'time': pd.to_datetime(ds.time.values),
+                    }).set_index('time')
+                    ds.close()
+                    source_timestep = 1
+                elif csv_1h.exists():
+                    self.logger.info(f"Loading 1h data and resampling to {self.timestep_hours}h")
+                    forcing_df = pd.read_csv(csv_1h, parse_dates=['time']).set_index('time')
+                    source_timestep = 1
+
+            # For daily timestep, try loading daily data
+            if forcing_df is None and self.timestep_hours == 24:
+                nc_24h = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_24h.nc"
+                csv_24h = self.hbv_forcing_dir / f"{self.domain_name}_hbv_forcing_24h.csv"
+
+                if nc_24h.exists():
+                    ds = xr.open_dataset(nc_24h)
+                    forcing_df = pd.DataFrame({
+                        'pr': ds['pr'].values,
+                        'temp': ds['temp'].values,
+                        'pet': ds['pet'].values,
+                        'time': pd.to_datetime(ds.time.values),
+                    }).set_index('time')
+                    ds.close()
+                    source_timestep = 24
+                elif csv_24h.exists():
+                    forcing_df = pd.read_csv(csv_24h, parse_dates=['time']).set_index('time')
+                    source_timestep = 24
+
+            if forcing_df is None:
+                raise FileNotFoundError(
+                    f"No forcing file found for {self.timestep_hours}h timestep. "
+                    f"Tried: {nc_file}, {csv_file}, and common timesteps (1h, 24h)"
+                )
+
+        # Resample if needed
+        if source_timestep != self.timestep_hours:
+            self.logger.info(f"Resampling forcing from {source_timestep}h to {self.timestep_hours}h")
+            resample_freq = f"{self.timestep_hours}h"
+            forcing_df = forcing_df.resample(resample_freq).agg({
+                'pr': 'sum',      # Sum precipitation over period
+                'temp': 'mean',   # Average temperature
+                'pet': 'sum'      # Sum PET over period
+            })
+
+        # Convert to dict format
+        forcing = {
+            'precip': forcing_df['pr'].values,
+            'temp': forcing_df['temp'].values,
+            'pet': forcing_df['pet'].values,
+            'time': forcing_df.index.to_numpy(),
+        }
+
+        # Load observations if available (convert to mm/timestep for loss functions)
+        obs = None
+        try:
+            target_freq = f"{self.timestep_hours}h" if self.timestep_hours < 24 else 'D'
+            obs_series = None
+
+            obs_file = self.hbv_forcing_dir / f"{self.domain_name}_observations.csv"
+            if obs_file.exists():
+                df = self._read_observation_file(obs_file)
+                obs_series = self._extract_streamflow_series(df)
+            else:
+                area_m2 = self._get_catchment_area()
+                obs_series = self.load_streamflow_observations(
+                    output_format='series',
+                    target_units='mm_per_timestep',
+                    resample_freq=target_freq,
+                    catchment_area_km2=area_m2 / 1e6,
+                    return_none_on_error=True
+                )
+
+            if obs_series is not None:
+                if obs_file.exists():
+                    area_m2 = self._get_catchment_area()
+                    obs_series = obs_series.resample(target_freq).mean()
+                    obs_series = self._convert_units(
+                        obs_series,
+                        source_units='cms',
+                        target_units='mm_per_timestep',
+                        catchment_area_km2=area_m2 / 1e6
+                    )
+
+                obs_series = obs_series.reindex(forcing_df.index)
+                obs = obs_series.values
+        except Exception as e:
+            self.logger.warning(f"Failed to load observations for HBV: {e}")
 
         return forcing, obs  # type: ignore[return-value]
 
@@ -670,9 +796,10 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
             sim_series = pd.Series(sim, index=sim_time)
             obs_series = obs_df.iloc[:, 0]  # Already in m³/s (discharge_cms)
 
-            # Skip warmup
-            if len(sim_series) > self.warmup_days:
-                sim_series = sim_series.iloc[self.warmup_days:]
+            # Skip warmup period (convert warmup days to timesteps)
+            warmup_steps = warmup_timesteps(self.warmup_days, self.timestep_hours)
+            if len(sim_series) > warmup_steps:
+                sim_series = sim_series.iloc[warmup_steps:]
 
             # Find common dates
             common_idx = sim_series.index.intersection(obs_series.index)
@@ -762,8 +889,12 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
         obs = jnp.array(obs)
 
         if metric.lower() == 'nse':
-            return get_nse_gradient_fn(precip, temp, pet, obs, self.warmup_days)
-        return get_kge_gradient_fn(precip, temp, pet, obs, self.warmup_days)
+            return get_nse_gradient_fn(
+                precip, temp, pet, obs, self.warmup_days, timestep_hours=self.timestep_hours
+            )
+        return get_kge_gradient_fn(
+            precip, temp, pet, obs, self.warmup_days, timestep_hours=self.timestep_hours
+        )
 
     def evaluate_parameters(
         self,
@@ -801,9 +932,13 @@ class HBVRunner(BaseModelRunner, UnifiedModelExecutor, MizuRouteConfigMixin, Spa
             pet = forcing['pet'].flatten()
 
         if metric.lower() == 'nse':
-            loss = nse_loss(params, precip, temp, pet, obs, self.warmup_days, use_jax)
+            loss = nse_loss(
+                params, precip, temp, pet, obs, self.warmup_days, use_jax, timestep_hours=self.timestep_hours
+            )
         else:
-            loss = kge_loss(params, precip, temp, pet, obs, self.warmup_days, use_jax)
+            loss = kge_loss(
+                params, precip, temp, pet, obs, self.warmup_days, use_jax, timestep_hours=self.timestep_hours
+            )
 
         # Return positive metric (loss is negative)
         return -float(loss)

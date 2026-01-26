@@ -7,7 +7,7 @@ tuple (bool, Optional[str]) pattern used throughout the codebase.
 """
 
 from dataclasses import dataclass
-from typing import Any, Callable, Generic, Optional, TypeVar
+from typing import Any, Callable, Generic, Optional, TypeVar, cast
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -91,7 +91,9 @@ class Result(Generic[T]):
         """
         if self.errors:
             raise ValueError(f"Unwrap called on error Result:\n{self.format_errors()}")
-        return self.value  # type: ignore
+        if self.value is None:
+            raise ValueError("Result value is None despite no errors")
+        return cast(T, self.value)
 
     def unwrap_or(self, default: T) -> T:
         """
@@ -103,7 +105,11 @@ class Result(Generic[T]):
         Returns:
             The success value or the default
         """
-        return self.value if self.is_ok else default  # type: ignore
+        if self.is_ok:
+            if self.value is None:
+                raise ValueError("Result value is None despite no errors")
+            return cast(T, self.value)
+        return default
 
     def unwrap_or_else(self, f: Callable[[], T]) -> T:
         """
@@ -115,7 +121,11 @@ class Result(Generic[T]):
         Returns:
             The success value or the computed default
         """
-        return self.value if self.is_ok else f()  # type: ignore
+        if self.is_ok:
+            if self.value is None:
+                raise ValueError("Result value is None despite no errors")
+            return cast(T, self.value)
+        return f()
 
     def map(self, f: Callable[[T], U]) -> "Result[U]":
         """
@@ -128,7 +138,9 @@ class Result(Generic[T]):
             New Result with transformed value, or same errors
         """
         if self.is_ok:
-            return Result.ok(f(self.value))  # type: ignore
+            if self.value is None:
+                raise ValueError("Result value is None despite no errors")
+            return Result.ok(f(cast(T, self.value)))
         return Result(errors=self.errors)
 
     def format_errors(self, prefix: str = "  - ") -> str:
@@ -221,7 +233,8 @@ class Result(Generic[T]):
             Result based on the legacy validation outcome
         """
         if is_valid:
-            return cls.ok(value)  # type: ignore
+            # Cast handles the case where value may be None but user expects Result[T]
+            return cls.ok(cast(T, value))
         return cls.err(
             ValidationError(field=field, message=error_msg or "Validation failed")
         )

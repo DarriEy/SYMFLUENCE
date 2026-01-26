@@ -23,7 +23,7 @@ from symfluence.data.utils.variable_utils import VariableHandler
 
 
 @ModelRegistry.register_preprocessor('HYPE')
-class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):
+class HYPEPreProcessor(BaseModelPreProcessor, ObservationLoaderMixin):  # type: ignore[misc]
     """
     HYPE (HYdrological Predictions for the Environment) preprocessor for SYMFLUENCE.
 

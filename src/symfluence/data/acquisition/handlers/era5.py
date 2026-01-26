@@ -293,7 +293,7 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
                                 self.logger.info(f"✓ Skipping ERA5 chunk {i}/{len(chunks)} ({chunk_file.name}) - already exists")
                                 chunk_files.append(chunk_file)
                                 continue
-                    except Exception:
+                    except (OSError, ValueError, KeyError):
                         self.logger.info(f"  Existing file {chunk_file.name} is invalid, re-downloading")
 
                 self.logger.info(f"Processing ERA5 chunk {i}/{len(chunks)}: {chunk_start.strftime('%Y-%m')} to {chunk_end.strftime('%Y-%m')}")
@@ -348,7 +348,7 @@ class ERA5ARCOAcquirer(BaseAcquisitionHandler):
                                 self.logger.info(f"✓ Skipping ERA5 chunk {i}/{len(chunks)} ({chunk_file.name}) - already exists")
                                 chunk_files.append(chunk_file)
                                 continue
-                    except Exception:
+                    except (OSError, ValueError, KeyError):
                         self.logger.info(f"  Existing file {chunk_file.name} is invalid, re-downloading")
 
                 chunks_to_process.append((i, chunk_start, chunk_end))

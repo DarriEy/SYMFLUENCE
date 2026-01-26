@@ -31,7 +31,7 @@ from symfluence.data.utils.variable_utils import VariableHandler # type: ignore
 
 
 @ModelRegistry.register_preprocessor('FUSE')
-class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, ObservationLoaderMixin, DatasetBuilderMixin, SpatialModeDetectionMixin):
+class FUSEPreProcessor(BaseModelPreProcessor, PETCalculatorMixin, GeospatialUtilsMixin, ObservationLoaderMixin, DatasetBuilderMixin, SpatialModeDetectionMixin):  # type: ignore[misc]
     """
     Preprocessor for the FUSE (Framework for Understanding Structural Errors) model.
 

@@ -742,7 +742,7 @@ class PRManager:
             files = [f.strip() for f in result.stdout.split('\n') if f.strip()]
             return True, files
 
-        except Exception:
+        except (OSError, subprocess.SubprocessError):
             return False, []
 
     def check_gh_auth(self) -> Tuple[bool, str]:

@@ -196,7 +196,7 @@ class TimeWindowManager:
             # Try pandas parser as fallback
             try:
                 return pd.Timestamp(time_value)
-            except Exception:
+            except (ValueError, TypeError):
                 pass
             raise ValueError(
                 f"Could not parse time string '{time_value}'. "

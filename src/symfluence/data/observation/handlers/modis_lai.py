@@ -295,8 +295,8 @@ class MODISLAIHandler(BaseObservationHandler):
                         lon_name: slice(bounds[0], bounds[2]),
                         lat_name: lat_slice
                     })
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug(f"Could not subset data to shapefile bounds: {e}")
 
         elif self.bbox:
             lat_name = self._find_coord(da, ['lat', 'latitude', 'y'])
@@ -312,8 +312,8 @@ class MODISLAIHandler(BaseObservationHandler):
                         lon_name: slice(self.bbox['lon_min'], self.bbox['lon_max']),
                         lat_name: lat_slice
                     })
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug(f"Could not subset data to bbox: {e}")
 
         mean_val = float(da.mean(skipna=True).values)
         if np.isnan(mean_val):

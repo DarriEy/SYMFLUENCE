@@ -120,7 +120,7 @@ class BaseAppEEARSAcquirer(BaseAcquisitionHandler):
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=30
             )
-        except Exception:
+        except (requests.RequestException, OSError):
             pass  # Logout failures are not critical
 
     # ===== Task Management =====
