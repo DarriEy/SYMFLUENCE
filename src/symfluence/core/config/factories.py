@@ -300,6 +300,85 @@ def from_preset_factory(
         ) from e
 
 
+def _normalize_config_key(key: str) -> str:
+    """
+    Normalize configuration key to uppercase format.
+
+    Accepts both modern lowercase/snake_case and legacy UPPERCASE formats.
+
+    Args:
+        key: Configuration key in any format (time_start, EXPERIMENT_TIME_START, etc.)
+
+    Returns:
+        Normalized uppercase key (EXPERIMENT_TIME_START)
+
+    Examples:
+        >>> _normalize_config_key('time_start')
+        'EXPERIMENT_TIME_START'
+        >>> _normalize_config_key('EXPERIMENT_TIME_START')
+        'EXPERIMENT_TIME_START'
+        >>> _normalize_config_key('routing_model')
+        'ROUTING_MODEL'
+    """
+    from symfluence.core.config.transformers import get_flat_to_nested_map
+
+    # If already uppercase, return as-is (legacy format)
+    if key.isupper() or key == key.upper():
+        return key
+
+    # Build reverse mapping: nested path -> uppercase key
+    # This maps ('domain', 'time_start') -> 'EXPERIMENT_TIME_START'
+    flat_to_nested = get_flat_to_nested_map()
+    nested_to_flat = {path: flat_key for flat_key, path in flat_to_nested.items()}
+
+    # Common patterns for new lowercase keys
+    # Try to find matching nested path based on the key name
+    lowercase_key = key.lower()
+
+    # Direct field name matches (e.g., 'time_start' in ('domain', 'time_start'))
+    for nested_path, flat_key in nested_to_flat.items():
+        if nested_path[-1] == lowercase_key:
+            return flat_key
+
+    # Special handling for common abbreviated forms
+    key_mappings = {
+        'time_start': 'EXPERIMENT_TIME_START',
+        'time_end': 'EXPERIMENT_TIME_END',
+        'routing_model': 'ROUTING_MODEL',
+        'forcing_dataset': 'FORCING_DATASET',
+        'definition_method': 'DOMAIN_DEFINITION_METHOD',
+        'discretization': 'SUB_GRID_DISCRETIZATION',
+        'data_access': 'DATA_ACCESS',
+        'forcing_measurement_height': 'FORCING_MEASUREMENT_HEIGHT',
+        'spinup_period': 'SPINUP_PERIOD',
+        'calibration_period': 'CALIBRATION_PERIOD',
+        'evaluation_period': 'EVALUATION_PERIOD',
+        'pour_point_coords': 'POUR_POINT_COORDS',
+        'bounding_box_coords': 'BOUNDING_BOX_COORDS',
+        'lumped_watershed_method': 'LUMPED_WATERSHED_METHOD',
+        'dem_source': 'DEM_SOURCE',
+        'download_dem': 'DOWNLOAD_DEM',
+        'station_id': 'STATION_ID',
+        'streamflow_data_provider': 'STREAMFLOW_DATA_PROVIDER',
+        'download_usgs_data': 'DOWNLOAD_USGS_DATA',
+        'params_to_calibrate': 'PARAMS_TO_CALIBRATE',
+        'basin_params_to_calibrate': 'BASIN_PARAMS_TO_CALIBRATE',
+        'optimization_target': 'OPTIMIZATION_TARGET',
+        'optimization_algorithm': 'ITERATIVE_OPTIMIZATION_ALGORITHM',
+        'optimization_metric': 'OPTIMIZATION_METRIC',
+        'calibration_timestep': 'CALIBRATION_TIMESTEP',
+        'iterations': 'NUMBER_OF_ITERATIONS',
+        'max_iterations': 'NUMBER_OF_ITERATIONS',  # Alias for iterations
+    }
+
+    if lowercase_key in key_mappings:
+        return key_mappings[lowercase_key]
+
+    # Fallback: return uppercase version of the key
+    # This handles simple cases like 'DEBUG_MODE' or 'debug_mode' -> 'DEBUG_MODE'
+    return key.upper()
+
+
 def from_minimal_factory(
     cls: type,
     domain_name: str,
@@ -312,23 +391,49 @@ def from_minimal_factory(
 
     Automatically applies sensible defaults based on model choice.
 
+    Supports both modern lowercase/snake_case keys and legacy UPPERCASE keys:
+    - Modern: time_start='2020-01-01 00:00', routing_model='mizuRoute'
+    - Legacy: EXPERIMENT_TIME_START='2020-01-01 00:00', ROUTING_MODEL='mizuRoute'
+
     Args:
         cls: SymfluenceConfig class
         domain_name: Name for the domain/basin
         model: Hydrological model ('SUMMA', 'FUSE', 'GR', etc.)
         forcing_dataset: Forcing data source (default: 'ERA5')
-        **overrides: Additional configuration overrides
+        **overrides: Additional configuration overrides (accepts both formats)
 
     Returns:
         Validated SymfluenceConfig with minimal required fields
 
     Raises:
         ConfigurationError: If required fields missing or configuration invalid
+
+    Examples:
+        >>> # Modern syntax
+        >>> config = SymfluenceConfig.from_minimal(
+        ...     domain_name='test',
+        ...     model='SUMMA',
+        ...     time_start='2020-01-01 00:00',
+        ...     time_end='2020-12-31 23:00',
+        ...     routing_model='mizuRoute'
+        ... )
+        >>>
+        >>> # Legacy syntax (still supported)
+        >>> config = SymfluenceConfig.from_minimal(
+        ...     domain_name='test',
+        ...     model='SUMMA',
+        ...     EXPERIMENT_TIME_START='2020-01-01 00:00',
+        ...     EXPERIMENT_TIME_END='2020-12-31 23:00',
+        ...     ROUTING_MODEL='mizuRoute'
+        ... )
     """
     from symfluence.core.config.defaults import ModelDefaults, ForcingDefaults
     from symfluence.core.config.transformers import transform_flat_to_nested
     from symfluence.core.exceptions import ConfigurationError
     from pydantic import ValidationError
+
+    # 0. Normalize all override keys to uppercase format
+    normalized_overrides = {_normalize_config_key(k): v for k, v in overrides.items()}
 
     # 1. Start with absolute minimal required fields
     minimal = {
@@ -338,22 +443,22 @@ def from_minimal_factory(
         'FORCING_DATASET': forcing_dataset,
 
         # Required paths (from environment or defaults)
-        'SYMFLUENCE_DATA_DIR': overrides.get(
+        'SYMFLUENCE_DATA_DIR': normalized_overrides.get(
             'SYMFLUENCE_DATA_DIR',
             os.getenv('SYMFLUENCE_DATA_DIR', str(Path.cwd() / 'data'))
         ),
-        'SYMFLUENCE_CODE_DIR': overrides.get(
+        'SYMFLUENCE_CODE_DIR': normalized_overrides.get(
             'SYMFLUENCE_CODE_DIR',
             os.getenv('SYMFLUENCE_CODE_DIR', str(Path.cwd()))
         ),
 
         # Required domain settings (user should override, but provide safe defaults)
-        'DOMAIN_DEFINITION_METHOD': overrides.get('DOMAIN_DEFINITION_METHOD', 'lumped'),
-        'SUB_GRID_DISCRETIZATION': overrides.get('SUB_GRID_DISCRETIZATION', 'lumped'),
+        'DOMAIN_DEFINITION_METHOD': normalized_overrides.get('DOMAIN_DEFINITION_METHOD', 'lumped'),
+        'SUB_GRID_DISCRETIZATION': normalized_overrides.get('SUB_GRID_DISCRETIZATION', 'lumped'),
 
         # Required time settings (user MUST override these)
-        'EXPERIMENT_TIME_START': overrides.get('EXPERIMENT_TIME_START', '2010-01-01 00:00'),
-        'EXPERIMENT_TIME_END': overrides.get('EXPERIMENT_TIME_END', '2020-12-31 23:00'),
+        'EXPERIMENT_TIME_START': normalized_overrides.get('EXPERIMENT_TIME_START', '2010-01-01 00:00'),
+        'EXPERIMENT_TIME_END': normalized_overrides.get('EXPERIMENT_TIME_END', '2020-12-31 23:00'),
     }
 
     # 2. Apply model-specific defaults
@@ -367,13 +472,13 @@ def from_minimal_factory(
         minimal.update(forcing_defaults)
 
     # 4. Apply user overrides (highest priority)
-    minimal.update(overrides)
+    minimal.update(normalized_overrides)
 
-    # 5. Validate required overrides
+    # 5. Validate required overrides (check both original and normalized keys)
     required_overrides = ['EXPERIMENT_TIME_START', 'EXPERIMENT_TIME_END']
     missing = []
     for field in required_overrides:
-        if field not in overrides:
+        if field not in normalized_overrides:
             # Check if they provided placeholder values
             if minimal[field] in ['2010-01-01 00:00', '2020-12-31 23:00']:
                 missing.append(field)
@@ -381,7 +486,15 @@ def from_minimal_factory(
     if missing:
         raise ConfigurationError(
             f"Missing required fields for minimal config: {', '.join(missing)}\n\n"
-            f"Example:\n"
+            f"Example (modern syntax):\n"
+            f"  config = SymfluenceConfig.from_minimal(\n"
+            f"      domain_name='{domain_name}',\n"
+            f"      model='{model}',\n"
+            f"      time_start='2020-01-01 00:00',\n"
+            f"      time_end='2020-12-31 23:00',\n"
+            f"      pour_point_coords='51.17/-115.57'  # Optional but recommended\n"
+            f"  )\n\n"
+            f"Example (legacy syntax):\n"
             f"  config = SymfluenceConfig.from_minimal(\n"
             f"      domain_name='{domain_name}',\n"
             f"      model='{model}',\n"

@@ -140,7 +140,8 @@ try:
 except Exception as e:
     MESHFLOW_AVAILABLE = False
     MESHWorkflow = None
-    logging.getLogger(__name__).warning(f"meshflow import failed; MESH preprocessing disabled: {e}")
+    # Use debug level since this is an optional dependency most users don't need
+    logging.getLogger(__name__).debug(f"meshflow import failed; MESH preprocessing disabled: {e}")
 
 
 class MESHFlowManager:
