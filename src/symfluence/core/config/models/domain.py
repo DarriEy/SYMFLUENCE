@@ -109,7 +109,7 @@ class DomainConfig(BaseModel):
     download_dem: bool = Field(default=True, alias='DOWNLOAD_DEM')
     download_soil: bool = Field(default=True, alias='DOWNLOAD_SOIL')
     download_landcover: bool = Field(default=True, alias='DOWNLOAD_LAND_COVER')
-    dem_source: str = Field(default='fabdem', alias='DEM_SOURCE')
+    dem_source: str = Field(default='copernicus', alias='DEM_SOURCE')  # Copernicus DEM is free and open
     land_class_source: str = Field(default='modis', alias='LAND_CLASS_SOURCE')
     land_class_name: str = Field(default='default', alias='LAND_CLASS_NAME')
     soilgrids_layer: str = Field(default='wrb_0-5cm_mode', alias='SOILGRIDS_LAYER')
