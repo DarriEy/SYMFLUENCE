@@ -75,6 +75,14 @@ if [ "$(uname)" == "Darwin" ]; then
 elif command -v module >/dev/null 2>&1 && module list 2>&1 | grep -qi openblas; then
     echo "OpenBLAS module loaded - using auto-detection"
     SPECIFY_LINKS=OFF
+# Conda environment with OpenBLAS
+elif [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/lib/libopenblas.so" -o -f "$CONDA_PREFIX/lib/libopenblas.dylib" ]; then
+    echo "Conda OpenBLAS found at $CONDA_PREFIX/lib - adding to cmake search path"
+    SPECIFY_LINKS=OFF
+    export CMAKE_PREFIX_PATH="${CONDA_PREFIX}:${CMAKE_PREFIX_PATH:-}"
+    export LIBRARY_PATH="${CONDA_PREFIX}/lib:${LIBRARY_PATH:-}"
+    export OPENBLAS_ROOT="$CONDA_PREFIX"
+    export OpenBLAS_HOME="$CONDA_PREFIX"
 # Linux with system OpenBLAS
 elif pkg-config --exists openblas 2>/dev/null || [ -f "/usr/lib64/libopenblas.so" ] || [ -f "/usr/lib/libopenblas.so" ]; then
     echo "System OpenBLAS found - using auto-detection"
@@ -88,17 +96,29 @@ fi
 
 rm -rf cmake_build && mkdir -p cmake_build
 
+# Build CMAKE_PREFIX_PATH with all relevant paths
+SUMMA_PREFIX_PATH="$SUNDIALS_DIR"
+SUMMA_EXTRA_CMAKE=""
+if [ -n "${CONDA_PREFIX:-}" ]; then
+    SUMMA_PREFIX_PATH="${CONDA_PREFIX};${SUMMA_PREFIX_PATH}"
+    # Pass OpenBLAS hints for SUMMA's FindOpenBLAS.cmake
+    if [ -n "${OPENBLAS_ROOT:-}" ]; then
+        SUMMA_EXTRA_CMAKE="-DOPENBLAS_ROOT=${OPENBLAS_ROOT} -DOpenBLAS_HOME=${OPENBLAS_ROOT}"
+    fi
+fi
+
 cmake -S build -B cmake_build \
   -DUSE_SUNDIALS=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DSPECIFY_LAPACK_LINKS=$SPECIFY_LINKS \
-  -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-$SUNDIALS_DIR}" \
+  -DCMAKE_PREFIX_PATH="${SUMMA_PREFIX_PATH}" \
   -DSUNDIALS_ROOT="$SUNDIALS_DIR" \
   -DNETCDF_PATH="${NETCDF:-/usr}" \
   -DNETCDF_FORTRAN_PATH="${NETCDF_FORTRAN:-/usr}" \
   -DNetCDF_ROOT="${NETCDF:-/usr}" \
   -DCMAKE_Fortran_COMPILER="$FC" \
-  -DCMAKE_Fortran_FLAGS="-ffree-form -ffree-line-length-none"
+  -DCMAKE_Fortran_FLAGS="-ffree-form -ffree-line-length-none" \
+  $SUMMA_EXTRA_CMAKE
 
 # Build all targets (repo scripts use 'all', not just 'summa_sundials')
 cmake --build cmake_build --target all -j ${NCORES:-4}
