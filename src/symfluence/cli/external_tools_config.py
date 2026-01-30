@@ -321,7 +321,8 @@ cd ngiab
             'file_paths': ['guide.sh'],
             'check_type': 'exists'
         },
-        'order': 10
+        'order': 10,
+        'optional': True,  # Not installed by default with --install
     })
 
 
