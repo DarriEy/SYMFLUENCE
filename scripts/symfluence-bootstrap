@@ -917,13 +917,15 @@ main() {
 
         # Clear PYTHONPATH to isolate environment
         if [[ -n "$PYTHONPATH" ]]; then
-            print_warning "Clearing PYTHONPATH to isolate venv"
+            print_warning "Clearing PYTHONPATH to isolate environment"
             export PYTHONPATH=""
         fi
-        # Make clearing persistent for future activations
-        if ! grep -q "Clear PYTHONPATH" "${venv_path}/${VENV_ACTIVATE}" 2>/dev/null; then
-            if [[ -w "${venv_path}/${VENV_ACTIVATE}" ]]; then
-                cat >> "${venv_path}/${VENV_ACTIVATE}" << 'EOF'
+
+        if [[ "$IS_2I2C_ENVIRONMENT" != "true" ]]; then
+            # Make clearing persistent for future activations (pip venv only)
+            if ! grep -q "Clear PYTHONPATH" "${venv_path}/${VENV_ACTIVATE}" 2>/dev/null; then
+                if [[ -w "${venv_path}/${VENV_ACTIVATE}" ]]; then
+                    cat >> "${venv_path}/${VENV_ACTIVATE}" << 'EOF'
 
 # Clear PYTHONPATH to prevent system package conflicts
 if [ -n "$PYTHONPATH" ]; then
@@ -931,12 +933,13 @@ if [ -n "$PYTHONPATH" ]; then
     unset PYTHONPATH
 fi
 EOF
-            else
-                print_warning "Cannot modify activate script (read-only), PYTHONPATH cleared for this session only"
+                else
+                    print_warning "Cannot modify activate script (read-only), PYTHONPATH cleared for this session only"
+                fi
             fi
-        fi
 
-        resolve_python_scripts_path "$python_cmd" "$venv_path"
+            resolve_python_scripts_path "$python_cmd" "$venv_path"
+        fi
 
         print_info "Upgrading pip and preparing environment..."
         # Always use python -m pip to ensure correct Python version is used
